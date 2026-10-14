@@ -66,10 +66,10 @@ type LLM struct {
 	Timeout       Duration `yaml:"timeout"`
 	// ContextTokens is the per-slot context size. History compaction starts at
 	// CompactAtFraction of it.
-	ContextTokens      int     `yaml:"context_tokens"`
-	CompactAtFraction  float64 `yaml:"compact_at_fraction"`
-	WarmupOnStart      bool    `yaml:"warmup_on_start"`
-	WarmupOnPrefixChange bool  `yaml:"warmup_on_prefix_change"`
+	ContextTokens        int     `yaml:"context_tokens"`
+	CompactAtFraction    float64 `yaml:"compact_at_fraction"`
+	WarmupOnStart        bool    `yaml:"warmup_on_start"`
+	WarmupOnPrefixChange bool    `yaml:"warmup_on_prefix_change"`
 }
 
 type Store struct {

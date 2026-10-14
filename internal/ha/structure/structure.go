@@ -1,0 +1,216 @@
+// Package structure turns the Home Assistant registries into prompt layer 4.
+//
+// The block lists areas, devices and exposed entities with their aliases and
+// deliberately contains no states: the model asks for those through a tool.
+// Everything here is sorted by stable keys so the same house always renders
+// to the same bytes, which is what keeps the prompt cache warm.
+package structure
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	haws "github.com/sker65/lares-agent/internal/ha/ws"
+)
+
+// Registry is the raw input of a build.
+type Registry struct {
+	Areas    []haws.Area
+	Devices  []haws.Device
+	Entities []haws.Entity
+	// Exposed is the set of entity ids exposed to the conversation assistant.
+	// A nil map means exposure could not be determined.
+	Exposed map[string]bool
+}
+
+// Snapshot is a built structure block plus the lookups the rest of the agent
+// needs from the same data.
+type Snapshot struct {
+	// Block is prompt layer 4.
+	Block string
+	// AreaNames maps area id to its display name.
+	AreaNames map[string]string
+	// DeviceArea maps device id to area id, which is how a voice request from
+	// a satellite is resolved to the room the user is standing in.
+	DeviceArea map[string]string
+	// EntityArea maps entity id to area id.
+	EntityArea map[string]string
+	// ExposedEntities is the set the model was told about.
+	ExposedEntities map[string]bool
+	// ExposureKnown is false when Home Assistant could not tell us which
+	// entities are exposed and the build fell back to including everything.
+	ExposureKnown bool
+	// Counts for logging and telemetry.
+	AreaCount, EntityCount int
+}
+
+// entityRow is one line of the block, prepared so sorting is explicit.
+type entityRow struct {
+	entityID   string
+	name       string
+	deviceName string
+	aliases    []string
+}
+
+// Build renders the structure block. It is a pure function of its input:
+// no clock, no randomness, no map iteration order.
+func Build(reg Registry) Snapshot {
+	snap := Snapshot{
+		AreaNames:       make(map[string]string, len(reg.Areas)),
+		DeviceArea:      make(map[string]string, len(reg.Devices)),
+		EntityArea:      make(map[string]string, len(reg.Entities)),
+		ExposedEntities: map[string]bool{},
+		ExposureKnown:   reg.Exposed != nil,
+	}
+
+	areaByID := make(map[string]haws.Area, len(reg.Areas))
+	for _, a := range reg.Areas {
+		areaByID[a.AreaID] = a
+		snap.AreaNames[a.AreaID] = a.Name
+	}
+	deviceByID := make(map[string]haws.Device, len(reg.Devices))
+	for _, d := range reg.Devices {
+		if d.DisabledBy != "" {
+			continue
+		}
+		deviceByID[d.ID] = d
+		if d.AreaID != "" {
+			snap.DeviceArea[d.ID] = d.AreaID
+		}
+	}
+
+	// Group entities by area. The empty area id collects what has no room.
+	byArea := map[string][]entityRow{}
+	for _, e := range reg.Entities {
+		if !e.Usable() {
+			continue
+		}
+		if !isExposed(e, reg.Exposed) {
+			continue
+		}
+		area := e.AreaID
+		device := deviceByID[e.DeviceID]
+		if area == "" {
+			area = device.AreaID
+		}
+		snap.EntityArea[e.EntityID] = area
+		snap.ExposedEntities[e.EntityID] = true
+
+		name := e.DisplayName()
+		if name == "" {
+			name = friendlyFromEntityID(e.EntityID)
+		}
+		row := entityRow{entityID: e.EntityID, name: name, aliases: sortedCopy(e.Aliases)}
+		// The device name only earns a mention when it adds something the
+		// entity name does not already say.
+		if dn := device.DisplayName(); dn != "" && !strings.EqualFold(dn, name) {
+			row.deviceName = dn
+		}
+		byArea[area] = append(byArea[area], row)
+	}
+
+	areaIDs := make([]string, 0, len(byArea))
+	for id := range byArea {
+		if id != "" {
+			areaIDs = append(areaIDs, id)
+		}
+	}
+	sort.Strings(areaIDs)
+
+	var b strings.Builder
+	for _, id := range areaIDs {
+		a := areaByID[id]
+		name := a.Name
+		if name == "" {
+			name = id
+		}
+		fmt.Fprintf(&b, "Bereich %s (%s)", name, id)
+		if aliases := sortedCopy(a.Aliases); len(aliases) > 0 {
+			fmt.Fprintf(&b, ", auch genannt: %s", strings.Join(aliases, ", "))
+		}
+		b.WriteByte('\n')
+		writeRows(&b, byArea[id])
+		snap.AreaCount++
+	}
+	if rows := byArea[""]; len(rows) > 0 {
+		b.WriteString("Ohne Bereich\n")
+		writeRows(&b, rows)
+	}
+
+	snap.Block = strings.TrimRight(b.String(), "\n")
+	snap.EntityCount = len(snap.ExposedEntities)
+	return snap
+}
+
+func writeRows(b *strings.Builder, rows []entityRow) {
+	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
+	for _, r := range rows {
+		fmt.Fprintf(b, "  %s — %s", r.entityID, r.name)
+		if r.deviceName != "" {
+			fmt.Fprintf(b, ", Gerät: %s", r.deviceName)
+		}
+		if len(r.aliases) > 0 {
+			fmt.Fprintf(b, ", auch genannt: %s", strings.Join(r.aliases, ", "))
+		}
+		b.WriteByte('\n')
+	}
+}
+
+// isExposed decides whether an entity belongs in the block.
+//
+// The authoritative answer is the exposure list from Home Assistant. When it
+// is unavailable the entity registry options are tried, and only if nothing
+// at all is marked does the build fall back to including every usable entity
+// — an empty house would make the agent useless, so the caller is warned
+// through Snapshot.ExposureKnown instead.
+func isExposed(e haws.Entity, exposed map[string]bool) bool {
+	if exposed != nil {
+		return exposed[e.EntityID]
+	}
+	if opts, ok := e.Options["conversation"].(map[string]any); ok {
+		if v, ok := opts["should_expose"].(bool); ok {
+			return v
+		}
+	}
+	return true
+}
+
+// friendlyFromEntityID builds a readable name when the registry has none:
+// "light.kueche_decke" becomes "Kueche Decke".
+func friendlyFromEntityID(entityID string) string {
+	object := entityID
+	if i := strings.Index(entityID, "."); i >= 0 {
+		object = entityID[i+1:]
+	}
+	parts := strings.Split(object, "_")
+	for i, p := range parts {
+		if p == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(p[:1]) + p[1:]
+	}
+	return strings.Join(parts, " ")
+}
+
+func sortedCopy(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Domain returns the domain part of an entity id.
+func Domain(entityID string) string {
+	if i := strings.Index(entityID, "."); i >= 0 {
+		return entityID[:i]
+	}
+	return ""
+}

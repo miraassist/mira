@@ -1,8 +1,8 @@
 package store
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
 	"fmt"
 )
 
