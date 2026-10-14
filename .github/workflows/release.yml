@@ -1,0 +1,41 @@
+name: Release
+
+# Agent and integration share one version. A tag vX.Y.Z releases both: HACS
+# picks the tag up for the integration, and the agent binaries are attached.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Integration version matches the tag
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got="$(jq -r .version custom_components/lares/manifest.json)"
+          if [ "$want" != "$got" ]; then
+            echo "manifest.json says $got, tag says $want" >&2
+            exit 1
+          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - name: Build agent binaries
+        run: |
+          mkdir dist
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "dist/lares-linux-$arch" ./cmd/lares
+          done
+          cp lares.example.yaml dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
