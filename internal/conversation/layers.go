@@ -13,11 +13,11 @@ import (
 	"github.com/sker65/lares/internal/store"
 )
 
-// Prefix assembles layers 1 to 5 for a channel. Background jobs see only the
-// read-only tools; that difference is fixed per channel, so it does not
-// disturb any slot's cache.
+// Prefix assembles layers 1 to 5 for a channel. Every channel gets the same
+// tools, so the start of the prompt is shared; that background jobs only
+// read is enforced by the guard, not by hiding tools.
 func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, error) {
-	defs := e.tools.Defs(ch == config.ChannelBackground)
+	defs := e.tools.Defs(false)
 	toolList, err := prompt.BuildTools(defs)
 	if err != nil {
 		return prompt.Prefix{}, err

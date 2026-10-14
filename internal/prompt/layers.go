@@ -105,16 +105,18 @@ const (
 	headerTime      = "## Aktueller Stand"
 )
 
-// SystemText renders layers 1, 2, 4 and 5 into the single system message.
+// SystemText renders layers 1, 4 and 5 into the single system message.
 //
 // Layer 3 is not here: tool definitions travel in the request's tools field,
-// where the server's chat template renders them into the prompt. It is still
-// part of the hash, because a change to it changes the prompt all the same.
+// where the server's chat template renders them into the prompt — after the
+// system text, for the Qwen and Llama templates. Layer 2 is not here either:
+// the channel style follows the tools and the examples as its own message.
+// That way every channel shares the same start, about nine thousand tokens
+// of rules, house and tools, and a server that picks slots by common prefix
+// (LM Studio does) computes it once instead of once per channel.
 func (p Prefix) SystemText() string {
 	var b strings.Builder
 	b.WriteString(p.Agent)
-	b.WriteString("\n\n")
-	b.WriteString(p.Style)
 	if s := strings.TrimSpace(p.Structure); s != "" {
 		b.WriteString("\n\n")
 		b.WriteString(headerStructure)
@@ -130,6 +132,23 @@ func (p Prefix) SystemText() string {
 	return b.String()
 }
 
+// styleAck is the fixed answer to the channel style message. A user message
+// needs an answer before the history continues, or the template would merge
+// it with the first history turn.
+const styleAck = "Verstanden."
+
+// StyleMessages is layer 2 as it is sent: the channel style and its fixed
+// acknowledgement, placed after the shared start.
+func (p Prefix) StyleMessages() []llm.Message {
+	if strings.TrimSpace(p.Style) == "" {
+		return nil
+	}
+	return []llm.Message{
+		{Role: llm.RoleUser, Content: p.Style},
+		{Role: llm.RoleAssistant, Content: styleAck},
+	}
+}
+
 // Hash is the fingerprint of layers 1 to 5. Two requests that should hit the
 // same cached prefix must carry the same hash; a changed hash is the signal
 // that the cache was broken, deliberately or not.
@@ -141,10 +160,19 @@ func (p Prefix) Hash() string {
 	return hashLayers(layers...)
 }
 
-// Messages is the stable start of every request: the system message and the
-// sample exchange.
+// Messages is the stable start of every request: the system message, the
+// sample exchange (both shared by all channels) and the channel style.
 func (p Prefix) Messages() []llm.Message {
-	return append([]llm.Message{p.SystemMessage()}, p.Examples...)
+	msgs := append([]llm.Message{p.SystemMessage()}, p.Examples...)
+	return append(msgs, p.StyleMessages()...)
+}
+
+// SharedHash fingerprints the part all channels have in common: everything
+// but the channel style.
+func (p Prefix) SharedHash() string {
+	q := p
+	q.Style = ""
+	return q.Hash()
 }
 
 func renderExamples(msgs []llm.Message) string {

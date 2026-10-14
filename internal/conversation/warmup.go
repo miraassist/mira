@@ -33,8 +33,18 @@ func (e *Engine) RunWarmups(ctx context.Context) error {
 // WarmupAll sends one warmup request per channel slot so the first real turn
 // finds layers 1 to 5 in the KV cache. Each channel is warmed under its own
 // lock so a warmup never interleaves with a turn on the same slot.
+//
+// Without pinned slots the server picks a slot by common prefix, and all
+// channels share everything but the short style message. One warmup of the
+// voice channel then covers the expensive part for all of them; three would
+// only occupy the server (LM Studio: about 48 seconds each for a cold
+// prompt of 9000 tokens) and evict each other's cache entries.
 func (e *Engine) WarmupAll(ctx context.Context, reason string) {
-	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
+	channels := []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground}
+	if !e.cfg.LLM.SlotPinning {
+		channels = channels[:1]
+	}
+	for _, ch := range channels {
 		if ctx.Err() != nil {
 			return
 		}

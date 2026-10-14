@@ -237,8 +237,8 @@ func TestBuildPlacesTurnLast(t *testing.T) {
 		ChannelContext: "Kanal: Sprache, Satellit Küche.",
 		Text:           "Mach das Licht an",
 	})
-	if len(req.Messages) != 4 {
-		t.Fatalf("got %d messages, want system + 2 history + turn", len(req.Messages))
+	if want := len(p.Messages()) + 3; len(req.Messages) != want {
+		t.Fatalf("got %d messages, want the stable start + 2 history + turn = %d", len(req.Messages), want)
 	}
 	if req.Messages[0].Role != llm.RoleSystem {
 		t.Errorf("first message is %s, want system", req.Messages[0].Role)
@@ -305,8 +305,12 @@ func TestGoldenPrefix(t *testing.T) {
 		t.Run(string(ch), func(t *testing.T) {
 			p := samplePrefix(t, ch)
 			var b strings.Builder
-			b.WriteString("=== layers 1,2,4,5 (system message) ===\n")
+			b.WriteString("=== layers 1,4,5 (system message) ===\n")
 			b.WriteString(p.SystemText())
+			b.WriteString("\n\n=== layer 2 (channel style, after tools and examples) ===\n")
+			for _, m := range p.StyleMessages() {
+				b.WriteString(string(m.Role) + ": " + m.Content + "\n")
+			}
 			b.WriteString("\n\n=== layer 3 (tools) ===\n")
 			for _, tool := range p.Tools {
 				b.WriteString(tool.Function.Name)

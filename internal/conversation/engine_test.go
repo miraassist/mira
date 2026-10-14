@@ -63,6 +63,11 @@ func houseSnapshot() structure.Snapshot {
 
 func newHarness(t *testing.T, script ...fakellm.Step) *harness {
 	t.Helper()
+	return newHarnessWith(t, nil, script...)
+}
+
+func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm.Step) *harness {
+	t.Helper()
 	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}}
 
 	h.llm = fakellm.New(script...)
@@ -78,6 +83,9 @@ func newHarness(t *testing.T, script ...fakellm.Step) *harness {
 		{Name: "search", Transport: config.TransportHTTP, URL: h.search.Endpoint(), WebContent: true},
 	}
 	cfg.LLM.MaxToolRounds = 3
+	if mutate != nil {
+		mutate(&cfg)
+	}
 
 	var err error
 	h.store, err = store.Open(context.Background(), store.Options{
@@ -340,7 +348,7 @@ func TestVoiceUsesSatelliteAreaAndKeepsListeningOnQuestions(t *testing.T) {
 	if !strings.Contains(layer7, "Satellit im Bereich Küche") {
 		t.Errorf("layer 7 lacks the satellite area:\n%s", layer7)
 	}
-	if !strings.Contains(rec.Request.Messages[0].Content, "Kanalstil: Sprache") {
+	if !anyContains(rec.Request.Messages, "Kanalstil: Sprache") {
 		t.Error("voice style layer missing")
 	}
 }
@@ -390,11 +398,20 @@ func TestWarmupCarriesTheCachedPrefixPerSlot(t *testing.T) {
 	if !slots[0] || !slots[1] || !slots[2] {
 		t.Errorf("slots warmed = %v", slots)
 	}
-	// Background jobs only get read-only tools.
-	for _, tool := range reqs[2].Request.Tools {
-		if strings.Contains(tool.Function.Name, "HassTurn") || tool.Function.Name == tools.ToolMemorySave {
-			t.Errorf("background prefix lists write tool %s", tool.Function.Name)
+	// All channels share everything up to the channel style: system message,
+	// tools and examples. Only the style messages at the end differ.
+	voice, bg := reqs[0].Request, reqs[2].Request
+	shared := len(voice.Messages) - 2
+	if len(bg.Messages) != len(voice.Messages) || len(bg.Tools) != len(voice.Tools) {
+		t.Fatalf("voice and background prefixes differ in shape")
+	}
+	for i := 0; i < shared; i++ {
+		if voice.Messages[i].Content != bg.Messages[i].Content {
+			t.Errorf("message %d differs between channels", i)
 		}
+	}
+	if voice.Messages[shared].Content == bg.Messages[shared].Content {
+		t.Error("the channel style should be the part that differs")
 	}
 
 	// A turn after the warmup reuses the whole system message and tools.
@@ -484,7 +501,7 @@ func TestAssessUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 	if rec.Slot != 2 || rec.Request.ToolChoice != "none" || rec.Request.ResponseFormat == nil {
 		t.Fatalf("request: slot %d, tool_choice %v, response_format %v", rec.Slot, rec.Request.ToolChoice, rec.Request.ResponseFormat)
 	}
-	if !strings.Contains(rec.Request.Messages[0].Content, "Kanalstil: Hintergrundjob") {
+	if !anyContains(rec.Request.Messages, "Kanalstil: Hintergrundjob") {
 		t.Error("background prefix not used")
 	}
 	if n, _ := h.store.Messages(context.Background(), "background:"); len(n) != 0 {
@@ -564,3 +581,20 @@ func TestPlainAnswerIsNotNudged(t *testing.T) {
 }
 
 func lastContent(msgs []llm.Message) string { return msgs[len(msgs)-1].Content }
+
+func anyContains(msgs []llm.Message, s string) bool {
+	for _, m := range msgs {
+		if strings.Contains(m.Content, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestWithoutSlotPinningOneWarmupCoversAllChannels(t *testing.T) {
+	h := newHarnessWith(t, func(c *config.Config) { c.LLM.SlotPinning = false })
+	h.engine.WarmupAll(context.Background(), "test")
+	if n := len(h.llm.Requests()); n != 1 {
+		t.Fatalf("warmups = %d, want 1", n)
+	}
+}
