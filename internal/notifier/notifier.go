@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -192,18 +193,21 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	now := n.clock()
+	sent, err := n.deliverUrgent(ctx)
+	if err != nil {
+		return sent, err
+	}
 	if n.inQuietHours(now) {
-		return nil, nil
+		return sent, nil
 	}
 	pending, err := n.pending(ctx)
 	if err != nil {
-		return nil, err
+		return sent, err
 	}
 	esc := n.cfg.EscalateToTelegram
 	local := now.In(n.loc)
 	afterToday := local.Hour()*60+local.Minute() >= esc.After.MinutesOfDay()
 
-	var sent []string
 	for _, nt := range pending {
 		neverSpoken := nt.Confidential() && n.cfg.ConfidentialVoice == config.ConfidentialVoiceNever
 		escalate := nt.Importance >= esc.MinImportance && afterToday &&
@@ -223,6 +227,68 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 		sent = append(sent, nt.ID)
 	}
 	return sent, nil
+}
+
+// deliverUrgent sends every pending urgent notice at once, ignoring quiet
+// hours, quiet mode and cooldowns: a water leak at three in the morning must
+// not wait for the morning announcement. It goes privately to everyone and,
+// unless confidential, is spoken on every satellite.
+func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
+	urgent := n.cfg.Urgent
+	if urgent.MinImportance <= 0 {
+		return nil, nil
+	}
+	pending, err := n.pending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sent []string
+	for _, nt := range pending {
+		if nt.Importance < urgent.MinImportance {
+			continue
+		}
+		privErr := n.sendPrivate(ctx, nt)
+		if privErr != nil {
+			n.log.Error("urgent private delivery failed", "notice", nt.ID, "error", privErr)
+		}
+		spoken := false
+		if urgent.Announce && !nt.Confidential() {
+			spoken = n.announceEverywhere(ctx, nt)
+		}
+		if privErr == nil || spoken {
+			n.log.Warn("urgent notice delivered", "notice", nt.ID, "spoken", spoken, "private", privErr == nil)
+			sent = append(sent, nt.ID)
+		}
+	}
+	return sent, nil
+}
+
+// announceEverywhere speaks one notice on each satellite once.
+func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Notice) bool {
+	done := map[string]bool{}
+	spoken := false
+	for _, area := range sortedKeys(n.sats) {
+		sat := n.sats[area]
+		if done[sat] {
+			continue
+		}
+		done[sat] = true
+		if err := n.announce(ctx, area, []store.Notice{nt}); err != nil {
+			n.log.Error("urgent announcement failed", "area", area, "error", err)
+			continue
+		}
+		spoken = true
+	}
+	return spoken
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func (n *Notifier) pending(ctx context.Context) ([]store.Notice, error) {

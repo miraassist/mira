@@ -417,7 +417,7 @@ func TestEscalation(t *testing.T) {
 func TestEscalationGivesDaytimeNoticesAGracePeriod(t *testing.T) {
 	e := newEnv(t, nil)
 	e.now = at("14:00")
-	e.notice("afternoon", 3, nil)
+	e.notice("afternoon", 2, nil)
 	e.now = at("14:10")
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated within grace: %v", sent)
@@ -456,5 +456,44 @@ func TestCompose(t *testing.T) {
 	two := []store.Notice{{Spoken: "A."}, {Spoken: "B!"}}
 	if got := Compose(two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Hinweise. A. Und: B!" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestUrgentNoticeGoesOutAtOnceEvenAtNight(t *testing.T) {
+	e := newEnv(t, nil) // 03:00, inside quiet hours
+	e.notice("leak", 3, nil)
+	sent := e.tick()
+	if len(sent) != 1 || len(e.tg.sent[111]) != 1 {
+		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
+	}
+	var spoken []string
+	for _, c := range e.ha.calls {
+		spoken = append(spoken, c.Target.EntityID[0]+" "+c.Service)
+	}
+	want := []string{"assist_satellite.bad start_conversation", "assist_satellite.kueche announce"}
+	if strings.Join(spoken, ",") != strings.Join(want, ",") {
+		t.Errorf("spoken on = %v, want %v", spoken, want)
+	}
+	if again := e.tick(); len(again) != 0 {
+		t.Errorf("urgent notice sent twice: %v", again)
+	}
+}
+
+func TestUrgentConfidentialNoticeIsNotSpoken(t *testing.T) {
+	e := newEnv(t, nil)
+	e.notice("secret-leak", 3, func(n *store.Notice) { n.Confidentiality = store.ConfidentialityConfidential })
+	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent[111]) != 1 {
+		t.Fatalf("sent = %v", sent)
+	}
+	if len(e.ha.calls) != 0 {
+		t.Errorf("confidential urgent notice was spoken: %+v", e.ha.calls)
+	}
+}
+
+func TestUrgentRuleCanBeTurnedOff(t *testing.T) {
+	e := newEnv(t, func(c *config.Config) { c.Notifier.Urgent.MinImportance = 0 })
+	e.notice("leak", 3, nil)
+	if sent := e.tick(); len(sent) != 0 {
+		t.Fatalf("sent during quiet hours without the urgent rule: %v", sent)
 	}
 }

@@ -98,6 +98,9 @@ notifier:
   follow_up_window: 2m
   # Important notices nobody heard by this time go out privately.
   escalate_to_telegram: { min_importance: 2, after: "09:00", grace: 30m }
+  # Urgent notices (water leak, smoke) go out at once, even in quiet hours:
+  # privately to everyone and, unless confidential, on every satellite.
+  urgent: { min_importance: 3, announce: true }
   # When may a confidential notice be spoken? never | when_alone | always
   # when_alone: only its recipient (by the person entities) is home.
   confidential_voice: when_alone

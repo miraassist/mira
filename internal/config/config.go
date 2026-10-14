@@ -208,6 +208,9 @@ type Notifier struct {
 	Cooldown                Duration       `yaml:"cooldown"`
 	MaxItemsPerAnnouncement int            `yaml:"max_items_per_announcement"`
 	EscalateToTelegram      Escalation     `yaml:"escalate_to_telegram"`
+	// Urgent notices (a water leak, smoke) go out at once, quiet hours or
+	// not: privately to everyone and spoken on every satellite.
+	Urgent Urgent `yaml:"urgent"`
 	// FollowUpWindow is how long after an announcement a turn from the same
 	// satellite is treated as a reply to it.
 	FollowUpWindow Duration `yaml:"follow_up_window"`
@@ -241,6 +244,14 @@ type QuietHours struct {
 type MorningTrigger struct {
 	Areas    []string          `yaml:"areas"`
 	Presence map[string]string `yaml:"presence"`
+}
+
+type Urgent struct {
+	// MinImportance from which a notice is urgent; 0 turns the rule off.
+	MinImportance int `yaml:"min_importance"`
+	// Announce speaks urgent notices on every satellite. Confidential ones
+	// are never spoken this way.
+	Announce bool `yaml:"announce"`
 }
 
 type Escalation struct {
@@ -323,6 +334,7 @@ func Default() Config {
 			Cooldown:                Duration(30 * 60e9),
 			MaxItemsPerAnnouncement: 3,
 			EscalateToTelegram:      Escalation{MinImportance: 2, After: ClockTime{9, 0}, Grace: Duration(30 * 60e9)},
+			Urgent:                  Urgent{MinImportance: 3, Announce: true},
 			FollowUpWindow:          Duration(2 * 60e9),
 			MinImportance:           1,
 			ConfidentialVoice:       ConfidentialVoiceNever,
