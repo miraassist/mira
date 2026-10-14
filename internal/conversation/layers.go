@@ -1,0 +1,149 @@
+package conversation
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"unicode"
+
+	"github.com/sker65/lares-agent/internal/config"
+	"github.com/sker65/lares-agent/internal/ha/structure"
+	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares-agent/internal/prompt"
+	"github.com/sker65/lares-agent/internal/store"
+)
+
+// Prefix assembles layers 1 to 5 for a channel. Background jobs see only the
+// read-only tools; that difference is fixed per channel, so it does not
+// disturb any slot's cache.
+func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, error) {
+	defs := e.tools.Defs(ch == config.ChannelBackground)
+	toolList, err := prompt.BuildTools(defs)
+	if err != nil {
+		return prompt.Prefix{}, err
+	}
+	profile, _, err := e.store.Profile(ctx)
+	if err != nil {
+		return prompt.Prefix{}, err
+	}
+	return prompt.Prefix{
+		Agent:     prompt.AgentLayer(e.cfg.Prompt.Persona),
+		Style:     prompt.StyleFor(ch),
+		Tools:     toolList,
+		Structure: e.structure().Block,
+		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
+	}, nil
+}
+
+func clipProfile(p string, max int) string {
+	p = strings.TrimSpace(p)
+	if max <= 0 || len([]rune(p)) <= max {
+		return p
+	}
+	return string([]rune(p)[:max])
+}
+
+// channelContext is the layer 7 line that tells the model where the request
+// came from and how to read room references.
+func (e *Engine) channelContext(req Request, sess store.Session, snap structure.Snapshot) string {
+	switch req.Channel {
+	case config.ChannelVoice:
+		if sess.AreaID != "" {
+			name := snap.AreaNames[sess.AreaID]
+			if name == "" {
+				name = sess.AreaID
+			}
+			return "Kanal: Sprache, Satellit im Bereich " + name + ". Ohne Raumangabe ist der Bereich " + name + " gemeint."
+		}
+		return "Kanal: Sprache. Der Raum des Satelliten ist unbekannt; bei Raumbezug nachfragen."
+	case config.ChannelTelegram:
+		return "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen."
+	default:
+		return "Kanal: Hintergrundjob, kein Mensch im Gespräch."
+	}
+}
+
+// memories fetches the facts relevant to this message. Short words are
+// dropped before the full-text search: articles and pronouns would match
+// nearly every fact and push the relevant ones out.
+func (e *Engine) memories(ctx context.Context, text string) []string {
+	limit := e.cfg.Memory.MaxFactsInLayer
+	if limit <= 0 {
+		return nil
+	}
+	var words []string
+	for _, w := range strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
+		if len([]rune(w)) >= 4 {
+			words = append(words, w)
+		}
+	}
+	if len(words) == 0 {
+		return nil
+	}
+	facts, err := e.store.SearchFacts(ctx, strings.Join(words, " "), limit)
+	if err != nil {
+		e.log.Warn("memory search failed", "error", err)
+		return nil
+	}
+	out := make([]string, 0, len(facts))
+	for _, f := range facts {
+		out = append(out, f.Text)
+	}
+	return out
+}
+
+// noticeContext links a voice turn to notices announced on the same
+// satellite moments ago, so "Was genau?" can be answered from the details.
+func (e *Engine) noticeContext(ctx context.Context, deviceID string) string {
+	if deviceID == "" {
+		return ""
+	}
+	a, err := e.store.RecentAnnouncement(ctx, deviceID, e.cfg.Notifier.FollowUpWindow.Duration())
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, id := range a.NoticeIDs {
+		n, err := e.store.GetNotice(ctx, id)
+		if err != nil {
+			continue
+		}
+		b.WriteString("- [" + n.ID + "] " + n.Spoken)
+		if n.Details != "" {
+			b.WriteString(" Details: " + n.Details)
+		}
+		b.WriteByte('\n')
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// history loads layer 6.
+func (e *Engine) history(ctx context.Context, key string) ([]llm.Message, error) {
+	stored, err := e.store.Messages(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]llm.Message, 0, len(stored))
+	for _, m := range stored {
+		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID, Name: m.Name}
+		if len(m.ToolCalls) > 0 {
+			if err := json.Unmarshal(m.ToolCalls, &msg.ToolCalls); err != nil {
+				return nil, err
+			}
+		}
+		out = append(out, msg)
+	}
+	return out, nil
+}
+
+func toStore(msgs []llm.Message) []store.Message {
+	out := make([]store.Message, 0, len(msgs))
+	for _, m := range msgs {
+		sm := store.Message{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID, Name: m.Name}
+		if len(m.ToolCalls) > 0 {
+			sm.ToolCalls, _ = json.Marshal(m.ToolCalls)
+		}
+		out = append(out, sm)
+	}
+	return out
+}

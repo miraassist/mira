@@ -152,3 +152,18 @@ func (s *Store) PurgeExpiredSessions(ctx context.Context) (int64, error) {
 	}
 	return res.RowsAffected()
 }
+
+// DeleteSession removes a session and its transcript. An expired session is
+// reset this way when its channel and id come back.
+func (s *Store) DeleteSession(ctx context.Context, key string) error {
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE session_key = ?`, key); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM confirmations WHERE session_key = ?`, key); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE key = ?`, key)
+		return err
+	})
+}

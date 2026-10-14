@@ -1,0 +1,409 @@
+// Package conversation is the agent loop: it turns one user message into one
+// answer, calling tools in between, for every channel alike.
+//
+// A turn builds the prompt from the seven layers, asks the model, runs the
+// tool calls it makes through the security guard, and repeats until the model
+// answers in plain text or the round limit is hit. The transcript is
+// append-only and stores the rendered layer 7 exactly as it was sent, so the
+// next turn's prompt starts with the bytes the server already has cached.
+package conversation
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/oklog/ulid/v2"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/sker65/lares-agent/internal/config"
+	"github.com/sker65/lares-agent/internal/ha/structure"
+	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares-agent/internal/prompt"
+	"github.com/sker65/lares-agent/internal/store"
+	"github.com/sker65/lares-agent/internal/telemetry"
+	"github.com/sker65/lares-agent/internal/tools"
+)
+
+// Chatter is the part of the LLM client the engine uses.
+type Chatter interface {
+	Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatResponse, error)
+	Warmup(ctx context.Context, req llm.ChatRequest) error
+}
+
+// Request is one user message from any channel.
+type Request struct {
+	Channel config.Channel
+	// ConversationID identifies the session within the channel: HA's
+	// conversation_id for voice, the chat id for Telegram. Empty starts a
+	// new voice session with a generated id.
+	ConversationID string
+	// DeviceID is the satellite a voice request came from.
+	DeviceID string
+	Language string
+	Text     string
+	// Extra is passed-through context such as HA's extra_system_prompt. It
+	// only ever lands in layer 7.
+	Extra string
+}
+
+// Response is the answer to a Request.
+type Response struct {
+	Text           string
+	ConversationID string
+	// ContinueConversation asks a voice satellite to keep listening because
+	// the answer was a question.
+	ContinueConversation bool
+	PrefixHash           string
+	ToolRounds           int
+	PromptTokens         int
+	CachedTokens         int
+}
+
+type Options struct {
+	Config    config.Config
+	LLM       Chatter
+	Store     *store.Store
+	Tools     *tools.Registry
+	Guard     *tools.Guard
+	Structure func() structure.Snapshot
+	Telemetry *telemetry.Provider
+	Logger    *slog.Logger
+	// Clock and Location set the time the model is told. Tests pin both.
+	Clock    func() time.Time
+	Location *time.Location
+}
+
+type Engine struct {
+	cfg       config.Config
+	llm       Chatter
+	store     *store.Store
+	tools     *tools.Registry
+	guard     *tools.Guard
+	structure func() structure.Snapshot
+	tel       *telemetry.Provider
+	log       *slog.Logger
+	clock     func() time.Time
+	loc       *time.Location
+
+	// One turn per channel at a time: each channel owns one llama.cpp slot,
+	// and interleaving two sessions on a slot would evict each other's cache
+	// mid-turn.
+	locks map[config.Channel]*sync.Mutex
+
+	warm chan string
+}
+
+func New(opts Options) *Engine {
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	if opts.Telemetry == nil {
+		opts.Telemetry = telemetry.NewTestProvider()
+	}
+	if opts.Clock == nil {
+		opts.Clock = time.Now
+	}
+	if opts.Location == nil {
+		opts.Location = time.Local
+	}
+	if opts.Structure == nil {
+		opts.Structure = func() structure.Snapshot { return structure.Snapshot{} }
+	}
+	e := &Engine{
+		cfg:       opts.Config,
+		llm:       opts.LLM,
+		store:     opts.Store,
+		tools:     opts.Tools,
+		guard:     opts.Guard,
+		structure: opts.Structure,
+		tel:       opts.Telemetry,
+		log:       opts.Logger.With("component", "conversation"),
+		clock:     opts.Clock,
+		loc:       opts.Location,
+		locks:     map[config.Channel]*sync.Mutex{},
+		warm:      make(chan string, 1),
+	}
+	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
+		e.locks[ch] = &sync.Mutex{}
+	}
+	return e
+}
+
+// SessionKey is how a (channel, conversation id) pair is stored.
+func SessionKey(ch config.Channel, conversationID string) string {
+	return string(ch) + ":" + conversationID
+}
+
+// fallbackText is said when the model produced nothing usable.
+const fallbackText = "Entschuldigung, darauf habe ich gerade keine Antwort."
+
+// Handle runs one turn.
+func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
+	if strings.TrimSpace(req.Text) == "" {
+		return Response{}, errors.New("empty message")
+	}
+	lock, ok := e.locks[req.Channel]
+	if !ok {
+		return Response{}, fmt.Errorf("unknown channel %q", req.Channel)
+	}
+	lock.Lock()
+	defer lock.Unlock()
+
+	if req.ConversationID == "" {
+		req.ConversationID = ulid.Make().String()
+	}
+	key := SessionKey(req.Channel, req.ConversationID)
+
+	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent lares", trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+	span.SetAttributes(
+		telemetry.AttrGenAIOperationName.String("invoke_agent"),
+		telemetry.AttrChannel.String(string(req.Channel)),
+		telemetry.AttrGenAIConversationID.String(key),
+	)
+
+	resp, err := e.turn(ctx, key, req)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		e.log.Error("turn failed", "session", key, "error", err)
+		return Response{}, err
+	}
+	span.SetAttributes(
+		telemetry.AttrPrefixHash.String(resp.PrefixHash),
+		telemetry.AttrToolRounds.Int(resp.ToolRounds),
+	)
+	return resp, nil
+}
+
+func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, error) {
+	now := e.clock()
+	snap := e.structure()
+
+	sess, err := e.openSession(ctx, key, req, snap)
+	if err != nil {
+		return Response{}, err
+	}
+	history, err := e.history(ctx, key)
+	if err != nil {
+		return Response{}, err
+	}
+
+	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text}
+	turn := prompt.Turn{
+		Now:            now.In(e.loc),
+		ChannelContext: e.channelContext(req, sess, snap),
+		Memories:       e.memories(ctx, req.Text),
+		NoticeContext:  e.noticeContext(ctx, req.DeviceID),
+		Extra:          req.Extra,
+		Text:           req.Text,
+	}
+	if c, err := e.store.TakeConfirmation(ctx, key); err == nil {
+		ts.Pending = &c
+		turn.PendingConfirmation = c.Summary
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return Response{}, err
+	}
+
+	prefix, err := e.Prefix(ctx, req.Channel)
+	if err != nil {
+		return Response{}, err
+	}
+	built := prompt.Build(prefix, history, turn)
+	msgs := built.Messages
+	added := []llm.Message{msgs[len(msgs)-1]} // the rendered layer 7
+
+	resp := Response{ConversationID: req.ConversationID, PrefixHash: built.PrefixHash}
+	maxRounds := e.cfg.LLM.MaxToolRounds
+	var final llm.Message
+	for round := 0; ; round++ {
+		chatReq := e.chatRequest(req.Channel, msgs, built)
+		if round >= maxRounds {
+			// Out of rounds: the model has to answer with what it has.
+			chatReq.ToolChoice = "none"
+		}
+		out, err := e.llm.Chat(ctx, chatReq)
+		if err != nil {
+			return Response{}, err
+		}
+		if round == 0 {
+			resp.PromptTokens, resp.CachedTokens = out.Usage.PromptTokens, out.CachedTokens()
+			e.checkContext(key, out.Usage.PromptTokens)
+		}
+		msg := out.Message()
+		msg.Role = llm.RoleAssistant
+		msg.Content = stripThinking(msg.Content)
+		if len(msg.ToolCalls) == 0 || round >= maxRounds {
+			msg.ToolCalls = nil
+			final = msg
+			break
+		}
+
+		resp.ToolRounds++
+		ensureCallIDs(msg.ToolCalls, round)
+		msgs = append(msgs, msg)
+		added = append(added, msg)
+		for _, call := range msg.ToolCalls {
+			result := e.runTool(ctx, ts, call)
+			tm := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name, Content: result}
+			msgs = append(msgs, tm)
+			added = append(added, tm)
+		}
+	}
+
+	if strings.TrimSpace(final.Content) == "" {
+		final.Content = fallbackText
+	}
+	added = append(added, final)
+	if err := e.store.AppendMessages(ctx, key, toStore(added)...); err != nil {
+		return Response{}, fmt.Errorf("store transcript: %w", err)
+	}
+
+	resp.Text = strings.TrimSpace(final.Content)
+	resp.ContinueConversation = req.Channel == config.ChannelVoice && strings.HasSuffix(resp.Text, "?")
+	e.log.Info("turn done",
+		"session", key, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
+		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens)
+	return resp, nil
+}
+
+func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
+	r := llm.ChatRequest{
+		Messages:    msgs,
+		Tools:       built.Tools,
+		Temperature: e.cfg.LLM.Temperature,
+		MaxTokens:   e.cfg.LLM.MaxTokens,
+		Channel:     string(ch),
+		PrefixHash:  built.PrefixHash,
+	}
+	if slot := e.cfg.SlotFor(ch); slot >= 0 {
+		r.IDSlot = llm.IntPtr(slot)
+	}
+	if e.cfg.LLM.CachePrompt {
+		r.CachePrompt = llm.BoolPtr(true)
+	}
+	return r
+}
+
+// runTool executes one call through the guard and returns what the model
+// reads back. Failures are reported to the model as text, never swallowed:
+// a model that does not see the error will claim success.
+func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.ToolCall) string {
+	name := call.Function.Name
+	ctx, span := e.tel.Tracer.Start(ctx, "execute_tool "+name, trace.WithSpanKind(trace.SpanKindInternal))
+	defer span.End()
+	span.SetAttributes(
+		telemetry.AttrGenAIOperationName.String("execute_tool"),
+		telemetry.AttrGenAIToolName.String(name),
+	)
+	server, _ := prompt.SplitQualifiedName(name)
+	span.SetAttributes(telemetry.AttrToolServer.String(server))
+	record := func(outcome string) { e.tel.RecordToolCall(ctx, server, name, outcome) }
+
+	spec, ok := e.tools.Lookup(name)
+	if !ok {
+		record("unknown")
+		return "Fehler: Das Werkzeug " + name + " gibt es nicht."
+	}
+	args := json.RawMessage(strings.TrimSpace(call.Function.Arguments))
+	if len(args) == 0 {
+		args = json.RawMessage(`{}`)
+	}
+	if !json.Valid(args) {
+		record("bad_arguments")
+		return "Fehler: Die Argumente sind kein gültiges JSON."
+	}
+
+	verdict := e.guard.Check(ctx, ts, spec, args)
+	if verdict.Outcome != tools.Allow {
+		span.SetAttributes(telemetry.AttrToolBlocked.String(verdict.Reason))
+		record(verdict.Outcome.String())
+		e.log.Warn("tool call blocked",
+			"session", ts.SessionKey, "tool", name, "outcome", verdict.Outcome.String(),
+			"reason", verdict.Reason, "targets", verdict.Targets)
+		return verdict.Message
+	}
+
+	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
+		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel,
+	})
+	e.guard.Observe(ts, spec)
+	switch {
+	case err != nil:
+		record("error")
+		span.SetStatus(codes.Error, err.Error())
+		return "Fehler: " + err.Error()
+	case isError:
+		record("tool_error")
+		if !strings.HasPrefix(text, "Fehler") {
+			text = "Fehler: " + text
+		}
+		return text
+	}
+	record("ok")
+	if verdict.Reason == "confirmed" {
+		e.log.Info("confirmed critical tool call executed", "session", ts.SessionKey, "tool", name, "targets", verdict.Targets)
+	}
+	if strings.TrimSpace(text) == "" {
+		return "OK"
+	}
+	return text
+}
+
+func (e *Engine) openSession(ctx context.Context, key string, req Request, snap structure.Snapshot) (store.Session, error) {
+	existing, err := e.store.GetSession(ctx, key)
+	switch {
+	case err == nil && existing.ExpiresAt.Before(e.clock()):
+		// The session ran out. Starting over is the documented behaviour,
+		// not a cache accident: the history is gone on purpose.
+		if err := e.store.DeleteSession(ctx, key); err != nil {
+			return store.Session{}, err
+		}
+		e.log.Info("session expired, starting fresh", "session", key)
+	case err != nil && !errors.Is(err, store.ErrNotFound):
+		return store.Session{}, err
+	}
+	areaID := ""
+	if req.DeviceID != "" {
+		areaID = snap.DeviceArea[req.DeviceID]
+	}
+	return e.store.UpsertSession(ctx, store.Session{
+		Key: key, Channel: string(req.Channel), ConversationID: req.ConversationID,
+		DeviceID: req.DeviceID, AreaID: areaID, Language: req.Language,
+	}, e.cfg.SessionTTL(req.Channel).Duration())
+}
+
+// checkContext warns when a session approaches the slot's context size.
+// Compaction itself is a deliberate cache break and comes later (M5).
+func (e *Engine) checkContext(key string, promptTokens int) {
+	limit := int(float64(e.cfg.LLM.ContextTokens) * e.cfg.LLM.CompactAtFraction)
+	if promptTokens > limit {
+		e.log.Warn("session is close to the context limit; compaction is not implemented yet",
+			"session", key, "prompt_tokens", promptTokens, "limit", limit)
+	}
+}
+
+func ensureCallIDs(calls []llm.ToolCall, round int) {
+	for i := range calls {
+		if calls[i].ID == "" {
+			calls[i].ID = fmt.Sprintf("call_%d_%d", round, i)
+		}
+		if calls[i].Type == "" {
+			calls[i].Type = "function"
+		}
+	}
+}
+
+var thinkBlock = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
+// stripThinking removes reasoning blocks some models emit inline.
+func stripThinking(s string) string {
+	return strings.TrimSpace(thinkBlock.ReplaceAllString(s, ""))
+}
