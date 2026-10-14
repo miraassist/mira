@@ -1,0 +1,14 @@
+# Python tooling for the Home Assistant integration in custom_components/lares.
+# The agent itself is Go; see go.mod.
+[project]
+name = "lares-ha"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[dependency-groups]
+test = ["pytest-homeassistant-custom-component"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/ha"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

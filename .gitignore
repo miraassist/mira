@@ -6,3 +6,6 @@
 .env
 config.local.yaml
 lares.yaml
+.venv/
+__pycache__/
+.pytest_cache/

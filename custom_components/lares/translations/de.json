@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit dem Lares-Agenten verbinden",
+        "description": "Adresse und API-Token des Lares-Agenten (server.listen und server.token in seiner Konfiguration).",
+        "data": { "url": "Agent-URL", "token": "API-Token" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Der Agent ist unter dieser Adresse nicht erreichbar.",
+      "invalid_auth": "Der Agent hat den Token abgelehnt."
+    },
+    "abort": { "already_configured": "Dieser Agent ist bereits eingerichtet." }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": { "timeout": "Antwort-Timeout (Sekunden)" },
+        "data_description": { "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben." }
+      }
+    }
+  }
+}
