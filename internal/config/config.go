@@ -166,6 +166,10 @@ type StateTrigger struct {
 	EntityID []string `yaml:"entity_id"`
 	To       []string `yaml:"to"`
 	From     []string `yaml:"from"`
+	// NotTo and NotFrom exclude states, as in HA's state trigger: "running
+	// status is no longer normal" is not_to: [normal, unavailable, unknown].
+	NotTo   []string `yaml:"not_to"`
+	NotFrom []string `yaml:"not_from"`
 }
 
 // UnmarshalYAML accepts entity_id as either a single string or a list.
@@ -174,11 +178,13 @@ func (t *StateTrigger) UnmarshalYAML(value *yaml.Node) error {
 		EntityID yaml.Node `yaml:"entity_id"`
 		To       []string  `yaml:"to"`
 		From     []string  `yaml:"from"`
+		NotTo    []string  `yaml:"not_to"`
+		NotFrom  []string  `yaml:"not_from"`
 	}
 	if err := value.Decode(&raw); err != nil {
 		return err
 	}
-	t.To, t.From = raw.To, raw.From
+	t.To, t.From, t.NotTo, t.NotFrom = raw.To, raw.From, raw.NotTo, raw.NotFrom
 	if raw.EntityID.IsZero() {
 		return nil
 	}
@@ -471,6 +477,12 @@ func (c Config) Validate() error {
 		}
 		if w.Trigger != nil && len(w.Trigger.EntityID) == 0 {
 			add("watchers[%d] (%s): trigger needs at least one entity_id", i, w.Name)
+		}
+		if w.Trigger != nil && len(w.Trigger.To) > 0 && len(w.Trigger.NotTo) > 0 {
+			add("watchers[%d] (%s): trigger cannot have both to and not_to", i, w.Name)
+		}
+		if w.Trigger != nil && len(w.Trigger.From) > 0 && len(w.Trigger.NotFrom) > 0 {
+			add("watchers[%d] (%s): trigger cannot have both from and not_from", i, w.Name)
 		}
 		if w.Importance != nil && (*w.Importance < 0 || *w.Importance > 3) {
 			add("watchers[%d] (%s): importance must be between 0 and 3", i, w.Name)

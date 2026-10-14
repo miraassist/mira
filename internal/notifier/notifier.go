@@ -244,7 +244,7 @@ const (
 // who is home.
 func (n *Notifier) route(nt store.Notice, home map[string]bool) route {
 	if nt.Audience != store.AudienceHousehold {
-		if p, ok := n.persons[nt.Audience]; ok && p.Entity != "" && !home[nt.Audience] {
+		if p, ok := n.persons[nt.Audience]; ok && p.Entity != "" && !home[nt.Audience] && !home["?"+nt.Audience] {
 			// The recipient is away: whoever walked in is someone else.
 			return routeWait
 		}
@@ -291,8 +291,9 @@ func (n *Notifier) whoIsHome(ctx context.Context) map[string]bool {
 		switch byEntity[p.Entity] {
 		case "home":
 			home[id] = true
-		case "":
-			home["?"+id] = true // unknown: assume someone might be there
+		case "", "unknown", "unavailable":
+			// No tracker or no reading: this person might be there.
+			home["?"+id] = true
 		}
 	}
 	return home

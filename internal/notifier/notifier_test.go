@@ -319,15 +319,16 @@ func TestMediaPlayerSatelliteUsesTTS(t *testing.T) {
 func TestConfidentialNotices(t *testing.T) {
 	confidential := func(n *store.Notice) { n.Confidentiality = store.ConfidentialityConfidential }
 	cases := []struct {
-		name       string
-		policy     string
-		othersHome bool
-		wantVoice  bool
+		name      string
+		policy    string
+		anna      string
+		wantVoice bool
 	}{
-		{"never: private even when alone", config.ConfidentialVoiceNever, false, false},
-		{"when_alone and alone: spoken", config.ConfidentialVoiceWhenAlone, false, true},
-		{"when_alone with a second person home: private", config.ConfidentialVoiceWhenAlone, true, false},
-		{"always: spoken", config.ConfidentialVoiceAlways, true, true},
+		{"never: private even when alone", config.ConfidentialVoiceNever, "not_home", false},
+		{"when_alone and alone: spoken", config.ConfidentialVoiceWhenAlone, "not_home", true},
+		{"when_alone with a second person home: private", config.ConfidentialVoiceWhenAlone, "home", false},
+		{"when_alone with a second person unknown: private", config.ConfidentialVoiceWhenAlone, "unknown", false},
+		{"always: spoken", config.ConfidentialVoiceAlways, "home", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -335,11 +336,7 @@ func TestConfidentialNotices(t *testing.T) {
 				cfg.Notifier.ConfidentialVoice = c.policy
 				cfg.Persons["anna"] = config.Person{Entity: "person.anna"}
 			})
-			anna := "not_home"
-			if c.othersHome {
-				anna = "home"
-			}
-			e.ha.set("person.anna", anna, nil)
+			e.ha.set("person.anna", c.anna, nil)
 			e.notice("secret", 2, func(n *store.Notice) { confidential(n); n.Audience = "stefan" })
 			e.now = at("08:00")
 			out := e.presence("bad")
@@ -366,6 +363,16 @@ func TestConfidentialNeverGoesOutOnTickWithoutWaitingForMotion(t *testing.T) {
 	}
 	if !strings.Contains(e.tg.sent[111][0], "Details secret") {
 		t.Error("private message lacks the details")
+	}
+}
+
+func TestPersonalNoticeForUntrackedRecipientIsSpoken(t *testing.T) {
+	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna", TelegramUserID: 222} })
+	e.ha.set("person.anna", "unknown", nil)
+	e.notice("for-anna", 1, func(n *store.Notice) { n.Audience = "anna" })
+	e.now = at("08:00")
+	if out := e.presence("bad"); len(out.Announced) != 1 {
+		t.Fatalf("a person without tracker is not known to be away: %+v", out)
 	}
 }
 

@@ -200,4 +200,11 @@ func TestTriggerFor(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("trigger = %s", got)
 	}
+	w := inverter
+	w.Trigger = &config.StateTrigger{EntityID: []string{"sensor.deye12_running_status"}, NotTo: []string{"normal", "unavailable"}}
+	got, _ = json.Marshal(TriggerFor(w))
+	want = `{"entity_id":["sensor.deye12_running_status"],"not_to":["normal","unavailable"],"trigger":"state"}`
+	if string(got) != want {
+		t.Errorf("trigger = %s", got)
+	}
 }

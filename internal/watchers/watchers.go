@@ -125,6 +125,12 @@ func TriggerFor(w config.Watcher) map[string]any {
 	if len(w.Trigger.From) > 0 {
 		t["from"] = w.Trigger.From
 	}
+	if len(w.Trigger.NotTo) > 0 {
+		t["not_to"] = w.Trigger.NotTo
+	}
+	if len(w.Trigger.NotFrom) > 0 {
+		t["not_from"] = w.Trigger.NotFrom
+	}
 	return t
 }
 
