@@ -72,7 +72,10 @@ func Internal(st *store.Store, telegram TelegramSender) []InternalTool {
 					return "", err
 				}
 				if len(facts) == 0 {
-					return "Nichts gefunden.", nil
+					// Said this bluntly on purpose: with a plain "nothing
+					// found", local models fill the gap with a plausible guess.
+					return "Nichts gefunden. Dazu ist nichts gespeichert, du weißt es also nicht. " +
+						"Sag dem Nutzer genau das und rate nicht.", nil
 				}
 				var b strings.Builder
 				for _, f := range facts {

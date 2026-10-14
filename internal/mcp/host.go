@@ -465,7 +465,11 @@ func DialTransport(ctx context.Context, client *sdk.Client, cfg config.MCPServer
 		cmd := exec.Command(cfg.Command, cfg.Args...)
 		cmd.Env = append(os.Environ(), cfg.Env...)
 		cmd.Stderr = os.Stderr
-		transport = &sdk.CommandTransport{Command: cmd}
+		t, err := stdioTransport(cmd, slog.Default().With("component", "mcp", "server", cfg.Name))
+		if err != nil {
+			return nil, fmt.Errorf("start %s: %w", cfg.Command, err)
+		}
+		transport = t
 	default:
 		return nil, fmt.Errorf("unknown transport %q", cfg.Transport)
 	}

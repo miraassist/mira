@@ -402,3 +402,14 @@ func TestWarmupCarriesTheCachedPrefixPerSlot(t *testing.T) {
 		t.Errorf("turn reused %d tokens, warmup sent %d", turn.CachedTokens, reqs[1].PromptTokens)
 	}
 }
+
+func TestFillerWordsDoNotPullUnrelatedMemories(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Weiß ich nicht."})
+	if _, err := h.store.SaveFact(context.Background(), store.Fact{ID: "f1", Text: "Der Wechselrichter steht im Keller."}); err != nil {
+		t.Fatal(err)
+	}
+	h.say(t, config.ChannelTelegram, "1", "Wo steht eigentlich die Waschmaschine?")
+	if layer7 := h.llm.Last().Request.Messages[1].Content; strings.Contains(layer7, "Wechselrichter") {
+		t.Errorf("unrelated fact reached layer 7:\n%s", layer7)
+	}
+}

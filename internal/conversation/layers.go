@@ -63,9 +63,10 @@ func (e *Engine) channelContext(req Request, sess store.Session, snap structure.
 	}
 }
 
-// memories fetches the facts relevant to this message. Short words are
-// dropped before the full-text search: articles and pronouns would match
-// nearly every fact and push the relevant ones out.
+// memories fetches the facts relevant to this message. Short words and
+// filler words are dropped before the full-text search: "steht" or "bitte"
+// match nearly every fact, and an unrelated fact in layer 7 is worse than
+// none — the model takes it as a hint and builds an answer on it.
 func (e *Engine) memories(ctx context.Context, text string) []string {
 	limit := e.cfg.Memory.MaxFactsInLayer
 	if limit <= 0 {
@@ -73,7 +74,7 @@ func (e *Engine) memories(ctx context.Context, text string) []string {
 	}
 	var words []string
 	for _, w := range strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
-		if len([]rune(w)) >= 4 {
+		if len([]rune(w)) >= 4 && !stopwords[strings.ToLower(w)] {
 			words = append(words, w)
 		}
 	}
@@ -147,3 +148,14 @@ func toStore(msgs []llm.Message) []store.Message {
 	}
 	return out
 }
+
+// stopwords are words of four letters or more that carry no topic.
+var stopwords = func() map[string]bool {
+	m := map[string]bool{}
+	for _, w := range strings.Fields(`
+		aber alle allem allen aller alles also auch bitte bist dann darf dass dein deine deinen deiner dem den denn der des dich diese diesem diesen dieser dieses doch dort durch eigentlich einem einen einer eines etwa etwas euch gerade gern gerne gibt geben haben habe hast hatte heute hier immer jetzt kann kannst können könntest machen mache mach mehr mein meine meinem meinen meiner merk merke merken mich mir mit nach nicht noch nochmal oder ohne schon sein seine sehr sind soll sollte steht stehen stand sagen sag schick schicke unser unsere unter viel vielleicht warum was weil weißt welche welcher welches wenn werden wieder wieso wird wissen wurde würde zeig zeige zeigen zwischen über
+		about also does have just know please tell that there they this what when where which with would your`) {
+		m[w] = true
+	}
+	return m
+}()
