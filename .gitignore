@@ -1,0 +1,7 @@
+/lares
+/dist/
+*.db
+*.db-wal
+*.db-shm
+.env
+config.local.yaml
