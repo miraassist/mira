@@ -21,6 +21,7 @@ import (
 	"github.com/sker65/lares/internal/llm"
 	"github.com/sker65/lares/internal/mcp"
 	"github.com/sker65/lares/internal/notifier"
+	"github.com/sker65/lares/internal/profile"
 	"github.com/sker65/lares/internal/store"
 	"github.com/sker65/lares/internal/telemetry"
 	"github.com/sker65/lares/internal/tools"
@@ -280,6 +281,11 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		}
 	})
 
+	if cfg.Memory.ProfileSchedule != "" {
+		compactor := a.profileCompactor()
+		a.goRun(ctx, "profile", compactor.Run)
+	}
+
 	if a.ha != nil {
 		a.startProactive(ctx)
 	} else if len(cfg.Watchers) > 0 || len(cfg.Notifier.MorningTrigger.Areas) > 0 {
@@ -375,6 +381,41 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 		}
 	}
 	return checks
+}
+
+func (a *app) profileCompactor() *profile.Compactor {
+	return profile.New(profile.Options{
+		Store: a.store, Assessor: a.engine, Schedule: a.cfg.Memory.ProfileSchedule,
+		MaxChars: a.cfg.Memory.MaxProfileChars, Logger: a.log,
+		OnChange: func() { a.warmup("profile_changed") },
+	})
+}
+
+// runProfile compacts the profile now and prints it.
+func runProfile(parent context.Context, cfg config.Config) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	a, err := build(ctx, cfg, buildOptions{})
+	if err != nil {
+		return err
+	}
+	defer a.close()
+	defer cancel()
+	changed, err := a.profileCompactor().Compact(ctx)
+	if err != nil {
+		return err
+	}
+	text, _, err := a.store.Profile(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(text)
+	state := "unchanged"
+	if changed {
+		state = "updated"
+	}
+	fmt.Printf("\n[profile %s]\n", state)
+	return nil
 }
 
 func runChat(parent context.Context, cfg config.Config, ch config.Channel, session, device, text string) error {

@@ -38,7 +38,7 @@ func run() error {
 	session := flag.String("session", "cli", "chat: conversation id; reuse it to continue a conversation")
 	device := flag.String("device", "", "chat: satellite device id, for -channel voice")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: lares [flags] [run | chat TEXT | check]\n\nflags:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: lares [flags] [run | chat TEXT | check | profile]\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -66,6 +66,8 @@ func run() error {
 		return runChat(ctx, cfg, config.Channel(*channel), *session, *device, strings.Join(args, " "))
 	case "check":
 		return runCheck(ctx, cfg)
+	case "profile":
+		return runProfile(ctx, cfg)
 	default:
 		flag.Usage()
 		return fmt.Errorf("unknown command %q", cmd)

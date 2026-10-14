@@ -64,3 +64,49 @@ func TestRealModelAssessment(t *testing.T) {
 		t.Logf("%s: importance %d\n  spoken:  %s\n  details: %s\n  expires: %dh", c.watcher.Name, a.Importance, a.Spoken, a.Details, a.ExpiresInHours)
 	}
 }
+
+// TestRealModelFeed reads a real feed and lets a real model pick what is
+// interesting. Besides LARES_TEST_LLM_URL it needs LARES_TEST_FEED_URL, e.g.
+// https://zenmux.ai/rss/models.xml.
+func TestRealModelFeed(t *testing.T) {
+	url, feedURL := os.Getenv("LARES_TEST_LLM_URL"), os.Getenv("LARES_TEST_FEED_URL")
+	if url == "" || feedURL == "" {
+		t.Skip("LARES_TEST_LLM_URL or LARES_TEST_FEED_URL not set")
+	}
+	cfg := config.Default()
+	cfg.LLM.SlotPinning, cfg.LLM.CachePrompt = false, false
+	ctx := context.Background()
+	st, err := store.Open(ctx, store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	engine := conversation.New(conversation.Options{
+		Config: cfg, Store: st, Logger: quiet,
+		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("LARES_TEST_LLM_MODEL"), APIKey: os.Getenv("LARES_TEST_LLM_KEY"), Timeout: 3 * time.Minute}),
+		Tools: tools.NewRegistry(nil, tools.Internal(st, nil)...),
+		Guard: tools.NewGuard(cfg.Security, st, nil),
+	})
+	w := config.Watcher{Name: "modelle", Schedule: "0 8 * * *", Kind: "rss", URL: feedURL,
+		Description: "Neue KI-Modelle. Interessant sind vor allem Sprachmodelle, die man lokal betreiben kann (offene Gewichte, etwa Qwen, Llama, Gemma, Mistral), und große Sprünge bei den bekannten Anbietern. Bild- und Videomodelle sind weniger wichtig."}
+	m := New(Options{Store: st, Assessor: engine, MinImportance: 1, Logger: quiet, Watchers: []config.Watcher{w}})
+	// The first run only looks at the last day; mark the feed as known with
+	// nothing seen, so the whole current feed is judged.
+	if err := st.SetKV(ctx, "feed_seen:modelle", "[]"); err != nil {
+		t.Fatal(err)
+	}
+	queued, err := m.RunFeed(ctx, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !queued {
+		t.Log("nothing judged relevant")
+		return
+	}
+	n, err := st.OpenNoticeByDedupeKey(ctx, "watcher:modelle:"+time.Now().Format("2006-01-02"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("importance %d\n  spoken:  %s\n  details:\n%s", n.Importance, n.Spoken, n.Details)
+}

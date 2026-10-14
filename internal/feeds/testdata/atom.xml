@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Beispiel</title>
+  <entry>
+    <id>urn:uuid:1</id>
+    <title>Llama 6 erschienen</title>
+    <link rel="alternate" href="https://example.org/llama6"/>
+    <updated>2026-10-14T06:00:00Z</updated>
+    <summary>Kurzfassung</summary>
+  </entry>
+</feed>

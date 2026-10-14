@@ -1,6 +1,7 @@
-// Package watchers turns events in the house into notices.
+// Package watchers turns events in the house, and new entries in feeds, into
+// notices.
 //
-// A watcher subscribes to a Home Assistant state trigger for the entities it
+// A trigger watcher subscribes to a Home Assistant state trigger for the entities it
 // names; nothing looks at every state change. When the trigger fires, the
 // model rates the event and words it once, on the background slot, and the
 // result is queued. Delivery is someone else's job (the notifier).
@@ -42,6 +43,8 @@ type Options struct {
 	Logger        *slog.Logger
 	Clock         func() time.Time
 	Location      *time.Location
+	// Fetch downloads feeds for scheduled watchers; nil uses HTTP.
+	Fetch FeedFetcher
 }
 
 type Manager struct {
@@ -79,11 +82,9 @@ type firing struct {
 // until ctx ends.
 func (m *Manager) Run(ctx context.Context, sub Subscriber) error {
 	queue := make(chan firing, 64)
+	m.runSchedules(ctx)
 	for _, w := range m.opts.Watchers {
 		if w.Trigger == nil {
-			if w.Schedule != "" {
-				m.log.Info("scheduled watchers are not implemented yet (M4)", "watcher", w.Name)
-			}
 			continue
 		}
 		cancel, err := sub.SubscribeTrigger(ctx, TriggerFor(w), func(ev haws.Event) {
@@ -257,7 +258,7 @@ func (m *Manager) instruction(w config.Watcher, e Event) string {
 Antworte nur mit einem JSON-Objekt:
 - importance: 0 = nicht erwähnenswert, 1 = nebenbei erwähnen, 2 = wichtig, sollte heute jemand ansehen, 3 = dringend, Gefahr oder Schaden droht.
   Beispiele: Waschmaschine fertig = 1. Wechselrichter- oder Heizungsstörung = 2. Wassermelder, Rauchmelder, offene Haustür nachts = 3.
-- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich und ruhig, den Nutzer mit "du" ansprechen, ohne Markdown, Zahlen und Uhrzeiten ausgeschrieben, ohne Begrüßung
+- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich und ruhig, den Nutzer mit "du" ansprechen, ohne Markdown, Messwerte als Ziffern mit deutschem Komma, ohne Begrüßung
 - details: die Langfassung für Nachfragen, mit den konkreten Werten und dem Zeitpunkt
 - expires_in_hours: wie lange die Meldung relevant bleibt`)
 	return b.String()

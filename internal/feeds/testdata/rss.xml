@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>ZenMux Model Updates</title>
+    <item>
+      <title>New Model Available: Gemini 4 Argon</title>
+      <link>https://zenmux.ai/google/gemini-4-argon</link>
+      <guid isPermaLink="false">zenmux:notification:2642SNAiRE0q14614094</guid>
+      <pubDate>Tue, 13 Oct 2026 13:34:27 GMT</pubDate>
+      <description></description>
+    </item>
+    <item>
+      <title>Qwen &amp; Co</title>
+      <link>https://example.org/qwen</link>
+      <pubDate>Mon, 12 Oct 2026 08:00:00 +0200</pubDate>
+      <description>&lt;p&gt;Ein &lt;b&gt;neues&lt;/b&gt;   Modell.&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/sker65/lares/internal/schedule"
 )
 
 // Channel names a conversation channel. Each one gets its own llama.cpp slot
@@ -151,11 +153,15 @@ type Person struct {
 }
 
 type Watcher struct {
-	Name      string        `yaml:"name"`
-	Trigger   *StateTrigger `yaml:"trigger"`
-	Schedule  string        `yaml:"schedule"`
-	Kind      string        `yaml:"kind"`
-	DedupeKey string        `yaml:"dedupe_key"`
+	Name    string        `yaml:"name"`
+	Trigger *StateTrigger `yaml:"trigger"`
+	// Schedule is a cron expression ("0 8 * * *") for watchers that poll a
+	// source instead of waiting for a trigger.
+	Schedule string `yaml:"schedule"`
+	// Kind of a scheduled watcher: "rss" reads the feed at URL.
+	Kind      string `yaml:"kind"`
+	URL       string `yaml:"url"`
+	DedupeKey string `yaml:"dedupe_key"`
 	// Description tells the evaluator what the event means, e.g. "Der
 	// Wechselrichter der Solaranlage meldet einen Fehler." It is the main
 	// input for the spoken text.
@@ -486,6 +492,11 @@ func (c Config) Validate() error {
 	}
 
 	names := map[string]bool{}
+	if c.Memory.ProfileSchedule != "" {
+		if _, err := schedule.Parse(c.Memory.ProfileSchedule); err != nil {
+			add("memory.profile_schedule: %v", err)
+		}
+	}
 	for i, w := range c.Watchers {
 		if w.Name == "" {
 			add("watchers[%d].name must not be empty", i)
@@ -499,6 +510,16 @@ func (c Config) Validate() error {
 		}
 		if w.Trigger != nil && len(w.Trigger.EntityID) == 0 {
 			add("watchers[%d] (%s): trigger needs at least one entity_id", i, w.Name)
+		}
+		if w.Schedule != "" {
+			if _, err := schedule.Parse(w.Schedule); err != nil {
+				add("watchers[%d] (%s): %v", i, w.Name, err)
+			}
+			if w.Kind != "rss" {
+				add("watchers[%d] (%s): scheduled watchers need kind: rss", i, w.Name)
+			} else if !strings.HasPrefix(w.URL, "http://") && !strings.HasPrefix(w.URL, "https://") {
+				add("watchers[%d] (%s): kind rss needs an http(s) url", i, w.Name)
+			}
 		}
 		if w.Trigger != nil && len(w.Trigger.To) > 0 && len(w.Trigger.NotTo) > 0 {
 			add("watchers[%d] (%s): trigger cannot have both to and not_to", i, w.Name)

@@ -83,6 +83,15 @@ watchers:
     # confidentiality: normal    # or confidential
     # expires_in: 24h
 
+  # A scheduled watcher reads a feed and queues at most one digest notice per
+  # run, only if the model finds something relevant. Feed text is data: it can
+  # never raise an urgent notice (importance is capped at 2).
+  - name: modelle
+    kind: rss
+    url: https://zenmux.ai/rss/models.xml
+    schedule: "0 8 * * *"
+    description: "Neue KI-Modelle, vor allem lokal lauffähige Sprachmodelle."
+
 notifier:
   quiet_hours: { from: "22:30", to: "06:30" }
   # Announcements happen on motion in these areas: the first motion after
@@ -118,6 +127,7 @@ security:
   read_only_tools: [ha__GetDateTime, ha__GetLiveContext, ha__HassGetWeather, ha__todo_get_items]
 
 memory:
+  profile_schedule: "30 3 * * *"   # nightly: facts -> compact profile (prompt layer 5)
   max_facts_in_layer: 8
   max_profile_chars: 2000
 
