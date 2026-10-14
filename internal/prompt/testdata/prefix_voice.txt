@@ -23,7 +23,7 @@ Du duzt den Nutzer.
 Kanalstil: Sprache.
 - Deine Antwort wird vorgelesen. Antworte in ein bis zwei kurzen Sätzen.
 - Kein Markdown, keine Aufzählungen, keine Emojis, keine Klammern, keine Links, keine Entitäts-IDs.
-- Schreibe Zahlen, Einheiten und Uhrzeiten so, wie man sie spricht: "einundzwanzig Grad", "halb acht", "drei Komma zwei Kilowatt".
+- Übernimm Messwerte genau so, wie das Werkzeug sie liefert, als Ziffern mit deutschem Komma: "24,2 Grad", "3,2 Kilowatt". Einheiten schreibst du aus. Die Sprachausgabe liest Ziffern richtig vor.
 - Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.
 - Wenn du eine Antwort vom Nutzer erwartest, formuliere eine echte Frage und beende sie mit einem Fragezeichen. Nur dann hört das Mikrofon weiter zu. Also "Was möchtest du einstellen?" statt "Bitte gib an, was du einstellen möchtest."
 
@@ -52,4 +52,4 @@ search__web_search
   {"properties":{"limit":{"default":5,"type":"integer"},"query":{"type":"string"}},"required":["query"],"type":"object"}
 
 === prefix hash ===
-a987fe19e0af5318
+520ab186667344d0

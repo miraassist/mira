@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/sker65/lares/internal/config"
@@ -46,7 +47,7 @@ Antworte in der Sprache, in der du angesprochen wirst.`
 const styleVoice = `Kanalstil: Sprache.
 - Deine Antwort wird vorgelesen. Antworte in ein bis zwei kurzen Sätzen.
 - Kein Markdown, keine Aufzählungen, keine Emojis, keine Klammern, keine Links, keine Entitäts-IDs.
-- Schreibe Zahlen, Einheiten und Uhrzeiten so, wie man sie spricht: "einundzwanzig Grad", "halb acht", "drei Komma zwei Kilowatt".
+- Übernimm Messwerte genau so, wie das Werkzeug sie liefert, als Ziffern mit deutschem Komma: "24,2 Grad", "3,2 Kilowatt". Einheiten schreibst du aus. Die Sprachausgabe liest Ziffern richtig vor.
 - Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.
 - Wenn du eine Antwort vom Nutzer erwartest, formuliere eine echte Frage und beende sie mit einem Fragezeichen. Nur dann hört das Mikrofon weiter zu. Also "Was möchtest du einstellen?" statt "Bitte gib an, was du einstellen möchtest."`
 
@@ -91,6 +92,9 @@ type Prefix struct {
 	Tools     []llm.Tool
 	Structure string
 	Profile   string
+	// Examples follow the system message: a fixed sample exchange that shows
+	// the model how tools are used here. See Examples.
+	Examples []llm.Message
 }
 
 // Section headers. Constants rather than inline literals so the golden tests
@@ -130,7 +134,25 @@ func (p Prefix) SystemText() string {
 // same cached prefix must carry the same hash; a changed hash is the signal
 // that the cache was broken, deliberately or not.
 func (p Prefix) Hash() string {
-	return hashLayers(p.Agent, p.Style, renderTools(p.Tools), p.Structure, p.Profile)
+	layers := []string{p.Agent, p.Style, renderTools(p.Tools), p.Structure, p.Profile}
+	if len(p.Examples) > 0 {
+		layers = append(layers, renderExamples(p.Examples))
+	}
+	return hashLayers(layers...)
+}
+
+// Messages is the stable start of every request: the system message and the
+// sample exchange.
+func (p Prefix) Messages() []llm.Message {
+	return append([]llm.Message{p.SystemMessage()}, p.Examples...)
+}
+
+func renderExamples(msgs []llm.Message) string {
+	if len(msgs) == 0 {
+		return ""
+	}
+	raw, _ := json.Marshal(msgs)
+	return string(raw)
 }
 
 // SystemMessage is the chat message carrying the stable layers.

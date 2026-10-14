@@ -310,7 +310,7 @@ func TestBadToolCallsAreReportedToTheModel(t *testing.T) {
 	msgs := h.llm.Last().Request.Messages
 	var results []string
 	for _, m := range msgs {
-		if m.Role == llm.RoleTool {
+		if m.Role == llm.RoleTool && !strings.HasPrefix(m.ToolCallID, "ex") {
 			if m.ToolCallID == "" {
 				t.Error("tool message without call id")
 			}
@@ -348,14 +348,15 @@ func TestVoiceUsesSatelliteAreaAndKeepsListeningOnQuestions(t *testing.T) {
 func TestExpiredSessionStartsFresh(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Eins."}, fakellm.Step{Content: "Zwei."}, fakellm.Step{Content: "Drei."})
 	h.say(t, config.ChannelVoice, "conv", "Erste Frage")
+	examples := len(h.llm.Last().Request.Messages) - 2
 	h.clock.Advance(time.Minute)
 	h.say(t, config.ChannelVoice, "conv", "Zweite Frage")
-	if n := len(h.llm.Last().Request.Messages); n != 4 {
-		t.Fatalf("second turn sent %d messages, want system + 2 history + turn", n)
+	if n := len(h.llm.Last().Request.Messages) - examples; n != 4 {
+		t.Fatalf("second turn sent %d messages besides the examples, want system + 2 history + turn", n)
 	}
 	h.clock.Advance(10 * time.Minute) // voice TTL is 5 minutes
 	h.say(t, config.ChannelVoice, "conv", "Dritte Frage")
-	if n := len(h.llm.Last().Request.Messages); n != 2 {
+	if n := len(h.llm.Last().Request.Messages) - examples; n != 2 {
 		t.Fatalf("expired session still sent %d messages", n)
 	}
 }
@@ -366,7 +367,7 @@ func TestMemoriesReachLayer7(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.say(t, config.ChannelTelegram, "1", "Wo steht der Wechselrichter?")
-	layer7 := h.llm.Last().Request.Messages[1].Content
+	layer7 := lastContent(h.llm.Last().Request.Messages)
 	if !strings.Contains(layer7, "Du erinnerst dich:\n- Der Wechselrichter steht im Keller.") {
 		t.Errorf("memory missing:\n%s", layer7)
 	}
@@ -410,7 +411,7 @@ func TestFillerWordsDoNotPullUnrelatedMemories(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.say(t, config.ChannelTelegram, "1", "Wo steht eigentlich die Waschmaschine?")
-	if layer7 := h.llm.Last().Request.Messages[1].Content; strings.Contains(layer7, "Wechselrichter") {
+	if layer7 := lastContent(h.llm.Last().Request.Messages); strings.Contains(layer7, "Wechselrichter") {
 		t.Errorf("unrelated fact reached layer 7:\n%s", layer7)
 	}
 }
@@ -447,7 +448,7 @@ func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	layer7 := h.llm.Last().Request.Messages[1].Content
+	layer7 := lastContent(h.llm.Last().Request.Messages)
 	if !strings.Contains(layer7, "Du hast gerade gemeldet") || !strings.Contains(layer7, "Fehlercode 42") {
 		t.Fatalf("layer 7 lacks the notice details:\n%s", layer7)
 	}
@@ -465,7 +466,7 @@ func TestFollowUpWindowExpires(t *testing.T) {
 	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", Channel: "voice", NoticeIDs: []string{"inv"}})
 	h.clock.Advance(5 * time.Minute)
 	h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Hallo"})
-	if strings.Contains(h.llm.Last().Request.Messages[1].Content, "Fehlercode") {
+	if strings.Contains(lastContent(h.llm.Last().Request.Messages), "Fehlercode") {
 		t.Error("notice context outside the follow-up window")
 	}
 	if got, _ := h.store.GetNotice(ctx, "inv"); got.State != store.NoticeDelivered {
@@ -561,3 +562,5 @@ func TestPlainAnswerIsNotNudged(t *testing.T) {
 		t.Fatalf("requests = %d, want 1", n)
 	}
 }
+
+func lastContent(msgs []llm.Message) string { return msgs[len(msgs)-1].Content }

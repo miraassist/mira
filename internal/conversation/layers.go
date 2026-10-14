@@ -32,6 +32,7 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 		Tools:     toolList,
 		Structure: e.structureText(),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
+		Examples:  prompt.Examples(toolList),
 	}, nil
 }
 
