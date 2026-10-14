@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -150,5 +151,37 @@ llm:
 	}
 	if got := cfg.SlotFor(ChannelVoice); got != -1 {
 		t.Errorf("slot = %d, want -1 when pinning is off", got)
+	}
+}
+
+// The shipped example must always load, so it cannot rot as the config grows.
+func TestExampleConfigLoads(t *testing.T) {
+	raw, err := os.ReadFile("../../lares.example.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"LARES_API_TOKEN": "a", "HA_TOKEN": "b", "TELEGRAM_TOKEN": "c"}
+	cfg, err := Parse(raw, func(k string) (string, bool) { v, ok := env[k]; return v, ok })
+	if err != nil {
+		t.Fatalf("example config: %v", err)
+	}
+	if len(cfg.MCPServers) != 2 || !cfg.MCPServers[1].WebContent || cfg.HA.Token != "b" {
+		t.Errorf("example parsed wrong: %+v", cfg.MCPServers)
+	}
+}
+
+func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
+	raw := []byte("# set ${UNSET_IN_COMMENT} before starting\nllm:\n  model: ${MODEL}\nha:\n  enabled: false\ntelegram:\n  enabled: false\n")
+	cfg, err := Parse(raw, func(k string) (string, bool) {
+		if k == "MODEL" {
+			return "qwen", true
+		}
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LLM.Model != "qwen" {
+		t.Errorf("model = %q", cfg.LLM.Model)
 	}
 }

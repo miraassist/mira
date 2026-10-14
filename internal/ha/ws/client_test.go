@@ -271,3 +271,77 @@ func TestWebsocketURLForms(t *testing.T) {
 		t.Error("a url without a scheme should be rejected")
 	}
 }
+
+func TestCancelAfterReconnectStopsTheSubscription(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	reconnected := make(chan struct{}, 4)
+	c, err := haws.New(haws.Options{
+		URL: srv.URL, Token: "test-token", Logger: quietLogger(),
+		CallTimeout: 5 * time.Second, ReconnectMin: 20 * time.Millisecond, ReconnectMax: 50 * time.Millisecond,
+		OnConnect: func(context.Context) { reconnected <- struct{}{} },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx)
+	<-reconnected
+
+	events := make(chan haws.Event, 4)
+	unsubscribe, err := c.Subscribe(ctx, "state_changed", func(e haws.Event) { events <- e })
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.DropConnections()
+	<-reconnected
+	deadline := time.Now().Add(3 * time.Second)
+	for srv.SubscriptionCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// The subscription now lives under a new id; cancelling must still work.
+	unsubscribe()
+	deadline = time.Now().Add(3 * time.Second)
+	for srv.SubscriptionCount() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := srv.SubscriptionCount(); n != 0 {
+		t.Fatalf("server still has %d subscriptions after cancel", n)
+	}
+
+	// And it must not come back on the next reconnect.
+	srv.DropConnections()
+	<-reconnected
+	time.Sleep(100 * time.Millisecond)
+	if n := srv.SubscriptionCount(); n != 0 {
+		t.Fatalf("cancelled subscription was restored after reconnect (%d)", n)
+	}
+}
+
+func TestCancelWhileDisconnectedDoesNotBlock(t *testing.T) {
+	srv := fakeha.New()
+	c, ctx := startClient(t, srv, "test-token")
+	unsubscribe, err := c.Subscribe(ctx, "state_changed", func(haws.Event) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Close() // no reconnect possible
+	srv.DropConnections()
+	deadline := time.Now().Add(3 * time.Second)
+	for c.Connected() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if c.Connected() {
+		t.Fatal("client did not notice the dropped connection")
+	}
+
+	done := make(chan struct{})
+	go func() { unsubscribe(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("unsubscribe blocked while disconnected")
+	}
+}

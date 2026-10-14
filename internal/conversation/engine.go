@@ -407,3 +407,14 @@ var thinkBlock = regexp.MustCompile(`(?s)<think>.*?</think>`)
 func stripThinking(s string) string {
 	return strings.TrimSpace(thinkBlock.ReplaceAllString(s, ""))
 }
+
+// ResetSession drops a session so the next message starts a new one.
+func (e *Engine) ResetSession(ctx context.Context, ch config.Channel, conversationID string) error {
+	lock, ok := e.locks[ch]
+	if !ok {
+		return fmt.Errorf("unknown channel %q", ch)
+	}
+	lock.Lock()
+	defer lock.Unlock()
+	return e.store.DeleteSession(ctx, SessionKey(ch, conversationID))
+}

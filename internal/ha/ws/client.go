@@ -29,6 +29,9 @@ type subscription struct {
 	// replayed verbatim after a reconnect.
 	command map[string]any
 	handler EventHandler
+	// cancelled is set (under Client.mu) once the caller unsubscribed, so a
+	// reconnect that is replaying subscriptions concurrently drops it.
+	cancelled bool
 }
 
 type Options struct {
@@ -302,11 +305,18 @@ func (c *Client) Connected() bool {
 	return c.connected
 }
 
-// Call sends a command and waits for its result.
+// Call sends a command and waits for its result, and for a connection first
+// if there is none.
 func (c *Client) Call(ctx context.Context, command map[string]any) (json.RawMessage, error) {
 	if err := c.WaitReady(ctx); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrNotConnected, err)
 	}
+	return c.callNow(ctx, command)
+}
+
+// callNow is Call without waiting for a connection: with none, it fails
+// immediately.
+func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawMessage, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 
@@ -372,18 +382,31 @@ func (c *Client) SubscribeTrigger(ctx context.Context, trigger map[string]any, h
 
 func (c *Client) subscribeCommand(ctx context.Context, cmd map[string]any, handler EventHandler) (func(), error) {
 	sub := &subscription{command: cmd, handler: handler}
-	id, err := c.issueSubscribe(ctx, sub)
-	if err != nil {
+	if _, err := c.issueSubscribe(ctx, sub); err != nil {
 		return nil, err
 	}
 	cancel := func() {
+		// The id changes on every reconnect, so the subscription is found by
+		// identity, not by the id it was first issued under.
 		c.mu.Lock()
-		delete(c.subs, id)
+		sub.cancelled = true
+		current, found := 0, false
+		for sid, s := range c.subs {
+			if s == sub {
+				current, found = sid, true
+				delete(c.subs, sid)
+				break
+			}
+		}
 		c.mu.Unlock()
-		// Best effort: if the connection is gone the subscription is too.
-		unsubCtx, done := context.WithTimeout(context.Background(), 5*time.Second)
+		// Best effort, and never waiting for a connection: if it is gone, the
+		// subscription went with it. Shutdown must not stall here.
+		if !found {
+			return
+		}
+		unsubCtx, done := context.WithTimeout(context.Background(), 2*time.Second)
 		defer done()
-		_, _ = c.Call(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": id})
+		_, _ = c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": current})
 	}
 	return cancel, nil
 }
@@ -400,6 +423,10 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 	if conn == nil {
 		c.mu.Unlock()
 		return 0, ErrNotConnected
+	}
+	if sub.cancelled {
+		c.mu.Unlock()
+		return 0, nil
 	}
 	id := c.nextID
 	c.nextID++

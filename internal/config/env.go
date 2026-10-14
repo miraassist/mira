@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -21,20 +22,32 @@ func OSLookup(name string) (string, bool) { return os.LookupEnv(name) }
 // secrets never have to live in the file. A reference without a fallback whose
 // variable is unset is an error: silently running with an empty token would
 // fail much later and much less clearly.
+//
+// Comment lines are left alone, so documenting "${HA_TOKEN}" in a comment does
+// not demand that the variable exists.
 func expandEnv(raw []byte, lookup Lookup) ([]byte, error) {
 	missing := map[string]bool{}
-	out := envRef.ReplaceAllFunc(raw, func(m []byte) []byte {
-		groups := envRef.FindSubmatch(m)
-		name := string(groups[1])
-		if v, ok := lookup(name); ok {
-			return []byte(v)
+	expand := func(line []byte) []byte {
+		return envRef.ReplaceAllFunc(line, func(m []byte) []byte {
+			groups := envRef.FindSubmatch(m)
+			name := string(groups[1])
+			if v, ok := lookup(name); ok {
+				return []byte(v)
+			}
+			if len(groups[2]) > 0 { // ":-fallback" was given
+				return groups[3]
+			}
+			missing[name] = true
+			return nil
+		})
+	}
+	lines := bytes.SplitAfter(raw, []byte("\n"))
+	for i, line := range lines {
+		if !bytes.HasPrefix(bytes.TrimSpace(line), []byte("#")) {
+			lines[i] = expand(line)
 		}
-		if len(groups[2]) > 0 { // ":-fallback" was given
-			return groups[3]
-		}
-		missing[name] = true
-		return nil
-	})
+	}
+	out := bytes.Join(lines, nil)
 	if len(missing) > 0 {
 		names := make([]string, 0, len(missing))
 		for n := range missing {
