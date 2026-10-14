@@ -326,6 +326,8 @@ func Default() Config {
 			ConfirmTTL:     Duration(5 * 60e9),
 			ReadOnlyTools: []string{
 				"ha__GetDateTime", "ha__GetLiveContext", "ha__HassGetWeather", "ha__todo_get_items",
+				// Names as HA 2026.10 serves them on /api/mcp/assist.
+				"ha__llm__GetDateTime", "ha__homeassistant__GetLiveContext",
 			},
 		},
 		Memory: Memory{

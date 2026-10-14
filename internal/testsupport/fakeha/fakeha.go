@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"time"
 
@@ -55,8 +56,9 @@ type connState struct {
 	mu   sync.Mutex
 	// subs maps subscription id to the event type it wants ("" means all).
 	subs map[int]string
-	// triggers maps subscription id to its trigger definition.
-	triggers map[int]map[string]any
+	// entitySubs maps subscription id to the entities a subscribe_entities
+	// command asked for.
+	entitySubs map[int][]string
 }
 
 func New() *Server {
@@ -172,66 +174,52 @@ func (s *Server) PushEvent(eventType string, data any) int {
 	return sent
 }
 
-// PushTrigger delivers a trigger event to every trigger subscription, in the
-// shape Home Assistant uses: the event carries only variables and context.
-func (s *Server) PushTrigger(variables any) int {
+// SetState changes one entity's state and sends the change to every
+// subscribe_entities subscription watching it, in Home Assistant's compressed
+// diff form. It returns how many subscriptions got it.
+func (s *Server) SetState(entityID, state string, attributes map[string]any) int {
 	s.mu.Lock()
+	// Copy on write: dispatch reads the old slice without the lock.
+	states := slices.Clone(s.states)
+	found := false
+	for i := range states {
+		if states[i].EntityID == entityID {
+			states[i].State, found = state, true
+			if attributes != nil {
+				states[i].Attributes = attributes
+			}
+		}
+	}
+	if !found {
+		states = append(states, haws.State{EntityID: entityID, State: state, Attributes: attributes})
+	}
+	s.states = states
 	conns := make([]*connState, 0, len(s.conns))
 	for c := range s.conns {
 		conns = append(conns, c)
 	}
 	s.mu.Unlock()
 
+	plus := map[string]any{"s": state, "lc": float64(time.Now().Unix())}
+	if attributes != nil {
+		plus["a"] = attributes
+	}
 	sent := 0
-	entity := triggerEntity(variables)
 	for _, cs := range conns {
 		cs.mu.Lock()
-		ids := make([]int, 0, len(cs.triggers))
-		for id, trig := range cs.triggers {
-			// Like Home Assistant, only triggers watching this entity fire.
-			if entity == "" || watches(trig, entity) {
-				ids = append(ids, id)
+		for id, want := range cs.entitySubs {
+			if !slices.Contains(want, entityID) {
+				continue
 			}
-		}
-		cs.mu.Unlock()
-		for _, id := range ids {
-			frame := map[string]any{
-				"id": id, "type": "event",
-				"event": map[string]any{
-					"variables": variables,
-					"context":   map[string]any{"id": "ctx"},
-				},
-			}
+			frame := map[string]any{"id": id, "type": "event",
+				"event": map[string]any{"c": map[string]any{entityID: map[string]any{"+": plus}}}}
 			if writeJSON(cs.conn, frame) == nil {
 				sent++
 			}
 		}
+		cs.mu.Unlock()
 	}
 	return sent
-}
-
-// triggerEntity reads variables.trigger.entity_id, if present.
-func triggerEntity(variables any) string {
-	v, _ := variables.(map[string]any)
-	t, _ := v["trigger"].(map[string]any)
-	id, _ := t["entity_id"].(string)
-	return id
-}
-
-// watches reports whether a trigger definition names the entity.
-func watches(trigger map[string]any, entity string) bool {
-	switch ids := trigger["entity_id"].(type) {
-	case string:
-		return ids == entity
-	case []any:
-		for _, id := range ids {
-			if id == entity {
-				return true
-			}
-		}
-		return false
-	}
-	return true // no entity filter: fires for everything
 }
 
 // SubscriptionCount reports how many live subscriptions exist, which is how a
@@ -246,7 +234,7 @@ func (s *Server) SubscriptionCount() int {
 	n := 0
 	for _, cs := range conns {
 		cs.mu.Lock()
-		n += len(cs.subs) + len(cs.triggers)
+		n += len(cs.subs) + len(cs.entitySubs)
 		cs.mu.Unlock()
 	}
 	return n
@@ -259,7 +247,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(32 << 20)
 	ctx := context.Background()
-	cs := &connState{conn: conn, subs: map[int]string{}, triggers: map[int]map[string]any{}}
+	cs := &connState{conn: conn, subs: map[int]string{}, entitySubs: map[int][]string{}}
 
 	writeJSON(conn, map[string]any{"type": "auth_required", "ha_version": "2026.10.0"})
 
@@ -352,17 +340,39 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		cs.subs[id] = eventType
 		cs.mu.Unlock()
 		reply(nil)
-	case haws.CmdSubscribeTrigger:
-		trigger, _ := cmd["trigger"].(map[string]any)
+	case "subscribe_trigger":
+		// Admin-only in Home Assistant; the agent runs as a restricted user.
+		fail("unauthorized", "Unauthorized")
+	case haws.CmdSubscribeEntities:
+		ids, _ := cmd["entity_ids"].([]any)
+		want := make([]string, 0, len(ids))
+		for _, x := range ids {
+			if s, ok := x.(string); ok {
+				want = append(want, s)
+			}
+		}
+		// Registering, reading the states and sending them happen under the
+		// connection lock, which SetState holds while sending diffs: like in
+		// Home Assistant, no change falls between the snapshot and the diffs.
 		cs.mu.Lock()
-		cs.triggers[id] = trigger
-		cs.mu.Unlock()
+		defer cs.mu.Unlock()
+		cs.entitySubs[id] = want
 		reply(nil)
+		s.mu.Lock()
+		states := s.states
+		s.mu.Unlock()
+		add := map[string]any{}
+		for _, st := range states {
+			if slices.Contains(want, st.EntityID) {
+				add[st.EntityID] = map[string]any{"s": st.State, "a": st.Attributes, "lc": 1.0}
+			}
+		}
+		writeJSON(cs.conn, map[string]any{"id": id, "type": "event", "event": map[string]any{"a": add}})
 	case haws.CmdUnsubscribeEvents:
 		sub := intOf(cmd["subscription"])
 		cs.mu.Lock()
 		delete(cs.subs, sub)
-		delete(cs.triggers, sub)
+		delete(cs.entitySubs, sub)
 		cs.mu.Unlock()
 		reply(nil)
 	default:

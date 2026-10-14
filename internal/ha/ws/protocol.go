@@ -1,7 +1,7 @@
 // Package ws is the agent's direct WebSocket connection to Home Assistant.
 //
 // It is used for everything the MCP server does not cover: reading the area,
-// device and entity registries, subscribing to events and triggers, and
+// device and entity registries, subscribing to events and entity states, and
 // calling services such as assist_satellite.start_conversation. Tool calls on
 // behalf of the model never go through here — those are MCP.
 package ws
@@ -27,7 +27,7 @@ const (
 	CmdGetStates          = "get_states"
 	CmdCallService        = "call_service"
 	CmdSubscribeEvents    = "subscribe_events"
-	CmdSubscribeTrigger   = "subscribe_trigger"
+	CmdSubscribeEntities  = "subscribe_entities"
 	CmdUnsubscribeEvents  = "unsubscribe_events"
 	CmdExposedEntities    = "homeassistant/expose_entity/list"
 	CmdPing               = "ping"
@@ -133,6 +133,9 @@ type Event struct {
 	Origin    string          `json:"origin"`
 	TimeFired string          `json:"time_fired"`
 	Variables json.RawMessage `json:"variables"`
+	// Raw is the whole event payload, for subscriptions whose events are not
+	// shaped like a bus event (subscribe_entities).
+	Raw json.RawMessage `json:"-"`
 }
 
 // TriggerVariables is the part of a state trigger's variables the agent

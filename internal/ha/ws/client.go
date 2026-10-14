@@ -274,6 +274,7 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
 				c.log.Warn("undecodable event", "error", err)
 				continue
 			}
+			ev.Raw = msg.Event
 			sub.handler(ev)
 		default:
 			c.log.Debug("ignoring frame", "type", msg.Type)
@@ -370,14 +371,6 @@ func (c *Client) Subscribe(ctx context.Context, eventType string, handler EventH
 		cmd["event_type"] = eventType
 	}
 	return c.subscribeCommand(ctx, cmd, handler)
-}
-
-// SubscribeTrigger registers a handler for a Home Assistant trigger
-// definition, which is how the agent watches specific entities without seeing
-// every state change in the house.
-func (c *Client) SubscribeTrigger(ctx context.Context, trigger map[string]any, handler EventHandler) (func(), error) {
-	return c.subscribeCommand(ctx,
-		map[string]any{"type": CmdSubscribeTrigger, "trigger": trigger}, handler)
 }
 
 func (c *Client) subscribeCommand(ctx context.Context, cmd map[string]any, handler EventHandler) (func(), error) {

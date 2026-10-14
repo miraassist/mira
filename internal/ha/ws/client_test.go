@@ -350,17 +350,15 @@ func TestCancelWhileDisconnectedDoesNotBlock(t *testing.T) {
 func TestSubscribeTriggerDeliversVariables(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "sensor.inverter_status", State: "ok"}})
 	c, ctx := startClient(t, srv, "test-token")
-	got := make(chan haws.Event, 1)
-	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": "sensor.inverter_status"},
+	got := make(chan haws.Event, 4)
+	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": "sensor.inverter_status", "to": []string{"fault"}},
 		func(e haws.Event) { got <- e }); err != nil {
 		t.Fatal(err)
 	}
-	srv.PushTrigger(map[string]any{"trigger": map[string]any{
-		"platform": "state", "entity_id": "sensor.inverter_status",
-		"from_state": map[string]any{"entity_id": "sensor.inverter_status", "state": "ok"},
-		"to_state":   map[string]any{"entity_id": "sensor.inverter_status", "state": "fault"},
-	}})
+	srv.SetState("sensor.inverter_status", "ok", map[string]any{"power": 3}) // attribute change only
+	srv.SetState("sensor.inverter_status", "fault", nil)
 	select {
 	case e := <-got:
 		var v haws.TriggerVariables
@@ -370,7 +368,62 @@ func TestSubscribeTriggerDeliversVariables(t *testing.T) {
 		if v.Trigger.EntityID != "sensor.inverter_status" || v.Trigger.ToState.State != "fault" || v.Trigger.FromState.State != "ok" {
 			t.Fatalf("variables = %+v", v)
 		}
+		if v.Trigger.ToState.Attributes["power"] != 3.0 {
+			t.Errorf("attributes not carried over: %+v", v.Trigger.ToState.Attributes)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("no trigger event")
+	}
+	select {
+	case e := <-got:
+		t.Fatalf("unexpected second event: %s", e.Variables)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestStateChangeDuringReconnectFires(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "binary_sensor.motion", State: "off"}})
+	c, ctx := startClient(t, srv, "test-token")
+	got := make(chan haws.Event, 4)
+	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": "binary_sensor.motion", "not_to": "unavailable"},
+		func(e haws.Event) { got <- e }); err != nil {
+		t.Fatal(err)
+	}
+	// A first change proves the client knows the current state.
+	waitFor(t, func() bool { return srv.SubscriptionCount() == 1 })
+	srv.SetState("binary_sensor.motion", "on", nil)
+	select {
+	case <-got:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no event for the first change")
+	}
+	srv.DropConnections()
+	srv.SetState("binary_sensor.motion", "off", nil) // nobody connected
+	select {
+	case <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the change during the outage was lost")
+	}
+}
+
+func TestSubscribeTriggerRejectsOtherTriggers(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	c, ctx := startClient(t, srv, "test-token")
+	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "time", "at": "07:00"}, func(haws.Event) {}); err == nil {
+		t.Fatal("time trigger accepted")
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not met in time")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

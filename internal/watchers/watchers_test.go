@@ -154,6 +154,7 @@ func TestImportanceThresholdAndOverride(t *testing.T) {
 func TestRunSubscribesTriggersOverTheWebSocket(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "sensor.inverter_status", State: "ok"}})
 	client, err := haws.New(haws.Options{URL: srv.URL, Token: "test-token", Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
@@ -174,12 +175,7 @@ func TestRunSubscribesTriggersOverTheWebSocket(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	srv.PushTrigger(map[string]any{"trigger": map[string]any{
-		"platform": "state", "entity_id": "sensor.inverter_status",
-		"from_state": map[string]any{"entity_id": "sensor.inverter_status", "state": "ok"},
-		"to_state": map[string]any{"entity_id": "sensor.inverter_status", "state": "fault",
-			"attributes": map[string]any{"friendly_name": "Wechselrichter"}},
-	}})
+	srv.SetState("sensor.inverter_status", "fault", map[string]any{"friendly_name": "Wechselrichter"})
 	for {
 		if n, err := st.OpenNoticeByDedupeKey(ctx, "inverter:fault"); err == nil {
 			if n.Importance != 2 {

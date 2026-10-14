@@ -52,6 +52,8 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	ha.SetStates([]haws.State{
 		{EntityID: "assist_satellite.bad", State: "idle", Attributes: map[string]any{"supported_features": 3}},
 		{EntityID: "person.stefan", State: "home"},
+		{EntityID: "sensor.inverter_status", State: "ok"},
+		{EntityID: "binary_sensor.bad_motion", State: "off"},
 	})
 
 	cfg := config.Default()
@@ -86,15 +88,12 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 			t.Error("agent did not shut down")
 		}
 	}()
-	// Watcher and notifier both subscribe a trigger.
+	// Watcher and notifier both watch their entities.
 	waitUntil(t, "trigger subscriptions", func() bool { return ha.SubscriptionCount() >= 2 })
 
 	push := func(entity, from, to string) {
-		ha.PushTrigger(map[string]any{"trigger": map[string]any{
-			"platform": "state", "entity_id": entity,
-			"from_state": map[string]any{"entity_id": entity, "state": from},
-			"to_state":   map[string]any{"entity_id": entity, "state": to},
-		}})
+		ha.SetState(entity, from, nil)
+		ha.SetState(entity, to, nil)
 	}
 
 	// 1. The fault, flapping a few times.
