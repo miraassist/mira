@@ -74,7 +74,7 @@ class LaresConversationEntity(conversation.ConversationEntity, conversation.Abst
         timeout = self.entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
         continue_conversation = False
         try:
-            reply = await self.entry.runtime_data.converse(
+            reply = await self.entry.runtime_data.client.converse(
                 text=user_input.text,
                 conversation_id=conversation_id,
                 device_id=user_input.device_id,

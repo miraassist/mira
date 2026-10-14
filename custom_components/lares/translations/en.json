@@ -4,20 +4,77 @@
       "user": {
         "title": "Connect to the Lares agent",
         "description": "Address and API token of the Lares agent (server.listen and server.token in its config).",
-        "data": { "url": "Agent URL", "token": "API token" }
+        "data": {
+          "url": "Agent URL",
+          "token": "API token"
+        }
       }
     },
     "error": {
       "cannot_connect": "Could not reach the agent at this address.",
       "invalid_auth": "The agent rejected the token."
     },
-    "abort": { "already_configured": "This agent is already configured." }
+    "abort": {
+      "already_configured": "This agent is already configured."
+    }
   },
   "options": {
     "step": {
       "init": {
-        "data": { "timeout": "Answer timeout (seconds)" },
-        "data_description": { "timeout": "After this the satellite says a short error instead of staying silent." }
+        "data": {
+          "timeout": "Answer timeout (seconds)"
+        },
+        "data_description": {
+          "timeout": "After this the satellite says a short error instead of staying silent."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending_notices": {
+        "name": "Pending notices"
+      }
+    },
+    "switch": {
+      "quiet_mode": {
+        "name": "Quiet mode"
+      }
+    }
+  },
+  "services": {
+    "add_notice": {
+      "name": "Add notice",
+      "description": "Queue a notice. The agent announces it on a satellite when someone is in a room, or sends it privately.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "What to say, one or two spoken sentences."
+        },
+        "details": {
+          "name": "Details",
+          "description": "The long form, for follow-up questions."
+        },
+        "importance": {
+          "name": "Importance",
+          "description": "0 not worth mentioning, 1 by the way, 2 important today, 3 urgent."
+        },
+        "audience": {
+          "name": "Audience",
+          "description": "household, or a person id from the agent config."
+        },
+        "confidentiality": {
+          "name": "Confidentiality",
+          "description": "Confidential notices are only spoken when the agent policy allows it, otherwise sent privately."
+        },
+        "dedupe_key": {
+          "name": "Dedupe key",
+          "description": "An open notice with the same key is updated instead of duplicated."
+        },
+        "expires_in": {
+          "name": "Expires in",
+          "description": "Duration like 12h; afterwards the notice is dropped. Default 24h."
+        }
       }
     }
   }

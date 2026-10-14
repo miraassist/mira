@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/sker65/lares/internal/config"
@@ -111,6 +113,74 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	for area, sat := range cfg.Satellites {
 		if _, ok := snap.AreaNames[area]; !ok {
 			fmt.Printf("  ! satellites: area %q (for %s) does not exist in Home Assistant\n", area, sat)
+		}
+	}
+	checkEntities(ctx, c, cfg)
+}
+
+// checkEntities looks up every entity the notifier and watchers rely on and
+// reports how each satellite would speak.
+func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
+	states, err := c.States(ctx)
+	if err != nil {
+		fmt.Printf("  ! could not read states: %v\n", err)
+		return
+	}
+	byID := map[string]haws.State{}
+	for _, s := range states {
+		byID[s.EntityID] = s
+	}
+	areas := make([]string, 0, len(cfg.Satellites))
+	for a := range cfg.Satellites {
+		areas = append(areas, a)
+	}
+	sort.Strings(areas)
+	for _, area := range areas {
+		sat := cfg.Satellites[area]
+		st, ok := byID[sat]
+		switch {
+		case !ok:
+			fmt.Printf("  ! satellite %s (%s) does not exist\n", sat, area)
+		case strings.HasPrefix(sat, "media_player."):
+			fmt.Printf("    satellite %-32s %s: tts.speak via %s\n", sat, area, cfg.Notifier.TTSEntity)
+		default:
+			f, _ := st.Attributes["supported_features"].(float64)
+			method := "none: cannot announce"
+			switch {
+			case int(f)&2 != 0:
+				method = "start_conversation (listens afterwards)"
+			case int(f)&1 != 0:
+				method = "announce (does not listen afterwards)"
+			}
+			fmt.Printf("    satellite %-32s %s: %s\n", sat, area, method)
+		}
+	}
+	want := map[string]string{}
+	for area, sensor := range cfg.Notifier.MorningTrigger.Presence {
+		want[sensor] = "presence " + area
+	}
+	for id, p := range cfg.Persons {
+		if p.Entity != "" {
+			want[p.Entity] = "person " + id
+		}
+	}
+	for _, w := range cfg.Watchers {
+		if w.Trigger != nil {
+			for _, e := range w.Trigger.EntityID {
+				want[e] = "watcher " + w.Name
+			}
+		}
+	}
+	ids := make([]string, 0, len(want))
+	for id := range want {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if st, ok := byID[id]; ok {
+			fmt.Printf("    %-42s %s (now %s)\n", id, want[id], st.State)
+		} else {
+			fmt.Printf("  ! %s (%s) does not exist\n", id, want[id])
 		}
 	}
 }

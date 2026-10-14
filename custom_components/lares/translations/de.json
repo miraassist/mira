@@ -4,20 +4,77 @@
       "user": {
         "title": "Mit dem Lares-Agenten verbinden",
         "description": "Adresse und API-Token des Lares-Agenten (server.listen und server.token in seiner Konfiguration).",
-        "data": { "url": "Agent-URL", "token": "API-Token" }
+        "data": {
+          "url": "Agent-URL",
+          "token": "API-Token"
+        }
       }
     },
     "error": {
       "cannot_connect": "Der Agent ist unter dieser Adresse nicht erreichbar.",
       "invalid_auth": "Der Agent hat den Token abgelehnt."
     },
-    "abort": { "already_configured": "Dieser Agent ist bereits eingerichtet." }
+    "abort": {
+      "already_configured": "Dieser Agent ist bereits eingerichtet."
+    }
   },
   "options": {
     "step": {
       "init": {
-        "data": { "timeout": "Antwort-Timeout (Sekunden)" },
-        "data_description": { "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben." }
+        "data": {
+          "timeout": "Antwort-Timeout (Sekunden)"
+        },
+        "data_description": {
+          "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending_notices": {
+        "name": "Offene Hinweise"
+      }
+    },
+    "switch": {
+      "quiet_mode": {
+        "name": "Ruhemodus"
+      }
+    }
+  },
+  "services": {
+    "add_notice": {
+      "name": "Hinweis hinzufügen",
+      "description": "Stellt einen Hinweis ein. Der Agent sagt ihn auf einem Satelliten an, wenn jemand im Raum ist, oder schickt ihn privat.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "Was gesagt werden soll, ein bis zwei sprechbare Sätze."
+        },
+        "details": {
+          "name": "Details",
+          "description": "Die Langfassung für Nachfragen."
+        },
+        "importance": {
+          "name": "Wichtigkeit",
+          "description": "0 nicht erwähnenswert, 1 nebenbei, 2 heute wichtig, 3 dringend."
+        },
+        "audience": {
+          "name": "Empfänger",
+          "description": "household oder eine Personen-ID aus der Agent-Konfiguration."
+        },
+        "confidentiality": {
+          "name": "Vertraulichkeit",
+          "description": "Vertrauliche Hinweise werden nur gesprochen, wenn die Richtlinie des Agenten es erlaubt, sonst privat geschickt."
+        },
+        "dedupe_key": {
+          "name": "Dedupe-Schlüssel",
+          "description": "Ein offener Hinweis mit gleichem Schlüssel wird aktualisiert statt doppelt angelegt."
+        },
+        "expires_in": {
+          "name": "Gültig für",
+          "description": "Dauer wie 12h; danach verfällt der Hinweis. Standard 24h."
+        }
       }
     }
   }

@@ -60,9 +60,51 @@ sessions:
   voice_ttl: 5m
   telegram_ttl: 12h
 
-satellites:            # area id -> assist_satellite entity (used from M3 on)
+satellites:            # area id -> satellite that speaks announcements there
   bad: assist_satellite.bad
   kueche: assist_satellite.kueche
+  # A satellite that is only a media_player works too (needs notifier.tts_entity):
+  # wohnzimmer: media_player.echo_wohnzimmer
+
+persons:               # key = audience id for personal notices
+  stefan:
+    entity: person.stefan                 # home/not_home, used by confidential_voice
+    telegram_user_id: 123456789           # must be on telegram.allowed_user_ids
+    notify: notify.mobile_app_pixel       # companion app, optional
+
+watchers:
+  - name: inverter_fault
+    trigger: { entity_id: sensor.inverter_status, to: ["fault", "error"] }
+    dedupe_key: inverter:fault
+    # What the event means; the model words the notice from this.
+    description: "Der Wechselrichter der Solaranlage meldet einen Fehler."
+    # importance: 2              # optional: fix instead of letting the model rate it
+    # audience: household        # or a person id
+    # confidentiality: normal    # or confidential
+    # expires_in: 24h
+
+notifier:
+  quiet_hours: { from: "22:30", to: "06:30" }
+  # Announcements happen on motion in these areas: the first motion after
+  # quiet hours is the morning announcement.
+  morning_trigger:
+    areas: [bad, kueche]
+    presence:
+      bad: binary_sensor.bad_motion
+      kueche: binary_sensor.kueche_motion
+  cooldown: 30m
+  max_items_per_announcement: 3
+  min_importance: 1
+  follow_up_window: 2m
+  # Important notices nobody heard by this time go out privately.
+  escalate_to_telegram: { min_importance: 2, after: "09:00", grace: 30m }
+  # When may a confidential notice be spoken? never | when_alone | always
+  # when_alone: only its recipient (by the person entities) is home.
+  confidential_voice: when_alone
+  private_via: [telegram, push]
+  # auto: start_conversation if the satellite supports it, else announce.
+  delivery: auto
+  # tts_entity: tts.piper
 
 security:
   confirm_domains: [lock, alarm_control_panel]

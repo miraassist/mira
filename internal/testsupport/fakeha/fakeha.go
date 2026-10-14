@@ -183,11 +183,15 @@ func (s *Server) PushTrigger(variables any) int {
 	s.mu.Unlock()
 
 	sent := 0
+	entity := triggerEntity(variables)
 	for _, cs := range conns {
 		cs.mu.Lock()
 		ids := make([]int, 0, len(cs.triggers))
-		for id := range cs.triggers {
-			ids = append(ids, id)
+		for id, trig := range cs.triggers {
+			// Like Home Assistant, only triggers watching this entity fire.
+			if entity == "" || watches(trig, entity) {
+				ids = append(ids, id)
+			}
 		}
 		cs.mu.Unlock()
 		for _, id := range ids {
@@ -204,6 +208,30 @@ func (s *Server) PushTrigger(variables any) int {
 		}
 	}
 	return sent
+}
+
+// triggerEntity reads variables.trigger.entity_id, if present.
+func triggerEntity(variables any) string {
+	v, _ := variables.(map[string]any)
+	t, _ := v["trigger"].(map[string]any)
+	id, _ := t["entity_id"].(string)
+	return id
+}
+
+// watches reports whether a trigger definition names the entity.
+func watches(trigger map[string]any, entity string) bool {
+	switch ids := trigger["entity_id"].(type) {
+	case string:
+		return ids == entity
+	case []any:
+		for _, id := range ids {
+			if id == entity {
+				return true
+			}
+		}
+		return false
+	}
+	return true // no entity filter: fires for everything
 }
 
 // SubscriptionCount reports how many live subscriptions exist, which is how a

@@ -37,6 +37,8 @@ type Options struct {
 	Checks  map[string]HealthCheck
 	Version string
 	Logger  *slog.Logger
+	// Persons are the valid personal audiences of a notice.
+	Persons map[string]config.Person
 	// TurnTimeout bounds one conversation request.
 	TurnTimeout time.Duration
 }
@@ -168,6 +170,8 @@ type noticeRequest struct {
 	Importance int    `json:"importance"`
 	Audience   string `json:"audience"`
 	DedupeKey  string `json:"dedupe_key"`
+	// Confidentiality is "normal" (default) or "confidential".
+	Confidentiality string `json:"confidentiality"`
 	// ExpiresIn is a Go duration such as "12h". Default 24h.
 	ExpiresIn string `json:"expires_in"`
 }
@@ -181,6 +185,16 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Text) == "" {
 		writeError(w, http.StatusBadRequest, "text is required")
 		return
+	}
+	if c := req.Confidentiality; c != "" && c != store.ConfidentialityNormal && c != store.ConfidentialityConfidential {
+		writeError(w, http.StatusBadRequest, "confidentiality must be normal or confidential")
+		return
+	}
+	if a := req.Audience; a != "" && a != store.AudienceHousehold {
+		if _, ok := s.opts.Persons[a]; !ok {
+			writeError(w, http.StatusBadRequest, "audience must be household or a configured person")
+			return
+		}
 	}
 	if req.Importance < 0 || req.Importance > 3 {
 		writeError(w, http.StatusBadRequest, "importance must be between 0 and 3")
@@ -198,7 +212,7 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 	n, created, err := s.opts.Store.PutNotice(r.Context(), store.Notice{
 		ID: ulid.Make().String(), Source: store.SourceExternal, DedupeKey: req.DedupeKey,
 		Importance: req.Importance, Audience: req.Audience, Spoken: strings.TrimSpace(req.Text),
-		Details: req.Details, ExpiresAt: time.Now().Add(ttl),
+		Details: req.Details, ExpiresAt: time.Now().Add(ttl), Confidentiality: req.Confidentiality,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

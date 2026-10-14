@@ -83,3 +83,15 @@ class LaresClient:
             conversation_id=str(data.get("conversation_id") or conversation_id or ""),
             continue_conversation=bool(data.get("continue_conversation", False)),
         )
+
+    async def status(self) -> dict[str, Any]:
+        """Pending notice count and quiet mode."""
+        return await self._request("GET", "/v1/status", 10)
+
+    async def set_quiet_mode(self, enabled: bool) -> None:
+        """Switch the agent's quiet mode."""
+        await self._request("PUT", "/v1/quiet_mode", 10, json={"enabled": enabled})
+
+    async def add_notice(self, notice: dict[str, Any]) -> dict[str, Any]:
+        """Queue a notice; the agent decides when and where it is delivered."""
+        return await self._request("POST", "/v1/notices", 10, json=notice)

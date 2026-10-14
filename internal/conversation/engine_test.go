@@ -2,6 +2,7 @@ package conversation_test
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -424,5 +425,68 @@ func TestVoiceConfirmationRequestKeepsListening(t *testing.T) {
 	resp := h.say(t, config.ChannelVoice, "v1", "Schließ die Haustür ab")
 	if !resp.ContinueConversation {
 		t.Fatalf("satellite would stop listening: %+v", resp)
+	}
+}
+
+// Plan acceptance, in fakes: "Was genau?" after an announcement gets the
+// notice's details, and answering acknowledges it.
+func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Der Wechselrichter meldet Fehlercode zweiundvierzig."})
+	ctx := context.Background()
+	n, _, err := h.store.PutNotice(ctx, store.Notice{ID: "inv", Source: store.SourceHATrigger, Importance: 2,
+		Spoken: "Der Wechselrichter meldet einen Fehler.", Details: "Status fault, Fehlercode 42, seit 03:00.",
+		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.store.MarkDelivered(ctx, n.ID, "voice:kueche")
+	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", AreaID: "kueche", Channel: "voice", NoticeIDs: []string{"inv"}})
+	h.clock.Advance(30 * time.Second)
+
+	_, err = h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Was genau?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	layer7 := h.llm.Last().Request.Messages[1].Content
+	if !strings.Contains(layer7, "Du hast gerade gemeldet") || !strings.Contains(layer7, "Fehlercode 42") {
+		t.Fatalf("layer 7 lacks the notice details:\n%s", layer7)
+	}
+	if got, _ := h.store.GetNotice(ctx, "inv"); got.State != store.NoticeAcked {
+		t.Errorf("notice state = %s, want acked", got.State)
+	}
+}
+
+func TestFollowUpWindowExpires(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Hallo."})
+	ctx := context.Background()
+	h.store.PutNotice(ctx, store.Notice{ID: "inv", Source: store.SourceHATrigger, Importance: 2, Spoken: "x", Details: "Fehlercode 42",
+		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
+	h.store.MarkDelivered(ctx, "inv", "voice:kueche")
+	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", Channel: "voice", NoticeIDs: []string{"inv"}})
+	h.clock.Advance(5 * time.Minute)
+	h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Hallo"})
+	if strings.Contains(h.llm.Last().Request.Messages[1].Content, "Fehlercode") {
+		t.Error("notice context outside the follow-up window")
+	}
+	if got, _ := h.store.GetNotice(ctx, "inv"); got.State != store.NoticeDelivered {
+		t.Errorf("state = %s; an unrelated turn must not acknowledge", got.State)
+	}
+}
+
+func TestAssessUsesTheBackgroundSlotWithoutTools(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Klar:\n```json\n{\"importance\":2}\n```"})
+	out, err := h.engine.Assess(context.Background(), "Bewerte das.", json.RawMessage(`{"type":"object"}`))
+	if err != nil || out != `{"importance":2}` {
+		t.Fatalf("Assess = %q, %v", out, err)
+	}
+	rec := h.llm.Last()
+	if rec.Slot != 2 || rec.Request.ToolChoice != "none" || rec.Request.ResponseFormat == nil {
+		t.Fatalf("request: slot %d, tool_choice %v, response_format %v", rec.Slot, rec.Request.ToolChoice, rec.Request.ResponseFormat)
+	}
+	if !strings.Contains(rec.Request.Messages[0].Content, "Kanalstil: Hintergrundjob") {
+		t.Error("background prefix not used")
+	}
+	if n, _ := h.store.Messages(context.Background(), "background:"); len(n) != 0 {
+		t.Error("an assessment must not leave a transcript")
 	}
 }

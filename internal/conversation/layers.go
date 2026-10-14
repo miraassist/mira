@@ -95,19 +95,25 @@ func (e *Engine) memories(ctx context.Context, text string) []string {
 
 // noticeContext links a voice turn to notices announced on the same
 // satellite moments ago, so "Was genau?" can be answered from the details.
-func (e *Engine) noticeContext(ctx context.Context, deviceID string) string {
+// It also returns the ids of the notices that are still open, so the turn
+// can acknowledge them once it is answered.
+func (e *Engine) noticeContext(ctx context.Context, deviceID string) (string, []string) {
 	if deviceID == "" {
-		return ""
+		return "", nil
 	}
 	a, err := e.store.RecentAnnouncement(ctx, deviceID, e.cfg.Notifier.FollowUpWindow.Duration())
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	var b strings.Builder
+	var open []string
 	for _, id := range a.NoticeIDs {
 		n, err := e.store.GetNotice(ctx, id)
 		if err != nil {
 			continue
+		}
+		if n.State == store.NoticeDelivered {
+			open = append(open, n.ID)
 		}
 		b.WriteString("- [" + n.ID + "] " + n.Spoken)
 		if n.Details != "" {
@@ -115,7 +121,7 @@ func (e *Engine) noticeContext(ctx context.Context, deviceID string) string {
 		}
 		b.WriteByte('\n')
 	}
-	return strings.TrimRight(b.String(), "\n")
+	return strings.TrimRight(b.String(), "\n"), open
 }
 
 // history loads layer 6.

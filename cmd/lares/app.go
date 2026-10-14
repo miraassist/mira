@@ -19,9 +19,11 @@ import (
 	haws "github.com/sker65/lares/internal/ha/ws"
 	"github.com/sker65/lares/internal/llm"
 	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/lares/internal/notifier"
 	"github.com/sker65/lares/internal/store"
 	"github.com/sker65/lares/internal/telemetry"
 	"github.com/sker65/lares/internal/tools"
+	"github.com/sker65/lares/internal/watchers"
 )
 
 // app is the wired agent. Fields are nil for disabled parts.
@@ -244,6 +246,12 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		}
 	})
 
+	if a.ha != nil {
+		a.startProactive(ctx)
+	} else if len(cfg.Watchers) > 0 || len(cfg.Notifier.MorningTrigger.Areas) > 0 {
+		a.log.Warn("watchers and notifier need Home Assistant (ha.enabled); they are off")
+	}
+
 	errs := make(chan error, 2)
 	if a.telegram != nil {
 		go func() { errs <- fmt.Errorf("telegram: %w", a.telegram.Run(ctx)) }()
@@ -254,6 +262,7 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		Handler: haconv.New(haconv.Options{
 			Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version,
 			Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
+			Persons: cfg.Persons,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -286,6 +295,25 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		_ = httpServer.Close()
 	}
 	return runErr
+}
+
+// startProactive runs the watchers, which turn HA events into notices, and
+// the notifier, which delivers them.
+func (a *app) startProactive(ctx context.Context) {
+	w := watchers.New(watchers.Options{
+		Watchers: a.cfg.Watchers, MinImportance: a.cfg.Notifier.MinImportance,
+		Store: a.store, Assessor: a.engine, Logger: a.log,
+	})
+	a.goRun(ctx, "watchers", func(ctx context.Context) error { return w.Run(ctx, a.ha) })
+
+	var tg notifier.Telegram
+	if a.telegram != nil {
+		tg = a.telegram
+	}
+	n := notifier.New(notifier.Options{
+		Config: a.cfg, Store: a.store, HA: a.ha, Telegram: tg, Logger: a.log, Telemetry: a.tel,
+	})
+	a.goRun(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
 }
 
 func (a *app) healthChecks() map[string]haconv.HealthCheck {

@@ -11,6 +11,8 @@ ENTITY_ID = "conversation.lares"
 
 async def _setup(hass, entry):
     assert await hass.config_entries.async_setup(entry.entry_id)
+    # The status poll is not mocked here: an unreachable status must not
+    # keep the conversation entity from loading.
     await hass.async_block_till_done()
 
 

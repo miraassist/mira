@@ -197,11 +197,12 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	}
 
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text}
+	noticeText, followedUp := e.noticeContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
 		Now:            now.In(e.loc),
 		ChannelContext: e.channelContext(req, sess, snap),
 		Memories:       e.memories(ctx, req.Text),
-		NoticeContext:  e.noticeContext(ctx, req.DeviceID),
+		NoticeContext:  noticeText,
 		Extra:          req.Extra,
 		Text:           req.Text,
 	}
@@ -264,6 +265,14 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	added = append(added, final)
 	if err := e.store.AppendMessages(ctx, key, toStore(added)...); err != nil {
 		return Response{}, fmt.Errorf("store transcript: %w", err)
+	}
+
+	// Whoever answered right after an announcement on this satellite has
+	// heard it; that is the acknowledgement the plan asks for.
+	for _, id := range followedUp {
+		if err := e.store.SetNoticeState(ctx, id, store.NoticeAcked); err != nil {
+			e.log.Warn("could not acknowledge notice", "notice", id, "error", err)
+		}
 	}
 
 	resp.Text = strings.TrimSpace(final.Content)
