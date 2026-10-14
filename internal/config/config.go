@@ -200,6 +200,9 @@ type Security struct {
 	ConfirmTools []string `yaml:"confirm_tools"`
 	// ConfirmTTL is how long a pending confirmation stays answerable.
 	ConfirmTTL Duration `yaml:"confirm_ttl"`
+	// ReadOnlyTools are qualified tool names that only read, for servers that
+	// do not annotate their tools. Only read-only tools reach background jobs.
+	ReadOnlyTools []string `yaml:"read_only_tools"`
 }
 
 type Memory struct {
@@ -265,6 +268,9 @@ func Default() Config {
 		Security: Security{
 			ConfirmDomains: []string{"lock", "alarm_control_panel"},
 			ConfirmTTL:     Duration(5 * 60e9),
+			ReadOnlyTools: []string{
+				"ha__GetDateTime", "ha__GetLiveContext", "ha__HassGetWeather", "ha__todo_get_items",
+			},
 		},
 		Memory: Memory{
 			ProfileSchedule: "30 3 * * *",

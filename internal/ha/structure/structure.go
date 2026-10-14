@@ -38,6 +38,12 @@ type Snapshot struct {
 	EntityArea map[string]string
 	// ExposedEntities is the set the model was told about.
 	ExposedEntities map[string]bool
+	// EntityNames maps entity id to every lower-cased name the model might
+	// use for it: entity id, display name, aliases and device name. The
+	// security policy resolves tool arguments through it.
+	EntityNames map[string][]string
+	// AreaKeys maps a lower-cased area id, name or alias to the area id.
+	AreaKeys map[string]string
 	// ExposureKnown is false when Home Assistant could not tell us which
 	// entities are exposed and the build fell back to including everything.
 	ExposureKnown bool
@@ -61,6 +67,8 @@ func Build(reg Registry) Snapshot {
 		DeviceArea:      make(map[string]string, len(reg.Devices)),
 		EntityArea:      make(map[string]string, len(reg.Entities)),
 		ExposedEntities: map[string]bool{},
+		EntityNames:     map[string][]string{},
+		AreaKeys:        map[string]string{},
 		ExposureKnown:   reg.Exposed != nil,
 	}
 
@@ -68,6 +76,11 @@ func Build(reg Registry) Snapshot {
 	for _, a := range reg.Areas {
 		areaByID[a.AreaID] = a
 		snap.AreaNames[a.AreaID] = a.Name
+		for _, key := range append([]string{a.AreaID, a.Name}, a.Aliases...) {
+			if key = normalizeName(key); key != "" {
+				snap.AreaKeys[key] = a.AreaID
+			}
+		}
 	}
 	deviceByID := make(map[string]haws.Device, len(reg.Devices))
 	for _, d := range reg.Devices {
@@ -108,6 +121,7 @@ func Build(reg Registry) Snapshot {
 			row.deviceName = dn
 		}
 		byArea[area] = append(byArea[area], row)
+		snap.EntityNames[e.EntityID] = nameKeys(e.EntityID, name, device.DisplayName(), e.Aliases)
 	}
 
 	areaIDs := make([]string, 0, len(byArea))
@@ -201,6 +215,70 @@ func sortedCopy(in []string) []string {
 	for _, s := range in {
 		if s = strings.TrimSpace(s); s != "" {
 			out = append(out, s)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// normalizeName is the form names are compared in.
+func normalizeName(s string) string {
+	return strings.ToLower(strings.Join(strings.Fields(s), " "))
+}
+
+func nameKeys(entityID, name, deviceName string, aliases []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, k := range append([]string{entityID, name, deviceName}, aliases...) {
+		if k = normalizeName(k); k != "" && !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// ResolveName returns the exposed entities a name could refer to, the way
+// Home Assistant's intent matching would: by entity id, name, alias or device
+// name, optionally restricted to an area. The result is sorted.
+func (s Snapshot) ResolveName(name, area string) []string {
+	key := normalizeName(name)
+	if key == "" {
+		return nil
+	}
+	areaID := s.ResolveArea(area)
+	var out []string
+	for id, names := range s.EntityNames {
+		if area != "" && areaID != "" && s.EntityArea[id] != areaID {
+			continue
+		}
+		for _, n := range names {
+			if n == key {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ResolveArea maps an area id, name or alias to the area id, or "".
+func (s Snapshot) ResolveArea(area string) string {
+	return s.AreaKeys[normalizeName(area)]
+}
+
+// EntitiesInArea lists the exposed entities of an area given by id, name or
+// alias. The result is sorted.
+func (s Snapshot) EntitiesInArea(area string) []string {
+	areaID := s.ResolveArea(area)
+	if areaID == "" {
+		return nil
+	}
+	var out []string
+	for id, a := range s.EntityArea {
+		if a == areaID {
+			out = append(out, id)
 		}
 	}
 	sort.Strings(out)
