@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +27,7 @@ import (
 	"github.com/sker65/lares/internal/store"
 	"github.com/sker65/lares/internal/telemetry"
 	"github.com/sker65/lares/internal/tools"
+	"github.com/sker65/lares/internal/ui"
 	"github.com/sker65/lares/internal/watchers"
 )
 
@@ -41,6 +44,17 @@ type app struct {
 	mcp       *mcp.Host
 	telegram  *telegram.Bot
 	engine    *conversation.Engine
+
+	// live is the config the proactive parts run with: the YAML file plus
+	// the sections changed in the web UI. fileCfg is the file alone, for
+	// "back to lares.yaml".
+	liveMu  sync.Mutex
+	live    config.Config
+	fileCfg config.Config
+	// proactive runs the watchers and the notifier; the UI restarts it.
+	proactiveMu     sync.Mutex
+	proactiveCancel context.CancelFunc
+	proactiveWG     sync.WaitGroup
 
 	// background holds goroutines started by build, stopped through ctx.
 	background sync.WaitGroup
@@ -239,6 +253,7 @@ func (a *app) close() {
 		a.mcp.Close()
 	}
 	a.background.Wait()
+	a.proactiveWG.Wait()
 	if a.store != nil {
 		a.store.Close()
 	}
@@ -286,6 +301,8 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		a.goRun(ctx, "profile", compactor.Run)
 	}
 
+	a.fileCfg = cfg
+	a.live = a.withUIOverrides(ctx, cfg)
 	if a.ha != nil {
 		a.startProactive(ctx)
 	} else if len(cfg.Watchers) > 0 || len(cfg.Notifier.MorningTrigger.Areas) > 0 {
@@ -298,12 +315,8 @@ func runAgent(parent context.Context, cfg config.Config) error {
 	}
 
 	httpServer := &http.Server{
-		Addr: cfg.Server.Listen,
-		Handler: haconv.New(haconv.Options{
-			Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version,
-			Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
-			Persons: cfg.Persons,
-		}),
+		Addr:              cfg.Server.Listen,
+		Handler:           a.httpHandler(ctx),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	if cfg.Server.Token == "" {
@@ -338,22 +351,237 @@ func runAgent(parent context.Context, cfg config.Config) error {
 }
 
 // startProactive runs the watchers, which turn HA events into notices, and
-// the notifier, which delivers them.
-func (a *app) startProactive(ctx context.Context) {
+// the notifier, which delivers them, with the live config. They get their own
+// context so the web UI can restart them with a changed config.
+func (a *app) startProactive(parent context.Context) {
+	a.proactiveMu.Lock()
+	defer a.proactiveMu.Unlock()
+	cfg := a.liveConfig()
+	ctx, cancel := context.WithCancel(parent)
+	a.proactiveCancel = cancel
+
 	w := watchers.New(watchers.Options{
-		Watchers: a.cfg.Watchers, MinImportance: a.cfg.Notifier.MinImportance,
+		Watchers: cfg.Watchers, MinImportance: cfg.Notifier.MinImportance,
 		Store: a.store, Assessor: a.engine, Logger: a.log,
 	})
-	a.goRun(ctx, "watchers", func(ctx context.Context) error { return w.Run(ctx, a.ha) })
+	a.goProactive(ctx, "watchers", func(ctx context.Context) error { return w.Run(ctx, a.ha) })
 
 	var tg notifier.Telegram
 	if a.telegram != nil {
 		tg = a.telegram
 	}
 	n := notifier.New(notifier.Options{
-		Config: a.cfg, Store: a.store, HA: a.ha, Telegram: tg, Logger: a.log, Telemetry: a.tel,
+		Config: cfg, Store: a.store, HA: a.ha, Telegram: tg, Logger: a.log, Telemetry: a.tel,
 	})
-	a.goRun(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {
+	a.proactiveWG.Add(1)
+	go func() {
+		defer a.proactiveWG.Done()
+		if err := fn(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			a.log.Error("background task stopped", "task", name, "error", err)
+		}
+	}()
+}
+
+// restartProactive stops the watchers and the notifier, waits for them and
+// starts them again with the live config.
+func (a *app) restartProactive(parent context.Context) {
+	if a.ha == nil {
+		return
+	}
+	a.proactiveMu.Lock()
+	cancel := a.proactiveCancel
+	a.proactiveMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	a.proactiveWG.Wait()
+	a.startProactive(parent)
+	a.log.Info("watchers and notifier restarted with the changed config")
+}
+
+func (a *app) liveConfig() config.Config {
+	a.liveMu.Lock()
+	defer a.liveMu.Unlock()
+	return a.live
+}
+
+// uiKey is where a section changed in the web UI is stored, as YAML.
+func uiKey(section string) string { return "ui_config:" + section }
+
+// withUIOverrides lays the sections changed in the web UI over the file.
+// They are validated together, like when they were saved: one may depend on
+// another (a presence sensor needs its area's satellite). If the file changed
+// so that they no longer fit, each is tried alone and the misfits are skipped.
+func (a *app) withUIOverrides(ctx context.Context, cfg config.Config) config.Config {
+	stored := map[string][]byte{}
+	for _, name := range config.UISections {
+		if raw, err := a.store.GetKV(ctx, uiKey(name)); err == nil {
+			stored[name] = []byte(raw)
+		}
+	}
+	if len(stored) == 0 {
+		return cfg
+	}
+	all := cfg
+	ok := true
+	for _, name := range config.UISections {
+		if raw, found := stored[name]; found {
+			if err := all.ApplySection(name, raw); err != nil {
+				ok = false
+			}
+		}
+	}
+	if ok && all.Validate() == nil {
+		for name := range stored {
+			a.log.Info("config section from the web UI", "section", name)
+		}
+		return all
+	}
+	for _, name := range config.UISections {
+		raw, found := stored[name]
+		if !found {
+			continue
+		}
+		next := cfg
+		err := next.ApplySection(name, raw)
+		if err == nil {
+			err = next.Validate()
+		}
+		if err != nil {
+			a.log.Error("ignoring a section changed in the web UI", "section", name, "error", err)
+			continue
+		}
+		a.log.Info("config section from the web UI", "section", name)
+		cfg = next
+	}
+	return cfg
+}
+
+// setSections applies sections from the UI (YAML by name), validates the
+// whole config, stores them and restarts what depends on them. A nil value
+// resets that section to the file's.
+func (a *app) setSections(ctx, runCtx context.Context, sections map[string][]byte) error {
+	a.liveMu.Lock()
+	next := a.live
+	for name, raw := range sections {
+		if raw == nil {
+			fileJSON, err := a.fileCfg.SectionJSON(name)
+			if err == nil {
+				raw, err = config.SectionYAML(name, fileJSON)
+			}
+			if err != nil {
+				a.liveMu.Unlock()
+				return err
+			}
+		}
+		if err := next.ApplySection(name, raw); err != nil {
+			a.liveMu.Unlock()
+			return err
+		}
+	}
+	if err := next.Validate(); err != nil {
+		a.liveMu.Unlock()
+		return err
+	}
+	for name, raw := range sections {
+		var err error
+		if raw == nil {
+			err = a.store.DeleteKV(ctx, uiKey(name))
+		} else {
+			err = a.store.SetKV(ctx, uiKey(name), string(raw))
+		}
+		if err != nil {
+			a.liveMu.Unlock()
+			return err
+		}
+	}
+	a.live = next
+	a.liveMu.Unlock()
+	a.restartProactive(runCtx)
+	return nil
+}
+
+// uiConfig adapts the app to the web UI.
+type uiConfig struct {
+	a      *app
+	runCtx context.Context
+}
+
+func (u uiConfig) Section(name string) (json.RawMessage, bool, error) {
+	raw, err := u.a.liveConfig().SectionJSON(name)
+	if err != nil {
+		return nil, false, err
+	}
+	_, kvErr := u.a.store.GetKV(context.Background(), uiKey(name))
+	return raw, kvErr == nil, nil
+}
+
+func (u uiConfig) SetSections(ctx context.Context, sections map[string]json.RawMessage) error {
+	yamls := make(map[string][]byte, len(sections))
+	for name, raw := range sections {
+		y, err := config.SectionYAML(name, raw)
+		if err != nil {
+			return err
+		}
+		yamls[name] = y
+	}
+	return u.a.setSections(ctx, u.runCtx, yamls)
+}
+
+func (u uiConfig) ResetSection(ctx context.Context, name string) error {
+	if !slices.Contains(config.UISections, name) {
+		return fmt.Errorf("unknown or read-only config section %q", name)
+	}
+	return u.a.setSections(ctx, u.runCtx, map[string][]byte{name: nil})
+}
+
+// httpHandler serves the web UI and its API under /ui and /v1/ui/, and the
+// HA integration's API everywhere else.
+func (a *app) httpHandler(runCtx context.Context) http.Handler {
+	cfg := a.cfg
+	api := haconv.New(haconv.Options{
+		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version,
+		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
+		Persons: func() map[string]config.Person { return a.liveConfig().Persons },
+	})
+	var compact func(context.Context) (bool, error)
+	if cfg.Memory.ProfileSchedule != "" {
+		compact = a.profileCompactor().Compact
+	}
+	page := ui.New(ui.Options{
+		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
+		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log,
+	})
+	mux := http.NewServeMux()
+	mux.Handle("/ui", page)
+	mux.Handle("/ui/", page)
+	mux.Handle("/v1/ui/", page)
+	mux.Handle("/", api)
+	return mux
+}
+
+// uiEntities lists the known entities for autocompletion.
+func (a *app) uiEntities() []ui.Entity {
+	if a.structure == nil {
+		return nil
+	}
+	snap := a.structure.Snapshot()
+	out := make([]ui.Entity, 0, len(snap.EntityNames))
+	for id, names := range snap.EntityNames {
+		e := ui.Entity{ID: id, Area: snap.AreaNames[snap.EntityArea[id]]}
+		for _, n := range names {
+			if n != id {
+				e.Name = n
+				break
+			}
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func (a *app) healthChecks() map[string]haconv.HealthCheck {

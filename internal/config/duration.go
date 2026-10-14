@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -27,7 +28,20 @@ func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-func (d Duration) MarshalYAML() (any, error) { return time.Duration(d).String(), nil }
+// MarshalYAML writes the short form a person would type: "30m", "1h30m",
+// "2m", not Go's "30m0s".
+func (d Duration) MarshalYAML() (any, error) { return compact(time.Duration(d)), nil }
+
+func compact(d time.Duration) string {
+	s := d.String()
+	if strings.HasSuffix(s, "m0s") {
+		s = strings.TrimSuffix(s, "0s")
+	}
+	if strings.HasSuffix(s, "h0m") {
+		s = strings.TrimSuffix(s, "0m")
+	}
+	return s
+}
 
 // ClockTime is a wall-clock time of day without a date, written as "22:30".
 type ClockTime struct {

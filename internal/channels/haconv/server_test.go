@@ -35,7 +35,7 @@ func setup(t *testing.T) (*httptest.Server, *fakeConversation, *store.Store) {
 	conv := &fakeConversation{}
 	srv := httptest.NewServer(New(Options{
 		Token: "secret", Conversation: conv, Store: st, Version: "test",
-		Persons: map[string]config.Person{"stefan": {}},
+		Persons: func() map[string]config.Person { return map[string]config.Person{"stefan": {}} },
 		Checks: map[string]HealthCheck{
 			"llm": func(context.Context) error { return nil },
 			"ha":  func(context.Context) error { return errors.New("not connected") },

@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lares</title>
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #dddcd6;
+  --accent: #2f6f5e; --accent-text: #ffffff; --warn: #a3471b; --badge: #ece9df;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161715; --panel: #1f201e; --text: #e8e7e2; --muted: #9a9993; --line: #33342f;
+    --accent: #5fae97; --accent-text: #0f1a16; --warn: #e08a5f; --badge: #2b2c28;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; font: inherit; }
+nav button.active { background: var(--badge); color: var(--text); }
+main { max-width: 920px; margin: 0 auto; padding: 16px; }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+h3 { font-size: 14px; margin: 16px 0 8px; color: var(--muted); font-weight: 600; }
+.badge { font-size: 12px; font-weight: 500; background: var(--badge); color: var(--muted); padding: 2px 8px; border-radius: 10px; }
+.badge.ui { color: var(--accent); }
+.grid { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 8px 12px; align-items: center; }
+.grid label { color: var(--muted); }
+input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+textarea { min-height: 60px; resize: vertical; }
+input[type=checkbox] { width: auto; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > * { flex: 1 1 140px; }
+button.primary, button.secondary, button.danger { font: inherit; border-radius: 6px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--line); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button.secondary { background: var(--panel); color: var(--text); }
+button.danger { background: var(--panel); color: var(--warn); }
+.actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
+.msg.err { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+.msg.ok { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 13px; }
+pre { white-space: pre-wrap; margin: 0; font: inherit; }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lares</h1>
+  <nav id="nav"></nav>
+</header>
+<main id="main"></main>
+<datalist id="entities"></datalist>
+
+<script>
+"use strict";
+const TABS = [
+  ["notices", "Meldungen"],
+  ["notifier", "Benachrichtigung"],
+  ["watchers", "Watcher"],
+  ["rooms", "Räume"],
+  ["persons", "Personen"],
+  ["memory", "Gedächtnis"],
+];
+let token = localStorage.getItem("lares.token") || "";
+let config = {};
+let tab = location.hash.slice(1) || "notices";
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method, headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { askToken(); throw new Error("Token fehlt oder ist falsch."); }
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function askToken() {
+  const t = prompt("API-Token von Lares (LARES_API_TOKEN):", "");
+  if (t) { token = t.trim(); localStorage.setItem("lares.token", token); load(); }
+}
+
+function message(text, ok) {
+  const box = $("#msg");
+  if (!box) return;
+  box.className = "msg " + (ok ? "ok" : "err");
+  box.textContent = text;
+  box.hidden = false;
+  if (ok) setTimeout(() => { box.hidden = true; }, 3000);
+}
+
+async function save(sections) {
+  try {
+    config = await api("PUT", "/v1/ui/config", sections);
+    message("Gespeichert. Notifier und Watcher laufen mit der neuen Einstellung.", true);
+    render();
+  } catch (e) { message(e.message, false); }
+}
+
+async function reset(name) {
+  if (!confirm("Die Einstellungen aus lares.yaml wiederherstellen?")) return;
+  try {
+    config = await api("DELETE", "/v1/ui/config/" + name);
+    message("Zurückgesetzt auf lares.yaml.", true);
+    render();
+  } catch (e) { message(e.message, false); }
+}
+
+function source(name) {
+  const s = config[name];
+  if (!s) return "";
+  return s.overridden
+    ? `<span class="badge ui">in der UI geändert</span> <button class="secondary" onclick="reset('${name}')">Zurück auf lares.yaml</button>`
+    : `<span class="badge">aus lares.yaml</span>`;
+}
+
+const val = name => (config[name] || {}).value;
+const list = v => (Array.isArray(v) ? v : v ? [v] : []);
+const csv = v => list(v).join(", ");
+const fromCsv = s => s.split(",").map(x => x.trim()).filter(Boolean);
+const lines = s => s.split("\n").map(x => x.trim()).filter(Boolean);
+const num = (s, def) => (s === "" || s === undefined ? def : Number(s));
+const opt = (value, current, label) => `<option value="${esc(value)}"${String(value) === String(current ?? "") ? " selected" : ""}>${esc(label ?? value)}</option>`;
+
+function nav() {
+  $("#nav").innerHTML = TABS.map(([id, label]) =>
+    `<button class="${id === tab ? "active" : ""}" onclick="go('${id}')">${label}</button>`).join("");
+}
+function go(id) { tab = id; location.hash = id; render(); }
+
+function render() {
+  nav();
+  const views = { notices, notifier, watchers, rooms, persons, memory };
+  $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
+  views[tab]();
+}
+
+// ---- Meldungen ----------------------------------------------------------
+async function notices() {
+  const view = $("#view");
+  view.innerHTML = `<section class="card"><h2>Offene und zugestellte Meldungen</h2><div id="list">Lädt …</div></section>`;
+  try {
+    const items = await api("GET", "/v1/ui/notices");
+    $("#list").innerHTML = items.length === 0 ? `<p class="hint">Keine offenen Meldungen.</p>` : `
+      <table><tr><th>Seit</th><th>Wichtigkeit</th><th>Meldung</th><th>Status</th><th></th></tr>
+      ${items.map(n => `<tr>
+        <td>${esc(n.created_at)}</td>
+        <td>${["–", "nebenbei", "wichtig", "dringend"][n.importance] || n.importance}</td>
+        <td>${esc(n.spoken)}${n.confidentiality === "confidential" ? ' <span class="badge">vertraulich</span>' : ""}
+            ${n.details ? `<p class="hint">${esc(n.details)}</p>` : ""}</td>
+        <td>${n.state === "pending" ? "wartet" : "zugestellt" + (n.delivered_via ? " (" + esc(n.delivered_via) + ")" : "")}</td>
+        <td><button class="secondary" onclick="ack('${esc(n.id)}')">Erledigt</button></td></tr>`).join("")}
+      </table>`;
+  } catch (e) { message(e.message, false); }
+}
+async function ack(id) {
+  try { await api("POST", `/v1/ui/notices/${encodeURIComponent(id)}/ack`); notices(); } catch (e) { message(e.message, false); }
+}
+
+// ---- Benachrichtigung ---------------------------------------------------
+function notifier() {
+  const n = val("notifier") || {};
+  const qh = n.quiet_hours || {}, esc2 = n.escalate_to_telegram || {}, urg = n.urgent || {};
+  const via = list(n.private_via);
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>Benachrichtigung ${source("notifier")}</h2>
+    <h3>Wann Lares ansagt</h3>
+    <div class="grid">
+      <label>Ruhezeit von</label><input type="time" id="qh_from" value="${esc(qh.from)}">
+      <label>Ruhezeit bis</label><input type="time" id="qh_to" value="${esc(qh.to)}">
+      <label>Pause pro Raum</label><input id="cooldown" value="${esc(n.cooldown)}" placeholder="30m">
+      <label>Höchstens Meldungen pro Ansage</label><input type="number" min="1" max="10" id="max_items" value="${esc(n.max_items_per_announcement)}">
+      <label>Mindest-Wichtigkeit</label><select id="min_importance">${[0,1,2,3].map(i => opt(i, n.min_importance, ["0 – alles", "1 – nebenbei", "2 – wichtig", "3 – dringend"][i])).join("")}</select>
+      <label>Nachfrage-Fenster</label><input id="follow_up" value="${esc(n.follow_up_window)}" placeholder="2m">
+      <label>Zustellung am Satelliten</label><select id="delivery">${["auto", "start_conversation", "announce", "tts"].map(d => opt(d, n.delivery)).join("")}</select>
+      <label>TTS-Entity (nur für tts)</label><input id="tts_entity" list="entities" value="${esc(n.tts_entity)}" placeholder="tts.piper">
+    </div>
+    <h3>Vertrauliches</h3>
+    <div class="grid">
+      <label>Vertrauliches vorlesen</label><select id="conf_voice">
+        ${opt("never", n.confidential_voice, "nie – immer privat")}
+        ${opt("when_alone", n.confidential_voice, "nur wenn der Empfänger allein zu Hause ist")}
+        ${opt("always", n.confidential_voice, "immer")}</select>
+      <label>Privat zustellen über</label><div class="row">
+        <label><input type="checkbox" id="via_telegram" ${via.includes("telegram") ? "checked" : ""}> Telegram</label>
+        <label><input type="checkbox" id="via_push" ${via.includes("push") ? "checked" : ""}> Companion-App</label></div>
+    </div>
+    <h3>Eskalation</h3>
+    <div class="grid">
+      <label>Ab Wichtigkeit</label><select id="esc_min">${[1,2,3].map(i => opt(i, esc2.min_importance)).join("")}</select>
+      <label>Ungehört ab Uhrzeit</label><input type="time" id="esc_after" value="${esc(esc2.after)}">
+      <label>Karenz für neue Meldungen</label><input id="esc_grace" value="${esc(esc2.grace)}" placeholder="30m">
+    </div>
+    <p class="hint">Wichtige Meldungen, die bis zu dieser Uhrzeit kein Satellit angesagt hat, gehen privat raus.</p>
+    <h3>Dringend</h3>
+    <div class="grid">
+      <label>Dringend ab Wichtigkeit</label><select id="urg_min">${opt(0, urg.min_importance, "aus")}${[1,2,3].map(i => opt(i, urg.min_importance)).join("")}</select>
+      <label>Auf allen Satelliten ansagen</label><input type="checkbox" id="urg_announce" ${urg.announce ? "checked" : ""}>
+    </div>
+    <p class="hint">Dringende Meldungen (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.</p>
+    <div class="actions"><button class="primary" onclick="saveNotifier()">Speichern</button></div>
+  </section>`;
+}
+function saveNotifier() {
+  const n = structuredClone(val("notifier") || {});
+  n.quiet_hours = { from: $("#qh_from").value, to: $("#qh_to").value };
+  n.cooldown = $("#cooldown").value.trim();
+  n.max_items_per_announcement = num($("#max_items").value, 3);
+  n.min_importance = num($("#min_importance").value, 1);
+  n.follow_up_window = $("#follow_up").value.trim();
+  n.delivery = $("#delivery").value;
+  n.tts_entity = $("#tts_entity").value.trim();
+  n.confidential_voice = $("#conf_voice").value;
+  n.private_via = [$("#via_telegram").checked && "telegram", $("#via_push").checked && "push"].filter(Boolean);
+  n.escalate_to_telegram = { min_importance: num($("#esc_min").value, 2), after: $("#esc_after").value, grace: $("#esc_grace").value.trim() };
+  n.urgent = { min_importance: num($("#urg_min").value, 3), announce: $("#urg_announce").checked };
+  save({ notifier: n });
+}
+
+// ---- Watcher ------------------------------------------------------------
+let draftWatchers = null;
+function watchers() {
+  if (!draftWatchers) draftWatchers = structuredClone(val("watchers") || []);
+  const persons = Object.keys(val("persons") || {});
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>Watcher ${source("watchers")}</h2>
+    <p class="hint">Ein Watcher meldet sich, wenn eine Entity in einen Zustand wechselt (Trigger) oder liest regelmäßig einen Feed. Das Modell formuliert die Meldung und schätzt die Wichtigkeit, außer du legst sie fest.</p>
+    ${draftWatchers.map((w, i) => watcherForm(w, i, persons)).join("")}
+    <div class="actions">
+      <button class="secondary" onclick="addWatcher('trigger')">+ Trigger-Watcher</button>
+      <button class="secondary" onclick="addWatcher('rss')">+ Feed-Watcher</button>
+      <button class="primary" onclick="saveWatchers()">Speichern</button>
+      <button class="secondary" onclick="draftWatchers=null; watchers()">Verwerfen</button>
+    </div>
+  </section>`;
+}
+function watcherForm(w, i, persons) {
+  const isFeed = !!w.schedule || w.kind === "rss";
+  const t = w.trigger || {};
+  return `<div class="item" data-i="${i}">
+    <div class="grid">
+      <label>Name</label><input data-f="name" value="${esc(w.name)}">
+      ${isFeed ? `
+        <label>Feed-URL</label><input data-f="url" value="${esc(w.url)}" placeholder="https://…">
+        <label>Zeitplan (cron)</label><input data-f="schedule" value="${esc(w.schedule)}" placeholder="0 8 * * *">
+      ` : `
+        <label>Entities (eine pro Zeile)</label><textarea data-f="entity_id" rows="${Math.max(3, list(t.entity_id).length)}">${esc(list(t.entity_id).join("\n"))}</textarea>
+        <label>Neuer Zustand ist</label><input data-f="to" value="${esc(csv(t.to))}" placeholder="z. B. on, fault – leer: jeder">
+        <label>Neuer Zustand ist nicht</label><input data-f="not_to" value="${esc(csv(t.not_to))}" placeholder="z. B. normal, unavailable">
+      `}
+      <label>Bedeutung</label><textarea data-f="description" placeholder="Was das Ereignis bedeutet oder worauf der Nutzer achtet">${esc(w.description)}</textarea>
+      <label>Wichtigkeit</label><select data-f="importance">${opt("", w.importance, "vom Modell bewerten")}${[0,1,2,3].map(x => opt(x, w.importance, ["0 – ignorieren", "1 – nebenbei", "2 – wichtig", "3 – dringend"][x])).join("")}</select>
+      <label>Für</label><select data-f="audience">${opt("", w.audience, "alle im Haushalt")}${persons.map(p => opt(p, w.audience)).join("")}</select>
+      <label>Vertraulich</label><select data-f="confidentiality">${opt("", w.confidentiality, "nein")}${opt("confidential", w.confidentiality, "ja")}</select>
+    </div>
+    <div class="actions"><button class="danger" onclick="removeWatcher(${i})">Entfernen</button></div>
+  </div>`;
+}
+function readWatchers() {
+  document.querySelectorAll("[data-i]").forEach(el => {
+    const w = draftWatchers[Number(el.dataset.i)];
+    const f = name => el.querySelector(`[data-f="${name}"]`);
+    w.name = f("name").value.trim();
+    w.description = f("description").value.trim();
+    const imp = f("importance").value;
+    if (imp === "") delete w.importance; else w.importance = Number(imp);
+    if (f("audience").value) w.audience = f("audience").value; else delete w.audience;
+    if (f("confidentiality").value) w.confidentiality = f("confidentiality").value; else delete w.confidentiality;
+    if (f("url")) {
+      w.kind = "rss"; w.url = f("url").value.trim(); w.schedule = f("schedule").value.trim(); delete w.trigger;
+    } else {
+      // Keep fields the form does not show (from, not_from).
+      w.trigger = Object.assign({}, w.trigger, { entity_id: lines(f("entity_id").value) });
+      const to = fromCsv(f("to").value), notTo = fromCsv(f("not_to").value);
+      if (to.length) w.trigger.to = to; else delete w.trigger.to;
+      if (notTo.length) w.trigger.not_to = notTo; else delete w.trigger.not_to;
+    }
+    for (const k of Object.keys(w)) if (w[k] === "" || w[k] === null) delete w[k];
+  });
+}
+function addWatcher(kind) {
+  readWatchers();
+  draftWatchers.push(kind === "rss" ? { name: "", kind: "rss", schedule: "0 8 * * *", url: "" } : { name: "", trigger: { entity_id: [] } });
+  watchers();
+}
+function removeWatcher(i) { readWatchers(); draftWatchers.splice(i, 1); watchers(); }
+async function saveWatchers() { readWatchers(); await save({ watchers: draftWatchers }); draftWatchers = null; }
+
+// ---- Räume --------------------------------------------------------------
+function rooms() {
+  const sats = val("satellites") || {}, n = val("notifier") || {}, mt = n.morning_trigger || {};
+  const presence = mt.presence || {}, areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
+  const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: presence[a] || "", active: list(mt.areas).includes(a) }));
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>Räume ${source("satellites")}</h2>
+    <p class="hint">Welcher Satellit in welchem Bereich spricht und welcher Bewegungsmelder dort eine Ansage auslöst. Der Bereich ist die HA-Area-ID (z. B. wohnzimmer).</p>
+    <table id="rooms"><tr><th>Bereich</th><th>Satellit</th><th>Bewegungsmelder</th><th>Ansagen</th><th></th></tr>
+      ${rows.map((r, i) => roomRow(r, i)).join("")}
+    </table>
+    <div class="actions">
+      <button class="secondary" onclick="addRoom()">+ Raum</button>
+      <button class="primary" onclick="saveRooms()">Speichern</button>
+    </div>
+  </section>`;
+}
+function roomRow(r, i) {
+  return `<tr data-r="${i}">
+    <td><input data-f="area" value="${esc(r.area)}"></td>
+    <td><input data-f="sat" list="entities" value="${esc(r.sat)}" placeholder="assist_satellite.…"></td>
+    <td><input data-f="sensor" list="entities" value="${esc(r.sensor)}" placeholder="binary_sensor.…"></td>
+    <td><input type="checkbox" data-f="active" ${r.active ? "checked" : ""}></td>
+    <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
+}
+function addRoom() {
+  $("#rooms").insertAdjacentHTML("beforeend", roomRow({ area: "", sat: "", sensor: "", active: true }, Date.now()));
+}
+function saveRooms() {
+  const sats = {}, presence = {}, areas = [];
+  document.querySelectorAll("[data-r]").forEach(tr => {
+    const f = name => tr.querySelector(`[data-f="${name}"]`);
+    const area = f("area").value.trim();
+    if (!area) return;
+    if (f("sat").value.trim()) sats[area] = f("sat").value.trim();
+    if (f("sensor").value.trim()) presence[area] = f("sensor").value.trim();
+    if (f("active").checked) areas.push(area);
+  });
+  const n = structuredClone(val("notifier") || {});
+  n.morning_trigger = { areas, presence };
+  save({ satellites: sats, notifier: n });
+}
+
+// ---- Personen -----------------------------------------------------------
+function persons() {
+  const p = val("persons") || {};
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>Personen ${source("persons")}</h2>
+    <p class="hint">Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Lares, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.</p>
+    <table id="persons"><tr><th>Kürzel</th><th>Person-Entity</th><th>Telegram-ID</th><th>Push (notify.…)</th><th></th></tr>
+      ${Object.entries(p).sort().map(([k, v], i) => personRow(k, v, i)).join("")}
+    </table>
+    <div class="actions">
+      <button class="secondary" onclick="addPerson()">+ Person</button>
+      <button class="primary" onclick="savePersons()">Speichern</button>
+    </div>
+  </section>`;
+}
+function personRow(key, p, i) {
+  return `<tr data-p="${i}">
+    <td><input data-f="key" value="${esc(key)}"></td>
+    <td><input data-f="entity" list="entities" value="${esc(p.entity)}" placeholder="person.…"></td>
+    <td><input data-f="tg" value="${esc(p.telegram_user_id || "")}" inputmode="numeric"></td>
+    <td><input data-f="notify" value="${esc(p.notify)}" placeholder="notify.mobile_app_…"></td>
+    <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
+}
+function addPerson() { $("#persons").insertAdjacentHTML("beforeend", personRow("", {}, Date.now())); }
+function savePersons() {
+  const out = {};
+  document.querySelectorAll("[data-p]").forEach(tr => {
+    const f = name => tr.querySelector(`[data-f="${name}"]`).value.trim();
+    if (!f("key")) return;
+    const p = { entity: f("entity") };
+    if (f("tg")) p.telegram_user_id = Number(f("tg"));
+    if (f("notify")) p.notify = f("notify");
+    out[f("key")] = p;
+  });
+  save({ persons: out });
+}
+
+// ---- Gedächtnis ---------------------------------------------------------
+async function memory() {
+  $("#view").innerHTML = `<section class="card"><h2>Profil</h2><div id="profile">Lädt …</div></section>
+    <section class="card"><h2>Gespeicherte Fakten</h2><div id="facts"></div></section>`;
+  try {
+    const m = await api("GET", "/v1/ui/memory");
+    $("#profile").innerHTML = `
+      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">Noch kein Profil.</p>`}
+      <p class="hint">${m.profile_updated ? "Zuletzt verdichtet: " + esc(m.profile_updated) + ". " : ""}Das Profil wird nachts aus den Fakten verdichtet und steht in jedem Prompt.</p>
+      <div class="actions"><button class="secondary" id="compact" onclick="compact()">Jetzt verdichten</button></div>`;
+    $("#facts").innerHTML = m.facts.length === 0 ? `<p class="hint">Keine Fakten.</p>` : `
+      <table>${m.facts.map(f => `<tr><td>${esc(f.text)}<p class="hint">${esc(f.updated)}</p></td>
+        <td><button class="danger" onclick="forget('${esc(f.id)}')">Vergessen</button></td></tr>`).join("")}</table>`;
+  } catch (e) { message(e.message, false); }
+}
+async function forget(id) {
+  if (!confirm("Diesen Fakt vergessen?")) return;
+  try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); memory(); } catch (e) { message(e.message, false); }
+}
+async function compact() {
+  $("#compact").disabled = true;
+  $("#compact").textContent = "Verdichtet … (kann eine Minute dauern)";
+  try {
+    const r = await api("POST", "/v1/ui/memory/compact");
+    await memory();
+    message(r.changed ? "Profil aktualisiert." : "Profil unverändert.", true);
+  } catch (e) { message(e.message, false); memory(); }
+}
+
+// ---- Start --------------------------------------------------------------
+async function load() {
+  // Without a stored token the first call answers 401 and asks for one;
+  // an agent without server.token needs none.
+  try {
+    config = await api("GET", "/v1/ui/config");
+    render();
+    const ents = await api("GET", "/v1/ui/entities");
+    $("#entities").innerHTML = (ents || []).map(e => `<option value="${esc(e.id)}">${esc([e.name, e.area].filter(Boolean).join(" · "))}</option>`).join("");
+  } catch (e) { render(); message(e.message, false); }
+}
+window.addEventListener("hashchange", () => { tab = location.hash.slice(1) || "notices"; draftWatchers = null; render(); });
+load();
+</script>
+</body>
+</html>

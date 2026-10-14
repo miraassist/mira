@@ -37,8 +37,9 @@ type Options struct {
 	Checks  map[string]HealthCheck
 	Version string
 	Logger  *slog.Logger
-	// Persons are the valid personal audiences of a notice.
-	Persons map[string]config.Person
+	// Persons returns the valid personal audiences of a notice. A function,
+	// because the web UI can change them while the agent runs.
+	Persons func() map[string]config.Person
 	// TurnTimeout bounds one conversation request.
 	TurnTimeout time.Duration
 }
@@ -191,7 +192,11 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a := req.Audience; a != "" && a != store.AudienceHousehold {
-		if _, ok := s.opts.Persons[a]; !ok {
+		var persons map[string]config.Person
+		if s.opts.Persons != nil {
+			persons = s.opts.Persons()
+		}
+		if _, ok := persons[a]; !ok {
 			writeError(w, http.StatusBadRequest, "audience must be household or a configured person")
 			return
 		}

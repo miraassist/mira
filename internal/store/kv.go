@@ -125,3 +125,9 @@ func (s *Store) ClearConfirmations(ctx context.Context, sessionKey string) error
 	_, err := s.db.ExecContext(ctx, `DELETE FROM confirmations WHERE session_key = ?`, sessionKey)
 	return err
 }
+
+// DeleteKV removes a key; a missing key is not an error.
+func (s *Store) DeleteKV(ctx context.Context, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM kv WHERE key = ?`, key)
+	return err
+}

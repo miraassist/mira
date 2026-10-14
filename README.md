@@ -22,17 +22,29 @@ go build -o lares ./cmd/lares
 cp lares.example.yaml lares.yaml        # then edit; secrets come from ${ENV}
 ./lares -config lares.yaml check        # probe the LLM, Home Assistant and MCP servers
 ./lares -config lares.yaml chat "Wie warm ist es im Wohnzimmer?"
+./lares -config lares.yaml profile      # compact the remembered facts into the profile now
 ./lares -config lares.yaml run
 ```
 
-Requirements: a llama.cpp server (`llama-server --parallel 3`, one slot per
-channel keeps each prompt cache warm), Home Assistant with the MCP server
-integration, and a dedicated HA user with a long-lived token.
+Requirements:
+- An OpenAI-compatible LLM server: llama.cpp (`llama-server --parallel 3`,
+  `llm.slot_pinning: true`) or LM Studio (`slot_pinning: false`; it picks
+  slots by common prefix, which works well because all channels share the
+  start of the prompt).
+- Home Assistant with the "Model Context Protocol Server" integration. Use
+  `/api/mcp/assist` as the MCP URL: it works for a non-admin user.
+- A dedicated, non-admin HA user with a long-lived token.
+
+Web UI: `http://<agent>:8787/ui` edits the notifier, watchers, rooms and
+persons, lists open notices and the memory. It asks for `LARES_API_TOKEN`
+once. Changes are stored in the database on top of `lares.yaml` (the file is
+never rewritten; each section can be reset to it) and apply at once.
 
 Security: locks, alarm panels and other configured entities only run after
 the user confirms in the next turn. After a turn has read web content,
-critical actions are blocked for the rest of that turn. Background jobs only
-get read-only tools. These rules are enforced in code, not only in the prompt.
+critical actions are blocked for the rest of that turn. Background jobs
+cannot run tools that change anything. Feed text is data and can never raise
+an urgent notice. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
