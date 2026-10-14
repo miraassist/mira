@@ -2,6 +2,7 @@ package ws_test
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"testing"
@@ -343,5 +344,33 @@ func TestCancelWhileDisconnectedDoesNotBlock(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("unsubscribe blocked while disconnected")
+	}
+}
+
+func TestSubscribeTriggerDeliversVariables(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	c, ctx := startClient(t, srv, "test-token")
+	got := make(chan haws.Event, 1)
+	if _, err := c.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": "sensor.inverter_status"},
+		func(e haws.Event) { got <- e }); err != nil {
+		t.Fatal(err)
+	}
+	srv.PushTrigger(map[string]any{"trigger": map[string]any{
+		"platform": "state", "entity_id": "sensor.inverter_status",
+		"from_state": map[string]any{"entity_id": "sensor.inverter_status", "state": "ok"},
+		"to_state":   map[string]any{"entity_id": "sensor.inverter_status", "state": "fault"},
+	}})
+	select {
+	case e := <-got:
+		var v haws.TriggerVariables
+		if err := json.Unmarshal(e.Variables, &v); err != nil {
+			t.Fatal(err)
+		}
+		if v.Trigger.EntityID != "sensor.inverter_status" || v.Trigger.ToState.State != "fault" || v.Trigger.FromState.State != "ok" {
+			t.Fatalf("variables = %+v", v)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no trigger event")
 	}
 }

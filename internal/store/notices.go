@@ -26,6 +26,14 @@ const (
 // AudienceHousehold means anyone present may hear the notice.
 const AudienceHousehold = "household"
 
+// Confidentiality levels. A normal notice may be spoken to whoever is in the
+// room; a confidential one only when the notifier's policy says the right
+// person is the one listening, otherwise it goes to a private channel.
+const (
+	ConfidentialityNormal       = "normal"
+	ConfidentialityConfidential = "confidential"
+)
+
 type Notice struct {
 	ID           string
 	Source       string
@@ -40,7 +48,13 @@ type Notice struct {
 	State        string
 	DeliveredVia string
 	DeliveredAt  time.Time
+	// Confidentiality is ConfidentialityNormal or ConfidentialityConfidential.
+	Confidentiality string
 }
+
+// Confidential reports whether the notice must not be spoken to an unknown
+// listener.
+func (n Notice) Confidential() bool { return n.Confidentiality == ConfidentialityConfidential }
 
 // PutNotice inserts a notice, or updates the open notice with the same dedupe
 // key instead of creating a duplicate. A sensor that flaps therefore produces
@@ -57,6 +71,13 @@ func (s *Store) PutNotice(ctx context.Context, n Notice) (Notice, bool, error) {
 	}
 	if n.Audience == "" {
 		n.Audience = AudienceHousehold
+	}
+	switch n.Confidentiality {
+	case "":
+		n.Confidentiality = ConfidentialityNormal
+	case ConfidentialityNormal, ConfidentialityConfidential:
+	default:
+		return Notice{}, false, fmt.Errorf("unknown confidentiality %q", n.Confidentiality)
 	}
 	now := s.now()
 	n.UpdatedAt = now
@@ -78,9 +99,9 @@ WHERE dedupe_key = ? AND state IN (?, ?)`, n.DedupeKey, NoticePending, NoticeDel
 				// delivered notice would announce it twice, so the state stays.
 				_, err = tx.ExecContext(ctx, `
 UPDATE notices SET source = ?, importance = ?, audience = ?, spoken = ?, details = ?,
-                   updated_at = ?, expires_at = ?
+                   updated_at = ?, expires_at = ?, confidentiality = ?
 WHERE id = ?`, n.Source, n.Importance, n.Audience, n.Spoken, n.Details,
-					formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), existing)
+					formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.Confidentiality, existing)
 				if err != nil {
 					return err
 				}
@@ -92,10 +113,10 @@ WHERE id = ?`, n.Source, n.Importance, n.Audience, n.Spoken, n.Details,
 		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO notices(id, source, dedupe_key, importance, audience, spoken, details,
-                    created_at, updated_at, expires_at, state, delivered_via, delivered_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '')`,
+                    created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
 			n.ID, n.Source, n.DedupeKey, n.Importance, n.Audience, n.Spoken, n.Details,
-			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State)
+			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality)
 		if err != nil {
 			return err
 		}
@@ -120,7 +141,7 @@ func (s *Store) GetNotice(ctx context.Context, id string) (Notice, error) {
 
 const noticeSelect = `
 SELECT id, source, dedupe_key, importance, audience, spoken, details,
-       created_at, updated_at, expires_at, state, delivered_via, delivered_at
+       created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality
 FROM notices`
 
 type scannable interface{ Scan(...any) error }
@@ -129,7 +150,7 @@ func scanNotice(row scannable) (Notice, error) {
 	var n Notice
 	var created, updated, expires, delivered string
 	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Audience, &n.Spoken, &n.Details,
-		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered)
+		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality)
 	if err != nil {
 		return Notice{}, err
 	}
@@ -308,4 +329,19 @@ func placeholders(n int) string {
 		return ""
 	}
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
+// OpenNoticeByDedupeKey returns the pending or delivered notice with the key.
+// Watchers use it to skip re-evaluating a sensor that keeps flapping.
+func (s *Store) OpenNoticeByDedupeKey(ctx context.Context, key string) (Notice, error) {
+	if key == "" {
+		return Notice{}, ErrNotFound
+	}
+	row := s.db.QueryRowContext(ctx, noticeSelect+` WHERE dedupe_key = ? AND state IN (?, ?)`,
+		key, NoticePending, NoticeDelivered)
+	n, err := scanNotice(row)
+	if err == sql.ErrNoRows {
+		return Notice{}, ErrNotFound
+	}
+	return n, err
 }

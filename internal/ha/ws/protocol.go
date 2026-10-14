@@ -124,12 +124,26 @@ func (s State) FriendlyName() string {
 	return ""
 }
 
-// Event is a Home Assistant event delivered on a subscription.
+// Event is what a subscription delivers. For subscribe_events it is a Home
+// Assistant event (EventType, Data). For subscribe_trigger Home Assistant
+// sends only the trigger variables, so Variables is set and the rest is empty.
 type Event struct {
 	EventType string          `json:"event_type"`
 	Data      json.RawMessage `json:"data"`
 	Origin    string          `json:"origin"`
 	TimeFired string          `json:"time_fired"`
+	Variables json.RawMessage `json:"variables"`
+}
+
+// TriggerVariables is the part of a state trigger's variables the agent
+// reads: variables.trigger.{entity_id, from_state, to_state}.
+type TriggerVariables struct {
+	Trigger struct {
+		Platform  string `json:"platform"`
+		EntityID  string `json:"entity_id"`
+		FromState *State `json:"from_state"`
+		ToState   *State `json:"to_state"`
+	} `json:"trigger"`
 }
 
 // StateChangedData is the payload of a state_changed event.

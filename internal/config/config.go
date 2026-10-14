@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,6 +35,7 @@ type Config struct {
 	Telegram   Telegram          `yaml:"telegram"`
 	Sessions   Sessions          `yaml:"sessions"`
 	Satellites map[string]string `yaml:"satellites"`
+	Persons    map[string]Person `yaml:"persons"`
 	Watchers   []Watcher         `yaml:"watchers"`
 	Notifier   Notifier          `yaml:"notifier"`
 	Security   Security          `yaml:"security"`
@@ -129,12 +131,35 @@ type Sessions struct {
 	TelegramTTL Duration `yaml:"telegram_ttl"`
 }
 
+// Person is someone the agent can address personally. The key in the
+// persons map is the audience id notices use.
+type Person struct {
+	// Entity is the HA person entity; "home" means the person is at home.
+	Entity string `yaml:"entity"`
+	// TelegramUserID is the private chat for confidential or escalated
+	// notices. Must be on the Telegram allowlist.
+	TelegramUserID int64 `yaml:"telegram_user_id"`
+	// Notify is a HA notify service for the companion app, such as
+	// "notify.mobile_app_pixel".
+	Notify string `yaml:"notify"`
+}
+
 type Watcher struct {
 	Name      string        `yaml:"name"`
 	Trigger   *StateTrigger `yaml:"trigger"`
 	Schedule  string        `yaml:"schedule"`
 	Kind      string        `yaml:"kind"`
 	DedupeKey string        `yaml:"dedupe_key"`
+	// Description tells the evaluator what the event means, e.g. "Der
+	// Wechselrichter der Solaranlage meldet einen Fehler." It is the main
+	// input for the spoken text.
+	Description string `yaml:"description"`
+	// Importance, when set (0-3), overrides the evaluator's rating.
+	Importance *int `yaml:"importance"`
+	// Audience is "household" (default) or a key of persons.
+	Audience        string   `yaml:"audience"`
+	Confidentiality string   `yaml:"confidentiality"`
+	ExpiresIn       Duration `yaml:"expires_in"`
 }
 
 type StateTrigger struct {
@@ -175,7 +200,26 @@ type Notifier struct {
 	// satellite is treated as a reply to it.
 	FollowUpWindow Duration `yaml:"follow_up_window"`
 	MinImportance  int      `yaml:"min_importance"`
+	// ConfidentialVoice decides when a confidential notice may be spoken:
+	// "never", "when_alone" (only its recipient is home, by the person
+	// entities) or "always". Otherwise it goes to a private channel.
+	ConfidentialVoice string `yaml:"confidential_voice"`
+	// PrivateVia lists the private channels, in order of preference:
+	// "telegram", "push" (companion app). The first one that works is used.
+	PrivateVia []string `yaml:"private_via"`
+	// Delivery is how a satellite speaks: "auto" picks start_conversation
+	// when the satellite supports it, then announce; "tts" uses tts.speak on
+	// a media_player with TTSEntity.
+	Delivery  string `yaml:"delivery"`
+	TTSEntity string `yaml:"tts_entity"`
 }
+
+// Values of Notifier.ConfidentialVoice.
+const (
+	ConfidentialVoiceNever     = "never"
+	ConfidentialVoiceWhenAlone = "when_alone"
+	ConfidentialVoiceAlways    = "always"
+)
 
 type QuietHours struct {
 	From ClockTime `yaml:"from"`
@@ -190,6 +234,9 @@ type MorningTrigger struct {
 type Escalation struct {
 	MinImportance int       `yaml:"min_importance"`
 	After         ClockTime `yaml:"after"`
+	// Grace is how long a notice gets to be announced by voice before it
+	// escalates, so one raised in the afternoon is not sent at once.
+	Grace Duration `yaml:"grace"`
 }
 
 type Security struct {
@@ -261,9 +308,12 @@ func Default() Config {
 			QuietHours:              QuietHours{From: ClockTime{22, 30}, To: ClockTime{6, 30}},
 			Cooldown:                Duration(30 * 60e9),
 			MaxItemsPerAnnouncement: 3,
-			EscalateToTelegram:      Escalation{MinImportance: 2, After: ClockTime{9, 0}},
+			EscalateToTelegram:      Escalation{MinImportance: 2, After: ClockTime{9, 0}, Grace: Duration(30 * 60e9)},
 			FollowUpWindow:          Duration(2 * 60e9),
 			MinImportance:           1,
+			ConfidentialVoice:       ConfidentialVoiceNever,
+			PrivateVia:              []string{"telegram", "push"},
+			Delivery:                "auto",
 		},
 		Security: Security{
 			ConfirmDomains: []string{"lock", "alarm_control_panel"},
@@ -330,6 +380,9 @@ func (c *Config) normalize() {
 	}
 	if c.Satellites == nil {
 		c.Satellites = map[string]string{}
+	}
+	if c.Persons == nil {
+		c.Persons = map[string]Person{}
 	}
 }
 
@@ -419,11 +472,68 @@ func (c Config) Validate() error {
 		if w.Trigger != nil && len(w.Trigger.EntityID) == 0 {
 			add("watchers[%d] (%s): trigger needs at least one entity_id", i, w.Name)
 		}
+		if w.Importance != nil && (*w.Importance < 0 || *w.Importance > 3) {
+			add("watchers[%d] (%s): importance must be between 0 and 3", i, w.Name)
+		}
+		if w.Audience != "" && w.Audience != "household" {
+			if _, ok := c.Persons[w.Audience]; !ok {
+				add("watchers[%d] (%s): audience %q is not in persons", i, w.Name, w.Audience)
+			}
+		}
+		if w.Confidentiality != "" && w.Confidentiality != "normal" && w.Confidentiality != "confidential" {
+			add("watchers[%d] (%s): confidentiality must be normal or confidential", i, w.Name)
+		}
 	}
 
 	for area, sat := range c.Satellites {
-		if !strings.HasPrefix(sat, "assist_satellite.") {
-			add("satellites[%s]: %q is not an assist_satellite entity", area, sat)
+		switch {
+		case strings.HasPrefix(sat, "assist_satellite."):
+		case strings.HasPrefix(sat, "media_player."):
+			if c.Notifier.TTSEntity == "" {
+				add("satellites[%s]: %q is a media_player, which needs notifier.tts_entity", area, sat)
+			}
+		default:
+			add("satellites[%s]: %q must be an assist_satellite or media_player entity", area, sat)
+		}
+	}
+	for _, area := range c.Notifier.MorningTrigger.Areas {
+		if _, ok := c.Satellites[area]; !ok {
+			add("notifier.morning_trigger.areas: %q has no entry in satellites", area)
+		}
+		if _, ok := c.Notifier.MorningTrigger.Presence[area]; !ok {
+			add("notifier.morning_trigger.areas: %q has no presence sensor", area)
+		}
+	}
+	switch c.Notifier.ConfidentialVoice {
+	case ConfidentialVoiceNever, ConfidentialVoiceWhenAlone, ConfidentialVoiceAlways:
+	default:
+		add("notifier.confidential_voice must be never, when_alone or always, not %q", c.Notifier.ConfidentialVoice)
+	}
+	for _, via := range c.Notifier.PrivateVia {
+		if via != "telegram" && via != "push" {
+			add("notifier.private_via: unknown channel %q (telegram, push)", via)
+		}
+	}
+	switch c.Notifier.Delivery {
+	case "auto", "start_conversation", "announce", "tts":
+	default:
+		add("notifier.delivery must be auto, start_conversation, announce or tts, not %q", c.Notifier.Delivery)
+	}
+	if c.Notifier.ConfidentialVoice == ConfidentialVoiceWhenAlone && len(c.Persons) == 0 {
+		add("notifier.confidential_voice when_alone needs persons with their person entities")
+	}
+	for id, p := range c.Persons {
+		if strings.Contains(id, " ") || id == "household" {
+			add("persons: %q is not a valid person id", id)
+		}
+		if p.Entity != "" && !strings.HasPrefix(p.Entity, "person.") {
+			add("persons[%s].entity: %q is not a person entity", id, p.Entity)
+		}
+		if p.Notify != "" && !strings.HasPrefix(p.Notify, "notify.") {
+			add("persons[%s].notify: %q is not a notify service", id, p.Notify)
+		}
+		if p.TelegramUserID != 0 && !slices.Contains(c.Telegram.AllowedUserIDs, p.TelegramUserID) {
+			add("persons[%s].telegram_user_id %d is not on telegram.allowed_user_ids", id, p.TelegramUserID)
 		}
 	}
 

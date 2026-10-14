@@ -172,7 +172,8 @@ func (s *Server) PushEvent(eventType string, data any) int {
 	return sent
 }
 
-// PushTrigger delivers a trigger event to every trigger subscription.
+// PushTrigger delivers a trigger event to every trigger subscription, in the
+// shape Home Assistant uses: the event carries only variables and context.
 func (s *Server) PushTrigger(variables any) int {
 	s.mu.Lock()
 	conns := make([]*connState, 0, len(s.conns))
@@ -193,9 +194,8 @@ func (s *Server) PushTrigger(variables any) int {
 			frame := map[string]any{
 				"id": id, "type": "event",
 				"event": map[string]any{
-					"event_type": "trigger",
-					"data":       map[string]any{"variables": variables},
-					"origin":     "LOCAL",
+					"variables": variables,
+					"context":   map[string]any{"id": "ctx"},
 				},
 			}
 			if writeJSON(cs.conn, frame) == nil {

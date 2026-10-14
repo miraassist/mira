@@ -137,6 +137,12 @@ CREATE TABLE confirmations (
 CREATE INDEX idx_confirmations_session ON confirmations(session_key, created_at DESC);
 `,
 	},
+	{
+		name: "0006_notice_confidentiality",
+		stmt: `
+ALTER TABLE notices ADD COLUMN confidentiality TEXT NOT NULL DEFAULT 'normal';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {
