@@ -89,10 +89,12 @@ func (c *Cache) Refresh(ctx context.Context) (bool, error) {
 }
 
 // Trigger refreshes in the background, for event handlers that must not block.
+// A failure is only logged at debug level: at startup the registry is ready
+// before the MCP server, and the MCP connect triggers another refresh.
 func (c *Cache) Trigger(ctx context.Context) {
 	go func() {
 		if _, err := c.Refresh(ctx); err != nil {
-			c.log.Warn("could not refresh the assist prompt", "error", err)
+			c.log.Debug("could not refresh the assist prompt", "error", err)
 		}
 	}()
 }
