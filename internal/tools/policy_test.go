@@ -61,7 +61,7 @@ func TestCriticalDetection(t *testing.T) {
 		{turnOn, `{"name":"Haustür"}`, true},
 		{turnOff, `{"name":"haustür","area":"flur"}`, true},
 		{turnOn, `{"name":"Haustürschloss"}`, true}, // unresolved but resembles a lock
-		{turnOn, `{"area":"Flur"}`, true},          // whole area includes the lock
+		{turnOn, `{"area":"Flur"}`, true},           // whole area includes the lock
 		{turnOn, `{"area":"Küche"}`, false},
 		{turnOff, `{"name":"Tor"}`, true}, // alias of a confirm entity
 		{turnOn, `{"entity_id":"lock.keller"}`, true},

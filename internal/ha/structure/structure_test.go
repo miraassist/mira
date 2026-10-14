@@ -134,7 +134,7 @@ type fakeSource struct {
 }
 
 func (f *fakeSource) set(reg Registry) { f.mu.Lock(); f.reg = reg; f.mu.Unlock() }
-func (f *fakeSource) get() Registry   { f.mu.Lock(); defer f.mu.Unlock(); return f.reg }
+func (f *fakeSource) get() Registry    { f.mu.Lock(); defer f.mu.Unlock(); return f.reg }
 
 func (f *fakeSource) Areas(context.Context) ([]haws.Area, error) {
 	f.reads.Add(1)
