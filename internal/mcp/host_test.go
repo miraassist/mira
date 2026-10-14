@@ -163,3 +163,26 @@ func TestToolListChangeFiresOnChange(t *testing.T) {
 		t.Fatal("tool list change was not picked up")
 	}
 }
+
+func TestPromptQualifiesToolNames(t *testing.T) {
+	ha := fakemcp.HA("ok")
+	ha.SetPrompt("Assist", "Use HassTurnOn to lock and HassTurnOff to unlock. Ask GetLiveContext. ha__HassTurnOn stays; HassTurnOnly is no tool.")
+	t.Cleanup(ha.Close)
+	h := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint()},
+	}})
+	got, err := h.Prompt(context.Background(), "ha", "Assist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Use ha__HassTurnOn to lock and ha__HassTurnOff to unlock. Ask ha__GetLiveContext. ha__HassTurnOn stays; HassTurnOnly is no tool."
+	if got != want {
+		t.Errorf("prompt =\n%s\nwant\n%s", got, want)
+	}
+	if _, err := h.Prompt(context.Background(), "ha", "Nope"); err == nil {
+		t.Error("unknown prompt did not fail")
+	}
+	if _, err := h.Prompt(context.Background(), "nope", "Assist"); err == nil {
+		t.Error("unknown server did not fail")
+	}
+}

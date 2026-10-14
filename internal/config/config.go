@@ -92,6 +92,12 @@ type HA struct {
 	// StructureDebounce collapses bursts of registry updates into one rebuild.
 	StructureDebounce Duration `yaml:"structure_debounce"`
 	Enabled           bool     `yaml:"enabled"`
+	// AssistPromptServer names the MCP server whose prompt "Assist" becomes
+	// layer 4: Home Assistant's own tool instructions and entity overview.
+	// Empty uses the agent's own structure block instead.
+	AssistPromptServer string `yaml:"assist_prompt_server"`
+	// AssistPromptRefresh is how often that prompt is checked for changes.
+	AssistPromptRefresh Duration `yaml:"assist_prompt_refresh"`
 }
 
 type MCPTransport string
@@ -298,8 +304,10 @@ func Default() Config {
 		Store:  Store{Path: "lares.db"},
 		Prompt: Prompt{Language: "de"},
 		HA: HA{
-			Enabled:           true,
-			StructureDebounce: Duration(30e9), // 30s
+			Enabled:             true,
+			StructureDebounce:   Duration(30e9), // 30s
+			AssistPromptServer:  "ha",
+			AssistPromptRefresh: Duration(5 * 60e9),
 		},
 		Telegram: Telegram{
 			Enabled:     true,

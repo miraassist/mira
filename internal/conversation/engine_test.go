@@ -490,3 +490,74 @@ func TestAssessUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 		t.Error("an assessment must not leave a transcript")
 	}
 }
+
+func TestAssistPromptReplacesTheStructureBlock(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	own, err := h.engine.Prefix(ctx, config.ChannelVoice)
+	if err != nil || !strings.Contains(own.Structure, "light.kueche") {
+		t.Fatalf("own block expected without assist prompt: %q, %v", own.Structure, err)
+	}
+
+	assist := ""
+	e := conversation.New(conversation.Options{
+		Config: config.Default(), Store: h.store, Tools: tools.NewRegistry(nil),
+		Structure: houseSnapshot, StructurePrompt: func() string { return assist }, Logger: quietLogger(),
+	})
+	p, _ := e.Prefix(ctx, config.ChannelVoice)
+	if !strings.Contains(p.Structure, "light.kueche") {
+		t.Error("an empty assist prompt must fall back to the own block")
+	}
+	assist = "Static Context: An overview of the areas and the devices in this smart home:\n- names: Küchenlicht"
+	p, _ = e.Prefix(ctx, config.ChannelVoice)
+	if p.Structure != assist {
+		t.Errorf("layer 4 = %q", p.Structure)
+	}
+}
+
+func TestAnnouncementWithoutToolCallGetsOneMoreChance(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{Content: "Ich prüfe die Temperatur in der Küche."},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
+		fakellm.Step{Content: "In der Küche sind es 21,5 Grad."},
+	)
+	resp := h.say(t, config.ChannelVoice, "v1", "Wie warm ist es in der Küche?")
+	if resp.Text != "In der Küche sind es 21,5 Grad." || resp.ToolRounds != 1 {
+		t.Fatalf("resp = %+v", resp)
+	}
+	second := h.llm.Requests()[1].Request.Messages
+	if last := second[len(second)-1]; last.Role != llm.RoleUser || !strings.Contains(last.Content, "kein Werkzeug") {
+		t.Fatalf("no nudge sent: %+v", last)
+	}
+	stored, err := h.store.Messages(context.Background(), "voice:v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range stored {
+		if strings.Contains(m.Content, "Ich prüfe") || strings.Contains(m.Content, "Hinweis des Systems") {
+			t.Errorf("the discarded exchange reached the history: %q", m.Content)
+		}
+	}
+}
+
+func TestClaimedActionWithoutToolCallIsNotPassedOn(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{Content: "Das Küchenlicht ist eingeschaltet."},
+		fakellm.Step{Content: "Das Küchenlicht ist jetzt eingeschaltet."},
+	)
+	resp := h.say(t, config.ChannelVoice, "v1", "Mach das Küchenlicht an.")
+	if strings.Contains(resp.Text, "eingeschaltet") {
+		t.Fatalf("unbacked claim passed on: %q", resp.Text)
+	}
+	if len(h.haCalls("HassTurnOn")) != 0 {
+		t.Fatal("unexpected tool call")
+	}
+}
+
+func TestPlainAnswerIsNotNudged(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Mir geht es gut, danke."})
+	h.say(t, config.ChannelVoice, "v1", "Wie geht es dir?")
+	if n := len(h.llm.Requests()); n != 1 {
+		t.Fatalf("requests = %d, want 1", n)
+	}
+}

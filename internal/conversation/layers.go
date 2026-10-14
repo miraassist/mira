@@ -30,9 +30,20 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 		Agent:     prompt.AgentLayer(e.cfg.Prompt.Persona),
 		Style:     prompt.StyleFor(ch),
 		Tools:     toolList,
-		Structure: e.structure().Block,
+		Structure: e.structureText(),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
 	}, nil
+}
+
+// structureText is layer 4: Home Assistant's Assist prompt when there is
+// one, otherwise the agent's own block built from the registries.
+func (e *Engine) structureText() string {
+	if e.assist != nil {
+		if t := e.assist(); t != "" {
+			return t
+		}
+	}
+	return e.structure().Block
 }
 
 func clipProfile(p string, max int) string {

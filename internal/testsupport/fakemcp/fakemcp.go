@@ -71,6 +71,16 @@ func (s *Server) AddTool(name, description, schema string, readOnly bool, h Hand
 	})
 }
 
+// SetPrompt serves a prompt template with a single text message, the way
+// Home Assistant serves its Assist prompt.
+func (s *Server) SetPrompt(name, text string) {
+	s.MCP.AddPrompt(&sdk.Prompt{Name: name}, func(context.Context, *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+		return &sdk.GetPromptResult{Messages: []*sdk.PromptMessage{
+			{Role: "assistant", Content: &sdk.TextContent{Text: text}},
+		}}, nil
+	})
+}
+
 // RemoveTool unregisters a tool, which notifies connected clients.
 func (s *Server) RemoveTool(name string) { s.MCP.RemoveTools(name) }
 

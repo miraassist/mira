@@ -74,8 +74,11 @@ type Options struct {
 	Tools     *tools.Registry
 	Guard     *tools.Guard
 	Structure func() structure.Snapshot
-	Telemetry *telemetry.Provider
-	Logger    *slog.Logger
+	// StructurePrompt, when it returns text, replaces the structure block in
+	// layer 4: Home Assistant's own Assist prompt.
+	StructurePrompt func() string
+	Telemetry       *telemetry.Provider
+	Logger          *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
 	Clock    func() time.Time
 	Location *time.Location
@@ -88,6 +91,7 @@ type Engine struct {
 	tools     *tools.Registry
 	guard     *tools.Guard
 	structure func() structure.Snapshot
+	assist    func() string
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -124,6 +128,7 @@ func New(opts Options) *Engine {
 		tools:     opts.Tools,
 		guard:     opts.Guard,
 		structure: opts.Structure,
+		assist:    opts.StructurePrompt,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -224,6 +229,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp := Response{ConversationID: req.ConversationID, PrefixHash: built.PrefixHash}
 	maxRounds := e.cfg.LLM.MaxToolRounds
 	var final llm.Message
+	nudged := false
 	for round := 0; ; round++ {
 		chatReq := e.chatRequest(req.Channel, msgs, built)
 		if round >= maxRounds {
@@ -241,6 +247,20 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
 		msg.Content = stripThinking(msg.Content)
+		if len(msg.ToolCalls) == 0 && resp.ToolRounds == 0 && round < maxRounds && unbacked(msg.Content) {
+			if !nudged {
+				// Announced or claimed an action without any tool: give the
+				// model one more chance. Neither message reaches the history.
+				nudged = true
+				e.log.Warn("answer without tool call, asking again", "session", key)
+				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: unbackedNudge})
+				continue
+			}
+			if claimsAction(msg.Content) {
+				e.log.Warn("answer still claims an action without tool call", "session", key)
+				msg.Content = notDoneText
+			}
+		}
 		if len(msg.ToolCalls) == 0 || round >= maxRounds {
 			msg.ToolCalls = nil
 			final = msg

@@ -15,6 +15,7 @@ import (
 	"github.com/sker65/lares/internal/channels/telegram"
 	"github.com/sker65/lares/internal/config"
 	"github.com/sker65/lares/internal/conversation"
+	"github.com/sker65/lares/internal/ha/assistprompt"
 	"github.com/sker65/lares/internal/ha/structure"
 	haws "github.com/sker65/lares/internal/ha/ws"
 	"github.com/sker65/lares/internal/llm"
@@ -35,6 +36,7 @@ type app struct {
 	llm       *llm.Client
 	ha        *haws.Client
 	structure *structure.Cache
+	assist    *assistprompt.Cache
 	mcp       *mcp.Host
 	telegram  *telegram.Bot
 	engine    *conversation.Engine
@@ -74,25 +76,45 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Timeout: cfg.LLM.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
 	})
 
-	if cfg.HA.Enabled {
-		if err := a.startHA(ctx); err != nil {
-			return nil, err
-		}
-	}
-
 	a.mcp = mcp.New(mcp.Options{
 		Servers: cfg.MCPServers, Logger: a.log, Version: version,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
 		OnChange: func(tools []mcp.Tool) {
 			a.log.Info("tool list changed", "tools", len(tools))
 			a.warmup("tools_changed")
+			// Also after a reconnect: the prompt may have changed meanwhile.
+			if a.assist != nil {
+				a.assist.Trigger(ctx)
+			}
 		},
 	})
+	// Built before Home Assistant connects: the structure cache's change
+	// handler refreshes it.
+	if cfg.HA.Enabled && cfg.HA.AssistPromptServer != "" {
+		a.assist = assistprompt.New(assistprompt.Options{
+			Source: a.mcp, Server: cfg.HA.AssistPromptServer,
+			Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
+			OnChange: func() { a.warmup("structure_changed") },
+		})
+	}
+	if cfg.HA.Enabled {
+		if err := a.startHA(ctx); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := a.mcp.Start(ctx); err != nil {
 		// Not fatal: the agent still talks, and Run keeps retrying.
 		a.log.Error("no mcp server reachable; the agent has no house tools until one comes up", "error", err)
 	}
 	a.goRun(ctx, "mcp", a.mcp.Run)
+
+	if a.assist != nil {
+		if _, err := a.assist.Refresh(ctx); err != nil {
+			a.log.Warn("no assist prompt from home assistant; using the own structure block", "error", err)
+		}
+		a.goRun(ctx, "assist-prompt", a.assist.Run)
+	}
 
 	if opts.withTelegram && cfg.Telegram.Enabled {
 		a.telegram = telegram.New(telegram.Options{
@@ -127,10 +149,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		snapshot = a.structure.Snapshot
 	}
 	registry := tools.NewRegistry(a.mcp, tools.Internal(a.store, sender)...)
+	var assistText func() string
+	if a.assist != nil {
+		assistText = a.assist.Text
+	}
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(cfg.Security, a.store, snapshot),
-		Structure: snapshot, Telemetry: tel, Logger: a.log,
+		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
 	})
 	if cfg.LLM.WarmupOnPrefixChange {
 		a.warmup = a.engine.RequestWarmup
@@ -154,7 +180,15 @@ func (a *app) startHA(ctx context.Context) error {
 	a.structure = structure.NewCache(structure.Options{
 		Source: a.ha, Subscriber: a.ha,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
-		OnChange: func(s structure.Snapshot) { a.warmup("structure_changed") },
+		OnChange: func(s structure.Snapshot) {
+			if a.assist != nil {
+				// The Assist prompt follows the registry; its own change
+				// triggers the warmup.
+				a.assist.Trigger(ctx)
+				return
+			}
+			a.warmup("structure_changed")
+		},
 	})
 
 	authFailed := make(chan error, 1)

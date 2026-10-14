@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -399,6 +400,58 @@ func (h *Host) Call(ctx context.Context, qualified string, args json.RawMessage)
 		return Result{}, fmt.Errorf("call %s: %w", qualified, err)
 	}
 	return Result{Text: flatten(res), IsError: res.IsError}, nil
+}
+
+// Prompt fetches a prompt template from one server and returns its text
+// content. Home Assistant serves its Assist instructions and the overview of
+// exposed entities this way. The text names tools as the server knows them;
+// they are rewritten to the qualified names the model sees.
+func (h *Host) Prompt(ctx context.Context, serverName, name string) (string, error) {
+	s, ok := h.byName[serverName]
+	if !ok {
+		return "", fmt.Errorf("unknown mcp server %q", serverName)
+	}
+	s.mu.Lock()
+	session, tools := s.session, s.tools
+	s.mu.Unlock()
+	if session == nil {
+		return "", fmt.Errorf("%w: %s", ErrServerDown, serverName)
+	}
+	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
+	defer cancel()
+	res, err := session.GetPrompt(cctx, &sdk.GetPromptParams{Name: name})
+	if err != nil {
+		return "", fmt.Errorf("get prompt %s from %s: %w", name, serverName, err)
+	}
+	var parts []string
+	for _, m := range res.Messages {
+		if t, ok := m.Content.(*sdk.TextContent); ok {
+			parts = append(parts, t.Text)
+		}
+	}
+	return QualifyToolNames(strings.Join(parts, "\n\n"), tools), nil
+}
+
+// QualifyToolNames replaces bare tool names in a server's text with the
+// qualified names: "intent__HassTurnOn" becomes "ha__intent__HassTurnOn".
+// Only whole names are replaced, and a name already qualified stays as it is.
+func QualifyToolNames(text string, tools []Tool) string {
+	if len(tools) == 0 {
+		return text
+	}
+	byName := make(map[string]string, len(tools))
+	names := make([]string, 0, len(tools))
+	for _, t := range tools {
+		byName[t.Name] = t.QualifiedName()
+		names = append(names, regexp.QuoteMeta(t.Name))
+	}
+	// Longest first, so a name that is a prefix of another does not win.
+	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
+	re := regexp.MustCompile(`(^|[^\w])(` + strings.Join(names, "|") + `)\b`)
+	return re.ReplaceAllStringFunc(text, func(m string) string {
+		sub := re.FindStringSubmatch(m)
+		return sub[1] + byName[sub[2]]
+	})
 }
 
 // flatten turns MCP content into text. Structured content is preferred when
