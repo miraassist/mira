@@ -267,7 +267,10 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	}
 
 	resp.Text = strings.TrimSpace(final.Content)
-	resp.ContinueConversation = req.Channel == config.ChannelVoice && strings.HasSuffix(resp.Text, "?")
+	// A satellite keeps listening after a question, and always after a
+	// confirmation request: the user's "yes" must reach this session.
+	resp.ContinueConversation = req.Channel == config.ChannelVoice &&
+		(expectsReply(resp.Text) || ts.ConfirmationRequested())
 	e.log.Info("turn done",
 		"session", key, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens)

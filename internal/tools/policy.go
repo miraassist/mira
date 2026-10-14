@@ -103,9 +103,14 @@ type TurnState struct {
 	// out of the store. It approves at most one call.
 	Pending *store.Confirmation
 
-	webContentSeen bool
-	pendingUsed    bool
+	webContentSeen        bool
+	pendingUsed           bool
+	confirmationRequested bool
 }
+
+// ConfirmationRequested reports whether this turn parked a critical call and
+// therefore ends waiting for the user's yes or no.
+func (t *TurnState) ConfirmationRequested() bool { return t.confirmationRequested }
 
 // WebContentSeen reports whether the turn has read untrusted web content.
 func (t *TurnState) WebContentSeen() bool { return t.webContentSeen }
@@ -147,6 +152,7 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 				Message: "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt."}
 		}
 	}
+	ts.confirmationRequested = true
 	return Verdict{Outcome: NeedsConfirmation, Reason: "critical", Targets: targets,
 		Message: "NICHT AUSGEFÜHRT – Bestätigung nötig. Die Aktion (" + summary + ") ist kritisch. " +
 			"Frage den Nutzer jetzt kurz, ob du sie ausführen sollst, und beende deine Antwort mit dieser Frage. " +

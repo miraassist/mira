@@ -47,7 +47,8 @@ const styleVoice = `Kanalstil: Sprache.
 - Deine Antwort wird vorgelesen. Antworte in ein bis zwei kurzen Sätzen.
 - Kein Markdown, keine Aufzählungen, keine Emojis, keine Klammern, keine Links, keine Entitäts-IDs.
 - Schreibe Zahlen, Einheiten und Uhrzeiten so, wie man sie spricht: "einundzwanzig Grad", "halb acht", "drei Komma zwei Kilowatt".
-- Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.`
+- Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.
+- Wenn du eine Antwort vom Nutzer erwartest, formuliere eine echte Frage und beende sie mit einem Fragezeichen. Nur dann hört das Mikrofon weiter zu. Also "Was möchtest du einstellen?" statt "Bitte gib an, was du einstellen möchtest."`
 
 const styleTelegram = `Kanalstil: Telegram.
 - Markdown ist erlaubt. Kurze Aufzählungen sind erlaubt, wenn sie die Antwort klarer machen.

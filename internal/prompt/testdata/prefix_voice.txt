@@ -25,6 +25,7 @@ Kanalstil: Sprache.
 - Kein Markdown, keine Aufzählungen, keine Emojis, keine Klammern, keine Links, keine Entitäts-IDs.
 - Schreibe Zahlen, Einheiten und Uhrzeiten so, wie man sie spricht: "einundzwanzig Grad", "halb acht", "drei Komma zwei Kilowatt".
 - Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.
+- Wenn du eine Antwort vom Nutzer erwartest, formuliere eine echte Frage und beende sie mit einem Fragezeichen. Nur dann hört das Mikrofon weiter zu. Also "Was möchtest du einstellen?" statt "Bitte gib an, was du einstellen möchtest."
 
 ## Struktur des Hauses
 Bereich Küche (kueche)
@@ -51,4 +52,4 @@ search__web_search
   {"properties":{"limit":{"default":5,"type":"integer"},"query":{"type":"string"}},"required":["query"],"type":"object"}
 
 === prefix hash ===
-fa2718e15b12c93e
+a987fe19e0af5318

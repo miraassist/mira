@@ -413,3 +413,16 @@ func TestFillerWordsDoNotPullUnrelatedMemories(t *testing.T) {
 		t.Errorf("unrelated fact reached layer 7:\n%s", layer7)
 	}
 }
+
+func TestVoiceConfirmationRequestKeepsListening(t *testing.T) {
+	// The model words its confirmation request without a question mark; the
+	// satellite must still listen for the yes.
+	h := newHarness(t,
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__HassTurnOn", `{"name":"Haustür"}`)}},
+		fakellm.Step{Content: "Bitte bestätige, dass ich die Haustür abschließen soll."},
+	)
+	resp := h.say(t, config.ChannelVoice, "v1", "Schließ die Haustür ab")
+	if !resp.ContinueConversation {
+		t.Fatalf("satellite would stop listening: %+v", resp)
+	}
+}
