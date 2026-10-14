@@ -1,7 +1,7 @@
 package prompt
 
 import (
-	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares/internal/llm"
 )
 
 // Request is the assembled prompt, ready to be handed to the LLM client.

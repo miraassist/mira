@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
+	haws "github.com/sker65/lares/internal/ha/ws"
 )
 
 // Registry is the raw input of a build.

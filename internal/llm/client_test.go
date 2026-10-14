@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/testsupport/fakellm"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/testsupport/fakellm"
 )
 
 func TestChatSendsSlotAndCachePrompt(t *testing.T) {

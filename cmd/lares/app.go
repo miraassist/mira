@@ -11,17 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/channels/haconv"
-	"github.com/sker65/lares-agent/internal/channels/telegram"
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/conversation"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/mcp"
-	"github.com/sker65/lares-agent/internal/store"
-	"github.com/sker65/lares-agent/internal/telemetry"
-	"github.com/sker65/lares-agent/internal/tools"
+	"github.com/sker65/lares/internal/channels/haconv"
+	"github.com/sker65/lares/internal/channels/telegram"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/conversation"
+	"github.com/sker65/lares/internal/ha/structure"
+	haws "github.com/sker65/lares/internal/ha/ws"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/lares/internal/telemetry"
+	"github.com/sker65/lares/internal/tools"
 )
 
 // app is the wired agent. Fields are nil for disabled parts.

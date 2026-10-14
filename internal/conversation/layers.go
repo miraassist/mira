@@ -6,11 +6,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/prompt"
-	"github.com/sker65/lares-agent/internal/store"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/ha/structure"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/prompt"
+	"github.com/sker65/lares/internal/store"
 )
 
 // Prefix assembles layers 1 to 5 for a channel. Background jobs see only the

@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/conversation"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/mcp"
-	"github.com/sker65/lares-agent/internal/store"
-	"github.com/sker65/lares-agent/internal/testsupport/fakellm"
-	"github.com/sker65/lares-agent/internal/testsupport/fakemcp"
-	"github.com/sker65/lares-agent/internal/tools"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/conversation"
+	"github.com/sker65/lares/internal/ha/structure"
+	haws "github.com/sker65/lares/internal/ha/ws"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/lares/internal/testsupport/fakellm"
+	"github.com/sker65/lares/internal/testsupport/fakemcp"
+	"github.com/sker65/lares/internal/tools"
 )
 
 func quietLogger() *slog.Logger {

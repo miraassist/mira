@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
-	"github.com/sker65/lares-agent/internal/testsupport/fakeha"
+	haws "github.com/sker65/lares/internal/ha/ws"
+	"github.com/sker65/lares/internal/testsupport/fakeha"
 )
 
 func quietLogger() *slog.Logger {

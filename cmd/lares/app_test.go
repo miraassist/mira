@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/config"
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/testsupport/fakeha"
-	"github.com/sker65/lares-agent/internal/testsupport/fakellm"
-	"github.com/sker65/lares-agent/internal/testsupport/fakemcp"
+	"github.com/sker65/lares/internal/config"
+	haws "github.com/sker65/lares/internal/ha/ws"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/testsupport/fakeha"
+	"github.com/sker65/lares/internal/testsupport/fakellm"
+	"github.com/sker65/lares/internal/testsupport/fakemcp"
 )
 
 func freeAddr(t *testing.T) string {

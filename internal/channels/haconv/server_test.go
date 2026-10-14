@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/conversation"
-	"github.com/sker65/lares-agent/internal/store"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/conversation"
+	"github.com/sker65/lares/internal/store"
 )
 
 type fakeConversation struct {

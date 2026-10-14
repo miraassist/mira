@@ -15,7 +15,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/sker65/lares-agent/internal/config"
+	"github.com/sker65/lares/internal/config"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

@@ -10,10 +10,10 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	"github.com/sker65/lares-agent/internal/prompt"
-	"github.com/sker65/lares-agent/internal/store"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/ha/structure"
+	"github.com/sker65/lares/internal/prompt"
+	"github.com/sker65/lares/internal/store"
 )
 
 // Outcome of a policy check.

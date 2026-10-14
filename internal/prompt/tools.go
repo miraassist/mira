@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares/internal/llm"
 )
 
 // ServerSeparator joins an MCP server name and a tool name into the name the

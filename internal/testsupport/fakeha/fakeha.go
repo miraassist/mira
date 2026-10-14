@@ -15,7 +15,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
+	haws "github.com/sker65/lares/internal/ha/ws"
 )
 
 // ServiceCall is one recorded call_service command.

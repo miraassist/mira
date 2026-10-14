@@ -1,4 +1,4 @@
-module github.com/sker65/lares-agent
+module github.com/sker65/lares
 
 go 1.27.2
 

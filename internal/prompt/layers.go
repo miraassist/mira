@@ -3,8 +3,8 @@ package prompt
 import (
 	"strings"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/llm"
 )
 
 // The seven layers, from stable to volatile. The numbers are the ones used in

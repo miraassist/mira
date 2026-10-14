@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/llm"
+	"github.com/sker65/lares/internal/llm"
 )
 
 // Step is one scripted reply. Give it Content, ToolCalls, or both.

@@ -24,8 +24,8 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/prompt"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/prompt"
 )
 
 // ErrUnknownTool is returned for a name no connected server offers.

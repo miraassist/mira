@@ -23,13 +23,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/prompt"
-	"github.com/sker65/lares-agent/internal/store"
-	"github.com/sker65/lares-agent/internal/telemetry"
-	"github.com/sker65/lares-agent/internal/tools"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/ha/structure"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/prompt"
+	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/lares/internal/telemetry"
+	"github.com/sker65/lares/internal/tools"
 )
 
 // Chatter is the part of the LLM client the engine uses.

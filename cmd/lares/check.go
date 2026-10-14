@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/ha/structure"
-	haws "github.com/sker65/lares-agent/internal/ha/ws"
-	"github.com/sker65/lares-agent/internal/llm"
-	"github.com/sker65/lares-agent/internal/mcp"
-	"github.com/sker65/lares-agent/internal/telemetry"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/ha/structure"
+	haws "github.com/sker65/lares/internal/ha/ws"
+	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/lares/internal/telemetry"
 )
 
 // runCheck validates the config (Load already did) and probes every

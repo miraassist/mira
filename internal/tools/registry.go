@@ -15,9 +15,9 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/sker65/lares-agent/internal/config"
-	"github.com/sker65/lares-agent/internal/mcp"
-	"github.com/sker65/lares-agent/internal/prompt"
+	"github.com/sker65/lares/internal/config"
+	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/lares/internal/prompt"
 )
 
 // Spec describes a tool to the policy and the prompt builder.
