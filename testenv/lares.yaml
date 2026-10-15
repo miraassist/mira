@@ -1,0 +1,60 @@
+# Lares against the test Home Assistant. Runs next to the live agent:
+# own port, own database, no Telegram. Secrets come from testenv/.env:
+#   set -a; . testenv/.env; set +a; lares -config testenv/lares.yaml run
+server:
+  listen: "0.0.0.0:8788"
+  token: ${LARES_API_TOKEN}
+
+llm:
+  base_url: "http://localhost:1234/v1"   # LM Studio on this host
+  model: "qwen/qwen3-30b-a3b-2507"
+  slot_pinning: false
+  cache_prompt: true
+  temperature: 0.3
+  timeout: 2m
+  context_tokens: 16384
+  warmup_on_start: false
+  warmup_on_prefix_change: false
+
+store:
+  path: "testenv/lares.db"
+
+prompt:
+  language: de
+
+ha:
+  enabled: true
+  url: "http://${HA_HOST}"
+  token: ${HA_TOKEN}
+  structure_debounce: 5s
+
+mcp_servers:
+  - name: ha
+    transport: http
+    url: "http://${HA_HOST}/api/mcp/assist"
+    token: ${HA_TOKEN}
+
+telegram:
+  enabled: false
+
+persons:
+  anna: { entity: person.anna }
+  ben: { entity: person.ben }
+
+watchers:
+  - name: wasserleck
+    trigger:
+      entity_id: [binary_sensor.lecksensor_keller, binary_sensor.lecksensor_spulmaschine]
+      to: ["on"]
+    description: "Ein Lecksensor meldet Wasser."
+    importance: 3
+
+notifier:
+  quiet_hours: { from: "23:30", to: "06:30" }
+
+memory:
+  profile_schedule: ""
+
+telemetry:
+  otlp_endpoint: ""
+  log_level: info

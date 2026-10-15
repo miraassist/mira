@@ -1,0 +1,62 @@
+# Test Home Assistant for Lares. Runtime files next to this one are not in git.
+homeassistant:
+  name: Lares Test
+  country: DE
+  language: de
+  time_zone: Europe/Berlin
+  unit_system: metric
+  currency: EUR
+  latitude: 52.52
+  longitude: 13.40
+  elevation: 40
+
+http:
+  server_port: 8123
+
+default_config:
+
+# Lights, switches, sensors, covers, media players and more, without hardware.
+demo:
+
+logger:
+  default: warning
+  logs:
+    custom_components.lares: debug
+    homeassistant.components.mcp_server: info
+
+# Test switches that drive the simulated sensors below. Not exposed to Assist;
+# `testha set` flips them.
+input_boolean:
+  sim_leck_keller:
+    name: Sim Leck Keller
+  sim_leck_kueche:
+    name: Sim Leck Küche
+  sim_bewegung_flur:
+    name: Sim Bewegung Flur
+  sim_bewegung_bad:
+    name: Sim Bewegung Bad
+  sim_fenster_bad:
+    name: Sim Fenster Bad
+
+template:
+  - binary_sensor:
+      - name: Lecksensor Keller
+        unique_id: lares_test_leck_keller
+        device_class: moisture
+        state: "{{ is_state('input_boolean.sim_leck_keller', 'on') }}"
+      - name: Lecksensor Spülmaschine
+        unique_id: lares_test_leck_kueche
+        device_class: moisture
+        state: "{{ is_state('input_boolean.sim_leck_kueche', 'on') }}"
+      - name: Bewegung Flur
+        unique_id: lares_test_bewegung_flur
+        device_class: motion
+        state: "{{ is_state('input_boolean.sim_bewegung_flur', 'on') }}"
+      - name: Bewegung Bad
+        unique_id: lares_test_bewegung_bad
+        device_class: motion
+        state: "{{ is_state('input_boolean.sim_bewegung_bad', 'on') }}"
+      - name: Fenster Bad
+        unique_id: lares_test_fenster_bad
+        device_class: window
+        state: "{{ is_state('input_boolean.sim_fenster_bad', 'on') }}"

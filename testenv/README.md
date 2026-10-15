@@ -1,0 +1,36 @@
+# Test Home Assistant
+
+A throwaway Home Assistant for testing Lares against a real HA without
+touching the house: same version as the house (2026.10.0), demo devices in
+German-named areas, simulated leak/motion/window sensors, and a non-admin user
+`lares` like in the house.
+
+```sh
+go run ./cmd/testha up        # start, onboard, seed; writes testenv/.env
+go run ./cmd/testha set binary_sensor.lecksensor_keller on
+go run ./cmd/testha down      # stop, keep state
+go run ./cmd/testha reset     # delete all state
+```
+
+- HA: http://localhost:8123, login `admin`, password in `testenv/.env`.
+- `testenv/.env` holds `HA_TOKEN` (user `lares`, not admin), `TESTHA_ADMIN_TOKEN`
+  (for driving tests) and `LARES_API_TOKEN`.
+- A test Lares runs next to the live one on port 8788:
+
+  ```sh
+  set -a; . testenv/.env; set +a
+  go run ./cmd/lares -config testenv/lares.yaml run
+  ```
+
+  From inside the container HA reaches it as `http://host.docker.internal:8788`.
+
+The container uses a bridge network on purpose: in the host network HA
+discovers the real devices of the house and sets some of them up by itself.
+The seed also disables any integration that came from network discovery.
+
+Simulated sensors are template binary sensors driven by `input_boolean.sim_*`;
+`testha set` flips them. Any other entity is set directly in the state
+machine, which its integration may overwrite again.
+
+No voice satellite: announcements can be tested up to the
+`assist_satellite` call, not heard.

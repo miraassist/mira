@@ -9,3 +9,9 @@ lares.yaml
 .venv/
 __pycache__/
 .pytest_cache/
+# Test Home Assistant: only the config is tracked, not its runtime state.
+/testenv/ha/*
+!/testenv/ha/configuration.yaml
+/testenv/.env
+/testenv/lares.db*
+!/testenv/lares.yaml
