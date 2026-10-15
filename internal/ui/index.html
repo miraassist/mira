@@ -54,6 +54,12 @@ button.danger { background: var(--panel); color: var(--warn); }
 .chip small { color: var(--muted); }
 .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+details.item > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+details.item > summary::-webkit-details-marker { display: none; }
+details.item > summary::before { content: "▸"; color: var(--muted); }
+details.item[open] > summary::before { content: "▾"; }
+details.item > summary .short { flex: 1 1 200px; min-width: 0; color: var(--muted); }
+details.item > summary h3 { margin: 0; }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 .msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
 .msg.err { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
@@ -209,6 +215,7 @@ const I18N = {
   "task_proposed": "wartet auf Bestätigung",
   "task_goal": "Auftrag",
   "task_start": "Starten",
+  "task_rules": "Regeln",
   "task_delete_confirm": "Diesen Auftrag löschen?",
   "kind_usage": "Verbrauch pro Stunde",
   "kind_level": "Messwert pro Stunde",
@@ -350,6 +357,7 @@ const I18N = {
   "task_proposed": "waiting for confirmation",
   "task_goal": "Order",
   "task_start": "Start",
+  "task_rules": "rules",
   "task_delete_confirm": "Delete this order?",
   "kind_usage": "usage per hour",
   "kind_level": "reading per hour",
@@ -758,17 +766,25 @@ async function tasks() {
   try {
     const list = await api("GET", "/v1/ui/tasks");
     $("#tasklist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => `
-      <div class="item">
-        <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${t.state === "active" ? T.task_active : T.task_proposed}</span></h3>
+      <details class="item">
+        <summary>
+          <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${t.state === "active" ? T.task_active : T.task_proposed}</span></h3>
+          <span class="short">${esc(firstSentence(t.summary))} · ${(t.plan.rules || []).length} ${T.task_rules}</span>
+          ${t.state !== "active" ? `<button class="primary" onclick="event.preventDefault(); activateTask('${esc(t.id)}')">${T.task_start}</button>` : ""}
+        </summary>
         <p>${esc(t.summary)}</p>
         <p class="hint">${T.task_goal}: „${esc(t.goal)}“ · ${esc(t.created_at)}</p>
         <ul>${(t.plan.rules || []).map(r => `<li><code>${esc(r.entity_id)}</code> – ${esc(T["kind_" + r.kind] || r.kind)}, ${esc(T["when_" + r.when] || r.when)}: ${esc(r.why)}</li>`).join("")}</ul>
         <div class="actions">
-          ${t.state !== "active" ? `<button class="primary" onclick="activateTask('${esc(t.id)}')">${T.task_start}</button>` : ""}
           <button class="danger" onclick="deleteTask('${esc(t.id)}')">${T.remove}</button>
         </div>
-      </div>`).join("");
+      </details>`).join("");
   } catch (e) { message(e.message, false); }
+}
+// firstSentence keeps the collapsed line short.
+function firstSentence(s) {
+  const m = (s || "").match(/^.*?[.!?](\s|$)/);
+  return m ? m[0].trim() : s;
 }
 async function activateTask(id) {
   try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/activate`); tasks(); } catch (e) { message(e.message, false); }
