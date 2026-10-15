@@ -183,7 +183,7 @@ sequenceDiagram
     T->>P: Ziel, Katalog der Entitäten, Regeln für Miras Aktionen
     P-->>T: Titel, Zusammenfassung, Automation (JSON)
     T->>I: mira/automation/validate
-    I->>HA: HAs eigene Prüfung + „nur mira.* Aktionen“
+    I->>HA: HAs eigene Prüfung + Sperrliste (Schlösser, Skripte …)
     I-->>T: gültig / Fehler (bei Fehler ein zweiter Entwurf)
     T->>T: als Vorschlag speichern (Ursprung: Raum oder Chat)
     T->>N: Vorschlag zustellen („Soll ich so vorgehen?“)
@@ -196,7 +196,7 @@ sequenceDiagram
 ```
 
 - Das Planen läuft im Hintergrund, weil HA einem Sprach-Turn nur 15 Sekunden gibt.
-- Der Planer schreibt HA-Syntax: `triggers`, `conditions`, `actions`. Er darf nur `mira.assess` und `mira.add_notice` verwenden.
+- Der Planer schreibt HA-Syntax: `triggers`, `conditions`, `actions`. Er nutzt vor allem Miras Aktionen. Andere Aktionen wie Radio oder Push-Nachricht nimmt er nur, wenn du darum bittest, und der Vorschlag nennt sie ausdrücklich.
 - Findet er keine passende Entität, sagt er das, statt etwas zu erfinden.
 - Bestätigen gilt nur für den jüngsten Vorschlag **vom selben Ort**: Raum bei Sprache, Chat bei Telegram.
 - Bearbeitet wird danach im Automations-Editor von HA. Mira hält nur die Automations-ID.
@@ -370,10 +370,11 @@ erDiagram
   Assist-Werkzeuge.
 - **Automationen nur über die Integration.** Die Befehle
   `mira/automation/*` darf nur Miras eigener HA-Benutzer aufrufen. Die
-  Integration erfährt ihn über `/v1/health`. Gespeichert werden nur
-  Automationen, deren Aktionen ausschließlich `mira.*` aufrufen: Eine
-  Aufgabe beobachtet und spricht, sie schaltet nie das Haus. Eigene
-  Automationen dürfen Miras Aktionen frei nutzen.
+  Integration erfährt ihn über `/v1/health`. Eine Aufgabe darf schalten und
+  benachrichtigen; der Vorschlag nennt diese Aktionen ausdrücklich. Nie
+  erlaubt ist, was Mira nur mit ausdrücklichem Ja schaltet (Schlösser,
+  Alarm, Garagentor), sowie Skripte, Shell-Befehle und Neustarts. Das trägt
+  der Nutzer bei Bedarf selbst im Editor von HA ein.
 - **Kritische Aktionen** brauchen ein Ja des Nutzers. Nach Web-Inhalten
   im selben Turn sind sie gesperrt. Hintergrundaufgaben schreiben nie.
 - **Fremder Text ist Daten.** Web-Ergebnisse, Feeds und Kalender gelten

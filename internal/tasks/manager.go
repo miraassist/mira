@@ -58,10 +58,13 @@ type Options struct {
 	// for it has answered.
 	PlanDelay time.Duration
 	// HAURL is Home Assistant's address, for links into its editor.
-	HAURL    string
-	Clock    func() time.Time
-	Location *time.Location
-	Logger   *slog.Logger
+	HAURL string
+	// ConfirmDomains and ConfirmEntities are what Mira only switches after
+	// an explicit yes (security config): a task never calls them.
+	ConfirmDomains, ConfirmEntities []string
+	Clock                           func() time.Time
+	Location                        *time.Location
+	Logger                          *slog.Logger
 }
 
 type Manager struct {
@@ -166,7 +169,8 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
 		d.Automation["description"] = strings.TrimSpace(goal)
 	}
 	tagTask(d.Automation["actions"])
-	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/validate", "config": d.Automation})
+	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/validate", "config": d.Automation,
+		"forbidden": m.forbidden()})
 	if err != nil {
 		return err
 	}
@@ -181,6 +185,67 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
 		return errors.New(res.Error)
 	}
 	return nil
+}
+
+// forbidden is what the integration refuses in a task's actions.
+func (m *Manager) forbidden() map[string]any {
+	return map[string]any{"domains": nonNil(m.opts.ConfirmDomains), "entities": nonNil(m.opts.ConfirmEntities)}
+}
+
+func nonNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// otherActions lists what an automation does besides Mira's own actions,
+// as "service (targets)": the proposal says it out loud, so the user agrees
+// to exactly what will be switched.
+func otherActions(actions any) []string {
+	var out []string
+	switch a := actions.(type) {
+	case []any:
+		for _, step := range a {
+			out = append(out, otherActions(step)...)
+		}
+	case map[string]any:
+		name, _ := a["action"].(string)
+		if name == "" {
+			name, _ = a["service"].(string)
+		}
+		if name != "" && !strings.HasPrefix(name, "mira.") {
+			var targets []string
+			for _, holder := range []any{a["target"], a["data"]} {
+				h, _ := holder.(map[string]any)
+				for _, key := range []string{"entity_id", "area_id", "device_id"} {
+					switch v := h[key].(type) {
+					case string:
+						targets = append(targets, v)
+					case []any:
+						for _, x := range v {
+							targets = append(targets, fmt.Sprint(x))
+						}
+					}
+				}
+			}
+			if len(targets) > 0 {
+				name += " (" + strings.Join(targets, ", ") + ")"
+			}
+			out = append(out, name)
+		}
+		for _, key := range []string{"then", "else", "sequence", "parallel", "default"} {
+			out = append(out, otherActions(a[key])...)
+		}
+		if options, ok := a["choose"].([]any); ok {
+			for _, o := range options {
+				if om, ok := o.(map[string]any); ok {
+					out = append(out, otherActions(om["sequence"])...)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // tagTask makes every mira.assess and mira.decide in the actions pass the
@@ -221,13 +286,28 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 			n.Spoken = fmt.Sprintf(t.planFailed, strings.TrimSpace(goal))
 		default:
 			n.DedupeKey = "task-plan:" + task.ID
-			n.Spoken = fmt.Sprintf(t.proposal, task.Title, task.Summary)
+			n.Spoken = m.proposalText(task)
 			n.Details = task.Summary
 		}
 		if err := m.opts.Deliver(ctx, n, area); err != nil {
 			m.log.Error("could not deliver a task proposal", "error", err)
 		}
 	}()
+}
+
+// proposalText is the proposal as said to the user. Actions besides Mira's
+// own are named by the code, not left to the summary: the yes covers
+// exactly them.
+func (m *Manager) proposalText(task store.Task) string {
+	t := m.texts()
+	summary := task.Summary
+	var automation map[string]any
+	if json.Unmarshal([]byte(task.Plan), &automation) == nil {
+		if other := otherActions(automation["actions"]); len(other) > 0 {
+			summary = strings.TrimSpace(summary) + " " + fmt.Sprintf(t.alsoSwitches, strings.Join(other, ", "))
+		}
+	}
+	return fmt.Sprintf(t.proposal, task.Title, summary)
 }
 
 // origin is where a turn happens: the satellite's area for voice (a reply
@@ -329,6 +409,7 @@ func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
 	}
 	if _, err := m.opts.HA.Call(ctx, map[string]any{
 		"type": "mira/automation/save", "config": automation, "automation_id": automationID(t.ID),
+		"forbidden": m.forbidden(),
 	}); err != nil {
 		return store.Task{}, err
 	}

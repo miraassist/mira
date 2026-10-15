@@ -23,26 +23,35 @@ TASK = {
 }
 
 
-def test_only_mira_actions():
-    check_actions(TASK["actions"])
-    check_actions(
-        [
-            {"variables": {"x": 1}},
-            {"action": "mira.decide", "data": {"question": "q"}, "response_variable": "d"},
-            {"condition": "template", "value_template": "{{ d.answer }}"},
-            {"choose": [{"conditions": [], "sequence": [{"action": "mira.add_notice", "data": {"text": "t"}}]}]},
-            {"if": [], "then": [{"action": "mira.assess", "data": {"goal": "g"}}], "else": [{"stop": "done"}]},
-        ]
-    )
+FORBIDDEN = {"domains": ["lock", "alarm_control_panel"], "entities": ["cover.garage"]}
+
+
+def test_what_a_task_may_call():
+    domains, entities = set(FORBIDDEN["domains"]), set(FORBIDDEN["entities"])
+    allowed = [
+        {"variables": {"x": 1}},
+        {"action": "mira.decide", "data": {"question": "q"}, "response_variable": "d"},
+        {"condition": "template", "value_template": "{{ d.answer }}"},
+        {"action": "media_player.turn_on", "target": {"entity_id": "media_player.radio_bad"}},
+        {"action": "notify.mobile_app_pixel", "data": {"message": "Wasser läuft"}},
+        {"action": "light.turn_on", "target": {"area_id": "bad"}},
+        {"action": "cover.close_cover", "target": {"entity_id": "cover.rollo_wohnzimmer"}},
+        {"if": [], "then": [{"action": "mira.assess", "data": {"goal": "g"}}], "else": [{"stop": "done"}]},
+    ]
+    check_actions(allowed, domains, entities)
     for forbidden in (
-        [{"action": "light.turn_on", "target": {"entity_id": "light.x"}}],
-        [{"service": "lock.unlock"}],
-        [{"choose": [{"sequence": [{"action": "switch.turn_off"}]}]}],
-        [{"event": "something"}],
-        [{"device_id": "abc", "domain": "light", "type": "turn_on"}],
+        [{"action": "lock.unlock", "target": {"entity_id": "lock.haustuer"}}],
+        [{"service": "alarm_control_panel.alarm_disarm"}],
+        [{"action": "cover.open_cover", "target": {"entity_id": "cover.garage"}}],
+        [{"action": "cover.open_cover", "target": {"area_id": "garage"}}],
+        [{"action": "script.turn_on", "target": {"entity_id": "script.x"}}],
+        [{"action": "shell_command.wipe"}],
+        [{"action": "homeassistant.restart"}],
+        [{"choose": [{"sequence": [{"action": "lock.unlock"}]}]}],
+        [{"device_id": "abc", "domain": "lock", "type": "unlock"}],
     ):
         with pytest.raises(NotAllowed):
-            check_actions(forbidden)
+            check_actions(forbidden, domains, entities)
 
 
 async def test_validate_uses_home_assistant(hass):
@@ -51,7 +60,9 @@ async def test_validate_uses_home_assistant(hass):
     with pytest.raises(HomeAssistantError):
         await validate(hass, TASK | {"triggers": [{"trigger": "no_such_trigger"}]})
     with pytest.raises(HomeAssistantError):
-        await validate(hass, TASK | {"actions": [{"action": "light.turn_on"}]})
+        await validate(hass, TASK | {"actions": [{"action": "lock.unlock"}]}, FORBIDDEN)
+    # Switching something harmless is the user's choice.
+    await validate(hass, TASK | {"actions": [{"action": "light.turn_on", "target": {"entity_id": "light.bad"}}]}, FORBIDDEN)
 
 
 async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
@@ -66,10 +77,14 @@ async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_
     msg = await admin.receive_json()
     assert msg["success"] and msg["result"] == {"valid": True}
     await admin.send_json_auto_id(
-        {"type": "mira/automation/validate", "config": TASK | {"actions": [{"action": "light.turn_on"}]}}
+        {
+            "type": "mira/automation/validate",
+            "config": TASK | {"actions": [{"action": "lock.unlock", "target": {"entity_id": "lock.tuer"}}]},
+            "forbidden": FORBIDDEN,
+        }
     )
     msg = await admin.receive_json()
-    assert msg["result"]["valid"] is False and "mira" in msg["result"]["error"]
+    assert msg["result"]["valid"] is False and "lock.unlock" in msg["result"]["error"]
 
     # Another restricted user may not: only the agent's own user.
     other = await hass_ws_client(hass, hass_read_only_access_token)

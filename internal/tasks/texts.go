@@ -20,6 +20,7 @@ type texts struct {
 	earlierDecide, earlierQuiet, earlierSaid      string
 	// Drafting.
 	draftSystem, draftIntro, draftRules, redraft string
+	draftForbidden, alsoSwitches                 string
 	planning, proposal, planFailed, saveFailed   string
 	confirmed, tryObservation, cannot            string
 	// yesPhrases lists plain agreement, "|"-separated, lower case.
@@ -44,7 +45,12 @@ func (m *Manager) draftInstruction(goal string, cat []Entity) string {
 		}
 		fmt.Fprintf(&b, "\n- %s | %s | %s | %s | %s | %s | %s", e.ID, e.Name, e.Area, e.DeviceClass, e.StateClass, e.Unit, e.State)
 	}
-	b.WriteString(t.draftRules)
+	forbidden := strings.Join(append(append([]string{}, m.opts.ConfirmDomains...), m.opts.ConfirmEntities...), ", ")
+	if forbidden == "" {
+		forbidden = t.draftForbidden
+	}
+	rules := strings.Replace(t.draftRules, "<forbidden>", forbidden, 1)
+	b.WriteString(rules)
 	return b.String()
 }
 
@@ -54,7 +60,7 @@ const draftRulesDE = `
 
 Schreib eine Home-Assistant-Automation, die diese Aufgabe erfüllt. Home Assistant entscheidet mit triggers und conditions, WANN etwas geschieht; Mira entscheidet mit ihren Aktionen, WAS gesagt wird.
 
-Aktionen: nur diese, keine anderen (eine Aufgabe schaltet nie etwas):
+Miras Aktionen:
 - mira.assess: Mira beurteilt mit dem Modell, gemessen am Ziel, ob etwas meldenswert ist, und meldet es dann. data:
   goal: das Ziel in den Worten des Nutzers
   observation: optional, was passiert ist, gern mit Templates, z. B. "{{ trigger.to_state.name }} ist seit {{ now().strftime('%H:%M') }} {{ trigger.to_state.state }}"
@@ -64,7 +70,9 @@ Aktionen: nur diese, keine anderen (eine Aufgabe schaltet nie etwas):
     view day: heute bis jetzt gegen dieselben Wochentage der Vorwochen
   cooldown: optional, z. B. "6h": innerhalb dieser Zeit meldet die Aufgabe nur, wenn es wichtiger wird
 - mira.add_notice: feste Meldung ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend)
+- mira.decide: Ja/Nein-Urteil mit response_variable, danach condition: template auf {{ d.answer }}, wenn erst Mira entscheiden soll, ob geschaltet wird.
 
+Andere Aktionen (Licht, Radio, Push-Nachricht mit notify.*) nur, wenn der Nutzer ausdrücklich darum bittet, und nur mit ausdrücklich genannten Entitäten. Niemals: Skripte, Shell-Befehle, Neustarts und was Mira nur mit ausdrücklichem Ja im Gespräch schaltet: <forbidden>.
 Faustregeln:
 - Steht das Urteil fest (Melder löst aus, Tür geht auf), nimm mira.add_notice. Braucht es Abwägung (ungewöhnlich? relevant?), nimm mira.assess.
 - "Ungewöhnlich viel/wenig" eines Zählers oder Messwerts: einmal pro Stunde, also trigger time_pattern mit minutes: 15 (die Zahl 15, nicht "/15": das wäre alle 15 Minuten und vier Bewertungen pro Stunde), und mira.assess mit view same_hour, cooldown "6h".
@@ -83,7 +91,7 @@ const draftRulesEN = `
 
 Write a Home Assistant automation that fulfils this task. Home Assistant decides WHEN with triggers and conditions; Mira decides WHAT to say with her actions.
 
-Actions: only these, no others (a task never switches anything):
+Mira's actions:
 - mira.assess: Mira judges with the model, against the goal, whether something is worth a notice, and then reports it. data:
   goal: the goal in the user's words
   observation: optional, what happened, with templates if useful, e.g. "{{ trigger.to_state.name }} has been {{ trigger.to_state.state }} since {{ now().strftime('%H:%M') }}"
@@ -93,7 +101,9 @@ Actions: only these, no others (a task never switches anything):
     view day: today so far against the same weekdays of earlier weeks
   cooldown: optional, e.g. "6h": within it the task only reports again when it gets more important
 - mira.add_notice: a fixed notice without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent)
+- mira.decide: a yes/no judgement with response_variable, then condition: template on {{ d.answer }}, when Mira should first decide whether to switch.
 
+Other actions (lights, radio, a push with notify.*) only when the user asks for them explicitly, and only with entities named explicitly. Never: scripts, shell commands, restarts and what Mira only switches after an explicit yes in conversation: <forbidden>.
 Rules of thumb:
 - If the verdict is fixed (a sensor fires, a door opens), use mira.add_notice. If it needs weighing (unusual? relevant?), use mira.assess.
 - "Unusually much/little" of a counter or measurement: once an hour, i.e. trigger time_pattern with minutes: 15 (the number 15, not "/15": that would be every 15 minutes and four judgements an hour), and mira.assess with view same_hour, cooldown "6h".
@@ -153,6 +163,8 @@ JSON-Objekt:
 		draftIntro:     "Aufgabe des Nutzers: %q\n\nEntitäten (id | Name | Bereich | device_class | state_class | Einheit | Zustand jetzt):",
 		draftRules:     draftRulesDE,
 		redraft:        "\n\nDein letzter Entwurf wurde abgelehnt: %s. Mach einen neuen, der das behebt.",
+		draftForbidden: "nichts weiter",
+		alsoSwitches:   "Dabei schaltet sie außerdem: %s.",
 		planning:       "Ich plane die Aufgabe jetzt im Hintergrund; der Vorschlag kommt von selbst. Sag dem Nutzer in einem kurzen Satz, dass du sie planst und dich mit einem Vorschlag meldest, ohne Zeitangabe.",
 		proposal:       "Mein Vorschlag für die Aufgabe %s: %s Soll ich so vorgehen?",
 		planFailed:     "Für die Aufgabe „%s“ habe ich keine brauchbare Automation gefunden.",
@@ -225,6 +237,8 @@ JSON object:
 		draftIntro:     "The user's task: %q\n\nEntities (id | name | area | device_class | state_class | unit | state now):",
 		draftRules:     draftRulesEN,
 		redraft:        "\n\nYour last draft was refused: %s. Make a new one that fixes it.",
+		draftForbidden: "nothing else",
+		alsoSwitches:   "It also switches: %s.",
 		planning:       "I am planning the task in the background now; the proposal arrives by itself. Tell the user in one short sentence that you are planning it and will come back with a proposal, without a time.",
 		proposal:       "My proposal for the task %s: %s Shall I go ahead?",
 		planFailed:     "I found no usable automation for the task \"%s\".",

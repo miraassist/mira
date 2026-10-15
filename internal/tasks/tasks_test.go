@@ -321,3 +321,29 @@ func TestDraftWithoutTriggerOrEntity(t *testing.T) {
 		t.Error("a draft without triggers was not refused")
 	}
 }
+
+func TestProposalNamesWhatItSwitches(t *testing.T) {
+	e := setup(t)
+	e.m.opts.ConfirmDomains, e.m.opts.ConfirmEntities = []string{"lock"}, []string{"cover.garage"}
+	e.model.answers = []string{`{"title":"Radio","summary":"Wenn morgens Bewegung im Bad ist, entscheide ich, ob Musik passt.","automation":{
+"triggers":[{"trigger":"state","entity_id":"binary_sensor.bad","to":"on"}],
+"actions":[{"action":"mira.decide","data":{"question":"Passt jetzt Musik?"},"response_variable":"d"},
+{"condition":"template","value_template":"{{ d.answer }}"},
+{"action":"media_player.turn_on","target":{"entity_id":"media_player.radio_bad"}}]}}`}
+	task, err := e.m.Create(context.Background(), "Mach morgens das Radio im Bad an, wenn es passt.", "s", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := e.m.proposalText(task)
+	if !strings.Contains(text, "Dabei schaltet sie außerdem: media_player.turn_on (media_player.radio_bad).") {
+		t.Errorf("proposal: %s", text)
+	}
+	// The integration gets the forbidden list with every check.
+	validate := e.ha.commands[0]
+	if f, _ := validate["forbidden"].(map[string]any); f == nil || len(f["domains"].([]string)) != 1 || f["entities"].([]string)[0] != "cover.garage" {
+		t.Errorf("forbidden not sent: %+v", validate)
+	}
+	if !strings.Contains(e.model.instructions[0], "schaltet: lock, cover.garage.") {
+		t.Errorf("draft prompt lacks the forbidden list")
+	}
+}

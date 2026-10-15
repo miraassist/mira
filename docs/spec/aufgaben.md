@@ -128,7 +128,13 @@ Weitere Werkzeuge:
   - `mira/automation/save` (über den Weg des Editors: Eintrag in `automations.yaml` ersetzen, eine Automation neu laden, Label setzen);
   - `mira/automation/delete`;
   - `mira/automation/list`.
-- **Sicherheitsregel:** Gespeichert werden nur Automationen, deren Aktionen ausschließlich `mira.*` aufrufen (auch innerhalb von choose/if/sequence/parallel). Erlaubt sind außerdem Strukturschritte (`variables`, `condition`, `delay`, `stop`, `wait_*`). Eine Aufgabe beobachtet und spricht, sie schaltet nie das Haus. Eigene Automationen des Nutzers dürfen `mira.decide` und `mira.assess` frei verwenden.
+- **Sicherheitsregel** (2026-10-15 gelockert):
+  - Eine Aufgabe darf auch schalten und benachrichtigen, etwa Radio, Licht oder eine Push-Nachricht mit `notify.*`. Das ist die Entscheidung des Nutzers. Er muss dabei wissen, dass ein Modell entscheidet und nicht deterministisch urteilt.
+  - Der Vorschlag nennt diese Aktionen ausdrücklich, vom Code erzeugt und nicht dem Modell überlassen („Dabei schaltet sie außerdem: …“). Das Ja gilt genau dafür.
+  - Gesperrt bleibt, was Mira auch im Gespräch nur nach ausdrücklichem Ja schaltet (`security.confirm_domains` und `confirm_entities`, z. B. Schlösser, Alarm, Garagentor). Bei solchen Domains gilt das auch für Ziele über Bereiche oder Geräte.
+  - Ebenfalls gesperrt ist alles, was beliebigen Code ausführt oder HA selbst verändert: Skripte, Shell-Befehle, Neustarts, Updates.
+  - Wer das trotzdem will, trägt es im Editor von HA selbst ein. Dort greift die Regel nicht.
+  - Grund: Am Satelliten kann jeder sprechen, und eine Aufgabe wirkt dauerhaft und unbeaufsichtigt. Außerdem liefen Automationen sonst mit Admin-Rechten, die Mira bewusst nicht hat.
 - Voraussetzung: `configuration.yaml` bindet `automations.yaml` ein (Standard).
 - Risiko: Für das Speichern von Automationen gibt es keine stabile Schnittstelle für Integrationen. Der Editor-Weg kann bei HA-Updates Nacharbeit brauchen.
 

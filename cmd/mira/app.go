@@ -214,6 +214,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			Model:   isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
 			Planner: isolatedModel{a, cfg.Routing.Tasks}, PlanDelay: 5 * time.Second,
 			QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
+			ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
 			Persons: a.persons,
 			Deliver: func(ctx context.Context, n store.Notice, area string) error {
 				a.proactiveMu.Lock()

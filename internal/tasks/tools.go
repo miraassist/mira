@@ -64,7 +64,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 				if err != nil {
 					return "", err
 				}
-				return fmt.Sprintf(t.proposal, task.Title, task.Summary), nil
+				return m.proposalText(task), nil
 			},
 		},
 		{
