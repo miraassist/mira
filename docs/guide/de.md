@@ -92,6 +92,39 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 
 Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Planungen, Rezepte, Vergleiche – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
 
+## Weitere Werkzeuge über MCP
+
+Mira kann zusätzliche Werkzeuge nutzen, die ein MCP-Server anbietet, etwa eine Websuche. Die Einrichtung trägt sie in `mira.yaml` unter `mcp_servers` ein; Mira verbindet sich beim Start und gibt dem Modell die Werkzeuge mit, mit dem Servernamen davor (`search__…`). Das funktioniert mit jedem Sprachmodell.
+
+Ein Server läuft entweder für sich und wird über HTTP erreicht, oder Mira startet ihn selbst als Programm (stdio):
+
+```yaml
+mcp_servers:
+  - name: ha                       # Home Assistant, ist immer dabei
+    transport: http
+    url: "http://homeassistant.local:8123/api/mcp/assist"
+    token: ${HA_TOKEN}
+  - name: search                   # Mira startet den Server selbst
+    transport: stdio
+    command: /usr/bin/node
+    args: ["/opt/web-search-mcp/dist/index.js"]
+    env: ["MAX_RESULTS=5"]         # optional
+    read_only: true
+    web_content: true
+  - name: notizen                  # läuft für sich, über HTTP
+    transport: http
+    url: "http://localhost:9100/mcp"
+    token: ${NOTIZEN_TOKEN}        # optional
+    disabled: true                 # vorübergehend aus
+```
+
+Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
+
+- **`read_only: true`**: Der Server liest nur und ändert nichts. Nur solche Werkzeuge stehen auch Hintergrundarbeiten (Beurteilen von Aufgaben, abgegebene schwierige Fragen) zur Verfügung. Ohne den Schalter gibt es die Werkzeuge nur im Gespräch.
+- **`web_content: true`**: Was der Server liefert, ist fremder Text, zum Beispiel aus Webseiten, und könnte versteckte Anweisungen enthalten. Sobald Mira ein solches Werkzeug benutzt hat, sind für den Rest der Anfrage kritische Aktionen gesperrt: alles, was unter `security` als bestätigungspflichtig eingetragen ist, etwa Schlösser, Alarmanlage, Garage.
+
+Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` prüft, ob alle erreichbar sind.
+
 ## Web-Oberfläche
 
 Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):

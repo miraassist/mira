@@ -44,6 +44,9 @@ Requirements:
 - Home Assistant with the "Model Context Protocol Server" integration. Use
   `/api/mcp/assist` as the MCP URL: it works for a non-admin user.
 - A dedicated, non-admin HA user with a long-lived token.
+- Optional: more MCP servers (web search, …) under `mcp_servers`, over HTTP or
+  started by Mira (stdio). See "More tools over MCP" in the guide
+  ([de](docs/guide/de.md), [en](docs/guide/en.md)).
 
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the rooms and
 persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`

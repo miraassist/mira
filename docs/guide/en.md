@@ -92,6 +92,39 @@ Skills are extra abilities the setup turns on. Mira opens a skill only when a qu
 
 If the setup connects a stronger language model, Mira hands demanding questions to it – explanations, planning, recipes, comparisons – and sums up the result for you. The stronger model can look things up but cannot change anything in the house.
 
+## More tools over MCP
+
+Mira can use extra tools that an MCP server offers, such as a web search. The setup lists them in `mira.yaml` under `mcp_servers`; Mira connects at start and hands the tools to the model, prefixed with the server name (`search__…`). This works with any language model.
+
+A server either runs on its own and is reached over HTTP, or Mira starts it as a program (stdio):
+
+```yaml
+mcp_servers:
+  - name: ha                       # Home Assistant, always there
+    transport: http
+    url: "http://homeassistant.local:8123/api/mcp/assist"
+    token: ${HA_TOKEN}
+  - name: search                   # Mira starts the server itself
+    transport: stdio
+    command: /usr/bin/node
+    args: ["/opt/web-search-mcp/dist/index.js"]
+    env: ["MAX_RESULTS=5"]         # optional
+    read_only: true
+    web_content: true
+  - name: notes                    # runs on its own, over HTTP
+    transport: http
+    url: "http://localhost:9100/mcp"
+    token: ${NOTES_TOKEN}          # optional
+    disabled: true                 # switched off for now
+```
+
+Two switches decide how careful Mira is with a server:
+
+- **`read_only: true`**: the server only reads and changes nothing. Only such tools are also available to background work (judging tasks, delegated hard questions). Without the switch the tools exist only in conversation.
+- **`web_content: true`**: what the server returns is third-party text, from web pages for example, and may hide instructions. Once Mira has used such a tool, critical actions are locked for the rest of the request: everything listed under `security` as needing confirmation, such as locks, alarm, garage.
+
+New or changed servers take effect when Mira restarts. `mira check` tells whether all of them are reachable.
+
 ## Web interface
 
 At `http://<mira>:8787/ui` (access token on first visit):
