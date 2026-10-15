@@ -8,6 +8,7 @@
 # Mira
 
 **User guide:** [Deutsch](docs/guide/de.md) · [English](docs/guide/en.md) – also in the web UI under "Anleitung" / "Guide".
+**System documentation:** [docs/system.md](docs/system.md) – components, the main flows as diagrams, data, security.
 
 A local, always-on household agent for Home Assistant. It runs next to a
 llama.cpp server, talks to you through Assist voice satellites and Telegram,
