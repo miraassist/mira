@@ -17,6 +17,7 @@ import (
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tools"
 )
 
 // Source is the part of Home Assistant the tasks read.
@@ -43,6 +44,12 @@ type Options struct {
 	Clock    func() time.Time
 	Location *time.Location
 	Logger   *slog.Logger
+	// Deliver, when set, makes planning run in the background: planning
+	// reads the whole house and takes longer than a voice turn may. The
+	// proposal is delivered to whoever asked, like a reminder.
+	Deliver func(ctx context.Context, n store.Notice, areaID string) error
+	// Persons are the configured persons, to address a proposal.
+	Persons func() map[string]config.Person
 }
 
 type Manager struct {
@@ -119,8 +126,60 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey string) (store.Ta
 	return t, p, nil
 }
 
-// Activate starts a proposed task.
+// Propose plans a task in the background and delivers the proposal, or
+// the failure, to whoever asked: spoken in the room for a voice turn, on
+// Telegram for a chat. ctx only carries values; planning outlives the turn.
+func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation) {
+	var area string
+	if inv.Channel == config.ChannelVoice {
+		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil {
+			area = sess.AreaID
+		}
+	}
+	var persons map[string]config.Person
+	if m.opts.Persons != nil {
+		persons = m.opts.Persons()
+	}
+	audience := tools.AudienceFor("", inv, persons)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+		defer cancel()
+		t := m.texts()
+		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
+		task, _, err := m.Create(ctx, goal, inv.SessionKey)
+		if err != nil {
+			m.log.Error("could not plan a task", "goal", goal, "error", err)
+			n.DedupeKey = "task-plan:" + n.ID
+			n.Spoken = fmt.Sprintf(t.planFailed, strings.TrimSpace(goal))
+		} else {
+			n.DedupeKey = "task-plan:" + task.ID
+			n.Spoken = fmt.Sprintf(t.proposal, task.Title, task.Summary)
+			n.Details = m.Describe(task)
+		}
+		if err := m.opts.Deliver(ctx, n, area); err != nil {
+			m.log.Error("could not deliver a task proposal", "error", err)
+		}
+	}()
+}
+
+// Activate starts a proposed task; without an id, the newest proposed one.
 func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
+	if id == "" {
+		list, err := m.opts.Store.Tasks(ctx)
+		if err != nil {
+			return store.Task{}, err
+		}
+		var newest store.Task
+		for _, t := range list {
+			if t.State == store.TaskProposed && t.CreatedAt.After(newest.CreatedAt) {
+				newest = t
+			}
+		}
+		if newest.ID == "" {
+			return store.Task{}, store.ErrNotFound
+		}
+		id = newest.ID
+	}
 	t, err := m.opts.Store.GetTask(ctx, id)
 	if err != nil {
 		return store.Task{}, err

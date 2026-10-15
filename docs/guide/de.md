@@ -68,7 +68,7 @@ Gib Mira einen dauerhaften Auftrag, und sie behält etwas für dich im Blick:
 - „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
 - „Pass nachts auf die Haustür auf.“
 
-Mira macht daraus einen Plan – welche Sensoren sie beobachtet und wann sie sich meldet – und fragt dich, ob sie so vorgehen soll. Erst nach deinem Ja startet der Auftrag.
+Mira macht daraus einen Plan – welche Sensoren sie beobachtet und wann sie sich meldet. Das dauert etwa eine halbe Minute; sie plant im Hintergrund und meldet sich dann mit ihrem Vorschlag, im selben Raum oder auf Telegram. Passt er, sag: **„Starte den Auftrag“**. Erst dann läuft er.
 
 Dann vergleicht Mira laufend: Den Verbrauch oder Messwert der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen (aus dem Verlauf von Home Assistant), dazu Zustände und Grenzwerte. Nur wenn etwas wirklich aus dem Rahmen fällt, beurteilt sie, ob es dich interessiert, und meldet sich – wie jede andere Benachrichtigung, bei Gefahr (etwa Wasser, das nachts lange läuft) auch sofort. Dieselbe Sache meldet sie höchstens alle sechs Stunden.
 

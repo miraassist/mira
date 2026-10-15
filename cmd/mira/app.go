@@ -192,12 +192,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal := tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender, delegate)
 	internal = append(internal, tools.Reminders(tools.ReminderOptions{
 		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store,
-		Persons: func() map[string]config.Person {
-			if p := a.liveConfig().Persons; p != nil {
-				return p
-			}
-			return a.cfg.Persons // the chat command has no live config
-		},
+		Persons: a.persons,
 	})...)
 	loaded, err := skills.Load(cfg.Skills.Dirs, cfg.Skills.Enabled)
 	if err != nil {
@@ -216,6 +211,16 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, Snapshot: snapshot,
 			Planner: engineAssessor{a}, Judge: engineAssessor{a},
 			QuietHours: cfg.Notifier.QuietHours, Logger: a.log,
+			Persons: a.persons,
+			Deliver: func(ctx context.Context, n store.Notice, area string) error {
+				a.proactiveMu.Lock()
+				nf := a.notifier
+				a.proactiveMu.Unlock()
+				if nf == nil {
+					return errors.New("no notifier is running")
+				}
+				return nf.Tell(ctx, n, area)
+			},
 		})
 		internal = append(internal, a.tasks.Tools()...)
 	}
@@ -490,6 +495,14 @@ func (a *app) startProactive(parent context.Context) {
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+// persons are the configured persons from the live config.
+func (a *app) persons() map[string]config.Person {
+	if p := a.liveConfig().Persons; p != nil {
+		return p
+	}
+	return a.cfg.Persons // the chat command has no live config
 }
 
 // engineAssessor lets the task manager use the engine before it exists.

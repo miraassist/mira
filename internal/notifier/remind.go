@@ -28,17 +28,40 @@ func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 	if err != nil {
 		return err
 	}
+	return n.deliverAsked(ctx, nt, r.AreaID)
+}
+
+// Tell delivers a message someone asked for and is waiting on, such as the
+// proposal for a standing order that was planned in the background. Like a
+// reminder it is spoken in the room it was asked in, otherwise it goes
+// privately to its audience.
+func (n *Notifier) Tell(ctx context.Context, nt store.Notice, areaID string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if nt.ExpiresAt.IsZero() {
+		nt.ExpiresAt = n.clock().Add(12 * time.Hour)
+	}
+	nt, _, err := n.store.PutNotice(ctx, nt)
+	if err != nil {
+		return err
+	}
+	return n.deliverAsked(ctx, nt, areaID)
+}
+
+// deliverAsked speaks nt in the area unless quiet mode is on, falling back
+// to a private message. n.mu is held.
+func (n *Notifier) deliverAsked(ctx context.Context, nt store.Notice, areaID string) error {
 	quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false)
 	if err != nil {
 		return err
 	}
 	defer n.syncIndicators(ctx)
-	if sat := n.sats[r.AreaID]; sat != "" && !quiet {
-		err := n.announce(ctx, r.AreaID, []store.Notice{nt})
+	if sat := n.sats[areaID]; sat != "" && !quiet {
+		err := n.announce(ctx, areaID, []store.Notice{nt})
 		if err == nil {
 			return nil
 		}
-		n.log.Warn("reminder could not be spoken, sending it privately", "reminder", r.ID, "error", err)
+		n.log.Warn("message could not be spoken, sending it privately", "notice", nt.ID, "error", err)
 	}
 	return n.sendPrivate(ctx, nt)
 }

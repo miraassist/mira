@@ -23,9 +23,15 @@ const (
 func (m *Manager) Tools() []tools.InternalTool {
 	t := m.texts()
 	id := `{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`
+	// Confirming may come in a later conversation than the proposal, so
+	// without an id it starts the newest proposed task.
+	optionalID := `{"type":"object","properties":{"id":{"type":"string"}}}`
 	readID := func(raw json.RawMessage) (string, error) {
 		var a struct {
 			ID string `json:"id"`
+		}
+		if len(raw) == 0 {
+			return "", nil
 		}
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return "", err
@@ -52,6 +58,10 @@ func (m *Manager) Tools() []tools.InternalTool {
 				if strings.TrimSpace(a.Goal) == "" {
 					return "", errors.New("goal is missing")
 				}
+				if m.opts.Deliver != nil {
+					m.Propose(ctx, a.Goal, inv)
+					return t.planning, nil
+				}
 				task, _, err := m.Create(ctx, a.Goal, inv.SessionKey)
 				if err != nil {
 					return "", err
@@ -60,7 +70,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 			},
 		},
 		{
-			Name: ToolTaskConfirm, Description: t.confirmDesc, Schema: id,
+			Name: ToolTaskConfirm, Description: t.confirmDesc, Schema: optionalID,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
 				tid, err := readID(inv.Args)
 				if err != nil {

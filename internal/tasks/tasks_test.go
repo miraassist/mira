@@ -12,6 +12,7 @@ import (
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tools"
 )
 
 func f(v float64) *float64 { return &v }
@@ -237,4 +238,37 @@ func TestRepairAndReplan(t *testing.T) {
 	if !strings.Contains(model.instructions[1], "unknown entity sensor.ausgedacht") {
 		t.Error("second attempt did not get the reason")
 	}
+}
+
+func TestProposeInBackground(t *testing.T) {
+	now := time.Now()
+	model := &fakeModel{answers: []string{waterPlan}}
+	m, st, _ := setup(t, &now, model)
+	delivered := make(chan store.Notice, 1)
+	m.opts.Deliver = func(_ context.Context, n store.Notice, area string) error {
+		delivered <- n
+		return nil
+	}
+	tool := m.Tools()[0]
+	out, err := tool.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"goal":"Achte auf das Wasser"}`), SessionKey: "telegram:1", Channel: config.ChannelTelegram})
+	if err != nil || !strings.Contains(out, "Hintergrund") {
+		t.Fatalf("create: %q %v", out, err)
+	}
+	select {
+	case n := <-delivered:
+		if !strings.Contains(n.Spoken, "Wasser") || !strings.Contains(n.Spoken, "Starte den Auftrag") || n.Source != store.SourceTask {
+			t.Errorf("proposal: %+v", n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no proposal delivered")
+	}
+	// "Starte den Auftrag" in a new conversation: no id.
+	task, err := m.Activate(context.Background(), "")
+	if err != nil || task.State != store.TaskActive {
+		t.Fatalf("activate newest: %+v %v", task, err)
+	}
+	if _, err := m.Activate(context.Background(), ""); err == nil {
+		t.Error("activated without a proposed task")
+	}
+	_ = st
 }

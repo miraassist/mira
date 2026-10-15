@@ -18,6 +18,7 @@ type texts struct {
 	proposed, activated, deleted, none string
 	noTask                             string
 	replan                             string
+	planning, proposal, planFailed     string
 }
 
 // maxCatalog bounds the entity list in the planning prompt.
@@ -63,9 +64,9 @@ Antworte nur mit dem JSON-Objekt.`,
 - details: die Langfassung mit den Vergleichswerten
 Behaupte nur, was in der Beobachtung steht.`,
 		describe:    "Auftrag %s, %q (%s): %s",
-		createDesc:  "Legt einen dauerhaften Auftrag an, wenn der Nutzer möchte, dass du auf etwas achtest, z. B. \"Achte auf den Wasserverbrauch\", \"Sag Bescheid, wenn nachts ungewöhnlich viel Strom läuft\", \"Pass auf das Haus auf\". Du bekommst einen Plan zurück: sag ihn dem Nutzer kurz und frag, ob du so vorgehen sollst. Erst nach seinem Ja rufst du task_confirm auf.",
+		createDesc:  "Legt einen dauerhaften Auftrag an, wenn der Nutzer möchte, dass du auf etwas achtest, z. B. \"Achte auf den Wasserverbrauch\", \"Sag Bescheid, wenn nachts ungewöhnlich viel Strom läuft\", \"Pass auf das Haus auf\". Du bekommst einen Plan zurück: sag ihn dem Nutzer kurz und frag, ob du so vorgehen sollst. Erst nach seinem Ja rufst du task_confirm auf. Wenn das Planen im Hintergrund läuft, kommt der Vorschlag später von selbst.",
 		createGoal:  "Der Auftrag in den Worten des Nutzers.",
-		confirmDesc: "Startet einen geplanten Auftrag, nachdem der Nutzer dem Plan zugestimmt hat.",
+		confirmDesc: "Startet einen geplanten Auftrag, nachdem der Nutzer dem Plan zugestimmt hat, etwa mit \"Starte den Auftrag\". Ohne id den zuletzt vorgeschlagenen.",
 		listDesc:    "Listet die Aufträge mit ihren Plänen.",
 		deleteDesc:  "Löscht einen Auftrag anhand seiner id (aus task_list).",
 		proposed:    "Plan erstellt, noch nicht aktiv. Sag dem Nutzer kurz, was du beobachten würdest, und frag, ob du so vorgehen sollst.\n",
@@ -74,6 +75,9 @@ Behaupte nur, was in der Beobachtung steht.`,
 		none:        "Keine Aufträge.",
 		noTask:      "keinen Auftrag mit dieser id",
 		replan:      "\n\nDein letzter Plan wurde abgelehnt: %s. Mach einen neuen, der die Regeln einhält.",
+		planning:    "Ich plane den Auftrag jetzt im Hintergrund; der Vorschlag kommt in etwa einer halben Minute von selbst. Sag dem Nutzer das in einem kurzen Satz.",
+		proposal:    "Mein Vorschlag für den Auftrag %s: %s Wenn das passt, sag: Starte den Auftrag.",
+		planFailed:  "Für den Auftrag „%s“ habe ich keinen brauchbaren Plan gefunden.",
 	},
 	i18n.EN: {
 		plan: "The user gives you a standing order: %q\n\nPlan how to fulfil it. Choose from these entities (id | name | area | device_class | state_class | unit | state now):",
@@ -100,9 +104,9 @@ Answer only with the JSON object.`,
 - details: the long form with the comparison values
 Only claim what the observation says.`,
 		describe:    "Order %s, %q (%s): %s",
-		createDesc:  "Creates a standing order when the user wants you to watch something, e.g. \"Keep an eye on the water usage\", \"Tell me if a lot of power is used at night\", \"Watch the house\". You get a plan back: tell it to the user briefly and ask whether to go ahead. Only after their yes call task_confirm.",
+		createDesc:  "Creates a standing order when the user wants you to watch something, e.g. \"Keep an eye on the water usage\", \"Tell me if a lot of power is used at night\", \"Watch the house\". You get a plan back: tell it to the user briefly and ask whether to go ahead. Only after their yes call task_confirm. If planning runs in the background, the proposal arrives later by itself.",
 		createGoal:  "The order in the user's words.",
-		confirmDesc: "Starts a planned order after the user agreed to the plan.",
+		confirmDesc: "Starts a planned order after the user agreed to the plan, e.g. with \"Start the order\". Without an id, the most recently proposed one.",
 		listDesc:    "Lists the orders with their plans.",
 		deleteDesc:  "Deletes an order by its id (from task_list).",
 		proposed:    "Plan made, not active yet. Tell the user briefly what you would watch and ask whether to go ahead.\n",
@@ -111,5 +115,8 @@ Only claim what the observation says.`,
 		none:        "No orders.",
 		noTask:      "no order with this id",
 		replan:      "\n\nYour last plan was refused: %s. Make a new one that keeps the rules.",
+		planning:    "I am planning the order in the background now; the proposal arrives by itself in about half a minute. Tell the user so in one short sentence.",
+		proposal:    "My proposal for the order %s: %s If that suits you, say: Start the order.",
+		planFailed:  "I found no usable plan for the order \"%s\".",
 	},
 }

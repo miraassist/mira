@@ -68,7 +68,7 @@ Give Mira a standing order and she keeps an eye on something for you:
 - "Tell me if a lot of electricity is used at night."
 - "Watch the front door at night."
 
-Mira turns it into a plan – which sensors she watches and when she speaks up – and asks whether to go ahead. The order starts only after your yes.
+Mira turns it into a plan – which sensors she watches and when she speaks up. That takes about half a minute; she plans in the background and then comes back with her proposal, in the same room or on Telegram. If it suits you, say: **"Start the order"**. Only then does it run.
 
 Then Mira keeps comparing: the usage or reading of the last hour with the same hour over the past two weeks (from Home Assistant's history), plus states and thresholds. Only when something is really out of the ordinary does she judge whether it interests you and speak up – like any other notification, and at once when there is danger (such as water running long at night). She reports the same thing at most every six hours.
 
