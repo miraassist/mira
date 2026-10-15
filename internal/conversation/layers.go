@@ -6,11 +6,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/ha/structure"
-	"github.com/sker65/lares/internal/llm"
-	"github.com/sker65/lares/internal/prompt"
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/ha/structure"
+	"github.com/sker65/mira/internal/llm"
+	"github.com/sker65/mira/internal/prompt"
+	"github.com/sker65/mira/internal/store"
 )
 
 // Prefix assembles layers 1 to 5 for a channel. Every channel gets the same

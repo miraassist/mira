@@ -9,22 +9,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/conversation"
-	"github.com/sker65/lares/internal/llm"
-	"github.com/sker65/lares/internal/store"
-	"github.com/sker65/lares/internal/tools"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/conversation"
+	"github.com/sker65/mira/internal/llm"
+	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tools"
 )
 
 // TestRealModelAssessment runs the assessment against a real model. It is
-// skipped unless LARES_TEST_LLM_URL (and optionally LARES_TEST_LLM_MODEL,
-// LARES_TEST_LLM_KEY) is set, e.g.
+// skipped unless MIRA_TEST_LLM_URL (and optionally MIRA_TEST_LLM_MODEL,
+// MIRA_TEST_LLM_KEY) is set, e.g.
 //
-//	LARES_TEST_LLM_URL=http://localhost:1234/v1 LARES_TEST_LLM_MODEL=qwen/qwen3-30b-a3b-2507 go test -run RealModel -v ./internal/watchers
+//	MIRA_TEST_LLM_URL=http://localhost:1234/v1 MIRA_TEST_LLM_MODEL=qwen/qwen3-30b-a3b-2507 go test -run RealModel -v ./internal/watchers
 func TestRealModelAssessment(t *testing.T) {
-	url := os.Getenv("LARES_TEST_LLM_URL")
+	url := os.Getenv("MIRA_TEST_LLM_URL")
 	if url == "" {
-		t.Skip("LARES_TEST_LLM_URL not set")
+		t.Skip("MIRA_TEST_LLM_URL not set")
 	}
 	cfg := config.Default()
 	cfg.LLM.SlotPinning, cfg.LLM.CachePrompt = false, false
@@ -37,7 +37,7 @@ func TestRealModelAssessment(t *testing.T) {
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	engine := conversation.New(conversation.Options{
 		Config: cfg, Store: st, Logger: quiet,
-		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("LARES_TEST_LLM_MODEL"), APIKey: os.Getenv("LARES_TEST_LLM_KEY"), Timeout: 2 * time.Minute}),
+		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("MIRA_TEST_LLM_MODEL"), APIKey: os.Getenv("MIRA_TEST_LLM_KEY"), Timeout: 2 * time.Minute}),
 		Tools: tools.NewRegistry(nil, tools.Internal(st, nil)...),
 		Guard: tools.NewGuard(cfg.Security, st, nil),
 	})
@@ -66,12 +66,12 @@ func TestRealModelAssessment(t *testing.T) {
 }
 
 // TestRealModelFeed reads a real feed and lets a real model pick what is
-// interesting. Besides LARES_TEST_LLM_URL it needs LARES_TEST_FEED_URL, e.g.
+// interesting. Besides MIRA_TEST_LLM_URL it needs MIRA_TEST_FEED_URL, e.g.
 // https://zenmux.ai/rss/models.xml.
 func TestRealModelFeed(t *testing.T) {
-	url, feedURL := os.Getenv("LARES_TEST_LLM_URL"), os.Getenv("LARES_TEST_FEED_URL")
+	url, feedURL := os.Getenv("MIRA_TEST_LLM_URL"), os.Getenv("MIRA_TEST_FEED_URL")
 	if url == "" || feedURL == "" {
-		t.Skip("LARES_TEST_LLM_URL or LARES_TEST_FEED_URL not set")
+		t.Skip("MIRA_TEST_LLM_URL or MIRA_TEST_FEED_URL not set")
 	}
 	cfg := config.Default()
 	cfg.LLM.SlotPinning, cfg.LLM.CachePrompt = false, false
@@ -84,7 +84,7 @@ func TestRealModelFeed(t *testing.T) {
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	engine := conversation.New(conversation.Options{
 		Config: cfg, Store: st, Logger: quiet,
-		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("LARES_TEST_LLM_MODEL"), APIKey: os.Getenv("LARES_TEST_LLM_KEY"), Timeout: 3 * time.Minute}),
+		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("MIRA_TEST_LLM_MODEL"), APIKey: os.Getenv("MIRA_TEST_LLM_KEY"), Timeout: 3 * time.Minute}),
 		Tools: tools.NewRegistry(nil, tools.Internal(st, nil)...),
 		Guard: tools.NewGuard(cfg.Security, st, nil),
 	})

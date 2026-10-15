@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/sker65/lares/internal/telemetry"
+	"github.com/sker65/mira/internal/telemetry"
 )
 
 // Error is a non-2xx response from the LLM server.

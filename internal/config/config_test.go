@@ -56,7 +56,7 @@ func TestParseEnvFallback(t *testing.T) {
 ha: { enabled: false }
 telegram: { enabled: false }
 server:
-  listen: ${LARES_LISTEN:-0.0.0.0:9999}
+  listen: ${MIRA_LISTEN:-0.0.0.0:9999}
 `), fakeEnv(nil))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
@@ -156,11 +156,11 @@ llm:
 
 // The shipped example must always load, so it cannot rot as the config grows.
 func TestExampleConfigLoads(t *testing.T) {
-	raw, err := os.ReadFile("../../lares.example.yaml")
+	raw, err := os.ReadFile("../../mira.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	env := map[string]string{"LARES_API_TOKEN": "a", "HA_TOKEN": "b", "TELEGRAM_TOKEN": "c"}
+	env := map[string]string{"MIRA_API_TOKEN": "a", "HA_TOKEN": "b", "TELEGRAM_TOKEN": "c"}
 	cfg, err := Parse(raw, func(k string) (string, bool) { v, ok := env[k]; return v, ok })
 	if err != nil {
 		t.Fatalf("example config: %v", err)

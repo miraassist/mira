@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/prompt"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/prompt"
 )
 
 // RequestWarmup schedules a warmup of every slot. Calls while one is pending

@@ -1,4 +1,4 @@
-module github.com/sker65/lares
+module github.com/sker65/mira
 
 go 1.27.2
 

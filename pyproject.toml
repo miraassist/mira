@@ -1,7 +1,7 @@
-# Python tooling for the Home Assistant integration in custom_components/lares.
+# Python tooling for the Home Assistant integration in custom_components/mira.
 # The agent itself is Go; see go.mod.
 [project]
-name = "lares-ha"
+name = "mira-ha"
 version = "0.1.0"
 requires-python = ">=3.14"
 

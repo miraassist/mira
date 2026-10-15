@@ -3,7 +3,7 @@ package prompt
 import (
 	"testing"
 
-	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/mira/internal/llm"
 )
 
 func tool(name string) llm.Tool {

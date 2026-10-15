@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	haws "github.com/sker65/lares/internal/ha/ws"
+	haws "github.com/sker65/mira/internal/ha/ws"
 )
 
 // Registry events that invalidate the structure block.

@@ -23,13 +23,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/ha/structure"
-	"github.com/sker65/lares/internal/llm"
-	"github.com/sker65/lares/internal/prompt"
-	"github.com/sker65/lares/internal/store"
-	"github.com/sker65/lares/internal/telemetry"
-	"github.com/sker65/lares/internal/tools"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/ha/structure"
+	"github.com/sker65/mira/internal/llm"
+	"github.com/sker65/mira/internal/prompt"
+	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/telemetry"
+	"github.com/sker65/mira/internal/tools"
 )
 
 // Chatter is the part of the LLM client the engine uses.
@@ -167,7 +167,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	}
 	key := SessionKey(req.Channel, req.ConversationID)
 
-	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent lares", trace.WithSpanKind(trace.SpanKindInternal))
+	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent mira", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 	span.SetAttributes(
 		telemetry.AttrGenAIOperationName.String("invoke_agent"),

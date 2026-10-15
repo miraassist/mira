@@ -54,7 +54,7 @@ type Provider struct {
 // telemetry must not take the household assistant down.
 func Setup(ctx context.Context, opts Options) (*Provider, error) {
 	if opts.ServiceName == "" {
-		opts.ServiceName = "lares"
+		opts.ServiceName = "mira"
 	}
 	logger := newLogger(opts.LogLevel)
 	p := &Provider{Logger: logger, captureContent: opts.CaptureContent}

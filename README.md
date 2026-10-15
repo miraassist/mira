@@ -1,4 +1,11 @@
-# Lares
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/mira-logo-dark.png">
+    <img src="docs/brand/mira-logo.png" alt="Mira" height="96">
+  </picture>
+</p>
+
+# Mira
 
 A local, always-on household agent for Home Assistant. It runs next to a
 llama.cpp server, talks to you through Assist voice satellites and Telegram,
@@ -9,8 +16,8 @@ This repository holds both parts, released together under one version:
 
 | Part | Where | What it does |
 | --- | --- | --- |
-| Agent (Go) | `cmd/lares`, `internal/` | Prompting, tools, memory, security policy, Telegram |
-| Integration (HACS) | `custom_components/lares` | Thin Assist conversation agent that forwards each turn to the agent |
+| Agent (Go) | `cmd/mira`, `internal/` | Prompting, tools, memory, security policy, Telegram |
+| Integration (HACS) | `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the agent |
 
 The integration does not use Home Assistant's LLM API and runs no tools. All
 logic lives in the agent.
@@ -18,12 +25,12 @@ logic lives in the agent.
 ## Agent
 
 ```sh
-go build -o lares ./cmd/lares
-cp lares.example.yaml lares.yaml        # then edit; secrets come from ${ENV}
-./lares -config lares.yaml check        # probe the LLM, Home Assistant and MCP servers
-./lares -config lares.yaml chat "Wie warm ist es im Wohnzimmer?"
-./lares -config lares.yaml profile      # compact the remembered facts into the profile now
-./lares -config lares.yaml run
+go build -o mira ./cmd/mira
+cp mira.example.yaml mira.yaml        # then edit; secrets come from ${ENV}
+./mira -config mira.yaml check        # probe the LLM, Home Assistant and MCP servers
+./mira -config mira.yaml chat "Wie warm ist es im Wohnzimmer?"
+./mira -config mira.yaml profile      # compact the remembered facts into the profile now
+./mira -config mira.yaml run
 ```
 
 Requirements:
@@ -36,8 +43,8 @@ Requirements:
 - A dedicated, non-admin HA user with a long-lived token.
 
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the watchers, rooms
-and persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `LARES_API_TOKEN`
-once. Changes are stored in the database on top of `lares.yaml` (the file is
+and persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`
+once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once.
 
 Security: locks, alarm panels and other configured entities only run after
@@ -48,13 +55,13 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
-1. HACS → Custom repositories → `https://github.com/sker65/lares`, type Integration.
-2. Install **Lares**, restart Home Assistant.
+1. HACS → Custom repositories → `https://github.com/sker65/mira`, type Integration.
+2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
-   (`_lares._tcp`, `server.announce`) and shows up under **Discovered**; it
-   only asks for the agent's `server.token`. Otherwise Add integration → Lares
+   (`_mira._tcp`, `server.announce`) and shows up under **Discovered**; it
+   only asks for the agent's `server.token`. Otherwise Add integration → Mira
    with URL and token.
-4. Settings → Voice assistants: choose **Lares** as the conversation agent.
+4. Settings → Voice assistants: choose **Mira** as the conversation agent.
 
 The integration imports the agent's watchers, persons and rooms as
 subentries of its entry (Watcher, Feed, Person, Raum), edited there with Home
@@ -76,5 +83,5 @@ go run ./cmd/testha up                                # test Home Assistant in D
 `testenv/` holds a throwaway Home Assistant for tests against a real HA; see
 [testenv/README.md](testenv/README.md).
 
-Releases: bump `version` in `custom_components/lares/manifest.json`, then tag
+Releases: bump `version` in `custom_components/mira/manifest.json`, then tag
 `vX.Y.Z`. The release workflow refuses a tag that does not match.

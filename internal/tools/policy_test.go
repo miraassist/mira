@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/ha/structure"
-	haws "github.com/sker65/lares/internal/ha/ws"
-	"github.com/sker65/lares/internal/prompt"
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/ha/structure"
+	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/prompt"
+	"github.com/sker65/mira/internal/store"
 )
 
 type memConfirmations struct{ last *store.Confirmation }

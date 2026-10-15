@@ -17,7 +17,7 @@ jobs:
       - name: Integration version matches the tag
         run: |
           want="${GITHUB_REF_NAME#v}"
-          got="$(jq -r .version custom_components/lares/manifest.json)"
+          got="$(jq -r .version custom_components/mira/manifest.json)"
           if [ "$want" != "$got" ]; then
             echo "manifest.json says $got, tag says $want" >&2
             exit 1
@@ -32,9 +32,9 @@ jobs:
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
               -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
-              -o "dist/lares-linux-$arch" ./cmd/lares
+              -o "dist/mira-linux-$arch" ./cmd/mira
           done
-          cp lares.example.yaml dist/
+          cp mira.example.yaml dist/
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*

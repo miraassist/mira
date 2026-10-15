@@ -1,21 +1,21 @@
-# Test Home Assistant for Lares. Same version as the real house, so the Assist
+# Test Home Assistant for Mira. Same version as the real house, so the Assist
 # prompt and the permission rules behave the same. Managed by `go run ./cmd/testha`.
-name: lares-testenv
+name: mira-testenv
 
 services:
   homeassistant:
-    container_name: lares-test-ha
+    container_name: mira-test-ha
     image: ghcr.io/home-assistant/home-assistant:2026.10.0
     # Bridge network on purpose: in the host network HA discovers the real
     # house (Cast, ESPHome, ...) and sets some of it up by itself.
     ports:
       - "8123:8123"
-    # HA reaches the test Lares on the host as host.docker.internal.
+    # HA reaches the test Mira on the host as host.docker.internal.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       TZ: Europe/Berlin
     volumes:
       - ./ha:/config
-      - ../custom_components/lares:/config/custom_components/lares:ro
+      - ../custom_components/mira:/config/custom_components/mira:ro
     restart: "no"

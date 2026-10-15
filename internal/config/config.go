@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sker65/lares/internal/schedule"
+	"github.com/sker65/mira/internal/schedule"
 )
 
 // Channel names a conversation channel. Each one gets its own llama.cpp slot
@@ -50,7 +50,7 @@ type Server struct {
 	// Token authenticates the HA integration against the agent. Empty disables
 	// the check, which is only sensible for local development.
 	Token string `yaml:"token"`
-	// Announce makes the agent discoverable by mDNS (_lares._tcp), so Home
+	// Announce makes the agent discoverable by mDNS (_mira._tcp), so Home
 	// Assistant offers it under "Discovered".
 	Announce bool `yaml:"announce"`
 	// Name is the announced name.
@@ -307,7 +307,7 @@ type Telemetry struct {
 func Default() Config {
 	temp := 0.3
 	return Config{
-		Server: Server{Listen: "127.0.0.1:8787", Announce: true, Name: "Lares"},
+		Server: Server{Listen: "127.0.0.1:8787", Announce: true, Name: "Mira"},
 		LLM: LLM{
 			BaseURL:              "http://localhost:8080/v1",
 			Model:                "local",
@@ -323,7 +323,7 @@ func Default() Config {
 			WarmupOnStart:        true,
 			WarmupOnPrefixChange: true,
 		},
-		Store:  Store{Path: "lares.db"},
+		Store:  Store{Path: "mira.db"},
 		Prompt: Prompt{Language: "de"},
 		HA: HA{
 			Enabled:             true,
@@ -366,7 +366,7 @@ func Default() Config {
 			MaxFactsInLayer: 8,
 			MaxProfileChars: 2000,
 		},
-		Telemetry: Telemetry{ServiceName: "lares", LogLevel: "info"},
+		Telemetry: Telemetry{ServiceName: "mira", LogLevel: "info"},
 	}
 }
 

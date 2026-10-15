@@ -7,7 +7,7 @@ import (
 	"sort"
 )
 
-// The Lares integration in Home Assistant can take over the watchers, the
+// The Mira integration in Home Assistant can take over the watchers, the
 // persons and the rooms: each is a subentry there, edited with HA's own
 // entity and area pickers. It reads them once to import what exists, then
 // writes all of them on every change. While it manages them, the web UI

@@ -1,6 +1,6 @@
 // Command testha runs the test Home Assistant in testenv/ for tests against a
 // real HA: same version as the house, demo devices, simulated sensors, and a
-// non-admin user "lares" like in the house.
+// non-admin user "mira" like in the house.
 //
 //	go run ./cmd/testha up            start, onboard and seed; writes testenv/.env
 //	go run ./cmd/testha set ID STATE  flip a simulated sensor (on/off) or set any state

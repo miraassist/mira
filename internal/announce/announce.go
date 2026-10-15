@@ -1,5 +1,5 @@
 // Package announce makes the agent findable on the local network: it
-// announces the service _lares._tcp by mDNS, and the Lares integration in
+// announces the service _mira._tcp by mDNS, and the Mira integration in
 // Home Assistant lists every agent it hears under "Discovered".
 //
 // The TXT record carries the agent's instance id, so Home Assistant
@@ -19,12 +19,12 @@ import (
 	"github.com/libp2p/zeroconf/v2"
 )
 
-// Service is the mDNS service type; custom_components/lares/manifest.json
+// Service is the mDNS service type; custom_components/mira/manifest.json
 // lists the same one.
-const Service = "_lares._tcp"
+const Service = "_mira._tcp"
 
 type Options struct {
-	// Instance is the visible name, e.g. "Lares".
+	// Instance is the visible name, e.g. "Mira".
 	Instance string
 	ID       string
 	Version  string
@@ -50,9 +50,9 @@ func Run(ctx context.Context, opts Options) error {
 	// A host name of its own, with exactly these addresses. Under the
 	// machine's name, avahi would answer too, with every address of the
 	// host, container bridges included.
-	host := "lares"
+	host := "mira"
 	if h, err := os.Hostname(); err == nil && h != "" {
-		host = "lares-" + strings.ToLower(strings.Split(h, ".")[0])
+		host = "mira-" + strings.ToLower(strings.Split(h, ".")[0])
 	}
 	server, err := zeroconf.RegisterProxy(opts.Instance, Service, "local.", port, host, ips, txt, ifaces)
 	if err != nil {

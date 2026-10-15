@@ -6,10 +6,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/llm"
-	"github.com/sker65/lares/internal/prompt"
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/llm"
+	"github.com/sker65/mira/internal/prompt"
+	"github.com/sker65/mira/internal/store"
 )
 
 // Assess runs one stateless request on the background slot: the background

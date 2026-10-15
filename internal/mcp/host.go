@@ -25,8 +25,8 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/prompt"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/prompt"
 )
 
 // ErrUnknownTool is returned for a name no connected server offers.
@@ -224,7 +224,7 @@ func (s *server) connected() bool {
 }
 
 func (h *Host) connectServer(ctx context.Context, s *server) error {
-	client := sdk.NewClient(&sdk.Implementation{Name: "lares", Version: h.version}, &sdk.ClientOptions{
+	client := sdk.NewClient(&sdk.Implementation{Name: "mira", Version: h.version}, &sdk.ClientOptions{
 		Logger: h.log,
 		ToolListChangedHandler: func(ctx context.Context, _ *sdk.ToolListChangedRequest) {
 			h.log.Info("mcp server announced a tool list change", "server", s.cfg.Name)

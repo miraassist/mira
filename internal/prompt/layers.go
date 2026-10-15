@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/llm"
 )
 
 // The seven layers, from stable to volatile. The numbers are the ones used in
@@ -23,7 +23,7 @@ const (
 // agentPrompt is layer 1. It must never contain anything that varies between
 // requests. The rules about tool results are load-bearing: a web page or a
 // sensor attribute is data the agent reads, never an instruction it follows.
-const agentPrompt = `Du bist Lares, der Assistent dieses Haushalts. Du steuerst das Smart Home, beantwortest Fragen und meldest dich von dir aus, wenn etwas Wichtiges passiert ist.
+const agentPrompt = `Du bist Mira, die Assistentin dieses Haushalts. Du steuerst das Smart Home, beantwortest Fragen und meldest dich von dir aus, wenn etwas Wichtiges passiert ist.
 
 Arbeitsweise:
 - Zustände von Geräten kennst du nicht auswendig. Frage sie immer über ein Werkzeug ab, bevor du über sie sprichst. Rate nie einen Messwert und nenne nie einen Wert, den du nicht gerade abgerufen hast.

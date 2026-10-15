@@ -1,11 +1,11 @@
-/lares
+/mira
 /dist/
 *.db
 *.db-wal
 *.db-shm
 .env
 config.local.yaml
-lares.yaml
+mira.yaml
 .venv/
 __pycache__/
 .pytest_cache/
@@ -13,5 +13,5 @@ __pycache__/
 /testenv/ha/*
 !/testenv/ha/configuration.yaml
 /testenv/.env
-/testenv/lares.db*
-!/testenv/lares.yaml
+/testenv/mira.db*
+!/testenv/mira.yaml

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	haws "github.com/sker65/lares/internal/ha/ws"
+	haws "github.com/sker65/mira/internal/ha/ws"
 )
 
 func up(ctx context.Context, dir string) error {
@@ -20,8 +20,8 @@ func up(ctx context.Context, dir string) error {
 	if e["TESTHA_ADMIN_PASSWORD"] == "" {
 		e["TESTHA_ADMIN_PASSWORD"] = randomHex(8)
 	}
-	if e["LARES_API_TOKEN"] == "" {
-		e["LARES_API_TOKEN"] = randomHex(16)
+	if e["MIRA_API_TOKEN"] == "" {
+		e["MIRA_API_TOKEN"] = randomHex(16)
 	}
 	e["HA_HOST"] = strings.TrimPrefix(haURL, "http://")
 
@@ -50,11 +50,11 @@ func up(ctx context.Context, dir string) error {
 	}
 	defer stop()
 	if !tokenWorks(ctx, e["HA_TOKEN"]) {
-		if e["TESTHA_LARES_PASSWORD"] == "" {
-			e["TESTHA_LARES_PASSWORD"] = randomHex(8)
+		if e["TESTHA_MIRA_PASSWORD"] == "" {
+			e["TESTHA_MIRA_PASSWORD"] = randomHex(8)
 		}
-		if e["HA_TOKEN"], err = laresToken(ctx, admin, e["TESTHA_LARES_PASSWORD"]); err != nil {
-			return fmt.Errorf("lares user: %w", err)
+		if e["HA_TOKEN"], err = miraToken(ctx, admin, e["TESTHA_MIRA_PASSWORD"]); err != nil {
+			return fmt.Errorf("mira user: %w", err)
 		}
 		if err := e.save(dir); err != nil {
 			return err
@@ -67,9 +67,9 @@ func up(ctx context.Context, dir string) error {
 	return nil
 }
 
-// laresToken makes sure the non-admin user "lares" exists and returns a new
+// miraToken makes sure the non-admin user "mira" exists and returns a new
 // long-lived token for it.
-func laresToken(ctx context.Context, admin *haws.Client, password string) (string, error) {
+func miraToken(ctx context.Context, admin *haws.Client, password string) (string, error) {
 	var users []struct {
 		ID       string `json:"id"`
 		Username string `json:"username"`
@@ -79,7 +79,7 @@ func laresToken(ctx context.Context, admin *haws.Client, password string) (strin
 	}
 	userID := ""
 	for _, u := range users {
-		if u.Username == "lares" {
+		if u.Username == "mira" {
 			userID = u.ID
 		}
 	}
@@ -90,13 +90,13 @@ func laresToken(ctx context.Context, admin *haws.Client, password string) (strin
 			} `json:"user"`
 		}
 		if err := call(ctx, admin, map[string]any{
-			"type": "config/auth/create", "name": "Lares", "group_ids": []string{"system-users"},
+			"type": "config/auth/create", "name": "Mira", "group_ids": []string{"system-users"},
 		}, &created); err != nil {
 			return "", err
 		}
 		userID = created.User.ID
 		if err := call(ctx, admin, map[string]any{
-			"type": "config/auth_provider/homeassistant/create", "user_id": userID, "username": "lares", "password": password,
+			"type": "config/auth_provider/homeassistant/create", "user_id": userID, "username": "mira", "password": password,
 		}, nil); err != nil {
 			return "", err
 		}
@@ -105,7 +105,7 @@ func laresToken(ctx context.Context, admin *haws.Client, password string) (strin
 	}, nil); err != nil {
 		return "", err
 	}
-	session, err := login(ctx, "lares", password)
+	session, err := login(ctx, "mira", password)
 	if err != nil {
 		return "", err
 	}
@@ -114,7 +114,7 @@ func laresToken(ctx context.Context, admin *haws.Client, password string) (strin
 		return "", err
 	}
 	defer stop()
-	return longLivedToken(ctx, c, "lares "+time.Now().Format("2006-01-02 15:04"))
+	return longLivedToken(ctx, c, "mira "+time.Now().Format("2006-01-02 15:04"))
 }
 
 func set(ctx context.Context, dir, entityID, state string) error {

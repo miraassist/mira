@@ -1,4 +1,4 @@
-# Test dependencies of the HA integration (custom_components/lares).
+# Test dependencies of the HA integration (custom_components/mira).
 # pytest-homeassistant-custom-component pins the Home Assistant version;
 # the rest are the requirements of HA's conversation component, which the
 # harness does not install by itself. Bump together.

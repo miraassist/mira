@@ -36,7 +36,7 @@ func Fetch(ctx context.Context, client *http.Client, url string) ([]Item, error)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "lares (household agent)")
+	req.Header.Set("User-Agent", "mira (household agent)")
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

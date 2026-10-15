@@ -10,10 +10,10 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/feeds"
-	"github.com/sker65/lares/internal/schedule"
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/feeds"
+	"github.com/sker65/mira/internal/schedule"
+	"github.com/sker65/mira/internal/store"
 )
 
 // A scheduled watcher reads a feed on a cron schedule and turns what is new

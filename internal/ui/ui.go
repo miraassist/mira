@@ -20,11 +20,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/store"
 )
 
 //go:embed index.html
 var page []byte
+
+//go:embed icon.png
+var icon []byte
 
 // Entity is offered for autocompletion in the forms.
 type Entity struct {
@@ -68,6 +71,7 @@ func New(opts Options) *Handler {
 	}
 	h := &Handler{opts: opts, log: opts.Logger.With("component", "ui"), mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /ui", h.page)
+	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -91,6 +95,12 @@ func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
 	w.Write(page)
+}
+
+func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	w.Write(icon)
 }
 
 func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {

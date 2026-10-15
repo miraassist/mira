@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/feeds"
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/feeds"
+	"github.com/sker65/mira/internal/store"
 )
 
 type feedEnv struct {

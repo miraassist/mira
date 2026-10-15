@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/mcp"
-	"github.com/sker65/lares/internal/testsupport/fakemcp"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/mcp"
+	"github.com/sker65/mira/internal/testsupport/fakemcp"
 )
 
 func quietLogger() *slog.Logger {

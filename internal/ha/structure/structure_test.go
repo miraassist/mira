@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	haws "github.com/sker65/lares/internal/ha/ws"
+	haws "github.com/sker65/mira/internal/ha/ws"
 )
 
 func sampleRegistry() Registry {

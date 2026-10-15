@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/mira/internal/llm"
 )
 
 // Examples is a short, fixed sample conversation that follows the system

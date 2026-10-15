@@ -23,10 +23,10 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/lares/internal/config"
-	haws "github.com/sker65/lares/internal/ha/ws"
-	"github.com/sker65/lares/internal/store"
-	"github.com/sker65/lares/internal/telemetry"
+	"github.com/sker65/mira/internal/config"
+	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/telemetry"
 )
 
 // HA is the part of the Home Assistant client the notifier needs.
@@ -565,7 +565,7 @@ func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, e
 			return via, nil
 		case via == "push" && p.Notify != "":
 			service := strings.TrimPrefix(p.Notify, "notify.")
-			if err := n.ha.CallService(ctx, "notify", service, map[string]any{"title": "Lares", "message": text}, nil); err != nil {
+			if err := n.ha.CallService(ctx, "notify", service, map[string]any{"title": "Mira", "message": text}, nil); err != nil {
 				errs = append(errs, err)
 				continue
 			}

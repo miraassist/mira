@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	haws "github.com/sker65/lares/internal/ha/ws"
+	haws "github.com/sker65/mira/internal/ha/ws"
 )
 
 const (
 	haURL    = "http://localhost:8123"
-	clientID = "http://lares-testha/"
+	clientID = "http://mira-testha/"
 )
 
 // env is testenv/.env: the generated passwords and tokens.

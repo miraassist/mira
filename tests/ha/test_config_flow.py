@@ -4,7 +4,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
 
-from custom_components.lares.const import CONF_TIMEOUT, DOMAIN
+from custom_components.mira.const import CONF_TIMEOUT, DOMAIN
 
 from .conftest import AGENT_URL
 

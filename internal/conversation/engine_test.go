@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/conversation"
-	"github.com/sker65/lares/internal/ha/structure"
-	haws "github.com/sker65/lares/internal/ha/ws"
-	"github.com/sker65/lares/internal/llm"
-	"github.com/sker65/lares/internal/mcp"
-	"github.com/sker65/lares/internal/store"
-	"github.com/sker65/lares/internal/testsupport/fakellm"
-	"github.com/sker65/lares/internal/testsupport/fakemcp"
-	"github.com/sker65/lares/internal/tools"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/conversation"
+	"github.com/sker65/mira/internal/ha/structure"
+	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/llm"
+	"github.com/sker65/mira/internal/mcp"
+	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/testsupport/fakellm"
+	"github.com/sker65/mira/internal/testsupport/fakemcp"
+	"github.com/sker65/mira/internal/tools"
 )
 
 func quietLogger() *slog.Logger {
@@ -89,7 +89,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 
 	var err error
 	h.store, err = store.Open(context.Background(), store.Options{
-		Path: filepath.Join(t.TempDir(), "lares.db"), Clock: h.clock.Now})
+		Path: filepath.Join(t.TempDir(), "mira.db"), Clock: h.clock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}

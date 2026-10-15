@@ -1,6 +1,6 @@
-# Test Home Assistant for Lares. Runtime files next to this one are not in git.
+# Test Home Assistant for Mira. Runtime files next to this one are not in git.
 homeassistant:
-  name: Lares Test
+  name: Mira Test
   country: DE
   language: de
   time_zone: Europe/Berlin
@@ -21,7 +21,7 @@ demo:
 logger:
   default: warning
   logs:
-    custom_components.lares: debug
+    custom_components.mira: debug
     homeassistant.components.mcp_server: info
 
 # Test switches that drive the simulated sensors below. Not exposed to Assist;
@@ -41,22 +41,22 @@ input_boolean:
 template:
   - binary_sensor:
       - name: Lecksensor Keller
-        unique_id: lares_test_leck_keller
+        unique_id: mira_test_leck_keller
         device_class: moisture
         state: "{{ is_state('input_boolean.sim_leck_keller', 'on') }}"
       - name: Lecksensor Spülmaschine
-        unique_id: lares_test_leck_kueche
+        unique_id: mira_test_leck_kueche
         device_class: moisture
         state: "{{ is_state('input_boolean.sim_leck_kueche', 'on') }}"
       - name: Bewegung Flur
-        unique_id: lares_test_bewegung_flur
+        unique_id: mira_test_bewegung_flur
         device_class: motion
         state: "{{ is_state('input_boolean.sim_bewegung_flur', 'on') }}"
       - name: Bewegung Bad
-        unique_id: lares_test_bewegung_bad
+        unique_id: mira_test_bewegung_bad
         device_class: motion
         state: "{{ is_state('input_boolean.sim_bewegung_bad', 'on') }}"
       - name: Fenster Bad
-        unique_id: lares_test_fenster_bad
+        unique_id: mira_test_fenster_bad
         device_class: window
         state: "{{ is_state('input_boolean.sim_fenster_bad', 'on') }}"

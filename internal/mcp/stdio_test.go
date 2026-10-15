@@ -9,15 +9,15 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/mcp"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/mcp"
 )
 
 // TestMain lets the test binary double as a chatty stdio MCP server: with
-// LARES_FAKE_STDIO_SERVER set it prints log lines to stdout, as some real
+// MIRA_FAKE_STDIO_SERVER set it prints log lines to stdout, as some real
 // servers do, and then serves one tool.
 func TestMain(m *testing.M) {
-	if os.Getenv("LARES_FAKE_STDIO_SERVER") == "1" {
+	if os.Getenv("MIRA_FAKE_STDIO_SERVER") == "1" {
 		fmt.Println("Web Search MCP Server starting...")
 		fmt.Println("[BrowserPool] Configuration: maxBrowsers=3")
 		s := sdk.NewServer(&sdk.Implementation{Name: "chatty", Version: "test"}, nil)
@@ -39,7 +39,7 @@ func TestStdioServerThatLogsToStdout(t *testing.T) {
 	}
 	h := start(t, mcp.Options{Servers: []config.MCPServer{{
 		Name: "chatty", Transport: config.TransportStdio, Command: self,
-		Env: []string{"LARES_FAKE_STDIO_SERVER=1"},
+		Env: []string{"MIRA_FAKE_STDIO_SERVER=1"},
 	}}, CallTimeout: 10 * time.Second})
 
 	if tools := h.Tools(); len(tools) != 1 || tools[0].QualifiedName() != "chatty__echo" {

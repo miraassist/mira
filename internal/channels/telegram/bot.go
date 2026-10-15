@@ -153,7 +153,7 @@ func (b *Bot) dispatch(ctx context.Context, u Update) {
 		b.reply(ctx, m.Chat.ID, "Ich verstehe bisher nur Textnachrichten.")
 		return
 	case text == "/start":
-		b.reply(ctx, m.Chat.ID, "Hallo, ich bin Lares. Schreib mir einfach, was ich tun soll. Mit /neu beginnst du ein neues Gespräch.")
+		b.reply(ctx, m.Chat.ID, "Hallo, ich bin Mira. Schreib mir einfach, was ich tun soll. Mit /neu beginnst du ein neues Gespräch.")
 		return
 	case text == "/neu" || text == "/reset":
 		if b.reset != nil {

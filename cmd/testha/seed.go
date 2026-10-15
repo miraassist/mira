@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	haws "github.com/sker65/lares/internal/ha/ws"
+	haws "github.com/sker65/mira/internal/ha/ws"
 )
 
 // simulated maps each simulated sensor to the input_boolean that drives it
@@ -43,7 +43,7 @@ var house = map[string]struct{ area, name string }{
 	"cover.garage_door":                     {"Garage", "Garagentor"},
 	"sensor.outside_temperature":            {"", "Außentemperatur"},
 	"sensor.outside_humidity":               {"", "Luftfeuchtigkeit außen"},
-	"weather.forecast_lares_test":           {"", "Wetter"},
+	"weather.forecast_mira_test":           {"", "Wetter"},
 	"todo.einkaufsliste":                    {"", ""},
 }
 
@@ -180,7 +180,7 @@ func ensurePersons(ctx context.Context, admin *haws.Client) error {
 }
 
 // ensureMCPServer sets up HA's MCP server with the Assist API, the endpoint
-// Lares uses as a non-admin user (/api/mcp/assist).
+// Mira uses as a non-admin user (/api/mcp/assist).
 func ensureMCPServer(ctx context.Context, token string) error {
 	var entries []struct {
 		Domain string `json:"domain"`

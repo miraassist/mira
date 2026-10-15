@@ -9,7 +9,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/store"
 )
 
 // Names of the internal tools. They carry no server prefix.

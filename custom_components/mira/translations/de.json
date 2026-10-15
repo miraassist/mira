@@ -1,0 +1,330 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit dem Mira-Agenten verbinden",
+        "description": "Adresse und API-Token des Mira-Agenten (server.listen und server.token in seiner Konfiguration).",
+        "data": {
+          "url": "Agent-URL",
+          "token": "API-Token"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Mira gefunden",
+        "description": "Ein Mira-Agent hat sich unter {url} gemeldet. Gib seinen API-Token ein (server.token).",
+        "data": {
+          "token": "API-Token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Der Agent ist unter dieser Adresse nicht erreichbar.",
+      "invalid_auth": "Der Agent hat den Token abgelehnt."
+    },
+    "abort": {
+      "already_configured": "Dieser Agent ist bereits eingerichtet.",
+      "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren."
+    },
+    "flow_title": "{name}"
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "timeout": "Antwort-Timeout (Sekunden)"
+        },
+        "data_description": {
+          "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending_notices": {
+        "name": "Offene Hinweise"
+      }
+    },
+    "switch": {
+      "quiet_mode": {
+        "name": "Ruhemodus"
+      }
+    },
+    "button": {
+      "compact_profile": {
+        "name": "Profil verdichten"
+      }
+    }
+  },
+  "services": {
+    "add_notice": {
+      "name": "Hinweis hinzufügen",
+      "description": "Stellt einen Hinweis ein. Der Agent sagt ihn auf einem Satelliten an, wenn jemand im Raum ist, oder schickt ihn privat.",
+      "fields": {
+        "text": {
+          "name": "Text",
+          "description": "Was gesagt werden soll, ein bis zwei sprechbare Sätze."
+        },
+        "details": {
+          "name": "Details",
+          "description": "Die Langfassung für Nachfragen."
+        },
+        "importance": {
+          "name": "Wichtigkeit",
+          "description": "0 nicht erwähnenswert, 1 nebenbei, 2 heute wichtig, 3 dringend."
+        },
+        "audience": {
+          "name": "Empfänger",
+          "description": "household oder eine Personen-ID aus der Agent-Konfiguration."
+        },
+        "confidentiality": {
+          "name": "Vertraulichkeit",
+          "description": "Vertrauliche Hinweise werden nur gesprochen, wenn die Richtlinie des Agenten es erlaubt, sonst privat geschickt."
+        },
+        "dedupe_key": {
+          "name": "Dedupe-Schlüssel",
+          "description": "Ein offener Hinweis mit gleichem Schlüssel wird aktualisiert statt doppelt angelegt."
+        },
+        "expires_in": {
+          "name": "Gültig für",
+          "description": "Dauer wie 12h; danach verfällt der Hinweis. Standard 24h."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "watcher": {
+      "entry_type": "Watcher",
+      "initiate_flow": {
+        "user": "Watcher hinzufügen",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Watcher",
+          "description": "Beobachtet Entitäten und erzeugt bei einer Änderung eine Meldung.",
+          "data": {
+            "name": "Name",
+            "entity_id": "Entitäten",
+            "to": "Zu Zuständen",
+            "from": "Von Zuständen",
+            "description": "Bedeutung",
+            "importance": "Wichtigkeit",
+            "audience": "Empfänger",
+            "confidentiality": "Vertraulichkeit"
+          },
+          "data_description": {
+            "entity_id": "Eine Änderung an einer davon löst den Watcher aus.",
+            "to": "Leer: jede Änderung.",
+            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
+            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
+            "audience": "household (alle) oder eine Person",
+            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
+          }
+        },
+        "reconfigure": {
+          "title": "Watcher",
+          "description": "Beobachtet Entitäten und erzeugt bei einer Änderung eine Meldung.",
+          "data": {
+            "name": "Name",
+            "entity_id": "Entitäten",
+            "to": "Zu Zuständen",
+            "from": "Von Zuständen",
+            "description": "Bedeutung",
+            "importance": "Wichtigkeit",
+            "audience": "Empfänger",
+            "confidentiality": "Vertraulichkeit"
+          },
+          "data_description": {
+            "entity_id": "Eine Änderung an einer davon löst den Watcher aus.",
+            "to": "Leer: jede Änderung.",
+            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
+            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
+            "audience": "household (alle) oder eine Person",
+            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "Das gibt es schon.",
+        "invalid_config": "Der Agent hat es abgelehnt: {error}",
+        "cannot_connect": "Der Agent ist nicht erreichbar."
+      },
+      "abort": {
+        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
+        "reconfigure_successful": "Gespeichert."
+      }
+    },
+    "feed": {
+      "entry_type": "Feed",
+      "initiate_flow": {
+        "user": "Feed hinzufügen",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Feed",
+          "description": "Liest einen Feed nach Zeitplan; höchstens eine Sammelmeldung pro Lauf, nie dringend.",
+          "data": {
+            "name": "Name",
+            "url": "URL",
+            "schedule": "Zeitplan",
+            "description": "Bedeutung",
+            "importance": "Wichtigkeit",
+            "audience": "Empfänger",
+            "confidentiality": "Vertraulichkeit"
+          },
+          "data_description": {
+            "url": "RSS- oder Atom-Feed",
+            "schedule": "Cron, z. B. 0 8 * * * für täglich 8:00",
+            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
+            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
+            "audience": "household (alle) oder eine Person",
+            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
+          }
+        },
+        "reconfigure": {
+          "title": "Feed",
+          "description": "Liest einen Feed nach Zeitplan; höchstens eine Sammelmeldung pro Lauf, nie dringend.",
+          "data": {
+            "name": "Name",
+            "url": "URL",
+            "schedule": "Zeitplan",
+            "description": "Bedeutung",
+            "importance": "Wichtigkeit",
+            "audience": "Empfänger",
+            "confidentiality": "Vertraulichkeit"
+          },
+          "data_description": {
+            "url": "RSS- oder Atom-Feed",
+            "schedule": "Cron, z. B. 0 8 * * * für täglich 8:00",
+            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
+            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
+            "audience": "household (alle) oder eine Person",
+            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "Das gibt es schon.",
+        "invalid_config": "Der Agent hat es abgelehnt: {error}",
+        "cannot_connect": "Der Agent ist nicht erreichbar."
+      },
+      "abort": {
+        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
+        "reconfigure_successful": "Gespeichert."
+      }
+    },
+    "person": {
+      "entry_type": "Person",
+      "initiate_flow": {
+        "user": "Person hinzufügen",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Person",
+          "description": "Bekommt persönliche und private Meldungen.",
+          "data": {
+            "entity": "Person",
+            "telegram_user_id": "Telegram-User-ID",
+            "notify": "Push-Benachrichtigung"
+          },
+          "data_description": {
+            "entity": "Zuhause oder weg entscheidet, wohin Meldungen gehen.",
+            "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
+            "notify": "Notify-Dienst der Companion App"
+          }
+        },
+        "reconfigure": {
+          "title": "Person",
+          "description": "Bekommt persönliche und private Meldungen.",
+          "data": {
+            "entity": "Person",
+            "telegram_user_id": "Telegram-User-ID",
+            "notify": "Push-Benachrichtigung"
+          },
+          "data_description": {
+            "entity": "Zuhause oder weg entscheidet, wohin Meldungen gehen.",
+            "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
+            "notify": "Notify-Dienst der Companion App"
+          }
+        }
+      },
+      "error": {
+        "already_configured": "Das gibt es schon.",
+        "invalid_config": "Der Agent hat es abgelehnt: {error}",
+        "cannot_connect": "Der Agent ist nicht erreichbar."
+      },
+      "abort": {
+        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
+        "reconfigure_successful": "Gespeichert."
+      }
+    },
+    "room": {
+      "entry_type": "Raum",
+      "initiate_flow": {
+        "user": "Raum hinzufügen",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Raum",
+          "description": "Wo Ansagen gesprochen werden.",
+          "data": {
+            "area": "Bereich",
+            "satellite": "Satellit",
+            "presence": "Anwesenheitssensor",
+            "morning": "Morgenansage"
+          },
+          "data_description": {
+            "satellite": "Spricht Ansagen in diesem Raum.",
+            "presence": "Bewegung hier startet eine Ansage.",
+            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht."
+          }
+        },
+        "reconfigure": {
+          "title": "Raum",
+          "description": "Wo Ansagen gesprochen werden.",
+          "data": {
+            "area": "Bereich",
+            "satellite": "Satellit",
+            "presence": "Anwesenheitssensor",
+            "morning": "Morgenansage"
+          },
+          "data_description": {
+            "satellite": "Spricht Ansagen in diesem Raum.",
+            "presence": "Bewegung hier startet eine Ansage.",
+            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "Das gibt es schon.",
+        "invalid_config": "Der Agent hat es abgelehnt: {error}",
+        "cannot_connect": "Der Agent ist nicht erreichbar."
+      },
+      "abort": {
+        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
+        "reconfigure_successful": "Gespeichert."
+      }
+    }
+  },
+  "selector": {
+    "importance": {
+      "options": {
+        "auto": "Automatisch",
+        "0": "0 nicht erwähnenswert",
+        "1": "1 nebenbei",
+        "2": "2 heute wichtig",
+        "3": "3 dringend"
+      }
+    },
+    "confidentiality": {
+      "options": {
+        "normal": "Normal",
+        "confidential": "Vertraulich"
+      }
+    }
+  }
+}

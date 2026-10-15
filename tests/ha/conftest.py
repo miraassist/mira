@@ -1,4 +1,4 @@
-"""Fixtures for the Lares integration tests."""
+"""Fixtures for the Mira integration tests."""
 
 import pytest
 
@@ -6,9 +6,9 @@ from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.lares.const import CONF_IMPORTED, DOMAIN
+from custom_components.mira.const import CONF_IMPORTED, DOMAIN
 
-AGENT_URL = "http://lares.test:8787"
+AGENT_URL = "http://mira.test:8787"
 AGENT_ID = "01agent"
 
 
@@ -26,7 +26,7 @@ def entry(hass, aioclient_mock) -> MockConfigEntry:
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
     e = MockConfigEntry(
         domain=DOMAIN,
-        title="Lares",
+        title="Mira",
         unique_id=AGENT_ID,
         data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret", CONF_IMPORTED: True},
     )

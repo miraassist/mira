@@ -11,13 +11,13 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.lares.const import CONF_IMPORTED, DOMAIN
+from custom_components.mira.const import CONF_IMPORTED, DOMAIN
 
 from .conftest import AGENT_ID, AGENT_URL
 
 STATUS = {"pending_notices": 0, "quiet_mode": False}
 
-# What the agent's GET /v1/ui/ha returns: the shape of lares.yaml sections.
+# What the agent's GET /v1/ui/ha returns: the shape of mira.yaml sections.
 AGENT = {
     "managed": False,
     "watchers": [
@@ -57,10 +57,10 @@ def _discovery(agent_id=AGENT_ID, host="192.168.1.20"):
     return ZeroconfServiceInfo(
         ip_address=ip_address(host),
         ip_addresses=[ip_address(host)],
-        hostname="lares.local.",
-        name="Lares._lares._tcp.local.",
+        hostname="mira.local.",
+        name="Mira._mira._tcp.local.",
         port=8787,
-        type="_lares._tcp.local.",
+        type="_mira._tcp.local.",
         properties={"id": agent_id, "version": "dev"} if agent_id else {},
     )
 
@@ -71,7 +71,7 @@ def fresh_entry(hass, aioclient_mock):
     aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID})
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     aioclient_mock.get(f"{AGENT_URL}/v1/ui/ha", json=AGENT)
-    e = MockConfigEntry(domain=DOMAIN, title="Lares", data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret"})
+    e = MockConfigEntry(domain=DOMAIN, title="Mira", data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret"})
     e.add_to_hass(hass)
     return e
 
@@ -224,5 +224,5 @@ async def test_compact_button(hass, aioclient_mock, entry):
     aioclient_mock.post(f"{AGENT_URL}/v1/ui/memory/compact", json={"changed": True})
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    await hass.services.async_call("button", "press", {"entity_id": "button.lares_compact_profile"}, blocking=True)
+    await hass.services.async_call("button", "press", {"entity_id": "button.mira_compact_profile"}, blocking=True)
     assert str(aioclient_mock.mock_calls[-1][1]).endswith("/v1/ui/memory/compact")

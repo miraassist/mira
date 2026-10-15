@@ -3,22 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lares</title>
+<title>Mira</title>
+<link rel="icon" type="image/png" href="/ui/icon.png">
 <style>
 :root {
   --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #dddcd6;
-  --accent: #2f6f5e; --accent-text: #ffffff; --warn: #a3471b; --badge: #ece9df;
+  --accent: #2b8577; --accent-text: #ffffff; --warn: #a3471b; --badge: #ece9df;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #161715; --panel: #1f201e; --text: #e8e7e2; --muted: #9a9993; --line: #33342f;
-    --accent: #5fae97; --accent-text: #0f1a16; --warn: #e08a5f; --badge: #2b2c28;
+    --accent: #7dd8c6; --accent-text: #0f1a16; --warn: #e08a5f; --badge: #2b2c28;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
 header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
-header h1 { font-size: 18px; margin: 0; }
+header h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
+header h1 img { width: 32px; height: 32px; }
 nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; font: inherit; }
 nav button.active { background: var(--badge); color: var(--text); }
@@ -58,7 +60,7 @@ pre { white-space: pre-wrap; margin: 0; font: inherit; }
 </head>
 <body>
 <header>
-  <h1>Lares</h1>
+  <h1><img src="/ui/icon.png" alt="">Mira</h1>
   <nav id="nav"></nav>
 </header>
 <main id="main"></main>
@@ -74,12 +76,12 @@ const TABS = [
   ["persons", "Personen"],
   ["memory", "Gedächtnis"],
 ];
-let token = localStorage.getItem("lares.token") || "";
+let token = localStorage.getItem("mira.token") || "";
 let config = {};
 let tab = location.hash.slice(1) || "notices";
 let entityNames = {};
 // Sections Home Assistant manages are edited there, as subentries of the
-// Lares integration; the page shows them read-only.
+// Mira integration; the page shows them read-only.
 const managed = name => (config[name] || {}).managed_by === "home_assistant";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -97,8 +99,8 @@ async function api(method, path, body) {
 }
 
 function askToken() {
-  const t = prompt("API-Token von Lares (LARES_API_TOKEN):", "");
-  if (t) { token = t.trim(); localStorage.setItem("lares.token", token); load(); }
+  const t = prompt("API-Token von Mira (MIRA_API_TOKEN):", "");
+  if (t) { token = t.trim(); localStorage.setItem("mira.token", token); load(); }
 }
 
 function message(text, ok) {
@@ -119,10 +121,10 @@ async function save(sections) {
 }
 
 async function reset(name) {
-  if (!confirm("Die Einstellungen aus lares.yaml wiederherstellen?")) return;
+  if (!confirm("Die Einstellungen aus mira.yaml wiederherstellen?")) return;
   try {
     config = await api("DELETE", "/v1/ui/config/" + name);
-    message("Zurückgesetzt auf lares.yaml.", true);
+    message("Zurückgesetzt auf mira.yaml.", true);
     render();
   } catch (e) { message(e.message, false); }
 }
@@ -133,8 +135,8 @@ function source(name) {
   if (managed(name) && name !== "notifier")
     return `<span class="badge ui">in Home Assistant verwaltet</span>`;
   return s.overridden
-    ? `<span class="badge ui">in der UI geändert</span> <button class="secondary" onclick="reset('${name}')">Zurück auf lares.yaml</button>`
-    : `<span class="badge">aus lares.yaml</span>`;
+    ? `<span class="badge ui">in der UI geändert</span> <button class="secondary" onclick="reset('${name}')">Zurück auf mira.yaml</button>`
+    : `<span class="badge">aus mira.yaml</span>`;
 }
 
 const val = name => (config[name] || {}).value;
@@ -160,7 +162,7 @@ function render() {
   if (owner && managed(owner)) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
-    $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Lares. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.</p>`);
+    $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.</p>`);
   }
 }
 
@@ -213,7 +215,7 @@ function notifier() {
   $("#view").innerHTML = `
   <section class="card">
     <h2>Benachrichtigung ${source("notifier")}</h2>
-    <h3>Wann Lares ansagt</h3>
+    <h3>Wann Mira ansagt</h3>
     <div class="grid">
       <label>Ruhezeit von</label><input type="time" id="qh_from" value="${esc(qh.from)}">
       <label>Ruhezeit bis</label><input type="time" id="qh_to" value="${esc(qh.to)}">
@@ -386,7 +388,7 @@ function persons() {
   $("#view").innerHTML = `
   <section class="card">
     <h2>Personen ${source("persons")}</h2>
-    <p class="hint">Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Lares, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.</p>
+    <p class="hint">Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.</p>
     <table id="persons"><tr><th>Kürzel</th><th>Person-Entity</th><th>Telegram-ID</th><th>Push (notify.…)</th><th></th></tr>
       ${Object.entries(p).sort().map(([k, v], i) => personRow(k, v, i)).join("")}
     </table>

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/store"
+	"github.com/sker65/mira/internal/store"
 )
 
 type fakeConfig struct {
@@ -79,7 +79,7 @@ func call(t *testing.T, srv *httptest.Server, method, path, token, body string) 
 
 func TestPageIsPublicAPIIsNot(t *testing.T) {
 	srv, _, _ := setup(t)
-	if code, body := call(t, srv, "GET", "/ui", "", ""); code != 200 || !strings.Contains(body, "<title>Lares</title>") {
+	if code, body := call(t, srv, "GET", "/ui", "", ""); code != 200 || !strings.Contains(body, "<title>Mira</title>") {
 		t.Fatalf("page: %d", code)
 	}
 	if code, _ := call(t, srv, "GET", "/v1/ui/config", "", ""); code != 401 {

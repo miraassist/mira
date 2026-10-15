@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/lares/internal/config"
-	"github.com/sker65/lares/internal/llm"
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/llm"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files")

@@ -6,7 +6,7 @@ from homeassistant.helpers import intent
 
 from .conftest import AGENT_URL
 
-ENTITY_ID = "conversation.lares"
+ENTITY_ID = "conversation.mira"
 
 
 async def _setup(hass, entry):
