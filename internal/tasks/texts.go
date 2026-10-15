@@ -19,7 +19,12 @@ type texts struct {
 	noTask                             string
 	replan                             string
 	planning, proposal, planFailed     string
+	planSystem                         string
 }
+
+// PlanSystem is the system message for planning, which runs without the
+// house prompt: the plan instruction carries everything it needs.
+func PlanSystem(lang i18n.Lang) string { return i18n.Pick(catalog, lang).planSystem }
 
 // maxCatalog bounds the entity list in the planning prompt.
 const maxCatalog = 250
@@ -77,6 +82,7 @@ Behaupte nur, was in der Beobachtung steht.`,
 		replan:      "\n\nDein letzter Plan wurde abgelehnt: %s. Mach einen neuen, der die Regeln einhält.",
 		planning:    "Ich plane den Auftrag jetzt im Hintergrund; der Vorschlag kommt in etwa einer halben Minute von selbst. Sag dem Nutzer das in einem kurzen Satz.",
 		proposal:    "Mein Vorschlag für den Auftrag %s: %s Wenn das passt, sag: Starte den Auftrag.",
+		planSystem:  "Du planst dauerhafte Aufträge für Mira, die Assistentin eines Haushalts mit Home Assistant. Antworte nur mit JSON.",
 		planFailed:  "Für den Auftrag „%s“ habe ich keinen brauchbaren Plan gefunden.",
 	},
 	i18n.EN: {
@@ -117,6 +123,7 @@ Only claim what the observation says.`,
 		replan:      "\n\nYour last plan was refused: %s. Make a new one that keeps the rules.",
 		planning:    "I am planning the order in the background now; the proposal arrives by itself in about half a minute. Tell the user so in one short sentence.",
 		proposal:    "My proposal for the order %s: %s If that suits you, say: Start the order.",
+		planSystem:  "You plan standing orders for Mira, the assistant of a household with Home Assistant. Answer only with JSON.",
 		planFailed:  "I found no usable plan for the order \"%s\".",
 	},
 }

@@ -59,11 +59,20 @@ func (e *Engine) Assess(ctx context.Context, instruction string, schema json.Raw
 // prefix. It runs on the background channel; it does not reuse the cache,
 // which is fine for a nightly job.
 func (e *Engine) AssessIsolated(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error) {
+	return e.AssessIsolatedOn(ctx, e.cfg.RouteFor(config.ChannelBackground), system, instruction, schema)
+}
+
+// AssessIsolatedOn is AssessIsolated on a model by name; "" is the
+// background model.
+func (e *Engine) AssessIsolatedOn(ctx context.Context, modelName, system, instruction string, schema json.RawMessage) (string, error) {
+	if modelName == "" {
+		modelName = e.cfg.RouteFor(config.ChannelBackground)
+	}
 	lock := e.locks[config.ChannelBackground]
 	lock.Lock()
 	defer lock.Unlock()
 
-	client, model, _ := e.modelFor(e.cfg.RouteFor(config.ChannelBackground))
+	client, model, _ := e.modelFor(modelName)
 	req := modelRequest(model, []llm.Message{
 		{Role: llm.RoleSystem, Content: system},
 		{Role: llm.RoleUser, Content: instruction},

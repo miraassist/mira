@@ -52,6 +52,7 @@ routing:
   telegram: main
   background: lite
   delegate: smart
+  tasks: smart        # plans standing orders; empty is background
 
 store:
   path: "/var/lib/mira/mira.db"

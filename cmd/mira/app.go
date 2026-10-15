@@ -209,7 +209,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		// registry: bound late through engineAssessor.
 		a.tasks = tasks.New(tasks.Options{
 			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, Snapshot: snapshot,
-			Planner: engineAssessor{a}, Judge: engineAssessor{a},
+			Planner: plannerAssessor{a, cfg.Routing.Tasks, tasks.PlanSystem(i18n.Of(cfg.Prompt.Language))},
+			Judge:   engineAssessor{a}, PlanDelay: 5 * time.Second,
 			QuietHours: cfg.Notifier.QuietHours, Logger: a.log,
 			Persons: a.persons,
 			Deliver: func(ctx context.Context, n store.Notice, area string) error {
@@ -495,6 +496,17 @@ func (a *app) startProactive(parent context.Context) {
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+// plannerAssessor plans standing orders without the house prompt, on the
+// model routing.tasks names.
+type plannerAssessor struct {
+	a             *app
+	model, system string
+}
+
+func (p plannerAssessor) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
+	return p.a.engine.AssessIsolatedOn(ctx, p.model, p.system, instruction, schema)
 }
 
 // persons are the configured persons from the live config.

@@ -111,6 +111,10 @@ type Routing struct {
 	Background string `yaml:"background"`
 	// Delegate is the model the delegate tool hands harder tasks to.
 	Delegate string `yaml:"delegate"`
+	// Tasks is the model that plans standing orders; empty is the
+	// background model. Planning reads the whole house once per order, so
+	// a cloud model keeps it off the local GPU while someone is talking.
+	Tasks string `yaml:"tasks"`
 }
 
 // Model returns the settings of a model by name; "" and "main" are llm.
@@ -556,7 +560,7 @@ func (c Config) Validate() error {
 		}
 	}
 	for role, name := range map[string]string{"voice": c.Routing.Voice, "telegram": c.Routing.Telegram,
-		"background": c.Routing.Background, "delegate": c.Routing.Delegate} {
+		"background": c.Routing.Background, "delegate": c.Routing.Delegate, "tasks": c.Routing.Tasks} {
 		if _, ok := c.Model(name); !ok {
 			add("routing.%s: no model %q (main or one of models)", role, name)
 		}

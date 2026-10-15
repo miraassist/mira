@@ -50,6 +50,10 @@ type Options struct {
 	Deliver func(ctx context.Context, n store.Notice, areaID string) error
 	// Persons are the configured persons, to address a proposal.
 	Persons func() map[string]config.Person
+	// PlanDelay holds background planning back until the turn that asked
+	// for it has answered: on a local model both share the GPU, and the
+	// short answer must not wait behind the long planning prompt.
+	PlanDelay time.Duration
 }
 
 type Manager struct {
@@ -144,6 +148,7 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		defer cancel()
+		time.Sleep(m.opts.PlanDelay)
 		t := m.texts()
 		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
 		task, _, err := m.Create(ctx, goal, inv.SessionKey)
