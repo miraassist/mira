@@ -93,6 +93,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("POST /v1/ui/notices/{id}/ack", h.auth(h.ackNotice))
 	h.mux.HandleFunc("GET /v1/ui/memory", h.auth(h.memory))
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.auth(h.forget))
+	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.auth(h.editFact))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.enableTask(true)))
@@ -355,6 +356,35 @@ func (h *Handler) forget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// editFact changes a fact's text; tags and source stay.
+func (h *Handler) editFact(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
+		writeError(w, http.StatusBadRequest, `body must be {"text": "..."}`)
+		return
+	}
+	facts, err := h.opts.Store.AllFacts(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, f := range facts {
+		if f.ID != r.PathValue("id") {
+			continue
+		}
+		f.Text = strings.TrimSpace(req.Text)
+		if _, err := h.opts.Store.SaveFact(r.Context(), f); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+		return
+	}
+	writeError(w, http.StatusNotFound, "no such fact")
 }
 
 func (h *Handler) compact(w http.ResponseWriter, r *http.Request) {

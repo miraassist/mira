@@ -132,6 +132,15 @@ func TestNoticesAndMemory(t *testing.T) {
 	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Stefan trinkt Kaffee.") {
 		t.Fatalf("memory: %d %s", code, body)
 	}
+	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/f1", "secret", `{"text":"Stefan trinkt Tee."}`); code != 200 {
+		t.Fatalf("edit: %d", code)
+	}
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "Stefan trinkt Tee.") || strings.Contains(body, "Kaffee") {
+		t.Fatalf("edited fact: %s", body)
+	}
+	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/nope", "secret", `{"text":"x"}`); code != 404 {
+		t.Fatalf("edit unknown: %d", code)
+	}
 	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/f1", "secret", ""); code != 200 {
 		t.Fatalf("forget: %d", code)
 	}

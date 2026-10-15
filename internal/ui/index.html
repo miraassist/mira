@@ -119,6 +119,8 @@ td, th { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line
 tr:last-child td { border-bottom: 0; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 pre { white-space: pre-wrap; margin: 0; font: inherit; }
+td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
+@media (max-width: 600px) { td.fact-actions { white-space: normal; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
 
 /* Mira's own dialog instead of the browser's confirm/prompt. */
@@ -283,6 +285,7 @@ const I18N = {
   "compact_now": "Jetzt verdichten",
   "no_facts": "Keine Fakten.",
   "forget": "Vergessen",
+  "fact_edit": "Bearbeiten",
   "forget_confirm": "Diesen Fakt vergessen?",
   "compacting": "Verdichtet … (kann eine Minute dauern)",
   "profile_updated": "Profil aktualisiert.",
@@ -453,6 +456,7 @@ const I18N = {
   "compact_now": "Compact now",
   "no_facts": "No facts.",
   "forget": "Forget",
+  "fact_edit": "Edit",
   "forget_confirm": "Forget this fact?",
   "compacting": "Compacting … (may take a minute)",
   "profile_updated": "Profile updated.",
@@ -827,9 +831,31 @@ async function memory() {
       <p class="hint">${m.profile_updated ? T.last_compacted + esc(m.profile_updated) + ". " : ""}${T.profile_hint}</p>
       <div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>`;
     $("#facts").innerHTML = m.facts.length === 0 ? `<p class="hint">${T.no_facts}</p>` : `
-      <table>${m.facts.map(f => `<tr><td>${esc(f.text)}<p class="hint">${esc(f.updated)}</p></td>
-        <td><button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
+      <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span><p class="hint">${esc(f.updated)}</p></td>
+        <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
+        <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
   } catch (e) { message(e.message, false); }
+}
+// editFact turns the row into a text field; Enter saves, Escape cancels.
+function editFact(id) {
+  const row = document.querySelector(`tr[data-fact="${CSS.escape(id)}"]`);
+  const cell = row.querySelector("td.fact"), text = row.querySelector(".text").textContent;
+  cell.innerHTML = `<textarea rows="2">${esc(text)}</textarea>`;
+  row.querySelector("td.fact-actions").innerHTML = `<button class="primary">${T.save}</button> <button class="secondary">${T.dlg_cancel}</button>`;
+  const area = cell.querySelector("textarea"), [save, cancel] = row.querySelectorAll("td.fact-actions button");
+  const store = async () => {
+    const t = area.value.trim();
+    if (!t || t === text) { memory(); return; }
+    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); memory(); } catch (e) { message(e.message, false); }
+  };
+  save.onclick = store;
+  cancel.onclick = () => memory();
+  area.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); store(); }
+    if (e.key === "Escape") memory();
+  });
+  area.focus();
+  area.setSelectionRange(area.value.length, area.value.length);
 }
 async function forget(id) {
   if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
