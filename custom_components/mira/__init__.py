@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import logging
+from pathlib import Path
+from typing import Any
 
 import voluptuous as vol
 
@@ -11,7 +14,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -145,7 +148,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool:
     """Set up Mira from a config entry."""
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
-    await _adopt(hass, entry, client)
+    health = await _adopt(hass, entry, client)
+    # Home Assistant reads an integration's manifest once at start, so its
+    # version there goes stale when the files are replaced and the entry
+    # reloaded. The device shows the versions read now: the integration's
+    # from its manifest file, the agent's from /v1/health.
+    integration_version = await hass.async_add_executor_job(_manifest_version)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Mira",
+        manufacturer="Mira",
+        entry_type=dr.DeviceEntryType.SERVICE,
+        sw_version=f"Integration {integration_version} · Agent {health.get('version', '?')}",
+    )
     coordinator = MiraCoordinator(hass, entry, client)
     # Not first_refresh: an agent that is down at boot must not take the
     # conversation entity with it. That entity speaks an error instead of
@@ -157,7 +173,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     return True
 
 
-async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> None:
+def _manifest_version() -> str:
+    with open(Path(__file__).parent / "manifest.json", encoding="utf-8") as f:
+        return json.load(f).get("version", "?")
+
+
+async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> dict[str, Any]:
     """Give an entry from before agents had ids its id, and import the
     agent's persons and rooms as subentries once. Both wait for
     the next start if the agent is down now."""
@@ -172,17 +193,18 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     if (user := health.get("ha_user_id")) and entry.data.get(CONF_AGENT_USER) != user:
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_USER: user})
     if entry.data.get(CONF_IMPORTED):
-        return
+        return health
     try:
         agent = await client.managed_config()
     except MiraError as err:
         _LOGGER.info("Importing persons and rooms waits for the agent: %s", err)
-        return
+        return health
     have = {s.unique_id for s in entry.subentries.values()}
     for subentry in import_subentries(agent):
         if subentry.unique_id not in have:
             hass.config_entries.async_add_subentry(entry, subentry)
     hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_IMPORTED: True})
+    return health
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
