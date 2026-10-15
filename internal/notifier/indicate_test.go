@@ -108,3 +108,28 @@ func TestReadOutForPerson(t *testing.T) {
 		t.Errorf("read out: %q %v", text, err)
 	}
 }
+
+// Talking to a satellite brings what waits for its room along: once, then
+// it is heard and the light goes off.
+func TestAfterwordFollowsAnAnswer(t *testing.T) {
+	e := indicateEnv(t)
+	e.notice("n1", 1, func(n *store.Notice) { n.Spoken = "Heute hast du einen Zahnarzttermin" })
+	e.tick()
+	if got := e.n.Afterword(context.Background(), "kueche"); got != "Übrigens: Heute hast du einen Zahnarzttermin." {
+		t.Fatalf("afterword: %q", got)
+	}
+	if e.state("n1") != store.NoticeDelivered {
+		t.Error("not marked heard")
+	}
+	if lights := e.lightCalls(); lights[len(lights)-1].Service != "turn_off" {
+		t.Errorf("light still on: %+v", lights)
+	}
+	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+		t.Errorf("said twice: %q", got)
+	}
+	e.notice("n2", 1, nil)
+	e.now = at("01:00")
+	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+		t.Errorf("news at night: %q", got)
+	}
+}

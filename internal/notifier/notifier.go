@@ -396,15 +396,16 @@ func (n *Notifier) inQuietHours(t time.Time) bool {
 type texts struct {
 	goodMorning, intro, also, and string // intro: %s = count word
 	reminder                      string // %s = what to remember
+	byTheWay                      string
 	counts                        []string
 }
 
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
 
 var catalog = map[i18n.Lang]texts{
-	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Hinweise. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.",
+	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Hinweise. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.", byTheWay: "Übrigens: ",
 		counts: []string{"null", "einen", "zwei", "drei", "vier", "fünf"}},
-	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s notices. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.",
+	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s notices. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
 		counts: []string{"zero", "one", "two", "three", "four", "five"}},
 }
 

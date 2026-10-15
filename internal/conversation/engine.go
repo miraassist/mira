@@ -86,8 +86,11 @@ type Options struct {
 	// StructurePrompt, when it returns text, replaces the structure block in
 	// layer 4: Home Assistant's own Assist prompt.
 	StructurePrompt func() string
-	Telemetry       *telemetry.Provider
-	Logger          *slog.Logger
+	// Afterword returns the notices waiting for an area as a closing
+	// sentence, marking them heard, or "" when none wait.
+	Afterword func(ctx context.Context, area string) string
+	Telemetry *telemetry.Provider
+	Logger    *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
 	Clock    func() time.Time
 	Location *time.Location
@@ -101,6 +104,7 @@ type Engine struct {
 	guard     *tools.Guard
 	structure func() structure.Snapshot
 	assist    func() string
+	afterword func(ctx context.Context, area string) string
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -138,6 +142,7 @@ func New(opts Options) *Engine {
 		guard:     opts.Guard,
 		structure: opts.Structure,
 		assist:    opts.StructurePrompt,
+		afterword: opts.Afterword,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -296,6 +301,16 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 
 	if strings.TrimSpace(final.Content) == "" {
 		final.Content = e.texts().fallback
+	}
+	// Notices waiting for this room follow the answer ("Licht ist an.
+	// Übrigens: ..."): whoever talks to the satellite is listening anyway.
+	// Not after a question, which the next turn completes, and not when the
+	// user just asked for the notices.
+	if req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
+		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolNoticesRead) {
+		if extra := e.afterword(ctx, sess.AreaID); extra != "" {
+			final.Content = strings.TrimSpace(final.Content) + " " + extra
+		}
 	}
 	added = append(added, final)
 	if err := e.store.AppendMessages(ctx, key, toStore(added)...); err != nil {
@@ -459,6 +474,18 @@ func (e *Engine) checkContext(key string, promptTokens int, model config.LLM) {
 		e.log.Warn("session is close to the context limit; compaction is not implemented yet",
 			"session", key, "prompt_tokens", promptTokens, "limit", limit)
 	}
+}
+
+// calledTool reports whether a tool was called in these messages.
+func calledTool(msgs []llm.Message, name string) bool {
+	for _, m := range msgs {
+		for _, c := range m.ToolCalls {
+			if c.Function.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ensureCallIDs(calls []llm.ToolCall, round int) {

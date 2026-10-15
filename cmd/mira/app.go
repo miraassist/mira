@@ -220,6 +220,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
+		Afterword: func(ctx context.Context, area string) string {
+			a.proactiveMu.Lock()
+			n := a.notifier
+			a.proactiveMu.Unlock()
+			if n == nil {
+				return ""
+			}
+			return n.Afterword(ctx, area)
+		},
 	})
 	if cfg.LLM.WarmupOnPrefixChange {
 		a.warmup = a.engine.RequestWarmup

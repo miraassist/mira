@@ -3,6 +3,7 @@ package notifier
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/oklog/ulid/v2"
 
@@ -159,4 +160,53 @@ func (n *Notifier) forAudience(ctx context.Context, audience string) ([]store.No
 		}
 	}
 	return out, nil
+}
+
+// Afterword is what follows an answer on a satellite: the notices waiting
+// for its area, as "Übrigens: ...", marked heard. Nothing during quiet hours
+// (a light switched at night wants no news) and nothing urgent, which was
+// spoken already.
+func (n *Notifier) Afterword(ctx context.Context, area string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sats[area] == "" || n.inQuietHours(n.clock()) {
+		return ""
+	}
+	list, err := n.waiting(ctx, area)
+	if err != nil {
+		n.log.Error("could not check waiting notices", "area", area, "error", err)
+		return ""
+	}
+	if len(list) == 0 {
+		return ""
+	}
+	if max := n.cfg.MaxItemsPerAnnouncement; max > 0 && len(list) > max {
+		list = list[:max] // the rest waits for the next occasion
+	}
+	t := textsFor(n.lang)
+	var b strings.Builder
+	ids := make([]string, len(list))
+	for i, nt := range list {
+		ids[i] = nt.ID
+		if i == 0 {
+			b.WriteString(t.byTheWay)
+		} else {
+			b.WriteString(t.also)
+		}
+		b.WriteString(sentence(nt.Spoken))
+		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
+			n.log.Error("could not mark notice delivered", "notice", nt.ID, "error", err)
+			return ""
+		}
+	}
+	if err := n.store.RecordAnnouncement(ctx, store.Announcement{
+		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, n.sats[area]), AreaID: area,
+		Channel: "voice", NoticeIDs: ids,
+	}); err != nil {
+		n.log.Error("could not record announcement", "area", area, "error", err)
+	}
+	n.tel.RecordNoticeDelivery(ctx, "afterword", len(ids))
+	n.log.Info("notices added to an answer", "area", area, "notices", len(ids))
+	n.syncIndicators(ctx)
+	return strings.TrimSpace(b.String())
 }
