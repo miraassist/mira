@@ -6,62 +6,100 @@
 <title>Mira</title>
 <link rel="icon" type="image/png" href="/ui/icon.png">
 <style>
+/* Mira's palette, taken from the logo: rose, magenta, teal, mint on a soft ink. */
 :root {
-  --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #dddcd6;
-  --accent: #2b8577; --accent-text: #ffffff; --warn: #a3471b; --badge: #ece9df;
+  --rose: #f394aa; --magenta: #d35fa5; --teal: #3f95a0; --mint: #8fdac5; --ink: #3b3a3e;
+  --grad: linear-gradient(120deg, var(--rose), var(--magenta) 38%, var(--teal) 72%, var(--mint));
+  --bg: #fbf8f9; --panel: #ffffff; --text: var(--ink); --muted: #7a7480; --line: #ece5ea;
+  --accent: #2f7f8a; --accent-2: #3f95a0; --accent-text: #ffffff; --warn: #b9407a; --badge: #f4eef2;
+  --ok-tint: color-mix(in srgb, var(--mint) 28%, var(--panel)); --rose-tint: color-mix(in srgb, var(--rose) 18%, var(--panel));
+  --shadow: 0 1px 2px rgb(80 40 70 / 5%), 0 6px 20px rgb(160 70 130 / 6%);
+  --radius: 16px;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161715; --panel: #1f201e; --text: #e8e7e2; --muted: #9a9993; --line: #33342f;
-    --accent: #7dd8c6; --accent-text: #0f1a16; --warn: #e08a5f; --badge: #2b2c28;
+    --bg: #18161a; --panel: #221f25; --text: #ede8ef; --muted: #a59ea9; --line: #352f39;
+    --accent: #8fdac5; --accent-2: #6cc3b2; --accent-text: #10201c; --warn: #f394aa; --badge: #2d2930;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 25%);
+    color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
-header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
-header h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
-header h1 img { width: 32px; height: 32px; }
-#lang { margin-left: auto; width: auto; }
+body {
+  margin: 0; color: var(--text); font: 15px/1.5 ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, sans-serif;
+  background:
+    radial-gradient(900px 420px at 0% -10%, color-mix(in srgb, var(--rose) 14%, transparent), transparent 70%),
+    radial-gradient(900px 420px at 100% -10%, color-mix(in srgb, var(--mint) 16%, transparent), transparent 70%),
+    var(--bg);
+  background-attachment: fixed; min-height: 100vh;
+}
+header {
+  display: flex; align-items: center; gap: 12px; padding: 12px 20px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5;
+  background: color-mix(in srgb, var(--panel) 85%, transparent); backdrop-filter: blur(10px);
+  border-bottom: 3px solid; border-image: var(--grad) 1;
+}
+header h1 { font-size: 22px; font-weight: 800; letter-spacing: .2px; margin: 0; display: flex; align-items: center; gap: 10px; }
+header h1 img { width: 36px; height: 36px; }
+#lang { margin-left: auto; width: auto; border-radius: 999px; padding: 4px 10px; }
 nav { display: flex; gap: 4px; flex-wrap: wrap; }
-nav button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; font: inherit; }
-nav button.active { background: var(--badge); color: var(--text); }
-main { max-width: 920px; margin: 0 auto; padding: 16px; }
-section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-h3 { font-size: 14px; margin: 16px 0 8px; color: var(--muted); font-weight: 600; }
-.badge { font-size: 12px; font-weight: 500; background: var(--badge); color: var(--muted); padding: 2px 8px; border-radius: 10px; }
-.badge.ui { color: var(--accent); }
-.grid { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 8px 12px; align-items: center; }
+nav button { background: none; border: 0; padding: 6px 11px; border-radius: 999px; color: var(--muted); cursor: pointer; font: inherit; font-weight: 600; transition: background .15s, color .15s; }
+nav button:hover { color: var(--text); background: var(--badge); }
+nav button.active { color: var(--text); background: linear-gradient(120deg, color-mix(in srgb, var(--rose) 28%, transparent), color-mix(in srgb, var(--mint) 34%, transparent)); }
+main { max-width: 940px; margin: 0 auto; padding: 20px 16px 48px; }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
+h2 { font-size: 17px; font-weight: 750; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+section.card > h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 8px color-mix(in srgb, var(--magenta) 45%, transparent); flex: none; }
+h2 button.primary, h2 button.secondary, h2 button.danger { font-size: 13px; padding: 3px 12px; }
+h3 { font-size: 14px; margin: 16px 0 8px; color: var(--muted); font-weight: 650; }
+.badge { font-size: 12px; font-weight: 600; background: var(--badge); color: var(--muted); padding: 2px 10px; border-radius: 999px; }
+.badge.ui { color: var(--accent); background: var(--ok-tint); }
+.grid { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 10px 14px; align-items: center; }
 .grid label { color: var(--muted); }
-input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+input, select, textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; width: 100%; transition: border-color .15s, box-shadow .15s; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 22%, transparent); }
 textarea { min-height: 60px; resize: vertical; }
-input[type=checkbox] { width: auto; }
+input[type=checkbox] { width: auto; accent-color: var(--accent-2); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > * { flex: 1 1 140px; }
-button.primary, button.secondary, button.danger { font: inherit; border-radius: 6px; padding: 6px 12px; cursor: pointer; border: 1px solid var(--line); }
-button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-button.secondary { background: var(--panel); color: var(--text); }
+button.primary, button.secondary, button.danger, a.button {
+  font: inherit; font-weight: 600; border-radius: 999px; padding: 7px 16px; cursor: pointer; border: 1px solid var(--line);
+  transition: transform .1s, box-shadow .15s, background .15s, filter .15s;
+}
+button.primary { background: linear-gradient(120deg, var(--accent-2), var(--accent)); color: var(--accent-text); border-color: transparent; box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+button.primary:hover { filter: brightness(1.06); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+button.secondary, a.button { background: var(--panel); color: var(--text); }
+button.secondary:hover, a.button:hover { background: var(--badge); }
 button.danger { background: var(--panel); color: var(--warn); }
+button.danger:hover { background: var(--rose-tint); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+button.danger.solid { background: var(--warn); color: #fff; border-color: transparent; }
+button.danger.solid:hover { filter: brightness(1.06); background: var(--warn); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, a.button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent-2) 40%, transparent); outline-offset: 2px; }
 .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .guide h2 { font-size: 22px; margin-bottom: 8px; }
 .guide h3 { font-size: 16px; color: var(--text); margin: 20px 0 6px; }
 .guide h4 { font-size: 15px; margin: 14px 0 6px; }
-.guide p, .guide li { line-height: 1.55; }
+.guide p, .guide li { line-height: 1.6; }
 .guide ul { padding-left: 20px; }
-.guide code { background: var(--badge); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.guide code { background: var(--badge); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--badge); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 13px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--ok-tint); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 13px; }
 .chip small { color: var(--muted); }
-.chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
-.item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-h1 small.version { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
-pre.code { background: var(--badge); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; max-height: 300px; }
-a.button { display: inline-block; text-decoration: none; font: inherit; border-radius: 6px; padding: 6px 12px; border: 1px solid var(--line); color: var(--text); }
+.chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 5px; font-size: 15px; border-radius: 999px; }
+.chip button:hover { color: var(--warn); }
+.item { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: var(--panel); transition: border-color .15s, box-shadow .15s; }
+.item:hover { border-color: color-mix(in srgb, var(--magenta) 25%, var(--line)); }
+details.item[open] { box-shadow: var(--shadow); }
+h1 small.version { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+pre.code { background: var(--badge); padding: 10px; border-radius: 10px; overflow-x: auto; font-size: 12px; max-height: 300px; }
+a.button { display: inline-block; text-decoration: none; }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 label.checkline input { width: auto; }
 details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
 details.item > summary::-webkit-details-marker { display: none; }
-details.item > summary::before { content: "▸"; color: var(--muted); }
+details.item > summary::before { content: "▸"; color: var(--magenta); transition: transform .15s; }
 details.item[open] > summary::before { content: "▾"; }
 details.item > summary .lead { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 details.item > summary .short { min-width: 0; color: var(--muted); }
@@ -73,14 +111,31 @@ details.item.task > summary { --lead: 13em; }
   details.item > summary .short { grid-column: 2 / 4; }
 }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
-.msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
-.msg.err { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
-.msg.ok { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+.msg { padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; white-space: pre-wrap; border: 1px solid transparent; }
+.msg.err { background: var(--rose-tint); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.msg.ok { background: var(--ok-tint); color: var(--accent); border-color: color-mix(in srgb, var(--accent-2) 25%, transparent); }
 table { width: 100%; border-collapse: collapse; }
-td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--muted); font-weight: 500; font-size: 13px; }
+td, th { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
 pre { white-space: pre-wrap; margin: 0; font: inherit; }
-@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
+
+/* Mira's own dialog instead of the browser's confirm/prompt. */
+dialog#dlg { border: 0; padding: 0; border-radius: 22px; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgb(60 20 50 / 25%); }
+dialog#dlg::backdrop { background: color-mix(in srgb, var(--ink) 35%, transparent); backdrop-filter: blur(3px); }
+dialog#dlg[open] { animation: pop .18s ease-out; }
+dialog#dlg[open]::backdrop { animation: fade .18s ease-out; }
+dialog#dlg form { padding: 22px 22px 18px; position: relative; }
+dialog#dlg form::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--grad); }
+.dlg-head { display: flex; gap: 14px; align-items: flex-start; }
+.dlg-head img { width: 44px; height: 44px; flex: none; filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--magenta) 35%, transparent)); }
+#dlg-text { margin: 4px 0 0; font-size: 16px; line-height: 1.45; }
+#dlg-input { margin-top: 14px; }
+dialog#dlg .actions { justify-content: flex-end; margin-top: 20px; }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { dialog#dlg[open], dialog#dlg[open]::backdrop { animation: none; } }
 </style>
 </head>
 <body>
@@ -91,6 +146,13 @@ pre { white-space: pre-wrap; margin: 0; font: inherit; }
 </header>
 <main id="main"></main>
 <datalist id="entities"></datalist>
+<dialog id="dlg">
+  <form method="dialog">
+    <div class="dlg-head"><img src="/ui/icon.png" alt=""><p id="dlg-text"></p></div>
+    <input id="dlg-input" autocomplete="off" hidden>
+    <div class="actions"><button class="secondary" value="cancel" id="dlg-cancel"></button><button value="ok" id="dlg-ok"></button></div>
+  </form>
+</dialog>
 
 <script>
 "use strict";
@@ -103,6 +165,8 @@ const I18N = {
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
   "token_ask": "API-Token von Mira (MIRA_API_TOKEN):",
+  "dlg_ok": "OK",
+  "dlg_cancel": "Abbrechen",
   "saved": "Gespeichert. Die Benachrichtigung läuft mit der neuen Einstellung.",
   "reset_confirm": "Die Einstellungen aus mira.yaml wiederherstellen?",
   "reset_done": "Zurückgesetzt auf mira.yaml.",
@@ -271,6 +335,8 @@ const I18N = {
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
   "token_ask": "Mira API token (MIRA_API_TOKEN):",
+  "dlg_ok": "OK",
+  "dlg_cancel": "Cancel",
   "saved": "Saved. Notifications run with the new settings.",
   "reset_confirm": "Restore the settings from mira.yaml?",
   "reset_done": "Reset to mira.yaml.",
@@ -465,9 +531,38 @@ async function api(method, path, body) {
   return data;
 }
 
-function askToken() {
-  const t = prompt(T.token_ask, "");
-  if (t) { token = t.trim(); localStorage.setItem("mira.token", token); load(); }
+// ask shows Mira's dialog: true/false, or with input the text (null when
+// cancelled). Escape and a click beside the dialog cancel.
+function ask({ text, ok, danger, input }) {
+  const d = $("#dlg"), inp = $("#dlg-input"), okb = $("#dlg-ok");
+  if (d.open) return Promise.resolve(input ? null : false);
+  $("#dlg-text").textContent = text;
+  $("#dlg-cancel").textContent = T.dlg_cancel;
+  okb.textContent = ok || T.dlg_ok;
+  okb.className = danger ? "danger solid" : "primary";
+  inp.hidden = !input; inp.type = input === "password" ? "password" : "text"; inp.value = "";
+  d.returnValue = "";
+  return new Promise(resolve => {
+    d.onclose = () => {
+      const yes = d.returnValue === "ok";
+      resolve(input ? (yes ? inp.value.trim() : null) : yes);
+    };
+    d.showModal();
+    (input ? inp : okb).focus();
+  });
+}
+$("#dlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+// Enter in the field means OK, not the first button (cancel).
+$("#dlg-input").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#dlg").close("ok"); } });
+
+// Several calls can fail with 401 at once; one question is enough.
+let askingToken = false;
+async function askToken() {
+  if (askingToken) return;
+  askingToken = true;
+  const t = await ask({ text: T.token_ask, input: "password" });
+  askingToken = false;
+  if (t) { token = t; localStorage.setItem("mira.token", token); load(); }
 }
 
 function message(text, ok) {
@@ -488,7 +583,7 @@ async function save(sections) {
 }
 
 async function reset(name) {
-  if (!confirm(T.reset_confirm)) return;
+  if (!await ask({ text: T.reset_confirm, ok: T.reset_button })) return;
   try {
     config = await api("DELETE", "/v1/ui/config/" + name);
     message(T.reset_done, true);
@@ -737,7 +832,7 @@ async function memory() {
   } catch (e) { message(e.message, false); }
 }
 async function forget(id) {
-  if (!confirm(T.forget_confirm)) return;
+  if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
   try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); memory(); } catch (e) { message(e.message, false); }
 }
 async function compact() {
@@ -825,7 +920,7 @@ async function setTask(id, action) {
   try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/${action}`); tasks(); } catch (e) { message(e.message, false); }
 }
 async function deleteTask(id) {
-  if (!confirm(T.task_delete_confirm)) return;
+  if (!await ask({ text: T.task_delete_confirm, ok: T.remove, danger: true })) return;
   try { await api("DELETE", `/v1/ui/tasks/${encodeURIComponent(id)}`); tasks(); } catch (e) { message(e.message, false); }
 }
 
