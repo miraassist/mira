@@ -61,6 +61,10 @@ type Client struct {
 	httpClient  *http.Client
 	onConnect   func(context.Context)
 
+	// sendMu keeps taking an id and sending it together: Home Assistant
+	// refuses an id lower than one it has seen (id_reuse), so two calls
+	// must not send in the opposite order of their ids. Taken before mu.
+	sendMu    sync.Mutex
 	mu        sync.Mutex
 	conn      *websocket.Conn
 	nextID    int
@@ -321,10 +325,12 @@ func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawM
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 
+	c.sendMu.Lock()
 	c.mu.Lock()
 	conn := c.conn
 	if conn == nil {
 		c.mu.Unlock()
+		c.sendMu.Unlock()
 		return nil, ErrNotConnected
 	}
 	id := c.nextID
@@ -339,7 +345,9 @@ func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawM
 	}
 	frame["id"] = id
 
-	if err := writeJSON(ctx, conn, frame); err != nil {
+	err := writeJSON(ctx, conn, frame)
+	c.sendMu.Unlock()
+	if err != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
@@ -411,14 +419,17 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
 	defer cancel()
 
+	c.sendMu.Lock()
 	c.mu.Lock()
 	conn := c.conn
 	if conn == nil {
 		c.mu.Unlock()
+		c.sendMu.Unlock()
 		return 0, ErrNotConnected
 	}
 	if sub.cancelled {
 		c.mu.Unlock()
+		c.sendMu.Unlock()
 		return 0, nil
 	}
 	id := c.nextID
@@ -436,7 +447,9 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 	}
 	frame["id"] = id
 
-	if err := writeJSON(ctx, conn, frame); err != nil {
+	err := writeJSON(ctx, conn, frame)
+	c.sendMu.Unlock()
+	if err != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		delete(c.subs, id)

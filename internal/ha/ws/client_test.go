@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -425,5 +426,30 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("condition not met in time")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Home Assistant refuses a command id lower than one it has seen. Calls
+// running at the same time must still send in the order of their ids; live,
+// a subscription at start-up failed with id_reuse.
+func TestConcurrentCallsKeepIDsIncreasing(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	c, ctx := startClient(t, srv, "test-token")
+	var wg sync.WaitGroup
+	errs := make(chan error, 64)
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.States(ctx); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
 	}
 }

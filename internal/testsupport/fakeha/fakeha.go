@@ -54,6 +54,9 @@ type Server struct {
 type connState struct {
 	conn *websocket.Conn
 	mu   sync.Mutex
+	// lastID is the highest command id seen; like Home Assistant, a lower
+	// or equal one is refused (id_reuse).
+	lastID int
 	// subs maps subscription id to the event type it wants ("" means all).
 	subs map[int]string
 	// entitySubs maps subscription id to the entities a subscribe_entities
@@ -301,6 +304,12 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		writeJSON(cs.conn, map[string]any{"id": id, "type": "result", "success": false,
 			"error": map[string]any{"code": code, "message": msg}})
 	}
+
+	if id <= cs.lastID {
+		fail("id_reuse", "Identifier values have to increase.")
+		return
+	}
+	cs.lastID = id
 
 	s.mu.Lock()
 	areas, devices, entities, states := s.areas, s.devices, s.entities, s.states
