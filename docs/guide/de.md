@@ -23,6 +23,7 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 ## Mira merkt sich Dinge
 
 - „Merk dir, dass der Schornsteinfeger im März kommt.“
+- „Merk dir mal was.“ – Mira fragt „Was denn?“, und du sagst es im nächsten Satz.
 - „Was weißt du über den Schornsteinfeger?“ – „Vergiss das mit dem Schornsteinfeger.“
 
 Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
@@ -40,7 +41,7 @@ Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In der Web-
 - „Stell einen Timer auf 10 Minuten.“ – „In einer halben Stunde erinnerst du mich an die Wäsche.“
 - „Welche Erinnerungen habe ich?“ – „Lösch die Erinnerung an die Wäsche.“
 
-Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram gestellte Erinnerungen kommen per Telegram.
+Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat zu dir, per Telegram oder als Push-Nachricht.
 
 ## Benachrichtigungen
 
@@ -77,13 +78,21 @@ Gib Mira eine dauerhafte Aufgabe, und sie behält etwas für dich im Blick:
 - „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
 - „Melde dich, wenn ein Wassermelder anschlägt.“
 
-Mira macht daraus eine **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert, und sagt es dir. Sie plant kurz im Hintergrund und meldet sich mit ihrem Vorschlag, sobald sie fertig gesprochen hat – im selben Raum oder auf Telegram – und fragt: „Soll ich so vorgehen?“ Sag **„Ja“**, dann legt sie die Automation an.
+Mira macht daraus eine **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert, und sagt es dir.
+
+So läuft das Einrichten ab:
+
+1. Fehlt Mira etwas, fragt sie zurück, statt zu raten – etwa „Welche Uhrzeit ist für dich ungewöhnlich?“. Antworte einfach; das Gespräch bleibt beim Thema, auch über mehrere Sätze.
+2. Dann plant sie. Geht das schnell, nennt sie dir den Vorschlag gleich; sonst sagt sie „Ich plane das“ und meldet sich, sobald sie fertig gesprochen hat – im selben Raum oder auf Telegram.
+3. Der Vorschlag sagt, was sie beobachtet, und nennt die Bedingung: „Wenn die Nachttischlampe angeht, sage ich dir Bescheid. Bedingung: nur zwischen 1 und 4 Uhr. Soll ich so vorgehen?“
+4. Sag **„Ja“**, dann legt sie die Automation an. Mit „Nein, lass es“ bricht sie ab. Antwortet niemand, verfällt der Vorschlag nach einer Viertelstunde.
 
 Beim Beurteilen vergleicht Mira zum Beispiel den Verbrauch der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen, weiß, wer zu Hause ist, kennt, was du ihr gemerkt hast, und erinnert sich, was sie zu dieser Aufgabe schon gesagt hat. Dieselbe Sache meldet sie nicht ständig wieder, nur wenn es schlimmer wird.
 
 - „Welche Aufgaben hast du?“ – „Pausier die Strom-Aufgabe.“ – „Lösch die Aufgabe mit dem Strom.“ – „Mach einen Probelauf der Wasser-Aufgabe.“
-- In der Web-Oberfläche unter **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile; „In Home Assistant bearbeiten“ öffnet die Automation im Editor von Home Assistant.
-- Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Meldung hinzufügen** (`mira.add_notice`).
+- In der Web-Oberfläche unter **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile, dazu Vorschläge, die noch auf dein Ja warten. „In Home Assistant bearbeiten“ öffnet die Automation im Editor von Home Assistant; dort kannst du sie auch selbst ändern.
+- Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Hinweis hinzufügen** (`mira.add_notice`).
+- Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
 
 ## Skills
 
@@ -140,8 +149,8 @@ Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, Link in den Editor von Home Assistant.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
 - **Räume**: welcher Satellit wo spricht, Bewegungsmelder, ansagen oder anzeigen, Anzeige-Lampe.
-- **Personen**: wer persönliche Meldungen bekommt, per Telegram oder Push.
-- **Gedächtnis**: Profil und gemerkte Fakten.
+- **Personen**: wer persönliche Meldungen bekommt, per Telegram oder Push, und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist („Allein = ich“).
+- **Gedächtnis**: Haus und jede Person getrennt, mit Profil, Fakten, wer sie wann gesagt hat; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
 
 Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Räume und Personen dort (Einstellungen → Geräte & Dienste → Mira) mit der Auswahl von Entitäten und Bereichen; die Web-Oberfläche zeigt sie dann nur an.
@@ -151,6 +160,7 @@ Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Räume u
 - **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Offene Hinweise** und der Taste **Profil verdichten**.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
 - Automationen können Mira Meldungen geben, mit der Aktion `mira.add_notice`.
+- Personen richtest du unter Einstellungen → Geräte & Dienste → Mira ein: Personen-Entität, Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“. Im Assist-Chat der HA-App erkennt Mira dich an deinem HA-Benutzer, wenn deine Personen-Entität mit ihm verknüpft ist.
 
 ## Gut zu wissen
 

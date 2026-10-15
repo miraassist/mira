@@ -23,6 +23,7 @@ Mira always looks values up fresh instead of guessing. If she cannot look someth
 ## Mira remembers things
 
 - "Remember that the chimney sweep comes in March."
+- "Remember something." – Mira asks "What is it?", and you tell her in the next sentence.
 - "What do you know about the chimney sweep?" – "Forget the thing about the chimney sweep."
 
 There is one memory for the **house** and one for **each person**:
@@ -40,7 +41,7 @@ At night Mira condenses each memory into a short profile. In the web interface u
 - "Set a timer for 10 minutes." – "Remind me about the laundry in half an hour."
 - "Which reminders do I have?" – "Delete the laundry reminder."
 
-At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram arrive on Telegram.
+At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the HA app come to you privately, by Telegram or as a push notification.
 
 ## Notifications
 
@@ -77,13 +78,21 @@ Give Mira a standing task and she keeps an eye on something for you:
 - "Tell me if a lot of electricity is used at night."
 - "Speak up when a leak sensor goes off."
 
-Mira turns it into an **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you and tells you. She plans briefly in the background and comes back with her proposal once she has finished speaking – in the same room or on Telegram – asking "Shall I go ahead?" Say **"Yes"** and she creates the automation.
+Mira turns it into an **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you and tells you.
+
+This is how setting one up goes:
+
+1. If something is missing, Mira asks instead of guessing – "Which time is unusual for you?". Just answer; the conversation stays on the subject, over several sentences too.
+2. Then she plans. If that is quick, she tells you the proposal right away; otherwise she says "I'll plan that" and comes back once she has finished speaking – in the same room or on Telegram.
+3. The proposal says what she watches and names the condition: "When the bedside lamp turns on, I'll let you know. Condition: only between 1 and 4 am. Shall I go ahead?"
+4. Say **"Yes"** and she creates the automation. "No, leave it" cancels. If nobody answers, the proposal lapses after a quarter of an hour.
 
 When judging, Mira compares, for example, the last hour's usage with the same hour over the past two weeks, knows who is at home and what you asked her to remember, and recalls what she already said about this task. She does not report the same thing again and again, only when it gets worse.
 
 - "Which tasks do you have?" – "Pause the electricity task." – "Delete the electricity task." – "Do a dry run of the water task."
-- In the web interface under **Tasks** you see all tasks with on/off, dry run and the log of their judgements; "Edit in Home Assistant" opens the automation in Home Assistant's editor.
+- In the web interface under **Tasks** you see all tasks with on/off, dry run and the log of their judgements, plus proposals still waiting for your yes. "Edit in Home Assistant" opens the automation in Home Assistant's editor; you can change it there yourself too.
 - Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Add notice** (`mira.add_notice`).
+- For now tasks belong to the whole house and use the house's memory when judging.
 
 ## Skills
 
@@ -140,8 +149,8 @@ At `http://<mira>:8787/ui` (access token on first visit):
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, link into Home Assistant's editor.
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
 - **Rooms**: which satellite speaks where, motion sensors, announce or indicate, indicator light.
-- **People**: who gets personal notices, by Telegram or push.
-- **Memory**: profile and remembered facts.
+- **People**: who gets personal notices, by Telegram or push, and whether the satellites count as this person when they are alone at home ("Alone = me").
+- **Memory**: the house and each person apart, with profile, facts, who said them and when; edit and forget.
 - **Guide**: this page.
 
 If the Mira integration is set up in Home Assistant, you edit rooms and people there (Settings → Devices & services → Mira) with pickers for entities and areas; the web interface then only shows them.
@@ -151,6 +160,7 @@ If the Mira integration is set up in Home Assistant, you edit rooms and people t
 - **Device "Mira"** with the **Quiet mode** switch, the **Pending notices** sensor and the **Compact profile** button.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
 - Automations can give Mira notices with the action `mira.add_notice`.
+- You set up people under Settings → Devices & services → Mira: person entity, Telegram id, push service and "Alone at home, the satellites are me". In the HA app's Assist chat Mira recognises you by your HA user, if your person entity is linked to it.
 
 ## Good to know
 
