@@ -171,6 +171,8 @@ type NoticeFilter struct {
 	// NewestFirst orders by creation, newest first, for a history view.
 	NewestFirst bool
 	Limit       int
+	// Offset skips that many matches, for paging.
+	Offset int
 }
 
 // ListNotices returns matching notices, most important first and oldest first
@@ -198,8 +200,8 @@ func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, erro
 		q += ` ORDER BY importance DESC, created_at`
 	}
 	if f.Limit > 0 {
-		q += ` LIMIT ?`
-		args = append(args, f.Limit)
+		q += ` LIMIT ? OFFSET ?`
+		args = append(args, f.Limit, f.Offset)
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -254,9 +255,16 @@ type noticeJSON struct {
 }
 
 func (h *Handler) notices(w http.ResponseWriter, r *http.Request) {
-	// The history: every state, newest first. A notice past its expiry
-	// that nobody heard shows as expired.
-	list, err := h.opts.Store.ListNotices(r.Context(), store.NoticeFilter{IncludeExpired: true, NewestFirst: true, Limit: 100})
+	// The history: every state, newest first, a page at a time; with
+	// open=1 only what is still open. A notice past its expiry that nobody
+	// heard shows as expired.
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	page = max(page, 0)
+	f := store.NoticeFilter{IncludeExpired: true, NewestFirst: true, Limit: noticePage + 1, Offset: page * noticePage}
+	if r.URL.Query().Get("open") == "1" {
+		f.States, f.IncludeExpired = []string{store.NoticePending, store.NoticeDelivered}, false
+	}
+	list, err := h.opts.Store.ListNotices(r.Context(), f)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -272,8 +280,15 @@ func (h *Handler) notices(w http.ResponseWriter, r *http.Request) {
 			Confidentiality: n.Confidentiality, Spoken: n.Spoken, Details: n.Details, Source: n.Source,
 			CreatedAt: n.CreatedAt.In(time.Local).Format("2006-01-02 15:04"), DeliveredVia: n.DeliveredVia})
 	}
-	writeJSON(w, http.StatusOK, out)
+	more := len(out) > noticePage
+	if more {
+		out = out[:noticePage]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": out, "page": page, "more": more})
 }
+
+// noticePage is how many notices the UI shows per page.
+const noticePage = 20
 
 func (h *Handler) ackNotice(w http.ResponseWriter, r *http.Request) {
 	err := h.opts.Store.SetNoticeState(r.Context(), r.PathValue("id"), store.NoticeAcked)

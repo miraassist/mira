@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -179,5 +180,39 @@ func TestTasksAPI(t *testing.T) {
 	}
 	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 404 {
 		t.Errorf("delete twice: %d", code)
+	}
+}
+
+// The history comes a page at a time, newest first; open=1 leaves out what
+// is done.
+func TestNoticesArePaged(t *testing.T) {
+	srv, _, st := setup(t)
+	ctx := context.Background()
+	for i := 0; i < 25; i++ {
+		id := fmt.Sprintf("n%02d", i)
+		st.PutNotice(ctx, store.Notice{ID: id, Source: store.SourceExternal, DedupeKey: id, Importance: 1,
+			Audience: store.AudienceHousehold, Spoken: "Meldung " + id})
+	}
+	st.SetNoticeState(ctx, "n00", store.NoticeAcked)
+	var r struct {
+		Items []struct{ ID, State string } `json:"items"`
+		More  bool                         `json:"more"`
+	}
+	_, body := call(t, srv, "GET", "/v1/ui/notices", "secret", "")
+	json.Unmarshal([]byte(body), &r)
+	if len(r.Items) != 20 || !r.More {
+		t.Fatalf("page 0: %d items, more %v", len(r.Items), r.More)
+	}
+	_, body = call(t, srv, "GET", "/v1/ui/notices?page=1", "secret", "")
+	r.Items, r.More = nil, false
+	json.Unmarshal([]byte(body), &r)
+	if len(r.Items) != 5 || r.More {
+		t.Fatalf("page 1: %d items, more %v", len(r.Items), r.More)
+	}
+	_, body = call(t, srv, "GET", "/v1/ui/notices?page=1&open=1", "secret", "")
+	r.Items = nil
+	json.Unmarshal([]byte(body), &r)
+	if len(r.Items) != 4 {
+		t.Errorf("open page 1: %d items", len(r.Items))
 	}
 }
