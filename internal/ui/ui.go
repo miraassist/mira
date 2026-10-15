@@ -84,6 +84,9 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/memory", h.auth(h.memory))
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.auth(h.forget))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
+	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
+	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.activateTask))
+	h.mux.HandleFunc("DELETE /v1/ui/tasks/{id}", h.auth(h.deleteTask))
 	h.mux.HandleFunc("GET /v1/ui/ha", h.auth(h.getHA))
 	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
 	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
@@ -342,4 +345,58 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+type taskJSON struct {
+	ID        string          `json:"id"`
+	Goal      string          `json:"goal"`
+	Title     string          `json:"title"`
+	Summary   string          `json:"summary"`
+	State     string          `json:"state"`
+	Plan      json.RawMessage `json:"plan"`
+	CreatedAt string          `json:"created_at"`
+}
+
+func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
+	list, err := h.opts.Store.Tasks(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]taskJSON, 0, len(list))
+	for _, t := range list {
+		out = append(out, taskJSON{ID: t.ID, Goal: t.Goal, Title: t.Title, Summary: t.Summary, State: t.State,
+			Plan: json.RawMessage(t.Plan), CreatedAt: t.CreatedAt.Format("2006-01-02 15:04")})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) activateTask(w http.ResponseWriter, r *http.Request) {
+	t, err := h.opts.Store.GetTask(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "no such task")
+		return
+	}
+	if err == nil {
+		t.State = store.TaskActive
+		err = h.opts.Store.PutTask(r.Context(), t)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"state": t.State})
+}
+
+func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
+	err := h.opts.Store.DeleteTask(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "no such task")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }

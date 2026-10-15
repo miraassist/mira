@@ -161,6 +161,23 @@ CREATE TABLE reminders (
 CREATE INDEX reminders_due ON reminders(state, due_at);
 `,
 	},
+	{
+		name: "0008_tasks",
+		stmt: `
+CREATE TABLE tasks (
+	id          TEXT PRIMARY KEY,
+	goal        TEXT NOT NULL,
+	title       TEXT NOT NULL,
+	summary     TEXT NOT NULL DEFAULT '',
+	plan        TEXT NOT NULL,
+	state       TEXT NOT NULL DEFAULT 'proposed',
+	session_key TEXT NOT NULL DEFAULT '',
+	last_alert  TEXT NOT NULL DEFAULT '',
+	created_at  TEXT NOT NULL,
+	updated_at  TEXT NOT NULL
+);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

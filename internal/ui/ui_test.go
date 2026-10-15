@@ -146,3 +146,25 @@ func TestGuideIsPublic(t *testing.T) {
 		}
 	}
 }
+
+func TestTasksAPI(t *testing.T) {
+	srv, _, st := setup(t)
+	st.PutTask(context.Background(), store.Task{ID: "t1", Goal: "Achte auf das Wasser", Title: "Wasser", Summary: "Ich achte auf den Zähler.",
+		Plan: `{"rules":[{"entity_id":"sensor.w","kind":"usage","when":"night","why":"Leck"}]}`})
+	code, body := call(t, srv, "GET", "/v1/ui/tasks", "secret", "")
+	if code != 200 || !strings.Contains(body, `"state":"proposed"`) || !strings.Contains(body, `"entity_id":"sensor.w"`) {
+		t.Fatalf("list: %d %s", code, body)
+	}
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/t1/activate", "secret", ""); code != 200 {
+		t.Errorf("activate: %d", code)
+	}
+	if task, _ := st.GetTask(context.Background(), "t1"); task.State != store.TaskActive {
+		t.Errorf("state: %s", task.State)
+	}
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 200 {
+		t.Errorf("delete: %d", code)
+	}
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 404 {
+		t.Errorf("delete twice: %d", code)
+	}
+}

@@ -70,6 +70,12 @@ talk to a satellite anyway, what waits for its room follows the answer
 ("Licht ist an. Übrigens: ..."), except after a question back and in quiet
 hours. Urgent notices and reminders are always spoken.
 
+Standing orders: "Achte auf den Wasserverbrauch" becomes a plan the model
+makes once (which entities, what would be unusual) and the user confirms.
+The code then compares each hour with the same hour over the last 14 days
+from Home Assistant's statistics, and checks states and thresholds; only
+candidates go to the model, which judges and words the notice.
+
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
 (frontmatter `name`, `description`; Mira's settings, calendars and schedules
 under `metadata.mira`). Enable them under `skills.enabled` with their

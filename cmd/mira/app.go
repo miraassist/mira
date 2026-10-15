@@ -29,6 +29,7 @@ import (
 	"github.com/sker65/mira/internal/profile"
 	"github.com/sker65/mira/internal/skills"
 	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tasks"
 	"github.com/sker65/mira/internal/telemetry"
 	"github.com/sker65/mira/internal/tools"
 	"github.com/sker65/mira/internal/ui"
@@ -45,6 +46,7 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
+	tasks  *tasks.Manager
 	// notifier is the running notifier, replaced when the UI restarts it;
 	// guarded by proactiveMu.
 	notifier  *notifier.Notifier
@@ -207,6 +209,16 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
 	}
 	internal = append(internal, tools.NoticesRead(i18n.Of(cfg.Prompt.Language), a.readNotices))
+	if a.ha != nil {
+		// Planning and judging run on the engine, which is built from this
+		// registry: bound late through engineAssessor.
+		a.tasks = tasks.New(tasks.Options{
+			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, Snapshot: snapshot,
+			Planner: engineAssessor{a}, Judge: engineAssessor{a},
+			QuietHours: cfg.Notifier.QuietHours, Logger: a.log,
+		})
+		internal = append(internal, a.tasks.Tools()...)
+	}
 	registry := tools.NewRegistry(a.mcp, internal...)
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
@@ -354,6 +366,10 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		}
 	})
 
+	if a.tasks != nil {
+		a.goRun(ctx, "tasks", a.tasks.Run)
+	}
+
 	if a.skills != nil && len(a.skills.Skills) > 0 {
 		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
 		a.goRun(ctx, "skills", runner.Run)
@@ -474,6 +490,13 @@ func (a *app) startProactive(parent context.Context) {
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+// engineAssessor lets the task manager use the engine before it exists.
+type engineAssessor struct{ a *app }
+
+func (e engineAssessor) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
+	return e.a.engine.Assess(ctx, instruction, schema)
 }
 
 // readNotices answers "Hast du eine Benachrichtigung?": by voice what waits

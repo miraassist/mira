@@ -201,7 +201,22 @@ const I18N = {
   "indicator": "Anzeige-Lampe",
   "mode_announce": "ansagen",
   "mode_indicate": "nur anzeigen",
-  "tab_guide": "Anleitung"
+  "tab_guide": "Anleitung",
+  "tab_tasks": "Aufträge",
+  "tasks_hint": "Aufträge gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie macht einen Plan, du bestätigst ihn. Dann vergleicht Mira laufend mit den Werten der letzten zwei Wochen und meldet sich, wenn etwas ungewöhnlich ist.",
+  "no_tasks": "Noch keine Aufträge.",
+  "task_active": "aktiv",
+  "task_proposed": "wartet auf Bestätigung",
+  "task_goal": "Auftrag",
+  "task_start": "Starten",
+  "task_delete_confirm": "Diesen Auftrag löschen?",
+  "kind_usage": "Verbrauch pro Stunde",
+  "kind_level": "Messwert pro Stunde",
+  "kind_state": "Zustand",
+  "kind_threshold": "Grenzwert",
+  "when_always": "immer",
+  "when_night": "nachts",
+  "when_day": "tagsüber"
  },
  "en": {
   "tab_notices": "Notices",
@@ -327,10 +342,25 @@ const I18N = {
   "indicator": "Indicator light",
   "mode_announce": "announce",
   "mode_indicate": "indicate only",
-  "tab_guide": "Guide"
+  "tab_guide": "Guide",
+  "tab_tasks": "Orders",
+  "tasks_hint": "You give Mira orders in conversation, e.g. \"Keep an eye on the water usage\". She makes a plan, you confirm it. Then Mira keeps comparing with the values of the last two weeks and speaks up when something is unusual.",
+  "no_tasks": "No orders yet.",
+  "task_active": "active",
+  "task_proposed": "waiting for confirmation",
+  "task_goal": "Order",
+  "task_start": "Start",
+  "task_delete_confirm": "Delete this order?",
+  "kind_usage": "usage per hour",
+  "kind_level": "reading per hour",
+  "kind_state": "state",
+  "kind_threshold": "threshold",
+  "when_always": "always",
+  "when_night": "at night",
+  "when_day": "by day"
  }
 };
-const TABS = ["notices", "notifier", "watchers", "rooms", "persons", "memory", "guide"];
+const TABS = ["notices", "tasks", "notifier", "watchers", "rooms", "persons", "memory", "guide"];
 let token = localStorage.getItem("mira.token") || "";
 // The page's language: the visitor's choice, else the browser's.
 let lang = localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
@@ -421,7 +451,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { notices, notifier, watchers, rooms, persons, memory, guide };
+  const views = { notices, tasks, notifier, watchers, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { watchers: "watchers", rooms: "satellites", persons: "persons" }[tab];
@@ -720,6 +750,32 @@ async function compact() {
     await memory();
     message(r.changed ? T.profile_updated : T.profile_unchanged, true);
   } catch (e) { message(e.message, false); memory(); }
+}
+
+// ---- Aufträge -----------------------------------------------------------
+async function tasks() {
+  $("#view").innerHTML = `<section class="card"><h2>${T.tab_tasks}</h2><p class="hint">${T.tasks_hint}</p><div id="tasklist">${T.loading}</div></section>`;
+  try {
+    const list = await api("GET", "/v1/ui/tasks");
+    $("#tasklist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => `
+      <div class="item">
+        <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${t.state === "active" ? T.task_active : T.task_proposed}</span></h3>
+        <p>${esc(t.summary)}</p>
+        <p class="hint">${T.task_goal}: „${esc(t.goal)}“ · ${esc(t.created_at)}</p>
+        <ul>${(t.plan.rules || []).map(r => `<li><code>${esc(r.entity_id)}</code> – ${esc(T["kind_" + r.kind] || r.kind)}, ${esc(T["when_" + r.when] || r.when)}: ${esc(r.why)}</li>`).join("")}</ul>
+        <div class="actions">
+          ${t.state !== "active" ? `<button class="primary" onclick="activateTask('${esc(t.id)}')">${T.task_start}</button>` : ""}
+          <button class="danger" onclick="deleteTask('${esc(t.id)}')">${T.remove}</button>
+        </div>
+      </div>`).join("");
+  } catch (e) { message(e.message, false); }
+}
+async function activateTask(id) {
+  try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/activate`); tasks(); } catch (e) { message(e.message, false); }
+}
+async function deleteTask(id) {
+  if (!confirm(T.task_delete_confirm)) return;
+  try { await api("DELETE", `/v1/ui/tasks/${encodeURIComponent(id)}`); tasks(); } catch (e) { message(e.message, false); }
 }
 
 // ---- Anleitung ----------------------------------------------------------

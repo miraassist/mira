@@ -22,6 +22,7 @@ const (
 	SourceSchedule  = "schedule"
 	SourceExternal  = "external"
 	SourceReminder  = "reminder"
+	SourceTask      = "task"
 )
 
 // AudienceHousehold means anyone present may hear the notice.

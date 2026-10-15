@@ -60,6 +60,21 @@ Mira meldet sich von selbst, wenn etwas passiert: ein Lecksensor schlägt an, di
 
 **Vertrauliches und Persönliches**: Meldungen können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
 
+## Aufträge
+
+Gib Mira einen dauerhaften Auftrag, und sie behält etwas für dich im Blick:
+
+- „Achte auf den Wasserverbrauch.“
+- „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
+- „Pass nachts auf die Haustür auf.“
+
+Mira macht daraus einen Plan – welche Sensoren sie beobachtet und wann sie sich meldet – und fragt dich, ob sie so vorgehen soll. Erst nach deinem Ja startet der Auftrag.
+
+Dann vergleicht Mira laufend: Den Verbrauch oder Messwert der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen (aus dem Verlauf von Home Assistant), dazu Zustände und Grenzwerte. Nur wenn etwas wirklich aus dem Rahmen fällt, beurteilt sie, ob es dich interessiert, und meldet sich – wie jede andere Benachrichtigung, bei Gefahr (etwa Wasser, das nachts lange läuft) auch sofort. Dieselbe Sache meldet sie höchstens alle sechs Stunden.
+
+- „Welche Aufträge hast du?“ – „Lösch den Auftrag mit dem Strom.“
+- In der Web-Oberfläche unter **Aufträge** siehst du alle Aufträge mit ihren Plänen, kannst sie starten und löschen.
+
 ## Skills
 
 Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet einen Skill nur, wenn eine Frage ihn braucht.
@@ -79,6 +94,7 @@ Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwe
 Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):
 
 - **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
+- **Aufträge**: was Mira für dich beobachtet, mit Plan; starten und löschen.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
 - **Watcher**: worauf Mira achtet (Sensoren, Feeds) und was das bedeutet.
 - **Räume**: welcher Satellit wo spricht, Bewegungsmelder, ansagen oder anzeigen, Anzeige-Lampe.

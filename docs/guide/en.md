@@ -60,6 +60,21 @@ Mira speaks up on her own when something happens: a leak sensor goes off, the wa
 
 **Confidential and personal**: notices can be meant for one person or be confidential. Mira only reads confidential notices aloud when the setting allows it (e.g. only when that person is home alone); otherwise they arrive privately on Telegram or as a push message on the phone.
 
+## Standing orders
+
+Give Mira a standing order and she keeps an eye on something for you:
+
+- "Keep an eye on the water usage."
+- "Tell me if a lot of electricity is used at night."
+- "Watch the front door at night."
+
+Mira turns it into a plan – which sensors she watches and when she speaks up – and asks whether to go ahead. The order starts only after your yes.
+
+Then Mira keeps comparing: the usage or reading of the last hour with the same hour over the past two weeks (from Home Assistant's history), plus states and thresholds. Only when something is really out of the ordinary does she judge whether it interests you and speak up – like any other notification, and at once when there is danger (such as water running long at night). She reports the same thing at most every six hours.
+
+- "Which orders do you have?" – "Delete the electricity order."
+- In the web interface under **Orders** you see all orders with their plans and can start and delete them.
+
 ## Skills
 
 Skills are extra abilities the setup turns on. Mira opens a skill only when a question needs it.
@@ -79,6 +94,7 @@ If the setup connects a stronger language model, Mira hands demanding questions 
 At `http://<mira>:8787/ui` (access token on first visit):
 
 - **Notices**: see open and delivered notices and mark them done.
+- **Orders**: what Mira watches for you, with its plan; start and delete.
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
 - **Watchers**: what Mira watches (sensors, feeds) and what it means.
 - **Rooms**: which satellite speaks where, motion sensors, announce or indicate, indicator light.
