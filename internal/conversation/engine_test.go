@@ -3,6 +3,7 @@ package conversation_test
 import (
 	"context"
 	"encoding/json"
+	"github.com/sker65/mira/internal/i18n"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -103,13 +104,13 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 	}
 	t.Cleanup(host.Close)
 
-	registry := tools.NewRegistry(host, tools.Internal(h.store, nil)...)
+	registry := tools.NewRegistry(host, tools.Internal(i18n.DE, h.store, nil)...)
 	h.engine = conversation.New(conversation.Options{
 		Config:    cfg,
 		LLM:       llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),
 		Store:     h.store,
 		Tools:     registry,
-		Guard:     tools.NewGuard(cfg.Security, h.store, houseSnapshot),
+		Guard:     tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot),
 		Structure: houseSnapshot,
 		Logger:    quietLogger(),
 		Clock:     h.clock.Now,

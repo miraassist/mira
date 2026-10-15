@@ -36,7 +36,7 @@ func Affirmative(text string) bool {
 var negations = map[string]bool{
 	"nein": true, "nicht": true, "nee": true, "nö": true, "no": true, "nope": true,
 	"not": true, "don": true, "stopp": true, "stop": true, "abbrechen": true, "lieber": true,
-	"warte": true, "doch": false,
+	"warte": true, "doch": false, "cancel": true, "wait": true,
 }
 
 // affirmativePhrases must start the reply. Longer phrases come first only for

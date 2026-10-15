@@ -8,6 +8,7 @@ package structure
 
 import (
 	"fmt"
+	"github.com/sker65/mira/internal/i18n"
 	"sort"
 	"strings"
 
@@ -16,6 +17,8 @@ import (
 
 // Registry is the raw input of a build.
 type Registry struct {
+	// Lang is the language of the block's labels.
+	Lang     i18n.Lang
 	Areas    []haws.Area
 	Devices  []haws.Device
 	Entities []haws.Entity
@@ -62,6 +65,7 @@ type entityRow struct {
 // Build renders the structure block. It is a pure function of its input:
 // no clock, no randomness, no map iteration order.
 func Build(reg Registry) Snapshot {
+	t := i18n.Pick(catalog, reg.Lang)
 	snap := Snapshot{
 		AreaNames:       make(map[string]string, len(reg.Areas)),
 		DeviceArea:      make(map[string]string, len(reg.Devices)),
@@ -139,17 +143,17 @@ func Build(reg Registry) Snapshot {
 		if name == "" {
 			name = id
 		}
-		fmt.Fprintf(&b, "Bereich %s (%s)", name, id)
+		fmt.Fprintf(&b, t.area, name, id)
 		if aliases := sortedCopy(a.Aliases); len(aliases) > 0 {
-			fmt.Fprintf(&b, ", auch genannt: %s", strings.Join(aliases, ", "))
+			fmt.Fprintf(&b, t.aliases, strings.Join(aliases, ", "))
 		}
 		b.WriteByte('\n')
-		writeRows(&b, byArea[id])
+		writeRows(&b, t, byArea[id])
 		snap.AreaCount++
 	}
 	if rows := byArea[""]; len(rows) > 0 {
-		b.WriteString("Ohne Bereich\n")
-		writeRows(&b, rows)
+		b.WriteString(t.noArea + "\n")
+		writeRows(&b, t, rows)
 	}
 
 	snap.Block = strings.TrimRight(b.String(), "\n")
@@ -157,15 +161,15 @@ func Build(reg Registry) Snapshot {
 	return snap
 }
 
-func writeRows(b *strings.Builder, rows []entityRow) {
+func writeRows(b *strings.Builder, t texts, rows []entityRow) {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
 	for _, r := range rows {
 		fmt.Fprintf(b, "  %s — %s", r.entityID, r.name)
 		if r.deviceName != "" {
-			fmt.Fprintf(b, ", Gerät: %s", r.deviceName)
+			fmt.Fprintf(b, t.device, r.deviceName)
 		}
 		if len(r.aliases) > 0 {
-			fmt.Fprintf(b, ", auch genannt: %s", strings.Join(r.aliases, ", "))
+			fmt.Fprintf(b, t.aliases, strings.Join(r.aliases, ", "))
 		}
 		b.WriteByte('\n')
 	}
@@ -291,4 +295,12 @@ func Domain(entityID string) string {
 		return entityID[:i]
 	}
 	return ""
+}
+
+// texts are the labels of the structure block.
+type texts struct{ area, aliases, noArea, device string }
+
+var catalog = map[i18n.Lang]texts{
+	i18n.DE: {area: "Bereich %s (%s)", aliases: ", auch genannt: %s", noArea: "Ohne Bereich", device: ", Gerät: %s"},
+	i18n.EN: {area: "Area %s (%s)", aliases: ", also called: %s", noArea: "No area", device: ", device: %s"},
 }

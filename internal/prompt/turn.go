@@ -1,14 +1,17 @@
 package prompt
 
 import (
-	"fmt"
 	"strings"
 	"time"
+
+	"github.com/sker65/mira/internal/i18n"
 )
 
 // Turn is layer 7: everything that is new about this request. Every volatile
 // value in the whole prompt belongs here and nowhere else.
 type Turn struct {
+	// Lang is the language of the labels.
+	Lang i18n.Lang
 	// Now is the wall clock the model should reason with.
 	Now time.Time
 	// ChannelContext describes where the request came from, for example which
@@ -30,51 +33,25 @@ type Turn struct {
 	Text string
 }
 
-var germanWeekdays = [...]string{
-	time.Sunday:    "Sonntag",
-	time.Monday:    "Montag",
-	time.Tuesday:   "Dienstag",
-	time.Wednesday: "Mittwoch",
-	time.Thursday:  "Donnerstag",
-	time.Friday:    "Freitag",
-	time.Saturday:  "Samstag",
-}
-
-var germanMonths = [...]string{
-	time.January:   "Januar",
-	time.February:  "Februar",
-	time.March:     "März",
-	time.April:     "April",
-	time.May:       "Mai",
-	time.June:      "Juni",
-	time.July:      "Juli",
-	time.August:    "August",
-	time.September: "September",
-	time.October:   "Oktober",
-	time.November:  "November",
-	time.December:  "Dezember",
-}
-
 // FormatTime renders a timestamp the way the model should read it back.
-func FormatTime(t time.Time) string {
-	return fmt.Sprintf("%s, %d. %s %d, %02d:%02d Uhr",
-		germanWeekdays[t.Weekday()], t.Day(), germanMonths[t.Month()], t.Year(),
-		t.Hour(), t.Minute())
-}
+func FormatTime(l i18n.Lang, t time.Time) string { return i18n.FormatTime(l, t) }
 
 // Render produces the text of layer 7. The order of the sections is fixed so
 // two turns differ only where they really differ.
 func (t Turn) Render() string {
+	l := textsFor(t.Lang)
 	var b strings.Builder
-	b.WriteString(headerTime)
-	b.WriteString("\nZeit: ")
-	b.WriteString(FormatTime(t.Now))
+	b.WriteString(l.headerTime)
+	b.WriteString("\n")
+	b.WriteString(l.timeLabel)
+	b.WriteString(FormatTime(t.Lang, t.Now))
 	if s := strings.TrimSpace(t.ChannelContext); s != "" {
 		b.WriteString("\n")
 		b.WriteString(s)
 	}
 	if len(t.Memories) > 0 {
-		b.WriteString("\nDu erinnerst dich:")
+		b.WriteString("\n")
+		b.WriteString(l.remember)
 		for _, m := range t.Memories {
 			if m = strings.TrimSpace(m); m != "" {
 				b.WriteString("\n- ")
@@ -83,19 +60,19 @@ func (t Turn) Render() string {
 		}
 	}
 	if s := strings.TrimSpace(t.NoticeContext); s != "" {
-		b.WriteString("\n\nDu hast gerade gemeldet (Details, falls nachgefragt wird):\n")
+		b.WriteString("\n\n" + l.noticeContext + "\n")
 		b.WriteString(s)
 	}
 	if s := strings.TrimSpace(t.PendingConfirmation); s != "" {
-		b.WriteString("\n\nDu wartest auf eine Bestätigung für: ")
+		b.WriteString("\n\n" + l.pendingConfirmation)
 		b.WriteString(s)
-		b.WriteString("\nWenn der Nutzer jetzt zustimmt, führe genau diese Aktion aus. Wenn er ablehnt oder etwas anderes sagt, führe sie nicht aus.")
+		b.WriteString("\n" + l.pendingRule)
 	}
 	if s := strings.TrimSpace(t.Extra); s != "" {
-		b.WriteString("\n\nZusätzlicher Kontext:\n")
+		b.WriteString("\n\n" + l.extraContext + "\n")
 		b.WriteString(s)
 	}
-	b.WriteString("\n\n## Nachricht\n")
+	b.WriteString("\n\n" + l.headerMessage + "\n")
 	b.WriteString(t.Text)
 	return b.String()
 }

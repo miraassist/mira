@@ -2,10 +2,12 @@ package prompt
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/llm"
 )
 
@@ -21,25 +23,26 @@ import (
 // from the tool list. The house in it is fictional ("Hobbyraum") so the model
 // does not take its states for real ones. An example is left out when its
 // tool is missing, so the model never sees a call to a tool it lacks.
-func Examples(tools []llm.Tool) []llm.Message {
+func Examples(l i18n.Lang, tools []llm.Tool) []llm.Message {
+	t := textsFor(l)
 	var out []llm.Message
 	if name := findTool(tools, "__GetLiveContext"); name != "" {
-		out = append(out, exchange("ex1", "Ist im Hobbyraum noch Licht an?",
-			name, map[string]any{"area": "Hobbyraum", "domain": "light"},
-			`{"result": "Live Context: An overview of the areas and the devices in this smart home:\n- names: Hobbyraum Decke\n  domain: light\n  state: 'off'\n  areas: Hobbyraum\n"}`,
-			"Nein, im Hobbyraum ist alles aus.")...)
+		out = append(out, exchange(l, "ex1", t.exampleLookupQ,
+			name, map[string]any{"area": t.exampleArea, "domain": "light"},
+			fmt.Sprintf(`{"result": "Live Context: An overview of the areas and the devices in this smart home:\n- names: %s\n  domain: light\n  state: 'off'\n  areas: %s\n"}`, t.exampleLight, t.exampleArea),
+			t.exampleLookupA)...)
 	}
 	if name := findTool(tools, "__HassTurnOn"); name != "" {
-		out = append(out, exchange("ex2", "Mach im Hobbyraum das Licht an.",
-			name, map[string]any{"area": "Hobbyraum", "domain": []string{"light"}},
-			`{"speech": {}, "response_type": "action_done", "data": {"targets": [], "success": [{"name": "Hobbyraum Decke", "type": "entity", "id": "light.hobbyraum_decke"}], "failed": []}}`,
-			"Licht im Hobbyraum ist an.")...)
+		out = append(out, exchange(l, "ex2", t.exampleTurnOnQ,
+			name, map[string]any{"area": t.exampleArea, "domain": []string{"light"}},
+			fmt.Sprintf(`{"speech": {}, "response_type": "action_done", "data": {"targets": [], "success": [{"name": %q, "type": "entity", "id": "light.hobbyraum_decke"}], "failed": []}}`, t.exampleLight),
+			t.exampleTurnOnA)...)
 	}
 	if name := findTool(tools, "memory_save"); name != "" {
-		out = append(out, exchange("ex3", "Merk dir, dass der Schornsteinfeger im März kommt.",
-			name, map[string]any{"text": "Der Schornsteinfeger kommt im März."},
-			"Gespeichert (id ex3).",
-			"Gemerkt.")...)
+		out = append(out, exchange(l, "ex3", t.exampleSaveQ,
+			name, map[string]any{"text": t.exampleSaveFact},
+			t.exampleSaveResult,
+			t.exampleSaveA)...)
 	}
 	return out
 }
@@ -48,9 +51,9 @@ func Examples(tools []llm.Tool) []llm.Message {
 // the model never reads it as the current time.
 var exampleTime = time.Date(2026, time.January, 5, 18, 30, 0, 0, time.UTC)
 
-func exchange(id, question, tool string, args map[string]any, result, answer string) []llm.Message {
+func exchange(l i18n.Lang, id, question, tool string, args map[string]any, result, answer string) []llm.Message {
 	raw, _ := json.Marshal(args)
-	user := Turn{Now: exampleTime, ChannelContext: "Kanal: Beispiel.", Text: question}
+	user := Turn{Lang: l, Now: exampleTime, ChannelContext: textsFor(l).exampleChannel, Text: question}
 	return []llm.Message{
 		{Role: llm.RoleUser, Content: user.Render()},
 		{Role: llm.RoleAssistant, ToolCalls: []llm.ToolCall{{

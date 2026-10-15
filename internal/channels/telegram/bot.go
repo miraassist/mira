@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"errors"
+	"github.com/sker65/mira/internal/i18n"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -28,6 +29,8 @@ type OffsetStore interface {
 }
 
 type Options struct {
+	// Lang is the language of the bot's own replies.
+	Lang    i18n.Lang
 	Token   string
 	APIBase string
 	// AllowedUserIDs is the allowlist. Everyone else is ignored and logged.
@@ -43,6 +46,7 @@ type Options struct {
 }
 
 type Bot struct {
+	lang    i18n.Lang
 	api     *api
 	allowed map[int64]bool
 	users   []int64
@@ -73,6 +77,7 @@ func New(opts Options) *Bot {
 		opts.HTTPClient = &http.Client{Timeout: opts.PollTimeout + 15*time.Second}
 	}
 	b := &Bot{
+		lang:    opts.Lang,
 		api:     &api{base: strings.TrimRight(opts.APIBase, "/") + "/bot" + opts.Token, http: opts.HTTPClient},
 		allowed: map[int64]bool{},
 		users:   opts.AllowedUserIDs,
@@ -150,18 +155,18 @@ func (b *Bot) dispatch(ctx context.Context, u Update) {
 	text := strings.TrimSpace(m.Text)
 	switch {
 	case text == "":
-		b.reply(ctx, m.Chat.ID, "Ich verstehe bisher nur Textnachrichten.")
+		b.reply(ctx, m.Chat.ID, b.texts().textOnly)
 		return
 	case text == "/start":
-		b.reply(ctx, m.Chat.ID, "Hallo, ich bin Mira. Schreib mir einfach, was ich tun soll. Mit /neu beginnst du ein neues Gespräch.")
+		b.reply(ctx, m.Chat.ID, b.texts().welcome)
 		return
-	case text == "/neu" || text == "/reset":
+	case text == "/neu" || text == "/new" || text == "/reset":
 		if b.reset != nil {
 			if err := b.reset(ctx, m.Chat.ID); err != nil {
 				b.log.Error("session reset failed", "chat_id", m.Chat.ID, "error", err)
 			}
 		}
-		b.reply(ctx, m.Chat.ID, "Neues Gespräch.")
+		b.reply(ctx, m.Chat.ID, b.texts().newConversation)
 		return
 	}
 
@@ -225,3 +230,21 @@ func (b *Bot) SendToAll(ctx context.Context, text string) error {
 	}
 	return errors.Join(errs...)
 }
+
+// texts are the bot's own replies; everything else comes from the model.
+type texts struct{ textOnly, welcome, newConversation string }
+
+var catalog = map[i18n.Lang]texts{
+	i18n.DE: {
+		textOnly:        "Ich verstehe bisher nur Textnachrichten.",
+		welcome:         "Hallo, ich bin Mira. Schreib mir einfach, was ich tun soll. Mit /neu beginnst du ein neues Gespräch.",
+		newConversation: "Neues Gespräch.",
+	},
+	i18n.EN: {
+		textOnly:        "So far I only understand text messages.",
+		welcome:         "Hi, I'm Mira. Just write what I should do. /new starts a new conversation.",
+		newConversation: "New conversation.",
+	},
+}
+
+func (b *Bot) texts() texts { return i18n.Pick(catalog, b.lang) }

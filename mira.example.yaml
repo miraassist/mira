@@ -31,7 +31,7 @@ store:
   path: "/var/lib/mira/mira.db"
 
 prompt:
-  language: de
+  language: de   # de or en: prompts, notices and replies; Mira still answers in the language spoken to her
   # Static text appended to the system prompt. Part of the cached prefix,
   # so nothing in here may change between requests.
   persona: ""

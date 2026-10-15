@@ -10,6 +10,7 @@ import (
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/ha/structure"
 	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/llm"
 	"github.com/sker65/mira/internal/mcp"
 	"github.com/sker65/mira/internal/telemetry"
@@ -103,7 +104,7 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	if exposeErr != nil {
 		fmt.Printf("  ! exposure list not readable (%v); falling back to entity options\n", exposeErr)
 	}
-	cache := structure.NewCache(structure.Options{Source: c, Logger: tel.Logger})
+	cache := structure.NewCache(structure.Options{Lang: i18n.Of(cfg.Prompt.Language), Source: c, Logger: tel.Logger})
 	if _, err := cache.Rebuild(ctx); err != nil {
 		report("structure", err, "")
 		return

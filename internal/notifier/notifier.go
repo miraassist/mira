@@ -25,6 +25,7 @@ import (
 
 	"github.com/sker65/mira/internal/config"
 	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
 	"github.com/sker65/mira/internal/telemetry"
 )
@@ -54,6 +55,7 @@ type Options struct {
 }
 
 type Notifier struct {
+	lang     i18n.Lang
 	cfg      config.Notifier
 	sats     map[string]string
 	persons  map[string]config.Person
@@ -87,6 +89,7 @@ func New(opts Options) *Notifier {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	n := &Notifier{
+		lang:     i18n.Of(opts.Config.Prompt.Language),
 		cfg:      opts.Config.Notifier,
 		sats:     opts.Config.Satellites,
 		persons:  opts.Config.Persons,
@@ -378,25 +381,39 @@ func (n *Notifier) inQuietHours(t time.Time) bool {
 	return m >= from || m < to // wraps midnight
 }
 
+// texts are the words around the notices of an announcement.
+type texts struct {
+	goodMorning, intro, also, and string // intro: %s = count word
+	counts                        []string
+}
+
+var catalog = map[i18n.Lang]texts{
+	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Hinweise. ", also: " Außerdem: ", and: " Und: ",
+		counts: []string{"null", "einen", "zwei", "drei", "vier", "fünf"}},
+	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s notices. ", also: " Also: ", and: " And: ",
+		counts: []string{"zero", "one", "two", "three", "four", "five"}},
+}
+
 // Compose turns notices into one spoken announcement.
-func Compose(notices []store.Notice, now time.Time, quietEnd config.ClockTime) string {
+func Compose(l i18n.Lang, notices []store.Notice, now time.Time, quietEnd config.ClockTime) string {
+	t := i18n.Pick(catalog, l)
 	var b strings.Builder
 	h := now.Hour()
 	if h*60+now.Minute() >= quietEnd.MinutesOfDay() && h < 11 {
-		b.WriteString("Guten Morgen. ")
+		b.WriteString(t.goodMorning)
 	}
 	if len(notices) == 1 {
 		b.WriteString(sentence(notices[0].Spoken))
 		return b.String()
 	}
-	fmt.Fprintf(&b, "Ich habe %s Hinweise. ", countWord(len(notices)))
+	fmt.Fprintf(&b, t.intro, countWord(t, len(notices)))
 	for i, nt := range notices {
 		switch {
 		case i == 0:
 		case i == len(notices)-1:
-			b.WriteString(" Und: ")
+			b.WriteString(t.and)
 		default:
-			b.WriteString(" Außerdem: ")
+			b.WriteString(t.also)
 		}
 		b.WriteString(sentence(nt.Spoken))
 	}
@@ -411,17 +428,16 @@ func sentence(s string) string {
 	return s
 }
 
-func countWord(n int) string {
-	words := []string{"null", "einen", "zwei", "drei", "vier", "fünf"}
-	if n < len(words) {
-		return words[n]
+func countWord(t texts, n int) string {
+	if n < len(t.counts) {
+		return t.counts[n]
 	}
 	return fmt.Sprint(n)
 }
 
 func (n *Notifier) announce(ctx context.Context, area string, notices []store.Notice) error {
 	sat := n.sats[area]
-	text := Compose(notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	text := Compose(n.lang, notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
 	method, err := n.deliver(ctx, sat, text)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)

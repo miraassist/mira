@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/sker65/mira/internal/i18n"
 	"os"
 	"slices"
 	"sort"
@@ -89,7 +90,9 @@ type Prompt struct {
 	// Persona is appended to the built-in layer 1 text. It is part of the
 	// cached prefix, so it must not contain anything volatile.
 	Persona string `yaml:"persona"`
-	// Language is the language the agent answers in by default.
+	// Language is "de" or "en": the language of the prompt, of the notices
+	// and of everything Mira writes on her own. She still answers in the
+	// language she is spoken to in.
 	Language string `yaml:"language"`
 }
 
@@ -431,6 +434,9 @@ func (c Config) Validate() error {
 
 	if c.Server.Listen == "" {
 		add("server.listen must not be empty")
+	}
+	if _, err := i18n.Parse(c.Prompt.Language); err != nil {
+		add("prompt.language: %v", err)
 	}
 	if c.LLM.BaseURL == "" {
 		add("llm.base_url must not be empty")

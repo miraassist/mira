@@ -21,6 +21,7 @@ import (
 	"github.com/sker65/mira/internal/ha/assistprompt"
 	"github.com/sker65/mira/internal/ha/structure"
 	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/llm"
 	"github.com/sker65/mira/internal/mcp"
 	"github.com/sker65/mira/internal/notifier"
@@ -134,6 +135,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 
 	if opts.withTelegram && cfg.Telegram.Enabled {
 		a.telegram = telegram.New(telegram.Options{
+			Lang:  i18n.Of(cfg.Prompt.Language),
 			Token: cfg.Telegram.Token, APIBase: cfg.Telegram.APIBaseURL,
 			AllowedUserIDs: cfg.Telegram.AllowedUserIDs, PollTimeout: cfg.Telegram.PollTimeout.Duration(),
 			Offsets: a.store, OffsetKey: store.KeyTelegramOffset, Logger: a.log,
@@ -164,14 +166,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if a.structure != nil {
 		snapshot = a.structure.Snapshot
 	}
-	registry := tools.NewRegistry(a.mcp, tools.Internal(a.store, sender)...)
+	registry := tools.NewRegistry(a.mcp, tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender)...)
 	var assistText func() string
 	if a.assist != nil {
 		assistText = a.assist.Text
 	}
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Store: a.store, Tools: registry,
-		Guard:     tools.NewGuard(cfg.Security, a.store, snapshot),
+		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
 	})
 	if cfg.LLM.WarmupOnPrefixChange {
@@ -194,6 +196,7 @@ func (a *app) startHA(ctx context.Context) error {
 		return err
 	}
 	a.structure = structure.NewCache(structure.Options{
+		Lang:   i18n.Of(a.cfg.Prompt.Language),
 		Source: a.ha, Subscriber: a.ha,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
@@ -397,6 +400,7 @@ func (a *app) startProactive(parent context.Context) {
 	a.proactiveCancel = cancel
 
 	w := watchers.New(watchers.Options{
+		Lang:     i18n.Of(cfg.Prompt.Language),
 		Watchers: cfg.Watchers, MinImportance: cfg.Notifier.MinImportance,
 		Store: a.store, Assessor: a.engine, Logger: a.log,
 	})
@@ -649,6 +653,7 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 
 func (a *app) profileCompactor() *profile.Compactor {
 	return profile.New(profile.Options{
+		Lang:  i18n.Of(a.cfg.Prompt.Language),
 		Store: a.store, Assessor: a.engine, Schedule: a.cfg.Memory.ProfileSchedule,
 		MaxChars: a.cfg.Memory.MaxProfileChars, Logger: a.log,
 		OnChange: func() { a.warmup("profile_changed") },

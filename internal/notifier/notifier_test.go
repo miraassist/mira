@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"github.com/sker65/mira/internal/i18n"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -450,11 +451,11 @@ func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
 
 func TestCompose(t *testing.T) {
 	one := []store.Notice{{Spoken: "Die Waschmaschine ist fertig"}}
-	if got := Compose(one, at("15:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Die Waschmaschine ist fertig." {
+	if got := Compose(i18n.DE, one, at("15:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Die Waschmaschine ist fertig." {
 		t.Errorf("got %q", got)
 	}
 	two := []store.Notice{{Spoken: "A."}, {Spoken: "B!"}}
-	if got := Compose(two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Hinweise. A. Und: B!" {
+	if got := Compose(i18n.DE, two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Hinweise. A. Und: B!" {
 		t.Errorf("got %q", got)
 	}
 }

@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"github.com/sker65/mira/internal/i18n"
 	"testing"
 
 	"github.com/sker65/mira/internal/llm"
@@ -12,7 +13,7 @@ func tool(name string) llm.Tool {
 
 func TestExamplesFollowTheToolList(t *testing.T) {
 	all := []llm.Tool{tool("memory_save"), tool("ha__homeassistant__GetLiveContext"), tool("ha__intent__HassTurnOn")}
-	ex := Examples(all)
+	ex := Examples(i18n.DE, all)
 	if len(ex) != 12 {
 		t.Fatalf("got %d messages, want three exchanges of four", len(ex))
 	}
@@ -23,19 +24,19 @@ func TestExamplesFollowTheToolList(t *testing.T) {
 		t.Error("tool result does not answer the call")
 	}
 
-	readOnly := Examples([]llm.Tool{tool("ha__homeassistant__GetLiveContext")})
+	readOnly := Examples(i18n.DE, []llm.Tool{tool("ha__homeassistant__GetLiveContext")})
 	if len(readOnly) != 4 {
 		t.Fatalf("background jobs must only see the lookup example, got %d messages", len(readOnly))
 	}
-	if len(Examples(nil)) != 0 {
+	if len(Examples(i18n.DE, nil)) != 0 {
 		t.Error("examples without tools")
 	}
 }
 
 func TestExamplesAreStableAndHashed(t *testing.T) {
 	tools := []llm.Tool{tool("ha__homeassistant__GetLiveContext")}
-	a := Prefix{Agent: "a", Examples: Examples(tools)}
-	b := Prefix{Agent: "a", Examples: Examples(tools)}
+	a := Prefix{Agent: "a", Examples: Examples(i18n.DE, tools)}
+	b := Prefix{Agent: "a", Examples: Examples(i18n.DE, tools)}
 	if a.Hash() != b.Hash() {
 		t.Error("the same examples hash differently")
 	}

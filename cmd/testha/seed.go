@@ -43,7 +43,7 @@ var house = map[string]struct{ area, name string }{
 	"cover.garage_door":                     {"Garage", "Garagentor"},
 	"sensor.outside_temperature":            {"", "Außentemperatur"},
 	"sensor.outside_humidity":               {"", "Luftfeuchtigkeit außen"},
-	"weather.forecast_mira_test":           {"", "Wetter"},
+	"weather.forecast_mira_test":            {"", "Wetter"},
 	"todo.einkaufsliste":                    {"", ""},
 }
 

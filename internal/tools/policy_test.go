@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"github.com/sker65/mira/internal/i18n"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func newGuard() (*Guard, *memConfirmations) {
 	sec := config.Default().Security
 	sec.ConfirmEntities = []string{"cover.garage"}
 	mem := &memConfirmations{}
-	return NewGuard(sec, mem, house), mem
+	return NewGuard(i18n.DE, sec, mem, house), mem
 }
 
 var (
@@ -79,7 +80,7 @@ func TestCriticalDetection(t *testing.T) {
 func TestConfirmTools(t *testing.T) {
 	sec := config.Default().Security
 	sec.ConfirmTools = []string{"ha__HassTurnOff"}
-	g := NewGuard(sec, &memConfirmations{}, house)
+	g := NewGuard(i18n.DE, sec, &memConfirmations{}, house)
 	if v := g.Check(context.Background(), &TurnState{SessionKey: "s"}, turnOff, args(`{"name":"Küchenlicht"}`)); v.Outcome != NeedsConfirmation {
 		t.Fatalf("configured tool not gated: %+v", v)
 	}

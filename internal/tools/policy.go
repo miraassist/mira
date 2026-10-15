@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/ha/structure"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/prompt"
 	"github.com/sker65/mira/internal/store"
 )
@@ -57,6 +59,7 @@ type ConfirmationStore interface {
 
 // Guard enforces the security rules on every tool call.
 type Guard struct {
+	texts     texts
 	domains   map[string]bool
 	entities  map[string]bool
 	tools     map[string]bool
@@ -65,8 +68,9 @@ type Guard struct {
 	structure func() structure.Snapshot
 }
 
-func NewGuard(sec config.Security, st ConfirmationStore, snapshot func() structure.Snapshot) *Guard {
+func NewGuard(l i18n.Lang, sec config.Security, st ConfirmationStore, snapshot func() structure.Snapshot) *Guard {
 	g := &Guard{
+		texts:     textsFor(l),
 		domains:   map[string]bool{},
 		entities:  map[string]bool{},
 		tools:     map[string]bool{},
@@ -122,7 +126,7 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 
 	if ts.Channel == config.ChannelBackground && !spec.ReadOnly {
 		return Verdict{Outcome: Deny, Reason: "background_write",
-			Message: "Abgelehnt: Hintergrundjobs dürfen nur lesende Werkzeuge verwenden."}
+			Message: g.texts.denyBackground}
 	}
 
 	critical, targets := g.critical(spec, args)
@@ -132,8 +136,7 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 
 	if ts.webContentSeen {
 		return Verdict{Outcome: Deny, Reason: "after_web_content", Targets: targets,
-			Message: "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. " +
-				"Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll."}
+			Message: g.texts.denyAfterWeb}
 	}
 
 	if ts.Pending != nil && !ts.pendingUsed && Affirmative(ts.UserText) && g.matches(*ts.Pending, name, args, targets) {
@@ -149,14 +152,12 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 		}, g.ttl)
 		if err != nil {
 			return Verdict{Outcome: Deny, Reason: "confirmation_store_failed", Targets: targets,
-				Message: "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt."}
+				Message: g.texts.denyStoreFailed}
 		}
 	}
 	ts.confirmationRequested = true
 	return Verdict{Outcome: NeedsConfirmation, Reason: "critical", Targets: targets,
-		Message: "NICHT AUSGEFÜHRT – Bestätigung nötig. Die Aktion (" + summary + ") ist kritisch. " +
-			"Frage den Nutzer jetzt kurz, ob du sie ausführen sollst, und beende deine Antwort mit dieser Frage. " +
-			"Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf."}
+		Message: fmt.Sprintf(g.texts.needsConfirmation, summary)}
 }
 
 // Observe records that a call ran. Reading from a web-content tool locks

@@ -45,7 +45,13 @@ Requirements:
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the watchers, rooms
 and persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`
 once. Changes are stored in the database on top of `mira.yaml` (the file is
-never rewritten; each section can be reset to it) and apply at once.
+never rewritten; each section can be reset to it) and apply at once. The page
+is in German or English, following the browser, with a switch in its header.
+
+Languages: `prompt.language` is `de` or `en`. It sets the language of the
+prompt, of the notices and of everything Mira writes on her own; she still
+answers in the language she is spoken to in. The English prompt is written
+but not yet tuned against a model (see `internal/prompt/testdata/prefix_voice_en.txt`).
 
 Security: locks, alarm panels and other configured entities only run after
 the user confirms in the next turn. After a turn has read web content,

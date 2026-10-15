@@ -147,9 +147,6 @@ func SessionKey(ch config.Channel, conversationID string) string {
 	return string(ch) + ":" + conversationID
 }
 
-// fallbackText is said when the model produced nothing usable.
-const fallbackText = "Entschuldigung, darauf habe ich gerade keine Antwort."
-
 // Handle runs one turn.
 func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if strings.TrimSpace(req.Text) == "" {
@@ -253,12 +250,12 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 				// model one more chance. Neither message reaches the history.
 				nudged = true
 				e.log.Warn("answer without tool call, asking again", "session", key)
-				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: unbackedNudge})
+				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: e.texts().unbackedNudge})
 				continue
 			}
 			if claimsAction(msg.Content) {
 				e.log.Warn("answer still claims an action without tool call", "session", key)
-				msg.Content = notDoneText
+				msg.Content = e.texts().notDone
 			}
 		}
 		if len(msg.ToolCalls) == 0 || round >= maxRounds {
@@ -280,7 +277,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	}
 
 	if strings.TrimSpace(final.Content) == "" {
-		final.Content = fallbackText
+		final.Content = e.texts().fallback
 	}
 	added = append(added, final)
 	if err := e.store.AppendMessages(ctx, key, toStore(added)...); err != nil {
@@ -342,7 +339,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	spec, ok := e.tools.Lookup(name)
 	if !ok {
 		record("unknown")
-		return "Fehler: Das Werkzeug " + name + " gibt es nicht."
+		return e.texts().errorPrefix + fmt.Sprintf(e.texts().unknownTool, name)
 	}
 	args := json.RawMessage(strings.TrimSpace(call.Function.Arguments))
 	if len(args) == 0 {
@@ -350,7 +347,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	}
 	if !json.Valid(args) {
 		record("bad_arguments")
-		return "Fehler: Die Argumente sind kein gültiges JSON."
+		return e.texts().errorPrefix + e.texts().invalidJSONArgs
 	}
 
 	verdict := e.guard.Check(ctx, ts, spec, args)
@@ -371,11 +368,11 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	case err != nil:
 		record("error")
 		span.SetStatus(codes.Error, err.Error())
-		return "Fehler: " + err.Error()
+		return e.texts().errorPrefix + err.Error()
 	case isError:
 		record("tool_error")
-		if !strings.HasPrefix(text, "Fehler") {
-			text = "Fehler: " + text
+		if prefix := e.texts().errorPrefix; !strings.HasPrefix(text, strings.TrimSpace(prefix)) {
+			text = prefix + text
 		}
 		return text
 	}

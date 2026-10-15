@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -27,12 +28,13 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 		return prompt.Prefix{}, err
 	}
 	return prompt.Prefix{
-		Agent:     prompt.AgentLayer(e.cfg.Prompt.Persona),
-		Style:     prompt.StyleFor(ch),
+		Lang:      e.lang(),
+		Agent:     prompt.AgentLayer(e.lang(), e.cfg.Prompt.Persona),
+		Style:     prompt.StyleFor(e.lang(), ch),
 		Tools:     toolList,
 		Structure: e.structureText(),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
-		Examples:  prompt.Examples(toolList),
+		Examples:  prompt.Examples(e.lang(), toolList),
 	}, nil
 }
 
@@ -58,6 +60,7 @@ func clipProfile(p string, max int) string {
 // channelContext is the layer 7 line that tells the model where the request
 // came from and how to read room references.
 func (e *Engine) channelContext(req Request, sess store.Session, snap structure.Snapshot) string {
+	t := e.texts()
 	switch req.Channel {
 	case config.ChannelVoice:
 		if sess.AreaID != "" {
@@ -65,13 +68,13 @@ func (e *Engine) channelContext(req Request, sess store.Session, snap structure.
 			if name == "" {
 				name = sess.AreaID
 			}
-			return "Kanal: Sprache, Satellit im Bereich " + name + ". Ohne Raumangabe ist der Bereich " + name + " gemeint."
+			return fmt.Sprintf(t.voiceInArea, name)
 		}
-		return "Kanal: Sprache. Der Raum des Satelliten ist unbekannt; bei Raumbezug nachfragen."
+		return t.voiceNoArea
 	case config.ChannelTelegram:
-		return "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen."
+		return t.telegram
 	default:
-		return "Kanal: Hintergrundjob, kein Mensch im Gespräch."
+		return t.background
 	}
 }
 

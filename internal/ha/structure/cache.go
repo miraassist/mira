@@ -2,6 +2,7 @@ package structure
 
 import (
 	"context"
+	"github.com/sker65/mira/internal/i18n"
 	"log/slog"
 	"sync"
 	"time"
@@ -32,6 +33,8 @@ type Subscriber interface {
 }
 
 type Options struct {
+	// Lang is the language of the block's labels.
+	Lang       i18n.Lang
 	Source     Source
 	Subscriber Subscriber
 	// Debounce collapses a burst of registry updates — renaming ten entities
@@ -46,6 +49,7 @@ type Options struct {
 
 // Cache holds the current structure snapshot and keeps it up to date.
 type Cache struct {
+	lang     i18n.Lang
 	src      Source
 	sub      Subscriber
 	debounce time.Duration
@@ -67,6 +71,7 @@ func NewCache(opts Options) *Cache {
 		opts.Logger = slog.Default()
 	}
 	return &Cache{
+		lang:     opts.Lang,
 		src:      opts.Source,
 		sub:      opts.Subscriber,
 		debounce: opts.Debounce,
@@ -107,7 +112,7 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 		exposed = nil
 	}
 
-	snap := Build(Registry{Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})
+	snap := Build(Registry{Lang: c.lang, Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})
 
 	c.mu.Lock()
 	changed := c.snap.Block != snap.Block

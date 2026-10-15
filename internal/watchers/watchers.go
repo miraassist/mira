@@ -21,7 +21,7 @@ import (
 
 	"github.com/sker65/mira/internal/config"
 	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/prompt"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
 )
 
@@ -36,6 +36,8 @@ type Subscriber interface {
 }
 
 type Options struct {
+	// Lang is the language of the instructions and so of the notices.
+	Lang          i18n.Lang
 	Watchers      []config.Watcher
 	MinImportance int
 	Store         *store.Store
@@ -236,31 +238,26 @@ func (m *Manager) assess(ctx context.Context, w config.Watcher, e Event) (Assess
 }
 
 func (m *Manager) instruction(w config.Watcher, e Event) string {
+	t := m.texts()
 	var b strings.Builder
-	b.WriteString("Ein Ereignis im Haus ist eingetreten. Bewerte, wie wichtig es für den Haushalt ist, und formuliere eine Meldung.\n\n")
+	b.WriteString(t.event)
 	if w.Description != "" {
-		fmt.Fprintf(&b, "Bedeutung: %s\n", w.Description)
+		fmt.Fprintf(&b, t.meaning, w.Description)
 	}
 	name := e.FriendlyName
 	if name == "" {
 		name = e.EntityID
 	}
-	fmt.Fprintf(&b, "Entität: %s (%s)\n", name, e.EntityID)
+	fmt.Fprintf(&b, t.entity, name, e.EntityID)
 	if e.From != "" {
-		fmt.Fprintf(&b, "Zustand vorher: %s\n", e.From)
+		fmt.Fprintf(&b, t.stateBefore, e.From)
 	}
-	fmt.Fprintf(&b, "Zustand jetzt: %s\n", e.To)
-	fmt.Fprintf(&b, "Zeitpunkt: %s\n", prompt.FormatTime(m.opts.Clock().In(m.opts.Location)))
+	fmt.Fprintf(&b, t.stateNow, e.To)
+	fmt.Fprintf(&b, t.timeLabel, i18n.FormatTime(m.opts.Lang, m.opts.Clock().In(m.opts.Location)))
 	if attrs := formatAttributes(e.Attributes); attrs != "" {
-		fmt.Fprintf(&b, "Attribute: %s\n", attrs)
+		fmt.Fprintf(&b, t.attributes, attrs)
 	}
-	b.WriteString(`
-Antworte nur mit einem JSON-Objekt:
-- importance: 0 = nicht erwähnenswert, 1 = nebenbei erwähnen, 2 = wichtig, sollte heute jemand ansehen, 3 = dringend, Gefahr oder Schaden droht.
-  Beispiele: Waschmaschine fertig = 1. Wechselrichter- oder Heizungsstörung = 2. Wassermelder, Rauchmelder, offene Haustür nachts = 3.
-- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich und ruhig, den Nutzer mit "du" ansprechen, ohne Markdown, Messwerte als Ziffern mit deutschem Komma, ohne Begrüßung
-- details: die Langfassung für Nachfragen, mit den konkreten Werten und dem Zeitpunkt
-- expires_in_hours: wie lange die Meldung relevant bleibt`)
+	b.WriteString(t.eventRules)
 	return b.String()
 }
 

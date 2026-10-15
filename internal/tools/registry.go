@@ -164,5 +164,5 @@ func clip(s string) string {
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
-	return s[:cut] + "\n[… gekürzt]"
+	return s[:cut] + "\n[…]"
 }

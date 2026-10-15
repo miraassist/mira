@@ -21,6 +21,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 sys
 header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
 header h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
 header h1 img { width: 32px; height: 32px; }
+#lang { margin-left: auto; width: auto; }
 nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: 0; padding: 6px 10px; border-radius: 6px; color: var(--muted); cursor: pointer; font: inherit; }
 nav button.active { background: var(--badge); color: var(--text); }
@@ -62,21 +63,269 @@ pre { white-space: pre-wrap; margin: 0; font: inherit; }
 <header>
   <h1><img src="/ui/icon.png" alt="">Mira</h1>
   <nav id="nav"></nav>
+  <select id="lang" aria-label="Language" onchange="setLang(this.value)"><option value="de">Deutsch</option><option value="en">English</option></select>
 </header>
 <main id="main"></main>
 <datalist id="entities"></datalist>
 
 <script>
 "use strict";
-const TABS = [
-  ["notices", "Meldungen"],
-  ["notifier", "Benachrichtigung"],
-  ["watchers", "Watcher"],
-  ["rooms", "Räume"],
-  ["persons", "Personen"],
-  ["memory", "Gedächtnis"],
-];
+const I18N = {
+ "de": {
+  "tab_notices": "Meldungen",
+  "tab_notifier": "Benachrichtigung",
+  "tab_watchers": "Watcher",
+  "tab_rooms": "Räume",
+  "tab_persons": "Personen",
+  "tab_memory": "Gedächtnis",
+  "token_wrong": "Token fehlt oder ist falsch.",
+  "token_ask": "API-Token von Mira (MIRA_API_TOKEN):",
+  "saved": "Gespeichert. Notifier und Watcher laufen mit der neuen Einstellung.",
+  "reset_confirm": "Die Einstellungen aus mira.yaml wiederherstellen?",
+  "reset_done": "Zurückgesetzt auf mira.yaml.",
+  "badge_ha": "in Home Assistant verwaltet",
+  "badge_ui": "in der UI geändert",
+  "reset_button": "Zurück auf mira.yaml",
+  "badge_file": "aus mira.yaml",
+  "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.",
+  "remove": "Entfernen",
+  "entity_search": "Entity suchen und auswählen …",
+  "not_entity": "„{id}“ ist keine Entity-ID.",
+  "notices_title": "Offene und zugestellte Meldungen",
+  "loading": "Lädt …",
+  "no_notices": "Keine offenen Meldungen.",
+  "since": "Seit",
+  "importance": "Wichtigkeit",
+  "notice": "Meldung",
+  "status": "Status",
+  "importance_short": [
+   "–",
+   "nebenbei",
+   "wichtig",
+   "dringend"
+  ],
+  "confidential": "vertraulich",
+  "waiting": "wartet",
+  "delivered": "zugestellt",
+  "done": "Erledigt",
+  "when_announce": "Wann Mira ansagt",
+  "quiet_from": "Ruhezeit von",
+  "quiet_to": "Ruhezeit bis",
+  "cooldown": "Pause pro Raum",
+  "max_items": "Höchstens Meldungen pro Ansage",
+  "min_importance": "Mindest-Wichtigkeit",
+  "min_levels": [
+   "0 – alles",
+   "1 – nebenbei",
+   "2 – wichtig",
+   "3 – dringend"
+  ],
+  "follow_up": "Nachfrage-Fenster",
+  "delivery": "Zustellung am Satelliten",
+  "tts_entity": "TTS-Entity (nur für tts)",
+  "confidential_title": "Vertrauliches",
+  "conf_voice": "Vertrauliches vorlesen",
+  "conf_never": "nie – immer privat",
+  "conf_alone": "nur wenn der Empfänger allein zu Hause ist",
+  "conf_always": "immer",
+  "private_via": "Privat zustellen über",
+  "companion": "Companion-App",
+  "escalation": "Eskalation",
+  "from_importance": "Ab Wichtigkeit",
+  "unheard_after": "Ungehört ab Uhrzeit",
+  "grace": "Karenz für neue Meldungen",
+  "escalation_hint": "Wichtige Meldungen, die bis zu dieser Uhrzeit kein Satellit angesagt hat, gehen privat raus.",
+  "urgent": "Dringend",
+  "urgent_from": "Dringend ab Wichtigkeit",
+  "off": "aus",
+  "urgent_announce": "Auf allen Satelliten ansagen",
+  "urgent_hint": "Dringende Meldungen (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.",
+  "save": "Speichern",
+  "watchers_hint": "Ein Watcher meldet sich, wenn eine Entity in einen Zustand wechselt (Trigger) oder liest regelmäßig einen Feed. Das Modell formuliert die Meldung und schätzt die Wichtigkeit, außer du legst sie fest.",
+  "add_trigger": "+ Trigger-Watcher",
+  "add_feed": "+ Feed-Watcher",
+  "discard": "Verwerfen",
+  "name": "Name",
+  "feed_url": "Feed-URL",
+  "schedule": "Zeitplan (cron)",
+  "entities": "Entities",
+  "to_state": "Neuer Zustand ist",
+  "to_placeholder": "z. B. on, fault – leer: jeder",
+  "not_to_state": "Neuer Zustand ist nicht",
+  "not_to_placeholder": "z. B. normal, unavailable",
+  "meaning": "Bedeutung",
+  "meaning_placeholder": "Was das Ereignis bedeutet oder worauf der Nutzer achtet",
+  "model_rates": "vom Modell bewerten",
+  "levels": [
+   "0 – ignorieren",
+   "1 – nebenbei",
+   "2 – wichtig",
+   "3 – dringend"
+  ],
+  "for": "Für",
+  "household": "alle im Haushalt",
+  "confidential_label": "Vertraulich",
+  "no": "nein",
+  "yes": "ja",
+  "rooms_hint": "Welcher Satellit in welchem Bereich spricht und welcher Bewegungsmelder dort eine Ansage auslöst. Der Bereich ist die HA-Area-ID (z. B. wohnzimmer).",
+  "area": "Bereich",
+  "satellite": "Satellit",
+  "motion": "Bewegungsmelder",
+  "announcements": "Ansagen",
+  "add_room": "+ Raum",
+  "persons_hint": "Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
+  "key": "Kürzel",
+  "person_entity": "Person-Entity",
+  "telegram_id": "Telegram-ID",
+  "push": "Push (notify.…)",
+  "add_person": "+ Person",
+  "profile": "Profil",
+  "facts": "Gespeicherte Fakten",
+  "no_profile": "Noch kein Profil.",
+  "last_compacted": "Zuletzt verdichtet: ",
+  "profile_hint": "Das Profil wird nachts aus den Fakten verdichtet und steht in jedem Prompt.",
+  "compact_now": "Jetzt verdichten",
+  "no_facts": "Keine Fakten.",
+  "forget": "Vergessen",
+  "forget_confirm": "Diesen Fakt vergessen?",
+  "compacting": "Verdichtet … (kann eine Minute dauern)",
+  "profile_updated": "Profil aktualisiert.",
+  "profile_unchanged": "Profil unverändert."
+ },
+ "en": {
+  "tab_notices": "Notices",
+  "tab_notifier": "Notifications",
+  "tab_watchers": "Watchers",
+  "tab_rooms": "Rooms",
+  "tab_persons": "People",
+  "tab_memory": "Memory",
+  "token_wrong": "Token missing or wrong.",
+  "token_ask": "Mira API token (MIRA_API_TOKEN):",
+  "saved": "Saved. Notifier and watchers run with the new settings.",
+  "reset_confirm": "Restore the settings from mira.yaml?",
+  "reset_done": "Reset to mira.yaml.",
+  "badge_ha": "managed in Home Assistant",
+  "badge_ui": "changed in the UI",
+  "reset_button": "Back to mira.yaml",
+  "badge_file": "from mira.yaml",
+  "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. There every watcher, room and person has its own entry with pickers for entities and areas.",
+  "remove": "Remove",
+  "entity_search": "Search and pick an entity …",
+  "not_entity": "“{id}” is not an entity ID.",
+  "notices_title": "Open and delivered notices",
+  "loading": "Loading …",
+  "no_notices": "No open notices.",
+  "since": "Since",
+  "importance": "Importance",
+  "notice": "Notice",
+  "status": "Status",
+  "importance_short": [
+   "–",
+   "in passing",
+   "important",
+   "urgent"
+  ],
+  "confidential": "confidential",
+  "waiting": "waiting",
+  "delivered": "delivered",
+  "done": "Done",
+  "when_announce": "When Mira speaks up",
+  "quiet_from": "Quiet hours from",
+  "quiet_to": "Quiet hours until",
+  "cooldown": "Pause per room",
+  "max_items": "Max notices per announcement",
+  "min_importance": "Minimum importance",
+  "min_levels": [
+   "0 – everything",
+   "1 – in passing",
+   "2 – important",
+   "3 – urgent"
+  ],
+  "follow_up": "Follow-up window",
+  "delivery": "Delivery on the satellite",
+  "tts_entity": "TTS entity (only for tts)",
+  "confidential_title": "Confidential notices",
+  "conf_voice": "Read confidential aloud",
+  "conf_never": "never – always private",
+  "conf_alone": "only when the recipient is home alone",
+  "conf_always": "always",
+  "private_via": "Deliver privately via",
+  "companion": "Companion app",
+  "escalation": "Escalation",
+  "from_importance": "From importance",
+  "unheard_after": "Unheard after",
+  "grace": "Grace for new notices",
+  "escalation_hint": "Important notices no satellite has announced by this time go out privately.",
+  "urgent": "Urgent",
+  "urgent_from": "Urgent from importance",
+  "off": "off",
+  "urgent_announce": "Announce on all satellites",
+  "urgent_hint": "Urgent notices (water leak, smoke) go out at once, even during quiet hours.",
+  "save": "Save",
+  "watchers_hint": "A watcher speaks up when an entity changes to a state (trigger), or reads a feed regularly. The model words the notice and rates its importance, unless you set it.",
+  "add_trigger": "+ Trigger watcher",
+  "add_feed": "+ Feed watcher",
+  "discard": "Discard",
+  "name": "Name",
+  "feed_url": "Feed URL",
+  "schedule": "Schedule (cron)",
+  "entities": "Entities",
+  "to_state": "New state is",
+  "to_placeholder": "e.g. on, fault – empty: any",
+  "not_to_state": "New state is not",
+  "not_to_placeholder": "e.g. normal, unavailable",
+  "meaning": "Meaning",
+  "meaning_placeholder": "What the event means or what the user looks out for",
+  "model_rates": "rated by the model",
+  "levels": [
+   "0 – ignore",
+   "1 – in passing",
+   "2 – important",
+   "3 – urgent"
+  ],
+  "for": "For",
+  "household": "everyone in the household",
+  "confidential_label": "Confidential",
+  "no": "no",
+  "yes": "yes",
+  "rooms_hint": "Which satellite speaks in which area, and which motion sensor starts an announcement there. The area is the HA area ID (e.g. living_room).",
+  "area": "Area",
+  "satellite": "Satellite",
+  "motion": "Motion sensor",
+  "announcements": "Announcements",
+  "add_room": "+ Room",
+  "persons_hint": "People receive personal notices. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
+  "key": "Key",
+  "person_entity": "Person entity",
+  "telegram_id": "Telegram ID",
+  "push": "Push (notify.…)",
+  "add_person": "+ Person",
+  "profile": "Profile",
+  "facts": "Saved facts",
+  "no_profile": "No profile yet.",
+  "last_compacted": "Last compacted: ",
+  "profile_hint": "The profile is condensed from the facts at night and is part of every prompt.",
+  "compact_now": "Compact now",
+  "no_facts": "No facts.",
+  "forget": "Forget",
+  "forget_confirm": "Forget this fact?",
+  "compacting": "Compacting … (may take a minute)",
+  "profile_updated": "Profile updated.",
+  "profile_unchanged": "Profile unchanged."
+ }
+};
+const TABS = ["notices", "notifier", "watchers", "rooms", "persons", "memory"];
 let token = localStorage.getItem("mira.token") || "";
+// The page's language: the visitor's choice, else the browser's.
+let lang = localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
+if (!I18N[lang]) lang = "en";
+let T = I18N[lang];
+document.documentElement.lang = lang;
+function setLang(l) {
+  lang = l; T = I18N[l]; document.documentElement.lang = l;
+  try { localStorage.setItem("mira.lang", l); } catch (e) {}
+  render();
+}
 let config = {};
 let tab = location.hash.slice(1) || "notices";
 let entityNames = {};
@@ -93,13 +342,13 @@ async function api(method, path, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { askToken(); throw new Error("Token fehlt oder ist falsch."); }
+  if (res.status === 401) { askToken(); throw new Error(T.token_wrong); }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
 
 function askToken() {
-  const t = prompt("API-Token von Mira (MIRA_API_TOKEN):", "");
+  const t = prompt(T.token_ask, "");
   if (t) { token = t.trim(); localStorage.setItem("mira.token", token); load(); }
 }
 
@@ -115,16 +364,16 @@ function message(text, ok) {
 async function save(sections) {
   try {
     config = await api("PUT", "/v1/ui/config", sections);
-    message("Gespeichert. Notifier und Watcher laufen mit der neuen Einstellung.", true);
+    message(T.saved, true);
     render();
   } catch (e) { message(e.message, false); }
 }
 
 async function reset(name) {
-  if (!confirm("Die Einstellungen aus mira.yaml wiederherstellen?")) return;
+  if (!confirm(T.reset_confirm)) return;
   try {
     config = await api("DELETE", "/v1/ui/config/" + name);
-    message("Zurückgesetzt auf mira.yaml.", true);
+    message(T.reset_done, true);
     render();
   } catch (e) { message(e.message, false); }
 }
@@ -133,10 +382,10 @@ function source(name) {
   const s = config[name];
   if (!s) return "";
   if (managed(name) && name !== "notifier")
-    return `<span class="badge ui">in Home Assistant verwaltet</span>`;
+    return `<span class="badge ui">${T.badge_ha}</span>`;
   return s.overridden
-    ? `<span class="badge ui">in der UI geändert</span> <button class="secondary" onclick="reset('${name}')">Zurück auf mira.yaml</button>`
-    : `<span class="badge">aus mira.yaml</span>`;
+    ? `<span class="badge ui">${T.badge_ui}</span> <button class="secondary" onclick="reset('${name}')">${T.reset_button}</button>`
+    : `<span class="badge">${T.badge_file}</span>`;
 }
 
 const val = name => (config[name] || {}).value;
@@ -148,8 +397,9 @@ const num = (s, def) => (s === "" || s === undefined ? def : Number(s));
 const opt = (value, current, label) => `<option value="${esc(value)}"${String(value) === String(current ?? "") ? " selected" : ""}>${esc(label ?? value)}</option>`;
 
 function nav() {
-  $("#nav").innerHTML = TABS.map(([id, label]) =>
-    `<button class="${id === tab ? "active" : ""}" onclick="go('${id}')">${label}</button>`).join("");
+  $("#nav").innerHTML = TABS.map(id =>
+    `<button class="${id === tab ? "active" : ""}" onclick="go('${id}')">${T["tab_" + id]}</button>`).join("");
+  $("#lang").value = lang;
 }
 function go(id) { tab = id; location.hash = id; render(); }
 
@@ -162,7 +412,7 @@ function render() {
   if (owner && managed(owner)) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
-    $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.</p>`);
+    $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">${T.managed_hint}</p>`);
   }
 }
 
@@ -170,16 +420,16 @@ function render() {
 // Home Assistant entities as suggestions (by id, name and area).
 function chip(id) {
   const name = entityNames[id];
-  return `<span class="chip" data-id="${esc(id)}">${esc(name || id)}${name ? ` <small>${esc(id)}</small>` : ""}<button type="button" title="Entfernen" onclick="this.parentNode.remove()">×</button></span>`;
+  return `<span class="chip" data-id="${esc(id)}">${esc(name || id)}${name ? ` <small>${esc(id)}</small>` : ""}<button type="button" title="${T.remove}" onclick="this.parentNode.remove()">×</button></span>`;
 }
 function entityPicker(field, ids) {
   return `<div><div class="chips" data-f="${field}">${list(ids).map(chip).join("")}</div>
-    <input list="entities" placeholder="Entity suchen und auswählen …" onchange="pickEntity(this)"></div>`;
+    <input list="entities" placeholder="${T.entity_search}" onchange="pickEntity(this)"></div>`;
 }
 function pickEntity(input) {
   const id = input.value.trim();
   input.value = "";
-  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(id)) { message(`„${id}“ ist keine Entity-ID.`, false); return; }
+  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(id)) { message(T.not_entity.replace("{id}", id), false); return; }
   const chips = input.previousElementSibling;
   if (![...chips.children].some(c => c.dataset.id === id)) chips.insertAdjacentHTML("beforeend", chip(id));
 }
@@ -188,18 +438,18 @@ const picked = el => [...el.children].map(c => c.dataset.id);
 // ---- Meldungen ----------------------------------------------------------
 async function notices() {
   const view = $("#view");
-  view.innerHTML = `<section class="card"><h2>Offene und zugestellte Meldungen</h2><div id="list">Lädt …</div></section>`;
+  view.innerHTML = `<section class="card"><h2>${T.notices_title}</h2><div id="list">${T.loading}</div></section>`;
   try {
     const items = await api("GET", "/v1/ui/notices");
-    $("#list").innerHTML = items.length === 0 ? `<p class="hint">Keine offenen Meldungen.</p>` : `
-      <table><tr><th>Seit</th><th>Wichtigkeit</th><th>Meldung</th><th>Status</th><th></th></tr>
+    $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_notices}</p>` : `
+      <table><tr><th>${T.since}</th><th>${T.importance}</th><th>${T.notice}</th><th>${T.status}</th><th></th></tr>
       ${items.map(n => `<tr>
         <td>${esc(n.created_at)}</td>
-        <td>${["–", "nebenbei", "wichtig", "dringend"][n.importance] || n.importance}</td>
-        <td>${esc(n.spoken)}${n.confidentiality === "confidential" ? ' <span class="badge">vertraulich</span>' : ""}
+        <td>${T.importance_short[n.importance] || n.importance}</td>
+        <td>${esc(n.spoken)}${n.confidentiality === "confidential" ? ' <span class="badge">' + T.confidential + '</span>' : ""}
             ${n.details ? `<p class="hint">${esc(n.details)}</p>` : ""}</td>
-        <td>${n.state === "pending" ? "wartet" : "zugestellt" + (n.delivered_via ? " (" + esc(n.delivered_via) + ")" : "")}</td>
-        <td><button class="secondary" onclick="ack('${esc(n.id)}')">Erledigt</button></td></tr>`).join("")}
+        <td>${n.state === "pending" ? T.waiting : T.delivered + (n.delivered_via ? " (" + esc(n.delivered_via) + ")" : "")}</td>
+        <td><button class="secondary" onclick="ack('${esc(n.id)}')">${T.done}</button></td></tr>`).join("")}
       </table>`;
   } catch (e) { message(e.message, false); }
 }
@@ -214,42 +464,42 @@ function notifier() {
   const via = list(n.private_via);
   $("#view").innerHTML = `
   <section class="card">
-    <h2>Benachrichtigung ${source("notifier")}</h2>
-    <h3>Wann Mira ansagt</h3>
+    <h2>${T.tab_notifier} ${source("notifier")}</h2>
+    <h3>${T.when_announce}</h3>
     <div class="grid">
-      <label>Ruhezeit von</label><input type="time" id="qh_from" value="${esc(qh.from)}">
-      <label>Ruhezeit bis</label><input type="time" id="qh_to" value="${esc(qh.to)}">
-      <label>Pause pro Raum</label><input id="cooldown" value="${esc(n.cooldown)}" placeholder="30m">
-      <label>Höchstens Meldungen pro Ansage</label><input type="number" min="1" max="10" id="max_items" value="${esc(n.max_items_per_announcement)}">
-      <label>Mindest-Wichtigkeit</label><select id="min_importance">${[0,1,2,3].map(i => opt(i, n.min_importance, ["0 – alles", "1 – nebenbei", "2 – wichtig", "3 – dringend"][i])).join("")}</select>
-      <label>Nachfrage-Fenster</label><input id="follow_up" value="${esc(n.follow_up_window)}" placeholder="2m">
-      <label>Zustellung am Satelliten</label><select id="delivery">${["auto", "start_conversation", "announce", "tts"].map(d => opt(d, n.delivery)).join("")}</select>
-      <label>TTS-Entity (nur für tts)</label><input id="tts_entity" list="entities" value="${esc(n.tts_entity)}" placeholder="tts.piper">
+      <label>${T.quiet_from}</label><input type="time" id="qh_from" value="${esc(qh.from)}">
+      <label>${T.quiet_to}</label><input type="time" id="qh_to" value="${esc(qh.to)}">
+      <label>${T.cooldown}</label><input id="cooldown" value="${esc(n.cooldown)}" placeholder="30m">
+      <label>${T.max_items}</label><input type="number" min="1" max="10" id="max_items" value="${esc(n.max_items_per_announcement)}">
+      <label>${T.min_importance}</label><select id="min_importance">${[0,1,2,3].map(i => opt(i, n.min_importance, T.min_levels[i])).join("")}</select>
+      <label>${T.follow_up}</label><input id="follow_up" value="${esc(n.follow_up_window)}" placeholder="2m">
+      <label>${T.delivery}</label><select id="delivery">${["auto", "start_conversation", "announce", "tts"].map(d => opt(d, n.delivery)).join("")}</select>
+      <label>${T.tts_entity}</label><input id="tts_entity" list="entities" value="${esc(n.tts_entity)}" placeholder="tts.piper">
     </div>
-    <h3>Vertrauliches</h3>
+    <h3>${T.confidential_title}</h3>
     <div class="grid">
-      <label>Vertrauliches vorlesen</label><select id="conf_voice">
-        ${opt("never", n.confidential_voice, "nie – immer privat")}
-        ${opt("when_alone", n.confidential_voice, "nur wenn der Empfänger allein zu Hause ist")}
-        ${opt("always", n.confidential_voice, "immer")}</select>
-      <label>Privat zustellen über</label><div class="row">
+      <label>${T.conf_voice}</label><select id="conf_voice">
+        ${opt("never", n.confidential_voice, T.conf_never)}
+        ${opt("when_alone", n.confidential_voice, T.conf_alone)}
+        ${opt("always", n.confidential_voice, T.conf_always)}</select>
+      <label>${T.private_via}</label><div class="row">
         <label><input type="checkbox" id="via_telegram" ${via.includes("telegram") ? "checked" : ""}> Telegram</label>
-        <label><input type="checkbox" id="via_push" ${via.includes("push") ? "checked" : ""}> Companion-App</label></div>
+        <label><input type="checkbox" id="via_push" ${via.includes("push") ? "checked" : ""}> ${T.companion}</label></div>
     </div>
-    <h3>Eskalation</h3>
+    <h3>${T.escalation}</h3>
     <div class="grid">
-      <label>Ab Wichtigkeit</label><select id="esc_min">${[1,2,3].map(i => opt(i, esc2.min_importance)).join("")}</select>
-      <label>Ungehört ab Uhrzeit</label><input type="time" id="esc_after" value="${esc(esc2.after)}">
-      <label>Karenz für neue Meldungen</label><input id="esc_grace" value="${esc(esc2.grace)}" placeholder="30m">
+      <label>${T.from_importance}</label><select id="esc_min">${[1,2,3].map(i => opt(i, esc2.min_importance)).join("")}</select>
+      <label>${T.unheard_after}</label><input type="time" id="esc_after" value="${esc(esc2.after)}">
+      <label>${T.grace}</label><input id="esc_grace" value="${esc(esc2.grace)}" placeholder="30m">
     </div>
-    <p class="hint">Wichtige Meldungen, die bis zu dieser Uhrzeit kein Satellit angesagt hat, gehen privat raus.</p>
-    <h3>Dringend</h3>
+    <p class="hint">${T.escalation_hint}</p>
+    <h3>${T.urgent}</h3>
     <div class="grid">
-      <label>Dringend ab Wichtigkeit</label><select id="urg_min">${opt(0, urg.min_importance, "aus")}${[1,2,3].map(i => opt(i, urg.min_importance)).join("")}</select>
-      <label>Auf allen Satelliten ansagen</label><input type="checkbox" id="urg_announce" ${urg.announce ? "checked" : ""}>
+      <label>${T.urgent_from}</label><select id="urg_min">${opt(0, urg.min_importance, T.off)}${[1,2,3].map(i => opt(i, urg.min_importance)).join("")}</select>
+      <label>${T.urgent_announce}</label><input type="checkbox" id="urg_announce" ${urg.announce ? "checked" : ""}>
     </div>
-    <p class="hint">Dringende Meldungen (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.</p>
-    <div class="actions"><button class="primary" onclick="saveNotifier()">Speichern</button></div>
+    <p class="hint">${T.urgent_hint}</p>
+    <div class="actions"><button class="primary" onclick="saveNotifier()">${T.save}</button></div>
   </section>`;
 }
 function saveNotifier() {
@@ -275,14 +525,14 @@ function watchers() {
   const persons = Object.keys(val("persons") || {});
   $("#view").innerHTML = `
   <section class="card">
-    <h2>Watcher ${source("watchers")}</h2>
-    <p class="hint">Ein Watcher meldet sich, wenn eine Entity in einen Zustand wechselt (Trigger) oder liest regelmäßig einen Feed. Das Modell formuliert die Meldung und schätzt die Wichtigkeit, außer du legst sie fest.</p>
+    <h2>${T.tab_watchers} ${source("watchers")}</h2>
+    <p class="hint">${T.watchers_hint}</p>
     ${draftWatchers.map((w, i) => watcherForm(w, i, persons)).join("")}
     <div class="actions">
-      <button class="secondary" onclick="addWatcher('trigger')">+ Trigger-Watcher</button>
-      <button class="secondary" onclick="addWatcher('rss')">+ Feed-Watcher</button>
-      <button class="primary" onclick="saveWatchers()">Speichern</button>
-      <button class="secondary" onclick="draftWatchers=null; watchers()">Verwerfen</button>
+      <button class="secondary" onclick="addWatcher('trigger')">${T.add_trigger}</button>
+      <button class="secondary" onclick="addWatcher('rss')">${T.add_feed}</button>
+      <button class="primary" onclick="saveWatchers()">${T.save}</button>
+      <button class="secondary" onclick="draftWatchers=null; watchers()">${T.discard}</button>
     </div>
   </section>`;
 }
@@ -291,21 +541,21 @@ function watcherForm(w, i, persons) {
   const t = w.trigger || {};
   return `<div class="item" data-i="${i}">
     <div class="grid">
-      <label>Name</label><input data-f="name" value="${esc(w.name)}">
+      <label>${T.name}</label><input data-f="name" value="${esc(w.name)}">
       ${isFeed ? `
-        <label>Feed-URL</label><input data-f="url" value="${esc(w.url)}" placeholder="https://…">
-        <label>Zeitplan (cron)</label><input data-f="schedule" value="${esc(w.schedule)}" placeholder="0 8 * * *">
+        <label>${T.feed_url}</label><input data-f="url" value="${esc(w.url)}" placeholder="https://…">
+        <label>${T.schedule}</label><input data-f="schedule" value="${esc(w.schedule)}" placeholder="0 8 * * *">
       ` : `
-        <label>Entities</label>${entityPicker("entity_id", t.entity_id)}
-        <label>Neuer Zustand ist</label><input data-f="to" value="${esc(csv(t.to))}" placeholder="z. B. on, fault – leer: jeder">
-        <label>Neuer Zustand ist nicht</label><input data-f="not_to" value="${esc(csv(t.not_to))}" placeholder="z. B. normal, unavailable">
+        <label>${T.entities}</label>${entityPicker("entity_id", t.entity_id)}
+        <label>${T.to_state}</label><input data-f="to" value="${esc(csv(t.to))}" placeholder="${T.to_placeholder}">
+        <label>${T.not_to_state}</label><input data-f="not_to" value="${esc(csv(t.not_to))}" placeholder="${T.not_to_placeholder}">
       `}
-      <label>Bedeutung</label><textarea data-f="description" placeholder="Was das Ereignis bedeutet oder worauf der Nutzer achtet">${esc(w.description)}</textarea>
-      <label>Wichtigkeit</label><select data-f="importance">${opt("", w.importance, "vom Modell bewerten")}${[0,1,2,3].map(x => opt(x, w.importance, ["0 – ignorieren", "1 – nebenbei", "2 – wichtig", "3 – dringend"][x])).join("")}</select>
-      <label>Für</label><select data-f="audience">${opt("", w.audience, "alle im Haushalt")}${persons.map(p => opt(p, w.audience)).join("")}</select>
-      <label>Vertraulich</label><select data-f="confidentiality">${opt("", w.confidentiality, "nein")}${opt("confidential", w.confidentiality, "ja")}</select>
+      <label>${T.meaning}</label><textarea data-f="description" placeholder="${T.meaning_placeholder}">${esc(w.description)}</textarea>
+      <label>${T.importance}</label><select data-f="importance">${opt("", w.importance, T.model_rates)}${[0,1,2,3].map(x => opt(x, w.importance, T.levels[x])).join("")}</select>
+      <label>${T.for}</label><select data-f="audience">${opt("", w.audience, T.household)}${persons.map(p => opt(p, w.audience)).join("")}</select>
+      <label>${T.confidential_label}</label><select data-f="confidentiality">${opt("", w.confidentiality, T.no)}${opt("confidential", w.confidentiality, T.yes)}</select>
     </div>
-    <div class="actions"><button class="danger" onclick="removeWatcher(${i})">Entfernen</button></div>
+    <div class="actions"><button class="danger" onclick="removeWatcher(${i})">${T.remove}</button></div>
   </div>`;
 }
 function readWatchers() {
@@ -345,14 +595,14 @@ function rooms() {
   const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: presence[a] || "", active: list(mt.areas).includes(a) }));
   $("#view").innerHTML = `
   <section class="card">
-    <h2>Räume ${source("satellites")}</h2>
-    <p class="hint">Welcher Satellit in welchem Bereich spricht und welcher Bewegungsmelder dort eine Ansage auslöst. Der Bereich ist die HA-Area-ID (z. B. wohnzimmer).</p>
-    <table id="rooms"><tr><th>Bereich</th><th>Satellit</th><th>Bewegungsmelder</th><th>Ansagen</th><th></th></tr>
+    <h2>${T.tab_rooms} ${source("satellites")}</h2>
+    <p class="hint">${T.rooms_hint}</p>
+    <table id="rooms"><tr><th>${T.area}</th><th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th></th></tr>
       ${rows.map((r, i) => roomRow(r, i)).join("")}
     </table>
     <div class="actions">
-      <button class="secondary" onclick="addRoom()">+ Raum</button>
-      <button class="primary" onclick="saveRooms()">Speichern</button>
+      <button class="secondary" onclick="addRoom()">${T.add_room}</button>
+      <button class="primary" onclick="saveRooms()">${T.save}</button>
     </div>
   </section>`;
 }
@@ -387,14 +637,14 @@ function persons() {
   const p = val("persons") || {};
   $("#view").innerHTML = `
   <section class="card">
-    <h2>Personen ${source("persons")}</h2>
-    <p class="hint">Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.</p>
-    <table id="persons"><tr><th>Kürzel</th><th>Person-Entity</th><th>Telegram-ID</th><th>Push (notify.…)</th><th></th></tr>
+    <h2>${T.tab_persons} ${source("persons")}</h2>
+    <p class="hint">${T.persons_hint}</p>
+    <table id="persons"><tr><th>${T.key}</th><th>${T.person_entity}</th><th>${T.telegram_id}</th><th>${T.push}</th><th></th></tr>
       ${Object.entries(p).sort().map(([k, v], i) => personRow(k, v, i)).join("")}
     </table>
     <div class="actions">
-      <button class="secondary" onclick="addPerson()">+ Person</button>
-      <button class="primary" onclick="savePersons()">Speichern</button>
+      <button class="secondary" onclick="addPerson()">${T.add_person}</button>
+      <button class="primary" onclick="savePersons()">${T.save}</button>
     </div>
   </section>`;
 }
@@ -422,30 +672,30 @@ function savePersons() {
 
 // ---- Gedächtnis ---------------------------------------------------------
 async function memory() {
-  $("#view").innerHTML = `<section class="card"><h2>Profil</h2><div id="profile">Lädt …</div></section>
-    <section class="card"><h2>Gespeicherte Fakten</h2><div id="facts"></div></section>`;
+  $("#view").innerHTML = `<section class="card"><h2>${T.profile}</h2><div id="profile">${T.loading}</div></section>
+    <section class="card"><h2>${T.facts}</h2><div id="facts"></div></section>`;
   try {
     const m = await api("GET", "/v1/ui/memory");
     $("#profile").innerHTML = `
-      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">Noch kein Profil.</p>`}
-      <p class="hint">${m.profile_updated ? "Zuletzt verdichtet: " + esc(m.profile_updated) + ". " : ""}Das Profil wird nachts aus den Fakten verdichtet und steht in jedem Prompt.</p>
-      <div class="actions"><button class="secondary" id="compact" onclick="compact()">Jetzt verdichten</button></div>`;
-    $("#facts").innerHTML = m.facts.length === 0 ? `<p class="hint">Keine Fakten.</p>` : `
+      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}
+      <p class="hint">${m.profile_updated ? T.last_compacted + esc(m.profile_updated) + ". " : ""}${T.profile_hint}</p>
+      <div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>`;
+    $("#facts").innerHTML = m.facts.length === 0 ? `<p class="hint">${T.no_facts}</p>` : `
       <table>${m.facts.map(f => `<tr><td>${esc(f.text)}<p class="hint">${esc(f.updated)}</p></td>
-        <td><button class="danger" onclick="forget('${esc(f.id)}')">Vergessen</button></td></tr>`).join("")}</table>`;
+        <td><button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
   } catch (e) { message(e.message, false); }
 }
 async function forget(id) {
-  if (!confirm("Diesen Fakt vergessen?")) return;
+  if (!confirm(T.forget_confirm)) return;
   try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); memory(); } catch (e) { message(e.message, false); }
 }
 async function compact() {
   $("#compact").disabled = true;
-  $("#compact").textContent = "Verdichtet … (kann eine Minute dauern)";
+  $("#compact").textContent = T.compacting;
   try {
     const r = await api("POST", "/v1/ui/memory/compact");
     await memory();
-    message(r.changed ? "Profil aktualisiert." : "Profil unverändert.", true);
+    message(r.changed ? T.profile_updated : T.profile_unchanged, true);
   } catch (e) { message(e.message, false); memory(); }
 }
 

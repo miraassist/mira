@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/llm"
 )
 
@@ -168,8 +169,8 @@ func samplePrefix(t *testing.T, ch config.Channel) Prefix {
 		t.Fatalf("BuildTools: %v", err)
 	}
 	return Prefix{
-		Agent:     AgentLayer("Du duzt den Nutzer."),
-		Style:     StyleFor(ch),
+		Agent:     AgentLayer(i18n.DE, "Du duzt den Nutzer."),
+		Style:     StyleFor(i18n.DE, ch),
 		Tools:     tools,
 		Structure: sampleStructure,
 		Profile:   "Stefan trinkt morgens Kaffee. Die Photovoltaikanlage ist wichtig.",
@@ -290,7 +291,7 @@ func TestVolatileDataNeverReachesTheStableLayers(t *testing.T) {
 }
 
 func TestFormatTimeIsGermanAndDeterministic(t *testing.T) {
-	got := FormatTime(time.Date(2026, 10, 14, 7, 5, 0, 0, time.UTC))
+	got := FormatTime(i18n.DE, time.Date(2026, 10, 14, 7, 5, 0, 0, time.UTC))
 	want := "Mittwoch, 14. Oktober 2026, 07:05 Uhr"
 	if got != want {
 		t.Errorf("FormatTime = %q, want %q", got, want)
@@ -358,4 +359,43 @@ func compareGolden(t *testing.T, name, got string) {
 	if string(want) != got {
 		t.Errorf("%s differs from the golden file.\n--- got ---\n%s\n--- want ---\n%s", name, got, want)
 	}
+}
+
+// TestGoldenEnglish pins the English prompt: layers 1 and 2, the sample
+// exchange and a turn. Reviewing testdata/*_en.txt is how the English
+// wording is checked; it has not been tested against a model yet.
+func TestGoldenEnglish(t *testing.T) {
+	tools, err := BuildTools(sampleTools())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := Prefix{
+		Lang:      i18n.EN,
+		Agent:     AgentLayer(i18n.EN, ""),
+		Style:     StyleFor(i18n.EN, config.ChannelVoice),
+		Tools:     tools,
+		Structure: "Area Kitchen (kitchen)\n  light.kitchen — Kitchen light",
+		Profile:   "The household drinks coffee in the morning.",
+		Examples:  Examples(i18n.EN, tools),
+	}
+	var b strings.Builder
+	b.WriteString("=== system ===\n" + p.SystemText() + "\n\n=== examples ===\n")
+	for _, m := range p.Examples {
+		b.WriteString(string(m.Role) + ": " + m.Content)
+		for _, c := range m.ToolCalls {
+			b.WriteString(c.Function.Name + " " + c.Function.Arguments)
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n=== style ===\n")
+	for _, m := range p.StyleMessages() {
+		b.WriteString(string(m.Role) + ": " + m.Content + "\n")
+	}
+	turn := Turn{Lang: i18n.EN, Now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC),
+		ChannelContext:      "Channel: voice, satellite in area Kitchen. Without a room given, area Kitchen is meant.",
+		Memories:            []string{"The inverter is in the basement."},
+		PendingConfirmation: "lock.front_door: lock",
+		Text:                "Good morning, what's up?"}
+	b.WriteString("\n=== turn ===\n" + turn.Render() + "\n")
+	compareGolden(t, "prefix_voice_en.txt", b.String())
 }
