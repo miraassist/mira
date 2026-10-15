@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sker65/lares/internal/announce"
 	"github.com/sker65/lares/internal/channels/haconv"
 	"github.com/sker65/lares/internal/channels/telegram"
 	"github.com/sker65/lares/internal/config"
@@ -314,6 +315,10 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		go func() { errs <- fmt.Errorf("telegram: %w", a.telegram.Run(ctx)) }()
 	}
 
+	if cfg.Server.Announce {
+		a.announce(ctx)
+	}
+
 	httpServer := &http.Server{
 		Addr:              cfg.Server.Listen,
 		Handler:           a.httpHandler(ctx),
@@ -348,6 +353,37 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		_ = httpServer.Close()
 	}
 	return runErr
+}
+
+// instanceID is the agent's stable id, or "" if the store cannot give one.
+func (a *app) instanceID() string {
+	id, err := a.store.InstanceID(context.Background())
+	if err != nil {
+		a.log.Warn("no instance id", "error", err)
+	}
+	return id
+}
+
+// announce makes the agent discoverable by Home Assistant. A failure only
+// costs discovery; the integration can still be set up by address.
+func (a *app) announce(ctx context.Context) {
+	if announce.Loopback(a.cfg.Server.Listen) {
+		a.log.Info("not announcing: server.listen is loopback only", "listen", a.cfg.Server.Listen)
+		return
+	}
+	id, err := a.store.InstanceID(ctx)
+	if err != nil {
+		a.log.Warn("no instance id, not announcing", "error", err)
+		return
+	}
+	go func() {
+		err := announce.Run(ctx, announce.Options{
+			Instance: a.cfg.Server.Name, ID: id, Version: version, Listen: a.cfg.Server.Listen, Logger: a.log,
+		})
+		if err != nil && ctx.Err() == nil {
+			a.log.Warn("mdns announcement failed", "error", err)
+		}
+	}()
 }
 
 // startProactive runs the watchers, which turn HA events into notices, and
@@ -544,7 +580,7 @@ func (u uiConfig) ResetSection(ctx context.Context, name string) error {
 func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	cfg := a.cfg
 	api := haconv.New(haconv.Options{
-		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version,
+		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: func() map[string]config.Person { return a.liveConfig().Persons },
 	})

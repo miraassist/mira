@@ -4,6 +4,8 @@
 server:
   listen: "0.0.0.0:8788"
   token: ${LARES_API_TOKEN}
+  # Not announced: the real Home Assistant would offer the test agent.
+  announce: false
 
 llm:
   base_url: "http://localhost:1234/v1"   # LM Studio on this host

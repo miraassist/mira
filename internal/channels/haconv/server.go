@@ -36,7 +36,10 @@ type Options struct {
 	// "degraded", not down: it still answers, just with less.
 	Checks  map[string]HealthCheck
 	Version string
-	Logger  *slog.Logger
+	// InstanceID identifies this agent; the integration uses it as the
+	// config entry's unique id.
+	InstanceID string
+	Logger     *slog.Logger
 	// Persons returns the valid personal audiences of a notice. A function,
 	// because the web UI can change them while the agent runs.
 	Persons func() map[string]config.Person
@@ -90,7 +93,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 			checks[name] = "ok"
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": status, "version": s.opts.Version, "checks": checks})
+	writeJSON(w, http.StatusOK, map[string]any{"status": status, "version": s.opts.Version, "id": s.opts.InstanceID, "checks": checks})
 }
 
 type conversationRequest struct {

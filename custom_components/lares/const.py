@@ -3,6 +3,8 @@
 DOMAIN = "lares"
 
 CONF_TIMEOUT = "timeout"
+# Set once the agent's watchers, persons and rooms were imported as subentries.
+CONF_IMPORTED = "imported"
 DEFAULT_TIMEOUT = 15
 
 # Spoken when the agent does not answer in time or fails. A satellite that

@@ -6,6 +6,10 @@ server:
   # Bind to the internal network only; the HA integration is the only client.
   listen: "0.0.0.0:8787"
   token: ${LARES_API_TOKEN}
+  # Announce by mDNS (_lares._tcp) so Home Assistant finds the agent. Only the
+  # LAN interfaces are announced, never container bridges.
+  announce: true
+  name: Lares
 
 llm:
   base_url: "http://localhost:8080/v1"   # llama.cpp server

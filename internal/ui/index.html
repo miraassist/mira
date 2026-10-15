@@ -40,6 +40,10 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 button.secondary { background: var(--panel); color: var(--text); }
 button.danger { background: var(--panel); color: var(--warn); }
 .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--badge); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 13px; }
+.chip small { color: var(--muted); }
+.chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 .msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
@@ -73,6 +77,10 @@ const TABS = [
 let token = localStorage.getItem("lares.token") || "";
 let config = {};
 let tab = location.hash.slice(1) || "notices";
+let entityNames = {};
+// Sections Home Assistant manages are edited there, as subentries of the
+// Lares integration; the page shows them read-only.
+const managed = name => (config[name] || {}).managed_by === "home_assistant";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -122,6 +130,8 @@ async function reset(name) {
 function source(name) {
   const s = config[name];
   if (!s) return "";
+  if (managed(name) && name !== "notifier")
+    return `<span class="badge ui">in Home Assistant verwaltet</span>`;
   return s.overridden
     ? `<span class="badge ui">in der UI geändert</span> <button class="secondary" onclick="reset('${name}')">Zurück auf lares.yaml</button>`
     : `<span class="badge">aus lares.yaml</span>`;
@@ -146,7 +156,32 @@ function render() {
   const views = { notices, notifier, watchers, rooms, persons, memory };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
+  const owner = { watchers: "watchers", rooms: "satellites", persons: "persons" }[tab];
+  if (owner && managed(owner)) {
+    $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
+    $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
+    $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Lares. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.</p>`);
+  }
 }
+
+// Entity picker: chips for the chosen entities, a search field with the
+// Home Assistant entities as suggestions (by id, name and area).
+function chip(id) {
+  const name = entityNames[id];
+  return `<span class="chip" data-id="${esc(id)}">${esc(name || id)}${name ? ` <small>${esc(id)}</small>` : ""}<button type="button" title="Entfernen" onclick="this.parentNode.remove()">×</button></span>`;
+}
+function entityPicker(field, ids) {
+  return `<div><div class="chips" data-f="${field}">${list(ids).map(chip).join("")}</div>
+    <input list="entities" placeholder="Entity suchen und auswählen …" onchange="pickEntity(this)"></div>`;
+}
+function pickEntity(input) {
+  const id = input.value.trim();
+  input.value = "";
+  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(id)) { message(`„${id}“ ist keine Entity-ID.`, false); return; }
+  const chips = input.previousElementSibling;
+  if (![...chips.children].some(c => c.dataset.id === id)) chips.insertAdjacentHTML("beforeend", chip(id));
+}
+const picked = el => [...el.children].map(c => c.dataset.id);
 
 // ---- Meldungen ----------------------------------------------------------
 async function notices() {
@@ -259,7 +294,7 @@ function watcherForm(w, i, persons) {
         <label>Feed-URL</label><input data-f="url" value="${esc(w.url)}" placeholder="https://…">
         <label>Zeitplan (cron)</label><input data-f="schedule" value="${esc(w.schedule)}" placeholder="0 8 * * *">
       ` : `
-        <label>Entities (eine pro Zeile)</label><textarea data-f="entity_id" rows="${Math.max(3, list(t.entity_id).length)}">${esc(list(t.entity_id).join("\n"))}</textarea>
+        <label>Entities</label>${entityPicker("entity_id", t.entity_id)}
         <label>Neuer Zustand ist</label><input data-f="to" value="${esc(csv(t.to))}" placeholder="z. B. on, fault – leer: jeder">
         <label>Neuer Zustand ist nicht</label><input data-f="not_to" value="${esc(csv(t.not_to))}" placeholder="z. B. normal, unavailable">
       `}
@@ -285,7 +320,7 @@ function readWatchers() {
       w.kind = "rss"; w.url = f("url").value.trim(); w.schedule = f("schedule").value.trim(); delete w.trigger;
     } else {
       // Keep fields the form does not show (from, not_from).
-      w.trigger = Object.assign({}, w.trigger, { entity_id: lines(f("entity_id").value) });
+      w.trigger = Object.assign({}, w.trigger, { entity_id: picked(f("entity_id")) });
       const to = fromCsv(f("to").value), notTo = fromCsv(f("not_to").value);
       if (to.length) w.trigger.to = to; else delete w.trigger.to;
       if (notTo.length) w.trigger.not_to = notTo; else delete w.trigger.not_to;
@@ -420,7 +455,9 @@ async function load() {
     config = await api("GET", "/v1/ui/config");
     render();
     const ents = await api("GET", "/v1/ui/entities");
+    entityNames = Object.fromEntries((ents || []).map(e => [e.id, [e.name, e.area].filter(Boolean).join(" · ")]));
     $("#entities").innerHTML = (ents || []).map(e => `<option value="${esc(e.id)}">${esc([e.name, e.area].filter(Boolean).join(" · "))}</option>`).join("");
+    if (tab === "watchers") render(); // chips with names
   } catch (e) { render(); message(e.message, false); }
 }
 window.addEventListener("hashchange", () => { tab = location.hash.slice(1) || "notices"; draftWatchers = null; render(); });

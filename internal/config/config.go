@@ -50,6 +50,11 @@ type Server struct {
 	// Token authenticates the HA integration against the agent. Empty disables
 	// the check, which is only sensible for local development.
 	Token string `yaml:"token"`
+	// Announce makes the agent discoverable by mDNS (_lares._tcp), so Home
+	// Assistant offers it under "Discovered".
+	Announce bool `yaml:"announce"`
+	// Name is the announced name.
+	Name string `yaml:"name"`
 }
 
 type LLM struct {
@@ -302,7 +307,7 @@ type Telemetry struct {
 func Default() Config {
 	temp := 0.3
 	return Config{
-		Server: Server{Listen: "127.0.0.1:8787"},
+		Server: Server{Listen: "127.0.0.1:8787", Announce: true, Name: "Lares"},
 		LLM: LLM{
 			BaseURL:              "http://localhost:8080/v1",
 			Model:                "local",

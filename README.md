@@ -35,8 +35,8 @@ Requirements:
   `/api/mcp/assist` as the MCP URL: it works for a non-admin user.
 - A dedicated, non-admin HA user with a long-lived token.
 
-Web UI: `http://<agent>:8787/ui` edits the notifier, watchers, rooms and
-persons, lists open notices and the memory. It asks for `LARES_API_TOKEN`
+Web UI: `http://<agent>:8787/ui` edits the notifier, and the watchers, rooms
+and persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `LARES_API_TOKEN`
 once. Changes are stored in the database on top of `lares.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once.
 
@@ -50,9 +50,19 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
 
 1. HACS → Custom repositories → `https://github.com/sker65/lares`, type Integration.
 2. Install **Lares**, restart Home Assistant.
-3. Settings → Devices & services → Add integration → Lares: agent URL and the
-   agent's `server.token`.
+3. Settings → Devices & services: the agent announces itself by mDNS
+   (`_lares._tcp`, `server.announce`) and shows up under **Discovered**; it
+   only asks for the agent's `server.token`. Otherwise Add integration → Lares
+   with URL and token.
 4. Settings → Voice assistants: choose **Lares** as the conversation agent.
+
+The integration imports the agent's watchers, persons and rooms as
+subentries of its entry (Watcher, Feed, Person, Raum), edited there with Home
+Assistant's entity and area pickers. Each change is checked by the agent
+before it is saved; what it refuses shows in the form. While the integration
+manages them, the agent's web UI shows those sections read-only. Removing the
+integration hands them back. The device also has a quiet-mode switch, a
+pending-notices sensor and a button to compact the memory profile now.
 
 ## Development
 

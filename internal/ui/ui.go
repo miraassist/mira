@@ -13,8 +13,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -76,6 +78,9 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/memory", h.auth(h.memory))
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.auth(h.forget))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
+	h.mux.HandleFunc("GET /v1/ui/ha", h.auth(h.getHA))
+	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
+	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
 	return h
 }
 
@@ -99,11 +104,16 @@ func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 	type section struct {
 		Value      json.RawMessage `json:"value"`
 		Overridden bool            `json:"overridden"`
+		// ManagedBy is "home_assistant" while the integration manages the
+		// section; the page shows it read-only then. For the notifier it
+		// means only its morning_trigger.
+		ManagedBy string `json:"managed_by,omitempty"`
 	}
+	managed := h.managedByHA(r)
 	out := map[string]section{}
 	for _, name := range h.opts.Sections {
 		v, over, err := h.opts.Config.Section(name)
@@ -111,7 +121,11 @@ func (h *Handler) getConfig(w http.ResponseWriter, _ *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		out[name] = section{Value: v, Overridden: over}
+		s := section{Value: v, Overridden: over}
+		if managed && (slices.Contains(haSections, name) || name == "notifier") {
+			s.ManagedBy = "home_assistant"
+		}
+		out[name] = s
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -120,6 +134,10 @@ func (h *Handler) putSections(w http.ResponseWriter, r *http.Request) {
 	var sections map[string]json.RawMessage
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&sections); err != nil {
 		writeError(w, http.StatusBadRequest, "body must be a JSON object of sections: "+err.Error())
+		return
+	}
+	if err := h.keepManaged(r, sections); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 	if err := h.opts.Config.SetSections(r.Context(), sections); err != nil {
@@ -137,12 +155,47 @@ func (h *Handler) putSections(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) resetSection(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("section")
+	if h.managedByHA(r) && (slices.Contains(haSections, name) || name == "notifier") {
+		writeError(w, http.StatusConflict, "section "+name+" is managed in Home Assistant")
+		return
+	}
 	if err := h.opts.Config.ResetSection(r.Context(), name); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	h.log.Info("config section reset to the file", "section", name)
 	h.getConfig(w, r)
+}
+
+// keepManaged refuses changes to sections Home Assistant manages, and keeps
+// the notifier's morning trigger as Home Assistant set it.
+func (h *Handler) keepManaged(r *http.Request, sections map[string]json.RawMessage) error {
+	if !h.managedByHA(r) {
+		return nil
+	}
+	for _, name := range haSections {
+		if _, ok := sections[name]; ok {
+			return fmt.Errorf("section %s is managed in Home Assistant", name)
+		}
+	}
+	raw, ok := sections["notifier"]
+	if !ok {
+		return nil
+	}
+	var in, current map[string]json.RawMessage
+	cur, _, err := h.opts.Config.Section("notifier")
+	if err == nil {
+		err = json.Unmarshal(cur, &current)
+	}
+	if err == nil {
+		err = json.Unmarshal(raw, &in)
+	}
+	if err != nil {
+		return err
+	}
+	in["morning_trigger"] = current["morning_trigger"]
+	sections["notifier"], err = json.Marshal(in)
+	return err
 }
 
 func (h *Handler) entities(w http.ResponseWriter, _ *http.Request) {

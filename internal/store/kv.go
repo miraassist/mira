@@ -4,14 +4,32 @@ import (
 	"context"
 	"database/sql"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/oklog/ulid/v2"
 )
 
 // Keys used by the agent. Kept here so nothing drifts apart.
 const (
 	KeyQuietMode      = "quiet_mode"
 	KeyTelegramOffset = "telegram.offset"
+	KeyInstanceID     = "instance_id"
 )
+
+// InstanceID returns the agent's stable id, created on first use. Home
+// Assistant recognises the agent by it, whatever its address.
+func (s *Store) InstanceID(ctx context.Context) (string, error) {
+	id, err := s.GetKV(ctx, KeyInstanceID)
+	if err != ErrNotFound {
+		return id, err
+	}
+	id = strings.ToLower(ulid.Make().String())
+	if err := s.SetKV(ctx, KeyInstanceID, id); err != nil {
+		return "", err
+	}
+	return id, nil
+}
 
 func (s *Store) GetKV(ctx context.Context, key string) (string, error) {
 	var v string

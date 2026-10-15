@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 import voluptuous as vol
 
@@ -15,10 +16,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import LaresClient, LaresError
-from .const import DOMAIN
+from .const import CONF_IMPORTED, DOMAIN
 from .coordinator import LaresCoordinator
+from .managed import import_subentries
 
-PLATFORMS = [Platform.CONVERSATION, Platform.SENSOR, Platform.SWITCH]
+_LOGGER = logging.getLogger(__name__)
+
+PLATFORMS = [Platform.BUTTON, Platform.CONVERSATION, Platform.SENSOR, Platform.SWITCH]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -72,6 +76,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: LaresConfigEntry) -> bool:
     """Set up Lares from a config entry."""
     client = LaresClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
+    await _adopt(hass, entry, client)
     coordinator = LaresCoordinator(hass, entry, client)
     # Not first_refresh: an agent that is down at boot must not take the
     # conversation entity with it. That entity speaks an error instead of
@@ -81,6 +86,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: LaresConfigEntry) -> boo
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
+
+
+async def _adopt(hass: HomeAssistant, entry: LaresConfigEntry, client: LaresClient) -> None:
+    """Give an entry from before agents had ids its id, and import the
+    agent's watchers, persons and rooms as subentries once. Both wait for
+    the next start if the agent is down now."""
+    if entry.unique_id is None:
+        try:
+            agent_id = (await client.health()).get("id")
+        except LaresError:
+            agent_id = None
+        if agent_id and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id):
+            hass.config_entries.async_update_entry(entry, unique_id=agent_id)
+    if entry.data.get(CONF_IMPORTED):
+        return
+    try:
+        agent = await client.managed_config()
+    except LaresError as err:
+        _LOGGER.info("Importing watchers, persons and rooms waits for the agent: %s", err)
+        return
+    have = {s.unique_id for s in entry.subentries.values()}
+    for subentry in import_subentries(agent):
+        if subentry.unique_id not in have:
+            hass.config_entries.async_add_subentry(entry, subentry)
+    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_IMPORTED: True})
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: LaresConfigEntry) -> None:
+    """Hand watchers, persons and rooms back to the agent's web UI."""
+    client = LaresClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
+    try:
+        await client.release_managed_config()
+    except LaresError as err:
+        _LOGGER.warning("The agent still thinks Home Assistant manages its watchers: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: LaresConfigEntry) -> bool:

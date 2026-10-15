@@ -21,6 +21,7 @@ async def test_valid_agent_creates_entry(hass, aioclient_mock):
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {CONF_URL: AGENT_URL, CONF_TOKEN: "secret"}
+    assert result["result"].unique_id is None  # this agent sends no id
     assert aioclient_mock.mock_calls[0][3]["Authorization"] == "Bearer secret"
 
 

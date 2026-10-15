@@ -46,7 +46,7 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	}
 	t.Cleanup(func() { st.Close() })
 	cfg := &fakeConfig{sections: map[string]json.RawMessage{"notifier": json.RawMessage(`{"cooldown":"30m0s"}`)}, over: map[string]bool{}}
-	h := New(Options{Token: "secret", Sections: []string{"notifier"}, Config: cfg, Store: st,
+	h := New(Options{Token: "secret", Sections: []string{"notifier", "watchers", "persons", "satellites"}, Config: cfg, Store: st,
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
 		CompactProfile: func(context.Context) (bool, error) { return true, nil }})
 	srv := httptest.NewServer(h)

@@ -8,6 +8,13 @@
           "url": "Agent URL",
           "token": "API token"
         }
+      },
+      "zeroconf_confirm": {
+        "title": "Lares found",
+        "description": "A Lares agent announced itself at {url}. Enter its API token (server.token).",
+        "data": {
+          "token": "API token"
+        }
       }
     },
     "error": {
@@ -15,8 +22,10 @@
       "invalid_auth": "The agent rejected the token."
     },
     "abort": {
-      "already_configured": "This agent is already configured."
-    }
+      "already_configured": "This agent is already configured.",
+      "no_id": "The agent did not announce an id; update it."
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {
@@ -39,6 +48,11 @@
     "switch": {
       "quiet_mode": {
         "name": "Quiet mode"
+      }
+    },
+    "button": {
+      "compact_profile": {
+        "name": "Compact profile"
       }
     }
   },
@@ -75,6 +89,241 @@
           "name": "Expires in",
           "description": "Duration like 12h; afterwards the notice is dropped. Default 24h."
         }
+      }
+    }
+  },
+  "config_subentries": {
+    "watcher": {
+      "entry_type": "Watcher",
+      "initiate_flow": {
+        "user": "Add watcher",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Watcher",
+          "description": "Watches entities and queues a notice when they change.",
+          "data": {
+            "name": "Name",
+            "entity_id": "Entities",
+            "to": "To states",
+            "from": "From states",
+            "description": "What it means",
+            "importance": "Importance",
+            "audience": "Audience",
+            "confidentiality": "Confidentiality"
+          },
+          "data_description": {
+            "entity_id": "A change of any of them triggers the watcher.",
+            "to": "Empty: any change.",
+            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
+            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
+            "audience": "household, or a person",
+            "confidentiality": "Confidential notices are only spoken when the policy allows it."
+          }
+        },
+        "reconfigure": {
+          "title": "Watcher",
+          "description": "Watches entities and queues a notice when they change.",
+          "data": {
+            "name": "Name",
+            "entity_id": "Entities",
+            "to": "To states",
+            "from": "From states",
+            "description": "What it means",
+            "importance": "Importance",
+            "audience": "Audience",
+            "confidentiality": "Confidentiality"
+          },
+          "data_description": {
+            "entity_id": "A change of any of them triggers the watcher.",
+            "to": "Empty: any change.",
+            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
+            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
+            "audience": "household, or a person",
+            "confidentiality": "Confidential notices are only spoken when the policy allows it."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "This one exists already.",
+        "invalid_config": "The agent refused it: {error}",
+        "cannot_connect": "The agent is not reachable."
+      },
+      "abort": {
+        "not_loaded": "The Lares agent entry is not loaded.",
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "feed": {
+      "entry_type": "Feed",
+      "initiate_flow": {
+        "user": "Add feed",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Feed",
+          "description": "Reads a feed on a schedule; at most one digest notice per run, never urgent.",
+          "data": {
+            "name": "Name",
+            "url": "URL",
+            "schedule": "Schedule",
+            "description": "What it means",
+            "importance": "Importance",
+            "audience": "Audience",
+            "confidentiality": "Confidentiality"
+          },
+          "data_description": {
+            "url": "RSS or Atom feed",
+            "schedule": "Cron, e.g. 0 8 * * * for 8:00 daily",
+            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
+            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
+            "audience": "household, or a person",
+            "confidentiality": "Confidential notices are only spoken when the policy allows it."
+          }
+        },
+        "reconfigure": {
+          "title": "Feed",
+          "description": "Reads a feed on a schedule; at most one digest notice per run, never urgent.",
+          "data": {
+            "name": "Name",
+            "url": "URL",
+            "schedule": "Schedule",
+            "description": "What it means",
+            "importance": "Importance",
+            "audience": "Audience",
+            "confidentiality": "Confidentiality"
+          },
+          "data_description": {
+            "url": "RSS or Atom feed",
+            "schedule": "Cron, e.g. 0 8 * * * for 8:00 daily",
+            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
+            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
+            "audience": "household, or a person",
+            "confidentiality": "Confidential notices are only spoken when the policy allows it."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "This one exists already.",
+        "invalid_config": "The agent refused it: {error}",
+        "cannot_connect": "The agent is not reachable."
+      },
+      "abort": {
+        "not_loaded": "The Lares agent entry is not loaded.",
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "person": {
+      "entry_type": "Person",
+      "initiate_flow": {
+        "user": "Add person",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Person",
+          "description": "Gets personal and private notices.",
+          "data": {
+            "entity": "Person",
+            "telegram_user_id": "Telegram user id",
+            "notify": "Push notification"
+          },
+          "data_description": {
+            "entity": "Home or away decides where notices go.",
+            "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
+            "notify": "Companion app notify service"
+          }
+        },
+        "reconfigure": {
+          "title": "Person",
+          "description": "Gets personal and private notices.",
+          "data": {
+            "entity": "Person",
+            "telegram_user_id": "Telegram user id",
+            "notify": "Push notification"
+          },
+          "data_description": {
+            "entity": "Home or away decides where notices go.",
+            "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
+            "notify": "Companion app notify service"
+          }
+        }
+      },
+      "error": {
+        "already_configured": "This one exists already.",
+        "invalid_config": "The agent refused it: {error}",
+        "cannot_connect": "The agent is not reachable."
+      },
+      "abort": {
+        "not_loaded": "The Lares agent entry is not loaded.",
+        "reconfigure_successful": "Saved."
+      }
+    },
+    "room": {
+      "entry_type": "Room",
+      "initiate_flow": {
+        "user": "Add room",
+        "reconfigure": "Change"
+      },
+      "step": {
+        "user": {
+          "title": "Room",
+          "description": "Where announcements are spoken.",
+          "data": {
+            "area": "Area",
+            "satellite": "Satellite",
+            "presence": "Presence sensor",
+            "morning": "Morning announcement"
+          },
+          "data_description": {
+            "satellite": "Speaks announcements in this room.",
+            "presence": "Motion here starts an announcement.",
+            "morning": "The first motion after quiet hours announces what is pending."
+          }
+        },
+        "reconfigure": {
+          "title": "Room",
+          "description": "Where announcements are spoken.",
+          "data": {
+            "area": "Area",
+            "satellite": "Satellite",
+            "presence": "Presence sensor",
+            "morning": "Morning announcement"
+          },
+          "data_description": {
+            "satellite": "Speaks announcements in this room.",
+            "presence": "Motion here starts an announcement.",
+            "morning": "The first motion after quiet hours announces what is pending."
+          }
+        }
+      },
+      "error": {
+        "already_configured": "This one exists already.",
+        "invalid_config": "The agent refused it: {error}",
+        "cannot_connect": "The agent is not reachable."
+      },
+      "abort": {
+        "not_loaded": "The Lares agent entry is not loaded.",
+        "reconfigure_successful": "Saved."
+      }
+    }
+  },
+  "selector": {
+    "importance": {
+      "options": {
+        "auto": "Auto",
+        "0": "0 not worth mentioning",
+        "1": "1 by the way",
+        "2": "2 important today",
+        "3": "3 urgent"
+      }
+    },
+    "confidentiality": {
+      "options": {
+        "normal": "Normal",
+        "confidential": "Confidential"
       }
     }
   }

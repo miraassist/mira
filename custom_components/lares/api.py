@@ -16,6 +16,10 @@ class LaresAuthError(LaresError):
     """The agent rejected the token."""
 
 
+class LaresInvalidConfig(LaresError):
+    """The agent refused a config change; the message says why."""
+
+
 @dataclass
 class AgentReply:
     """The agent's answer to one turn."""
@@ -44,6 +48,9 @@ class LaresClient:
             ) as resp:
                 if resp.status == 401:
                     raise LaresAuthError("token rejected")
+                if resp.status == 422:
+                    body = await resp.json(content_type=None)
+                    raise LaresInvalidConfig(str((body or {}).get("error", "invalid config")))
                 if resp.status >= 400:
                     raise LaresError(f"{method} {path}: HTTP {resp.status}")
                 return await resp.json()
@@ -95,3 +102,19 @@ class LaresClient:
     async def add_notice(self, notice: dict[str, Any]) -> dict[str, Any]:
         """Queue a notice; the agent decides when and where it is delivered."""
         return await self._request("POST", "/v1/notices", 10, json=notice)
+
+    async def compact_profile(self) -> dict[str, Any]:
+        """Rebuild the memory profile from the stored facts now."""
+        return await self._request("POST", "/v1/ui/memory/compact", 180)
+
+    async def managed_config(self) -> dict[str, Any]:
+        """Watchers, persons and rooms as the agent has them now."""
+        return await self._request("GET", "/v1/ui/ha", 10)
+
+    async def set_managed_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Replace watchers, persons and rooms; from now on HA manages them."""
+        return await self._request("PUT", "/v1/ui/ha", 20, json=config)
+
+    async def release_managed_config(self) -> None:
+        """Hand watchers, persons and rooms back to the agent's own web UI."""
+        await self._request("DELETE", "/v1/ui/ha", 10)
