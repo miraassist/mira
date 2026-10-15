@@ -61,17 +61,23 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 }
 
 func (n *Notifier) setIndicator(ctx context.Context, light string, on bool) error {
-	target := &haws.Target{EntityID: []string{light}}
 	if !on {
-		return n.ha.CallService(ctx, "light", "turn_off", nil, target)
+		return n.ha.CallService(ctx, "light", "turn_off", nil, &haws.Target{EntityID: []string{light}})
 	}
+	return n.lightUp(ctx, light, n.cfg.Indicator.Effect)
+}
+
+// lightUp turns a light on in the indicator's colour with the given effect;
+// "None" is steady.
+func (n *Notifier) lightUp(ctx context.Context, light, effect string) error {
+	target := &haws.Target{EntityID: []string{light}}
 	style := n.cfg.Indicator
 	data := map[string]any{}
 	if len(style.RGBColor) == 3 {
 		data["rgb_color"] = style.RGBColor
 	}
-	if style.Effect != "" {
-		data["effect"] = style.Effect
+	if effect != "" {
+		data["effect"] = effect
 	}
 	if style.Brightness > 0 {
 		data["brightness"] = style.Brightness
@@ -87,6 +93,42 @@ func (n *Notifier) setIndicator(ctx context.Context, light string, on bool) erro
 		}
 	}
 	return err
+}
+
+// While Mira speaks on her own, the room's indicator light glows steadily,
+// as the satellite's own light does when someone talks to it: without it an
+// announcement, and the listening after it, come out of nowhere. Once the
+// satellite is idle again the light shows what waits, as before.
+
+// speaking lights the area's indicator steadily before an announcement.
+// The caller holds n.mu.
+func (n *Notifier) speaking(ctx context.Context, area string) {
+	light := n.cfg.Indicators[area]
+	if light == "" {
+		return
+	}
+	if err := n.lightUp(ctx, light, "None"); err != nil {
+		n.log.Warn("could not light the indicator for an announcement", "area", area, "error", err)
+		return
+	}
+	delete(n.indicatorOn, area) // its state is no longer what sync set
+}
+
+// spoken restores the area's indicator once the satellite is idle again,
+// in the background: start_conversation may still be listening.
+func (n *Notifier) spoken(area string) {
+	if n.cfg.Indicators[area] == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*idleWait)
+		defer cancel()
+		n.waitIdle(ctx, area)
+		n.mu.Lock()
+		defer n.mu.Unlock()
+		delete(n.indicatorOn, area)
+		n.syncIndicators(ctx)
+	}()
 }
 
 // SyncIndicators is syncIndicators for callers outside the notifier.

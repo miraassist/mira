@@ -133,3 +133,32 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 		t.Errorf("news at night: %q", got)
 	}
 }
+
+// While Mira speaks on her own the ring glows steadily; once the satellite
+// is idle it shows what waits (here: nothing, so off).
+func TestRingGlowsWhileAnnouncing(t *testing.T) {
+	e := indicateEnv(t)
+	e.n.idlePoll = 10 * time.Millisecond
+	sat := e.n.sats["kueche"]
+	if err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
+		t.Fatal(err)
+	}
+	e.ha.set(sat, "listening", nil)
+	lights := e.lightCalls()
+	if len(lights) == 0 || lights[0].Service != "turn_on" || lights[0].Data["effect"] != "None" {
+		t.Fatalf("ring not lit steadily first: %+v", lights)
+	}
+	e.ha.set(sat, "idle", nil)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		l := e.lightCalls()
+		if last := l[len(l)-1]; last.Service == "turn_off" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ring not restored: %+v", l)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

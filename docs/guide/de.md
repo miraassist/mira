@@ -54,6 +54,8 @@ Mira meldet sich von selbst, wenn etwas passiert: ein Lecksensor schlägt an, di
 | 2 | heute wichtig | geht morgens nach 9 Uhr privat raus, wenn bis dahin niemand sie gehört hat |
 | 3 | dringend | sofort, auch nachts: angesagt auf allen Satelliten und privat an alle |
 
+Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, solange sie spricht und auf deine Antwort hört.
+
 **Ruhezeit**: In der Ruhezeit (z. B. 23:30–6:30) sagt Mira nichts an – außer Dringendem und deinen Erinnerungen. Anzeige-Lampen leuchten trotzdem; was nachts kommt, siehst du morgens.
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.

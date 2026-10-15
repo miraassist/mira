@@ -457,7 +457,9 @@ func countWord(t texts, n int) string {
 func (n *Notifier) announce(ctx context.Context, area string, notices []store.Notice) error {
 	sat := n.sats[area]
 	text := Compose(n.lang, notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	n.speaking(ctx, area)
 	method, err := n.deliver(ctx, sat, text)
+	n.spoken(area)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
 	}

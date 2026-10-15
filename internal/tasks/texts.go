@@ -20,6 +20,8 @@ type texts struct {
 	replan                             string
 	planning, proposal, planFailed     string
 	planSystem, noProposal             string
+	// yes lists plain agreement, "|"-separated, lower case.
+	yes, confirmed string
 }
 
 // PlanSystem is the system message for planning, which runs without the
@@ -79,9 +81,11 @@ Behaupte nur, was in der Beobachtung steht.`,
 		deleted:     "Auftrag gelöscht.",
 		none:        "Keine Aufträge.",
 		noTask:      "keinen Auftrag mit dieser id",
+		yes:         "ja|ja bitte|ja gerne|gerne|passt|das passt|ja passt|ja das passt|mach das|ja mach das|mach|okay|ok|ja okay|genau|jawohl|einverstanden|leg los|ja leg los|starte ihn|ja starte ihn|starte den auftrag|klingt gut",
+		confirmed:   "Gut, der Auftrag %s läuft.",
 		noProposal:  "hier wartet kein vorgeschlagener Auftrag auf Bestätigung; frag den Nutzer, welchen er meint, oder lege ihn neu an",
 		replan:      "\n\nDein letzter Plan wurde abgelehnt: %s. Mach einen neuen, der die Regeln einhält.",
-		planning:    "Ich plane den Auftrag jetzt im Hintergrund; der Vorschlag kommt in etwa einer halben Minute von selbst. Sag dem Nutzer das in einem kurzen Satz.",
+		planning:    "Ich plane den Auftrag jetzt im Hintergrund; der Vorschlag kommt von selbst. Sag dem Nutzer in einem kurzen Satz, dass du ihn planst und dich mit einem Vorschlag meldest, ohne Zeitangabe.",
 		proposal:    "Mein Vorschlag für den Auftrag %s: %s Soll ich so vorgehen?",
 		planSystem:  "Du planst dauerhafte Aufträge für Mira, die Assistentin eines Haushalts mit Home Assistant. Antworte nur mit JSON.",
 		planFailed:  "Für den Auftrag „%s“ habe ich keinen brauchbaren Plan gefunden.",
@@ -121,9 +125,11 @@ Only claim what the observation says.`,
 		deleted:     "Order deleted.",
 		none:        "No orders.",
 		noTask:      "no order with this id",
+		yes:         "yes|yes please|yeah|yep|sure|ok|okay|fine|sounds good|go ahead|do it|yes do it|start it|start the order",
+		confirmed:   "Good, the order %s is running.",
 		noProposal:  "no proposed order waits for confirmation here; ask the user which one they mean, or create it anew",
 		replan:      "\n\nYour last plan was refused: %s. Make a new one that keeps the rules.",
-		planning:    "I am planning the order in the background now; the proposal arrives by itself in about half a minute. Tell the user so in one short sentence.",
+		planning:    "I am planning the order in the background now; the proposal arrives by itself. Tell the user in one short sentence that you are planning it and will come back with a proposal, without a time.",
 		proposal:    "My proposal for the order %s: %s Shall I go ahead?",
 		planSystem:  "You plan standing orders for Mira, the assistant of a household with Home Assistant. Answer only with JSON.",
 		planFailed:  "I found no usable plan for the order \"%s\".",

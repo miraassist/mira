@@ -54,6 +54,8 @@ Mira speaks up on her own when something happens: a leak sensor goes off, the wa
 | 2 | important today | goes out privately after 9 am if nobody has heard it by then |
 | 3 | urgent | at once, even at night: spoken on every satellite and sent privately to everyone |
 
+When Mira speaks on her own, the room's indicator light glows steadily while she speaks and listens for your answer.
+
 **Quiet hours**: during quiet hours (e.g. 11:30 pm – 6:30 am) Mira announces nothing – except urgent notices and your reminders. Indicator lights still glow; what arrives at night you see in the morning.
 
 **Quiet mode**: the "Quiet mode" switch in Home Assistant turns all announcements off until you switch it back.

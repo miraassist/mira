@@ -89,6 +89,10 @@ type Options struct {
 	// Afterword returns the notices waiting for an area as a closing
 	// sentence, marking them heard, or "" when none wait.
 	Afterword func(ctx context.Context, area string) string
+	// Shortcut may answer a turn without the model, when code knows for
+	// sure what is meant: a plain "ja" to a proposal waiting where it is
+	// said. It reports whether it handled the turn.
+	Shortcut  func(ctx context.Context, inv tools.Invocation, text string) (string, bool)
 	Telemetry *telemetry.Provider
 	Logger    *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
@@ -105,6 +109,7 @@ type Engine struct {
 	structure func() structure.Snapshot
 	assist    func() string
 	afterword func(ctx context.Context, area string) string
+	shortcut  func(ctx context.Context, inv tools.Invocation, text string) (string, bool)
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -143,6 +148,7 @@ func New(opts Options) *Engine {
 		structure: opts.Structure,
 		assist:    opts.StructurePrompt,
 		afterword: opts.Afterword,
+		shortcut:  opts.Shortcut,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -246,8 +252,16 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp.Model = modelName
 	maxRounds := model.MaxToolRounds
 	var final llm.Message
+	handled := false
+	if ts.Pending == nil && e.shortcut != nil {
+		if text, ok := e.shortcut(ctx, tools.Invocation{SessionKey: key, Channel: req.Channel}, req.Text); ok {
+			final = llm.Message{Role: llm.RoleAssistant, Content: text}
+			handled = true
+			e.log.Info("turn answered without the model", "session", key)
+		}
+	}
 	nudged, forced, force := false, false, false
-	for round := 0; ; round++ {
+	for round := 0; !handled; round++ {
 		chatReq := e.chatRequest(req.Channel, msgs, built)
 		switch {
 		case round >= maxRounds:

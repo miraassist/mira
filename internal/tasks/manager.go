@@ -192,6 +192,61 @@ func (m *Manager) ConfirmLatest(ctx context.Context, origin string) (store.Task,
 	return m.Activate(ctx, newest.ID)
 }
 
+// proposalFresh is how long a plain yes still answers a proposal.
+const proposalFresh = 10 * time.Minute
+
+// Shortcut confirms a proposal in code: a plain yes ("ja", "passt", "mach
+// das") where a proposal younger than proposalFresh waits. The model is
+// not asked; it answered "Auftrag bestätigt" without calling task_confirm.
+// Anything else is left to the model.
+func (m *Manager) Shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
+	t := m.texts()
+	if !isYes(t.yes, text) {
+		return "", false
+	}
+	origin, _ := m.origin(ctx, inv)
+	list, err := m.opts.Store.Tasks(ctx)
+	if err != nil {
+		return "", false
+	}
+	now := m.opts.Clock()
+	var newest store.Task
+	for _, task := range list {
+		if task.State == store.TaskProposed && task.Origin == origin && now.Sub(task.CreatedAt) < proposalFresh &&
+			!task.CreatedAt.Before(newest.CreatedAt) {
+			newest = task
+		}
+	}
+	if newest.ID == "" {
+		return "", false
+	}
+	task, err := m.Activate(ctx, newest.ID)
+	if err != nil {
+		m.log.Error("could not start a confirmed task", "task", newest.ID, "error", err)
+		return "", false
+	}
+	return fmt.Sprintf(t.confirmed, task.Title), true
+}
+
+// isYes reports whether text is nothing but agreement, one of the
+// "|"-separated phrases, ignoring case and punctuation.
+func isYes(phrases, text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	text = strings.Map(func(r rune) rune {
+		if strings.ContainsRune(".,!?;:„“\"'", r) {
+			return -1
+		}
+		return r
+	}, text)
+	text = strings.Join(strings.Fields(text), " ")
+	for _, p := range strings.Split(phrases, "|") {
+		if text == p {
+			return true
+		}
+	}
+	return false
+}
+
 // Activate starts a proposed task.
 func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
 	t, err := m.opts.Store.GetTask(ctx, id)

@@ -18,7 +18,7 @@ import (
 var announces = regexp.MustCompile(`^((ich )?(prüfe|überprüfe|schaue|sehe|frage|erfrage|ermittle|ermittele|hole|rufe|schalte|mache|starte|stelle|speichere|merke|suche)\b|(i'll|i will|i'm going to|let me|i am going to) (check|look|turn|switch|set|save|note|search|find|get|start|open|close)\b)`)
 
 // claims matches an answer that reports an action as done.
-var claims = regexp.MustCompile(`\b(eingeschaltet|ausgeschaltet|angeschaltet|abgeschaltet|angemacht|ausgemacht|gespeichert|gemerkt|notiert|gelöscht|vergessen|gesendet|geschickt|gestartet|gestoppt|eingestellt|gedimmt|geöffnet|aufgeschlossen|abgeschlossen|erledigt|turned (on|off)|switched (on|off)|saved|noted|remembered|deleted|forgotten|sent|started|stopped|dimmed|opened|unlocked|locked|done)\b`)
+var claims = regexp.MustCompile(`\b(eingeschaltet|ausgeschaltet|angeschaltet|abgeschaltet|angemacht|ausgemacht|gespeichert|gemerkt|notiert|gelöscht|vergessen|gesendet|geschickt|gestartet|gestoppt|eingestellt|gedimmt|geöffnet|aufgeschlossen|abgeschlossen|erledigt|bestätigt|aktiviert|deaktiviert|angelegt|eingerichtet|läuft jetzt|turned (on|off)|switched (on|off)|saved|noted|remembered|deleted|forgotten|sent|started|stopped|dimmed|opened|unlocked|locked|done|confirmed|activated|deactivated|created|set up|is running now)\b`)
 
 // readings matches a measured value ("21,3 Grad", "48 %", "3 kW") and
 // states matches a reported state ("Alle Lichter sind aus"). Without a tool

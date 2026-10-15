@@ -238,6 +238,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
+		Shortcut: a.shortcut,
 		Afterword: func(ctx context.Context, area string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier
@@ -507,6 +508,15 @@ type plannerAssessor struct {
 
 func (p plannerAssessor) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
 	return p.a.engine.AssessIsolatedOn(ctx, p.model, p.system, instruction, schema)
+}
+
+// shortcut answers turns code can answer for sure; for now a plain yes to
+// a standing order's proposal.
+func (a *app) shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
+	if a.tasks == nil {
+		return "", false
+	}
+	return a.tasks.Shortcut(ctx, inv, text)
 }
 
 // persons are the configured persons from the live config.

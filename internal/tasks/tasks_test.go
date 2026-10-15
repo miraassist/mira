@@ -280,3 +280,37 @@ func TestProposeInBackground(t *testing.T) {
 	}
 	_ = st
 }
+
+func TestShortcutConfirmsPlainYes(t *testing.T) {
+	now := time.Date(2026, 10, 15, 17, 0, 0, 0, time.UTC)
+	model := &fakeModel{answers: []string{waterPlan}}
+	m, st, _ := setup(t, &now, model)
+	if _, _, err := m.Create(context.Background(), "Achte auf das Wasser", "telegram:1", "telegram:1"); err != nil {
+		t.Fatal(err)
+	}
+	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+	if _, ok := m.Shortcut(context.Background(), inv, "Nimm die Tür raus."); ok {
+		t.Error("a change request was taken as yes")
+	}
+	if _, ok := m.Shortcut(context.Background(), tools.Invocation{SessionKey: "telegram:2", Channel: config.ChannelTelegram}, "Ja"); ok {
+		t.Error("a yes from another chat confirmed")
+	}
+	now = now.Add(11 * time.Minute)
+	if _, ok := m.Shortcut(context.Background(), inv, "Ja."); ok {
+		t.Error("a stale proposal was confirmed")
+	}
+	now = now.Add(-5 * time.Minute)
+	if _, ok := m.Shortcut(context.Background(), inv, "Ja, aber ohne die Tür"); ok {
+		t.Error("a yes with a change was handled")
+	}
+	out, ok := m.Shortcut(context.Background(), inv, " Ja, passt! ")
+	if !ok || !strings.Contains(out, "Wasser") {
+		t.Fatalf("plain yes not handled: %q", out)
+	}
+	if list, _ := st.Tasks(context.Background()); list[0].State != store.TaskActive {
+		t.Error("not active")
+	}
+	if _, ok := m.Shortcut(context.Background(), inv, "Ja"); ok {
+		t.Error("a second yes did something")
+	}
+}
