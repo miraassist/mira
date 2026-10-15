@@ -89,10 +89,9 @@ type Options struct {
 	// Afterword returns the notices waiting for an area as a closing
 	// sentence, marking them heard, or "" when none wait.
 	Afterword func(ctx context.Context, area string) string
-	// Shortcut may answer a turn without the model, when code knows for
-	// sure what is meant: a plain "ja" to a proposal waiting where it is
-	// said. It reports whether it handled the turn.
-	Shortcut  func(ctx context.Context, inv tools.Invocation, text string) (string, bool)
+	// Thread links the turn to its thread ("Vorgang", package threads) and
+	// renders it for layer 7. followedUp are the notices this turn answers.
+	Thread    func(ctx context.Context, sess store.Session, followedUp []string) string
 	Telemetry *telemetry.Provider
 	Logger    *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
@@ -109,7 +108,7 @@ type Engine struct {
 	structure func() structure.Snapshot
 	assist    func() string
 	afterword func(ctx context.Context, area string) string
-	shortcut  func(ctx context.Context, inv tools.Invocation, text string) (string, bool)
+	thread    func(ctx context.Context, sess store.Session, followedUp []string) string
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -148,7 +147,7 @@ func New(opts Options) *Engine {
 		structure: opts.Structure,
 		assist:    opts.StructurePrompt,
 		afterword: opts.Afterword,
-		shortcut:  opts.Shortcut,
+		thread:    opts.Thread,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -208,6 +207,14 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	return resp, nil
 }
 
+// threadContext is the turn's thread for layer 7, if any.
+func (e *Engine) threadContext(ctx context.Context, sess store.Session, followedUp []string) string {
+	if e.thread == nil {
+		return ""
+	}
+	return e.thread(ctx, sess, followedUp)
+}
+
 func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, error) {
 	now := e.clock()
 	snap := e.structure()
@@ -229,6 +236,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		ChannelContext: e.channelContext(req, sess, snap),
 		Memories:       e.memories(ctx, req.Text),
 		NoticeContext:  noticeText,
+		Thread:         e.threadContext(ctx, sess, followedUp),
 		Extra:          req.Extra,
 		Text:           req.Text,
 	}
@@ -252,16 +260,8 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp.Model = modelName
 	maxRounds := model.MaxToolRounds
 	var final llm.Message
-	handled := false
-	if ts.Pending == nil && e.shortcut != nil {
-		if text, ok := e.shortcut(ctx, tools.Invocation{SessionKey: key, Channel: req.Channel}, req.Text); ok {
-			final = llm.Message{Role: llm.RoleAssistant, Content: text}
-			handled = true
-			e.log.Info("turn answered without the model", "session", key)
-		}
-	}
 	nudged, forced, force := false, false, false
-	for round := 0; !handled; round++ {
+	for round := 0; ; round++ {
 		chatReq := e.chatRequest(req.Channel, msgs, built)
 		switch {
 		case round >= maxRounds:

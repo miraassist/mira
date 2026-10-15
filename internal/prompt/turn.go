@@ -23,6 +23,9 @@ type Turn struct {
 	// NoticeContext is the long form of notices announced moments ago, so a
 	// follow-up question can be answered without another lookup.
 	NoticeContext string
+	// Thread is the thread ("Vorgang") this turn belongs to or that waits at
+	// its place, rendered with its own heading by package threads.
+	Thread string
 	// PendingConfirmation describes the critical action the agent asked about
 	// in the previous turn and is now waiting for an answer to.
 	PendingConfirmation string
@@ -62,6 +65,9 @@ func (t Turn) Render() string {
 	if s := strings.TrimSpace(t.NoticeContext); s != "" {
 		b.WriteString("\n\n" + l.noticeContext + "\n")
 		b.WriteString(s)
+	}
+	if s := strings.TrimSpace(t.Thread); s != "" {
+		b.WriteString("\n\n" + s)
 	}
 	if s := strings.TrimSpace(t.PendingConfirmation); s != "" {
 		b.WriteString("\n\n" + l.pendingConfirmation)

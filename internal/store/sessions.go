@@ -17,9 +17,11 @@ type Session struct {
 	DeviceID       string
 	AreaID         string
 	Language       string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	ExpiresAt      time.Time
+	// ThreadID is the thread ("Vorgang") this turn belongs to, if any.
+	ThreadID  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ExpiresAt time.Time
 }
 
 // Message is one entry of a session transcript. Roles follow the OpenAI chat
@@ -66,9 +68,9 @@ func (s *Store) GetSession(ctx context.Context, key string) (Session, error) {
 	var sess Session
 	var created, updated, expires string
 	err := s.db.QueryRowContext(ctx, `
-SELECT key, channel, conversation_id, device_id, area_id, language, created_at, updated_at, expires_at
+SELECT key, channel, conversation_id, device_id, area_id, language, thread_id, created_at, updated_at, expires_at
 FROM sessions WHERE key = ?`, key).Scan(
-		&sess.Key, &sess.Channel, &sess.ConversationID, &sess.DeviceID, &sess.AreaID, &sess.Language,
+		&sess.Key, &sess.Channel, &sess.ConversationID, &sess.DeviceID, &sess.AreaID, &sess.Language, &sess.ThreadID,
 		&created, &updated, &expires)
 	if err == sql.ErrNoRows {
 		return Session{}, ErrNotFound

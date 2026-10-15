@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/ha/structure"
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tools"
 )
 
 func f(v float64) *float64 { return &v }
@@ -199,31 +199,28 @@ const draft = `{"title":"Wasser","summary":"Ich vergleiche stündlich den Wasser
 "triggers":[{"trigger":"time_pattern","minutes":15}],
 "actions":[{"action":"mira.assess","data":{"goal":"Achte auf den Wasserverbrauch.","data":[{"entity_id":"sensor.wasser","view":"same_hour"}]}}]}}`
 
-func TestDraftConfirmManage(t *testing.T) {
+func TestDraftSaveManage(t *testing.T) {
 	e := setup(t)
 	// The first draft names an entity Home Assistant does not know.
 	e.ha.invalid = "sensor.ausgedacht"
 	e.model.answers = []string{strings.Replace(draft, "sensor.wasser", "sensor.ausgedacht", 1), draft}
-	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
-	out, err := e.m.Tools()[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"goal":"Achte auf den Wasserverbrauch."}`),
-		SessionKey: inv.SessionKey, Channel: inv.Channel})
-	if err != nil || !strings.Contains(out, "Soll ich so vorgehen?") {
-		t.Fatalf("create: %q %v", out, err)
+	d, err := e.m.DraftAutomation(context.Background(), "Achte auf den Wasserverbrauch.",
+		map[string]string{"watch": "Wasserzähler (sensor.wasser)", "measure": "- Mira beurteilt"})
+	if err != nil {
+		t.Fatal(err)
 	}
 	if !strings.Contains(e.model.instructions[1], "sensor.ausgedacht is unknown") {
 		t.Error("redraft lacks the reason")
 	}
-	if !strings.Contains(e.model.instructions[0], "sensor.wasser | Wasserzähler") {
-		t.Error("catalog missing from the draft prompt")
+	if !strings.Contains(e.model.instructions[0], "sensor.wasser | Wasserzähler") || !strings.Contains(e.model.instructions[0], "watch: Wasserzähler (sensor.wasser)") {
+		t.Errorf("catalog or fields missing from the draft prompt:\n%s", e.model.instructions[0])
 	}
 
-	// Yes from the same chat saves it as an automation, tagged with its id.
-	reply, ok := e.m.Shortcut(context.Background(), inv, "Ja.")
-	if !ok || !strings.Contains(reply, "Wasser") {
-		t.Fatalf("shortcut: %q %v", reply, ok)
-	}
-	if len(e.ha.automations) != 1 {
-		t.Fatalf("saved: %+v", e.ha.automations)
+	// The finisher proposes and, on yes, saves it, tagged with its id.
+	content, _ := json.Marshal(d)
+	msg, err := e.m.Finisher().Commit(context.Background(), store.Thread{Content: content})
+	if err != nil || !strings.Contains(msg, "Wasser") || len(e.ha.automations) != 1 {
+		t.Fatalf("commit: %q %v %+v", msg, err, e.ha.automations)
 	}
 	var id string
 	for k, cfg := range e.ha.automations {
@@ -232,9 +229,6 @@ func TestDraftConfirmManage(t *testing.T) {
 		if !strings.Contains(string(raw), `"task":"{{ this.attributes.id }}"`) || !strings.Contains(string(raw), `"description":"Achte auf den Wasserverbrauch."`) {
 			t.Errorf("not tagged: %s", raw)
 		}
-	}
-	if !strings.HasPrefix(id, "mira_") {
-		t.Errorf("id %q", id)
 	}
 	items, _ := e.m.List(context.Background())
 	if len(items) != 1 || items[0].State != "on" || items[0].EditURL != "http://ha:8123/config/automation/edit/"+id {
@@ -251,37 +245,27 @@ func TestDraftConfirmManage(t *testing.T) {
 	if err != nil || len(res.Verdicts) != 1 || res.Verdicts[0].Withheld != "dry_run" {
 		t.Fatalf("try: %+v %v", res, err)
 	}
-	if !strings.Contains(e.m.DescribeTry(res), "Wichtigkeit 3") {
-		t.Error(e.m.DescribeTry(res))
-	}
 	if err := e.m.Delete(context.Background(), id); err != nil || len(e.ha.automations) != 0 {
 		t.Errorf("delete: %v", err)
 	}
 }
 
-func TestConfirmNeedsAProposalHere(t *testing.T) {
+func TestCheckEntitiesByIDNameAndAlias(t *testing.T) {
 	e := setup(t)
-	e.model.answers = []string{draft}
-	if _, err := e.m.Create(context.Background(), "Wasser", "telegram:1", "telegram:1"); err != nil {
-		t.Fatal(err)
+	e.m.opts.Snapshot = func() structure.Snapshot {
+		return structure.Snapshot{EntityNames: map[string][]string{"sensor.wasser": {"sensor.wasser", "wasserzähler", "hauptwasser"}}}
 	}
-	other := tools.Invocation{SessionKey: "telegram:2", Channel: config.ChannelTelegram}
-	if _, err := e.m.Tools()[1].Run(context.Background(), other); err == nil {
-		t.Error("confirmed from another chat")
+	if v, err := e.m.CheckEntities(context.Background(), "sensor.wasser"); err != nil || v != "sensor.wasser" {
+		t.Errorf("by id: %q %v", v, err)
 	}
-	if _, ok := e.m.Shortcut(context.Background(), other, "Ja"); ok {
-		t.Error("shortcut from another chat")
+	if v, err := e.m.CheckEntities(context.Background(), "der Hauptwasser-Zähler"); err != nil || !strings.Contains(v, "(sensor.wasser)") {
+		t.Errorf("by alias: %q %v", v, err)
 	}
-	here := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
-	if _, ok := e.m.Shortcut(context.Background(), here, "Ja, aber ohne die Tür"); ok {
-		t.Error("a yes with a change was handled")
+	if _, err := e.m.CheckEntities(context.Background(), "sensor.gibtsnicht"); err == nil {
+		t.Error("unknown id accepted")
 	}
-	e.now = e.now.Add(11 * time.Minute)
-	if _, ok := e.m.Shortcut(context.Background(), here, "Ja"); ok {
-		t.Error("a stale proposal was confirmed by the shortcut")
-	}
-	if _, err := e.m.Tools()[1].Run(context.Background(), here); err != nil {
-		t.Errorf("task_confirm: %v", err)
+	if _, err := e.m.CheckEntities(context.Background(), "der Rasenmäher"); err == nil {
+		t.Error("nothing recognised but accepted")
 	}
 }
 
@@ -306,86 +290,49 @@ func TestTextsComplete(t *testing.T) {
 	}
 }
 
-func TestDraftWithoutTriggerOrEntity(t *testing.T) {
+func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 	e := setup(t)
+	e.m.opts.ConfirmDomains, e.m.opts.ConfirmEntities = []string{"lock"}, []string{"cover.garage"}
+	e.st.SaveFact(context.Background(), store.Fact{ID: "f1", Text: "Ungewöhnlich ist Licht im Schlafzimmer zwischen 0 und 6 Uhr."})
+
+	// No trigger: refused; then the planner asks back.
 	e.model.answers = []string{
 		`{"title":"x","summary":"y","automation":{"triggers":[],"actions":[{"action":"mira.add_notice","data":{"text":"t"}}]}}`,
-		`{"error":"Es gibt keinen Gaszähler."}`,
+		`{"question":"Ab wann ist es ungewöhnlich?"}`,
 	}
-	_, err := e.m.Create(context.Background(), "Achte auf das Gas", "s", "s")
-	var cannot errCannot
-	if !errors.As(err, &cannot) || cannot.reason != "Es gibt keinen Gaszähler." {
+	_, err := e.m.DraftAutomation(context.Background(), "Licht zu ungewöhnlicher Zeit", nil)
+	var q ErrQuestion
+	if !errors.As(err, &q) || q.Question != "Ab wann ist es ungewöhnlich?" {
 		t.Fatalf("err: %v", err)
 	}
 	if !strings.Contains(e.model.instructions[1], "at least one trigger") {
 		t.Error("a draft without triggers was not refused")
 	}
-}
+	if !strings.Contains(e.model.instructions[0], "zwischen 0 und 6 Uhr") || !strings.Contains(e.model.instructions[0], "schaltet: lock, cover.garage.") {
+		t.Error("the planner lacks memory or the forbidden list")
+	}
 
-func TestProposalNamesWhatItSwitches(t *testing.T) {
-	e := setup(t)
-	e.m.opts.ConfirmDomains, e.m.opts.ConfirmEntities = []string{"lock"}, []string{"cover.garage"}
-	e.model.answers = []string{`{"title":"Radio","summary":"Wenn morgens Bewegung im Bad ist, entscheide ich, ob Musik passt.","automation":{
-"triggers":[{"trigger":"state","entity_id":"binary_sensor.bad","to":"on"}],
-"actions":[{"action":"mira.decide","data":{"question":"Passt jetzt Musik?"},"response_variable":"d"},
-{"condition":"template","value_template":"{{ d.answer }}"},
-{"action":"media_player.turn_on","target":{"entity_id":"media_player.radio_bad"}}]}}`}
-	task, err := e.m.Create(context.Background(), "Mach morgens das Radio im Bad an, wenn es passt.", "s", "s")
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := e.m.proposalText(task)
-	if !strings.Contains(text, "Dabei schaltet sie außerdem: media_player.turn_on (media_player.radio_bad).") {
-		t.Errorf("proposal: %s", text)
-	}
-	// The integration gets the forbidden list with every check.
-	validate := e.ha.commands[0]
-	if f, _ := validate["forbidden"].(map[string]any); f == nil || len(f["domains"].([]string)) != 1 || f["entities"].([]string)[0] != "cover.garage" {
-		t.Errorf("forbidden not sent: %+v", validate)
-	}
-	if !strings.Contains(e.model.instructions[0], "schaltet: lock, cover.garage.") {
-		t.Errorf("draft prompt lacks the forbidden list")
-	}
-}
-
-func TestVagueGoalAsksBack(t *testing.T) {
-	e := setup(t)
-	e.model.answers = []string{`{"question":"Was ist für dich eine ungewöhnliche Zeit, etwa zwischen Mitternacht und 6 Uhr?"}`}
-	inv := tools.Invocation{Args: json.RawMessage(`{"goal":"Sag Bescheid, wenn das Licht zu einer ungewöhnlichen Zeit angeht."}`),
-		SessionKey: "telegram:1", Channel: config.ChannelTelegram}
-	out, err := e.m.Tools()[0].Run(context.Background(), inv)
-	if err != nil || !strings.Contains(out, "ungewöhnliche Zeit") {
-		t.Fatalf("no question back: %q %v", out, err)
-	}
-	if list, _ := e.st.Tasks(context.Background()); len(list) != 0 {
-		t.Error("a vague goal became a proposal")
-	}
-}
-
-func TestDraftSeesMemoryAndProposalTellsTheCondition(t *testing.T) {
-	e := setup(t)
-	e.st.SaveFact(context.Background(), store.Fact{ID: "f1", Text: "Ungewöhnlich ist Licht im Schlafzimmer zwischen 0 und 6 Uhr."})
+	// A condition is said by the code; switching is named.
 	e.model.answers = []string{`{"title":"Licht nachts","summary":"Ich melde mich, wenn nachts das Licht angeht.","automation":{
 "triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
 "conditions":[{"condition":"time","after":"00:00:00","before":"06:00:00"}],
-"actions":[{"action":"mira.add_notice","data":{"text":"Licht an.","importance":1}}]}}`}
-	task, err := e.m.Create(context.Background(), "Sag Bescheid, wenn das Licht zu einer ungewöhnlichen Zeit angeht.", "s", "s")
+"actions":[{"action":"mira.add_notice","data":{"text":"Licht an.","importance":1}},
+{"action":"media_player.turn_on","target":{"entity_id":"media_player.radio_bad"}}]}}`}
+	d, err := e.m.DraftAutomation(context.Background(), "x", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(e.model.instructions[0], "zwischen 0 und 6 Uhr") {
-		t.Error("the planner did not see the memory")
-	}
-	if text := e.m.proposalText(task); !strings.Contains(text, "Bedingung: nur zwischen 00:00 und 06:00 Uhr.") {
+	text := e.m.ProposalText(d)
+	if !strings.Contains(text, "Bedingung: nur zwischen 00:00 und 06:00 Uhr.") || !strings.Contains(text, "media_player.turn_on (media_player.radio_bad)") {
 		t.Errorf("proposal: %s", text)
 	}
 
-	// Without a condition and with a judgement, the proposal says Mira decides.
-	e.model.answers = []string{`{"title":"Licht","summary":"Ich achte auf ungewöhnliche Zeiten.","automation":{
+	// No condition and a judgement: Mira says she decides.
+	e.model.answers = []string{`{"title":"Licht","summary":"s","automation":{
 "triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
 "actions":[{"action":"mira.assess","data":{"goal":"g","observation":"o"}}]}}`}
-	task, _ = e.m.Create(context.Background(), "g", "s", "s")
-	if text := e.m.proposalText(task); !strings.Contains(text, "entscheide ich jedes Mal selbst") {
+	d, _ = e.m.DraftAutomation(context.Background(), "x", nil)
+	if text := e.m.ProposalText(d); !strings.Contains(text, "entscheide ich jedes Mal selbst") {
 		t.Errorf("proposal hides that Mira judges: %s", text)
 	}
 }

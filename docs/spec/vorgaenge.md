@@ -1,6 +1,6 @@
 # Vorgänge und Zieldefinitionen – Spezifikation
 
-Stand 2026-10-15. Gilt für [Aufgaben](aufgaben.md) und kommende Anliegen
+Stand 2026-10-15, gebaut (Agent 0.4.0). Gilt für [Aufgaben](aufgaben.md) und kommende Anliegen
 wie Kalender oder Nachrichten an andere ([Benutzer](benutzer.md)).
 
 ## Warum
@@ -101,13 +101,13 @@ metadata:
     target:
       timeout: 15m                 # Standard 15m
       confirm: true                # vor dem Abschluss ein Ja
-      fields:
-        watch:
-          description: Was beobachtet wird (Entitäten aus dem Haus)
-          check: entities          # Prüfung im Kern
-        measure:
-          description: Ab wann es zählt. „Nicht nötig, weil …“, wenn der Wunsch nichts Relatives enthält.
-        reaction:
+      fields:                      # Liste, damit die Reihenfolge feststeht
+        - name: watch
+          description: Was beobachtet wird (Entitäten aus dem Haus, id oder Name/Alias)
+          check: entities          # Prüfung im Kern; löst Namen zu ids auf
+        - name: measure
+          description: Ab wann es zählt. "- " mit Grund, wenn der Wunsch nichts Relatives enthält.
+        - name: reaction
           description: fest melden, beurteilen lassen oder etwas schalten
           enum: [notice, assess, switch]
       finish: tasks.automation     # Abschluss im Kern
@@ -115,8 +115,9 @@ metadata:
 
 Regeln:
 
-- **Jedes Feld muss beantwortet sein.** „Nicht nötig, weil …“ zählt als
-  Antwort. Das Modell legt sich ausdrücklich fest, und der Code sieht, dass
+- **Jedes Feld muss beantwortet sein.** Ein Wert, der mit „-“ beginnt
+  („- weil der Wunsch nichts Relatives enthält“), heißt „bewusst nicht
+  nötig“ und zählt als Antwort. Das Zeichen ist sprachunabhängig. Das Modell legt sich ausdrücklich fest, und der Code sieht, dass
   eine Lücke bewusst ist. So lässt sich „Pflicht nur, wenn relativ“
   abbilden, ohne dass der Code Sprache verstehen muss.
 - **Prüfungen (`check`) und Abschlüsse (`finish`) sind Bausteine im

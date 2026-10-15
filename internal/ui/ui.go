@@ -63,6 +63,8 @@ type Options struct {
 	CompactProfile func(ctx context.Context) (bool, error)
 	// Tasks are Mira's tasks; nil without Home Assistant.
 	Tasks Tasks
+	// Threads confirms or cancels tasks still being planned.
+	Threads Threads
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger

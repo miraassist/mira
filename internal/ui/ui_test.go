@@ -153,19 +153,24 @@ func TestGuideIsPublic(t *testing.T) {
 	}
 }
 
-// fakeTasks plays the task manager: one proposal, one automation.
+// fakeTasks plays the task manager: one automation.
 type fakeTasks struct {
 	items   []tasks.Item
 	enabled map[string]bool
 }
 
 func (f *fakeTasks) List(context.Context) ([]tasks.Item, error) { return f.items, nil }
-func (f *fakeTasks) Activate(_ context.Context, id string) (store.Task, error) {
-	if id != "p1" {
-		return store.Task{}, store.ErrNotFound
-	}
-	f.items[0].State = "on"
-	return store.Task{ID: id}, nil
+
+// fakeThreads records what the UI confirmed or cancelled.
+type fakeThreads struct{ confirmed, cancelled []string }
+
+func (f *fakeThreads) ConfirmThread(_ context.Context, id string) (string, error) {
+	f.confirmed = append(f.confirmed, id)
+	return "Angelegt.", nil
+}
+func (f *fakeThreads) CancelThread(_ context.Context, id string) error {
+	f.cancelled = append(f.cancelled, id)
+	return nil
 }
 func (f *fakeTasks) SetEnabled(_ context.Context, id string, on bool) error {
 	if id != "mira_a" {
@@ -190,18 +195,20 @@ func TestTasksAPI(t *testing.T) {
 	if code, _ := call(t, srv, "GET", "/v1/ui/tasks", "secret", ""); code != 503 {
 		t.Errorf("without Home Assistant: %d", code)
 	}
-	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{
-		{ID: "p1", Title: "Wasser", State: "proposed"}, {ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
-	h := New(Options{Token: "secret", Store: st, Tasks: ft, Config: &fakeConfig{sections: map[string]json.RawMessage{}, over: map[string]bool{}}})
+	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{{ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
+	fth := &fakeThreads{}
+	st.PutThread(context.Background(), store.Thread{ID: "p1", Target: "aufgabe", Place: "area:bad", State: store.ThreadProposed,
+		Request: "Achte auf das Wasser", Log: []store.ThreadEntry{{Who: "mira", Text: "Vorschlag …"}}, ExpiresAt: time.Now().Add(time.Hour)})
+	h := New(Options{Token: "secret", Store: st, Tasks: ft, Threads: fth, Config: &fakeConfig{sections: map[string]json.RawMessage{}, over: map[string]bool{}}})
 	srv = httptest.NewServer(h)
 	defer srv.Close()
 
 	code, body := call(t, srv, "GET", "/v1/ui/tasks", "secret", "")
-	if code != 200 || !strings.Contains(body, `"state":"proposed"`) || !strings.Contains(body, `"edit_url":"http://ha/x"`) {
+	if code != 200 || !strings.Contains(body, `"edit_url":"http://ha/x"`) || !strings.Contains(body, `"request":"Achte auf das Wasser"`) {
 		t.Fatalf("list: %d %s", code, body)
 	}
-	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/p1/activate", "secret", ""); code != 200 || ft.items[0].State != "on" {
-		t.Errorf("save proposal: %d", code)
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/p1/activate", "secret", ""); code != 200 || len(fth.confirmed) != 1 {
+		t.Errorf("confirm a planned task: %d", code)
 	}
 	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/mira_a/pause", "secret", ""); code != 200 || ft.enabled["mira_a"] {
 		t.Errorf("pause: %d", code)

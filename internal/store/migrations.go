@@ -204,6 +204,31 @@ CREATE TABLE assessments (
 CREATE INDEX assessments_task ON assessments(task, created_at);
 `,
 	},
+	{
+		// Threads ("Vorgänge") hold a concern across several turns (task
+		// planning with questions and a yes); turns and notices point to
+		// theirs. Task proposals now live in their thread.
+		name: "0011_threads",
+		stmt: `
+CREATE TABLE threads (
+	id          TEXT PRIMARY KEY,
+	target      TEXT NOT NULL,
+	place       TEXT NOT NULL,
+	state       TEXT NOT NULL,
+	request     TEXT NOT NULL DEFAULT '',
+	fields      TEXT NOT NULL DEFAULT '{}',
+	log         TEXT NOT NULL DEFAULT '[]',
+	content     TEXT NOT NULL DEFAULT '{}',
+	created_at  TEXT NOT NULL,
+	updated_at  TEXT NOT NULL,
+	expires_at  TEXT NOT NULL
+);
+CREATE INDEX threads_place ON threads(place, state);
+ALTER TABLE sessions ADD COLUMN thread_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE notices ADD COLUMN thread_id TEXT NOT NULL DEFAULT '';
+DROP TABLE tasks;
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

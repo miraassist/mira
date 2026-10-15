@@ -52,6 +52,10 @@ type Notice struct {
 	DeliveredAt  time.Time
 	// Confidentiality is ConfidentialityNormal or ConfidentialityConfidential.
 	Confidentiality string
+	// ThreadID is the thread ("Vorgang") the notice belongs to, if any: a
+	// reply to it continues that thread, and the notice is withdrawn when
+	// the thread ends.
+	ThreadID string
 }
 
 // Confidential reports whether the notice must not be spoken to an unknown
@@ -115,10 +119,10 @@ WHERE id = ?`, n.Source, n.Importance, n.Audience, n.Spoken, n.Details,
 		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO notices(id, source, dedupe_key, importance, audience, spoken, details,
-                    created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
+                    created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?)`,
 			n.ID, n.Source, n.DedupeKey, n.Importance, n.Audience, n.Spoken, n.Details,
-			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality)
+			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality, n.ThreadID)
 		if err != nil {
 			return err
 		}
@@ -143,7 +147,7 @@ func (s *Store) GetNotice(ctx context.Context, id string) (Notice, error) {
 
 const noticeSelect = `
 SELECT id, source, dedupe_key, importance, audience, spoken, details,
-       created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality
+       created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id
 FROM notices`
 
 type scannable interface{ Scan(...any) error }
@@ -152,7 +156,7 @@ func scanNotice(row scannable) (Notice, error) {
 	var n Notice
 	var created, updated, expires, delivered string
 	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Audience, &n.Spoken, &n.Details,
-		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality)
+		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID)
 	if err != nil {
 		return Notice{}, err
 	}
@@ -354,4 +358,16 @@ func (s *Store) OpenNoticeByDedupeKey(ctx context.Context, key string) (Notice, 
 		return Notice{}, ErrNotFound
 	}
 	return n, err
+}
+
+// WithdrawThreadNotices expires every open notice of a thread: when the
+// thread ends, its questions and proposals are moot.
+func (s *Store) WithdrawThreadNotices(ctx context.Context, threadID string) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+UPDATE notices SET state = ?, updated_at = ?
+WHERE thread_id = ? AND state IN (?, ?)`, NoticeExpired, formatTime(s.now()), threadID, NoticePending, NoticeDelivered)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

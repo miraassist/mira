@@ -109,6 +109,11 @@ Größe eines Aufrufs: etwa 500 bis 1.500 Tokens. Stündliche Bewertung einer Au
 
 ## Anlegen im Gespräch
 
+Seit Agent 0.4.0 ist das Anlegen ein [Vorgang](vorgaenge.md) mit dem Ziel
+`aufgabe` (Skill `skills/aufgabe`): Felder watch, when, measure, reaction;
+fehlt ein Maßstab, fragt Mira nach; der Vorschlag gehört zum Vorgang, das
+Ja ist `thread_confirm`. Der Ablauf unten ist der ursprüngliche Entwurf.
+
 1. „Achte auf den Wasserverbrauch.“ → `task_create(goal)`. Mira antwortet sofort: „Ich plane das und melde mich mit einem Vorschlag.“
 2. Im Hintergrund entwirft das Modell die Automation (`alias`, `description` = Ziel, `triggers`, `conditions`, `actions`). Es bekommt den Katalog der Entitäten und diese Spezifikation der Aktionen.
 3. Die Integration lässt HA den Entwurf prüfen (`mira/automation/validate`). Bei Fehlern gibt es einen zweiten Entwurf mit dem Fehlertext.

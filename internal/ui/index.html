@@ -236,6 +236,11 @@ const I18N = {
   "task_unavailable": "nicht verfügbar",
   "task_proposed": "wartet auf Bestätigung",
   "task_create": "Anlegen",
+  "thread_collecting": "in Planung",
+  "thread_waiting": "wartet auf dich",
+  "thread_working": "Mira plant",
+  "thread_proposed": "Vorschlag",
+  "thread_cancel": "Abbrechen",
   "task_pause": "Pausieren",
   "task_resume": "Fortsetzen",
   "task_last": "zuletzt",
@@ -399,6 +404,11 @@ const I18N = {
   "task_unavailable": "unavailable",
   "task_proposed": "waiting for confirmation",
   "task_create": "Create",
+  "thread_collecting": "being planned",
+  "thread_waiting": "waits for you",
+  "thread_working": "Mira is planning",
+  "thread_proposed": "proposal",
+  "thread_cancel": "Cancel",
   "task_pause": "Pause",
   "task_resume": "Resume",
   "task_last": "last",
@@ -747,7 +757,19 @@ async function tasks() {
     const r = await api("GET", "/v1/ui/tasks");
     const list = r.items || [];
     const warn = r.error ? `<p class="msg err">${T.tasks_ha_error}: ${esc(r.error)}</p>` : "";
-    $("#tasklist").innerHTML = warn + (list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => {
+    // Tasks still being planned: open threads, with what Mira said last.
+    const planning = (r.planning || []).map(p => `
+      <details class="item task">
+        <summary>
+          <span class="lead"><h3>${esc(p.request)}</h3>
+            <span class="badge ui">${T["thread_" + p.state] || p.state}</span></span>
+          <span class="short">${esc(p.last || "")}</span>
+          ${p.state === "proposed" ? `<button class="primary" onclick="event.preventDefault(); setTask('${esc(p.id)}', 'activate')">${T.task_create}</button>` : "<span></span>"}
+        </summary>
+        <p class="hint">${esc(p.updated)}</p>
+        <div class="actions"><button class="danger" onclick="setTask('${esc(p.id)}', 'pause')">${T.thread_cancel}</button></div>
+      </details>`).join("");
+    $("#tasklist").innerHTML = warn + planning + (list.length === 0 && !planning ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => {
       const id = esc(t.id);
       const button = t.state === "proposed"
         ? `<button class="primary" onclick="event.preventDefault(); setTask('${id}', 'activate')">${T.task_create}</button>`

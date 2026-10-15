@@ -12,16 +12,15 @@ import (
 )
 
 const (
-	ToolTaskCreate  = "task_create"
-	ToolTaskConfirm = "task_confirm"
-	ToolTaskList    = "task_list"
-	ToolTaskDelete  = "task_delete"
-	ToolTaskEnable  = "task_enable"
-	ToolTaskTry     = "task_try"
+	ToolTaskList   = "task_list"
+	ToolTaskDelete = "task_delete"
+	ToolTaskEnable = "task_enable"
+	ToolTaskTry    = "task_try"
 )
 
-// Tools are the task tools. Creating drafts and asks; only the user's yes,
-// through task_confirm, creates the automation.
+// Tools manage Mira's tasks. Creating one is a thread with the target
+// "aufgabe" (package threads), which uses DraftAutomation and
+// SaveAutomation.
 func (m *Manager) Tools() []tools.InternalTool {
 	t := m.texts()
 	idSchema := fmt.Sprintf(`{"type":"object","properties":{"id":{"type":"string","description":%q}},"required":["id"]}`, t.idDesc)
@@ -42,51 +41,6 @@ func (m *Manager) Tools() []tools.InternalTool {
 		return err
 	}
 	return []tools.InternalTool{
-		{
-			Name: ToolTaskCreate, Description: t.createDesc,
-			Schema: fmt.Sprintf(`{"type":"object","properties":{"goal":{"type":"string","description":%q}},"required":["goal"]}`, t.createGoal),
-			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
-				var a struct {
-					Goal string `json:"goal"`
-				}
-				if err := json.Unmarshal(inv.Args, &a); err != nil {
-					return "", err
-				}
-				if strings.TrimSpace(a.Goal) == "" {
-					return "", errors.New("goal is missing")
-				}
-				if m.opts.Deliver != nil {
-					m.Propose(ctx, a.Goal, inv)
-					return t.planning, nil
-				}
-				origin, _ := m.origin(ctx, inv)
-				task, err := m.Create(ctx, a.Goal, inv.SessionKey, origin)
-				var question errQuestion
-				if errors.As(err, &question) {
-					return question.question, nil
-				}
-				if err != nil {
-					return "", err
-				}
-				return m.proposalText(task), nil
-			},
-		},
-		{
-			// No id: the model invents one. A yes confirms the newest
-			// proposal made where it is said.
-			Name: ToolTaskConfirm, Description: t.confirmDesc, Schema: `{"type":"object","properties":{}}`,
-			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
-				origin, _ := m.origin(ctx, inv)
-				task, err := m.ConfirmLatest(ctx, origin)
-				if errors.Is(err, store.ErrNotFound) {
-					return "", errors.New(t.noProposal)
-				}
-				if err != nil {
-					return "", fmt.Errorf(t.saveFailed, err)
-				}
-				return fmt.Sprintf(t.confirmed, task.Title), nil
-			},
-		},
 		{
 			Name: ToolTaskList, Description: t.listDesc, Schema: `{"type":"object","properties":{}}`, ReadOnly: true,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {

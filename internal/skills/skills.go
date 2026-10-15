@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -40,6 +41,38 @@ type Skill struct {
 	Settings  map[string]Setting
 	Calendars map[string]string // calendar name -> URL (from a setting)
 	Schedules []Schedule
+	// Target, when set, makes the skill a goal a thread ("Vorgang") works
+	// towards: fields to fill, how they are checked, how it ends.
+	Target *Target
+}
+
+// Target is a goal definition (docs/spec/vorgaenge.md). Checks and Finish
+// name building blocks of the core: a skill runs no code.
+type Target struct {
+	Fields []TargetField `yaml:"fields"`
+	// Confirm asks the user for a yes before Finish commits.
+	Confirm bool `yaml:"confirm"`
+	// Finish names the core building block that does the work and ends
+	// the thread, e.g. tasks.automation or memory.save.
+	Finish string `yaml:"finish"`
+	// Timeout ends a thread nobody answers; default 15m.
+	Timeout string `yaml:"timeout"`
+	timeout time.Duration
+}
+
+// TimeoutDuration is Timeout parsed, 15 minutes by default.
+func (t Target) TimeoutDuration() time.Duration {
+	if t.timeout > 0 {
+		return t.timeout
+	}
+	return 15 * time.Minute
+}
+
+type TargetField struct {
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Check       string   `yaml:"check"`
+	Enum        []string `yaml:"enum"`
 }
 
 type Setting struct {
@@ -68,6 +101,7 @@ type frontmatter struct {
 			Settings  map[string]Setting `yaml:"settings"`
 			Calendars map[string]string  `yaml:"calendars"`
 			Schedules []Schedule         `yaml:"schedules"`
+			Target    *Target            `yaml:"target"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -165,6 +199,24 @@ func load(dir string, values map[string]any) (Skill, error) {
 		sc.cron = c
 		s.Schedules = append(s.Schedules, sc)
 	}
+	if t := m.Target; t != nil {
+		if len(t.Fields) == 0 || strings.TrimSpace(t.Finish) == "" {
+			return Skill{}, errors.New("target needs fields and finish")
+		}
+		for i, f := range t.Fields {
+			if !namePattern.MatchString(strings.ReplaceAll(f.Name, "_", "-")) || f.Description == "" {
+				return Skill{}, fmt.Errorf("target field %d needs a name and a description", i+1)
+			}
+		}
+		if t.Timeout != "" {
+			d, err := time.ParseDuration(t.Timeout)
+			if err != nil || d <= 0 {
+				return Skill{}, fmt.Errorf("target timeout %q is not a duration like 15m", t.Timeout)
+			}
+			t.timeout = d
+		}
+		s.Target = t
+	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	return s, nil
 }
@@ -222,3 +274,6 @@ func fill(body string, vals map[string]string, decl map[string]Setting) string {
 		return vals[key]
 	})
 }
+
+// Exists reports whether a skill folder of that name is in dirs.
+func Exists(dirs []string, name string) bool { return find(dirs, name) != "" }

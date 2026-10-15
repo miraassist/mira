@@ -10,15 +10,30 @@ import (
 	"github.com/sker65/mira/internal/tasks"
 )
 
-// Tasks is what the UI does with Mira's tasks (package tasks): proposals
-// waiting for a yes and Mira's automations in Home Assistant.
+// Tasks is what the UI does with Mira's tasks (package tasks): Mira's
+// automations in Home Assistant.
 type Tasks interface {
 	List(ctx context.Context) ([]tasks.Item, error)
-	Activate(ctx context.Context, id string) (store.Task, error)
 	SetEnabled(ctx context.Context, id string, on bool) error
 	Delete(ctx context.Context, id string) error
 	Try(ctx context.Context, id string) (tasks.TryResult, error)
 	DescribeTry(res tasks.TryResult) string
+}
+
+// Threads confirms or cancels a thread ("Vorgang") by id: a task still
+// being planned is one.
+type Threads interface {
+	ConfirmThread(ctx context.Context, id string) (string, error)
+	CancelThread(ctx context.Context, id string) error
+}
+
+// threadJSON is an open task thread as the tasks tab shows it.
+type threadJSON struct {
+	ID      string `json:"id"`
+	State   string `json:"state"`
+	Request string `json:"request"`
+	Last    string `json:"last"`
+	Updated string `json:"updated"`
 }
 
 func (h *Handler) noTasks(w http.ResponseWriter) bool {
@@ -43,6 +58,25 @@ func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		out["error"] = err.Error()
 	}
+	// Tasks still being planned: open threads of the target "aufgabe".
+	planning := []threadJSON{}
+	if open, err := h.opts.Store.OpenThreads(r.Context(), ""); err == nil {
+		for _, th := range open {
+			if th.Target != "aufgabe" {
+				continue
+			}
+			last := ""
+			for i := len(th.Log) - 1; i >= 0; i-- {
+				if th.Log[i].Who == "mira" {
+					last = th.Log[i].Text
+					break
+				}
+			}
+			planning = append(planning, threadJSON{ID: th.ID, State: th.State, Request: th.Request, Last: last,
+				Updated: localTime(th.UpdatedAt)})
+		}
+	}
+	out["planning"] = planning
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -54,12 +88,14 @@ func (h *Handler) enableTask(on bool) http.HandlerFunc {
 		}
 		id := r.PathValue("id")
 		var err error
-		if on {
-			if _, err = h.opts.Tasks.Activate(r.Context(), id); errors.Is(err, store.ErrNotFound) {
-				err = h.opts.Tasks.SetEnabled(r.Context(), id, true)
+		if _, terr := h.opts.Store.GetThread(r.Context(), id); terr == nil && h.opts.Threads != nil {
+			if !on {
+				err = h.opts.Threads.CancelThread(r.Context(), id)
+			} else {
+				_, err = h.opts.Threads.ConfirmThread(r.Context(), id)
 			}
 		} else {
-			err = h.opts.Tasks.SetEnabled(r.Context(), id, false)
+			err = h.opts.Tasks.SetEnabled(r.Context(), id, on)
 		}
 		if h.taskError(w, err) {
 			return
@@ -109,7 +145,14 @@ func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 	if h.noTasks(w) {
 		return
 	}
-	if h.taskError(w, h.opts.Tasks.Delete(r.Context(), r.PathValue("id"))) {
+	id := r.PathValue("id")
+	var err error
+	if _, terr := h.opts.Store.GetThread(r.Context(), id); terr == nil && h.opts.Threads != nil {
+		err = h.opts.Threads.CancelThread(r.Context(), id)
+	} else {
+		err = h.opts.Tasks.Delete(r.Context(), id)
+	}
+	if h.taskError(w, err) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})

@@ -31,6 +31,7 @@ import (
 	"github.com/sker65/mira/internal/store"
 	"github.com/sker65/mira/internal/tasks"
 	"github.com/sker65/mira/internal/telemetry"
+	"github.com/sker65/mira/internal/threads"
 	"github.com/sker65/mira/internal/tools"
 	"github.com/sker65/mira/internal/ui"
 )
@@ -46,6 +47,8 @@ type app struct {
 	models map[string]*llm.Client
 	skills *skills.Set
 	tasks  *tasks.Manager
+	// threads runs threads ("Vorgänge"): concerns over several turns.
+	threads *threads.Manager
 	// haUserID is the agent's Home Assistant user, read once (haUser).
 	haUserMu sync.Mutex
 	haUserID string
@@ -196,9 +199,29 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store,
 		Persons: a.persons,
 	})...)
-	loaded, err := skills.Load(cfg.Skills.Dirs, cfg.Skills.Enabled)
+	// The goals Mira works towards in threads come as skills too and are
+	// always on when their folder is there: "aufgabe" needs Home
+	// Assistant, "merken" does not.
+	enabled := map[string]map[string]any{}
+	for name, settings := range cfg.Skills.Enabled {
+		enabled[name] = settings
+	}
+	for _, name := range builtinTargets(a.ha != nil) {
+		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
+			enabled[name] = nil
+		}
+	}
+	all, err := skills.Load(cfg.Skills.Dirs, enabled)
 	if err != nil {
 		return nil, err
+	}
+	var loaded, targets []skills.Skill
+	for _, sk := range all {
+		if sk.Target != nil {
+			targets = append(targets, sk)
+		} else {
+			loaded = append(loaded, sk)
+		}
 	}
 	a.skills = &skills.Set{Lang: i18n.Of(cfg.Prompt.Language), Skills: loaded, Calendar: &ical.Cache{}}
 	internal = append(internal, a.skills.Tools()...)
@@ -211,23 +234,37 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		// registry: bound late through isolatedModel.
 		a.tasks = tasks.New(tasks.Options{
 			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
-			Model:   isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
-			Planner: isolatedModel{a, cfg.Routing.Tasks}, PlanDelay: 5 * time.Second,
+			Model:      isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
+			Planner:    isolatedModel{a, cfg.Routing.Tasks},
 			QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
 			ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
 			Persons: a.persons,
-			Deliver: func(ctx context.Context, n store.Notice, area string) error {
-				a.proactiveMu.Lock()
-				nf := a.notifier
-				a.proactiveMu.Unlock()
-				if nf == nil {
-					return errors.New("no notifier is running")
-				}
-				return nf.Tell(ctx, n, area)
-			},
 		})
 		internal = append(internal, a.tasks.Tools()...)
 	}
+	checks := map[string]threads.Check{}
+	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.Of(cfg.Prompt.Language))}
+	if a.tasks != nil {
+		checks["entities"] = a.tasks.CheckEntities
+		finishers["tasks.automation"] = a.tasks.Finisher()
+	}
+	a.threads = threads.New(threads.Options{
+		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
+		Persons: a.persons, Logger: a.log,
+		Deliver: func(ctx context.Context, n store.Notice, area string) error {
+			a.proactiveMu.Lock()
+			nf := a.notifier
+			a.proactiveMu.Unlock()
+			if nf == nil {
+				return errors.New("no notifier is running")
+			}
+			return nf.Tell(ctx, n, area)
+		},
+	})
+	for _, sk := range targets {
+		a.log.Info("target enabled", "target", sk.Name, "finish", sk.Target.Finish)
+	}
+	internal = append(internal, a.threads.Tools()...)
 	registry := tools.NewRegistry(a.mcp, internal...)
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
@@ -241,7 +278,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
-		Shortcut: a.shortcut,
+		Thread: a.threads.Context,
 		Afterword: func(ctx context.Context, area string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier
@@ -375,6 +412,10 @@ func runAgent(parent context.Context, cfg config.Config) error {
 			}
 		}
 	})
+
+	if a.threads != nil && a.threads.HasTargets() {
+		a.goRun(ctx, "threads", a.threads.Run)
+	}
 
 	if a.skills != nil && len(a.skills.Skills) > 0 {
 		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
@@ -511,13 +552,13 @@ func (a *app) haUser(ctx context.Context) string {
 	return a.haUserID
 }
 
-// shortcut answers turns code can answer for sure; for now a plain yes to
-// a task proposal.
-func (a *app) shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
-	if a.tasks == nil {
-		return "", false
+// builtinTargets are the goal skills that are always on: "merken", and
+// "aufgabe" with Home Assistant.
+func builtinTargets(withHA bool) []string {
+	if withHA {
+		return []string{"aufgabe", "merken"}
 	}
-	return a.tasks.Shortcut(ctx, inv, text)
+	return []string{"merken"}
 }
 
 // isolatedModel runs the tasks' judgements and drafts on the named model,
@@ -761,6 +802,9 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	}
 	if a.tasks != nil {
 		uiOpts.Tasks = a.tasks
+	}
+	if a.threads != nil {
+		uiOpts.Threads = a.threads
 	}
 	page := ui.New(uiOpts)
 	mux := http.NewServeMux()

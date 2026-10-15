@@ -17,7 +17,6 @@ import (
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tools"
 )
 
 // Source is what the tasks read from Home Assistant.
@@ -51,12 +50,6 @@ type Options struct {
 	Model, Planner Model
 	QuietHours     config.QuietHours
 	Persons        func() map[string]config.Person
-	// Deliver, when set, makes drafting run in the background and delivers
-	// the proposal to whoever asked, like a reminder.
-	Deliver func(ctx context.Context, n store.Notice, areaID string) error
-	// PlanDelay holds background drafting back until the turn that asked
-	// for it has answered.
-	PlanDelay time.Duration
 	// HAURL is Home Assistant's address, for links into its editor.
 	HAURL string
 	// ConfirmDomains and ConfirmEntities are what Mira only switches after
@@ -110,42 +103,44 @@ type Draft struct {
 	Question string `json:"question"`
 }
 
-// errQuestion ends drafting with a question back to the user.
-type errQuestion struct{ question string }
+// ErrQuestion ends drafting with a question back to the user.
+type ErrQuestion struct{ Question string }
 
-func (e errQuestion) Error() string { return e.question }
+func (e ErrQuestion) Error() string { return e.Question }
 
-// errCannot is a task the house cannot do; drafting again does not help.
-type errCannot struct{ reason string }
+// ErrCannot is a task the house cannot do; drafting again does not help.
+type ErrCannot struct{ Reason string }
 
-func (e errCannot) Error() string { return e.reason }
+func (e ErrCannot) Error() string { return e.Reason }
 
-// Create drafts an automation for a goal, has Home Assistant check it and
-// stores it as a proposal. A refused draft is made once more with the
-// reason.
-func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (store.Task, error) {
+// DraftAutomation drafts an automation for a request and the fields a
+// thread collected, and has Home Assistant check it. A refused draft is
+// made once more with the reason. The planner may instead ask back
+// (errQuestion) or say the house cannot do it (errCannot).
+func (m *Manager) DraftAutomation(ctx context.Context, request string, fields map[string]string) (Draft, error) {
 	states, err := m.opts.Source.States(ctx)
 	if err != nil {
-		return store.Task{}, err
+		return Draft{}, err
 	}
-	// What Mira knows may hold the measure the goal leaves open ("unusual
-	// is between midnight and six"): with it the planner builds a fixed
-	// condition instead of asking back.
+	goal := strings.TrimSpace(request)
+	// What Mira knows may hold the measure the request leaves open: with it
+	// the planner builds a fixed condition instead of asking back.
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal}))
+	instruction += m.fieldsText(fields)
 	t := m.texts()
 	var d Draft
 	for attempt := 0; ; attempt++ {
 		raw, err := m.opts.Planner.Ask(ctx, t.draftSystem, instruction, nil)
 		if err != nil {
-			return store.Task{}, err
+			return Draft{}, err
 		}
 		d = Draft{}
 		err = json.Unmarshal([]byte(raw), &d)
 		if err == nil && strings.TrimSpace(d.Error) != "" {
-			return store.Task{}, errCannot{strings.TrimSpace(d.Error)}
+			return Draft{}, ErrCannot{strings.TrimSpace(d.Error)}
 		}
 		if err == nil && strings.TrimSpace(d.Question) != "" {
-			return store.Task{}, errQuestion{strings.TrimSpace(d.Question)}
+			return Draft{}, ErrQuestion{strings.TrimSpace(d.Question)}
 		}
 		if err == nil {
 			err = m.check(ctx, &d, goal)
@@ -154,20 +149,42 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (
 			break
 		}
 		if attempt == 1 {
-			return store.Task{}, fmt.Errorf("no valid automation: %w", err)
+			return Draft{}, fmt.Errorf("no valid automation: %w", err)
 		}
 		m.log.Info("draft refused, drafting again", "error", err)
 		instruction += fmt.Sprintf(t.redraft, err.Error())
 	}
-	automation, _ := json.Marshal(d.Automation)
-	task := store.Task{ID: strings.ToLower(ulid.Make().String()[:10]), Goal: strings.TrimSpace(goal), Title: d.Title,
-		Summary: d.Summary, Plan: string(automation), State: store.TaskProposed, SessionKey: sessionKey, Origin: origin}
-	if err := m.opts.Store.PutTask(ctx, task); err != nil {
-		return store.Task{}, err
-	}
-	m.log.Info("task proposed", "task", task.ID, "title", task.Title)
-	return task, nil
+	m.log.Info("automation drafted", "title", d.Title)
+	return d, nil
 }
+
+// fieldsText renders a thread's fields for the planner.
+func (m *Manager) fieldsText(fields map[string]string) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(m.texts().draftFields)
+	for _, k := range sortedKeys(fields) {
+		fmt.Fprintf(&b, "\n- %s: %s", k, fields[k])
+	}
+	return b.String()
+}
+
+// SaveAutomation creates or replaces one of Mira's automations.
+func (m *Manager) SaveAutomation(ctx context.Context, id string, automation map[string]any) error {
+	_, err := m.opts.HA.Call(ctx, map[string]any{
+		"type": "mira/automation/save", "config": automation, "automation_id": id,
+		"forbidden": m.forbidden(),
+	})
+	if err == nil {
+		m.log.Info("task saved", "automation", id)
+	}
+	return err
+}
+
+// NewAutomationID is the id a new task gets in Home Assistant.
+func NewAutomationID() string { return automationID(strings.ToLower(ulid.Make().String()[:10])) }
 
 // check completes a draft and lets Home Assistant validate it.
 func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
@@ -273,56 +290,13 @@ func tagTask(actions any) {
 	}
 }
 
-// Propose drafts in the background and delivers the proposal, or the
-// failure, to whoever asked. ctx only carries values.
-func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation) {
-	origin, area := m.origin(ctx, inv)
-	var persons map[string]config.Person
-	if m.opts.Persons != nil {
-		persons = m.opts.Persons()
-	}
-	audience := tools.AudienceFor("", inv, persons)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
-		defer cancel()
-		time.Sleep(m.opts.PlanDelay)
-		t := m.texts()
-		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
-		task, err := m.Create(ctx, goal, inv.SessionKey, origin)
-		var cannot errCannot
-		var question errQuestion
-		switch {
-		case errors.As(err, &question):
-			m.log.Info("task needs a measure", "goal", goal, "question", question.question)
-			n.DedupeKey = "task-plan:" + n.ID
-			n.Spoken = question.question
-		case errors.As(err, &cannot):
-			m.log.Info("task cannot be done here", "goal", goal, "reason", cannot.reason)
-			n.DedupeKey = "task-plan:" + n.ID
-			n.Spoken = fmt.Sprintf(t.cannot, strings.TrimSpace(goal), cannot.reason)
-		case err != nil:
-			m.log.Error("could not draft a task", "goal", goal, "error", err)
-			n.DedupeKey = "task-plan:" + n.ID
-			n.Spoken = fmt.Sprintf(t.planFailed, strings.TrimSpace(goal))
-		default:
-			n.DedupeKey = "task-plan:" + task.ID
-			n.Spoken = m.proposalText(task)
-			n.Details = task.Summary
-		}
-		if err := m.opts.Deliver(ctx, n, area); err != nil {
-			m.log.Error("could not deliver a task proposal", "error", err)
-		}
-	}()
-}
-
 // proposalText is the proposal as said to the user. Actions besides Mira's
 // own are named by the code, not left to the summary: the yes covers
 // exactly them.
-func (m *Manager) proposalText(task store.Task) string {
+func (m *Manager) ProposalText(d Draft) string {
 	t := m.texts()
-	parts := []string{strings.TrimSpace(task.Summary)}
-	var automation map[string]any
-	if json.Unmarshal([]byte(task.Plan), &automation) == nil {
+	parts := []string{strings.TrimSpace(d.Summary)}
+	if automation := d.Automation; automation != nil {
 		if other := otherActions(automation["actions"]); len(other) > 0 {
 			parts = append(parts, fmt.Sprintf(t.alsoSwitches, strings.Join(other, ", ")))
 		}
@@ -339,7 +313,7 @@ func (m *Manager) proposalText(task store.Task) string {
 			parts = append(parts, t.noCondition)
 		}
 	}
-	return fmt.Sprintf(t.proposal, task.Title, strings.Join(parts, " "))
+	return fmt.Sprintf(t.proposal, d.Title, strings.Join(parts, " "))
 }
 
 // describeConditions renders an automation's conditions short enough to
@@ -413,116 +387,6 @@ func (m *Manager) describeConditions(conditions any) []string {
 	return out
 }
 
-// origin is where a turn happens: the satellite's area for voice (a reply
-// to a proposal comes in a new session there), the session key otherwise.
-func (m *Manager) origin(ctx context.Context, inv tools.Invocation) (origin, area string) {
-	if inv.Channel == config.ChannelVoice {
-		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil && sess.AreaID != "" {
-			return "area:" + sess.AreaID, sess.AreaID
-		}
-	}
-	return inv.SessionKey, ""
-}
-
-// ConfirmLatest saves the newest proposal made at origin.
-func (m *Manager) ConfirmLatest(ctx context.Context, origin string) (store.Task, error) {
-	newest, err := m.newestProposal(ctx, origin, 0)
-	if err != nil {
-		return store.Task{}, err
-	}
-	return m.Activate(ctx, newest.ID)
-}
-
-// newestProposal is the newest proposal made at origin, younger than
-// within when within > 0.
-func (m *Manager) newestProposal(ctx context.Context, origin string, within time.Duration) (store.Task, error) {
-	list, err := m.opts.Store.Tasks(ctx)
-	if err != nil {
-		return store.Task{}, err
-	}
-	now := m.opts.Clock()
-	var newest store.Task
-	for _, t := range list {
-		if t.State != store.TaskProposed || t.Origin != origin || (within > 0 && now.Sub(t.CreatedAt) >= within) {
-			continue
-		}
-		if !t.CreatedAt.Before(newest.CreatedAt) {
-			newest = t
-		}
-	}
-	if newest.ID == "" {
-		return store.Task{}, store.ErrNotFound
-	}
-	return newest, nil
-}
-
-// proposalFresh is how long a plain yes still answers a proposal.
-const proposalFresh = 10 * time.Minute
-
-// Shortcut confirms a proposal in code: a plain yes where a proposal
-// younger than proposalFresh waits. On the list to discuss: fixed phrases
-// are language-bound.
-func (m *Manager) Shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
-	t := m.texts()
-	if !isYes(t.yesPhrases, text) {
-		return "", false
-	}
-	origin, _ := m.origin(ctx, inv)
-	newest, err := m.newestProposal(ctx, origin, proposalFresh)
-	if err != nil {
-		return "", false
-	}
-	task, err := m.Activate(ctx, newest.ID)
-	if err != nil {
-		m.log.Error("could not save a confirmed task", "task", newest.ID, "error", err)
-		return fmt.Sprintf(t.saveFailed, err), true
-	}
-	return fmt.Sprintf(t.confirmed, task.Title), true
-}
-
-// isYes reports whether text is nothing but agreement, one of the
-// "|"-separated phrases, ignoring case and punctuation.
-func isYes(phrases, text string) bool {
-	text = strings.ToLower(strings.TrimSpace(text))
-	text = strings.Map(func(r rune) rune {
-		if strings.ContainsRune(".,!?;:„“\"'", r) {
-			return -1
-		}
-		return r
-	}, text)
-	text = strings.Join(strings.Fields(text), " ")
-	for _, p := range strings.Split(phrases, "|") {
-		if text == p {
-			return true
-		}
-	}
-	return false
-}
-
-// Activate saves a proposal as a Home Assistant automation. From then on
-// Home Assistant holds the task; the proposal is dropped.
-func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
-	t, err := m.opts.Store.GetTask(ctx, id)
-	if err != nil {
-		return store.Task{}, err
-	}
-	var automation map[string]any
-	if err := json.Unmarshal([]byte(t.Plan), &automation); err != nil {
-		return store.Task{}, err
-	}
-	if _, err := m.opts.HA.Call(ctx, map[string]any{
-		"type": "mira/automation/save", "config": automation, "automation_id": automationID(t.ID),
-		"forbidden": m.forbidden(),
-	}); err != nil {
-		return store.Task{}, err
-	}
-	if err := m.opts.Store.DeleteTask(ctx, t.ID); err != nil {
-		m.log.Warn("could not drop a saved proposal", "task", t.ID, "error", err)
-	}
-	m.log.Info("task saved", "task", t.ID, "automation", automationID(t.ID))
-	return t, nil
-}
-
 // Item is a task as the UI and task_list show it: a proposal or one of
 // Mira's automations.
 type Item struct {
@@ -530,27 +394,17 @@ type Item struct {
 	Title         string          `json:"title"`
 	Goal          string          `json:"goal"`
 	Summary       string          `json:"summary,omitempty"`
-	State         string          `json:"state"` // proposed, on, off, unavailable
+	State         string          `json:"state"` // on, off, unavailable
 	EntityID      string          `json:"entity_id,omitempty"`
 	LastTriggered string          `json:"last_triggered,omitempty"`
 	Automation    json.RawMessage `json:"automation,omitempty"`
 	EditURL       string          `json:"edit_url,omitempty"`
 }
 
-// List returns open proposals and Mira's automations. Proposals come even
-// when Home Assistant cannot be asked; the error says so.
+// List returns Mira's automations. Proposals still being planned live in
+// their thread.
 func (m *Manager) List(ctx context.Context) ([]Item, error) {
 	var out []Item
-	proposals, err := m.opts.Store.Tasks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, t := range proposals {
-		if t.State == store.TaskProposed {
-			out = append(out, Item{ID: t.ID, Title: t.Title, Goal: t.Goal, Summary: t.Summary,
-				State: store.TaskProposed, Automation: json.RawMessage(t.Plan)})
-		}
-	}
 	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/list"})
 	if err != nil {
 		return out, fmt.Errorf("Mira's automations: %w", err)
@@ -581,14 +435,8 @@ func (m *Manager) List(ctx context.Context) ([]Item, error) {
 	return out, nil
 }
 
-// Delete drops a proposal or deletes one of Mira's automations.
+// Delete deletes one of Mira's automations.
 func (m *Manager) Delete(ctx context.Context, id string) error {
-	if err := m.opts.Store.DeleteTask(ctx, id); err == nil {
-		m.log.Info("proposal dropped", "task", id)
-		return nil
-	} else if !errors.Is(err, store.ErrNotFound) {
-		return err
-	}
 	if _, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/delete", "automation_id": id}); err != nil {
 		return err
 	}
@@ -633,9 +481,6 @@ func (m *Manager) Try(ctx context.Context, id string) (TryResult, error) {
 	for _, it := range items {
 		if it.ID == id {
 			_ = json.Unmarshal(it.Automation, &automation)
-			if it.State == store.TaskProposed {
-				key = automationID(id)
-			}
 		}
 	}
 	if automation == nil {
