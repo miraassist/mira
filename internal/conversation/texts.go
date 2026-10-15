@@ -17,6 +17,7 @@ type texts struct {
 	errorPrefix     string
 	unknownTool     string // %s = tool name
 	invalidJSONArgs string
+	delegated       string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -31,6 +32,7 @@ var catalog = map[i18n.Lang]texts{
 		errorPrefix:     "Fehler: ",
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
+		delegated:       "Kanal: abgegebene Aufgabe. Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
 	},
 	i18n.EN: {
 		voiceInArea:     "Channel: voice, satellite in area %[1]s. Without a room given, area %[1]s is meant.",
@@ -43,6 +45,7 @@ var catalog = map[i18n.Lang]texts{
 		errorPrefix:     "Error: ",
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",
+		delegated:       "Channel: delegated task. Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
 	},
 }
 

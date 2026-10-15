@@ -48,6 +48,14 @@ once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once. The page
 is in German or English, following the browser, with a switch in its header.
 
+Models: `llm` is the main model; `models` adds more by name, local or in
+the cloud (any OpenAI-compatible endpoint, e.g. Gemini), and `routing` says
+which serves voice, Telegram and background jobs. With `routing.delegate`
+the conversation model gets a `delegate` tool that hands harder tasks
+(planning, explanations, research) to a stronger model and reads back its
+answer. Only the local main model is warmed up; a cloud model is billed per
+token, and each turn logs its model and token counts.
+
 Languages: `prompt.language` is `de` or `en`. It sets the language of the
 prompt, of the notices and of everything Mira writes on her own; she still
 answers in the language she is spoken to in. The English prompt is written

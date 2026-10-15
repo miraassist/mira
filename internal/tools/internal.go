@@ -21,7 +21,11 @@ const (
 	ToolNoticesList    = "notices_list"
 	ToolNoticeAck      = "notice_ack"
 	ToolSendToTelegram = "send_to_telegram"
+	ToolDelegate       = "delegate"
 )
+
+// Delegator hands a task to a stronger model and returns its answer.
+type Delegator func(ctx context.Context, task string) (string, error)
 
 // TelegramSender delivers a handover message to the household's phones.
 type TelegramSender interface {
@@ -31,10 +35,10 @@ type TelegramSender interface {
 // Internal returns the agent's own tools. The set is the same for every
 // channel, so prompt layer 3 is too. A nil sender makes send_to_telegram
 // report that Telegram is not configured instead of disappearing.
-func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender) []InternalTool {
+func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate Delegator) []InternalTool {
 	t := textsFor(l)
 	decode := func(raw json.RawMessage, v any) error { return decodeArgs(t, raw, v) }
-	return []InternalTool{
+	list := []InternalTool{
 		{
 			Name:        ToolMemorySave,
 			Description: t.memorySaveDesc,
@@ -171,6 +175,25 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender) []InternalT
 			},
 		},
 	}
+	if delegate != nil {
+		list = append(list, InternalTool{
+			Name:        ToolDelegate,
+			Description: t.delegateDesc,
+			Schema:      schema(`{"type":"object","properties":{"task":{"type":"string","description":%q}},"required":["task"]}`, t.delegateTask),
+			// It changes nothing: the delegated model only reads.
+			ReadOnly: true,
+			Run: func(ctx context.Context, inv Invocation) (string, error) {
+				var a struct {
+					Task string `json:"task"`
+				}
+				if err := decode(inv.Args, &a); err != nil {
+					return "", err
+				}
+				return delegate(ctx, a.Task)
+			},
+		})
+	}
+	return list
 }
 
 func decodeArgs(t texts, raw json.RawMessage, v any) error {

@@ -40,8 +40,15 @@ func (e *Engine) RunWarmups(ctx context.Context) error {
 // only occupy the server (LM Studio: about 48 seconds each for a cold
 // prompt of 9000 tokens) and evict each other's cache entries.
 func (e *Engine) WarmupAll(ctx context.Context, reason string) {
-	channels := []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground}
-	if !e.cfg.LLM.SlotPinning {
+	// Only channels on the main model are warmed: it is the local one with a
+	// cache to fill. A warmup of a cloud model costs money and buys nothing.
+	var channels []config.Channel
+	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
+		if e.cfg.RouteFor(ch) == config.MainModel {
+			channels = append(channels, ch)
+		}
+	}
+	if !e.cfg.LLM.SlotPinning && len(channels) > 1 {
 		channels = channels[:1]
 	}
 	for _, ch := range channels {
@@ -65,7 +72,8 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 	built := prompt.WarmupRequest(prefix)
 	req := e.chatRequest(ch, built.Messages, built)
 	started := time.Now()
-	if err := e.llm.Warmup(ctx, req); err != nil {
+	client, _, _ := e.modelFor(config.MainModel)
+	if err := client.Warmup(ctx, req); err != nil {
 		return err
 	}
 	e.log.Info("slot warmed", "channel", ch, "prefix_hash", built.PrefixHash, "took", time.Since(started).Round(time.Millisecond))

@@ -160,13 +160,22 @@ func TestExampleConfigLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env := map[string]string{"MIRA_API_TOKEN": "a", "HA_TOKEN": "b", "TELEGRAM_TOKEN": "c"}
+	env := map[string]string{"MIRA_API_TOKEN": "a", "HA_TOKEN": "b", "TELEGRAM_TOKEN": "c", "GEMINI_API_TOKEN": "d"}
 	cfg, err := Parse(raw, func(k string) (string, bool) { v, ok := env[k]; return v, ok })
 	if err != nil {
 		t.Fatalf("example config: %v", err)
 	}
 	if len(cfg.MCPServers) != 2 || !cfg.MCPServers[1].WebContent || cfg.HA.Token != "b" {
 		t.Errorf("example parsed wrong: %+v", cfg.MCPServers)
+	}
+	// Further models inherit what they leave out from main, but never the
+	// local-only settings.
+	smart := cfg.Models["smart"]
+	if smart.MaxToolRounds != cfg.LLM.MaxToolRounds || smart.Timeout != cfg.LLM.Timeout || smart.CachePrompt || smart.WarmupOnStart {
+		t.Errorf("smart = %+v", smart)
+	}
+	if cfg.RouteFor(ChannelBackground) != "lite" || cfg.RouteFor(ChannelVoice) != MainModel || cfg.SlotFor(ChannelBackground) != -1 {
+		t.Error("routing parsed wrong")
 	}
 }
 
@@ -183,5 +192,18 @@ func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
 	}
 	if cfg.LLM.Model != "qwen" {
 		t.Errorf("model = %q", cfg.LLM.Model)
+	}
+}
+
+func TestRoutingNeedsKnownModels(t *testing.T) {
+	c := Default()
+	c.HA.Enabled, c.Telegram.Enabled = false, false
+	c.Routing.Delegate = "nope"
+	c.Models = map[string]LLM{"main": {BaseURL: "x", Model: "y"}, "half": {Model: "y"}}
+	err := c.Validate()
+	for _, want := range []string{`routing.delegate: no model "nope"`, "models.main: the name main", "models.half needs base_url"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("missing %q in %v", want, err)
+		}
 	}
 }

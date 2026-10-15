@@ -12,6 +12,7 @@ type texts struct {
 	noticeAckDesc, noticeAcked, noSuchNotice                    string
 	telegramDesc, telegramText, telegramSent, noTelegram        string
 	textMissing, invalidArgs                                    string
+	delegateDesc, delegateTask                                  string
 
 	denyBackground, denyAfterWeb, denyStoreFailed string
 	needsConfirmation                             string // %s = summary of the action
@@ -44,6 +45,8 @@ var catalog = map[i18n.Lang]texts{
 		noTelegram:       "Telegram ist nicht eingerichtet",
 		textMissing:      "text fehlt",
 		invalidArgs:      "ungültige Argumente: %w",
+		delegateDesc:     "Gibt eine Frage oder Aufgabe an ein stärkeres Modell ab, wenn sie viel Wissen, gründliches Nachdenken oder mehrere Rechercheschritte braucht, z.B. Erklärungen, Planungen, Vergleiche, Rezepte. Nicht für Schaltbefehle, Zustandsabfragen oder Smalltalk. Das stärkere Modell kann nachschlagen, aber nichts verändern. Fasse sein Ergebnis für den Nutzer im Stil des Kanals zusammen.",
+		delegateTask:     "Die vollständige Aufgabe mit allem nötigen Kontext aus dem Gespräch; das andere Modell kennt das Gespräch nicht.",
 
 		denyBackground:    "Abgelehnt: Hintergrundjobs dürfen nur lesende Werkzeuge verwenden.",
 		denyAfterWeb:      "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll.",
@@ -74,6 +77,8 @@ var catalog = map[i18n.Lang]texts{
 		noTelegram:        "Telegram is not set up",
 		textMissing:       "text is missing",
 		invalidArgs:       "invalid arguments: %w",
+		delegateDesc:      "Hands a question or task to a stronger model when it needs a lot of knowledge, careful thought or several research steps, e.g. explanations, planning, comparisons, recipes. Not for switching, state lookups or small talk. The stronger model can look things up but change nothing. Summarize its result for the user in the channel's style.",
+		delegateTask:      "The complete task with all needed context from the conversation; the other model does not know the conversation.",
 
 		denyBackground:    "Denied: background jobs may only use read-only tools.",
 		denyAfterWeb:      "Denied: this request has already read content from the web. Critical actions are therefore locked. Tell the user to give the command again directly.",

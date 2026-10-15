@@ -252,3 +252,20 @@ func TestHealth(t *testing.T) {
 		t.Error("Health should fail against a dead server")
 	}
 }
+
+// Gemini's thought signature must survive a round trip unchanged.
+func TestToolCallKeepsExtraContent(t *testing.T) {
+	in := `{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"},"extra_content":{"google":{"thought_signature":"abc="}}}`
+	var call llm.ToolCall
+	if err := json.Unmarshal([]byte(in), &call); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := json.Marshal(call)
+	if !strings.Contains(string(out), `"extra_content":{"google":{"thought_signature":"abc="}}`) {
+		t.Errorf("lost: %s", out)
+	}
+	plain, _ := json.Marshal(llm.ToolCall{ID: "c2", Type: "function"})
+	if strings.Contains(string(plain), "extra_content") {
+		t.Errorf("empty extra_content sent: %s", plain)
+	}
+}

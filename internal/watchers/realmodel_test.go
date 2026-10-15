@@ -39,7 +39,7 @@ func TestRealModelAssessment(t *testing.T) {
 	engine := conversation.New(conversation.Options{
 		Config: cfg, Store: st, Logger: quiet,
 		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("MIRA_TEST_LLM_MODEL"), APIKey: os.Getenv("MIRA_TEST_LLM_KEY"), Timeout: 2 * time.Minute}),
-		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
+		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil, nil)...),
 		Guard: tools.NewGuard(i18n.DE, cfg.Security, st, nil),
 	})
 	m := New(Options{Store: st, Assessor: engine, MinImportance: 0, Logger: quiet})
@@ -86,7 +86,7 @@ func TestRealModelFeed(t *testing.T) {
 	engine := conversation.New(conversation.Options{
 		Config: cfg, Store: st, Logger: quiet,
 		LLM:   llm.New(llm.Options{BaseURL: url, Model: os.Getenv("MIRA_TEST_LLM_MODEL"), APIKey: os.Getenv("MIRA_TEST_LLM_KEY"), Timeout: 3 * time.Minute}),
-		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
+		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil, nil)...),
 		Guard: tools.NewGuard(i18n.DE, cfg.Security, st, nil),
 	})
 	w := config.Watcher{Name: "modelle", Schedule: "0 8 * * *", Kind: "rss", URL: feedURL,

@@ -65,11 +65,20 @@ type Response struct {
 	ToolRounds           int
 	PromptTokens         int
 	CachedTokens         int
+	// Model is the name of the model that answered. MorePromptTokens and
+	// CompletionTokens complete the usage of the turn, which is what a cloud
+	// model bills.
+	Model            string
+	MorePromptTokens int
+	CompletionTokens int
 }
 
 type Options struct {
-	Config    config.Config
+	Config config.Config
+	// LLM is the main model. Models holds the further ones by name, as in
+	// config.Models; config.Routing says which serves what.
 	LLM       Chatter
+	Models    map[string]Chatter
 	Store     *store.Store
 	Tools     *tools.Registry
 	Guard     *tools.Guard
@@ -86,7 +95,7 @@ type Options struct {
 
 type Engine struct {
 	cfg       config.Config
-	llm       Chatter
+	models    map[string]Chatter
 	store     *store.Store
 	tools     *tools.Registry
 	guard     *tools.Guard
@@ -123,7 +132,7 @@ func New(opts Options) *Engine {
 	}
 	e := &Engine{
 		cfg:       opts.Config,
-		llm:       opts.LLM,
+		models:    map[string]Chatter{config.MainModel: opts.LLM},
 		store:     opts.Store,
 		tools:     opts.Tools,
 		guard:     opts.Guard,
@@ -135,6 +144,9 @@ func New(opts Options) *Engine {
 		loc:       opts.Location,
 		locks:     map[config.Channel]*sync.Mutex{},
 		warm:      make(chan string, 1),
+	}
+	for name, m := range opts.Models {
+		e.models[name] = m
 	}
 	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
 		e.locks[ch] = &sync.Mutex{}
@@ -201,6 +213,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text}
 	noticeText, followedUp := e.noticeContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
+		Lang:           e.lang(),
 		Now:            now.In(e.loc),
 		ChannelContext: e.channelContext(req, sess, snap),
 		Memories:       e.memories(ctx, req.Text),
@@ -219,12 +232,14 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	if err != nil {
 		return Response{}, err
 	}
+	client, model, modelName := e.modelFor(e.cfg.RouteFor(req.Channel))
 	built := prompt.Build(prefix, history, turn)
 	msgs := built.Messages
 	added := []llm.Message{msgs[len(msgs)-1]} // the rendered layer 7
 
 	resp := Response{ConversationID: req.ConversationID, PrefixHash: built.PrefixHash}
-	maxRounds := e.cfg.LLM.MaxToolRounds
+	resp.Model = modelName
+	maxRounds := model.MaxToolRounds
 	var final llm.Message
 	nudged := false
 	for round := 0; ; round++ {
@@ -233,13 +248,16 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 			// Out of rounds: the model has to answer with what it has.
 			chatReq.ToolChoice = "none"
 		}
-		out, err := e.llm.Chat(ctx, chatReq)
+		out, err := client.Chat(ctx, chatReq)
 		if err != nil {
 			return Response{}, err
 		}
+		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
 			resp.PromptTokens, resp.CachedTokens = out.Usage.PromptTokens, out.CachedTokens()
-			e.checkContext(key, out.Usage.PromptTokens)
+			e.checkContext(key, out.Usage.PromptTokens, model)
+		} else {
+			resp.MorePromptTokens += out.Usage.PromptTokens
 		}
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
@@ -298,27 +316,51 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp.ContinueConversation = req.Channel == config.ChannelVoice &&
 		(expectsReply(resp.Text) || ts.ConfirmationRequested())
 	e.log.Info("turn done",
-		"session", key, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
-		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens)
+		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
+		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,
+		"more_prompt_tokens", resp.MorePromptTokens, "completion_tokens", resp.CompletionTokens)
 	return resp, nil
 }
 
 func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
-	r := llm.ChatRequest{
-		Messages:    msgs,
-		Tools:       built.Tools,
-		Temperature: e.cfg.LLM.Temperature,
-		MaxTokens:   e.cfg.LLM.MaxTokens,
-		Channel:     string(ch),
-		PrefixHash:  built.PrefixHash,
-	}
+	_, model, _ := e.modelFor(e.cfg.RouteFor(ch))
+	r := modelRequest(model, msgs)
+	r.Tools = built.Tools
+	r.Channel = string(ch)
+	r.PrefixHash = built.PrefixHash
 	if slot := e.cfg.SlotFor(ch); slot >= 0 {
 		r.IDSlot = llm.IntPtr(slot)
 	}
-	if e.cfg.LLM.CachePrompt {
+	return r
+}
+
+// modelRequest is a request with a model's own settings: llama.cpp's
+// cache_prompt only where it is switched on, reasoning_effort only where set.
+func modelRequest(model config.LLM, msgs []llm.Message) llm.ChatRequest {
+	r := llm.ChatRequest{
+		Messages:        msgs,
+		Temperature:     model.Temperature,
+		MaxTokens:       model.MaxTokens,
+		ReasoningEffort: model.ReasoningEffort,
+	}
+	if model.CachePrompt {
 		r.CachePrompt = llm.BoolPtr(true)
 	}
 	return r
+}
+
+// modelFor returns the client and settings of a model by name. A name the
+// config validation let through always exists; main is the fallback.
+func (e *Engine) modelFor(name string) (Chatter, config.LLM, string) {
+	if name == "" {
+		name = config.MainModel
+	}
+	m, ok := e.cfg.Model(name)
+	c := e.models[name]
+	if !ok || c == nil {
+		name, m, c = config.MainModel, e.cfg.LLM, e.models[config.MainModel]
+	}
+	return c, m, name
 }
 
 // runTool executes one call through the guard and returns what the model
@@ -411,8 +453,8 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, snap 
 
 // checkContext warns when a session approaches the slot's context size.
 // Compaction itself is a deliberate cache break and comes later (M5).
-func (e *Engine) checkContext(key string, promptTokens int) {
-	limit := int(float64(e.cfg.LLM.ContextTokens) * e.cfg.LLM.CompactAtFraction)
+func (e *Engine) checkContext(key string, promptTokens int, model config.LLM) {
+	limit := int(float64(model.ContextTokens) * model.CompactAtFraction)
 	if promptTokens > limit {
 		e.log.Warn("session is close to the context limit; compaction is not implemented yet",
 			"session", key, "prompt_tokens", promptTokens, "limit", limit)

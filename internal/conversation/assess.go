@@ -26,6 +26,7 @@ func (e *Engine) Assess(ctx context.Context, instruction string, schema json.Raw
 		return "", err
 	}
 	turn := prompt.Turn{
+		Lang:           e.lang(),
 		Now:            e.clock().In(e.loc),
 		ChannelContext: e.channelContext(Request{Channel: config.ChannelBackground}, store.Session{}, e.structure()),
 		Text:           instruction,
@@ -39,7 +40,8 @@ func (e *Engine) Assess(ctx context.Context, instruction string, schema json.Raw
 			"json_schema": map[string]any{"name": "assessment", "schema": schema},
 		}
 	}
-	out, err := e.llm.Chat(ctx, req)
+	client, _, _ := e.modelFor(e.cfg.RouteFor(config.ChannelBackground))
+	out, err := client.Chat(ctx, req)
 	if err != nil {
 		return "", err
 	}
@@ -61,22 +63,20 @@ func (e *Engine) AssessIsolated(ctx context.Context, system, instruction string,
 	lock.Lock()
 	defer lock.Unlock()
 
-	req := llm.ChatRequest{
-		Messages: []llm.Message{
-			{Role: llm.RoleSystem, Content: system},
-			{Role: llm.RoleUser, Content: instruction},
-		},
-		Temperature: e.cfg.LLM.Temperature,
-		MaxTokens:   e.cfg.LLM.MaxTokens,
-		Channel:     string(config.ChannelBackground),
-	}
+	client, model, _ := e.modelFor(e.cfg.RouteFor(config.ChannelBackground))
+	req := modelRequest(model, []llm.Message{
+		{Role: llm.RoleSystem, Content: system},
+		{Role: llm.RoleUser, Content: instruction},
+	})
+	req.CachePrompt = nil // a one-off prompt, nothing to keep
+	req.Channel = string(config.ChannelBackground)
 	if len(schema) > 0 {
 		req.ResponseFormat = map[string]any{
 			"type":        "json_schema",
 			"json_schema": map[string]any{"name": "result", "schema": schema},
 		}
 	}
-	out, err := e.llm.Chat(ctx, req)
+	out, err := client.Chat(ctx, req)
 	if err != nil {
 		return "", err
 	}

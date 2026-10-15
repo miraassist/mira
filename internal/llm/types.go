@@ -35,6 +35,10 @@ type ToolCall struct {
 	ID       string       `json:"id"`
 	Type     string       `json:"type"`
 	Function FunctionCall `json:"function"`
+	// ExtraContent is passed back exactly as the server sent it. Gemini puts
+	// its thought signature here and refuses the next round of a turn when a
+	// call comes back without it.
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type FunctionCall struct {
@@ -68,6 +72,8 @@ type ChatRequest struct {
 	Stop        []string  `json:"stop,omitempty"`
 	// ResponseFormat requests structured output, used by the notice evaluator.
 	ResponseFormat any `json:"response_format,omitempty"`
+	// ReasoningEffort limits the thinking of models that think by default.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 
 	// IDSlot pins the request to a llama.cpp slot so its KV cache is reused.
 	// Nil leaves the choice to the server.

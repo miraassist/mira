@@ -27,6 +27,32 @@ llm:
   warmup_on_start: true
   warmup_on_prefix_change: true
 
+# Further models by name; the one above is "main". Settings they leave out
+# come from main, except slots, cache_prompt and warmups (local only).
+# Without a local model, point llm itself at a cloud endpoint instead.
+models:
+  smart:
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-latest"
+    reasoning_effort: low    # thinking costs time and money
+    context_tokens: 200000
+  lite:
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-lite-latest"
+    reasoning_effort: low
+    context_tokens: 200000
+
+# Which model serves what; empty is main. delegate gives the voice and
+# Telegram model a tool to hand harder tasks to a stronger model, which may
+# look things up but changes nothing. Leave it empty to turn the tool off.
+routing:
+  voice: main
+  telegram: main
+  background: lite
+  delegate: smart
+
 store:
   path: "/var/lib/mira/mira.db"
 

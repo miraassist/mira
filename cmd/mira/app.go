@@ -35,11 +35,13 @@ import (
 
 // app is the wired agent. Fields are nil for disabled parts.
 type app struct {
-	cfg       config.Config
-	log       *slog.Logger
-	tel       *telemetry.Provider
-	store     *store.Store
-	llm       *llm.Client
+	cfg   config.Config
+	log   *slog.Logger
+	tel   *telemetry.Provider
+	store *store.Store
+	llm   *llm.Client
+	// models are the further models by name (config.Models).
+	models    map[string]*llm.Client
 	ha        *haws.Client
 	structure *structure.Cache
 	assist    *assistprompt.Cache
@@ -92,6 +94,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		BaseURL: cfg.LLM.BaseURL, APIKey: cfg.LLM.APIKey, Model: cfg.LLM.Model,
 		Timeout: cfg.LLM.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
 	})
+	a.models = map[string]*llm.Client{}
+	for name, m := range cfg.Models {
+		a.models[name] = llm.New(llm.Options{
+			BaseURL: m.BaseURL, APIKey: m.APIKey, Model: m.Model,
+			Timeout: m.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
+		})
+	}
 
 	a.mcp = mcp.New(mcp.Options{
 		Servers: cfg.MCPServers, Logger: a.log, Version: version,
@@ -166,13 +175,23 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if a.structure != nil {
 		snapshot = a.structure.Snapshot
 	}
-	registry := tools.NewRegistry(a.mcp, tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender)...)
+	// The delegate tool exists only with a delegate model. It is bound late:
+	// the engine it calls is built from the registry.
+	var delegate tools.Delegator
+	if cfg.Routing.Delegate != "" {
+		delegate = func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
+	}
+	registry := tools.NewRegistry(a.mcp, tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender, delegate)...)
+	models := map[string]conversation.Chatter{}
+	for name, c := range a.models {
+		models[name] = c
+	}
 	var assistText func() string
 	if a.assist != nil {
 		assistText = a.assist.Text
 	}
 	a.engine = conversation.New(conversation.Options{
-		Config: cfg, LLM: a.llm, Store: a.store, Tools: registry,
+		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
 	})
@@ -627,6 +646,8 @@ func (a *app) uiEntities() []ui.Entity {
 func (a *app) healthChecks() map[string]haconv.HealthCheck {
 	checks := map[string]haconv.HealthCheck{
 		"llm": a.llm.Health,
+		// further models, as "llm:smart"; for a cloud model this lists its
+		// models, which costs nothing
 		"mcp": func(context.Context) error {
 			var down []string
 			for _, s := range a.mcp.Status() {
@@ -639,6 +660,9 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 			}
 			return nil
 		},
+	}
+	for name, c := range a.models {
+		checks["llm:"+name] = c.Health
 	}
 	if a.ha != nil {
 		checks["home_assistant"] = func(context.Context) error {

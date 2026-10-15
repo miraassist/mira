@@ -29,8 +29,12 @@ const (
 )
 
 type Config struct {
-	Server     Server            `yaml:"server"`
-	LLM        LLM               `yaml:"llm"`
+	Server Server `yaml:"server"`
+	LLM    LLM    `yaml:"llm"`
+	// Models are further models by name, e.g. a cloud model for harder
+	// work. The model under llm is called "main".
+	Models     map[string]LLM    `yaml:"models"`
+	Routing    Routing           `yaml:"routing"`
 	Store      Store             `yaml:"store"`
 	Prompt     Prompt            `yaml:"prompt"`
 	HA         HA                `yaml:"ha"`
@@ -80,6 +84,49 @@ type LLM struct {
 	CompactAtFraction    float64 `yaml:"compact_at_fraction"`
 	WarmupOnStart        bool    `yaml:"warmup_on_start"`
 	WarmupOnPrefixChange bool    `yaml:"warmup_on_prefix_change"`
+	// ReasoningEffort is passed as reasoning_effort when set ("none", "low",
+	// ...). Cloud models that think by default are slower and dearer without
+	// it; llama.cpp and LM Studio do not need it.
+	ReasoningEffort string `yaml:"reasoning_effort"`
+}
+
+// MainModel is the name of the model configured under llm.
+const MainModel = "main"
+
+// Routing says which model serves which kind of work. Empty means main;
+// an empty Delegate turns the delegate tool off.
+type Routing struct {
+	Voice      string `yaml:"voice"`
+	Telegram   string `yaml:"telegram"`
+	Background string `yaml:"background"`
+	// Delegate is the model the delegate tool hands harder tasks to.
+	Delegate string `yaml:"delegate"`
+}
+
+// Model returns the settings of a model by name; "" and "main" are llm.
+func (c Config) Model(name string) (LLM, bool) {
+	if name == "" || name == MainModel {
+		return c.LLM, true
+	}
+	m, ok := c.Models[name]
+	return m, ok
+}
+
+// RouteFor names the model that serves a channel.
+func (c Config) RouteFor(ch Channel) string {
+	var name string
+	switch ch {
+	case ChannelVoice:
+		name = c.Routing.Voice
+	case ChannelTelegram:
+		name = c.Routing.Telegram
+	case ChannelBackground:
+		name = c.Routing.Background
+	}
+	if name == "" {
+		return MainModel
+	}
+	return name
 }
 
 type Store struct {
@@ -403,6 +450,30 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 
 func (c *Config) normalize() {
 	c.LLM.BaseURL = strings.TrimRight(c.LLM.BaseURL, "/")
+	// Further models take what they leave out from main, except what only
+	// suits a local llama.cpp server: slots, cache_prompt and warmups.
+	for name, m := range c.Models {
+		m.BaseURL = strings.TrimRight(m.BaseURL, "/")
+		if m.MaxToolRounds == 0 {
+			m.MaxToolRounds = c.LLM.MaxToolRounds
+		}
+		if m.Temperature == nil {
+			m.Temperature = c.LLM.Temperature
+		}
+		if m.MaxTokens == 0 {
+			m.MaxTokens = c.LLM.MaxTokens
+		}
+		if m.Timeout == 0 {
+			m.Timeout = c.LLM.Timeout
+		}
+		if m.ContextTokens == 0 {
+			m.ContextTokens = c.LLM.ContextTokens
+		}
+		if m.CompactAtFraction == 0 {
+			m.CompactAtFraction = c.LLM.CompactAtFraction
+		}
+		c.Models[name] = m
+	}
 	c.HA.URL = strings.TrimRight(c.HA.URL, "/")
 	c.Telegram.APIBaseURL = strings.TrimRight(c.Telegram.APIBaseURL, "/")
 	for i := range c.MCPServers {
@@ -437,6 +508,20 @@ func (c Config) Validate() error {
 	}
 	if _, err := i18n.Parse(c.Prompt.Language); err != nil {
 		add("prompt.language: %v", err)
+	}
+	for name, m := range c.Models {
+		if name == MainModel {
+			add("models.%s: the name main is the model under llm", name)
+		}
+		if m.BaseURL == "" || m.Model == "" {
+			add("models.%s needs base_url and model", name)
+		}
+	}
+	for role, name := range map[string]string{"voice": c.Routing.Voice, "telegram": c.Routing.Telegram,
+		"background": c.Routing.Background, "delegate": c.Routing.Delegate} {
+		if _, ok := c.Model(name); !ok {
+			add("routing.%s: no model %q (main or one of models)", role, name)
+		}
 	}
 	if c.LLM.BaseURL == "" {
 		add("llm.base_url must not be empty")
@@ -617,7 +702,8 @@ func (c Config) Validate() error {
 // SlotFor returns the llama.cpp slot for a channel, or -1 when slot pinning is
 // off. A negative slot means "let the server choose".
 func (c Config) SlotFor(ch Channel) int {
-	if !c.LLM.SlotPinning {
+	// Slots belong to the local main model.
+	if !c.LLM.SlotPinning || c.RouteFor(ch) != MainModel {
 		return -1
 	}
 	if slot, ok := c.LLM.Slots[ch]; ok {
