@@ -27,8 +27,7 @@ async def test_status_entities(hass, aioclient_mock, entry):
 
 
 async def test_device_shows_versions(hass, aioclient_mock, entry):
-    """Read at every setup, so a reload after copying new files shows the
-    new version (Home Assistant's own manifest cache does not)."""
+    """The running code's version, equal to the manifest's."""
     import json
     from pathlib import Path
 
@@ -37,7 +36,10 @@ async def test_device_shows_versions(hass, aioclient_mock, entry):
     await _setup(hass, entry, aioclient_mock)
     manifest = json.loads((Path(__file__).parents[2] / "custom_components/mira/manifest.json").read_text())
     device = dr.async_get(hass).async_get_device_by_identifier(("mira", entry.entry_id), entry.entry_id)
-    assert device.sw_version == f"Integration {manifest['version']} · Agent 0.3.0"
+    from custom_components.mira.const import VERSION
+
+    assert VERSION == manifest["version"], "const.VERSION and manifest.json differ"
+    assert device.sw_version == f"Integration {VERSION} · Agent 0.3.0"
 
 
 async def test_quiet_mode_switch(hass, aioclient_mock, entry):

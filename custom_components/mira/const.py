@@ -1,6 +1,10 @@
 """Constants for the Mira integration."""
 
 DOMAIN = "mira"
+# The version of the code that runs: Home Assistant imports an integration
+# once, at start, so after files are replaced only a restart changes it.
+# Kept equal to manifest.json (a test checks).
+VERSION = "0.3.2"
 
 CONF_TIMEOUT = "timeout"
 # Set once the agent's watchers, persons and rooms were imported as subentries.
