@@ -102,11 +102,6 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
-To update the integration in a running Home Assistant from this machine:
-`scripts/deploy-integration.sh` copies `custom_components/mira` over SSH (the
-SSH add-on, with this machine's key in its `authorized_keys`), removes stale
-bytecode and restarts Home Assistant (`--no-restart` to skip that).
-
 1. HACS → Custom repositories → `https://github.com/sker65/mira`, type Integration.
 2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
