@@ -50,7 +50,8 @@ type Options struct {
 	Model, Planner Model
 	QuietHours     config.QuietHours
 	Persons        func() map[string]config.Person
-	// HAURL is Home Assistant's address, for links into its editor.
+	// HAURL is how Mira reaches Home Assistant. Links into its editor use
+	// the URL Home Assistant has configured for itself, this only without.
 	HAURL string
 	// ConfirmDomains and ConfirmEntities are what Mira only switches after
 	// an explicit yes (security config): a task never calls them.
@@ -421,18 +422,41 @@ func (m *Manager) List(ctx context.Context) ([]Item, error) {
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return out, err
 	}
+	base := ""
+	if len(res.Automations) > 0 {
+		base = m.homeURL(ctx)
+	}
 	for _, a := range res.Automations {
 		cfg, _ := json.Marshal(a.Config)
 		alias, _ := a.Config["alias"].(string)
 		goal, _ := a.Config["description"].(string)
 		item := Item{ID: a.ID, Title: alias, Goal: goal, State: a.State, EntityID: a.EntityID,
 			LastTriggered: a.LastTriggered, Automation: cfg}
-		if m.opts.HAURL != "" {
-			item.EditURL = strings.TrimRight(m.opts.HAURL, "/") + "/config/automation/edit/" + a.ID
+		if base != "" {
+			item.EditURL = base + "/config/automation/edit/" + a.ID
 		}
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+// homeURL is where a browser finds Home Assistant: its external or internal
+// URL, else the address Mira uses, which may be localhost for an agent next
+// to it.
+func (m *Manager) homeURL(ctx context.Context) string {
+	var cfg struct {
+		External string `json:"external_url"`
+		Internal string `json:"internal_url"`
+	}
+	if raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "get_config"}); err == nil {
+		_ = json.Unmarshal(raw, &cfg)
+	}
+	for _, u := range []string{cfg.External, cfg.Internal, m.opts.HAURL} {
+		if u != "" {
+			return strings.TrimRight(u, "/")
+		}
+	}
+	return ""
 }
 
 // Delete deletes one of Mira's automations.

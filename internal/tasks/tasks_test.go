@@ -34,6 +34,7 @@ type fakeHA struct {
 	invalid     string // validate refuses configs containing this
 	automations map[string]map[string]any
 	services    []string
+	config      string // get_config's answer
 }
 
 func (h *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -55,6 +56,8 @@ func (h *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 		}
 		raw, _ := json.Marshal(map[string]any{"automations": list})
 		return raw, nil
+	case "get_config":
+		return json.RawMessage(h.config), nil
 	case "mira/automation/delete":
 		delete(h.automations, cmd["automation_id"].(string))
 		return json.RawMessage(`{"deleted":true}`), nil
@@ -233,6 +236,15 @@ func TestDraftSaveManage(t *testing.T) {
 	items, _ := e.m.List(context.Background())
 	if len(items) != 1 || items[0].State != "on" || items[0].EditURL != "http://ha:8123/config/automation/edit/"+id {
 		t.Fatalf("list: %+v", items)
+	}
+	// A browser needs the URL Home Assistant has for itself, not Mira's.
+	e.ha.config = `{"internal_url":"http://192.168.1.5:8123/","external_url":""}`
+	if items, _ := e.m.List(context.Background()); items[0].EditURL != "http://192.168.1.5:8123/config/automation/edit/"+id {
+		t.Errorf("edit url: %s", items[0].EditURL)
+	}
+	e.ha.config = `{"internal_url":"http://192.168.1.5:8123","external_url":"https://home.example.org"}`
+	if items, _ := e.m.List(context.Background()); items[0].EditURL != "https://home.example.org/config/automation/edit/"+id {
+		t.Errorf("edit url: %s", items[0].EditURL)
 	}
 
 	// Pause, dry run, delete.
