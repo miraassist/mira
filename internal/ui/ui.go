@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sker65/mira/docs"
 	"github.com/sker65/mira/internal/store"
 )
 
@@ -72,6 +73,7 @@ func New(opts Options) *Handler {
 	h := &Handler{opts: opts, log: opts.Logger.With("component", "ui"), mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /ui", h.page)
 	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
+	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -95,6 +97,18 @@ func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
 	w.Write(page)
+}
+
+// guide serves the user guide as Markdown. Like the page it holds no data,
+// so it needs no token.
+func (h *Handler) guide(w http.ResponseWriter, r *http.Request) {
+	text, err := docs.Guide(r.PathValue("lang"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Write(text)
 }
 
 func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {

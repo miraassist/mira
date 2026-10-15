@@ -43,6 +43,12 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 button.secondary { background: var(--panel); color: var(--text); }
 button.danger { background: var(--panel); color: var(--warn); }
 .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.guide h2 { font-size: 22px; margin-bottom: 8px; }
+.guide h3 { font-size: 16px; color: var(--text); margin: 20px 0 6px; }
+.guide h4 { font-size: 15px; margin: 14px 0 6px; }
+.guide p, .guide li { line-height: 1.55; }
+.guide ul { padding-left: 20px; }
+.guide code { background: var(--badge); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--badge); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 13px; }
 .chip small { color: var(--muted); }
@@ -194,7 +200,8 @@ const I18N = {
   "mode": "Zustellart",
   "indicator": "Anzeige-Lampe",
   "mode_announce": "ansagen",
-  "mode_indicate": "nur anzeigen"
+  "mode_indicate": "nur anzeigen",
+  "tab_guide": "Anleitung"
  },
  "en": {
   "tab_notices": "Notices",
@@ -319,10 +326,11 @@ const I18N = {
   "mode": "Delivery",
   "indicator": "Indicator light",
   "mode_announce": "announce",
-  "mode_indicate": "indicate only"
+  "mode_indicate": "indicate only",
+  "tab_guide": "Guide"
  }
 };
-const TABS = ["notices", "notifier", "watchers", "rooms", "persons", "memory"];
+const TABS = ["notices", "notifier", "watchers", "rooms", "persons", "memory", "guide"];
 let token = localStorage.getItem("mira.token") || "";
 // The page's language: the visitor's choice, else the browser's.
 let lang = localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
@@ -413,7 +421,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { notices, notifier, watchers, rooms, persons, memory };
+  const views = { notices, notifier, watchers, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { watchers: "watchers", rooms: "satellites", persons: "persons" }[tab];
@@ -712,6 +720,49 @@ async function compact() {
     await memory();
     message(r.changed ? T.profile_updated : T.profile_unchanged, true);
   } catch (e) { message(e.message, false); memory(); }
+}
+
+// ---- Anleitung ----------------------------------------------------------
+// The guide is Markdown from docs/guide/; this renders the little it uses:
+// headings, lists, tables, paragraphs, bold, code and links.
+async function guide() {
+  $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
+  try {
+    const res = await fetch("/ui/guide/" + lang);
+    $("#guide").innerHTML = markdown(await res.text());
+  } catch (e) { message(e.message, false); }
+}
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+function markdown(md) {
+  const out = [];
+  let list = false, table = null, para = [];
+  const flush = () => {
+    if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
+    if (list) { out.push("</ul>"); list = false; }
+    if (table) {
+      const [head, ...rows] = table.filter(r => !/^\|[\s:|-]+\|$/.test(r));
+      const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
+      out.push(`<table><tr>${cells(head).map(c => `<th>${c}</th>`).join("")}</tr>${rows.map(r => `<tr>${cells(r).map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</table>`);
+      table = null;
+    }
+  };
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { flush(); continue; }
+    if ((m = line.match(/^(#{1,3})\s+(.*)/))) { flush(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    if (line.startsWith("|")) { if (!table) { flush(); table = []; } table.push(line); continue; }
+    if ((m = line.match(/^\s*[-*]\s+(.*)/))) { if (!list) { flush(); out.push("<ul>"); list = true; } out.push(`<li>${inline(m[1])}</li>`); continue; }
+    if (list) flush();
+    para.push(line.trim());
+  }
+  flush();
+  return out.join("\n");
 }
 
 // ---- Start --------------------------------------------------------------

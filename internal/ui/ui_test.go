@@ -136,3 +136,13 @@ func TestNoticesAndMemory(t *testing.T) {
 		t.Errorf("entities not sorted: %s", body)
 	}
 }
+
+func TestGuideIsPublic(t *testing.T) {
+	srv, _, _ := setup(t)
+	for lang, want := range map[string]string{"de": "# Mira – Anleitung", "en": "# Mira – Guide"} {
+		code, body := call(t, srv, "GET", "/ui/guide/"+lang, "", "")
+		if code != 200 || !strings.HasPrefix(body, want) {
+			t.Errorf("%s: %d %.40q", lang, code, body)
+		}
+	}
+}

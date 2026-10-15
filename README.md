@@ -7,6 +7,8 @@
 
 # Mira
 
+**User guide:** [Deutsch](docs/guide/de.md) · [English](docs/guide/en.md) – also in the web UI under "Anleitung" / "Guide".
+
 A local, always-on household agent for Home Assistant. It runs next to a
 llama.cpp server, talks to you through Assist voice satellites and Telegram,
 controls the house through Home Assistant's MCP server, and can speak up on
