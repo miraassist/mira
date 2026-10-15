@@ -5,6 +5,8 @@ DOMAIN = "mira"
 CONF_TIMEOUT = "timeout"
 # Set once the agent's watchers, persons and rooms were imported as subentries.
 CONF_IMPORTED = "imported"
+# The agent's Home Assistant user: only it may manage Mira's automations.
+CONF_AGENT_USER = "agent_user_id"
 DEFAULT_TIMEOUT = 15
 
 # Spoken when the agent does not answer in time or fails. A satellite that

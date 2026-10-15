@@ -37,7 +37,7 @@ At the time you chose, Mira speaks the reminder in the room where you asked for 
 
 ## Notifications
 
-Mira speaks up on her own when something happens: a leak sensor goes off, the washing machine is done, the trash is collected tomorrow, the watched feed has news. How she tells you depends on the room and on the importance.
+Mira speaks up on her own when something happens: a leak sensor goes off, the washing machine is done, the trash is collected tomorrow, a task finds something unusual. How she tells you depends on the room and on the importance.
 
 **Announce or indicate** – set per room:
 
@@ -62,20 +62,21 @@ When Mira speaks on her own, the room's indicator light glows steadily while she
 
 **Confidential and personal**: notices can be meant for one person or be confidential. Mira only reads confidential notices aloud when the setting allows it (e.g. only when that person is home alone); otherwise they arrive privately on Telegram or as a push message on the phone.
 
-## Standing orders
+## Tasks
 
-Give Mira a standing order and she keeps an eye on something for you:
+Give Mira a standing task and she keeps an eye on something for you:
 
 - "Keep an eye on the water usage."
 - "Tell me if a lot of electricity is used at night."
-- "Watch the front door at night."
+- "Speak up when a leak sensor goes off."
 
-Mira turns it into a plan – which sensors she watches and when she speaks up. She plans briefly in the background and comes back with her proposal once she has finished speaking – in the same room or on Telegram – asking "Shall I go ahead?" Say **"Yes"** and the order runs. Later, "Start the order" or the Start button in the web interface works too.
+Mira turns it into an **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you and tells you. She plans briefly in the background and comes back with her proposal once she has finished speaking – in the same room or on Telegram – asking "Shall I go ahead?" Say **"Yes"** and she creates the automation.
 
-Then Mira keeps comparing: the usage or reading of the last hour with the same hour over the past two weeks (from Home Assistant's history), plus states and thresholds. Only when something is really out of the ordinary does she judge whether it interests you and speak up – like any other notification, and at once when there is danger (such as water running long at night). She reports the same thing at most every six hours.
+When judging, Mira compares, for example, the last hour's usage with the same hour over the past two weeks, knows who is at home and what you asked her to remember, and recalls what she already said about this task. She does not report the same thing again and again, only when it gets worse.
 
-- "Which orders do you have?" – "Delete the electricity order."
-- In the web interface under **Orders** you see all orders with their plans and can start, pause, resume and delete them.
+- "Which tasks do you have?" – "Pause the electricity task." – "Delete the electricity task." – "Do a dry run of the water task."
+- In the web interface under **Tasks** you see all tasks with on/off, dry run and the log of their judgements; "Edit in Home Assistant" opens the automation in Home Assistant's editor.
+- Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Add notice** (`mira.add_notice`).
 
 ## Skills
 
@@ -96,15 +97,14 @@ If the setup connects a stronger language model, Mira hands demanding questions 
 At `http://<mira>:8787/ui` (access token on first visit):
 
 - **Notices**: see open and delivered notices and mark them done.
-- **Orders**: what Mira watches for you, with its plan; start, pause, resume and delete.
+- **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, link into Home Assistant's editor.
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
-- **Watchers**: what Mira watches (sensors, feeds) and what it means.
 - **Rooms**: which satellite speaks where, motion sensors, announce or indicate, indicator light.
 - **People**: who gets personal notices, by Telegram or push.
 - **Memory**: profile and remembered facts.
 - **Guide**: this page.
 
-If the Mira integration is set up in Home Assistant, you edit watchers, rooms and people there (Settings → Devices & services → Mira) with pickers for entities and areas; the web interface then only shows them.
+If the Mira integration is set up in Home Assistant, you edit rooms and people there (Settings → Devices & services → Mira) with pickers for entities and areas; the web interface then only shows them.
 
 ## In Home Assistant
 

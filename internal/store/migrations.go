@@ -182,6 +182,28 @@ CREATE TABLE tasks (
 		name: "0009_task_origin",
 		stmt: `ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Tasks are Home Assistant automations now: the old plans go (test
+		// data only), and every judgement Mira makes for them is logged.
+		name: "0010_assessments",
+		stmt: `
+DELETE FROM tasks;
+CREATE TABLE assessments (
+	id          TEXT PRIMARY KEY,
+	task        TEXT NOT NULL,
+	kind        TEXT NOT NULL,
+	goal        TEXT NOT NULL,
+	input       TEXT NOT NULL DEFAULT '',
+	importance  INTEGER NOT NULL DEFAULT 0,
+	answer      INTEGER NOT NULL DEFAULT 0,
+	spoken      TEXT NOT NULL DEFAULT '',
+	notice_id   TEXT NOT NULL DEFAULT '',
+	dry_run     INTEGER NOT NULL DEFAULT 0,
+	created_at  TEXT NOT NULL
+);
+CREATE INDEX assessments_task ON assessments(task, created_at);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

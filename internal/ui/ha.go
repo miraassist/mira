@@ -7,8 +7,8 @@ import (
 	"sort"
 )
 
-// The Mira integration in Home Assistant can take over the watchers, the
-// persons and the rooms: each is a subentry there, edited with HA's own
+// The Mira integration in Home Assistant can take over the persons and the
+// rooms: each is a subentry there, edited with HA's own
 // entity and area pickers. It reads them once to import what exists, then
 // writes all of them on every change. While it manages them, the web UI
 // shows those sections read-only, so there is only one place to edit them.
@@ -18,7 +18,7 @@ const kvHAManaged = "ui_managed_by_ha"
 
 // haSections are the sections the integration replaces as a whole.
 // notifier is only touched in its morning_trigger.
-var haSections = []string{"watchers", "persons", "satellites"}
+var haSections = []string{"persons", "satellites"}
 
 // Room is one area as the integration sees it: its satellite, its presence
 // sensor and whether motion there starts the morning announcement. The agent
@@ -35,10 +35,9 @@ type Room struct {
 }
 
 type haConfig struct {
-	Watchers json.RawMessage `json:"watchers"`
-	Persons  json.RawMessage `json:"persons"`
-	Rooms    []Room          `json:"rooms"`
-	Managed  bool            `json:"managed"`
+	Persons json.RawMessage `json:"persons"`
+	Rooms   []Room          `json:"rooms"`
+	Managed bool            `json:"managed"`
 }
 
 type morningTrigger struct {
@@ -54,9 +53,7 @@ func (h *Handler) managedByHA(r *http.Request) bool {
 func (h *Handler) getHA(w http.ResponseWriter, r *http.Request) {
 	out := haConfig{Managed: h.managedByHA(r)}
 	var err error
-	if out.Watchers, _, err = h.opts.Config.Section("watchers"); err == nil {
-		out.Persons, _, err = h.opts.Config.Section("persons")
-	}
+	out.Persons, _, err = h.opts.Config.Section("persons")
 	if err == nil {
 		out.Rooms, err = h.rooms()
 	}
@@ -121,7 +118,7 @@ func (h *Handler) rooms() ([]Room, error) {
 func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 	var in haConfig
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "body must be {watchers, persons, rooms}: "+err.Error())
+		writeError(w, http.StatusBadRequest, "body must be {persons, rooms}: "+err.Error())
 		return
 	}
 	sections, err := h.haSections(in)
@@ -143,9 +140,6 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 
 // haSections turns what the integration sends into config sections.
 func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
-	if len(in.Watchers) == 0 || string(in.Watchers) == "null" {
-		in.Watchers = json.RawMessage("[]")
-	}
 	if len(in.Persons) == 0 || string(in.Persons) == "null" {
 		in.Persons = json.RawMessage("{}")
 	}
@@ -196,7 +190,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 	}
 	satsJSON, _ := json.Marshal(sats)
 	return map[string]json.RawMessage{
-		"watchers": in.Watchers, "persons": in.Persons, "satellites": satsJSON, "notifier": notifierJSON,
+		"persons": in.Persons, "satellites": satsJSON, "notifier": notifierJSON,
 	}, nil
 }
 
@@ -206,6 +200,6 @@ func (h *Handler) deleteHA(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.log.Info("Home Assistant no longer manages watchers, persons and rooms")
+	h.log.Info("Home Assistant no longer manages persons and rooms")
 	writeJSON(w, http.StatusOK, map[string]bool{"managed": false})
 }

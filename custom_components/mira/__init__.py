@@ -16,7 +16,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import MiraClient, MiraError
-from .const import CONF_IMPORTED, DOMAIN
+from .automations import async_register_commands
+from .const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 from .coordinator import MiraCoordinator
 from .managed import import_subentries
 
@@ -40,6 +41,42 @@ ADD_NOTICE_SCHEMA = vol.Schema(
 )
 
 
+SERVICE_ASSESS = "assess"
+SERVICE_DECIDE = "decide"
+# What Mira looks up and condenses before judging (tasks/views.go).
+DATA_SCHEMA = vol.All(
+    cv.ensure_list,
+    [
+        vol.Schema(
+            {
+                vol.Required("entity_id"): cv.entity_id,
+                vol.Optional("view", default="state"): vol.In(["state", "same_hour", "day"]),
+            }
+        )
+    ],
+)
+JUDGEMENT_FIELDS = {
+    vol.Optional("observation"): cv.string,
+    vol.Optional("data"): DATA_SCHEMA,
+    vol.Optional("memory"): vol.In(["relevant", "profile", "none"]),
+    vol.Optional("task"): cv.string,
+    vol.Optional("owner"): cv.string,
+}
+ASSESS_SCHEMA = vol.Schema(
+    {
+        vol.Required("goal"): cv.string,
+        **JUDGEMENT_FIELDS,
+        vol.Optional("cooldown"): cv.string,
+        vol.Optional("notify"): cv.boolean,
+        vol.Optional("audience"): cv.string,
+        vol.Optional("confidentiality"): vol.In(["normal", "confidential"]),
+        vol.Optional("dedupe_key"): cv.string,
+        vol.Optional("expires_in"): cv.string,
+    }
+)
+DECIDE_SCHEMA = vol.Schema({vol.Required("question"): cv.string, **JUDGEMENT_FIELDS})
+
+
 @dataclass
 class MiraData:
     """What a loaded entry holds."""
@@ -52,24 +89,56 @@ type MiraConfigEntry = ConfigEntry[MiraData]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register mira.add_notice, so automations can queue notices."""
+    """Register Mira's actions for automations (mira.add_notice,
+    mira.assess, mira.decide) and the commands the agent manages its
+    automations with."""
 
-    async def add_notice(call: ServiceCall) -> ServiceResponse:
+    def loaded() -> MiraConfigEntry:
         entries = [
             e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED
         ]
         if not entries:
             raise ServiceValidationError("No Mira agent is set up")
+        return entries[0]
+
+    async def add_notice(call: ServiceCall) -> ServiceResponse:
+        entry = loaded()
         try:
-            result = await entries[0].runtime_data.client.add_notice(dict(call.data))
+            result = await entry.runtime_data.client.add_notice(dict(call.data))
         except MiraError as err:
             raise HomeAssistantError(f"Mira agent did not accept the notice: {err}") from err
-        await entries[0].runtime_data.coordinator.async_request_refresh()
+        await entry.runtime_data.coordinator.async_request_refresh()
         return result
+
+    async def assess(call: ServiceCall) -> ServiceResponse:
+        """Mira judges what happened against the goal and, if it is worth
+        it, says it: importance, wording and delivery are the agent's."""
+        entry = loaded()
+        try:
+            result = await entry.runtime_data.client.assess(dict(call.data))
+        except MiraError as err:
+            raise HomeAssistantError(f"Mira agent could not assess: {err}") from err
+        await entry.runtime_data.coordinator.async_request_refresh()
+        return result
+
+    async def decide(call: ServiceCall) -> ServiceResponse:
+        """A yes/no answer from Mira, for the automation to act on
+        (response_variable plus a template condition). No notice."""
+        try:
+            return await loaded().runtime_data.client.decide(dict(call.data))
+        except MiraError as err:
+            raise HomeAssistantError(f"Mira agent could not decide: {err}") from err
 
     hass.services.async_register(
         DOMAIN, SERVICE_ADD_NOTICE, add_notice, schema=ADD_NOTICE_SCHEMA, supports_response=SupportsResponse.OPTIONAL
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ASSESS, assess, schema=ASSESS_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_DECIDE, decide, schema=DECIDE_SCHEMA, supports_response=SupportsResponse.ONLY
+    )
+    async_register_commands(hass)
     return True
 
 
@@ -90,21 +159,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
 
 async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> None:
     """Give an entry from before agents had ids its id, and import the
-    agent's watchers, persons and rooms as subentries once. Both wait for
+    agent's persons and rooms as subentries once. Both wait for
     the next start if the agent is down now."""
-    if entry.unique_id is None:
-        try:
-            agent_id = (await client.health()).get("id")
-        except MiraError:
-            agent_id = None
-        if agent_id and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id):
-            hass.config_entries.async_update_entry(entry, unique_id=agent_id)
+    try:
+        health = await client.health()
+    except MiraError:
+        health = {}
+    agent_id = health.get("id")
+    if entry.unique_id is None and agent_id and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id):
+        hass.config_entries.async_update_entry(entry, unique_id=agent_id)
+    # The agent's own Home Assistant user may manage Mira's automations.
+    if (user := health.get("ha_user_id")) and entry.data.get(CONF_AGENT_USER) != user:
+        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_USER: user})
     if entry.data.get(CONF_IMPORTED):
         return
     try:
         agent = await client.managed_config()
     except MiraError as err:
-        _LOGGER.info("Importing watchers, persons and rooms waits for the agent: %s", err)
+        _LOGGER.info("Importing persons and rooms waits for the agent: %s", err)
         return
     have = {s.unique_id for s in entry.subentries.values()}
     for subentry in import_subentries(agent):
@@ -114,12 +186,12 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
-    """Hand watchers, persons and rooms back to the agent's web UI."""
+    """Hand persons and rooms back to the agent's web UI."""
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
     try:
         await client.release_managed_config()
     except MiraError as err:
-        _LOGGER.warning("The agent still thinks Home Assistant manages its watchers: %s", err)
+        _LOGGER.warning("The agent still thinks Home Assistant manages its persons and rooms: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool:

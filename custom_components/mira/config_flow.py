@@ -1,7 +1,7 @@
 """Config flow for Mira: agent URL and token, checked against /v1/health.
 
 The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
-under "Discovered" and only asks for the token. Watchers, persons and rooms
+under "Discovered" and only asks for the token. Persons and rooms
 are subentries with HA's own pickers; see managed.py.
 """
 
@@ -28,16 +28,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
-from .managed import (
-    HOUSEHOLD,
-    IMPORTANCE_AUTO,
-    SUBENTRY_FEED,
-    SUBENTRY_PERSON,
-    SUBENTRY_ROOM,
-    SUBENTRY_WATCHER,
-    build_config,
-    unique_id,
-)
+from .managed import SUBENTRY_PERSON, SUBENTRY_ROOM, build_config, unique_id
 
 USER_SCHEMA = vol.Schema(
     {
@@ -129,8 +120,6 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
         return {
-            SUBENTRY_WATCHER: WatcherSubentryFlow,
-            SUBENTRY_FEED: FeedSubentryFlow,
             SUBENTRY_PERSON: PersonSubentryFlow,
             SUBENTRY_ROOM: RoomSubentryFlow,
         }
@@ -212,79 +201,6 @@ class _ManagedSubentryFlow(ConfigSubentryFlow):
         return self.async_show_form(
             step_id=step_id, data_schema=schema, errors=errors, description_placeholders=placeholders
         )
-
-    def _audiences(self) -> list[str]:
-        persons = [s.data["key"] for s in self._get_entry().subentries.values() if s.subentry_type == SUBENTRY_PERSON]
-        return [HOUSEHOLD, *sorted(persons)]
-
-    def _common(self) -> dict[Any, Any]:
-        """Description, importance, audience and confidentiality."""
-        return {
-            vol.Optional("description"): selector.TextSelector(
-                selector.TextSelectorConfig(multiline=True)
-            ),
-            vol.Required("importance", default=IMPORTANCE_AUTO): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[IMPORTANCE_AUTO, "0", "1", "2", "3"],
-                    translation_key="importance",
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Required("audience", default=HOUSEHOLD): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=self._audiences(), custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
-                )
-            ),
-            vol.Required("confidentiality", default="normal"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=["normal", "confidential"], translation_key="confidentiality")
-            ),
-        }
-
-
-_STATES = selector.SelectSelector(
-    selector.SelectSelectorConfig(
-        options=["on", "off"], multiple=True, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
-    )
-)
-
-
-class WatcherSubentryFlow(_ManagedSubentryFlow):
-    """A state watcher: entities, the change that matters, what it means."""
-
-    subentry_type = SUBENTRY_WATCHER
-
-    def _schema(self, data: dict[str, Any]) -> vol.Schema:
-        return vol.Schema(
-            {
-                vol.Required("name"): selector.TextSelector(),
-                vol.Required("entity_id"): selector.EntitySelector(selector.EntitySelectorConfig(multiple=True)),
-                vol.Optional("to"): _STATES,
-                vol.Optional("from"): _STATES,
-                **self._common(),
-            }
-        )
-
-    def _title(self, data: dict[str, Any]) -> str:
-        return data["name"]
-
-
-class FeedSubentryFlow(_ManagedSubentryFlow):
-    """A feed read on a schedule, at most one digest notice per run."""
-
-    subentry_type = SUBENTRY_FEED
-
-    def _schema(self, data: dict[str, Any]) -> vol.Schema:
-        return vol.Schema(
-            {
-                vol.Required("name"): selector.TextSelector(),
-                vol.Required("url"): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.URL)),
-                vol.Required("schedule", default="0 8 * * *"): selector.TextSelector(),
-                **self._common(),
-            }
-        )
-
-    def _title(self, data: dict[str, Any]) -> str:
-        return data["name"]
 
 
 class PersonSubentryFlow(_ManagedSubentryFlow):

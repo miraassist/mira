@@ -90,131 +90,85 @@
           "description": "Duration like 12h; afterwards the notice is dropped. Default 24h."
         }
       }
+    },
+    "assess": {
+      "name": "Assess",
+      "description": "Mira judges what happened against the goal, with the data she looks up and condenses; if it is worth it, she words a notice and delivers it like any other. Answers importance, spoken and notice_id.",
+      "fields": {
+        "goal": {
+          "name": "Goal",
+          "description": "What this task is for, in the user's words."
+        },
+        "observation": {
+          "name": "Observation",
+          "description": "What happened, usually with templates."
+        },
+        "data": {
+          "name": "Data",
+          "description": "List of {entity_id, view}; view state, same_hour (last hour against the same hour on 14 days) or day (today so far against the same weekdays)."
+        },
+        "memory": {
+          "name": "Memory",
+          "description": "relevant: profile and matching facts; profile; none."
+        },
+        "cooldown": {
+          "name": "Cooldown",
+          "description": "Like 6h: within it the task only reports again when it gets more important."
+        },
+        "notify": {
+          "name": "Notify",
+          "description": "Off: only the verdict, no notice (dry run)."
+        },
+        "audience": {
+          "name": "Audience",
+          "description": "household, or a person id from the agent config."
+        },
+        "confidentiality": {
+          "name": "Confidentiality",
+          "description": "Confidential notices are only spoken when the agent policy allows it."
+        },
+        "dedupe_key": {
+          "name": "Dedupe key",
+          "description": "An open notice with the same key is updated instead of duplicated."
+        },
+        "expires_in": {
+          "name": "Expires in",
+          "description": "Duration like 12h. Default 12h."
+        },
+        "task": {
+          "name": "Task",
+          "description": "The automation's id ({{ this.attributes.id }}): its judgements share a log and earlier verdicts."
+        }
+      }
+    },
+    "decide": {
+      "name": "Decide",
+      "description": "Mira answers a yes/no question with the data she looks up; no notice. Use with response_variable and a template condition.",
+      "fields": {
+        "question": {
+          "name": "Question",
+          "description": "A yes/no question."
+        },
+        "observation": {
+          "name": "Observation",
+          "description": "What happened, usually with templates."
+        },
+        "data": {
+          "name": "Data",
+          "description": "List of {entity_id, view}, as for Assess."
+        },
+        "memory": {
+          "name": "Memory",
+          "description": "relevant, profile or none."
+        },
+        "task": {
+          "name": "Task",
+          "description": "The automation's id ({{ this.attributes.id }})."
+        }
+      }
     }
   },
   "config_subentries": {
-    "watcher": {
-      "entry_type": "Watcher",
-      "initiate_flow": {
-        "user": "Add watcher",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Watcher",
-          "description": "Watches entities and queues a notice when they change.",
-          "data": {
-            "name": "Name",
-            "entity_id": "Entities",
-            "to": "To states",
-            "from": "From states",
-            "description": "What it means",
-            "importance": "Importance",
-            "audience": "Audience",
-            "confidentiality": "Confidentiality"
-          },
-          "data_description": {
-            "entity_id": "A change of any of them triggers the watcher.",
-            "to": "Empty: any change.",
-            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
-            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
-            "audience": "household, or a person",
-            "confidentiality": "Confidential notices are only spoken when the policy allows it."
-          }
-        },
-        "reconfigure": {
-          "title": "Watcher",
-          "description": "Watches entities and queues a notice when they change.",
-          "data": {
-            "name": "Name",
-            "entity_id": "Entities",
-            "to": "To states",
-            "from": "From states",
-            "description": "What it means",
-            "importance": "Importance",
-            "audience": "Audience",
-            "confidentiality": "Confidentiality"
-          },
-          "data_description": {
-            "entity_id": "A change of any of them triggers the watcher.",
-            "to": "Empty: any change.",
-            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
-            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
-            "audience": "household, or a person",
-            "confidentiality": "Confidential notices are only spoken when the policy allows it."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "This one exists already.",
-        "invalid_config": "The agent refused it: {error}",
-        "cannot_connect": "The agent is not reachable."
-      },
-      "abort": {
-        "not_loaded": "The Mira agent entry is not loaded.",
-        "reconfigure_successful": "Saved."
-      }
-    },
-    "feed": {
-      "entry_type": "Feed",
-      "initiate_flow": {
-        "user": "Add feed",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Feed",
-          "description": "Reads a feed on a schedule; at most one digest notice per run, never urgent.",
-          "data": {
-            "name": "Name",
-            "url": "URL",
-            "schedule": "Schedule",
-            "description": "What it means",
-            "importance": "Importance",
-            "audience": "Audience",
-            "confidentiality": "Confidentiality"
-          },
-          "data_description": {
-            "url": "RSS or Atom feed",
-            "schedule": "Cron, e.g. 0 8 * * * for 8:00 daily",
-            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
-            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
-            "audience": "household, or a person",
-            "confidentiality": "Confidential notices are only spoken when the policy allows it."
-          }
-        },
-        "reconfigure": {
-          "title": "Feed",
-          "description": "Reads a feed on a schedule; at most one digest notice per run, never urgent.",
-          "data": {
-            "name": "Name",
-            "url": "URL",
-            "schedule": "Schedule",
-            "description": "What it means",
-            "importance": "Importance",
-            "audience": "Audience",
-            "confidentiality": "Confidentiality"
-          },
-          "data_description": {
-            "url": "RSS or Atom feed",
-            "schedule": "Cron, e.g. 0 8 * * * for 8:00 daily",
-            "description": "The model words the notice from this, e.g. \"Water under the washing machine.\"",
-            "importance": "Auto lets the model rate it. 3 is urgent: delivered at once, even at night.",
-            "audience": "household, or a person",
-            "confidentiality": "Confidential notices are only spoken when the policy allows it."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "This one exists already.",
-        "invalid_config": "The agent refused it: {error}",
-        "cannot_connect": "The agent is not reachable."
-      },
-      "abort": {
-        "not_loaded": "The Mira agent entry is not loaded.",
-        "reconfigure_successful": "Saved."
-      }
-    },
     "person": {
       "entry_type": "Person",
       "initiate_flow": {
@@ -319,15 +273,6 @@
     }
   },
   "selector": {
-    "importance": {
-      "options": {
-        "auto": "Auto",
-        "0": "0 not worth mentioning",
-        "1": "1 by the way",
-        "2": "2 important today",
-        "3": "3 urgent"
-      }
-    },
     "confidentiality": {
       "options": {
         "normal": "Normal",

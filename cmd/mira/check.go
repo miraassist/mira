@@ -119,7 +119,7 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	checkEntities(ctx, c, cfg)
 }
 
-// checkEntities looks up every entity the notifier and watchers rely on and
+// checkEntities looks up every entity the notifier relies on and
 // reports how each satellite would speak.
 func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
 	states, err := c.States(ctx)
@@ -163,13 +163,6 @@ func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
 	for id, p := range cfg.Persons {
 		if p.Entity != "" {
 			want[p.Entity] = "person " + id
-		}
-	}
-	for _, w := range cfg.Watchers {
-		if w.Trigger != nil {
-			for _, e := range w.Trigger.EntityID {
-				want[e] = "watcher " + w.Name
-			}
 		}
 	}
 	ids := make([]string, 0, len(want))

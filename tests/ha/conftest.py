@@ -10,6 +10,7 @@ from custom_components.mira.const import CONF_IMPORTED, DOMAIN
 
 AGENT_URL = "http://mira.test:8787"
 AGENT_ID = "01agent"
+AGENT_USER = "mira-user"
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +25,7 @@ def entry(hass, aioclient_mock) -> MockConfigEntry:
     """A config entry pointing at the mocked agent, past the first import.
     The agent accepts the subentries it gets after every setup."""
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": AGENT_USER})
     e = MockConfigEntry(
         domain=DOMAIN,
         title="Mira",

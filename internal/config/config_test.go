@@ -98,27 +98,6 @@ mcp_servers:
 	}
 }
 
-func TestStateTriggerAcceptsScalarAndList(t *testing.T) {
-	cfg, err := Parse([]byte(`
-ha: { enabled: false }
-telegram: { enabled: false }
-watchers:
-  - name: one
-    trigger: { entity_id: sensor.a, to: [fault] }
-  - name: many
-    trigger: { entity_id: [sensor.b, sensor.c] }
-`), fakeEnv(nil))
-	if err != nil {
-		t.Fatalf("Parse: %v", err)
-	}
-	if got := cfg.Watchers[0].Trigger.EntityID; len(got) != 1 || got[0] != "sensor.a" {
-		t.Errorf("scalar entity_id = %v", got)
-	}
-	if got := cfg.Watchers[1].Trigger.EntityID; len(got) != 2 {
-		t.Errorf("list entity_id = %v", got)
-	}
-}
-
 func TestClockTimeAndDuration(t *testing.T) {
 	cfg, err := Parse([]byte(`
 ha: { enabled: false }

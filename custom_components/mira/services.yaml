@@ -35,3 +35,77 @@ add_notice:
       example: "12h"
       selector:
         text:
+
+assess:
+  fields:
+    goal:
+      required: true
+      example: "Achte auf den Wasserverbrauch."
+      selector:
+        text:
+    observation:
+      example: "{{ trigger.to_state.name }} ist {{ trigger.to_state.state }}."
+      selector:
+        text:
+          multiline: true
+    data:
+      example: '[{"entity_id": "sensor.wasserzahler", "view": "same_hour"}]'
+      selector:
+        object:
+    memory:
+      default: relevant
+      selector:
+        select:
+          options: [relevant, profile, none]
+    cooldown:
+      example: "6h"
+      selector:
+        text:
+    notify:
+      default: true
+      selector:
+        boolean:
+    audience:
+      example: household
+      selector:
+        text:
+    confidentiality:
+      default: normal
+      selector:
+        select:
+          options: [normal, confidential]
+    dedupe_key:
+      selector:
+        text:
+    expires_in:
+      example: "12h"
+      selector:
+        text:
+    task:
+      example: "{{ this.attributes.id }}"
+      selector:
+        text:
+decide:
+  fields:
+    question:
+      required: true
+      example: "Läuft hier gerade unnötig Wasser?"
+      selector:
+        text:
+    observation:
+      selector:
+        text:
+          multiline: true
+    data:
+      example: '[{"entity_id": "sensor.wasserzahler", "view": "same_hour"}]'
+      selector:
+        object:
+    memory:
+      default: relevant
+      selector:
+        select:
+          options: [relevant, profile, none]
+    task:
+      example: "{{ this.attributes.id }}"
+      selector:
+        text:

@@ -44,8 +44,8 @@ Requirements:
   `/api/mcp/assist` as the MCP URL: it works for a non-admin user.
 - A dedicated, non-admin HA user with a long-lived token.
 
-Web UI: `http://<agent>:8787/ui` edits the notifier, and the watchers, rooms
-and persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`
+Web UI: `http://<agent>:8787/ui` edits the notifier, and the rooms and
+persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`
 once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once. The page
 is in German or English, following the browser, with a switch in its header.
@@ -70,11 +70,12 @@ talk to a satellite anyway, what waits for its room follows the answer
 ("Licht ist an. Übrigens: ..."), except after a question back and in quiet
 hours. Urgent notices and reminders are always spoken.
 
-Standing orders: "Achte auf den Wasserverbrauch" becomes a plan the model
-makes once (which entities, what would be unusual) and the user confirms.
-The code then compares each hour with the same hour over the last 14 days
-from Home Assistant's statistics, and checks states and thresholds; only
-candidates go to the model, which judges and words the notice.
+Tasks: "Achte auf den Wasserverbrauch" becomes a Home Assistant automation
+labelled "Mira" that the model drafts and the user confirms. Home Assistant's
+triggers and conditions decide when; the integration's actions `mira.assess`
+(judge against the goal with condensed data, maybe notify), `mira.decide`
+(yes/no for conditions) and `mira.add_notice` decide what is said. See
+docs/spec/aufgaben.md and docs/system.md.
 
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
 (frontmatter `name`, `description`; Mira's settings, calendars and schedules
@@ -108,8 +109,8 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
    with URL and token.
 4. Settings → Voice assistants: choose **Mira** as the conversation agent.
 
-The integration imports the agent's watchers, persons and rooms as
-subentries of its entry (Watcher, Feed, Person, Raum), edited there with Home
+The integration imports the agent's persons and rooms as subentries of its
+entry (Person, Raum), edited there with Home
 Assistant's entity and area pickers. Each change is checked by the agent
 before it is saved; what it refuses shows in the form. While the integration
 manages them, the agent's web UI shows those sections read-only. Removing the

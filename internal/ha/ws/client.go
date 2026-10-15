@@ -616,3 +616,19 @@ func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
 
 // Endpoint is the resolved WebSocket URL, exposed for diagnostics and tests.
 func (c *Client) Endpoint() string { return c.url }
+
+// CurrentUser returns the id of the user the agent is logged in as. The
+// Mira integration lets only this user manage Mira's automations.
+func (c *Client) CurrentUser(ctx context.Context) (string, error) {
+	raw, err := c.Call(ctx, map[string]any{"type": "auth/current_user"})
+	if err != nil {
+		return "", err
+	}
+	var u struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &u); err != nil {
+		return "", err
+	}
+	return u.ID, nil
+}

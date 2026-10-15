@@ -103,25 +103,10 @@ persons:               # key = audience id for personal notices
     telegram_user_id: 123456789           # must be on telegram.allowed_user_ids
     notify: notify.mobile_app_pixel       # companion app, optional
 
-watchers:
-  - name: inverter_fault
-    trigger: { entity_id: sensor.inverter_status, to: ["fault", "error"] }
-    dedupe_key: inverter:fault
-    # What the event means; the model words the notice from this.
-    description: "Der Wechselrichter der Solaranlage meldet einen Fehler."
-    # importance: 2              # optional: fix instead of letting the model rate it
-    # audience: household        # or a person id
-    # confidentiality: normal    # or confidential
-    # expires_in: 24h
-
-  # A scheduled watcher reads a feed and queues at most one digest notice per
-  # run, only if the model finds something relevant. Feed text is data: it can
-  # never raise an urgent notice (importance is capped at 2).
-  - name: modelle
-    kind: rss
-    url: https://zenmux.ai/rss/models.xml
-    schedule: "0 8 * * *"
-    description: "Neue KI-Modelle, vor allem lokal lauffähige Sprachmodelle."
+# Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
+# with the label "Mira" that call mira.assess, mira.decide or
+# mira.add_notice; create them in conversation or in Home Assistant
+# (docs/spec/aufgaben.md).
 
 notifier:
   quiet_hours: { from: "22:30", to: "06:30" }

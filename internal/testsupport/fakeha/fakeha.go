@@ -317,6 +317,8 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 	s.mu.Unlock()
 
 	switch cmdType {
+	case "auth/current_user":
+		reply(map[string]any{"id": "mira-user", "name": "mira", "is_admin": false})
 	case haws.CmdAreaRegistryList:
 		reply(areas)
 	case haws.CmdDeviceRegistryList:

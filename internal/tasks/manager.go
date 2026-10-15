@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -20,52 +20,53 @@ import (
 	"github.com/sker65/mira/internal/tools"
 )
 
-// Source is the part of Home Assistant the tasks read.
+// Source is what the tasks read from Home Assistant.
 type Source interface {
 	States(ctx context.Context) ([]haws.State, error)
 	Statistics(ctx context.Context, ids []string, start time.Time, period string) (map[string][]haws.StatRow, error)
 }
 
-// Assessor runs one request with a JSON answer: the conversation engine.
-type Assessor interface {
-	Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error)
+// HA is what the tasks change in Home Assistant: Mira's automations go
+// through the Mira integration's commands (mira/automation/*), switching
+// them on and off is an ordinary service call.
+type HA interface {
+	Call(ctx context.Context, command map[string]any) (json.RawMessage, error)
+	CallService(ctx context.Context, domain, service string, data map[string]any, target *haws.Target) error
+}
+
+// Model runs one isolated request with a JSON answer: a system message and
+// an instruction, no house prompt, no tools.
+type Model interface {
+	Ask(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error)
 }
 
 type Options struct {
 	Lang     i18n.Lang
 	Store    *store.Store
 	Source   Source
+	HA       HA
 	Snapshot func() structure.Snapshot
-	// Planner makes the plan; Judge rates candidates. Both may be the same.
-	Planner, Judge Assessor
+	// Model judges (assess, decide); Planner drafts automations. Both may
+	// be the same.
+	Model, Planner Model
 	QuietHours     config.QuietHours
-	// Cooldown is the least time between two notices of the same rule.
-	Cooldown time.Duration
+	Persons        func() map[string]config.Person
+	// Deliver, when set, makes drafting run in the background and delivers
+	// the proposal to whoever asked, like a reminder.
+	Deliver func(ctx context.Context, n store.Notice, areaID string) error
+	// PlanDelay holds background drafting back until the turn that asked
+	// for it has answered.
+	PlanDelay time.Duration
+	// HAURL is Home Assistant's address, for links into its editor.
+	HAURL    string
 	Clock    func() time.Time
 	Location *time.Location
 	Logger   *slog.Logger
-	// Deliver, when set, makes planning run in the background: planning
-	// reads the whole house and takes longer than a voice turn may. The
-	// proposal is delivered to whoever asked, like a reminder.
-	Deliver func(ctx context.Context, n store.Notice, areaID string) error
-	// Persons are the configured persons, to address a proposal.
-	Persons func() map[string]config.Person
-	// PlanDelay holds background planning back until the turn that asked
-	// for it has answered: on a local model both share the GPU, and the
-	// short answer must not wait behind the long planning prompt.
-	PlanDelay time.Duration
 }
 
 type Manager struct {
 	opts Options
 	log  *slog.Logger
-
-	mu sync.Mutex
-	// held remembers whether a state or threshold rule held at the last
-	// check, so it fires when it starts to hold, not every five minutes.
-	held map[string]bool
-	// checkedHour is the last hour whose statistics were compared.
-	checkedHour time.Time
 }
 
 func New(opts Options) *Manager {
@@ -78,61 +79,122 @@ func New(opts Options) *Manager {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	if opts.Cooldown == 0 {
-		opts.Cooldown = 6 * time.Hour
-	}
 	if opts.Snapshot == nil {
 		opts.Snapshot = func() structure.Snapshot { return structure.Snapshot{} }
 	}
-	return &Manager{opts: opts, log: opts.Logger.With("component", "tasks"), held: map[string]bool{}}
+	if opts.Planner == nil {
+		opts.Planner = opts.Model
+	}
+	return &Manager{opts: opts, log: opts.Logger.With("component", "tasks")}
 }
 
 func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
-// Create plans a task for a goal and stores it as proposed. The plan is
-// checked against the house: entities must exist and suit their rule.
-func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (store.Task, Plan, error) {
+// automationID is the id a confirmed proposal gets in Home Assistant.
+func automationID(taskID string) string { return "mira_" + taskID }
+
+// Draft is what the planner makes of a goal.
+type Draft struct {
+	Title      string         `json:"title"`
+	Summary    string         `json:"summary"`
+	Automation map[string]any `json:"automation"`
+	// Error is the planner's reason when the house cannot do the task (no
+	// fitting entity). It ends drafting: a second draft would not help.
+	Error string `json:"error"`
+}
+
+// errCannot is a task the house cannot do; drafting again does not help.
+type errCannot struct{ reason string }
+
+func (e errCannot) Error() string { return e.reason }
+
+// Create drafts an automation for a goal, has Home Assistant check it and
+// stores it as a proposal. A refused draft is made once more with the
+// reason.
+func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (store.Task, error) {
 	states, err := m.opts.Source.States(ctx)
 	if err != nil {
-		return store.Task{}, Plan{}, err
+		return store.Task{}, err
 	}
-	cat := Catalog(states, m.opts.Snapshot())
-	instruction := m.planInstruction(goal, cat)
-	var p Plan
-	// A second attempt gets the reason the first plan was refused.
+	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()))
+	t := m.texts()
+	var d Draft
 	for attempt := 0; ; attempt++ {
-		raw, err := m.opts.Planner.Assess(ctx, instruction, json.RawMessage(planSchema))
+		raw, err := m.opts.Planner.Ask(ctx, t.draftSystem, instruction, nil)
 		if err != nil {
-			return store.Task{}, Plan{}, err
+			return store.Task{}, err
 		}
-		p = Plan{}
-		err = json.Unmarshal([]byte(raw), &p)
+		d = Draft{}
+		err = json.Unmarshal([]byte(raw), &d)
+		if err == nil && strings.TrimSpace(d.Error) != "" {
+			return store.Task{}, errCannot{strings.TrimSpace(d.Error)}
+		}
 		if err == nil {
-			repair(&p, cat)
-			err = Validate(p, cat)
+			err = m.check(ctx, &d, goal)
 		}
 		if err == nil {
 			break
 		}
 		if attempt == 1 {
-			return store.Task{}, Plan{}, fmt.Errorf("no valid plan: %w", err)
+			return store.Task{}, fmt.Errorf("no valid automation: %w", err)
 		}
-		m.log.Info("plan refused, planning again", "error", err)
-		instruction = m.planInstruction(goal, cat) + fmt.Sprintf(m.texts().replan, err.Error())
+		m.log.Info("draft refused, drafting again", "error", err)
+		instruction += fmt.Sprintf(t.redraft, err.Error())
 	}
-	planJSON, _ := json.Marshal(p)
-	t := store.Task{ID: strings.ToLower(ulid.Make().String()[:10]), Goal: strings.TrimSpace(goal), Title: p.Title,
-		Summary: p.Summary, Plan: string(planJSON), State: store.TaskProposed, SessionKey: sessionKey, Origin: origin}
-	if err := m.opts.Store.PutTask(ctx, t); err != nil {
-		return store.Task{}, Plan{}, err
+	automation, _ := json.Marshal(d.Automation)
+	task := store.Task{ID: strings.ToLower(ulid.Make().String()[:10]), Goal: strings.TrimSpace(goal), Title: d.Title,
+		Summary: d.Summary, Plan: string(automation), State: store.TaskProposed, SessionKey: sessionKey, Origin: origin}
+	if err := m.opts.Store.PutTask(ctx, task); err != nil {
+		return store.Task{}, err
 	}
-	m.log.Info("task proposed", "task", t.ID, "title", p.Title, "rules", len(p.Rules))
-	return t, p, nil
+	m.log.Info("task proposed", "task", task.ID, "title", task.Title)
+	return task, nil
 }
 
-// Propose plans a task in the background and delivers the proposal, or
-// the failure, to whoever asked: spoken in the room for a voice turn, on
-// Telegram for a chat. ctx only carries values; planning outlives the turn.
+// check completes a draft and lets Home Assistant validate it.
+func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
+	if strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Summary) == "" || len(d.Automation) == 0 {
+		return errors.New("title, summary and automation are required")
+	}
+	if triggers, _ := d.Automation["triggers"].([]any); len(triggers) == 0 {
+		return errors.New("the automation needs at least one trigger")
+	}
+	if d.Automation["alias"] == nil {
+		d.Automation["alias"] = d.Title
+	}
+	if d.Automation["description"] == nil {
+		d.Automation["description"] = strings.TrimSpace(goal)
+	}
+	tagTask(d.Automation["actions"])
+	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/validate", "config": d.Automation})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return err
+	}
+	if !res.Valid {
+		return errors.New(res.Error)
+	}
+	return nil
+}
+
+// tagTask makes every mira.assess and mira.decide in the actions pass the
+// automation's id, so its judgements share a log and earlier verdicts.
+func tagTask(actions any) {
+	for _, call := range miraCalls(actions) {
+		if call.data["task"] == nil {
+			call.data["task"] = "{{ this.attributes.id }}"
+		}
+	}
+}
+
+// Propose drafts in the background and delivers the proposal, or the
+// failure, to whoever asked. ctx only carries values.
 func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation) {
 	origin, area := m.origin(ctx, inv)
 	var persons map[string]config.Person
@@ -146,15 +208,21 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 		time.Sleep(m.opts.PlanDelay)
 		t := m.texts()
 		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
-		task, _, err := m.Create(ctx, goal, inv.SessionKey, origin)
-		if err != nil {
-			m.log.Error("could not plan a task", "goal", goal, "error", err)
+		task, err := m.Create(ctx, goal, inv.SessionKey, origin)
+		var cannot errCannot
+		switch {
+		case errors.As(err, &cannot):
+			m.log.Info("task cannot be done here", "goal", goal, "reason", cannot.reason)
+			n.DedupeKey = "task-plan:" + n.ID
+			n.Spoken = fmt.Sprintf(t.cannot, strings.TrimSpace(goal), cannot.reason)
+		case err != nil:
+			m.log.Error("could not draft a task", "goal", goal, "error", err)
 			n.DedupeKey = "task-plan:" + n.ID
 			n.Spoken = fmt.Sprintf(t.planFailed, strings.TrimSpace(goal))
-		} else {
+		default:
 			n.DedupeKey = "task-plan:" + task.ID
 			n.Spoken = fmt.Sprintf(t.proposal, task.Title, task.Summary)
-			n.Details = m.Describe(task)
+			n.Details = task.Summary
 		}
 		if err := m.opts.Deliver(ctx, n, area); err != nil {
 			m.log.Error("could not deliver a task proposal", "error", err)
@@ -162,9 +230,8 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 	}()
 }
 
-// origin is where a turn happens, for Task.Origin: the satellite's area
-// for voice (a reply to a proposal comes in a new session there), the
-// session key otherwise.
+// origin is where a turn happens: the satellite's area for voice (a reply
+// to a proposal comes in a new session there), the session key otherwise.
 func (m *Manager) origin(ctx context.Context, inv tools.Invocation) (origin, area string) {
 	if inv.Channel == config.ChannelVoice {
 		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil && sess.AreaID != "" {
@@ -174,56 +241,58 @@ func (m *Manager) origin(ctx context.Context, inv tools.Invocation) (origin, are
 	return inv.SessionKey, ""
 }
 
-// ConfirmLatest starts the newest proposed task asked for at origin.
+// ConfirmLatest saves the newest proposal made at origin.
 func (m *Manager) ConfirmLatest(ctx context.Context, origin string) (store.Task, error) {
+	newest, err := m.newestProposal(ctx, origin, 0)
+	if err != nil {
+		return store.Task{}, err
+	}
+	return m.Activate(ctx, newest.ID)
+}
+
+// newestProposal is the newest proposal made at origin, younger than
+// within when within > 0.
+func (m *Manager) newestProposal(ctx context.Context, origin string, within time.Duration) (store.Task, error) {
 	list, err := m.opts.Store.Tasks(ctx)
 	if err != nil {
 		return store.Task{}, err
 	}
+	now := m.opts.Clock()
 	var newest store.Task
 	for _, t := range list {
-		if t.State == store.TaskProposed && t.Origin == origin && !t.CreatedAt.Before(newest.CreatedAt) {
+		if t.State != store.TaskProposed || t.Origin != origin || (within > 0 && now.Sub(t.CreatedAt) >= within) {
+			continue
+		}
+		if !t.CreatedAt.Before(newest.CreatedAt) {
 			newest = t
 		}
 	}
 	if newest.ID == "" {
 		return store.Task{}, store.ErrNotFound
 	}
-	return m.Activate(ctx, newest.ID)
+	return newest, nil
 }
 
 // proposalFresh is how long a plain yes still answers a proposal.
 const proposalFresh = 10 * time.Minute
 
-// Shortcut confirms a proposal in code: a plain yes ("ja", "passt", "mach
-// das") where a proposal younger than proposalFresh waits. The model is
-// not asked; it answered "Auftrag bestätigt" without calling task_confirm.
-// Anything else is left to the model.
+// Shortcut confirms a proposal in code: a plain yes where a proposal
+// younger than proposalFresh waits. On the list to discuss: fixed phrases
+// are language-bound.
 func (m *Manager) Shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
 	t := m.texts()
-	if !isYes(t.yes, text) {
+	if !isYes(t.yesPhrases, text) {
 		return "", false
 	}
 	origin, _ := m.origin(ctx, inv)
-	list, err := m.opts.Store.Tasks(ctx)
+	newest, err := m.newestProposal(ctx, origin, proposalFresh)
 	if err != nil {
-		return "", false
-	}
-	now := m.opts.Clock()
-	var newest store.Task
-	for _, task := range list {
-		if task.State == store.TaskProposed && task.Origin == origin && now.Sub(task.CreatedAt) < proposalFresh &&
-			!task.CreatedAt.Before(newest.CreatedAt) {
-			newest = task
-		}
-	}
-	if newest.ID == "" {
 		return "", false
 	}
 	task, err := m.Activate(ctx, newest.ID)
 	if err != nil {
-		m.log.Error("could not start a confirmed task", "task", newest.ID, "error", err)
-		return "", false
+		m.log.Error("could not save a confirmed task", "task", newest.ID, "error", err)
+		return fmt.Sprintf(t.saveFailed, err), true
 	}
 	return fmt.Sprintf(t.confirmed, task.Title), true
 }
@@ -247,210 +316,219 @@ func isYes(phrases, text string) bool {
 	return false
 }
 
-// Activate starts a proposed task.
+// Activate saves a proposal as a Home Assistant automation. From then on
+// Home Assistant holds the task; the proposal is dropped.
 func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
 	t, err := m.opts.Store.GetTask(ctx, id)
 	if err != nil {
 		return store.Task{}, err
 	}
-	t.State = store.TaskActive
-	if err := m.opts.Store.PutTask(ctx, t); err != nil {
+	var automation map[string]any
+	if err := json.Unmarshal([]byte(t.Plan), &automation); err != nil {
 		return store.Task{}, err
 	}
-	m.log.Info("task active", "task", t.ID, "title", t.Title)
+	if _, err := m.opts.HA.Call(ctx, map[string]any{
+		"type": "mira/automation/save", "config": automation, "automation_id": automationID(t.ID),
+	}); err != nil {
+		return store.Task{}, err
+	}
+	if err := m.opts.Store.DeleteTask(ctx, t.ID); err != nil {
+		m.log.Warn("could not drop a saved proposal", "task", t.ID, "error", err)
+	}
+	m.log.Info("task saved", "task", t.ID, "automation", automationID(t.ID))
 	return t, nil
 }
 
-// Run checks the active tasks every five minutes until ctx ends.
-func (m *Manager) Run(ctx context.Context) error {
-	tick := time.NewTicker(5 * time.Minute)
-	defer tick.Stop()
-	for {
-		if err := m.Check(ctx); err != nil && ctx.Err() == nil {
-			m.log.Error("task check failed", "error", err)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-tick.C:
-		}
-	}
+// Item is a task as the UI and task_list show it: a proposal or one of
+// Mira's automations.
+type Item struct {
+	ID            string          `json:"id"`
+	Title         string          `json:"title"`
+	Goal          string          `json:"goal"`
+	Summary       string          `json:"summary,omitempty"`
+	State         string          `json:"state"` // proposed, on, off, unavailable
+	EntityID      string          `json:"entity_id,omitempty"`
+	LastTriggered string          `json:"last_triggered,omitempty"`
+	Automation    json.RawMessage `json:"automation,omitempty"`
+	EditURL       string          `json:"edit_url,omitempty"`
 }
 
-// Check runs every rule of every active task once and queues a notice for
-// each candidate the judge finds worth it.
-func (m *Manager) Check(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	list, err := m.opts.Store.Tasks(ctx)
+// List returns open proposals and Mira's automations. Proposals come even
+// when Home Assistant cannot be asked; the error says so.
+func (m *Manager) List(ctx context.Context) ([]Item, error) {
+	var out []Item
+	proposals, err := m.opts.Store.Tasks(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var active []store.Task
-	for _, t := range list {
-		if t.State == store.TaskActive {
-			active = append(active, t)
+	for _, t := range proposals {
+		if t.State == store.TaskProposed {
+			out = append(out, Item{ID: t.ID, Title: t.Title, Goal: t.Goal, Summary: t.Summary,
+				State: store.TaskProposed, Automation: json.RawMessage(t.Plan)})
 		}
 	}
-	if len(active) == 0 {
+	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/list"})
+	if err != nil {
+		return out, fmt.Errorf("Mira's automations: %w", err)
+	}
+	var res struct {
+		Automations []struct {
+			ID            string         `json:"id"`
+			EntityID      string         `json:"entity_id"`
+			State         string         `json:"state"`
+			LastTriggered string         `json:"last_triggered"`
+			Config        map[string]any `json:"config"`
+		} `json:"automations"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return out, err
+	}
+	for _, a := range res.Automations {
+		cfg, _ := json.Marshal(a.Config)
+		alias, _ := a.Config["alias"].(string)
+		goal, _ := a.Config["description"].(string)
+		item := Item{ID: a.ID, Title: alias, Goal: goal, State: a.State, EntityID: a.EntityID,
+			LastTriggered: a.LastTriggered, Automation: cfg}
+		if m.opts.HAURL != "" {
+			item.EditURL = strings.TrimRight(m.opts.HAURL, "/") + "/config/automation/edit/" + a.ID
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// Delete drops a proposal or deletes one of Mira's automations.
+func (m *Manager) Delete(ctx context.Context, id string) error {
+	if err := m.opts.Store.DeleteTask(ctx, id); err == nil {
+		m.log.Info("proposal dropped", "task", id)
 		return nil
-	}
-	states, err := m.opts.Source.States(ctx)
-	if err != nil {
+	} else if !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
-	byID := map[string]haws.State{}
-	for _, s := range states {
-		byID[s.EntityID] = s
+	if _, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/delete", "automation_id": id}); err != nil {
+		return err
 	}
-	cat := map[string]Entity{}
-	for _, e := range Catalog(states, structure.Snapshot{}) {
-		cat[e.ID] = e
-	}
-
-	now := m.opts.Clock().In(m.opts.Location)
-	// The hour that ended; statistics for it are complete a few minutes
-	// after the hour.
-	hour := now.Truncate(time.Hour).Add(-time.Hour)
-	doHourly := now.Sub(hour.Add(time.Hour)) >= 15*time.Minute && hour.After(m.checkedHour)
-	var stats map[string][]haws.StatRow
-	if doHourly {
-		var ids []string
-		for _, t := range active {
-			for _, r := range planOf(t).Rules {
-				if r.Kind == KindUsage || r.Kind == KindLevel {
-					ids = append(ids, r.EntityID)
-				}
-			}
-		}
-		if len(ids) > 0 {
-			if stats, err = m.opts.Source.Statistics(ctx, ids, hour.AddDate(0, 0, -baselineDays), "hour"); err != nil {
-				return fmt.Errorf("statistics: %w", err)
-			}
-		}
-		m.checkedHour = hour
-	}
-
-	t := m.texts()
-	for _, task := range active {
-		plan := planOf(task)
-		for i, r := range plan.Rules {
-			e := cat[r.EntityID]
-			if e.Name == "" {
-				e.Name = r.EntityID
-			}
-			var evidence string
-			switch r.Kind {
-			case KindUsage, KindLevel:
-				if !doHourly || !m.applies(r.When, hour) {
-					continue
-				}
-				pick := func(s haws.StatRow) *float64 { return s.Change }
-				if r.Kind == KindLevel {
-					pick = func(s haws.StatRow) *float64 { return s.Mean }
-				}
-				current, base, ok := hourly(stats[r.EntityID], hour, m.opts.Location, pick)
-				if !ok {
-					continue
-				}
-				if r.Kind == KindUsage {
-					if hit, s := usageCandidate(current, base); hit {
-						evidence = usageEvidence(t, e, hour, current, s)
-					}
-				} else if hit, s := levelCandidate(current, base, r.Direction); hit {
-					evidence = levelEvidence(t, e, hour, current, s)
-				}
-			case KindState, KindThreshold:
-				st, ok := byID[r.EntityID]
-				if !ok {
-					continue
-				}
-				key := fmt.Sprintf("%s:%d", task.ID, i)
-				var holds bool
-				if r.Kind == KindState {
-					holds = stateHolds(r, st.State)
-				} else {
-					holds, _ = thresholdHolds(r, st.State)
-				}
-				was := m.held[key]
-				m.held[key] = holds
-				if !holds || was || !m.applies(r.When, now) {
-					continue
-				}
-				evidence = fmt.Sprintf(t.stateEvidence, e.Name, e.ID, st.State, e.Unit, now.Format("15:04"))
-			}
-			if evidence == "" {
-				continue
-			}
-			if err := m.judge(ctx, task, plan, i, evidence); err != nil {
-				m.log.Error("could not judge a candidate", "task", task.ID, "rule", i, "error", err)
-			}
-		}
-	}
+	m.log.Info("task deleted", "automation", id)
 	return nil
 }
 
-// judge asks the model whether a candidate is worth a notice, and queues it.
-func (m *Manager) judge(ctx context.Context, task store.Task, plan Plan, rule int, evidence string) error {
-	last := lastAlerts(task)
-	now := m.opts.Clock()
-	if at, ok := last[rule]; ok && now.Sub(at) < m.opts.Cooldown {
-		m.log.Info("candidate in cooldown", "task", task.ID, "rule", rule)
-		return nil
-	}
-	t := m.texts()
-	r := plan.Rules[rule]
-	instruction := fmt.Sprintf(t.judge, task.Goal, task.Summary, r.Why, evidence) + t.judgeRules
-	raw, err := m.opts.Judge.Assess(ctx, instruction, json.RawMessage(judgeSchema))
+// SetEnabled switches one of Mira's automations on or off.
+func (m *Manager) SetEnabled(ctx context.Context, id string, on bool) error {
+	items, err := m.List(ctx)
 	if err != nil {
 		return err
 	}
-	var v struct {
-		Importance int    `json:"importance"`
-		Spoken     string `json:"spoken"`
-		Details    string `json:"details"`
+	for _, it := range items {
+		if it.ID == id && it.EntityID != "" {
+			service := "turn_off"
+			if on {
+				service = "turn_on"
+			}
+			return m.opts.HA.CallService(ctx, "automation", service, nil, &haws.Target{EntityID: []string{it.EntityID}})
+		}
 	}
-	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return fmt.Errorf("unparseable verdict: %w", err)
-	}
-	m.log.Info("candidate judged", "task", task.ID, "rule", rule, "importance", v.Importance)
-	if v.Importance <= 0 || strings.TrimSpace(v.Spoken) == "" {
-		return nil
-	}
-	if v.Importance > 3 {
-		v.Importance = 3
-	}
-	details := strings.TrimSpace(v.Details)
-	if details == "" {
-		details = evidence
-	}
-	_, _, err = m.opts.Store.PutNotice(ctx, store.Notice{
-		ID: ulid.Make().String(), Source: store.SourceTask,
-		DedupeKey:  fmt.Sprintf("task:%s:%d", task.ID, rule),
-		Importance: v.Importance, Audience: store.AudienceHousehold,
-		Spoken: strings.TrimSpace(v.Spoken), Details: details,
-		ExpiresAt: now.Add(12 * time.Hour),
-	})
-	if err != nil {
-		return err
-	}
-	last[rule] = now
-	raw2, _ := json.Marshal(last)
-	task.LastAlert = string(raw2)
-	return m.opts.Store.PutTask(ctx, task)
+	return store.ErrNotFound
 }
 
-// applies reports whether a rule's time of day matches t.
-func (m *Manager) applies(when string, t time.Time) bool {
-	night := inQuietHours(m.opts.QuietHours, t.In(m.opts.Location))
-	switch when {
-	case WhenNight:
-		return night
-	case WhenDay:
-		return !night
-	default:
-		return true
+// TryResult is what a dry run says.
+type TryResult struct {
+	Verdicts  []Verdict  `json:"verdicts,omitempty"`
+	Decisions []Decision `json:"decisions,omitempty"`
+}
+
+// Try runs the Mira actions of a task now, without notices: what would
+// Mira say with the data as it is? Text that needs a trigger's templates
+// is replaced.
+func (m *Manager) Try(ctx context.Context, id string) (TryResult, error) {
+	items, err := m.List(ctx)
+	if err != nil && len(items) == 0 {
+		return TryResult{}, err
 	}
+	var automation map[string]any
+	key := id
+	for _, it := range items {
+		if it.ID == id {
+			_ = json.Unmarshal(it.Automation, &automation)
+			if it.State == store.TaskProposed {
+				key = automationID(id)
+			}
+		}
+	}
+	if automation == nil {
+		return TryResult{}, store.ErrNotFound
+	}
+	t := m.texts()
+	var res TryResult
+	for _, call := range miraCalls(automation["actions"]) {
+		raw, _ := json.Marshal(call.data)
+		var r Request
+		_ = json.Unmarshal(raw, &r)
+		r.Task = key
+		r.Observation = withoutTemplates(r.Observation, t.tryObservation)
+		off := false
+		r.Notify = &off
+		switch call.action {
+		case "mira.assess":
+			v, err := m.Assess(ctx, r)
+			if err != nil {
+				return res, err
+			}
+			res.Verdicts = append(res.Verdicts, v)
+		case "mira.decide":
+			d, err := m.Decide(ctx, r)
+			if err != nil {
+				return res, err
+			}
+			res.Decisions = append(res.Decisions, d)
+		}
+	}
+	return res, nil
+}
+
+type miraCall struct {
+	action string
+	data   map[string]any
+}
+
+// miraCalls finds the mira.assess and mira.decide steps of an automation's
+// actions, also inside choose, if, sequence and parallel. A step without
+// data gets an empty map, so callers can fill it in.
+func miraCalls(actions any) []miraCall {
+	var out []miraCall
+	switch a := actions.(type) {
+	case []any:
+		for _, step := range a {
+			out = append(out, miraCalls(step)...)
+		}
+	case map[string]any:
+		if name, _ := a["action"].(string); name == "mira.assess" || name == "mira.decide" {
+			data, _ := a["data"].(map[string]any)
+			if data == nil {
+				data = map[string]any{}
+				a["data"] = data
+			}
+			out = append(out, miraCall{name, data})
+		}
+		for _, key := range []string{"then", "else", "sequence", "parallel", "default"} {
+			out = append(out, miraCalls(a[key])...)
+		}
+		if options, ok := a["choose"].([]any); ok {
+			for _, o := range options {
+				if om, ok := o.(map[string]any); ok {
+					out = append(out, miraCalls(om["sequence"])...)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// withoutTemplates replaces text that needs Home Assistant's templates.
+func withoutTemplates(s, instead string) string {
+	if strings.Contains(s, "{{") || strings.Contains(s, "{%") {
+		return instead
+	}
+	return s
 }
 
 func inQuietHours(q config.QuietHours, t time.Time) bool {
@@ -465,37 +543,11 @@ func inQuietHours(q config.QuietHours, t time.Time) bool {
 	return m >= from || m < to
 }
 
-func planOf(t store.Task) Plan {
-	var p Plan
-	_ = json.Unmarshal([]byte(t.Plan), &p)
-	return p
-}
-
-func lastAlerts(t store.Task) map[int]time.Time {
-	out := map[int]time.Time{}
-	if t.LastAlert != "" {
-		_ = json.Unmarshal([]byte(t.LastAlert), &out)
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
 	}
-	return out
-}
-
-// Delete removes a task.
-func (m *Manager) Delete(ctx context.Context, id string) error {
-	err := m.opts.Store.DeleteTask(ctx, id)
-	if errors.Is(err, store.ErrNotFound) {
-		return err
-	}
-	m.log.Info("task deleted", "task", id)
-	return err
-}
-
-// Describe renders a plan for the user: its summary and the rules.
-func (m *Manager) Describe(t store.Task) string {
-	tx := m.texts()
-	var b strings.Builder
-	fmt.Fprintf(&b, tx.describe, t.ID, t.Title, t.State, t.Summary)
-	for _, r := range planOf(t).Rules {
-		fmt.Fprintf(&b, "\n- %s (%s, %s): %s", r.EntityID, r.Kind, r.When, r.Why)
-	}
-	return b.String()
+	sort.Strings(keys)
+	return keys
 }

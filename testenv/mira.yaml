@@ -18,6 +18,21 @@ llm:
   warmup_on_start: false
   warmup_on_prefix_change: false
 
+# Testing the flows on Gemini Flash (the local model is too slow or not loaded).
+models:
+  smart:
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-latest"
+    reasoning_effort: low
+    context_tokens: 200000
+
+routing:
+  voice: smart
+  telegram: smart
+  background: smart
+  tasks: smart
+
 store:
   path: "testenv/mira.db"
 
@@ -42,14 +57,6 @@ telegram:
 persons:
   anna: { entity: person.anna }
   ben: { entity: person.ben }
-
-watchers:
-  - name: wasserleck
-    trigger:
-      entity_id: [binary_sensor.lecksensor_keller, binary_sensor.lecksensor_spulmaschine]
-      to: ["on"]
-    description: "Ein Lecksensor meldet Wasser."
-    importance: 3
 
 notifier:
   quiet_hours: { from: "23:30", to: "06:30" }

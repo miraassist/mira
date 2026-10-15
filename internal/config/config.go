@@ -43,7 +43,6 @@ type Config struct {
 	Sessions   Sessions          `yaml:"sessions"`
 	Satellites map[string]string `yaml:"satellites"`
 	Persons    map[string]Person `yaml:"persons"`
-	Watchers   []Watcher         `yaml:"watchers"`
 	Notifier   Notifier          `yaml:"notifier"`
 	Security   Security          `yaml:"security"`
 	Memory     Memory            `yaml:"memory"`
@@ -219,62 +218,6 @@ type Person struct {
 	// Notify is a HA notify service for the companion app, such as
 	// "notify.mobile_app_pixel".
 	Notify string `yaml:"notify"`
-}
-
-type Watcher struct {
-	Name    string        `yaml:"name"`
-	Trigger *StateTrigger `yaml:"trigger"`
-	// Schedule is a cron expression ("0 8 * * *") for watchers that poll a
-	// source instead of waiting for a trigger.
-	Schedule string `yaml:"schedule"`
-	// Kind of a scheduled watcher: "rss" reads the feed at URL.
-	Kind      string `yaml:"kind"`
-	URL       string `yaml:"url"`
-	DedupeKey string `yaml:"dedupe_key"`
-	// Description tells the evaluator what the event means, e.g. "Der
-	// Wechselrichter der Solaranlage meldet einen Fehler." It is the main
-	// input for the spoken text.
-	Description string `yaml:"description"`
-	// Importance, when set (0-3), overrides the evaluator's rating.
-	Importance *int `yaml:"importance"`
-	// Audience is "household" (default) or a key of persons.
-	Audience        string   `yaml:"audience"`
-	Confidentiality string   `yaml:"confidentiality"`
-	ExpiresIn       Duration `yaml:"expires_in"`
-}
-
-type StateTrigger struct {
-	EntityID []string `yaml:"entity_id"`
-	To       []string `yaml:"to"`
-	From     []string `yaml:"from"`
-	// NotTo and NotFrom exclude states, as in HA's state trigger: "running
-	// status is no longer normal" is not_to: [normal, unavailable, unknown].
-	NotTo   []string `yaml:"not_to"`
-	NotFrom []string `yaml:"not_from"`
-}
-
-// UnmarshalYAML accepts entity_id as either a single string or a list.
-func (t *StateTrigger) UnmarshalYAML(value *yaml.Node) error {
-	var raw struct {
-		EntityID yaml.Node `yaml:"entity_id"`
-		To       []string  `yaml:"to"`
-		From     []string  `yaml:"from"`
-		NotTo    []string  `yaml:"not_to"`
-		NotFrom  []string  `yaml:"not_from"`
-	}
-	if err := value.Decode(&raw); err != nil {
-		return err
-	}
-	t.To, t.From, t.NotTo, t.NotFrom = raw.To, raw.From, raw.NotTo, raw.NotFrom
-	if raw.EntityID.IsZero() {
-		return nil
-	}
-	var one string
-	if err := raw.EntityID.Decode(&one); err == nil {
-		t.EntityID = []string{one}
-		return nil
-	}
-	return raw.EntityID.Decode(&t.EntityID)
 }
 
 type Notifier struct {
@@ -629,52 +572,9 @@ func (c Config) Validate() error {
 		}
 	}
 
-	names := map[string]bool{}
 	if c.Memory.ProfileSchedule != "" {
 		if _, err := schedule.Parse(c.Memory.ProfileSchedule); err != nil {
 			add("memory.profile_schedule: %v", err)
-		}
-	}
-	for i, w := range c.Watchers {
-		if w.Name == "" {
-			add("watchers[%d].name must not be empty", i)
-		}
-		if names[w.Name] {
-			add("watchers[%d]: duplicate name %q", i, w.Name)
-		}
-		names[w.Name] = true
-		if w.Trigger == nil && w.Schedule == "" {
-			add("watchers[%d] (%s): needs either trigger or schedule", i, w.Name)
-		}
-		if w.Trigger != nil && len(w.Trigger.EntityID) == 0 {
-			add("watchers[%d] (%s): trigger needs at least one entity_id", i, w.Name)
-		}
-		if w.Schedule != "" {
-			if _, err := schedule.Parse(w.Schedule); err != nil {
-				add("watchers[%d] (%s): %v", i, w.Name, err)
-			}
-			if w.Kind != "rss" {
-				add("watchers[%d] (%s): scheduled watchers need kind: rss", i, w.Name)
-			} else if !strings.HasPrefix(w.URL, "http://") && !strings.HasPrefix(w.URL, "https://") {
-				add("watchers[%d] (%s): kind rss needs an http(s) url", i, w.Name)
-			}
-		}
-		if w.Trigger != nil && len(w.Trigger.To) > 0 && len(w.Trigger.NotTo) > 0 {
-			add("watchers[%d] (%s): trigger cannot have both to and not_to", i, w.Name)
-		}
-		if w.Trigger != nil && len(w.Trigger.From) > 0 && len(w.Trigger.NotFrom) > 0 {
-			add("watchers[%d] (%s): trigger cannot have both from and not_from", i, w.Name)
-		}
-		if w.Importance != nil && (*w.Importance < 0 || *w.Importance > 3) {
-			add("watchers[%d] (%s): importance must be between 0 and 3", i, w.Name)
-		}
-		if w.Audience != "" && w.Audience != "household" {
-			if _, ok := c.Persons[w.Audience]; !ok {
-				add("watchers[%d] (%s): audience %q is not in persons", i, w.Name, w.Audience)
-			}
-		}
-		if w.Confidentiality != "" && w.Confidentiality != "normal" && w.Confidentiality != "confidential" {
-			add("watchers[%d] (%s): confidentiality must be normal or confidential", i, w.Name)
 		}
 	}
 

@@ -6,11 +6,10 @@ import (
 	"testing"
 )
 
-func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
+func TestHomeAssistantManagesPersonsRooms(t *testing.T) {
 	srv, cfg, _ := setup(t)
 	cfg.sections["notifier"] = json.RawMessage(`{"cooldown":"30m","morning_trigger":{"areas":["bad"],"presence":{"bad":"binary_sensor.bad_motion"}}}`)
 	cfg.sections["satellites"] = json.RawMessage(`{"bad":"assist_satellite.bad","flur":"assist_satellite.flur"}`)
-	cfg.sections["watchers"] = json.RawMessage(`[{"name":"leck"}]`)
 	cfg.sections["persons"] = json.RawMessage(`{"anna":{"entity":"person.anna"}}`)
 
 	// Import: rooms joined from satellites and the morning trigger.
@@ -20,7 +19,7 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 		t.Fatalf("get: %d %s", code, body)
 	}
 
-	code, body = call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"watchers":[{"name":"neu"}],"persons":{},
+	code, body = call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"persons":{"ben":{"entity":"person.ben"}},
 		"rooms":[{"area":"kueche","satellite":"assist_satellite.kueche","presence":"binary_sensor.k","morning":true,"mode":"indicate","indicator":"light.ring"},{"area":"flur"}]}`)
 	if code != 200 || !strings.Contains(body, `"managed":true`) {
 		t.Fatalf("put: %d %s", code, body)
@@ -36,8 +35,8 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 	if code, body := call(t, srv, "GET", "/v1/ui/ha", "secret", ""); code != 200 || !strings.Contains(body, `"mode":"indicate","indicator":"light.ring"`) {
 		t.Errorf("rooms read back: %s", body)
 	}
-	if string(cfg.sections["satellites"]) != `{"kueche":"assist_satellite.kueche"}` || string(cfg.sections["watchers"]) != `[{"name":"neu"}]` {
-		t.Errorf("satellites %s watchers %s", cfg.sections["satellites"], cfg.sections["watchers"])
+	if string(cfg.sections["satellites"]) != `{"kueche":"assist_satellite.kueche"}` || !strings.Contains(string(cfg.sections["persons"]), "person.ben") {
+		t.Errorf("satellites %s persons %s", cfg.sections["satellites"], cfg.sections["persons"])
 	}
 
 	// The web UI now sees them as managed and cannot change them, but may
@@ -45,7 +44,7 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 	if _, body := call(t, srv, "GET", "/v1/ui/config", "secret", ""); !strings.Contains(body, `"managed_by":"home_assistant"`) {
 		t.Errorf("config: %s", body)
 	}
-	if code, _ := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"watchers":[]}`); code != 409 {
+	if code, _ := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"persons":{}}`); code != 409 {
 		t.Errorf("managed section changed in the UI: %d", code)
 	}
 	if code, body := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"notifier":{"cooldown":"10m","morning_trigger":{"areas":[]}}}`); code != 200 {
@@ -61,7 +60,7 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 
 	// Removing the integration hands the sections back.
 	call(t, srv, "DELETE", "/v1/ui/ha", "secret", "")
-	if code, _ := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"watchers":[]}`); code != 200 {
+	if code, _ := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"persons":{}}`); code != 200 {
 		t.Errorf("after release: %d", code)
 	}
 }

@@ -18,6 +18,9 @@ default_config:
 # Lights, switches, sensors, covers, media players and more, without hardware.
 demo:
 
+# Mira's tasks are automations here, like in every UI-managed installation.
+automation: !include automations.yaml
+
 logger:
   default: warning
   logs:

@@ -18,6 +18,7 @@ import (
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/conversation"
 	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tasks"
 )
 
 // Conversation is the part of the engine the API needs.
@@ -45,6 +46,17 @@ type Options struct {
 	Persons func() map[string]config.Person
 	// TurnTimeout bounds one conversation request.
 	TurnTimeout time.Duration
+	// Tasks serves mira.assess and mira.decide; nil without Home Assistant.
+	Tasks Tasks
+	// HAUser returns the agent's Home Assistant user id, which the
+	// integration lets manage Mira's automations; "" when unknown.
+	HAUser func(ctx context.Context) string
+}
+
+// Tasks judges for automations (package tasks).
+type Tasks interface {
+	Assess(ctx context.Context, r tasks.Request) (tasks.Verdict, error)
+	Decide(ctx context.Context, r tasks.Request) (tasks.Decision, error)
 }
 
 type Server struct {
@@ -66,6 +78,8 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("GET /v1/status", s.status)
 	s.mux.HandleFunc("PUT /v1/quiet_mode", s.quietMode)
 	s.mux.HandleFunc("POST /v1/notices", s.addNotice)
+	s.mux.HandleFunc("POST /v1/assess", s.assess)
+	s.mux.HandleFunc("POST /v1/decide", s.decide)
 	return s
 }
 
@@ -93,7 +107,53 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 			checks[name] = "ok"
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": status, "version": s.opts.Version, "id": s.opts.InstanceID, "checks": checks})
+	out := map[string]any{"status": status, "version": s.opts.Version, "id": s.opts.InstanceID, "checks": checks}
+	if s.opts.HAUser != nil {
+		if user := s.opts.HAUser(ctx); user != "" {
+			out["ha_user_id"] = user
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// assess serves mira.assess: judge, maybe notify, answer the verdict.
+func (s *Server) assess(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Tasks == nil {
+		writeError(w, http.StatusServiceUnavailable, "tasks need Home Assistant")
+		return
+	}
+	var req tasks.Request
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	v, err := s.opts.Tasks.Assess(r.Context(), req)
+	if err != nil {
+		s.log.Error("assess failed", "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+// decide serves mira.decide: a yes/no answer, no notice.
+func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Tasks == nil {
+		writeError(w, http.StatusServiceUnavailable, "tasks need Home Assistant")
+		return
+	}
+	var req tasks.Request
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	d, err := s.opts.Tasks.Decide(r.Context(), req)
+	if err != nil {
+		s.log.Error("decide failed", "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
 }
 
 type conversationRequest struct {

@@ -90,131 +90,85 @@
           "description": "Dauer wie 12h; danach verfällt der Hinweis. Standard 24h."
         }
       }
+    },
+    "assess": {
+      "name": "Bewerten",
+      "description": "Mira beurteilt, was passiert ist, gemessen am Ziel und mit den Daten, die sie nachschlägt und verdichtet; wenn es sich lohnt, formuliert sie eine Meldung und stellt sie zu wie jede andere. Antwortet mit importance, spoken und notice_id.",
+      "fields": {
+        "goal": {
+          "name": "Ziel",
+          "description": "Wofür die Aufgabe da ist, in den Worten des Nutzers."
+        },
+        "observation": {
+          "name": "Beobachtung",
+          "description": "Was passiert ist, meist mit Templates."
+        },
+        "data": {
+          "name": "Daten",
+          "description": "Liste von {entity_id, view}; view state, same_hour (letzte Stunde gegen dieselbe Stunde an 14 Tagen) oder day (heute bis jetzt gegen dieselben Wochentage)."
+        },
+        "memory": {
+          "name": "Gedächtnis",
+          "description": "relevant: Profil und passende Fakten; profile; none."
+        },
+        "cooldown": {
+          "name": "Sperrzeit",
+          "description": "Etwa 6h: innerhalb dieser Zeit meldet die Aufgabe nur, wenn es wichtiger wird."
+        },
+        "notify": {
+          "name": "Melden",
+          "description": "Aus: nur das Urteil, keine Meldung (Probelauf)."
+        },
+        "audience": {
+          "name": "Empfänger",
+          "description": "household oder eine Personen-ID aus der Mira-Konfiguration."
+        },
+        "confidentiality": {
+          "name": "Vertraulichkeit",
+          "description": "Vertrauliche Meldungen werden nur vorgelesen, wenn Miras Einstellung es erlaubt."
+        },
+        "dedupe_key": {
+          "name": "Schlüssel",
+          "description": "Eine offene Meldung mit demselben Schlüssel wird aktualisiert statt verdoppelt."
+        },
+        "expires_in": {
+          "name": "Gültig für",
+          "description": "Dauer wie 12h. Standard 12h."
+        },
+        "task": {
+          "name": "Aufgabe",
+          "description": "Die ID der Automation ({{ this.attributes.id }}): ihre Urteile teilen Protokoll und frühere Urteile."
+        }
+      }
+    },
+    "decide": {
+      "name": "Entscheiden",
+      "description": "Mira beantwortet eine Ja/Nein-Frage mit den Daten, die sie nachschlägt; keine Meldung. Mit response_variable und einer Template-Bedingung verwenden.",
+      "fields": {
+        "question": {
+          "name": "Frage",
+          "description": "Eine Ja/Nein-Frage."
+        },
+        "observation": {
+          "name": "Beobachtung",
+          "description": "Was passiert ist, meist mit Templates."
+        },
+        "data": {
+          "name": "Daten",
+          "description": "Liste von {entity_id, view}, wie bei Bewerten."
+        },
+        "memory": {
+          "name": "Gedächtnis",
+          "description": "relevant, profile oder none."
+        },
+        "task": {
+          "name": "Aufgabe",
+          "description": "Die ID der Automation ({{ this.attributes.id }})."
+        }
+      }
     }
   },
   "config_subentries": {
-    "watcher": {
-      "entry_type": "Watcher",
-      "initiate_flow": {
-        "user": "Watcher hinzufügen",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Watcher",
-          "description": "Beobachtet Entitäten und erzeugt bei einer Änderung eine Meldung.",
-          "data": {
-            "name": "Name",
-            "entity_id": "Entitäten",
-            "to": "Zu Zuständen",
-            "from": "Von Zuständen",
-            "description": "Bedeutung",
-            "importance": "Wichtigkeit",
-            "audience": "Empfänger",
-            "confidentiality": "Vertraulichkeit"
-          },
-          "data_description": {
-            "entity_id": "Eine Änderung an einer davon löst den Watcher aus.",
-            "to": "Leer: jede Änderung.",
-            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
-            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
-            "audience": "household (alle) oder eine Person",
-            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
-          }
-        },
-        "reconfigure": {
-          "title": "Watcher",
-          "description": "Beobachtet Entitäten und erzeugt bei einer Änderung eine Meldung.",
-          "data": {
-            "name": "Name",
-            "entity_id": "Entitäten",
-            "to": "Zu Zuständen",
-            "from": "Von Zuständen",
-            "description": "Bedeutung",
-            "importance": "Wichtigkeit",
-            "audience": "Empfänger",
-            "confidentiality": "Vertraulichkeit"
-          },
-          "data_description": {
-            "entity_id": "Eine Änderung an einer davon löst den Watcher aus.",
-            "to": "Leer: jede Änderung.",
-            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
-            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
-            "audience": "household (alle) oder eine Person",
-            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "Das gibt es schon.",
-        "invalid_config": "Der Agent hat es abgelehnt: {error}",
-        "cannot_connect": "Der Agent ist nicht erreichbar."
-      },
-      "abort": {
-        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
-        "reconfigure_successful": "Gespeichert."
-      }
-    },
-    "feed": {
-      "entry_type": "Feed",
-      "initiate_flow": {
-        "user": "Feed hinzufügen",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Feed",
-          "description": "Liest einen Feed nach Zeitplan; höchstens eine Sammelmeldung pro Lauf, nie dringend.",
-          "data": {
-            "name": "Name",
-            "url": "URL",
-            "schedule": "Zeitplan",
-            "description": "Bedeutung",
-            "importance": "Wichtigkeit",
-            "audience": "Empfänger",
-            "confidentiality": "Vertraulichkeit"
-          },
-          "data_description": {
-            "url": "RSS- oder Atom-Feed",
-            "schedule": "Cron, z. B. 0 8 * * * für täglich 8:00",
-            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
-            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
-            "audience": "household (alle) oder eine Person",
-            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
-          }
-        },
-        "reconfigure": {
-          "title": "Feed",
-          "description": "Liest einen Feed nach Zeitplan; höchstens eine Sammelmeldung pro Lauf, nie dringend.",
-          "data": {
-            "name": "Name",
-            "url": "URL",
-            "schedule": "Zeitplan",
-            "description": "Bedeutung",
-            "importance": "Wichtigkeit",
-            "audience": "Empfänger",
-            "confidentiality": "Vertraulichkeit"
-          },
-          "data_description": {
-            "url": "RSS- oder Atom-Feed",
-            "schedule": "Cron, z. B. 0 8 * * * für täglich 8:00",
-            "description": "Daraus formuliert das Modell die Meldung, z. B. „Wasser unter der Waschmaschine.“",
-            "importance": "Automatisch lässt das Modell bewerten. 3 ist dringend: sofort, auch nachts.",
-            "audience": "household (alle) oder eine Person",
-            "confidentiality": "Vertrauliches wird nur vorgelesen, wenn die Regel es erlaubt."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "Das gibt es schon.",
-        "invalid_config": "Der Agent hat es abgelehnt: {error}",
-        "cannot_connect": "Der Agent ist nicht erreichbar."
-      },
-      "abort": {
-        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
-        "reconfigure_successful": "Gespeichert."
-      }
-    },
     "person": {
       "entry_type": "Person",
       "initiate_flow": {
@@ -319,15 +273,6 @@
     }
   },
   "selector": {
-    "importance": {
-      "options": {
-        "auto": "Automatisch",
-        "0": "0 nicht erwähnenswert",
-        "1": "1 nebenbei",
-        "2": "2 heute wichtig",
-        "3": "3 dringend"
-      }
-    },
     "confidentiality": {
       "options": {
         "normal": "Normal",

@@ -10,15 +10,13 @@ import (
 
 // UISections are the parts of the config the web UI may change. None of them
 // holds a secret; tokens and URLs stay in the YAML file and the environment.
-var UISections = []string{"notifier", "watchers", "persons", "satellites"}
+var UISections = []string{"notifier", "persons", "satellites"}
 
 // section returns a pointer to the named section inside c.
 func (c *Config) section(name string) (any, error) {
 	switch name {
 	case "notifier":
 		return &c.Notifier, nil
-	case "watchers":
-		return &c.Watchers, nil
 	case "persons":
 		return &c.Persons, nil
 	case "satellites":
@@ -71,12 +69,6 @@ func (c *Config) ApplySection(name string, raw []byte) error {
 	switch p := ptr.(type) {
 	case *Notifier:
 		v := *defPtr.(*Notifier)
-		if err := yaml.Unmarshal(raw, &v); err != nil {
-			return fmt.Errorf("section %s: %w", name, err)
-		}
-		*p = v
-	case *[]Watcher:
-		var v []Watcher
 		if err := yaml.Unmarshal(raw, &v); err != nil {
 			return fmt.Errorf("section %s: %w", name, err)
 		}

@@ -49,23 +49,6 @@ func TestApplySectionFillsDefaults(t *testing.T) {
 	}
 }
 
-func TestWatchersSection(t *testing.T) {
-	c := Default()
-	y, err := SectionYAML("watchers", json.RawMessage(`[{"name":"leck","trigger":{"entity_id":"binary_sensor.leck","to":["on"]},"importance":3}]`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := c.ApplySection("watchers", y); err != nil {
-		t.Fatal(err)
-	}
-	if len(c.Watchers) != 1 || c.Watchers[0].Trigger.EntityID[0] != "binary_sensor.leck" || *c.Watchers[0].Importance != 3 {
-		t.Fatalf("watchers = %+v", c.Watchers)
-	}
-	if _, err := SectionYAML("llm", json.RawMessage(`{}`)); err == nil {
-		t.Error("the llm section must not be editable")
-	}
-}
-
 func TestCompactDurations(t *testing.T) {
 	for d, want := range map[string]string{"30m": "30m", "1h": "1h", "1h30m": "1h30m", "90s": "1m30s", "0s": "0s", "2h0m30s": "2h0m30s"} {
 		var v Duration

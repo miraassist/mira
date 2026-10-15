@@ -103,6 +103,14 @@ class MiraClient:
         """Queue a notice; the agent decides when and where it is delivered."""
         return await self._request("POST", "/v1/notices", 10, json=notice)
 
+    async def assess(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Let the agent judge an observation and queue a notice if it is worth one."""
+        return await self._request("POST", "/v1/assess", 60, json=request)
+
+    async def decide(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Ask the agent a yes/no question about the house; no notice."""
+        return await self._request("POST", "/v1/decide", 60, json=request)
+
     async def compact_profile(self) -> dict[str, Any]:
         """Rebuild the memory profile from the stored facts now."""
         return await self._request("POST", "/v1/ui/memory/compact", 180)

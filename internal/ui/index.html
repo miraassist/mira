@@ -54,6 +54,8 @@ button.danger { background: var(--panel); color: var(--warn); }
 .chip small { color: var(--muted); }
 .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+pre.code { background: var(--badge); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; max-height: 300px; }
+a.button { display: inline-block; text-decoration: none; font: inherit; border-radius: 6px; padding: 6px 12px; border: 1px solid var(--line); color: var(--text); }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 label.checkline input { width: auto; }
 details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
@@ -95,20 +97,19 @@ const I18N = {
  "de": {
   "tab_notices": "Meldungen",
   "tab_notifier": "Benachrichtigung",
-  "tab_watchers": "Watcher",
   "tab_rooms": "Räume",
   "tab_persons": "Personen",
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
   "token_ask": "API-Token von Mira (MIRA_API_TOKEN):",
-  "saved": "Gespeichert. Notifier und Watcher laufen mit der neuen Einstellung.",
+  "saved": "Gespeichert. Die Benachrichtigung läuft mit der neuen Einstellung.",
   "reset_confirm": "Die Einstellungen aus mira.yaml wiederherstellen?",
   "reset_done": "Zurückgesetzt auf mira.yaml.",
   "badge_ha": "in Home Assistant verwaltet",
   "badge_ui": "in der UI geändert",
   "reset_button": "Zurück auf mira.yaml",
   "badge_file": "aus mira.yaml",
-  "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Dort gibt es für jeden Watcher, Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.",
+  "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Dort gibt es für jeden Raum und jede Person einen eigenen Eintrag mit Auswahl der Entitäten und Bereiche.",
   "remove": "Entfernen",
   "entity_search": "Entity suchen und auswählen …",
   "not_entity": "„{id}“ ist keine Entity-ID.",
@@ -174,9 +175,6 @@ const I18N = {
   "urgent_announce": "Auf allen Satelliten ansagen",
   "urgent_hint": "Dringende Meldungen (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.",
   "save": "Speichern",
-  "watchers_hint": "Ein Watcher meldet sich, wenn eine Entity in einen Zustand wechselt (Trigger) oder liest regelmäßig einen Feed. Das Modell formuliert die Meldung und schätzt die Wichtigkeit, außer du legst sie fest.",
-  "add_trigger": "+ Trigger-Watcher",
-  "add_feed": "+ Feed-Watcher",
   "discard": "Verwerfen",
   "name": "Name",
   "feed_url": "Feed-URL",
@@ -229,18 +227,27 @@ const I18N = {
   "mode_announce": "ansagen",
   "mode_indicate": "nur anzeigen",
   "tab_guide": "Anleitung",
-  "tab_tasks": "Aufträge",
-  "tasks_hint": "Aufträge gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie macht einen Plan, du bestätigst ihn. Dann vergleicht Mira laufend mit den Werten der letzten zwei Wochen und meldet sich, wenn etwas ungewöhnlich ist.",
-  "no_tasks": "Noch keine Aufträge.",
-  "task_active": "aktiv",
+  "tab_tasks": "Aufgaben",
+  "tasks_hint": "Aufgaben gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie entwirft eine Home-Assistant-Automation mit dem Label „Mira“, du bestätigst sie. Home Assistant entscheidet, wann etwas passiert, Mira beurteilt und meldet. Bearbeiten kannst du sie im Automations-Editor von Home Assistant.",
+  "tasks_ha_error": "Home Assistant nicht erreichbar",
+  "task_on": "läuft",
+  "task_off": "pausiert",
+  "task_unavailable": "nicht verfügbar",
   "task_proposed": "wartet auf Bestätigung",
-  "task_goal": "Auftrag",
-  "task_start": "Starten",
-  "task_paused": "pausiert",
+  "task_create": "Anlegen",
   "task_pause": "Pausieren",
   "task_resume": "Fortsetzen",
-  "task_rules": "Regeln",
-  "task_delete_confirm": "Diesen Auftrag löschen?",
+  "task_last": "zuletzt",
+  "task_edit": "In Home Assistant bearbeiten",
+  "task_try": "Probelauf",
+  "task_trying": "Mira beurteilt …",
+  "task_log": "Protokoll",
+  "task_log_empty": "Noch keine Urteile.",
+  "task_answer": "Antwort",
+  "task_notified": "gemeldet",
+  "task_dry": "Probelauf",
+  "no_tasks": "Noch keine Aufgaben. Sag Mira zum Beispiel „Achte auf den Wasserverbrauch“.",
+  "task_delete_confirm": "Diese Aufgabe löschen? Die Automation in Home Assistant wird mit gelöscht.",
   "kind_usage": "Verbrauch pro Stunde",
   "kind_level": "Messwert pro Stunde",
   "kind_state": "Zustand",
@@ -252,20 +259,19 @@ const I18N = {
  "en": {
   "tab_notices": "Notices",
   "tab_notifier": "Notifications",
-  "tab_watchers": "Watchers",
   "tab_rooms": "Rooms",
   "tab_persons": "People",
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
   "token_ask": "Mira API token (MIRA_API_TOKEN):",
-  "saved": "Saved. Notifier and watchers run with the new settings.",
+  "saved": "Saved. Notifications run with the new settings.",
   "reset_confirm": "Restore the settings from mira.yaml?",
   "reset_done": "Reset to mira.yaml.",
   "badge_ha": "managed in Home Assistant",
   "badge_ui": "changed in the UI",
   "reset_button": "Back to mira.yaml",
   "badge_file": "from mira.yaml",
-  "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. There every watcher, room and person has its own entry with pickers for entities and areas.",
+  "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. There every room and person has its own entry with pickers for entities and areas.",
   "remove": "Remove",
   "entity_search": "Search and pick an entity …",
   "not_entity": "“{id}” is not an entity ID.",
@@ -331,9 +337,6 @@ const I18N = {
   "urgent_announce": "Announce on all satellites",
   "urgent_hint": "Urgent notices (water leak, smoke) go out at once, even during quiet hours.",
   "save": "Save",
-  "watchers_hint": "A watcher speaks up when an entity changes to a state (trigger), or reads a feed regularly. The model words the notice and rates its importance, unless you set it.",
-  "add_trigger": "+ Trigger watcher",
-  "add_feed": "+ Feed watcher",
   "discard": "Discard",
   "name": "Name",
   "feed_url": "Feed URL",
@@ -386,18 +389,27 @@ const I18N = {
   "mode_announce": "announce",
   "mode_indicate": "indicate only",
   "tab_guide": "Guide",
-  "tab_tasks": "Orders",
-  "tasks_hint": "You give Mira orders in conversation, e.g. \"Keep an eye on the water usage\". She makes a plan, you confirm it. Then Mira keeps comparing with the values of the last two weeks and speaks up when something is unusual.",
-  "no_tasks": "No orders yet.",
-  "task_active": "active",
+  "tab_tasks": "Tasks",
+  "tasks_hint": "You give Mira tasks in conversation, e.g. \"Keep an eye on the water usage\". She drafts a Home Assistant automation labelled \"Mira\", you confirm it. Home Assistant decides when something happens, Mira judges and reports. You edit them in Home Assistant's automation editor.",
+  "tasks_ha_error": "Home Assistant not reachable",
+  "task_on": "running",
+  "task_off": "paused",
+  "task_unavailable": "unavailable",
   "task_proposed": "waiting for confirmation",
-  "task_goal": "Order",
-  "task_start": "Start",
-  "task_paused": "paused",
+  "task_create": "Create",
   "task_pause": "Pause",
   "task_resume": "Resume",
-  "task_rules": "rules",
-  "task_delete_confirm": "Delete this order?",
+  "task_last": "last",
+  "task_edit": "Edit in Home Assistant",
+  "task_try": "Dry run",
+  "task_trying": "Mira is judging …",
+  "task_log": "Log",
+  "task_log_empty": "No judgements yet.",
+  "task_answer": "answer",
+  "task_notified": "reported",
+  "task_dry": "dry run",
+  "no_tasks": "No tasks yet. Tell Mira, for example, \"Keep an eye on the water usage\".",
+  "task_delete_confirm": "Delete this task? The automation in Home Assistant is deleted too.",
   "kind_usage": "usage per hour",
   "kind_level": "reading per hour",
   "kind_state": "state",
@@ -407,7 +419,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const TABS = ["notices", "tasks", "notifier", "watchers", "rooms", "persons", "memory", "guide"];
+const TABS = ["notices", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
 let token = localStorage.getItem("mira.token") || "";
 // The page's language: the visitor's choice, else the browser's.
 let lang = localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
@@ -498,35 +510,16 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { notices, tasks, notifier, watchers, rooms, persons, memory, guide };
+  const views = { notices, tasks, notifier, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
-  const owner = { watchers: "watchers", rooms: "satellites", persons: "persons" }[tab];
+  const owner = { rooms: "satellites", persons: "persons" }[tab];
   if (owner && managed(owner)) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
     $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">${T.managed_hint}</p>`);
   }
 }
-
-// Entity picker: chips for the chosen entities, a search field with the
-// Home Assistant entities as suggestions (by id, name and area).
-function chip(id) {
-  const name = entityNames[id];
-  return `<span class="chip" data-id="${esc(id)}">${esc(name || id)}${name ? ` <small>${esc(id)}</small>` : ""}<button type="button" title="${T.remove}" onclick="this.parentNode.remove()">×</button></span>`;
-}
-function entityPicker(field, ids) {
-  return `<div><div class="chips" data-f="${field}">${list(ids).map(chip).join("")}</div>
-    <input list="entities" placeholder="${T.entity_search}" onchange="pickEntity(this)"></div>`;
-}
-function pickEntity(input) {
-  const id = input.value.trim();
-  input.value = "";
-  if (!/^[a-z_]+\.[a-z0-9_]+$/.test(id)) { message(T.not_entity.replace("{id}", id), false); return; }
-  const chips = input.previousElementSibling;
-  if (![...chips.children].some(c => c.dataset.id === id)) chips.insertAdjacentHTML("beforeend", chip(id));
-}
-const picked = el => [...el.children].map(c => c.dataset.id);
 
 // ---- Meldungen ----------------------------------------------------------
 let openOnly = false, noticePage = 0;
@@ -625,76 +618,6 @@ function saveNotifier() {
   n.urgent = { min_importance: num($("#urg_min").value, 3), announce: $("#urg_announce").checked };
   save({ notifier: n });
 }
-
-// ---- Watcher ------------------------------------------------------------
-let draftWatchers = null;
-function watchers() {
-  if (!draftWatchers) draftWatchers = structuredClone(val("watchers") || []);
-  const persons = Object.keys(val("persons") || {});
-  $("#view").innerHTML = `
-  <section class="card">
-    <h2>${T.tab_watchers} ${source("watchers")}</h2>
-    <p class="hint">${T.watchers_hint}</p>
-    ${draftWatchers.map((w, i) => watcherForm(w, i, persons)).join("")}
-    <div class="actions">
-      <button class="secondary" onclick="addWatcher('trigger')">${T.add_trigger}</button>
-      <button class="secondary" onclick="addWatcher('rss')">${T.add_feed}</button>
-      <button class="primary" onclick="saveWatchers()">${T.save}</button>
-      <button class="secondary" onclick="draftWatchers=null; watchers()">${T.discard}</button>
-    </div>
-  </section>`;
-}
-function watcherForm(w, i, persons) {
-  const isFeed = !!w.schedule || w.kind === "rss";
-  const t = w.trigger || {};
-  return `<div class="item" data-i="${i}">
-    <div class="grid">
-      <label>${T.name}</label><input data-f="name" value="${esc(w.name)}">
-      ${isFeed ? `
-        <label>${T.feed_url}</label><input data-f="url" value="${esc(w.url)}" placeholder="https://…">
-        <label>${T.schedule}</label><input data-f="schedule" value="${esc(w.schedule)}" placeholder="0 8 * * *">
-      ` : `
-        <label>${T.entities}</label>${entityPicker("entity_id", t.entity_id)}
-        <label>${T.to_state}</label><input data-f="to" value="${esc(csv(t.to))}" placeholder="${T.to_placeholder}">
-        <label>${T.not_to_state}</label><input data-f="not_to" value="${esc(csv(t.not_to))}" placeholder="${T.not_to_placeholder}">
-      `}
-      <label>${T.meaning}</label><textarea data-f="description" placeholder="${T.meaning_placeholder}">${esc(w.description)}</textarea>
-      <label>${T.importance}</label><select data-f="importance">${opt("", w.importance, T.model_rates)}${[0,1,2,3].map(x => opt(x, w.importance, T.levels[x])).join("")}</select>
-      <label>${T.for}</label><select data-f="audience">${opt("", w.audience, T.household)}${persons.map(p => opt(p, w.audience)).join("")}</select>
-      <label>${T.confidential_label}</label><select data-f="confidentiality">${opt("", w.confidentiality, T.no)}${opt("confidential", w.confidentiality, T.yes)}</select>
-    </div>
-    <div class="actions"><button class="danger" onclick="removeWatcher(${i})">${T.remove}</button></div>
-  </div>`;
-}
-function readWatchers() {
-  document.querySelectorAll("[data-i]").forEach(el => {
-    const w = draftWatchers[Number(el.dataset.i)];
-    const f = name => el.querySelector(`[data-f="${name}"]`);
-    w.name = f("name").value.trim();
-    w.description = f("description").value.trim();
-    const imp = f("importance").value;
-    if (imp === "") delete w.importance; else w.importance = Number(imp);
-    if (f("audience").value) w.audience = f("audience").value; else delete w.audience;
-    if (f("confidentiality").value) w.confidentiality = f("confidentiality").value; else delete w.confidentiality;
-    if (f("url")) {
-      w.kind = "rss"; w.url = f("url").value.trim(); w.schedule = f("schedule").value.trim(); delete w.trigger;
-    } else {
-      // Keep fields the form does not show (from, not_from).
-      w.trigger = Object.assign({}, w.trigger, { entity_id: picked(f("entity_id")) });
-      const to = fromCsv(f("to").value), notTo = fromCsv(f("not_to").value);
-      if (to.length) w.trigger.to = to; else delete w.trigger.to;
-      if (notTo.length) w.trigger.not_to = notTo; else delete w.trigger.not_to;
-    }
-    for (const k of Object.keys(w)) if (w[k] === "" || w[k] === null) delete w[k];
-  });
-}
-function addWatcher(kind) {
-  readWatchers();
-  draftWatchers.push(kind === "rss" ? { name: "", kind: "rss", schedule: "0 8 * * *", url: "" } : { name: "", trigger: { entity_id: [] } });
-  watchers();
-}
-function removeWatcher(i) { readWatchers(); draftWatchers.splice(i, 1); watchers(); }
-async function saveWatchers() { readWatchers(); await save({ watchers: draftWatchers }); draftWatchers = null; }
 
 // ---- Räume --------------------------------------------------------------
 function rooms() {
@@ -818,30 +741,60 @@ async function compact() {
 async function tasks() {
   $("#view").innerHTML = `<section class="card"><h2>${T.tab_tasks}</h2><p class="hint">${T.tasks_hint}</p><div id="tasklist">${T.loading}</div></section>`;
   try {
-    const list = await api("GET", "/v1/ui/tasks");
-    $("#tasklist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => `
-      <details class="item task">
+    const r = await api("GET", "/v1/ui/tasks");
+    const list = r.items || [];
+    const warn = r.error ? `<p class="msg err">${T.tasks_ha_error}: ${esc(r.error)}</p>` : "";
+    $("#tasklist").innerHTML = warn + (list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => {
+      const id = esc(t.id);
+      const button = t.state === "proposed"
+        ? `<button class="primary" onclick="event.preventDefault(); setTask('${id}', 'activate')">${T.task_create}</button>`
+        : t.state === "on"
+          ? `<button class="secondary" onclick="event.preventDefault(); setTask('${id}', 'pause')">${T.task_pause}</button>`
+          : `<button class="primary" onclick="event.preventDefault(); setTask('${id}', 'activate')">${T.task_resume}</button>`;
+      return `
+      <details class="item task" ontoggle="if (this.open) taskLog('${id}')">
         <summary>
           <span class="lead"><h3>${esc(t.title)}</h3>
-            <span class="badge${t.state === "active" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></span>
-          <span class="short">${esc(firstSentence(t.summary))} · ${(t.plan.rules || []).length} ${T.task_rules}</span>
-          ${t.state === "active"
-            ? `<button class="secondary" onclick="event.preventDefault(); setTask('${esc(t.id)}', 'pause')">${T.task_pause}</button>`
-            : `<button class="primary" onclick="event.preventDefault(); setTask('${esc(t.id)}', 'activate')">${t.state === "paused" ? T.task_resume : T.task_start}</button>`}
+            <span class="badge${t.state === "on" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></span>
+          <span class="short">${esc(t.goal)}${t.last_triggered ? ` · ${T.task_last}: ${esc(localTime(t.last_triggered))}` : ""}</span>
+          ${button}
         </summary>
-        <p>${esc(t.summary)}</p>
-        <p class="hint">${T.task_goal}: „${esc(t.goal)}“ · ${esc(t.created_at)}</p>
-        <ul>${(t.plan.rules || []).map(r => `<li><code>${esc(r.entity_id)}</code> – ${esc(T["kind_" + r.kind] || r.kind)}, ${esc(T["when_" + r.when] || r.when)}: ${esc(r.why)}</li>`).join("")}</ul>
+        ${t.summary ? `<p>${esc(t.summary)}</p>` : ""}
+        <pre class="code">${esc(JSON.stringify(t.automation, null, 2))}</pre>
         <div class="actions">
-          <button class="danger" onclick="deleteTask('${esc(t.id)}')">${T.remove}</button>
+          ${t.edit_url ? `<a class="button secondary" href="${esc(t.edit_url)}" target="_blank" rel="noopener">${T.task_edit}</a>` : ""}
+          <button class="secondary" onclick="tryTask('${id}')">${T.task_try}</button>
+          <button class="danger" onclick="deleteTask('${id}')">${T.remove}</button>
         </div>
-      </details>`).join("");
+        <p class="msg ok" id="try-${id}" hidden></p>
+        <h4>${T.task_log}</h4>
+        <div id="log-${id}" class="hint">${T.loading}</div>
+      </details>`;
+    }).join(""));
   } catch (e) { message(e.message, false); }
 }
-// firstSentence keeps the collapsed line short.
-function firstSentence(s) {
-  const m = (s || "").match(/^.*?[.!?](\s|$)/);
-  return m ? m[0].trim() : s;
+// localTime shows an ISO time from Home Assistant (UTC) in local time.
+function localTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+async function taskLog(id) {
+  const el = document.getElementById("log-" + id);
+  try {
+    const log = await api("GET", `/v1/ui/tasks/${encodeURIComponent(id)}/log`);
+    el.innerHTML = log.length === 0 ? T.task_log_empty : `<ul>${log.map(a => `<li><b>${esc(a.at)}</b> · ${
+      a.kind === "decide" ? `${T.task_answer} ${a.answer ? T.yes : T.no}` : `${T.importance} ${a.importance}`}${
+      a.notified ? ` · ${T.task_notified}` : ""}${a.dry_run ? ` · ${T.task_dry}` : ""}<br>${esc(a.spoken)}${
+      a.input ? `<br><small>${esc(a.input)}</small>` : ""}</li>`).join("")}</ul>`;
+  } catch (e) { el.textContent = e.message; }
+}
+async function tryTask(id) {
+  const el = document.getElementById("try-" + id);
+  el.hidden = false; el.textContent = T.task_trying;
+  try { const r = await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/try`); el.textContent = r.text; taskLog(id); }
+  catch (e) { el.textContent = e.message; }
 }
 async function setTask(id, action) {
   try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/${action}`); tasks(); } catch (e) { message(e.message, false); }
@@ -904,10 +857,9 @@ async function load() {
     const ents = await api("GET", "/v1/ui/entities");
     entityNames = Object.fromEntries((ents || []).map(e => [e.id, [e.name, e.area].filter(Boolean).join(" · ")]));
     $("#entities").innerHTML = (ents || []).map(e => `<option value="${esc(e.id)}">${esc([e.name, e.area].filter(Boolean).join(" · "))}</option>`).join("");
-    if (tab === "watchers") render(); // chips with names
   } catch (e) { render(); message(e.message, false); }
 }
-window.addEventListener("hashchange", () => { tab = location.hash.slice(1) || "notices"; draftWatchers = null; render(); });
+window.addEventListener("hashchange", () => { tab = location.hash.slice(1) || "notices"; render(); });
 load();
 </script>
 </body>

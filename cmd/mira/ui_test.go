@@ -17,8 +17,8 @@ import (
 
 // TestUIChangesApplyWithoutRestart edits the notifier and the satellites
 // through the web UI's API while the agent runs: the change is stored,
-// survives a restart of the agent, and the notifier and watchers come back
-// with their subscriptions.
+// survives a restart of the agent, and the notifier comes back with its
+// subscriptions.
 func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	model := fakellm.New()
 	defer model.Close()
@@ -41,7 +41,6 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Memory.ProfileSchedule = ""
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
-	cfg.Watchers = []config.Watcher{{Name: "leck", Trigger: &config.StateTrigger{EntityID: []string{"binary_sensor.leck"}, To: []string{"on"}}}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{Areas: []string{"bad"}, Presence: map[string]string{"bad": "binary_sensor.bad_motion"}}
 
 	start := func() (stop func()) {
@@ -72,7 +71,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 
 	stop := start()
 	waitUntil(t, "the API", func() bool { code, _ := api("GET", "/v1/health", ""); return code == 200 })
-	waitUntil(t, "watcher and presence subscriptions", func() bool { return ha.SubscriptionCount() >= 2 })
+	waitUntil(t, "presence subscriptions", func() bool { return ha.SubscriptionCount() >= 1 })
 	time.Sleep(200 * time.Millisecond) // let the structure cache subscribe too
 	before := ha.SubscriptionCount()
 
@@ -87,8 +86,8 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"23:00"`) {
 		t.Fatalf("put: %d %s", code, body)
 	}
-	// Watcher plus two presence sensors after the restart of the notifier.
-	// The old subscriptions are gone, the new presence sensor is added.
+	// Two presence sensors after the restart of the notifier. The old
+	// subscriptions are gone, the new presence sensor is added.
 	waitUntil(t, "subscriptions after the change", func() bool { return ha.SubscriptionCount() == before+1 })
 
 	// An invalid change is refused and changes nothing.

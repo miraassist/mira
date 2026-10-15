@@ -29,14 +29,13 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 }
 
 // TestInverterCaseEndToEnd is the M3 acceptance scenario through the real
-// wiring: the inverter faults, the model rates it, motion in the bathroom
-// gets it announced on the satellite there, and "Was genau?" from that
-// satellite is answered with the details and acknowledges the notice.
+// wiring: the inverter faults and a task (a Home Assistant automation)
+// calls mira.assess, the model rates it, motion in the bathroom gets it
+// announced on the satellite there, and "Was genau?" from that satellite is
+// answered with the details and acknowledges the notice.
 func TestInverterCaseEndToEnd(t *testing.T) {
-	model := fakellm.New(
-		fakellm.Step{Content: `{"importance":2,"spoken":"Der Wechselrichter meldet einen Fehler.","details":"Status fault, Fehlercode 42.","expires_in_hours":24}`},
-		fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."},
-	)
+	verdict := fakellm.Step{Content: `{"importance":2,"spoken":"Der Wechselrichter meldet einen Fehler.","details":"Status fault, Fehlercode 42."}`}
+	model := fakellm.New(verdict, verdict, verdict, fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."})
 	defer model.Close()
 
 	ha := fakeha.New()
@@ -66,11 +65,6 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
 	cfg.Persons = map[string]config.Person{"stefan": {Entity: "person.stefan"}}
-	cfg.Watchers = []config.Watcher{{
-		Name: "inverter_fault", DedupeKey: "inverter:fault",
-		Trigger:     &config.StateTrigger{EntityID: []string{"sensor.inverter_status"}, To: []string{"fault"}},
-		Description: "Der Wechselrichter meldet einen Fehler.",
-	}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{
 		Areas: []string{"bad"}, Presence: map[string]string{"bad": "binary_sensor.bad_motion"},
 	}
@@ -88,17 +82,36 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 			t.Error("agent did not shut down")
 		}
 	}()
-	// Watcher and notifier both watch their entities.
-	waitUntil(t, "trigger subscriptions", func() bool { return ha.SubscriptionCount() >= 2 })
+	// The notifier watches the motion sensor, and the API is up.
+	waitUntil(t, "trigger subscriptions", func() bool { return ha.SubscriptionCount() >= 1 })
+	waitUntil(t, "the API", func() bool {
+		resp, err := http.Get("http://" + cfg.Server.Listen + "/v1/health")
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return true
+	})
 
 	push := func(entity, from, to string) {
 		ha.SetState(entity, from, nil)
 		ha.SetState(entity, to, nil)
 	}
 
-	// 1. The fault, flapping a few times.
+	// 1. The fault, flapping a few times: each time the automation calls
+	// mira.assess with the same dedupe key.
 	for i := 0; i < 3; i++ {
-		push("sensor.inverter_status", "ok", "fault")
+		req, _ := http.NewRequest("POST", "http://"+cfg.Server.Listen+"/v1/assess", strings.NewReader(
+			`{"goal":"Sag Bescheid, wenn der Wechselrichter einen Fehler meldet.","observation":"sensor.inverter_status ist fault.","dedupe_key":"inverter:fault","task":"mira_inverter"}`))
+		req.Header.Set("Authorization", "Bearer api-token")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("assess: %d", resp.StatusCode)
+		}
 	}
 	st, err := store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
@@ -140,10 +153,10 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 		t.Fatalf("answer = %s", raw)
 	}
 	reqs := model.Requests()
-	if len(reqs) != 2 {
-		t.Fatalf("model saw %d requests: one assessment, one turn (flapping must not add assessments)", len(reqs))
+	if len(reqs) != 4 {
+		t.Fatalf("model saw %d requests: three assessments, one turn", len(reqs))
 	}
-	turn := reqs[1].Request.Messages
+	turn := reqs[3].Request.Messages
 	if layer7 := turn[len(turn)-1].Content; !strings.Contains(layer7, "Fehlercode 42") {
 		t.Fatalf("follow-up lacks the details:\n%s", layer7)
 	}

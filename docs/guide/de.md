@@ -37,7 +37,7 @@ Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie geste
 
 ## Benachrichtigungen
 
-Mira meldet sich von selbst, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, es gibt Neuigkeiten im beobachteten Feed. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.
+Mira meldet sich von selbst, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.
 
 **Ansagen oder anzeigen** – pro Raum einstellbar:
 
@@ -62,20 +62,21 @@ Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, sola
 
 **Vertrauliches und Persönliches**: Meldungen können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
 
-## Aufträge
+## Aufgaben
 
-Gib Mira einen dauerhaften Auftrag, und sie behält etwas für dich im Blick:
+Gib Mira eine dauerhafte Aufgabe, und sie behält etwas für dich im Blick:
 
 - „Achte auf den Wasserverbrauch.“
 - „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
-- „Pass nachts auf die Haustür auf.“
+- „Melde dich, wenn ein Wassermelder anschlägt.“
 
-Mira macht daraus einen Plan – welche Sensoren sie beobachtet und wann sie sich meldet. Sie plant kurz im Hintergrund und meldet sich mit ihrem Vorschlag, sobald sie fertig gesprochen hat – im selben Raum oder auf Telegram – und fragt: „Soll ich so vorgehen?“ Sag **„Ja“**, dann läuft der Auftrag. Später geht auch „Starte den Auftrag“ oder der Start-Knopf in der Weboberfläche.
+Mira macht daraus eine **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert, und sagt es dir. Sie plant kurz im Hintergrund und meldet sich mit ihrem Vorschlag, sobald sie fertig gesprochen hat – im selben Raum oder auf Telegram – und fragt: „Soll ich so vorgehen?“ Sag **„Ja“**, dann legt sie die Automation an.
 
-Dann vergleicht Mira laufend: Den Verbrauch oder Messwert der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen (aus dem Verlauf von Home Assistant), dazu Zustände und Grenzwerte. Nur wenn etwas wirklich aus dem Rahmen fällt, beurteilt sie, ob es dich interessiert, und meldet sich – wie jede andere Benachrichtigung, bei Gefahr (etwa Wasser, das nachts lange läuft) auch sofort. Dieselbe Sache meldet sie höchstens alle sechs Stunden.
+Beim Beurteilen vergleicht Mira zum Beispiel den Verbrauch der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen, weiß, wer zu Hause ist, kennt, was du ihr gemerkt hast, und erinnert sich, was sie zu dieser Aufgabe schon gesagt hat. Dieselbe Sache meldet sie nicht ständig wieder, nur wenn es schlimmer wird.
 
-- „Welche Aufträge hast du?“ – „Lösch den Auftrag mit dem Strom.“
-- In der Web-Oberfläche unter **Aufträge** siehst du alle Aufträge mit ihren Plänen, kannst sie starten, pausieren, fortsetzen und löschen.
+- „Welche Aufgaben hast du?“ – „Pausier die Strom-Aufgabe.“ – „Lösch die Aufgabe mit dem Strom.“ – „Mach einen Probelauf der Wasser-Aufgabe.“
+- In der Web-Oberfläche unter **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile; „In Home Assistant bearbeiten“ öffnet die Automation im Editor von Home Assistant.
+- Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Meldung hinzufügen** (`mira.add_notice`).
 
 ## Skills
 
@@ -96,15 +97,14 @@ Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwe
 Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):
 
 - **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
-- **Aufträge**: was Mira für dich beobachtet, mit Plan; starten, pausieren, fortsetzen und löschen.
+- **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, Link in den Editor von Home Assistant.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
-- **Watcher**: worauf Mira achtet (Sensoren, Feeds) und was das bedeutet.
 - **Räume**: welcher Satellit wo spricht, Bewegungsmelder, ansagen oder anzeigen, Anzeige-Lampe.
 - **Personen**: wer persönliche Meldungen bekommt, per Telegram oder Push.
 - **Gedächtnis**: Profil und gemerkte Fakten.
 - **Anleitung**: diese Seite.
 
-Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Watcher, Räume und Personen dort (Einstellungen → Geräte & Dienste → Mira) mit der Auswahl von Entitäten und Bereichen; die Web-Oberfläche zeigt sie dann nur an.
+Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Räume und Personen dort (Einstellungen → Geräte & Dienste → Mira) mit der Auswahl von Entitäten und Bereichen; die Web-Oberfläche zeigt sie dann nur an.
 
 ## In Home Assistant
 

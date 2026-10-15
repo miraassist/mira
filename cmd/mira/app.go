@@ -33,7 +33,6 @@ import (
 	"github.com/sker65/mira/internal/telemetry"
 	"github.com/sker65/mira/internal/tools"
 	"github.com/sker65/mira/internal/ui"
-	"github.com/sker65/mira/internal/watchers"
 )
 
 // app is the wired agent. Fields are nil for disabled parts.
@@ -47,6 +46,9 @@ type app struct {
 	models map[string]*llm.Client
 	skills *skills.Set
 	tasks  *tasks.Manager
+	// haUserID is the agent's Home Assistant user, read once (haUser).
+	haUserMu sync.Mutex
+	haUserID string
 	// notifier is the running notifier, replaced when the UI restarts it;
 	// guarded by proactiveMu.
 	notifier  *notifier.Notifier
@@ -63,7 +65,7 @@ type app struct {
 	liveMu  sync.Mutex
 	live    config.Config
 	fileCfg config.Config
-	// proactive runs the watchers and the notifier; the UI restarts it.
+	// proactive runs the notifier; the UI restarts it.
 	proactiveMu     sync.Mutex
 	proactiveCancel context.CancelFunc
 	proactiveWG     sync.WaitGroup
@@ -205,13 +207,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	internal = append(internal, tools.NoticesRead(i18n.Of(cfg.Prompt.Language), a.readNotices))
 	if a.ha != nil {
-		// Planning and judging run on the engine, which is built from this
-		// registry: bound late through engineAssessor.
+		// Drafting and judging run on the engine, which is built from this
+		// registry: bound late through isolatedModel.
 		a.tasks = tasks.New(tasks.Options{
-			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, Snapshot: snapshot,
-			Planner: plannerAssessor{a, cfg.Routing.Tasks, tasks.PlanSystem(i18n.Of(cfg.Prompt.Language))},
-			Judge:   engineAssessor{a}, PlanDelay: 5 * time.Second,
-			QuietHours: cfg.Notifier.QuietHours, Logger: a.log,
+			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
+			Model:   isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
+			Planner: isolatedModel{a, cfg.Routing.Tasks}, PlanDelay: 5 * time.Second,
+			QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
 			Persons: a.persons,
 			Deliver: func(ctx context.Context, n store.Notice, area string) error {
 				a.proactiveMu.Lock()
@@ -373,10 +375,6 @@ func runAgent(parent context.Context, cfg config.Config) error {
 		}
 	})
 
-	if a.tasks != nil {
-		a.goRun(ctx, "tasks", a.tasks.Run)
-	}
-
 	if a.skills != nil && len(a.skills.Skills) > 0 {
 		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
 		a.goRun(ctx, "skills", runner.Run)
@@ -391,8 +389,8 @@ func runAgent(parent context.Context, cfg config.Config) error {
 	a.live = a.withUIOverrides(ctx, cfg)
 	if a.ha != nil {
 		a.startProactive(ctx)
-	} else if len(cfg.Watchers) > 0 || len(cfg.Notifier.MorningTrigger.Areas) > 0 {
-		a.log.Warn("watchers and notifier need Home Assistant (ha.enabled); they are off")
+	} else if len(cfg.Notifier.MorningTrigger.Areas) > 0 {
+		a.log.Warn("the notifier needs Home Assistant (ha.enabled); it is off")
 	}
 
 	errs := make(chan error, 2)
@@ -471,22 +469,16 @@ func (a *app) announce(ctx context.Context) {
 	}()
 }
 
-// startProactive runs the watchers, which turn HA events into notices, and
-// the notifier, which delivers them, with the live config. They get their own
-// context so the web UI can restart them with a changed config.
+// startProactive runs the notifier, which delivers notices, with the live
+// config. It gets its own context so the web UI can restart it with a
+// changed config. What raises notices are tasks: Home Assistant
+// automations calling Mira's actions.
 func (a *app) startProactive(parent context.Context) {
 	a.proactiveMu.Lock()
 	defer a.proactiveMu.Unlock()
 	cfg := a.liveConfig()
 	ctx, cancel := context.WithCancel(parent)
 	a.proactiveCancel = cancel
-
-	w := watchers.New(watchers.Options{
-		Lang:     i18n.Of(cfg.Prompt.Language),
-		Watchers: cfg.Watchers, MinImportance: cfg.Notifier.MinImportance,
-		Store: a.store, Assessor: a.engine, Logger: a.log,
-	})
-	a.goProactive(ctx, "watchers", func(ctx context.Context) error { return w.Run(ctx, a.ha) })
 
 	var tg notifier.Telegram
 	if a.telegram != nil {
@@ -499,24 +491,43 @@ func (a *app) startProactive(parent context.Context) {
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
 }
 
-// plannerAssessor plans standing orders without the house prompt, on the
-// model routing.tasks names.
-type plannerAssessor struct {
-	a             *app
-	model, system string
-}
-
-func (p plannerAssessor) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
-	return p.a.engine.AssessIsolatedOn(ctx, p.model, p.system, instruction, schema)
+// haUser is the agent's Home Assistant user id, asked once: the integration
+// lets only this user manage Mira's automations.
+func (a *app) haUser(ctx context.Context) string {
+	if a.ha == nil {
+		return ""
+	}
+	a.haUserMu.Lock()
+	defer a.haUserMu.Unlock()
+	if a.haUserID == "" {
+		id, err := a.ha.CurrentUser(ctx)
+		if err != nil {
+			a.log.Warn("could not read the agent's Home Assistant user", "error", err)
+			return ""
+		}
+		a.haUserID = id
+	}
+	return a.haUserID
 }
 
 // shortcut answers turns code can answer for sure; for now a plain yes to
-// a standing order's proposal.
+// a task proposal.
 func (a *app) shortcut(ctx context.Context, inv tools.Invocation, text string) (string, bool) {
 	if a.tasks == nil {
 		return "", false
 	}
 	return a.tasks.Shortcut(ctx, inv, text)
+}
+
+// isolatedModel runs the tasks' judgements and drafts on the named model,
+// without the house prompt.
+type isolatedModel struct {
+	a     *app
+	model string
+}
+
+func (m isolatedModel) Ask(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error) {
+	return m.a.engine.AssessIsolatedOn(ctx, m.model, system, instruction, schema)
 }
 
 // persons are the configured persons from the live config.
@@ -573,7 +584,7 @@ func (a *app) goProactive(ctx context.Context, name string, fn func(context.Cont
 	}()
 }
 
-// restartProactive stops the watchers and the notifier, waits for them and
+// restartProactive stops the notifier, waits for it and
 // starts them again with the live config.
 func (a *app) restartProactive(parent context.Context) {
 	if a.ha == nil {
@@ -587,7 +598,7 @@ func (a *app) restartProactive(parent context.Context) {
 	}
 	a.proactiveWG.Wait()
 	a.startProactive(parent)
-	a.log.Info("watchers and notifier restarted with the changed config")
+	a.log.Info("notifier restarted with the changed config")
 }
 
 func (a *app) liveConfig() config.Config {
@@ -730,24 +741,27 @@ func (u uiConfig) ResetSection(ctx context.Context, name string) error {
 // HA integration's API everywhere else.
 func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	cfg := a.cfg
-	api := haconv.New(haconv.Options{
+	opts := haconv.Options{
 		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
-		Persons: func() map[string]config.Person {
-			if p := a.liveConfig().Persons; p != nil {
-				return p
-			}
-			return a.cfg.Persons // the chat command has no live config
-		},
-	})
+		Persons: a.persons, HAUser: a.haUser,
+	}
+	if a.tasks != nil {
+		opts.Tasks = a.tasks
+	}
+	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)
 	if cfg.Memory.ProfileSchedule != "" {
 		compact = a.profileCompactor().Compact
 	}
-	page := ui.New(ui.Options{
+	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log,
-	})
+	}
+	if a.tasks != nil {
+		uiOpts.Tasks = a.tasks
+	}
+	page := ui.New(uiOpts)
 	mux := http.NewServeMux()
 	mux.Handle("/ui", page)
 	mux.Handle("/ui/", page)

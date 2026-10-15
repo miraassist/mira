@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sker65/mira/internal/store"
+	"github.com/sker65/mira/internal/tasks"
 )
 
 type fakeConfig struct {
@@ -47,7 +48,7 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	}
 	t.Cleanup(func() { st.Close() })
 	cfg := &fakeConfig{sections: map[string]json.RawMessage{"notifier": json.RawMessage(`{"cooldown":"30m0s"}`)}, over: map[string]bool{}}
-	h := New(Options{Token: "secret", Sections: []string{"notifier", "watchers", "persons", "satellites"}, Config: cfg, Store: st,
+	h := New(Options{Token: "secret", Sections: []string{"notifier", "persons", "satellites"}, Config: cfg, Store: st,
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
 		CompactProfile: func(context.Context) (bool, error) { return true, nil }})
 	srv := httptest.NewServer(h)
@@ -152,34 +153,75 @@ func TestGuideIsPublic(t *testing.T) {
 	}
 }
 
+// fakeTasks plays the task manager: one proposal, one automation.
+type fakeTasks struct {
+	items   []tasks.Item
+	enabled map[string]bool
+}
+
+func (f *fakeTasks) List(context.Context) ([]tasks.Item, error) { return f.items, nil }
+func (f *fakeTasks) Activate(_ context.Context, id string) (store.Task, error) {
+	if id != "p1" {
+		return store.Task{}, store.ErrNotFound
+	}
+	f.items[0].State = "on"
+	return store.Task{ID: id}, nil
+}
+func (f *fakeTasks) SetEnabled(_ context.Context, id string, on bool) error {
+	if id != "mira_a" {
+		return store.ErrNotFound
+	}
+	f.enabled[id] = on
+	return nil
+}
+func (f *fakeTasks) Delete(_ context.Context, id string) error {
+	if id != "mira_a" {
+		return store.ErrNotFound
+	}
+	return nil
+}
+func (f *fakeTasks) Try(context.Context, string) (tasks.TryResult, error) {
+	return tasks.TryResult{Verdicts: []tasks.Verdict{{Importance: 2, Spoken: "Viel Wasser."}}}, nil
+}
+func (f *fakeTasks) DescribeTry(r tasks.TryResult) string { return r.Verdicts[0].Spoken }
+
 func TestTasksAPI(t *testing.T) {
 	srv, _, st := setup(t)
-	st.PutTask(context.Background(), store.Task{ID: "t1", Goal: "Achte auf das Wasser", Title: "Wasser", Summary: "Ich achte auf den Zähler.",
-		Plan: `{"rules":[{"entity_id":"sensor.w","kind":"usage","when":"night","why":"Leck"}]}`})
+	if code, _ := call(t, srv, "GET", "/v1/ui/tasks", "secret", ""); code != 503 {
+		t.Errorf("without Home Assistant: %d", code)
+	}
+	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{
+		{ID: "p1", Title: "Wasser", State: "proposed"}, {ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
+	h := New(Options{Token: "secret", Store: st, Tasks: ft, Config: &fakeConfig{sections: map[string]json.RawMessage{}, over: map[string]bool{}}})
+	srv = httptest.NewServer(h)
+	defer srv.Close()
+
 	code, body := call(t, srv, "GET", "/v1/ui/tasks", "secret", "")
-	if code != 200 || !strings.Contains(body, `"state":"proposed"`) || !strings.Contains(body, `"entity_id":"sensor.w"`) {
+	if code != 200 || !strings.Contains(body, `"state":"proposed"`) || !strings.Contains(body, `"edit_url":"http://ha/x"`) {
 		t.Fatalf("list: %d %s", code, body)
 	}
-	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/t1/activate", "secret", ""); code != 200 {
-		t.Errorf("activate: %d", code)
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/p1/activate", "secret", ""); code != 200 || ft.items[0].State != "on" {
+		t.Errorf("save proposal: %d", code)
 	}
-	if task, _ := st.GetTask(context.Background(), "t1"); task.State != store.TaskActive {
-		t.Errorf("state: %s", task.State)
-	}
-	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/t1/pause", "secret", ""); code != 200 {
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/mira_a/pause", "secret", ""); code != 200 || ft.enabled["mira_a"] {
 		t.Errorf("pause: %d", code)
 	}
-	if task, _ := st.GetTask(context.Background(), "t1"); task.State != store.TaskPaused {
-		t.Errorf("state after pause: %s", task.State)
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/mira_a/activate", "secret", ""); code != 200 || !ft.enabled["mira_a"] {
+		t.Errorf("resume: %d", code)
+	}
+	if code, body := call(t, srv, "POST", "/v1/ui/tasks/mira_a/try", "secret", ""); code != 200 || !strings.Contains(body, "Viel Wasser.") {
+		t.Errorf("try: %d %s", code, body)
+	}
+	st.AddAssessment(context.Background(), store.Assessment{ID: "a1", Task: "mira_a", Kind: store.AssessmentAssess, Goal: "g",
+		Importance: 2, Spoken: "Viel Wasser.", NoticeID: "n1"})
+	if code, body := call(t, srv, "GET", "/v1/ui/tasks/mira_a/log", "secret", ""); code != 200 || !strings.Contains(body, `"notified":true`) {
+		t.Errorf("log: %d %s", code, body)
 	}
 	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/nope/pause", "secret", ""); code != 404 {
 		t.Errorf("pause unknown: %d", code)
 	}
-	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 200 {
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/mira_a", "secret", ""); code != 200 {
 		t.Errorf("delete: %d", code)
-	}
-	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 404 {
-		t.Errorf("delete twice: %d", code)
 	}
 }
 
