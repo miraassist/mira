@@ -85,7 +85,8 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.auth(h.forget))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
-	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.activateTask))
+	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.setTaskState(store.TaskActive)))
+	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/pause", h.auth(h.setTaskState(store.TaskPaused)))
 	h.mux.HandleFunc("DELETE /v1/ui/tasks/{id}", h.auth(h.deleteTask))
 	h.mux.HandleFunc("GET /v1/ui/ha", h.auth(h.getHA))
 	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
@@ -371,21 +372,24 @@ func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) activateTask(w http.ResponseWriter, r *http.Request) {
-	t, err := h.opts.Store.GetTask(r.Context(), r.PathValue("id"))
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "no such task")
-		return
+// setTaskState starts, pauses or resumes a task.
+func (h *Handler) setTaskState(state string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, err := h.opts.Store.GetTask(r.Context(), r.PathValue("id"))
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "no such task")
+			return
+		}
+		if err == nil {
+			t.State = state
+			err = h.opts.Store.PutTask(r.Context(), t)
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"state": t.State})
 	}
-	if err == nil {
-		t.State = store.TaskActive
-		err = h.opts.Store.PutTask(r.Context(), t)
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"state": t.State})
 }
 
 func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {

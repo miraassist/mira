@@ -106,28 +106,33 @@ func (n *Notifier) waitIdle(ctx context.Context, areaID string) {
 	if !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}
-	deadline := time.Now().Add(idleWait)
+	if !n.waitFor(ctx, sat, idleWait, func(state string) bool {
+		return state == "idle" || state == "unavailable" || state == "unknown"
+	}) {
+		n.log.Warn("satellite still busy, delivering anyway", "satellite", sat)
+	}
+}
+
+// waitFor polls the satellite's state until ok accepts it, for at most
+// limit; it reports whether ok did.
+func (n *Notifier) waitFor(ctx context.Context, sat string, limit time.Duration, ok func(state string) bool) bool {
+	deadline := time.Now().Add(limit)
 	for {
 		states, err := n.ha.States(ctx)
 		if err != nil {
-			return
+			return false
 		}
-		busy := false
 		for _, s := range states {
-			if s.EntityID == sat {
-				busy = s.State != "idle" && s.State != "unavailable" && s.State != "unknown"
+			if s.EntityID == sat && ok(s.State) {
+				return true
 			}
 		}
-		if !busy {
-			return
-		}
 		if time.Now().After(deadline) {
-			n.log.Warn("satellite still busy, delivering anyway", "satellite", sat)
-			return
+			return false
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-time.After(n.idlePoll):
 		}
 	}

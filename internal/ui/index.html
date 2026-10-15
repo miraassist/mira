@@ -215,6 +215,9 @@ const I18N = {
   "task_proposed": "wartet auf Bestätigung",
   "task_goal": "Auftrag",
   "task_start": "Starten",
+  "task_paused": "pausiert",
+  "task_pause": "Pausieren",
+  "task_resume": "Fortsetzen",
   "task_rules": "Regeln",
   "task_delete_confirm": "Diesen Auftrag löschen?",
   "kind_usage": "Verbrauch pro Stunde",
@@ -357,6 +360,9 @@ const I18N = {
   "task_proposed": "waiting for confirmation",
   "task_goal": "Order",
   "task_start": "Start",
+  "task_paused": "paused",
+  "task_pause": "Pause",
+  "task_resume": "Resume",
   "task_rules": "rules",
   "task_delete_confirm": "Delete this order?",
   "kind_usage": "usage per hour",
@@ -768,9 +774,11 @@ async function tasks() {
     $("#tasklist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => `
       <details class="item">
         <summary>
-          <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${t.state === "active" ? T.task_active : T.task_proposed}</span></h3>
+          <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></h3>
           <span class="short">${esc(firstSentence(t.summary))} · ${(t.plan.rules || []).length} ${T.task_rules}</span>
-          ${t.state !== "active" ? `<button class="primary" onclick="event.preventDefault(); activateTask('${esc(t.id)}')">${T.task_start}</button>` : ""}
+          ${t.state === "active"
+            ? `<button class="secondary" onclick="event.preventDefault(); setTask('${esc(t.id)}', 'pause')">${T.task_pause}</button>`
+            : `<button class="primary" onclick="event.preventDefault(); setTask('${esc(t.id)}', 'activate')">${t.state === "paused" ? T.task_resume : T.task_start}</button>`}
         </summary>
         <p>${esc(t.summary)}</p>
         <p class="hint">${T.task_goal}: „${esc(t.goal)}“ · ${esc(t.created_at)}</p>
@@ -786,8 +794,8 @@ function firstSentence(s) {
   const m = (s || "").match(/^.*?[.!?](\s|$)/);
   return m ? m[0].trim() : s;
 }
-async function activateTask(id) {
-  try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/activate`); tasks(); } catch (e) { message(e.message, false); }
+async function setTask(id, action) {
+  try { await api("POST", `/v1/ui/tasks/${encodeURIComponent(id)}/${action}`); tasks(); } catch (e) { message(e.message, false); }
 }
 async function deleteTask(id) {
   if (!confirm(T.task_delete_confirm)) return;

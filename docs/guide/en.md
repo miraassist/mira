@@ -54,7 +54,7 @@ Mira speaks up on her own when something happens: a leak sensor goes off, the wa
 | 2 | important today | goes out privately after 9 am if nobody has heard it by then |
 | 3 | urgent | at once, even at night: spoken on every satellite and sent privately to everyone |
 
-When Mira speaks on her own, the room's indicator light glows steadily while she speaks and listens for your answer.
+When Mira speaks on her own, the room's indicator light glows steadily while she speaks.
 
 **Quiet hours**: during quiet hours (e.g. 11:30 pm – 6:30 am) Mira announces nothing – except urgent notices and your reminders. Indicator lights still glow; what arrives at night you see in the morning.
 
@@ -75,7 +75,7 @@ Mira turns it into a plan – which sensors she watches and when she speaks up. 
 Then Mira keeps comparing: the usage or reading of the last hour with the same hour over the past two weeks (from Home Assistant's history), plus states and thresholds. Only when something is really out of the ordinary does she judge whether it interests you and speak up – like any other notification, and at once when there is danger (such as water running long at night). She reports the same thing at most every six hours.
 
 - "Which orders do you have?" – "Delete the electricity order."
-- In the web interface under **Orders** you see all orders with their plans and can start and delete them.
+- In the web interface under **Orders** you see all orders with their plans and can start, pause, resume and delete them.
 
 ## Skills
 
@@ -96,7 +96,7 @@ If the setup connects a stronger language model, Mira hands demanding questions 
 At `http://<mira>:8787/ui` (access token on first visit):
 
 - **Notices**: see open and delivered notices and mark them done.
-- **Orders**: what Mira watches for you, with its plan; start and delete.
+- **Orders**: what Mira watches for you, with its plan; start, pause, resume and delete.
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
 - **Watchers**: what Mira watches (sensors, feeds) and what it means.
 - **Rooms**: which satellite speaks where, motion sensors, announce or indicate, indicator light.

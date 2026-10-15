@@ -16,7 +16,25 @@ func indicateEnv(t *testing.T) *env {
 		c.Notifier.Indicators = map[string]string{"kueche": "light.ring"}
 	})
 	e.now = at("08:00") // after quiet hours
+	// The fake satellite never speaks: the ring is restored at once.
+	e.n.idlePoll = 5 * time.Millisecond
+	e.n.speakingStart = 20 * time.Millisecond
 	return e
+}
+
+// waitSpoken waits until no indicator glows for an announcement.
+func (e *env) waitSpoken() {
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		e.n.mu.Lock()
+		n := len(e.n.speakingIn)
+		e.n.mu.Unlock()
+		if n == 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	e.t.Fatal("indicator still glowing for an announcement")
 }
 
 func (e *env) lightCalls() []call {
@@ -91,6 +109,7 @@ func TestIndicateAtNightAndUrgent(t *testing.T) {
 		t.Error("urgent notice waited for the question")
 	}
 	// Expiry turns the ring off.
+	e.waitSpoken() // the urgent announcement's glow ends
 	e.now = e.now.Add(49 * time.Hour)
 	e.tick()
 	if lights := e.lightCalls(); lights[len(lights)-1].Service != "turn_off" {
@@ -134,22 +153,23 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	}
 }
 
-// While Mira speaks on her own the ring glows steadily; once the satellite
-// is idle it shows what waits (here: nothing, so off).
+// While Mira speaks on her own the ring glows steadily, and goes out when
+// the text ends, though the satellite still listens afterwards.
 func TestRingGlowsWhileAnnouncing(t *testing.T) {
 	e := indicateEnv(t)
-	e.n.idlePoll = 10 * time.Millisecond
+	e.n.speakingStart = time.Second
 	sat := e.n.sats["kueche"]
 	if err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
 		Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 		t.Fatal(err)
 	}
-	e.ha.set(sat, "listening", nil)
+	e.ha.set(sat, "responding", nil)
+	time.Sleep(50 * time.Millisecond)
 	lights := e.lightCalls()
-	if len(lights) == 0 || lights[0].Service != "turn_on" || lights[0].Data["effect"] != "None" {
-		t.Fatalf("ring not lit steadily first: %+v", lights)
+	if len(lights) != 1 || lights[0].Service != "turn_on" || lights[0].Data["effect"] != "None" {
+		t.Fatalf("ring not lit steadily, or switched while speaking: %+v", lights)
 	}
-	e.ha.set(sat, "idle", nil)
+	e.ha.set(sat, "listening", nil)
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		l := e.lightCalls()
@@ -157,7 +177,7 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("ring not restored: %+v", l)
+			t.Fatalf("ring not off when the text ended: %+v", l)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

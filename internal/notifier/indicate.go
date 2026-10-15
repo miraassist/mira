@@ -42,6 +42,9 @@ func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Notice, er
 // every light is set once. The caller holds n.mu.
 func (n *Notifier) syncIndicators(ctx context.Context) {
 	for area, light := range n.cfg.Indicators {
+		if n.speakingIn[area] {
+			continue // speaking restores it when the text ends
+		}
 		list, err := n.waiting(ctx, area)
 		if err != nil {
 			n.log.Error("could not check waiting notices", "area", area, "error", err)
@@ -96,37 +99,33 @@ func (n *Notifier) lightUp(ctx context.Context, light, effect string) error {
 }
 
 // While Mira speaks on her own, the room's indicator light glows steadily,
-// as the satellite's own light does when someone talks to it: without it an
-// announcement, and the listening after it, come out of nowhere. Once the
-// satellite is idle again the light shows what waits, as before.
+// as the satellite's own light does when someone talks to it, and goes out
+// when the text ends: the satellite leaves "responding". Until then
+// syncIndicators leaves that light alone; afterwards it shows what waits.
 
-// speaking lights the area's indicator steadily before an announcement.
-// The caller holds n.mu.
+// speaking lights the area's indicator steadily for an announcement and
+// watches the satellite to restore it when the text ends. It runs before
+// the announcement is sent, since start_conversation returns only after
+// the listening that follows. The caller holds n.mu.
 func (n *Notifier) speaking(ctx context.Context, area string) {
-	light := n.cfg.Indicators[area]
-	if light == "" {
+	light, sat := n.cfg.Indicators[area], n.sats[area]
+	if light == "" || !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}
 	if err := n.lightUp(ctx, light, "None"); err != nil {
 		n.log.Warn("could not light the indicator for an announcement", "area", area, "error", err)
 		return
 	}
-	delete(n.indicatorOn, area) // its state is no longer what sync set
-}
-
-// spoken restores the area's indicator once the satellite is idle again,
-// in the background: start_conversation may still be listening.
-func (n *Notifier) spoken(area string) {
-	if n.cfg.Indicators[area] == "" {
-		return
-	}
+	n.speakingIn[area] = true
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*idleWait)
+		ctx, cancel := context.WithTimeout(context.Background(), n.speakingStart+idleWait)
 		defer cancel()
-		n.waitIdle(ctx, area)
+		n.waitFor(ctx, sat, n.speakingStart, func(s string) bool { return s == "responding" })
+		n.waitFor(ctx, sat, idleWait, func(s string) bool { return s != "responding" })
 		n.mu.Lock()
 		defer n.mu.Unlock()
-		delete(n.indicatorOn, area)
+		delete(n.speakingIn, area)
+		delete(n.indicatorOn, area) // its state is no longer what sync set
 		n.syncIndicators(ctx)
 	}()
 }

@@ -54,7 +54,7 @@ Mira meldet sich von selbst, wenn etwas passiert: ein Lecksensor schlägt an, di
 | 2 | heute wichtig | geht morgens nach 9 Uhr privat raus, wenn bis dahin niemand sie gehört hat |
 | 3 | dringend | sofort, auch nachts: angesagt auf allen Satelliten und privat an alle |
 
-Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, solange sie spricht und auf deine Antwort hört.
+Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, solange sie spricht.
 
 **Ruhezeit**: In der Ruhezeit (z. B. 23:30–6:30) sagt Mira nichts an – außer Dringendem und deinen Erinnerungen. Anzeige-Lampen leuchten trotzdem; was nachts kommt, siehst du morgens.
 
@@ -75,7 +75,7 @@ Mira macht daraus einen Plan – welche Sensoren sie beobachtet und wann sie sic
 Dann vergleicht Mira laufend: Den Verbrauch oder Messwert der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen (aus dem Verlauf von Home Assistant), dazu Zustände und Grenzwerte. Nur wenn etwas wirklich aus dem Rahmen fällt, beurteilt sie, ob es dich interessiert, und meldet sich – wie jede andere Benachrichtigung, bei Gefahr (etwa Wasser, das nachts lange läuft) auch sofort. Dieselbe Sache meldet sie höchstens alle sechs Stunden.
 
 - „Welche Aufträge hast du?“ – „Lösch den Auftrag mit dem Strom.“
-- In der Web-Oberfläche unter **Aufträge** siehst du alle Aufträge mit ihren Plänen, kannst sie starten und löschen.
+- In der Web-Oberfläche unter **Aufträge** siehst du alle Aufträge mit ihren Plänen, kannst sie starten, pausieren, fortsetzen und löschen.
 
 ## Skills
 
@@ -96,7 +96,7 @@ Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwe
 Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):
 
 - **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
-- **Aufträge**: was Mira für dich beobachtet, mit Plan; starten und löschen.
+- **Aufträge**: was Mira für dich beobachtet, mit Plan; starten, pausieren, fortsetzen und löschen.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
 - **Watcher**: worauf Mira achtet (Sensoren, Feeds) und was das bedeutet.
 - **Räume**: welcher Satellit wo spricht, Bewegungsmelder, ansagen oder anzeigen, Anzeige-Lampe.

@@ -12,6 +12,8 @@ import (
 const (
 	TaskProposed = "proposed"
 	TaskActive   = "active"
+	// TaskPaused is not checked until it is resumed (made active again).
+	TaskPaused = "paused"
 )
 
 // Task is a standing order ("Achte auf den Wasserverbrauch"): the goal in

@@ -161,6 +161,15 @@ func TestTasksAPI(t *testing.T) {
 	if task, _ := st.GetTask(context.Background(), "t1"); task.State != store.TaskActive {
 		t.Errorf("state: %s", task.State)
 	}
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/t1/pause", "secret", ""); code != 200 {
+		t.Errorf("pause: %d", code)
+	}
+	if task, _ := st.GetTask(context.Background(), "t1"); task.State != store.TaskPaused {
+		t.Errorf("state after pause: %s", task.State)
+	}
+	if code, _ := call(t, srv, "POST", "/v1/ui/tasks/nope/pause", "secret", ""); code != 404 {
+		t.Errorf("pause unknown: %d", code)
+	}
 	if code, _ := call(t, srv, "DELETE", "/v1/ui/tasks/t1", "secret", ""); code != 200 {
 		t.Errorf("delete: %d", code)
 	}

@@ -70,8 +70,12 @@ type Notifier struct {
 	tel         *telemetry.Provider
 	areas       map[string]bool
 
-	// idlePoll is how often waitIdle looks at a busy satellite.
+	// idlePoll is how often waitFor looks at a satellite.
 	idlePoll time.Duration
+	// speakingIn marks areas whose indicator glows for an announcement;
+	// speakingStart is how long the satellite may take to start speaking.
+	speakingIn    map[string]bool
+	speakingStart time.Duration
 
 	// mu serialises decisions, so two motion events a second apart cannot
 	// both announce the same notices.
@@ -94,21 +98,23 @@ func New(opts Options) *Notifier {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	n := &Notifier{
-		idlePoll:    time.Second,
-		lang:        i18n.Of(opts.Config.Prompt.Language),
-		cfg:         opts.Config.Notifier,
-		sats:        opts.Config.Satellites,
-		persons:     opts.Config.Persons,
-		store:       opts.Store,
-		ha:          opts.HA,
-		telegram:    opts.Telegram,
-		clock:       opts.Clock,
-		loc:         opts.Location,
-		log:         opts.Logger.With("component", "notifier"),
-		tel:         opts.Telemetry,
-		areas:       map[string]bool{},
-		indicatorOn: map[string]bool{},
-		deviceOf:    map[string]string{},
+		idlePoll:      500 * time.Millisecond,
+		speakingIn:    map[string]bool{},
+		speakingStart: 15 * time.Second,
+		lang:          i18n.Of(opts.Config.Prompt.Language),
+		cfg:           opts.Config.Notifier,
+		sats:          opts.Config.Satellites,
+		persons:       opts.Config.Persons,
+		store:         opts.Store,
+		ha:            opts.HA,
+		telegram:      opts.Telegram,
+		clock:         opts.Clock,
+		loc:           opts.Location,
+		log:           opts.Logger.With("component", "notifier"),
+		tel:           opts.Telemetry,
+		areas:         map[string]bool{},
+		indicatorOn:   map[string]bool{},
+		deviceOf:      map[string]string{},
 	}
 	for _, a := range opts.Config.Notifier.MorningTrigger.Areas {
 		n.areas[a] = true
@@ -461,7 +467,6 @@ func (n *Notifier) announce(ctx context.Context, area string, notices []store.No
 	text := Compose(n.lang, notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
 	n.speaking(ctx, area)
 	method, err := n.deliver(ctx, sat, text, preannounce)
-	n.spoken(area)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
 	}
