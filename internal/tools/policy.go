@@ -100,6 +100,8 @@ func NewGuard(l i18n.Lang, sec config.Security, st ConfirmationStore, snapshot f
 type TurnState struct {
 	SessionKey string
 	Channel    config.Channel
+	// Person is who speaks, when known; Area is the satellite's area.
+	Person, Area string
 	// UserText is the user's message of this turn. Only it can approve a
 	// pending confirmation; tool results never reach this field.
 	UserText string

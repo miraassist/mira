@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +18,9 @@ type Turn struct {
 	// ChannelContext describes where the request came from, for example which
 	// satellite and therefore which room is meant without an explicit one.
 	ChannelContext string
+	// Person is who is speaking, when known; PersonProfile is their
+	// compacted personal memory (the house's is layer 5).
+	Person, PersonProfile string
 	// Memories are facts retrieved for this turn. The compacted profile lives
 	// in layer 5; these are the situational hits.
 	Memories []string
@@ -51,6 +55,14 @@ func (t Turn) Render() string {
 	if s := strings.TrimSpace(t.ChannelContext); s != "" {
 		b.WriteString("\n")
 		b.WriteString(s)
+	}
+	if t.Person != "" {
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf(l.speaker, t.Person))
+		if s := strings.TrimSpace(t.PersonProfile); s != "" {
+			b.WriteString("\n" + fmt.Sprintf(l.personProfile, t.Person) + "\n")
+			b.WriteString(s)
+		}
 	}
 	if len(t.Memories) > 0 {
 		b.WriteString("\n")

@@ -278,7 +278,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
-		Thread: a.threads.Context,
+		Thread: a.threads.Context, Identify: a.identify,
 		Afterword: func(ctx context.Context, area string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier
@@ -799,6 +799,12 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
+		AreaName: func(id string) string {
+			if a.structure == nil {
+				return ""
+			}
+			return a.structure.Snapshot().AreaNames[id]
+		},
 	}
 	if a.tasks != nil {
 		uiOpts.Tasks = a.tasks
@@ -890,7 +896,7 @@ func runProfile(parent context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	text, _, err := a.store.Profile(ctx)
+	text, _, err := a.store.Profile(ctx, store.OwnerHouse)
 	if err != nil {
 		return err
 	}

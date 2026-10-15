@@ -70,6 +70,7 @@ class MiraClient:
         agent_id: str,
         extra_system_prompt: str | None,
         timeout: float,
+        user_id: str | None = None,
     ) -> AgentReply:
         """Forward one user message and return the agent's answer."""
         data = await self._request(
@@ -83,6 +84,7 @@ class MiraClient:
                 "language": language,
                 "agent_id": agent_id,
                 "extra_system_prompt": extra_system_prompt or "",
+                "user_id": user_id or "",
             },
         )
         return AgentReply(

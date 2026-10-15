@@ -18,6 +18,7 @@ type texts struct {
 
 	// Layer 7.
 	timeLabel, remember, noticeContext, pendingConfirmation, pendingRule, extraContext string
+	speaker, personProfile                                                             string // %s = person
 
 	// The sample exchange, see Examples.
 	exampleChannel, exampleArea, exampleLight                      string
@@ -69,6 +70,8 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 
 		timeLabel:           "Zeit: ",
 		remember:            "Du erinnerst dich:",
+		speaker:             "Es spricht: %s. Was du dir auf Wunsch dieser Person merkst, kommt in ihr persönliches Gedächtnis.",
+		personProfile:       "Persönliches Profil von %s:",
 		noticeContext:       "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
 		pendingRule:         "Wenn der Nutzer jetzt zustimmt, führe genau diese Aktion aus. Wenn er ablehnt oder etwas anderes sagt, führe sie nicht aus.",
@@ -128,6 +131,8 @@ Answer in the language you are addressed in.`,
 
 		timeLabel:           "Time: ",
 		remember:            "You remember:",
+		speaker:             "Speaking: %s. What you remember at their request goes into their personal memory.",
+		personProfile:       "Personal profile of %s:",
 		noticeContext:       "You have just announced (details, in case of follow-up questions):",
 		pendingConfirmation: "You are waiting for a confirmation of: ",
 		pendingRule:         "If the user agrees now, perform exactly this action. If they decline or say something else, do not perform it.",

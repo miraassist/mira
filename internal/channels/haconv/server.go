@@ -165,6 +165,9 @@ type conversationRequest struct {
 	// ExtraSystemPrompt is what HA passes for start_conversation and similar
 	// flows. It only ever reaches layer 7.
 	ExtraSystemPrompt string `json:"extra_system_prompt"`
+	// UserID is the signed-in HA user (the app, its chat); satellites
+	// send none.
+	UserID string `json:"user_id"`
 }
 
 type conversationResponse struct {
@@ -187,7 +190,7 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	resp, err := s.opts.Conversation.Handle(ctx, conversation.Request{
 		Channel: config.ChannelVoice, ConversationID: req.ConversationID, DeviceID: req.DeviceID,
-		Language: req.Language, Text: req.Text, Extra: req.ExtraSystemPrompt,
+		Language: req.Language, Text: req.Text, Extra: req.ExtraSystemPrompt, HAUser: req.UserID,
 	})
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)

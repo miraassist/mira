@@ -65,6 +65,10 @@ type Options struct {
 	Tasks Tasks
 	// Threads confirms or cancels tasks still being planned.
 	Threads Threads
+	// AreaName names a Home Assistant area, for facts told at a satellite.
+	AreaName func(id string) string
+	// Location is the time zone times are shown in.
+	Location *time.Location
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
@@ -79,6 +83,9 @@ type Handler struct {
 func New(opts Options) *Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
+	}
+	if opts.Location == nil {
+		opts.Location = time.Local
 	}
 	h := &Handler{opts: opts, log: opts.Logger.With("component", "ui"), mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /ui", h.page)
@@ -315,34 +322,77 @@ func (h *Handler) ackNotice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"acked": true})
 }
 
+// memory lists the memories by owner: the house first, then each person
+// with facts or a profile.
 func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
-	facts, err := h.opts.Store.AllFacts(r.Context())
+	ctx := r.Context()
+	owners, err := h.opts.Store.FactOwners(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	profile, updated, err := h.opts.Store.Profile(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	if !slices.Contains(owners, store.OwnerHouse) {
+		owners = append([]string{store.OwnerHouse}, owners...)
 	}
 	type fact struct {
 		ID      string `json:"id"`
 		Text    string `json:"text"`
 		Updated string `json:"updated"`
+		// Author is a person key or an area's name; Told is set when the
+		// fact was edited after it was told.
+		Author string `json:"author,omitempty"`
+		Told   string `json:"told,omitempty"`
 	}
-	out := struct {
+	type memory struct {
+		Owner          string `json:"owner"`
 		Profile        string `json:"profile"`
 		ProfileUpdated string `json:"profile_updated,omitempty"`
 		Facts          []fact `json:"facts"`
-	}{Profile: profile, Facts: []fact{}}
-	if !updated.IsZero() {
-		out.ProfileUpdated = updated.Format("2006-01-02 15:04")
 	}
-	for i := len(facts) - 1; i >= 0; i-- { // newest first
-		out.Facts = append(out.Facts, fact{ID: facts[i].ID, Text: facts[i].Text, Updated: facts[i].UpdatedAt.Format("2006-01-02 15:04")})
+	out := struct {
+		Memories   []memory `json:"memories"`
+		CanCompact bool     `json:"can_compact"`
+	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil}
+	const stamp = "2006-01-02 15:04"
+	for _, owner := range owners {
+		facts, err := h.opts.Store.AllFacts(ctx, owner)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		profile, updated, err := h.opts.Store.Profile(ctx, owner)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		m := memory{Owner: owner, Profile: profile, Facts: []fact{}}
+		if !updated.IsZero() {
+			m.ProfileUpdated = updated.In(h.opts.Location).Format(stamp)
+		}
+		for i := len(facts) - 1; i >= 0; i-- { // newest first
+			f := facts[i]
+			item := fact{ID: f.ID, Text: f.Text, Updated: f.UpdatedAt.In(h.opts.Location).Format(stamp), Author: h.author(f.Author)}
+			if f.UpdatedAt.Sub(f.CreatedAt) > time.Minute {
+				item.Told = f.CreatedAt.In(h.opts.Location).Format(stamp)
+			}
+			m.Facts = append(m.Facts, item)
+		}
+		out.Memories = append(out.Memories, m)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// author renders who told a fact: the person key, or the area's name.
+func (h *Handler) author(a string) string {
+	if id, ok := strings.CutPrefix(a, "area:"); ok {
+		if h.opts.AreaName != nil {
+			if name := h.opts.AreaName(id); name != "" {
+				return name
+			}
+		}
+		return id
+	}
+	return a
 }
 
 func (h *Handler) forget(w http.ResponseWriter, r *http.Request) {
@@ -367,24 +417,21 @@ func (h *Handler) editFact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `body must be {"text": "..."}`)
 		return
 	}
-	facts, err := h.opts.Store.AllFacts(r.Context())
+	f, err := h.opts.Store.GetFact(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "no such fact")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	for _, f := range facts {
-		if f.ID != r.PathValue("id") {
-			continue
-		}
-		f.Text = strings.TrimSpace(req.Text)
-		if _, err := h.opts.Store.SaveFact(r.Context(), f); err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+	f.Text = strings.TrimSpace(req.Text)
+	if _, err := h.opts.Store.SaveFact(r.Context(), f); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeError(w, http.StatusNotFound, "no such fact")
+	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }
 
 func (h *Handler) compact(w http.ResponseWriter, r *http.Request) {

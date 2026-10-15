@@ -52,6 +52,9 @@ type Request struct {
 	// Extra is passed-through context such as HA's extra_system_prompt. It
 	// only ever lands in layer 7.
 	Extra string
+	// HAUser is the Home Assistant user behind a request from the HA app or
+	// its chat; satellites send none.
+	HAUser string
 }
 
 // Response is the answer to a Request.
@@ -91,7 +94,9 @@ type Options struct {
 	Afterword func(ctx context.Context, area string) string
 	// Thread links the turn to its thread ("Vorgang", package threads) and
 	// renders it for layer 7. followedUp are the notices this turn answers.
-	Thread    func(ctx context.Context, sess store.Session, followedUp []string) string
+	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
+	// Identify says who is speaking: a person key, or "" for anonymous.
+	Identify  func(ctx context.Context, req Request, sess store.Session) string
 	Telemetry *telemetry.Provider
 	Logger    *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
@@ -109,6 +114,7 @@ type Engine struct {
 	assist    func() string
 	afterword func(ctx context.Context, area string) string
 	thread    func(ctx context.Context, sess store.Session, followedUp []string) string
+	identify  func(ctx context.Context, req Request, sess store.Session) string
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -148,6 +154,7 @@ func New(opts Options) *Engine {
 		assist:    opts.StructurePrompt,
 		afterword: opts.Afterword,
 		thread:    opts.Thread,
+		identify:  opts.Identify,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -228,13 +235,19 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		return Response{}, err
 	}
 
-	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text}
+	person := ""
+	if e.identify != nil {
+		person = e.identify(ctx, req, sess)
+	}
+	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID}
 	noticeText, followedUp := e.noticeContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
 		Lang:           e.lang(),
 		Now:            now.In(e.loc),
 		ChannelContext: e.channelContext(req, sess, snap),
-		Memories:       e.memories(ctx, req.Text),
+		Person:         person,
+		PersonProfile:  e.personProfile(ctx, person),
+		Memories:       e.memories(ctx, req.Text, person),
 		NoticeContext:  noticeText,
 		Thread:         e.threadContext(ctx, sess, followedUp),
 		Extra:          req.Extra,
@@ -447,7 +460,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	}
 
 	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
-		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel,
+		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
 	})
 	e.guard.Observe(ts, spec)
 	switch {

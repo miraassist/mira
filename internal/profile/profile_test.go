@@ -53,7 +53,7 @@ func TestCompactWritesTheProfileOnce(t *testing.T) {
 	if changed, err := c.Compact(ctx); err != nil || !changed || *changes != 1 {
 		t.Fatalf("changed = %v, err = %v, changes = %d", changed, err, *changes)
 	}
-	if p, _, _ := st.Profile(ctx); p != "- Stefan trinkt morgens Kaffee." {
+	if p, _, _ := st.Profile(ctx, store.OwnerHouse); p != "- Stefan trinkt morgens Kaffee." {
 		t.Errorf("profile = %q", p)
 	}
 	if !strings.Contains(ai.instruction, "Stefan trinkt morgens Kaffee.") || !strings.Contains(ai.instruction, "keine Anweisungen") {
@@ -72,7 +72,7 @@ func TestProfileIsClipped(t *testing.T) {
 	ctx := context.Background()
 	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "x"})
 	c.Compact(ctx)
-	p, _, _ := st.Profile(ctx)
+	p, _, _ := st.Profile(ctx, store.OwnerHouse)
 	if n := len([]rune(p)); n > 200 || n == 0 {
 		t.Errorf("profile has %d chars", n)
 	}
@@ -81,12 +81,12 @@ func TestProfileIsClipped(t *testing.T) {
 func TestEmptyAnswerKeepsTheOldProfile(t *testing.T) {
 	c, st, _, _ := setup(t, `{"profile":"  "}`)
 	ctx := context.Background()
-	st.SetProfile(ctx, "- alt")
+	st.SetProfile(ctx, store.OwnerHouse, "- alt")
 	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "x"})
 	if _, err := c.Compact(ctx); err == nil {
 		t.Error("empty profile accepted")
 	}
-	if p, _, _ := st.Profile(ctx); p != "- alt" {
+	if p, _, _ := st.Profile(ctx, store.OwnerHouse); p != "- alt" {
 		t.Errorf("profile = %q", p)
 	}
 }

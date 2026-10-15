@@ -82,6 +82,9 @@ class MiraConversationEntity(conversation.ConversationEntity, conversation.Abstr
                 agent_id=user_input.agent_id,
                 extra_system_prompt=user_input.extra_system_prompt,
                 timeout=timeout,
+                # Who is signed in (the app, its chat): Mira maps it to a
+                # person. Satellites have no user.
+                user_id=user_input.context.user_id,
             )
             text = reply.text
             continue_conversation = reply.continue_conversation

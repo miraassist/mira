@@ -115,6 +115,13 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 		Logger:    quietLogger(),
 		Clock:     h.clock.Now,
 		Location:  time.UTC,
+		// Telegram chat 42 is Anna; everyone else is unknown.
+		Identify: func(_ context.Context, req conversation.Request, _ store.Session) string {
+			if req.Channel == config.ChannelTelegram && req.ConversationID == "42" {
+				return "anna"
+			}
+			return ""
+		},
 	})
 	return h
 }
@@ -379,6 +386,26 @@ func TestMemoriesReachLayer7(t *testing.T) {
 	layer7 := lastContent(h.llm.Last().Request.Messages)
 	if !strings.Contains(layer7, "Du erinnerst dich:\n- Der Wechselrichter steht im Keller.") {
 		t.Errorf("memory missing:\n%s", layer7)
+	}
+}
+
+func TestPersonalMemoryOnlyForItsPerson(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Ja."}, fakellm.Step{Content: "Weiß ich nicht."})
+	ctx := context.Background()
+	h.store.SaveFact(ctx, store.Fact{ID: "h", Text: "Der Wechselrichter steht im Keller."})
+	h.store.SaveFact(ctx, store.Fact{ID: "a", Text: "Anna hat den Wechselrichter-Code im Handy.", Owner: "anna"})
+	h.store.SetProfile(ctx, "anna", "- trinkt Tee")
+
+	h.say(t, config.ChannelTelegram, "42", "Wo ist der Wechselrichter?")
+	layer7 := lastContent(h.llm.Last().Request.Messages)
+	if !strings.Contains(layer7, "Es spricht: anna.") || !strings.Contains(layer7, "- trinkt Tee") ||
+		!strings.Contains(layer7, "Wechselrichter-Code") || !strings.Contains(layer7, "im Keller") {
+		t.Errorf("Anna's turn:\n%s", layer7)
+	}
+	h.say(t, config.ChannelTelegram, "1", "Wo ist der Wechselrichter?")
+	layer7 = lastContent(h.llm.Last().Request.Messages)
+	if strings.Contains(layer7, "Es spricht") || strings.Contains(layer7, "Wechselrichter-Code") || strings.Contains(layer7, "trinkt Tee") {
+		t.Errorf("someone else sees Anna's memory:\n%s", layer7)
 	}
 }
 

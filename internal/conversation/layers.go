@@ -23,7 +23,7 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 	if err != nil {
 		return prompt.Prefix{}, err
 	}
-	profile, _, err := e.store.Profile(ctx)
+	profile, _, err := e.store.Profile(ctx, store.OwnerHouse)
 	if err != nil {
 		return prompt.Prefix{}, err
 	}
@@ -82,7 +82,7 @@ func (e *Engine) channelContext(req Request, sess store.Session, snap structure.
 // filler words are dropped before the full-text search: "steht" or "bitte"
 // match nearly every fact, and an unrelated fact in layer 7 is worse than
 // none — the model takes it as a hint and builds an answer on it.
-func (e *Engine) memories(ctx context.Context, text string) []string {
+func (e *Engine) memories(ctx context.Context, text, person string) []string {
 	limit := e.cfg.Memory.MaxFactsInLayer
 	if limit <= 0 {
 		return nil
@@ -96,7 +96,7 @@ func (e *Engine) memories(ctx context.Context, text string) []string {
 	if len(words) == 0 {
 		return nil
 	}
-	facts, err := e.store.SearchFacts(ctx, strings.Join(words, " "), limit)
+	facts, err := e.store.SearchFacts(ctx, strings.Join(words, " "), store.Owners(person), limit)
 	if err != nil {
 		e.log.Warn("memory search failed", "error", err)
 		return nil
@@ -106,6 +106,19 @@ func (e *Engine) memories(ctx context.Context, text string) []string {
 		out = append(out, f.Text)
 	}
 	return out
+}
+
+// personProfile is the compacted personal memory of the speaker, if known.
+func (e *Engine) personProfile(ctx context.Context, person string) string {
+	if person == "" {
+		return ""
+	}
+	p, _, err := e.store.Profile(ctx, person)
+	if err != nil {
+		e.log.Warn("could not read a personal profile", "person", person, "error", err)
+		return ""
+	}
+	return clipProfile(p, e.cfg.Memory.MaxProfileChars)
 }
 
 // noticeContext links a voice turn to notices announced on the same

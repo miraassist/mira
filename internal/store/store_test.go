@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -117,7 +118,7 @@ func TestFactsFullTextSearch(t *testing.T) {
 		}
 	}
 
-	got, err := s.SearchFacts(ctx, "Wechselrichter", 10)
+	got, err := s.SearchFacts(ctx, "Wechselrichter", nil, 10)
 	if err != nil {
 		t.Fatalf("SearchFacts: %v", err)
 	}
@@ -126,14 +127,14 @@ func TestFactsFullTextSearch(t *testing.T) {
 	}
 
 	// FTS5 syntax characters in user input must not blow up the query.
-	if _, err := s.SearchFacts(ctx, `Kaffee OR "unbalanced (`, 10); err != nil {
+	if _, err := s.SearchFacts(ctx, `Kaffee OR "unbalanced (`, nil, 10); err != nil {
 		t.Fatalf("search with syntax characters: %v", err)
 	}
 
 	if err := s.DeleteFact(ctx, "1"); err != nil {
 		t.Fatalf("DeleteFact: %v", err)
 	}
-	got, _ = s.SearchFacts(ctx, "Wechselrichter", 10)
+	got, _ = s.SearchFacts(ctx, "Wechselrichter", nil, 10)
 	if len(got) != 0 {
 		t.Errorf("deleted fact still in the index: %+v", got)
 	}
@@ -340,17 +341,52 @@ func TestProfileRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newStore(t)
 
-	if text, _, err := s.Profile(ctx); err != nil || text != "" {
+	if text, _, err := s.Profile(ctx, OwnerHouse); err != nil || text != "" {
 		t.Fatalf("empty profile = %q (%v)", text, err)
 	}
-	if err := s.SetProfile(ctx, "Mag Kaffee."); err != nil {
+	if err := s.SetProfile(ctx, OwnerHouse, "Mag Kaffee."); err != nil {
 		t.Fatalf("SetProfile: %v", err)
 	}
-	text, updated, err := s.Profile(ctx)
+	text, updated, err := s.Profile(ctx, OwnerHouse)
 	if err != nil || text != "Mag Kaffee." {
 		t.Fatalf("profile = %q (%v)", text, err)
 	}
 	if updated.IsZero() {
 		t.Error("updated_at not set")
+	}
+}
+
+func TestFactsAndProfilesPerOwner(t *testing.T) {
+	s, _ := newStore(t)
+	ctx := context.Background()
+	for _, f := range []Fact{
+		{ID: "h", Text: "Der Müll geht dienstags raus."},
+		{ID: "a", Text: "Anna geht dienstags schwimmen.", Owner: "anna"},
+		{ID: "b", Text: "Ben spielt dienstags Fußball.", Owner: "ben"},
+	} {
+		if _, err := s.SaveFact(ctx, f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.SearchFacts(ctx, "dienstags", Owners("anna"), 10)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("anna sees %+v %v", got, err)
+	}
+	for _, f := range got {
+		if f.Owner == "ben" {
+			t.Errorf("anna sees Ben's fact")
+		}
+	}
+	if owners, _ := s.FactOwners(ctx); strings.Join(owners, ",") != "house,anna,ben" {
+		t.Errorf("owners %v", owners)
+	}
+	if err := s.SetProfile(ctx, "anna", "- schwimmt"); err != nil {
+		t.Fatal(err)
+	}
+	if p, _, _ := s.Profile(ctx, OwnerHouse); p != "" {
+		t.Errorf("house profile %q", p)
+	}
+	if p, _, _ := s.Profile(ctx, "anna"); p != "- schwimmt" {
+		t.Errorf("anna's profile %q", p)
 	}
 }

@@ -1,0 +1,103 @@
+package main
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/sker65/mira/internal/config"
+	"github.com/sker65/mira/internal/conversation"
+	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/store"
+)
+
+// identify says who is speaking in a turn: a person key, or "" for someone
+// anonymous at a satellite.
+//   - Telegram: the person with that Telegram id.
+//   - The HA app and its chat: the person whose HA person entity belongs to
+//     the signed-in HA user.
+//   - A satellite: nobody, unless the "alone at home" rule makes it the one
+//     person at home who switched it on.
+func (a *app) identify(ctx context.Context, req conversation.Request, _ store.Session) string {
+	persons := a.persons()
+	switch req.Channel {
+	case config.ChannelTelegram:
+		chat, err := strconv.ParseInt(req.ConversationID, 10, 64)
+		if err != nil {
+			return ""
+		}
+		for key, p := range persons {
+			if p.TelegramUserID != 0 && p.TelegramUserID == chat {
+				return key
+			}
+		}
+	case config.ChannelVoice:
+		if a.ha == nil || (req.HAUser == "" && !anyAloneIsMe(persons)) {
+			return ""
+		}
+		states, err := a.ha.States(ctx)
+		if err != nil {
+			a.log.Warn("could not read person states", "error", err)
+			return ""
+		}
+		if req.HAUser != "" {
+			return personOfUser(persons, states, req.HAUser)
+		}
+		return aloneAtHome(persons, states)
+	}
+	return ""
+}
+
+func anyAloneIsMe(persons map[string]config.Person) bool {
+	for _, p := range persons {
+		if p.AloneIsMe && p.Entity != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// personOfUser maps a HA user to a person through the user_id attribute of
+// the HA person entities.
+func personOfUser(persons map[string]config.Person, states []haws.State, user string) string {
+	owner := map[string]bool{}
+	for _, s := range states {
+		if id, _ := s.Attributes["user_id"].(string); id != "" && id == user {
+			owner[s.EntityID] = true
+		}
+	}
+	for key, p := range persons {
+		if p.Entity != "" && owner[p.Entity] {
+			return key
+		}
+	}
+	return ""
+}
+
+// aloneAtHome is the person the satellites count as: the only configured
+// person at home, if they switched the rule on. A person whose presence is
+// unknown might be home, so then nobody is alone.
+func aloneAtHome(persons map[string]config.Person, states []haws.State) string {
+	byEntity := map[string]string{}
+	for _, s := range states {
+		byEntity[s.EntityID] = s.State
+	}
+	home := ""
+	for key, p := range persons {
+		if p.Entity == "" {
+			continue
+		}
+		switch byEntity[p.Entity] {
+		case "home":
+			if home != "" {
+				return ""
+			}
+			home = key
+		case "", "unknown", "unavailable":
+			return ""
+		}
+	}
+	if home == "" || !persons[home].AloneIsMe {
+		return ""
+	}
+	return home
+}

@@ -163,7 +163,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 			}
 		}
 	}
-	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place,
+	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
 		State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{}}
 	m.logEntry(&th, "user", th.Request)
 	if err := m.save(ctx, &th); err != nil {

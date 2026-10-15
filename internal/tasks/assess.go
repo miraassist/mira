@@ -264,16 +264,17 @@ func (m *Manager) memory(ctx context.Context, r Request) string {
 		return ""
 	}
 	var parts []string
-	if profile, _, err := m.opts.Store.Profile(ctx); err == nil && strings.TrimSpace(profile) != "" {
+	if profile, _, err := m.opts.Store.Profile(ctx, store.OwnerHouse); err == nil && strings.TrimSpace(profile) != "" {
 		parts = append(parts, strings.TrimSpace(profile))
 	}
 	if mode == memoryRelevant {
 		// A household has few facts, and the full-text search only matches
 		// whole words ("Wasserverbrauch" misses "Wasser"): while they are
-		// few, all go along; beyond that the best matches.
-		facts, err := m.opts.Store.AllFacts(ctx)
+		// few, all go along; beyond that the best matches. Tasks belong to
+		// the house for now, so only its memory goes along.
+		facts, err := m.opts.Store.AllFacts(ctx, store.OwnerHouse)
 		if err == nil && len(facts) > allFactsUpTo {
-			facts, err = m.opts.Store.SearchFacts(ctx, r.Goal+" "+r.Question+" "+r.Observation, maxFacts)
+			facts, err = m.opts.Store.SearchFacts(ctx, r.Goal+" "+r.Question+" "+r.Observation, []string{store.OwnerHouse}, maxFacts)
 		}
 		if err == nil {
 			for _, f := range facts {

@@ -34,6 +34,8 @@ def person_to_agent(data: dict[str, Any]) -> dict[str, Any]:
         out["telegram_user_id"] = int(data["telegram_user_id"])
     if data.get("notify"):
         out["notify"] = data["notify"]
+    if data.get("alone_is_me"):
+        out["alone_is_me"] = True
     return out
 
 
@@ -44,6 +46,7 @@ def person_from_agent(key: str, person: dict[str, Any]) -> dict[str, Any]:
         "entity": person.get("entity") or "",
         "telegram_user_id": str(telegram) if telegram else "",
         "notify": person.get("notify") or "",
+        "alone_is_me": bool(person.get("alone_is_me")),
     }
 
 

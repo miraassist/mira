@@ -119,6 +119,9 @@ td, th { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line
 tr:last-child td { border-bottom: 0; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 pre { white-space: pre-wrap; margin: 0; font: inherit; }
+details.profile { margin: 0 0 10px; }
+details.profile > summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; }
+details.profile pre { background: var(--badge); padding: 10px 12px; border-radius: 10px; margin-top: 8px; }
 td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @media (max-width: 600px) { td.fact-actions { white-space: normal; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
@@ -281,7 +284,14 @@ const I18N = {
   "facts": "Gespeicherte Fakten",
   "no_profile": "Noch kein Profil.",
   "last_compacted": "Zuletzt verdichtet: ",
-  "profile_hint": "Das Profil wird nachts aus den Fakten verdichtet und steht in jedem Prompt.",
+  "profile_hint": "Die Profile werden nachts aus den Fakten verdichtet: das des Hauses steht in jedem Prompt, das einer Person in jedem Gespräch mit ihr.",
+  "memory_house": "Haus",
+  "memory_of": "Gedächtnis von {name}",
+  "memory_house_hint": "Gemeinsam für alle; auch am Satelliten ohne bekannte Person.",
+  "memory_person_hint": "Nur für diese Person: per Telegram, in der HA-App oder am Satelliten, wenn sie allein zu Hause ist und das eingeschaltet hat.",
+  "edited": "geändert",
+  "alone_is_me": "Allein = ich",
+  "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Meldungen.",
   "compact_now": "Jetzt verdichten",
   "no_facts": "Keine Fakten.",
   "forget": "Vergessen",
@@ -452,7 +462,14 @@ const I18N = {
   "facts": "Saved facts",
   "no_profile": "No profile yet.",
   "last_compacted": "Last compacted: ",
-  "profile_hint": "The profile is condensed from the facts at night and is part of every prompt.",
+  "profile_hint": "The profiles are condensed from the facts at night: the house's is part of every prompt, a person's of every conversation with them.",
+  "memory_house": "House",
+  "memory_of": "Memory of {name}",
+  "memory_house_hint": "Shared by everyone; also at a satellite when nobody is known.",
+  "memory_person_hint": "Only for this person: on Telegram, in the HA app, or at a satellite when they are alone at home and switched that on.",
+  "edited": "edited",
+  "alone_is_me": "Alone = me",
+  "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private notices.",
   "compact_now": "Compact now",
   "no_facts": "No facts.",
   "forget": "Forget",
@@ -789,7 +806,7 @@ function persons() {
   <section class="card">
     <h2>${T.tab_persons} ${source("persons")}</h2>
     <p class="hint">${T.persons_hint}</p>
-    <table id="persons"><tr><th>${T.key}</th><th>${T.person_entity}</th><th>${T.telegram_id}</th><th>${T.push}</th><th></th></tr>
+    <table id="persons"><tr><th>${T.key}</th><th>${T.person_entity}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th><th></th></tr>
       ${Object.entries(p).sort().map(([k, v], i) => personRow(k, v, i)).join("")}
     </table>
     <div class="actions">
@@ -804,6 +821,7 @@ function personRow(key, p, i) {
     <td><input data-f="entity" list="entities" value="${esc(p.entity)}" placeholder="person.…"></td>
     <td><input data-f="tg" value="${esc(p.telegram_user_id || "")}" inputmode="numeric"></td>
     <td><input data-f="notify" value="${esc(p.notify)}" placeholder="notify.mobile_app_…"></td>
+    <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${p.alone_is_me ? " checked" : ""}></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
 function addPerson() { $("#persons").insertAdjacentHTML("beforeend", personRow("", {}, Date.now())); }
@@ -815,6 +833,7 @@ function savePersons() {
     const p = { entity: f("entity") };
     if (f("tg")) p.telegram_user_id = Number(f("tg"));
     if (f("notify")) p.notify = f("notify");
+    if (tr.querySelector('[data-f="alone"]').checked) p.alone_is_me = true;
     out[f("key")] = p;
   });
   save({ persons: out });
@@ -822,18 +841,24 @@ function savePersons() {
 
 // ---- Gedächtnis ---------------------------------------------------------
 async function memory() {
-  $("#view").innerHTML = `<section class="card"><h2>${T.profile}</h2><div id="profile">${T.loading}</div></section>
-    <section class="card"><h2>${T.facts}</h2><div id="facts"></div></section>`;
+  $("#view").innerHTML = `<div id="memories">${T.loading}</div>`;
   try {
-    const m = await api("GET", "/v1/ui/memory");
-    $("#profile").innerHTML = `
-      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}
-      <p class="hint">${m.profile_updated ? T.last_compacted + esc(m.profile_updated) + ". " : ""}${T.profile_hint}</p>
-      <div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>`;
-    $("#facts").innerHTML = m.facts.length === 0 ? `<p class="hint">${T.no_facts}</p>` : `
-      <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span><p class="hint">${esc(f.updated)}</p></td>
-        <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
-        <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
+    const r = await api("GET", "/v1/ui/memory");
+    $("#memories").innerHTML = r.memories.map(m => {
+      const house = m.owner === "house";
+      const title = house ? T.memory_house : T.memory_of.replace("{name}", m.owner);
+      const facts = m.facts.length === 0 ? `<p class="hint">${T.no_facts}</p>` : `
+        <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
+          <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
+          <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
+          <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
+      return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
+        <p class="hint">${house ? T.memory_house_hint : T.memory_person_hint}</p>
+        <details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
+          ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>
+        ${facts}</section>`;
+    }).join("") + `<section class="card"><p class="hint">${T.profile_hint}</p>
+      ${r.can_compact ? `<div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>` : ""}</section>`;
   } catch (e) { message(e.message, false); }
 }
 // editFact turns the row into a text field; Enter saves, Escape cancels.

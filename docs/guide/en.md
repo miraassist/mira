@@ -25,7 +25,14 @@ Mira always looks values up fresh instead of guessing. If she cannot look someth
 - "Remember that the chimney sweep comes in March."
 - "What do you know about the chimney sweep?" – "Forget the thing about the chimney sweep."
 
-At night Mira condenses what she remembered into a short profile of the household. You can see and delete the profile and all facts in the web interface under **Memory**.
+There is one memory for the **house** and one for **each person**:
+
+- When Mira knows who is speaking, she remembers it for that person. It goes into the house's memory only when you say so ("remember for the house …").
+- Mira knows who is speaking on Telegram, in the HA app's chat (through your HA user), and at a satellite only when you are alone at home and switched that on for your person ("Alone at home, the satellites are me"). Otherwise a satellite is the house.
+- Your personal memory is only seen by Mira when talking to you. The house's memory is for everyone.
+- Nobody writes into someone else's memory.
+
+At night Mira condenses each memory into a short profile. In the web interface under **Memory** you see the house and the persons apart, with who said it and when, and can edit or delete facts.
 
 ## Reminders and timers
 

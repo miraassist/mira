@@ -34,6 +34,23 @@ type Invocation struct {
 	Args       json.RawMessage
 	SessionKey string
 	Channel    config.Channel
+	// Person is who is speaking, when known (Telegram, the HA app, a
+	// satellite under the "alone at home" rule); empty means anonymous.
+	Person string
+	// Area is the satellite's area of a voice turn.
+	Area string
+}
+
+// Author is how a fact or message records who it came from: the person, else
+// the satellite's area.
+func (inv Invocation) Author() string {
+	switch {
+	case inv.Person != "":
+		return inv.Person
+	case inv.Area != "":
+		return "area:" + inv.Area
+	}
+	return ""
 }
 
 // InternalTool is a tool implemented inside the agent.

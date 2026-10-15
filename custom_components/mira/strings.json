@@ -186,12 +186,14 @@
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram user id",
-            "notify": "Push notification"
+            "notify": "Push notification",
+            "alone_is_me": "Alone at home, the satellites are me"
           },
           "data_description": {
             "entity": "Home or away decides where notices go.",
             "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
-            "notify": "Companion app notify service"
+            "notify": "Companion app notify service",
+            "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
           }
         },
         "reconfigure": {
@@ -200,12 +202,14 @@
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram user id",
-            "notify": "Push notification"
+            "notify": "Push notification",
+            "alone_is_me": "Alone at home, the satellites are me"
           },
           "data_description": {
             "entity": "Home or away decides where notices go.",
             "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
-            "notify": "Companion app notify service"
+            "notify": "Companion app notify service",
+            "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
           }
         }
       },

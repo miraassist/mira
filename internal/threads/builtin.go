@@ -13,7 +13,8 @@ import (
 )
 
 // MemorySave is the building block "memory.save": the field "fact" goes
-// to the household memory, at once, without a yes.
+// to the memory of whoever started the thread (the house when unknown), at
+// once, without a yes.
 func MemorySave(st *store.Store, lang i18n.Lang) Finisher { return memorySave{st, lang} }
 
 type memorySave struct {
@@ -28,7 +29,14 @@ func (f memorySave) Work(ctx context.Context, th store.Thread) (Result, error) {
 	if fact == "" {
 		return Result{}, errors.New("the field fact is missing")
 	}
-	if _, err := f.st.SaveFact(ctx, store.Fact{ID: ulid.Make().String(), Text: fact, Source: "thread:" + th.ID}); err != nil {
+	owner, author := store.OwnerHouse, th.Person
+	if th.Person != "" {
+		owner = th.Person
+	} else if strings.HasPrefix(th.Place, "area:") {
+		author = th.Place
+	}
+	if _, err := f.st.SaveFact(ctx, store.Fact{ID: ulid.Make().String(), Text: fact, Owner: owner, Author: author,
+		Source: "thread:" + th.ID}); err != nil {
 		return Result{}, err
 	}
 	return Result{Done: fmt.Sprintf(i18n.Pick(catalog, f.lang).memorySaved, fact)}, nil

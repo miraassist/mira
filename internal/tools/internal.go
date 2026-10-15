@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/oklog/ulid/v2"
@@ -42,11 +43,12 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 		{
 			Name:        ToolMemorySave,
 			Description: t.memorySaveDesc,
-			Schema:      schema(`{"type":"object","properties":{"text":{"type":"string","description":%q},"tags":{"type":"array","items":{"type":"string"},"description":%q}},"required":["text"]}`, t.memorySaveText, t.memorySaveTags),
+			Schema:      schema(`{"type":"object","properties":{"text":{"type":"string","description":%q},"tags":{"type":"array","items":{"type":"string"},"description":%q},"house":{"type":"boolean","description":%q}},"required":["text"]}`, t.memorySaveText, t.memorySaveTags, t.memorySaveHouse),
 			Run: func(ctx context.Context, inv Invocation) (string, error) {
 				var a struct {
-					Text string   `json:"text"`
-					Tags []string `json:"tags"`
+					Text  string   `json:"text"`
+					Tags  []string `json:"tags"`
+					House bool     `json:"house"`
 				}
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
@@ -54,10 +56,19 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 				if strings.TrimSpace(a.Text) == "" {
 					return "", errors.New(t.textMissing)
 				}
+				// Nobody writes into someone else's memory: the owner is the
+				// speaker, or the house.
+				owner := store.OwnerHouse
+				if inv.Person != "" && !a.House {
+					owner = inv.Person
+				}
 				f, err := st.SaveFact(ctx, store.Fact{ID: ulid.Make().String(), Text: strings.TrimSpace(a.Text),
-					Tags: a.Tags, Source: string(inv.Channel)})
+					Tags: a.Tags, Owner: owner, Author: inv.Author(), Source: string(inv.Channel)})
 				if err != nil {
 					return "", err
+				}
+				if owner != store.OwnerHouse {
+					return fmt.Sprintf(t.memorySavedPerson, owner, f.ID), nil
 				}
 				return fmt.Sprintf(t.memorySaved, f.ID), nil
 			},
@@ -74,7 +85,7 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
 				}
-				facts, err := st.SearchFacts(ctx, a.Query, 10)
+				facts, err := st.SearchFacts(ctx, a.Query, store.Owners(inv.Person), 10)
 				if err != nil {
 					return "", err
 				}
@@ -83,7 +94,11 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 				}
 				var b strings.Builder
 				for _, f := range facts {
-					fmt.Fprintf(&b, "- [%s] %s\n", f.ID, f.Text)
+					mark := ""
+					if f.Owner != store.OwnerHouse {
+						mark = t.personalMark
+					}
+					fmt.Fprintf(&b, "- [%s] %s%s\n", f.ID, f.Text, mark)
 				}
 				return strings.TrimRight(b.String(), "\n"), nil
 			},
@@ -98,6 +113,10 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 				}
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
+				}
+				// Only facts this speaker may read can be forgotten.
+				if f, err := st.GetFact(ctx, a.ID); err == nil && !slices.Contains(store.Owners(inv.Person), f.Owner) {
+					return "", errors.New(t.noSuchFact)
 				}
 				if err := st.DeleteFact(ctx, a.ID); errors.Is(err, store.ErrNotFound) {
 					return "", errors.New(t.noSuchFact)

@@ -25,7 +25,14 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 - „Merk dir, dass der Schornsteinfeger im März kommt.“
 - „Was weißt du über den Schornsteinfeger?“ – „Vergiss das mit dem Schornsteinfeger.“
 
-Nachts fasst Mira das Gemerkte zu einem kurzen Profil des Haushalts zusammen. Das Profil und alle Fakten siehst und löschst du in der Web-Oberfläche unter **Gedächtnis**.
+Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
+
+- Weiß Mira, wer spricht, merkt sie sich es für diese Person. Ins Haus-Gedächtnis kommt es nur, wenn du es ausdrücklich sagst („merk dir fürs Haus …“).
+- Mira weiß, wer spricht: über Telegram, im Chat der HA-App (über deinen HA-Benutzer) und am Satelliten nur, wenn du allein zu Hause bist und das bei deiner Person eingeschaltet hast („Allein zu Hause sind die Satelliten ich“). Sonst ist es am Satelliten das Haus.
+- Dein persönliches Gedächtnis sieht nur Mira im Gespräch mit dir. Das Haus-Gedächtnis gilt für alle.
+- In fremde Gedächtnisse schreibt niemand.
+
+Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In der Web-Oberfläche unter **Gedächtnis** siehst du Haus und Personen getrennt, mit wer es wann gesagt hat, und kannst Fakten bearbeiten oder löschen.
 
 ## Erinnerungen und Timer
 

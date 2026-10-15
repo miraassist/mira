@@ -229,6 +229,25 @@ ALTER TABLE notices ADD COLUMN thread_id TEXT NOT NULL DEFAULT '';
 DROP TABLE tasks;
 `,
 	},
+	{
+		// Memory has an owner: the house or a person. Who wrote a fact is
+		// its author. There is one profile per owner; threads know whose
+		// they are.
+		name: "0012_memory_owner",
+		stmt: `
+ALTER TABLE memory_facts ADD COLUMN owner TEXT NOT NULL DEFAULT 'house';
+ALTER TABLE memory_facts ADD COLUMN author TEXT NOT NULL DEFAULT '';
+CREATE INDEX memory_facts_owner ON memory_facts(owner);
+CREATE TABLE memory_profiles (
+    owner      TEXT PRIMARY KEY,
+    text       TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+);
+INSERT INTO memory_profiles(owner, text, updated_at) SELECT 'house', text, updated_at FROM memory_profile;
+DROP TABLE memory_profile;
+ALTER TABLE threads ADD COLUMN person TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

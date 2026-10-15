@@ -8,14 +8,30 @@ import (
 	"time"
 )
 
-// Fact is one remembered statement about the household or the user.
+// OwnerHouse owns the household's memory; every other owner is a person key.
+const OwnerHouse = "house"
+
+// Fact is one remembered statement about the household or a person.
 type Fact struct {
-	ID        string
-	Text      string
-	Tags      []string
+	ID   string
+	Text string
+	Tags []string
+	// Owner is OwnerHouse or a person key: whose memory this is.
+	Owner string
+	// Author is who said it: a person key, or "area:<id>" for someone
+	// unknown at a satellite; empty when unknown.
+	Author    string
 	Source    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// Owners is what a person may read: the house and, when known, their own.
+func Owners(person string) []string {
+	if person == "" || person == OwnerHouse {
+		return []string{OwnerHouse}
+	}
+	return []string{OwnerHouse, person}
 }
 
 func (s *Store) SaveFact(ctx context.Context, f Fact) (Fact, error) {
@@ -27,17 +43,20 @@ func (s *Store) SaveFact(ctx context.Context, f Fact) (Fact, error) {
 		return Fact{}, fmt.Errorf("fact needs text")
 	}
 	f.UpdatedAt = now
+	if f.Owner == "" {
+		f.Owner = OwnerHouse
+	}
 	if f.CreatedAt.IsZero() {
 		f.CreatedAt = now
 	}
 	tags := joinTags(f.Tags)
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO memory_facts(id, text, tags, source, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO memory_facts(id, text, tags, owner, author, source, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
-    text = excluded.text, tags = excluded.tags,
-    source = excluded.source, updated_at = excluded.updated_at`,
-		f.ID, f.Text, tags, f.Source, formatTime(f.CreatedAt), formatTime(f.UpdatedAt))
+    text = excluded.text, tags = excluded.tags, owner = excluded.owner,
+    author = excluded.author, source = excluded.source, updated_at = excluded.updated_at`,
+		f.ID, f.Text, tags, f.Owner, f.Author, f.Source, formatTime(f.CreatedAt), formatTime(f.UpdatedAt))
 	if err != nil {
 		return Fact{}, fmt.Errorf("save fact: %w", err)
 	}
@@ -55,25 +74,40 @@ func (s *Store) DeleteFact(ctx context.Context, id string) error {
 	return nil
 }
 
-// SearchFacts runs a full-text query. An empty query returns the most recently
-// updated facts, which is what the profile rebuild wants.
-func (s *Store) SearchFacts(ctx context.Context, query string, limit int) ([]Fact, error) {
+const factColumns = `f.id, f.text, f.tags, f.owner, f.author, f.source, f.created_at, f.updated_at`
+
+// ownerClause limits a query to some owners; none means every owner.
+func ownerClause(owners []string) (string, []any) {
+	if len(owners) == 0 {
+		return "1", nil
+	}
+	args := make([]any, len(owners))
+	for i, o := range owners {
+		args[i] = o
+	}
+	return "f.owner IN (?" + strings.Repeat(",?", len(owners)-1) + ")", args
+}
+
+// SearchFacts runs a full-text query over the memories of these owners (all
+// when none). An empty query returns the most recently updated facts.
+func (s *Store) SearchFacts(ctx context.Context, query string, owners []string, limit int) ([]Fact, error) {
 	if limit <= 0 {
 		limit = 10
 	}
+	where, args := ownerClause(owners)
 	var rows *sql.Rows
 	var err error
 	if q := ftsQuery(query); q == "" {
 		rows, err = s.db.QueryContext(ctx, `
-SELECT id, text, tags, source, created_at, updated_at
-FROM memory_facts ORDER BY updated_at DESC LIMIT ?`, limit)
+SELECT `+factColumns+`
+FROM memory_facts f WHERE `+where+` ORDER BY f.updated_at DESC LIMIT ?`, append(args, limit)...)
 	} else {
 		rows, err = s.db.QueryContext(ctx, `
-SELECT f.id, f.text, f.tags, f.source, f.created_at, f.updated_at
+SELECT `+factColumns+`
 FROM memory_facts_fts fts
 JOIN memory_facts f ON f.rowid = fts.rowid
-WHERE memory_facts_fts MATCH ?
-ORDER BY bm25(memory_facts_fts) LIMIT ?`, q, limit)
+WHERE memory_facts_fts MATCH ? AND `+where+`
+ORDER BY bm25(memory_facts_fts) LIMIT ?`, append(append([]any{q}, args...), limit)...)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("search facts: %w", err)
@@ -82,11 +116,12 @@ ORDER BY bm25(memory_facts_fts) LIMIT ?`, q, limit)
 	return scanFacts(rows)
 }
 
-// AllFacts returns every fact, oldest first. The nightly profile job uses it.
-func (s *Store) AllFacts(ctx context.Context) ([]Fact, error) {
+// AllFacts returns the facts of these owners (all when none), oldest first.
+func (s *Store) AllFacts(ctx context.Context, owners ...string) ([]Fact, error) {
+	where, args := ownerClause(owners)
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, text, tags, source, created_at, updated_at
-FROM memory_facts ORDER BY created_at`)
+SELECT `+factColumns+`
+FROM memory_facts f WHERE `+where+` ORDER BY f.created_at`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +134,7 @@ func scanFacts(rows *sql.Rows) ([]Fact, error) {
 	for rows.Next() {
 		var f Fact
 		var tags, created, updated string
-		if err := rows.Scan(&f.ID, &f.Text, &tags, &f.Source, &created, &updated); err != nil {
+		if err := rows.Scan(&f.ID, &f.Text, &tags, &f.Owner, &f.Author, &f.Source, &created, &updated); err != nil {
 			return nil, err
 		}
 		f.Tags = splitTags(tags)
@@ -109,10 +144,46 @@ func scanFacts(rows *sql.Rows) ([]Fact, error) {
 	return out, rows.Err()
 }
 
-// Profile returns the compacted user profile that forms prompt layer 5.
-func (s *Store) Profile(ctx context.Context) (string, time.Time, error) {
+// GetFact returns one fact.
+func (s *Store) GetFact(ctx context.Context, id string) (Fact, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+factColumns+` FROM memory_facts f WHERE f.id = ?`, id)
+	if err != nil {
+		return Fact{}, err
+	}
+	defer rows.Close()
+	facts, err := scanFacts(rows)
+	if err != nil {
+		return Fact{}, err
+	}
+	if len(facts) == 0 {
+		return Fact{}, ErrNotFound
+	}
+	return facts[0], nil
+}
+
+// FactOwners lists every owner that has facts, the house first.
+func (s *Store) FactOwners(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT owner FROM memory_facts ORDER BY owner != 'house', owner`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var o string
+		if err := rows.Scan(&o); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// Profile returns an owner's compacted profile. The house's forms prompt
+// layer 5, a person's goes into their turns.
+func (s *Store) Profile(ctx context.Context, owner string) (string, time.Time, error) {
 	var text, updated string
-	err := s.db.QueryRowContext(ctx, `SELECT text, updated_at FROM memory_profile WHERE id = 1`).
+	err := s.db.QueryRowContext(ctx, `SELECT text, updated_at FROM memory_profiles WHERE owner = ?`, owner).
 		Scan(&text, &updated)
 	if err == sql.ErrNoRows {
 		return "", time.Time{}, nil
@@ -123,11 +194,11 @@ func (s *Store) Profile(ctx context.Context) (string, time.Time, error) {
 	return text, parseTime(updated), nil
 }
 
-func (s *Store) SetProfile(ctx context.Context, text string) error {
+func (s *Store) SetProfile(ctx context.Context, owner, text string) error {
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO memory_profile(id, text, updated_at) VALUES (1, ?, ?)
-ON CONFLICT(id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
-		text, formatTime(s.now()))
+INSERT INTO memory_profiles(owner, text, updated_at) VALUES (?, ?, ?)
+ON CONFLICT(owner) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`,
+		owner, text, formatTime(s.now()))
 	return err
 }
 

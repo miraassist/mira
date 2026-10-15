@@ -1,7 +1,10 @@
 # Benutzer: Haus und Personen – Spezifikation
 
-Stand 2026-10-15. Spezifiziert, noch nicht gebaut. Gilt auch für die
-[Aufgaben](aufgaben.md).
+Stand 2026-10-16. Gilt auch für die [Aufgaben](aufgaben.md).
+
+Gebaut (Agent 0.5.0, Integration 0.4.0): Identität, Regel „allein zu Hause“,
+Gedächtnis und Profil pro Besitzer mit Urheber. Offen: Aufgaben, Meldungen,
+Erinnerungen und Verläufe pro Besitzer, Nachrichten an andere.
 
 ## Grundsatz
 
@@ -55,6 +58,9 @@ Die bisherige globale Einstellung für vertrauliche Meldungen (`confidential_voi
 - **Person X:** lesen und schreiben nur X. X muss dazu über ihren Kanal identifiziert sein, oder die Regel „allein zu Hause“ greift.
 - Niemand schreibt in das Gedächtnis eines anderen. „Merk dir für Ben …“ wird zur Nachricht an Ben (siehe unten). Ben entscheidet dann selbst, ob er es sich merken lässt.
 - Im Gespräch sieht das Modell das Hausgedächtnis und, bei bekannter Person, deren Gedächtnis. Die nächtliche Verdichtung läuft pro Besitzer.
+- Eine bekannte Person merkt sich immer für sich; ins Haus nur, wenn sie es ausdrücklich sagt.
+- Jeder Fakt hat einen **Urheber**: die Person, sonst der Bereich des Satelliten („jemand im Wohnzimmer“). Die Web-Oberfläche zeigt Urheber und Zeitpunkt.
+- Das Hausprofil steht in Schicht 5 (gemeinsamer Prompt-Anfang), das persönliche Profil in Schicht 7 des Turns, damit der Cache für alle gleich bleibt.
 
 ## Nachrichten an andere
 

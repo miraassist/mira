@@ -6,6 +6,7 @@ import "github.com/sker65/mira/internal/i18n"
 // their results, and the guard's messages to the model.
 type texts struct {
 	memorySaveDesc, memorySaveText, memorySaveTags, memorySaved                          string // memorySaved: %s = id
+	memorySaveHouse, memorySavedPerson, personalMark                                     string // memorySavedPerson: %s = person, %s = id
 	memorySearchDesc, memorySearchQuery, memoryNothing                                   string
 	memoryForgetDesc, memoryForgotten, noSuchFact                                        string
 	noticesListDesc, noNotices, noticeLine, noticeDetails                                string // noticeLine: id, importance, state, text
@@ -24,10 +25,13 @@ type texts struct {
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
-		memorySaveDesc:    "Merkt sich dauerhaft eine Tatsache über den Haushalt oder den Nutzer, z.B. Vorlieben, Gewohnheiten, wo etwas steht. Nur speichern, wenn der Nutzer es möchte oder es eindeutig dauerhaft nützlich ist.",
+		memorySaveDesc:    "Merkt sich dauerhaft eine Tatsache über den Haushalt oder den Nutzer, z.B. Vorlieben, Gewohnheiten, wo etwas steht. Nur speichern, wenn der Nutzer es möchte oder es eindeutig dauerhaft nützlich ist. Ist bekannt, wer spricht, kommt es in dessen persönliches Gedächtnis, sonst ins Gedächtnis des Hauses.",
+		memorySaveHouse:   "true nur, wenn der Nutzer ausdrücklich sagt, dass es für alle im Haus gilt (\"fürs Haus\", \"für alle\"). Sonst weglassen.",
+		memorySavedPerson: "Gespeichert im persönlichen Gedächtnis von %s (id %s).",
+		personalMark:      " (persönlich)",
 		memorySaveText:    "Die Tatsache als vollständiger Satz.",
 		memorySaveTags:    "Optionale Stichwörter.",
-		memorySaved:       "Gespeichert (id %s).",
+		memorySaved:       "Gespeichert im Gedächtnis des Hauses (id %s).",
 		memorySearchDesc:  "Sucht in den gespeicherten Tatsachen über den Haushalt und den Nutzer.",
 		memorySearchQuery: "Suchbegriffe.",
 		// Said this bluntly on purpose: with a plain "nothing found", local
@@ -75,10 +79,13 @@ var catalog = map[i18n.Lang]texts{
 		needsConfirmation: "NICHT AUSGEFÜHRT – Bestätigung nötig. Die Aktion (%s) ist kritisch. Frage den Nutzer jetzt kurz, ob du sie ausführen sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
 	},
 	i18n.EN: {
-		memorySaveDesc:     "Permanently remembers a fact about the household or the user, e.g. preferences, habits, where something is. Only save when the user wants it or it is clearly useful for good.",
+		memorySaveDesc:     "Permanently remembers a fact about the household or the user, e.g. preferences, habits, where something is. Only save when the user wants it or it is clearly useful for good. When it is known who is speaking, it goes into their personal memory, otherwise into the house's.",
+		memorySaveHouse:    "true only when the user says explicitly that it is for everyone in the house (\"for the house\", \"for everyone\"). Otherwise leave it out.",
+		memorySavedPerson:  "Saved in the personal memory of %s (id %s).",
+		personalMark:       " (personal)",
 		memorySaveText:     "The fact as a complete sentence.",
 		memorySaveTags:     "Optional keywords.",
-		memorySaved:        "Saved (id %s).",
+		memorySaved:        "Saved in the house's memory (id %s).",
 		memorySearchDesc:   "Searches the saved facts about the household and the user.",
 		memorySearchQuery:  "Search terms.",
 		memoryNothing:      "Nothing found. Nothing about this is saved, so you do not know it. Tell the user exactly that and do not guess.",

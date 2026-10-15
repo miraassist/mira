@@ -219,6 +219,7 @@ class PersonSubentryFlow(_ManagedSubentryFlow):
                         options=notify, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
                     )
                 ),
+                vol.Optional("alone_is_me", default=False): selector.BooleanSelector(),
             }
         )
 

@@ -218,6 +218,9 @@ type Person struct {
 	// Notify is a HA notify service for the companion app, such as
 	// "notify.mobile_app_pixel".
 	Notify string `yaml:"notify"`
+	// AloneIsMe: when this person is the only one at home (by Entity), the
+	// satellites count as them: their memory, their personal tasks.
+	AloneIsMe bool `yaml:"alone_is_me"`
 }
 
 type Notifier struct {

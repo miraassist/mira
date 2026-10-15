@@ -43,9 +43,11 @@ type ThreadEntry struct {
 // task with a question back and a yes. Target names its definition (a
 // skill), Place is where it happens ("area:<id>" or a chat's session key).
 type Thread struct {
-	ID        string
-	Target    string
-	Place     string
+	ID     string
+	Target string
+	Place  string
+	// Person is who started it, when known; its results are theirs.
+	Person    string
 	State     string
 	Request   string
 	Fields    map[string]string
@@ -78,21 +80,21 @@ func (s *Store) PutThread(ctx context.Context, t Thread) error {
 		content = json.RawMessage("{}")
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, state, request, fields, log, content, created_at, updated_at, expires_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET state = excluded.state, request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
-		t.ID, t.Target, t.Place, t.State, t.Request, string(fields), string(log), string(content),
+		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
 		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt))
 	return err
 }
 
-const threadSelect = `SELECT id, target, place, state, request, fields, log, content, created_at, updated_at, expires_at FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
 	var fields, log, content, created, updated, expires string
-	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.State, &t.Request, &fields, &log, &content,
+	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
 		&created, &updated, &expires); err != nil {
 		return Thread{}, err
 	}

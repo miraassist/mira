@@ -166,6 +166,9 @@ func AudienceFor(named string, inv Invocation, persons map[string]config.Person)
 	if _, ok := persons[named]; ok {
 		return named
 	}
+	if _, ok := persons[inv.Person]; ok {
+		return inv.Person
+	}
 	if inv.Channel == config.ChannelTelegram {
 		chat, err := strconv.ParseInt(strings.TrimPrefix(inv.SessionKey, string(config.ChannelTelegram)+":"), 10, 64)
 		if err == nil {
