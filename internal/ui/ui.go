@@ -256,13 +256,14 @@ type noticeJSON struct {
 
 func (h *Handler) notices(w http.ResponseWriter, r *http.Request) {
 	// The history: every state, newest first, a page at a time; with
-	// open=1 only what is still open. A notice past its expiry that nobody
+	// open=1 only what still waits. A notice past its expiry that nobody
 	// heard shows as expired.
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	page = max(page, 0)
 	f := store.NoticeFilter{IncludeExpired: true, NewestFirst: true, Limit: noticePage + 1, Offset: page * noticePage}
 	if r.URL.Query().Get("open") == "1" {
-		f.States, f.IncludeExpired = []string{store.NoticePending, store.NoticeDelivered}, false
+		// Open is what nobody has heard yet.
+		f.States, f.IncludeExpired = []string{store.NoticePending}, false
 	}
 	list, err := h.opts.Store.ListNotices(r.Context(), f)
 	if err != nil {

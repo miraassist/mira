@@ -194,6 +194,7 @@ func TestNoticesArePaged(t *testing.T) {
 			Audience: store.AudienceHousehold, Spoken: "Meldung " + id})
 	}
 	st.SetNoticeState(ctx, "n00", store.NoticeAcked)
+	st.SetNoticeState(ctx, "n01", store.NoticeDelivered)
 	var r struct {
 		Items []struct{ ID, State string } `json:"items"`
 		More  bool                         `json:"more"`
@@ -212,7 +213,7 @@ func TestNoticesArePaged(t *testing.T) {
 	_, body = call(t, srv, "GET", "/v1/ui/notices?page=1&open=1", "secret", "")
 	r.Items = nil
 	json.Unmarshal([]byte(body), &r)
-	if len(r.Items) != 4 {
+	if len(r.Items) != 3 {
 		t.Errorf("open page 1: %d items", len(r.Items))
 	}
 }
