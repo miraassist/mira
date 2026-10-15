@@ -29,7 +29,7 @@ func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 	if err != nil {
 		return err
 	}
-	return n.deliverAsked(ctx, nt, r.AreaID)
+	return n.deliverAsked(ctx, nt, r.AreaID, true)
 }
 
 // Tell delivers a message someone asked for and is waiting on, such as the
@@ -47,19 +47,21 @@ func (n *Notifier) Tell(ctx context.Context, nt store.Notice, areaID string) err
 	if err != nil {
 		return err
 	}
-	return n.deliverAsked(ctx, nt, areaID)
+	// The answer it follows has just been spoken in that room: the chime
+	// would only be cut off by the announcement right after it.
+	return n.deliverAsked(ctx, nt, areaID, false)
 }
 
 // deliverAsked speaks nt in the area unless quiet mode is on, falling back
 // to a private message. n.mu is held.
-func (n *Notifier) deliverAsked(ctx context.Context, nt store.Notice, areaID string) error {
+func (n *Notifier) deliverAsked(ctx context.Context, nt store.Notice, areaID string, preannounce bool) error {
 	quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false)
 	if err != nil {
 		return err
 	}
 	defer n.syncIndicators(ctx)
 	if sat := n.sats[areaID]; sat != "" && !quiet {
-		err := n.announce(ctx, areaID, []store.Notice{nt})
+		err := n.announce(ctx, areaID, []store.Notice{nt}, preannounce)
 		if err == nil {
 			return nil
 		}

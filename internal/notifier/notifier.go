@@ -189,7 +189,7 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	if max := n.cfg.MaxItemsPerAnnouncement; len(voice) > max {
 		voice = voice[:max] // the rest waits for the next occasion
 	}
-	if err := n.announce(ctx, area, voice); err != nil {
+	if err := n.announce(ctx, area, voice, true); err != nil {
 		return out, err
 	}
 	for _, nt := range voice {
@@ -291,7 +291,7 @@ func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Notice) bool
 			continue
 		}
 		done[sat] = true
-		if err := n.announce(ctx, area, []store.Notice{nt}); err != nil {
+		if err := n.announce(ctx, area, []store.Notice{nt}, true); err != nil {
 			n.log.Error("urgent announcement failed", "area", area, "error", err)
 			continue
 		}
@@ -454,11 +454,13 @@ func countWord(t texts, n int) string {
 	return fmt.Sprint(n)
 }
 
-func (n *Notifier) announce(ctx context.Context, area string, notices []store.Notice) error {
+// preannounce plays the satellite's chime first; an answer someone waits
+// for in that room does without it.
+func (n *Notifier) announce(ctx context.Context, area string, notices []store.Notice, preannounce bool) error {
 	sat := n.sats[area]
 	text := Compose(n.lang, notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
 	n.speaking(ctx, area)
-	method, err := n.deliver(ctx, sat, text)
+	method, err := n.deliver(ctx, sat, text, preannounce)
 	n.spoken(area)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
@@ -483,7 +485,7 @@ func (n *Notifier) announce(ctx context.Context, area string, notices []store.No
 }
 
 // deliver speaks text on a satellite and reports the method used.
-func (n *Notifier) deliver(ctx context.Context, sat, text string) (string, error) {
+func (n *Notifier) deliver(ctx context.Context, sat, text string, preannounce bool) (string, error) {
 	if strings.HasPrefix(sat, "media_player.") || n.cfg.Delivery == "tts" {
 		return "tts", n.ha.CallService(ctx, "tts", "speak",
 			map[string]any{"media_player_entity_id": sat, "message": text},
@@ -499,7 +501,7 @@ func (n *Notifier) deliver(ctx context.Context, sat, text string) (string, error
 		// The satellite listens afterwards; the reply comes back through the
 		// integration and finds the notices through the announcement record.
 		err := n.ha.CallService(ctx, "assist_satellite", "start_conversation",
-			map[string]any{"start_message": text, "preannounce": true}, target)
+			map[string]any{"start_message": text, "preannounce": preannounce}, target)
 		// The call returns only once the satellite has stopped listening,
 		// after the reply: a timeout means it spoke and is still listening.
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
@@ -509,7 +511,7 @@ func (n *Notifier) deliver(ctx context.Context, sat, text string) (string, error
 		return method, err
 	default:
 		return "announce", n.ha.CallService(ctx, "assist_satellite", "announce",
-			map[string]any{"message": text, "preannounce": true}, target)
+			map[string]any{"message": text, "preannounce": preannounce}, target)
 	}
 }
 

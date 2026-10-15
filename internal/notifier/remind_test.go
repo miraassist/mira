@@ -38,6 +38,9 @@ func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 			t.Errorf("spoken: %v / %v", text, text2)
 		}
 	}
+	if e.ha.calls[0].Data["preannounce"] != true {
+		t.Errorf("no chime before a reminder: %v", e.ha.calls[0].Data)
+	}
 	if left, _ := e.st.PendingReminders(context.Background(), time.Time{}); len(left) != 0 {
 		t.Error("reminder still pending")
 	}
@@ -104,5 +107,8 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 	}
 	if len(e.tg.sent) != 0 {
 		t.Errorf("sent privately as well: %v", e.tg.sent)
+	}
+	if e.ha.calls[0].Data["preannounce"] != false {
+		t.Errorf("chime before a proposal: %v", e.ha.calls[0].Data)
 	}
 }
