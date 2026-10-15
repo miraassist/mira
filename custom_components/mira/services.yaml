@@ -35,6 +35,10 @@ add_notice:
       example: "12h"
       selector:
         text:
+    task:
+      example: "{{ this.attributes.id }}"
+      selector:
+        text:
 
 assess:
   fields:

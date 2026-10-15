@@ -88,6 +88,10 @@
         "expires_in": {
           "name": "Gültig für",
           "description": "Dauer wie 12h; danach verfällt der Hinweis. Standard 24h."
+        },
+        "task": {
+          "name": "Aufgabe",
+          "description": "Die ID der Automation ({{ this.attributes.id }}): die Meldung erscheint im Protokoll der Aufgabe."
         }
       }
     },

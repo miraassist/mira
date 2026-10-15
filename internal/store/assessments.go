@@ -10,6 +10,9 @@ import (
 const (
 	AssessmentAssess = "assess"
 	AssessmentDecide = "decide"
+	// AssessmentNotice is a fixed notice a task sent (mira.add_notice),
+	// logged so the task's log shows it too.
+	AssessmentNotice = "notice"
 )
 
 // Assessment is one judgement Mira made for a task: what the model saw (in

@@ -238,6 +238,10 @@ type noticeRequest struct {
 	Confidentiality string `json:"confidentiality"`
 	// ExpiresIn is a Go duration such as "12h". Default 24h.
 	ExpiresIn string `json:"expires_in"`
+	// Task is the automation that sent it, when it is one of Mira's tasks
+	// ({{ this.attributes.id }}): the notice then counts as the task's and
+	// shows in its log.
+	Task string `json:"task"`
 }
 
 func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
@@ -277,14 +281,24 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 		}
 		ttl = d
 	}
+	source := store.SourceExternal
+	if req.Task != "" {
+		source = store.SourceTask
+	}
 	n, created, err := s.opts.Store.PutNotice(r.Context(), store.Notice{
-		ID: ulid.Make().String(), Source: store.SourceExternal, DedupeKey: req.DedupeKey,
+		ID: ulid.Make().String(), Source: source, DedupeKey: req.DedupeKey,
 		Importance: req.Importance, Audience: req.Audience, Spoken: strings.TrimSpace(req.Text),
 		Details: req.Details, ExpiresAt: time.Now().Add(ttl), Confidentiality: req.Confidentiality,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if req.Task != "" {
+		if err := s.opts.Store.AddAssessment(r.Context(), store.Assessment{ID: ulid.Make().String(), Task: req.Task,
+			Kind: store.AssessmentNotice, Goal: req.Text, Importance: req.Importance, Spoken: n.Spoken, NoticeID: n.ID}); err != nil {
+			s.log.Warn("could not log a task's notice", "task", req.Task, "error", err)
+		}
 	}
 	code := http.StatusOK
 	if created {

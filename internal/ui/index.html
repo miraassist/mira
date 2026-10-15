@@ -247,6 +247,7 @@ const I18N = {
   "task_answer": "Antwort",
   "task_notified": "gemeldet",
   "task_dry": "Probelauf",
+  "task_fixed": "feste Meldung",
   "no_tasks": "Noch keine Aufgaben. Sag Mira zum Beispiel „Achte auf den Wasserverbrauch“.",
   "task_delete_confirm": "Diese Aufgabe löschen? Die Automation in Home Assistant wird mit gelöscht.",
   "kind_usage": "Verbrauch pro Stunde",
@@ -409,6 +410,7 @@ const I18N = {
   "task_answer": "answer",
   "task_notified": "reported",
   "task_dry": "dry run",
+  "task_fixed": "fixed notice",
   "no_tasks": "No tasks yet. Tell Mira, for example, \"Keep an eye on the water usage\".",
   "task_delete_confirm": "Delete this task? The automation in Home Assistant is deleted too.",
   "kind_usage": "usage per hour",
@@ -786,7 +788,7 @@ async function taskLog(id) {
   try {
     const log = await api("GET", `/v1/ui/tasks/${encodeURIComponent(id)}/log`);
     el.innerHTML = log.length === 0 ? T.task_log_empty : `<ul>${log.map(a => `<li><b>${esc(a.at)}</b> · ${
-      a.kind === "decide" ? `${T.task_answer} ${a.answer ? T.yes : T.no}` : `${T.importance} ${a.importance}`}${
+      a.kind === "decide" ? `${T.task_answer} ${a.answer ? T.yes : T.no}` : a.kind === "notice" ? T.task_fixed : `${T.importance} ${a.importance}`}${
       a.notified ? ` · ${T.task_notified}` : ""}${a.dry_run ? ` · ${T.task_dry}` : ""}<br>${esc(a.spoken)}${
       a.input ? `<br><small>${esc(a.input)}</small>` : ""}</li>`).join("")}</ul>`;
   } catch (e) { el.textContent = e.message; }

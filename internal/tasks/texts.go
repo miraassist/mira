@@ -19,10 +19,12 @@ type texts struct {
 	yes, no, nobody                               string
 	earlierDecide, earlierQuiet, earlierSaid      string
 	// Drafting.
-	draftSystem, draftIntro, draftRules, redraft string
-	draftForbidden, alsoSwitches                 string
-	planning, proposal, planFailed, saveFailed   string
-	confirmed, tryObservation, cannot            string
+	draftSystem, draftIntro, draftRules, redraft                           string
+	draftForbidden, alsoSwitches                                           string
+	conditionsAre, judgesItself, noCondition                               string
+	condBetween, condAfter, condBefore, condAbove, condBelow, condTemplate string
+	planning, proposal, planFailed, saveFailed                             string
+	confirmed, tryObservation, cannot                                      string
 	// yesPhrases lists plain agreement, "|"-separated, lower case.
 	yesPhrases string
 	// Tools.
@@ -35,7 +37,7 @@ type texts struct {
 // maxCatalog bounds the entity list in the drafting prompt.
 const maxCatalog = 250
 
-func (m *Manager) draftInstruction(goal string, cat []Entity) string {
+func (m *Manager) draftInstruction(goal string, cat []Entity, memory string) string {
 	t := m.texts()
 	var b strings.Builder
 	fmt.Fprintf(&b, t.draftIntro, goal)
@@ -48,6 +50,9 @@ func (m *Manager) draftInstruction(goal string, cat []Entity) string {
 	forbidden := strings.Join(append(append([]string{}, m.opts.ConfirmDomains...), m.opts.ConfirmEntities...), ", ")
 	if forbidden == "" {
 		forbidden = t.draftForbidden
+	}
+	if memory != "" {
+		fmt.Fprintf(&b, "\n\n"+t.secMemory, memory)
 	}
 	rules := strings.Replace(t.draftRules, "<forbidden>", forbidden, 1)
 	b.WriteString(rules)
@@ -69,7 +74,7 @@ Miras Aktionen:
     view same_hour: letzte volle Stunde gegen dieselbe Stunde der letzten 14 Tage (Verbrauch bei Zählern mit state_class total/total_increasing, Mittel bei Messwerten)
     view day: heute bis jetzt gegen dieselben Wochentage der Vorwochen
   cooldown: optional, z. B. "6h": innerhalb dieser Zeit meldet die Aufgabe nur, wenn es wichtiger wird
-- mira.add_notice: feste Meldung ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend)
+- mira.add_notice: feste Meldung ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend). Der Text wird oft erst später vorgelesen: nenne die Uhrzeit per Vorlage und sprich in der Vergangenheit, z. B. "Um {{ now().strftime('%H:%M') }} ging das Licht im Schlafzimmer an."
 - mira.decide: Ja/Nein-Urteil mit response_variable, danach condition: template auf {{ d.answer }}, wenn erst Mira entscheiden soll, ob geschaltet wird.
 
 Andere Aktionen (Licht, Radio, Push-Nachricht mit notify.*) nur, wenn der Nutzer ausdrücklich darum bittet, und nur mit ausdrücklich genannten Entitäten. Niemals: Skripte, Shell-Befehle, Neustarts und was Mira nur mit ausdrücklichem Ja im Gespräch schaltet: <forbidden>.
@@ -81,6 +86,8 @@ Faustregeln:
 - Home-Assistant-Syntax: triggers mit "trigger:", conditions mit "condition:", actions mit "action:".
 
 Gibt es in der Liste keine Entität, mit der sich die Aufgabe erfüllen lässt, erfinde nichts und baue keine Ersatz-Automation: antworte dann nur {"error": ein Satz an den Nutzer, was fehlt}.
+
+Ist die Aufgabe unklar, weil ein Maßstab fehlt („ungewöhnlich“, „zu viel“, „spät“, „lange“) und steht er auch nicht in dem, was Mira über den Haushalt weiß, dann rate nicht und baue nichts: antworte nur {"question": eine kurze Rückfrage an den Nutzer mit einem Vorschlag, z. B. "Was ist für dich eine ungewöhnliche Zeit, etwa zwischen Mitternacht und 6 Uhr?"}. Steht der Maßstab dort oder in der Aufgabe, setze ihn als feste Bedingung oder festen Wert um (condition: time, numeric_state above/below …), nicht als Urteil von mira.assess.
 
 Sonst antworte nur mit einem JSON-Objekt:
 {"title": ein bis drei Wörter,
@@ -100,7 +107,7 @@ Mira's actions:
     view same_hour: the last full hour against the same hour on the previous 14 days (usage for counters with state_class total/total_increasing, mean for measurements)
     view day: today so far against the same weekdays of earlier weeks
   cooldown: optional, e.g. "6h": within it the task only reports again when it gets more important
-- mira.add_notice: a fixed notice without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent)
+- mira.add_notice: a fixed notice without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent). The text is often read out later: give the time with a template and use the past tense, e.g. "At {{ now().strftime('%H:%M') }} the bedroom light went on."
 - mira.decide: a yes/no judgement with response_variable, then condition: template on {{ d.answer }}, when Mira should first decide whether to switch.
 
 Other actions (lights, radio, a push with notify.*) only when the user asks for them explicitly, and only with entities named explicitly. Never: scripts, shell commands, restarts and what Mira only switches after an explicit yes in conversation: <forbidden>.
@@ -112,6 +119,8 @@ Rules of thumb:
 - Home Assistant syntax: triggers with "trigger:", conditions with "condition:", actions with "action:".
 
 If no entity in the list can fulfil the task, invent nothing and build no substitute automation: then answer only {"error": one sentence to the user saying what is missing}.
+
+If the task is unclear because a measure is missing ("unusual", "too much", "late", "long") and it is not in what Mira knows about the household either, do not guess and build nothing: answer only {"question": a short question back to the user with a suggestion, e.g. "What is an unusual time for you, say between midnight and 6 am?"}. If the measure is given there or in the task, implement it as a fixed condition or value (condition: time, numeric_state above/below …), not as a judgement of mira.assess.
 
 Otherwise answer only with a JSON object:
 {"title": one to three words,
@@ -165,6 +174,15 @@ JSON-Objekt:
 		redraft:        "\n\nDein letzter Entwurf wurde abgelehnt: %s. Mach einen neuen, der das behebt.",
 		draftForbidden: "nichts weiter",
 		alsoSwitches:   "Dabei schaltet sie außerdem: %s.",
+		conditionsAre:  "Bedingung: %s.",
+		judgesItself:   "Ob es sich lohnt, entscheide ich jedes Mal selbst; eine feste Bedingung gibt es nicht.",
+		noCondition:    "Ohne weitere Bedingung.",
+		condBetween:    "nur zwischen %s und %s Uhr",
+		condAfter:      "nur ab %s Uhr",
+		condBefore:     "nur bis %s Uhr",
+		condAbove:      "über %s",
+		condBelow:      "unter %s",
+		condTemplate:   "eine Vorlage muss zutreffen",
 		planning:       "Ich plane die Aufgabe jetzt im Hintergrund; der Vorschlag kommt von selbst. Sag dem Nutzer in einem kurzen Satz, dass du sie planst und dich mit einem Vorschlag meldest, ohne Zeitangabe.",
 		proposal:       "Mein Vorschlag für die Aufgabe %s: %s Soll ich so vorgehen?",
 		planFailed:     "Für die Aufgabe „%s“ habe ich keine brauchbare Automation gefunden.",
@@ -174,7 +192,7 @@ JSON-Objekt:
 		tryObservation: "Probelauf: kein Auslöser, beurteile die Daten, wie sie jetzt sind.",
 		yesPhrases:     "ja|ja bitte|ja gerne|gerne|passt|das passt|ja passt|ja das passt|mach das|ja mach das|mach|okay|ok|ja okay|genau|jawohl|einverstanden|leg los|ja leg los|starte sie|ja starte sie|klingt gut",
 
-		createDesc:   "Legt eine dauerhafte Aufgabe an, wenn der Nutzer möchte, dass du auf etwas achtest, z. B. \"Achte auf den Wasserverbrauch\", \"Sag Bescheid, wenn nachts ungewöhnlich viel Strom läuft\". Die Aufgabe wird eine Home-Assistant-Automation. Das Planen läuft im Hintergrund, der Vorschlag kommt von selbst.",
+		createDesc:   "Legt eine dauerhafte Aufgabe an, wenn der Nutzer möchte, dass du auf etwas achtest, z. B. \"Achte auf den Wasserverbrauch\", \"Sag Bescheid, wenn nachts ungewöhnlich viel Strom läuft\". Die Aufgabe wird eine Home-Assistant-Automation. Das Planen läuft im Hintergrund, der Vorschlag kommt von selbst. Hat Mira zu einer Aufgabe zurückgefragt (auch im zusätzlichen Kontext) und der Nutzer antwortet, rufe task_create erneut auf, mit dem Ziel samt Antwort, z. B. \"Sag Bescheid, wenn das Schlafzimmerlicht zwischen 0 und 6 Uhr angeht\".",
 		createGoal:   "Die Aufgabe in den Worten des Nutzers.",
 		confirmDesc:  "Legt den zuletzt hier vorgeschlagenen Auftrag in Home Assistant an. Hast du gerade eine Aufgabe vorgeschlagen (auch im zusätzlichen Kontext: \"Soll ich so vorgehen?\") und der Nutzer stimmt zu, rufe task_confirm auf, statt den Plan zu wiederholen. Danach nur kurz bestätigen.",
 		listDesc:     "Listet die Aufgaben: offene Vorschläge und Miras Automationen in Home Assistant, mit an/aus.",
@@ -239,6 +257,15 @@ JSON object:
 		redraft:        "\n\nYour last draft was refused: %s. Make a new one that fixes it.",
 		draftForbidden: "nothing else",
 		alsoSwitches:   "It also switches: %s.",
+		conditionsAre:  "Condition: %s.",
+		judgesItself:   "Whether it is worth it, I decide each time myself; there is no fixed condition.",
+		noCondition:    "No further condition.",
+		condBetween:    "only between %s and %s",
+		condAfter:      "only from %s",
+		condBefore:     "only until %s",
+		condAbove:      "above %s",
+		condBelow:      "below %s",
+		condTemplate:   "a template must hold",
 		planning:       "I am planning the task in the background now; the proposal arrives by itself. Tell the user in one short sentence that you are planning it and will come back with a proposal, without a time.",
 		proposal:       "My proposal for the task %s: %s Shall I go ahead?",
 		planFailed:     "I found no usable automation for the task \"%s\".",
@@ -248,7 +275,7 @@ JSON object:
 		tryObservation: "Dry run: no trigger, judge the data as they are now.",
 		yesPhrases:     "yes|yes please|yeah|yep|sure|ok|okay|fine|sounds good|go ahead|do it|yes do it|start it",
 
-		createDesc:   "Creates a standing task when the user wants you to watch something, e.g. \"Keep an eye on the water usage\", \"Tell me if a lot of power is used at night\". The task becomes a Home Assistant automation. Planning runs in the background; the proposal arrives by itself.",
+		createDesc:   "Creates a standing task when the user wants you to watch something, e.g. \"Keep an eye on the water usage\", \"Tell me if a lot of power is used at night\". The task becomes a Home Assistant automation. Planning runs in the background; the proposal arrives by itself. If Mira asked back about a task (also in the additional context) and the user answers, call task_create again with the goal including the answer, e.g. \"Tell me if the bedroom light goes on between midnight and 6 am\".",
 		createGoal:   "The task in the user's words.",
 		confirmDesc:  "Creates the task most recently proposed here in Home Assistant. If you just proposed a task (also in the additional context: \"Shall I go ahead?\") and the user agrees, call task_confirm instead of repeating the plan. Afterwards confirm only briefly.",
 		listDesc:     "Lists the tasks: open proposals and Mira's automations in Home Assistant, with on/off.",

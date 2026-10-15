@@ -13,7 +13,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/sker65/mira/issues",
   "requirements": [],
-  "version": "0.3.2",
+  "version": "0.3.3",
   "zeroconf": [
     "_mira._tcp.local."
   ]

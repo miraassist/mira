@@ -104,7 +104,16 @@ type Draft struct {
 	// Error is the planner's reason when the house cannot do the task (no
 	// fitting entity). It ends drafting: a second draft would not help.
 	Error string `json:"error"`
+	// Question asks the user for a measure the goal leaves open ("what is
+	// unusual for you?"): better than a task that only pretends to have
+	// a condition.
+	Question string `json:"question"`
 }
+
+// errQuestion ends drafting with a question back to the user.
+type errQuestion struct{ question string }
+
+func (e errQuestion) Error() string { return e.question }
 
 // errCannot is a task the house cannot do; drafting again does not help.
 type errCannot struct{ reason string }
@@ -119,7 +128,10 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (
 	if err != nil {
 		return store.Task{}, err
 	}
-	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()))
+	// What Mira knows may hold the measure the goal leaves open ("unusual
+	// is between midnight and six"): with it the planner builds a fixed
+	// condition instead of asking back.
+	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal}))
 	t := m.texts()
 	var d Draft
 	for attempt := 0; ; attempt++ {
@@ -131,6 +143,9 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (
 		err = json.Unmarshal([]byte(raw), &d)
 		if err == nil && strings.TrimSpace(d.Error) != "" {
 			return store.Task{}, errCannot{strings.TrimSpace(d.Error)}
+		}
+		if err == nil && strings.TrimSpace(d.Question) != "" {
+			return store.Task{}, errQuestion{strings.TrimSpace(d.Question)}
 		}
 		if err == nil {
 			err = m.check(ctx, &d, goal)
@@ -275,7 +290,12 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
 		task, err := m.Create(ctx, goal, inv.SessionKey, origin)
 		var cannot errCannot
+		var question errQuestion
 		switch {
+		case errors.As(err, &question):
+			m.log.Info("task needs a measure", "goal", goal, "question", question.question)
+			n.DedupeKey = "task-plan:" + n.ID
+			n.Spoken = question.question
 		case errors.As(err, &cannot):
 			m.log.Info("task cannot be done here", "goal", goal, "reason", cannot.reason)
 			n.DedupeKey = "task-plan:" + n.ID
@@ -300,14 +320,97 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 // exactly them.
 func (m *Manager) proposalText(task store.Task) string {
 	t := m.texts()
-	summary := task.Summary
+	parts := []string{strings.TrimSpace(task.Summary)}
 	var automation map[string]any
 	if json.Unmarshal([]byte(task.Plan), &automation) == nil {
 		if other := otherActions(automation["actions"]); len(other) > 0 {
-			summary = strings.TrimSpace(summary) + " " + fmt.Sprintf(t.alsoSwitches, strings.Join(other, ", "))
+			parts = append(parts, fmt.Sprintf(t.alsoSwitches, strings.Join(other, ", ")))
+		}
+		// Whether a fixed condition holds is said by the code, from the
+		// automation: a summary must not suggest one that is not there.
+		conds := m.describeConditions(automation["conditions"])
+		judges := len(miraCalls(automation["actions"])) > 0
+		switch {
+		case len(conds) > 0:
+			parts = append(parts, fmt.Sprintf(t.conditionsAre, strings.Join(conds, "; ")))
+		case judges:
+			parts = append(parts, t.judgesItself)
+		default:
+			parts = append(parts, t.noCondition)
 		}
 	}
-	return fmt.Sprintf(t.proposal, task.Title, summary)
+	return fmt.Sprintf(t.proposal, task.Title, strings.Join(parts, " "))
+}
+
+// describeConditions renders an automation's conditions short enough to
+// say: "zwischen 00:00 und 06:00 Uhr", "sensor.x über 30".
+func (m *Manager) describeConditions(conditions any) []string {
+	t := m.texts()
+	list, _ := conditions.([]any)
+	var out []string
+	for _, c := range list {
+		cm, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		str := func(k string) string {
+			switch v := cm[k].(type) {
+			case string:
+				return v
+			case []any:
+				parts := make([]string, len(v))
+				for i, x := range v {
+					parts[i] = fmt.Sprint(x)
+				}
+				return strings.Join(parts, ", ")
+			case nil:
+				return ""
+			default:
+				return fmt.Sprint(v)
+			}
+		}
+		clock := func(k string) string { // "06:00:00" -> "06:00"
+			v := str(k)
+			if len(v) == 8 && strings.Count(v, ":") == 2 {
+				return v[:5]
+			}
+			return v
+		}
+		var d string
+		switch kind := str("condition"); kind {
+		case "time":
+			after, before := clock("after"), clock("before")
+			switch {
+			case after != "" && before != "":
+				d = fmt.Sprintf(t.condBetween, after, before)
+			case after != "":
+				d = fmt.Sprintf(t.condAfter, after)
+			case before != "":
+				d = fmt.Sprintf(t.condBefore, before)
+			}
+			if wd := str("weekday"); wd != "" {
+				d = strings.TrimSpace(d + " (" + wd + ")")
+			}
+		case "state":
+			d = str("entity_id") + " = " + str("state")
+		case "numeric_state":
+			d = str("entity_id")
+			if v := str("above"); v != "" {
+				d += " " + fmt.Sprintf(t.condAbove, v)
+			}
+			if v := str("below"); v != "" {
+				d += " " + fmt.Sprintf(t.condBelow, v)
+			}
+		case "template":
+			d = t.condTemplate
+		default:
+			d = kind
+		}
+		if d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // origin is where a turn happens: the satellite's area for voice (a reply

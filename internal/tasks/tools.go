@@ -61,6 +61,10 @@ func (m *Manager) Tools() []tools.InternalTool {
 				}
 				origin, _ := m.origin(ctx, inv)
 				task, err := m.Create(ctx, a.Goal, inv.SessionKey, origin)
+				var question errQuestion
+				if errors.As(err, &question) {
+					return question.question, nil
+				}
 				if err != nil {
 					return "", err
 				}

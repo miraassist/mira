@@ -38,6 +38,7 @@ ADD_NOTICE_SCHEMA = vol.Schema(
         vol.Optional("confidentiality"): vol.In(["normal", "confidential"]),
         vol.Optional("dedupe_key"): cv.string,
         vol.Optional("expires_in"): cv.string,
+        vol.Optional("task"): cv.string,
     }
 )
 

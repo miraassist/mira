@@ -88,6 +88,10 @@
         "expires_in": {
           "name": "Expires in",
           "description": "Duration like 12h; afterwards the notice is dropped. Default 24h."
+        },
+        "task": {
+          "name": "Task",
+          "description": "The automation's id ({{ this.attributes.id }}): the notice shows in the task's log."
         }
       }
     },

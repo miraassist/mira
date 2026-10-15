@@ -347,3 +347,45 @@ func TestProposalNamesWhatItSwitches(t *testing.T) {
 		t.Errorf("draft prompt lacks the forbidden list")
 	}
 }
+
+func TestVagueGoalAsksBack(t *testing.T) {
+	e := setup(t)
+	e.model.answers = []string{`{"question":"Was ist für dich eine ungewöhnliche Zeit, etwa zwischen Mitternacht und 6 Uhr?"}`}
+	inv := tools.Invocation{Args: json.RawMessage(`{"goal":"Sag Bescheid, wenn das Licht zu einer ungewöhnlichen Zeit angeht."}`),
+		SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+	out, err := e.m.Tools()[0].Run(context.Background(), inv)
+	if err != nil || !strings.Contains(out, "ungewöhnliche Zeit") {
+		t.Fatalf("no question back: %q %v", out, err)
+	}
+	if list, _ := e.st.Tasks(context.Background()); len(list) != 0 {
+		t.Error("a vague goal became a proposal")
+	}
+}
+
+func TestDraftSeesMemoryAndProposalTellsTheCondition(t *testing.T) {
+	e := setup(t)
+	e.st.SaveFact(context.Background(), store.Fact{ID: "f1", Text: "Ungewöhnlich ist Licht im Schlafzimmer zwischen 0 und 6 Uhr."})
+	e.model.answers = []string{`{"title":"Licht nachts","summary":"Ich melde mich, wenn nachts das Licht angeht.","automation":{
+"triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
+"conditions":[{"condition":"time","after":"00:00:00","before":"06:00:00"}],
+"actions":[{"action":"mira.add_notice","data":{"text":"Licht an.","importance":1}}]}}`}
+	task, err := e.m.Create(context.Background(), "Sag Bescheid, wenn das Licht zu einer ungewöhnlichen Zeit angeht.", "s", "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(e.model.instructions[0], "zwischen 0 und 6 Uhr") {
+		t.Error("the planner did not see the memory")
+	}
+	if text := e.m.proposalText(task); !strings.Contains(text, "Bedingung: nur zwischen 00:00 und 06:00 Uhr.") {
+		t.Errorf("proposal: %s", text)
+	}
+
+	// Without a condition and with a judgement, the proposal says Mira decides.
+	e.model.answers = []string{`{"title":"Licht","summary":"Ich achte auf ungewöhnliche Zeiten.","automation":{
+"triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
+"actions":[{"action":"mira.assess","data":{"goal":"g","observation":"o"}}]}}`}
+	task, _ = e.m.Create(context.Background(), "g", "s", "s")
+	if text := e.m.proposalText(task); !strings.Contains(text, "entscheide ich jedes Mal selbst") {
+		t.Errorf("proposal hides that Mira judges: %s", text)
+	}
+}

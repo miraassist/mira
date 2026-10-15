@@ -145,3 +145,21 @@ func TestNoticeAudienceAndConfidentiality(t *testing.T) {
 		t.Errorf("unknown confidentiality = %d", code)
 	}
 }
+
+// A fixed notice from one of Mira's tasks counts as the task's and shows in
+// its log.
+func TestTaskNoticeIsLogged(t *testing.T) {
+	srv, _, st := setup(t)
+	code, r := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"Um 21:28 ging das Licht an.","importance":1,"task":"mira_licht"}`)
+	if code != 201 {
+		t.Fatalf("notice: %d %v", code, r)
+	}
+	n, _ := st.GetNotice(context.Background(), r["id"].(string))
+	if n.Source != store.SourceTask {
+		t.Errorf("source = %s", n.Source)
+	}
+	log, _ := st.Assessments(context.Background(), "mira_licht", 5)
+	if len(log) != 1 || log[0].Kind != store.AssessmentNotice || log[0].NoticeID != n.ID {
+		t.Errorf("log = %+v", log)
+	}
+}
