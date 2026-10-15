@@ -112,3 +112,35 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 		t.Errorf("chime before a proposal: %v", e.ha.calls[0].Data)
 	}
 }
+
+// The satellite turns idle while its speaker still plays the answer: the
+// announcement waits for the speaker, then a breath.
+func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
+	e := newEnv(t, nil)
+	e.n.idlePoll = 10 * time.Millisecond
+	e.n.speakPause = 50 * time.Millisecond
+	e.ha.set("media_player.kueche", "playing", nil)
+	done := make(chan time.Time, 1)
+	go func() {
+		e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+			Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche")
+		done <- time.Now()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	if len(e.ha.servicesCalled()) != 0 {
+		t.Fatal("announced while the speaker still played")
+	}
+	stopped := time.Now()
+	e.ha.set("media_player.kueche", "idle", nil)
+	select {
+	case at := <-done:
+		if at.Sub(stopped) < 50*time.Millisecond {
+			t.Error("no breath after the speaker stopped")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("not announced after the speaker stopped")
+	}
+	if len(e.ha.servicesCalled()) != 1 {
+		t.Errorf("services: %v", e.ha.servicesCalled())
+	}
+}

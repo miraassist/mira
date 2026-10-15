@@ -76,6 +76,9 @@ type Notifier struct {
 	// speakingStart is how long the satellite may take to start speaking.
 	speakingIn    map[string]bool
 	speakingStart time.Duration
+	// speakPause is the breath between the end of one utterance and an
+	// announcement that follows it.
+	speakPause time.Duration
 
 	// mu serialises decisions, so two motion events a second apart cannot
 	// both announce the same notices.
@@ -101,6 +104,7 @@ func New(opts Options) *Notifier {
 		idlePoll:      500 * time.Millisecond,
 		speakingIn:    map[string]bool{},
 		speakingStart: 15 * time.Second,
+		speakPause:    1500 * time.Millisecond,
 		lang:          i18n.Of(opts.Config.Prompt.Language),
 		cfg:           opts.Config.Notifier,
 		sats:          opts.Config.Satellites,

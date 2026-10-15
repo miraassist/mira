@@ -23,11 +23,13 @@ type fakeFinisher struct {
 	works  []store.Thread
 	asked  bool
 	async  bool
+	delay  time.Duration
 	commit string
 }
 
 func (f *fakeFinisher) Async() bool { return f.async }
 func (f *fakeFinisher) Work(_ context.Context, th store.Thread) (Result, error) {
+	time.Sleep(f.delay)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.works = append(f.works, th)
@@ -84,7 +86,8 @@ func setup(t *testing.T) *env {
 			e.sent <- n
 			return nil
 		},
-		Clock: func() time.Time { return e.now }})
+		InlineWait: 30 * time.Millisecond,
+		Clock:      func() time.Time { return e.now }})
 	return e
 }
 
@@ -110,8 +113,11 @@ func (e *env) next(t *testing.T) store.Notice {
 	return store.Notice{}
 }
 
+// Slow work: the turn says Mira comes back, and the result is announced as
+// a notice of the thread; replies to it continue the thread.
 func TestThreadOverSeveralTurns(t *testing.T) {
 	e := setup(t)
+	e.fin.delay = 200 * time.Millisecond
 	ctx := context.Background()
 
 	// Turn 1: the wish; one field is clear, the check resolves it.
@@ -224,5 +230,29 @@ func TestCancelAndRemember(t *testing.T) {
 func TestTextsComplete(t *testing.T) {
 	if missing := i18n.Missing(catalog); len(missing) > 0 {
 		t.Errorf("texts missing: %v", missing)
+	}
+}
+
+// Fast work: the result is said in the same turn, nothing is announced.
+func TestFastWorkAnswersInTheTurn(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	e.m.Start(ctx, inv, "aufgabe", "Achte auf das Licht")
+	out, _ := e.m.Fill(ctx, inv, map[string]string{"watch": "licht", "measure": "- nichts Relatives"})
+	if out != "Frag den Nutzer: Ab wann ist es ungewöhnlich?" {
+		t.Fatalf("not in the turn: %q", out)
+	}
+	out, _ = e.m.Fill(ctx, inv, map[string]string{"measure": "0 bis 6 Uhr"})
+	if !strings.Contains(out, "Soll ich?") {
+		t.Fatalf("proposal not in the turn: %q", out)
+	}
+	select {
+	case n := <-e.sent:
+		t.Errorf("announced although answered in the turn: %+v", n)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if out, err := e.m.Confirm(ctx, inv); err != nil || out != "Angelegt." {
+		t.Errorf("confirm: %q %v", out, err)
 	}
 }

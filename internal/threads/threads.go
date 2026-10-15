@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -67,8 +68,12 @@ type Options struct {
 	// like a reminder: spoken in the area, otherwise privately.
 	Deliver func(ctx context.Context, n store.Notice, areaID string) error
 	Persons func() map[string]config.Person
-	Clock   func() time.Time
-	Logger  *slog.Logger
+	// InlineWait is how long a turn waits for background work before it
+	// says "I'll come back to you"; default 5s, within Home Assistant's
+	// 15 seconds for a voice turn.
+	InlineWait time.Duration
+	Clock      func() time.Time
+	Logger     *slog.Logger
 }
 
 type Manager struct {
@@ -83,6 +88,9 @@ func New(opts Options) *Manager {
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
+	}
+	if opts.InlineWait == 0 {
+		opts.InlineWait = 5 * time.Second
 	}
 	m := &Manager{opts: opts, log: opts.Logger.With("component", "threads"), targets: map[string]skills.Skill{}}
 	for _, sk := range opts.Targets {
@@ -238,6 +246,15 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 	if err := m.save(ctx, &th); err != nil {
 		return "", err
 	}
+	// The work runs in the background, but the turn waits a moment for
+	// it: a result that is there in time is said in this very answer, not
+	// announced after an "I'll come back to you" (a fast model drafts in
+	// about a second). Only a slow result is announced later.
+	var (
+		mu        sync.Mutex
+		abandoned bool
+		inTime    = make(chan Result, 1)
+	)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		defer cancel()
@@ -246,12 +263,33 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 			m.log.Error("thread work failed", "thread", th.ID, "error", err)
 			res = Result{Cancel: fmt.Sprintf(t.workFailed, th.Request)}
 		}
+		mu.Lock()
+		defer mu.Unlock()
+		if !abandoned {
+			inTime <- res
+			return
+		}
 		// The user may have cancelled meanwhile.
 		if cur, err := m.opts.Store.GetThread(ctx, th.ID); err != nil || cur.State != store.ThreadWorking {
 			return
 		}
 		m.apply(ctx, th, res, true)
 	}()
+	timer := time.NewTimer(m.opts.InlineWait)
+	defer timer.Stop()
+	select {
+	case res := <-inTime:
+		return m.apply(ctx, th, res, false), nil
+	case <-timer.C:
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	select {
+	case res := <-inTime: // arrived just now
+		return m.apply(ctx, th, res, false), nil
+	default:
+		abandoned = true
+	}
 	return t.working, nil
 }
 

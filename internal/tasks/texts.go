@@ -91,7 +91,7 @@ Ist die Aufgabe unklar, weil ein Maßstab fehlt („ungewöhnlich“, „zu viel
 
 Sonst antworte nur mit einem JSON-Objekt:
 {"title": ein bis drei Wörter,
- "summary": ein bis zwei Sätze an den Nutzer in der Du-Form, was du beobachtest und wann du dich meldest,
+ "summary": ein Satz an den Nutzer in der Du-Form: was du beobachtest und dass du Bescheid sagst, z. B. "Wenn die Nachttischlampe angeht, sage ich dir Bescheid." Nenne darin keine Bedingung, Uhrzeit oder Grenzwerte: die sagt Mira selbst dazu.,
  "automation": {"alias": ..., "description": das Ziel, "triggers": [...], "conditions": [...], "actions": [...], "mode": "single"}}`
 
 const draftRulesEN = `
@@ -124,7 +124,7 @@ If the task is unclear because a measure is missing ("unusual", "too much", "lat
 
 Otherwise answer only with a JSON object:
 {"title": one to three words,
- "summary": one or two sentences to the user about what you watch and when you speak up,
+ "summary": one sentence to the user: what you watch and that you tell them, e.g. "When the bedside lamp goes on, I'll tell you." Name no condition, time or limit in it: Mira adds that herself.,
  "automation": {"alias": ..., "description": the goal, "triggers": [...], "conditions": [...], "actions": [...], "mode": "single"}}`
 
 var catalog = map[i18n.Lang]texts{

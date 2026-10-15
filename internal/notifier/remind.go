@@ -97,19 +97,75 @@ func (n *Notifier) DueReminders(ctx context.Context) {
 // idleWait bounds how long a message waits for a busy satellite.
 const idleWait = time.Minute
 
-// waitIdle waits until the area's satellite is idle: a message that arrives
-// while it still speaks the answer that asked for it would cut that answer
-// off, and the announcement would time out on the busy satellite. After
-// idleWait it gives up waiting and delivers anyway.
+// waitIdle waits until the area's satellite has finished speaking: the
+// satellite idle and the speakers of its device no longer playing (the
+// satellite turns idle while the audio still plays), then a short pause.
+// A message that arrives while it still speaks the answer that asked for
+// it would cut that answer off or follow it without a breath, and the
+// announcement would time out on the busy satellite. After idleWait it
+// gives up waiting and delivers anyway.
 func (n *Notifier) waitIdle(ctx context.Context, areaID string) {
 	sat := n.sats[areaID]
 	if !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}
-	if !n.waitFor(ctx, sat, idleWait, func(state string) bool {
-		return state == "idle" || state == "unavailable" || state == "unknown"
-	}) {
+	idle := func(state string) bool { return state == "idle" || state == "unavailable" || state == "unknown" }
+	if !n.waitFor(ctx, sat, idleWait, idle) {
 		n.log.Warn("satellite still busy, delivering anyway", "satellite", sat)
+		return
+	}
+	for _, speaker := range n.speakers(ctx, sat) {
+		n.waitWhile(ctx, speaker, idleWait, func(state string) bool { return state == "playing" || state == "buffering" })
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(n.speakPause):
+	}
+}
+
+// speakers are the media players of the satellite's device: where its
+// voice actually plays.
+func (n *Notifier) speakers(ctx context.Context, sat string) []string {
+	device := n.deviceID(ctx, sat)
+	if device == "" {
+		return nil
+	}
+	entities, err := n.ha.Entities(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entities {
+		if e.DeviceID == device && strings.HasPrefix(e.EntityID, "media_player.") {
+			out = append(out, e.EntityID)
+		}
+	}
+	return out
+}
+
+// waitWhile polls an entity while busy says so, for at most limit. An
+// entity without a state is not busy.
+func (n *Notifier) waitWhile(ctx context.Context, entity string, limit time.Duration, busy func(state string) bool) {
+	deadline := time.Now().Add(limit)
+	for {
+		states, err := n.ha.States(ctx)
+		if err != nil {
+			return
+		}
+		waiting := false
+		for _, s := range states {
+			if s.EntityID == entity && busy(s.State) {
+				waiting = true
+			}
+		}
+		if !waiting || time.Now().After(deadline) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(n.idlePoll):
+		}
 	}
 }
 

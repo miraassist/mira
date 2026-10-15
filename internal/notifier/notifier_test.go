@@ -51,6 +51,7 @@ func (f *fakeHA) Entities(context.Context) ([]haws.Entity, error) {
 	return []haws.Entity{
 		{EntityID: "assist_satellite.bad", DeviceID: "dev-bad"},
 		{EntityID: "assist_satellite.kueche", DeviceID: "dev-kueche"},
+		{EntityID: "media_player.kueche", DeviceID: "dev-kueche"},
 	}, nil
 }
 
@@ -131,6 +132,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	t.Cleanup(func() { e.st.Close() })
 	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Telegram: e.tg, Clock: func() time.Time { return e.now },
 		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	e.n.speakPause = 0
 	return e
 }
 
