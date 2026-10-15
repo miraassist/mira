@@ -145,7 +145,12 @@ func (s *Set) events(ctx context.Context, t texts, url string, days int, match s
 	}
 	now := s.clock().In(s.loc())
 	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.loc())
-	events, err := ical.Parse(data, s.loc(), from, from.AddDate(0, 0, days))
+	// Read further than asked: when the window holds fewer than
+	// minEvents matches, the next ones follow. A model asking for 14 days
+	// about a fortnightly bin otherwise sees only today and makes up the
+	// date after.
+	windowEnd := from.AddDate(0, 0, days)
+	events, err := ical.Parse(data, s.loc(), from, from.AddDate(0, 0, max(days, lookAheadDays)))
 	if err != nil {
 		return "", err
 	}
@@ -162,6 +167,9 @@ func (s *Set) events(ctx context.Context, t texts, url string, days int, match s
 		if len(words) > 0 && !containsAny(strings.ToLower(e.Summary), words) {
 			continue
 		}
+		if !e.Start.Before(windowEnd) && n >= minEvents {
+			break
+		}
 		start := e.Start.In(s.loc())
 		when := i18n.FormatDate(s.Lang, start)
 		if !e.AllDay {
@@ -177,10 +185,15 @@ func (s *Set) events(ctx context.Context, t texts, url string, days int, match s
 		n++
 	}
 	if n == 0 {
-		fmt.Fprintf(&b, "\n"+t.calNone, days)
+		fmt.Fprintf(&b, "\n"+t.calNone, max(days, lookAheadDays))
 	}
 	return b.String(), nil
 }
+
+const (
+	minEvents     = 2
+	lookAheadDays = 90
+)
 
 func containsAny(s string, words []string) bool {
 	for _, w := range words {

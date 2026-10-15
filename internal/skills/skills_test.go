@@ -127,6 +127,12 @@ func TestTools(t *testing.T) {
 	if !strings.Contains(out, "Samstag, 24. Oktober 2026, 09:00 Uhr: Mobile Schadstoffsammlung") {
 		t.Errorf("timed event:\n%s", out)
 	}
+	// A short window still shows the next matches: here the window of one
+	// day is empty, the following two come anyway.
+	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","days":1,"match":"wertstoff, schadstoff"}`)})
+	if !strings.Contains(out, "Wertstoff") || !strings.Contains(out, "Schadstoff") {
+		t.Errorf("no look-ahead:\n%s", out)
+	}
 	if _, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"nope"}`)}); err == nil {
 		t.Error("unknown calendar accepted")
 	}
