@@ -143,6 +143,24 @@ CREATE INDEX idx_confirmations_session ON confirmations(session_key, created_at 
 ALTER TABLE notices ADD COLUMN confidentiality TEXT NOT NULL DEFAULT 'normal';
 `,
 	},
+	{
+		name: "0007_reminders",
+		stmt: `
+CREATE TABLE reminders (
+	id          TEXT PRIMARY KEY,
+	due_at      TEXT NOT NULL,
+	text        TEXT NOT NULL,
+	audience    TEXT NOT NULL DEFAULT 'household',
+	area_id     TEXT NOT NULL DEFAULT '',
+	session_key TEXT NOT NULL DEFAULT '',
+	state       TEXT NOT NULL DEFAULT 'pending',
+	attempts    INTEGER NOT NULL DEFAULT 0,
+	created_at  TEXT NOT NULL,
+	updated_at  TEXT NOT NULL
+);
+CREATE INDEX reminders_due ON reminders(state, due_at);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

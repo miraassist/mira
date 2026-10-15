@@ -21,6 +21,7 @@ const (
 	SourceHATrigger = "ha_trigger"
 	SourceSchedule  = "schedule"
 	SourceExternal  = "external"
+	SourceReminder  = "reminder"
 )
 
 // AudienceHousehold means anyone present may hear the notice.

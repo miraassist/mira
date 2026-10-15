@@ -181,7 +181,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if cfg.Routing.Delegate != "" {
 		delegate = func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
 	}
-	registry := tools.NewRegistry(a.mcp, tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender, delegate)...)
+	internal := tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender, delegate)
+	internal = append(internal, tools.Reminders(tools.ReminderOptions{
+		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store,
+		Persons: func() map[string]config.Person {
+			if p := a.liveConfig().Persons; p != nil {
+				return p
+			}
+			return a.cfg.Persons // the chat command has no live config
+		},
+	})...)
+	registry := tools.NewRegistry(a.mcp, internal...)
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
 		models[name] = c
@@ -605,7 +615,12 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	api := haconv.New(haconv.Options{
 		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
-		Persons: func() map[string]config.Person { return a.liveConfig().Persons },
+		Persons: func() map[string]config.Person {
+			if p := a.liveConfig().Persons; p != nil {
+				return p
+			}
+			return a.cfg.Persons // the chat command has no live config
+		},
 	})
 	var compact func(context.Context) (bool, error)
 	if cfg.Memory.ProfileSchedule != "" {
