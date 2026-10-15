@@ -119,6 +119,7 @@ td, th { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--line
 tr:last-child td { border-bottom: 0; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 pre { white-space: pre-wrap; margin: 0; font: inherit; }
+p.empty { margin: 4px 0 0; font-size: 15px; }
 details.profile { margin: 0 0 10px; }
 details.profile > summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; }
 details.profile pre { background: var(--badge); padding: 10px 12px; border-radius: 10px; margin-top: 8px; }
@@ -290,10 +291,13 @@ const I18N = {
   "memory_house_hint": "Gemeinsam für alle; auch am Satelliten ohne bekannte Person.",
   "memory_person_hint": "Nur für diese Person: per Telegram, in der HA-App oder am Satelliten, wenn sie allein zu Hause ist und das eingeschaltet hat.",
   "edited": "geändert",
+  "empty_house": "Fürs Haus hab ich mir noch nichts gemerkt.",
+  "empty_house_how": "Sag mir einfach, was alle wissen sollen, z. B. „Merk dir, dass der Schornsteinfeger im März kommt.“ Am Satelliten landet das hier; per Telegram oder in der HA-App sag dazu „fürs Haus“.",
+  "empty_person": "Für {name} hab ich mir noch nichts gemerkt.",
+  "empty_person_how": "{name} kann mir das per Telegram oder im Chat der HA-App sagen, z. B. „Merk dir, dass ich keinen Koriander mag.“ Am Satelliten geht es, wenn {name} allein zu Hause ist und „Allein = ich“ eingeschaltet hat.",
   "alone_is_me": "Allein = ich",
   "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Meldungen.",
   "compact_now": "Jetzt verdichten",
-  "no_facts": "Keine Fakten.",
   "forget": "Vergessen",
   "fact_edit": "Bearbeiten",
   "forget_confirm": "Diesen Fakt vergessen?",
@@ -468,10 +472,13 @@ const I18N = {
   "memory_house_hint": "Shared by everyone; also at a satellite when nobody is known.",
   "memory_person_hint": "Only for this person: on Telegram, in the HA app, or at a satellite when they are alone at home and switched that on.",
   "edited": "edited",
+  "empty_house": "I haven't remembered anything for the house yet.",
+  "empty_house_how": "Just tell me what everyone should know, e.g. \"Remember that the chimney sweep comes in March.\" At a satellite it lands here; on Telegram or in the HA app add \"for the house\".",
+  "empty_person": "I haven't remembered anything for {name} yet.",
+  "empty_person_how": "{name} can tell me on Telegram or in the HA app's chat, e.g. \"Remember that I don't like coriander.\" At a satellite it works when {name} is alone at home and switched on \"Alone = me\".",
   "alone_is_me": "Alone = me",
   "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private notices.",
   "compact_now": "Compact now",
-  "no_facts": "No facts.",
   "forget": "Forget",
   "fact_edit": "Edit",
   "forget_confirm": "Forget this fact?",
@@ -847,15 +854,17 @@ async function memory() {
     $("#memories").innerHTML = r.memories.map(m => {
       const house = m.owner === "house";
       const title = house ? T.memory_house : T.memory_of.replace("{name}", m.owner);
-      const facts = m.facts.length === 0 ? `<p class="hint">${T.no_facts}</p>` : `
+      const name = esc(m.owner);
+      const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : T.empty_person.replaceAll("{name}", name)}</p>
+        <p class="hint">${house ? T.empty_house_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
         <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
           <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
           <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
           <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
       return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
-        <p class="hint">${house ? T.memory_house_hint : T.memory_person_hint}</p>
-        <details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
-          ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>
+        ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : T.memory_person_hint}</p>` : ""}
+        ${m.facts.length || m.profile ? `<details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
+          ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
         ${facts}</section>`;
     }).join("") + `<section class="card"><p class="hint">${T.profile_hint}</p>
       ${r.can_compact ? `<div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>` : ""}</section>`;
