@@ -496,8 +496,15 @@ func (n *Notifier) deliver(ctx context.Context, sat, text string) (string, error
 	case "start_conversation":
 		// The satellite listens afterwards; the reply comes back through the
 		// integration and finds the notices through the announcement record.
-		return method, n.ha.CallService(ctx, "assist_satellite", "start_conversation",
+		err := n.ha.CallService(ctx, "assist_satellite", "start_conversation",
 			map[string]any{"start_message": text, "preannounce": true}, target)
+		// The call returns only once the satellite has stopped listening,
+		// after the reply: a timeout means it spoke and is still listening.
+		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			n.log.Info("start_conversation still listening, counted as spoken", "satellite", sat)
+			return method, nil
+		}
+		return method, err
 	default:
 		return "announce", n.ha.CallService(ctx, "assist_satellite", "announce",
 			map[string]any{"message": text, "preannounce": true}, target)

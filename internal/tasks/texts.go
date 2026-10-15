@@ -19,7 +19,7 @@ type texts struct {
 	noTask                             string
 	replan                             string
 	planning, proposal, planFailed     string
-	planSystem                         string
+	planSystem, noProposal             string
 }
 
 // PlanSystem is the system message for planning, which runs without the
@@ -71,7 +71,7 @@ Behaupte nur, was in der Beobachtung steht.`,
 		describe:    "Auftrag %s, %q (%s): %s",
 		createDesc:  "Legt einen dauerhaften Auftrag an, wenn der Nutzer möchte, dass du auf etwas achtest, z. B. \"Achte auf den Wasserverbrauch\", \"Sag Bescheid, wenn nachts ungewöhnlich viel Strom läuft\", \"Pass auf das Haus auf\". Du bekommst einen Plan zurück: sag ihn dem Nutzer kurz und frag, ob du so vorgehen sollst. Erst nach seinem Ja rufst du task_confirm auf. Wenn das Planen im Hintergrund läuft, kommt der Vorschlag später von selbst.",
 		createGoal:  "Der Auftrag in den Worten des Nutzers.",
-		confirmDesc: "Startet einen vorgeschlagenen Auftrag, ohne id den zuletzt vorgeschlagenen. Hast du gerade einen Auftrag vorgeschlagen (auch im zusätzlichen Kontext: \"Soll ich so vorgehen?\") und der Nutzer stimmt zu – ja, passt, mach das, starte ihn, auch wenn es undeutlich verstanden wurde –, dann rufe task_confirm auf, statt den Plan zu wiederholen. Danach nur kurz bestätigen.",
+		confirmDesc: "Startet den zuletzt hier vorgeschlagenen Auftrag. Hast du gerade einen Auftrag vorgeschlagen (auch im zusätzlichen Kontext: \"Soll ich so vorgehen?\") und der Nutzer stimmt zu – ja, passt, mach das, starte ihn, auch wenn es undeutlich verstanden wurde –, dann rufe task_confirm auf, statt den Plan zu wiederholen. Danach nur kurz bestätigen.",
 		listDesc:    "Listet die Aufträge mit ihren Plänen.",
 		deleteDesc:  "Löscht einen Auftrag anhand seiner id (aus task_list).",
 		proposed:    "Plan erstellt, noch nicht aktiv. Sag dem Nutzer kurz, was du beobachten würdest, und frag, ob du so vorgehen sollst.\n",
@@ -79,6 +79,7 @@ Behaupte nur, was in der Beobachtung steht.`,
 		deleted:     "Auftrag gelöscht.",
 		none:        "Keine Aufträge.",
 		noTask:      "keinen Auftrag mit dieser id",
+		noProposal:  "hier wartet kein vorgeschlagener Auftrag auf Bestätigung; frag den Nutzer, welchen er meint, oder lege ihn neu an",
 		replan:      "\n\nDein letzter Plan wurde abgelehnt: %s. Mach einen neuen, der die Regeln einhält.",
 		planning:    "Ich plane den Auftrag jetzt im Hintergrund; der Vorschlag kommt in etwa einer halben Minute von selbst. Sag dem Nutzer das in einem kurzen Satz.",
 		proposal:    "Mein Vorschlag für den Auftrag %s: %s Soll ich so vorgehen?",
@@ -112,7 +113,7 @@ Only claim what the observation says.`,
 		describe:    "Order %s, %q (%s): %s",
 		createDesc:  "Creates a standing order when the user wants you to watch something, e.g. \"Keep an eye on the water usage\", \"Tell me if a lot of power is used at night\", \"Watch the house\". You get a plan back: tell it to the user briefly and ask whether to go ahead. Only after their yes call task_confirm. If planning runs in the background, the proposal arrives later by itself.",
 		createGoal:  "The order in the user's words.",
-		confirmDesc: "Starts a proposed order; without an id, the most recently proposed one. If you just proposed an order (also in the additional context: \"Shall I go ahead?\") and the user agrees – yes, fine, do it, start it, even if it was heard unclearly – call task_confirm instead of repeating the plan. Afterwards confirm only briefly.",
+		confirmDesc: "Starts the order most recently proposed here. If you just proposed an order (also in the additional context: \"Shall I go ahead?\") and the user agrees – yes, fine, do it, start it, even if it was heard unclearly – call task_confirm instead of repeating the plan. Afterwards confirm only briefly.",
 		listDesc:    "Lists the orders with their plans.",
 		deleteDesc:  "Deletes an order by its id (from task_list).",
 		proposed:    "Plan made, not active yet. Tell the user briefly what you would watch and ask whether to go ahead.\n",
@@ -120,6 +121,7 @@ Only claim what the observation says.`,
 		deleted:     "Order deleted.",
 		none:        "No orders.",
 		noTask:      "no order with this id",
+		noProposal:  "no proposed order waits for confirmation here; ask the user which one they mean, or create it anew",
 		replan:      "\n\nYour last plan was refused: %s. Make a new one that keeps the rules.",
 		planning:    "I am planning the order in the background now; the proposal arrives by itself in about half a minute. Tell the user so in one short sentence.",
 		proposal:    "My proposal for the order %s: %s Shall I go ahead?",

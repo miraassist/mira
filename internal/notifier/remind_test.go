@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -83,5 +84,25 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 	}
 	if called := e.ha.servicesCalled(); len(called) != 1 {
 		t.Fatalf("services: %v", called)
+	}
+}
+
+// start_conversation returns only after the satellite stopped listening; a
+// timeout while it listens is not a failure and sends nothing privately.
+func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
+	e := newEnv(t, nil)
+	sat := e.n.sats["kueche"]
+	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
+	e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
+	err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Audience: "stefan", Spoken: "Mein Vorschlag."}, "kueche")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called := e.ha.servicesCalled(); len(called) != 1 || called[0] != "assist_satellite.start_conversation" {
+		t.Fatalf("services: %v", called)
+	}
+	if len(e.tg.sent) != 0 {
+		t.Errorf("sent privately as well: %v", e.tg.sent)
 	}
 }

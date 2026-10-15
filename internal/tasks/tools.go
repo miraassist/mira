@@ -23,15 +23,9 @@ const (
 func (m *Manager) Tools() []tools.InternalTool {
 	t := m.texts()
 	id := `{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`
-	// Confirming may come in a later conversation than the proposal, so
-	// without an id it starts the newest proposed task.
-	optionalID := `{"type":"object","properties":{"id":{"type":"string"}}}`
 	readID := func(raw json.RawMessage) (string, error) {
 		var a struct {
 			ID string `json:"id"`
-		}
-		if len(raw) == 0 {
-			return "", nil
 		}
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return "", err
@@ -62,7 +56,8 @@ func (m *Manager) Tools() []tools.InternalTool {
 					m.Propose(ctx, a.Goal, inv)
 					return t.planning, nil
 				}
-				task, _, err := m.Create(ctx, a.Goal, inv.SessionKey)
+				origin, _ := m.origin(ctx, inv)
+				task, _, err := m.Create(ctx, a.Goal, inv.SessionKey, origin)
 				if err != nil {
 					return "", err
 				}
@@ -70,15 +65,18 @@ func (m *Manager) Tools() []tools.InternalTool {
 			},
 		},
 		{
-			Name: ToolTaskConfirm, Description: t.confirmDesc, Schema: optionalID,
+			// No id: the model invents one. A yes confirms the newest
+			// proposal made where it is said; the reply to a spoken proposal
+			// comes in a new session.
+			Name: ToolTaskConfirm, Description: t.confirmDesc, Schema: `{"type":"object","properties":{}}`,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
-				tid, err := readID(inv.Args)
+				origin, _ := m.origin(ctx, inv)
+				task, err := m.ConfirmLatest(ctx, origin)
 				if err != nil {
+					if errors.Is(err, store.ErrNotFound) {
+						return "", errors.New(t.noProposal)
+					}
 					return "", err
-				}
-				task, err := m.Activate(ctx, tid)
-				if err != nil {
-					return "", notFound(err)
 				}
 				return t.activated + task.Title, nil
 			},

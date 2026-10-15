@@ -178,6 +178,10 @@ CREATE TABLE tasks (
 );
 `,
 	},
+	{
+		name: "0009_task_origin",
+		stmt: `ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

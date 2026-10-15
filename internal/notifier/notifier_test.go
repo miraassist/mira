@@ -26,13 +26,15 @@ type fakeHA struct {
 	mu     sync.Mutex
 	calls  []call
 	states map[string]haws.State
+	// callErr, when set, is what service calls return.
+	callErr error
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, call{domain, service, data, target})
-	return nil
+	return f.callErr
 }
 
 func (f *fakeHA) States(context.Context) ([]haws.State, error) {

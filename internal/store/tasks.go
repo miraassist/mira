@@ -25,6 +25,10 @@ type Task struct {
 	Plan       string
 	State      string
 	SessionKey string
+	// Origin is where the task was asked for: "area:<id>" for a voice
+	// satellite, else the session key (a Telegram chat). A yes in the same
+	// place confirms the newest proposal there.
+	Origin string
 	// LastAlert is when the task last raised a notice, per rule, as JSON.
 	LastAlert string
 	CreatedAt time.Time
@@ -39,16 +43,16 @@ func (s *Store) PutTask(ctx context.Context, t Task) error {
 	}
 	now := formatTime(s.now())
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO tasks(id, goal, title, summary, plan, state, session_key, last_alert, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO tasks(id, goal, title, summary, plan, state, session_key, origin, last_alert, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET goal = excluded.goal, title = excluded.title, summary = excluded.summary,
 	plan = excluded.plan, state = excluded.state, last_alert = excluded.last_alert, updated_at = excluded.updated_at`,
-		t.ID, t.Goal, t.Title, t.Summary, t.Plan, t.State, t.SessionKey, t.LastAlert, now, now)
+		t.ID, t.Goal, t.Title, t.Summary, t.Plan, t.State, t.SessionKey, t.Origin, t.LastAlert, now, now)
 	return err
 }
 
 func (s *Store) Tasks(ctx context.Context) ([]Task, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, goal, title, summary, plan, state, session_key, last_alert, created_at FROM tasks ORDER BY created_at, id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, goal, title, summary, plan, state, session_key, origin, last_alert, created_at FROM tasks ORDER BY created_at, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +61,7 @@ func (s *Store) Tasks(ctx context.Context) ([]Task, error) {
 	for rows.Next() {
 		var t Task
 		var created string
-		if err := rows.Scan(&t.ID, &t.Goal, &t.Title, &t.Summary, &t.Plan, &t.State, &t.SessionKey, &t.LastAlert, &created); err != nil {
+		if err := rows.Scan(&t.ID, &t.Goal, &t.Title, &t.Summary, &t.Plan, &t.State, &t.SessionKey, &t.Origin, &t.LastAlert, &created); err != nil {
 			return nil, err
 		}
 		t.CreatedAt = parseTime(created)

@@ -91,7 +91,7 @@ func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
 // Create plans a task for a goal and stores it as proposed. The plan is
 // checked against the house: entities must exist and suit their rule.
-func (m *Manager) Create(ctx context.Context, goal, sessionKey string) (store.Task, Plan, error) {
+func (m *Manager) Create(ctx context.Context, goal, sessionKey, origin string) (store.Task, Plan, error) {
 	states, err := m.opts.Source.States(ctx)
 	if err != nil {
 		return store.Task{}, Plan{}, err
@@ -122,7 +122,7 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey string) (store.Ta
 	}
 	planJSON, _ := json.Marshal(p)
 	t := store.Task{ID: strings.ToLower(ulid.Make().String()[:10]), Goal: strings.TrimSpace(goal), Title: p.Title,
-		Summary: p.Summary, Plan: string(planJSON), State: store.TaskProposed, SessionKey: sessionKey}
+		Summary: p.Summary, Plan: string(planJSON), State: store.TaskProposed, SessionKey: sessionKey, Origin: origin}
 	if err := m.opts.Store.PutTask(ctx, t); err != nil {
 		return store.Task{}, Plan{}, err
 	}
@@ -134,12 +134,7 @@ func (m *Manager) Create(ctx context.Context, goal, sessionKey string) (store.Ta
 // the failure, to whoever asked: spoken in the room for a voice turn, on
 // Telegram for a chat. ctx only carries values; planning outlives the turn.
 func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation) {
-	var area string
-	if inv.Channel == config.ChannelVoice {
-		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil {
-			area = sess.AreaID
-		}
-	}
+	origin, area := m.origin(ctx, inv)
 	var persons map[string]config.Person
 	if m.opts.Persons != nil {
 		persons = m.opts.Persons()
@@ -151,7 +146,7 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 		time.Sleep(m.opts.PlanDelay)
 		t := m.texts()
 		n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, Importance: 2, Audience: audience}
-		task, _, err := m.Create(ctx, goal, inv.SessionKey)
+		task, _, err := m.Create(ctx, goal, inv.SessionKey, origin)
 		if err != nil {
 			m.log.Error("could not plan a task", "goal", goal, "error", err)
 			n.DedupeKey = "task-plan:" + n.ID
@@ -167,24 +162,38 @@ func (m *Manager) Propose(ctx context.Context, goal string, inv tools.Invocation
 	}()
 }
 
-// Activate starts a proposed task; without an id, the newest proposed one.
-func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
-	if id == "" {
-		list, err := m.opts.Store.Tasks(ctx)
-		if err != nil {
-			return store.Task{}, err
+// origin is where a turn happens, for Task.Origin: the satellite's area
+// for voice (a reply to a proposal comes in a new session there), the
+// session key otherwise.
+func (m *Manager) origin(ctx context.Context, inv tools.Invocation) (origin, area string) {
+	if inv.Channel == config.ChannelVoice {
+		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil && sess.AreaID != "" {
+			return "area:" + sess.AreaID, sess.AreaID
 		}
-		var newest store.Task
-		for _, t := range list {
-			if t.State == store.TaskProposed && t.CreatedAt.After(newest.CreatedAt) {
-				newest = t
-			}
-		}
-		if newest.ID == "" {
-			return store.Task{}, store.ErrNotFound
-		}
-		id = newest.ID
 	}
+	return inv.SessionKey, ""
+}
+
+// ConfirmLatest starts the newest proposed task asked for at origin.
+func (m *Manager) ConfirmLatest(ctx context.Context, origin string) (store.Task, error) {
+	list, err := m.opts.Store.Tasks(ctx)
+	if err != nil {
+		return store.Task{}, err
+	}
+	var newest store.Task
+	for _, t := range list {
+		if t.State == store.TaskProposed && t.Origin == origin && !t.CreatedAt.Before(newest.CreatedAt) {
+			newest = t
+		}
+	}
+	if newest.ID == "" {
+		return store.Task{}, store.ErrNotFound
+	}
+	return m.Activate(ctx, newest.ID)
+}
+
+// Activate starts a proposed task.
+func (m *Manager) Activate(ctx context.Context, id string) (store.Task, error) {
 	t, err := m.opts.Store.GetTask(ctx, id)
 	if err != nil {
 		return store.Task{}, err

@@ -121,7 +121,7 @@ func TestCreateConfirmCheck(t *testing.T) {
 	model := &fakeModel{answers: []string{waterPlan}}
 	m, st, src := setup(t, &now, model)
 
-	task, _, err := m.Create(context.Background(), "Achte auf den Wasserverbrauch", "telegram:1")
+	task, _, err := m.Create(context.Background(), "Achte auf den Wasserverbrauch", "telegram:1", "telegram:1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestInvalidPlanIsRefused(t *testing.T) {
 	// Refused twice.
 	model := &fakeModel{answers: []string{`{"title":"x","summary":"y","rules":[{"entity_id":"sensor.ausgedacht","kind":"usage","when":"always","why":"z"}]}`}}
 	m, st, _ := setup(t, &now, model)
-	if _, _, err := m.Create(context.Background(), "Pass auf", "s"); err == nil || !strings.Contains(err.Error(), "unknown entity") {
+	if _, _, err := m.Create(context.Background(), "Pass auf", "s", "s"); err == nil || !strings.Contains(err.Error(), "unknown entity") {
 		t.Errorf("invented entity accepted: %v", err)
 	}
 	if list, _ := st.Tasks(context.Background()); len(list) != 0 {
@@ -228,7 +228,7 @@ func TestRepairAndReplan(t *testing.T) {
 		`{"title":"Strom","summary":"Ich achte auf den Zähler.","rules":[{"entity_id":"sensor.wasser","kind":"level","why":"z"}]}`,
 	}}
 	m, _, _ := setup(t, &now, model)
-	_, p, err := m.Create(context.Background(), "Pass auf", "s")
+	_, p, err := m.Create(context.Background(), "Pass auf", "s", "s")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,13 +262,21 @@ func TestProposeInBackground(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("no proposal delivered")
 	}
-	// "Starte den Auftrag" in a new conversation: no id.
-	task, err := m.Activate(context.Background(), "")
-	if err != nil || task.State != store.TaskActive {
-		t.Fatalf("activate newest: %+v %v", task, err)
+	// A yes from elsewhere does not start it; one from the same chat does,
+	// and only once.
+	confirm := m.Tools()[1]
+	if _, err := confirm.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{}`), SessionKey: "telegram:2", Channel: config.ChannelTelegram}); err == nil {
+		t.Error("confirmed from another chat")
 	}
-	if _, err := m.Activate(context.Background(), ""); err == nil {
-		t.Error("activated without a proposed task")
+	out, err = confirm.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"id":"ex3"}`), SessionKey: "telegram:1", Channel: config.ChannelTelegram})
+	if err != nil || !strings.Contains(out, "Wasser") {
+		t.Fatalf("confirm: %q %v", out, err)
+	}
+	if list, _ := st.Tasks(context.Background()); len(list) != 1 || list[0].State != store.TaskActive {
+		t.Errorf("tasks: %+v", list)
+	}
+	if _, err := confirm.Run(context.Background(), tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}); err == nil {
+		t.Error("confirmed twice")
 	}
 	_ = st
 }
