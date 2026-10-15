@@ -15,3 +15,5 @@ __pycache__/
 /testenv/.env
 /testenv/mira.db*
 !/testenv/mira.yaml
+# Local deploy helpers for this installation, not part of the project.
+/deploy/
