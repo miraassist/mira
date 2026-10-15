@@ -16,6 +16,7 @@ import (
 // audience. The reminder is kept as a delivered notice, so it shows in the
 // web UI and notices_list like any other.
 func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
+	n.waitIdle(ctx, r.AreaID)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -36,6 +37,7 @@ func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 // reminder it is spoken in the room it was asked in, otherwise it goes
 // privately to its audience.
 func (n *Notifier) Tell(ctx context.Context, nt store.Notice, areaID string) error {
+	n.waitIdle(ctx, areaID)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if nt.ExpiresAt.IsZero() {
@@ -87,5 +89,44 @@ func (n *Notifier) DueReminders(ctx context.Context) {
 			continue
 		}
 		n.log.Info("reminder delivered", "reminder", r.ID, "area", r.AreaID, "audience", r.Audience)
+	}
+}
+
+// idleWait bounds how long a message waits for a busy satellite.
+const idleWait = time.Minute
+
+// waitIdle waits until the area's satellite is idle: a message that arrives
+// while it still speaks the answer that asked for it would cut that answer
+// off, and the announcement would time out on the busy satellite. After
+// idleWait it gives up waiting and delivers anyway.
+func (n *Notifier) waitIdle(ctx context.Context, areaID string) {
+	sat := n.sats[areaID]
+	if !strings.HasPrefix(sat, "assist_satellite.") {
+		return
+	}
+	deadline := time.Now().Add(idleWait)
+	for {
+		states, err := n.ha.States(ctx)
+		if err != nil {
+			return
+		}
+		busy := false
+		for _, s := range states {
+			if s.EntityID == sat {
+				busy = s.State != "idle" && s.State != "unavailable" && s.State != "unknown"
+			}
+		}
+		if !busy {
+			return
+		}
+		if time.Now().After(deadline) {
+			n.log.Warn("satellite still busy, delivering anyway", "satellite", sat)
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(n.idlePoll):
+		}
 	}
 }

@@ -256,7 +256,7 @@ func TestProposeInBackground(t *testing.T) {
 	}
 	select {
 	case n := <-delivered:
-		if !strings.Contains(n.Spoken, "Wasser") || !strings.Contains(n.Spoken, "Starte den Auftrag") || n.Source != store.SourceTask {
+		if !strings.Contains(n.Spoken, "Wasser") || !strings.Contains(n.Spoken, "Soll ich so vorgehen?") || n.Source != store.SourceTask {
 			t.Errorf("proposal: %+v", n)
 		}
 	case <-time.After(5 * time.Second):

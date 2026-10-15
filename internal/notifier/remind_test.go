@@ -61,3 +61,27 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 		t.Errorf("telegram: %v", got)
 	}
 }
+
+// A proposal waits until the satellite has finished speaking the answer
+// that asked for it.
+func TestTellWaitsForIdleSatellite(t *testing.T) {
+	e := newEnv(t, nil)
+	e.n.idlePoll = 10 * time.Millisecond
+	sat := e.n.sats["kueche"]
+	e.ha.set(sat, "responding", nil)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		if len(e.ha.servicesCalled()) != 0 {
+			t.Error("spoke over the busy satellite")
+		}
+		e.ha.set(sat, "idle", nil)
+	}()
+	err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if called := e.ha.servicesCalled(); len(called) != 1 {
+		t.Fatalf("services: %v", called)
+	}
+}

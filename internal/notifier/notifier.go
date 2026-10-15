@@ -70,6 +70,9 @@ type Notifier struct {
 	tel         *telemetry.Provider
 	areas       map[string]bool
 
+	// idlePoll is how often waitIdle looks at a busy satellite.
+	idlePoll time.Duration
+
 	// mu serialises decisions, so two motion events a second apart cannot
 	// both announce the same notices.
 	mu sync.Mutex
@@ -91,6 +94,7 @@ func New(opts Options) *Notifier {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	n := &Notifier{
+		idlePoll:    time.Second,
 		lang:        i18n.Of(opts.Config.Prompt.Language),
 		cfg:         opts.Config.Notifier,
 		sats:        opts.Config.Satellites,
