@@ -47,6 +47,7 @@ type Config struct {
 	Notifier   Notifier          `yaml:"notifier"`
 	Security   Security          `yaml:"security"`
 	Memory     Memory            `yaml:"memory"`
+	Skills     Skills            `yaml:"skills"`
 	Telemetry  Telemetry         `yaml:"telemetry"`
 }
 
@@ -88,6 +89,15 @@ type LLM struct {
 	// ...). Cloud models that think by default are slower and dearer without
 	// it; llama.cpp and LM Studio do not need it.
 	ReasoningEffort string `yaml:"reasoning_effort"`
+}
+
+// Skills are folders with a SKILL.md (the Agent Skills format). Only the
+// skills under enabled are used, each with its settings.
+type Skills struct {
+	// Dirs are searched for skill folders, in order; the first match wins.
+	Dirs []string `yaml:"dirs"`
+	// Enabled maps a skill name to its settings, e.g. a calendar URL.
+	Enabled map[string]map[string]any `yaml:"enabled"`
 }
 
 // MainModel is the name of the model configured under llm.
@@ -416,6 +426,7 @@ func Default() Config {
 			MaxFactsInLayer: 8,
 			MaxProfileChars: 2000,
 		},
+		Skills:    Skills{Dirs: []string{"skills"}},
 		Telemetry: Telemetry{ServiceName: "mira", LogLevel: "info"},
 	}
 }

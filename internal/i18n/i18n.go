@@ -109,3 +109,13 @@ func Missing[T any](table map[Lang]T) []string {
 	}
 	return out
 }
+
+// FormatDate writes a day: "Donnerstag, 22. Oktober 2026" or
+// "Thursday, 22 October 2026".
+func FormatDate(l Lang, t time.Time) string {
+	wd, mo := Pick(weekdays, l)[t.Weekday()], Pick(months, l)[t.Month()-1]
+	if l == EN {
+		return fmt.Sprintf("%s, %d %s %d", wd, t.Day(), mo, t.Year())
+	}
+	return fmt.Sprintf("%s, %d. %s %d", wd, t.Day(), mo, t.Year())
+}

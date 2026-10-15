@@ -33,8 +33,26 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 		return "", errors.New("no delegate model configured")
 	}
 	ctx = context.WithValue(ctx, delegatingKey{}, true)
-	client, model, name := e.modelFor(name)
+	return e.toolLoop(ctx, name, e.texts().delegated, task, "delegate")
+}
 
+// RunTask runs a scheduled job of a skill: a background turn on the
+// background model that may call read-only tools and ends with a JSON
+// object, which it returns.
+func (e *Engine) RunTask(ctx context.Context, instruction string) (string, error) {
+	ctx = context.WithValue(ctx, delegatingKey{}, true) // no delegate from a job
+	text, err := e.toolLoop(ctx, e.cfg.RouteFor(config.ChannelBackground), e.texts().background, instruction, "task")
+	if err != nil {
+		return "", err
+	}
+	return ExtractJSON(text), nil
+}
+
+// toolLoop runs one stateless turn on a model: the background prefix (rules,
+// house, tools; changes are refused for the background channel), the text as
+// layer 7, tool rounds until the model answers.
+func (e *Engine) toolLoop(ctx context.Context, modelName, channelContext, text, label string) (string, error) {
+	client, model, name := e.modelFor(modelName)
 	prefix, err := e.Prefix(ctx, config.ChannelBackground)
 	if err != nil {
 		return "", err
@@ -42,17 +60,17 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 	turn := prompt.Turn{
 		Lang:           e.lang(),
 		Now:            e.clock().In(e.loc),
-		ChannelContext: e.texts().delegated,
-		Text:           task,
+		ChannelContext: channelContext,
+		Text:           text,
 	}
 	built := prompt.Build(prefix, nil, turn)
 	msgs := built.Messages
-	ts := &tools.TurnState{SessionKey: "delegate", Channel: config.ChannelBackground}
+	ts := &tools.TurnState{SessionKey: label, Channel: config.ChannelBackground}
 	var prompted, completed int
 	for round := 0; ; round++ {
 		req := modelRequest(model, msgs)
 		req.Tools = built.Tools
-		req.Channel = "delegate"
+		req.Channel = label
 		req.PrefixHash = built.PrefixHash
 		if round >= model.MaxToolRounds {
 			req.ToolChoice = "none"
@@ -67,10 +85,10 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 		msg.Role = llm.RoleAssistant
 		msg.Content = stripThinking(msg.Content)
 		if len(msg.ToolCalls) == 0 || round >= model.MaxToolRounds {
-			e.log.Info("delegated task done", "model", name, "rounds", round,
+			e.log.Info(label+" done", "model", name, "rounds", round,
 				"prompt_tokens", prompted, "completion_tokens", completed)
 			if strings.TrimSpace(msg.Content) == "" {
-				return "", errors.New("the delegate model gave no answer")
+				return "", errors.New("the model gave no answer")
 			}
 			return strings.TrimSpace(msg.Content), nil
 		}

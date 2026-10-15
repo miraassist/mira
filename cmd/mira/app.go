@@ -22,10 +22,12 @@ import (
 	"github.com/sker65/mira/internal/ha/structure"
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
+	"github.com/sker65/mira/internal/ical"
 	"github.com/sker65/mira/internal/llm"
 	"github.com/sker65/mira/internal/mcp"
 	"github.com/sker65/mira/internal/notifier"
 	"github.com/sker65/mira/internal/profile"
+	"github.com/sker65/mira/internal/skills"
 	"github.com/sker65/mira/internal/store"
 	"github.com/sker65/mira/internal/telemetry"
 	"github.com/sker65/mira/internal/tools"
@@ -42,6 +44,7 @@ type app struct {
 	llm   *llm.Client
 	// models are the further models by name (config.Models).
 	models    map[string]*llm.Client
+	skills    *skills.Set
 	ha        *haws.Client
 	structure *structure.Cache
 	assist    *assistprompt.Cache
@@ -191,6 +194,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return a.cfg.Persons // the chat command has no live config
 		},
 	})...)
+	loaded, err := skills.Load(cfg.Skills.Dirs, cfg.Skills.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	a.skills = &skills.Set{Lang: i18n.Of(cfg.Prompt.Language), Skills: loaded, Calendar: &ical.Cache{}}
+	internal = append(internal, a.skills.Tools()...)
+	for _, sk := range loaded {
+		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
+	}
 	registry := tools.NewRegistry(a.mcp, internal...)
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
@@ -328,6 +340,11 @@ func runAgent(parent context.Context, cfg config.Config) error {
 			}
 		}
 	})
+
+	if a.skills != nil && len(a.skills.Skills) > 0 {
+		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
+		a.goRun(ctx, "skills", runner.Run)
+	}
 
 	if cfg.Memory.ProfileSchedule != "" {
 		compactor := a.profileCompactor()
@@ -723,6 +740,38 @@ func runProfile(parent context.Context, cfg config.Config) error {
 		state = "updated"
 	}
 	fmt.Printf("\n[profile %s]\n", state)
+	return nil
+}
+
+// runSkill runs a skill's schedule now, as at its time, and prints the
+// notice it queued, if any.
+func runSkill(parent context.Context, cfg config.Config, name string, index int) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	a, err := build(ctx, cfg, buildOptions{})
+	if err != nil {
+		return err
+	}
+	defer a.close()
+	defer cancel()
+	sk, ok := a.skills.Get(name)
+	if !ok {
+		return fmt.Errorf("skill %s is not enabled (skills.enabled)", name)
+	}
+	runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
+	queued, err := runner.RunJob(ctx, sk, index)
+	if err != nil {
+		return err
+	}
+	if !queued {
+		fmt.Println("[nothing to report]")
+		return nil
+	}
+	list, err := a.store.ListNotices(ctx, store.NoticeFilter{States: []string{store.NoticePending}, Limit: 1})
+	if err != nil || len(list) == 0 {
+		return err
+	}
+	fmt.Printf("%s\n\n[notice queued, importance %d]\n", list[0].Spoken, list[0].Importance)
 	return nil
 }
 

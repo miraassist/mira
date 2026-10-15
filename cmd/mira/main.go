@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -38,7 +39,7 @@ func run() error {
 	session := flag.String("session", "cli", "chat: conversation id; reuse it to continue a conversation")
 	device := flag.String("device", "", "chat: satellite device id, for -channel voice")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile]\n\nflags:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile | skill NAME [N]]\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -68,6 +69,17 @@ func run() error {
 		return runCheck(ctx, cfg)
 	case "profile":
 		return runProfile(ctx, cfg)
+	case "skill":
+		if len(args) == 0 {
+			return errors.New("skill needs a name, e.g. mira skill abfall")
+		}
+		index := 0
+		if len(args) > 1 {
+			if index, err = strconv.Atoi(args[1]); err != nil {
+				return fmt.Errorf("schedule number: %w", err)
+			}
+		}
+		return runSkill(ctx, cfg, args[0], index)
 	default:
 		flag.Usage()
 		return fmt.Errorf("unknown command %q", cmd)

@@ -56,6 +56,21 @@ the conversation model gets a `delegate` tool that hands harder tasks
 answer. Only the local main model is warmed up; a cloud model is billed per
 token, and each turn logs its model and token counts.
 
+Reminders: "remind me tomorrow at seven" and timers are built in
+(`reminder_set`). At the time Mira speaks the reminder in the room it was
+asked in, or sends it privately.
+
+Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
+(frontmatter `name`, `description`; Mira's settings, calendars and schedules
+under `metadata.mira`). Enable them under `skills.enabled` with their
+settings. The prompt lists them in one line each; Mira opens a skill with
+`skill_open` when a question needs it. Skills run no code: they use the
+core's building blocks, such as `calendar_events`, which reads a skill's
+calendar by name so its URL never reaches a model. A skill's schedules run
+as background jobs and may queue one notice. `mira skill NAME` runs a
+schedule now. The first skill, `abfall`, reads a waste collection calendar
+and reminds the evening before.
+
 Languages: `prompt.language` is `de` or `en`. It sets the language of the
 prompt, of the notices and of everything Mira writes on her own; she still
 answers in the language she is spoken to in. The English prompt is written
