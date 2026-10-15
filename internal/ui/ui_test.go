@@ -50,7 +50,8 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	cfg := &fakeConfig{sections: map[string]json.RawMessage{"notifier": json.RawMessage(`{"cooldown":"30m0s"}`)}, over: map[string]bool{}}
 	h := New(Options{Token: "secret", Sections: []string{"notifier", "persons", "satellites"}, Config: cfg, Store: st,
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
-		CompactProfile: func(context.Context) (bool, error) { return true, nil }})
+		CompactProfile: func(context.Context) (bool, error) { return true, nil },
+		Persons:        func() []string { return []string{"anna"} }})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, cfg, st
@@ -131,6 +132,10 @@ func TestNoticesAndMemory(t *testing.T) {
 	}
 	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Stefan trinkt Kaffee.") {
 		t.Fatalf("memory: %d %s", code, body)
+	}
+	// Every person has a memory card, even an empty one.
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, `"owner":"anna","profile":"","facts":[]`) {
+		t.Errorf("anna's empty memory missing: %s", body)
 	}
 	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/f1", "secret", `{"text":"Stefan trinkt Tee."}`); code != 200 {
 		t.Fatalf("edit: %d", code)

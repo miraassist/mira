@@ -65,6 +65,9 @@ type Options struct {
 	Tasks Tasks
 	// Threads confirms or cancels tasks still being planned.
 	Threads Threads
+	// Persons lists the configured person keys; each gets a memory card, if
+	// empty.
+	Persons func() []string
 	// AreaName names a Home Assistant area, for facts told at a satellite.
 	AreaName func(id string) string
 	// Location is the time zone times are shown in.
@@ -333,6 +336,15 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	}
 	if !slices.Contains(owners, store.OwnerHouse) {
 		owners = append([]string{store.OwnerHouse}, owners...)
+	}
+	if h.opts.Persons != nil {
+		persons := h.opts.Persons()
+		slices.Sort(persons)
+		for _, p := range persons {
+			if !slices.Contains(owners, p) {
+				owners = append(owners, p)
+			}
+		}
 	}
 	type fact struct {
 		ID      string `json:"id"`
