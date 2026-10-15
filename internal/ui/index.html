@@ -54,6 +54,8 @@ button.danger { background: var(--panel); color: var(--warn); }
 .chip small { color: var(--muted); }
 .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+label.checkline input { width: auto; }
 details.item > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 details.item > summary::-webkit-details-marker { display: none; }
 details.item > summary::before { content: "▸"; color: var(--muted); }
@@ -103,7 +105,17 @@ const I18N = {
   "remove": "Entfernen",
   "entity_search": "Entity suchen und auswählen …",
   "not_entity": "„{id}“ ist keine Entity-ID.",
-  "notices_title": "Offene und zugestellte Meldungen",
+  "notices_title": "Meldungen",
+  "open_only": "nur offene",
+  "state_pending": "wartet",
+  "state_delivered": "zugestellt",
+  "state_acked": "erledigt",
+  "state_expired": "abgelaufen",
+  "source_ha_trigger": "Watcher",
+  "source_task": "Auftrag",
+  "source_reminder": "Erinnerung",
+  "source_schedule": "Zeitplan",
+  "source_external": "Automation",
   "loading": "Lädt …",
   "no_notices": "Keine offenen Meldungen.",
   "since": "Seit",
@@ -248,7 +260,17 @@ const I18N = {
   "remove": "Remove",
   "entity_search": "Search and pick an entity …",
   "not_entity": "“{id}” is not an entity ID.",
-  "notices_title": "Open and delivered notices",
+  "notices_title": "Notices",
+  "open_only": "open only",
+  "state_pending": "waiting",
+  "state_delivered": "delivered",
+  "state_acked": "done",
+  "state_expired": "expired",
+  "source_ha_trigger": "watcher",
+  "source_task": "order",
+  "source_reminder": "reminder",
+  "source_schedule": "schedule",
+  "source_external": "automation",
   "loading": "Loading …",
   "no_notices": "No open notices.",
   "since": "Since",
@@ -496,20 +518,24 @@ function pickEntity(input) {
 const picked = el => [...el.children].map(c => c.dataset.id);
 
 // ---- Meldungen ----------------------------------------------------------
+let openOnly = false;
 async function notices() {
   const view = $("#view");
-  view.innerHTML = `<section class="card"><h2>${T.notices_title}</h2><div id="list">${T.loading}</div></section>`;
+  view.innerHTML = `<section class="card"><h2>${T.notices_title}</h2>
+    <label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; notices()"> ${T.open_only}</label>
+    <div id="list">${T.loading}</div></section>`;
   try {
-    const items = await api("GET", "/v1/ui/notices");
+    let items = await api("GET", "/v1/ui/notices");
+    if (openOnly) items = items.filter(n => n.state === "pending" || n.state === "delivered");
     $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_notices}</p>` : `
       <table><tr><th>${T.since}</th><th>${T.importance}</th><th>${T.notice}</th><th>${T.status}</th><th></th></tr>
       ${items.map(n => `<tr>
-        <td>${esc(n.created_at)}</td>
+        <td>${esc(n.created_at)}<br><span class="hint">${esc(T["source_" + n.source] || n.source)}</span></td>
         <td>${T.importance_short[n.importance] || n.importance}</td>
         <td>${esc(n.spoken)}${n.confidentiality === "confidential" ? ' <span class="badge">' + T.confidential + '</span>' : ""}
             ${n.details ? `<p class="hint">${esc(n.details)}</p>` : ""}</td>
-        <td>${n.state === "pending" ? T.waiting : T.delivered + (n.delivered_via ? " (" + esc(n.delivered_via) + ")" : "")}</td>
-        <td><button class="secondary" onclick="ack('${esc(n.id)}')">${T.done}</button></td></tr>`).join("")}
+        <td><span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + n.state] || n.state}</span>${n.state === "delivered" && n.delivered_via ? `<br><span class="hint">${esc(n.delivered_via)}</span>` : ""}</td>
+        <td>${n.state === "pending" || n.state === "delivered" ? `<button class="secondary" onclick="ack('${esc(n.id)}')">${T.done}</button>` : ""}</td></tr>`).join("")}
       </table>`;
   } catch (e) { message(e.message, false); }
 }

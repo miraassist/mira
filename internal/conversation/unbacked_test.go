@@ -11,6 +11,9 @@ func TestUnbacked(t *testing.T) {
 		"Es ist einundzwanzig Uhr einundzwanzig.":           false,
 		"Mir geht es gut. Wie kann ich dir helfen?":         false,
 		"Welches Licht meinst du?":                          false,
+		// Seen live while a notice waited.
+		"Nein, ich habe keine Benachrichtigungen.": true,
+		"You have no new notifications.":           true,
 		// Seen live: "Ja" to a proposal, answered without task_confirm.
 		"Auftrag bestätigt. Ich überwache den Wasserverbrauch.": true,
 		// Seen live without any tool call; the sensors said otherwise.

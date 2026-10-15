@@ -22,7 +22,7 @@ var catalog = map[i18n.Lang]texts{
 Antworte nur mit einem JSON-Objekt:
 - importance: 0 = nicht erwähnenswert, 1 = nebenbei erwähnen, 2 = wichtig, sollte heute jemand ansehen, 3 = dringend, Gefahr oder Schaden droht.
   Beispiele: Waschmaschine fertig = 1. Wechselrichter- oder Heizungsstörung = 2. Wassermelder, Rauchmelder, offene Haustür nachts = 3.
-- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich und ruhig, den Nutzer mit "du" ansprechen, ohne Markdown, Messwerte als Ziffern mit deutschem Komma, ohne Begrüßung
+- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich und ruhig, den Nutzer mit "du" ansprechen, ohne Markdown, Messwerte als Ziffern mit deutschem Komma, ohne Begrüßung. Die Meldung wird vielleicht erst später vorgelesen, wenn sich der Zustand schon wieder geändert hat: nenne die Uhrzeit und sprich in der Vergangenheit, z. B. "Um 18:10 ging das Licht im Schlafzimmer an."
 - details: die Langfassung für Nachfragen, mit den konkreten Werten und dem Zeitpunkt
 - expires_in_hours: wie lange die Meldung relevant bleibt`,
 		feedIntro: "Neue Einträge aus dem Feed %q.",
@@ -49,7 +49,7 @@ Behaupte nur, was in den Einträgen steht. Eigenschaften, die dort nicht genannt
 Answer only with a JSON object:
 - importance: 0 = not worth mentioning, 1 = mention in passing, 2 = important, someone should look at it today, 3 = urgent, danger or damage is imminent.
   Examples: washing machine done = 1. Inverter or heating fault = 2. Water leak, smoke alarm, front door open at night = 3.
-- spoken: one or two short sentences to be read aloud, factual and calm, addressing the user as "you", no Markdown, readings as digits, no greeting
+- spoken: one or two short sentences to be read aloud, factual and calm, addressing the user as "you", no Markdown, readings as digits, no greeting. The notice may be read out later, when the state has changed again: give the time and use the past tense, e.g. "At 6:10 pm the bedroom light went on."
 - details: the long form for follow-up questions, with the concrete values and the time
 - expires_in_hours: how long the notice stays relevant`,
 		feedIntro: "New entries from the feed %q.",

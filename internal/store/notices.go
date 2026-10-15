@@ -168,7 +168,9 @@ type NoticeFilter struct {
 	Audience      string
 	// IncludeExpired keeps notices whose expires_at has passed.
 	IncludeExpired bool
-	Limit          int
+	// NewestFirst orders by creation, newest first, for a history view.
+	NewestFirst bool
+	Limit       int
 }
 
 // ListNotices returns matching notices, most important first and oldest first
@@ -190,7 +192,11 @@ func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, erro
 		q += ` AND (expires_at = '' OR expires_at > ?)`
 		args = append(args, formatTime(s.now()))
 	}
-	q += ` ORDER BY importance DESC, created_at`
+	if f.NewestFirst {
+		q += ` ORDER BY created_at DESC`
+	} else {
+		q += ` ORDER BY importance DESC, created_at`
+	}
 	if f.Limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, f.Limit)

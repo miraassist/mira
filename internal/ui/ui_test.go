@@ -123,6 +123,10 @@ func TestNoticesAndMemory(t *testing.T) {
 	if n, _ := st.GetNotice(ctx, "n1"); n.State != store.NoticeAcked {
 		t.Errorf("state = %s", n.State)
 	}
+	// Done notices stay in the history, with their state.
+	if _, body := call(t, srv, "GET", "/v1/ui/notices", "secret", ""); !strings.Contains(body, `"state":"acked"`) {
+		t.Errorf("acked notice left the list: %s", body)
+	}
 	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Stefan trinkt Kaffee.") {
 		t.Fatalf("memory: %d %s", code, body)
 	}

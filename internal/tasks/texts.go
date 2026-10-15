@@ -67,7 +67,7 @@ Antworte nur mit dem JSON-Objekt.`,
 		judge:         "Ein dauerhafter Auftrag des Nutzers: %q\nDein Plan dafür: %s\nDiese Regel gehört dazu, weil: %s\n\nBeobachtung: %s\n\n",
 		judgeRules: `Beurteile, ob das den Nutzer im Sinne seines Auftrags interessiert. Antworte nur mit einem JSON-Objekt:
 - importance: 0 = nicht melden (etwa erklärbar oder harmlos), 1 = nebenbei, 2 = wichtig, sollte heute jemand ansehen, 3 = dringend, Schaden droht (etwa Wasser läuft nachts ungewöhnlich lange)
-- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich, Du-Form, mit den konkreten Werten als Ziffern; leer bei 0
+- spoken: ein bis zwei kurze Sätze zum Vorlesen, sachlich, Du-Form, mit den konkreten Werten als Ziffern; leer bei 0. Die Meldung wird vielleicht erst später vorgelesen, wenn sich der Zustand schon wieder geändert hat: nenne die Uhrzeit aus der Beobachtung und sprich in der Vergangenheit, z. B. "Um 18:10 ging das Licht im Schlafzimmer an."
 - details: die Langfassung mit den Vergleichswerten
 Behaupte nur, was in der Beobachtung steht.`,
 		describe:    "Auftrag %s, %q (%s): %s",
@@ -111,7 +111,7 @@ Answer only with the JSON object.`,
 		judge:         "A standing order of the user: %q\nYour plan for it: %s\nThis rule belongs to it because: %s\n\nObservation: %s\n\n",
 		judgeRules: `Judge whether this interests the user in the sense of the order. Answer only with a JSON object:
 - importance: 0 = do not report (explainable or harmless), 1 = in passing, 2 = important, someone should look today, 3 = urgent, damage is imminent (e.g. water running unusually long at night)
-- spoken: one or two short sentences to be read aloud, factual, with the concrete values as digits; empty for 0
+- spoken: one or two short sentences to be read aloud, factual, with the concrete values as digits; empty for 0. The notice may be read out later, when the state has changed again: give the time from the observation and use the past tense, e.g. "At 6:10 pm the bedroom light went on."
 - details: the long form with the comparison values
 Only claim what the observation says.`,
 		describe:    "Order %s, %q (%s): %s",

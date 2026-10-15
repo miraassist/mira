@@ -19,6 +19,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sker65/mira/docs"
 	"github.com/sker65/mira/internal/store"
@@ -253,18 +254,23 @@ type noticeJSON struct {
 }
 
 func (h *Handler) notices(w http.ResponseWriter, r *http.Request) {
-	list, err := h.opts.Store.ListNotices(r.Context(), store.NoticeFilter{
-		States: []string{store.NoticePending, store.NoticeDelivered}, Limit: 50,
-	})
+	// The history: every state, newest first. A notice past its expiry
+	// that nobody heard shows as expired.
+	list, err := h.opts.Store.ListNotices(r.Context(), store.NoticeFilter{IncludeExpired: true, NewestFirst: true, Limit: 100})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	out := make([]noticeJSON, 0, len(list))
+	now := time.Now()
 	for _, n := range list {
-		out = append(out, noticeJSON{ID: n.ID, State: n.State, Importance: n.Importance, Audience: n.Audience,
+		state := n.State
+		if state == store.NoticePending && !n.ExpiresAt.IsZero() && n.ExpiresAt.Before(now) {
+			state = store.NoticeExpired
+		}
+		out = append(out, noticeJSON{ID: n.ID, State: state, Importance: n.Importance, Audience: n.Audience,
 			Confidentiality: n.Confidentiality, Spoken: n.Spoken, Details: n.Details, Source: n.Source,
-			CreatedAt: n.CreatedAt.Format("2006-01-02 15:04"), DeliveredVia: n.DeliveredVia})
+			CreatedAt: n.CreatedAt.In(time.Local).Format("2006-01-02 15:04"), DeliveredVia: n.DeliveredVia})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
