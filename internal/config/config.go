@@ -298,7 +298,32 @@ type Notifier struct {
 	// a media_player with TTSEntity.
 	Delivery  string `yaml:"delivery"`
 	TTSEntity string `yaml:"tts_entity"`
+	// RoomMode is per area "announce" (default: notices are spoken when
+	// someone comes in) or "indicate": notices are only shown on the area's
+	// indicator light, and the user asks for them ("Hast du eine
+	// Benachrichtigung?"). Urgent notices and reminders are spoken anyway.
+	RoomMode map[string]string `yaml:"room_mode"`
+	// Indicators maps an area to the light that shows waiting notices, such
+	// as the LED ring of a satellite.
+	Indicators map[string]string `yaml:"indicators"`
+	Indicator  IndicatorStyle    `yaml:"indicator"`
 }
+
+// IndicatorStyle is how an indicator light shows waiting notices.
+type IndicatorStyle struct {
+	RGBColor   []int  `yaml:"rgb_color"`
+	Effect     string `yaml:"effect"`
+	Brightness int    `yaml:"brightness"`
+}
+
+// Room modes.
+const (
+	RoomAnnounce = "announce"
+	RoomIndicate = "indicate"
+)
+
+// Indicates reports whether notices in an area are only shown, not spoken.
+func (n Notifier) Indicates(area string) bool { return n.RoomMode[area] == RoomIndicate }
 
 // Values of Notifier.ConfidentialVoice.
 const (
@@ -411,6 +436,8 @@ func Default() Config {
 			ConfidentialVoice:       ConfidentialVoiceNever,
 			PrivateVia:              []string{"telegram", "push"},
 			Delivery:                "auto",
+			// Teal from the logo, gently pulsing.
+			Indicator: IndicatorStyle{RGBColor: []int{32, 201, 176}, Effect: "Pulse", Brightness: 160},
 		},
 		Security: Security{
 			ConfirmDomains: []string{"lock", "alarm_control_panel"},
@@ -665,6 +692,22 @@ func (c Config) Validate() error {
 		if _, ok := c.Notifier.MorningTrigger.Presence[area]; !ok {
 			add("notifier.morning_trigger.areas: %q has no presence sensor", area)
 		}
+	}
+	for area, mode := range c.Notifier.RoomMode {
+		if mode != RoomAnnounce && mode != RoomIndicate {
+			add("notifier.room_mode[%s] must be announce or indicate, not %q", area, mode)
+		}
+		if _, ok := c.Satellites[area]; !ok {
+			add("notifier.room_mode[%s]: the area has no entry in satellites", area)
+		}
+	}
+	for area, light := range c.Notifier.Indicators {
+		if !strings.HasPrefix(light, "light.") {
+			add("notifier.indicators[%s]: %q must be a light entity", area, light)
+		}
+	}
+	if rgb := c.Notifier.Indicator.RGBColor; len(rgb) != 0 && len(rgb) != 3 {
+		add("notifier.indicator.rgb_color needs three values")
 	}
 	switch c.Notifier.ConfidentialVoice {
 	case ConfidentialVoiceNever, ConfidentialVoiceWhenAlone, ConfidentialVoiceAlways:

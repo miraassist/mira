@@ -16,6 +16,7 @@ type texts struct {
 	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor            string
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                         string // reminderSaved: time, id
 	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled string
+	noticesReadDesc, noticesNothing, noticesReadOut                                      string
 
 	denyBackground, denyAfterWeb, denyStoreFailed string
 	needsConfirmation                             string // %s = summary of the action
@@ -64,6 +65,9 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Löscht eine offene Erinnerung anhand ihrer id (aus reminder_list).",
 		noSuchReminder:     "keine offene Erinnerung mit dieser id",
 		reminderCancelled:  "Erinnerung gelöscht.",
+		noticesReadDesc:    "Liest die wartenden Benachrichtigungen für diesen Raum oder diese Person vor und markiert sie als gehört. Rufe es auf, wenn der Nutzer fragt: \"Hast du eine Benachrichtigung?\", \"Gibt es was Neues?\", \"Was gibt's?\".",
+		noticesNothing:     "Keine neuen Benachrichtigungen.",
+		noticesReadOut:     "Sag dem Nutzer diese Benachrichtigungen, sinngemäß und vollständig: ",
 
 		denyBackground:    "Abgelehnt: Hintergrundjobs dürfen nur lesende Werkzeuge verwenden.",
 		denyAfterWeb:      "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll.",
@@ -110,6 +114,9 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Deletes an open reminder by its id (from reminder_list).",
 		noSuchReminder:     "no open reminder with this id",
 		reminderCancelled:  "Reminder deleted.",
+		noticesReadDesc:    "Reads out the waiting notifications for this room or person and marks them as heard. Call it when the user asks: \"Do you have a notification?\", \"Anything new?\", \"What's up?\".",
+		noticesNothing:     "No new notifications.",
+		noticesReadOut:     "Tell the user these notifications, faithfully and completely: ",
 
 		denyBackground:    "Denied: background jobs may only use read-only tools.",
 		denyAfterWeb:      "Denied: this request has already read content from the web. Critical actions are therefore locked. Tell the user to give the command again directly.",

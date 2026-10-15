@@ -60,6 +60,12 @@ Reminders: "remind me tomorrow at seven" and timers are built in
 (`reminder_set`). At the time Mira speaks the reminder in the room it was
 asked in, or sends it privately.
 
+Notices can be spoken or shown: per room, `notifier.room_mode` is
+`announce` (spoken when someone comes in) or `indicate`, where the room's
+indicator light, such as an Echo's LED ring, pulses while notices wait and
+"Hast du eine Benachrichtigung?" reads them out (`notices_read`). Urgent
+notices and reminders are always spoken.
+
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
 (frontmatter `name`, `description`; Mira's settings, calendars and schedules
 under `metadata.mira`). Enable them under `skills.enabled` with their

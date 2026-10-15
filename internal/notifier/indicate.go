@@ -1,0 +1,162 @@
+package notifier
+
+import (
+	"context"
+	"errors"
+
+	"github.com/oklog/ulid/v2"
+
+	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/sker65/mira/internal/store"
+)
+
+// In a room with mode "indicate", notices are not spoken when someone comes
+// in. The room's indicator light (the LED ring of an Echo, a lamp) shows
+// that something is waiting, and the user asks for it: "Hast du eine
+// Benachrichtigung?". Nobody is spoken to unasked, and the wake word makes
+// sure the satellite is listening when Mira answers.
+
+// waiting returns the notices that would be spoken in area.
+func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Notice, error) {
+	pending, err := n.pending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	home := n.whoIsHome(ctx)
+	var out []store.Notice
+	for _, nt := range pending {
+		if nt.Source == store.SourceReminder {
+			continue // spoken at its time, never waits
+		}
+		if n.route(nt, home) == routeVoice {
+			out = append(out, nt)
+		}
+	}
+	return out, nil
+}
+
+// syncIndicators turns each indicator light on while notices wait for its
+// area, and off when none do. A light is only switched when its wanted
+// state changes, so the ring is not reset every minute; after a restart
+// every light is set once. The caller holds n.mu.
+func (n *Notifier) syncIndicators(ctx context.Context) {
+	for area, light := range n.cfg.Indicators {
+		list, err := n.waiting(ctx, area)
+		if err != nil {
+			n.log.Error("could not check waiting notices", "area", area, "error", err)
+			return
+		}
+		want := len(list) > 0
+		if on, known := n.indicatorOn[area]; known && on == want {
+			continue
+		}
+		if err := n.setIndicator(ctx, light, want); err != nil {
+			n.log.Error("could not switch indicator", "area", area, "light", light, "error", err)
+			continue
+		}
+		n.indicatorOn[area] = want
+		n.log.Info("indicator switched", "area", area, "light", light, "on", want, "waiting", len(list))
+	}
+}
+
+func (n *Notifier) setIndicator(ctx context.Context, light string, on bool) error {
+	target := &haws.Target{EntityID: []string{light}}
+	if !on {
+		return n.ha.CallService(ctx, "light", "turn_off", nil, target)
+	}
+	style := n.cfg.Indicator
+	data := map[string]any{}
+	if len(style.RGBColor) == 3 {
+		data["rgb_color"] = style.RGBColor
+	}
+	if style.Effect != "" {
+		data["effect"] = style.Effect
+	}
+	if style.Brightness > 0 {
+		data["brightness"] = style.Brightness
+	}
+	err := n.ha.CallService(ctx, "light", "turn_on", data, target)
+	if err != nil && data["effect"] != nil {
+		// A lamp without that effect (or without colour) refuses the call;
+		// plainly on is still a sign.
+		n.log.Debug("indicator style refused, switching on plainly", "light", light, "error", err)
+		delete(data, "effect")
+		if err = n.ha.CallService(ctx, "light", "turn_on", data, target); err != nil {
+			err = n.ha.CallService(ctx, "light", "turn_on", nil, target)
+		}
+	}
+	return err
+}
+
+// SyncIndicators is syncIndicators for callers outside the notifier.
+func (n *Notifier) SyncIndicators(ctx context.Context) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.syncIndicators(ctx)
+}
+
+// ReadOut is the answer to "Hast du eine Benachrichtigung?": the notices
+// waiting for area (asked by voice) or for audience (asked on Telegram), as
+// one text to say, marked delivered. It returns "" when nothing waits.
+//
+// Read out by voice, it counts as an announcement on that satellite, so a
+// follow-up question ("Was genau?") gets the details as after any other.
+func (n *Notifier) ReadOut(ctx context.Context, area, audience string) (string, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	var list []store.Notice
+	var err error
+	if area != "" {
+		list, err = n.waiting(ctx, area)
+	} else {
+		list, err = n.forAudience(ctx, audience)
+	}
+	if err != nil || len(list) == 0 {
+		return "", err
+	}
+	text := Compose(n.lang, list, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	via := "telegram"
+	if area != "" {
+		via = "voice:" + area
+	}
+	ids := make([]string, len(list))
+	for i, nt := range list {
+		ids[i] = nt.ID
+		if err := n.store.MarkDelivered(ctx, nt.ID, via); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return "", err
+		}
+	}
+	if sat := n.sats[area]; sat != "" {
+		if err := n.store.RecordAnnouncement(ctx, store.Announcement{
+			ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
+			Channel: "voice", NoticeIDs: ids,
+		}); err != nil {
+			return "", err
+		}
+	}
+	n.tel.RecordNoticeDelivery(ctx, "asked", len(ids))
+	n.log.Info("notices read out on request", "area", area, "audience", audience, "notices", len(ids))
+	n.syncIndicators(ctx)
+	return text, nil
+}
+
+// forAudience is what a person may read on Telegram: everything pending for
+// the household or for them, confidential ones included (the chat is
+// private).
+func (n *Notifier) forAudience(ctx context.Context, audience string) ([]store.Notice, error) {
+	pending, err := n.pending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []store.Notice
+	for _, nt := range pending {
+		if nt.Source == store.SourceReminder {
+			continue
+		}
+		if nt.Audience == store.AudienceHousehold || nt.Audience == audience {
+			out = append(out, nt)
+		}
+	}
+	return out, nil
+}

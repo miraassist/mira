@@ -82,7 +82,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 					return "", errors.New(t.reminderTooFar)
 				}
 				r := store.Reminder{ID: ulid.Make().String(), DueAt: due, Text: a.Text, SessionKey: inv.SessionKey,
-					Audience: audience(a.For, inv, o.Persons())}
+					Audience: AudienceFor(a.For, inv, o.Persons())}
 				if inv.Channel == config.ChannelVoice && o.Store != nil {
 					if sess, err := o.Store.GetSession(ctx, inv.SessionKey); err == nil {
 						r.AreaID = sess.AreaID
@@ -160,9 +160,9 @@ func dueTime(now time.Time, at string, inMinutes int, loc *time.Location) (time.
 	return time.Time{}, fmt.Errorf("%q is not YYYY-MM-DD HH:MM", at)
 }
 
-// audience is the person a reminder is for: the one named, else the
+// AudienceFor is the person a request is for: the one named, else the
 // Telegram user who asked, else the household.
-func audience(named string, inv Invocation, persons map[string]config.Person) string {
+func AudienceFor(named string, inv Invocation, persons map[string]config.Person) string {
 	if _, ok := persons[named]; ok {
 		return named
 	}

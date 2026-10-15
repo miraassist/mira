@@ -275,12 +275,16 @@
             "area": "Bereich",
             "satellite": "Satellit",
             "presence": "Anwesenheitssensor",
-            "morning": "Morgenansage"
+            "morning": "Morgenansage",
+            "mode": "Zustellart",
+            "indicator": "Anzeige-Lampe"
           },
           "data_description": {
             "satellite": "Spricht Ansagen in diesem Raum.",
             "presence": "Bewegung hier startet eine Ansage.",
-            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht."
+            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
+            "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
+            "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
           }
         },
         "reconfigure": {
@@ -290,12 +294,16 @@
             "area": "Bereich",
             "satellite": "Satellit",
             "presence": "Anwesenheitssensor",
-            "morning": "Morgenansage"
+            "morning": "Morgenansage",
+            "mode": "Zustellart",
+            "indicator": "Anzeige-Lampe"
           },
           "data_description": {
             "satellite": "Spricht Ansagen in diesem Raum.",
             "presence": "Bewegung hier startet eine Ansage.",
-            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht."
+            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
+            "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
+            "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
           }
         }
       },
@@ -324,6 +332,12 @@
       "options": {
         "normal": "Normal",
         "confidential": "Vertraulich"
+      }
+    },
+    "room_mode": {
+      "options": {
+        "announce": "Ansagen",
+        "indicate": "Nur anzeigen"
       }
     }
   }

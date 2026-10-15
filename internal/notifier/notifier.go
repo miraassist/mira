@@ -55,18 +55,20 @@ type Options struct {
 }
 
 type Notifier struct {
-	lang     i18n.Lang
-	cfg      config.Notifier
-	sats     map[string]string
-	persons  map[string]config.Person
-	store    *store.Store
-	ha       HA
-	telegram Telegram
-	clock    func() time.Time
-	loc      *time.Location
-	log      *slog.Logger
-	tel      *telemetry.Provider
-	areas    map[string]bool
+	// indicatorOn is the last state set per area; missing means unknown.
+	indicatorOn map[string]bool
+	lang        i18n.Lang
+	cfg         config.Notifier
+	sats        map[string]string
+	persons     map[string]config.Person
+	store       *store.Store
+	ha          HA
+	telegram    Telegram
+	clock       func() time.Time
+	loc         *time.Location
+	log         *slog.Logger
+	tel         *telemetry.Provider
+	areas       map[string]bool
 
 	// mu serialises decisions, so two motion events a second apart cannot
 	// both announce the same notices.
@@ -89,19 +91,20 @@ func New(opts Options) *Notifier {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	n := &Notifier{
-		lang:     i18n.Of(opts.Config.Prompt.Language),
-		cfg:      opts.Config.Notifier,
-		sats:     opts.Config.Satellites,
-		persons:  opts.Config.Persons,
-		store:    opts.Store,
-		ha:       opts.HA,
-		telegram: opts.Telegram,
-		clock:    opts.Clock,
-		loc:      opts.Location,
-		log:      opts.Logger.With("component", "notifier"),
-		tel:      opts.Telemetry,
-		areas:    map[string]bool{},
-		deviceOf: map[string]string{},
+		lang:        i18n.Of(opts.Config.Prompt.Language),
+		cfg:         opts.Config.Notifier,
+		sats:        opts.Config.Satellites,
+		persons:     opts.Config.Persons,
+		store:       opts.Store,
+		ha:          opts.HA,
+		telegram:    opts.Telegram,
+		clock:       opts.Clock,
+		loc:         opts.Location,
+		log:         opts.Logger.With("component", "notifier"),
+		tel:         opts.Telemetry,
+		areas:       map[string]bool{},
+		indicatorOn: map[string]bool{},
+		deviceOf:    map[string]string{},
 	}
 	for _, a := range opts.Config.Notifier.MorningTrigger.Areas {
 		n.areas[a] = true
@@ -123,6 +126,11 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 
 	if !n.areas[area] {
 		return Outcome{Skipped: "area not configured"}, nil
+	}
+	if n.cfg.Indicates(area) {
+		// Shown on the indicator, read out when asked.
+		n.syncIndicators(ctx)
+		return Outcome{Skipped: "indicate mode"}, nil
 	}
 	now := n.clock()
 	if quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false); err != nil {
@@ -200,6 +208,9 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return sent, err
 	}
+	// Indicators also during quiet hours: a light wakes nobody, and what came
+	// in at night is shown in the morning.
+	defer n.syncIndicators(ctx)
 	if n.inQuietHours(now) {
 		return sent, nil
 	}

@@ -21,7 +21,7 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 	}
 
 	code, body = call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"watchers":[{"name":"neu"}],"persons":{},
-		"rooms":[{"area":"kueche","satellite":"assist_satellite.kueche","presence":"binary_sensor.k","morning":true},{"area":"flur"}]}`)
+		"rooms":[{"area":"kueche","satellite":"assist_satellite.kueche","presence":"binary_sensor.k","morning":true,"mode":"indicate","indicator":"light.ring"},{"area":"flur"}]}`)
 	if code != 200 || !strings.Contains(body, `"managed":true`) {
 		t.Fatalf("put: %d %s", code, body)
 	}
@@ -29,6 +29,12 @@ func TestHomeAssistantManagesWatchersPersonsRooms(t *testing.T) {
 	json.Unmarshal(cfg.sections["notifier"], &notifier)
 	if notifier["cooldown"] != "30m" || !strings.Contains(string(cfg.sections["notifier"]), `"morning_trigger":{"areas":["kueche"],"presence":{"kueche":"binary_sensor.k"}}`) {
 		t.Errorf("notifier = %s", cfg.sections["notifier"])
+	}
+	if !strings.Contains(string(cfg.sections["notifier"]), `"room_mode":{"kueche":"indicate"}`) || !strings.Contains(string(cfg.sections["notifier"]), `"indicators":{"kueche":"light.ring"}`) {
+		t.Errorf("mode/indicator not stored: %s", cfg.sections["notifier"])
+	}
+	if code, body := call(t, srv, "GET", "/v1/ui/ha", "secret", ""); code != 200 || !strings.Contains(body, `"mode":"indicate","indicator":"light.ring"`) {
+		t.Errorf("rooms read back: %s", body)
 	}
 	if string(cfg.sections["satellites"]) != `{"kueche":"assist_satellite.kueche"}` || string(cfg.sections["watchers"]) != `[{"name":"neu"}]` {
 		t.Errorf("satellites %s watchers %s", cfg.sections["satellites"], cfg.sections["watchers"])

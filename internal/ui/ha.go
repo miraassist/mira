@@ -28,6 +28,10 @@ type Room struct {
 	Satellite string `json:"satellite,omitempty"`
 	Presence  string `json:"presence,omitempty"`
 	Morning   bool   `json:"morning"`
+	// Mode is "announce" (default) or "indicate"; Indicator is the light
+	// that shows waiting notices.
+	Mode      string `json:"mode,omitempty"`
+	Indicator string `json:"indicator,omitempty"`
 }
 
 type haConfig struct {
@@ -67,7 +71,9 @@ func (h *Handler) getHA(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) rooms() ([]Room, error) {
 	var sats map[string]string
 	var notifier struct {
-		MorningTrigger morningTrigger `json:"morning_trigger"`
+		MorningTrigger morningTrigger    `json:"morning_trigger"`
+		RoomMode       map[string]string `json:"room_mode"`
+		Indicators     map[string]string `json:"indicators"`
 	}
 	raw, _, err := h.opts.Config.Section("satellites")
 	if err == nil {
@@ -97,6 +103,12 @@ func (h *Handler) rooms() ([]Room, error) {
 	}
 	for area, sensor := range notifier.MorningTrigger.Presence {
 		room(area).Presence = sensor
+	}
+	for area, mode := range notifier.RoomMode {
+		room(area).Mode = mode
+	}
+	for area, light := range notifier.Indicators {
+		room(area).Indicator = light
 	}
 	out := make([]Room, 0, len(byArea))
 	for _, r := range byArea {
@@ -139,6 +151,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 	}
 	sats := map[string]string{}
 	mt := morningTrigger{Areas: []string{}, Presence: map[string]string{}}
+	modes, indicators := map[string]string{}, map[string]string{}
 	seen := map[string]bool{}
 	for _, room := range in.Rooms {
 		if room.Area == "" {
@@ -157,6 +170,12 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 		if room.Morning {
 			mt.Areas = append(mt.Areas, room.Area)
 		}
+		if room.Mode != "" {
+			modes[room.Area] = room.Mode
+		}
+		if room.Indicator != "" {
+			indicators[room.Area] = room.Indicator
+		}
 	}
 	// The notifier keeps everything else; only its morning trigger comes
 	// from the rooms.
@@ -169,6 +188,8 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 		return nil, err
 	}
 	notifier["morning_trigger"] = mt
+	notifier["room_mode"] = modes
+	notifier["indicators"] = indicators
 	notifierJSON, err := json.Marshal(notifier)
 	if err != nil {
 		return nil, err

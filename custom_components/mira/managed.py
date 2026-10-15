@@ -112,6 +112,8 @@ def room_to_agent(data: dict[str, Any]) -> dict[str, Any]:
         "satellite": data.get("satellite") or "",
         "presence": data.get("presence") or "",
         "morning": bool(data.get("morning")),
+        "mode": data.get("mode") or "announce",
+        "indicator": data.get("indicator") or "",
     }
 
 
@@ -124,7 +126,10 @@ def import_subentries(agent: dict[str, Any]) -> list[ConfigSubentry]:
     for key, person in sorted((agent.get("persons") or {}).items()):
         subentries.append(_subentry(SUBENTRY_PERSON, key, person_from_agent(key, person)))
     for room in agent.get("rooms") or []:
-        data = {k: room.get(k) or "" for k in ("area", "satellite", "presence")} | {"morning": bool(room.get("morning"))}
+        data = {k: room.get(k) or "" for k in ("area", "satellite", "presence", "indicator")} | {
+            "morning": bool(room.get("morning")),
+            "mode": room.get("mode") or "announce",
+        }
         subentries.append(_subentry(SUBENTRY_ROOM, room["area"], data))
     return subentries
 

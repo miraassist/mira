@@ -111,7 +111,7 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
         "expires_in": "12h",
     }
     assert sent["persons"] == {"anna": {"entity": "person.anna", "telegram_user_id": 42}}
-    assert sent["rooms"] == AGENT["rooms"]
+    assert sent["rooms"] == [AGENT["rooms"][0] | {"mode": "announce", "indicator": ""}]
 
 
 async def test_add_watcher_is_checked_by_the_agent(hass, aioclient_mock, entry):

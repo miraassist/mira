@@ -43,8 +43,11 @@ type app struct {
 	store *store.Store
 	llm   *llm.Client
 	// models are the further models by name (config.Models).
-	models    map[string]*llm.Client
-	skills    *skills.Set
+	models map[string]*llm.Client
+	skills *skills.Set
+	// notifier is the running notifier, replaced when the UI restarts it;
+	// guarded by proactiveMu.
+	notifier  *notifier.Notifier
 	ha        *haws.Client
 	structure *structure.Cache
 	assist    *assistprompt.Cache
@@ -203,6 +206,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
 	}
+	internal = append(internal, tools.NoticesRead(i18n.Of(cfg.Prompt.Language), a.readNotices))
 	registry := tools.NewRegistry(a.mcp, internal...)
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
@@ -459,7 +463,37 @@ func (a *app) startProactive(parent context.Context) {
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Telegram: tg, Logger: a.log, Telemetry: a.tel,
 	})
+	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
+}
+
+// readNotices answers "Hast du eine Benachrichtigung?": by voice what waits
+// for the satellite's room, on Telegram what waits for that person.
+func (a *app) readNotices(ctx context.Context, inv tools.Invocation) (string, error) {
+	a.proactiveMu.Lock()
+	n := a.notifier
+	if n == nil && a.ha != nil {
+		// Not running (the chat command): reading out needs no loop.
+		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel})
+		a.notifier = n
+	}
+	a.proactiveMu.Unlock()
+	if n == nil {
+		return "", errors.New("notifications are off (no Home Assistant)")
+	}
+	area := ""
+	if inv.Channel == config.ChannelVoice {
+		sess, err := a.store.GetSession(ctx, inv.SessionKey)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return "", err
+		}
+		area = sess.AreaID
+	}
+	persons := a.liveConfig().Persons
+	if persons == nil {
+		persons = a.cfg.Persons
+	}
+	return n.ReadOut(ctx, area, tools.AudienceFor("", inv, persons))
 }
 
 func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {

@@ -275,12 +275,16 @@
             "area": "Area",
             "satellite": "Satellite",
             "presence": "Presence sensor",
-            "morning": "Morning announcement"
+            "morning": "Morning announcement",
+            "mode": "Delivery",
+            "indicator": "Indicator light"
           },
           "data_description": {
             "satellite": "Speaks announcements in this room.",
             "presence": "Motion here starts an announcement.",
-            "morning": "The first motion after quiet hours announces what is pending."
+            "morning": "The first motion after quiet hours announces what is pending.",
+            "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
+            "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
           }
         },
         "reconfigure": {
@@ -290,12 +294,16 @@
             "area": "Area",
             "satellite": "Satellite",
             "presence": "Presence sensor",
-            "morning": "Morning announcement"
+            "morning": "Morning announcement",
+            "mode": "Delivery",
+            "indicator": "Indicator light"
           },
           "data_description": {
             "satellite": "Speaks announcements in this room.",
             "presence": "Motion here starts an announcement.",
-            "morning": "The first motion after quiet hours announces what is pending."
+            "morning": "The first motion after quiet hours announces what is pending.",
+            "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
+            "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
           }
         }
       },
@@ -324,6 +332,12 @@
       "options": {
         "normal": "Normal",
         "confidential": "Confidential"
+      }
+    },
+    "room_mode": {
+      "options": {
+        "announce": "Announce",
+        "indicate": "Indicate only"
       }
     }
   }

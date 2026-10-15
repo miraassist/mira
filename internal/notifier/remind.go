@@ -32,6 +32,7 @@ func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 	if err != nil {
 		return err
 	}
+	defer n.syncIndicators(ctx)
 	if sat := n.sats[r.AreaID]; sat != "" && !quiet {
 		err := n.announce(ctx, r.AreaID, []store.Notice{nt})
 		if err == nil {

@@ -337,6 +337,10 @@ class RoomSubentryFlow(_ManagedSubentryFlow):
                     selector.EntitySelectorConfig(domain="binary_sensor")
                 ),
                 vol.Required("morning", default=True): selector.BooleanSelector(),
+                vol.Required("mode", default="announce"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=["announce", "indicate"], translation_key="room_mode")
+                ),
+                vol.Optional("indicator"): selector.EntitySelector(selector.EntitySelectorConfig(domain="light")),
             }
         )
 

@@ -203,7 +203,9 @@ func (h *Handler) keepManaged(r *http.Request, sections map[string]json.RawMessa
 	if err != nil {
 		return err
 	}
-	in["morning_trigger"] = current["morning_trigger"]
+	for _, key := range []string{"morning_trigger", "room_mode", "indicators"} {
+		in[key] = current[key]
+	}
 	sections["notifier"], err = json.Marshal(in)
 	return err
 }

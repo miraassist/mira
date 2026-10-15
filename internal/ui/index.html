@@ -190,7 +190,11 @@ const I18N = {
   "forget_confirm": "Diesen Fakt vergessen?",
   "compacting": "Verdichtet … (kann eine Minute dauern)",
   "profile_updated": "Profil aktualisiert.",
-  "profile_unchanged": "Profil unverändert."
+  "profile_unchanged": "Profil unverändert.",
+  "mode": "Zustellart",
+  "indicator": "Anzeige-Lampe",
+  "mode_announce": "ansagen",
+  "mode_indicate": "nur anzeigen"
  },
  "en": {
   "tab_notices": "Notices",
@@ -311,7 +315,11 @@ const I18N = {
   "forget_confirm": "Forget this fact?",
   "compacting": "Compacting … (may take a minute)",
   "profile_updated": "Profile updated.",
-  "profile_unchanged": "Profile unchanged."
+  "profile_unchanged": "Profile unchanged.",
+  "mode": "Delivery",
+  "indicator": "Indicator light",
+  "mode_announce": "announce",
+  "mode_indicate": "indicate only"
  }
 };
 const TABS = ["notices", "notifier", "watchers", "rooms", "persons", "memory"];
@@ -591,13 +599,14 @@ async function saveWatchers() { readWatchers(); await save({ watchers: draftWatc
 // ---- Räume --------------------------------------------------------------
 function rooms() {
   const sats = val("satellites") || {}, n = val("notifier") || {}, mt = n.morning_trigger || {};
-  const presence = mt.presence || {}, areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
-  const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: presence[a] || "", active: list(mt.areas).includes(a) }));
+  const presence = mt.presence || {}, modes = n.room_mode || {}, inds = n.indicators || {};
+  const areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
+  const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: presence[a] || "", active: list(mt.areas).includes(a), mode: modes[a] || "announce", ind: inds[a] || "" }));
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_rooms} ${source("satellites")}</h2>
     <p class="hint">${T.rooms_hint}</p>
-    <table id="rooms"><tr><th>${T.area}</th><th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th></th></tr>
+    <table id="rooms"><tr><th>${T.area}</th><th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.mode}</th><th>${T.indicator}</th><th></th></tr>
       ${rows.map((r, i) => roomRow(r, i)).join("")}
     </table>
     <div class="actions">
@@ -612,13 +621,15 @@ function roomRow(r, i) {
     <td><input data-f="sat" list="entities" value="${esc(r.sat)}" placeholder="assist_satellite.…"></td>
     <td><input data-f="sensor" list="entities" value="${esc(r.sensor)}" placeholder="binary_sensor.…"></td>
     <td><input type="checkbox" data-f="active" ${r.active ? "checked" : ""}></td>
+    <td><select data-f="mode">${opt("announce", r.mode, T.mode_announce)}${opt("indicate", r.mode, T.mode_indicate)}</select></td>
+    <td><input data-f="ind" list="entities" value="${esc(r.ind)}" placeholder="light.…"></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
 function addRoom() {
-  $("#rooms").insertAdjacentHTML("beforeend", roomRow({ area: "", sat: "", sensor: "", active: true }, Date.now()));
+  $("#rooms").insertAdjacentHTML("beforeend", roomRow({ area: "", sat: "", sensor: "", active: true, mode: "announce", ind: "" }, Date.now()));
 }
 function saveRooms() {
-  const sats = {}, presence = {}, areas = [];
+  const sats = {}, presence = {}, areas = [], modes = {}, inds = {};
   document.querySelectorAll("[data-r]").forEach(tr => {
     const f = name => tr.querySelector(`[data-f="${name}"]`);
     const area = f("area").value.trim();
@@ -626,9 +637,13 @@ function saveRooms() {
     if (f("sat").value.trim()) sats[area] = f("sat").value.trim();
     if (f("sensor").value.trim()) presence[area] = f("sensor").value.trim();
     if (f("active").checked) areas.push(area);
+    if (f("mode").value === "indicate") modes[area] = "indicate";
+    if (f("ind").value.trim()) inds[area] = f("ind").value.trim();
   });
   const n = structuredClone(val("notifier") || {});
   n.morning_trigger = { areas, presence };
+  n.room_mode = modes;
+  n.indicators = inds;
   save({ satellites: sats, notifier: n });
 }
 

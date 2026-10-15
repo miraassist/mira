@@ -147,6 +147,12 @@ notifier:
   # auto: start_conversation if the satellite supports it, else announce.
   delivery: auto
   # tts_entity: tts.piper
+  # Per room: "announce" (default) speaks notices when someone comes in;
+  # "indicate" only lights the room's indicator, and you ask "Hast du eine
+  # Benachrichtigung?". Urgent notices and reminders are spoken anyway.
+  # room_mode: { wohnzimmer: indicate }
+  # indicators: { wohnzimmer: light.wohnzimmer_ring_led_ring }   # e.g. an Echo's LED ring (echolocal)
+  # indicator: { rgb_color: [32, 201, 176], effect: Pulse, brightness: 160 }   # teal from the logo
 
 security:
   confirm_domains: [lock, alarm_control_panel]
