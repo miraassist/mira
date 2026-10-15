@@ -1,7 +1,7 @@
 # Aufgaben (Tasks): Spezifikation
 
-Stand 2026-10-15. Spezifiziert, noch nicht gebaut. Vor dem Bau steht die
-Klärung des Benutzer-Konzepts (Mehrbenutzer), siehe „Offen“.
+Stand 2026-10-15. Spezifiziert, noch nicht gebaut. Das Benutzer-Konzept
+steht in [benutzer.md](benutzer.md).
 
 ## Warum
 
@@ -100,7 +100,7 @@ Später, mit den Skills: `calendar` (Termine mit heute/morgen) und `collected` (
   - `profile`: nur das Profil.
   - `none`: nichts.
   - Nur lesen, Urteile schreiben nichts ins Gedächtnis.
-  - Persönliche Fakten gehen nur mit, wenn die Meldung an diese Person geht oder vertraulich ist.
+  - Welches Gedächtnis mitgeht, bestimmt der Besitzer der Aufgabe (`owner`, siehe [benutzer.md](benutzer.md)): immer das Hausgedächtnis, bei persönlichen Aufgaben dazu das der Person.
 - **Anwesenheit:** wer zu Hause ist, aus den Personen-Entitäten.
 - **Tag:** Wochentag, Uhrzeit, ob Ruhezeit ist.
 - **Gedächtnis der Aufgabe:** die letzten Urteile derselben Automation (wann, Wichtigkeit, gesagt). So nervt das Modell nicht mit Wiederholungen und kann auf Verläufe hinweisen.
@@ -167,7 +167,7 @@ Getestet wird an der Test-HA.
 
 ## Offen
 
-- **Benutzer-Konzept (Mehrbenutzer):** wer Aufgaben anlegt, wem Meldungen gehören, persönliche Ziele und Gedächtnis pro Person. Klären vor dem Bau.
+- **Benutzer-Konzept:** geklärt in [benutzer.md](benutzer.md). Aufgaben haben einen Besitzer (Haus oder Person). `assess` und `decide` bekommen `owner`. Persönliches Gedächtnis geht nur bei persönlichen Aufgaben mit.
 - **Besprechungsliste:**
   - Bestätigen per festem Ja im Code (sprachabhängige Phrasen);
   - Bearbeiten von Aufgaben im Gespräch („nimm den Sensor raus“). Mit HA als Editor heißt das: Mira ändert die Automation per `save`.
