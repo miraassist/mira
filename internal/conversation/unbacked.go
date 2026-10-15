@@ -20,11 +20,28 @@ var announces = regexp.MustCompile(`^((ich )?(prüfe|überprüfe|schaue|sehe|fra
 // claims matches an answer that reports an action as done.
 var claims = regexp.MustCompile(`\b(eingeschaltet|ausgeschaltet|angeschaltet|abgeschaltet|angemacht|ausgemacht|gespeichert|gemerkt|notiert|gelöscht|vergessen|gesendet|geschickt|gestartet|gestoppt|eingestellt|gedimmt|geöffnet|aufgeschlossen|abgeschlossen|erledigt|turned (on|off)|switched (on|off)|saved|noted|remembered|deleted|forgotten|sent|started|stopped|dimmed|opened|unlocked|locked|done)\b`)
 
+// readings matches a measured value ("21,3 Grad", "48 %", "3 kW") and
+// states matches a reported state ("Alle Lichter sind aus"). Without a tool
+// call in the turn, both are made up: the model knows no states by heart.
+// Seen live: asked "Wie war es jetzt im Wohnzimmer?" (the speech recognition
+// for "warm"), it answered 21,3 Grad and 48 Prozent without looking; the
+// sensors said 23,4 and 40,3.
+var (
+	readings = regexp.MustCompile(`\d+(?:[,.]\d+)?\s*(?:°|%|(?:grad|prozent|watt|kilowatt(?:stunden)?|kwh|kw|lux|hpa|liter|degrees?|percent)\b)`)
+	states   = regexp.MustCompile(`\b(?:ist|sind|is|are)\s+(?:gerade\s+|noch\s+|alle\s+|all\s+)?(?:an|aus|offen|geschlossen|zu|eingeschaltet|ausgeschaltet|on|off|open|closed)\b`)
+)
+
 // unbacked reports whether a final answer, given in a turn that called no
-// tool, announces an action or claims one as done.
+// tool, announces an action, claims one as done, or reports a state.
 func unbacked(text string) bool {
 	t := strings.ToLower(strings.TrimSpace(text))
-	return announces.MatchString(t) || claims.MatchString(t)
+	return announces.MatchString(t) || claims.MatchString(t) || reportsState(t)
+}
+
+// reportsState reports whether the answer gives readings or states.
+func reportsState(text string) bool {
+	t := strings.ToLower(text)
+	return readings.MatchString(t) || states.MatchString(t)
 }
 
 // claimsAction reports whether the answer says an action happened.

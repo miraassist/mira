@@ -246,12 +246,16 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp.Model = modelName
 	maxRounds := model.MaxToolRounds
 	var final llm.Message
-	nudged := false
+	nudged, forced, force := false, false, false
 	for round := 0; ; round++ {
 		chatReq := e.chatRequest(req.Channel, msgs, built)
-		if round >= maxRounds {
+		switch {
+		case round >= maxRounds:
 			// Out of rounds: the model has to answer with what it has.
 			chatReq.ToolChoice = "none"
+		case force:
+			chatReq.ToolChoice = "required"
+			force = false
 		}
 		out, err := client.Chat(ctx, chatReq)
 		if err != nil {
@@ -269,14 +273,25 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		msg.Content = stripThinking(msg.Content)
 		if len(msg.ToolCalls) == 0 && resp.ToolRounds == 0 && round < maxRounds && unbacked(msg.Content) {
 			if !nudged {
-				// Announced or claimed an action without any tool: give the
-				// model one more chance. Neither message reaches the history.
+				// Announced or claimed an action, or reported a state,
+				// without any tool: give the model one more chance. Neither
+				// message reaches the history.
 				nudged = true
 				e.log.Warn("answer without tool call, asking again", "session", key)
 				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: e.texts().unbackedNudge})
 				continue
 			}
-			if claimsAction(msg.Content) {
+			if !forced {
+				// Still made up: this time it must call a tool. The local
+				// model sometimes answers from imagination twice in a row.
+				forced, force = true, true
+				e.log.Warn("answer still without tool call, requiring one", "session", key)
+				continue
+			}
+			if reportsState(msg.Content) {
+				e.log.Warn("answer still reports states without tool call", "session", key)
+				msg.Content = e.texts().notLookedUp
+			} else if claimsAction(msg.Content) {
 				e.log.Warn("answer still claims an action without tool call", "session", key)
 				msg.Content = e.texts().notDone
 			}

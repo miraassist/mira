@@ -13,6 +13,7 @@ type texts struct {
 	background      string
 	fallback        string
 	notDone         string
+	notLookedUp     string
 	unbackedNudge   string
 	errorPrefix     string
 	unknownTool     string // %s = tool name
@@ -28,7 +29,8 @@ var catalog = map[i18n.Lang]texts{
 		background:      "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
 		fallback:        "Entschuldigung, darauf habe ich gerade keine Antwort.",
 		notDone:         "Das habe ich nicht ausgeführt. Bitte sag es mir noch einmal.",
-		unbackedNudge:   "[Hinweis des Systems, nicht des Nutzers] In dieser Anfrage wurde noch kein Werkzeug aufgerufen. Wenn die Anfrage einen Zustand im Haus, eine Aktion oder das Gedächtnis betrifft, rufe jetzt das passende Werkzeug auf. Sonst antworte erneut, ohne eine Aktion anzukündigen oder als erledigt zu melden.",
+		notLookedUp:     "Das habe ich gerade nicht nachgesehen. Frag mich bitte noch einmal.",
+		unbackedNudge:   "[Hinweis des Systems, nicht des Nutzers] In dieser Anfrage wurde noch kein Werkzeug aufgerufen. Wenn die Anfrage einen Zustand im Haus, eine Aktion oder das Gedächtnis betrifft, rufe jetzt das passende Werkzeug auf. Sonst antworte erneut, ohne eine Aktion anzukündigen, als erledigt zu melden oder Werte und Zustände zu nennen, die du nicht abgefragt hast.",
 		errorPrefix:     "Fehler: ",
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
@@ -41,7 +43,8 @@ var catalog = map[i18n.Lang]texts{
 		background:      "Channel: background job, no person in the conversation.",
 		fallback:        "Sorry, I have no answer to that right now.",
 		notDone:         "I did not do that. Please tell me again.",
-		unbackedNudge:   "[Note from the system, not the user] No tool has been called in this request yet. If the request concerns a state in the house, an action or the memory, call the matching tool now. Otherwise answer again without announcing an action or reporting one as done.",
+		notLookedUp:     "I have not looked that up just now. Please ask me again.",
+		unbackedNudge:   "[Note from the system, not the user] No tool has been called in this request yet. If the request concerns a state in the house, an action or the memory, call the matching tool now. Otherwise answer again without announcing an action, reporting one as done, or stating values and states you have not looked up.",
 		errorPrefix:     "Error: ",
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",

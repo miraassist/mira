@@ -62,9 +62,9 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	}
 	// A plain answer gets the waiting notice, and the transcript has it, so
 	// "Was genau?" knows what was said.
-	model.Push(fakellm.Step{Content: "Licht ist an."})
-	r := say("c", "Küchenlicht an")
-	if r.Text != "Licht ist an. Übrigens: Heute hast du einen Zahnarzttermin." || len(asked) != 1 || asked[0] != "kueche" {
+	model.Push(fakellm.Step{Content: "Gern geschehen."})
+	r := say("c", "Danke dir")
+	if r.Text != "Gern geschehen. Übrigens: Heute hast du einen Zahnarzttermin." || len(asked) != 1 || asked[0] != "kueche" {
 		t.Fatalf("answer: %q, asked %v", r.Text, asked)
 	}
 	msgs, _ := st.Messages(context.Background(), conversation.SessionKey(config.ChannelVoice, "c"))
