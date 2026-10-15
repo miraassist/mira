@@ -757,7 +757,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	}
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
-		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log,
+		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
 	}
 	if a.tasks != nil {
 		uiOpts.Tasks = a.tasks

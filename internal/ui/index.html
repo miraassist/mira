@@ -54,6 +54,7 @@ button.danger { background: var(--panel); color: var(--warn); }
 .chip small { color: var(--muted); }
 .chip button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+h1 small.version { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
 pre.code { background: var(--badge); padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; max-height: 300px; }
 a.button { display: inline-block; text-decoration: none; font: inherit; border-radius: 6px; padding: 6px 12px; border: 1px solid var(--line); color: var(--text); }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
@@ -84,7 +85,7 @@ pre { white-space: pre-wrap; margin: 0; font: inherit; }
 </head>
 <body>
 <header>
-  <h1><img src="/ui/icon.png" alt="">Mira</h1>
+  <h1><img src="/ui/icon.png" alt="">Mira <small class="version">%%VERSION%%</small></h1>
   <nav id="nav"></nav>
   <select id="lang" aria-label="Language" onchange="setLang(this.value)"><option value="de">Deutsch</option><option value="en">English</option></select>
 </header>

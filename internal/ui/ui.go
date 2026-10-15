@@ -8,12 +8,14 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -60,8 +62,10 @@ type Options struct {
 	// CompactProfile rebuilds the profile now.
 	CompactProfile func(ctx context.Context) (bool, error)
 	// Tasks are Mira's tasks; nil without Home Assistant.
-	Tasks  Tasks
-	Logger *slog.Logger
+	Tasks Tasks
+	// Version is the agent's version, shown in the page header.
+	Version string
+	Logger  *slog.Logger
 }
 
 type Handler struct {
@@ -106,7 +110,7 @@ func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
-	w.Write(page)
+	w.Write(bytes.Replace(page, []byte("%%VERSION%%"), []byte(html.EscapeString(h.opts.Version)), 1))
 }
 
 // guide serves the user guide as Markdown. Like the page it holds no data,

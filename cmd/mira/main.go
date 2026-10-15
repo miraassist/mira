@@ -20,7 +20,10 @@ import (
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
-var version = "dev"
+// version is Mira's version: raised with every change that goes live, so
+// the web UI and /v1/health show at once which build runs. A release build
+// may still set it with -ldflags "-X main.version=...".
+var version = "0.3.0"
 
 func main() {
 	if err := run(); err != nil {
