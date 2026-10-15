@@ -133,6 +133,11 @@ func TestTools(t *testing.T) {
 	if !strings.Contains(out, "Wertstoff") || !strings.Contains(out, "Schadstoff") {
 		t.Errorf("no look-ahead:\n%s", out)
 	}
+	// One day only: tomorrow's collection, and nothing else.
+	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"tomorrow"}`)})
+	if !strings.Contains(out, "- morgen, Donnerstag, 22. Oktober 2026: Wertstoff") || strings.Contains(out, "Schadstoff") {
+		t.Errorf("tomorrow:\n%s", out)
+	}
 	if _, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"nope"}`)}); err == nil {
 		t.Error("unknown calendar accepted")
 	}
@@ -183,5 +188,25 @@ func TestRunJob(t *testing.T) {
 func TestTextsComplete(t *testing.T) {
 	if missing := i18n.Missing(catalog); len(missing) > 0 {
 		t.Errorf("texts missing: %v", missing)
+	}
+}
+
+// Seen live: on collection day at 18:00 the model was given today's
+// collection and the next one, and announced today's for tomorrow. Asked
+// for tomorrow only, the tool says there is nothing.
+func TestCalendarTomorrowOnCollectionDay(t *testing.T) {
+	set := berlinSet(t, loadAbfall(t, calendarServer(t)))
+	set.Clock = func() time.Time { return time.Date(2026, 10, 15, 18, 0, 0, 0, set.Location) }
+	cal := toolByName(set.Tools(), ToolCalendarEvents)
+	out, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"tomorrow","match":"restabfall, wertstoff"}`)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "morgen, Freitag, 16. Oktober 2026: keine passenden Termine.") || strings.Contains(out, "Restabfall") {
+		t.Errorf("tomorrow:\n%s", out)
+	}
+	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"today"}`)})
+	if !strings.Contains(out, "- heute, Donnerstag, 15. Oktober 2026: Restabfall") || strings.Contains(out, "Wertstoff") {
+		t.Errorf("today:\n%s", out)
 	}
 }

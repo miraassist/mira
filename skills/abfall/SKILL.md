@@ -16,11 +16,12 @@ metadata:
     schedules:
       - cron: "0 18 * * *"
         task: >-
-          Prüfe mit calendar_events (Kalender "abfall", days 3), ob ein Termin mit "morgen"
-          davor zu den interessanten Abfallarten passt. Termine von heute zählen nicht, die
-          Tonne steht schon draußen. Wenn ja: importance 1, spoken nennt kurz,
-          was morgen abgeholt wird, z. B. "Morgen wird der Restabfall abgeholt. Denk daran, die
-          Tonne rauszustellen." Wenn nicht: importance 0 und spoken leer.
+          Prüfe mit calendar_events (Kalender "abfall", day "tomorrow"), ob morgen etwas
+          zu den interessanten Abfallarten abgeholt wird. Nimm nur, was diese Abfrage
+          liefert. Sagt sie "keine passenden Termine" oder nennt sie nur andere Arten:
+          importance 0 und spoken leer. Sonst: importance 1, spoken nennt kurz, was morgen
+          abgeholt wird, z. B. "Morgen wird der Restabfall abgeholt. Denk daran, die
+          Tonne rauszustellen."
 ---
 # Abfall
 

@@ -106,13 +106,14 @@ func (s *Set) Tools() []tools.InternalTool {
 	out = append(out, tools.InternalTool{
 		Name:        ToolCalendarEvents,
 		Description: fmt.Sprintf(t.calDesc, strings.Join(names, ", ")),
-		Schema: fmt.Sprintf(`{"type":"object","properties":{"calendar":{"type":"string","enum":%s},"days":{"type":"integer","description":%q},"match":{"type":"string","description":%q}},"required":["calendar"]}`,
-			mustJSON(names), t.calDays, t.calMatch),
+		Schema: fmt.Sprintf(`{"type":"object","properties":{"calendar":{"type":"string","enum":%s},"days":{"type":"integer","description":%q},"day":{"type":"string","enum":["today","tomorrow"],"description":%q},"match":{"type":"string","description":%q}},"required":["calendar"]}`,
+			mustJSON(names), t.calDays, t.calDay, t.calMatch),
 		ReadOnly: true,
 		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
 			var a struct {
 				Calendar string `json:"calendar"`
 				Days     int    `json:"days"`
+				Day      string `json:"day"`
 				Match    string `json:"match"`
 			}
 			if err := json.Unmarshal(inv.Args, &a); err != nil {
@@ -121,6 +122,12 @@ func (s *Set) Tools() []tools.InternalTool {
 			url, ok := cals[a.Calendar]
 			if !ok {
 				return "", fmt.Errorf(t.noCalendar, a.Calendar)
+			}
+			switch a.Day {
+			case "today":
+				return s.eventsOn(ctx, t, url, 0, a.Match)
+			case "tomorrow":
+				return s.eventsOn(ctx, t, url, 1, a.Match)
 			}
 			return s.events(ctx, t, url, a.Days, a.Match)
 		},
@@ -154,12 +161,7 @@ func (s *Set) events(ctx context.Context, t texts, url string, days int, match s
 	if err != nil {
 		return "", err
 	}
-	var words []string
-	for _, w := range strings.Split(strings.ToLower(match), ",") {
-		if w = strings.TrimSpace(w); w != "" {
-			words = append(words, w)
-		}
-	}
+	words := matchWords(match)
 	var b strings.Builder
 	fmt.Fprintf(&b, t.calToday, i18n.FormatDate(s.Lang, now))
 	n := 0
@@ -190,6 +192,60 @@ func (s *Set) events(ctx context.Context, t texts, url string, days int, match s
 	return b.String(), nil
 }
 
+// eventsOn lists only the events of one day, offset days from today, and
+// says so when there are none. "Is anything collected tomorrow?" is then
+// answered by the code: given today's collection and the next one, the
+// model announced today's as tomorrow's.
+func (s *Set) eventsOn(ctx context.Context, t texts, url string, offset int, match string) (string, error) {
+	if s.Calendar == nil {
+		return "", errors.New("no calendar cache")
+	}
+	data, err := s.Calendar.Get(ctx, url)
+	if err != nil {
+		return "", err
+	}
+	now := s.clock().In(s.loc())
+	from := time.Date(now.Year(), now.Month(), now.Day()+offset, 0, 0, 0, 0, s.loc())
+	events, err := ical.Parse(data, s.loc(), from, from.AddDate(0, 0, 1))
+	if err != nil {
+		return "", err
+	}
+	words := matchWords(match)
+	label := t.relDays[offset] + ", " + i18n.FormatDate(s.Lang, from)
+	var b strings.Builder
+	fmt.Fprintf(&b, t.calToday, i18n.FormatDate(s.Lang, now))
+	n := 0
+	for _, e := range events {
+		start := e.Start.In(s.loc())
+		if start.Before(from) || !start.Before(from.AddDate(0, 0, 1)) {
+			continue // a multi-day event begun earlier, or the parser's slack
+		}
+		if len(words) > 0 && !containsAny(strings.ToLower(e.Summary), words) {
+			continue
+		}
+		when := label
+		if !e.AllDay {
+			when = t.relDays[offset] + ", " + i18n.FormatTime(s.Lang, start)
+		}
+		fmt.Fprintf(&b, "\n- %s: %s", when, e.Summary)
+		n++
+	}
+	if n == 0 {
+		fmt.Fprintf(&b, "\n"+t.calNoneOn, label)
+	}
+	return b.String(), nil
+}
+
+func matchWords(match string) []string {
+	var words []string
+	for _, w := range strings.Split(strings.ToLower(match), ",") {
+		if w = strings.TrimSpace(w); w != "" {
+			words = append(words, w)
+		}
+	}
+	return words
+}
+
 const (
 	minEvents     = 2
 	lookAheadDays = 90
@@ -212,6 +268,7 @@ func mustJSON(v any) string {
 type texts struct {
 	openDesc, openName, noSkill                               string
 	calDesc, calDays, calMatch, noCalendar, calToday, calNone string
+	calDay, calNoneOn                                         string
 	taskIntro, taskRules                                      string
 	relDays                                                   []string
 }
@@ -227,6 +284,8 @@ var catalog = map[i18n.Lang]texts{
 		noCalendar: "keinen Kalender %q gibt es nicht",
 		calToday:   "Heute ist %s.",
 		calNone:    "Keine passenden Termine in den nächsten %d Tagen.",
+		calDay:     "Optional: nur die Termine dieses einen Tages, today oder tomorrow; days zählt dann nicht.",
+		calNoneOn:  "%s: keine passenden Termine.",
 		relDays:    []string{"heute", "morgen", "übermorgen"},
 		taskIntro:  "Geplante Aufgabe des Skills %q. Anleitung des Skills:\n\n",
 		taskRules: `
@@ -247,6 +306,8 @@ Antworte am Ende nur mit einem JSON-Objekt:
 		noCalendar: "there is no calendar %q",
 		calToday:   "Today is %s.",
 		calNone:    "No matching events in the next %d days.",
+		calDay:     "Optional: only the events of this one day, today or tomorrow; days does not count then.",
+		calNoneOn:  "%s: no matching events.",
 		relDays:    []string{"today", "tomorrow", "the day after tomorrow"},
 		taskIntro:  "Scheduled task of the skill %q. The skill's instructions:\n\n",
 		taskRules: `
