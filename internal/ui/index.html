@@ -56,13 +56,19 @@ button.danger { background: var(--panel); color: var(--warn); }
 .item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 label.checkline input { width: auto; }
-details.item > summary { list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
 details.item > summary::-webkit-details-marker { display: none; }
 details.item > summary::before { content: "▸"; color: var(--muted); }
 details.item[open] > summary::before { content: "▾"; }
-details.item > summary .short { flex: 1 1 200px; min-width: 0; color: var(--muted); }
+details.item > summary .lead { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+details.item > summary .short { min-width: 0; color: var(--muted); }
 details.item > summary .short.clip { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-details.item > summary h3 { margin: 0; }
+details.item > summary h3 { margin: 0; overflow-wrap: anywhere; }
+details.item.task > summary { --lead: 13em; }
+@media (max-width: 600px) {
+  details.item > summary { grid-template-columns: 1em minmax(0, 1fr) auto; }
+  details.item > summary .short { grid-column: 2 / 4; }
+}
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 .msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
 .msg.err { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
@@ -113,7 +119,6 @@ const I18N = {
   "page": "Seite",
   "state_pending": "wartet",
   "state_delivered": "zugestellt",
-  "state_acked": "erledigt",
   "state_expired": "abgelaufen",
   "source_ha_trigger": "Watcher",
   "source_task": "Auftrag",
@@ -271,7 +276,6 @@ const I18N = {
   "page": "Page",
   "state_pending": "waiting",
   "state_delivered": "delivered",
-  "state_acked": "done",
   "state_expired": "expired",
   "source_ha_trigger": "watcher",
   "source_task": "order",
@@ -542,15 +546,20 @@ async function notices() {
     $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_notices}</p>` : items.map(n => `
       <details class="item">
         <summary>
-          <span class="hint">${esc(n.created_at.slice(5))}</span>
-          <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + n.state] || n.state}</span>
+          <span class="lead"><span class="hint">${esc(n.created_at.slice(5))}</span>
+            <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + shownState(n.state)]}</span></span>
           <span class="short clip">${esc(n.spoken)}</span>
-          ${n.state === "pending" || n.state === "delivered" ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : ""}
+          ${n.state === "pending" ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : "<span></span>"}
         </summary>
         ${n.details ? `<p>${esc(n.details)}</p>` : ""}
         <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}</p>
       </details>`).join("") + pager;
   } catch (e) { message(e.message, false); }
+}
+// shownState folds delivered and done into one: for the user both mean
+// "heard"; Mira keeps them apart for repeats and follow-up questions.
+function shownState(state) {
+  return state === "acked" || state === "delivered" ? "delivered" : state;
 }
 async function ack(id) {
   try { await api("POST", `/v1/ui/notices/${encodeURIComponent(id)}/ack`); notices(); } catch (e) { message(e.message, false); }
@@ -811,9 +820,10 @@ async function tasks() {
   try {
     const list = await api("GET", "/v1/ui/tasks");
     $("#tasklist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => `
-      <details class="item">
+      <details class="item task">
         <summary>
-          <h3>${esc(t.title)} <span class="badge${t.state === "active" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></h3>
+          <span class="lead"><h3>${esc(t.title)}</h3>
+            <span class="badge${t.state === "active" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></span>
           <span class="short">${esc(firstSentence(t.summary))} · ${(t.plan.rules || []).length} ${T.task_rules}</span>
           ${t.state === "active"
             ? `<button class="secondary" onclick="event.preventDefault(); setTask('${esc(t.id)}', 'pause')">${T.task_pause}</button>`
