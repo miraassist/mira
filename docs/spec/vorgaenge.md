@@ -1,4 +1,4 @@
-# Sessions und Zieldefinitionen – Spezifikation
+# Vorgänge und Zieldefinitionen – Spezifikation
 
 Stand 2026-10-15. Gilt für [Aufgaben](aufgaben.md) und kommende Anliegen
 wie Kalender oder Nachrichten an andere ([Benutzer](benutzer.md)).
@@ -20,8 +20,8 @@ dabei das Licht verloren gegangen: Aus „Licht zu ungewöhnlicher Zeit“ wurde
 
 - **Turn:** eine kurze Unterhaltung, wie Home Assistant sie führt. Zum
   Beispiel ein Wake-Word-Gespräch oder die Antwort nach einer Ansage. Er hat
-  einen eigenen Verlauf. Im Code hieß er bisher `session`.
-- **Session:** ein Anliegen, das über mehrere Turns läuft. Sie hat
+  einen eigenen Verlauf. Im Code heißt er weiter `session`.
+- **Vorgang** (im Code `thread`): ein Anliegen, das über mehrere Turns läuft. Er hat
   - ein **Ziel** (aus einer Zieldefinition),
   - einen **Ort** (Raum bei Sprache, Chat bei Telegram),
   - einen **Zustand**,
@@ -30,17 +30,17 @@ dabei das Licht verloren gegangen: Aus „Licht zu ungewöhnlicher Zeit“ wurde
   - optional einen **Inhalt** des Ziels, zum Beispiel den Entwurf einer
     Automation.
 - **Zieldefinition:** Sie steht in einem Skill (`metadata.mira.target`) und
-  legt fest, welche Felder eine Session füllen muss, wie sie geprüft werden
+  legt fest, welche Felder ein Vorgang füllen muss, wie sie geprüft werden
   und womit sie endet.
 
 ## Lebenszyklus
 
 ```
 eröffnet ─► sammelt ─► wartet auf dich ─┬─► sammelt …        (Antwort)
-                │                        ├─► abgebrochen      (session_cancel)
+                │                        ├─► abgebrochen      (thread_cancel)
                 │                        └─► abgelaufen       (Timeout, Standard 15 min)
                 ▼ (alle Felder da)
-            arbeitet ─► schlägt vor ─► wartet auf Ja ─┬─► erledigt (session_confirm, Abschluss gelungen)
+            arbeitet ─► schlägt vor ─► wartet auf Ja ─┬─► erledigt (thread_confirm, Abschluss gelungen)
                                                       ├─► sammelt  (Änderungswunsch)
                                                       ├─► abgebrochen
                                                       └─► abgelaufen
@@ -48,48 +48,48 @@ eröffnet ─► sammelt ─► wartet auf dich ─┬─► sammelt …        
 
 1. **Eröffnen.** Das Modell kennt die Zieldefinitionen wie Skills: Name und
    eine Zeile Beschreibung im festen Teil des Prompts. Erkennt es ein
-   passendes Anliegen, ruft es `session_start(target, request)` auf. Mira
-   legt die Session an und gibt die Anleitung des Ziels und die Felder
+   passendes Anliegen, ruft es `thread_start(target, request)` auf. Mira
+   legt den Vorgang an und gibt die Anleitung des Ziels und die Felder
    zurück.
-2. **Sammeln.** Das Modell trägt mit `session_fill(fields)` ein, was es weiß.
+2. **Sammeln.** Das Modell trägt mit `thread_fill(fields)` ein, was es weiß.
    - Der Code prüft jedes Feld und antwortet mit dem Stand: was fehlt, was
      falsch ist, oder dass alles vollständig ist.
-   - Fehlt etwas, fragt das Modell nach, und die Session wartet auf dich.
+   - Fehlt etwas, fragt das Modell nach, und der Vorgang wartet auf dich.
 3. **Arbeiten.** Sobald alle Felder da sind, startet der Code den
    Arbeitsschritt des Ziels. Braucht das Ziel ein Ja, wird daraus ein
-   Vorschlag. Vorschlag und Rückfrage sind Meldungen **der Session**.
+   Vorschlag. Vorschlag und Rückfrage sind Meldungen **des Vorgangs**.
 4. **Abschließen.** Es gibt drei Wege:
-   - Auf das Ja ruft das Modell `session_confirm` auf. Der Abschluss läuft
-     (die Automation wird angelegt), und die Session ist erledigt.
+   - Auf das Ja ruft das Modell `thread_confirm` auf. Der Abschluss läuft
+     (die Automation wird angelegt), und der Vorgang ist erledigt.
    - Ein Ziel ohne Bestätigung (etwa „merken“) wird direkt abgeschlossen,
      sobald es vollständig ist.
-   - Ein Änderungswunsch („ohne die Tür“) führt mit `session_fill` zurück
+   - Ein Änderungswunsch („ohne die Tür“) führt mit `thread_fill` zurück
      ins Sammeln.
-5. **Ende.** Eine Session ist erledigt, abgebrochen (du sagst es, das
-   Modell ruft `session_cancel` auf) oder abgelaufen (Timeout ohne
-   Antwort). Ihre offenen Meldungen werden dabei zurückgezogen. Ein alter
+5. **Ende.** Ein Vorgang ist erledigt, abgebrochen (du sagst es, das
+   Modell ruft `thread_cancel` auf) oder abgelaufen (Timeout ohne
+   Antwort). Seine offenen Meldungen werden dabei zurückgezogen. Ein alter
    Vorschlag landet also nie später im „Übrigens“.
 
-## Zuordnung: Welcher Turn gehört zu welcher Session?
+## Zuordnung: Welcher Turn gehört zu welchem Vorgang?
 
 1. **Fest verknüpft (Code).** Eine Antwort direkt nach einer Ansage gehört
-   zur Session dieser Meldung. Weitere Turns derselben HA-Unterhaltung
-   gehören zu derselben Session.
-2. **Wartend am selben Ort (Modell).** Wartet an diesem Ort eine Session
-   auf dich, sieht das Modell sie im Kontext und entscheidet: weiterführen
-   (`session_fill`, `session_confirm`), abbrechen (`session_cancel`) oder
+   zum Vorgang dieser Meldung. Weitere Turns derselben HA-Unterhaltung
+   gehören zu demselben Vorgang.
+2. **Wartend am selben Ort (Modell).** Wartet an diesem Ort ein Vorgang
+   auf dich, sieht das Modell ihn im Kontext und entscheidet: weiterführen
+   (`thread_fill`, `thread_confirm`), abbrechen (`thread_cancel`) oder
    ein anderes Thema. Das sind keine festen Phrasen.
-3. **Sonst** gehört der Turn zu keiner Session.
+3. **Sonst** gehört der Turn zu keinem Vorgang.
 
-Es gibt keine Fortsetzung über Kanäle hinweg: Eine am Satelliten begonnene
-Session lässt sich nicht per Telegram weiterführen.
+Es gibt keine Fortsetzung über Kanäle hinweg: Ein am Satelliten begonnener
+Vorgang lässt sich nicht per Telegram weiterführen.
 
-Im Kontext (Schicht 7, nicht im gecachten Teil) steht für die zugeordnete
-oder wartende Session:
+Im Kontext (Schicht 7, nicht im gecachten Teil) steht für den zugeordneten
+oder wartenden Vorgang:
 - das Ziel und der Wunsch in deinen Worten,
 - die Felder mit ihrem Stand,
 - das Protokoll,
-- worauf die Session wartet.
+- worauf der Vorgang wartet.
 
 ## Zieldefinition
 
@@ -136,13 +136,13 @@ Diese Werkzeuge gibt es immer:
 
 | Werkzeug | Wirkung |
 |---|---|
-| `session_start(target, request)` | eröffnet eine Session am Ort des Turns und liefert Anleitung und Felder |
-| `session_fill(fields)` | trägt Felder ein, liefert den Stand und startet den Arbeitsschritt, wenn alles da ist |
-| `session_confirm()` | schließt eine Session ab, die auf ein Ja wartet |
-| `session_cancel()` | bricht die Session ab |
+| `thread_start(target, request)` | eröffnet einen Vorgang am Ort des Turns und liefert Anleitung und Felder |
+| `thread_fill(fields)` | trägt Felder ein, liefert den Stand und startet den Arbeitsschritt, wenn alles da ist |
+| `thread_confirm()` | schließt einen Vorgang ab, der auf ein Ja wartet |
+| `thread_cancel()` | bricht den Vorgang ab |
 
-Die Werkzeuge wirken immer auf die Session des Turns. Hat der Turn keine
-Session, gilt die wartende am Ort.
+Die Werkzeuge wirken immer auf den Vorgang des Turns. Hat der Turn keinen
+Vorgang, gilt der wartende am Ort.
 
 ## Erste Ziele
 
@@ -161,13 +161,12 @@ Später:
 
 ## Datenmodell
 
-- **`turns`:** die bisherige Tabelle `sessions`, umbenannt. Neu ist die
-  Spalte `session_id`, die zugeordnete Session.
-- **`sessions`** (neu):
+- **`sessions`** (Turns, wie bisher): neue Spalte `thread_id` mit dem zugeordneten Vorgang.
+- **`threads`** (neu):
   - `id`, `target`, `place`, `state`, `request`,
   - `fields` (JSON), `log` (JSON), `content` (JSON),
   - `created_at`, `updated_at`, `expires_at`.
-- **`notices`:** neue Spalte `session_id`. Endet eine Session, werden ihre
+- **`notices`:** neue Spalte `thread_id`. Endet ein Vorgang, werden seine
   offenen Meldungen zurückgezogen.
 - Die Tabelle `tasks` (Vorschläge) entfällt. Der Entwurf ist jetzt der
-  Inhalt der Session.
+  Inhalt des Vorgangs.
