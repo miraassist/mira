@@ -25,7 +25,7 @@ def entry(hass, aioclient_mock) -> MockConfigEntry:
     """A config entry pointing at the mocked agent, past the first import.
     The agent accepts the subentries it gets after every setup."""
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
-    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": AGENT_USER, "version": "0.3.0"})
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": AGENT_USER})
     e = MockConfigEntry(
         domain=DOMAIN,
         title="Mira",

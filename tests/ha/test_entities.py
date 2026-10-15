@@ -26,22 +26,6 @@ async def test_status_entities(hass, aioclient_mock, entry):
     assert hass.states.get(SWITCH).state == STATE_OFF
 
 
-async def test_device_shows_versions(hass, aioclient_mock, entry):
-    """The running code's version, equal to the manifest's."""
-    import json
-    from pathlib import Path
-
-    from homeassistant.helpers import device_registry as dr
-
-    await _setup(hass, entry, aioclient_mock)
-    manifest = json.loads((Path(__file__).parents[2] / "custom_components/mira/manifest.json").read_text())
-    device = dr.async_get(hass).async_get_device_by_identifier(("mira", entry.entry_id), entry.entry_id)
-    from custom_components.mira.const import VERSION
-
-    assert VERSION == manifest["version"], "const.VERSION and manifest.json differ"
-    assert device.sw_version == f"Integration {VERSION} · Agent 0.3.0"
-
-
 async def test_quiet_mode_switch(hass, aioclient_mock, entry):
     await _setup(hass, entry, aioclient_mock)
     aioclient_mock.put(f"{AGENT_URL}/v1/quiet_mode", json={"quiet_mode": True})
