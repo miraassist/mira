@@ -30,16 +30,41 @@ func TestAloneAtHome(t *testing.T) {
 	}
 }
 
-func TestPersonOfUser(t *testing.T) {
-	persons := map[string]config.Person{"anna": {Entity: "person.anna"}, "ben": {Entity: "person.ben"}}
+// Every HA person is a person, keyed by its id; Mira's settings attach by
+// that id, or by the entity for an older entry, and a HA user finds its
+// person through Home Assistant's link.
+func TestPersonsFromHomeAssistant(t *testing.T) {
 	states := []haws.State{
-		{EntityID: "person.anna", Attributes: map[string]any{"user_id": "u-anna"}},
-		{EntityID: "person.ben", Attributes: map[string]any{"user_id": "u-ben"}},
+		{EntityID: "person.anna", Attributes: map[string]any{"id": "anna", "friendly_name": "Anna", "user_id": "u-anna"}},
+		{EntityID: "person.ben_renamed", Attributes: map[string]any{"id": "ben", "friendly_name": "Ben"}},
+		{EntityID: "person.oma", Attributes: map[string]any{"id": "oma_1", "friendly_name": "Oma"}},
+		{EntityID: "light.kueche"},
 	}
-	if got := personOfUser(persons, states, "u-ben"); got != "ben" {
-		t.Errorf("got %q", got)
+	settings := map[string]config.Person{
+		"anna":   {TelegramUserID: 42},
+		"benjie": {Entity: "person.ben_renamed", AloneIsMe: true}, // older entry, by entity
 	}
-	if got := personOfUser(persons, states, "u-guest"); got != "" {
+	persons := mergePersons(haPersonsFrom(states), settings)
+	if len(persons) != 3 {
+		t.Fatalf("persons: %v", persons)
+	}
+	if p := persons["anna"]; p.TelegramUserID != 42 || p.Name != "Anna" || p.Entity != "person.anna" || p.UserID != "u-anna" {
+		t.Errorf("anna: %+v", p)
+	}
+	if p := persons["ben"]; !p.AloneIsMe || p.Entity != "person.ben_renamed" {
+		t.Errorf("ben: %+v", p)
+	}
+	if p, ok := persons["oma_1"]; !ok || p.Name != "Oma" {
+		t.Errorf("oma, without settings, is a person too: %+v", persons)
+	}
+	if got := personOfUser(persons, "u-anna"); got != "anna" {
+		t.Errorf("u-anna: got %q", got)
+	}
+	if got := personOfUser(persons, "u-guest"); got != "" {
 		t.Errorf("a user without a person: got %q", got)
+	}
+	// Without Home Assistant's persons the config is all there is.
+	if got := mergePersons(nil, settings); len(got) != 2 {
+		t.Errorf("without HA: %v", got)
 	}
 }

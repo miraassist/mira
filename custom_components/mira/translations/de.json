@@ -176,15 +176,15 @@
   },
   "config_subentries": {
     "person": {
-      "entry_type": "Person",
+      "entry_type": "Personen-Einstellungen",
       "initiate_flow": {
-        "user": "Person hinzufügen",
+        "user": "Einstellungen für eine Person",
         "reconfigure": "Change"
       },
       "step": {
         "user": {
-          "title": "Person",
-          "description": "Bekommt persönliche und private Meldungen.",
+          "title": "Mira-Einstellungen für eine Person",
+          "description": "Jede Person aus Home Assistant ist auch für Mira eine Person; hier stellst du nur ein, wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram-User-ID",
@@ -199,8 +199,8 @@
           }
         },
         "reconfigure": {
-          "title": "Person",
-          "description": "Bekommt persönliche und private Meldungen.",
+          "title": "Mira-Einstellungen für eine Person",
+          "description": "Jede Person aus Home Assistant ist auch für Mira eine Person; hier stellst du nur ein, wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram-User-ID",

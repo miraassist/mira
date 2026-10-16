@@ -70,6 +70,9 @@ type Options struct {
 	// Persons lists the configured person keys; each gets a memory card, if
 	// empty.
 	Persons func() []string
+	// People are Home Assistant's persons, each a person for Mira; nil
+	// without Home Assistant.
+	People func() []PersonInfo
 	// PersonOfHAUser maps a Home Assistant user to a person key ("" for
 	// none), for the page inside Home Assistant.
 	PersonOfHAUser func(ctx context.Context, user string) string
@@ -192,10 +195,39 @@ func (h *Handler) authAnyone(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// PersonInfo is one of Home Assistant's persons.
+type PersonInfo struct {
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Entity string `json:"entity"`
+}
+
+func (h *Handler) people() []PersonInfo {
+	if h.opts.People == nil {
+		return nil
+	}
+	list := h.opts.People()
+	sort.Slice(list, func(i, j int) bool { return list[i].Name < list[j].Name })
+	return list
+}
+
+// personName names a person key: Home Assistant's name, else the key.
+func (h *Handler) personName(key string) string {
+	for _, p := range h.people() {
+		if p.Key == key && p.Name != "" {
+			return p.Name
+		}
+	}
+	return key
+}
+
 func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 	type section struct {
 		Value      json.RawMessage `json:"value"`
 		Overridden bool            `json:"overridden"`
+		// People are Home Assistant's persons, with the persons section:
+		// its value then holds only Mira's settings per person.
+		People []PersonInfo `json:"people,omitempty"`
 		// ManagedBy is "home_assistant" while the integration manages the
 		// section; the page shows it read-only then. For the notifier it
 		// means only its morning_trigger.
@@ -210,6 +242,9 @@ func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s := section{Value: v, Overridden: over}
+		if name == "persons" {
+			s.People = h.people()
+		}
 		if managed && (slices.Contains(haSections, name) || name == "notifier") {
 			s.ManagedBy = "home_assistant"
 		}
@@ -452,6 +487,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	}
 	type memory struct {
 		Owner          string `json:"owner"`
+		Name           string `json:"name,omitempty"`
 		Profile        string `json:"profile"`
 		ProfileUpdated string `json:"profile_updated,omitempty"`
 		Facts          []fact `json:"facts"`
@@ -478,6 +514,9 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		m := memory{Owner: owner, Profile: profile, Facts: []fact{}}
+		if owner != store.OwnerHouse {
+			m.Name = h.personName(owner)
+		}
 		if !updated.IsZero() {
 			m.ProfileUpdated = updated.In(h.opts.Location).Format(stamp)
 		}
@@ -494,7 +533,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// author renders who told a fact: the person key, or the area's name.
+// author renders who told a fact: the person's name, or the area's name.
 func (h *Handler) author(a string) string {
 	if id, ok := strings.CutPrefix(a, "area:"); ok {
 		if h.opts.AreaName != nil {
@@ -504,7 +543,10 @@ func (h *Handler) author(a string) string {
 		}
 		return id
 	}
-	return a
+	if a == "" {
+		return ""
+	}
+	return h.personName(a)
 }
 
 func (h *Handler) forget(w http.ResponseWriter, r *http.Request) {

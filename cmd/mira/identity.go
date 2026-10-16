@@ -31,16 +31,16 @@ func (a *app) identify(ctx context.Context, req conversation.Request, _ store.Se
 			}
 		}
 	case config.ChannelVoice:
-		if a.ha == nil || (req.HAUser == "" && !anyAloneIsMe(persons)) {
+		if req.HAUser != "" {
+			return a.personOfHAUser(ctx, req.HAUser)
+		}
+		if a.ha == nil || !anyAloneIsMe(persons) {
 			return ""
 		}
 		states, err := a.ha.States(ctx)
 		if err != nil {
 			a.log.Warn("could not read person states", "error", err)
 			return ""
-		}
-		if req.HAUser != "" {
-			return personOfUser(persons, states, req.HAUser)
 		}
 		return aloneAtHome(persons, states)
 	}
@@ -56,17 +56,10 @@ func anyAloneIsMe(persons map[string]config.Person) bool {
 	return false
 }
 
-// personOfUser maps a HA user to a person through the user_id attribute of
-// the HA person entities.
-func personOfUser(persons map[string]config.Person, states []haws.State, user string) string {
-	owner := map[string]bool{}
-	for _, s := range states {
-		if id, _ := s.Attributes["user_id"].(string); id != "" && id == user {
-			owner[s.EntityID] = true
-		}
-	}
+// personOfUser maps a HA user to the person Home Assistant linked it to.
+func personOfUser(persons map[string]config.Person, user string) string {
 	for key, p := range persons {
-		if p.Entity != "" && owner[p.Entity] {
+		if p.UserID != "" && p.UserID == user {
 			return key
 		}
 	}

@@ -176,15 +176,15 @@
   },
   "config_subentries": {
     "person": {
-      "entry_type": "Person",
+      "entry_type": "Person settings",
       "initiate_flow": {
-        "user": "Add person",
+        "user": "Add settings for a person",
         "reconfigure": "Change"
       },
       "step": {
         "user": {
-          "title": "Person",
-          "description": "Gets personal and private notices.",
+          "title": "Mira settings for a person",
+          "description": "Every person in Home Assistant is a person for Mira; here you only add where personal notices go and whether the satellites count as them when they are alone at home.",
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram user id",
@@ -199,8 +199,8 @@
           }
         },
         "reconfigure": {
-          "title": "Person",
-          "description": "Gets personal and private notices.",
+          "title": "Mira settings for a person",
+          "description": "Every person in Home Assistant is a person for Mira; here you only add where personal notices go and whether the satellites count as them when they are alone at home.",
           "data": {
             "entity": "Person",
             "telegram_user_id": "Telegram user id",

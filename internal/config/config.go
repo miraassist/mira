@@ -209,18 +209,27 @@ type Sessions struct {
 
 // Person is someone the agent can address personally. The key in the
 // persons map is the audience id notices use.
+//
+// With Home Assistant every HA person is a person (docs/spec/benutzer.md):
+// the key is the HA person's id, and Entity, Name and UserID come from
+// Home Assistant. The config then holds only Mira's settings per person,
+// under that id (an older entry is matched by its entity).
 type Person struct {
 	// Entity is the HA person entity; "home" means the person is at home.
-	Entity string `yaml:"entity"`
+	Entity string `yaml:"entity,omitempty"`
+	// Name is how Mira names the person; from Home Assistant.
+	Name string `yaml:"name,omitempty"`
+	// UserID is the HA user linked to the person; from Home Assistant.
+	UserID string `yaml:"-"`
 	// TelegramUserID is the private chat for confidential or escalated
 	// notices. Must be on the Telegram allowlist.
-	TelegramUserID int64 `yaml:"telegram_user_id"`
+	TelegramUserID int64 `yaml:"telegram_user_id,omitempty"`
 	// Notify is a HA notify service for the companion app, such as
 	// "notify.mobile_app_phone".
-	Notify string `yaml:"notify"`
+	Notify string `yaml:"notify,omitempty"`
 	// AloneIsMe: when this person is the only one at home (by Entity), the
 	// satellites count as them: their memory, their personal tasks.
-	AloneIsMe bool `yaml:"alone_is_me"`
+	AloneIsMe bool `yaml:"alone_is_me,omitempty"`
 }
 
 type Notifier struct {

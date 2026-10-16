@@ -97,11 +97,14 @@ satellites:            # area id -> satellite that speaks announcements there
   # A satellite that is only a media_player works too (needs notifier.tts_entity):
   # wohnzimmer: media_player.echo_wohnzimmer
 
-persons:               # key = audience id for personal notices
-  ben:
-    entity: person.ben                 # home/not_home, used by confidential_voice
+# With Home Assistant every HA person is a person for Mira, keyed by the HA
+# person's id; here go only Mira's settings for a person. Without Home
+# Assistant (Telegram only) the persons are these, with their own keys.
+persons:
+  ben:                                    # the HA person's id
     telegram_user_id: 123456789           # must be on telegram.allowed_user_ids
     notify: notify.mobile_app_phone       # companion app, optional
+    alone_is_me: false                    # alone at home, the satellites are ben
 
 # Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
 # with the label "Mira" that call mira.assess, mira.decide or

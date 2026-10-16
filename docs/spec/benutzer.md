@@ -3,8 +3,9 @@
 Stand 2026-10-16. Gilt auch für die [Aufgaben](aufgaben.md).
 
 Gebaut (Agent 0.5.0, Integration 0.4.0): Identität, Regel „allein zu Hause“,
-Gedächtnis und Profil pro Besitzer mit Urheber. Offen: Aufgaben, Meldungen,
-Erinnerungen und Verläufe pro Besitzer, Nachrichten an andere.
+Gedächtnis und Profil pro Besitzer mit Urheber. Gebaut (0.5.7): Personen
+kommen aus Home Assistant. Offen: Aufgaben, Meldungen, Erinnerungen und
+Verläufe pro Besitzer, Nachrichten an andere.
 
 ## Grundsatz
 
@@ -27,6 +28,18 @@ Es gibt keine getrennten Agenten. Das Hauswissen (Struktur, Geräte) bleibt eine
 
 Rollen (etwa Kinder ohne Schlösser) und Freigaben per Handy gibt es vorerst nicht.
 
+## Personen kommen aus Home Assistant
+
+Mit Home Assistant ist **jede HA-Person automatisch eine Person bei Mira**. Mira legt keine eigenen Personen an und hält nichts synchron.
+
+- **Anker ist die HA-Person, nicht der HA-Benutzer.** Die Person ist das Haushaltsmitglied mit Anwesenheit (home/away), Name und Bild; der Benutzer ist nur ein Login. Es gibt Personen ohne Login (Kinder, Oma am Satelliten) und Logins ohne Person (Miras eigener HA-Benutzer, Service-Konten). HA verknüpft beides selbst über das Attribut `user_id` der Person, und legt beim Anlegen eines Benutzers standardmäßig eine Person an.
+- **Schlüssel** ist die interne ID der HA-Person (`attributes.id` der `person.*`-Entität, z. B. `stefan_rinke`). Sie bleibt, wenn die Entität umbenannt wird. Gedächtnis, Meldungen, Erinnerungen und Sitzungen hängen an diesem Schlüssel.
+- **Mira liest die Personen aus den Zuständen** (`person.*`, mit `id`, `user_id`, Name, Anwesenheit). Dafür braucht ihr HA-Benutzer keine Admin-Rechte. Neue Personen sieht sie beim nächsten Abgleich (jede Minute) oder sofort, wenn ein unbekannter HA-Benutzer auftaucht.
+- **Datensätze entstehen bei Bedarf:** Gedächtnis, Profil und Co. einer Person gibt es, sobald es etwas zu speichern gibt. Es gibt nichts anzulegen.
+- **Was nur Mira braucht, sind optionale Einstellungen an der Person:** Telegram-ID, Push-Dienst (Companion-App), „Allein zu Hause sind die Satelliten ich“. In der Integration heißt das „Mira-Einstellungen für eine Person“: man wählt eine HA-Person und setzt, was man braucht. Wer nichts davon braucht, stellt nichts ein.
+- **Ein HA-Benutzer ohne Person** (selten) ist für Mira niemand Bestimmtes: Im Panel sieht er das Haus-Gedächtnis und einen Hinweis, im App-Chat gilt er als anonym.
+- **Ohne Home Assistant** (nur Telegram) bleiben die Personen in `mira.yaml` unter `persons:` mit eigenem Schlüssel, wie bisher. Mit Home Assistant werden dort nur noch die Einstellungen pro HA-Person gelesen (Schlüssel = Personen-ID; ein älterer Eintrag mit `entity:` wird über die Entität zugeordnet).
+
 ## Identität: wer spricht
 
 Die Identität kommt vom Kanal:
@@ -34,7 +47,7 @@ Die Identität kommt vom Kanal:
 | Kanal | Identität |
 |---|---|
 | Telegram | Person über die Telegram-ID (wie heute) |
-| HA-App, Assist-Chat | Person über den angemeldeten HA-Benutzer. Die Integration reicht `user_input.context.user_id` weiter, Mira ordnet ihn über das Attribut `user_id` der HA-Personen-Entität zu. |
+| HA-App, Assist-Chat, Mira im HA-Seitenmenü | Person über den angemeldeten HA-Benutzer. Die Integration reicht die Benutzer-ID weiter, Mira ordnet sie über das Attribut `user_id` der HA-Person zu. |
 | Satellit | anonym, also Haus-Bereich. Ausnahme: die Regel „allein zu Hause“ |
 
 Zu prüfen beim Bau: Satelliten-Gespräche kommen ohne Benutzer an.
@@ -96,7 +109,7 @@ Mira schaltet weiter mit ihrem eigenen HA-Benutzer. Ob ein Befehl erlaubt ist, e
 
 ## Datenmodell (Skizze)
 
-- `owner` (house oder Personen-Schlüssel) an: Fakten, Profil (eins pro Besitzer), Aufgaben, Erinnerungen, Sitzungen.
+- `owner` (house oder Personen-ID aus HA) an: Fakten, Profil (eins pro Besitzer), Aufgaben, Erinnerungen, Sitzungen.
 - Meldungen: `owner`/`audience` wie bisher, dazu `sender`.
-- Personen: dazu `alone_is_me` (bool) und `accept_messages` (all, persons, none).
-- Testdaten werden gelöscht, eine Migration ist nicht nötig.
+- Personen: die HA-Person (ID, Entität, Name, Benutzer) plus Miras Einstellungen `telegram_user_id`, `notify`, `alone_is_me` und später `accept_messages` (all, persons, none).
+- Bisher ist alles Test: Daten werden nicht migriert. Alte Schlüssel (`stefan` statt `stefan_rinke`) bleiben einfach liegen.

@@ -209,7 +209,8 @@ class _ManagedSubentryFlow(ConfigSubentryFlow):
 
 
 class PersonSubentryFlow(_ManagedSubentryFlow):
-    """A person who gets personal and private notices."""
+    """Mira's settings for one of Home Assistant's persons. Every HA person
+    is a person for Mira anyway; this only adds what Mira needs on top."""
 
     subentry_type = SUBENTRY_PERSON
 
@@ -229,9 +230,10 @@ class PersonSubentryFlow(_ManagedSubentryFlow):
         )
 
     def _normalize(self, data: dict[str, Any]) -> dict[str, Any]:
-        # The key is what audience refers to; it stays once given.
-        if not data.get("key"):
-            data["key"] = data["entity"].split(".", 1)[1]
+        # The key is the HA person's own id, which stays when the entity is
+        # renamed; Mira keys the person's memory and notices by it.
+        state = self.hass.states.get(data["entity"])
+        data["key"] = (state.attributes.get("id") if state else None) or data["entity"].split(".", 1)[1]
         telegram = str(data.get("telegram_user_id") or "").strip()
         if telegram and not telegram.isdigit():
             raise ValueError(f"Telegram user id {telegram!r} is not a number")

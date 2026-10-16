@@ -111,6 +111,22 @@ async def test_person_needs_a_numeric_telegram_id(hass, aioclient_mock, entry):
     assert result["unique_id"] == "person:ben"
 
 
+async def test_person_settings_are_keyed_by_the_ha_person_id(hass, aioclient_mock, entry):
+    """The key is the HA person's own id, which stays when the entity is
+    renamed; Mira keys memory and notices by it."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    hass.states.async_set("person.ben_neu", "home", {"id": "ben_1", "friendly_name": "Ben"})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, "person"), context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"entity": "person.ben_neu", "telegram_user_id": "77"}
+    )
+    assert result["unique_id"] == "person:ben_1"
+    assert result["title"] == "Ben"
+
+
 async def test_discovery_asks_only_for_the_token(hass, aioclient_mock):
     aioclient_mock.get("http://192.168.1.20:8787/v1/health", json={"status": "ok", "id": AGENT_ID})
     result = await hass.config_entries.flow.async_init(

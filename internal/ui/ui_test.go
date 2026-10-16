@@ -136,7 +136,7 @@ func TestNoticesAndMemory(t *testing.T) {
 		t.Fatalf("memory: %d %s", code, body)
 	}
 	// Every person has a memory card, even an empty one.
-	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, `"owner":"anna","profile":"","facts":[]`) {
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, `"owner":"anna","name":"anna","profile":"","facts":[]`) {
 		t.Errorf("anna's empty memory missing: %s", body)
 	}
 	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/f1", "secret", `{"text":"Ben trinkt Tee."}`); code != 200 {

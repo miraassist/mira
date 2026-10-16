@@ -49,6 +49,10 @@ type app struct {
 	tasks  *tasks.Manager
 	// threads runs threads ("Vorgänge"): concerns over several turns.
 	threads *threads.Manager
+	// people are Home Assistant's persons (people.go).
+	people people
+	// runCtx is run's context, for restarts from background work.
+	runCtx context.Context
 	// haUserID is the agent's Home Assistant user, read once (haUser).
 	haUserMu sync.Mutex
 	haUserID string
@@ -430,6 +434,17 @@ func runAgent(parent context.Context, cfg config.Config) error {
 	a.fileCfg = cfg
 	a.live = a.withUIOverrides(ctx, cfg)
 	if a.ha != nil {
+		// The persons come from Home Assistant; read them before the
+		// notifier starts with them.
+		if a.ha.Connected() {
+			if _, err := a.people.refresh(ctx, a.ha); err != nil {
+				a.log.Warn("could not read the persons", "error", err)
+			} else {
+				a.logPeople()
+			}
+		}
+		a.runCtx = ctx
+		a.goRun(ctx, "people", a.watchPeople)
 		a.startProactive(ctx)
 	} else if len(cfg.Notifier.MorningTrigger.Areas) > 0 {
 		a.log.Warn("the notifier needs Home Assistant (ha.enabled); it is off")
@@ -519,6 +534,7 @@ func (a *app) startProactive(parent context.Context) {
 	a.proactiveMu.Lock()
 	defer a.proactiveMu.Unlock()
 	cfg := a.liveConfig()
+	cfg.Persons = a.persons()
 	ctx, cancel := context.WithCancel(parent)
 	a.proactiveCancel = cancel
 
@@ -573,13 +589,6 @@ func (m isolatedModel) Ask(ctx context.Context, system, instruction string, sche
 }
 
 // persons are the configured persons from the live config.
-func (a *app) persons() map[string]config.Person {
-	if p := a.liveConfig().Persons; p != nil {
-		return p
-	}
-	return a.cfg.Persons // the chat command has no live config
-}
-
 // engineAssessor lets the task manager use the engine before it exists.
 type engineAssessor struct{ a *app }
 
@@ -609,11 +618,7 @@ func (a *app) readNotices(ctx context.Context, inv tools.Invocation) (string, er
 		}
 		area = sess.AreaID
 	}
-	persons := a.liveConfig().Persons
-	if persons == nil {
-		persons = a.cfg.Persons
-	}
-	return n.ReadOut(ctx, area, tools.AudienceFor("", inv, persons))
+	return n.ReadOut(ctx, area, tools.AudienceFor("", inv, a.persons()))
 }
 
 func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {
@@ -806,16 +811,16 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			}
 			return keys
 		},
-		PersonOfHAUser: func(ctx context.Context, user string) string {
+		PersonOfHAUser: a.personOfHAUser,
+		People: func() []ui.PersonInfo {
 			if a.ha == nil {
-				return ""
+				return nil
 			}
-			states, err := a.ha.States(ctx)
-			if err != nil {
-				a.log.Warn("could not read person states", "error", err)
-				return ""
+			var out []ui.PersonInfo
+			for key, p := range a.persons() {
+				out = append(out, ui.PersonInfo{Key: key, Name: p.Name, Entity: p.Entity})
 			}
-			return personOfUser(a.persons(), states, user)
+			return out
 		},
 		AreaName: func(id string) string {
 			if a.structure == nil {
