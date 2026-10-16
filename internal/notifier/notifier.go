@@ -45,6 +45,8 @@ type Options struct {
 	Location  *time.Location
 	Logger    *slog.Logger
 	Telemetry *telemetry.Provider
+	// Composer words several messages as one announcement (compose.go).
+	Composer Composer
 }
 
 type Notifier struct {
@@ -60,6 +62,7 @@ type Notifier struct {
 	loc         *time.Location
 	log         *slog.Logger
 	tel         *telemetry.Provider
+	composer    Composer
 	areas       map[string]bool
 
 	// idlePoll is how often waitFor looks at a satellite.
@@ -107,6 +110,7 @@ func New(opts Options) *Notifier {
 		loc:           opts.Location,
 		log:           opts.Logger.With("component", "notifier"),
 		tel:           opts.Telemetry,
+		composer:      opts.Composer,
 		areas:         map[string]bool{},
 		indicatorOn:   map[string]bool{},
 		deviceOf:      map[string]string{},
@@ -130,12 +134,10 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	defer n.mu.Unlock()
 
 	if !n.areas[area] {
-		return Outcome{Skipped: "area not configured"}, nil
-	}
-	if n.cfg.Indicates(area) {
-		// Shown on the indicator, read out when asked.
+		// No announcing on entry here: an indicator light, if any, shows
+		// what waits, and it is read out when asked.
 		n.syncIndicators(ctx)
-		return Outcome{Skipped: "indicate mode"}, nil
+		return Outcome{Skipped: "no announcing on entry"}, nil
 	}
 	now := n.clock()
 	if quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false); err != nil {
@@ -403,41 +405,48 @@ type texts struct {
 	reminder                      string // %s = what to remember
 	byTheWay                      string
 	counts                        []string
+	// For the model's wording (compose.go): the task (%s now, %s the
+	// list), the morning greeting, and how times are described.
+	composeTask, composeMorning, importance               string
+	whenToday, whenNight, whenYesterday, whenDate         string // %s clock (date first for whenDate)
+	prefixToday, prefixNight, prefixYesterday, prefixDate string
 }
 
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Nachrichten. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.", byTheWay: "Übrigens: ",
-		counts: []string{"null", "eine", "zwei", "drei", "vier", "fünf"}},
-	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
-		counts: []string{"zero", "one", "two", "three", "four", "five"}},
-}
+		counts: []string{"null", "eine", "zwei", "drei", "vier", "fünf"},
+		composeTask: `Formuliere aus diesen wartenden Nachrichten EINE gesprochene Ansage für den Raum. Jetzt ist es %s Uhr.
 
-// Compose turns messages into one spoken announcement.
-func Compose(l i18n.Lang, messages []store.Message, now time.Time, quietEnd config.ClockTime) string {
-	t := i18n.Pick(catalog, l)
-	var b strings.Builder
-	h := now.Hour()
-	if h*60+now.Minute() >= quietEnd.MinutesOfDay() && h < 11 {
-		b.WriteString(t.goodMorning)
-	}
-	if len(messages) == 1 {
-		b.WriteString(sentence(messages[0].Spoken))
-		return b.String()
-	}
-	fmt.Fprintf(&b, t.intro, countWord(t, len(messages)))
-	for i, nt := range messages {
-		switch {
-		case i == 0:
-		case i == len(messages)-1:
-			b.WriteString(t.and)
-		default:
-			b.WriteString(t.also)
-		}
-		b.WriteString(sentence(nt.Spoken))
-	}
-	return b.String()
+%s
+Regeln:
+- Nimm jede Nachricht auf, keine darf fehlen. Erfinde nichts dazu und ändere keine Werte, Namen oder Zeiten.
+- Wichtigeres zuerst. Ähnliches oder Doppeltes darfst du zusammenfassen.
+- Nenne die Zeit, wenn sie für das Verständnis hilft (z. B. bei Dingen, die vorbei sind: „heute Nacht um drei“, „vorhin um eins“). Bei Dingen, die kommen (Abholung morgen), nicht.
+- Eine Nachricht, die schon sagt, von wem sie ist („Anna lässt dir ausrichten …“), behält das.
+- Gesprochene Sprache, Du-Form, kurz, natürliche Übergänge statt Aufzählung. Keine Listen, keine Emojis, keine Markdown-Zeichen.
+- Antworte mit JSON: "text" ist die Ansage, "ids" die IDs aller Nachrichten, die darin vorkommen.`,
+		composeMorning: "\nBeginne mit „Guten Morgen“.",
+		importance:     "Wichtigkeit",
+		whenToday:      "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
+		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: "},
+	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
+		counts: []string{"zero", "one", "two", "three", "four", "five"},
+		composeTask: `Word these waiting messages as ONE spoken announcement for the room. It is %s now.
+
+%s
+Rules:
+- Include every message; none may be missing. Add nothing and do not change values, names or times.
+- More important first. You may merge similar or duplicate ones.
+- Say the time when it helps understanding (for things that are over: "tonight at three", "earlier at one"). Not for things to come (collection tomorrow).
+- A message that already says who it is from ("Anna asks me to tell you …") keeps that.
+- Spoken language, addressing the listener as "you", short, natural transitions instead of a list. No lists, no emojis, no Markdown.
+- Answer with JSON: "text" is the announcement, "ids" the ids of all messages in it.`,
+		composeMorning: "\nStart with \"Good morning\".",
+		importance:     "importance",
+		whenToday:      "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
+		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: "},
 }
 
 func sentence(s string) string {
@@ -459,7 +468,7 @@ func countWord(t texts, n int) string {
 // for in that room does without it.
 func (n *Notifier) announce(ctx context.Context, area string, messages []store.Message, preannounce bool) error {
 	sat := n.sats[area]
-	text := Compose(n.lang, messages, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	text := n.compose(ctx, messages)
 	n.speaking(ctx, area)
 	method, err := n.deliver(ctx, sat, text, preannounce)
 	if err != nil {

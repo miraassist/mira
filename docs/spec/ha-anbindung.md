@@ -28,15 +28,14 @@ Fast alles, was heute ein „Raum“ ist, ist eine Eigenschaft des Satelliten:
 | Einstellung am Satelliten (`options["mira"]`) | Bedeutung |
 |---|---|
 | `presence` | **Liste** von Bewegungsmeldern; jeder davon löst „jemand kommt herein“ aus (z. B. Flur-PIR und Wohnzimmer-PIR für das Wohnzimmer-Echo) |
-| `morning` | morgens beim Hereinkommen ansagen, was nachts aufgelaufen ist |
-| `mode` | `announce` (ansagen) oder `indicate` (Anzeige-Lampe) |
-| `indicator` | die Lampe für `indicate`, z. B. der LED-Ring des Echo |
+| `morning` | **beim Hereinkommen ansagen**: Merkt einer der Bewegungsmelder jemanden, sagt Mira von selbst an, was wartet (nach der Ruhezeit mit „Guten Morgen“) |
+| `indicator` | die Anzeige-Lampe, z. B. der LED-Ring des Echo: leuchtet, solange etwas wartet, unabhängig von Bewegungsmeldern |
 
 - Der **Bereich** ist der des Satelliten in HA (Entität, sonst ihr Gerät). Ein Satellit ohne Bereich kann nicht eingestellt werden.
 - Satelliten sind `assist_satellite.*`, für Lautsprecher ohne Assist auch `media_player.*` (mit `notifier.tts_entity`).
 - Vorerst **ein Satellit pro Bereich**: Ein zweiter im selben Bereich wird abgelehnt. Mehrere pro Bereich wären ein eigener Schritt (wer spricht dann?).
 - Die Unter-Einträge „Raum“ der Integration entfallen. Bereiche selbst lassen sich in HA nicht dekorieren (die Bereichs-Registry hat keine Optionen); auch deshalb ist der Satellit der Anker.
-- Ohne Integration bleibt alles in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `room_mode`, `indicators`); `presence` darf dort eine Entität oder eine Liste sein.
+- Ohne Integration bleibt alles in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `indicators`); `presence` darf dort eine Entität oder eine Liste sein.
 
 ## Nachfragen vor dem Schalten
 

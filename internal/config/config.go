@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/sker65/mira/internal/i18n"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -260,13 +261,13 @@ type Notifier struct {
 	// a media_player with TTSEntity.
 	Delivery  string `yaml:"delivery"`
 	TTSEntity string `yaml:"tts_entity"`
-	// RoomMode is per area "announce" (default: messages are spoken when
-	// someone comes in) or "indicate": messages are only shown on the area's
-	// indicator light, and the user asks for them ("Hast du eine
-	// Benachrichtigung?"). Urgent messages and reminders are spoken anyway.
-	RoomMode map[string]string `yaml:"room_mode"`
+	// RoomMode is no longer used: whether Mira speaks when someone comes in
+	// is MorningTrigger.Areas ("announce on entry"), and an indicator light
+	// shows waiting messages either way. An old "indicate" takes the area
+	// out of MorningTrigger.Areas when the config is read.
+	RoomMode map[string]string `yaml:"room_mode,omitempty"`
 	// Indicators maps an area to the light that shows waiting messages, such
-	// as the LED ring of a satellite.
+	// as the LED ring of a satellite, whether or not Mira announces there.
 	Indicators map[string]string `yaml:"indicators"`
 	Indicator  IndicatorStyle    `yaml:"indicator"`
 }
@@ -283,9 +284,6 @@ const (
 	RoomAnnounce = "announce"
 	RoomIndicate = "indicate"
 )
-
-// Indicates reports whether messages in an area are only shown, not spoken.
-func (n Notifier) Indicates(area string) bool { return n.RoomMode[area] == RoomIndicate }
 
 // Values of Notifier.ConfidentialVoice.
 const (
@@ -471,6 +469,13 @@ func (c *Config) normalize() {
 		c.Models[name] = m
 	}
 	c.HA.URL = strings.TrimRight(c.HA.URL, "/")
+	// An area once set to "indicate" did not speak on entry; it still doesn't.
+	if len(c.Notifier.RoomMode) > 0 {
+		c.Notifier.MorningTrigger.Areas = slices.DeleteFunc(c.Notifier.MorningTrigger.Areas, func(a string) bool {
+			return c.Notifier.RoomMode[a] == RoomIndicate
+		})
+		c.Notifier.RoomMode = nil
+	}
 	for i := range c.MCPServers {
 		if c.MCPServers[i].Transport == "" {
 			if c.MCPServers[i].Command != "" {

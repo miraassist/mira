@@ -93,7 +93,7 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
     assert sent["persons"] == {"anna": {"entity": "person.anna", "channels": ["notify.anna_phone"]}}
     assert sent["rooms"] == [
         {"area": "bad", "satellite": satellite, "presence": ["binary_sensor.bad"], "morning": True,
-         "mode": "announce", "indicator": ""}
+         "indicator": ""}
     ]
 
 
@@ -124,15 +124,15 @@ async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, en
         result["flow_id"],
         {
             "Wohnzimmer-Echo": _fields({"presence": ["binary_sensor.flur", "binary_sensor.wz"], "morning": True,
-                                        "mode": "indicate", "indicator": "light.ring"}),
-            kueche: _fields({"morning": False, "mode": "announce"}),
+                                        "indicator": "light.ring"}),
+            kueche: _fields({"morning": False}),
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert er.async_get(hass).async_get(wz).options[DOMAIN]["presence"] == ["binary_sensor.flur", "binary_sensor.wz"]
     rooms = {r["area"]: r for r in _puts(aioclient_mock)[-1]["rooms"]}
     assert rooms["wohnzimmer"]["presence"] == ["binary_sensor.flur", "binary_sensor.wz"]
-    assert rooms["wohnzimmer"]["mode"] == "indicate"
+    assert rooms["wohnzimmer"]["indicator"] == "light.ring"
     assert {r["satellite"] for r in rooms.values()} == {wz, kueche}
 
 
@@ -148,7 +148,7 @@ async def test_agent_refusal_shows_in_the_form(hass, aioclient_mock):
     assert await hass.config_entries.async_setup(e.entry_id)
     result = await _form(hass, e, "satellites")
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {keller: _fields({"morning": True, "mode": "indicate", "indicator": "light.x"})}
+        result["flow_id"], {keller: _fields({"morning": True, "indicator": "light.x"})}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_config"}
@@ -210,7 +210,7 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     body = await (await client.get("/api/mira/settings/satellites")).json()
     assert body["items"][0]["entity"] == wz and body["items"][0]["area"] == "Wohnzimmer"
     resp = await client.put(
-        "/api/mira/settings/satellites", json={wz: {"presence": "binary_sensor.a, binary_sensor.b", "mode": "announce"}}
+        "/api/mira/settings/satellites", json={wz: {"presence": "binary_sensor.a, binary_sensor.b", "morning": True}}
     )
     assert resp.status == 200
     assert er.async_get(hass).async_get(wz).options[DOMAIN]["presence"] == ["binary_sensor.a", "binary_sensor.b"]

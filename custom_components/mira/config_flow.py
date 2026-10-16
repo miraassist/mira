@@ -137,8 +137,7 @@ FIELD_NAMES = {
         "accept_from": "Nachrichten annehmen von",
         "alone_is_me": "Allein zu Hause sind die Satelliten ich",
         "presence": "Bewegungsmelder",
-        "morning": "Morgenansage",
-        "mode": "Zustellart",
+        "morning": "Beim Hereinkommen ansagen",
         "indicator": "Anzeige-Lampe",
     },
     "en": {
@@ -146,8 +145,7 @@ FIELD_NAMES = {
         "accept_from": "Take messages from",
         "alone_is_me": "Alone at home, the satellites are me",
         "presence": "Motion sensors",
-        "morning": "Morning announcement",
-        "mode": "Delivery",
+        "morning": "Announce on entry",
         "indicator": "Indicator light",
     },
 }
@@ -204,9 +202,6 @@ class MiraOptionsFlow(OptionsFlow):
                     selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
                 vol.Optional("morning", default=False): selector.BooleanSelector(),
-                vol.Optional("mode", default="announce"): selector.SelectSelector(
-                    selector.SelectSelectorConfig(options=["announce", "indicate"], translation_key="room_mode")
-                ),
                 vol.Optional("indicator"): selector.EntitySelector(selector.EntitySelectorConfig(domain="light")),
             }
         )

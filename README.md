@@ -88,10 +88,12 @@ Reminders: "remind me tomorrow at seven" and timers are built in
 (`reminder_set`). At the time Mira speaks the reminder in the room it was
 asked in, or sends it privately.
 
-Messages can be spoken or shown: per room, `notifier.room_mode` is
-`announce` (spoken when someone comes in) or `indicate`, where the room's
-indicator light, such as an Echo's LED ring, pulses while messages wait and
-"Hast du eine Benachrichtigung?" reads them out (`messages_read`). When you
+Messages are shown and spoken: per room, an indicator light (such as an
+Echo's LED ring) pulses while messages wait, and "Hast du eine
+Benachrichtigung?" reads them out (`messages_read`); with motion sensors and
+"announce on entry" (`notifier.morning_trigger.areas`) Mira says them by
+herself when someone comes in. Several messages are worded by the model as
+one announcement. When you
 talk to a satellite anyway, what waits for its room follows the answer
 ("Licht ist an. Übrigens: ..."), except after a question back and in quiet
 hours. Urgent messages and reminders are always spoken.

@@ -513,6 +513,7 @@ func (a *app) startProactive(parent context.Context) {
 
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
+		Composer: engineAssessor{a}.Assess,
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
@@ -572,7 +573,8 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 	n := a.notifier
 	if n == nil && a.ha != nil {
 		// Not running (the chat command): reading out needs no loop.
-		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel})
+		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
+			Composer: engineAssessor{a}.Assess})
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()

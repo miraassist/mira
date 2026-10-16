@@ -67,14 +67,12 @@
         "description": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Klapp einen auf und stell ein, was dazukommt; gespeichert wird am Satelliten selbst, der Raum ist sein Bereich. {error}",
         "data": {
           "presence": "Bewegungsmelder",
-          "morning": "Morgenansage",
-          "mode": "Zustellart",
+          "morning": "Beim Hereinkommen ansagen",
           "indicator": "Anzeige-Lampe"
         },
         "data_description": {
           "presence": "Bewegung an einem davon startet eine Ansage, z. B. Flur und Wohnzimmer.",
-          "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
-          "mode": "Ansagen spricht Nachrichten, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
+          "morning": "Merkt einer der Bewegungsmelder, dass jemand hereinkommt, sagt Mira an, was wartet. Aus: nur auf Nachfrage oder nach einer Antwort („Übrigens …“). Die Anzeige-Lampe leuchtet so oder so.",
           "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten."
         }
       }
@@ -232,12 +230,6 @@
       "options": {
         "normal": "Normal",
         "confidential": "Vertraulich"
-      }
-    },
-    "room_mode": {
-      "options": {
-        "announce": "Ansagen",
-        "indicate": "Nur anzeigen"
       }
     },
     "accept_from": {

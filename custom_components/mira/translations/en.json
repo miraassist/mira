@@ -67,14 +67,12 @@
         "description": "Every Assist satellite with an area speaks in its area. Expand one and set what comes on top; it is stored on the satellite itself, the room is its area. {error}",
         "data": {
           "presence": "Motion sensors",
-          "morning": "Morning announcement",
-          "mode": "Delivery",
+          "morning": "Announce on entry",
           "indicator": "Indicator light"
         },
         "data_description": {
           "presence": "Motion at any of them starts an announcement, e.g. hallway and living room.",
-          "morning": "The first motion after quiet hours announces what is pending.",
-          "mode": "Announce speaks messages when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent messages and reminders are always spoken.",
+          "morning": "When one of the motion sensors notices someone coming in, Mira says what is waiting. Off: she only tells when asked or after an answer (\"By the way …\"). The indicator light glows either way.",
           "indicator": "Shows waiting messages, e.g. the LED ring of the satellite."
         }
       }
@@ -232,12 +230,6 @@
       "options": {
         "normal": "Normal",
         "confidential": "Confidential"
-      }
-    },
-    "room_mode": {
-      "options": {
-        "announce": "Announce",
-        "indicate": "Indicate only"
       }
     },
     "accept_from": {

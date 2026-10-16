@@ -157,7 +157,7 @@ func (n *Notifier) ReadOut(ctx context.Context, area, receiver string) (string, 
 	if err != nil || len(list) == 0 {
 		return "", err
 	}
-	text := Compose(n.lang, list, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	text := n.compose(ctx, list)
 	via := "telegram"
 	if area != "" {
 		via = "voice:" + area
@@ -234,7 +234,7 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 		} else {
 			b.WriteString(t.also)
 		}
-		b.WriteString(sentence(nt.Spoken))
+		b.WriteString(n.timed(nt, n.clock().In(n.loc)))
 		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
 			n.log.Error("could not mark message delivered", "message", nt.ID, "error", err)
 			return ""

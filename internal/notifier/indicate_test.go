@@ -12,7 +12,7 @@ import (
 
 func indicateEnv(t *testing.T) *env {
 	e := newEnv(t, func(c *config.Config) {
-		c.Notifier.RoomMode = map[string]string{"kueche": config.RoomIndicate}
+		c.Notifier.MorningTrigger.Areas = []string{"bad"} // the kitchen does not announce on entry, it shows
 		c.Notifier.Indicators = map[string]string{"kueche": "light.ring"}
 	})
 	e.now = at("08:00") // after quiet hours
@@ -49,13 +49,13 @@ func (e *env) lightCalls() []call {
 	return out
 }
 
-// In an indicate room nothing is spoken; the ring shows the message, the
+// In a room that does not announce on entry nothing is spoken; the ring shows the message, the
 // user asks for it, and the ring goes off.
 func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("n1", 1, nil)
 
-	if out := e.presence("kueche"); out.Skipped != "indicate mode" || len(out.Announced) != 0 {
+	if out := e.presence("kueche"); out.Skipped != "no announcing on entry" || len(out.Announced) != 0 {
 		t.Fatalf("presence: %+v", out)
 	}
 	lights := e.lightCalls()

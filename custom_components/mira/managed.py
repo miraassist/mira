@@ -31,7 +31,7 @@ from .const import DOMAIN
 # Mira's settings on a person and on a satellite, the fields of options["mira"].
 PERSON_FIELDS = ("channels", "accept_from", "alone_is_me")
 ACCEPT = ("all", "persons", "none")
-SATELLITE_FIELDS = ("presence", "morning", "mode", "indicator")
+SATELLITE_FIELDS = ("presence", "morning", "indicator")
 SATELLITE_DOMAINS = ("assist_satellite", "media_player")
 
 def _settings(hass: HomeAssistant, domains: tuple[str, ...]) -> dict[str, dict[str, Any]]:
@@ -128,7 +128,6 @@ def room_to_agent(area: str, satellite: str, data: dict[str, Any]) -> dict[str, 
         "satellite": satellite,
         "presence": list(presence),
         "morning": bool(data.get("morning")),
-        "mode": data.get("mode") or "announce",
         "indicator": data.get("indicator") or "",
     }
 
@@ -152,7 +151,6 @@ def import_settings(hass: HomeAssistant, agent: dict[str, Any]) -> None:
                 {
                     "presence": [presence] if isinstance(presence, str) else presence,
                     "morning": bool(room.get("morning")),
-                    "mode": room.get("mode") or "",
                     "indicator": room.get("indicator") or "",
                 },
             )
@@ -182,7 +180,8 @@ def build_config(
     # Every Assist satellite with an area speaks for it; the settings only
     # add to that. A second one in an area that has one already is left out.
     for entry in sorted(er.async_get(hass).entities.values(), key=lambda e: e.entity_id):
-        if entry.domain != "assist_satellite" or entry.disabled_by or entry.entity_id in satellites_in:
+        taken = {r["satellite"] for r in rooms.values()}
+        if entry.domain != "assist_satellite" or entry.disabled_by or entry.entity_id in taken:
             continue
         if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
             rooms[area] = room_to_agent(area, entry.entity_id, {})
@@ -213,13 +212,9 @@ def normalize_satellite(data: dict[str, Any]) -> dict[str, Any]:
     presence = data.get("presence") or []
     if isinstance(presence, str):
         presence = [p.strip() for p in presence.split(",")]
-    mode = data.get("mode") or "announce"
-    if mode not in ("announce", "indicate"):
-        raise ValueError(f"mode must be announce or indicate, not {mode!r}")
     return {
         "presence": [p for p in presence if p],
         "morning": bool(data.get("morning")),
-        "mode": mode,
         "indicator": str(data.get("indicator") or "").strip(),
     }
 

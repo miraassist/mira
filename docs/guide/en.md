@@ -78,10 +78,12 @@ Mira speaks up when something happens: a leak sensor goes off, the washing machi
 
 > 🎬 **Recording to follow:** the indicator light pulses, you ask "Do you have a notification?", Mira reads it out.
 
-**Announce or indicate** – set per room:
+Per satellite you set:
 
-- **Announce**: as soon as someone enters the room (motion sensor), Mira announces what is pending. The first motion after quiet hours brings the morning announcement.
-- **Indicate only**: Mira does not speak up on her own. The room's indicator light (e.g. the Echo's LED ring) pulses teal while something is waiting. Then ask: **"Do you have a notification?"** or "Anything new?".
+- **Indicator light**: it pulses teal while something is waiting (e.g. the Echo's LED ring) – no motion sensor needed. Then ask: **"Do you have a notification?"** or "Anything new?".
+- **Announce on entry**: when a motion sensor notices someone entering the room, Mira says by herself what is pending; the first motion after quiet hours starts with "Good morning". Without a motion sensor, or switched off, she does not speak up on her own.
+
+Several messages become one announcement, the most important first and with times where they help ("tonight at three …").
 
 **By the way**: when you talk to the satellite anyway, Mira adds what is waiting to her answer – "The light is on. By the way: the recycling is collected tomorrow." After that the message counts as heard and the light goes off. If you ask ("What exactly?"), you get the details.
 
@@ -204,7 +206,7 @@ Mira knows your persons and satellites by herself; you create nothing: every per
 
 What Mira needs beyond that is easiest to set in Mira's panel under **Satellites** and **People**; the same works in Home Assistant under Settings → Devices & services → Mira → **Configure**, with a collapsible section per person or satellite. It is stored right on the person or satellite and goes away with them.
 
-- **Settings for a satellite**: motion sensors (several too, such as hallway and living room), morning announcement, announce or only indicate, indicator light. The room is the satellite's area.
+- **Settings for a satellite**: motion sensors (several too, such as hallway and living room), announce on entry, indicator light. The room is the satellite's area.
 - **Settings for a person**: **channels** (notify targets, e.g. the Telegram chat of HA's Telegram integration and the companion app; personal messages go to the first that works), **take messages from** (everyone, persons only, nobody) and "Alone at home, the satellites are me".
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
 

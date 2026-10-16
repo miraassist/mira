@@ -78,10 +78,12 @@ Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmasc
 
 > 🎬 **Aufnahme folgt:** Die Anzeige-Lampe pulsiert, du fragst „Hast du eine Benachrichtigung?“, Mira liest vor.
 
-**Ansagen oder anzeigen** – pro Raum einstellbar:
+Pro Satellit stellst du ein:
 
-- **Ansagen**: Sobald jemand den Raum betritt (Bewegungsmelder), sagt Mira an, was ansteht. Die erste Bewegung nach der Ruhezeit bringt die Morgenansage.
-- **Nur anzeigen**: Mira spricht dich nicht von sich aus an. Die Anzeige-Lampe des Raums (z. B. der LED-Ring des Echo) pulsiert in Türkis, solange etwas wartet. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
+- **Anzeige-Lampe**: Sie pulsiert in Türkis, solange etwas wartet (z. B. der LED-Ring des Echo) – ganz ohne Bewegungsmelder. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
+- **Beim Hereinkommen ansagen**: Merkt ein Bewegungsmelder, dass jemand den Raum betritt, sagt Mira von selbst an, was ansteht; die erste Bewegung nach der Ruhezeit beginnt mit „Guten Morgen“. Ohne Bewegungsmelder oder ausgeschaltet spricht sie dich nicht von sich aus an.
+
+Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).
 
 **Nebenbei**: Wenn du ohnehin mit dem Satelliten sprichst, hängt Mira Wartendes an ihre Antwort an – „Das Licht ist an. Übrigens: Morgen wird der Wertstoff abgeholt.“ Danach gilt die Nachricht als gehört und die Lampe geht aus. Fragst du nach („Was genau?“), bekommst du die Details.
 
@@ -204,7 +206,7 @@ Mira kennt deine Personen und Satelliten von selbst, anlegen musst du nichts: Je
 
 Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter **Satelliten** und **Personen** ein; dasselbe geht in Home Assistant unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren**, mit einem aufklappbaren Abschnitt pro Person oder Satellit. Gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
 
-- **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), Morgenansage, ansagen oder nur anzeigen, Anzeige-Lampe. Der Raum ist der Bereich des Satelliten.
+- **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), beim Hereinkommen ansagen, Anzeige-Lampe. Der Raum ist der Bereich des Satelliten.
 - **Einstellungen für eine Person**: **Kanäle** (notify-Ziele, z. B. der Telegram-Chat aus HAs Telegram-Integration und die Companion-App; persönliche Nachrichten gehen an den ersten, der klappt), **Nachrichten annehmen von** (allen, nur Personen, niemandem) und „Allein zu Hause sind die Satelliten ich“.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
 

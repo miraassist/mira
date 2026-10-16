@@ -2,7 +2,7 @@ package notifier
 
 import (
 	"context"
-	"github.com/sker65/mira/internal/i18n"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -230,7 +230,7 @@ func TestPresenceRules(t *testing.T) {
 	}{
 		{"quiet hours wrap midnight", func(e *env) { e.now = at("23:10") }, "bad", "quiet hours", ""},
 		{"quiet mode", func(e *env) { e.st.SetBool(context.Background(), store.KeyQuietMode, true) }, "bad", "quiet mode", ""},
-		{"unknown area", nil, "keller", "area not configured", ""},
+		{"unknown area", nil, "keller", "no announcing on entry", ""},
 		{"nothing pending", func(e *env) { e.st.SetMessageState(context.Background(), "n1", store.MessageAcked) }, "bad", "nothing pending", ""},
 		{"below min importance", func(e *env) {
 			e.st.SetMessageState(context.Background(), "n1", store.MessageAcked)
@@ -467,14 +467,47 @@ func TestPrivateGoesToTheFirstWorkingChannel(t *testing.T) {
 	}
 }
 
-func TestCompose(t *testing.T) {
-	one := []store.Message{{Spoken: "Die Waschmaschine ist fertig"}}
-	if got := Compose(i18n.DE, one, at("15:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Die Waschmaschine ist fertig." {
+// Without a model: each message a sentence, an older one with its time.
+func TestComposeFixed(t *testing.T) {
+	e := newEnv(t, nil)
+	e.now = at("15:00")
+	one := []store.Message{{Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("14:30")}}
+	if got := e.n.compose(context.Background(), one); got != "Die Waschmaschine ist fertig." {
 		t.Errorf("got %q", got)
 	}
-	two := []store.Message{{Spoken: "A."}, {Spoken: "B!"}}
-	if got := Compose(i18n.DE, two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Nachrichten. A. Und: B!" {
+	old := []store.Message{{Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("13:05"), Source: store.SourceExternal}}
+	if got := e.n.compose(context.Background(), old); got != "Um 13:05: Die Waschmaschine ist fertig." {
 		t.Errorf("got %q", got)
+	}
+	e.now = at("07:00")
+	two := []store.Message{{Spoken: "A.", CreatedAt: at("03:13"), Source: store.SourceExternal}, {Spoken: "B!", CreatedAt: at("06:55")}}
+	if got := e.n.compose(context.Background(), two); got != "Guten Morgen. Ich habe zwei Nachrichten. Heute Nacht um 3:13: A. Und: B!" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// With a model: one announcement for all messages; one left out, and the
+// fixed form is used instead.
+func TestComposeWithModel(t *testing.T) {
+	e := newEnv(t, nil)
+	e.now = at("15:00")
+	var asked string
+	answer := `{"text":"Die Waschmaschine ist seit eins fertig, und morgen kommt der Wertstoff.","ids":["a","b"]}`
+	e.n.composer = func(_ context.Context, instruction string, _ json.RawMessage) (string, error) {
+		asked = instruction
+		return answer, nil
+	}
+	two := []store.Message{{ID: "a", Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("13:05")},
+		{ID: "b", Spoken: "Morgen wird der Wertstoff abgeholt", CreatedAt: at("14:00")}}
+	if got := e.n.compose(context.Background(), two); got != "Die Waschmaschine ist seit eins fertig, und morgen kommt der Wertstoff." {
+		t.Errorf("got %q", got)
+	}
+	if !strings.Contains(asked, "[a] heute 13:05") || !strings.Contains(asked, "Jetzt ist es 15:00 Uhr") {
+		t.Errorf("instruction: %s", asked)
+	}
+	answer = `{"text":"Nur die Waschmaschine.","ids":["a"]}`
+	if got := e.n.compose(context.Background(), two); !strings.HasPrefix(got, "Ich habe zwei Nachrichten.") {
+		t.Errorf("a left-out message must fall back to the fixed form: %q", got)
 	}
 }
 
