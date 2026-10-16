@@ -41,9 +41,7 @@ func runCheck(ctx context.Context, cfg config.Config) error {
 	report("llm", client.Health(hctx), cfg.LLM.BaseURL)
 	cancel()
 
-	if cfg.HA.Enabled {
-		checkHA(ctx, cfg, tel, report)
-	}
+	checkHA(ctx, cfg, tel, report)
 
 	host := mcp.New(mcp.Options{Servers: cfg.MCPServers, ReadOnlyTools: cfg.Security.ReadOnlyTools,
 		Logger: tel.Logger, CallTimeout: 15 * time.Second})
@@ -104,7 +102,7 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	if exposeErr != nil {
 		fmt.Printf("  ! exposure list not readable (%v); falling back to entity options\n", exposeErr)
 	}
-	cache := structure.NewCache(structure.Options{Lang: i18n.Of(cfg.Prompt.Language), Source: c, Logger: tel.Logger})
+	cache := structure.NewCache(structure.Options{Lang: i18n.Default, Source: c, Logger: tel.Logger})
 	if _, err := cache.Rebuild(ctx); err != nil {
 		report("structure", err, "")
 		return

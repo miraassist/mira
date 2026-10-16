@@ -31,7 +31,7 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 		ContextTokens: 100000, CompactAtFraction: 0.8, ReasoningEffort: "low",
 	}}
 	cfg.Routing = config.Routing{Telegram: "smart", Delegate: "smart"}
-	cfg.HA.Enabled = false
+	cfg.HA.URL, cfg.HA.Token = "http://ha", "t"
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}

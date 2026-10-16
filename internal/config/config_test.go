@@ -55,8 +55,7 @@ func TestParseRejectsUnsetEnv(t *testing.T) {
 
 func TestParseEnvFallback(t *testing.T) {
 	cfg, err := Parse([]byte(`
-ha: { enabled: false }
-telegram: { enabled: false }
+ha: { url: "http://ha", token: t }
 server:
   listen: ${MIRA_LISTEN:-0.0.0.0:9999}
 `), fakeEnv(nil))
@@ -69,7 +68,7 @@ server:
 }
 
 func TestParseRejectsUnknownFields(t *testing.T) {
-	_, err := Parse([]byte("ha: { enabled: false, nonsense: 1 }\ntelegram: { enabled: false }\n"), fakeEnv(nil))
+	_, err := Parse([]byte("ha: { url: \"http://ha\", token: t, nonsense: 1 }\n"), fakeEnv(nil))
 	if err == nil || !strings.Contains(err.Error(), "nonsense") {
 		t.Fatalf("want error about the unknown field, got %v", err)
 	}
@@ -77,8 +76,7 @@ func TestParseRejectsUnknownFields(t *testing.T) {
 
 func TestValidateRejectsServerNameWithSeparator(t *testing.T) {
 	_, err := Parse([]byte(`
-ha: { enabled: false }
-telegram: { enabled: false }
+ha: { url: "http://ha", token: t }
 mcp_servers:
   - name: "a__b"
     transport: http
@@ -89,29 +87,24 @@ mcp_servers:
 	}
 }
 
-// With Home Assistant, persons and satellites come from there: a config
-// without them passes, without Home Assistant it does not.
+// Persons and satellites come from Home Assistant: a config without them
+// passes.
 func TestValidatePersonsAndSatellitesFromHA(t *testing.T) {
-	notifier := `
+	if _, err := Parse([]byte(`
+ha: { url: "http://ha", token: t }
 notifier:
   confidential_voice: when_alone
   morning_trigger:
     areas: [wohnzimmer]
     presence: { wohnzimmer: binary_sensor.pir }
-`
-	if _, err := Parse([]byte("ha: { enabled: true, url: \"http://ha\", token: t }\n"+notifier), fakeEnv(nil)); err != nil {
-		t.Fatalf("with Home Assistant: %v", err)
-	}
-	_, err := Parse([]byte("ha: { enabled: false }\n"+notifier), fakeEnv(nil))
-	if err == nil || !strings.Contains(err.Error(), "no entry in satellites") || !strings.Contains(err.Error(), "needs persons") {
-		t.Fatalf("without Home Assistant: want both errors, got %v", err)
+`), fakeEnv(nil)); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func TestClockTimeAndDuration(t *testing.T) {
 	cfg, err := Parse([]byte(`
-ha: { enabled: false }
-telegram: { enabled: false }
+ha: { url: "http://ha", token: t }
 notifier:
   quiet_hours: { from: "23:15", to: "07:00" }
   cooldown: 45m
@@ -129,8 +122,7 @@ notifier:
 
 func TestSlotPinningOffYieldsNegativeSlot(t *testing.T) {
 	cfg, err := Parse([]byte(`
-ha: { enabled: false }
-telegram: { enabled: false }
+ha: { url: "http://ha", token: t }
 llm:
   slot_pinning: false
   cache_prompt: false
@@ -169,7 +161,7 @@ func TestExampleConfigLoads(t *testing.T) {
 }
 
 func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
-	raw := []byte("# set ${UNSET_IN_COMMENT} before starting\nllm:\n  model: ${MODEL}\nha:\n  enabled: false\ntelegram:\n  enabled: false\n")
+	raw := []byte("# set ${UNSET_IN_COMMENT} before starting\nllm:\n  model: ${MODEL}\nha:\n  url: http://ha\n  token: t\n")
 	cfg, err := Parse(raw, func(k string) (string, bool) {
 		if k == "MODEL" {
 			return "qwen", true
@@ -186,7 +178,7 @@ func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
 
 func TestRoutingNeedsKnownModels(t *testing.T) {
 	c := Default()
-	c.HA.Enabled = false
+	c.HA.URL, c.HA.Token = "http://ha", "t"
 	c.Routing.Delegate = "nope"
 	c.Models = map[string]LLM{"main": {BaseURL: "x", Model: "y"}, "half": {Model: "y"}}
 	err := c.Validate()

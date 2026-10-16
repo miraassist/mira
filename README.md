@@ -121,8 +121,7 @@ Languages (`de`, `en`; docs/spec/sprache.md): in a conversation Mira takes
 the language Home Assistant sends with it, the Assist pipeline's. What she
 says on her own takes the language last spoken at that satellite or by that
 person, otherwise the last at all, and before anyone spoke, Home Assistant's
-server language. There is no setting for it; `prompt.language` applies only
-without Home Assistant. The English prompt is written
+server language. There is no setting for it. The English prompt is written
 but not yet tuned against a model (see `internal/prompt/testdata/prefix_voice_en.txt`).
 
 Security: locks, alarm panels and other configured entities only run after

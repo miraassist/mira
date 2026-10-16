@@ -110,8 +110,8 @@ type Options struct {
 	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
 	// Identify says who is speaking: a person key, or "" for anonymous.
 	Identify func(ctx context.Context, req Request, sess store.Session) string
-	// Languages says which language applies (docs/spec/sprache.md); without
-	// it prompt.language does.
+	// Languages says which language applies (docs/spec/sprache.md); tests
+	// without it get the default language.
 	Languages Languages
 	// Persona returns the persona as it is now, which the web UI can
 	// change; without it the config's applies.

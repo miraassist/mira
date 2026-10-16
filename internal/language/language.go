@@ -26,19 +26,15 @@ const (
 
 type Options struct {
 	Store *store.Store
-	// Server returns Home Assistant's server language, for the very start;
-	// nil without Home Assistant.
+	// Server returns Home Assistant's server language, for the very start.
 	Server func(ctx context.Context) (string, error)
-	// Fallback applies without Home Assistant: prompt.language.
-	Fallback i18n.Lang
-	Logger   *slog.Logger
+	Logger *slog.Logger
 }
 
 type Resolver struct {
-	store    *store.Store
-	server   func(ctx context.Context) (string, error)
-	fallback i18n.Lang
-	log      *slog.Logger
+	store  *store.Store
+	server func(ctx context.Context) (string, error)
+	log    *slog.Logger
 
 	mu         sync.Mutex
 	serverLang i18n.Lang
@@ -48,10 +44,7 @@ func New(opts Options) *Resolver {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	if opts.Fallback == "" {
-		opts.Fallback = i18n.Default
-	}
-	return &Resolver{store: opts.Store, server: opts.Server, fallback: opts.Fallback, log: opts.Logger.With("component", "language")}
+	return &Resolver{store: opts.Store, server: opts.Server, log: opts.Logger.With("component", "language")}
 }
 
 // Turn is the language of a conversation turn. A language Home Assistant
@@ -89,7 +82,8 @@ func (r *Resolver) ForPerson(ctx context.Context, person string) i18n.Lang {
 }
 
 // Last is the language last spoken at all, for what has neither area nor
-// person; before anyone spoke, Home Assistant's server language.
+// person; before anyone spoke, Home Assistant's server language, and the
+// default language while that cannot be read.
 func (r *Resolver) Last(ctx context.Context) i18n.Lang {
 	if l, ok := r.get(ctx, keyLast); ok {
 		return l
@@ -99,9 +93,6 @@ func (r *Resolver) Last(ctx context.Context) i18n.Lang {
 
 // start is the language before anyone spoke.
 func (r *Resolver) start(ctx context.Context) i18n.Lang {
-	if r.server == nil {
-		return r.fallback
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.serverLang != "" {
@@ -110,11 +101,11 @@ func (r *Resolver) start(ctx context.Context) i18n.Lang {
 	code, err := r.server(ctx)
 	if err != nil {
 		r.log.Warn("could not read Home Assistant's language", "error", err)
-		return r.fallback
+		return i18n.Default
 	}
 	l, err := i18n.Parse(code)
 	if err != nil {
-		l = r.fallback
+		l = i18n.Default
 	}
 	r.serverLang = l
 	return l

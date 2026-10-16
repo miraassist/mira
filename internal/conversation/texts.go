@@ -67,5 +67,5 @@ func (e *Engine) lang(ctx context.Context) i18n.Lang {
 	if e.languages != nil {
 		return e.languages.Last(ctx)
 	}
-	return i18n.Of(e.cfg.Prompt.Language)
+	return i18n.Default
 }

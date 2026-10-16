@@ -63,15 +63,14 @@ type Options struct {
 	Entities func() []Entity
 	// CompactProfile rebuilds the profile now.
 	CompactProfile func(ctx context.Context) (bool, error)
-	// Tasks are Mira's tasks; nil without Home Assistant.
+	// Tasks are Mira's tasks.
 	Tasks Tasks
 	// Threads confirms or cancels tasks still being planned.
 	Threads Threads
 	// Persons lists the configured person keys; each gets a memory card, if
 	// empty.
 	Persons func() []string
-	// People are Home Assistant's persons, each a person for Mira; nil
-	// without Home Assistant.
+	// People are Home Assistant's persons, each a person for Mira.
 	People func() []PersonInfo
 	// PersonOfHAUser maps a Home Assistant user to a person key ("" for
 	// none), for the page inside Home Assistant.

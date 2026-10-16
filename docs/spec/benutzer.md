@@ -38,7 +38,7 @@ Mit Home Assistant ist **jede HA-Person automatisch eine Person bei Mira**. Mira
 - **Datensätze entstehen bei Bedarf:** Gedächtnis, Profil und Co. einer Person gibt es, sobald es etwas zu speichern gibt. Es gibt nichts anzulegen.
 - **Was nur Mira braucht, sind optionale Einstellungen an der Person:** Telegram-ID, Push-Dienst (Companion-App), „Allein zu Hause sind die Satelliten ich“. In der Integration heißt das „Mira-Einstellungen für eine Person“: man wählt eine HA-Person und setzt, was man braucht. Wer nichts davon braucht, stellt nichts ein.
 - **Ein HA-Benutzer ohne Person** (selten) ist für Mira niemand Bestimmtes: Im Panel sieht er das Haus-Gedächtnis und einen Hinweis, im App-Chat gilt er als anonym.
-- **Ohne Home Assistant** (nur Telegram) bleiben die Personen in `mira.yaml` unter `persons:` mit eigenem Schlüssel, wie bisher. Mit Home Assistant werden dort nur noch die Einstellungen pro HA-Person gelesen (Schlüssel = Personen-ID; ein älterer Eintrag mit `entity:` wird über die Entität zugeordnet).
+- **In `mira.yaml`** unter `persons:` stehen höchstens Einstellungen pro HA-Person (Schlüssel = Personen-ID; ein älterer Eintrag mit `entity:` wird über die Entität zugeordnet). Personen selbst kommen immer aus Home Assistant; Mira läuft nur mit HA.
 
 ## Identität: wer spricht
 

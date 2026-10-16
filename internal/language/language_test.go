@@ -17,7 +17,7 @@ func newResolver(t *testing.T, server func(context.Context) (string, error)) *Re
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(Options{Store: st, Server: server, Fallback: i18n.DE})
+	return New(Options{Store: st, Server: server})
 }
 
 func TestLastSpokenPerAreaPersonAndOverall(t *testing.T) {
@@ -53,7 +53,7 @@ func TestLastSpokenPerAreaPersonAndOverall(t *testing.T) {
 func TestStartWithoutServerLanguage(t *testing.T) {
 	r := newResolver(t, func(context.Context) (string, error) { return "", errors.New("down") })
 	if got := r.Last(context.Background()); got != i18n.DE {
-		t.Errorf("Home Assistant unreachable: %s, want the fallback", got)
+		t.Errorf("Home Assistant unreachable: %s, want the default", got)
 	}
 	r = newResolver(t, func(context.Context) (string, error) { return "en-GB", nil })
 	if got := r.Last(context.Background()); got != i18n.EN {

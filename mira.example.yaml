@@ -57,14 +57,14 @@ routing:
 store:
   path: "/var/lib/mira/mira.db"
 
+# Mira speaks the language spoken to her (docs/spec/sprache.md); there is
+# no setting for it.
 prompt:
-  language: de   # de or en, only without Home Assistant; with it Mira follows the language spoken (docs/spec/sprache.md)
   # Static text appended to the system prompt. Part of the cached prefix,
   # so nothing in here may change between requests.
   persona: ""
 
 ha:
-  enabled: true
   url: "http://homeassistant.local:8123"
   token: ${HA_TOKEN}          # long-lived token of a dedicated HA user
   structure_debounce: 30s

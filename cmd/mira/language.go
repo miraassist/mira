@@ -10,21 +10,18 @@ import (
 	"time"
 
 	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/language"
 	"github.com/sker65/mira/internal/store"
 )
 
 // newLanguages builds the resolver of docs/spec/sprache.md. Before anyone
 // spoke it takes Home Assistant's server language, read over REST so it is
-// there before the WebSocket connects; prompt.language applies only without
-// Home Assistant.
+// there before the WebSocket connects.
 func newLanguages(cfg config.Config, st *store.Store, log *slog.Logger) *language.Resolver {
-	opts := language.Options{Store: st, Fallback: i18n.Of(cfg.Prompt.Language), Logger: log}
-	if cfg.HA.Enabled {
-		opts.Server = func(ctx context.Context) (string, error) { return haServerLanguage(ctx, cfg.HA) }
-	}
-	return language.New(opts)
+	return language.New(language.Options{
+		Store: st, Logger: log,
+		Server: func(ctx context.Context) (string, error) { return haServerLanguage(ctx, cfg.HA) },
+	})
 }
 
 // haServerLanguage reads Home Assistant's own language (Settings → System →

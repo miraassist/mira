@@ -20,7 +20,6 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	model := fakellm.New()
 	defer model.Close()
 	cfg := config.Default()
-	cfg.HA.Enabled = false
 	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
 	if err != nil {
 		t.Fatal(err)

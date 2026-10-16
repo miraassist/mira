@@ -136,17 +136,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	})
 	// Built before Home Assistant connects: the structure cache's change
 	// handler refreshes it.
-	if cfg.HA.Enabled && cfg.HA.AssistPromptServer != "" {
+	if cfg.HA.AssistPromptServer != "" {
 		a.assist = assistprompt.New(assistprompt.Options{
 			Source: a.mcp, Server: cfg.HA.AssistPromptServer,
 			Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
 			OnChange: func() { a.warmup("structure_changed") },
 		})
 	}
-	if cfg.HA.Enabled {
-		if err := a.startHA(ctx); err != nil {
-			return nil, err
-		}
+	if err := a.startHA(ctx); err != nil {
+		return nil, err
 	}
 
 	if err := a.mcp.Start(ctx); err != nil {
@@ -166,10 +164,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.log.Warn("the telegram section in mira.yaml is no longer used: Telegram runs through Home Assistant's telegram_bot integration")
 	}
 
-	snapshot := func() structure.Snapshot { return structure.Snapshot{} }
-	if a.structure != nil {
-		snapshot = a.structure.Snapshot
-	}
+	snapshot := a.structure.Snapshot
 	// The delegate tool exists only with a delegate model. It is bound late:
 	// the engine it calls is built from the registry.
 	var delegate tools.Delegator
@@ -181,10 +176,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Lang: a.lang, Store: a.store,
 		Persons: a.persons,
 		AreaName: func(id string) string {
-			if a.structure != nil {
-				if name := a.structure.Snapshot().AreaNames[id]; name != "" {
-					return name
-				}
+			if name := a.structure.Snapshot().AreaNames[id]; name != "" {
+				return name
 			}
 			return id
 		},
@@ -196,7 +189,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
 	}
-	for _, name := range builtinTargets(a.ha != nil) {
+	for _, name := range builtinTargets() {
 		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
 			enabled[name] = nil
 		}
@@ -219,25 +212,21 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
 	}
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
-	if a.ha != nil {
-		// Drafting and judging run on the engine, which is built from this
-		// registry: bound late through isolatedModel.
-		a.tasks = tasks.New(tasks.Options{
-			Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
-			Model:      isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
-			Planner:    isolatedModel{a, cfg.Routing.Tasks},
-			QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
-			ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
-			Persons: a.persons,
-		})
-		internal = append(internal, a.tasks.Tools()...)
-	}
+	// Drafting and judging run on the engine, which is built from this
+	// registry: bound late through isolatedModel.
+	a.tasks = tasks.New(tasks.Options{
+		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
+		Model:      isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
+		Planner:    isolatedModel{a, cfg.Routing.Tasks},
+		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
+		ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
+		Persons: a.persons,
+	})
+	internal = append(internal, a.tasks.Tools()...)
 	checks := map[string]threads.Check{}
 	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang)}
-	if a.tasks != nil {
-		checks["entities"] = a.tasks.CheckEntities
-		finishers["tasks.automation"] = a.tasks.Finisher()
-	}
+	checks["entities"] = a.tasks.CheckEntities
+	finishers["tasks.automation"] = a.tasks.Finisher()
 	a.threads = threads.New(threads.Options{
 		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
 		Persons: a.persons, Logger: a.log,
@@ -421,22 +410,18 @@ func runAgent(parent context.Context, cfg config.Config) error {
 
 	a.fileCfg = cfg
 	a.live = a.withUIOverrides(ctx, cfg)
-	if a.ha != nil {
-		// The persons come from Home Assistant; read them before the
-		// notifier starts with them.
-		if a.ha.Connected() {
-			if _, err := a.people.refresh(ctx, a.ha); err != nil {
-				a.log.Warn("could not read the persons", "error", err)
-			} else {
-				a.logPeople()
-			}
+	// The persons come from Home Assistant; read them before the notifier
+	// starts with them.
+	if a.ha.Connected() {
+		if _, err := a.people.refresh(ctx, a.ha); err != nil {
+			a.log.Warn("could not read the persons", "error", err)
+		} else {
+			a.logPeople()
 		}
-		a.runCtx = ctx
-		a.goRun(ctx, "people", a.watchPeople)
-		a.startProactive(ctx)
-	} else if len(cfg.Notifier.MorningTrigger.Areas) > 0 {
-		a.log.Warn("the notifier needs Home Assistant (ha.enabled); it is off")
 	}
+	a.runCtx = ctx
+	a.goRun(ctx, "people", a.watchPeople)
+	a.startProactive(ctx)
 
 	errs := make(chan error, 2)
 
@@ -541,9 +526,6 @@ func (a *app) startProactive(parent context.Context) {
 // haUser is the agent's Home Assistant user id, asked once: the integration
 // lets only this user manage Mira's automations.
 func (a *app) haUser(ctx context.Context) string {
-	if a.ha == nil {
-		return ""
-	}
 	a.haUserMu.Lock()
 	defer a.haUserMu.Unlock()
 	if a.haUserID == "" {
@@ -557,14 +539,8 @@ func (a *app) haUser(ctx context.Context) string {
 	return a.haUserID
 }
 
-// builtinTargets are the goal skills that are always on: "merken", and
-// "aufgabe" with Home Assistant.
-func builtinTargets(withHA bool) []string {
-	if withHA {
-		return []string{"aufgabe", "merken"}
-	}
-	return []string{"merken"}
-}
+// builtinTargets are the goal skills that are always on.
+func builtinTargets() []string { return []string{"aufgabe", "merken"} }
 
 // isolatedModel runs the tasks' judgements and drafts on the named model,
 // without the house prompt.
@@ -590,16 +566,13 @@ func (e engineAssessor) Assess(ctx context.Context, instruction string, schema j
 func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
 	a.proactiveMu.Lock()
 	n := a.notifier
-	if n == nil && a.ha != nil {
+	if n == nil {
 		// Not running (the chat command): reading out needs no loop.
 		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
 			Composer: engineAssessor{a}.Assess, Languages: a.langs})
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()
-	if n == nil {
-		return "", errors.New("notifications are off (no Home Assistant)")
-	}
 	area := ""
 	if inv.Channel == config.ChannelVoice {
 		sess, err := a.store.GetSession(ctx, inv.SessionKey)
@@ -624,9 +597,6 @@ func (a *app) goProactive(ctx context.Context, name string, fn func(context.Cont
 // restartProactive stops the notifier, waits for it and
 // starts them again with the live config.
 func (a *app) restartProactive(parent context.Context) {
-	if a.ha == nil {
-		return
-	}
 	a.proactiveMu.Lock()
 	cancel := a.proactiveCancel
 	a.proactiveMu.Unlock()
@@ -781,10 +751,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	opts := haconv.Options{
 		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
-		Persons: a.persons, HAUser: a.haUser,
-	}
-	if a.tasks != nil {
-		opts.Tasks = a.tasks
+		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 	}
 	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)
@@ -803,27 +770,14 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		},
 		PersonOfHAUser: a.personOfHAUser,
 		People: func() []ui.PersonInfo {
-			if a.ha == nil {
-				return nil
-			}
 			var out []ui.PersonInfo
 			for key, p := range a.persons() {
 				out = append(out, ui.PersonInfo{Key: key, Name: p.Name, Entity: p.Entity})
 			}
 			return out
 		},
-		AreaName: func(id string) string {
-			if a.structure == nil {
-				return ""
-			}
-			return a.structure.Snapshot().AreaNames[id]
-		},
-	}
-	if a.tasks != nil {
-		uiOpts.Tasks = a.tasks
-	}
-	if a.threads != nil {
-		uiOpts.Threads = a.threads
+		AreaName: func(id string) string { return a.structure.Snapshot().AreaNames[id] },
+		Tasks:    a.tasks, Threads: a.threads,
 	}
 	page := ui.New(uiOpts)
 	mux := http.NewServeMux()
@@ -836,9 +790,6 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 
 // uiEntities lists the known entities for autocompletion.
 func (a *app) uiEntities() []ui.Entity {
-	if a.structure == nil {
-		return nil
-	}
 	snap := a.structure.Snapshot()
 	out := make([]ui.Entity, 0, len(snap.EntityNames))
 	for id, names := range snap.EntityNames {
@@ -875,13 +826,11 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 	for name, c := range a.models {
 		checks["llm:"+name] = c.Health
 	}
-	if a.ha != nil {
-		checks["home_assistant"] = func(context.Context) error {
-			if !a.ha.Connected() {
-				return errors.New("not connected")
-			}
-			return nil
+	checks["home_assistant"] = func(context.Context) error {
+		if !a.ha.Connected() {
+			return errors.New("not connected")
 		}
+		return nil
 	}
 	return checks
 }

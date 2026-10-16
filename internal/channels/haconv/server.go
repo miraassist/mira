@@ -47,7 +47,7 @@ type Options struct {
 	Persons func() map[string]config.Person
 	// TurnTimeout bounds one conversation request.
 	TurnTimeout time.Duration
-	// Tasks serves mira.assess and mira.decide; nil without Home Assistant.
+	// Tasks serves mira.assess and mira.decide.
 	Tasks Tasks
 	// HAUser returns the agent's Home Assistant user id, which the
 	// integration lets manage Mira's automations; "" when unknown.

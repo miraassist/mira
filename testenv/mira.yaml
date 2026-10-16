@@ -37,7 +37,6 @@ store:
   path: "testenv/mira.db"
 
 prompt:
-  language: de
   persona: |
     Du duzt alle im Haus.
 
@@ -63,7 +62,6 @@ prompt:
     Entschuldigungsorgie.
 
 ha:
-  enabled: true
   url: "http://${HA_HOST}"
   token: ${HA_TOKEN}
   structure_debounce: 5s

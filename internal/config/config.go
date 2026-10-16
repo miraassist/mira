@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/sker65/mira/internal/i18n"
 	"os"
 	"slices"
 	"sort"
@@ -155,9 +154,6 @@ type Prompt struct {
 	// Persona is appended to the built-in layer 1 text. It is part of the
 	// cached prefix, so it must not contain anything volatile.
 	Persona string `yaml:"persona"`
-	// Language is "de" or "en", and applies only without Home Assistant.
-	// With it Mira follows the language spoken (docs/spec/sprache.md).
-	Language string `yaml:"language"`
 }
 
 type HA struct {
@@ -165,7 +161,6 @@ type HA struct {
 	Token string `yaml:"token"`
 	// StructureDebounce collapses bursts of registry updates into one rebuild.
 	StructureDebounce Duration `yaml:"structure_debounce"`
-	Enabled           bool     `yaml:"enabled"`
 	// AssistPromptServer names the MCP server whose prompt "Assist" becomes
 	// layer 4: Home Assistant's own tool instructions and entity overview.
 	// Empty uses the agent's own structure block instead.
@@ -379,10 +374,8 @@ func Default() Config {
 			WarmupOnStart:        true,
 			WarmupOnPrefixChange: true,
 		},
-		Store:  Store{Path: "mira.db"},
-		Prompt: Prompt{Language: "de"},
+		Store: Store{Path: "mira.db"},
 		HA: HA{
-			Enabled:             true,
 			StructureDebounce:   Duration(30e9), // 30s
 			AssistPromptServer:  "ha",
 			AssistPromptRefresh: Duration(5 * 60e9),
@@ -517,9 +510,6 @@ func (c Config) Validate() error {
 	if c.Server.Listen == "" {
 		add("server.listen must not be empty")
 	}
-	if _, err := i18n.Parse(c.Prompt.Language); err != nil {
-		add("prompt.language: %v", err)
-	}
 	for name, m := range c.Models {
 		if name == MainModel {
 			add("models.%s: the name main is the model under llm", name)
@@ -552,13 +542,11 @@ func (c Config) Validate() error {
 	if c.Store.Path == "" {
 		add("store.path must not be empty")
 	}
-	if c.HA.Enabled {
-		if c.HA.URL == "" {
-			add("ha.url must be set when ha.enabled is true")
-		}
-		if c.HA.Token == "" {
-			add("ha.token must be set when ha.enabled is true")
-		}
+	if c.HA.URL == "" {
+		add("ha.url must be set: Mira works through Home Assistant")
+	}
+	if c.HA.Token == "" {
+		add("ha.token must be set: Mira works through Home Assistant")
 	}
 
 	seen := map[string]bool{}
@@ -609,13 +597,9 @@ func (c Config) Validate() error {
 			add("satellites[%s]: %q must be an assist_satellite or media_player entity", area, sat)
 		}
 	}
-	// With Home Assistant, persons and satellites come from there once Mira
-	// runs; the config alone does not know them, so rules that need them
-	// apply only without it.
+	// Persons and satellites come from Home Assistant once Mira runs; the
+	// config alone does not know them, so nothing here checks against them.
 	for _, area := range c.Notifier.MorningTrigger.Areas {
-		if _, ok := c.Satellites[area]; !ok && !c.HA.Enabled {
-			add("notifier.morning_trigger.areas: %q has no entry in satellites", area)
-		}
 		if len(c.Notifier.MorningTrigger.Presence[area]) == 0 {
 			add("notifier.morning_trigger.areas: %q has no presence sensor", area)
 		}
@@ -623,9 +607,6 @@ func (c Config) Validate() error {
 	for area, mode := range c.Notifier.RoomMode {
 		if mode != RoomAnnounce && mode != RoomIndicate {
 			add("notifier.room_mode[%s] must be announce or indicate, not %q", area, mode)
-		}
-		if _, ok := c.Satellites[area]; !ok {
-			add("notifier.room_mode[%s]: the area has no entry in satellites", area)
 		}
 	}
 	for area, light := range c.Notifier.Indicators {
@@ -645,9 +626,6 @@ func (c Config) Validate() error {
 	case "auto", "start_conversation", "announce", "tts":
 	default:
 		add("notifier.delivery must be auto, start_conversation, announce or tts, not %q", c.Notifier.Delivery)
-	}
-	if c.Notifier.ConfidentialVoice == ConfidentialVoiceWhenAlone && len(c.Persons) == 0 && !c.HA.Enabled {
-		add("notifier.confidential_voice when_alone needs persons with their person entities")
 	}
 	for id, p := range c.Persons {
 		if strings.Contains(id, " ") || id == "household" || id == "house" {

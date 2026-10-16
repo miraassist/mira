@@ -29,7 +29,7 @@ func (a *app) identify(ctx context.Context, req conversation.Request, _ store.Se
 		if req.HAUser != "" {
 			return a.personOfHAUser(ctx, req.HAUser)
 		}
-		if a.ha == nil || !anyAloneIsMe(persons) {
+		if !anyAloneIsMe(persons) {
 			return ""
 		}
 		states, err := a.ha.States(ctx)

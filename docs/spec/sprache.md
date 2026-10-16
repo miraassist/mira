@@ -33,7 +33,7 @@ Jeder Turn mit einer Sprache von HA aktualisiert die drei Einträge, soweit Sate
 
 ## Was sich ändert
 
-- `prompt.language` gilt nur noch **ohne HA**. Mit HA wird es nicht gebraucht und nicht mehr gelesen.
+- `prompt.language` gibt es nicht mehr. Mira läuft nur mit HA, eine Sprache einzustellen braucht es nicht.
 - Der Prompt hat je Sprache seinen eigenen festen Anfang. Bei einem lokalen Modell bricht ein Wechsel zwischen Sprachen den Cache; bei einer Sprache im Haus ändert sich nichts.
 - Gespeichertes bleibt in der Sprache, in der es entstand: Fakten, Nachrichtentexte. Eine Ansage formuliert das Modell ohnehin neu, in der Sprache der Ansage.
 

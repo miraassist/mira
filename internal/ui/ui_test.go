@@ -296,7 +296,7 @@ func (f *fakeTasks) DescribeTry(r tasks.TryResult) string { return r.Verdicts[0]
 func TestTasksAPI(t *testing.T) {
 	srv, _, st := setup(t)
 	if code, _ := call(t, srv, "GET", "/v1/ui/tasks", "secret", ""); code != 503 {
-		t.Errorf("without Home Assistant: %d", code)
+		t.Errorf("without tasks: %d", code)
 	}
 	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{{ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
 	fth := &fakeThreads{}

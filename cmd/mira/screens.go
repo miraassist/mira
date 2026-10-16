@@ -15,7 +15,7 @@ import (
 // that messages wait (internal/notifier/screen.go).
 func (a *app) screens(ctx context.Context, cfg config.Config) map[string]string {
 	out := map[string]string{}
-	if a.ha == nil || len(cfg.Satellites) == 0 {
+	if len(cfg.Satellites) == 0 {
 		return out
 	}
 	services, err := a.ha.Services(ctx)

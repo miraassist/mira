@@ -63,8 +63,8 @@ func TestPersonsFromHomeAssistant(t *testing.T) {
 	if got := personOfUser(persons, "u-guest"); got != "" {
 		t.Errorf("a user without a person: got %q", got)
 	}
-	// Without Home Assistant's persons the config is all there is.
+	// Until Home Assistant's persons were read, the config is all there is.
 	if got := mergePersons(nil, settings); len(got) != 2 {
-		t.Errorf("without HA: %v", got)
+		t.Errorf("before reading HA's persons: %v", got)
 	}
 }

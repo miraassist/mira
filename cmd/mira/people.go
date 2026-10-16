@@ -59,7 +59,8 @@ func haPersonsFrom(states []haws.State) []haPerson {
 
 // mergePersons lays Mira's settings over Home Assistant's persons. A
 // setting belongs to a person by the person's id, or, for an older entry,
-// by its entity. Without Home Assistant's persons the config is all there is.
+// by its entity. Until Home Assistant's persons were read, the config is all
+// there is.
 func mergePersons(ha []haPerson, settings map[string]config.Person) map[string]config.Person {
 	if ha == nil {
 		return settings
@@ -130,14 +131,11 @@ func slicesEqual(a, b []haPerson) bool {
 }
 
 // persons are the persons Mira knows now: Home Assistant's with Mira's
-// settings, or the config's alone without Home Assistant.
+// settings.
 func (a *app) persons() map[string]config.Person {
 	settings := a.liveConfig().Persons
 	if settings == nil {
 		settings = a.cfg.Persons // the chat command has no live config
-	}
-	if a.ha == nil {
-		return settings
 	}
 	return mergePersons(a.people.snapshot(), settings)
 }
@@ -148,7 +146,7 @@ func (a *app) personOfHAUser(ctx context.Context, user string) string {
 	if user == "" {
 		return ""
 	}
-	if key := personOfUser(a.persons(), user); key != "" || a.ha == nil || !a.people.due() {
+	if key := personOfUser(a.persons(), user); key != "" || !a.people.due() {
 		return key
 	}
 	if changed, err := a.people.refresh(ctx, a.ha); err != nil {

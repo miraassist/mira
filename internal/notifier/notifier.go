@@ -51,7 +51,7 @@ type Options struct {
 	// without an indicator light (screen.go); found by the app.
 	Screens map[string]string
 	// Languages says which language an area or a person gets
-	// (docs/spec/sprache.md); without it prompt.language applies.
+	// (docs/spec/sprache.md); tests without it get the default language.
 	Languages Languages
 }
 
@@ -65,7 +65,6 @@ type Languages interface {
 type Notifier struct {
 	// indicatorOn is the last state set per area; missing means unknown.
 	indicatorOn map[string]bool
-	lang        i18n.Lang
 	langs       Languages
 	cfg         config.Notifier
 	sats        map[string]string
@@ -118,7 +117,6 @@ func New(opts Options) *Notifier {
 		speakingIn:    map[string]bool{},
 		speakingStart: 15 * time.Second,
 		speakPause:    1500 * time.Millisecond,
-		lang:          i18n.Of(opts.Config.Prompt.Language),
 		langs:         opts.Languages,
 		cfg:           opts.Config.Notifier,
 		sats:          opts.Config.Satellites,
@@ -686,7 +684,7 @@ func (n *Notifier) langOf(ctx context.Context) i18n.Lang {
 	if n.langs != nil {
 		return n.langs.Last(ctx)
 	}
-	return n.lang
+	return i18n.Default
 }
 
 // inArea carries the language last spoken in an area, for what is said
