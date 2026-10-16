@@ -60,18 +60,40 @@ Mira nennt den Absender, wenn es ein Mensch ist:
 
 - Im Gespräch: „Sag Anna, dass es später wird“, „Hinterlass fürs Haus: Der Schornsteinfeger kommt um 10.“ Das Modell ruft dafür ein Werkzeug (Empfänger, Text); der Absender kommt aus der Identität des Turns, nie vom Modell.
 - Aus HA: Die Aktion `mira.add_notice` heißt dann `mira.send_message` (Empfänger statt `audience`).
-- Mit Zeitpunkt („Erinnere Ben morgen um 7 an den Müll“) wird daraus eine Nachricht, die erst dann zugestellt wird. *Offen:* ob Erinnerungen dafür ganz in Nachrichten aufgehen (Nachricht mit Zustellzeit) oder getrennt bleiben.
+- Mit Zeitpunkt („Erinnere Ben morgen um 7 an den Müll“, „Erinnere mich in 10 Minuten“) ist es eine Nachricht mit **Zustellzeit**: Sie wartet bis dahin und wird dann zugestellt wie jede andere. **Erinnerungen gehen ganz in Nachrichten auf**; die eigene Tabelle und der eigene Zustellweg für Erinnerungen entfallen. Eine Erinnerung an sich selbst ist eine Nachricht von mir an mich (sie wird immer angenommen); im Raum gefragt, wird sie dort gesprochen, wie heute.
 
 ## Umbenennung
 
 Diesmal überall, weil der Begriff sich ändert:
-- Code: `notices` → `messages` (Tabelle, Store, Notifier-Texte, Werkzeuge wie `notices_read` → `messages_read`).
+- Code: `notices` → `messages` (Tabelle, Store, Notifier-Texte, Werkzeuge wie `notices_read` → `messages_read`); `reminders` gehen darin auf, `reminder_set` wird zum Senden mit Zustellzeit.
 - HA: Aktion `mira.send_message`, Sensor „Wartende Nachrichten“ (`sensor.mira_pending_messages`).
 - Web-Oberfläche und Anleitung: Reiter und Texte „Nachrichten“.
 - Keine Migration der Daten (alles Test).
 
+## Was Home Assistant schon hat
+
+Geprüft gegen HA 2026.10, damit wir nichts nachbauen:
+
+| HA | Was es ist | Für Mira |
+|---|---|---|
+| `notify.*` (Companion-App, Telegram-Bot, …) und `notify.send_message` | Transporte: eine Nachricht an ein Gerät oder einen Chat schicken | **Nutzen** als Zustellkanal (Push nutzen wir schon) |
+| `assist_satellite.announce` / `start_conversation` | am Satelliten sprechen | **Nutzen**, wie heute |
+| `persistent_notification` | Hinweis in HAs Glocke, für alle gleich | kein Kanal pro Person; höchstens für Admin-Hinweise |
+| `alert` | wiederholte Benachrichtigung, solange ein Zustand anhält | nichts Gleiches; unsere Eskalation bleibt |
+| `todo` | geteilte Listen | etwas anderes |
+| Assist-Timer (`HassStartTimer`) | Timer am Gerät | bleibt HAs Sache; Miras Erinnerungen sind Nachrichten |
+
+**Was HA nicht hat:** ein Nachrichtenmodell mit Absender und Empfänger, Warten bis der Empfänger erreichbar ist, Zustellung nach Anwesenheit im Raum, Einstellungen pro Person, von wem sie etwas annimmt. Das bauen wir; die **Transporte** nimmt Mira von HA.
+
+**HA-nah anbieten:** Die Integration stellt `notify`-Entitäten bereit, eine fürs Haus (`notify.mira_haus`) und eine pro Person (`notify.mira_anna`). Dann schicken Automationen mit HAs eigener Aktion `notify.send_message` eine Nachricht über Mira, ohne Mira-eigene Aktion; Absender ist dann die Automation. `mira.send_message` bleibt für mehr Felder (Wichtigkeit, vertraulich, Ablauf).
+
+Beobachtung, nicht für jetzt: HA hat eine eigene Telegram-Integration (`telegram_bot`). Mira betreibt ihren eigenen Bot, weil Telegram ein Gesprächskanal ist; ein Bot-Token lässt sich nur von einem abfragen. Ob Mira auf HAs Bot umsteigt, ist eine eigene Frage.
+
+## Entschieden
+
+- Erinnerungen gehen in Nachrichten auf (Nachricht mit Zustellzeit).
+- **Keine Lesebestätigung** für den Absender („Anna hat es gehört“): aus Rücksicht auf die Privatsphäre des Empfängers.
+
 ## Offen
 
-1. **Erkannt am Satelliten**: wann eine Person an einem Satelliten als anwesend gilt (gesondert besprechen).
-2. Erinnerungen als Nachrichten mit Zustellzeit oder getrennt.
-3. Erfährt der Absender, dass seine Nachricht gehört wurde („Anna hat es gehört“)?
+1. **Erkannt am Satelliten**: wann eine Person an einem Satelliten als anwesend gilt (gesondert besprechen). Bis dahin: nur die Regel „allein zu Hause“.
