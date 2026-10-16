@@ -85,7 +85,7 @@ Per satellite you set:
 
 Several messages become one announcement, the most important first and with times where they help ("tonight at three …").
 
-**By the way**: when you talk to the satellite anyway, Mira adds what is waiting to her answer – "The light is on. By the way: the recycling is collected tomorrow." After that the message counts as heard and the light goes off. If you ask ("What exactly?"), you get the details.
+**By the way**: when you talk to the satellite anyway, Mira adds what is waiting to her answer – "The light is on. By the way: the recycling is collected tomorrow." After that the message counts as heard and the indicator goes off. If you ask ("What exactly?"), you get the details.
 
 **Importance**:
 
@@ -101,7 +101,7 @@ When Mira speaks up on her own, the room's LED ring glows steadily while she spe
 
 **Quiet mode**: the "Quiet mode" switch in Home Assistant turns off all announcements until you turn it off again.
 
-**Confidential and personal**: messages can be meant for one person or be confidential. Mira reads confidential messages out only when the setting allows it (e.g. only when that person is alone at home); otherwise they go privately by Telegram or as a push notification to the phone.
+**Confidential and personal**: messages can be meant for one person or be confidential. Mira reads confidential messages out only when the setting allows it (e.g. only when that person is alone at home); otherwise they go privately over that person's channels (Telegram, companion app).
 
 ![Messages: waiting and delivered](img/meldungen-en.png)
 
@@ -148,7 +148,7 @@ If the setup is connected to a stronger language model, Mira hands elaborate que
 - "Set a timer for 10 minutes." – "Remind me about the laundry in half an hour."
 - "Which reminders do I have?" – "Delete the laundry reminder."
 
-At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the HA app come to you privately, by Telegram or as a push notification.
+At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the HA app come to you privately over your channels.
 
 ## Messages to others
 
@@ -177,7 +177,7 @@ Mira is in Home Assistant's sidebar. You are signed in there already, she looks 
 - **Messages**: see open and delivered messages and mark them done.
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent messages.
-- **Rooms** and **People**: show what you set up in the integration (see below).
+- **Satellites** and **People**: all of them from Home Assistant, with what Mira needs on top; as an admin you set it right here (see below).
 - **Memory**: the house's and your own; edit and forget.
 - **Guide**: this page.
 
@@ -189,7 +189,7 @@ Before Mira deletes something, she asks:
 
 ![Asking before a fact is forgotten](img/dialog-vergessen-en.png)
 
-**Mira on her own**: the same interface is also at Mira herself, at `http://<mira>:8787/ui`, meant for whoever runs Mira and for setups without the integration. It does a few things differently: it comes in Mira's own colors, asks for the access token on the first visit, shows the memories of all persons, and lets you edit rooms and people there as long as the integration does not manage them.
+**Mira on her own**: the same interface is also at Mira herself, at `http://<mira>:8787/ui`, meant for whoever runs Mira and for setups without the integration. It does a few things differently: it comes in Mira's own colors, asks for the access token on the first visit, shows the memories of all persons, and lets you edit satellites and people there as long as the integration does not manage them.
 
 ## In Home Assistant
 
@@ -208,6 +208,9 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 
 - **Settings for a satellite**: motion sensors (several too, such as hallway and living room), announce on entry, indicator (LED ring). The room is the satellite's area.
 - **Settings for a person**: **channels** (notify targets, e.g. the Telegram chat of HA's Telegram integration and the companion app; personal messages go to the first that works), **take messages from** (everyone, persons only, nobody) and "Alone at home, the satellites are me".
+
+![Settings for people under "Configure": one section per person](img/ha-person-en.png)
+
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
@@ -250,3 +253,4 @@ New or changed servers take effect when Mira restarts. `mira check` tells whethe
 - Mira does not make up values: if something is missing, she says so or asks.
 - After a web search Mira performs no critical actions until you give the command again directly.
 - If speech recognition gets you wrong, speak clearly and in one sentence.
+- A Telegram conversation goes on as long as you keep writing. Mira sees its last exchanges (about 30 to 50) and everything about the matter you are working on; older parts drop out, what she remembered stays. `/new` starts over.

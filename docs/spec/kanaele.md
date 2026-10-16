@@ -15,7 +15,7 @@ Der Agent kennt nur dieses Modell: „eingehender Text von Kanal X, Gespräch Y,
 | Kanal | Richtung | Woher | Person |
 |---|---|---|---|
 | **notify** – jedes HA-notify-Ziel (Companion-App, Telegram-Chat, Signal, Slack, Threema, …) | nur senden | HAs `notify`, Mira baut nichts | die Person, der das Ziel zugeordnet ist |
-| **Satellit** | Gespräch (Sprache); Zustellung als Ansage oder Anzeige-Lampe | HAs Assist-Pipeline und `assist_satellite` | anonym; erkannt nur nach der Regel „allein zu Hause“ (weiteres offen) |
+| **Satellit** | Gespräch (Sprache); Zustellung als Ansage oder Anzeige | HAs Assist-Pipeline und `assist_satellite` | anonym; erkannt nur nach der Regel „allein zu Hause“ (weiteres offen) |
 | **HA-Chat** (Assist in der App, Mira im Seitenmenü) | Gespräch | HAs Gesprächsagent | über den angemeldeten HA-Benutzer |
 | **Telegram** | Gespräch und senden | **Adapter auf HAs Integration `telegram_bot`** | über den Chat, der der Person zugeordnet ist |
 

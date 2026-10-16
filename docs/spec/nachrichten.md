@@ -25,7 +25,7 @@ Vorerst nicht: „an alle einzeln“, also dieselbe Nachricht über den privaten
 
 Wie die Meldungen heute: Mira stellt im Haus zu.
 - Ansage, wenn jemand einen Raum betritt (Bewegungsmelder am Satelliten), sofern der Raum auf „ansagen“ steht;
-- sonst leuchtet die **Anzeige-Lampe**, bis jemand fragt, ob es etwas Neues gibt;
+- sonst leuchtet die **Anzeige**, bis jemand fragt, ob es etwas Neues gibt;
 - im Anschluss an eine Antwort („Licht ist an. Übrigens: …“);
 - Morgenansage, Ruhezeit, Eskalation, Dringendes sofort – alles wie gehabt.
 
@@ -47,7 +47,7 @@ Einstellungen eines Empfängers gibt es hier nicht; das Haus nimmt alles an.
 
 **Zustellung:**
 - privat: über die [Kanäle](kanaele.md) der Person (HA-notify-Ziele), wie heute bei persönlichen und vertraulichen Meldungen;
-- am Satelliten (Ansage oder Anzeige-Lampe), **wenn die Person dort erkannt ist**. Heute heißt erkannt nur: Regel „allein zu Hause“. **Was „erkannt am Satelliten“ künftig heißt, besprechen wir gesondert.**
+- am Satelliten (Ansage oder Anzeige), **wenn die Person dort erkannt ist**. Heute heißt erkannt nur: Regel „allein zu Hause“. **Was „erkannt am Satelliten“ künftig heißt, besprechen wir gesondert.**
 
 ## Wortlaut
 

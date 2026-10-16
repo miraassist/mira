@@ -27,7 +27,7 @@ bedeutet und *wie* es gesagt wird.
 flowchart LR
     subgraph Haus
         SAT[Sprach-Satellit<br/>z. B. Echo mit echolocal]
-        LAMP[Anzeige-Lampe<br/>LED-Ring]
+        LAMP[Anzeige<br/>LED-Ring, Bildschirm]
     end
     subgraph HA[Home Assistant]
         ASSIST[Assist-Pipeline<br/>Wakeword, STT, TTS]
@@ -84,7 +84,7 @@ flowchart LR
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
 | `internal/tasks` | Aufgaben: Urteile (`assess`, `decide`), Datenansichten, Entwurf und Verwaltung der Automationen, Werkzeuge |
-| `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeige-Lampen; Erinnerungen |
+| `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeigen (LED-Ring, Bildschirm); Erinnerungen |
 | `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender |
 | `internal/ical`, `internal/feeds` | Kalender (iCal) und Feeds (RSS/Atom) lesen |
 | `internal/store` | SQLite: Sitzungen, Verläufe, Nachrichten, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |
@@ -250,14 +250,15 @@ flowchart TD
     Q[Nachricht wartet<br/>Wichtigkeit, Empfänger, vertraulich?] --> U{Wichtigkeit ≥ 3?}
     U -->|ja| NOW[Sofort: auf jedem Satelliten<br/>falls nicht vertraulich, und privat an alle]
     U -->|nein| QH{Ruhezeit oder Ruhemodus?}
-    QH -->|ja| WAIT[wartet; Anzeige-Lampe leuchtet trotzdem]
-    QH -->|nein| MODE{Modus des Raums}
-    MODE -->|ansagen| MOT[Bewegung im Raum → Ansage<br/>start_conversation, danach Zuhören]
-    MODE -->|anzeigen| IND[Anzeige-Lampe pulsiert<br/>„Hast du eine Benachrichtigung?“]
+    QH -->|ja| WAIT[wartet; Anzeige leuchtet trotzdem]
+    QH -->|nein| IND[Anzeige leuchtet<br/>LED-Ring pulsiert, Bildschirm blendet ein]
+    IND --> MODE{Satellit sagt beim<br/>Hereinkommen an?}
+    MODE -->|ja| MOT[Bewegung im Raum → Ansage<br/>start_conversation, danach Zuhören]
+    MODE -->|nein| ASK[Vorlesen auf Nachfrage<br/>oder als „Übrigens“]
     MOT --> HEARD[zugestellt]
-    IND --> ASK[Vorlesen auf Nachfrage<br/>oder als „Übrigens“] --> HEARD
+    ASK --> HEARD
     WAIT --> ESC{Wichtigkeit ≥ 2 und bis 9 Uhr<br/>nicht gehört?}
-    ESC -->|ja| PRIV[privat: Telegram oder Handy]
+    ESC -->|ja| PRIV[privat über die Kanäle der Person]
     HEARD --> FU{Antwort direkt nach der Ansage?}
     FU -->|ja| ACK[erledigt; „Was genau?“ bekommt die Details]
 ```
@@ -271,9 +272,12 @@ Weitere Regeln:
   Aufgabe) sagt Mira im Raum der Anfrage an. Sie wartet dafür, bis der
   Satellit wieder frei ist, und spielt keinen Gong, wenn die Ansage direkt
   auf eine Antwort folgt.
-- **Anzeige-Lampe während einer Ansage:** Sie leuchtet ruhig, solange der
-  Satellit spricht, und geht mit dem Ende des Textes aus. Danach zeigt sie
-  wieder, ob etwas wartet.
+- **Mehrere Nachrichten** fasst das Modell zu einer Ansage zusammen
+  (Wichtiges zuerst); klappt das nicht, gilt eine feste Form.
+- **Anzeige während einer Ansage:** Der LED-Ring leuchtet ruhig, solange der
+  Satellit spricht, und geht mit dem Ende des Textes aus. Danach zeigt er
+  wieder, ob etwas wartet. Satelliten mit Bildschirm (Echo Show mit TECHO5)
+  blenden wartende Nachrichten ein; Mira erkennt sie von selbst.
 - **Zustände einer Nachricht:** wartet, zugestellt, erledigt, abgelaufen. Die
   UI fasst zugestellt und erledigt zu einem Zustand zusammen.
 

@@ -22,7 +22,7 @@ Es gibt keine getrennten Agenten. Das Hauswissen (Struktur, Geräte) bleibt eine
 |---|---|---|
 | Gedächtnis (Fakten, Profil) | Haushaltsfakten | eigene Fakten, eigenes Profil |
 | Aufgaben | „Achte auf den Wasserverbrauch“ | „Sag **mir** Bescheid, wenn …“ |
-| Meldungen | Ansage im Raum, Anzeige-Lampe, „Übrigens“ | privat (Telegram, Handy-Push), am Satelliten nur nach der Regel „allein zu Hause“ |
+| Meldungen | Ansage im Raum, Anzeige, „Übrigens“ | privat über die Kanäle der Person, am Satelliten nur nach der Regel „allein zu Hause“ |
 | Erinnerungen | im Raum | auf den privaten Kanal |
 | spricht von sich aus im Haus | ja | nur nach der Regel „allein zu Hause“ |
 

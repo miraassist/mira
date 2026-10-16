@@ -23,7 +23,7 @@ Label **„Mira“**.
 - **Mira** liefert, was HA nicht kann, als **Aktionen** für Automationen:
   - Urteilen mit dem Modell;
   - Daten aus HA verdichten, damit das Urteil billig bleibt;
-  - Zustellen mit Mira-Semantik: Ansage, Anzeige-Lampe, „Übrigens“, Telegram, Ruhezeit, Eskalation.
+  - Zustellen mit Mira-Semantik: Ansage, Anzeige, „Übrigens“, Kanäle der Person, Ruhezeit, Eskalation.
 - Mira hält nur einen **Verweis** (Automations-ID) und ihr Protokoll.
 
 Watcher und die Regel-Engine der Aufträge entfallen. Die Testdaten werden ohne Migration gelöscht.

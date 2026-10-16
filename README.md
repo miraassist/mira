@@ -70,7 +70,7 @@ Requirements:
   started by Mira (stdio). See "More tools over MCP" in the guide
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
 
-Web UI: `http://<agent>:8787/ui` edits the notifier, and the rooms and
+Web UI: `http://<agent>:8787/ui` edits the notifier, and the satellites and
 persons unless the HA integration manages them (see below); it lists open messages and the memory. It asks for `MIRA_API_TOKEN`
 once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once. The page
@@ -88,8 +88,9 @@ Reminders: "remind me tomorrow at seven" and timers are built in
 (`reminder_set`). At the time Mira speaks the reminder in the room it was
 asked in, or sends it privately.
 
-Messages are shown and spoken: per room, an indicator light (such as an
-Echo's LED ring) pulses while messages wait, and "Hast du eine
+Messages are shown and spoken: per room, an indicator (such as an
+Echo's LED ring) pulses while messages wait, satellites with a screen
+(Echo Show with TECHO5) show them, detected by themselves, and "Hast du eine
 Benachrichtigung?" reads them out (`messages_read`); with motion sensors and
 "announce on entry" (`notifier.morning_trigger.areas`) Mira says them by
 herself when someone comes in. Several messages are worded by the model as

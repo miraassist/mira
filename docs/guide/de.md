@@ -85,7 +85,7 @@ Pro Satellit stellst du ein:
 
 Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).
 
-**Nebenbei**: Wenn du ohnehin mit dem Satelliten sprichst, hängt Mira Wartendes an ihre Antwort an – „Das Licht ist an. Übrigens: Morgen wird der Wertstoff abgeholt.“ Danach gilt die Nachricht als gehört und die Lampe geht aus. Fragst du nach („Was genau?“), bekommst du die Details.
+**Nebenbei**: Wenn du ohnehin mit dem Satelliten sprichst, hängt Mira Wartendes an ihre Antwort an – „Das Licht ist an. Übrigens: Morgen wird der Wertstoff abgeholt.“ Danach gilt die Nachricht als gehört, und die Anzeige geht aus. Fragst du nach („Was genau?“), bekommst du die Details.
 
 **Wichtigkeit**:
 
@@ -101,7 +101,7 @@ Wenn Mira von sich aus spricht, leuchtet der LED-Ring des Raums ruhig, solange s
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.
 
-**Vertrauliches und Persönliches**: Nachrichten können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
+**Vertrauliches und Persönliches**: Nachrichten können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat über die Kanäle der Person (Telegram, Companion-App).
 
 ![Nachrichten: wartende und zugestellte](img/meldungen-de.png)
 
@@ -148,7 +148,7 @@ Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwe
 - „Stell einen Timer auf 10 Minuten.“ – „In einer halben Stunde erinnerst du mich an die Wäsche.“
 - „Welche Erinnerungen habe ich?“ – „Lösch die Erinnerung an die Wäsche.“
 
-Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat zu dir, per Telegram oder als Push-Nachricht.
+Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat über deine Kanäle.
 
 ## Nachrichten an andere
 
@@ -177,7 +177,7 @@ Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie 
 - **Nachrichten**: offene und zugestellte Nachrichten ansehen und quittieren.
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten.
-- **Räume** und **Personen**: zeigen, was du in der Integration eingerichtet hast (siehe unten).
+- **Satelliten** und **Personen**: alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; als Admin stellst du es hier direkt ein (siehe unten).
 - **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
 
@@ -189,7 +189,7 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 ![Rückfrage vor dem Vergessen eines Fakts](img/dialog-vergessen-de.png)
 
-**Mira für sich allein**: Dieselbe Oberfläche gibt es auch direkt bei Mira unter `http://<mira>:8787/ui`, gedacht für den, der Mira betreibt, und für Installationen ohne die Integration. Sie macht ein paar Dinge anders: Sie kommt in Miras eigenen Farben, fragt beim ersten Aufruf nach dem Zugangs-Token, zeigt die Gedächtnisse aller Personen und lässt dort Räume und Personen bearbeiten, solange die Integration sie nicht verwaltet.
+**Mira für sich allein**: Dieselbe Oberfläche gibt es auch direkt bei Mira unter `http://<mira>:8787/ui`, gedacht für den, der Mira betreibt, und für Installationen ohne die Integration. Sie macht ein paar Dinge anders: Sie kommt in Miras eigenen Farben, fragt beim ersten Aufruf nach dem Zugangs-Token, zeigt die Gedächtnisse aller Personen und lässt dort Satelliten und Personen bearbeiten, solange die Integration sie nicht verwaltet.
 
 ## In Home Assistant
 
@@ -208,6 +208,9 @@ Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter 
 
 - **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), beim Hereinkommen ansagen, Anzeige (LED-Ring). Der Raum ist der Bereich des Satelliten.
 - **Einstellungen für eine Person**: **Kanäle** (notify-Ziele, z. B. der Telegram-Chat aus HAs Telegram-Integration und die Companion-App; persönliche Nachrichten gehen an den ersten, der klappt), **Nachrichten annehmen von** (allen, nur Personen, niemandem) und „Allein zu Hause sind die Satelliten ich“.
+
+![Einstellungen für Personen unter „Konfigurieren“: ein Abschnitt pro Person](img/ha-person-de.png)
+
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
 
 Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
@@ -250,3 +253,4 @@ Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` pr
 - Mira erfindet keine Werte: Fehlt ihr etwas, sagt sie es oder fragt nach.
 - Nach einer Websuche führt Mira keine kritischen Aktionen aus, bis du den Befehl noch einmal direkt gibst.
 - Bei Spracherkennungsfehlern hilft es, deutlich und in einem Satz zu sprechen.
+- Ein Gespräch per Telegram läuft weiter, solange du schreibst. Mira sieht davon die letzten Wechsel (etwa 30 bis 50) und alles zum Anliegen, an dem ihr gerade arbeitet; Älteres fällt heraus, was sie sich gemerkt hat, bleibt. `/neu` beginnt von vorn.

@@ -29,7 +29,7 @@ Fast alles, was heute ein „Raum“ ist, ist eine Eigenschaft des Satelliten:
 |---|---|
 | `presence` | **Liste** von Bewegungsmeldern; jeder davon löst „jemand kommt herein“ aus (z. B. Flur-PIR und Wohnzimmer-PIR für das Wohnzimmer-Echo) |
 | `morning` | **beim Hereinkommen ansagen**: Merkt einer der Bewegungsmelder jemanden, sagt Mira von selbst an, was wartet (nach der Ruhezeit mit „Guten Morgen“) |
-| `indicator` | die Anzeige-Lampe, z. B. der LED-Ring des Echo: leuchtet, solange etwas wartet, unabhängig von Bewegungsmeldern |
+| `indicator` | die Anzeige, z. B. der LED-Ring des Echo: leuchtet, solange etwas wartet, unabhängig von Bewegungsmeldern. Satelliten mit Bildschirm brauchen keine Einstellung, Mira erkennt sie von selbst |
 
 - Der **Bereich** ist der des Satelliten in HA (Entität, sonst ihr Gerät). Ein Satellit ohne Bereich kann nicht eingestellt werden.
 - Satelliten sind `assist_satellite.*`, für Lautsprecher ohne Assist auch `media_player.*` (mit `notifier.tts_entity`).
