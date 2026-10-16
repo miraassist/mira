@@ -202,6 +202,9 @@ func TestMemoryInsideHomeAssistant(t *testing.T) {
 		if code != 200 || !strings.Contains(body, "Tonne") || !strings.Contains(body, "Koriander") || strings.Contains(body, "Chorprobe") {
 			t.Fatalf("admin=%v: %d %s", admin, code, body)
 		}
+		if !strings.Contains(body, `"you":"anna"`) {
+			t.Errorf("admin=%v: own person missing: %s", admin, body)
+		}
 		if strings.Contains(body, `"can_compact":true`) != admin {
 			t.Errorf("admin=%v: can_compact in %s", admin, body)
 		}

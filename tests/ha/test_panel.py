@@ -102,3 +102,25 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
         ("PUT", "/api/mira/proxy/v1/ui/config"),
     ]:
         assert (await client.request(method, path)).status == 401, path
+
+
+async def test_agent_restarting_is_waited_for(hass, aioclient_mock, entry, hass_client, hass_client_no_auth, monkeypatch):
+    import aiohttp
+
+    from custom_components.mira import panel
+
+    monkeypatch.setattr(panel, "CONNECT_WAIT", 0)
+    await _setup(hass, aioclient_mock, entry)
+    down = aiohttp.ClientConnectorError(None, OSError("connection refused"))
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/memory", exc=down)
+    aioclient_mock.get(f"{AGENT_URL}/ui", exc=down)
+    client = await hass_client()
+    resp = await client.get("/api/mira/proxy/v1/ui/memory")
+    # No raw connection error: the page says it in Mira's words and retries.
+    assert resp.status == 503
+    assert await resp.json() == {"error": "unreachable", "unreachable": True}
+    calls = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/ui/memory")]
+    assert len(calls) == panel.CONNECT_TRIES
+    resp = await (await hass_client_no_auth()).get("/api/mira/panel/ui")
+    assert resp.status == 503
+    assert "nicht erreichbar" in await resp.text()

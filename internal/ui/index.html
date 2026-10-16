@@ -184,6 +184,7 @@ const I18N = {
   "tab_persons": "Personen",
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
+  "unreachable": "Ich bin gerade nicht erreichbar, vielleicht starte ich gerade neu. Ich versuche es gleich noch mal …",
   "token_ask": "API-Token von Mira (MIRA_API_TOKEN):",
   "dlg_ok": "OK",
   "dlg_cancel": "Abbrechen",
@@ -302,6 +303,10 @@ const I18N = {
   "profile_hint": "Die Profile werden nachts aus den Fakten verdichtet: das des Hauses steht in jedem Prompt, das einer Person in jedem Gespräch mit ihr.",
   "memory_house": "Haus",
   "memory_of": "Gedächtnis von {name}",
+  "memory_yours": "Dein Gedächtnis",
+  "memory_yours_hint": "Nur für dich: was du mir per Telegram, in der HA-App oder am Satelliten gesagt hast, wenn du allein zu Hause bist und das eingeschaltet hast.",
+  "empty_yours": "Für dich hab ich mir noch nichts gemerkt.",
+  "empty_yours_how": "Sag es mir per Telegram oder im Chat der HA-App, z. B. „Merk dir, dass ich keinen Koriander mag.“",
   "memory_house_hint": "Gemeinsam für alle; auch am Satelliten ohne bekannte Person.",
   "memory_person_hint": "Nur für diese Person: per Telegram, in der HA-App oder am Satelliten, wenn sie allein zu Hause ist und das eingeschaltet hat.",
   "edited": "geändert",
@@ -366,6 +371,7 @@ const I18N = {
   "tab_persons": "People",
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
+  "unreachable": "I can't be reached right now, maybe I'm restarting. Trying again in a moment …",
   "token_ask": "Mira API token (MIRA_API_TOKEN):",
   "dlg_ok": "OK",
   "dlg_cancel": "Cancel",
@@ -484,6 +490,10 @@ const I18N = {
   "profile_hint": "The profiles are condensed from the facts at night: the house's is part of every prompt, a person's of every conversation with them.",
   "memory_house": "House",
   "memory_of": "Memory of {name}",
+  "memory_yours": "Your memory",
+  "memory_yours_hint": "Only for you: what you told me on Telegram, in the HA app, or at a satellite when you are alone at home and switched that on.",
+  "empty_yours": "I haven't remembered anything for you yet.",
+  "empty_yours_how": "Tell me on Telegram or in the HA app's chat, e.g. \"Remember that I don't like coriander.\"",
   "memory_house_hint": "Shared by everyone; also at a satellite when nobody is known.",
   "memory_person_hint": "Only for this person: on Telegram, in the HA app, or at a satellite when they are alone at home and switched that on.",
   "edited": "edited",
@@ -632,12 +642,25 @@ const managed = name => (config[name] || {}).managed_by === "home_assistant";
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-async function api(method, path, body) {
-  const res = await fetch(url(path), {
-    method, headers: { "Authorization": await authorization(), "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
+// When Mira cannot be reached (restarting, say), the page waits and tries
+// again for a while, with a note in her words instead of a network error.
+const RETRIES = 10, RETRY_WAIT = 3000;
+async function api(method, path, body, tries = 0) {
+  let res;
+  try {
+    res = await fetch(url(path), {
+      method, headers: { "Authorization": await authorization(), "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) { res = null; }
+  const data = res ? await res.json().catch(() => ({})) : {};
+  if (!res || (res.status === 503 && data.unreachable)) {
+    if (tries >= RETRIES) throw new Error(T.unreachable);
+    message(T.unreachable, false);
+    await new Promise(r => setTimeout(r, RETRY_WAIT));
+    return api(method, path, body, tries + 1);
+  }
+  if (tries) { const box = $("#msg"); if (box) box.hidden = true; }
   if (res.status === 401 && !embedded) { askToken(); throw new Error(T.token_wrong); }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
@@ -936,17 +959,17 @@ async function memory() {
   try {
     const r = await api("GET", "/v1/ui/memory");
     $("#memories").innerHTML = (r.unknown_person ? `<section class="card"><p class="hint">${T.unknown_person}</p></section>` : "") + r.memories.map(m => {
-      const house = m.owner === "house";
-      const title = house ? T.memory_house : T.memory_of.replace("{name}", m.owner);
+      const house = m.owner === "house", yours = !!r.you && m.owner === r.you;
+      const title = house ? T.memory_house : yours ? T.memory_yours : T.memory_of.replace("{name}", m.owner);
       const name = esc(m.owner);
-      const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : T.empty_person.replaceAll("{name}", name)}</p>
-        <p class="hint">${house ? T.empty_house_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
+      const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : yours ? T.empty_yours : T.empty_person.replaceAll("{name}", name)}</p>
+        <p class="hint">${house ? T.empty_house_how : yours ? T.empty_yours_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
         <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
           <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
           <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
           <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
       return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
-        ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : T.memory_person_hint}</p>` : ""}
+        ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : yours ? T.memory_yours_hint : T.memory_person_hint}</p>` : ""}
         ${m.facts.length || m.profile ? `<details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
           ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
         ${facts}</section>`;

@@ -462,7 +462,9 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 		// Unknown is set inside Home Assistant when the HA user belongs to
 		// no person, so only the house's memory shows.
 		Unknown bool `json:"unknown_person,omitempty"`
-	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == ""}
+		// You is the viewer's own person inside Home Assistant.
+		You string `json:"you,omitempty"`
+	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == "", You: v.person}
 	const stamp = "2006-01-02 15:04"
 	for _, owner := range owners {
 		facts, err := h.opts.Store.AllFacts(ctx, owner)

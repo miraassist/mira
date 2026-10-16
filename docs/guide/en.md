@@ -62,9 +62,9 @@ This is how setting one up goes:
 When judging, Mira compares, for example, the last hour's usage with the same hour over the past two weeks, knows who is at home and what you asked her to remember, and recalls what she already said about this task. She does not report the same thing again and again, only when it gets worse.
 
 - "Which tasks do you have?" – "Pause the gas task." – "Delete the electricity task." – "Do a dry run of the gas task."
-- In the web interface under **Tasks** you see all tasks with on/off, dry run and the log of their judgements, plus proposals still waiting for your yes.
+- In Home Assistant under Mira → **Tasks** you see all tasks with on/off, dry run and the log of their judgements, plus proposals still waiting for your yes.
 
-![Tasks in the web interface: a waiting proposal, a paused and two running tasks](img/aufgaben-liste-en.png)
+![Mira in Home Assistant's sidebar: a paused and two running tasks](img/aufgaben-liste-en.png)
 
 Under the hood every task is an ordinary **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you. "Edit in Home Assistant" opens it in the editor; you can change it there yourself too.
 
@@ -101,7 +101,7 @@ When Mira speaks up on her own, the room's indicator light glows steadily while 
 
 **Confidential and personal**: notices can be meant for one person or be confidential. Mira reads confidential notices out only when the setting allows it (e.g. only when that person is alone at home); otherwise they go privately by Telegram or as a push notification to the phone.
 
-![Notices in the web interface: waiting and delivered notices](img/meldungen-en.png)
+![Notices: waiting and delivered](img/meldungen-en.png)
 
 ## Mira remembers things
 
@@ -118,9 +118,9 @@ There is one memory for the **house** and one for **each person**:
 - Your personal memory is only seen by Mira when talking to you. The house's memory is for everyone.
 - Nobody writes into someone else's memory.
 
-At night Mira condenses each memory into a short profile. In the web interface under **Memory** you see the house and the persons apart, with who said it and when, and can edit or delete facts.
+At night Mira condenses each memory into a short profile. In Home Assistant, under Mira → **Memory**, you see the house's memory and your own, with who said it and when, and can edit or forget facts. Nobody sees the others' memories there, not even an admin.
 
-![The memory: house, Anna and Ben, each with author and time](img/gedaechtnis-en.png)
+![Anna's view: the house's memory and her own](img/gedaechtnis-en.png)
 
 ## Skills: the waste collection, for example
 
@@ -157,32 +157,33 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 **Confirming important actions**: locks, the alarm system, the garage door and the like Mira only operates after you explicitly say "Yes" to her question.
 
-## Web interface
+## Mira in Home Assistant
 
-In Home Assistant, Mira is in the sidebar, with your HA login and in the look of your HA theme, also from away. There everyone sees only the house's memory and their own (their person must be linked to their HA user); everything else is for admins. On her own she runs at `http://<mira>:8787/ui` (access token on first visit). Both show the same:
+Mira is in Home Assistant's sidebar. You are signed in there already, she looks like your HA theme (light or dark) and speaks your HA language; this works from away in the app too.
 
 - **Notices**: see open and delivered notices and mark them done.
-- **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, link into Home Assistant's editor.
+- **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
-- **Rooms**: which satellite speaks where, motion sensors, announce or indicate, indicator light.
-- **People**: who gets personal notices, by Telegram or push, and whether the satellites count as this person when they are alone at home ("Alone = me").
-- **Memory**: the house and each person apart, with profile, facts, who said them and when; edit and forget.
+- **Rooms** and **People**: show what you set up in the integration (see below).
+- **Memory**: the house's and your own; edit and forget.
 - **Guide**: this page.
 
-![Notification settings: quiet hours, pauses, escalation](img/benachrichtigung-en.png)
+Someone who is no admin sees only **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
+
+![Notifications: quiet hours, pauses, escalation](img/benachrichtigung-en.png)
 
 Before Mira deletes something, she asks:
 
 ![Asking before a fact is forgotten](img/dialog-vergessen-en.png)
 
-If the Mira integration is set up in Home Assistant, you edit rooms and people there (Settings → Devices & services → Mira) with pickers for entities and areas; the web interface then only shows them.
+**Mira on her own**: the same interface is also at Mira herself, at `http://<mira>:8787/ui`, meant for whoever runs Mira and for setups without the integration. It does a few things differently: it comes in Mira's own colors, asks for the access token on the first visit, shows the memories of all persons, and lets you edit rooms and people there as long as the integration does not manage them.
 
 ## In Home Assistant
 
 - **Device "Mira"** with the **Quiet mode** switch, the **Pending notices** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
 - Automations can give Mira notices with the action `mira.add_notice`.
-- **Mira in the sidebar**: the web interface as a page in Home Assistant; someone who is no admin sees only their memory, the house's and the guide. Switch it off in the integration's options; anyone can also hide it in just their own sidebar.
+- **Mira in the sidebar** (see above). Switch it off in the integration's options; anyone can also hide it in just their own sidebar.
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)
 

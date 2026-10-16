@@ -13,6 +13,8 @@ agent once more from the user it is told.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 
 import aiohttp
@@ -45,6 +47,19 @@ HEADER_ADMIN = "X-Mira-HA-Admin"
 REQUEST_PASSED = ("Range", "If-Range")
 PASSED = ("Content-Type", "Cache-Control", "Accept-Ranges", "Content-Range")
 TIMEOUT = aiohttp.ClientTimeout(total=60)
+# How often and how long to wait for an agent that is restarting.
+CONNECT_TRIES = 4
+CONNECT_WAIT = 1.0
+
+_LOGGER = logging.getLogger(__name__)
+
+# Shown in the panel while the agent cannot be reached; reloads itself.
+WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width">
+<style>body{font-family:Roboto,system-ui,sans-serif;color:#555;display:flex;align-items:center;
+justify-content:center;height:90vh;margin:0;text-align:center}@media (prefers-color-scheme:dark)
+{body{color:#bbb;background:#111}}</style></head><body><p>Mira ist gerade nicht erreichbar, gleich noch mal …<br>
+<small>Mira can't be reached right now, trying again …</small></p></body></html>"""
 
 
 @callback
@@ -97,22 +112,35 @@ async def _forward(
         headers["Authorization"] = f"Bearer {token}"
     headers.update(extra or {})
     body = await request.read() if request.can_read_body else None
-    try:
-        async with async_get_clientsession(hass).request(
-            request.method,
-            f"{base}/{path}",
-            params=request.query,
-            data=body,
-            headers=headers,
-            timeout=TIMEOUT,
-        ) as resp:
-            data = await resp.read()
-            passed = {k: resp.headers[k] for k in PASSED if k in resp.headers}
-            if with_token:
-                passed.setdefault("Content-Type", "application/json")
-            return web.Response(status=resp.status, body=data, headers=passed)
-    except (aiohttp.ClientError, TimeoutError) as err:
-        return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+    # The agent may be restarting just now (an update, a container restart):
+    # wait a moment for it rather than showing a connection error. Only a
+    # connection that was never made is tried again, so nothing runs twice.
+    last: Exception | None = None
+    for attempt in range(CONNECT_TRIES):
+        if attempt:
+            await asyncio.sleep(CONNECT_WAIT)
+        try:
+            async with async_get_clientsession(hass).request(
+                request.method,
+                f"{base}/{path}",
+                params=request.query,
+                data=body,
+                headers=headers,
+                timeout=TIMEOUT,
+            ) as resp:
+                data = await resp.read()
+                passed = {k: resp.headers[k] for k in PASSED if k in resp.headers}
+                if with_token:
+                    passed.setdefault("Content-Type", "application/json")
+                return web.Response(status=resp.status, body=data, headers=passed)
+        except aiohttp.ClientConnectorError as err:
+            last = err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            last = err
+            break
+    _LOGGER.debug("Mira agent not reachable: %s", last)
+    # The page says this in Mira's words and tries again by itself.
+    return web.json_response({"error": "unreachable", "unreachable": True}, status=503)
 
 
 def _allowed(method: str, path: str) -> bool:
@@ -132,7 +160,11 @@ class MiraPanelView(HomeAssistantView):
     async def get(self, request: web.Request, path: str) -> web.Response:
         if not PAGE_FILES.fullmatch(path):
             return web.Response(status=404)
-        return await _forward(request.app[KEY_HASS], request, path, with_token=False)
+        resp = await _forward(request.app[KEY_HASS], request, path, with_token=False)
+        if resp.status == 503 and path in ("ui", "ui/"):
+            # The page itself: a short note that loads Mira again by itself.
+            return web.Response(status=503, text=WAITING_PAGE, content_type="text/html")
+        return resp
 
 
 class MiraProxyView(HomeAssistantView):

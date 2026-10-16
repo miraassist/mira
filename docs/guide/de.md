@@ -62,9 +62,9 @@ So läuft das Einrichten ab:
 Beim Beurteilen vergleicht Mira zum Beispiel den Verbrauch der letzten Stunde mit derselben Stunde der vergangenen zwei Wochen, weiß, wer zu Hause ist, kennt, was du ihr gemerkt hast, und erinnert sich, was sie zu dieser Aufgabe schon gesagt hat. Dieselbe Sache meldet sie nicht ständig wieder, nur wenn es schlimmer wird.
 
 - „Welche Aufgaben hast du?“ – „Pausier die Gas-Aufgabe.“ – „Lösch die Aufgabe mit dem Strom.“ – „Mach einen Probelauf der Gas-Aufgabe.“
-- In der Web-Oberfläche unter **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile, dazu Vorschläge, die noch auf dein Ja warten.
+- In Home Assistant unter Mira → **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile, dazu Vorschläge, die noch auf dein Ja warten.
 
-![Aufgaben in der Web-Oberfläche: ein wartender Vorschlag, eine pausierte und zwei laufende Aufgaben](img/aufgaben-liste-de.png)
+![Mira im Seitenmenü von Home Assistant: eine pausierte und zwei laufende Aufgaben](img/aufgaben-liste-de.png)
 
 Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert. „In Home Assistant bearbeiten“ öffnet sie im Editor; dort kannst du sie auch selbst ändern.
 
@@ -101,7 +101,7 @@ Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, sola
 
 **Vertrauliches und Persönliches**: Meldungen können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
 
-![Meldungen in der Web-Oberfläche: wartende und zugestellte Meldungen](img/meldungen-de.png)
+![Meldungen: wartende und zugestellte](img/meldungen-de.png)
 
 ## Mira merkt sich Dinge
 
@@ -118,9 +118,9 @@ Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
 - Dein persönliches Gedächtnis sieht nur Mira im Gespräch mit dir. Das Haus-Gedächtnis gilt für alle.
 - In fremde Gedächtnisse schreibt niemand.
 
-Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In der Web-Oberfläche unter **Gedächtnis** siehst du Haus und Personen getrennt, mit wer es wann gesagt hat, und kannst Fakten bearbeiten oder löschen.
+Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Assistant siehst du unter Mira → **Gedächtnis** das des Hauses und dein eigenes, mit wer es wann gesagt hat, und kannst Fakten bearbeiten oder vergessen. Die Gedächtnisse der anderen sieht dort niemand, auch kein Admin.
 
-![Das Gedächtnis: Haus, Anna und Ben, jeweils mit Urheber und Zeitpunkt](img/gedaechtnis-de.png)
+![Annas Sicht: das Gedächtnis des Hauses und ihr eigenes](img/gedaechtnis-de.png)
 
 ## Skills: zum Beispiel die Müllabfuhr
 
@@ -157,32 +157,33 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 **Wichtige Aktionen bestätigen**: Schlösser, Alarmanlage, Garagentor und Ähnliches führt Mira erst aus, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
-## Web-Oberfläche
+## Mira in Home Assistant
 
-In Home Assistant steht Mira im Seitenmenü, mit deiner HA-Anmeldung und im Aussehen deines HA-Themes, auch von unterwegs. Dort sieht jeder beim Gedächtnis nur das des Hauses und sein eigenes (dafür muss die Person mit dem HA-Benutzer verknüpft sein); alles andere sehen nur Admins. Für sich allein läuft sie unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf). Beide zeigen dasselbe:
+Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der App.
 
 - **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
-- **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, Link in den Editor von Home Assistant.
+- **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
-- **Räume**: welcher Satellit wo spricht, Bewegungsmelder, ansagen oder anzeigen, Anzeige-Lampe.
-- **Personen**: wer persönliche Meldungen bekommt, per Telegram oder Push, und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist („Allein = ich“).
-- **Gedächtnis**: Haus und jede Person getrennt, mit Profil, Fakten, wer sie wann gesagt hat; bearbeiten und vergessen.
+- **Räume** und **Personen**: zeigen, was du in der Integration eingerichtet hast (siehe unten).
+- **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
 
-![Einstellungen für Benachrichtigungen: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)
+Wer kein Admin ist, sieht nur **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
+
+![Benachrichtigung: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)
 
 Bevor Mira etwas löscht, fragt sie nach:
 
 ![Rückfrage vor dem Vergessen eines Fakts](img/dialog-vergessen-de.png)
 
-Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Räume und Personen dort (Einstellungen → Geräte & Dienste → Mira) mit der Auswahl von Entitäten und Bereichen; die Web-Oberfläche zeigt sie dann nur an.
+**Mira für sich allein**: Dieselbe Oberfläche gibt es auch direkt bei Mira unter `http://<mira>:8787/ui`, gedacht für den, der Mira betreibt, und für Installationen ohne die Integration. Sie macht ein paar Dinge anders: Sie kommt in Miras eigenen Farben, fragt beim ersten Aufruf nach dem Zugangs-Token, zeigt die Gedächtnisse aller Personen und lässt dort Räume und Personen bearbeiten, solange die Integration sie nicht verwaltet.
 
 ## In Home Assistant
 
 - **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Offene Hinweise** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
 - Automationen können Mira Meldungen geben, mit der Aktion `mira.add_notice`.
-- **Mira im Seitenmenü**: die Web-Oberfläche als Seite in Home Assistant; wer kein Admin ist, sieht dort nur sein Gedächtnis, das des Hauses und die Anleitung. Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.
+- **Mira im Seitenmenü** (siehe oben). Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)
 
