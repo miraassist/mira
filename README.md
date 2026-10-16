@@ -5,6 +5,13 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Install with HACS" height="40"></a>
+  <br>
+  <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://github.com/miraassist/mira/actions/workflows/ci.yml"><img src="https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
 # Mira
 
 **User guide:** [Deutsch](docs/guide/de.md) · [English](docs/guide/en.md) – also in the web UI under "Anleitung" / "Guide".
@@ -105,7 +112,7 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
-1. HACS → Custom repositories → `https://github.com/sker65/mira`, type Integration.
+1. Click **Install with HACS** above, or HACS → Custom repositories → `https://github.com/miraassist/mira`, type Integration.
 2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
    (`_mira._tcp`, `server.announce`) and shows up under **Discovered**; it
