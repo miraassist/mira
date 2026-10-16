@@ -1,6 +1,6 @@
 # Nachrichten – Spezifikation
 
-Stand 2026-10-16, **Konzept, noch nicht gebaut**. Baut auf [Benutzer](benutzer.md) und [Mira in Home Assistant](ha-anbindung.md) auf.
+Stand 2026-10-16, im Bau. Zwei Abstraktionen tragen Miras Kommunikation: [Kanal](kanaele.md) und **Nachricht** (dieses Dokument). Baut auf [Benutzer](benutzer.md) und [Mira in Home Assistant](ha-anbindung.md) auf.
 
 ## Grundsatz
 
@@ -38,7 +38,7 @@ Einstellungen eines Empfängers gibt es hier nicht; das Haus nimmt alles an.
 | Einstellung | Werte | Standard |
 |---|---|---|
 | Nachrichten annehmen | von allen (auch anonym am Satelliten) / von anderen Personen / von niemandem | von allen |
-| Kanäle | Telegram, Push (Companion-App) | wie eingerichtet |
+| Kanäle | notify-Ziele der Person (Companion-App, Telegram-Chat, Signal, …), siehe [Kanäle](kanaele.md) | keine |
 | Allein zu Hause sind die Satelliten ich | an/aus | aus |
 
 - „Annehmen“ gilt für Nachrichten **von Menschen**. Was Mira selbst schickt (Aufgaben, Skills, Erinnerungen, Automationen), kommt immer an; sonst könnte man sich von der Lecksensor-Warnung abmelden.
@@ -46,7 +46,7 @@ Einstellungen eines Empfängers gibt es hier nicht; das Haus nimmt alles an.
 - Nimmt der Empfänger nicht an, sagt Mira dem Absender das ehrlich („Ben nimmt gerade keine Nachrichten an“) und speichert nichts.
 
 **Zustellung:**
-- privat: Telegram oder Push, wie heute bei persönlichen und vertraulichen Meldungen;
+- privat: über die [Kanäle](kanaele.md) der Person (HA-notify-Ziele), wie heute bei persönlichen und vertraulichen Meldungen;
 - am Satelliten (Ansage oder Anzeige-Lampe), **wenn die Person dort erkannt ist**. Heute heißt erkannt nur: Regel „allein zu Hause“. **Was „erkannt am Satelliten“ künftig heißt, besprechen wir gesondert.**
 
 ## Wortlaut
@@ -76,7 +76,7 @@ Geprüft gegen HA 2026.10, damit wir nichts nachbauen:
 
 | HA | Was es ist | Für Mira |
 |---|---|---|
-| `notify.*` (Companion-App, Telegram-Bot, …) und `notify.send_message` | Transporte: eine Nachricht an ein Gerät oder einen Chat schicken | **Nutzen** als Zustellkanal (Push nutzen wir schon) |
+| `notify.*` (Companion-App, Telegram-Bot, …) und `notify.send_message` | Transporte: eine Nachricht an ein Gerät oder einen Chat schicken | **Nutzen** als Kanal ([Kanäle](kanaele.md)) |
 | `assist_satellite.announce` / `start_conversation` | am Satelliten sprechen | **Nutzen**, wie heute |
 | `persistent_notification` | Hinweis in HAs Glocke, für alle gleich | kein Kanal pro Person; höchstens für Admin-Hinweise |
 | `alert` | wiederholte Benachrichtigung, solange ein Zustand anhält | nichts Gleiches; unsere Eskalation bleibt |
@@ -87,7 +87,7 @@ Geprüft gegen HA 2026.10, damit wir nichts nachbauen:
 
 **HA-nah anbieten:** Die Integration stellt `notify`-Entitäten bereit, eine fürs Haus (`notify.mira_haus`) und eine pro Person (`notify.mira_anna`). Dann schicken Automationen mit HAs eigener Aktion `notify.send_message` eine Nachricht über Mira, ohne Mira-eigene Aktion; Absender ist dann die Automation. `mira.send_message` bleibt für mehr Felder (Wichtigkeit, vertraulich, Ablauf).
 
-Beobachtung, nicht für jetzt: HA hat eine eigene Telegram-Integration (`telegram_bot`). Mira betreibt ihren eigenen Bot, weil Telegram ein Gesprächskanal ist; ein Bot-Token lässt sich nur von einem abfragen. Ob Mira auf HAs Bot umsteigt, ist eine eigene Frage.
+Telegram läuft über HAs Integration `telegram_bot`; Miras eigener Bot entfällt ([Kanäle](kanaele.md)).
 
 ## Entschieden
 
