@@ -43,6 +43,21 @@ cp mira.example.yaml mira.yaml        # then edit; secrets come from ${ENV}
 ./mira -config mira.yaml run
 ```
 
+Or in Docker (the `Dockerfile` builds a static binary on distroless, about
+45 MB):
+
+```sh
+docker build -t mira .
+docker run -d --name mira --network host -e TZ=Europe/Berlin --env-file .env \
+  -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira mira
+```
+
+Set `store.path: /var/lib/mira/mira.db` (as in `mira.example.yaml`); the
+built-in skills are in the image. `--network host` lets the integration find
+the agent by mDNS; without it, publish the port (`-p 8787:8787`) and enter
+the URL in the integration. MCP servers started over stdio need their own
+runtime (e.g. node), which the image does not have; use MCP servers over HTTP.
+
 Requirements:
 - An OpenAI-compatible LLM server: llama.cpp (`llama-server --parallel 3`,
   `llm.slot_pinning: true`) or LM Studio (`slot_pinning: false`; it picks

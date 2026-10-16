@@ -1,0 +1,16 @@
+# Only what the image build needs: Go sources, go.mod/go.sum, skills.
+.git
+.github
+.venv
+dist
+deploy
+testenv
+tests
+custom_components
+docs/brand
+*.db*
+.env
+mira.yaml
+config.local.yaml
+/mira
+Mira – Implementierungsplan.md
