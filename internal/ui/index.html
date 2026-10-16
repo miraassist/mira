@@ -180,7 +180,7 @@ const I18N = {
  "de": {
   "tab_notices": "Meldungen",
   "tab_notifier": "Benachrichtigung",
-  "tab_rooms": "Räume",
+  "tab_rooms": "Satelliten",
   "tab_persons": "Personen",
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
@@ -290,6 +290,7 @@ const I18N = {
   "motion": "Bewegungsmelder",
   "announcements": "Ansagen",
   "add_room": "+ Raum",
+  "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Was dazukommt (Bewegungsmelder, Morgenansage, ansagen oder anzeigen, Anzeige-Lampe), steht am Satelliten selbst und wird in Home Assistant eingestellt.",
   "persons_ha_hint": "Jede Person aus Home Assistant ist auch für mich eine Person, angelegt wird hier nichts. Du stellst nur ein, was ich zusätzlich brauche: wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
   "person": "Person",
   "persons_hint": "Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
@@ -369,7 +370,7 @@ const I18N = {
  "en": {
   "tab_notices": "Notices",
   "tab_notifier": "Notifications",
-  "tab_rooms": "Rooms",
+  "tab_rooms": "Satellites",
   "tab_persons": "People",
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
@@ -479,6 +480,7 @@ const I18N = {
   "motion": "Motion sensor",
   "announcements": "Announcements",
   "add_room": "+ Room",
+  "satellites_ha_hint": "Every Assist satellite with an area speaks in its area. What comes on top (motion sensors, morning announcement, announce or indicate, indicator light) is stored on the satellite itself and set in Home Assistant.",
   "persons_ha_hint": "Every person in Home Assistant is a person for me too; nothing is created here. You only set what I need on top: where personal notices go and whether the satellites count as this person when they are alone at home.",
   "person": "Person",
   "persons_hint": "People receive personal notices. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
@@ -872,6 +874,7 @@ function rooms() {
   const presence = mt.presence || {}, modes = n.room_mode || {}, inds = n.indicators || {};
   const areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
   const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: csv(presence[a]), active: list(mt.areas).includes(a), mode: modes[a] || "announce", ind: inds[a] || "" }));
+  if (managed("satellites")) return haSatellites(rows);
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_rooms} ${source("satellites")}</h2>
@@ -944,6 +947,21 @@ function personRow(key, p, i) {
     <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${p.alone_is_me ? " checked" : ""}></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
+// With the integration the satellites and Mira's settings on them come
+// from Home Assistant; the page only shows them.
+function haSatellites(rows) {
+  const name = id => esc((entityNames[id] || "").split(" · ")[0] || id);
+  const sensors = s => fromCsv(s).map(name).join(", ") || "–";
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>${T.tab_rooms} ${source("satellites")}</h2>
+    <p class="hint">${T.satellites_ha_hint}</p>
+    <table><tr><th>${T.satellite}</th><th>${T.area}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.mode}</th><th>${T.indicator}</th></tr>
+      ${rows.map(r => `<tr><td>${name(r.sat)}${name(r.sat) !== esc(r.sat) ? `<p class="hint">${esc(r.sat)}</p>` : ""}</td><td>${esc(r.area)}</td><td>${sensors(r.sensor)}</td>
+        <td>${r.active ? T.yes : T.no}</td><td>${T["mode_" + r.mode] || esc(r.mode)}</td><td>${r.ind ? name(r.ind) : "–"}</td></tr>`).join("")}
+    </table>
+  </section>`;
+}
 // With Home Assistant every HA person is a person; the page only sets
 // Mira's settings for them.
 function haPersons(people, settings) {
@@ -954,6 +972,8 @@ function haPersons(people, settings) {
     <table id="persons"><tr><th>${T.person}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th></tr>
       ${people.map(h => {
         const s = settings[h.key] || Object.values(settings).find(x => x.entity === h.entity) || {};
+        if (managed("persons")) return `<tr><td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
+          <td>${esc(s.telegram_user_id || "–")}</td><td>${esc(s.notify || "–")}</td><td>${s.alone_is_me ? T.yes : T.no}</td></tr>`;
         return `<tr data-p="${esc(h.key)}" data-key="${esc(h.key)}">
           <td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
           <td><input data-f="tg" value="${esc(s.telegram_user_id || "")}" inputmode="numeric"></td>
