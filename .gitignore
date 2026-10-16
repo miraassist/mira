@@ -12,6 +12,10 @@ __pycache__/
 # Test Home Assistant: only the config is tracked, not its runtime state.
 /testenv/ha/*
 !/testenv/ha/configuration.yaml
+# Made-up waste calendar for the abfall skill, served at /local/.
+!/testenv/ha/www/
+/testenv/ha/www/*
+!/testenv/ha/www/abfall-test.ics
 /testenv/.env
 /testenv/mira.db*
 !/testenv/mira.yaml

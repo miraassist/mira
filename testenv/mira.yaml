@@ -50,6 +50,14 @@ mcp_servers:
     transport: http
     url: "http://${HA_HOST}/api/mcp/assist"
     token: ${HA_TOKEN}
+  # Web search, started by Mira (stdio). Paths in testenv/.env; without
+  # them the server is just unreachable and Mira runs without it.
+  - name: search
+    transport: stdio
+    command: ${SEARCH_MCP_COMMAND}
+    args: ["${SEARCH_MCP_SCRIPT}"]
+    read_only: true
+    web_content: true
 
 telegram:
   enabled: false
@@ -67,3 +75,11 @@ memory:
 telemetry:
   otlp_endpoint: ""
   log_level: info
+
+# The waste skill against a made-up calendar the test HA serves.
+skills:
+  dirs: [skills]
+  enabled:
+    abfall:
+      calendar_url: "http://${HA_HOST}/local/abfall-test.ics"
+      types: [Restabfall, Wertstoff, Bioabfall, Altpapier]

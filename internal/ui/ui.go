@@ -17,7 +17,9 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"mime"
 	"net/http"
+	"path"
 	"slices"
 	"sort"
 	"strconv"
@@ -94,6 +96,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui", h.page)
 	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
 	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
+	h.mux.HandleFunc("GET /ui/guide/img/{name}", h.guideFile)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -136,6 +139,22 @@ func (h *Handler) guide(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Write(text)
+}
+
+// guideFile serves the guide's pictures and recordings; like the guide it
+// needs no token.
+func (h *Handler) guideFile(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	data, err := docs.GuideFile(name)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "no such file")
+		return
+	}
+	if t := mime.TypeByExtension(path.Ext(name)); t != "" {
+		w.Header().Set("Content-Type", t)
+	}
+	w.Header().Set("Cache-Control", "max-age=3600")
+	w.Write(data)
 }
 
 func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {

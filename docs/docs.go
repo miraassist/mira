@@ -5,9 +5,10 @@ package docs
 import (
 	"embed"
 	"fmt"
+	"path"
 )
 
-//go:embed guide/*.md
+//go:embed guide/*.md guide/img
 var guide embed.FS
 
 // Guide returns the user guide in a language ("de", "en"), falling back to
@@ -18,4 +19,12 @@ func Guide(lang string) ([]byte, error) {
 		return guide.ReadFile("guide/de.md")
 	}
 	return b, nil
+}
+
+// GuideFile returns a picture or recording of the guide (guide/img/<name>).
+func GuideFile(name string) ([]byte, error) {
+	if name == "" || path.Base(name) != name {
+		return nil, fmt.Errorf("bad name %q", name)
+	}
+	return guide.ReadFile("guide/img/" + name)
 }

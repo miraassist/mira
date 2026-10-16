@@ -84,6 +84,12 @@ button:focus-visible, a.button:focus-visible { outline: 3px solid color-mix(in s
 .guide p, .guide li { line-height: 1.6; }
 .guide ul { padding-left: 20px; }
 .guide code { background: var(--badge); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+.guide ol { padding-left: 22px; }
+.guide figure { margin: 14px 0 18px; }
+.guide figure img, .guide figure video { display: block; max-width: 100%; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+.guide figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.guide aside.note { margin: 12px 0; padding: 10px 14px; border-radius: 12px; background: var(--rose-tint); border-left: 4px solid var(--magenta); }
+.guide pre.code { white-space: pre; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--ok-tint); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 13px; }
 .chip small { color: var(--muted); }
@@ -998,14 +1004,21 @@ function inline(s) {
   return esc(s)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\*)/g, "$1<em>$2</em>")
     .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 function markdown(md) {
   const out = [];
-  let list = false, table = null, para = [];
+  let list = null, table = null, para = [], code = null, quote = [];
   const flush = () => {
     if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
-    if (list) { out.push("</ul>"); list = false; }
+    if (list) { out.push(`</${list}>`); list = null; }
+    if (quote.length) {
+      // An empty quote line separates paragraphs, like the lines of a dialog.
+      const paras = quote.join("\n").split(/\n\s*\n/).map(p => inline(p.replace(/\n/g, " ")));
+      out.push(`<aside class="note">${paras.join("<br>")}</aside>`);
+      quote = [];
+    }
     if (table) {
       const [head, ...rows] = table.filter(r => !/^\|[\s:|-]+\|$/.test(r));
       const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => inline(c.trim()));
@@ -1013,18 +1026,38 @@ function markdown(md) {
       table = null;
     }
   };
+  const item = (kind, text) => {
+    if (list !== kind) { flush(); out.push(`<${kind}>`); list = kind; }
+    out.push(`<li>${inline(text)}</li>`);
+  };
   for (const raw of md.split("\n")) {
     const line = raw.trimEnd();
     let m;
+    if (code !== null) {
+      if (line.startsWith("```")) { out.push(`<pre class="code">${esc(code.join("\n"))}</pre>`); code = null; } else code.push(raw);
+      continue;
+    }
+    if (line.startsWith("```")) { flush(); code = []; continue; }
     if (!line.trim()) { flush(); continue; }
     if ((m = line.match(/^(#{1,3})\s+(.*)/))) { flush(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
+    if ((m = line.match(/^>\s?(.*)/))) { if (!quote.length) flush(); quote.push(m[1]); continue; }
     if (line.startsWith("|")) { if (!table) { flush(); table = []; } table.push(line); continue; }
-    if ((m = line.match(/^\s*[-*]\s+(.*)/))) { if (!list) { flush(); out.push("<ul>"); list = true; } out.push(`<li>${inline(m[1])}</li>`); continue; }
-    if (list) flush();
+    if ((m = line.match(/^\s*[-*]\s+(.*)/))) { item("ul", m[1]); continue; }
+    if ((m = line.match(/^\s*\d+\.\s+(.*)/))) { item("ol", m[1]); continue; }
+    if (list || quote.length) flush();
     para.push(line.trim());
   }
   flush();
   return out.join("\n");
+}
+// media shows a picture or a recording of the guide with its caption.
+function media(alt, src) {
+  const url = "/ui/guide/" + src;
+  const body = /\.(mp4|webm)$/.test(src)
+    ? `<video controls preload="metadata" src="${esc(url)}"></video>`
+    : `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(alt)}" loading="lazy"></a>`;
+  return `<figure>${body}${alt ? `<figcaption>${inline(alt)}</figcaption>` : ""}</figure>`;
 }
 
 // ---- Start --------------------------------------------------------------
