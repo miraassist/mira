@@ -33,8 +33,8 @@
         "title": "Mira",
         "menu_options": {
           "general": "Allgemein",
-          "person_pick": "Einstellungen für eine Person",
-          "satellite_pick": "Einstellungen für einen Satelliten"
+          "persons": "Einstellungen für Personen",
+          "satellites": "Einstellungen für Satelliten"
         }
       },
       "general": {
@@ -48,16 +48,9 @@
           "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant; wer kein Admin ist, sieht dort nur sein Gedächtnis, das des Hauses und die Anleitung. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden."
         }
       },
-      "person_pick": {
-        "title": "Person wählen",
-        "description": "Jede Person aus Home Assistant ist auch für Mira eine Person. Wähle, für wen du etwas einstellen willst.",
-        "data": {
-          "entity": "Person"
-        }
-      },
-      "person": {
-        "title": "Mira-Einstellungen für {person}",
-        "description": "Wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist. Gespeichert wird an der Person selbst. Alles leer lassen entfernt die Einstellungen.",
+      "persons": {
+        "title": "Einstellungen für Personen",
+        "description": "Jede Person aus Home Assistant ist auch für Mira eine Person. Klapp eine auf und stell ein, was Mira zusätzlich braucht; gespeichert wird an der Person selbst. Leer gelassen gibt es keine Einstellungen. {error}",
         "data": {
           "telegram_user_id": "Telegram-User-ID",
           "notify": "Push-Benachrichtigung",
@@ -69,16 +62,9 @@
           "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
         }
       },
-      "satellite_pick": {
-        "title": "Satellit wählen",
-        "description": "Jeder Assist-Satellit mit Bereich spricht für Mira in seinem Bereich. Hier stellst du ein, was dazukommt: Bewegungsmelder, Morgenansage, ansagen oder anzeigen. Lautsprecher ohne Assist nimmt Mira nur, wenn du sie hier einstellst.",
-        "data": {
-          "entity": "Satellit"
-        }
-      },
-      "satellite": {
-        "title": "Mira-Einstellungen für {satellite}",
-        "description": "Gespeichert wird am Satelliten selbst; der Raum ist sein Bereich in Home Assistant. Mehrere Bewegungsmelder sind möglich, jeder davon zählt als „jemand kommt herein“.",
+      "satellites": {
+        "title": "Einstellungen für Satelliten",
+        "description": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Klapp einen auf und stell ein, was dazukommt; gespeichert wird am Satelliten selbst, der Raum ist sein Bereich. {error}",
         "data": {
           "presence": "Bewegungsmelder",
           "morning": "Morgenansage",
@@ -95,11 +81,12 @@
     },
     "error": {
       "invalid_config": "Der Agent hat es abgelehnt: {error}",
-      "cannot_connect": "Der Agent ist nicht erreichbar.",
-      "no_area": "Der Satellit hat keinen Bereich. Ordne ihn (oder sein Gerät) in Home Assistant einem Bereich zu."
+      "cannot_connect": "Der Agent ist nicht erreichbar."
     },
     "abort": {
-      "not_loaded": "Der Mira-Eintrag ist nicht geladen."
+      "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
+      "no_persons": "In Home Assistant gibt es noch keine Personen.",
+      "no_satellites": "Es gibt keinen Assist-Satelliten mit Bereich."
     }
   },
   "entity": {

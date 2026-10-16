@@ -191,7 +191,7 @@ Mira kennt deine Personen und Satelliten von selbst, anlegen musst du nichts: Je
 
 ![Die Mira-Integration in Home Assistant](img/ha-integration-de.png)
 
-Was Mira darüber hinaus braucht, stellst du unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** ein; gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
+Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter **Satelliten** und **Personen** ein; dasselbe geht in Home Assistant unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren**, mit einem aufklappbaren Abschnitt pro Person oder Satellit. Gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
 
 - **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), Morgenansage, ansagen oder nur anzeigen, Anzeige-Lampe. Der Raum ist der Bereich des Satelliten.
 - **Einstellungen für eine Person**: Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“.

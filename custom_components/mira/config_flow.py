@@ -21,23 +21,14 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
-from .managed import (
-    PERSON_FIELDS,
-    SATELLITE_DOMAINS,
-    SATELLITE_FIELDS,
-    build_config,
-    person_settings,
-    satellite_area,
-    satellite_settings,
-    set_person_settings,
-    set_satellite_settings,
-)
+from .managed import all_persons, all_satellites, entity_name, person_settings, satellite_settings, save_settings
 
 USER_SCHEMA = vol.Schema(
     {
@@ -127,15 +118,42 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 
-class MiraOptionsFlow(OptionsFlow):
-    """General options, and Mira's settings for one of Home Assistant's
-    persons. Every HA person is a person for Mira anyway; the settings only
-    add what Mira needs on top, stored on the person (managed.py)."""
+# Field names inside the per-person and per-satellite sections. Home
+# Assistant translates a section's fields by the section's key, and those
+# keys are names of persons and satellites, so the fields carry readable
+# names themselves, in Home Assistant's language.
+FIELD_NAMES = {
+    "de": {
+        "telegram_user_id": "Telegram-User-ID",
+        "notify": "Push-Benachrichtigung (Notify-Dienst)",
+        "alone_is_me": "Allein zu Hause sind die Satelliten ich",
+        "presence": "Bewegungsmelder",
+        "morning": "Morgenansage",
+        "mode": "Zustellart",
+        "indicator": "Anzeige-Lampe",
+    },
+    "en": {
+        "telegram_user_id": "Telegram user id",
+        "notify": "Push notification (notify service)",
+        "alone_is_me": "Alone at home, the satellites are me",
+        "presence": "Motion sensors",
+        "morning": "Morning announcement",
+        "mode": "Delivery",
+        "indicator": "Indicator light",
+    },
+}
 
-    _person: str = ""
+
+class MiraOptionsFlow(OptionsFlow):
+    """General options, and Mira's settings on Home Assistant's persons and
+    satellites: one form each, with a collapsible section per person or
+    satellite, filled with what is set now. The settings are stored on the
+    persons and satellites themselves (managed.py)."""
+
+    _keys: dict[str, str] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["general", "person_pick", "satellite_pick"])
+        return self.async_show_menu(step_id="init", menu_options=["general", "persons", "satellites"])
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -153,43 +171,9 @@ class MiraOptionsFlow(OptionsFlow):
             ),
         )
 
-    async def async_step_person_pick(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            self._person = user_input["entity"]
-            return await self.async_step_person()
-        return self.async_show_form(
-            step_id="person_pick",
-            data_schema=vol.Schema(
-                {vol.Required("entity"): selector.EntitySelector(selector.EntitySelectorConfig(domain="person"))}
-            ),
-        )
-
-    async def async_step_person(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        entry = self.config_entry
-        if entry.state is not ConfigEntryState.LOADED:
-            return self.async_abort(reason="not_loaded")
-        old = person_settings(self.hass).get(self._person, {})
-        errors: dict[str, str] = {}
-        placeholders = {"error": "", "person": self._name()}
-        if user_input is not None:
-            data = {k: user_input.get(k) for k in PERSON_FIELDS}
-            telegram = str(data.get("telegram_user_id") or "").strip()
-            try:
-                if telegram and not telegram.isdigit():
-                    raise ValueError(f"Telegram user id {telegram!r} is not a number")
-                data["telegram_user_id"] = telegram
-                await entry.runtime_data.client.set_managed_config(
-                    build_config(self.hass, entry, person=(self._person, data))
-                )
-            except (ValueError, MiraInvalidConfig) as err:
-                errors["base"], placeholders["error"] = "invalid_config", str(err)
-            except MiraError:
-                errors["base"] = "cannot_connect"
-            if not errors:
-                set_person_settings(self.hass, self._person, data)
-                return self.async_create_entry(data=dict(entry.options))
+    async def async_step_persons(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         notify = sorted(f"notify.{name}" for name in self.hass.services.async_services_for_domain("notify"))
-        schema = vol.Schema(
+        fields = self._named(
             {
                 vol.Optional("telegram_user_id"): selector.TextSelector(),
                 vol.Optional("notify"): selector.SelectSelector(
@@ -200,77 +184,94 @@ class MiraOptionsFlow(OptionsFlow):
                 vol.Optional("alone_is_me", default=False): selector.BooleanSelector(),
             }
         )
-        return self.async_show_form(
-            step_id="person",
-            data_schema=self.add_suggested_values_to_schema(schema, user_input or old),
-            errors=errors,
-            description_placeholders=placeholders,
-        )
+        return await self._sections("persons", all_persons(self.hass), person_settings(self.hass), fields, user_input)
 
-    def _name(self, entity_id: str = "") -> str:
-        entity_id = entity_id or self._person
-        state = self.hass.states.get(entity_id)
-        return state.name if state else entity_id
-
-    _satellite: str = ""
-
-    async def async_step_satellite_pick(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            self._satellite = user_input["entity"]
-            if satellite_area(self.hass, self._satellite):
-                return await self.async_step_satellite()
-            errors["base"] = "no_area"
-        return self.async_show_form(
-            step_id="satellite_pick",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("entity"): selector.EntitySelector(
-                        selector.EntitySelectorConfig(domain=list(SATELLITE_DOMAINS))
-                    )
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_satellite(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Mira's settings on a satellite: its motion sensors (several may
-        say someone came in), the morning announcement, announce or
-        indicate, the indicator light. Its room is its area."""
-        entry = self.config_entry
-        if entry.state is not ConfigEntryState.LOADED:
-            return self.async_abort(reason="not_loaded")
-        old = satellite_settings(self.hass).get(self._satellite, {})
-        errors: dict[str, str] = {}
-        placeholders = {"error": "", "satellite": self._name(self._satellite)}
-        if user_input is not None:
-            data = {k: user_input.get(k) for k in SATELLITE_FIELDS}
-            try:
-                await entry.runtime_data.client.set_managed_config(
-                    build_config(self.hass, entry, satellite=(self._satellite, data))
-                )
-            except (ValueError, MiraInvalidConfig) as err:
-                errors["base"], placeholders["error"] = "invalid_config", str(err)
-            except MiraError:
-                errors["base"] = "cannot_connect"
-            if not errors:
-                set_satellite_settings(self.hass, self._satellite, data)
-                return self.async_create_entry(data=dict(entry.options))
-        schema = vol.Schema(
+    async def async_step_satellites(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        fields = self._named(
             {
                 vol.Optional("presence"): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
-                vol.Required("morning", default=True): selector.BooleanSelector(),
-                vol.Required("mode", default="announce"): selector.SelectSelector(
+                vol.Optional("morning", default=False): selector.BooleanSelector(),
+                vol.Optional("mode", default="announce"): selector.SelectSelector(
                     selector.SelectSelectorConfig(options=["announce", "indicate"], translation_key="room_mode")
                 ),
                 vol.Optional("indicator"): selector.EntitySelector(selector.EntitySelectorConfig(domain="light")),
             }
         )
+        return await self._sections(
+            "satellites", all_satellites(self.hass), satellite_settings(self.hass), fields, user_input
+        )
+
+    def _names(self) -> dict[str, str]:
+        return FIELD_NAMES.get((self.hass.config.language or "en")[:2], FIELD_NAMES["en"])
+
+    def _named(self, fields: dict[Any, Any]) -> vol.Schema:
+        """The fields under their readable names."""
+        names = self._names()
+        return vol.Schema({type(k)(names[str(k)], **_marker_args(k)): v for k, v in fields.items()})
+
+    async def _sections(
+        self,
+        step_id: str,
+        entities: list[str],
+        current: dict[str, dict[str, Any]],
+        fields: vol.Schema,
+        user_input: dict[str, Any] | None,
+    ) -> ConfigFlowResult:
+        entry = self.config_entry
+        if entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+        if not entities:
+            return self.async_abort(reason=f"no_{step_id}")
+        # A section is named by what it is for; its key is the name, which
+        # the form shows as the section's title.
+        keys: dict[str, str] = {}
+        for entity in entities:
+            name = entity_name(self.hass, entity)
+            keys[name if name not in keys else f"{name} ({entity})"] = entity
+        errors: dict[str, str] = {}
+        placeholders = {"error": ""}
+        if user_input is not None:
+            back = {v: k for k, v in self._names().items()}
+            changes = {keys[k]: {back.get(f, f): x for f, x in v.items()} for k, v in user_input.items() if k in keys}
+            try:
+                if step_id == "persons":
+                    await save_settings(self.hass, entry, persons=changes)
+                else:
+                    await save_settings(self.hass, entry, satellites=changes)
+            except (ValueError, MiraInvalidConfig) as err:
+                errors["base"], placeholders["error"] = "invalid_config", str(err)
+            except MiraError:
+                errors["base"] = "cannot_connect"
+            if not errors:
+                return self.async_create_entry(data=dict(entry.options))
+        schema = vol.Schema(
+            {
+                vol.Required(key): section(
+                    self.add_suggested_values_to_schema(
+                        fields,
+                        (user_input or {}).get(key)
+                        or {self._names().get(f, f): x for f, x in current.get(entity, {}).items()},
+                    ),
+                    {"collapsed": not current.get(entity)},
+                )
+                for key, entity in keys.items()
+            }
+        )
         return self.async_show_form(
-            step_id="satellite",
-            data_schema=self.add_suggested_values_to_schema(schema, user_input or old),
+            step_id=step_id,
+            data_schema=schema,
             errors=errors,
             description_placeholders=placeholders,
         )
+
+
+def _marker_args(marker: vol.Marker) -> dict[str, Any]:
+    """A marker's default and description, to rename it."""
+    out: dict[str, Any] = {}
+    if marker.default is not vol.UNDEFINED:
+        out["default"] = marker.default
+    if marker.description is not None:
+        out["description"] = marker.description
+    return out

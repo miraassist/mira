@@ -148,22 +148,18 @@ def import_settings(hass: HomeAssistant, agent: dict[str, Any]) -> None:
 def build_config(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    person: tuple[str, dict[str, Any]] | None = None,
-    satellite: tuple[str, dict[str, Any]] | None = None,
+    persons: dict[str, dict[str, Any]] | None = None,
+    satellites: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Person and satellite settings in the agent's format. person or
-    satellite = (entity id, settings) is applied first, to check a form
+    """Person and satellite settings in the agent's format. persons and
+    satellites (entity id: settings) are applied first, to check a form
     before it is saved."""
-    persons_in = person_settings(hass)
-    if person is not None:
-        persons_in[person[0]] = person[1]
-    persons = {}
+    persons_in = person_settings(hass) | (persons or {})
+    persons_out = {}
     for entity, data in sorted(persons_in.items()):
         if any(data.get(k) for k in PERSON_FIELDS):
-            persons[person_key(hass, entity)] = person_to_agent(data | {"entity": entity})
-    satellites_in = satellite_settings(hass)
-    if satellite is not None:
-        satellites_in[satellite[0]] = satellite[1]
+            persons_out[person_key(hass, entity)] = person_to_agent(data | {"entity": entity})
+    satellites_in = satellite_settings(hass) | (satellites or {})
     rooms: dict[str, dict[str, Any]] = {}
     for entity, data in sorted(satellites_in.items()):
         if any(data.get(k) for k in SATELLITE_FIELDS) and (area := satellite_area(hass, entity)):
@@ -177,4 +173,75 @@ def build_config(
             continue
         if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
             rooms[area] = room_to_agent(area, entry.entity_id, {})
-    return {"persons": persons, "rooms": [rooms[a] for a in sorted(rooms)]}
+    return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)]}
+
+
+def normalize_person(data: dict[str, Any]) -> dict[str, Any]:
+    """A person's settings from a form; raises ValueError on a bad one."""
+    out = {k: data.get(k) for k in PERSON_FIELDS}
+    telegram = str(out.get("telegram_user_id") or "").strip()
+    if telegram and not telegram.isdigit():
+        raise ValueError(f"Telegram user id {telegram!r} is not a number")
+    out["telegram_user_id"] = telegram
+    out["notify"] = str(out.get("notify") or "").strip()
+    out["alone_is_me"] = bool(out.get("alone_is_me"))
+    return out
+
+
+def normalize_satellite(data: dict[str, Any]) -> dict[str, Any]:
+    """A satellite's settings from a form."""
+    presence = data.get("presence") or []
+    if isinstance(presence, str):
+        presence = [p.strip() for p in presence.split(",")]
+    mode = data.get("mode") or "announce"
+    if mode not in ("announce", "indicate"):
+        raise ValueError(f"mode must be announce or indicate, not {mode!r}")
+    return {
+        "presence": [p for p in presence if p],
+        "morning": bool(data.get("morning")),
+        "mode": mode,
+        "indicator": str(data.get("indicator") or "").strip(),
+    }
+
+
+async def save_settings(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    persons: dict[str, dict[str, Any]] | None = None,
+    satellites: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    """Check the settings with the agent, then store them on the persons and
+    satellites. Raises ValueError or the client's errors; nothing is stored
+    then."""
+    persons = {e: normalize_person(d) for e, d in (persons or {}).items()}
+    satellites = {e: normalize_satellite(d) for e, d in (satellites or {}).items()}
+    for entity in satellites:
+        if not satellite_area(hass, entity):
+            raise ValueError(f"{entity} has no area")
+    await entry.runtime_data.client.set_managed_config(build_config(hass, entry, persons, satellites))
+    for entity, data in persons.items():
+        set_person_settings(hass, entity, data)
+    for entity, data in satellites.items():
+        set_satellite_settings(hass, entity, data)
+
+
+def entity_name(hass: HomeAssistant, entity_id: str) -> str:
+    state = hass.states.get(entity_id)
+    return state.name if state else entity_id
+
+
+def all_persons(hass: HomeAssistant) -> list[str]:
+    """Home Assistant's persons, by entity id."""
+    return sorted(e.entity_id for e in er.async_get(hass).entities.values() if e.domain == "person")
+
+
+def all_satellites(hass: HomeAssistant) -> list[str]:
+    """The satellites Mira may use: every Assist satellite with an area, and
+    speakers that have settings already."""
+    have = satellite_settings(hass)
+    return sorted(
+        e.entity_id
+        for e in er.async_get(hass).entities.values()
+        if not e.disabled_by
+        and ((e.domain == "assist_satellite" and satellite_area(hass, e.entity_id)) or e.entity_id in have)
+    )

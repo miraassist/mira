@@ -12,6 +12,7 @@ from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.mira.config_flow import FIELD_NAMES
 from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 
 from .conftest import AGENT_ID, AGENT_URL
@@ -96,42 +97,43 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
     ]
 
 
-async def _satellite_form(hass, entry, entity):
+def _fields(data):
+    """Form fields under their readable (English) names."""
+    return {FIELD_NAMES["en"][k]: v for k, v in data.items()}
+
+
+async def _form(hass, entry, step):
     result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "satellite_pick"})
-    return await hass.config_entries.options.async_configure(result["flow_id"], {"entity": entity})
+    return await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": step})
 
 
 async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, entry):
     """A room is a satellite's area; several motion sensors may say someone
-    came in. Every Assist satellite with an area speaks there anyway."""
+    came in. Every Assist satellite with an area speaks there anyway. One
+    form, a section per satellite."""
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     wz, _ = _satellite(hass, "wohnzimmer", "Wohnzimmer")
     kueche, _ = _satellite(hass, "kueche", "Küche")
+    hass.states.async_set(wz, "idle", {"friendly_name": "Wohnzimmer-Echo"})
     assert await hass.config_entries.async_setup(entry.entry_id)
-    result = await _satellite_form(hass, entry, wz)
-    assert result["step_id"] == "satellite"
+    result = await _form(hass, entry, "satellites")
+    assert result["step_id"] == "satellites"
+    sections = [str(k) for k in result["data_schema"].schema]
+    assert "Wohnzimmer-Echo" in sections and kueche in sections
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"presence": ["binary_sensor.flur", "binary_sensor.wz"], "morning": True, "mode": "indicate",
-         "indicator": "light.ring"},
+        {
+            "Wohnzimmer-Echo": _fields({"presence": ["binary_sensor.flur", "binary_sensor.wz"], "morning": True,
+                                        "mode": "indicate", "indicator": "light.ring"}),
+            kueche: _fields({"morning": False, "mode": "announce"}),
+        },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert er.async_get(hass).async_get(wz).options[DOMAIN]["presence"] == ["binary_sensor.flur", "binary_sensor.wz"]
     rooms = {r["area"]: r for r in _puts(aioclient_mock)[-1]["rooms"]}
     assert rooms["wohnzimmer"]["presence"] == ["binary_sensor.flur", "binary_sensor.wz"]
     assert rooms["wohnzimmer"]["mode"] == "indicate"
-    # The kitchen satellite has no settings and still speaks for its area.
     assert {r["satellite"] for r in rooms.values()} == {wz, kueche}
-
-
-async def test_satellite_without_area(hass, aioclient_mock, entry):
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
-    registry = er.async_get(hass)
-    lost = registry.async_get_or_create("assist_satellite", "test", "lost", suggested_object_id="lost").entity_id
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    result = await _satellite_form(hass, entry, lost)
-    assert result["errors"] == {"base": "no_area"}
 
 
 async def test_agent_refusal_shows_in_the_form(hass, aioclient_mock):
@@ -144,9 +146,9 @@ async def test_agent_refusal_shows_in_the_form(hass, aioclient_mock):
     e.add_to_hass(hass)
     keller, _ = _satellite(hass, "keller", "Keller")
     assert await hass.config_entries.async_setup(e.entry_id)
-    result = await _satellite_form(hass, e, keller)
+    result = await _form(hass, e, "satellites")
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"morning": True, "mode": "indicate", "indicator": "light.x"}
+        result["flow_id"], {keller: _fields({"morning": True, "mode": "indicate", "indicator": "light.x"})}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_config"}
@@ -166,27 +168,19 @@ async def test_old_subentries_are_removed(hass, aioclient_mock, entry):
     assert not entry.subentries
 
 
-async def _person_form(hass, entry, entity):
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "person_pick"})
-    return await hass.config_entries.options.async_configure(result["flow_id"], {"entity": entity})
-
-
 async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
     """Mira's settings for a HA person are entity registry options, keyed
-    for the agent by the person's own id, which stays on a rename."""
+    for the agent by the person's own id, which stays on a rename. One form,
+    a section per person."""
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     entity = _person(hass, "ben_1", "Ben")
     assert await hass.config_entries.async_setup(entry.entry_id)
-    result = await _person_form(hass, entry, entity)
-    assert result["step_id"] == "person"
-    assert result["description_placeholders"]["person"] == "Ben"
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"telegram_user_id": "@ben"}
-    )
+    result = await _form(hass, entry, "persons")
+    assert [str(k) for k in result["data_schema"].schema] == ["Ben"]
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"telegram_user_id": "@ben"})})
     assert result["errors"] == {"base": "invalid_config"}
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"telegram_user_id": "77", "alone_is_me": True}
+        result["flow_id"], {"Ben": _fields({"telegram_user_id": "77", "alone_is_me": True})}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert er.async_get(hass).async_get(entity).options[DOMAIN] == {"telegram_user_id": "77", "alone_is_me": True}
@@ -194,10 +188,39 @@ async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
         "ben_1": {"entity": entity, "telegram_user_id": 77, "alone_is_me": True}
     }
     # Emptied, the settings go away again.
-    result = await _person_form(hass, entry, entity)
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"alone_is_me": False})
+    result = await _form(hass, entry, "persons")
+    await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"alone_is_me": False})})
     assert DOMAIN not in er.async_get(hass).async_get(entity).options
     assert _puts(aioclient_mock)[-1]["persons"] == {}
+
+
+async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_client, hass_admin_user):
+    """The panel's forms read and save through the integration, which checks
+    with the agent and stores on the person or satellite."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    anna = _person(hass, "anna", "Anna")
+    wz, _ = _satellite(hass, "wohnzimmer", "Wohnzimmer")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_client()
+    body = await (await client.get("/api/mira/settings/persons")).json()
+    assert [i["name"] for i in body["items"]] == ["Anna"]
+    resp = await client.put("/api/mira/settings/persons", json={anna: {"telegram_user_id": "42"}})
+    assert resp.status == 200
+    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"telegram_user_id": "42"}
+    body = await (await client.get("/api/mira/settings/satellites")).json()
+    assert body["items"][0]["entity"] == wz and body["items"][0]["area"] == "Wohnzimmer"
+    resp = await client.put(
+        "/api/mira/settings/satellites", json={wz: {"presence": "binary_sensor.a, binary_sensor.b", "mode": "announce"}}
+    )
+    assert resp.status == 200
+    assert er.async_get(hass).async_get(wz).options[DOMAIN]["presence"] == ["binary_sensor.a", "binary_sensor.b"]
+    resp = await client.put("/api/mira/settings/persons", json={anna: {"telegram_user_id": "x"}})
+    assert resp.status == 422
+    assert resp.status == 422 and "not a number" in (await resp.json())["error"]
+    resp = await client.put("/api/mira/settings/persons", json={"person.nobody": {}})
+    assert resp.status == 422
+    hass_admin_user.groups = []
+    assert (await client.get("/api/mira/settings/persons")).status == 401
 
 
 async def test_discovery_asks_only_for_the_token(hass, aioclient_mock):

@@ -26,10 +26,22 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import Unauthorized
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.http import KEY_HASS
 
+from .api import MiraError, MiraInvalidConfig
 from .const import DOMAIN
+from .managed import (
+    SATELLITE_DOMAINS,
+    all_persons,
+    all_satellites,
+    entity_name,
+    person_settings,
+    satellite_area,
+    satellite_settings,
+    save_settings,
+)
 
 PANEL_URL_PATH = "mira"
 PANEL_ICON = "mdi:face-woman-shimmer"
@@ -64,9 +76,10 @@ justify-content:center;height:90vh;margin:0;text-align:center}@media (prefers-co
 
 @callback
 def async_register_views(hass: HomeAssistant) -> None:
-    """Register the two views once; they find the loaded entry per request."""
+    """Register the views once; they find the loaded entry per request."""
     hass.http.register_view(MiraPanelView())
     hass.http.register_view(MiraProxyView())
+    hass.http.register_view(MiraSettingsView())
 
 
 @callback
@@ -187,3 +200,81 @@ class MiraProxyView(HomeAssistantView):
     put = _handle
     post = _handle
     delete = _handle
+
+
+class MiraSettingsView(HomeAssistantView):
+    """Mira's settings on Home Assistant's persons and satellites, for the
+    panel's forms: read them, and save them after the agent checked them.
+    They are stored on the persons and satellites (managed.py), the same as
+    the integration's options do. Admins only."""
+
+    url = "/api/mira/settings/{kind}"
+    name = "api:mira:settings"
+    requires_auth = True
+
+    async def get(self, request: web.Request, kind: str) -> web.Response:
+        hass = request.app[KEY_HASS]
+        if not request["hass_user"].is_admin:
+            raise Unauthorized()
+        if kind == "persons":
+            current = person_settings(hass)
+            items = [{"entity": e, "name": entity_name(hass, e), "settings": current.get(e, {})} for e in all_persons(hass)]
+            notify = sorted(f"notify.{n}" for n in hass.services.async_services_for_domain("notify"))
+            return web.json_response({"items": items, "notify": notify})
+        if kind == "satellites":
+            current = satellite_settings(hass)
+            areas = ar.async_get(hass)
+            items = []
+            for e in all_satellites(hass):
+                area = satellite_area(hass, e)
+                area_entry = areas.async_get_area(area) if area else None
+                items.append(
+                    {
+                        "entity": e,
+                        "name": entity_name(hass, e),
+                        "area": area_entry.name if area_entry else area,
+                        "settings": current.get(e, {}),
+                    }
+                )
+            return web.json_response(
+                {"items": items, "binary_sensors": _choices(hass, "binary_sensor"), "lights": _choices(hass, "light")}
+            )
+        return web.Response(status=404)
+
+    async def put(self, request: web.Request, kind: str) -> web.Response:
+        hass = request.app[KEY_HASS]
+        if not request["hass_user"].is_admin:
+            raise Unauthorized()
+        if kind not in ("persons", "satellites"):
+            return web.Response(status=404)
+        entry = _loaded(hass)
+        if entry is None:
+            return web.json_response({"error": "Mira is not set up"}, status=503)
+        try:
+            changes = await request.json()
+            if not isinstance(changes, dict):
+                raise ValueError("body must be {entity: settings}")
+            known = set(all_persons(hass) if kind == "persons" else all_satellites(hass))
+            if kind == "satellites":
+                known |= {e for e in changes if e.split(".", 1)[0] in SATELLITE_DOMAINS}
+            if unknown := set(changes) - known:
+                raise ValueError(f"unknown: {', '.join(sorted(unknown))}")
+            await save_settings(hass, entry, **{kind: changes})
+        except (ValueError, MiraInvalidConfig) as err:
+            return web.json_response({"error": str(err)}, status=422)
+        except MiraError as err:
+            return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+        return web.json_response({"saved": True})
+
+
+def _choices(hass: HomeAssistant, domain: str) -> list[dict[str, str]]:
+    return sorted(
+        ({"id": s.entity_id, "name": s.name} for s in hass.states.async_all(domain)), key=lambda c: c["name"]
+    )
+
+
+def _loaded(hass: HomeAssistant):
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.state is ConfigEntryState.LOADED:
+            return entry
+    return None

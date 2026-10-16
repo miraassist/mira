@@ -33,8 +33,8 @@
         "title": "Mira",
         "menu_options": {
           "general": "General",
-          "person_pick": "Settings for a person",
-          "satellite_pick": "Settings for a satellite"
+          "persons": "Settings for persons",
+          "satellites": "Settings for satellites"
         }
       },
       "general": {
@@ -48,16 +48,9 @@
           "sidebar": "Mira's web UI as a page in Home Assistant; who is no admin sees only their memory, the house's and the guide. Each user can also hide it in their own sidebar."
         }
       },
-      "person_pick": {
-        "title": "Choose a person",
-        "description": "Every person in Home Assistant is a person for Mira too. Choose whom you want to set something for.",
-        "data": {
-          "entity": "Person"
-        }
-      },
-      "person": {
-        "title": "Mira settings for {person}",
-        "description": "Where personal notices go and whether the satellites count as this person when they are alone at home. Stored on the person itself. Leaving everything empty removes the settings.",
+      "persons": {
+        "title": "Settings for persons",
+        "description": "Every person in Home Assistant is a person for Mira too. Expand one and set what Mira needs on top; it is stored on the person itself. Left empty, there are no settings. {error}",
         "data": {
           "telegram_user_id": "Telegram user id",
           "notify": "Push notification",
@@ -69,16 +62,9 @@
           "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
         }
       },
-      "satellite_pick": {
-        "title": "Choose a satellite",
-        "description": "Every Assist satellite with an area speaks for Mira in its area. Here you set what comes on top: motion sensors, the morning announcement, announce or indicate. Speakers without Assist Mira only uses when you set them up here.",
-        "data": {
-          "entity": "Satellite"
-        }
-      },
-      "satellite": {
-        "title": "Mira settings for {satellite}",
-        "description": "Stored on the satellite itself; the room is its area in Home Assistant. Several motion sensors are fine; any of them means someone came in.",
+      "satellites": {
+        "title": "Settings for satellites",
+        "description": "Every Assist satellite with an area speaks in its area. Expand one and set what comes on top; it is stored on the satellite itself, the room is its area. {error}",
         "data": {
           "presence": "Motion sensors",
           "morning": "Morning announcement",
@@ -95,11 +81,12 @@
     },
     "error": {
       "invalid_config": "The agent refused it: {error}",
-      "cannot_connect": "The agent is not reachable.",
-      "no_area": "The satellite has no area. Assign it (or its device) to an area in Home Assistant."
+      "cannot_connect": "The agent is not reachable."
     },
     "abort": {
-      "not_loaded": "The Mira agent entry is not loaded."
+      "not_loaded": "The Mira agent entry is not loaded.",
+      "no_persons": "There are no persons in Home Assistant yet.",
+      "no_satellites": "There is no Assist satellite with an area."
     }
   },
   "entity": {

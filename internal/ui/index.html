@@ -290,7 +290,7 @@ const I18N = {
   "motion": "Bewegungsmelder",
   "announcements": "Ansagen",
   "add_room": "+ Raum",
-  "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Was dazukommt (Bewegungsmelder, Morgenansage, ansagen oder anzeigen, Anzeige-Lampe), steht am Satelliten selbst und wird in Home Assistant eingestellt.",
+  "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Was dazukommt (Bewegungsmelder, auch mehrere mit Komma, Morgenansage, ansagen oder anzeigen, Anzeige-Lampe), steht am Satelliten selbst in Home Assistant.",
   "persons_ha_hint": "Jede Person aus Home Assistant ist auch für mich eine Person, angelegt wird hier nichts. Du stellst nur ein, was ich zusätzlich brauche: wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
   "person": "Person",
   "persons_hint": "Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
@@ -480,7 +480,7 @@ const I18N = {
   "motion": "Motion sensor",
   "announcements": "Announcements",
   "add_room": "+ Room",
-  "satellites_ha_hint": "Every Assist satellite with an area speaks in its area. What comes on top (motion sensors, morning announcement, announce or indicate, indicator light) is stored on the satellite itself and set in Home Assistant.",
+  "satellites_ha_hint": "Every Assist satellite with an area speaks in its area. What comes on top (motion sensors, several with commas, morning announcement, announce or indicate, indicator light) is stored on the satellite itself in Home Assistant.",
   "persons_ha_hint": "Every person in Home Assistant is a person for me too; nothing is created here. You only set what I need on top: where personal notices go and whether the satellites count as this person when they are alone at home.",
   "person": "Person",
   "persons_hint": "People receive personal notices. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
@@ -763,7 +763,7 @@ function render() {
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
-  if (owner && managed(owner)) {
+  if (owner && managed(owner) && !embedded) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
     $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">${T.managed_hint}</p>`);
@@ -874,7 +874,7 @@ function rooms() {
   const presence = mt.presence || {}, modes = n.room_mode || {}, inds = n.indicators || {};
   const areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
   const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: csv(presence[a]), active: list(mt.areas).includes(a), mode: modes[a] || "announce", ind: inds[a] || "" }));
-  if (managed("satellites")) return haSatellites(rows);
+  if (managed("satellites")) return embedded && isAdmin ? haSettings("satellites") : haSatellites(rows);
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_rooms} ${source("satellites")}</h2>
@@ -924,6 +924,7 @@ function saveRooms() {
 function persons() {
   const p = val("persons") || {};
   const people = (config.persons || {}).people || [];
+  if (managed("persons") && embedded && isAdmin) return haSettings("persons");
   if (people.length) return haPersons(people, p);
   $("#view").innerHTML = `
   <section class="card">
@@ -946,6 +947,62 @@ function personRow(key, p, i) {
     <td><input data-f="notify" value="${esc(p.notify)}" placeholder="notify.mobile_app_…"></td>
     <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${p.alone_is_me ? " checked" : ""}></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
+}
+// Inside Home Assistant an admin edits Mira's settings on HA's persons and
+// satellites right here; the integration checks them with the agent and
+// stores them on the person or satellite (/api/mira/settings/…).
+async function haApi(method, path, body) {
+  const res = await fetch(path, {
+    method, headers: { "Authorization": await authorization(), "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+async function haSettings(kind) {
+  $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
+  let d;
+  try { d = await haApi("GET", `${HA_BASE}/settings/${kind}`); } catch (e) { message(e.message, false); return; }
+  const lists = (id, items) => `<datalist id="${id}">${items.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>`;
+  const persons = kind === "persons";
+  const head = persons
+    ? `<th>${T.person}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th>`
+    : `<th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.mode}</th><th>${T.indicator}</th>`;
+  const row = it => {
+    const s = it.settings || {}, sub = persons ? it.entity : `${esc(it.area)} · ${esc(it.entity)}`;
+    const who = `<td>${esc(it.name)}<p class="hint">${persons ? esc(sub) : sub}</p></td>`;
+    return `<tr data-e="${esc(it.entity)}">${who}` + (persons
+      ? `<td><input data-f="telegram_user_id" value="${esc(s.telegram_user_id || "")}" inputmode="numeric"></td>
+         <td><input data-f="notify" list="ha-notify" value="${esc(s.notify || "")}" placeholder="notify.mobile_app_…"></td>
+         <td><input type="checkbox" data-f="alone_is_me" title="${T.alone_hint}"${s.alone_is_me ? " checked" : ""}></td>`
+      : `<td><input data-f="presence" list="ha-motion" value="${esc(csv(s.presence))}" placeholder="binary_sensor.…, …"></td>
+         <td><input type="checkbox" data-f="morning"${s.morning ? " checked" : ""}></td>
+         <td><select data-f="mode">${["announce", "indicate"].map(m => opt(m, s.mode || "announce", T["mode_" + m])).join("")}</select></td>
+         <td><input data-f="indicator" list="ha-lights" value="${esc(s.indicator || "")}" placeholder="light.…"></td>`) + `</tr>`;
+  };
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>${persons ? T.tab_persons : T.tab_rooms} <span class="badge ui">${T.badge_ha}</span></h2>
+    <p class="hint">${persons ? T.persons_ha_hint : T.satellites_ha_hint}</p>
+    <table>${`<tr>${head}</tr>`}${d.items.map(row).join("")}</table>
+    ${persons ? lists("ha-notify", d.notify || []) : lists("ha-motion", d.binary_sensors || []) + lists("ha-lights", d.lights || [])}
+    <div class="actions"><button class="primary" onclick="saveHASettings('${kind}')">${T.save}</button></div>
+  </section>`;
+}
+async function saveHASettings(kind) {
+  const out = {};
+  document.querySelectorAll("#view tr[data-e]").forEach(tr => {
+    const v = {};
+    tr.querySelectorAll("[data-f]").forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
+    if (kind === "satellites") v.presence = fromCsv(v.presence || "");
+    out[tr.dataset.e] = v;
+  });
+  try {
+    await haApi("PUT", `${HA_BASE}/settings/${kind}`, out);
+    message(T.saved, true);
+    config = await api("GET", "/v1/ui/config");
+  } catch (e) { message(e.message, false); }
 }
 // With the integration the satellites and Mira's settings on them come
 // from Home Assistant; the page only shows them.

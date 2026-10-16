@@ -191,7 +191,7 @@ Mira knows your persons and satellites by herself; you create nothing: every per
 
 ![The Mira integration in Home Assistant](img/ha-integration-en.png)
 
-What Mira needs beyond that you set under Settings → Devices & services → Mira → **Configure**; it is stored right on the person or satellite and goes away with them.
+What Mira needs beyond that is easiest to set in Mira's panel under **Satellites** and **People**; the same works in Home Assistant under Settings → Devices & services → Mira → **Configure**, with a collapsible section per person or satellite. It is stored right on the person or satellite and goes away with them.
 
 - **Settings for a satellite**: motion sensors (several too, such as hallway and living room), morning announcement, announce or only indicate, indicator light. The room is the satellite's area.
 - **Settings for a person**: Telegram id, push service and "Alone at home, the satellites are me".
