@@ -173,7 +173,7 @@ func samplePrefix(t *testing.T, ch config.Channel) Prefix {
 		Style:     StyleFor(i18n.DE, ch),
 		Tools:     tools,
 		Structure: sampleStructure,
-		Profile:   "Stefan trinkt morgens Kaffee. Die Photovoltaikanlage ist wichtig.",
+		Profile:   "Ben trinkt morgens Kaffee. Die Photovoltaikanlage ist wichtig.",
 	}
 }
 
@@ -333,7 +333,7 @@ func TestGoldenTurn(t *testing.T) {
 	turn := Turn{
 		Now:            time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC),
 		ChannelContext: "Kanal: Sprache, Satellit Küche. Ohne Raumangabe ist die Küche gemeint.",
-		Memories:       []string{"Der Wechselrichter steht im Keller.", "Stefan steht um 6:30 auf."},
+		Memories:       []string{"Der Wechselrichter steht im Keller.", "Ben steht um 6:30 auf."},
 		NoticeContext:  "Wechselrichter: Fehlerzustand seit 03:14 Uhr, Code E-042.",
 		Text:           "Guten Morgen, was gibt's?",
 	}

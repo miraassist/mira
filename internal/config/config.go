@@ -216,7 +216,7 @@ type Person struct {
 	// notices. Must be on the Telegram allowlist.
 	TelegramUserID int64 `yaml:"telegram_user_id"`
 	// Notify is a HA notify service for the companion app, such as
-	// "notify.mobile_app_pixel".
+	// "notify.mobile_app_phone".
 	Notify string `yaml:"notify"`
 	// AloneIsMe: when this person is the only one at home (by Entity), the
 	// satellites count as them: their memory, their personal tasks.

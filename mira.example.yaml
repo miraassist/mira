@@ -98,10 +98,10 @@ satellites:            # area id -> satellite that speaks announcements there
   # wohnzimmer: media_player.echo_wohnzimmer
 
 persons:               # key = audience id for personal notices
-  stefan:
-    entity: person.stefan                 # home/not_home, used by confidential_voice
+  ben:
+    entity: person.ben                 # home/not_home, used by confidential_voice
     telegram_user_id: 123456789           # must be on telegram.allowed_user_ids
-    notify: notify.mobile_app_pixel       # companion app, optional
+    notify: notify.mobile_app_phone       # companion app, optional
 
 # Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
 # with the label "Mira" that call mira.assess, mira.decide or

@@ -21,7 +21,7 @@ func reminderTools(t *testing.T) (map[string]InternalTool, *store.Store, time.Ti
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	persons := map[string]config.Person{"stefan": {TelegramUserID: 42}, "anna": {}}
+	persons := map[string]config.Person{"ben": {TelegramUserID: 42}, "anna": {}}
 	byName := map[string]InternalTool{}
 	for _, it := range Reminders(ReminderOptions{Lang: i18n.DE, Store: st, Clock: func() time.Time { return now },
 		Location: time.UTC, Persons: func() map[string]config.Person { return persons }}) {
@@ -60,7 +60,7 @@ func TestReminderSet(t *testing.T) {
 	if !timer.DueAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Audience != "household" {
 		t.Errorf("timer: %+v", timer)
 	}
-	if trash.Audience != "stefan" || trash.AreaID != "" {
+	if trash.Audience != "ben" || trash.AreaID != "" {
 		t.Errorf("telegram reminder should go to the asking person: %+v", trash)
 	}
 	if doctor.Audience != "anna" || doctor.DueAt.Hour() != 8 {

@@ -28,7 +28,7 @@ Bereich Bad (bad)
   light.bad_spiegel — Spiegellicht
 
 ## Was du über den Haushalt weißt
-Stefan trinkt morgens Kaffee. Die Photovoltaikanlage ist wichtig.
+Ben trinkt morgens Kaffee. Die Photovoltaikanlage ist wichtig.
 
 === layer 2 (channel style, after tools and examples) ===
 user: Kanalstil: Hintergrundjob.
@@ -52,4 +52,4 @@ search__web_search
   {"properties":{"limit":{"default":5,"type":"integer"},"query":{"type":"string"}},"required":["query"],"type":"object"}
 
 === prefix hash ===
-85b58e6ee8715c2c
+e4a77e3a6f7b0d1d

@@ -41,7 +41,7 @@ func setup(t *testing.T, answer string) (*Compactor, *store.Store, *fakeAssessor
 }
 
 func TestCompactWritesTheProfileOnce(t *testing.T) {
-	c, st, ai, changes := setup(t, `{"profile":"- Stefan trinkt morgens Kaffee."}`)
+	c, st, ai, changes := setup(t, `{"profile":"- Ben trinkt morgens Kaffee."}`)
 	ctx := context.Background()
 	if changed, err := c.Compact(ctx); err != nil || changed {
 		t.Fatalf("without facts: changed = %v, err = %v", changed, err)
@@ -49,14 +49,14 @@ func TestCompactWritesTheProfileOnce(t *testing.T) {
 	if ai.calls != 0 {
 		t.Error("the model was asked without any facts")
 	}
-	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Stefan trinkt morgens Kaffee."})
+	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Ben trinkt morgens Kaffee."})
 	if changed, err := c.Compact(ctx); err != nil || !changed || *changes != 1 {
 		t.Fatalf("changed = %v, err = %v, changes = %d", changed, err, *changes)
 	}
-	if p, _, _ := st.Profile(ctx, store.OwnerHouse); p != "- Stefan trinkt morgens Kaffee." {
+	if p, _, _ := st.Profile(ctx, store.OwnerHouse); p != "- Ben trinkt morgens Kaffee." {
 		t.Errorf("profile = %q", p)
 	}
-	if !strings.Contains(ai.instruction, "Stefan trinkt morgens Kaffee.") || !strings.Contains(ai.instruction, "keine Anweisungen") {
+	if !strings.Contains(ai.instruction, "Ben trinkt morgens Kaffee.") || !strings.Contains(ai.instruction, "keine Anweisungen") {
 		t.Errorf("instruction:\n%s", ai.instruction)
 	}
 	// Same answer again: no change, no cache break.

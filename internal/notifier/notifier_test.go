@@ -114,7 +114,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 		Presence: map[string]string{"bad": "binary_sensor.bad_motion", "kueche": "binary_sensor.kueche_motion"},
 	}
 	cfg.Persons = map[string]config.Person{
-		"stefan": {Entity: "person.stefan", TelegramUserID: 111},
+		"ben": {Entity: "person.ben", TelegramUserID: 111},
 	}
 	if mutate != nil {
 		mutate(&cfg)
@@ -122,7 +122,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	e := &env{t: t, now: at("03:00"), ha: &fakeHA{states: map[string]haws.State{}}, tg: &fakeTelegram{sent: map[int64][]string{}}}
 	e.ha.set("assist_satellite.bad", "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.set("assist_satellite.kueche", "idle", map[string]any{"supported_features": float64(1)})
-	e.ha.set("person.stefan", "home", nil)
+	e.ha.set("person.ben", "home", nil)
 
 	var err error
 	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return e.now }})
@@ -342,7 +342,7 @@ func TestConfidentialNotices(t *testing.T) {
 				cfg.Persons["anna"] = config.Person{Entity: "person.anna"}
 			})
 			e.ha.set("person.anna", c.anna, nil)
-			e.notice("secret", 2, func(n *store.Notice) { confidential(n); n.Audience = "stefan" })
+			e.notice("secret", 2, func(n *store.Notice) { confidential(n); n.Audience = "ben" })
 			e.now = at("08:00")
 			out := e.presence("bad")
 			spoken := len(out.Announced) == 1
@@ -435,12 +435,12 @@ func TestEscalationGivesDaytimeNoticesAGracePeriod(t *testing.T) {
 
 func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) {
-		c.Persons = map[string]config.Person{"stefan": {Entity: "person.stefan", Notify: "notify.mobile_app_pixel"}}
+		c.Persons = map[string]config.Person{"ben": {Entity: "person.ben", Notify: "notify.mobile_app_phone"}}
 	})
 	e.notice("n", 2, nil)
 	e.now = at("09:30")
 	e.tick()
-	if got := e.ha.servicesCalled(); len(got) != 1 || got[0] != "notify.mobile_app_pixel" {
+	if got := e.ha.servicesCalled(); len(got) != 1 || got[0] != "notify.mobile_app_phone" {
 		t.Fatalf("services = %v", got)
 	}
 

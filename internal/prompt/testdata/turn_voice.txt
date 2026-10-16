@@ -3,7 +3,7 @@ Zeit: Mittwoch, 14. Oktober 2026, 07:12 Uhr
 Kanal: Sprache, Satellit Küche. Ohne Raumangabe ist die Küche gemeint.
 Du erinnerst dich:
 - Der Wechselrichter steht im Keller.
-- Stefan steht um 6:30 auf.
+- Ben steht um 6:30 auf.
 
 Du hast gerade gemeldet (Details, falls nachgefragt wird):
 Wechselrichter: Fehlerzustand seit 03:14 Uhr, Code E-042.

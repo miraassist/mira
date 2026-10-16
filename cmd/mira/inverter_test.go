@@ -50,7 +50,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	)
 	ha.SetStates([]haws.State{
 		{EntityID: "assist_satellite.bad", State: "idle", Attributes: map[string]any{"supported_features": 3}},
-		{EntityID: "person.stefan", State: "home"},
+		{EntityID: "person.ben", State: "home"},
 		{EntityID: "sensor.inverter_status", State: "ok"},
 		{EntityID: "binary_sensor.bad_motion", State: "off"},
 	})
@@ -64,7 +64,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.Telegram.Enabled = false
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
-	cfg.Persons = map[string]config.Person{"stefan": {Entity: "person.stefan"}}
+	cfg.Persons = map[string]config.Person{"ben": {Entity: "person.ben"}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{
 		Areas: []string{"bad"}, Presence: map[string]string{"bad": "binary_sensor.bad_motion"},
 	}

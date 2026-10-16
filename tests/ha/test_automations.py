@@ -33,7 +33,7 @@ def test_what_a_task_may_call():
         {"action": "mira.decide", "data": {"question": "q"}, "response_variable": "d"},
         {"condition": "template", "value_template": "{{ d.answer }}"},
         {"action": "media_player.turn_on", "target": {"entity_id": "media_player.radio_bad"}},
-        {"action": "notify.mobile_app_pixel", "data": {"message": "Wasser läuft"}},
+        {"action": "notify.mobile_app_phone", "data": {"message": "Wasser läuft"}},
         {"action": "light.turn_on", "target": {"area_id": "bad"}},
         {"action": "cover.close_cover", "target": {"entity_id": "cover.rollo_wohnzimmer"}},
         {"if": [], "then": [{"action": "mira.assess", "data": {"goal": "g"}}], "else": [{"stop": "done"}]},

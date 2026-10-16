@@ -53,7 +53,7 @@ func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 // Without a room, or with quiet mode on, the reminder goes privately.
 func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 	e := newEnv(t, nil)
-	e.reminder("r1", e.now, "", "stefan")
+	e.reminder("r1", e.now, "", "ben")
 	e.st.SetBool(context.Background(), store.KeyQuietMode, true)
 	e.reminder("r2", e.now, "bad", store.AudienceHousehold)
 
@@ -98,7 +98,7 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
 	err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-		Importance: 2, Audience: "stefan", Spoken: "Mein Vorschlag."}, "kueche")
+		Importance: 2, Audience: "ben", Spoken: "Mein Vorschlag."}, "kueche")
 	if err != nil {
 		t.Fatal(err)
 	}

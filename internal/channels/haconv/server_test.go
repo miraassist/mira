@@ -35,7 +35,7 @@ func setup(t *testing.T) (*httptest.Server, *fakeConversation, *store.Store) {
 	conv := &fakeConversation{}
 	srv := httptest.NewServer(New(Options{
 		Token: "secret", Conversation: conv, Store: st, Version: "test",
-		Persons: func() map[string]config.Person { return map[string]config.Person{"stefan": {}} },
+		Persons: func() map[string]config.Person { return map[string]config.Person{"ben": {}} },
 		Checks: map[string]HealthCheck{
 			"llm": func(context.Context) error { return nil },
 			"ha":  func(context.Context) error { return errors.New("not connected") },
@@ -130,12 +130,12 @@ func TestNoticesAreDeduplicated(t *testing.T) {
 
 func TestNoticeAudienceAndConfidentiality(t *testing.T) {
 	srv, _, st := setup(t)
-	code, body := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"Arzttermin morgen","audience":"stefan","confidentiality":"confidential"}`)
+	code, body := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"Arzttermin morgen","audience":"ben","confidentiality":"confidential"}`)
 	if code != 201 {
 		t.Fatalf("status %d %v", code, body)
 	}
 	n, _ := st.GetNotice(context.Background(), body["id"].(string))
-	if n.Audience != "stefan" || !n.Confidential() {
+	if n.Audience != "ben" || !n.Confidential() {
 		t.Errorf("notice = %+v", n)
 	}
 	if code, _ := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"x","audience":"unbekannt"}`); code != 400 {

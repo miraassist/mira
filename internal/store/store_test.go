@@ -110,7 +110,7 @@ func TestFactsFullTextSearch(t *testing.T) {
 
 	for _, f := range []Fact{
 		{ID: "1", Text: "Der Wechselrichter steht im Keller", Tags: []string{"haus", "pv"}},
-		{ID: "2", Text: "Stefan trinkt morgens Kaffee", Tags: []string{"person"}},
+		{ID: "2", Text: "Ben trinkt morgens Kaffee", Tags: []string{"person"}},
 		{ID: "3", Text: "Die Katze heisst Mimi", Tags: []string{"person"}},
 	} {
 		if _, err := s.SaveFact(ctx, f); err != nil {

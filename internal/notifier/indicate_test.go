@@ -120,9 +120,9 @@ func TestIndicateAtNightAndUrgent(t *testing.T) {
 // Asked on Telegram, a person gets what is pending for them.
 func TestReadOutForPerson(t *testing.T) {
 	e := indicateEnv(t)
-	e.notice("mine", 1, func(n *store.Notice) { n.Audience = "stefan"; n.Confidentiality = store.ConfidentialityConfidential })
+	e.notice("mine", 1, func(n *store.Notice) { n.Audience = "ben"; n.Confidentiality = store.ConfidentialityConfidential })
 	e.notice("other", 1, func(n *store.Notice) { n.Audience = "anna" })
-	text, err := e.n.ReadOut(context.Background(), "", "stefan")
+	text, err := e.n.ReadOut(context.Background(), "", "ben")
 	if err != nil || !strings.Contains(text, "Hinweis mine") || strings.Contains(text, "other") {
 		t.Errorf("read out: %q %v", text, err)
 	}

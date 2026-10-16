@@ -115,7 +115,7 @@ func TestNoticesAndMemory(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
 	st.PutNotice(ctx, store.Notice{ID: "n1", Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
-	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Stefan trinkt Kaffee."})
+	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Ben trinkt Kaffee."})
 
 	if code, body := call(t, srv, "GET", "/v1/ui/notices", "secret", ""); code != 200 || !strings.Contains(body, `"spoken":"Test"`) {
 		t.Fatalf("notices: %d %s", code, body)
@@ -130,17 +130,17 @@ func TestNoticesAndMemory(t *testing.T) {
 	if _, body := call(t, srv, "GET", "/v1/ui/notices", "secret", ""); !strings.Contains(body, `"state":"acked"`) {
 		t.Errorf("acked notice left the list: %s", body)
 	}
-	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Stefan trinkt Kaffee.") {
+	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Ben trinkt Kaffee.") {
 		t.Fatalf("memory: %d %s", code, body)
 	}
 	// Every person has a memory card, even an empty one.
 	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, `"owner":"anna","profile":"","facts":[]`) {
 		t.Errorf("anna's empty memory missing: %s", body)
 	}
-	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/f1", "secret", `{"text":"Stefan trinkt Tee."}`); code != 200 {
+	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/f1", "secret", `{"text":"Ben trinkt Tee."}`); code != 200 {
 		t.Fatalf("edit: %d", code)
 	}
-	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "Stefan trinkt Tee.") || strings.Contains(body, "Kaffee") {
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "Ben trinkt Tee.") || strings.Contains(body, "Kaffee") {
 		t.Fatalf("edited fact: %s", body)
 	}
 	if code, _ := call(t, srv, "PUT", "/v1/ui/memory/nope", "secret", `{"text":"x"}`); code != 404 {

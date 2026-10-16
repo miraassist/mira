@@ -21,3 +21,5 @@ __pycache__/
 !/testenv/mira.yaml
 # Local deploy helpers for this installation, not part of the project.
 /deploy/
+# Implementation plan: kept locally, not published.
+/Mira – Implementierungsplan.md
