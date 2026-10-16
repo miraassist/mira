@@ -144,3 +144,7 @@ scripts/check.sh                                      # all CI checks incl. hass
 Releases: agent and integration share one version. Bump it in
 `cmd/mira/main.go`, `custom_components/mira/const.py` and
 `custom_components/mira/manifest.json`, then tag `vX.Y.Z`. The release workflow refuses a tag that does not match.
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).
