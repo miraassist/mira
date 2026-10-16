@@ -62,7 +62,7 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 	if len(e.ha.servicesCalled()) != 0 {
 		t.Errorf("spoken despite no room / quiet mode: %v", e.ha.servicesCalled())
 	}
-	if got := e.tg.sent[111]; len(got) != 2 || got[0] != "Erinnerung: Müll rausbringen." {
+	if got := e.tg.sent["notify.ben"]; len(got) != 2 || got[0] != "Erinnerung: Müll rausbringen." {
 		t.Errorf("telegram: %v", got)
 	}
 }

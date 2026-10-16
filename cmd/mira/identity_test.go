@@ -41,14 +41,14 @@ func TestPersonsFromHomeAssistant(t *testing.T) {
 		{EntityID: "light.kueche"},
 	}
 	settings := map[string]config.Person{
-		"anna":   {TelegramUserID: 42},
+		"anna":   {Channels: []string{"notify.anna"}},
 		"benjie": {Entity: "person.ben_renamed", AloneIsMe: true}, // older entry, by entity
 	}
 	persons := mergePersons(haPersonsFrom(states), settings)
 	if len(persons) != 3 {
 		t.Fatalf("persons: %v", persons)
 	}
-	if p := persons["anna"]; p.TelegramUserID != 42 || p.Name != "Anna" || p.Entity != "person.anna" || p.UserID != "u-anna" {
+	if p := persons["anna"]; len(p.Channels) != 1 || p.Name != "Anna" || p.Entity != "person.anna" || p.UserID != "u-anna" {
 		t.Errorf("anna: %+v", p)
 	}
 	if p := persons["ben"]; !p.AloneIsMe || p.Entity != "person.ben_renamed" {

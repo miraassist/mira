@@ -22,7 +22,7 @@ STATUS = {"pending_messages": 0, "quiet_mode": False}
 # What the agent's GET /v1/ui/ha returns: the shape of mira.yaml sections.
 AGENT = {
     "managed": False,
-    "persons": {"anna": {"entity": "person.anna", "telegram_user_id": 42, "notify": ""}},
+    "persons": {"anna": {"entity": "person.anna", "channels": ["notify.anna_phone"]}},
     "rooms": [{"area": "bad", "satellite": "assist_satellite.bad", "presence": "binary_sensor.bad", "morning": True}],
 }
 
@@ -85,12 +85,12 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
     assert not fresh_entry.subentries
     # The settings went onto the person and the satellite themselves.
     registry = er.async_get(hass)
-    assert registry.async_get("person.anna").options[DOMAIN] == {"telegram_user_id": "42"}
+    assert registry.async_get("person.anna").options[DOMAIN] == {"channels": ["notify.anna_phone"]}
     assert registry.async_get(satellite).options[DOMAIN] == {"presence": ["binary_sensor.bad"], "morning": True}
 
     # Everything goes back unchanged.
     sent = _puts(aioclient_mock)[-1]
-    assert sent["persons"] == {"anna": {"entity": "person.anna", "telegram_user_id": 42}}
+    assert sent["persons"] == {"anna": {"entity": "person.anna", "channels": ["notify.anna_phone"]}}
     assert sent["rooms"] == [
         {"area": "bad", "satellite": satellite, "presence": ["binary_sensor.bad"], "morning": True,
          "mode": "announce", "indicator": ""}
@@ -177,15 +177,15 @@ async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
     assert await hass.config_entries.async_setup(entry.entry_id)
     result = await _form(hass, entry, "persons")
     assert [str(k) for k in result["data_schema"].schema] == ["Ben"]
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"telegram_user_id": "@ben"})})
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"channels": ["telegram ben"]})})
     assert result["errors"] == {"base": "invalid_config"}
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"Ben": _fields({"telegram_user_id": "77", "alone_is_me": True})}
+        result["flow_id"], {"Ben": _fields({"channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True})}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert er.async_get(hass).async_get(entity).options[DOMAIN] == {"telegram_user_id": "77", "alone_is_me": True}
+    assert er.async_get(hass).async_get(entity).options[DOMAIN] == {"channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True}
     assert _puts(aioclient_mock)[-1]["persons"] == {
-        "ben_1": {"entity": entity, "telegram_user_id": 77, "alone_is_me": True}
+        "ben_1": {"entity": entity, "channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True}
     }
     # Emptied, the settings go away again.
     result = await _form(hass, entry, "persons")
@@ -204,9 +204,9 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     client = await hass_client()
     body = await (await client.get("/api/mira/settings/persons")).json()
     assert [i["name"] for i in body["items"]] == ["Anna"]
-    resp = await client.put("/api/mira/settings/persons", json={anna: {"telegram_user_id": "42"}})
+    resp = await client.put("/api/mira/settings/persons", json={anna: {"channels": "notify.anna_phone, notify.telegram_anna"}})
     assert resp.status == 200
-    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"telegram_user_id": "42"}
+    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"channels": ["notify.anna_phone", "notify.telegram_anna"]}
     body = await (await client.get("/api/mira/settings/satellites")).json()
     assert body["items"][0]["entity"] == wz and body["items"][0]["area"] == "Wohnzimmer"
     resp = await client.put(
@@ -214,9 +214,9 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     )
     assert resp.status == 200
     assert er.async_get(hass).async_get(wz).options[DOMAIN]["presence"] == ["binary_sensor.a", "binary_sensor.b"]
-    resp = await client.put("/api/mira/settings/persons", json={anna: {"telegram_user_id": "x"}})
+    resp = await client.put("/api/mira/settings/persons", json={anna: {"channels": ["x"]}})
     assert resp.status == 422
-    assert resp.status == 422 and "not a number" in (await resp.json())["error"]
+    assert resp.status == 422 and "not a notify target" in (await resp.json())["error"]
     resp = await client.put("/api/mira/settings/persons", json={"person.nobody": {}})
     assert resp.status == 422
     hass_admin_user.groups = []

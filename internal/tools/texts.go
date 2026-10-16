@@ -5,19 +5,20 @@ import "github.com/sker65/mira/internal/i18n"
 // texts are the descriptions of the internal tools (part of prompt layer 3),
 // their results, and the guard's messages to the model.
 type texts struct {
-	memorySaveDesc, memorySaveText, memorySaveTags, memorySaved                          string // memorySaved: %s = id
-	memorySaveHouse, memorySavedPerson, personalMark                                     string // memorySavedPerson: %s = person, %s = id
-	memorySearchDesc, memorySearchQuery, memoryNothing                                   string
-	memoryForgetDesc, memoryForgotten, noSuchFact                                        string
-	messagesListDesc, noMessages, messageLine, messageDetails                            string // messageLine: id, importance, state, text
-	messageAckDesc, messageAcked, noSuchMessage                                          string
-	telegramDesc, telegramText, telegramSent, noTelegram                                 string
-	textMissing, invalidArgs                                                             string
-	delegateDesc, delegateTask                                                           string
-	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor            string
-	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                         string // reminderSaved: time, id
-	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled string
-	messagesReadDesc, messagesNothing, messagesReadOut                                   string
+	memorySaveDesc, memorySaveText, memorySaveTags, memorySaved                                   string // memorySaved: %s = id
+	memorySaveHouse, memorySavedPerson, personalMark                                              string // memorySavedPerson: %s = person, %s = id
+	memorySearchDesc, memorySearchQuery, memoryNothing                                            string
+	memoryForgetDesc, memoryForgotten, noSuchFact                                                 string
+	messagesListDesc, noMessages, messageLine, messageDetails                                     string // messageLine: id, importance, state, text
+	messageAckDesc, messageAcked, noSuchMessage                                                   string
+	messageSendDesc, messageTo, messageSendText, messageSent, unknownReceiver                     string
+	refusedNone, refusedPersons, fromPerson, fromPersonHouse, fromArea, fromAreaHouse, remindFrom string
+	textMissing, invalidArgs                                                                      string
+	delegateDesc, delegateTask                                                                    string
+	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor                     string
+	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                                  string // reminderSaved: time, id
+	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled          string
+	messagesReadDesc, messagesNothing, messagesReadOut                                            string
 
 	denyBackground, denyAfterWeb, denyStoreFailed string
 	needsConfirmation                             string // %s = summary of the action
@@ -47,10 +48,18 @@ var catalog = map[i18n.Lang]texts{
 		messageAckDesc:     "Markiert eine Nachricht als erledigt, wenn der Nutzer sie zur Kenntnis genommen hat.",
 		messageAcked:       "Erledigt.",
 		noSuchMessage:      "keine Nachricht mit dieser id",
-		telegramDesc:       "Schickt dem Nutzer eine Nachricht aufs Handy (Telegram), z.B. eine Liste, einen Link oder eine längere Antwort, die sich nicht gut vorlesen lässt.",
-		telegramText:       "Die Nachricht, Markdown erlaubt.",
-		telegramSent:       "Gesendet.",
-		noTelegram:         "Telegram ist nicht eingerichtet",
+		messageSendDesc:    "Schickt jemandem eine Nachricht oder hinterlässt sie fürs Haus: „Sag Anna, dass es später wird“, „Hinterlass fürs Haus: …“, „Schick mir das aufs Handy“. Mira stellt sie zu, sobald der Empfänger erreichbar ist (bei einer Person über ihre Kanäle, im Haus per Ansage). Mit at oder in_minutes erst zu dieser Zeit, z. B. „Erinnere Ben morgen um 7 an den Müll“. Nicht für eine Durchsage an alle, die gerade da sind.",
+		messageTo:          "Empfänger: house (das Haus, alle im Haushalt) oder eine Person (Kürzel oder Name).",
+		messageSendText:    "Was ausgerichtet werden soll, in eigenen Worten, ohne den Absender.",
+		messageSent:        "Nachricht für %s gespeichert, sie wird zugestellt.",
+		unknownReceiver:    "Ich kenne niemanden namens %s.",
+		refusedNone:        "%s nimmt gerade keine Nachrichten an.",
+		refusedPersons:     "%s nimmt nur Nachrichten von Personen an, die ich erkenne.",
+		fromPerson:         "%s lässt dir ausrichten: %s",
+		fromPersonHouse:    "%s lässt ausrichten: %s",
+		fromArea:           "Jemand im Bereich %s lässt dir ausrichten: %s",
+		fromAreaHouse:      "Jemand im Bereich %s lässt ausrichten: %s",
+		remindFrom:         "%s erinnert dich: %s",
 		textMissing:        "text fehlt",
 		invalidArgs:        "ungültige Argumente: %w",
 		delegateDesc:       "Gibt eine Frage oder Aufgabe an ein stärkeres Modell ab, wenn sie viel Wissen, gründliches Nachdenken oder mehrere Rechercheschritte braucht, z.B. Erklärungen, Planungen, Vergleiche, Rezepte. Nicht für Schaltbefehle, Zustandsabfragen oder Smalltalk. Das stärkere Modell kann nachschlagen, aber nichts verändern. Fasse sein Ergebnis für den Nutzer im Stil des Kanals zusammen.",
@@ -99,10 +108,18 @@ var catalog = map[i18n.Lang]texts{
 		messageAckDesc:     "Marks a message as done once the user has taken note of it.",
 		messageAcked:       "Done.",
 		noSuchMessage:      "no message with this id",
-		telegramDesc:       "Sends the user a message to their phone (Telegram), e.g. a list, a link or a longer answer that does not read aloud well.",
-		telegramText:       "The message, Markdown allowed.",
-		telegramSent:       "Sent.",
-		noTelegram:         "Telegram is not set up",
+		messageSendDesc:    "Sends someone a message or leaves it for the house: \"Tell Anna I'll be late\", \"Leave a note for the house: …\", \"Send that to my phone\". Mira delivers it as soon as the receiver can be reached (a person over their channels, the house by announcement). With at or in_minutes only at that time, e.g. \"Remind Ben tomorrow at 7 to take out the trash\". Not for a broadcast to everyone present.",
+		messageTo:          "Receiver: house (everyone in the household) or a person (key or name).",
+		messageSendText:    "What to pass on, in your own words, without the sender.",
+		messageSent:        "Message for %s saved; it will be delivered.",
+		unknownReceiver:    "I don't know anyone called %s.",
+		refusedNone:        "%s doesn't take messages right now.",
+		refusedPersons:     "%s only takes messages from persons I recognise.",
+		fromPerson:         "%s asks me to tell you: %s",
+		fromPersonHouse:    "%s asks me to pass on: %s",
+		fromArea:           "Someone in %s asks me to tell you: %s",
+		fromAreaHouse:      "Someone in %s asks me to pass on: %s",
+		remindFrom:         "%s reminds you: %s",
 		textMissing:        "text is missing",
 		invalidArgs:        "invalid arguments: %w",
 		delegateDesc:       "Hands a question or task to a stronger model when it needs a lot of knowledge, careful thought or several research steps, e.g. explanations, planning, comparisons, recipes. Not for switching, state lookups or small talk. The stronger model can look things up but change nothing. Summarize its result for the user in the channel's style.",

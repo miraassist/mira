@@ -21,7 +21,7 @@ func reminderTools(t *testing.T) (map[string]InternalTool, *store.Store, time.Ti
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	persons := map[string]config.Person{"ben": {TelegramUserID: 42}, "anna": {}}
+	persons := map[string]config.Person{"ben": {Name: "Ben"}, "anna": {Name: "Anna"}}
 	byName := map[string]InternalTool{}
 	for _, it := range Reminders(ReminderOptions{Lang: i18n.DE, Store: st, Clock: func() time.Time { return now },
 		Location: time.UTC, Persons: func() map[string]config.Person { return persons }}) {
@@ -46,7 +46,7 @@ func TestReminderSet(t *testing.T) {
 	if err != nil || !strings.Contains(out, "Donnerstag, 15. Oktober 2026, 18:10 Uhr") {
 		t.Fatalf("timer: %q %v", out, err)
 	}
-	if _, err := run(t, set, Invocation{Channel: config.ChannelTelegram, SessionKey: "telegram:42"}, `{"text":"Müll","at":"2026-10-16 19:00"}`); err != nil {
+	if _, err := run(t, set, Invocation{Channel: config.ChannelTelegram, SessionKey: "telegram:42", Person: "ben"}, `{"text":"Müll","at":"2026-10-16 19:00"}`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := run(t, set, voice, `{"text":"Arzt","at":"2026-10-17T08:30","for":"anna"}`); err != nil {
@@ -97,5 +97,68 @@ func TestReminderTextsComplete(t *testing.T) {
 				t.Errorf("%s %s: bad description or schema", l, it.Name)
 			}
 		}
+	}
+}
+
+// A message names its sender, goes to the house or a person, and follows the
+// receiver's setting whose messages they take (docs/spec/nachrichten.md).
+func TestMessageSend(t *testing.T) {
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	persons := map[string]config.Person{
+		"anna": {Name: "Anna"},
+		"ben":  {Name: "Ben", AcceptFrom: config.AcceptPersons},
+		"oma":  {Name: "Oma", AcceptFrom: config.AcceptNone},
+	}
+	var send InternalTool
+	for _, it := range Reminders(ReminderOptions{Lang: i18n.DE, Store: st, Clock: func() time.Time { return now },
+		Location: time.UTC, Persons: func() map[string]config.Person { return persons },
+		AreaName: func(id string) string { return map[string]string{"kueche": "Küche"}[id] }}) {
+		if it.Name == ToolMessageSend {
+			send = it
+		}
+	}
+	anna := Invocation{Channel: config.ChannelTelegram, Person: "anna"}
+	someone := Invocation{Channel: config.ChannelVoice, Area: "kueche"}
+
+	if _, err := run(t, send, anna, `{"to":"Ben","text":"Es wird später."}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, send, someone, `{"to":"house","text":"Der Schornsteinfeger kommt um 10"}`); err != nil {
+		t.Fatal(err)
+	}
+	// Ben takes messages from persons only; Oma none at all.
+	if _, err := run(t, send, someone, `{"to":"ben","text":"x"}`); err == nil || !strings.Contains(err.Error(), "Ben nimmt nur") {
+		t.Errorf("anonymous to ben: %v", err)
+	}
+	if _, err := run(t, send, anna, `{"to":"oma","text":"x"}`); err == nil || !strings.Contains(err.Error(), "Oma nimmt gerade keine") {
+		t.Errorf("to oma: %v", err)
+	}
+	if _, err := run(t, send, anna, `{"to":"Zoe","text":"x"}`); err == nil {
+		t.Error("unknown receiver accepted")
+	}
+	// With a time it waits until then.
+	if _, err := run(t, send, anna, `{"to":"ben","text":"Müll rausbringen","at":"2026-10-16 07:00"}`); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
+	got := map[string]store.Message{}
+	for _, m := range msgs {
+		got[m.Receiver] = m
+	}
+	if m := got["ben"]; m.Spoken != "Anna lässt dir ausrichten: Es wird später." || m.Sender != "person:anna" {
+		t.Errorf("to ben: %+v", m)
+	}
+	if m := got["house"]; m.Spoken != "Jemand im Bereich Küche lässt ausrichten: Der Schornsteinfeger kommt um 10." || m.Sender != "area:kueche" {
+		t.Errorf("to the house: %+v", m)
+	}
+	scheduled, _ := st.ScheduledMessages(context.Background(), time.Time{})
+	if len(scheduled) != 1 || scheduled[0].Receiver != "ben" || scheduled[0].DeliverAt.Hour() != 7 {
+		t.Errorf("scheduled: %+v", scheduled)
 	}
 }

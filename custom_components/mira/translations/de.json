@@ -52,14 +52,14 @@
         "title": "Einstellungen für Personen",
         "description": "Jede Person aus Home Assistant ist auch für Mira eine Person. Klapp eine auf und stell ein, was Mira zusätzlich braucht; gespeichert wird an der Person selbst. Leer gelassen gibt es keine Einstellungen. {error}",
         "data": {
-          "telegram_user_id": "Telegram-User-ID",
-          "notify": "Push-Benachrichtigung",
-          "alone_is_me": "Allein zu Hause sind die Satelliten ich"
+          "alone_is_me": "Allein zu Hause sind die Satelliten ich",
+          "channels": "Kanäle",
+          "accept_from": "Nachrichten annehmen von"
         },
         "data_description": {
-          "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
-          "notify": "Notify-Dienst der Companion App",
-          "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Nachrichten."
+          "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Nachrichten.",
+          "channels": "notify-Ziele dieser Person, in Reihenfolge: z. B. ein Chat der Telegram-Integration von HA, die Companion-App. Persönliche Nachrichten gehen an das erste, das klappt; ein Telegram-Chat hier ist zugleich, woran Mira die Person erkennt, wenn sie schreibt.",
+          "accept_from": "Nachrichten von Menschen; Miras eigene (Aufgaben, Erinnerungen, Warnungen) kommen immer an."
         }
       },
       "satellites": {
@@ -233,6 +233,13 @@
       "options": {
         "announce": "Ansagen",
         "indicate": "Nur anzeigen"
+      }
+    },
+    "accept_from": {
+      "options": {
+        "all": "Allen (auch jemand am Satelliten)",
+        "persons": "Nur Personen, die Mira erkennt",
+        "none": "Niemandem"
       }
     }
   }

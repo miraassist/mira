@@ -55,6 +55,9 @@ type Request struct {
 	// HAUser is the Home Assistant user behind a request from the HA app or
 	// its chat; satellites send none.
 	HAUser string
+	// Person is who writes, named by the Home Assistant integration for a
+	// messenger (Telegram through HA): it matched the chat to a person.
+	Person string
 }
 
 // Response is the answer to a Request.

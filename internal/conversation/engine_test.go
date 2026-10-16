@@ -104,7 +104,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 	}
 	t.Cleanup(host.Close)
 
-	registry := tools.NewRegistry(host, tools.Internal(i18n.DE, h.store, nil, nil)...)
+	registry := tools.NewRegistry(host, tools.Internal(i18n.DE, h.store, nil)...)
 	h.engine = conversation.New(conversation.Options{
 		Config:    cfg,
 		LLM:       llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),

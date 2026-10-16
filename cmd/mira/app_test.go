@@ -57,7 +57,6 @@ func TestAgentEndToEnd(t *testing.T) {
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	cfg.HA = config.HA{Enabled: true, URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}
-	cfg.Telegram.Enabled = false
 	cfg.Telemetry.LogLevel = "error"
 
 	ctx, cancel := context.WithCancel(context.Background())

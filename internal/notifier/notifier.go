@@ -37,17 +37,10 @@ type HA interface {
 	Entities(ctx context.Context) ([]haws.Entity, error)
 }
 
-// Telegram sends private messages.
-type Telegram interface {
-	Send(ctx context.Context, chatID int64, text string) error
-	SendToAll(ctx context.Context, text string) error
-}
-
 type Options struct {
 	Config    config.Config
 	Store     *store.Store
 	HA        HA
-	Telegram  Telegram // nil when Telegram is off
 	Clock     func() time.Time
 	Location  *time.Location
 	Logger    *slog.Logger
@@ -63,7 +56,6 @@ type Notifier struct {
 	persons     map[string]config.Person
 	store       *store.Store
 	ha          HA
-	telegram    Telegram
 	clock       func() time.Time
 	loc         *time.Location
 	log         *slog.Logger
@@ -111,7 +103,6 @@ func New(opts Options) *Notifier {
 		persons:       opts.Config.Persons,
 		store:         opts.Store,
 		ha:            opts.HA,
-		telegram:      opts.Telegram,
 		clock:         opts.Clock,
 		loc:           opts.Location,
 		log:           opts.Logger.With("component", "notifier"),
@@ -579,14 +570,7 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 
 	var used []string
 	if len(recipients) == 0 {
-		// No persons configured: everyone on the Telegram allowlist.
-		if n.telegram == nil {
-			return errors.New("no private channel: no persons configured and Telegram is off")
-		}
-		if err := n.telegram.SendToAll(ctx, text); err != nil {
-			return err
-		}
-		used = append(used, "telegram")
+		return errors.New("no private channel: no persons")
 	}
 	var errs []error
 	for _, id := range recipients {
@@ -604,31 +588,39 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 	return n.store.MarkDelivered(ctx, nt.ID, strings.Join(dedupe(used), ","))
 }
 
+// sendTo sends text to the first of the person's channels that works
+// (docs/spec/kanaele.md): a notify entity (notify.send_message), or a
+// legacy notify service such as notify.mobile_app_anna.
 func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, error) {
 	p, ok := n.persons[personID]
 	if !ok {
 		return "", fmt.Errorf("unknown person")
 	}
-	var errs []error
-	for _, via := range n.cfg.PrivateVia {
-		switch {
-		case via == "telegram" && p.TelegramUserID != 0 && n.telegram != nil:
-			if err := n.telegram.Send(ctx, p.TelegramUserID, text); err != nil {
-				errs = append(errs, err)
-				continue
+	if len(p.Channels) == 0 {
+		return "", errors.New("no private channel configured")
+	}
+	entities := map[string]bool{}
+	if states, err := n.ha.States(ctx); err == nil {
+		for _, s := range states {
+			if strings.HasPrefix(s.EntityID, "notify.") {
+				entities[s.EntityID] = true
 			}
-			return via, nil
-		case via == "push" && p.Notify != "":
-			service := strings.TrimPrefix(p.Notify, "notify.")
-			if err := n.ha.CallService(ctx, "notify", service, map[string]any{"title": "Mira", "message": text}, nil); err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			return via, nil
 		}
 	}
-	if len(errs) == 0 {
-		return "", errors.New("no private channel configured")
+	var errs []error
+	for _, ch := range p.Channels {
+		var err error
+		if entities[ch] {
+			err = n.ha.CallService(ctx, "notify", "send_message", map[string]any{"title": "Mira", "message": text},
+				&haws.Target{EntityID: []string{ch}})
+		} else {
+			err = n.ha.CallService(ctx, "notify", strings.TrimPrefix(ch, "notify."), map[string]any{"title": "Mira", "message": text}, nil)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", ch, err))
+			continue
+		}
+		return ch, nil
 	}
 	return "", errors.Join(errs...)
 }

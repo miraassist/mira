@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/conversation"
@@ -21,14 +20,10 @@ func (a *app) identify(ctx context.Context, req conversation.Request, _ store.Se
 	persons := a.persons()
 	switch req.Channel {
 	case config.ChannelTelegram:
-		chat, err := strconv.ParseInt(req.ConversationID, 10, 64)
-		if err != nil {
-			return ""
-		}
-		for key, p := range persons {
-			if p.TelegramUserID != 0 && p.TelegramUserID == chat {
-				return key
-			}
+		// Home Assistant's Telegram integration names the person: the
+		// integration matched the chat to a person's channels.
+		if _, ok := persons[req.Person]; ok {
+			return req.Person
 		}
 	case config.ChannelVoice:
 		if req.HAUser != "" {

@@ -28,7 +28,16 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
-from .managed import all_persons, all_satellites, entity_name, person_settings, satellite_settings, save_settings
+from .managed import (
+    ACCEPT,
+    all_persons,
+    all_satellites,
+    entity_name,
+    notify_targets,
+    person_settings,
+    satellite_settings,
+    save_settings,
+)
 
 USER_SCHEMA = vol.Schema(
     {
@@ -124,8 +133,8 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
 # names themselves, in Home Assistant's language.
 FIELD_NAMES = {
     "de": {
-        "telegram_user_id": "Telegram-User-ID",
-        "notify": "Push-Benachrichtigung (Notify-Dienst)",
+        "channels": "Kanäle (notify-Ziele, z. B. Telegram-Chat, Companion-App)",
+        "accept_from": "Nachrichten annehmen von",
         "alone_is_me": "Allein zu Hause sind die Satelliten ich",
         "presence": "Bewegungsmelder",
         "morning": "Morgenansage",
@@ -133,8 +142,8 @@ FIELD_NAMES = {
         "indicator": "Anzeige-Lampe",
     },
     "en": {
-        "telegram_user_id": "Telegram user id",
-        "notify": "Push notification (notify service)",
+        "channels": "Channels (notify targets, e.g. Telegram chat, companion app)",
+        "accept_from": "Take messages from",
         "alone_is_me": "Alone at home, the satellites are me",
         "presence": "Motion sensors",
         "morning": "Morning announcement",
@@ -172,14 +181,16 @@ class MiraOptionsFlow(OptionsFlow):
         )
 
     async def async_step_persons(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        notify = sorted(f"notify.{name}" for name in self.hass.services.async_services_for_domain("notify"))
         fields = self._named(
             {
-                vol.Optional("telegram_user_id"): selector.TextSelector(),
-                vol.Optional("notify"): selector.SelectSelector(
+                vol.Optional("channels"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=notify, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
+                        options=notify_targets(self.hass), custom_value=True, multiple=True,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
                     )
+                ),
+                vol.Optional("accept_from", default="all"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=list(ACCEPT), translation_key="accept_from")
                 ),
                 vol.Optional("alone_is_me", default=False): selector.BooleanSelector(),
             }

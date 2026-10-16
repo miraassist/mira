@@ -37,7 +37,6 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = false, false
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	cfg.HA = config.HA{Enabled: true, URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
-	cfg.Telegram.Enabled = false
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Memory.ProfileSchedule = ""
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}

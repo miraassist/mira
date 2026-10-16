@@ -299,8 +299,11 @@ const I18N = {
   "persons_hint": "Personen sind Empfänger persönlicher Nachrichten. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
   "key": "Kürzel",
   "person_entity": "Person-Entity",
-  "telegram_id": "Telegram-ID",
-  "push": "Push (notify.…)",
+  "channels": "Kanäle (notify.…, mit Komma)",
+  "accept_from": "Nachrichten annehmen von",
+  "accept_all": "allen",
+  "accept_persons": "Personen",
+  "accept_none": "niemandem",
   "add_person": "+ Person",
   "profile": "Profil",
   "facts": "Gespeicherte Fakten",
@@ -492,8 +495,11 @@ const I18N = {
   "persons_hint": "People receive personal messages. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
   "key": "Key",
   "person_entity": "Person entity",
-  "telegram_id": "Telegram ID",
-  "push": "Push (notify.…)",
+  "channels": "Channels (notify.…, comma-separated)",
+  "accept_from": "Take messages from",
+  "accept_all": "everyone",
+  "accept_persons": "persons",
+  "accept_none": "nobody",
   "add_person": "+ Person",
   "profile": "Profile",
   "facts": "Saved facts",
@@ -817,7 +823,6 @@ async function ack(id) {
 function notifier() {
   const n = val("notifier") || {};
   const qh = n.quiet_hours || {}, esc2 = n.escalate_to_telegram || {}, urg = n.urgent || {};
-  const via = list(n.private_via);
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_notifier} ${source("notifier")}</h2>
@@ -838,9 +843,6 @@ function notifier() {
         ${opt("never", n.confidential_voice, T.conf_never)}
         ${opt("when_alone", n.confidential_voice, T.conf_alone)}
         ${opt("always", n.confidential_voice, T.conf_always)}</select>
-      <label>${T.private_via}</label><div class="row">
-        <label><input type="checkbox" id="via_telegram" ${via.includes("telegram") ? "checked" : ""}> Telegram</label>
-        <label><input type="checkbox" id="via_push" ${via.includes("push") ? "checked" : ""}> ${T.companion}</label></div>
     </div>
     <h3>${T.escalation}</h3>
     <div class="grid">
@@ -868,7 +870,7 @@ function saveNotifier() {
   n.delivery = $("#delivery").value;
   n.tts_entity = $("#tts_entity").value.trim();
   n.confidential_voice = $("#conf_voice").value;
-  n.private_via = [$("#via_telegram").checked && "telegram", $("#via_push").checked && "push"].filter(Boolean);
+  delete n.private_via;
   n.escalate_to_telegram = { min_importance: num($("#esc_min").value, 2), after: $("#esc_after").value, grace: $("#esc_grace").value.trim() };
   n.urgent = { min_importance: num($("#urg_min").value, 3), announce: $("#urg_announce").checked };
   save({ notifier: n });
@@ -936,7 +938,7 @@ function persons() {
   <section class="card">
     <h2>${T.tab_persons} ${source("persons")}</h2>
     <p class="hint">${T.persons_hint}</p>
-    <table id="persons"><tr><th>${T.key}</th><th>${T.person_entity}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th><th></th></tr>
+    <table id="persons"><tr><th>${T.key}</th><th>${T.person_entity}</th><th>${T.channels}</th><th>${T.accept_from}</th><th title="${T.alone_hint}">${T.alone_is_me}</th><th></th></tr>
       ${Object.entries(p).sort().map(([k, v], i) => personRow(k, v, i)).join("")}
     </table>
     <div class="actions">
@@ -945,12 +947,16 @@ function persons() {
     </div>
   </section>`;
 }
+// acceptSelect is the choice whose messages a person takes.
+function acceptSelect(current, field = "accept") {
+  return `<select data-f="${field}">${["all", "persons", "none"].map(a => opt(a, current || "all", T["accept_" + a])).join("")}</select>`;
+}
 function personRow(key, p, i) {
   return `<tr data-p="${i}">
     <td><input data-f="key" value="${esc(key)}"></td>
     <td><input data-f="entity" list="entities" value="${esc(p.entity)}" placeholder="person.…"></td>
-    <td><input data-f="tg" value="${esc(p.telegram_user_id || "")}" inputmode="numeric"></td>
-    <td><input data-f="notify" value="${esc(p.notify)}" placeholder="notify.mobile_app_…"></td>
+    <td><input data-f="channels" value="${esc(csv(p.channels))}" placeholder="notify.mobile_app_…"></td>
+    <td>${acceptSelect(p.accept_from)}</td>
     <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${p.alone_is_me ? " checked" : ""}></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
@@ -973,14 +979,14 @@ async function haSettings(kind) {
   const lists = (id, items) => `<datalist id="${id}">${items.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>`;
   const persons = kind === "persons";
   const head = persons
-    ? `<th>${T.person}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th>`
+    ? `<th>${T.person}</th><th>${T.channels}</th><th>${T.accept_from}</th><th title="${T.alone_hint}">${T.alone_is_me}</th>`
     : `<th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.mode}</th><th>${T.indicator}</th>`;
   const row = it => {
     const s = it.settings || {}, sub = persons ? it.entity : `${esc(it.area)} · ${esc(it.entity)}`;
     const who = `<td>${esc(it.name)}<p class="hint">${persons ? esc(sub) : sub}</p></td>`;
     return `<tr data-e="${esc(it.entity)}">${who}` + (persons
-      ? `<td><input data-f="telegram_user_id" value="${esc(s.telegram_user_id || "")}" inputmode="numeric"></td>
-         <td><input data-f="notify" list="ha-notify" value="${esc(s.notify || "")}" placeholder="notify.mobile_app_…"></td>
+      ? `<td><input data-f="channels" list="ha-notify" value="${esc(csv(s.channels))}" placeholder="notify.…"></td>
+         <td>${acceptSelect(s.accept_from, "accept_from")}</td>
          <td><input type="checkbox" data-f="alone_is_me" title="${T.alone_hint}"${s.alone_is_me ? " checked" : ""}></td>`
       : `<td><input data-f="presence" list="ha-motion" value="${esc(csv(s.presence))}" placeholder="binary_sensor.…, …"></td>
          <td><input type="checkbox" data-f="morning"${s.morning ? " checked" : ""}></td>
@@ -1002,6 +1008,7 @@ async function saveHASettings(kind) {
     const v = {};
     tr.querySelectorAll("[data-f]").forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
     if (kind === "satellites") v.presence = fromCsv(v.presence || "");
+    if (kind === "persons") v.channels = fromCsv(v.channels || "");
     out[tr.dataset.e] = v;
   });
   try {
@@ -1032,15 +1039,15 @@ function haPersons(people, settings) {
   <section class="card">
     <h2>${T.tab_persons} ${source("persons")}</h2>
     <p class="hint">${T.persons_ha_hint}</p>
-    <table id="persons"><tr><th>${T.person}</th><th>${T.telegram_id}</th><th>${T.push}</th><th title="${T.alone_hint}">${T.alone_is_me}</th></tr>
+    <table id="persons"><tr><th>${T.person}</th><th>${T.channels}</th><th>${T.accept_from}</th><th title="${T.alone_hint}">${T.alone_is_me}</th></tr>
       ${people.map(h => {
         const s = settings[h.key] || Object.values(settings).find(x => x.entity === h.entity) || {};
         if (managed("persons")) return `<tr><td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
-          <td>${esc(s.telegram_user_id || "–")}</td><td>${esc(s.notify || "–")}</td><td>${s.alone_is_me ? T.yes : T.no}</td></tr>`;
+          <td>${esc(csv(s.channels) || "–")}</td><td>${T["accept_" + (s.accept_from || "all")]}</td><td>${s.alone_is_me ? T.yes : T.no}</td></tr>`;
         return `<tr data-p="${esc(h.key)}" data-key="${esc(h.key)}">
           <td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
-          <td><input data-f="tg" value="${esc(s.telegram_user_id || "")}" inputmode="numeric"></td>
-          <td><input data-f="notify" value="${esc(s.notify || "")}" placeholder="notify.mobile_app_…"></td>
+          <td><input data-f="channels" value="${esc(csv(s.channels))}" placeholder="notify.…"></td>
+          <td>${acceptSelect(s.accept_from)}</td>
           <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${s.alone_is_me ? " checked" : ""}></td></tr>`;
       }).join("")}
     </table>
@@ -1056,8 +1063,8 @@ function savePersons() {
     if (!key) return;
     const p = {};
     if (f("entity")) p.entity = f("entity");
-    if (f("tg")) p.telegram_user_id = Number(f("tg"));
-    if (f("notify")) p.notify = f("notify");
+    if (f("channels")) p.channels = fromCsv(f("channels"));
+    if (f("accept") && f("accept") !== "all") p.accept_from = f("accept");
     if (tr.querySelector('[data-f="alone"]').checked) p.alone_is_me = true;
     // Without settings a Home Assistant person needs no entry.
     if (tr.dataset.key && !Object.keys(p).length) return;

@@ -28,6 +28,8 @@ const (
 	SourceExternal  = "external"
 	SourceReminder  = "reminder"
 	SourceTask      = "task"
+	// SourcePerson is a message one person sends another or the house.
+	SourcePerson = "person"
 )
 
 // ReceiverHouse is the house as receiver: anyone present may hear the message.

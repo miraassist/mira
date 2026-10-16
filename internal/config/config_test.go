@@ -75,17 +75,6 @@ func TestParseRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresTelegramAllowlist(t *testing.T) {
-	_, err := Parse([]byte(`
-ha: { enabled: false }
-telegram:
-  token: "abc"
-`), fakeEnv(nil))
-	if err == nil || !strings.Contains(err.Error(), "allowed_user_ids") {
-		t.Fatalf("want allowlist error, got %v", err)
-	}
-}
-
 func TestValidateRejectsServerNameWithSeparator(t *testing.T) {
 	_, err := Parse([]byte(`
 ha: { enabled: false }
@@ -178,7 +167,7 @@ func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
 
 func TestRoutingNeedsKnownModels(t *testing.T) {
 	c := Default()
-	c.HA.Enabled, c.Telegram.Enabled = false, false
+	c.HA.Enabled = false
 	c.Routing.Delegate = "nope"
 	c.Models = map[string]LLM{"main": {BaseURL: "x", Model: "y"}, "half": {Model: "y"}}
 	err := c.Validate()

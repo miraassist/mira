@@ -37,6 +37,7 @@ from .managed import (
     all_persons,
     all_satellites,
     entity_name,
+    notify_targets,
     person_settings,
     satellite_area,
     satellite_settings,
@@ -219,8 +220,7 @@ class MiraSettingsView(HomeAssistantView):
         if kind == "persons":
             current = person_settings(hass)
             items = [{"entity": e, "name": entity_name(hass, e), "settings": current.get(e, {})} for e in all_persons(hass)]
-            notify = sorted(f"notify.{n}" for n in hass.services.async_services_for_domain("notify"))
-            return web.json_response({"items": items, "notify": notify})
+            return web.json_response({"items": items, "notify": notify_targets(hass)})
         if kind == "satellites":
             current = satellite_settings(hass)
             areas = ar.async_get(hass)

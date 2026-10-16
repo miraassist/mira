@@ -28,11 +28,22 @@ type fakeHA struct {
 	states map[string]haws.State
 	// callErr, when set, is what service calls return.
 	callErr error
+	// private records what went to notify targets (a person's channels),
+	// apart from calls: those are what was spoken or switched.
+	private *fakePrivate
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if domain == "notify" && f.private != nil {
+		channel := "notify." + service
+		if service == "send_message" && target != nil && len(target.EntityID) > 0 {
+			channel = target.EntityID[0]
+		}
+		f.private.add(channel, data["message"].(string))
+		return nil
+	}
 	f.calls = append(f.calls, call{domain, service, data, target})
 	return f.callErr
 }
@@ -71,31 +82,23 @@ func (f *fakeHA) servicesCalled() []string {
 	return out
 }
 
-type fakeTelegram struct {
+// fakePrivate is what reached a person's channels, by notify target.
+type fakePrivate struct {
 	mu   sync.Mutex
-	sent map[int64][]string
-	all  []string
+	sent map[string][]string
 }
 
-func (f *fakeTelegram) Send(_ context.Context, chatID int64, text string) error {
+func (f *fakePrivate) add(channel, text string) {
 	f.mu.Lock()
-	f.sent[chatID] = append(f.sent[chatID], text)
+	f.sent[channel] = append(f.sent[channel], text)
 	f.mu.Unlock()
-	return nil
-}
-
-func (f *fakeTelegram) SendToAll(_ context.Context, text string) error {
-	f.mu.Lock()
-	f.all = append(f.all, text)
-	f.mu.Unlock()
-	return nil
 }
 
 type env struct {
 	n   *Notifier
 	st  *store.Store
 	ha  *fakeHA
-	tg  *fakeTelegram
+	tg  *fakePrivate
 	now time.Time
 	t   *testing.T
 }
@@ -114,12 +117,13 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 		Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}, "kueche": {"binary_sensor.kueche_motion"}},
 	}
 	cfg.Persons = map[string]config.Person{
-		"ben": {Entity: "person.ben", TelegramUserID: 111},
+		"ben": {Entity: "person.ben", Channels: []string{"notify.ben"}},
 	}
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	e := &env{t: t, now: at("03:00"), ha: &fakeHA{states: map[string]haws.State{}}, tg: &fakeTelegram{sent: map[int64][]string{}}}
+	e := &env{t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
+	e.ha = &fakeHA{states: map[string]haws.State{}, private: e.tg}
 	e.ha.set("assist_satellite.bad", "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.set("assist_satellite.kueche", "idle", map[string]any{"supported_features": float64(1)})
 	e.ha.set("person.ben", "home", nil)
@@ -130,7 +134,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { e.st.Close() })
-	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Telegram: e.tg, Clock: func() time.Time { return e.now },
+	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
 		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	e.n.speakPause = 0
 	return e
@@ -349,7 +353,7 @@ func TestConfidentialMessages(t *testing.T) {
 			if spoken != c.wantVoice {
 				t.Fatalf("spoken = %v, want %v (%+v)", spoken, c.wantVoice, out)
 			}
-			if !c.wantVoice && len(e.tg.sent[111]) != 1 {
+			if !c.wantVoice && len(e.tg.sent["notify.ben"]) != 1 {
 				t.Fatalf("not sent privately: %+v", e.tg.sent)
 			}
 		})
@@ -363,16 +367,18 @@ func TestConfidentialNeverGoesOutOnTickWithoutWaitingForMotion(t *testing.T) {
 		t.Fatalf("sent during quiet hours: %v", sent)
 	}
 	e.now = at("06:31")
-	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent[111]) != 1 {
+	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
 	}
-	if !strings.Contains(e.tg.sent[111][0], "Details secret") {
+	if !strings.Contains(e.tg.sent["notify.ben"][0], "Details secret") {
 		t.Error("private message lacks the details")
 	}
 }
 
 func TestPersonalMessageForUntrackedRecipientIsSpoken(t *testing.T) {
-	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna", TelegramUserID: 222} })
+	e := newEnv(t, func(c *config.Config) {
+		c.Persons["anna"] = config.Person{Entity: "person.anna", Channels: []string{"notify.anna"}}
+	})
 	e.ha.set("person.anna", "unknown", nil)
 	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
 	e.now = at("08:00")
@@ -382,7 +388,9 @@ func TestPersonalMessageForUntrackedRecipientIsSpoken(t *testing.T) {
 }
 
 func TestPersonalMessageWaitsWhileRecipientIsAway(t *testing.T) {
-	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna", TelegramUserID: 222} })
+	e := newEnv(t, func(c *config.Config) {
+		c.Persons["anna"] = config.Person{Entity: "person.anna", Channels: []string{"notify.anna"}}
+	})
 	e.ha.set("person.anna", "not_home", nil)
 	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
 	e.now = at("08:00")
@@ -407,11 +415,11 @@ func TestEscalation(t *testing.T) {
 	}
 	e.now = at("09:00")
 	sent := e.tick()
-	if len(sent) != 1 || sent[0] != "important" || len(e.tg.sent[111]) != 1 {
+	if len(sent) != 1 || sent[0] != "important" || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("escalation = %v, telegram %v", sent, e.tg.sent)
 	}
 	n, _ := e.st.GetMessage(context.Background(), "important")
-	if n.State != store.MessageDelivered || n.DeliveredVia != "telegram" {
+	if n.State != store.MessageDelivered || n.DeliveredVia != "notify.ben" {
 		t.Errorf("message after escalation = %+v", n)
 	}
 	if sent := e.tick(); len(sent) != 0 {
@@ -433,23 +441,29 @@ func TestEscalationGivesDaytimeMessagesAGracePeriod(t *testing.T) {
 	}
 }
 
-func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
+// A person's channels are notify targets: a notify entity (such as a
+// Telegram chat of HA's integration) is sent with notify.send_message, a
+// legacy service is called directly; the first that works is used.
+func TestPrivateGoesToTheFirstWorkingChannel(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) {
-		c.Persons = map[string]config.Person{"ben": {Entity: "person.ben", Notify: "notify.mobile_app_phone"}}
+		c.Persons = map[string]config.Person{"ben": {Entity: "person.ben",
+			Channels: []string{"notify.telegram_ben", "notify.mobile_app_phone"}}}
 	})
+	e.ha.set("notify.telegram_ben", "unknown", nil)
 	e.message("n", 2, nil)
 	e.now = at("09:30")
 	e.tick()
-	if got := e.ha.servicesCalled(); len(got) != 1 || got[0] != "notify.mobile_app_phone" {
-		t.Fatalf("services = %v", got)
+	if got := e.tg.sent["notify.telegram_ben"]; len(got) != 1 || len(e.tg.sent["notify.mobile_app_phone"]) != 0 {
+		t.Fatalf("sent = %v", e.tg.sent)
 	}
 
+	// Without persons there is no private channel; the message waits.
 	e2 := newEnv(t, func(c *config.Config) { c.Persons = nil })
 	e2.message("n", 2, nil)
 	e2.now = at("09:30")
 	e2.tick()
-	if len(e2.tg.all) != 1 {
-		t.Fatalf("without persons the household gets it on Telegram: %v", e2.tg.all)
+	if len(e2.tg.sent) != 0 {
+		t.Fatalf("sent without persons: %v", e2.tg.sent)
 	}
 }
 
@@ -468,7 +482,7 @@ func TestUrgentMessageGoesOutAtOnceEvenAtNight(t *testing.T) {
 	e := newEnv(t, nil) // 03:00, inside quiet hours
 	e.message("leak", 3, nil)
 	sent := e.tick()
-	if len(sent) != 1 || len(e.tg.sent[111]) != 1 {
+	if len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
 	}
 	var spoken []string
@@ -487,7 +501,7 @@ func TestUrgentMessageGoesOutAtOnceEvenAtNight(t *testing.T) {
 func TestUrgentConfidentialMessageIsNotSpoken(t *testing.T) {
 	e := newEnv(t, nil)
 	e.message("secret-leak", 3, func(n *store.Message) { n.Confidentiality = store.ConfidentialityConfidential })
-	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent[111]) != 1 {
+	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 {
 		t.Fatalf("sent = %v", sent)
 	}
 	if len(e.ha.calls) != 0 {

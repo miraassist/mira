@@ -29,7 +29,8 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from .const import DOMAIN
 
 # Mira's settings on a person and on a satellite, the fields of options["mira"].
-PERSON_FIELDS = ("telegram_user_id", "notify", "alone_is_me")
+PERSON_FIELDS = ("channels", "accept_from", "alone_is_me")
+ACCEPT = ("all", "persons", "none")
 SATELLITE_FIELDS = ("presence", "morning", "mode", "indicator")
 SATELLITE_DOMAINS = ("assist_satellite", "media_player")
 
@@ -88,22 +89,34 @@ def person_key(hass: HomeAssistant, entity_id: str) -> str:
 
 def person_to_agent(data: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"entity": data.get("entity", "")}
-    if data.get("telegram_user_id"):
-        out["telegram_user_id"] = int(data["telegram_user_id"])
-    if data.get("notify"):
-        out["notify"] = data["notify"]
+    if data.get("channels"):
+        out["channels"] = list(data["channels"])
+    if data.get("accept_from") and data["accept_from"] != "all":
+        out["accept_from"] = data["accept_from"]
     if data.get("alone_is_me"):
         out["alone_is_me"] = True
     return out
 
 
 def person_from_agent(person: dict[str, Any]) -> dict[str, Any]:
-    telegram = person.get("telegram_user_id") or 0
     return {
-        "telegram_user_id": str(telegram) if telegram else "",
-        "notify": person.get("notify") or "",
+        "channels": list(person.get("channels") or []),
+        "accept_from": person.get("accept_from") or "",
         "alone_is_me": bool(person.get("alone_is_me")),
     }
+
+
+def notify_targets(hass: HomeAssistant) -> list[str]:
+    """What a person's channels can be: notify entities (e.g. a chat of
+    HA's Telegram integration) and legacy notify services (the companion
+    app)."""
+    entities = {s.entity_id for s in hass.states.async_all("notify")}
+    services = {
+        f"notify.{name}"
+        for name in hass.services.async_services_for_domain("notify")
+        if name not in ("send_message", "persistent_notification")
+    }
+    return sorted(entities | services)
 
 
 def room_to_agent(area: str, satellite: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -179,11 +192,18 @@ def build_config(
 def normalize_person(data: dict[str, Any]) -> dict[str, Any]:
     """A person's settings from a form; raises ValueError on a bad one."""
     out = {k: data.get(k) for k in PERSON_FIELDS}
-    telegram = str(out.get("telegram_user_id") or "").strip()
-    if telegram and not telegram.isdigit():
-        raise ValueError(f"Telegram user id {telegram!r} is not a number")
-    out["telegram_user_id"] = telegram
-    out["notify"] = str(out.get("notify") or "").strip()
+    channels = out.get("channels") or []
+    if isinstance(channels, str):
+        channels = [c.strip() for c in channels.split(",")]
+    channels = [c.strip() for c in channels if c and c.strip()]
+    for c in channels:
+        if not c.startswith("notify."):
+            raise ValueError(f"{c!r} is not a notify target")
+    out["channels"] = channels
+    accept = out.get("accept_from") or "all"
+    if accept not in ACCEPT:
+        raise ValueError(f"accept_from must be all, persons or none, not {accept!r}")
+    out["accept_from"] = "" if accept == "all" else accept
     out["alone_is_me"] = bool(out.get("alone_is_me"))
     return out
 

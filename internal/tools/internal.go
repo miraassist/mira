@@ -16,27 +16,20 @@ import (
 
 // Names of the internal tools. They carry no server prefix.
 const (
-	ToolMemorySave     = "memory_save"
-	ToolMemorySearch   = "memory_search"
-	ToolMemoryForget   = "memory_forget"
-	ToolMessagesList   = "messages_list"
-	ToolMessageAck     = "message_ack"
-	ToolSendToTelegram = "send_to_telegram"
-	ToolDelegate       = "delegate"
+	ToolMemorySave   = "memory_save"
+	ToolMemorySearch = "memory_search"
+	ToolMemoryForget = "memory_forget"
+	ToolMessagesList = "messages_list"
+	ToolMessageAck   = "message_ack"
+	ToolDelegate     = "delegate"
 )
 
 // Delegator hands a task to a stronger model and returns its answer.
 type Delegator func(ctx context.Context, task string) (string, error)
 
-// TelegramSender delivers a handover message to the household's phones.
-type TelegramSender interface {
-	SendToAll(ctx context.Context, text string) error
-}
-
 // Internal returns the agent's own tools. The set is the same for every
-// channel, so prompt layer 3 is too. A nil sender makes send_to_telegram
-// report that Telegram is not configured instead of disappearing.
-func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate Delegator) []InternalTool {
+// channel, so prompt layer 3 is too.
+func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 	t := textsFor(l)
 	decode := func(raw json.RawMessage, v any) error { return decodeArgs(t, raw, v) }
 	list := []InternalTool{
@@ -168,29 +161,6 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 					return "", err
 				}
 				return t.messageAcked, nil
-			},
-		},
-		{
-			Name:        ToolSendToTelegram,
-			Description: t.telegramDesc,
-			Schema:      schema(`{"type":"object","properties":{"text":{"type":"string","description":%q}},"required":["text"]}`, t.telegramText),
-			Run: func(ctx context.Context, inv Invocation) (string, error) {
-				if telegram == nil {
-					return "", errors.New(t.noTelegram)
-				}
-				var a struct {
-					Text string `json:"text"`
-				}
-				if err := decode(inv.Args, &a); err != nil {
-					return "", err
-				}
-				if strings.TrimSpace(a.Text) == "" {
-					return "", errors.New(t.textMissing)
-				}
-				if err := telegram.SendToAll(ctx, a.Text); err != nil {
-					return "", err
-				}
-				return t.telegramSent, nil
 			},
 		},
 	}

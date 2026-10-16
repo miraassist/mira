@@ -82,10 +82,8 @@ mcp_servers:
     # actions (locks, alarm, garage) for the rest of the turn.
     web_content: true
 
-telegram:
-  enabled: true
-  token: ${TELEGRAM_TOKEN}
-  allowed_user_ids: [123456789]   # your numeric Telegram user id
+# Telegram runs through Home Assistant's own Telegram integration
+# (telegram_bot); Mira has no bot of her own (docs/spec/kanaele.md).
 
 sessions:
   voice_ttl: 5m
@@ -97,13 +95,15 @@ satellites:            # area id -> satellite that speaks announcements there
   # A satellite that is only a media_player works too (needs notifier.tts_entity):
   # wohnzimmer: media_player.echo_wohnzimmer
 
-# With Home Assistant every HA person is a person for Mira, keyed by the HA
-# person's id; here go only Mira's settings for a person. Without Home
-# Assistant (Telegram only) the persons are these, with their own keys.
+# Every HA person is a person for Mira, keyed by the HA person's id; here
+# go only Mira's settings for a person (with the integration they are set
+# in Home Assistant instead).
 persons:
   ben:                                    # the HA person's id
-    telegram_user_id: 123456789           # must be on telegram.allowed_user_ids
-    notify: notify.mobile_app_phone       # companion app, optional
+    channels:                             # notify targets, first that works
+      - notify.telegram_ben               # a chat of HA's Telegram integration
+      - notify.mobile_app_phone           # the companion app
+    accept_from: all                      # all | persons | none
     alone_is_me: false                    # alone at home, the satellites are ben
 
 # Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
@@ -132,7 +132,6 @@ notifier:
   # When may a confidential message be spoken? never | when_alone | always
   # when_alone: only its recipient (by the person entities) is home.
   confidential_voice: when_alone
-  private_via: [telegram, push]
   # auto: start_conversation if the satellite supports it, else announce.
   delivery: auto
   # tts_entity: tts.piper

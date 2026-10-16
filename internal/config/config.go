@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/sker65/mira/internal/i18n"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 
@@ -33,13 +32,15 @@ type Config struct {
 	LLM    LLM    `yaml:"llm"`
 	// Models are further models by name, e.g. a cloud model for harder
 	// work. The model under llm is called "main".
-	Models     map[string]LLM    `yaml:"models"`
-	Routing    Routing           `yaml:"routing"`
-	Store      Store             `yaml:"store"`
-	Prompt     Prompt            `yaml:"prompt"`
-	HA         HA                `yaml:"ha"`
-	MCPServers []MCPServer       `yaml:"mcp_servers"`
-	Telegram   Telegram          `yaml:"telegram"`
+	Models     map[string]LLM `yaml:"models"`
+	Routing    Routing        `yaml:"routing"`
+	Store      Store          `yaml:"store"`
+	Prompt     Prompt         `yaml:"prompt"`
+	HA         HA             `yaml:"ha"`
+	MCPServers []MCPServer    `yaml:"mcp_servers"`
+	// Telegram is no longer used: Telegram runs through Home Assistant's
+	// integration (docs/spec/kanaele.md). An old section is ignored.
+	Telegram   any               `yaml:"telegram,omitempty"`
 	Sessions   Sessions          `yaml:"sessions"`
 	Satellites map[string]string `yaml:"satellites"`
 	Persons    map[string]Person `yaml:"persons"`
@@ -194,14 +195,6 @@ type MCPServer struct {
 	Disabled   bool `yaml:"disabled"`
 }
 
-type Telegram struct {
-	Token          string   `yaml:"token"`
-	AllowedUserIDs []int64  `yaml:"allowed_user_ids"`
-	PollTimeout    Duration `yaml:"poll_timeout"`
-	Enabled        bool     `yaml:"enabled"`
-	APIBaseURL     string   `yaml:"api_base_url"`
-}
-
 type Sessions struct {
 	VoiceTTL    Duration `yaml:"voice_ttl"`
 	TelegramTTL Duration `yaml:"telegram_ttl"`
@@ -221,16 +214,27 @@ type Person struct {
 	Name string `yaml:"name,omitempty"`
 	// UserID is the HA user linked to the person; from Home Assistant.
 	UserID string `yaml:"-"`
-	// TelegramUserID is the private chat for confidential or escalated
-	// messages. Must be on the Telegram allowlist.
-	TelegramUserID int64 `yaml:"telegram_user_id,omitempty"`
-	// Notify is a HA notify service for the companion app, such as
-	// "notify.mobile_app_phone".
-	Notify string `yaml:"notify,omitempty"`
+	// Channels are the notify targets that are this person's, in order:
+	// notify entities (e.g. a Telegram chat of HA's telegram_bot) or legacy
+	// notify services (e.g. notify.mobile_app_anna). Personal and private
+	// messages go to the first that works. A Telegram chat among them is
+	// also how a message from that chat is known to be this person.
+	Channels []string `yaml:"channels,omitempty"`
+	// AcceptFrom says whose messages this person takes: "all" (default,
+	// also someone anonymous at a satellite), "persons" (only from other
+	// persons) or "none". Mira's own messages always arrive.
+	AcceptFrom string `yaml:"accept_from,omitempty"`
 	// AloneIsMe: when this person is the only one at home (by Entity), the
 	// satellites count as them: their memory, their personal tasks.
 	AloneIsMe bool `yaml:"alone_is_me,omitempty"`
 }
+
+// Whose messages a person takes (Person.AcceptFrom).
+const (
+	AcceptAll     = "all"
+	AcceptPersons = "persons"
+	AcceptNone    = "none"
+)
 
 type Notifier struct {
 	QuietHours              QuietHours     `yaml:"quiet_hours"`
@@ -249,9 +253,8 @@ type Notifier struct {
 	// "never", "when_alone" (only its recipient is home, by the person
 	// entities) or "always". Otherwise it goes to a private channel.
 	ConfidentialVoice string `yaml:"confidential_voice"`
-	// PrivateVia lists the private channels, in order of preference:
-	// "telegram", "push" (companion app). The first one that works is used.
-	PrivateVia []string `yaml:"private_via"`
+	// PrivateVia is no longer used: each person has channels.
+	PrivateVia []string `yaml:"private_via,omitempty"`
 	// Delivery is how a satellite speaks: "auto" picks start_conversation
 	// when the satellite supports it, then announce; "tts" uses tts.speak on
 	// a media_player with TTSEntity.
@@ -377,11 +380,6 @@ func Default() Config {
 			AssistPromptServer:  "ha",
 			AssistPromptRefresh: Duration(5 * 60e9),
 		},
-		Telegram: Telegram{
-			Enabled:     true,
-			PollTimeout: Duration(50e9), // 50s
-			APIBaseURL:  "https://api.telegram.org",
-		},
 		Sessions: Sessions{
 			VoiceTTL:    Duration(5 * 60e9),
 			TelegramTTL: Duration(12 * 3600e9),
@@ -395,7 +393,6 @@ func Default() Config {
 			FollowUpWindow:          Duration(2 * 60e9),
 			MinImportance:           1,
 			ConfidentialVoice:       ConfidentialVoiceNever,
-			PrivateVia:              []string{"telegram", "push"},
 			Delivery:                "auto",
 			// Teal from the logo, gently pulsing.
 			Indicator: IndicatorStyle{RGBColor: []int{32, 201, 176}, Effect: "Pulse", Brightness: 160},
@@ -474,7 +471,6 @@ func (c *Config) normalize() {
 		c.Models[name] = m
 	}
 	c.HA.URL = strings.TrimRight(c.HA.URL, "/")
-	c.Telegram.APIBaseURL = strings.TrimRight(c.Telegram.APIBaseURL, "/")
 	for i := range c.MCPServers {
 		if c.MCPServers[i].Transport == "" {
 			if c.MCPServers[i].Command != "" {
@@ -547,12 +543,6 @@ func (c Config) Validate() error {
 		if c.HA.Token == "" {
 			add("ha.token must be set when ha.enabled is true")
 		}
-	}
-	if c.Telegram.Enabled && c.Telegram.Token == "" {
-		add("telegram.token must be set when telegram.enabled is true")
-	}
-	if c.Telegram.Enabled && len(c.Telegram.AllowedUserIDs) == 0 {
-		add("telegram.allowed_user_ids must list at least one user; an open bot is not acceptable")
 	}
 
 	seen := map[string]bool{}
@@ -632,11 +622,6 @@ func (c Config) Validate() error {
 	default:
 		add("notifier.confidential_voice must be never, when_alone or always, not %q", c.Notifier.ConfidentialVoice)
 	}
-	for _, via := range c.Notifier.PrivateVia {
-		if via != "telegram" && via != "push" {
-			add("notifier.private_via: unknown channel %q (telegram, push)", via)
-		}
-	}
 	switch c.Notifier.Delivery {
 	case "auto", "start_conversation", "announce", "tts":
 	default:
@@ -652,11 +637,15 @@ func (c Config) Validate() error {
 		if p.Entity != "" && !strings.HasPrefix(p.Entity, "person.") {
 			add("persons[%s].entity: %q is not a person entity", id, p.Entity)
 		}
-		if p.Notify != "" && !strings.HasPrefix(p.Notify, "notify.") {
-			add("persons[%s].notify: %q is not a notify service", id, p.Notify)
+		for _, ch := range p.Channels {
+			if !strings.HasPrefix(ch, "notify.") {
+				add("persons[%s].channels: %q is not a notify target", id, ch)
+			}
 		}
-		if p.TelegramUserID != 0 && !slices.Contains(c.Telegram.AllowedUserIDs, p.TelegramUserID) {
-			add("persons[%s].telegram_user_id %d is not on telegram.allowed_user_ids", id, p.TelegramUserID)
+		switch p.AcceptFrom {
+		case "", AcceptAll, AcceptPersons, AcceptNone:
+		default:
+			add("persons[%s].accept_from must be all, persons or none, not %q", id, p.AcceptFrom)
 		}
 	}
 

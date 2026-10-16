@@ -8,14 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sker65/mira/internal/announce"
 	"github.com/sker65/mira/internal/channels/haconv"
-	"github.com/sker65/mira/internal/channels/telegram"
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/conversation"
 	"github.com/sker65/mira/internal/ha/assistprompt"
@@ -63,7 +61,6 @@ type app struct {
 	structure *structure.Cache
 	assist    *assistprompt.Cache
 	mcp       *mcp.Host
-	telegram  *telegram.Bot
 	engine    *conversation.Engine
 
 	// live is the config the proactive parts run with: the YAML file plus
@@ -82,11 +79,7 @@ type app struct {
 	warmup     func(reason string)
 }
 
-type buildOptions struct {
-	// withTelegram builds the bot. The chat command leaves it out so a test
-	// turn never competes with the running agent for updates.
-	withTelegram bool
-}
+type buildOptions struct{}
 
 // build wires everything that both run and chat need, and connects to Home
 // Assistant and the MCP servers. Long-running loops it starts end with ctx.
@@ -159,33 +152,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.goRun(ctx, "assist-prompt", a.assist.Run)
 	}
 
-	if opts.withTelegram && cfg.Telegram.Enabled {
-		a.telegram = telegram.New(telegram.Options{
-			Lang:  i18n.Of(cfg.Prompt.Language),
-			Token: cfg.Telegram.Token, APIBase: cfg.Telegram.APIBaseURL,
-			AllowedUserIDs: cfg.Telegram.AllowedUserIDs, PollTimeout: cfg.Telegram.PollTimeout.Duration(),
-			Offsets: a.store, OffsetKey: store.KeyTelegramOffset, Logger: a.log,
-			Handler: func(ctx context.Context, m telegram.Incoming) (string, error) {
-				resp, err := a.engine.Handle(ctx, conversation.Request{
-					Channel: config.ChannelTelegram, ConversationID: strconv.FormatInt(m.ChatID, 10),
-					Text: m.Text, Language: cfg.Prompt.Language,
-				})
-				return resp.Text, err
-			},
-			Reset: func(ctx context.Context, chatID int64) error {
-				return a.engine.ResetSession(ctx, config.ChannelTelegram, strconv.FormatInt(chatID, 10))
-			},
-		})
-	}
-
-	// The handover tool needs a sender even in the chat command, so it is
-	// built from the config alone; it only sends, it does not poll.
-	var sender tools.TelegramSender
-	if a.telegram != nil {
-		sender = a.telegram
-	} else if cfg.Telegram.Enabled {
-		sender = telegram.New(telegram.Options{Token: cfg.Telegram.Token, APIBase: cfg.Telegram.APIBaseURL,
-			AllowedUserIDs: cfg.Telegram.AllowedUserIDs, Logger: a.log})
+	if cfg.Telegram != nil {
+		a.log.Warn("the telegram section in mira.yaml is no longer used: Telegram runs through Home Assistant's telegram_bot integration")
 	}
 
 	snapshot := func() structure.Snapshot { return structure.Snapshot{} }
@@ -198,10 +166,18 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if cfg.Routing.Delegate != "" {
 		delegate = func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
 	}
-	internal := tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, sender, delegate)
+	internal := tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, delegate)
 	internal = append(internal, tools.Reminders(tools.ReminderOptions{
 		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store,
 		Persons: a.persons,
+		AreaName: func(id string) string {
+			if a.structure != nil {
+				if name := a.structure.Snapshot().AreaNames[id]; name != "" {
+					return name
+				}
+			}
+			return id
+		},
 	})...)
 	// The goals Mira works towards in threads come as skills too and are
 	// always on when their folder is there: "aufgabe" needs Home
@@ -386,7 +362,7 @@ func (a *app) close() {
 func runAgent(parent context.Context, cfg config.Config) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	a, err := build(ctx, cfg, buildOptions{withTelegram: true})
+	a, err := build(ctx, cfg, buildOptions{})
 	if err != nil {
 		return err
 	}
@@ -451,9 +427,6 @@ func runAgent(parent context.Context, cfg config.Config) error {
 	}
 
 	errs := make(chan error, 2)
-	if a.telegram != nil {
-		go func() { errs <- fmt.Errorf("telegram: %w", a.telegram.Run(ctx)) }()
-	}
 
 	if cfg.Server.Announce {
 		a.announce(ctx)
@@ -538,12 +511,8 @@ func (a *app) startProactive(parent context.Context) {
 	ctx, cancel := context.WithCancel(parent)
 	a.proactiveCancel = cancel
 
-	var tg notifier.Telegram
-	if a.telegram != nil {
-		tg = a.telegram
-	}
 	n := notifier.New(notifier.Options{
-		Config: cfg, Store: a.store, HA: a.ha, Telegram: tg, Logger: a.log, Telemetry: a.tel,
+		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })

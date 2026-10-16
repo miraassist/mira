@@ -61,7 +61,6 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = false, false // keep the model script in order
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	cfg.HA = config.HA{Enabled: true, URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
-	cfg.Telegram.Enabled = false
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
 	cfg.Persons = map[string]config.Person{"ben": {Entity: "person.ben"}}

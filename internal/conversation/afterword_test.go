@@ -20,7 +20,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	model := fakellm.New()
 	defer model.Close()
 	cfg := config.Default()
-	cfg.HA.Enabled, cfg.Telegram.Enabled = false, false
+	cfg.HA.Enabled = false
 	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 
 	var asked []string
 	waiting := "Übrigens: Heute hast du einen Zahnarzttermin."
-	internal := append(tools.Internal(i18n.DE, st, nil, nil),
+	internal := append(tools.Internal(i18n.DE, st, nil),
 		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (string, error) { return "Nichts.", nil }))
 	e := conversation.New(conversation.Options{
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,

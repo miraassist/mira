@@ -31,7 +31,7 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 		ContextTokens: 100000, CompactAtFraction: 0.8, ReasoningEffort: "low",
 	}}
 	cfg.Routing = config.Routing{Telegram: "smart", Delegate: "smart"}
-	cfg.HA.Enabled, cfg.Telegram.Enabled = false, false
+	cfg.HA.Enabled = false
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 
 	var engine *conversation.Engine
 	delegate := func(ctx context.Context, task string) (string, error) { return engine.Delegate(ctx, task) }
-	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil, delegate)...)
+	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st, delegate)...)
 	engine = conversation.New(conversation.Options{
 		Config: cfg,
 		LLM:    llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"}),
@@ -142,7 +142,7 @@ func TestDelegateHandsATaskToTheStrongerModel(t *testing.T) {
 }
 
 func TestNoDelegateToolWithoutDelegateModel(t *testing.T) {
-	for _, it := range tools.Internal(i18n.DE, nil, nil, nil) {
+	for _, it := range tools.Internal(i18n.DE, nil, nil) {
 		if it.Name == tools.ToolDelegate {
 			t.Fatal("delegate offered without a delegate model")
 		}

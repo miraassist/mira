@@ -52,14 +52,14 @@
         "title": "Settings for persons",
         "description": "Every person in Home Assistant is a person for Mira too. Expand one and set what Mira needs on top; it is stored on the person itself. Left empty, there are no settings. {error}",
         "data": {
-          "telegram_user_id": "Telegram user id",
-          "notify": "Push notification",
-          "alone_is_me": "Alone at home, the satellites are me"
+          "alone_is_me": "Alone at home, the satellites are me",
+          "channels": "Channels",
+          "accept_from": "Take messages from"
         },
         "data_description": {
-          "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
-          "notify": "Companion app notify service",
-          "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private messages."
+          "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private messages.",
+          "channels": "Notify targets that are this person's, in order: e.g. a chat of HA's Telegram integration, the companion app. Personal messages go to the first that works; a Telegram chat here is also how Mira knows the person when they write.",
+          "accept_from": "Messages from people; Mira's own (tasks, reminders, warnings) always arrive."
         }
       },
       "satellites": {
@@ -233,6 +233,13 @@
       "options": {
         "announce": "Announce",
         "indicate": "Indicate only"
+      }
+    },
+    "accept_from": {
+      "options": {
+        "all": "Everyone (also someone at a satellite)",
+        "persons": "Only persons Mira recognises",
+        "none": "Nobody"
       }
     }
   }
