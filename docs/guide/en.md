@@ -187,13 +187,11 @@ Before Mira deletes something, she asks:
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)
 
-Mira knows every person in Home Assistant by herself; you create nobody. You set up rooms and, where needed, settings for persons under Settings → Devices & services → Mira:
+Mira knows every person in Home Assistant by herself; you create nobody. You set up rooms under Settings → Devices & services → Mira, one entry per room:
 
-![The Mira integration with its people and rooms](img/ha-integration-en.png)
+![The Mira integration in Home Assistant](img/ha-integration-en.png)
 
-Settings for a person: Telegram id, push service and "Alone at home, the satellites are me". In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
-
-![Setting up a person](img/ha-person-en.png)
+If Mira needs more for a person, go to **Configure** → **Settings for a person** there: Telegram id, push service and "Alone at home, the satellites are me". This is stored on the person itself; if the person is deleted, it goes with them. In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
 
 ## More tools over MCP
 

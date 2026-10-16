@@ -20,7 +20,7 @@ from .api import MiraClient, MiraError
 from .automations import async_register_commands
 from .const import CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
 from .coordinator import MiraCoordinator
-from .managed import import_subentries
+from .managed import SUBENTRY_PERSON, import_person_settings, import_subentries
 from .panel import async_register_panel, async_register_views, async_remove_panel
 
 _LOGGER = logging.getLogger(__name__)
@@ -177,7 +177,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
 
 async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> dict[str, Any]:
     """Give an entry from before agents had ids its id, and import the
-    agent's persons and rooms as subentries once. Both wait for
+    agent's rooms as subentries and its person settings once. Both wait for
     the next start if the agent is down now."""
     try:
         health = await client.health()
@@ -189,6 +189,10 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     # The agent's own Home Assistant user may manage Mira's automations.
     if (user := health.get("ha_user_id")) and entry.data.get(CONF_AGENT_USER) != user:
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_USER: user})
+    # Persons are Home Assistant's own now; their settings live on them.
+    for sid, subentry in list(entry.subentries.items()):
+        if subentry.subentry_type == SUBENTRY_PERSON:
+            hass.config_entries.async_remove_subentry(entry, sid)
     if entry.data.get(CONF_IMPORTED):
         return health
     try:
@@ -200,6 +204,7 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     for subentry in import_subentries(agent):
         if subentry.unique_id not in have:
             hass.config_entries.async_add_subentry(entry, subentry)
+    import_person_settings(hass, agent)
     hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_IMPORTED: True})
     return health
 

@@ -45,7 +45,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._synced or not entry.data.get(CONF_IMPORTED):
             return
         try:
-            await self.client.set_managed_config(build_config(entry))
+            await self.client.set_managed_config(build_config(self.hass, entry))
         except MiraInvalidConfig as err:
             # Retrying cannot fix it; the agent keeps its last valid config.
             _LOGGER.error("The agent refused watchers, persons and rooms from Home Assistant: %s", err)

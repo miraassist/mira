@@ -25,6 +25,7 @@ async def test_panel_in_sidebar_for_everyone(hass, aioclient_mock, entry):
 async def test_sidebar_can_be_switched_off(hass, aioclient_mock, entry):
     await _setup(hass, aioclient_mock, entry)
     result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "general"})
     await hass.config_entries.options.async_configure(result["flow_id"], {CONF_SIDEBAR: False})
     await hass.async_block_till_done()
     assert "mira" not in hass.data[frontend.DATA_PANELS]

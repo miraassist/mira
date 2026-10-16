@@ -30,6 +30,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Mira",
+        "menu_options": {
+          "general": "General",
+          "person_pick": "Settings for a person"
+        }
+      },
+      "general": {
+        "title": "General",
         "data": {
           "timeout": "Answer timeout (seconds)",
           "sidebar": "Show in the sidebar"
@@ -38,7 +46,35 @@
           "timeout": "After this the satellite says a short error instead of staying silent.",
           "sidebar": "Mira's web UI as a page in Home Assistant; who is no admin sees only their memory, the house's and the guide. Each user can also hide it in their own sidebar."
         }
+      },
+      "person_pick": {
+        "title": "Choose a person",
+        "description": "Every person in Home Assistant is a person for Mira too. Choose whom you want to set something for.",
+        "data": {
+          "entity": "Person"
+        }
+      },
+      "person": {
+        "title": "Mira settings for {person}",
+        "description": "Where personal notices go and whether the satellites count as this person when they are alone at home. Stored on the person itself. Leaving everything empty removes the settings.",
+        "data": {
+          "telegram_user_id": "Telegram user id",
+          "notify": "Push notification",
+          "alone_is_me": "Alone at home, the satellites are me"
+        },
+        "data_description": {
+          "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
+          "notify": "Companion app notify service",
+          "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
+        }
       }
+    },
+    "error": {
+      "invalid_config": "The agent refused it: {error}",
+      "cannot_connect": "The agent is not reachable."
+    },
+    "abort": {
+      "not_loaded": "The Mira agent entry is not loaded."
     }
   },
   "entity": {
@@ -175,56 +211,6 @@
     }
   },
   "config_subentries": {
-    "person": {
-      "entry_type": "Person settings",
-      "initiate_flow": {
-        "user": "Add settings for a person",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Mira settings for a person",
-          "description": "Every person in Home Assistant is a person for Mira; here you only add where personal notices go and whether the satellites count as them when they are alone at home.",
-          "data": {
-            "entity": "Person",
-            "telegram_user_id": "Telegram user id",
-            "notify": "Push notification",
-            "alone_is_me": "Alone at home, the satellites are me"
-          },
-          "data_description": {
-            "entity": "Home or away decides where notices go.",
-            "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
-            "notify": "Companion app notify service",
-            "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
-          }
-        },
-        "reconfigure": {
-          "title": "Mira settings for a person",
-          "description": "Every person in Home Assistant is a person for Mira; here you only add where personal notices go and whether the satellites count as them when they are alone at home.",
-          "data": {
-            "entity": "Person",
-            "telegram_user_id": "Telegram user id",
-            "notify": "Push notification",
-            "alone_is_me": "Alone at home, the satellites are me"
-          },
-          "data_description": {
-            "entity": "Home or away decides where notices go.",
-            "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
-            "notify": "Companion app notify service",
-            "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "This one exists already.",
-        "invalid_config": "The agent refused it: {error}",
-        "cannot_connect": "The agent is not reachable."
-      },
-      "abort": {
-        "not_loaded": "The Mira agent entry is not loaded.",
-        "reconfigure_successful": "Saved."
-      }
-    },
     "room": {
       "entry_type": "Room",
       "initiate_flow": {

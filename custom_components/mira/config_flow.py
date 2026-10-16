@@ -1,8 +1,9 @@
 """Config flow for Mira: agent URL and token, checked against /v1/health.
 
 The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
-under "Discovered" and only asks for the token. Persons and rooms
-are subentries with HA's own pickers; see managed.py.
+under "Discovered" and only asks for the token. Rooms are subentries with
+HA's own pickers; Mira's settings for a person are set under "Configure" and
+stored on the person; see managed.py.
 """
 
 from __future__ import annotations
@@ -28,7 +29,14 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
-from .managed import SUBENTRY_PERSON, SUBENTRY_ROOM, build_config, unique_id
+from .managed import (
+    PERSON_FIELDS,
+    SUBENTRY_ROOM,
+    build_config,
+    person_settings,
+    set_person_settings,
+    unique_id,
+)
 
 USER_SCHEMA = vol.Schema(
     {
@@ -119,21 +127,25 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {
-            SUBENTRY_PERSON: PersonSubentryFlow,
-            SUBENTRY_ROOM: RoomSubentryFlow,
-        }
+        return {SUBENTRY_ROOM: RoomSubentryFlow}
 
 
 class MiraOptionsFlow(OptionsFlow):
-    """How long a satellite waits for the agent; Mira in the sidebar."""
+    """General options, and Mira's settings for one of Home Assistant's
+    persons. Every HA person is a person for Mira anyway; the settings only
+    add what Mira needs on top, stored on the person (managed.py)."""
+
+    _person: str = ""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_show_menu(step_id="init", menu_options=["general", "person_pick"])
+
+    async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            return self.async_create_entry(data=dict(self.config_entry.options) | user_input)
         options = self.config_entry.options
         return self.async_show_form(
-            step_id="init",
+            step_id="general",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_TIMEOUT, default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): vol.All(
@@ -143,6 +155,64 @@ class MiraOptionsFlow(OptionsFlow):
                 }
             ),
         )
+
+    async def async_step_person_pick(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            self._person = user_input["entity"]
+            return await self.async_step_person()
+        return self.async_show_form(
+            step_id="person_pick",
+            data_schema=vol.Schema(
+                {vol.Required("entity"): selector.EntitySelector(selector.EntitySelectorConfig(domain="person"))}
+            ),
+        )
+
+    async def async_step_person(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        entry = self.config_entry
+        if entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+        old = person_settings(self.hass).get(self._person, {})
+        errors: dict[str, str] = {}
+        placeholders = {"error": "", "person": self._name()}
+        if user_input is not None:
+            data = {k: user_input.get(k) for k in PERSON_FIELDS}
+            telegram = str(data.get("telegram_user_id") or "").strip()
+            try:
+                if telegram and not telegram.isdigit():
+                    raise ValueError(f"Telegram user id {telegram!r} is not a number")
+                data["telegram_user_id"] = telegram
+                await entry.runtime_data.client.set_managed_config(
+                    build_config(self.hass, entry, person=(self._person, data))
+                )
+            except (ValueError, MiraInvalidConfig) as err:
+                errors["base"], placeholders["error"] = "invalid_config", str(err)
+            except MiraError:
+                errors["base"] = "cannot_connect"
+            if not errors:
+                set_person_settings(self.hass, self._person, data)
+                return self.async_create_entry(data=dict(entry.options))
+        notify = sorted(f"notify.{name}" for name in self.hass.services.async_services_for_domain("notify"))
+        schema = vol.Schema(
+            {
+                vol.Optional("telegram_user_id"): selector.TextSelector(),
+                vol.Optional("notify"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=notify, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
+                    )
+                ),
+                vol.Optional("alone_is_me", default=False): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="person",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input or old),
+            errors=errors,
+            description_placeholders=placeholders,
+        )
+
+    def _name(self) -> str:
+        state = self.hass.states.get(self._person)
+        return state.name if state else self._person
 
 
 class _ManagedSubentryFlow(ConfigSubentryFlow):
@@ -190,7 +260,7 @@ class _ManagedSubentryFlow(ConfigSubentryFlow):
                     errors["base"] = "already_configured"
                 else:
                     await entry.runtime_data.client.set_managed_config(
-                        build_config(entry, (subentry_id, self.subentry_type, data))
+                        build_config(self.hass, entry, (subentry_id, self.subentry_type, data))
                     )
             except (ValueError, MiraInvalidConfig) as err:
                 errors["base"], placeholders["error"] = "invalid_config", str(err)
@@ -206,43 +276,6 @@ class _ManagedSubentryFlow(ConfigSubentryFlow):
         return self.async_show_form(
             step_id=step_id, data_schema=schema, errors=errors, description_placeholders=placeholders
         )
-
-
-class PersonSubentryFlow(_ManagedSubentryFlow):
-    """Mira's settings for one of Home Assistant's persons. Every HA person
-    is a person for Mira anyway; this only adds what Mira needs on top."""
-
-    subentry_type = SUBENTRY_PERSON
-
-    def _schema(self, data: dict[str, Any]) -> vol.Schema:
-        notify = sorted(f"notify.{name}" for name in self.hass.services.async_services_for_domain("notify"))
-        return vol.Schema(
-            {
-                vol.Required("entity"): selector.EntitySelector(selector.EntitySelectorConfig(domain="person")),
-                vol.Optional("telegram_user_id"): selector.TextSelector(),
-                vol.Optional("notify"): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=notify, custom_value=True, mode=selector.SelectSelectorMode.DROPDOWN
-                    )
-                ),
-                vol.Optional("alone_is_me", default=False): selector.BooleanSelector(),
-            }
-        )
-
-    def _normalize(self, data: dict[str, Any]) -> dict[str, Any]:
-        # The key is the HA person's own id, which stays when the entity is
-        # renamed; Mira keys the person's memory and notices by it.
-        state = self.hass.states.get(data["entity"])
-        data["key"] = (state.attributes.get("id") if state else None) or data["entity"].split(".", 1)[1]
-        telegram = str(data.get("telegram_user_id") or "").strip()
-        if telegram and not telegram.isdigit():
-            raise ValueError(f"Telegram user id {telegram!r} is not a number")
-        data["telegram_user_id"] = telegram
-        return data
-
-    def _title(self, data: dict[str, Any]) -> str:
-        state = self.hass.states.get(data["entity"])
-        return state.name if state else data["key"]
 
 
 class RoomSubentryFlow(_ManagedSubentryFlow):

@@ -30,6 +30,14 @@
   "options": {
     "step": {
       "init": {
+        "title": "Mira",
+        "menu_options": {
+          "general": "Allgemein",
+          "person_pick": "Einstellungen für eine Person"
+        }
+      },
+      "general": {
+        "title": "Allgemein",
         "data": {
           "timeout": "Antwort-Timeout (Sekunden)",
           "sidebar": "Im Seitenmenü anzeigen"
@@ -38,7 +46,35 @@
           "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben.",
           "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant; wer kein Admin ist, sieht dort nur sein Gedächtnis, das des Hauses und die Anleitung. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden."
         }
+      },
+      "person_pick": {
+        "title": "Person wählen",
+        "description": "Jede Person aus Home Assistant ist auch für Mira eine Person. Wähle, für wen du etwas einstellen willst.",
+        "data": {
+          "entity": "Person"
+        }
+      },
+      "person": {
+        "title": "Mira-Einstellungen für {person}",
+        "description": "Wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist. Gespeichert wird an der Person selbst. Alles leer lassen entfernt die Einstellungen.",
+        "data": {
+          "telegram_user_id": "Telegram-User-ID",
+          "notify": "Push-Benachrichtigung",
+          "alone_is_me": "Allein zu Hause sind die Satelliten ich"
+        },
+        "data_description": {
+          "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
+          "notify": "Notify-Dienst der Companion App",
+          "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
+        }
       }
+    },
+    "error": {
+      "invalid_config": "Der Agent hat es abgelehnt: {error}",
+      "cannot_connect": "Der Agent ist nicht erreichbar."
+    },
+    "abort": {
+      "not_loaded": "Der Mira-Eintrag ist nicht geladen."
     }
   },
   "entity": {
@@ -175,56 +211,6 @@
     }
   },
   "config_subentries": {
-    "person": {
-      "entry_type": "Personen-Einstellungen",
-      "initiate_flow": {
-        "user": "Einstellungen für eine Person",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Mira-Einstellungen für eine Person",
-          "description": "Jede Person aus Home Assistant ist auch für Mira eine Person; hier stellst du nur ein, wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
-          "data": {
-            "entity": "Person",
-            "telegram_user_id": "Telegram-User-ID",
-            "notify": "Push-Benachrichtigung",
-            "alone_is_me": "Allein zu Hause sind die Satelliten ich"
-          },
-          "data_description": {
-            "entity": "Zuhause oder weg entscheidet, wohin Meldungen gehen.",
-            "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
-            "notify": "Notify-Dienst der Companion App",
-            "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
-          }
-        },
-        "reconfigure": {
-          "title": "Mira-Einstellungen für eine Person",
-          "description": "Jede Person aus Home Assistant ist auch für Mira eine Person; hier stellst du nur ein, wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
-          "data": {
-            "entity": "Person",
-            "telegram_user_id": "Telegram-User-ID",
-            "notify": "Push-Benachrichtigung",
-            "alone_is_me": "Allein zu Hause sind die Satelliten ich"
-          },
-          "data_description": {
-            "entity": "Zuhause oder weg entscheidet, wohin Meldungen gehen.",
-            "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
-            "notify": "Notify-Dienst der Companion App",
-            "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "Das gibt es schon.",
-        "invalid_config": "Der Agent hat es abgelehnt: {error}",
-        "cannot_connect": "Der Agent ist nicht erreichbar."
-      },
-      "abort": {
-        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
-        "reconfigure_successful": "Gespeichert."
-      }
-    },
     "room": {
       "entry_type": "Raum",
       "initiate_flow": {

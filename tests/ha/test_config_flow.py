@@ -55,6 +55,8 @@ async def test_same_agent_only_once(hass, aioclient_mock, entry):
 
 async def test_options_set_timeout(hass, entry):
     result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.MENU
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "general"})
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_TIMEOUT: 30})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_TIMEOUT] == 30

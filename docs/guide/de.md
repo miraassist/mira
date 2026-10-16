@@ -187,13 +187,11 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)
 
-Jede Person aus Home Assistant kennt Mira von selbst, anlegen musst du niemanden. Räume und, wo nötig, Einstellungen für Personen richtest du unter Einstellungen → Geräte & Dienste → Mira ein:
+Jede Person aus Home Assistant kennt Mira von selbst, anlegen musst du niemanden. Räume richtest du unter Einstellungen → Geräte & Dienste → Mira ein, je Raum ein Eintrag:
 
-![Die Mira-Integration mit ihren Personen und Räumen](img/ha-integration-de.png)
+![Die Mira-Integration in Home Assistant](img/ha-integration-de.png)
 
-Einstellungen für eine Person: Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“. Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
-
-![Eine Person einrichten](img/ha-person-de.png)
+Braucht Mira für eine Person mehr, gehst du dort auf **Konfigurieren** → **Einstellungen für eine Person**: Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“. Gespeichert wird das an der Person selbst; wird sie gelöscht, verschwindet es mit. Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
 
 ## Weitere Werkzeuge über MCP
 

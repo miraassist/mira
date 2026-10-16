@@ -1,4 +1,5 @@
-"""Discovery, the compact button, and persons/rooms as subentries."""
+"""Discovery, the compact button, rooms as subentries and person settings
+on Home Assistant's persons."""
 
 from ipaddress import ip_address
 
@@ -7,7 +8,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -52,8 +53,16 @@ def _puts(aioclient_mock):
     return [c[2] for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/ha")]
 
 
+def _person(hass, key, name):
+    """A HA person in the entity registry, with a state like HA's."""
+    entry = er.async_get(hass).async_get_or_create("person", "person", key, suggested_object_id=key)
+    hass.states.async_set(entry.entity_id, "home", {"id": key, "friendly_name": name})
+    return entry.entity_id
+
+
 async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_entry):
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
+    _person(hass, "anna", "Anna")
     assert await hass.config_entries.async_setup(fresh_entry.entry_id)
     await hass.async_block_till_done()
 
@@ -62,7 +71,9 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
     # The agent's own user may manage Mira's automations.
     assert fresh_entry.data[CONF_AGENT_USER] == "mira-user"
     by_type = {s.unique_id: s for s in fresh_entry.subentries.values()}
-    assert set(by_type) == {"person:anna", "room:bad"}
+    assert set(by_type) == {"room:bad"}
+    # The person's settings went onto the person itself.
+    assert er.async_get(hass).async_get("person.anna").options[DOMAIN] == {"telegram_user_id": "42"}
 
     # Everything goes back unchanged.
     sent = _puts(aioclient_mock)[-1]
@@ -94,37 +105,49 @@ async def test_agent_refusal_shows_in_the_form(hass, aioclient_mock):
     assert not e.subentries
 
 
-async def test_person_needs_a_numeric_telegram_id(hass, aioclient_mock, entry):
+async def _person_form(hass, entry, entity):
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "person_pick"})
+    return await hass.config_entries.options.async_configure(result["flow_id"], {"entity": entity})
+
+
+async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
+    """Mira's settings for a HA person are entity registry options, keyed
+    for the agent by the person's own id, which stays on a rename."""
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    entity = _person(hass, "ben_1", "Ben")
     assert await hass.config_entries.async_setup(entry.entry_id)
-    result = await hass.config_entries.subentries.async_init(
-        (entry.entry_id, "person"), context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.subentries.async_configure(
-        result["flow_id"], {"entity": "person.ben", "telegram_user_id": "@ben"}
+    result = await _person_form(hass, entry, entity)
+    assert result["step_id"] == "person"
+    assert result["description_placeholders"]["person"] == "Ben"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"telegram_user_id": "@ben"}
     )
     assert result["errors"] == {"base": "invalid_config"}
-    result = await hass.config_entries.subentries.async_configure(
-        result["flow_id"], {"entity": "person.ben", "telegram_user_id": "77"}
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"telegram_user_id": "77", "alone_is_me": True}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["unique_id"] == "person:ben"
+    assert er.async_get(hass).async_get(entity).options[DOMAIN] == {"telegram_user_id": "77", "alone_is_me": True}
+    assert _puts(aioclient_mock)[-1]["persons"] == {
+        "ben_1": {"entity": entity, "telegram_user_id": 77, "alone_is_me": True}
+    }
+    # Emptied, the settings go away again.
+    result = await _person_form(hass, entry, entity)
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"alone_is_me": False})
+    assert DOMAIN not in er.async_get(hass).async_get(entity).options
+    assert _puts(aioclient_mock)[-1]["persons"] == {}
 
 
-async def test_person_settings_are_keyed_by_the_ha_person_id(hass, aioclient_mock, entry):
-    """The key is the HA person's own id, which stays when the entity is
-    renamed; Mira keys memory and notices by it."""
+async def test_old_person_subentries_are_removed(hass, aioclient_mock, entry):
+    from homeassistant.config_entries import ConfigSubentry
+
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
-    hass.states.async_set("person.ben_neu", "home", {"id": "ben_1", "friendly_name": "Ben"})
+    hass.config_entries.async_add_subentry(
+        entry, ConfigSubentry(data={"key": "x"}, subentry_type="person", title="X", unique_id="person:x")
+    )
     assert await hass.config_entries.async_setup(entry.entry_id)
-    result = await hass.config_entries.subentries.async_init(
-        (entry.entry_id, "person"), context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.subentries.async_configure(
-        result["flow_id"], {"entity": "person.ben_neu", "telegram_user_id": "77"}
-    )
-    assert result["unique_id"] == "person:ben_1"
-    assert result["title"] == "Ben"
+    assert not entry.subentries
 
 
 async def test_discovery_asks_only_for_the_token(hass, aioclient_mock):
