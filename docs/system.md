@@ -134,6 +134,7 @@ Wichtig:
   Beispielunterhaltung, Kanalstil, Verlauf, aktueller Turn. Der Anfang ist
   byte-identisch und für alle Kanäle gleich, damit er aus dem Cache kommt.
   Komposition, Cache und Kompaktierung: [Kontext](spec/kontext.md).
+  Welche Sprache Mira wann spricht: [Sprache](spec/sprache.md).
 - **Schutz gegen unbelegte Antworten.** Kündigt das Modell eine Aktion nur
   an, meldet es etwas als erledigt oder nennt es Messwerte und Zustände,
   ohne ein Werkzeug aufgerufen zu haben, muss es nachholen. Sonst ersetzt
