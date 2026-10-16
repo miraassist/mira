@@ -68,11 +68,11 @@
         "data": {
           "presence": "Bewegungsmelder",
           "morning": "Beim Hereinkommen ansagen",
-          "indicator": "Anzeige-Lampe"
+          "indicator": "Anzeige (z. B. LED-Ring)"
         },
         "data_description": {
           "presence": "Bewegung an einem davon startet eine Ansage, z. B. Flur und Wohnzimmer.",
-          "morning": "Merkt einer der Bewegungsmelder, dass jemand hereinkommt, sagt Mira an, was wartet. Aus: nur auf Nachfrage oder nach einer Antwort („Übrigens …“). Die Anzeige-Lampe leuchtet so oder so.",
+          "morning": "Merkt einer der Bewegungsmelder, dass jemand hereinkommt, sagt Mira an, was wartet. Aus: nur auf Nachfrage oder nach einer Antwort („Übrigens …“). Die Anzeige (LED-Ring oder Einblendung) zeigt es so oder so.",
           "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten."
         }
       }

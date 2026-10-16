@@ -76,11 +76,11 @@ Your own automations can use Mira the same way: the actions **Mira: Assess** (`m
 
 Mira speaks up when something happens: a leak sensor goes off, the washing machine is done, the bins are collected tomorrow, a task finds something unusual. How she tells you depends on the room and the importance.
 
-> 🎬 **Recording to follow:** the indicator light pulses, you ask "Do you have a notification?", Mira reads it out.
+> 🎬 **Recording to follow:** the LED ring pulses, you ask "Do you have a notification?", Mira reads it out.
 
 Per satellite you set:
 
-- **Indicator light**: it pulses teal while something is waiting (e.g. the Echo's LED ring) – no motion sensor needed. Then ask: **"Do you have a notification?"** or "Anything new?".
+- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "Mira · 1 message waiting" instead as soon as something new arrives, and takes it away when everything was heard; Mira finds that out by herself. Then ask: **"Do you have a notification?"** or "Anything new?".
 - **Announce on entry**: when a motion sensor notices someone entering the room, Mira says by herself what is pending; the first motion after quiet hours starts with "Good morning". Without a motion sensor, or switched off, she does not speak up on her own.
 
 Several messages become one announcement, the most important first and with times where they help ("tonight at three …").
@@ -95,9 +95,9 @@ Several messages become one announcement, the most important first and with time
 | 2 | important today | goes out privately after 9 am if nobody has heard it by then |
 | 3 | urgent | at once, even at night: announced on all satellites and privately to everyone |
 
-When Mira speaks up on her own, the room's indicator light glows steadily while she speaks.
+When Mira speaks up on her own, the room's LED ring glows steadily while she speaks.
 
-**Quiet hours**: during quiet hours (e.g. 23:30–6:30) Mira announces nothing – except urgent things and your reminders. Indicator lights still glow; what came in at night you see in the morning.
+**Quiet hours**: during quiet hours (e.g. 23:30–6:30) Mira announces nothing – except urgent things and your reminders. LED rings still glow; what came in at night you see in the morning.
 
 **Quiet mode**: the "Quiet mode" switch in Home Assistant turns off all announcements until you turn it off again.
 
@@ -153,7 +153,7 @@ At the time you chose, Mira speaks the reminder in the room where you asked for 
 ## Messages to others
 
 - "Tell Anna I'll be late." – Anna hears: "Ben asks me to tell you: I'll be late."
-- "Leave a note for the house: the chimney sweep comes at 10." – whoever next comes into a room hears it (or the indicator light glows).
+- "Leave a note for the house: the chimney sweep comes at 10." – whoever next comes into a room hears it (or the indicator shows it).
 - "Remind Ben tomorrow at 7 to take out the trash." – a message that is only delivered then.
 - "Send that to my phone." – it comes over your channels.
 
@@ -206,7 +206,7 @@ Mira knows your persons and satellites by herself; you create nothing: every per
 
 What Mira needs beyond that is easiest to set in Mira's panel under **Satellites** and **People**; the same works in Home Assistant under Settings → Devices & services → Mira → **Configure**, with a collapsible section per person or satellite. It is stored right on the person or satellite and goes away with them.
 
-- **Settings for a satellite**: motion sensors (several too, such as hallway and living room), announce on entry, indicator light. The room is the satellite's area.
+- **Settings for a satellite**: motion sensors (several too, such as hallway and living room), announce on entry, indicator (LED ring). The room is the satellite's area.
 - **Settings for a person**: **channels** (notify targets, e.g. the Telegram chat of HA's Telegram integration and the companion app; personal messages go to the first that works), **take messages from** (everyone, persons only, nobody) and "Alone at home, the satellites are me".
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
 

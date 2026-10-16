@@ -515,6 +515,33 @@ func (c *Client) States(ctx context.Context) ([]State, error) {
 	return callList[State](ctx, c, CmdGetStates)
 }
 
+// Services lists the actions Home Assistant offers: domain -> action ->
+// the names of its fields.
+func (c *Client) Services(ctx context.Context) (map[string]map[string][]string, error) {
+	raw, err := c.Call(ctx, map[string]any{"type": "get_services"})
+	if err != nil {
+		return nil, err
+	}
+	var all map[string]map[string]struct {
+		Fields map[string]json.RawMessage `json:"fields"`
+	}
+	if err := json.Unmarshal(raw, &all); err != nil {
+		return nil, fmt.Errorf("decode get_services: %w", err)
+	}
+	out := make(map[string]map[string][]string, len(all))
+	for domain, services := range all {
+		out[domain] = make(map[string][]string, len(services))
+		for name, svc := range services {
+			fields := make([]string, 0, len(svc.Fields))
+			for f := range svc.Fields {
+				fields = append(fields, f)
+			}
+			out[domain][name] = fields
+		}
+	}
+	return out, nil
+}
+
 func callList[T any](ctx context.Context, c *Client, cmdType string) ([]T, error) {
 	raw, err := c.Call(ctx, map[string]any{"type": cmdType})
 	if err != nil {

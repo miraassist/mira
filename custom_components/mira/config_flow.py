@@ -138,7 +138,7 @@ FIELD_NAMES = {
         "alone_is_me": "Allein zu Hause sind die Satelliten ich",
         "presence": "Bewegungsmelder",
         "morning": "Beim Hereinkommen ansagen",
-        "indicator": "Anzeige-Lampe",
+        "indicator": "Anzeige (z. B. LED-Ring)",
     },
     "en": {
         "channels": "Channels (notify targets, e.g. Telegram chat, companion app)",
@@ -146,7 +146,7 @@ FIELD_NAMES = {
         "alone_is_me": "Alone at home, the satellites are me",
         "presence": "Motion sensors",
         "morning": "Announce on entry",
-        "indicator": "Indicator light",
+        "indicator": "Indicator (e.g. LED ring)",
     },
 }
 

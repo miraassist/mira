@@ -182,3 +182,40 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// Without an indicator light, a satellite whose device offers an overlay
+// shows that messages wait: at once, refreshed with the count, and taken
+// away when everything was heard.
+func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
+	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
+	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.now = at("08:00")
+	overlays := func() []call {
+		var out []call
+		for _, c := range e.ha.calls {
+			if c.Domain == "esphome" {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	e.message("n1", 1, nil)
+	e.n.SyncIndicators(context.Background())
+	e.message("n2", 1, nil)
+	e.n.SyncIndicators(context.Background())
+	e.n.SyncIndicators(context.Background()) // nothing new: no overlay again
+	got := overlays()
+	if len(got) != 2 || got[0].Service != "show_notify" || got[0].Data["tag"] != "mira" || got[0].Data["chime"] != false {
+		t.Fatalf("overlays: %+v", got)
+	}
+	if msg, _ := got[1].Data["message"].(string); !strings.HasPrefix(msg, "2 Nachrichten warten") {
+		t.Errorf("refreshed with the count: %v", got[1].Data["message"])
+	}
+	if _, err := e.n.ReadOut(context.Background(), "kueche", ""); err != nil {
+		t.Fatal(err)
+	}
+	got = overlays()
+	if len(got) != 3 || got[2].Data["seconds"] != 1 || got[2].Data["message"] != "Alles gehört" {
+		t.Errorf("not taken away: %+v", got)
+	}
+}

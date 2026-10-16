@@ -513,7 +513,7 @@ func (a *app) startProactive(parent context.Context) {
 
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-		Composer: engineAssessor{a}.Assess,
+		Composer: engineAssessor{a}.Assess, Screens: a.screens(ctx, cfg),
 	})
 	a.notifier = n
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })

@@ -68,11 +68,11 @@
         "data": {
           "presence": "Motion sensors",
           "morning": "Announce on entry",
-          "indicator": "Indicator light"
+          "indicator": "Indicator (e.g. LED ring)"
         },
         "data_description": {
           "presence": "Motion at any of them starts an announcement, e.g. hallway and living room.",
-          "morning": "When one of the motion sensors notices someone coming in, Mira says what is waiting. Off: she only tells when asked or after an answer (\"By the way …\"). The indicator light glows either way.",
+          "morning": "When one of the motion sensors notices someone coming in, Mira says what is waiting. Off: she only tells when asked or after an answer (\"By the way …\"). The indicator (LED ring or overlay) shows it either way.",
           "indicator": "Shows waiting messages, e.g. the LED ring of the satellite."
         }
       }

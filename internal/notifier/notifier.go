@@ -47,6 +47,9 @@ type Options struct {
 	Telemetry *telemetry.Provider
 	// Composer words several messages as one announcement (compose.go).
 	Composer Composer
+	// Screens are on-screen overlay actions per area, for satellites
+	// without an indicator light (screen.go); found by the app.
+	Screens map[string]string
 }
 
 type Notifier struct {
@@ -63,6 +66,10 @@ type Notifier struct {
 	log         *slog.Logger
 	tel         *telemetry.Provider
 	composer    Composer
+	screens     map[string]string
+	// screenCount is what each screen overlay last showed; screenShown when.
+	screenCount map[string]int
+	screenShown map[string]time.Time
 	areas       map[string]bool
 
 	// idlePoll is how often waitFor looks at a satellite.
@@ -111,6 +118,9 @@ func New(opts Options) *Notifier {
 		log:           opts.Logger.With("component", "notifier"),
 		tel:           opts.Telemetry,
 		composer:      opts.Composer,
+		screens:       opts.Screens,
+		screenCount:   map[string]int{},
+		screenShown:   map[string]time.Time{},
 		areas:         map[string]bool{},
 		indicatorOn:   map[string]bool{},
 		deviceOf:      map[string]string{},
@@ -410,6 +420,8 @@ type texts struct {
 	composeTask, composeMorning, importance               string
 	whenToday, whenNight, whenYesterday, whenDate         string // %s clock (date first for whenDate)
 	prefixToday, prefixNight, prefixYesterday, prefixDate string
+	// The screen overlay (screen.go): one, several (%d), all heard.
+	screenOne, screenMany, screenHeard string
 }
 
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
@@ -430,7 +442,10 @@ Regeln:
 		composeMorning: "\nBeginne mit „Guten Morgen“.",
 		importance:     "Wichtigkeit",
 		whenToday:      "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
-		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: "},
+		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: ",
+		screenOne:   "1 Nachricht wartet – frag: „Hast du eine Benachrichtigung?“",
+		screenMany:  "%d Nachrichten warten – frag: „Hast du eine Benachrichtigung?“",
+		screenHeard: "Alles gehört"},
 	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
 		counts: []string{"zero", "one", "two", "three", "four", "five"},
 		composeTask: `Word these waiting messages as ONE spoken announcement for the room. It is %s now.
@@ -446,7 +461,10 @@ Rules:
 		composeMorning: "\nStart with \"Good morning\".",
 		importance:     "importance",
 		whenToday:      "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
-		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: "},
+		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: ",
+		screenOne:   "1 message waiting – ask: \"Do you have a notification?\"",
+		screenMany:  "%d messages waiting – ask: \"Do you have a notification?\"",
+		screenHeard: "All heard"},
 }
 
 func sentence(s string) string {

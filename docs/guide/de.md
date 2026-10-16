@@ -76,11 +76,11 @@ Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten**
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.
 
-> 🎬 **Aufnahme folgt:** Die Anzeige-Lampe pulsiert, du fragst „Hast du eine Benachrichtigung?“, Mira liest vor.
+> 🎬 **Aufnahme folgt:** Der LED-Ring pulsiert, du fragst „Hast du eine Benachrichtigung?“, Mira liest vor.
 
 Pro Satellit stellst du ein:
 
-- **Anzeige-Lampe**: Sie pulsiert in Türkis, solange etwas wartet (z. B. der LED-Ring des Echo) – ganz ohne Bewegungsmelder. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
+- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen „Mira · 1 Nachricht wartet“ ein, sobald etwas Neues kommt, und nimmt es weg, wenn alles gehört ist; das erkennt Mira von selbst. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
 - **Beim Hereinkommen ansagen**: Merkt ein Bewegungsmelder, dass jemand den Raum betritt, sagt Mira von selbst an, was ansteht; die erste Bewegung nach der Ruhezeit beginnt mit „Guten Morgen“. Ohne Bewegungsmelder oder ausgeschaltet spricht sie dich nicht von sich aus an.
 
 Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).
@@ -95,9 +95,9 @@ Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst u
 | 2 | heute wichtig | geht morgens nach 9 Uhr privat raus, wenn bis dahin niemand sie gehört hat |
 | 3 | dringend | sofort, auch nachts: angesagt auf allen Satelliten und privat an alle |
 
-Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, solange sie spricht.
+Wenn Mira von sich aus spricht, leuchtet der LED-Ring des Raums ruhig, solange sie spricht.
 
-**Ruhezeit**: In der Ruhezeit (z. B. 23:30–6:30) sagt Mira nichts an – außer Dringendem und deinen Erinnerungen. Anzeige-Lampen leuchten trotzdem; was nachts kommt, siehst du morgens.
+**Ruhezeit**: In der Ruhezeit (z. B. 23:30–6:30) sagt Mira nichts an – außer Dringendem und deinen Erinnerungen. LED-Ringe leuchten trotzdem; was nachts kommt, siehst du morgens.
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.
 
@@ -153,7 +153,7 @@ Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie geste
 ## Nachrichten an andere
 
 - „Sag Anna, dass es später wird.“ – Anna hört: „Ben lässt dir ausrichten: Es wird später.“
-- „Hinterlass fürs Haus: Der Schornsteinfeger kommt um 10.“ – wer als Nächstes in einen Raum kommt, hört es (oder die Anzeige-Lampe leuchtet).
+- „Hinterlass fürs Haus: Der Schornsteinfeger kommt um 10.“ – wer als Nächstes in einen Raum kommt, hört es (oder die Anzeige zeigt es).
 - „Erinnere Ben morgen um 7 an den Müll.“ – eine Nachricht, die erst dann zugestellt wird.
 - „Schick mir das aufs Handy.“ – kommt über deine Kanäle.
 
@@ -206,7 +206,7 @@ Mira kennt deine Personen und Satelliten von selbst, anlegen musst du nichts: Je
 
 Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter **Satelliten** und **Personen** ein; dasselbe geht in Home Assistant unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren**, mit einem aufklappbaren Abschnitt pro Person oder Satellit. Gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
 
-- **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), beim Hereinkommen ansagen, Anzeige-Lampe. Der Raum ist der Bereich des Satelliten.
+- **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), beim Hereinkommen ansagen, Anzeige (LED-Ring). Der Raum ist der Bereich des Satelliten.
 - **Einstellungen für eine Person**: **Kanäle** (notify-Ziele, z. B. der Telegram-Chat aus HAs Telegram-Integration und die Companion-App; persönliche Nachrichten gehen an den ersten, der klappt), **Nachrichten annehmen von** (allen, nur Personen, niemandem) und „Allein zu Hause sind die Satelliten ich“.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
 

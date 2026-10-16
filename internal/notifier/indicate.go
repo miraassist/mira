@@ -61,6 +61,7 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 		n.indicatorOn[area] = want
 		n.log.Info("indicator switched", "area", area, "light", light, "on", want, "waiting", len(list))
 	}
+	n.syncScreens(ctx)
 }
 
 func (n *Notifier) setIndicator(ctx context.Context, light string, on bool) error {
