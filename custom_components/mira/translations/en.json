@@ -109,7 +109,7 @@
         },
         "data": {
           "name": "Data",
-          "description": "List of {entity_id, view}; view state, same_hour (last hour against the same hour on 14 days) or day (today so far against the same weekdays)."
+          "description": "List of entries with entity_id and view; view state, same_hour (last hour against the same hour on 14 days) or day (today so far against the same weekdays)."
         },
         "memory": {
           "name": "Memory",
@@ -159,7 +159,7 @@
         },
         "data": {
           "name": "Data",
-          "description": "List of {entity_id, view}, as for Assess."
+          "description": "List of entries with entity_id and view, as for Assess."
         },
         "memory": {
           "name": "Memory",

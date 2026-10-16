@@ -135,10 +135,12 @@ go test -race ./...                                   # agent
 uv venv --python 3.14 && uv pip install -r requirements_test.txt
 .venv/bin/python -m pytest                            # integration
 go run ./cmd/testha up                                # test Home Assistant in Docker
+scripts/check.sh                                      # all CI checks incl. hassfest, before a push
 ```
 
 `testenv/` holds a throwaway Home Assistant for tests against a real HA; see
 [testenv/README.md](testenv/README.md).
 
-Releases: bump `version` in `custom_components/mira/manifest.json`, then tag
-`vX.Y.Z`. The release workflow refuses a tag that does not match.
+Releases: agent and integration share one version. Bump it in
+`cmd/mira/main.go`, `custom_components/mira/const.py` and
+`custom_components/mira/manifest.json`, then tag `vX.Y.Z`. The release workflow refuses a tag that does not match.

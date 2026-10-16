@@ -109,7 +109,7 @@
         },
         "data": {
           "name": "Daten",
-          "description": "Liste von {entity_id, view}; view state, same_hour (letzte Stunde gegen dieselbe Stunde an 14 Tagen) oder day (heute bis jetzt gegen dieselben Wochentage)."
+          "description": "Liste von Einträgen mit entity_id und view; view state, same_hour (letzte Stunde gegen dieselbe Stunde an 14 Tagen) oder day (heute bis jetzt gegen dieselben Wochentage)."
         },
         "memory": {
           "name": "Gedächtnis",
@@ -159,7 +159,7 @@
         },
         "data": {
           "name": "Daten",
-          "description": "Liste von {entity_id, view}, wie bei Bewerten."
+          "description": "Liste von Einträgen mit entity_id und view, wie bei Bewerten."
         },
         "memory": {
           "name": "Gedächtnis",
