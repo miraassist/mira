@@ -26,9 +26,9 @@ func (e *Engine) Assess(ctx context.Context, instruction string, schema json.Raw
 		return "", err
 	}
 	turn := prompt.Turn{
-		Lang:           e.lang(),
+		Lang:           e.lang(ctx),
 		Now:            e.clock().In(e.loc),
-		ChannelContext: e.channelContext(Request{Channel: config.ChannelBackground}, store.Session{}, e.structure()),
+		ChannelContext: e.channelContext(ctx, Request{Channel: config.ChannelBackground}, store.Session{}, e.structure()),
 		Text:           instruction,
 	}
 	built := prompt.Build(prefix, nil, turn)

@@ -28,13 +28,13 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 		return prompt.Prefix{}, err
 	}
 	return prompt.Prefix{
-		Lang:      e.lang(),
-		Agent:     prompt.AgentLayer(e.lang(), e.currentPersona()),
-		Style:     prompt.StyleFor(e.lang(), ch),
+		Lang:      e.lang(ctx),
+		Agent:     prompt.AgentLayer(e.lang(ctx), e.currentPersona()),
+		Style:     prompt.StyleFor(e.lang(ctx), ch),
 		Tools:     toolList,
 		Structure: e.structureText(),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
-		Examples:  prompt.Examples(e.lang(), toolList),
+		Examples:  prompt.Examples(e.lang(ctx), toolList),
 	}, nil
 }
 
@@ -68,8 +68,8 @@ func clipProfile(p string, max int) string {
 
 // channelContext is the layer 7 line that tells the model where the request
 // came from and how to read room references.
-func (e *Engine) channelContext(req Request, sess store.Session, snap structure.Snapshot) string {
-	t := e.texts()
+func (e *Engine) channelContext(ctx context.Context, req Request, sess store.Session, snap structure.Snapshot) string {
+	t := e.texts(ctx)
 	switch req.Channel {
 	case config.ChannelVoice:
 		if sess.AreaID != "" {

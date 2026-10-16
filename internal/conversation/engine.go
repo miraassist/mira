@@ -25,6 +25,7 @@ import (
 
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/ha/structure"
+	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/llm"
 	"github.com/sker65/mira/internal/prompt"
 	"github.com/sker65/mira/internal/store"
@@ -79,6 +80,15 @@ type Response struct {
 	CompletionTokens int
 }
 
+// Languages is package language as the engine needs it.
+type Languages interface {
+	// Turn is the language of a turn, remembered when Home Assistant sent
+	// one.
+	Turn(ctx context.Context, sent, area, person string) i18n.Lang
+	// Last is the language last spoken, for what has no turn.
+	Last(ctx context.Context) i18n.Lang
+}
+
 type Options struct {
 	Config config.Config
 	// LLM is the main model. Models holds the further ones by name, as in
@@ -100,6 +110,9 @@ type Options struct {
 	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
 	// Identify says who is speaking: a person key, or "" for anonymous.
 	Identify func(ctx context.Context, req Request, sess store.Session) string
+	// Languages says which language applies (docs/spec/sprache.md); without
+	// it prompt.language does.
+	Languages Languages
 	// Persona returns the persona as it is now, which the web UI can
 	// change; without it the config's applies.
 	Persona   func() string
@@ -122,6 +135,7 @@ type Engine struct {
 	thread    func(ctx context.Context, sess store.Session, followedUp []string) string
 	identify  func(ctx context.Context, req Request, sess store.Session) string
 	persona   func() string
+	languages Languages
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -163,6 +177,7 @@ func New(opts Options) *Engine {
 		thread:    opts.Thread,
 		identify:  opts.Identify,
 		persona:   opts.Persona,
+		languages: opts.Languages,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,
@@ -248,12 +263,15 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	if e.identify != nil {
 		person = e.identify(ctx, req, sess)
 	}
+	if e.languages != nil {
+		ctx = i18n.WithLang(ctx, e.languages.Turn(ctx, req.Language, sess.AreaID, person))
+	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID}
 	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
-		Lang:           e.lang(),
+		Lang:           e.lang(ctx),
 		Now:            now.In(e.loc),
-		ChannelContext: e.channelContext(req, sess, snap),
+		ChannelContext: e.channelContext(ctx, req, sess, snap),
 		Person:         person,
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),
@@ -314,7 +332,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 				// message reaches the history.
 				nudged = true
 				e.log.Warn("answer without tool call, asking again", "session", key)
-				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: e.texts().unbackedNudge})
+				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: e.texts(ctx).unbackedNudge})
 				continue
 			}
 			if !forced {
@@ -326,10 +344,10 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 			}
 			if reportsState(msg.Content) {
 				e.log.Warn("answer still reports states without tool call", "session", key)
-				msg.Content = e.texts().notLookedUp
+				msg.Content = e.texts(ctx).notLookedUp
 			} else if claimsAction(msg.Content) {
 				e.log.Warn("answer still claims an action without tool call", "session", key)
-				msg.Content = e.texts().notDone
+				msg.Content = e.texts(ctx).notDone
 			}
 		}
 		if len(msg.ToolCalls) == 0 || round >= maxRounds {
@@ -351,7 +369,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	}
 
 	if strings.TrimSpace(final.Content) == "" {
-		final.Content = e.texts().fallback
+		final.Content = e.texts(ctx).fallback
 	}
 	// Messages waiting for this room follow the answer ("Licht ist an.
 	// Übrigens: ..."): whoever talks to the satellite is listening anyway.
@@ -447,7 +465,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	spec, ok := e.tools.Lookup(name)
 	if !ok {
 		record("unknown")
-		return e.texts().errorPrefix + fmt.Sprintf(e.texts().unknownTool, name)
+		return e.texts(ctx).errorPrefix + fmt.Sprintf(e.texts(ctx).unknownTool, name)
 	}
 	args := json.RawMessage(strings.TrimSpace(call.Function.Arguments))
 	if len(args) == 0 {
@@ -455,7 +473,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	}
 	if !json.Valid(args) {
 		record("bad_arguments")
-		return e.texts().errorPrefix + e.texts().invalidJSONArgs
+		return e.texts(ctx).errorPrefix + e.texts(ctx).invalidJSONArgs
 	}
 
 	verdict := e.guard.Check(ctx, ts, spec, args)
@@ -476,10 +494,10 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	case err != nil:
 		record("error")
 		span.SetStatus(codes.Error, err.Error())
-		return e.texts().errorPrefix + err.Error()
+		return e.texts(ctx).errorPrefix + err.Error()
 	case isError:
 		record("tool_error")
-		if prefix := e.texts().errorPrefix; !strings.HasPrefix(text, strings.TrimSpace(prefix)) {
+		if prefix := e.texts(ctx).errorPrefix; !strings.HasPrefix(text, strings.TrimSpace(prefix)) {
 			text = prefix + text
 		}
 		return text

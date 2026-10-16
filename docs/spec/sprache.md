@@ -1,6 +1,6 @@
 # Sprache – Spezifikation
 
-Stand 2026-10-16, beschlossen, nicht gebaut. Gilt für alle Kanäle. Siehe auch [Kontext](kontext.md) und [Nachrichten](nachrichten.md).
+Stand 2026-10-16, gebaut in 0.6.14. Gilt für alle Kanäle. Siehe auch [Kontext](kontext.md) und [Nachrichten](nachrichten.md).
 
 ## Grundsatz
 
@@ -36,6 +36,12 @@ Jeder Turn mit einer Sprache von HA aktualisiert die drei Einträge, soweit Sate
 - `prompt.language` gilt nur noch **ohne HA**. Mit HA wird es nicht gebraucht und nicht mehr gelesen.
 - Der Prompt hat je Sprache seinen eigenen festen Anfang. Bei einem lokalen Modell bricht ein Wechsel zwischen Sprachen den Cache; bei einer Sprache im Haus ändert sich nichts.
 - Gespeichertes bleibt in der Sprache, in der es entstand: Fakten, Nachrichtentexte. Eine Ansage formuliert das Modell ohnehin neu, in der Sprache der Ansage.
+
+## Was nur das Modell liest
+
+Nicht alles folgt der Sprache des Gesprächs. Was nur das Modell liest, wird beim Start einmal gebaut, in der dann zuletzt gesprochenen Sprache (sonst der Server-Sprache): die Beschreibungen von Miras Werkzeugen, die Texte, die sie dem Modell zurückgeben, der Wächter für Rückfragen, Miras eigener Strukturblock, die Abschlüsse von Vorgängen. Was der Mensch hört oder liest, folgt dagegen dem Gespräch, dem Raum oder der Person: der Prompt (Regeln, Kanalstil, Beispiele, Hinweise im Turn), feste Sätze, Ansagen, Erinnerungen, der Text auf dem Bildschirm.
+
+**Offen für gemischtsprachige Haushalte:** Für das Modell ist eine deutsche Werkzeugbeschreibung in einem englischen Gespräch normalerweise kein Problem. Es kann aber sein, dass es in einem Haushalt, in dem zwei Sprachen gesprochen werden, doch stört, etwa wenn ein kleines lokales Modell dann Wörter aus Werkzeug-Ergebnissen in die Antwort mischt. Dann wären auch Werkzeuge, Wächter und Strukturblock je Sprache bereitzuhalten.
 
 ## Bewusst nicht
 

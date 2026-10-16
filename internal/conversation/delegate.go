@@ -33,7 +33,7 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 		return "", errors.New("no delegate model configured")
 	}
 	ctx = context.WithValue(ctx, delegatingKey{}, true)
-	return e.toolLoop(ctx, name, e.texts().delegated, task, "delegate")
+	return e.toolLoop(ctx, name, e.texts(ctx).delegated, task, "delegate")
 }
 
 // RunTask runs a scheduled job of a skill: a background turn on the
@@ -41,7 +41,7 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 // object, which it returns.
 func (e *Engine) RunTask(ctx context.Context, instruction string) (string, error) {
 	ctx = context.WithValue(ctx, delegatingKey{}, true) // no delegate from a job
-	text, err := e.toolLoop(ctx, e.cfg.RouteFor(config.ChannelBackground), e.texts().background, instruction, "task")
+	text, err := e.toolLoop(ctx, e.cfg.RouteFor(config.ChannelBackground), e.texts(ctx).background, instruction, "task")
 	if err != nil {
 		return "", err
 	}
@@ -58,7 +58,7 @@ func (e *Engine) toolLoop(ctx context.Context, modelName, channelContext, text, 
 		return "", err
 	}
 	turn := prompt.Turn{
-		Lang:           e.lang(),
+		Lang:           e.lang(ctx),
 		Now:            e.clock().In(e.loc),
 		ChannelContext: channelContext,
 		Text:           text,

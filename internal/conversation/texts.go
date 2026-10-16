@@ -1,6 +1,10 @@
 package conversation
 
-import "github.com/sker65/mira/internal/i18n"
+import (
+	"context"
+
+	"github.com/sker65/mira/internal/i18n"
+)
 
 // texts are what the engine itself writes: into layer 7, back to the model,
 // or to the user when the model fails. What the engine only reads (the
@@ -52,6 +56,16 @@ var catalog = map[i18n.Lang]texts{
 	},
 }
 
-func (e *Engine) texts() texts { return i18n.Pick(catalog, i18n.Of(e.cfg.Prompt.Language)) }
+func (e *Engine) texts(ctx context.Context) texts { return i18n.Pick(catalog, e.lang(ctx)) }
 
-func (e *Engine) lang() i18n.Lang { return i18n.Of(e.cfg.Prompt.Language) }
+// lang is the language of what is being said now: the turn's, carried in
+// ctx, otherwise the one last spoken (docs/spec/sprache.md).
+func (e *Engine) lang(ctx context.Context) i18n.Lang {
+	if l, ok := i18n.FromContext(ctx); ok {
+		return l
+	}
+	if e.languages != nil {
+		return e.languages.Last(ctx)
+	}
+	return i18n.Of(e.cfg.Prompt.Language)
+}

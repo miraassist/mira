@@ -83,6 +83,9 @@ func houseSnapshot() structure.Snapshot {
 	})
 }
 
+// harnessLanguages, when set, is the harness engine's Languages.
+var harnessLanguages conversation.Languages
+
 func newHarness(t *testing.T, script ...fakellm.Step) *harness {
 	t.Helper()
 	return newHarnessWith(t, nil, script...)
@@ -136,6 +139,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 		Logger:    slog.New(slog.NewTextHandler(h.logs, nil)),
 		Clock:     h.clock.Now,
 		Location:  time.UTC,
+		Languages: harnessLanguages,
 		// Telegram chat 42 is Anna; everyone else is unknown.
 		Identify: func(_ context.Context, req conversation.Request, _ store.Session) string {
 			if req.Channel == config.ChannelTelegram && req.ConversationID == "42" {
@@ -645,5 +649,49 @@ func TestWithoutSlotPinningOneWarmupCoversAllChannels(t *testing.T) {
 	h.engine.WarmupAll(context.Background(), "test")
 	if n := len(h.llm.Requests()); n != 1 {
 		t.Fatalf("warmups = %d, want 1", n)
+	}
+}
+
+// fixedLanguages remembers what turns sent and otherwise answers last.
+type fixedLanguages struct {
+	last i18n.Lang
+	sent []string
+}
+
+func (f *fixedLanguages) Turn(_ context.Context, sent, _, _ string) i18n.Lang {
+	f.sent = append(f.sent, sent)
+	if sent != "" {
+		return i18n.Of(sent)
+	}
+	return f.last
+}
+
+func (f *fixedLanguages) Last(context.Context) i18n.Lang { return f.last }
+
+// A turn speaks the language Home Assistant sent, whatever was spoken last;
+// without one it takes what the languages say.
+func TestTurnFollowsTheSentLanguage(t *testing.T) {
+	langs := &fixedLanguages{last: i18n.DE}
+	harnessLanguages = langs
+	t.Cleanup(func() { harnessLanguages = nil })
+	h := newHarness(t, fakellm.Step{Content: "Done."}, fakellm.Step{Content: "Gut."})
+	if _, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "a", Text: "Hello", Language: "en-US"}); err != nil {
+		t.Fatal(err)
+	}
+	system := h.llm.Last().Request.Messages[0].Content
+	if !strings.HasPrefix(system, "You are Mira") {
+		t.Errorf("English turn, system message starts: %.40s", system)
+	}
+	if _, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelTelegram, ConversationID: "7", Text: "Hallo"}); err != nil {
+		t.Fatal(err)
+	}
+	system = h.llm.Last().Request.Messages[0].Content
+	if !strings.HasPrefix(system, "Du bist Mira") {
+		t.Errorf("turn without language, system message starts: %.40s", system)
+	}
+	if len(langs.sent) != 2 || langs.sent[0] != "en-US" || langs.sent[1] != "" {
+		t.Errorf("languages asked with %q", langs.sent)
 	}
 }

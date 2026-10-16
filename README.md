@@ -117,9 +117,12 @@ as background jobs and may queue one message. `mira skill NAME` runs a
 schedule now. The first skill, `abfall`, reads a waste collection calendar
 and reminds the evening before.
 
-Languages: `prompt.language` is `de` or `en`. It sets the language of the
-prompt, of the messages and of everything Mira writes on her own; she still
-answers in the language she is spoken to in. The English prompt is written
+Languages (`de`, `en`; docs/spec/sprache.md): in a conversation Mira takes
+the language Home Assistant sends with it, the Assist pipeline's. What she
+says on her own takes the language last spoken at that satellite or by that
+person, otherwise the last at all, and before anyone spoke, Home Assistant's
+server language. There is no setting for it; `prompt.language` applies only
+without Home Assistant. The English prompt is written
 but not yet tuned against a model (see `internal/prompt/testdata/prefix_voice_en.txt`).
 
 Security: locks, alarm panels and other configured entities only run after

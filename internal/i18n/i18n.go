@@ -6,12 +6,15 @@
 // prompt and its wording stay in one place. Every package has a test that
 // fails when a language lacks a text.
 //
-// The language is prompt.language in the config. It is the language of
-// everything the model reads and of everything Mira says or writes on her
-// own; the web UI picks its language from the browser.
+// Which language applies when is docs/spec/sprache.md: in a conversation
+// the one Home Assistant sends, otherwise the one last spoken (package
+// language). It travels in the context; what reads only the model (tool
+// descriptions, the structure block) is built once in the language at the
+// start. The web UI picks its language from the browser.
 package i18n
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -118,4 +121,17 @@ func FormatDate(l Lang, t time.Time) string {
 		return fmt.Sprintf("%s, %d %s %d", wd, t.Day(), mo, t.Year())
 	}
 	return fmt.Sprintf("%s, %d. %s %d", wd, t.Day(), mo, t.Year())
+}
+
+type ctxKey struct{}
+
+// WithLang returns ctx carrying the language of what is being said now.
+func WithLang(ctx context.Context, l Lang) context.Context {
+	return context.WithValue(ctx, ctxKey{}, l)
+}
+
+// FromContext returns the language ctx carries, if any.
+func FromContext(ctx context.Context) (Lang, bool) {
+	l, ok := ctx.Value(ctxKey{}).(Lang)
+	return l, ok
 }

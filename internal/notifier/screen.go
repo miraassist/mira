@@ -33,7 +33,7 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 		if count == n.screenCount[area] {
 			continue
 		}
-		t := textsFor(n.lang)
+		t := textsFor(n.langOf(n.inArea(ctx, area)))
 		now := n.clock()
 		switch {
 		case count > 0:

@@ -50,12 +50,23 @@ type Options struct {
 	// Screens are on-screen overlay actions per area, for satellites
 	// without an indicator light (screen.go); found by the app.
 	Screens map[string]string
+	// Languages says which language an area or a person gets
+	// (docs/spec/sprache.md); without it prompt.language applies.
+	Languages Languages
+}
+
+// Languages is package language as the notifier needs it.
+type Languages interface {
+	ForArea(ctx context.Context, area string) i18n.Lang
+	ForPerson(ctx context.Context, person string) i18n.Lang
+	Last(ctx context.Context) i18n.Lang
 }
 
 type Notifier struct {
 	// indicatorOn is the last state set per area; missing means unknown.
 	indicatorOn map[string]bool
 	lang        i18n.Lang
+	langs       Languages
 	cfg         config.Notifier
 	sats        map[string]string
 	persons     map[string]config.Person
@@ -108,6 +119,7 @@ func New(opts Options) *Notifier {
 		speakingStart: 15 * time.Second,
 		speakPause:    1500 * time.Millisecond,
 		lang:          i18n.Of(opts.Config.Prompt.Language),
+		langs:         opts.Languages,
 		cfg:           opts.Config.Notifier,
 		sats:          opts.Config.Satellites,
 		persons:       opts.Config.Persons,
@@ -485,6 +497,7 @@ func countWord(t texts, n int) string {
 // preannounce plays the satellite's chime first; an answer someone waits
 // for in that room does without it.
 func (n *Notifier) announce(ctx context.Context, area string, messages []store.Message, preannounce bool) error {
+	ctx = n.inArea(ctx, area)
 	sat := n.sats[area]
 	text := n.compose(ctx, messages)
 	n.speaking(ctx, area)
@@ -662,4 +675,39 @@ func dedupe(in []string) []string {
 		}
 	}
 	return out
+}
+
+// langOf is the language of what is being said now: the one ctx carries,
+// otherwise the one last spoken.
+func (n *Notifier) langOf(ctx context.Context) i18n.Lang {
+	if l, ok := i18n.FromContext(ctx); ok {
+		return l
+	}
+	if n.langs != nil {
+		return n.langs.Last(ctx)
+	}
+	return n.lang
+}
+
+// inArea carries the language last spoken in an area, for what is said
+// there.
+func (n *Notifier) inArea(ctx context.Context, area string) context.Context {
+	if n.langs == nil {
+		return ctx
+	}
+	return i18n.WithLang(ctx, n.langs.ForArea(ctx, area))
+}
+
+// forMessage carries the language for a message asked for: its area's,
+// otherwise its receiver's.
+func (n *Notifier) forMessage(ctx context.Context, m store.Message) context.Context {
+	switch {
+	case n.langs == nil:
+		return ctx
+	case m.AreaID != "":
+		return n.inArea(ctx, m.AreaID)
+	case m.Receiver != "" && m.Receiver != store.ReceiverHouse:
+		return i18n.WithLang(ctx, n.langs.ForPerson(ctx, m.Receiver))
+	}
+	return ctx
 }

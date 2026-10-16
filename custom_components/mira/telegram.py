@@ -74,7 +74,9 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
                 text=text,
                 conversation_id=str(chat),
                 device_id=None,
-                language=hass.config.language,
+                # Telegram has no Assist pipeline: the agent takes the
+                # language the person last spoke (docs/spec/sprache.md).
+                language="",
                 agent_id="",
                 extra_system_prompt=None,
                 timeout=TIMEOUT,

@@ -225,7 +225,7 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 	if max := n.cfg.MaxItemsPerAnnouncement; max > 0 && len(list) > max {
 		list = list[:max] // the rest waits for the next occasion
 	}
-	t := textsFor(n.lang)
+	t := textsFor(n.langOf(ctx))
 	var b strings.Builder
 	ids := make([]string, len(list))
 	for i, nt := range list {
@@ -235,7 +235,7 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 		} else {
 			b.WriteString(t.also)
 		}
-		b.WriteString(n.timed(nt, n.clock().In(n.loc)))
+		b.WriteString(n.timed(ctx, nt, n.clock().In(n.loc)))
 		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
 			n.log.Error("could not mark message delivered", "message", nt.ID, "error", err)
 			return ""

@@ -20,8 +20,9 @@ func (n *Notifier) Remind(ctx context.Context, m store.Message) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
+	ctx = n.forMessage(ctx, m)
 	if m.Source == store.SourceReminder {
-		m.Spoken = fmt.Sprintf(textsFor(n.lang).reminder, strings.TrimRight(strings.TrimSpace(m.Spoken), "."))
+		m.Spoken = fmt.Sprintf(textsFor(n.langOf(ctx)).reminder, strings.TrimRight(strings.TrimSpace(m.Spoken), "."))
 	}
 	if err := n.store.ReleaseScheduled(ctx, m.ID, m.Spoken); err != nil {
 		return err

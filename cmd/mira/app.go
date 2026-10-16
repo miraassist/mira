@@ -21,6 +21,7 @@ import (
 	haws "github.com/sker65/mira/internal/ha/ws"
 	"github.com/sker65/mira/internal/i18n"
 	"github.com/sker65/mira/internal/ical"
+	"github.com/sker65/mira/internal/language"
 	"github.com/sker65/mira/internal/llm"
 	"github.com/sker65/mira/internal/mcp"
 	"github.com/sker65/mira/internal/notifier"
@@ -41,6 +42,10 @@ type app struct {
 	tel   *telemetry.Provider
 	store *store.Store
 	llm   *llm.Client
+	// langs says which language applies when; lang is the one at the start,
+	// for what only the model reads.
+	langs *language.Resolver
+	lang  i18n.Lang
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
@@ -99,6 +104,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if err != nil {
 		return nil, err
 	}
+	// What only the model reads (tool descriptions, the structure block) is
+	// built once, in the language last spoken; what is said follows each
+	// turn, area or person (docs/spec/sprache.md).
+	a.langs = newLanguages(cfg, a.store, a.log)
+	a.lang = a.langs.Last(ctx)
 
 	a.llm = llm.New(llm.Options{
 		BaseURL: cfg.LLM.BaseURL, APIKey: cfg.LLM.APIKey, Model: cfg.LLM.Model,
@@ -166,9 +176,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if cfg.Routing.Delegate != "" {
 		delegate = func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
 	}
-	internal := tools.Internal(i18n.Of(cfg.Prompt.Language), a.store, delegate)
+	internal := tools.Internal(a.lang, a.store, delegate)
 	internal = append(internal, tools.Reminders(tools.ReminderOptions{
-		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store,
+		Lang: a.lang, Store: a.store,
 		Persons: a.persons,
 		AreaName: func(id string) string {
 			if a.structure != nil {
@@ -203,17 +213,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
-	a.skills = &skills.Set{Lang: i18n.Of(cfg.Prompt.Language), Skills: loaded, Calendar: &ical.Cache{}}
+	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, Calendar: &ical.Cache{}}
 	internal = append(internal, a.skills.Tools()...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
 	}
-	internal = append(internal, tools.MessagesRead(i18n.Of(cfg.Prompt.Language), a.readMessages))
+	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
 	if a.ha != nil {
 		// Drafting and judging run on the engine, which is built from this
 		// registry: bound late through isolatedModel.
 		a.tasks = tasks.New(tasks.Options{
-			Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
+			Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
 			Model:      isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
 			Planner:    isolatedModel{a, cfg.Routing.Tasks},
 			QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
@@ -223,13 +233,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		internal = append(internal, a.tasks.Tools()...)
 	}
 	checks := map[string]threads.Check{}
-	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.Of(cfg.Prompt.Language))}
+	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang)}
 	if a.tasks != nil {
 		checks["entities"] = a.tasks.CheckEntities
 		finishers["tasks.automation"] = a.tasks.Finisher()
 	}
 	a.threads = threads.New(threads.Options{
-		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
+		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
 		Persons: a.persons, Logger: a.log,
 		Deliver: func(ctx context.Context, n store.Message, area string) error {
 			a.proactiveMu.Lock()
@@ -256,10 +266,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
-		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
+		Guard:     tools.NewGuard(a.lang, cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify,
-		Persona: func() string { return a.liveConfig().Prompt.Persona },
+		Persona:   func() string { return a.liveConfig().Prompt.Persona },
+		Languages: a.langs,
 		Afterword: func(ctx context.Context, area string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier
@@ -290,7 +301,7 @@ func (a *app) startHA(ctx context.Context) error {
 		return err
 	}
 	a.structure = structure.NewCache(structure.Options{
-		Lang:   i18n.Of(a.cfg.Prompt.Language),
+		Lang:   a.lang,
 		Source: a.ha, Subscriber: a.ha,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
@@ -514,7 +525,7 @@ func (a *app) startProactive(parent context.Context) {
 
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-		Composer: engineAssessor{a}.Assess, Screens: a.screens(ctx, cfg),
+		Composer: engineAssessor{a}.Assess, Screens: a.screens(ctx, cfg), Languages: a.langs,
 	})
 	a.notifier = n
 	// A new message shows on the room's indicator at once, not at the
@@ -582,7 +593,7 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 	if n == nil && a.ha != nil {
 		// Not running (the chat command): reading out needs no loop.
 		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-			Composer: engineAssessor{a}.Assess})
+			Composer: engineAssessor{a}.Assess, Languages: a.langs})
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()
@@ -877,7 +888,7 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 
 func (a *app) profileCompactor() *profile.Compactor {
 	return profile.New(profile.Options{
-		Lang:  i18n.Of(a.cfg.Prompt.Language),
+		Lang:  a.lang,
 		Store: a.store, Assessor: a.engine, Schedule: a.cfg.Memory.ProfileSchedule,
 		MaxChars: a.cfg.Memory.MaxProfileChars, Logger: a.log,
 		OnChange: func() { a.warmup("profile_changed") },
@@ -957,7 +968,7 @@ func runChat(parent context.Context, cfg config.Config, ch config.Channel, sessi
 	defer cancel()
 
 	resp, err := a.engine.Handle(ctx, conversation.Request{
-		Channel: ch, ConversationID: session, DeviceID: device, Text: text, Language: cfg.Prompt.Language,
+		Channel: ch, ConversationID: session, DeviceID: device, Text: text,
 	})
 	if err != nil {
 		return err

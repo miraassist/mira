@@ -155,9 +155,8 @@ type Prompt struct {
 	// Persona is appended to the built-in layer 1 text. It is part of the
 	// cached prefix, so it must not contain anything volatile.
 	Persona string `yaml:"persona"`
-	// Language is "de" or "en": the language of the prompt, of the messages
-	// and of everything Mira writes on her own. She still answers in the
-	// language she is spoken to in.
+	// Language is "de" or "en", and applies only without Home Assistant.
+	// With it Mira follows the language spoken (docs/spec/sprache.md).
 	Language string `yaml:"language"`
 }
 

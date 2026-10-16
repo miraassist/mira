@@ -58,7 +58,7 @@ store:
   path: "/var/lib/mira/mira.db"
 
 prompt:
-  language: de   # de or en: prompts, messages and replies; Mira still answers in the language spoken to her
+  language: de   # de or en, only without Home Assistant; with it Mira follows the language spoken (docs/spec/sprache.md)
   # Static text appended to the system prompt. Part of the cached prefix,
   # so nothing in here may change between requests.
   persona: ""

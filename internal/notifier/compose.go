@@ -39,14 +39,14 @@ func (n *Notifier) compose(ctx context.Context, messages []store.Message) string
 			n.log.Warn("model could not word the announcement, using the fixed form", "error", err)
 		}
 	}
-	return n.fixed(messages, now, morning)
+	return n.fixed(ctx, messages, now, morning)
 }
 
 func (n *Notifier) composeWithModel(ctx context.Context, messages []store.Message, now time.Time, morning bool) (string, error) {
-	t := textsFor(n.lang)
+	t := textsFor(n.langOf(ctx))
 	var list strings.Builder
 	for _, m := range messages {
-		fmt.Fprintf(&list, "- [%s] %s · %s %d · %s\n", m.ID, n.when(m.CreatedAt, now), t.importance, m.Importance, strings.TrimSpace(m.Spoken))
+		fmt.Fprintf(&list, "- [%s] %s · %s %d · %s\n", m.ID, n.when(ctx, m.CreatedAt, now), t.importance, m.Importance, strings.TrimSpace(m.Spoken))
 	}
 	instruction := fmt.Sprintf(t.composeTask, now.Format("15:04"), list.String())
 	if morning {
@@ -79,8 +79,8 @@ func (n *Notifier) composeWithModel(ctx context.Context, messages []store.Messag
 
 // fixed is the announcement without a model: each message as a sentence,
 // an older one with its time in front.
-func (n *Notifier) fixed(messages []store.Message, now time.Time, morning bool) string {
-	t := textsFor(n.lang)
+func (n *Notifier) fixed(ctx context.Context, messages []store.Message, now time.Time, morning bool) string {
+	t := textsFor(n.langOf(ctx))
 	var b strings.Builder
 	if morning {
 		b.WriteString(t.goodMorning)
@@ -96,7 +96,7 @@ func (n *Notifier) fixed(messages []store.Message, now time.Time, morning bool) 
 		default:
 			b.WriteString(t.also)
 		}
-		b.WriteString(n.timed(m, now))
+		b.WriteString(n.timed(ctx, m, now))
 	}
 	return b.String()
 }
@@ -105,13 +105,13 @@ func (n *Notifier) fixed(messages []store.Message, now time.Time, morning bool) 
 // older than olderThan and its text came from outside (an automation, a
 // person). Mira's own messages carry their time where it matters: a task's
 // verdict is worded with it, a collection day is about tomorrow.
-func (n *Notifier) timed(m store.Message, now time.Time) string {
+func (n *Notifier) timed(ctx context.Context, m store.Message, now time.Time) string {
 	text := sentence(m.Spoken)
 	if m.CreatedAt.IsZero() || now.Sub(m.CreatedAt) < olderThan ||
 		(m.Source != store.SourceExternal && m.Source != store.SourcePerson) {
 		return text
 	}
-	return n.whenPrefix(m.CreatedAt, now) + text
+	return n.whenPrefix(ctx, m.CreatedAt, now) + text
 }
 
 // goodMorning: the first announcement after the quiet hours, before 11.
@@ -122,10 +122,10 @@ func (n *Notifier) goodMorning(now time.Time) bool {
 
 // when describes a past time for the model: "13:05 today", "03:13
 // tonight", "21:10 yesterday" or a date.
-func (n *Notifier) when(at, now time.Time) string {
-	t := textsFor(n.lang)
+func (n *Notifier) when(ctx context.Context, at, now time.Time) string {
+	t := textsFor(n.langOf(ctx))
 	at = at.In(n.loc)
-	clock := clock(n.lang, at)
+	clock := clock(n.langOf(ctx), at)
 	switch day := dayDiff(at, now); {
 	case day == 0 && at.Hour() < 6 && now.Hour() >= 6:
 		return fmt.Sprintf(t.whenNight, clock)
@@ -139,10 +139,10 @@ func (n *Notifier) when(at, now time.Time) string {
 }
 
 // whenPrefix is the same as the start of a spoken sentence.
-func (n *Notifier) whenPrefix(at, now time.Time) string {
-	t := textsFor(n.lang)
+func (n *Notifier) whenPrefix(ctx context.Context, at, now time.Time) string {
+	t := textsFor(n.langOf(ctx))
 	at = at.In(n.loc)
-	clock := clock(n.lang, at)
+	clock := clock(n.langOf(ctx), at)
 	switch day := dayDiff(at, now); {
 	case day == 0 && at.Hour() < 6 && now.Hour() >= 6:
 		return fmt.Sprintf(t.prefixNight, clock)
