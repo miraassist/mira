@@ -21,6 +21,27 @@ demo:
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 
+# Test trackers for the persons: flipping "Sim zu Hause <Person>" reports
+# device_tracker.sim_<person> as home or not_home (also at start); `testha
+# up` links each tracker to its person.
+automation sim:
+  - id: mira_test_sim_presence
+    alias: Sim Anwesenheit
+    mode: queued
+    triggers:
+      - trigger: homeassistant
+        event: start
+      - trigger: state
+        entity_id: [input_boolean.sim_da_admin, input_boolean.sim_da_anna, input_boolean.sim_da_ben]
+    actions:
+      - repeat:
+          for_each: [admin, anna, ben]
+          sequence:
+            - action: device_tracker.see
+              data:
+                dev_id: "sim_{{ repeat.item }}"
+                location_name: "{{ 'home' if is_state('input_boolean.sim_da_' ~ repeat.item, 'on') else 'not_home' }}"
+
 logger:
   default: warning
   logs:
@@ -40,6 +61,16 @@ input_boolean:
     name: Sim Bewegung Bad
   sim_fenster_bad:
     name: Sim Fenster Bad
+  # Who is home: each drives the person's test tracker (see "automation sim").
+  sim_da_admin:
+    name: Sim zu Hause Admin
+    icon: mdi:home-account
+  sim_da_anna:
+    name: Sim zu Hause Anna
+    icon: mdi:home-account
+  sim_da_ben:
+    name: Sim zu Hause Ben
+    icon: mdi:home-account
 
 template:
   - binary_sensor:

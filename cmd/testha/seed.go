@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	haws "github.com/sker65/mira/internal/ha/ws"
 )
@@ -173,6 +174,36 @@ func ensurePersons(ctx context.Context, admin *haws.Client) error {
 			continue
 		}
 		if err := call(ctx, admin, map[string]any{"type": "person/create", "name": name}, nil); err != nil {
+			return err
+		}
+	}
+	return linkSimTrackers(ctx, admin)
+}
+
+// linkSimTrackers gives every person the test tracker device_tracker.sim_<id>,
+// which "Sim zu Hause <Person>" switches (configuration.yaml), so presence
+// and the "alone at home" rule can be tried out.
+func linkSimTrackers(ctx context.Context, admin *haws.Client) error {
+	var list struct {
+		Storage []struct {
+			ID             string   `json:"id"`
+			Name           string   `json:"name"`
+			UserID         *string  `json:"user_id"`
+			DeviceTrackers []string `json:"device_trackers"`
+			Picture        *string  `json:"picture"`
+		} `json:"storage"`
+	}
+	if err := call(ctx, admin, map[string]any{"type": "person/list"}, &list); err != nil {
+		return err
+	}
+	for _, p := range list.Storage {
+		tracker := "device_tracker.sim_" + p.ID
+		if slices.Contains(p.DeviceTrackers, tracker) {
+			continue
+		}
+		update := map[string]any{"type": "person/update", "person_id": p.ID, "name": p.Name,
+			"user_id": p.UserID, "picture": p.Picture, "device_trackers": append(p.DeviceTrackers, tracker)}
+		if err := call(ctx, admin, update, nil); err != nil {
 			return err
 		}
 	}
