@@ -85,9 +85,14 @@ mcp_servers:
 # Telegram runs through Home Assistant's own Telegram integration
 # (telegram_bot); Mira has no bot of her own (docs/spec/kanaele.md).
 
+# What the model sees of a conversation (docs/spec/kontext.md): the running
+# thread plus the last turns. At max_turns the history is cut to keep_turns,
+# and at llm.compact_at_fraction (0.9) of the context window as well.
 sessions:
   voice_ttl: 5m
-  telegram_ttl: 12h
+  telegram_ttl: 0      # 0: no time limit, max_turns bounds it
+  max_turns: 50
+  keep_turns: 30
 
 satellites:            # area id -> satellite that speaks announcements there
   bad: assist_satellite.bad

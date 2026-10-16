@@ -233,6 +233,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	if err != nil {
 		return Response{}, err
 	}
+	e.compactIfLong(ctx, key, sess)
 	history, err := e.history(ctx, key)
 	if err != nil {
 		return Response{}, err
@@ -294,7 +295,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
 			resp.PromptTokens, resp.CachedTokens = out.Usage.PromptTokens, out.CachedTokens()
-			e.checkContext(key, out.Usage.PromptTokens, model)
+			e.compactForContext(ctx, key, out.Usage.PromptTokens, model)
 		} else {
 			resp.MorePromptTokens += out.Usage.PromptTokens
 		}
@@ -509,16 +510,6 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, snap 
 		Key: key, Channel: string(req.Channel), ConversationID: req.ConversationID,
 		DeviceID: req.DeviceID, AreaID: areaID, Language: req.Language,
 	}, e.cfg.SessionTTL(req.Channel).Duration())
-}
-
-// checkContext warns when a session approaches the slot's context size.
-// Compaction itself is a deliberate cache break and comes later (M5).
-func (e *Engine) checkContext(key string, promptTokens int, model config.LLM) {
-	limit := int(float64(model.ContextTokens) * model.CompactAtFraction)
-	if promptTokens > limit {
-		e.log.Warn("session is close to the context limit; compaction is not implemented yet",
-			"session", key, "prompt_tokens", promptTokens, "limit", limit)
-	}
 }
 
 // calledTool reports whether a tool was called in these messages.

@@ -42,6 +42,9 @@ type ChatMessage struct {
 func (s *Store) UpsertSession(ctx context.Context, sess Session, ttl time.Duration) (Session, error) {
 	now := s.now()
 	sess.UpdatedAt = now
+	if ttl <= 0 {
+		ttl = 100 * 365 * 24 * time.Hour // no time limit (Telegram)
+	}
 	sess.ExpiresAt = now.Add(ttl)
 	if sess.CreatedAt.IsZero() {
 		sess.CreatedAt = now

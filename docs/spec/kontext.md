@@ -1,6 +1,6 @@
 # Kontext – Spezifikation
 
-Stand 2026-10-16. Komposition beschreibt den gebauten Stand; **Kompaktierung (Abschnitt 4) ist beschlossen, noch nicht gebaut.** Gilt für alle Kanäle. Siehe auch [Vorgänge](vorgaenge.md) und [Kanäle](kanaele.md).
+Stand 2026-10-16, gebaut in 0.6.9. Gilt für alle Kanäle. Siehe auch [Vorgänge](vorgaenge.md) und [Kanäle](kanaele.md).
 
 Der **Kontext** ist alles, was das Modell bei einer Anfrage sieht. Zwei Dinge macht Mira damit:
 - **Komposition**: was in welcher Reihenfolge ins Kontextfenster kommt;
@@ -37,7 +37,7 @@ Modelle (lokal wie in der Cloud) rechnen einen **gleichen Anfang** nicht neu, so
 - **Der Verlauf liefert den Rückbezug**: „und das andere Licht?“, „wie alt ist der?“. Dafür reichen die letzten Turns; niemand bezieht sich einfach so auf eine uralte Nachricht.
 - **Haus-Struktur und Gedächtnis** kommen bei jedem Turn aktuell dazu (Teile 1 und 6), unabhängig davon, wie alt der Verlauf ist.
 
-## 4. Kompaktierung (beschlossen, noch nicht gebaut)
+## 4. Kompaktierung
 
 Was das Modell vom Gespräch sieht: **der laufende Vorgang + die letzten Turns.** Älteres fällt heraus. Kein Zusammenfassen durch ein Modell, ein einfacher Schnitt:
 
@@ -45,7 +45,7 @@ Was das Modell vom Gespräch sieht: **der laufende Vorgang + die letzten Turns.*
 - **In Sprüngen, nicht gleitend**: Erreicht der Verlauf `max_turns`, wird er auf `keep_turns` gekürzt. Dazwischen bleibt sein Anfang gleich, und der Cache greift. (Gleitend würde bei jedem Turn vorne etwas wegfallen und den Cache für den ganzen Verlauf brechen.)
 - **Spätestens bei 90 % des Kontextfensters** des jeweiligen Modells wird ebenso gekürzt, auch wenn `max_turns` noch nicht erreicht ist (große Werkzeug-Ergebnisse, kleines lokales Modell).
 - **Der laufende Vorgang bleibt immer ganz**, auch wenn er vor dem Schnitt begann.
-- **Jeder Schnitt steht im Log** (Sitzung, Turns vorher/nachher, Grund), weil er den Cache bewusst bricht.
+- **Jeder Schnitt steht im Log** als `history compacted`, weil er den Cache bewusst bricht und Gesagtes wegfällt: Sitzung, Grund (`max_turns` oder `context` mit `prompt_tokens`, `limit`, `context_tokens`), Turns vorher und nachher, entfernte Nachrichten, ab wann entfernt und ab wann behalten wurde, und ob für einen laufenden Vorgang mehr behalten wurde (`kept_for_thread`). Lässt sich nicht weiter kürzen, weil schon nur noch `keep_turns` übrig sind, steht das als Warnung im Log.
 - **Sitzungsdauer**: Sprache 5 Minuten (ein neuer Satz eine Viertelstunde später knüpft fast nie an); Telegram **ohne Zeitgrenze**, der Schnitt begrenzt den Verlauf selbst. `/neu` beginnt weiterhin ein neues Gespräch.
 
 ## 5. Einstellbare Werte

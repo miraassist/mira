@@ -196,9 +196,16 @@ type MCPServer struct {
 	Disabled   bool `yaml:"disabled"`
 }
 
+// Sessions bound what the model sees of a conversation (docs/spec/kontext.md).
 type Sessions struct {
-	VoiceTTL    Duration `yaml:"voice_ttl"`
+	VoiceTTL Duration `yaml:"voice_ttl"`
+	// TelegramTTL ends a Telegram conversation after that long without a
+	// message; 0 means never: the history is bounded by MaxTurns instead.
 	TelegramTTL Duration `yaml:"telegram_ttl"`
+	// MaxTurns is from where the history is cut, down to KeepTurns: in
+	// jumps, so its start stays the same in between and the cache holds.
+	MaxTurns  int `yaml:"max_turns"`
+	KeepTurns int `yaml:"keep_turns"`
 }
 
 // Person is someone the agent can address personally. The key in the
@@ -366,7 +373,7 @@ func Default() Config {
 			MaxTokens:            1024,
 			Timeout:              Duration(120e9), // 2m
 			ContextTokens:        16384,
-			CompactAtFraction:    0.75,
+			CompactAtFraction:    0.9,
 			WarmupOnStart:        true,
 			WarmupOnPrefixChange: true,
 		},
@@ -380,7 +387,9 @@ func Default() Config {
 		},
 		Sessions: Sessions{
 			VoiceTTL:    Duration(5 * 60e9),
-			TelegramTTL: Duration(12 * 3600e9),
+			TelegramTTL: 0,
+			MaxTurns:    50,
+			KeepTurns:   30,
 		},
 		Notifier: Notifier{
 			QuietHours:              QuietHours{From: ClockTime{22, 30}, To: ClockTime{6, 30}},
@@ -654,6 +663,9 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if c.Sessions.KeepTurns < 1 || c.Sessions.MaxTurns <= c.Sessions.KeepTurns {
+		add("sessions: keep_turns must be at least 1 and below max_turns (%d, %d)", c.Sessions.KeepTurns, c.Sessions.MaxTurns)
+	}
 	if c.Notifier.MaxItemsPerAnnouncement < 1 {
 		add("notifier.max_items_per_announcement must be at least 1")
 	}

@@ -1,6 +1,7 @@
 package conversation_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/sker65/mira/internal/i18n"
@@ -48,6 +49,26 @@ type harness struct {
 	search *fakemcp.Server
 	store  *store.Store
 	clock  *clock
+	// logs holds the engine's log at info level.
+	logs *syncBuffer
+}
+
+// syncBuffer is a log sink safe for the engine's goroutines.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }
 
 func houseSnapshot() structure.Snapshot {
@@ -69,7 +90,7 @@ func newHarness(t *testing.T, script ...fakellm.Step) *harness {
 
 func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm.Step) *harness {
 	t.Helper()
-	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}}
+	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &syncBuffer{}}
 
 	h.llm = fakellm.New(script...)
 	t.Cleanup(h.llm.Close)
@@ -112,7 +133,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 		Tools:     registry,
 		Guard:     tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot),
 		Structure: houseSnapshot,
-		Logger:    quietLogger(),
+		Logger:    slog.New(slog.NewTextHandler(h.logs, nil)),
 		Clock:     h.clock.Now,
 		Location:  time.UTC,
 		// Telegram chat 42 is Anna; everyone else is unknown.
