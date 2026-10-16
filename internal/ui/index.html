@@ -308,6 +308,7 @@ const I18N = {
   "empty_house": "Fürs Haus hab ich mir noch nichts gemerkt.",
   "empty_house_how": "Sag mir einfach, was alle wissen sollen, z. B. „Merk dir, dass der Schornsteinfeger im März kommt.“ Am Satelliten landet das hier; per Telegram oder in der HA-App sag dazu „fürs Haus“.",
   "empty_person": "Für {name} hab ich mir noch nichts gemerkt.",
+  "unknown_person": "Ich weiß noch nicht, welche Person du bist, deshalb siehst du nur, was ich mir fürs Haus gemerkt habe. Ein Admin kann deine Person in Home Assistant mit deinem Benutzer verknüpfen (Einstellungen → Personen).",
   "empty_person_how": "{name} kann mir das per Telegram oder im Chat der HA-App sagen, z. B. „Merk dir, dass ich keinen Koriander mag.“ Am Satelliten geht es, wenn {name} allein zu Hause ist und „Allein = ich“ eingeschaltet hat.",
   "alone_is_me": "Allein = ich",
   "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Meldungen.",
@@ -489,6 +490,7 @@ const I18N = {
   "empty_house": "I haven't remembered anything for the house yet.",
   "empty_house_how": "Just tell me what everyone should know, e.g. \"Remember that the chimney sweep comes in March.\" At a satellite it lands here; on Telegram or in the HA app add \"for the house\".",
   "empty_person": "I haven't remembered anything for {name} yet.",
+  "unknown_person": "I don't know yet which person you are, so you only see what I remembered for the house. An admin can link your person to your user in Home Assistant (Settings → People).",
   "empty_person_how": "{name} can tell me on Telegram or in the HA app's chat, e.g. \"Remember that I don't like coriander.\" At a satellite it works when {name} is alone at home and switched on \"Alone = me\".",
   "alone_is_me": "Alone = me",
   "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private notices.",
@@ -540,7 +542,8 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const TABS = ["notices", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
+const ALL_TABS = ["notices", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
+let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
 // Inside Home Assistant the integration's sidebar panel shows this page
@@ -615,7 +618,12 @@ function setLang(l) {
   render();
 }
 let config = {};
-let tab = location.hash.slice(1) || "notices";
+// Inside Home Assistant, someone who is no admin gets their memory and the
+// guide; the agent and the integration enforce that, the page follows.
+const isAdmin = !embedded || !!(hass() && hass().user && hass().user.is_admin);
+if (!isAdmin) TABS = ["memory", "guide"];
+const tabOf = h => (TABS.includes(h) ? h : TABS[0]);
+let tab = tabOf(location.hash.slice(1));
 let entityNames = {};
 // Sections Home Assistant manages are edited there, as subentries of the
 // Mira integration; the page shows them read-only.
@@ -927,7 +935,7 @@ async function memory() {
   $("#view").innerHTML = `<div id="memories">${T.loading}</div>`;
   try {
     const r = await api("GET", "/v1/ui/memory");
-    $("#memories").innerHTML = r.memories.map(m => {
+    $("#memories").innerHTML = (r.unknown_person ? `<section class="card"><p class="hint">${T.unknown_person}</p></section>` : "") + r.memories.map(m => {
       const house = m.owner === "house";
       const title = house ? T.memory_house : T.memory_of.replace("{name}", m.owner);
       const name = esc(m.owner);
@@ -1134,6 +1142,7 @@ function media(alt, src) {
 async function load() {
   // Without a stored token the first call answers 401 and asks for one;
   // an agent without server.token needs none.
+  if (!isAdmin) { render(); return; }
   try {
     config = await api("GET", "/v1/ui/config");
     render();
@@ -1142,7 +1151,7 @@ async function load() {
     $("#entities").innerHTML = (ents || []).map(e => `<option value="${esc(e.id)}">${esc([e.name, e.area].filter(Boolean).join(" · "))}</option>`).join("");
   } catch (e) { render(); message(e.message, false); }
 }
-window.addEventListener("hashchange", () => { tab = location.hash.slice(1) || "notices"; render(); });
+window.addEventListener("hashchange", () => { tab = tabOf(location.hash.slice(1)); render(); });
 load();
 </script>
 </body>

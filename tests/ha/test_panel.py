@@ -13,11 +13,11 @@ async def _setup(hass, aioclient_mock, entry):
     await hass.async_block_till_done()
 
 
-async def test_panel_in_sidebar_for_admins(hass, aioclient_mock, entry):
+async def test_panel_in_sidebar_for_everyone(hass, aioclient_mock, entry):
     await _setup(hass, aioclient_mock, entry)
     panel = hass.data[frontend.DATA_PANELS]["mira"]
     assert panel.config == {"url": "/api/mira/panel/ui"}
-    assert panel.require_admin
+    assert not panel.require_admin
     await hass.config_entries.async_unload(entry.entry_id)
     assert "mira" not in hass.data[frontend.DATA_PANELS]
 
@@ -69,15 +69,36 @@ async def test_api_through_proxy_with_agent_token(hass, aioclient_mock, entry, h
     method, url, data, headers = aioclient_mock.mock_calls[-1]
     assert (method, str(url)) == ("PUT", f"{AGENT_URL}/v1/ui/memory/f1")
     assert headers["Authorization"] == "Bearer secret"
+    assert headers["X-Mira-HA-Admin"] == "1"
+    assert headers["X-Mira-HA-User"]
     # Only the UI's API, not the rest of the agent's.
     resp = await client.get("/api/mira/proxy/v1/status")
     assert resp.status == 404
 
 
-async def test_proxy_needs_login_and_admin(hass, aioclient_mock, entry, hass_client_no_auth, hass_admin_user, hass_client):
+async def test_proxy_needs_login(hass, aioclient_mock, entry, hass_client_no_auth):
     await _setup(hass, aioclient_mock, entry)
     client = await hass_client_no_auth()
     assert (await client.get("/api/mira/proxy/v1/ui/memory")).status == 401
+
+
+async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, hass_admin_user, hass_client):
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/memory", json={"memories": []})
+    aioclient_mock.put(f"{AGENT_URL}/v1/ui/memory/f1", json={"saved": True})
     hass_admin_user.groups = []
     client = await hass_client()
-    assert (await client.get("/api/mira/proxy/v1/ui/memory")).status == 401
+    assert (await client.get("/api/mira/proxy/v1/ui/memory")).status == 200
+    _, _, _, headers = aioclient_mock.mock_calls[-1]
+    # The agent filters by this user; it trusts the header because the
+    # integration's token comes with it.
+    assert headers["X-Mira-HA-User"] == hass_admin_user.id
+    assert headers["X-Mira-HA-Admin"] == "0"
+    assert (await client.put("/api/mira/proxy/v1/ui/memory/f1", json={"text": "x"})).status == 200
+    for method, path in [
+        ("GET", "/api/mira/proxy/v1/ui/config"),
+        ("GET", "/api/mira/proxy/v1/ui/notices"),
+        ("POST", "/api/mira/proxy/v1/ui/memory/compact"),
+        ("PUT", "/api/mira/proxy/v1/ui/config"),
+    ]:
+        assert (await client.request(method, path)).status == 401, path

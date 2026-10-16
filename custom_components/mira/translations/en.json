@@ -36,7 +36,7 @@
         },
         "data_description": {
           "timeout": "After this the satellite says a short error instead of staying silent.",
-          "sidebar": "Mira's web UI as a page in Home Assistant, for admins. Each user can also hide it in their own sidebar."
+          "sidebar": "Mira's web UI as a page in Home Assistant; who is no admin sees only their memory, the house's and the guide. Each user can also hide it in their own sidebar."
         }
       }
     }

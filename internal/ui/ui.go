@@ -70,6 +70,9 @@ type Options struct {
 	// Persons lists the configured person keys; each gets a memory card, if
 	// empty.
 	Persons func() []string
+	// PersonOfHAUser maps a Home Assistant user to a person key ("" for
+	// none), for the page inside Home Assistant.
+	PersonOfHAUser func(ctx context.Context, user string) string
 	// AreaName names a Home Assistant area, for facts told at a satellite.
 	AreaName func(id string) string
 	// Location is the time zone times are shown in.
@@ -104,9 +107,11 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/entities", h.auth(h.entities))
 	h.mux.HandleFunc("GET /v1/ui/notices", h.auth(h.notices))
 	h.mux.HandleFunc("POST /v1/ui/notices/{id}/ack", h.auth(h.ackNotice))
-	h.mux.HandleFunc("GET /v1/ui/memory", h.auth(h.memory))
-	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.auth(h.forget))
-	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.auth(h.editFact))
+	// Everyone in Home Assistant may see and change their own memory;
+	// the rest is for admins (and the operator with the token).
+	h.mux.HandleFunc("GET /v1/ui/memory", h.authAnyone(h.memory))
+	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.authAnyone(h.forget))
+	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.authAnyone(h.editFact))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.enableTask(true)))
@@ -165,6 +170,18 @@ func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
+	return h.authAnyone(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(HeaderHAUser) != "" && r.Header.Get(HeaderHAAdmin) != "1" {
+			writeError(w, http.StatusForbidden, "for Home Assistant admins only")
+			return
+		}
+		next(w, r)
+	})
+}
+
+// authAnyone checks the token only: for what every Home Assistant user may
+// do with their own data.
+func (h *Handler) authAnyone(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if h.opts.Token != "" && subtle.ConstantTimeCompare([]byte(got), []byte(h.opts.Token)) != 1 {
@@ -345,10 +362,66 @@ func (h *Handler) ackNotice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"acked": true})
 }
 
+// Headers the Home Assistant integration's proxy sets on the page's calls:
+// the signed-in HA user and whether they are an admin. They come with the
+// agent's token, so only the integration can set them.
+const (
+	HeaderHAUser  = "X-Mira-HA-User"
+	HeaderHAAdmin = "X-Mira-HA-Admin"
+)
+
+// viewer is who looks at the page. Inside Home Assistant everyone, admins
+// too, sees the house's memory and their own only; with the agent's token
+// alone (the page on its own) the operator sees all.
+type viewer struct {
+	limited bool
+	person  string
+	admin   bool
+}
+
+func (h *Handler) viewer(r *http.Request) viewer {
+	user := r.Header.Get(HeaderHAUser)
+	if user == "" {
+		return viewer{admin: true}
+	}
+	v := viewer{limited: true, admin: r.Header.Get(HeaderHAAdmin) == "1"}
+	if h.opts.PersonOfHAUser != nil {
+		v.person = h.opts.PersonOfHAUser(r.Context(), user)
+	}
+	return v
+}
+
+// owners are the memories the viewer may see and change.
+func (v viewer) owners() []string {
+	if v.person == "" {
+		return []string{store.OwnerHouse}
+	}
+	return []string{store.OwnerHouse, v.person}
+}
+
+// mayChange says whether the viewer may edit or forget the fact.
+func (h *Handler) mayChange(w http.ResponseWriter, r *http.Request) bool {
+	v := h.viewer(r)
+	if !v.limited {
+		return true
+	}
+	f, err := h.opts.Store.GetFact(r.Context(), r.PathValue("id"))
+	if errors.Is(err, store.ErrNotFound) || (err == nil && !slices.Contains(v.owners(), f.Owner)) {
+		writeError(w, http.StatusNotFound, "no such fact")
+		return false
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return false
+	}
+	return true
+}
+
 // memory lists the memories by owner: the house first, then each person
 // with facts or a profile.
 func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	v := h.viewer(r)
 	owners, err := h.opts.Store.FactOwners(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -357,7 +430,9 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	if !slices.Contains(owners, store.OwnerHouse) {
 		owners = append([]string{store.OwnerHouse}, owners...)
 	}
-	if h.opts.Persons != nil {
+	if v.limited {
+		owners = v.owners()
+	} else if h.opts.Persons != nil {
 		persons := h.opts.Persons()
 		slices.Sort(persons)
 		for _, p := range persons {
@@ -384,7 +459,10 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	out := struct {
 		Memories   []memory `json:"memories"`
 		CanCompact bool     `json:"can_compact"`
-	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil}
+		// Unknown is set inside Home Assistant when the HA user belongs to
+		// no person, so only the house's memory shows.
+		Unknown bool `json:"unknown_person,omitempty"`
+	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == ""}
 	const stamp = "2006-01-02 15:04"
 	for _, owner := range owners {
 		facts, err := h.opts.Store.AllFacts(ctx, owner)
@@ -428,6 +506,9 @@ func (h *Handler) author(a string) string {
 }
 
 func (h *Handler) forget(w http.ResponseWriter, r *http.Request) {
+	if !h.mayChange(w, r) {
+		return
+	}
 	err := h.opts.Store.DeleteFact(r.Context(), r.PathValue("id"))
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "no such fact")
@@ -447,6 +528,9 @@ func (h *Handler) editFact(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"text": "..."}`)
+		return
+	}
+	if !h.mayChange(w, r) {
 		return
 	}
 	f, err := h.opts.Store.GetFact(r.Context(), r.PathValue("id"))

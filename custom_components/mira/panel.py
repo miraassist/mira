@@ -3,8 +3,12 @@ agent's page through Home Assistant's own server.
 
 The page's files come through an open view (they hold no data, and the
 agent serves them without a token as well); its API calls come through
-an authenticated view that only admins may use and that adds the agent's
-token. So the page works over HA's HTTPS and from away, with HA's login.
+an authenticated view that adds the agent's token and says who is signed
+in. So the page works over HA's HTTPS and from away, with HA's login.
+
+Everyone sees the house's memory and their own; the rest of the page
+(notices, tasks, settings) is for admins. The view enforces that, and the
+agent once more from the user it is told.
 """
 
 from __future__ import annotations
@@ -31,6 +35,12 @@ PAGE = "/api/mira/panel/ui"
 # The agent's page and its files; nothing else goes through the open view.
 PAGE_FILES = re.compile(r"ui/?|ui/icon\.png|ui/guide/(de|en)|ui/guide/img/[\w.-]+")
 API = "v1/ui/"
+# What a user who is no admin may call: their memory, and changing a fact.
+NON_ADMIN_LIST = "v1/ui/memory"
+NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$)[\w-]+")
+# Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
+HEADER_USER = "X-Mira-HA-User"
+HEADER_ADMIN = "X-Mira-HA-Admin"
 # Headers passed on, both ways: videos come in ranges (Safari asks so).
 REQUEST_PASSED = ("Range", "If-Range")
 PASSED = ("Content-Type", "Cache-Control", "Accept-Ranges", "Content-Range")
@@ -46,7 +56,7 @@ def async_register_views(hass: HomeAssistant) -> None:
 
 @callback
 def async_register_panel(hass: HomeAssistant, title: str) -> None:
-    """Show Mira in the sidebar, for admins."""
+    """Show Mira in the sidebar, for everyone."""
     frontend.async_register_built_in_panel(
         hass,
         "iframe",
@@ -54,7 +64,7 @@ def async_register_panel(hass: HomeAssistant, title: str) -> None:
         sidebar_icon=PANEL_ICON,
         frontend_url_path=PANEL_URL_PATH,
         config={"url": PAGE},
-        require_admin=True,
+        require_admin=False,
         update=True,
     )
 
@@ -73,7 +83,9 @@ def _agent(hass: HomeAssistant) -> tuple[str, str] | None:
     return None
 
 
-async def _forward(hass: HomeAssistant, request: web.Request, path: str, with_token: bool) -> web.Response:
+async def _forward(
+    hass: HomeAssistant, request: web.Request, path: str, with_token: bool, extra: dict[str, str] | None = None
+) -> web.Response:
     """Pass the request on to the agent and its answer back."""
     agent = _agent(hass)
     if agent is None:
@@ -83,6 +95,7 @@ async def _forward(hass: HomeAssistant, request: web.Request, path: str, with_to
     headers.update({k: request.headers[k] for k in REQUEST_PASSED if k in request.headers})
     if with_token:
         headers["Authorization"] = f"Bearer {token}"
+    headers.update(extra or {})
     body = await request.read() if request.can_read_body else None
     try:
         async with async_get_clientsession(hass).request(
@@ -102,6 +115,13 @@ async def _forward(hass: HomeAssistant, request: web.Request, path: str, with_to
         return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
 
 
+def _allowed(method: str, path: str) -> bool:
+    """Whether a user who is no admin may make this call."""
+    if method == "GET":
+        return path == NON_ADMIN_LIST
+    return method in ("PUT", "DELETE") and NON_ADMIN_FACT.fullmatch(path) is not None
+
+
 class MiraPanelView(HomeAssistantView):
     """The agent's page and its files, without login like at the agent."""
 
@@ -116,18 +136,20 @@ class MiraPanelView(HomeAssistantView):
 
 
 class MiraProxyView(HomeAssistantView):
-    """The page's API calls, for logged-in admins, with the agent's token."""
+    """The page's API calls, for signed-in users, with the agent's token."""
 
     url = "/api/mira/proxy/{path:.*}"
     name = "api:mira:proxy"
     requires_auth = True
 
     async def _handle(self, request: web.Request, path: str) -> web.Response:
-        if not request["hass_user"].is_admin:
-            raise Unauthorized()
+        user = request["hass_user"]
         if not path.startswith(API):
             return web.Response(status=404)
-        return await _forward(request.app[KEY_HASS], request, path, with_token=True)
+        if not user.is_admin and not _allowed(request.method, path):
+            raise Unauthorized()
+        who = {HEADER_USER: user.id, HEADER_ADMIN: "1" if user.is_admin else "0"}
+        return await _forward(request.app[KEY_HASS], request, path, with_token=True, extra=who)
 
     get = _handle
     put = _handle

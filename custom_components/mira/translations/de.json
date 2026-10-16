@@ -36,7 +36,7 @@
         },
         "data_description": {
           "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben.",
-          "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant, für Admins. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden."
+          "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant; wer kein Admin ist, sieht dort nur sein Gedächtnis, das des Hauses und die Anleitung. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden."
         }
       }
     }

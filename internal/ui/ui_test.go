@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -51,7 +52,8 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	h := New(Options{Token: "secret", Sections: []string{"notifier", "persons", "satellites"}, Config: cfg, Store: st,
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
 		CompactProfile: func(context.Context) (bool, error) { return true, nil },
-		Persons:        func() []string { return []string{"anna"} }})
+		Persons:        func() []string { return []string{"anna", "ben"} },
+		PersonOfHAUser: func(_ context.Context, user string) string { return map[string]string{"u-anna": "anna"}[user] }})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, cfg, st
@@ -164,6 +166,74 @@ func TestGuideIsPublic(t *testing.T) {
 		if code != 200 || !strings.HasPrefix(body, want) {
 			t.Errorf("%s: %d %.40q", lang, code, body)
 		}
+	}
+}
+
+// asHA calls like the Home Assistant integration's proxy does: with the
+// token and the signed-in HA user.
+func asHA(t *testing.T, srv *httptest.Server, method, path, user string, admin bool, body string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set(HeaderHAUser, user)
+	if admin {
+		req.Header.Set(HeaderHAAdmin, "1")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
+}
+
+// Inside Home Assistant everyone, admins too, sees the house's memory and
+// their own; only admins see the rest of the page.
+func TestMemoryInsideHomeAssistant(t *testing.T) {
+	srv, _, st := setup(t)
+	ctx := context.Background()
+	st.SaveFact(ctx, store.Fact{ID: "h1", Text: "Die Tonne steht hinter der Garage."})
+	st.SaveFact(ctx, store.Fact{ID: "a1", Owner: "anna", Text: "Anna mag keinen Koriander."})
+	st.SaveFact(ctx, store.Fact{ID: "b1", Owner: "ben", Text: "Ben hat Chorprobe."})
+
+	for _, admin := range []bool{false, true} {
+		code, body := asHA(t, srv, "GET", "/v1/ui/memory", "u-anna", admin, "")
+		if code != 200 || !strings.Contains(body, "Tonne") || !strings.Contains(body, "Koriander") || strings.Contains(body, "Chorprobe") {
+			t.Fatalf("admin=%v: %d %s", admin, code, body)
+		}
+		if strings.Contains(body, `"can_compact":true`) != admin {
+			t.Errorf("admin=%v: can_compact in %s", admin, body)
+		}
+	}
+	// A HA user without a person sees the house only, and is told why.
+	if _, body := asHA(t, srv, "GET", "/v1/ui/memory", "u-other", false, ""); strings.Contains(body, "Koriander") || !strings.Contains(body, `"unknown_person":true`) {
+		t.Errorf("unknown user: %s", body)
+	}
+	// Ben's facts are out of reach, as if they did not exist.
+	if code, _ := asHA(t, srv, "PUT", "/v1/ui/memory/b1", "u-anna", true, `{"text":"x"}`); code != 404 {
+		t.Errorf("edit ben's fact: %d", code)
+	}
+	if code, _ := asHA(t, srv, "DELETE", "/v1/ui/memory/b1", "u-anna", true, ""); code != 404 {
+		t.Errorf("forget ben's fact: %d", code)
+	}
+	if code, _ := asHA(t, srv, "PUT", "/v1/ui/memory/a1", "u-anna", false, `{"text":"Anna mag Koriander doch."}`); code != 200 {
+		t.Errorf("edit own fact: %d", code)
+	}
+	if code, _ := asHA(t, srv, "DELETE", "/v1/ui/memory/h1", "u-anna", false, ""); code != 200 {
+		t.Errorf("forget a house fact: %d", code)
+	}
+	// The rest of the page is for admins.
+	for _, path := range []string{"/v1/ui/config", "/v1/ui/notices", "/v1/ui/tasks"} {
+		if code, _ := asHA(t, srv, "GET", path, "u-anna", false, ""); code != 403 {
+			t.Errorf("%s for a non-admin: %d", path, code)
+		}
+	}
+	if code, _ := asHA(t, srv, "POST", "/v1/ui/memory/compact", "u-anna", false, ""); code != 403 {
+		t.Errorf("compact for a non-admin: %d", code)
+	}
+	if code, _ := asHA(t, srv, "GET", "/v1/ui/config", "u-anna", true, ""); code != 200 {
+		t.Errorf("config for an admin: %d", code)
 	}
 }
 

@@ -806,6 +806,17 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			}
 			return keys
 		},
+		PersonOfHAUser: func(ctx context.Context, user string) string {
+			if a.ha == nil {
+				return ""
+			}
+			states, err := a.ha.States(ctx)
+			if err != nil {
+				a.log.Warn("could not read person states", "error", err)
+				return ""
+			}
+			return personOfUser(a.persons(), states, user)
+		},
 		AreaName: func(id string) string {
 			if a.structure == nil {
 				return ""
