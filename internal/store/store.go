@@ -1,5 +1,5 @@
 // Package store is the agent's SQLite persistence: sessions and their
-// transcripts, long-term memory, the notice queue and a small key/value area.
+// transcripts, long-term memory, the message queue and a small key/value area.
 //
 // One file, migrations in code. Every write goes through this package so the
 // schema stays in one place.

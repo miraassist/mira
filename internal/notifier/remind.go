@@ -13,16 +13,16 @@ import (
 // Remind delivers a due reminder now. The user chose the time, so quiet
 // hours and cooldowns do not apply: it is spoken in the room it was asked
 // for in (unless quiet mode is on), otherwise it goes privately to its
-// audience. The reminder is kept as a delivered notice, so it shows in the
-// web UI and notices_list like any other.
+// receiver. The reminder is kept as a delivered message, so it shows in the
+// web UI and messages_list like any other.
 func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 	n.waitIdle(ctx, r.AreaID)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	nt, _, err := n.store.PutNotice(ctx, store.Notice{
+	nt, _, err := n.store.PutMessage(ctx, store.Message{
 		ID: "reminder-" + r.ID, Source: store.SourceReminder, DedupeKey: "reminder:" + r.ID,
-		Importance: 2, Audience: r.Audience,
+		Importance: 2, Receiver: r.Receiver,
 		Spoken:    fmt.Sprintf(textsFor(n.lang).reminder, strings.TrimRight(strings.TrimSpace(r.Text), ".")),
 		ExpiresAt: n.clock().Add(12 * time.Hour),
 	})
@@ -35,15 +35,15 @@ func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
 // Tell delivers a message someone asked for and is waiting on, such as the
 // proposal for a standing order that was planned in the background. Like a
 // reminder it is spoken in the room it was asked in, otherwise it goes
-// privately to its audience.
-func (n *Notifier) Tell(ctx context.Context, nt store.Notice, areaID string) error {
+// privately to its receiver.
+func (n *Notifier) Tell(ctx context.Context, nt store.Message, areaID string) error {
 	n.waitIdle(ctx, areaID)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if nt.ExpiresAt.IsZero() {
 		nt.ExpiresAt = n.clock().Add(12 * time.Hour)
 	}
-	nt, _, err := n.store.PutNotice(ctx, nt)
+	nt, _, err := n.store.PutMessage(ctx, nt)
 	if err != nil {
 		return err
 	}
@@ -54,18 +54,18 @@ func (n *Notifier) Tell(ctx context.Context, nt store.Notice, areaID string) err
 
 // deliverAsked speaks nt in the area unless quiet mode is on, falling back
 // to a private message. n.mu is held.
-func (n *Notifier) deliverAsked(ctx context.Context, nt store.Notice, areaID string, preannounce bool) error {
+func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID string, preannounce bool) error {
 	quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false)
 	if err != nil {
 		return err
 	}
 	defer n.syncIndicators(ctx)
 	if sat := n.sats[areaID]; sat != "" && !quiet {
-		err := n.announce(ctx, areaID, []store.Notice{nt}, preannounce)
+		err := n.announce(ctx, areaID, []store.Message{nt}, preannounce)
 		if err == nil {
 			return nil
 		}
-		n.log.Warn("message could not be spoken, sending it privately", "notice", nt.ID, "error", err)
+		n.log.Warn("message could not be spoken, sending it privately", "message", nt.ID, "error", err)
 	}
 	return n.sendPrivate(ctx, nt)
 }
@@ -90,7 +90,7 @@ func (n *Notifier) DueReminders(ctx context.Context) {
 			n.log.Error("could not close reminder", "reminder", r.ID, "error", err)
 			continue
 		}
-		n.log.Info("reminder delivered", "reminder", r.ID, "area", r.AreaID, "audience", r.Audience)
+		n.log.Info("reminder delivered", "reminder", r.ID, "area", r.AreaID, "receiver", r.Receiver)
 	}
 }
 

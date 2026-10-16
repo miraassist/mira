@@ -49,11 +49,11 @@ func (e *env) lightCalls() []call {
 	return out
 }
 
-// In an indicate room nothing is spoken; the ring shows the notice, the
+// In an indicate room nothing is spoken; the ring shows the message, the
 // user asks for it, and the ring goes off.
 func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	e := indicateEnv(t)
-	e.notice("n1", 1, nil)
+	e.message("n1", 1, nil)
 
 	if out := e.presence("kueche"); out.Skipped != "indicate mode" || len(out.Announced) != 0 {
 		t.Fatalf("presence: %+v", out)
@@ -76,13 +76,13 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 		t.Errorf("announce room: %+v", out)
 	}
 
-	e.notice("n2", 2, nil)
+	e.message("n2", 2, nil)
 	text, err := e.n.ReadOut(context.Background(), "kueche", "")
 	if err != nil || !strings.Contains(text, "Hinweis n2") {
 		t.Fatalf("read out: %q %v", text, err)
 	}
-	if e.state("n2") != store.NoticeDelivered {
-		t.Error("read notice not delivered")
+	if e.state("n2") != store.MessageDelivered {
+		t.Error("read message not delivered")
 	}
 	lights = e.lightCalls()
 	if last := lights[len(lights)-1]; last.Service != "turn_off" {
@@ -93,20 +93,20 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	}
 }
 
-// What comes in at night is shown, not spoken; urgent notices are spoken
+// What comes in at night is shown, not spoken; urgent messages are spoken
 // anyway.
 func TestIndicateAtNightAndUrgent(t *testing.T) {
 	e := indicateEnv(t)
 	e.now = at("02:00")
-	e.notice("n1", 1, nil)
+	e.message("n1", 1, nil)
 	e.tick()
 	if lights := e.lightCalls(); len(lights) != 1 || lights[0].Service != "turn_on" {
 		t.Errorf("not shown at night: %+v", lights)
 	}
-	e.notice("leak", 3, nil)
+	e.message("leak", 3, nil)
 	e.tick()
-	if e.state("leak") != store.NoticeDelivered {
-		t.Error("urgent notice waited for the question")
+	if e.state("leak") != store.MessageDelivered {
+		t.Error("urgent message waited for the question")
 	}
 	// Expiry turns the ring off.
 	e.waitSpoken() // the urgent announcement's glow ends
@@ -120,8 +120,8 @@ func TestIndicateAtNightAndUrgent(t *testing.T) {
 // Asked on Telegram, a person gets what is pending for them.
 func TestReadOutForPerson(t *testing.T) {
 	e := indicateEnv(t)
-	e.notice("mine", 1, func(n *store.Notice) { n.Audience = "ben"; n.Confidentiality = store.ConfidentialityConfidential })
-	e.notice("other", 1, func(n *store.Notice) { n.Audience = "anna" })
+	e.message("mine", 1, func(n *store.Message) { n.Receiver = "ben"; n.Confidentiality = store.ConfidentialityConfidential })
+	e.message("other", 1, func(n *store.Message) { n.Receiver = "anna" })
 	text, err := e.n.ReadOut(context.Background(), "", "ben")
 	if err != nil || !strings.Contains(text, "Hinweis mine") || strings.Contains(text, "other") {
 		t.Errorf("read out: %q %v", text, err)
@@ -132,12 +132,12 @@ func TestReadOutForPerson(t *testing.T) {
 // it is heard and the light goes off.
 func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	e := indicateEnv(t)
-	e.notice("n1", 1, func(n *store.Notice) { n.Spoken = "Heute hast du einen Zahnarzttermin" })
+	e.message("n1", 1, func(n *store.Message) { n.Spoken = "Heute hast du einen Zahnarzttermin" })
 	e.tick()
 	if got := e.n.Afterword(context.Background(), "kueche"); got != "Übrigens: Heute hast du einen Zahnarzttermin." {
 		t.Fatalf("afterword: %q", got)
 	}
-	if e.state("n1") != store.NoticeDelivered {
+	if e.state("n1") != store.MessageDelivered {
 		t.Error("not marked heard")
 	}
 	if lights := e.lightCalls(); lights[len(lights)-1].Service != "turn_off" {
@@ -146,7 +146,7 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
 		t.Errorf("said twice: %q", got)
 	}
-	e.notice("n2", 1, nil)
+	e.message("n2", 1, nil)
 	e.now = at("01:00")
 	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
 		t.Errorf("news at night: %q", got)
@@ -159,8 +159,8 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 	e := indicateEnv(t)
 	e.n.speakingStart = time.Second
 	sat := e.n.sats["kueche"]
-	if err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-		Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
+	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 		t.Fatal(err)
 	}
 	e.ha.set(sat, "responding", nil)

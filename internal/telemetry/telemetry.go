@@ -45,7 +45,7 @@ type Provider struct {
 	cacheHitRatio  metric.Float64Histogram
 	toolCalls      metric.Int64Counter
 	prefixRebuilds metric.Int64Counter
-	noticesOut     metric.Int64Counter
+	messagesOut    metric.Int64Counter
 
 	shutdown []func(context.Context) error
 }
@@ -134,8 +134,8 @@ func (p *Provider) initInstruments(m metric.Meter) error {
 		metric.WithDescription("Rebuilds of the cached prompt prefix")); err != nil {
 		return err
 	}
-	if p.noticesOut, err = m.Int64Counter(MetricNoticesDelivered,
-		metric.WithDescription("Notices delivered to a channel")); err != nil {
+	if p.messagesOut, err = m.Int64Counter(MetricMessagesDelivered,
+		metric.WithDescription("Messages delivered to a channel")); err != nil {
 		return err
 	}
 	return nil
@@ -187,9 +187,9 @@ func (p *Provider) RecordPrefixRebuild(ctx context.Context, reason string) {
 	p.prefixRebuilds.Add(ctx, 1, metric.WithAttributes(AttrRebuildReason.String(reason)))
 }
 
-// RecordNoticeDelivery counts a notice that went out.
-func (p *Provider) RecordNoticeDelivery(ctx context.Context, channel string, count int) {
-	p.noticesOut.Add(ctx, int64(count), metric.WithAttributes(AttrChannel.String(channel)))
+// RecordMessageDelivery counts a message that went out.
+func (p *Provider) RecordMessageDelivery(ctx context.Context, channel string, count int) {
+	p.messagesOut.Add(ctx, int64(count), metric.WithAttributes(AttrChannel.String(channel)))
 }
 
 // Shutdown flushes pending telemetry.

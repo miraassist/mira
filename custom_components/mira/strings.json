@@ -59,7 +59,7 @@
         "data_description": {
           "telegram_user_id": "Numeric; must be on the agent's Telegram allowlist.",
           "notify": "Companion app notify service",
-          "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
+          "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private messages."
         }
       },
       "satellites": {
@@ -74,8 +74,8 @@
         "data_description": {
           "presence": "Motion at any of them starts an announcement, e.g. hallway and living room.",
           "morning": "The first motion after quiet hours announces what is pending.",
-          "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
-          "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
+          "mode": "Announce speaks messages when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent messages and reminders are always spoken.",
+          "indicator": "Shows waiting messages, e.g. the LED ring of the satellite."
         }
       }
     },
@@ -91,8 +91,8 @@
   },
   "entity": {
     "sensor": {
-      "pending_notices": {
-        "name": "Pending notices"
+      "pending_messages": {
+        "name": "Pending messages"
       }
     },
     "switch": {
@@ -107,9 +107,9 @@
     }
   },
   "services": {
-    "add_notice": {
-      "name": "Add notice",
-      "description": "Queue a notice. The agent announces it on a satellite when someone is in a room, or sends it privately.",
+    "send_message": {
+      "name": "Send message",
+      "description": "Queue a message. The agent announces it on a satellite when someone is in a room, or sends it privately.",
       "fields": {
         "text": {
           "name": "Text",
@@ -123,31 +123,31 @@
           "name": "Importance",
           "description": "0 not worth mentioning, 1 by the way, 2 important today, 3 urgent."
         },
-        "audience": {
-          "name": "Audience",
-          "description": "household, or a person id from the agent config."
+        "receiver": {
+          "name": "Receiver",
+          "description": "house, or a person: the HA person id (e.g. anna)."
         },
         "confidentiality": {
           "name": "Confidentiality",
-          "description": "Confidential notices are only spoken when the agent policy allows it, otherwise sent privately."
+          "description": "Confidential messages are only spoken when the agent policy allows it, otherwise sent privately."
         },
         "dedupe_key": {
           "name": "Dedupe key",
-          "description": "An open notice with the same key is updated instead of duplicated."
+          "description": "An open message with the same key is updated instead of duplicated."
         },
         "expires_in": {
           "name": "Expires in",
-          "description": "Duration like 12h; afterwards the notice is dropped. Default 24h."
+          "description": "Duration like 12h; afterwards the message is dropped. Default 24h."
         },
         "task": {
           "name": "Task",
-          "description": "The automation's id ({{ this.attributes.id }}): the notice shows in the task's log."
+          "description": "The automation's id ({{ this.attributes.id }}): the message shows in the task's log."
         }
       }
     },
     "assess": {
       "name": "Assess",
-      "description": "Mira judges what happened against the goal, with the data she looks up and condenses; if it is worth it, she words a notice and delivers it like any other. Answers importance, spoken and notice_id.",
+      "description": "Mira judges what happened against the goal, with the data she looks up and condenses; if it is worth it, she words a message and delivers it like any other. Answers importance, spoken and message_id.",
       "fields": {
         "goal": {
           "name": "Goal",
@@ -171,19 +171,19 @@
         },
         "notify": {
           "name": "Notify",
-          "description": "Off: only the verdict, no notice (dry run)."
+          "description": "Off: only the verdict, no message (dry run)."
         },
-        "audience": {
-          "name": "Audience",
-          "description": "household, or a person id from the agent config."
+        "receiver": {
+          "name": "Receiver",
+          "description": "house, or a person: the HA person id (e.g. anna)."
         },
         "confidentiality": {
           "name": "Confidentiality",
-          "description": "Confidential notices are only spoken when the agent policy allows it."
+          "description": "Confidential messages are only spoken when the agent policy allows it."
         },
         "dedupe_key": {
           "name": "Dedupe key",
-          "description": "An open notice with the same key is updated instead of duplicated."
+          "description": "An open message with the same key is updated instead of duplicated."
         },
         "expires_in": {
           "name": "Expires in",
@@ -197,7 +197,7 @@
     },
     "decide": {
       "name": "Decide",
-      "description": "Mira answers a yes/no question with the data she looks up; no notice. Use with response_variable and a template condition.",
+      "description": "Mira answers a yes/no question with the data she looks up; no message. Use with response_variable and a template condition.",
       "fields": {
         "question": {
           "name": "Question",

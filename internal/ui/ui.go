@@ -1,6 +1,6 @@
 // Package ui is the agent's small web interface: a single page that edits
 // the config sections the agent allows (notifier, persons,
-// satellites), shows open notices and the memory.
+// satellites), shows open messages and the memory.
 //
 // The page itself is static and holds no data. Everything goes through the
 // JSON API under /v1/ui/, which needs the same bearer token as the rest of
@@ -108,8 +108,8 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
 	h.mux.HandleFunc("DELETE /v1/ui/config/{section}", h.auth(h.resetSection))
 	h.mux.HandleFunc("GET /v1/ui/entities", h.auth(h.entities))
-	h.mux.HandleFunc("GET /v1/ui/notices", h.auth(h.notices))
-	h.mux.HandleFunc("POST /v1/ui/notices/{id}/ack", h.auth(h.ackNotice))
+	h.mux.HandleFunc("GET /v1/ui/messages", h.auth(h.messages))
+	h.mux.HandleFunc("POST /v1/ui/messages/{id}/ack", h.auth(h.ackMessage))
 	// Everyone in Home Assistant may see and change their own memory;
 	// the rest is for admins (and the operator with the token).
 	h.mux.HandleFunc("GET /v1/ui/memory", h.authAnyone(h.memory))
@@ -334,11 +334,11 @@ func (h *Handler) entities(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-type noticeJSON struct {
+type messageJSON struct {
 	ID              string `json:"id"`
 	State           string `json:"state"`
 	Importance      int    `json:"importance"`
-	Audience        string `json:"audience"`
+	Receiver        string `json:"receiver"`
 	Confidentiality string `json:"confidentiality"`
 	Spoken          string `json:"spoken"`
 	Details         string `json:"details"`
@@ -347,47 +347,47 @@ type noticeJSON struct {
 	DeliveredVia    string `json:"delivered_via,omitempty"`
 }
 
-func (h *Handler) notices(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	// The history: every state, newest first, a page at a time; with
-	// open=1 only what still waits. A notice past its expiry that nobody
+	// open=1 only what still waits. A message past its expiry that nobody
 	// heard shows as expired.
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	page = max(page, 0)
-	f := store.NoticeFilter{IncludeExpired: true, NewestFirst: true, Limit: noticePage + 1, Offset: page * noticePage}
+	f := store.MessageFilter{IncludeExpired: true, NewestFirst: true, Limit: messagePage + 1, Offset: page * messagePage}
 	if r.URL.Query().Get("open") == "1" {
 		// Open is what nobody has heard yet.
-		f.States, f.IncludeExpired = []string{store.NoticePending}, false
+		f.States, f.IncludeExpired = []string{store.MessagePending}, false
 	}
-	list, err := h.opts.Store.ListNotices(r.Context(), f)
+	list, err := h.opts.Store.ListMessages(r.Context(), f)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	out := make([]noticeJSON, 0, len(list))
+	out := make([]messageJSON, 0, len(list))
 	now := time.Now()
 	for _, n := range list {
 		state := n.State
-		if state == store.NoticePending && !n.ExpiresAt.IsZero() && n.ExpiresAt.Before(now) {
-			state = store.NoticeExpired
+		if state == store.MessagePending && !n.ExpiresAt.IsZero() && n.ExpiresAt.Before(now) {
+			state = store.MessageExpired
 		}
-		out = append(out, noticeJSON{ID: n.ID, State: state, Importance: n.Importance, Audience: n.Audience,
+		out = append(out, messageJSON{ID: n.ID, State: state, Importance: n.Importance, Receiver: n.Receiver,
 			Confidentiality: n.Confidentiality, Spoken: n.Spoken, Details: n.Details, Source: n.Source,
 			CreatedAt: localTime(n.CreatedAt), DeliveredVia: n.DeliveredVia})
 	}
-	more := len(out) > noticePage
+	more := len(out) > messagePage
 	if more {
-		out = out[:noticePage]
+		out = out[:messagePage]
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "page": page, "more": more})
 }
 
-// noticePage is how many notices the UI shows per page.
-const noticePage = 20
+// messagePage is how many messages the UI shows per page.
+const messagePage = 20
 
-func (h *Handler) ackNotice(w http.ResponseWriter, r *http.Request) {
-	err := h.opts.Store.SetNoticeState(r.Context(), r.PathValue("id"), store.NoticeAcked)
+func (h *Handler) ackMessage(w http.ResponseWriter, r *http.Request) {
+	err := h.opts.Store.SetMessageState(r.Context(), r.PathValue("id"), store.MessageAcked)
 	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "no such notice")
+		writeError(w, http.StatusNotFound, "no such message")
 		return
 	}
 	if err != nil {

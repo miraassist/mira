@@ -1,4 +1,4 @@
-"""sensor.mira_pending_notices: how many notices wait for delivery."""
+"""sensor.mira_pending_messages: how many messages wait for delivery."""
 
 from __future__ import annotations
 
@@ -13,15 +13,15 @@ from .entity import MiraEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: MiraConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities([PendingNoticesSensor(entry.runtime_data.coordinator, "pending_notices")])
+    async_add_entities([PendingMessagesSensor(entry.runtime_data.coordinator, "pending_messages")])
 
 
-class PendingNoticesSensor(MiraEntity, SensorEntity):
-    """Number of pending notices."""
+class PendingMessagesSensor(MiraEntity, SensorEntity):
+    """Number of pending messages."""
 
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:bell-badge-outline"
 
     @property
     def native_value(self) -> int | None:
-        return (self.coordinator.data or {}).get("pending_notices")
+        return (self.coordinator.data or {}).get("pending_messages")

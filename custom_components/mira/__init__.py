@@ -30,13 +30,13 @@ PLATFORMS = [Platform.BUTTON, Platform.CONVERSATION, Platform.SENSOR, Platform.S
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-SERVICE_ADD_NOTICE = "add_notice"
-ADD_NOTICE_SCHEMA = vol.Schema(
+SERVICE_SEND_MESSAGE = "send_message"
+SEND_MESSAGE_SCHEMA = vol.Schema(
     {
         vol.Required("text"): cv.string,
         vol.Optional("details"): cv.string,
         vol.Optional("importance", default=1): vol.All(vol.Coerce(int), vol.Range(min=0, max=3)),
-        vol.Optional("audience"): cv.string,
+        vol.Optional("receiver"): cv.string,
         vol.Optional("confidentiality"): vol.In(["normal", "confidential"]),
         vol.Optional("dedupe_key"): cv.string,
         vol.Optional("expires_in"): cv.string,
@@ -72,7 +72,7 @@ ASSESS_SCHEMA = vol.Schema(
         **JUDGEMENT_FIELDS,
         vol.Optional("cooldown"): cv.string,
         vol.Optional("notify"): cv.boolean,
-        vol.Optional("audience"): cv.string,
+        vol.Optional("receiver"): cv.string,
         vol.Optional("confidentiality"): vol.In(["normal", "confidential"]),
         vol.Optional("dedupe_key"): cv.string,
         vol.Optional("expires_in"): cv.string,
@@ -93,7 +93,7 @@ type MiraConfigEntry = ConfigEntry[MiraData]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register Mira's actions for automations (mira.add_notice,
+    """Register Mira's actions for automations (mira.send_message,
     mira.assess, mira.decide) and the commands the agent manages its
     automations with."""
 
@@ -105,12 +105,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise ServiceValidationError("No Mira agent is set up")
         return entries[0]
 
-    async def add_notice(call: ServiceCall) -> ServiceResponse:
+    async def send_message(call: ServiceCall) -> ServiceResponse:
         entry = loaded()
         try:
-            result = await entry.runtime_data.client.add_notice(dict(call.data))
+            result = await entry.runtime_data.client.send_message(dict(call.data))
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent did not accept the notice: {err}") from err
+            raise HomeAssistantError(f"Mira agent did not accept the message: {err}") from err
         await entry.runtime_data.coordinator.async_request_refresh()
         return result
 
@@ -127,14 +127,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def decide(call: ServiceCall) -> ServiceResponse:
         """A yes/no answer from Mira, for the automation to act on
-        (response_variable plus a template condition). No notice."""
+        (response_variable plus a template condition). No message."""
         try:
             return await loaded().runtime_data.client.decide(dict(call.data))
         except MiraError as err:
             raise HomeAssistantError(f"Mira agent could not decide: {err}") from err
 
     hass.services.async_register(
-        DOMAIN, SERVICE_ADD_NOTICE, add_notice, schema=ADD_NOTICE_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+        DOMAIN, SERVICE_SEND_MESSAGE, send_message, schema=SEND_MESSAGE_SCHEMA, supports_response=SupportsResponse.OPTIONAL
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ASSESS, assess, schema=ASSESS_SCHEMA, supports_response=SupportsResponse.OPTIONAL

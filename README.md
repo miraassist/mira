@@ -71,7 +71,7 @@ Requirements:
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
 
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the rooms and
-persons unless the HA integration manages them (see below); it lists open notices and the memory. It asks for `MIRA_API_TOKEN`
+persons unless the HA integration manages them (see below); it lists open messages and the memory. It asks for `MIRA_API_TOKEN`
 once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once. The page
 is in German or English, following the browser, with a switch in its header.
@@ -88,19 +88,19 @@ Reminders: "remind me tomorrow at seven" and timers are built in
 (`reminder_set`). At the time Mira speaks the reminder in the room it was
 asked in, or sends it privately.
 
-Notices can be spoken or shown: per room, `notifier.room_mode` is
+Messages can be spoken or shown: per room, `notifier.room_mode` is
 `announce` (spoken when someone comes in) or `indicate`, where the room's
-indicator light, such as an Echo's LED ring, pulses while notices wait and
-"Hast du eine Benachrichtigung?" reads them out (`notices_read`). When you
+indicator light, such as an Echo's LED ring, pulses while messages wait and
+"Hast du eine Benachrichtigung?" reads them out (`messages_read`). When you
 talk to a satellite anyway, what waits for its room follows the answer
 ("Licht ist an. Übrigens: ..."), except after a question back and in quiet
-hours. Urgent notices and reminders are always spoken.
+hours. Urgent messages and reminders are always spoken.
 
 Tasks: "Achte auf den Wasserverbrauch" becomes a Home Assistant automation
 labelled "Mira" that the model drafts and the user confirms. Home Assistant's
 triggers and conditions decide when; the integration's actions `mira.assess`
 (judge against the goal with condensed data, maybe notify), `mira.decide`
-(yes/no for conditions) and `mira.add_notice` decide what is said. See
+(yes/no for conditions) and `mira.send_message` decide what is said. See
 docs/spec/aufgaben.md and docs/system.md.
 
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
@@ -110,12 +110,12 @@ settings. The prompt lists them in one line each; Mira opens a skill with
 `skill_open` when a question needs it. Skills run no code: they use the
 core's building blocks, such as `calendar_events`, which reads a skill's
 calendar by name so its URL never reaches a model. A skill's schedules run
-as background jobs and may queue one notice. `mira skill NAME` runs a
+as background jobs and may queue one message. `mira skill NAME` runs a
 schedule now. The first skill, `abfall`, reads a waste collection calendar
 and reminds the evening before.
 
 Languages: `prompt.language` is `de` or `en`. It sets the language of the
-prompt, of the notices and of everything Mira writes on her own; she still
+prompt, of the messages and of everything Mira writes on her own; she still
 answers in the language she is spoken to in. The English prompt is written
 but not yet tuned against a model (see `internal/prompt/testdata/prefix_voice_en.txt`).
 
@@ -123,7 +123,7 @@ Security: locks, alarm panels and other configured entities only run after
 the user confirms in the next turn. After a turn has read web content,
 critical actions are blocked for the rest of that turn. Background jobs
 cannot run tools that change anything. Feed text is data and can never raise
-an urgent notice. These rules are enforced in code, not only in the prompt.
+an urgent message. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
@@ -140,7 +140,7 @@ page through Home Assistant (open, it holds no data) and its API calls
 through an authenticated proxy that adds the agent's token and the signed-in
 HA user. So it works over HA's HTTPS, with HA's login, and takes on HA's
 theme. There everyone, admins too, sees the house's memory and their own
-(person linked to the HA user); notices, tasks and settings are for admins,
+(person linked to the HA user); messages, tasks and settings are for admins,
 enforced by the proxy and the agent. The integration's options switch it off.
 
 Mira keeps no lists of her own for what Home Assistant has
@@ -153,7 +153,7 @@ only switched after a yes. Each change is checked by the agent before it is
 saved; what it refuses shows in the form. While the integration
 manages them, the agent's web UI shows those sections read-only. Removing the
 integration hands them back. The device also has a quiet-mode switch, a
-pending-notices sensor and a button to compact the memory profile now.
+pending-messages sensor and a button to compact the memory profile now.
 
 ## Development
 

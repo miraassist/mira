@@ -70,7 +70,7 @@ type ChatRequest struct {
 	Temperature *float64  `json:"temperature,omitempty"`
 	MaxTokens   int       `json:"max_tokens,omitempty"`
 	Stop        []string  `json:"stop,omitempty"`
-	// ResponseFormat requests structured output, used by the notice evaluator.
+	// ResponseFormat requests structured output, used by the message evaluator.
 	ResponseFormat any `json:"response_format,omitempty"`
 	// ReasoningEffort limits the thinking of models that think by default.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`

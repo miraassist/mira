@@ -31,9 +31,9 @@ var (
 	states   = regexp.MustCompile(`\b(?:ist|sind|is|are)\s+(?:gerade\s+|noch\s+|alle\s+|all\s+)?(?:an|aus|offen|geschlossen|zu|eingeschaltet|ausgeschaltet|on|off|open|closed)\b`)
 )
 
-// noNotices matches "keine Benachrichtigungen": whether notices wait is a
-// state like any other; seen live without notices_read while one waited.
-var noNotices = regexp.MustCompile(`\b(?:keine|no)\s+(?:neuen\s+|new\s+)?(?:benachrichtigung|meldung|nachricht|neuigkeit|notification|notice|message|news)`)
+// noMessages matches "keine Benachrichtigungen": whether messages wait is a
+// state like any other; seen live without messages_read while one waited.
+var noMessages = regexp.MustCompile(`\b(?:keine|no)\s+(?:neuen\s+|new\s+)?(?:benachrichtigung|meldung|nachricht|neuigkeit|notification|message|message|news)`)
 
 // unbacked reports whether a final answer, given in a turn that called no
 // tool, announces an action, claims one as done, or reports a state.
@@ -45,7 +45,7 @@ func unbacked(text string) bool {
 // reportsState reports whether the answer gives readings or states.
 func reportsState(text string) bool {
 	t := strings.ToLower(text)
-	return readings.MatchString(t) || states.MatchString(t) || noNotices.MatchString(t)
+	return readings.MatchString(t) || states.MatchString(t) || noMessages.MatchString(t)
 }
 
 // claimsAction reports whether the answer says an action happened.

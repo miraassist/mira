@@ -94,23 +94,23 @@ class MiraClient:
         )
 
     async def status(self) -> dict[str, Any]:
-        """Pending notice count and quiet mode."""
+        """Pending message count and quiet mode."""
         return await self._request("GET", "/v1/status", 10)
 
     async def set_quiet_mode(self, enabled: bool) -> None:
         """Switch the agent's quiet mode."""
         await self._request("PUT", "/v1/quiet_mode", 10, json={"enabled": enabled})
 
-    async def add_notice(self, notice: dict[str, Any]) -> dict[str, Any]:
-        """Queue a notice; the agent decides when and where it is delivered."""
-        return await self._request("POST", "/v1/notices", 10, json=notice)
+    async def send_message(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Queue a message; the agent decides when and where it is delivered."""
+        return await self._request("POST", "/v1/messages", 10, json=message)
 
     async def assess(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Let the agent judge an observation and queue a notice if it is worth one."""
+        """Let the agent judge an observation and queue a message if it is worth one."""
         return await self._request("POST", "/v1/assess", 60, json=request)
 
     async def decide(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Ask the agent a yes/no question about the house; no notice."""
+        """Ask the agent a yes/no question about the house; no message."""
         return await self._request("POST", "/v1/decide", 60, json=request)
 
     async def compact_profile(self) -> dict[str, Any]:

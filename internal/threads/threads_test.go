@@ -48,13 +48,13 @@ type env struct {
 	m    *Manager
 	st   *store.Store
 	fin  *fakeFinisher
-	sent chan store.Notice
+	sent chan store.Message
 	now  time.Time
 }
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	e := &env{fin: &fakeFinisher{async: true}, sent: make(chan store.Notice, 8), now: time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC)}
+	e := &env{fin: &fakeFinisher{async: true}, sent: make(chan store.Message, 8), now: time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC)}
 	var err error
 	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return e.now }})
 	if err != nil {
@@ -76,11 +76,11 @@ func setup(t *testing.T) *env {
 			return v + " (light.schlafzimmer)", nil
 		}},
 		Finishers: map[string]Finisher{"fake": e.fin, "memory.save": MemorySave(nil, i18n.DE)},
-		Deliver: func(_ context.Context, n store.Notice, area string) error {
+		Deliver: func(_ context.Context, n store.Message, area string) error {
 			if area != "wohnzimmer" {
 				t.Errorf("delivered to area %q", area)
 			}
-			if _, _, err := e.st.PutNotice(context.Background(), n); err != nil {
+			if _, _, err := e.st.PutMessage(context.Background(), n); err != nil {
 				t.Error(err)
 			}
 			e.sent <- n
@@ -102,7 +102,7 @@ func (e *env) turn(t *testing.T, key string) (tools.Invocation, store.Session) {
 	return tools.Invocation{SessionKey: key, Channel: config.ChannelVoice}, sess
 }
 
-func (e *env) next(t *testing.T) store.Notice {
+func (e *env) next(t *testing.T) store.Message {
 	t.Helper()
 	select {
 	case n := <-e.sent:
@@ -110,11 +110,11 @@ func (e *env) next(t *testing.T) store.Notice {
 	case <-time.After(3 * time.Second):
 		t.Fatal("nothing delivered")
 	}
-	return store.Notice{}
+	return store.Message{}
 }
 
 // Slow work: the turn says Mira comes back, and the result is announced as
-// a notice of the thread; replies to it continue the thread.
+// a message of the thread; replies to it continue the thread.
 func TestThreadOverSeveralTurns(t *testing.T) {
 	e := setup(t)
 	e.fin.delay = 200 * time.Millisecond
@@ -134,7 +134,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 	if !strings.Contains(out, "im Hintergrund") {
 		t.Fatalf("work not started: %s", out)
 	}
-	// The work asks back, as a notice of the thread.
+	// The work asks back, as a message of the thread.
 	q := e.next(t)
 	if q.ThreadID == "" || q.Spoken != "Ab wann ist es ungewöhnlich?" {
 		t.Fatalf("question: %+v", q)
@@ -156,7 +156,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 	if !strings.Contains(p.Spoken, "Soll ich?") || p.ThreadID != q.ThreadID {
 		t.Fatalf("proposal: %+v", p)
 	}
-	if old, _ := e.st.GetNotice(ctx, q.ID); old.State != store.NoticeExpired {
+	if old, _ := e.st.GetMessage(ctx, q.ID); old.State != store.MessageExpired {
 		t.Errorf("the answered question is still open: %s", old.State)
 	}
 
@@ -173,7 +173,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 	if th.State != store.ThreadDone {
 		t.Errorf("state %s", th.State)
 	}
-	if n, _ := e.st.GetNotice(ctx, p.ID); n.State != store.NoticeExpired {
+	if n, _ := e.st.GetMessage(ctx, p.ID); n.State != store.MessageExpired {
 		t.Errorf("the proposal stays open after the end: %s", n.State)
 	}
 }

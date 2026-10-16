@@ -232,7 +232,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
 	}
-	internal = append(internal, tools.NoticesRead(i18n.Of(cfg.Prompt.Language), a.readNotices))
+	internal = append(internal, tools.MessagesRead(i18n.Of(cfg.Prompt.Language), a.readMessages))
 	if a.ha != nil {
 		// Drafting and judging run on the engine, which is built from this
 		// registry: bound late through isolatedModel.
@@ -255,7 +255,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.threads = threads.New(threads.Options{
 		Lang: i18n.Of(cfg.Prompt.Language), Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
 		Persons: a.persons, Logger: a.log,
-		Deliver: func(ctx context.Context, n store.Notice, area string) error {
+		Deliver: func(ctx context.Context, n store.Message, area string) error {
 			a.proactiveMu.Lock()
 			nf := a.notifier
 			a.proactiveMu.Unlock()
@@ -526,9 +526,9 @@ func (a *app) announce(ctx context.Context) {
 	}()
 }
 
-// startProactive runs the notifier, which delivers notices, with the live
+// startProactive runs the notifier, which delivers messages, with the live
 // config. It gets its own context so the web UI can restart it with a
-// changed config. What raises notices are tasks: Home Assistant
+// changed config. What raises messages are tasks: Home Assistant
 // automations calling Mira's actions.
 func (a *app) startProactive(parent context.Context) {
 	a.proactiveMu.Lock()
@@ -596,9 +596,9 @@ func (e engineAssessor) Assess(ctx context.Context, instruction string, schema j
 	return e.a.engine.Assess(ctx, instruction, schema)
 }
 
-// readNotices answers "Hast du eine Benachrichtigung?": by voice what waits
+// readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
 // for the satellite's room, on Telegram what waits for that person.
-func (a *app) readNotices(ctx context.Context, inv tools.Invocation) (string, error) {
+func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
 	a.proactiveMu.Lock()
 	n := a.notifier
 	if n == nil && a.ha != nil {
@@ -618,7 +618,7 @@ func (a *app) readNotices(ctx context.Context, inv tools.Invocation) (string, er
 		}
 		area = sess.AreaID
 	}
-	return n.ReadOut(ctx, area, tools.AudienceFor("", inv, a.persons()))
+	return n.ReadOut(ctx, area, tools.ReceiverFor("", inv, a.persons()))
 }
 
 func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {
@@ -933,7 +933,7 @@ func runProfile(parent context.Context, cfg config.Config) error {
 }
 
 // runSkill runs a skill's schedule now, as at its time, and prints the
-// notice it queued, if any.
+// message it queued, if any.
 func runSkill(parent context.Context, cfg config.Config, name string, index int) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
@@ -956,11 +956,11 @@ func runSkill(parent context.Context, cfg config.Config, name string, index int)
 		fmt.Println("[nothing to report]")
 		return nil
 	}
-	list, err := a.store.ListNotices(ctx, store.NoticeFilter{States: []string{store.NoticePending}, Limit: 1})
+	list, err := a.store.ListMessages(ctx, store.MessageFilter{States: []string{store.MessagePending}, Limit: 1})
 	if err != nil || len(list) == 0 {
 		return err
 	}
-	fmt.Printf("%s\n\n[notice queued, importance %d]\n", list[0].Spoken, list[0].Importance)
+	fmt.Printf("%s\n\n[message queued, importance %d]\n", list[0].Spoken, list[0].Importance)
 	return nil
 }
 

@@ -11,20 +11,20 @@ import (
 	"github.com/sker65/mira/internal/store"
 )
 
-// In a room with mode "indicate", notices are not spoken when someone comes
+// In a room with mode "indicate", messages are not spoken when someone comes
 // in. The room's indicator light (the LED ring of an Echo, a lamp) shows
 // that something is waiting, and the user asks for it: "Hast du eine
 // Benachrichtigung?". Nobody is spoken to unasked, and the wake word makes
 // sure the satellite is listening when Mira answers.
 
-// waiting returns the notices that would be spoken in area.
-func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Notice, error) {
+// waiting returns the messages that would be spoken in area.
+func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Message, error) {
 	pending, err := n.pending(ctx)
 	if err != nil {
 		return nil, err
 	}
 	home := n.whoIsHome(ctx)
-	var out []store.Notice
+	var out []store.Message
 	for _, nt := range pending {
 		if nt.Source == store.SourceReminder {
 			continue // spoken at its time, never waits
@@ -36,7 +36,7 @@ func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Notice, er
 	return out, nil
 }
 
-// syncIndicators turns each indicator light on while notices wait for its
+// syncIndicators turns each indicator light on while messages wait for its
 // area, and off when none do. A light is only switched when its wanted
 // state changes, so the ring is not reset every minute; after a restart
 // every light is set once. The caller holds n.mu.
@@ -47,7 +47,7 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 		}
 		list, err := n.waiting(ctx, area)
 		if err != nil {
-			n.log.Error("could not check waiting notices", "area", area, "error", err)
+			n.log.Error("could not check waiting messages", "area", area, "error", err)
 			return
 		}
 		want := len(list) > 0
@@ -137,22 +137,22 @@ func (n *Notifier) SyncIndicators(ctx context.Context) {
 	n.syncIndicators(ctx)
 }
 
-// ReadOut is the answer to "Hast du eine Benachrichtigung?": the notices
-// waiting for area (asked by voice) or for audience (asked on Telegram), as
+// ReadOut is the answer to "Hast du eine Benachrichtigung?": the messages
+// waiting for area (asked by voice) or for receiver (asked on Telegram), as
 // one text to say, marked delivered. It returns "" when nothing waits.
 //
 // Read out by voice, it counts as an announcement on that satellite, so a
 // follow-up question ("Was genau?") gets the details as after any other.
-func (n *Notifier) ReadOut(ctx context.Context, area, audience string) (string, error) {
+func (n *Notifier) ReadOut(ctx context.Context, area, receiver string) (string, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	var list []store.Notice
+	var list []store.Message
 	var err error
 	if area != "" {
 		list, err = n.waiting(ctx, area)
 	} else {
-		list, err = n.forAudience(ctx, audience)
+		list, err = n.forReceiver(ctx, receiver)
 	}
 	if err != nil || len(list) == 0 {
 		return "", err
@@ -172,38 +172,38 @@ func (n *Notifier) ReadOut(ctx context.Context, area, audience string) (string, 
 	if sat := n.sats[area]; sat != "" {
 		if err := n.store.RecordAnnouncement(ctx, store.Announcement{
 			ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
-			Channel: "voice", NoticeIDs: ids,
+			Channel: "voice", MessageIDs: ids,
 		}); err != nil {
 			return "", err
 		}
 	}
-	n.tel.RecordNoticeDelivery(ctx, "asked", len(ids))
-	n.log.Info("notices read out on request", "area", area, "audience", audience, "notices", len(ids))
+	n.tel.RecordMessageDelivery(ctx, "asked", len(ids))
+	n.log.Info("messages read out on request", "area", area, "receiver", receiver, "messages", len(ids))
 	n.syncIndicators(ctx)
 	return text, nil
 }
 
-// forAudience is what a person may read on Telegram: everything pending for
+// forReceiver is what a person may read on Telegram: everything pending for
 // the household or for them, confidential ones included (the chat is
 // private).
-func (n *Notifier) forAudience(ctx context.Context, audience string) ([]store.Notice, error) {
+func (n *Notifier) forReceiver(ctx context.Context, receiver string) ([]store.Message, error) {
 	pending, err := n.pending(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []store.Notice
+	var out []store.Message
 	for _, nt := range pending {
 		if nt.Source == store.SourceReminder {
 			continue
 		}
-		if nt.Audience == store.AudienceHousehold || nt.Audience == audience {
+		if nt.Receiver == store.ReceiverHouse || nt.Receiver == receiver {
 			out = append(out, nt)
 		}
 	}
 	return out, nil
 }
 
-// Afterword is what follows an answer on a satellite: the notices waiting
+// Afterword is what follows an answer on a satellite: the messages waiting
 // for its area, as "Übrigens: ...", marked heard. Nothing during quiet hours
 // (a light switched at night wants no news) and nothing urgent, which was
 // spoken already.
@@ -215,7 +215,7 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 	}
 	list, err := n.waiting(ctx, area)
 	if err != nil {
-		n.log.Error("could not check waiting notices", "area", area, "error", err)
+		n.log.Error("could not check waiting messages", "area", area, "error", err)
 		return ""
 	}
 	if len(list) == 0 {
@@ -236,18 +236,18 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 		}
 		b.WriteString(sentence(nt.Spoken))
 		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
-			n.log.Error("could not mark notice delivered", "notice", nt.ID, "error", err)
+			n.log.Error("could not mark message delivered", "message", nt.ID, "error", err)
 			return ""
 		}
 	}
 	if err := n.store.RecordAnnouncement(ctx, store.Announcement{
 		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, n.sats[area]), AreaID: area,
-		Channel: "voice", NoticeIDs: ids,
+		Channel: "voice", MessageIDs: ids,
 	}); err != nil {
 		n.log.Error("could not record announcement", "area", area, "error", err)
 	}
-	n.tel.RecordNoticeDelivery(ctx, "afterword", len(ids))
-	n.log.Info("notices added to an answer", "area", area, "notices", len(ids))
+	n.tel.RecordMessageDelivery(ctx, "afterword", len(ids))
+	n.log.Info("messages added to an answer", "area", area, "messages", len(ids))
 	n.syncIndicators(ctx)
 	return strings.TrimSpace(b.String())
 }

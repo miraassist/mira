@@ -19,8 +19,8 @@ const (
 	ToolMemorySave     = "memory_save"
 	ToolMemorySearch   = "memory_search"
 	ToolMemoryForget   = "memory_forget"
-	ToolNoticesList    = "notices_list"
-	ToolNoticeAck      = "notice_ack"
+	ToolMessagesList   = "messages_list"
+	ToolMessageAck     = "message_ack"
 	ToolSendToTelegram = "send_to_telegram"
 	ToolDelegate       = "delegate"
 )
@@ -127,24 +127,24 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 			},
 		},
 		{
-			Name:        ToolNoticesList,
-			Description: t.noticesListDesc,
+			Name:        ToolMessagesList,
+			Description: t.messagesListDesc,
 			Schema:      `{"type":"object","properties":{}}`,
 			ReadOnly:    true,
 			Run: func(ctx context.Context, inv Invocation) (string, error) {
-				notices, err := st.ListNotices(ctx, store.NoticeFilter{
-					States: []string{store.NoticePending, store.NoticeDelivered}, Limit: 20})
+				messages, err := st.ListMessages(ctx, store.MessageFilter{
+					States: []string{store.MessagePending, store.MessageDelivered}, Limit: 20})
 				if err != nil {
 					return "", err
 				}
-				if len(notices) == 0 {
-					return t.noNotices, nil
+				if len(messages) == 0 {
+					return t.noMessages, nil
 				}
 				var b strings.Builder
-				for _, n := range notices {
-					fmt.Fprintf(&b, t.noticeLine, n.ID, n.Importance, n.State, n.Spoken)
+				for _, n := range messages {
+					fmt.Fprintf(&b, t.messageLine, n.ID, n.Importance, n.State, n.Spoken)
 					if n.Details != "" {
-						fmt.Fprintf(&b, t.noticeDetails, n.Details)
+						fmt.Fprintf(&b, t.messageDetails, n.Details)
 					}
 					b.WriteByte('\n')
 				}
@@ -152,8 +152,8 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 			},
 		},
 		{
-			Name:        ToolNoticeAck,
-			Description: t.noticeAckDesc,
+			Name:        ToolMessageAck,
+			Description: t.messageAckDesc,
 			Schema:      `{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`,
 			Run: func(ctx context.Context, inv Invocation) (string, error) {
 				var a struct {
@@ -162,12 +162,12 @@ func Internal(l i18n.Lang, st *store.Store, telegram TelegramSender, delegate De
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
 				}
-				if err := st.SetNoticeState(ctx, a.ID, store.NoticeAcked); errors.Is(err, store.ErrNotFound) {
-					return "", errors.New(t.noSuchNotice)
+				if err := st.SetMessageState(ctx, a.ID, store.MessageAcked); errors.Is(err, store.ErrNotFound) {
+					return "", errors.New(t.noSuchMessage)
 				} else if err != nil {
 					return "", err
 				}
-				return t.noticeAcked, nil
+				return t.messageAcked, nil
 			},
 		},
 		{

@@ -1,12 +1,12 @@
-// Package notifier decides when, where and how pending notices reach a
-// person. It is deterministic code: the wording was produced when the notice
+// Package notifier decides when, where and how pending messages reach a
+// person. It is deterministic code: the wording was produced when the message
 // was created, so delivery never waits for the model.
 //
 // Voice delivery happens on presence: the first motion in a configured area
 // outside quiet hours and outside the area's cooldown announces up to
-// MaxItemsPerAnnouncement notices on that area's satellite. The morning rule
+// MaxItemsPerAnnouncement messages on that area's satellite. The morning rule
 // of the plan is exactly that: quiet hours end, someone walks into the
-// bathroom. Notices that must not be spoken right then go to a private
+// bathroom. Messages that must not be spoken right then go to a private
 // channel instead, and important ones that no satellite delivered in time
 // escalate to one.
 package notifier
@@ -81,7 +81,7 @@ type Notifier struct {
 	speakPause time.Duration
 
 	// mu serialises decisions, so two motion events a second apart cannot
-	// both announce the same notices.
+	// both announce the same messages.
 	mu sync.Mutex
 	// deviceOf caches satellite entity -> device id, for follow-up linking.
 	deviceOf map[string]string
@@ -129,8 +129,8 @@ func New(opts Options) *Notifier {
 // Outcome of OnPresence, for logs and tests.
 type Outcome struct {
 	Skipped   string   // why nothing was announced, if nothing was
-	Announced []string // notice ids spoken
-	Private   []string // notice ids sent privately instead
+	Announced []string // message ids spoken
+	Private   []string // message ids sent privately instead
 }
 
 // OnPresence handles motion in an area.
@@ -172,7 +172,7 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	}
 	home := n.whoIsHome(ctx)
 
-	var voice, private []store.Notice
+	var voice, private []store.Message
 	for _, nt := range pending {
 		switch n.route(nt, home) {
 		case routeVoice:
@@ -185,7 +185,7 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	var out Outcome
 	for _, nt := range private {
 		if err := n.sendPrivate(ctx, nt); err != nil {
-			n.log.Error("private delivery failed", "notice", nt.ID, "error", err)
+			n.log.Error("private delivery failed", "message", nt.ID, "error", err)
 			continue
 		}
 		out.Private = append(out.Private, nt.ID)
@@ -208,13 +208,13 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	return out, nil
 }
 
-// Tick runs the time-driven rules: expiry, confidential notices that are
+// Tick runs the time-driven rules: expiry, confidential messages that are
 // never spoken, and escalation. Call it about once a minute.
 func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if _, err := n.store.ExpireNotices(ctx); err != nil {
+	if _, err := n.store.ExpireMessages(ctx); err != nil {
 		return nil, err
 	}
 	now := n.clock()
@@ -244,20 +244,20 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 			continue
 		}
 		if err := n.sendPrivate(ctx, nt); err != nil {
-			n.log.Error("private delivery failed", "notice", nt.ID, "error", err)
+			n.log.Error("private delivery failed", "message", nt.ID, "error", err)
 			continue
 		}
 		reason := "escalation"
 		if neverSpoken {
 			reason = "confidential"
 		}
-		n.log.Info("notice delivered privately", "notice", nt.ID, "reason", reason)
+		n.log.Info("message delivered privately", "message", nt.ID, "reason", reason)
 		sent = append(sent, nt.ID)
 	}
 	return sent, nil
 }
 
-// deliverUrgent sends every pending urgent notice at once, ignoring quiet
+// deliverUrgent sends every pending urgent message at once, ignoring quiet
 // hours, quiet mode and cooldowns: a water leak at three in the morning must
 // not wait for the morning announcement. It goes privately to everyone and,
 // unless confidential, is spoken on every satellite.
@@ -277,22 +277,22 @@ func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
 		}
 		privErr := n.sendPrivate(ctx, nt)
 		if privErr != nil {
-			n.log.Error("urgent private delivery failed", "notice", nt.ID, "error", privErr)
+			n.log.Error("urgent private delivery failed", "message", nt.ID, "error", privErr)
 		}
 		spoken := false
 		if urgent.Announce && !nt.Confidential() {
 			spoken = n.announceEverywhere(ctx, nt)
 		}
 		if privErr == nil || spoken {
-			n.log.Warn("urgent notice delivered", "notice", nt.ID, "spoken", spoken, "private", privErr == nil)
+			n.log.Warn("urgent message delivered", "message", nt.ID, "spoken", spoken, "private", privErr == nil)
 			sent = append(sent, nt.ID)
 		}
 	}
 	return sent, nil
 }
 
-// announceEverywhere speaks one notice on each satellite once.
-func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Notice) bool {
+// announceEverywhere speaks one message on each satellite once.
+func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Message) bool {
 	done := map[string]bool{}
 	spoken := false
 	for _, area := range sortedKeys(n.sats) {
@@ -301,7 +301,7 @@ func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Notice) bool
 			continue
 		}
 		done[sat] = true
-		if err := n.announce(ctx, area, []store.Notice{nt}, true); err != nil {
+		if err := n.announce(ctx, area, []store.Message{nt}, true); err != nil {
 			n.log.Error("urgent announcement failed", "area", area, "error", err)
 			continue
 		}
@@ -319,9 +319,9 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-func (n *Notifier) pending(ctx context.Context) ([]store.Notice, error) {
-	return n.store.ListNotices(ctx, store.NoticeFilter{
-		States: []string{store.NoticePending}, MinImportance: n.cfg.MinImportance,
+func (n *Notifier) pending(ctx context.Context) ([]store.Message, error) {
+	return n.store.ListMessages(ctx, store.MessageFilter{
+		States: []string{store.MessagePending}, MinImportance: n.cfg.MinImportance,
 	})
 }
 
@@ -333,12 +333,12 @@ const (
 	routePrivate
 )
 
-// route decides what happens to a notice when someone is in a room with a
+// route decides what happens to a message when someone is in a room with a
 // satellite. Nobody knows who that someone is; the person entities only say
 // who is home.
-func (n *Notifier) route(nt store.Notice, home map[string]bool) route {
-	if nt.Audience != store.AudienceHousehold {
-		if p, ok := n.persons[nt.Audience]; ok && p.Entity != "" && !home[nt.Audience] && !home["?"+nt.Audience] {
+func (n *Notifier) route(nt store.Message, home map[string]bool) route {
+	if nt.Receiver != store.ReceiverHouse {
+		if p, ok := n.persons[nt.Receiver]; ok && p.Entity != "" && !home[nt.Receiver] && !home["?"+nt.Receiver] {
 			// The recipient is away: whoever walked in is someone else.
 			return routeWait
 		}
@@ -351,8 +351,8 @@ func (n *Notifier) route(nt store.Notice, home map[string]bool) route {
 		return routeVoice
 	case config.ConfidentialVoiceWhenAlone:
 		alone := len(home) == 1
-		if nt.Audience != store.AudienceHousehold {
-			alone = alone && home[nt.Audience]
+		if nt.Receiver != store.ReceiverHouse {
+			alone = alone && home[nt.Receiver]
 		}
 		if alone {
 			return routeVoice
@@ -406,7 +406,7 @@ func (n *Notifier) inQuietHours(t time.Time) bool {
 	return m >= from || m < to // wraps midnight
 }
 
-// texts are the words around the notices of an announcement.
+// texts are the words around the messages of an announcement.
 type texts struct {
 	goodMorning, intro, also, and string // intro: %s = count word
 	reminder                      string // %s = what to remember
@@ -417,29 +417,29 @@ type texts struct {
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
 
 var catalog = map[i18n.Lang]texts{
-	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Hinweise. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.", byTheWay: "Übrigens: ",
-		counts: []string{"null", "einen", "zwei", "drei", "vier", "fünf"}},
-	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s notices. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
+	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Nachrichten. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.", byTheWay: "Übrigens: ",
+		counts: []string{"null", "eine", "zwei", "drei", "vier", "fünf"}},
+	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
 		counts: []string{"zero", "one", "two", "three", "four", "five"}},
 }
 
-// Compose turns notices into one spoken announcement.
-func Compose(l i18n.Lang, notices []store.Notice, now time.Time, quietEnd config.ClockTime) string {
+// Compose turns messages into one spoken announcement.
+func Compose(l i18n.Lang, messages []store.Message, now time.Time, quietEnd config.ClockTime) string {
 	t := i18n.Pick(catalog, l)
 	var b strings.Builder
 	h := now.Hour()
 	if h*60+now.Minute() >= quietEnd.MinutesOfDay() && h < 11 {
 		b.WriteString(t.goodMorning)
 	}
-	if len(notices) == 1 {
-		b.WriteString(sentence(notices[0].Spoken))
+	if len(messages) == 1 {
+		b.WriteString(sentence(messages[0].Spoken))
 		return b.String()
 	}
-	fmt.Fprintf(&b, t.intro, countWord(t, len(notices)))
-	for i, nt := range notices {
+	fmt.Fprintf(&b, t.intro, countWord(t, len(messages)))
+	for i, nt := range messages {
 		switch {
 		case i == 0:
-		case i == len(notices)-1:
+		case i == len(messages)-1:
 			b.WriteString(t.and)
 		default:
 			b.WriteString(t.also)
@@ -466,16 +466,16 @@ func countWord(t texts, n int) string {
 
 // preannounce plays the satellite's chime first; an answer someone waits
 // for in that room does without it.
-func (n *Notifier) announce(ctx context.Context, area string, notices []store.Notice, preannounce bool) error {
+func (n *Notifier) announce(ctx context.Context, area string, messages []store.Message, preannounce bool) error {
 	sat := n.sats[area]
-	text := Compose(n.lang, notices, n.clock().In(n.loc), n.cfg.QuietHours.To)
+	text := Compose(n.lang, messages, n.clock().In(n.loc), n.cfg.QuietHours.To)
 	n.speaking(ctx, area)
 	method, err := n.deliver(ctx, sat, text, preannounce)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
 	}
-	ids := make([]string, len(notices))
-	for i, nt := range notices {
+	ids := make([]string, len(messages))
+	for i, nt := range messages {
 		ids[i] = nt.ID
 		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
@@ -483,13 +483,13 @@ func (n *Notifier) announce(ctx context.Context, area string, notices []store.No
 	}
 	err = n.store.RecordAnnouncement(ctx, store.Announcement{
 		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
-		Channel: "voice", NoticeIDs: ids,
+		Channel: "voice", MessageIDs: ids,
 	})
 	if err != nil {
 		return err
 	}
-	n.tel.RecordNoticeDelivery(ctx, "voice", len(ids))
-	n.log.Info("announced", "area", area, "satellite", sat, "method", method, "notices", len(ids))
+	n.tel.RecordMessageDelivery(ctx, "voice", len(ids))
+	n.log.Info("announced", "area", area, "satellite", sat, "method", method, "messages", len(ids))
 	return nil
 }
 
@@ -508,7 +508,7 @@ func (n *Notifier) deliver(ctx context.Context, sat, text string, preannounce bo
 	switch method {
 	case "start_conversation":
 		// The satellite listens afterwards; the reply comes back through the
-		// integration and finds the notices through the announcement record.
+		// integration and finds the messages through the announcement record.
 		err := n.ha.CallService(ctx, "assist_satellite", "start_conversation",
 			map[string]any{"start_message": text, "preannounce": preannounce}, target)
 		// The call returns only once the satellite has stopped listening,
@@ -561,20 +561,20 @@ func (n *Notifier) deviceID(ctx context.Context, entityID string) string {
 	return n.deviceOf[entityID]
 }
 
-// sendPrivate delivers a notice to its recipients over the first private
+// sendPrivate delivers a message to its recipients over the first private
 // channel that works for each of them.
-func (n *Notifier) sendPrivate(ctx context.Context, nt store.Notice) error {
+func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 	text := nt.Spoken
 	if nt.Details != "" {
 		text += "\n\n" + nt.Details
 	}
 	var recipients []string
-	if nt.Audience == store.AudienceHousehold {
+	if nt.Receiver == store.ReceiverHouse {
 		for id := range n.persons {
 			recipients = append(recipients, id)
 		}
 	} else {
-		recipients = []string{nt.Audience}
+		recipients = []string{nt.Receiver}
 	}
 
 	var used []string
@@ -600,7 +600,7 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Notice) error {
 	if len(used) == 0 {
 		return errors.Join(errs...)
 	}
-	n.tel.RecordNoticeDelivery(ctx, used[0], 1)
+	n.tel.RecordMessageDelivery(ctx, used[0], 1)
 	return n.store.MarkDelivered(ctx, nt.ID, strings.Join(dedupe(used), ","))
 }
 

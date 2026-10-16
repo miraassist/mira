@@ -113,24 +113,24 @@ func TestConfigEditing(t *testing.T) {
 	}
 }
 
-func TestNoticesAndMemory(t *testing.T) {
+func TestMessagesAndMemory(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
-	st.PutNotice(ctx, store.Notice{ID: "n1", Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
+	st.PutMessage(ctx, store.Message{ID: "n1", Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
 	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Ben trinkt Kaffee."})
 
-	if code, body := call(t, srv, "GET", "/v1/ui/notices", "secret", ""); code != 200 || !strings.Contains(body, `"spoken":"Test"`) {
-		t.Fatalf("notices: %d %s", code, body)
+	if code, body := call(t, srv, "GET", "/v1/ui/messages", "secret", ""); code != 200 || !strings.Contains(body, `"spoken":"Test"`) {
+		t.Fatalf("messages: %d %s", code, body)
 	}
-	if code, _ := call(t, srv, "POST", "/v1/ui/notices/n1/ack", "secret", ""); code != 200 {
+	if code, _ := call(t, srv, "POST", "/v1/ui/messages/n1/ack", "secret", ""); code != 200 {
 		t.Fatalf("ack: %d", code)
 	}
-	if n, _ := st.GetNotice(ctx, "n1"); n.State != store.NoticeAcked {
+	if n, _ := st.GetMessage(ctx, "n1"); n.State != store.MessageAcked {
 		t.Errorf("state = %s", n.State)
 	}
-	// Done notices stay in the history, with their state.
-	if _, body := call(t, srv, "GET", "/v1/ui/notices", "secret", ""); !strings.Contains(body, `"state":"acked"`) {
-		t.Errorf("acked notice left the list: %s", body)
+	// Done messages stay in the history, with their state.
+	if _, body := call(t, srv, "GET", "/v1/ui/messages", "secret", ""); !strings.Contains(body, `"state":"acked"`) {
+		t.Errorf("acked message left the list: %s", body)
 	}
 	if code, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); code != 200 || !strings.Contains(body, "Ben trinkt Kaffee.") {
 		t.Fatalf("memory: %d %s", code, body)
@@ -227,7 +227,7 @@ func TestMemoryInsideHomeAssistant(t *testing.T) {
 		t.Errorf("forget a house fact: %d", code)
 	}
 	// The rest of the page is for admins.
-	for _, path := range []string{"/v1/ui/config", "/v1/ui/notices", "/v1/ui/tasks"} {
+	for _, path := range []string{"/v1/ui/config", "/v1/ui/messages", "/v1/ui/tasks"} {
 		if code, _ := asHA(t, srv, "GET", path, "u-anna", false, ""); code != 403 {
 			t.Errorf("%s for a non-admin: %d", path, code)
 		}
@@ -323,7 +323,7 @@ func TestTasksAPI(t *testing.T) {
 		t.Errorf("try: %d %s", code, body)
 	}
 	st.AddAssessment(context.Background(), store.Assessment{ID: "a1", Task: "mira_a", Kind: store.AssessmentAssess, Goal: "g",
-		Importance: 2, Spoken: "Viel Wasser.", NoticeID: "n1"})
+		Importance: 2, Spoken: "Viel Wasser.", MessageID: "n1"})
 	if code, body := call(t, srv, "GET", "/v1/ui/tasks/mira_a/log", "secret", ""); code != 200 || !strings.Contains(body, `"notified":true`) {
 		t.Errorf("log: %d %s", code, body)
 	}
@@ -337,32 +337,32 @@ func TestTasksAPI(t *testing.T) {
 
 // The history comes a page at a time, newest first; open=1 leaves out what
 // is done.
-func TestNoticesArePaged(t *testing.T) {
+func TestMessagesArePaged(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
 	for i := 0; i < 25; i++ {
 		id := fmt.Sprintf("n%02d", i)
-		st.PutNotice(ctx, store.Notice{ID: id, Source: store.SourceExternal, DedupeKey: id, Importance: 1,
-			Audience: store.AudienceHousehold, Spoken: "Meldung " + id})
+		st.PutMessage(ctx, store.Message{ID: id, Source: store.SourceExternal, DedupeKey: id, Importance: 1,
+			Receiver: store.ReceiverHouse, Spoken: "Meldung " + id})
 	}
-	st.SetNoticeState(ctx, "n00", store.NoticeAcked)
-	st.SetNoticeState(ctx, "n01", store.NoticeDelivered)
+	st.SetMessageState(ctx, "n00", store.MessageAcked)
+	st.SetMessageState(ctx, "n01", store.MessageDelivered)
 	var r struct {
 		Items []struct{ ID, State string } `json:"items"`
 		More  bool                         `json:"more"`
 	}
-	_, body := call(t, srv, "GET", "/v1/ui/notices", "secret", "")
+	_, body := call(t, srv, "GET", "/v1/ui/messages", "secret", "")
 	json.Unmarshal([]byte(body), &r)
 	if len(r.Items) != 20 || !r.More {
 		t.Fatalf("page 0: %d items, more %v", len(r.Items), r.More)
 	}
-	_, body = call(t, srv, "GET", "/v1/ui/notices?page=1", "secret", "")
+	_, body = call(t, srv, "GET", "/v1/ui/messages?page=1", "secret", "")
 	r.Items, r.More = nil, false
 	json.Unmarshal([]byte(body), &r)
 	if len(r.Items) != 5 || r.More {
 		t.Fatalf("page 1: %d items, more %v", len(r.Items), r.More)
 	}
-	_, body = call(t, srv, "GET", "/v1/ui/notices?page=1&open=1", "secret", "")
+	_, body = call(t, srv, "GET", "/v1/ui/messages?page=1&open=1", "secret", "")
 	r.Items = nil
 	json.Unmarshal([]byte(body), &r)
 	if len(r.Items) != 3 {

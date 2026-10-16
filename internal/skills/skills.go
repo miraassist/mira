@@ -84,7 +84,7 @@ type Setting struct {
 }
 
 // Schedule runs Task as a background job at Cron; the result may become a
-// notice.
+// message.
 type Schedule struct {
 	Cron string `yaml:"cron"`
 	Task string `yaml:"task"`

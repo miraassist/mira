@@ -30,7 +30,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	var asked []string
 	waiting := "Übrigens: Heute hast du einen Zahnarzttermin."
 	internal := append(tools.Internal(i18n.DE, st, nil, nil),
-		tools.NoticesRead(i18n.DE, func(context.Context, tools.Invocation) (string, error) { return "Nichts.", nil }))
+		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (string, error) { return "Nichts.", nil }))
 	e := conversation.New(conversation.Options{
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
 		Tools: tools.NewRegistry(nil, internal...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot),
@@ -55,19 +55,19 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	if r := say("a", "Licht an"); strings.Contains(r.Text, "Übrigens") || len(asked) != 0 {
 		t.Errorf("appended to a question: %q", r.Text)
 	}
-	// Asking for the notices themselves: nothing appended either.
-	model.Push(fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("n", "notices_read", `{}`)}}, fakellm.Step{Content: "Nichts Neues."})
+	// Asking for the messages themselves: nothing appended either.
+	model.Push(fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("n", "messages_read", `{}`)}}, fakellm.Step{Content: "Nichts Neues."})
 	if r := say("b", "Hast du eine Benachrichtigung?"); r.Text != "Nichts Neues." || len(asked) != 0 {
 		t.Errorf("appended to a read-out: %q", r.Text)
 	}
-	// A plain answer gets the waiting notice, and the transcript has it, so
+	// A plain answer gets the waiting message, and the transcript has it, so
 	// "Was genau?" knows what was said.
 	model.Push(fakellm.Step{Content: "Gern geschehen."})
 	r := say("c", "Danke dir")
 	if r.Text != "Gern geschehen. Übrigens: Heute hast du einen Zahnarzttermin." || len(asked) != 1 || asked[0] != "kueche" {
 		t.Fatalf("answer: %q, asked %v", r.Text, asked)
 	}
-	msgs, _ := st.Messages(context.Background(), conversation.SessionKey(config.ChannelVoice, "c"))
+	msgs, _ := st.ChatMessages(context.Background(), conversation.SessionKey(config.ChannelVoice, "c"))
 	if last := msgs[len(msgs)-1]; !strings.Contains(last.Content, "Zahnarzttermin") {
 		t.Errorf("transcript lacks the afterword: %+v", last)
 	}

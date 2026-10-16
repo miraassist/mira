@@ -261,7 +261,7 @@ func TestVolatileDataNeverReachesTheStableLayers(t *testing.T) {
 		Now:                 time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC),
 		ChannelContext:      "Kanal: Sprache, Satellit Küche.",
 		Memories:            []string{"Der Wechselrichter steht im Keller."},
-		NoticeContext:       "Wechselrichter meldet seit 03:14 Uhr einen Fehler.",
+		MessageContext:      "Wechselrichter meldet seit 03:14 Uhr einen Fehler.",
 		PendingConfirmation: "Haustür abschließen",
 		Extra:               "Vom Satelliten durchgereicht.",
 		Text:                "Was ist los?",
@@ -334,7 +334,7 @@ func TestGoldenTurn(t *testing.T) {
 		Now:            time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC),
 		ChannelContext: "Kanal: Sprache, Satellit Küche. Ohne Raumangabe ist die Küche gemeint.",
 		Memories:       []string{"Der Wechselrichter steht im Keller.", "Ben steht um 6:30 auf."},
-		NoticeContext:  "Wechselrichter: Fehlerzustand seit 03:14 Uhr, Code E-042.",
+		MessageContext: "Wechselrichter: Fehlerzustand seit 03:14 Uhr, Code E-042.",
 		Text:           "Guten Morgen, was gibt's?",
 	}
 	compareGolden(t, "turn_voice.txt", turn.Render())

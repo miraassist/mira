@@ -7,7 +7,7 @@ an authenticated view that adds the agent's token and says who is signed
 in. So the page works over HA's HTTPS and from away, with HA's login.
 
 Everyone sees the house's memory and their own; the rest of the page
-(notices, tasks, settings) is for admins. The view enforces that, and the
+(messages, tasks, settings) is for admins. The view enforces that, and the
 agent once more from the user it is told.
 """
 

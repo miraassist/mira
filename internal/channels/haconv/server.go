@@ -41,7 +41,7 @@ type Options struct {
 	// config entry's unique id.
 	InstanceID string
 	Logger     *slog.Logger
-	// Persons returns the valid personal audiences of a notice. A function,
+	// Persons returns the valid personal receivers of a message. A function,
 	// because the web UI can change them while the agent runs.
 	Persons func() map[string]config.Person
 	// TurnTimeout bounds one conversation request.
@@ -77,7 +77,7 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("POST /v1/conversation", s.conversation)
 	s.mux.HandleFunc("GET /v1/status", s.status)
 	s.mux.HandleFunc("PUT /v1/quiet_mode", s.quietMode)
-	s.mux.HandleFunc("POST /v1/notices", s.addNotice)
+	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
 	s.mux.HandleFunc("POST /v1/assess", s.assess)
 	s.mux.HandleFunc("POST /v1/decide", s.decide)
 	return s
@@ -136,7 +136,7 @@ func (s *Server) assess(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, v)
 }
 
-// decide serves mira.decide: a yes/no answer, no notice.
+// decide serves mira.decide: a yes/no answer, no message.
 func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Tasks == nil {
 		writeError(w, http.StatusServiceUnavailable, "tasks need Home Assistant")
@@ -203,7 +203,7 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	pending, err := s.opts.Store.CountPendingNotices(r.Context())
+	pending, err := s.opts.Store.CountPendingMessages(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -213,7 +213,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"pending_notices": pending, "quiet_mode": quiet})
+	writeJSON(w, http.StatusOK, map[string]any{"pending_messages": pending, "quiet_mode": quiet})
 }
 
 func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {
@@ -231,24 +231,24 @@ func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"quiet_mode": *req.Enabled})
 }
 
-type noticeRequest struct {
+type messageRequest struct {
 	Text       string `json:"text"`
 	Details    string `json:"details"`
 	Importance int    `json:"importance"`
-	Audience   string `json:"audience"`
+	Receiver   string `json:"receiver"`
 	DedupeKey  string `json:"dedupe_key"`
 	// Confidentiality is "normal" (default) or "confidential".
 	Confidentiality string `json:"confidentiality"`
 	// ExpiresIn is a Go duration such as "12h". Default 24h.
 	ExpiresIn string `json:"expires_in"`
 	// Task is the automation that sent it, when it is one of Mira's tasks
-	// ({{ this.attributes.id }}): the notice then counts as the task's and
+	// ({{ this.attributes.id }}): the message then counts as the task's and
 	// shows in its log.
 	Task string `json:"task"`
 }
 
-func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
-	var req noticeRequest
+func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
+	var req messageRequest
 	if err := decode(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -261,13 +261,13 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "confidentiality must be normal or confidential")
 		return
 	}
-	if a := req.Audience; a != "" && a != store.AudienceHousehold {
+	if a := req.Receiver; a != "" && a != store.ReceiverHouse {
 		var persons map[string]config.Person
 		if s.opts.Persons != nil {
 			persons = s.opts.Persons()
 		}
 		if _, ok := persons[a]; !ok {
-			writeError(w, http.StatusBadRequest, "audience must be household or a configured person")
+			writeError(w, http.StatusBadRequest, "receiver must be house or a person")
 			return
 		}
 	}
@@ -288,9 +288,9 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 	if req.Task != "" {
 		source = store.SourceTask
 	}
-	n, created, err := s.opts.Store.PutNotice(r.Context(), store.Notice{
+	n, created, err := s.opts.Store.PutMessage(r.Context(), store.Message{
 		ID: ulid.Make().String(), Source: source, DedupeKey: req.DedupeKey,
-		Importance: req.Importance, Audience: req.Audience, Spoken: strings.TrimSpace(req.Text),
+		Importance: req.Importance, Receiver: req.Receiver, Spoken: strings.TrimSpace(req.Text),
 		Details: req.Details, ExpiresAt: time.Now().Add(ttl), Confidentiality: req.Confidentiality,
 	})
 	if err != nil {
@@ -299,8 +299,8 @@ func (s *Server) addNotice(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Task != "" {
 		if err := s.opts.Store.AddAssessment(r.Context(), store.Assessment{ID: ulid.Make().String(), Task: req.Task,
-			Kind: store.AssessmentNotice, Goal: req.Text, Importance: req.Importance, Spoken: n.Spoken, NoticeID: n.ID}); err != nil {
-			s.log.Warn("could not log a task's notice", "task", req.Task, "error", err)
+			Kind: store.AssessmentMessage, Goal: req.Text, Importance: req.Importance, Spoken: n.Spoken, MessageID: n.ID}); err != nil {
+			s.log.Warn("could not log a task's message", "task", req.Task, "error", err)
 		}
 	}
 	code := http.StatusOK

@@ -8,7 +8,7 @@ from .conftest import AGENT_URL
 
 
 async def _setup(hass, aioclient_mock, entry):
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_notices": 0, "quiet_mode": False})
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -98,7 +98,7 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
     assert (await client.put("/api/mira/proxy/v1/ui/memory/f1", json={"text": "x"})).status == 200
     for method, path in [
         ("GET", "/api/mira/proxy/v1/ui/config"),
-        ("GET", "/api/mira/proxy/v1/ui/notices"),
+        ("GET", "/api/mira/proxy/v1/ui/messages"),
         ("POST", "/api/mira/proxy/v1/ui/memory/compact"),
         ("PUT", "/api/mira/proxy/v1/ui/config"),
     ]:

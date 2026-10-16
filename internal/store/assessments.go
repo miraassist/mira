@@ -10,13 +10,13 @@ import (
 const (
 	AssessmentAssess = "assess"
 	AssessmentDecide = "decide"
-	// AssessmentNotice is a fixed notice a task sent (mira.add_notice),
+	// AssessmentMessage is a fixed message a task sent (mira.send_message),
 	// logged so the task's log shows it too.
-	AssessmentNotice = "notice"
+	AssessmentMessage = "message"
 )
 
 // Assessment is one judgement Mira made for a task: what the model saw (in
-// short), what it decided and whether a notice came of it. It is the log
+// short), what it decided and whether a message came of it. It is the log
 // behind Home Assistant's traces, which only show that mira.assess ran.
 type Assessment struct {
 	ID string
@@ -29,7 +29,7 @@ type Assessment struct {
 	Importance int
 	Answer     bool
 	Spoken     string
-	NoticeID   string
+	MessageID  string
 	DryRun     bool
 	CreatedAt  time.Time
 }
@@ -42,16 +42,16 @@ func (s *Store) AddAssessment(ctx context.Context, a Assessment) error {
 		a.CreatedAt = s.now()
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO assessments(id, task, kind, goal, input, importance, answer, spoken, notice_id, dry_run, created_at)
+INSERT INTO assessments(id, task, kind, goal, input, importance, answer, spoken, message_id, dry_run, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.Task, a.Kind, a.Goal, a.Input, a.Importance, a.Answer, a.Spoken, a.NoticeID, a.DryRun, formatTime(a.CreatedAt))
+		a.ID, a.Task, a.Kind, a.Goal, a.Input, a.Importance, a.Answer, a.Spoken, a.MessageID, a.DryRun, formatTime(a.CreatedAt))
 	return err
 }
 
 // Assessments returns a task's latest judgements, newest first.
 func (s *Store) Assessments(ctx context.Context, task string, limit int) ([]Assessment, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, task, kind, goal, input, importance, answer, spoken, notice_id, dry_run, created_at
+SELECT id, task, kind, goal, input, importance, answer, spoken, message_id, dry_run, created_at
 FROM assessments WHERE task = ? ORDER BY created_at DESC, id DESC LIMIT ?`, task, limit)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ FROM assessments WHERE task = ? ORDER BY created_at DESC, id DESC LIMIT ?`, task
 		var a Assessment
 		var created string
 		if err := rows.Scan(&a.ID, &a.Task, &a.Kind, &a.Goal, &a.Input, &a.Importance, &a.Answer, &a.Spoken,
-			&a.NoticeID, &a.DryRun, &created); err != nil {
+			&a.MessageID, &a.DryRun, &created); err != nil {
 			return nil, err
 		}
 		a.CreatedAt = parseTime(created)

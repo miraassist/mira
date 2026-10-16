@@ -74,12 +74,12 @@ Miras Aktionen:
     view same_hour: letzte volle Stunde gegen dieselbe Stunde der letzten 14 Tage (Verbrauch bei Zählern mit state_class total/total_increasing, Mittel bei Messwerten)
     view day: heute bis jetzt gegen dieselben Wochentage der Vorwochen
   cooldown: optional, z. B. "6h": innerhalb dieser Zeit meldet die Aufgabe nur, wenn es wichtiger wird
-- mira.add_notice: feste Meldung ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend). Der Text wird oft erst später vorgelesen: nenne die Uhrzeit per Vorlage und sprich in der Vergangenheit, z. B. "Um {{ now().strftime('%H:%M') }} ging das Licht im Schlafzimmer an."
+- mira.send_message: feste Nachricht ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend). Der Text wird oft erst später vorgelesen: nenne die Uhrzeit per Vorlage und sprich in der Vergangenheit, z. B. "Um {{ now().strftime('%H:%M') }} ging das Licht im Schlafzimmer an."
 - mira.decide: Ja/Nein-Urteil mit response_variable, danach condition: template auf {{ d.answer }}, wenn erst Mira entscheiden soll, ob geschaltet wird.
 
 Andere Aktionen (Licht, Radio, Push-Nachricht mit notify.*) nur, wenn der Nutzer ausdrücklich darum bittet, und nur mit ausdrücklich genannten Entitäten. Niemals: Skripte, Shell-Befehle, Neustarts und was Mira nur mit ausdrücklichem Ja im Gespräch schaltet: <forbidden>.
 Faustregeln:
-- Steht das Urteil fest (Melder löst aus, Tür geht auf), nimm mira.add_notice. Braucht es Abwägung (ungewöhnlich? relevant?), nimm mira.assess.
+- Steht das Urteil fest (Melder löst aus, Tür geht auf), nimm mira.send_message. Braucht es Abwägung (ungewöhnlich? relevant?), nimm mira.assess.
 - "Ungewöhnlich viel/wenig" eines Zählers oder Messwerts: einmal pro Stunde, also trigger time_pattern mit minutes: 15 (die Zahl 15, nicht "/15": das wäre alle 15 Minuten und vier Bewertungen pro Stunde), und mira.assess mit view same_hour, cooldown "6h".
 - Zeitfenster wie "nachts" sind conditions (condition: time, after/before), keine eigene Logik.
 - Nimm nur Entitäten aus der Liste, und nur so viele, wie die Aufgabe braucht.
@@ -99,7 +99,7 @@ const draftRulesEN = `
 Write a Home Assistant automation that fulfils this task. Home Assistant decides WHEN with triggers and conditions; Mira decides WHAT to say with her actions.
 
 Mira's actions:
-- mira.assess: Mira judges with the model, against the goal, whether something is worth a notice, and then reports it. data:
+- mira.assess: Mira judges with the model, against the goal, whether something is worth a message, and then reports it. data:
   goal: the goal in the user's words
   observation: optional, what happened, with templates if useful, e.g. "{{ trigger.to_state.name }} has been {{ trigger.to_state.state }} since {{ now().strftime('%H:%M') }}"
   data: optional, a list of {entity_id, view}; Mira looks it up and condenses it:
@@ -107,12 +107,12 @@ Mira's actions:
     view same_hour: the last full hour against the same hour on the previous 14 days (usage for counters with state_class total/total_increasing, mean for measurements)
     view day: today so far against the same weekdays of earlier weeks
   cooldown: optional, e.g. "6h": within it the task only reports again when it gets more important
-- mira.add_notice: a fixed notice without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent). The text is often read out later: give the time with a template and use the past tense, e.g. "At {{ now().strftime('%H:%M') }} the bedroom light went on."
+- mira.send_message: a fixed message without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent). The text is often read out later: give the time with a template and use the past tense, e.g. "At {{ now().strftime('%H:%M') }} the bedroom light went on."
 - mira.decide: a yes/no judgement with response_variable, then condition: template on {{ d.answer }}, when Mira should first decide whether to switch.
 
 Other actions (lights, radio, a push with notify.*) only when the user asks for them explicitly, and only with entities named explicitly. Never: scripts, shell commands, restarts and what Mira only switches after an explicit yes in conversation: <forbidden>.
 Rules of thumb:
-- If the verdict is fixed (a sensor fires, a door opens), use mira.add_notice. If it needs weighing (unusual? relevant?), use mira.assess.
+- If the verdict is fixed (a sensor fires, a door opens), use mira.send_message. If it needs weighing (unusual? relevant?), use mira.assess.
 - "Unusually much/little" of a counter or measurement: once an hour, i.e. trigger time_pattern with minutes: 15 (the number 15, not "/15": that would be every 15 minutes and four judgements an hour), and mira.assess with view same_hour, cooldown "6h".
 - Time windows like "at night" are conditions (condition: time, after/before), not logic of your own.
 - Use only entities from the list, and only as many as the task needs.
@@ -146,7 +146,7 @@ var catalog = map[i18n.Lang]texts{
 ## Antwort
 JSON-Objekt:
 - importance: 0 = nicht melden (normal, erklärbar oder schon gesagt), 1 = nebenbei, 2 = wichtig, sollte heute jemand ansehen, 3 = dringend, Schaden droht
-- spoken: ein bis zwei kurze Sätze zum Vorlesen, Du-Form, Werte als Ziffern, mit Uhrzeit und in der Vergangenheit (die Meldung wird vielleicht später vorgelesen); leer bei 0
+- spoken: ein bis zwei kurze Sätze zum Vorlesen, Du-Form, Werte als Ziffern, mit Uhrzeit und in der Vergangenheit (die Nachricht wird vielleicht später vorgelesen); leer bei 0
 - details: die Langfassung mit den Vergleichswerten
 Was du kürzlich schon gesagt hast, meldest du nur wieder, wenn es schlimmer geworden ist.`,
 		decideRules: `
@@ -225,7 +225,7 @@ JSON-Objekt:
 ## Answer
 JSON object:
 - importance: 0 = do not report (normal, explainable or already said), 1 = in passing, 2 = important, someone should look today, 3 = urgent, damage is imminent
-- spoken: one or two short sentences to be read aloud, values as digits, with the time and in the past tense (the notice may be read out later); empty for 0
+- spoken: one or two short sentences to be read aloud, values as digits, with the time and in the past tense (the message may be read out later); empty for 0
 - details: the long form with the comparison values
 What you said recently you only report again if it got worse.`,
 		decideRules: `

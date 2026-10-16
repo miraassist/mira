@@ -30,12 +30,12 @@ type Request struct {
 	// Cooldown like "6h": within it the same task only reports again when
 	// the importance rises.
 	Cooldown string `json:"cooldown"`
-	// Notify false makes a dry run: the verdict, no notice.
+	// Notify false makes a dry run: the verdict, no message.
 	Notify *bool `json:"notify"`
 	// Task is the automation's id; the drafts pass {{ this.attributes.id }}.
 	Task            string `json:"task"`
 	Owner           string `json:"owner"`
-	Audience        string `json:"audience"`
+	Receiver        string `json:"receiver"`
 	Confidentiality string `json:"confidentiality"`
 	DedupeKey       string `json:"dedupe_key"`
 	ExpiresIn       string `json:"expires_in"`
@@ -46,8 +46,8 @@ type Verdict struct {
 	Importance int    `json:"importance"`
 	Spoken     string `json:"spoken"`
 	Details    string `json:"details,omitempty"`
-	NoticeID   string `json:"notice_id"`
-	// Withheld says why a verdict worth a notice became none: "cooldown"
+	MessageID  string `json:"message_id"`
+	// Withheld says why a verdict worth a message became none: "cooldown"
 	// or "dry_run".
 	Withheld string `json:"withheld,omitempty"`
 }
@@ -79,7 +79,7 @@ const decisionSchema = `{"type":"object","properties":{"answer":{"type":"boolean
 "required":["answer","reason"]}`
 
 // Assess judges an observation against a goal and, if it is worth it and
-// notifying is on, queues a notice: mira.assess.
+// notifying is on, queues a message: mira.assess.
 func (m *Manager) Assess(ctx context.Context, r Request) (Verdict, error) {
 	if strings.TrimSpace(r.Goal) == "" {
 		return Verdict{}, errors.New("goal is required")
@@ -128,29 +128,29 @@ func (m *Manager) Assess(ctx context.Context, r Request) (Verdict, error) {
 		if dedupe == "" {
 			dedupe = "task:" + key
 		}
-		audience := r.Audience
-		if audience == "" {
-			audience = store.AudienceHousehold
+		receiver := r.Receiver
+		if receiver == "" {
+			receiver = store.ReceiverHouse
 		}
-		n, _, err := m.opts.Store.PutNotice(ctx, store.Notice{
+		n, _, err := m.opts.Store.PutMessage(ctx, store.Message{
 			ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: dedupe,
-			Importance: v.Importance, Audience: audience, Confidentiality: r.Confidentiality,
+			Importance: v.Importance, Receiver: receiver, Confidentiality: r.Confidentiality,
 			Spoken: v.Spoken, Details: details, ExpiresAt: m.opts.Clock().Add(expiry),
 		})
 		if err != nil {
 			return Verdict{}, err
 		}
-		v.NoticeID = n.ID
+		v.MessageID = n.ID
 	}
-	m.log.Info("assessed", "task", key, "importance", v.Importance, "notice", v.NoticeID, "withheld", v.Withheld)
+	m.log.Info("assessed", "task", key, "importance", v.Importance, "message", v.MessageID, "withheld", v.Withheld)
 	m.record(ctx, store.Assessment{Task: key, Kind: store.AssessmentAssess, Goal: r.Goal,
 		Input: inputOf(r.Observation, data), Importance: v.Importance, Spoken: v.Spoken,
-		NoticeID: v.NoticeID, DryRun: dryRun})
+		MessageID: v.MessageID, DryRun: dryRun})
 	return v, nil
 }
 
 // Decide answers a yes/no question about the house: mira.decide. It never
-// makes a notice; the automation acts on the answer.
+// makes a message; the automation acts on the answer.
 func (m *Manager) Decide(ctx context.Context, r Request) (Decision, error) {
 	if strings.TrimSpace(r.Question) == "" {
 		return Decision{}, errors.New("question is required")
@@ -329,7 +329,7 @@ func (m *Manager) coolingDown(ctx context.Context, key string, importance int, c
 		if now.Sub(a.CreatedAt) > cooldown {
 			break
 		}
-		if a.NoticeID != "" && a.Importance >= importance {
+		if a.MessageID != "" && a.Importance >= importance {
 			return true
 		}
 	}

@@ -26,8 +26,8 @@ type Reminder struct {
 	ID    string
 	DueAt time.Time
 	Text  string
-	// Audience is "household" or a person id.
-	Audience string
+	// Receiver is "house" or a person id.
+	Receiver string
 	// AreaID is where it was asked for by voice; it is spoken there.
 	AreaID     string
 	SessionKey string
@@ -40,21 +40,21 @@ func (s *Store) AddReminder(ctx context.Context, r Reminder) error {
 	if r.ID == "" || strings.TrimSpace(r.Text) == "" || r.DueAt.IsZero() {
 		return fmt.Errorf("reminder needs id, text and due time")
 	}
-	if r.Audience == "" {
-		r.Audience = AudienceHousehold
+	if r.Receiver == "" {
+		r.Receiver = ReceiverHouse
 	}
 	now := formatTime(s.now())
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO reminders(id, due_at, text, audience, area_id, session_key, state, created_at, updated_at)
+INSERT INTO reminders(id, due_at, text, receiver, area_id, session_key, state, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-		r.ID, formatTime(r.DueAt), strings.TrimSpace(r.Text), r.Audience, r.AreaID, r.SessionKey, now, now)
+		r.ID, formatTime(r.DueAt), strings.TrimSpace(r.Text), r.Receiver, r.AreaID, r.SessionKey, now, now)
 	return err
 }
 
 // PendingReminders lists open reminders by due time; with due set, only
 // those due at or before it.
 func (s *Store) PendingReminders(ctx context.Context, due time.Time) ([]Reminder, error) {
-	q := `SELECT id, due_at, text, audience, area_id, session_key, state, attempts, created_at
+	q := `SELECT id, due_at, text, receiver, area_id, session_key, state, attempts, created_at
 FROM reminders WHERE state = 'pending'`
 	var args []any
 	if !due.IsZero() {
@@ -70,7 +70,7 @@ FROM reminders WHERE state = 'pending'`
 	for rows.Next() {
 		var r Reminder
 		var dueAt, created string
-		if err := rows.Scan(&r.ID, &dueAt, &r.Text, &r.Audience, &r.AreaID, &r.SessionKey, &r.State, &r.Attempts, &created); err != nil {
+		if err := rows.Scan(&r.ID, &dueAt, &r.Text, &r.Receiver, &r.AreaID, &r.SessionKey, &r.State, &r.Attempts, &created); err != nil {
 			return nil, err
 		}
 		r.DueAt, r.CreatedAt = parseTime(dueAt), parseTime(created)

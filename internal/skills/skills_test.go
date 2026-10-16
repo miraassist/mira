@@ -174,14 +174,14 @@ func TestRunJob(t *testing.T) {
 	if !strings.Contains(tasker.instruction, "Prüfe mit calendar_events") || strings.Contains(tasker.instruction, "geheim") {
 		t.Errorf("instruction:\n%s", tasker.instruction)
 	}
-	list, _ := st.ListNotices(context.Background(), store.NoticeFilter{States: []string{store.NoticePending}})
+	list, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
 	if len(list) != 1 || list[0].Importance != 2 || list[0].Spoken != "Morgen wird der Wertstoff abgeholt." {
-		t.Errorf("notice (importance capped at 2): %+v", list)
+		t.Errorf("message (importance capped at 2): %+v", list)
 	}
 
 	tasker.answer = `{"importance":0,"spoken":""}`
 	if queued, err := r.RunJob(context.Background(), sk, 0); err != nil || queued {
-		t.Errorf("nothing to report queued a notice: %v %v", queued, err)
+		t.Errorf("nothing to report queued a message: %v %v", queued, err)
 	}
 }
 

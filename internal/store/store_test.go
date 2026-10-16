@@ -66,16 +66,16 @@ func TestSessionRoundTripAndExpiry(t *testing.T) {
 		t.Errorf("area = %q", sess.AreaID)
 	}
 
-	if err := s.AppendMessages(ctx, "voice:abc",
-		Message{Role: "user", Content: "Licht an"},
-		Message{Role: "assistant", Content: "Erledigt."},
+	if err := s.AppendChatMessages(ctx, "voice:abc",
+		ChatMessage{Role: "user", Content: "Licht an"},
+		ChatMessage{Role: "assistant", Content: "Erledigt."},
 	); err != nil {
-		t.Fatalf("AppendMessages: %v", err)
+		t.Fatalf("AppendChatMessages: %v", err)
 	}
-	if err := s.AppendMessages(ctx, "voice:abc", Message{Role: "user", Content: "Danke"}); err != nil {
-		t.Fatalf("AppendMessages second batch: %v", err)
+	if err := s.AppendChatMessages(ctx, "voice:abc", ChatMessage{Role: "user", Content: "Danke"}); err != nil {
+		t.Fatalf("AppendChatMessages second batch: %v", err)
 	}
-	msgs, err := s.Messages(ctx, "voice:abc")
+	msgs, err := s.ChatMessages(ctx, "voice:abc")
 	if err != nil {
 		t.Fatalf("Messages: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestSessionRoundTripAndExpiry(t *testing.T) {
 	if _, err := s.GetSession(ctx, "voice:abc"); err != ErrNotFound {
 		t.Errorf("session survived purge: %v", err)
 	}
-	if msgs, _ := s.Messages(ctx, "voice:abc"); len(msgs) != 0 {
+	if msgs, _ := s.ChatMessages(ctx, "voice:abc"); len(msgs) != 0 {
 		t.Errorf("transcript survived the cascade: %d messages", len(msgs))
 	}
 }
@@ -140,12 +140,12 @@ func TestFactsFullTextSearch(t *testing.T) {
 	}
 }
 
-func TestNoticeDedupeKeepsOneOpenRow(t *testing.T) {
+func TestMessageDedupeKeepsOneOpenRow(t *testing.T) {
 	ctx := context.Background()
 	s, clk := newStore(t)
 	exp := clk.Now().Add(12 * time.Hour)
 
-	first, created, err := s.PutNotice(ctx, Notice{
+	first, created, err := s.PutMessage(ctx, Message{
 		ID: "n1", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 2, Spoken: "Der Wechselrichter meldet einen Fehler.", ExpiresAt: exp,
 	})
@@ -154,7 +154,7 @@ func TestNoticeDedupeKeepsOneOpenRow(t *testing.T) {
 	}
 
 	// The sensor flaps: same dedupe key, new id offered.
-	second, created, err := s.PutNotice(ctx, Notice{
+	second, created, err := s.PutMessage(ctx, Message{
 		ID: "n2", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 3, Spoken: "Der Wechselrichter meldet weiterhin einen Fehler.", ExpiresAt: exp,
 	})
@@ -162,7 +162,7 @@ func TestNoticeDedupeKeepsOneOpenRow(t *testing.T) {
 		t.Fatalf("second put: %v", err)
 	}
 	if created {
-		t.Error("flapping sensor created a second notice")
+		t.Error("flapping sensor created a second message")
 	}
 	if second.ID != first.ID {
 		t.Errorf("id changed from %s to %s", first.ID, second.ID)
@@ -174,16 +174,16 @@ func TestNoticeDedupeKeepsOneOpenRow(t *testing.T) {
 		t.Errorf("created_at was overwritten")
 	}
 
-	all, _ := s.ListNotices(ctx, NoticeFilter{States: []string{NoticePending}})
+	all, _ := s.ListMessages(ctx, MessageFilter{States: []string{MessagePending}})
 	if len(all) != 1 {
-		t.Fatalf("got %d pending notices, want 1", len(all))
+		t.Fatalf("got %d pending messages, want 1", len(all))
 	}
 
-	// Once acked, the key is free again and a new event opens a fresh notice.
-	if err := s.SetNoticeState(ctx, first.ID, NoticeAcked); err != nil {
-		t.Fatalf("SetNoticeState: %v", err)
+	// Once acked, the key is free again and a new event opens a fresh message.
+	if err := s.SetMessageState(ctx, first.ID, MessageAcked); err != nil {
+		t.Fatalf("SetMessageState: %v", err)
 	}
-	_, created, err = s.PutNotice(ctx, Notice{
+	_, created, err = s.PutMessage(ctx, Message{
 		ID: "n3", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 2, Spoken: "Erneut ein Fehler.", ExpiresAt: exp,
 	})
@@ -192,17 +192,17 @@ func TestNoticeDedupeKeepsOneOpenRow(t *testing.T) {
 	}
 }
 
-func TestNoticeDeliveryAndExpiry(t *testing.T) {
+func TestMessageDeliveryAndExpiry(t *testing.T) {
 	ctx := context.Background()
 	s, clk := newStore(t)
 
-	if _, _, err := s.PutNotice(ctx, Notice{
+	if _, _, err := s.PutMessage(ctx, Message{
 		ID: "n1", Source: SourceExternal, Importance: 2, Spoken: "Hallo",
 		ExpiresAt: clk.Now().Add(1 * time.Hour),
 	}); err != nil {
-		t.Fatalf("PutNotice: %v", err)
+		t.Fatalf("PutMessage: %v", err)
 	}
-	if n, _ := s.CountPendingNotices(ctx); n != 1 {
+	if n, _ := s.CountPendingMessages(ctx); n != 1 {
 		t.Fatalf("pending = %d, want 1", n)
 	}
 	if err := s.MarkDelivered(ctx, "n1", "voice"); err != nil {
@@ -211,32 +211,32 @@ func TestNoticeDeliveryAndExpiry(t *testing.T) {
 	if err := s.MarkDelivered(ctx, "n1", "voice"); err != ErrNotFound {
 		t.Errorf("delivering twice should not succeed, got %v", err)
 	}
-	if n, _ := s.CountPendingNotices(ctx); n != 0 {
+	if n, _ := s.CountPendingMessages(ctx); n != 0 {
 		t.Errorf("pending after delivery = %d, want 0", n)
 	}
 
 	clk.Add(2 * time.Hour)
-	n, err := s.ExpireNotices(ctx)
+	n, err := s.ExpireMessages(ctx)
 	if err != nil {
-		t.Fatalf("ExpireNotices: %v", err)
+		t.Fatalf("ExpireMessages: %v", err)
 	}
 	if n != 1 {
 		t.Fatalf("expired %d, want 1", n)
 	}
-	got, _ := s.GetNotice(ctx, "n1")
-	if got.State != NoticeExpired {
+	got, _ := s.GetMessage(ctx, "n1")
+	if got.State != MessageExpired {
 		t.Errorf("state = %q, want expired", got.State)
 	}
 }
 
-func TestListNoticesOrdersByImportanceThenAge(t *testing.T) {
+func TestListMessagesOrdersByImportanceThenAge(t *testing.T) {
 	ctx := context.Background()
 	s, clk := newStore(t)
 	exp := clk.Now().Add(time.Hour)
 
 	mustPut := func(id string, imp int) {
 		t.Helper()
-		if _, _, err := s.PutNotice(ctx, Notice{ID: id, Source: SourceExternal, Importance: imp, Spoken: id, ExpiresAt: exp}); err != nil {
+		if _, _, err := s.PutMessage(ctx, Message{ID: id, Source: SourceExternal, Importance: imp, Spoken: id, ExpiresAt: exp}); err != nil {
 			t.Fatalf("put %s: %v", id, err)
 		}
 		clk.Add(time.Second)
@@ -246,13 +246,13 @@ func TestListNoticesOrdersByImportanceThenAge(t *testing.T) {
 	mustPut("high-new", 3)
 	mustPut("mid", 1)
 
-	got, err := s.ListNotices(ctx, NoticeFilter{States: []string{NoticePending}, MinImportance: 1})
+	got, err := s.ListMessages(ctx, MessageFilter{States: []string{MessagePending}, MinImportance: 1})
 	if err != nil {
-		t.Fatalf("ListNotices: %v", err)
+		t.Fatalf("ListMessages: %v", err)
 	}
 	want := []string{"high-old", "high-new", "mid"}
 	if len(got) != len(want) {
-		t.Fatalf("got %d notices, want %d", len(got), len(want))
+		t.Fatalf("got %d messages, want %d", len(got), len(want))
 	}
 	for i := range want {
 		if got[i].ID != want[i] {
@@ -266,7 +266,7 @@ func TestAnnouncementFollowUpWindow(t *testing.T) {
 	s, clk := newStore(t)
 
 	if err := s.RecordAnnouncement(ctx, Announcement{
-		ID: "a1", DeviceID: "sat-bad", AreaID: "bad", Channel: "voice", NoticeIDs: []string{"n1", "n2"},
+		ID: "a1", DeviceID: "sat-bad", AreaID: "bad", Channel: "voice", MessageIDs: []string{"n1", "n2"},
 	}); err != nil {
 		t.Fatalf("RecordAnnouncement: %v", err)
 	}
@@ -276,8 +276,8 @@ func TestAnnouncementFollowUpWindow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("within window: %v", err)
 	}
-	if len(a.NoticeIDs) != 2 {
-		t.Errorf("notice ids = %v", a.NoticeIDs)
+	if len(a.MessageIDs) != 2 {
+		t.Errorf("message ids = %v", a.MessageIDs)
 	}
 
 	clk.Add(2 * time.Minute)

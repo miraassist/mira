@@ -46,7 +46,7 @@ type Result struct {
 // Finisher is a core building block that ends a thread.
 type Finisher interface {
 	// Async finishers work in the background (drafting takes long); the
-	// result reaches the user as a notice of the thread.
+	// result reaches the user as a message of the thread.
 	Async() bool
 	// Work runs once all fields are filled.
 	Work(ctx context.Context, th store.Thread) (Result, error)
@@ -66,7 +66,7 @@ type Options struct {
 	Finishers map[string]Finisher
 	// Deliver brings a thread's question or proposal to whoever asked,
 	// like a reminder: spoken in the area, otherwise privately.
-	Deliver func(ctx context.Context, n store.Notice, areaID string) error
+	Deliver func(ctx context.Context, n store.Message, areaID string) error
 	Persons func() map[string]config.Person
 	// InlineWait is how long a turn waits for background work before it
 	// says "I'll come back to you"; default 5s, within Home Assistant's
@@ -216,7 +216,7 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 	if th.State == store.ThreadWaiting || th.State == store.ThreadProposed {
 		// An answer or a change: back to collecting; a proposal is moot.
 		th.State = store.ThreadCollecting
-		_, _ = m.opts.Store.WithdrawThreadNotices(ctx, th.ID)
+		_, _ = m.opts.Store.WithdrawThreadMessages(ctx, th.ID)
 	}
 	if len(problems) > 0 || len(missing(sk.Target, th.Fields)) > 0 {
 		if err := m.save(ctx, &th); err != nil {
@@ -332,14 +332,14 @@ func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell b
 	return say
 }
 
-// tell delivers a thread's question or proposal as a notice of the thread:
+// tell delivers a thread's question or proposal as a message of the thread:
 // a reply to it continues the thread.
 func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 	if m.opts.Deliver == nil {
 		return
 	}
 	area := ""
-	audience := store.AudienceHousehold
+	receiver := store.ReceiverHouse
 	if a, ok := strings.CutPrefix(th.Place, "area:"); ok {
 		area = a
 	} else {
@@ -347,10 +347,10 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 		if m.opts.Persons != nil {
 			persons = m.opts.Persons()
 		}
-		audience = tools.AudienceFor("", tools.Invocation{SessionKey: th.Place, Channel: config.ChannelTelegram}, persons)
+		receiver = tools.ReceiverFor("", tools.Invocation{SessionKey: th.Place, Channel: config.ChannelTelegram}, persons)
 	}
-	n := store.Notice{ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
-		Importance: 2, Audience: audience, Spoken: text, Details: m.summary(th), ThreadID: th.ID,
+	n := store.Message{ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
+		Importance: 2, Receiver: receiver, Spoken: text, Details: m.summary(th), ThreadID: th.ID,
 		ExpiresAt: th.ExpiresAt}
 	if err := m.opts.Deliver(ctx, n, area); err != nil {
 		m.log.Error("could not deliver a thread message", "thread", th.ID, "error", err)
@@ -405,14 +405,14 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 	return m.texts().cancelled, nil
 }
 
-// end closes a thread and withdraws its open notices.
+// end closes a thread and withdraws its open messages.
 func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
 	th.State = state
 	if err := m.opts.Store.PutThread(ctx, th); err != nil {
 		m.log.Error("could not end a thread", "thread", th.ID, "error", err)
 	}
-	if n, err := m.opts.Store.WithdrawThreadNotices(ctx, th.ID); err == nil && n > 0 {
-		m.log.Info("thread notices withdrawn", "thread", th.ID, "notices", n)
+	if n, err := m.opts.Store.WithdrawThreadMessages(ctx, th.ID); err == nil && n > 0 {
+		m.log.Info("thread messages withdrawn", "thread", th.ID, "messages", n)
 	}
 	m.log.Info("thread ended", "thread", th.ID, "state", state)
 }

@@ -10,9 +10,9 @@ import (
 	"github.com/sker65/mira/internal/store"
 )
 
-func (e *env) reminder(id string, due time.Time, area, audience string) {
+func (e *env) reminder(id string, due time.Time, area, receiver string) {
 	e.t.Helper()
-	if err := e.st.AddReminder(context.Background(), store.Reminder{ID: id, DueAt: due, Text: "Müll rausbringen", AreaID: area, Audience: audience}); err != nil {
+	if err := e.st.AddReminder(context.Background(), store.Reminder{ID: id, DueAt: due, Text: "Müll rausbringen", AreaID: area, Receiver: receiver}); err != nil {
 		e.t.Fatal(err)
 	}
 }
@@ -21,7 +21,7 @@ func (e *env) reminder(id string, due time.Time, area, audience string) {
 // quiet hours (it is 03:00 in the env): the user chose the time.
 func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 	e := newEnv(t, nil)
-	e.reminder("r1", e.now.Add(time.Minute), "kueche", store.AudienceHousehold)
+	e.reminder("r1", e.now.Add(time.Minute), "kueche", store.ReceiverHouse)
 
 	e.n.DueReminders(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
@@ -55,7 +55,7 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 	e := newEnv(t, nil)
 	e.reminder("r1", e.now, "", "ben")
 	e.st.SetBool(context.Background(), store.KeyQuietMode, true)
-	e.reminder("r2", e.now, "bad", store.AudienceHousehold)
+	e.reminder("r2", e.now, "bad", store.ReceiverHouse)
 
 	e.n.DueReminders(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
@@ -80,8 +80,8 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 		}
 		e.ha.set(sat, "idle", nil)
 	}()
-	err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-		Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche")
+	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,8 +97,8 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 	sat := e.n.sats["kueche"]
 	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
-	err := e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-		Importance: 2, Audience: "ben", Spoken: "Mein Vorschlag."}, "kueche")
+	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,8 +122,8 @@ func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 	e.ha.set("media_player.kueche", "playing", nil)
 	done := make(chan time.Time, 1)
 	go func() {
-		e.n.Tell(context.Background(), store.Notice{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-			Importance: 2, Audience: store.AudienceHousehold, Spoken: "Mein Vorschlag."}, "kueche")
+		e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+			Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche")
 		done <- time.Now()
 	}()
 	time.Sleep(100 * time.Millisecond)

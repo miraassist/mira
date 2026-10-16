@@ -85,11 +85,11 @@ func TestHealthReportsDegradedDependencies(t *testing.T) {
 func TestConversationIsForwardedAsVoice(t *testing.T) {
 	srv, conv, _ := setup(t)
 	code, body := do(t, srv, "POST", "/v1/conversation", "secret",
-		`{"text":"Licht an","conversation_id":"","device_id":"sat1","language":"de","extra_system_prompt":"Notice X"}`)
+		`{"text":"Licht an","conversation_id":"","device_id":"sat1","language":"de","extra_system_prompt":"Message X"}`)
 	if code != 200 || body["text"] != "Welches Licht?" || body["continue_conversation"] != true || body["conversation_id"] != "c1" {
 		t.Fatalf("response = %d %v", code, body)
 	}
-	if conv.got.Channel != config.ChannelVoice || conv.got.DeviceID != "sat1" || conv.got.Extra != "Notice X" {
+	if conv.got.Channel != config.ChannelVoice || conv.got.DeviceID != "sat1" || conv.got.Extra != "Message X" {
 		t.Errorf("forwarded request = %+v", conv.got)
 	}
 	if code, _ := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"  "}`); code != 400 {
@@ -103,7 +103,7 @@ func TestQuietModeAndStatus(t *testing.T) {
 		t.Fatalf("PUT quiet_mode = %d", code)
 	}
 	code, body := do(t, srv, "GET", "/v1/status", "secret", "")
-	if code != 200 || body["quiet_mode"] != true || body["pending_notices"] != float64(0) {
+	if code != 200 || body["quiet_mode"] != true || body["pending_messages"] != float64(0) {
 		t.Fatalf("status = %d %v", code, body)
 	}
 	if code, _ := do(t, srv, "PUT", "/v1/quiet_mode", "secret", `{}`); code != 400 {
@@ -111,55 +111,55 @@ func TestQuietModeAndStatus(t *testing.T) {
 	}
 }
 
-func TestNoticesAreDeduplicated(t *testing.T) {
+func TestMessagesAreDeduplicated(t *testing.T) {
 	srv, _, _ := setup(t)
 	body := `{"text":"Der Wechselrichter meldet einen Fehler.","importance":2,"dedupe_key":"inverter:fault"}`
-	code1, r1 := do(t, srv, "POST", "/v1/notices", "secret", body)
-	code2, r2 := do(t, srv, "POST", "/v1/notices", "secret", body)
+	code1, r1 := do(t, srv, "POST", "/v1/messages", "secret", body)
+	code2, r2 := do(t, srv, "POST", "/v1/messages", "secret", body)
 	if code1 != 201 || code2 != 200 || r1["id"] != r2["id"] || r2["created"] != false {
-		t.Fatalf("notices = %d %v / %d %v", code1, r1, code2, r2)
+		t.Fatalf("messages = %d %v / %d %v", code1, r1, code2, r2)
 	}
 	_, status := do(t, srv, "GET", "/v1/status", "secret", "")
-	if status["pending_notices"] != float64(1) {
-		t.Errorf("pending = %v", status["pending_notices"])
+	if status["pending_messages"] != float64(1) {
+		t.Errorf("pending = %v", status["pending_messages"])
 	}
-	if code, _ := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"x","importance":7}`); code != 400 {
+	if code, _ := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"x","importance":7}`); code != 400 {
 		t.Errorf("bad importance = %d", code)
 	}
 }
 
-func TestNoticeAudienceAndConfidentiality(t *testing.T) {
+func TestMessageReceiverAndConfidentiality(t *testing.T) {
 	srv, _, st := setup(t)
-	code, body := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"Arzttermin morgen","audience":"ben","confidentiality":"confidential"}`)
+	code, body := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"Arzttermin morgen","receiver":"ben","confidentiality":"confidential"}`)
 	if code != 201 {
 		t.Fatalf("status %d %v", code, body)
 	}
-	n, _ := st.GetNotice(context.Background(), body["id"].(string))
-	if n.Audience != "ben" || !n.Confidential() {
-		t.Errorf("notice = %+v", n)
+	n, _ := st.GetMessage(context.Background(), body["id"].(string))
+	if n.Receiver != "ben" || !n.Confidential() {
+		t.Errorf("message = %+v", n)
 	}
-	if code, _ := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"x","audience":"unbekannt"}`); code != 400 {
-		t.Errorf("unknown audience = %d", code)
+	if code, _ := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"x","receiver":"unbekannt"}`); code != 400 {
+		t.Errorf("unknown receiver = %d", code)
 	}
-	if code, _ := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"x","confidentiality":"geheim"}`); code != 400 {
+	if code, _ := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"x","confidentiality":"geheim"}`); code != 400 {
 		t.Errorf("unknown confidentiality = %d", code)
 	}
 }
 
-// A fixed notice from one of Mira's tasks counts as the task's and shows in
+// A fixed message from one of Mira's tasks counts as the task's and shows in
 // its log.
-func TestTaskNoticeIsLogged(t *testing.T) {
+func TestTaskMessageIsLogged(t *testing.T) {
 	srv, _, st := setup(t)
-	code, r := do(t, srv, "POST", "/v1/notices", "secret", `{"text":"Um 21:28 ging das Licht an.","importance":1,"task":"mira_licht"}`)
+	code, r := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"Um 21:28 ging das Licht an.","importance":1,"task":"mira_licht"}`)
 	if code != 201 {
-		t.Fatalf("notice: %d %v", code, r)
+		t.Fatalf("message: %d %v", code, r)
 	}
-	n, _ := st.GetNotice(context.Background(), r["id"].(string))
+	n, _ := st.GetMessage(context.Background(), r["id"].(string))
 	if n.Source != store.SourceTask {
 		t.Errorf("source = %s", n.Source)
 	}
 	log, _ := st.Assessments(context.Background(), "mira_licht", 5)
-	if len(log) != 1 || log[0].Kind != store.AssessmentNotice || log[0].NoticeID != n.ID {
+	if len(log) != 1 || log[0].Kind != store.AssessmentMessage || log[0].MessageID != n.ID {
 		t.Errorf("log = %+v", log)
 	}
 }

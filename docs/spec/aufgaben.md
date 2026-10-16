@@ -43,8 +43,8 @@ Alle Aktionen stellt die Mira-Integration bereit. Sie rufen den Agenten über se
 | `data` | nein | Liste `{entity_id, view}`: Was Mira selbst nachschlägt und verdichtet (siehe „Ansichten“). |
 | `memory` | nein | `relevant` (Standard), `profile` oder `none` (siehe „Kontext“). |
 | `cooldown` | nein | Zum Beispiel `6h`. Innerhalb dieser Zeit meldet dieselbe Automation nur, wenn die Wichtigkeit steigt. |
-| `notify` | nein | Standard `true`. Bei `false` gibt es nur das Urteil, keine Meldung (Probelauf). |
-| `audience`, `confidentiality`, `dedupe_key`, `expires_in` | nein | Wie bei `add_notice`. |
+| `notify` | nein | Standard `true`. Bei `false` gibt es nur das Urteil, keine Nachricht (Probelauf). |
+| `audience`, `confidentiality`, `dedupe_key`, `expires_in` | nein | Wie bei `send_message`. |
 
 **Ablauf**
 1. Mira baut einen **isolierten** Aufruf, also ohne Haus-Prompt. Er enthält:
@@ -52,9 +52,9 @@ Alle Aktionen stellt die Mira-Integration bereit. Sie rufen den Agenten über se
    - den Kontext (Gedächtnis, Anwesenheit, Tag und Uhrzeit);
    - die letzten Urteile dieser Automation.
 2. Das Modell antwortet mit `{importance 0–3, spoken, details}`.
-3. Bei Wichtigkeit > 0 und `notify` (und außerhalb der Sperrzeit) entsteht eine Meldung. Quelle ist `task`, der Verweis zeigt auf die Automation.
+3. Bei Wichtigkeit > 0 und `notify` (und außerhalb der Sperrzeit) entsteht eine Nachricht. Quelle ist `task`, der Verweis zeigt auf die Automation.
 
-**Antwort** (für `response_variable`): `{importance, spoken, details, notice_id | null}`.
+**Antwort** (für `response_variable`): `{importance, spoken, details, message_id | null}`.
 
 ### `mira.decide`: Urteil als Bedingung
 
@@ -63,7 +63,7 @@ Alle Aktionen stellt die Mira-Integration bereit. Sie rufen den Agenten über se
 | `question` | ja | Eine Ja/Nein-Frage, z. B. „Läuft hier gerade unnötig Wasser?“ |
 | `observation`, `data`, `memory` | nein | wie bei `assess` |
 
-**Antwort:** `{answer: true|false, reason}`. Es entsteht keine Meldung.
+**Antwort:** `{answer: true|false, reason}`. Es entsteht keine Nachricht.
 
 Eine native Bedingung (`condition: mira`) ist nicht möglich: HA prüft Bedingungen synchron, das Modell braucht Sekunden. Stattdessen nutzt die Automation die Aktion mit Antwort und danach eine Bedingung:
 
@@ -77,9 +77,9 @@ Eine native Bedingung (`condition: mira`) ist nicht möglich: HA prüft Bedingun
   value_template: "{{ d.answer }}"
 ```
 
-### `mira.add_notice`: melden ohne Urteil (gibt es schon)
+### `mira.send_message`: melden ohne Urteil (gibt es schon)
 
-`text`, `importance`, `details`, `audience`, `confidentiality`, `dedupe_key`, `expires_in` → Meldung. Für Fälle, in denen das Urteil feststeht, etwa einen Wassermelder.
+`text`, `importance`, `details`, `audience`, `confidentiality`, `dedupe_key`, `expires_in` → Nachricht. Für Fälle, in denen das Urteil feststeht, etwa einen Wassermelder.
 
 ## Ansichten (`data[].view`)
 
@@ -148,7 +148,7 @@ Weitere Werkzeuge:
 Reiter „Aufgaben“:
 - Mira-Automationen mit an/aus und „zuletzt ausgelöst“, Link in den HA-Editor, Probelauf, löschen.
 - Offene Vorschläge.
-- Pro Aufgabe das **Protokoll** der Urteile: Zeit, Daten in Kurzform, Wichtigkeit, gesagt, Meldung. Das ergänzt die Traces von HA, die nur zeigen, *dass* `assess` lief.
+- Pro Aufgabe das **Protokoll** der Urteile: Zeit, Daten in Kurzform, Wichtigkeit, gesagt, Nachricht. Das ergänzt die Traces von HA, die nur zeigen, *dass* `assess` lief.
 
 ## Entfällt
 
@@ -161,7 +161,7 @@ Die Statistik-Auswertung lebt als Ansicht `same_hour` weiter.
 
 - `assess` mit `data` (`state`, `same_hour`, `day`), `memory`, `cooldown` und `notify`;
 - `decide`;
-- `add_notice`;
+- `send_message`;
 - Kontext und Gedächtnis der Aufgabe;
 - Protokoll;
 - Anlegen im Gespräch;

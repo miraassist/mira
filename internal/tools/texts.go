@@ -9,15 +9,15 @@ type texts struct {
 	memorySaveHouse, memorySavedPerson, personalMark                                     string // memorySavedPerson: %s = person, %s = id
 	memorySearchDesc, memorySearchQuery, memoryNothing                                   string
 	memoryForgetDesc, memoryForgotten, noSuchFact                                        string
-	noticesListDesc, noNotices, noticeLine, noticeDetails                                string // noticeLine: id, importance, state, text
-	noticeAckDesc, noticeAcked, noSuchNotice                                             string
+	messagesListDesc, noMessages, messageLine, messageDetails                            string // messageLine: id, importance, state, text
+	messageAckDesc, messageAcked, noSuchMessage                                          string
 	telegramDesc, telegramText, telegramSent, noTelegram                                 string
 	textMissing, invalidArgs                                                             string
 	delegateDesc, delegateTask                                                           string
 	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor            string
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                         string // reminderSaved: time, id
 	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled string
-	noticesReadDesc, noticesNothing, noticesReadOut                                      string
+	messagesReadDesc, messagesNothing, messagesReadOut                                   string
 
 	denyBackground, denyAfterWeb, denyStoreFailed string
 	needsConfirmation                             string // %s = summary of the action
@@ -40,13 +40,13 @@ var catalog = map[i18n.Lang]texts{
 		memoryForgetDesc:   "Löscht eine gespeicherte Tatsache anhand ihrer id (aus memory_search).",
 		memoryForgotten:    "Gelöscht.",
 		noSuchFact:         "keine Tatsache mit dieser id",
-		noticesListDesc:    "Listet offene Hinweise und Meldungen (z.B. Gerätestörungen, Nachrichten), die noch nicht erledigt sind.",
-		noNotices:          "Keine offenen Hinweise.",
-		noticeLine:         "- [%s] Wichtigkeit %d, %s: %s",
-		noticeDetails:      " Details: %s",
-		noticeAckDesc:      "Markiert einen Hinweis als erledigt, wenn der Nutzer ihn zur Kenntnis genommen hat.",
-		noticeAcked:        "Erledigt.",
-		noSuchNotice:       "kein Hinweis mit dieser id",
+		messagesListDesc:   "Listet offene Nachrichten (z.B. Gerätestörungen, Abfuhrtermine, Nachrichten von anderen), die noch nicht erledigt sind.",
+		noMessages:         "Keine offenen Nachrichten.",
+		messageLine:        "- [%s] Wichtigkeit %d, %s: %s",
+		messageDetails:     " Details: %s",
+		messageAckDesc:     "Markiert eine Nachricht als erledigt, wenn der Nutzer sie zur Kenntnis genommen hat.",
+		messageAcked:       "Erledigt.",
+		noSuchMessage:      "keine Nachricht mit dieser id",
 		telegramDesc:       "Schickt dem Nutzer eine Nachricht aufs Handy (Telegram), z.B. eine Liste, einen Link oder eine längere Antwort, die sich nicht gut vorlesen lässt.",
 		telegramText:       "Die Nachricht, Markdown erlaubt.",
 		telegramSent:       "Gesendet.",
@@ -69,9 +69,9 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Löscht eine offene Erinnerung anhand ihrer id (aus reminder_list).",
 		noSuchReminder:     "keine offene Erinnerung mit dieser id",
 		reminderCancelled:  "Erinnerung gelöscht.",
-		noticesReadDesc:    "Liest die wartenden Benachrichtigungen für diesen Raum oder diese Person vor und markiert sie als gehört. Rufe es auf, wenn der Nutzer fragt: \"Hast du eine Benachrichtigung?\", \"Gibt es was Neues?\", \"Was gibt's?\".",
-		noticesNothing:     "Keine neuen Benachrichtigungen.",
-		noticesReadOut:     "Sag dem Nutzer diese Benachrichtigungen, sinngemäß und vollständig: ",
+		messagesReadDesc:   "Liest die wartenden Benachrichtigungen für diesen Raum oder diese Person vor und markiert sie als gehört. Rufe es auf, wenn der Nutzer fragt: \"Hast du eine Benachrichtigung?\", \"Gibt es was Neues?\", \"Was gibt's?\".",
+		messagesNothing:    "Keine neuen Benachrichtigungen.",
+		messagesReadOut:    "Sag dem Nutzer diese Benachrichtigungen, sinngemäß und vollständig: ",
 
 		denyBackground:    "Abgelehnt: Hintergrundjobs dürfen nur lesende Werkzeuge verwenden.",
 		denyAfterWeb:      "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll.",
@@ -92,13 +92,13 @@ var catalog = map[i18n.Lang]texts{
 		memoryForgetDesc:   "Deletes a saved fact by its id (from memory_search).",
 		memoryForgotten:    "Deleted.",
 		noSuchFact:         "no fact with this id",
-		noticesListDesc:    "Lists open notices and messages (e.g. device faults, news) that are not done yet.",
-		noNotices:          "No open notices.",
-		noticeLine:         "- [%s] importance %d, %s: %s",
-		noticeDetails:      " Details: %s",
-		noticeAckDesc:      "Marks a notice as done once the user has taken note of it.",
-		noticeAcked:        "Done.",
-		noSuchNotice:       "no notice with this id",
+		messagesListDesc:   "Lists open messages (e.g. device faults, collection days, messages from others) that are not done yet.",
+		noMessages:         "No open messages.",
+		messageLine:        "- [%s] importance %d, %s: %s",
+		messageDetails:     " Details: %s",
+		messageAckDesc:     "Marks a message as done once the user has taken note of it.",
+		messageAcked:       "Done.",
+		noSuchMessage:      "no message with this id",
 		telegramDesc:       "Sends the user a message to their phone (Telegram), e.g. a list, a link or a longer answer that does not read aloud well.",
 		telegramText:       "The message, Markdown allowed.",
 		telegramSent:       "Sent.",
@@ -121,9 +121,9 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Deletes an open reminder by its id (from reminder_list).",
 		noSuchReminder:     "no open reminder with this id",
 		reminderCancelled:  "Reminder deleted.",
-		noticesReadDesc:    "Reads out the waiting notifications for this room or person and marks them as heard. Call it when the user asks: \"Do you have a notification?\", \"Anything new?\", \"What's up?\".",
-		noticesNothing:     "No new notifications.",
-		noticesReadOut:     "Tell the user these notifications, faithfully and completely: ",
+		messagesReadDesc:   "Reads out the waiting notifications for this room or person and marks them as heard. Call it when the user asks: \"Do you have a notification?\", \"Anything new?\", \"What's up?\".",
+		messagesNothing:    "No new notifications.",
+		messagesReadOut:    "Tell the user these notifications, faithfully and completely: ",
 
 		denyBackground:    "Denied: background jobs may only use read-only tools.",
 		denyAfterWeb:      "Denied: this request has already read content from the web. Critical actions are therefore locked. Tell the user to give the command again directly.",

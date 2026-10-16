@@ -294,7 +294,7 @@ Antworte am Ende nur mit einem JSON-Objekt:
 - importance: 0 = nichts zu melden, 1 = nebenbei erwähnen, 2 = wichtig
 - spoken: ein bis zwei kurze Sätze zum Vorlesen, ohne Markdown; leer bei importance 0
 - details: optional die Langfassung
-- expires_in_hours: wie lange die Meldung relevant bleibt`,
+- expires_in_hours: wie lange die Nachricht relevant bleibt`,
 	},
 	i18n.EN: {
 		openDesc:   "Opens a skill: returns its instructions, which you then follow. Open the matching skill before answering a question in its area. Available skills:",
@@ -316,6 +316,6 @@ At the end, answer only with a JSON object:
 - importance: 0 = nothing to report, 1 = mention in passing, 2 = important
 - spoken: one or two short sentences to be read aloud, no Markdown; empty when importance is 0
 - details: optionally the long form
-- expires_in_hours: how long the notice stays relevant`,
+- expires_in_hours: how long the message stays relevant`,
 	},
 }

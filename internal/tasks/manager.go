@@ -492,7 +492,7 @@ type TryResult struct {
 	Decisions []Decision `json:"decisions,omitempty"`
 }
 
-// Try runs the Mira actions of a task now, without notices: what would
+// Try runs the Mira actions of a task now, without messages: what would
 // Mira say with the data as it is? Text that needs a trigger's templates
 // is replaced.
 func (m *Manager) Try(ctx context.Context, id string) (TryResult, error) {

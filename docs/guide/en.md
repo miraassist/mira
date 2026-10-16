@@ -70,7 +70,7 @@ Under the hood every task is an ordinary **automation in Home Assistant** labell
 
 ![The gas task in Home Assistant's automation editor: hourly trigger, action "Mira: Assess"](img/ha-automation-en.png)
 
-Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Add notice** (`mira.add_notice`). For now tasks belong to the whole house and use the house's memory when judging.
+Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Send message** (`mira.send_message`). For now tasks belong to the whole house and use the house's memory when judging.
 
 ## Mira speaks up on her own
 
@@ -83,7 +83,7 @@ Mira speaks up when something happens: a leak sensor goes off, the washing machi
 - **Announce**: as soon as someone enters the room (motion sensor), Mira announces what is pending. The first motion after quiet hours brings the morning announcement.
 - **Indicate only**: Mira does not speak up on her own. The room's indicator light (e.g. the Echo's LED ring) pulses teal while something is waiting. Then ask: **"Do you have a notification?"** or "Anything new?".
 
-**By the way**: when you talk to the satellite anyway, Mira adds what is waiting to her answer – "The light is on. By the way: the recycling is collected tomorrow." After that the notice counts as heard and the light goes off. If you ask ("What exactly?"), you get the details.
+**By the way**: when you talk to the satellite anyway, Mira adds what is waiting to her answer – "The light is on. By the way: the recycling is collected tomorrow." After that the message counts as heard and the light goes off. If you ask ("What exactly?"), you get the details.
 
 **Importance**:
 
@@ -99,9 +99,9 @@ When Mira speaks up on her own, the room's indicator light glows steadily while 
 
 **Quiet mode**: the "Quiet mode" switch in Home Assistant turns off all announcements until you turn it off again.
 
-**Confidential and personal**: notices can be meant for one person or be confidential. Mira reads confidential notices out only when the setting allows it (e.g. only when that person is alone at home); otherwise they go privately by Telegram or as a push notification to the phone.
+**Confidential and personal**: messages can be meant for one person or be confidential. Mira reads confidential messages out only when the setting allows it (e.g. only when that person is alone at home); otherwise they go privately by Telegram or as a push notification to the phone.
 
-![Notices: waiting and delivered](img/meldungen-en.png)
+![Messages: waiting and delivered](img/meldungen-en.png)
 
 ## Mira remembers things
 
@@ -161,9 +161,9 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 Mira is in Home Assistant's sidebar. You are signed in there already, she looks like your HA theme (light or dark) and speaks your HA language; this works from away in the app too.
 
-- **Notices**: see open and delivered notices and mark them done.
+- **Messages**: see open and delivered messages and mark them done.
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
-- **Notifications**: quiet hours, pauses, escalation, confidential and urgent notices.
+- **Notifications**: quiet hours, pauses, escalation, confidential and urgent messages.
 - **Rooms** and **People**: show what you set up in the integration (see below).
 - **Memory**: the house's and your own; edit and forget.
 - **Guide**: this page.
@@ -180,9 +180,9 @@ Before Mira deletes something, she asks:
 
 ## In Home Assistant
 
-- **Device "Mira"** with the **Quiet mode** switch, the **Pending notices** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
+- **Device "Mira"** with the **Quiet mode** switch, the **Pending messages** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
-- Automations can give Mira notices with the action `mira.add_notice`.
+- Automations can give Mira messages with the action `mira.send_message`.
 - **Mira in the sidebar** (see above). Switch it off in the integration's options; anyone can also hide it in just their own sidebar.
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)

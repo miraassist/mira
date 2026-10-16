@@ -82,7 +82,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 					return "", errors.New(t.reminderTooFar)
 				}
 				r := store.Reminder{ID: ulid.Make().String(), DueAt: due, Text: a.Text, SessionKey: inv.SessionKey,
-					Audience: AudienceFor(a.For, inv, o.Persons())}
+					Receiver: ReceiverFor(a.For, inv, o.Persons())}
 				if inv.Channel == config.ChannelVoice && o.Store != nil {
 					if sess, err := o.Store.GetSession(ctx, inv.SessionKey); err == nil {
 						r.AreaID = sess.AreaID
@@ -110,8 +110,8 @@ func Reminders(o ReminderOptions) []InternalTool {
 				var b strings.Builder
 				for _, r := range list {
 					fmt.Fprintf(&b, "- [%s] %s: %s", r.ID, i18n.FormatTime(o.Lang, r.DueAt.In(o.Location)), r.Text)
-					if r.Audience != store.AudienceHousehold {
-						fmt.Fprintf(&b, " (%s)", r.Audience)
+					if r.Receiver != store.ReceiverHouse {
+						fmt.Fprintf(&b, " (%s)", r.Receiver)
 					}
 					b.WriteByte('\n')
 				}
@@ -160,9 +160,9 @@ func dueTime(now time.Time, at string, inMinutes int, loc *time.Location) (time.
 	return time.Time{}, fmt.Errorf("%q is not YYYY-MM-DD HH:MM", at)
 }
 
-// AudienceFor is the person a request is for: the one named, else the
+// ReceiverFor is the person a request is for: the one named, else the
 // Telegram user who asked, else the household.
-func AudienceFor(named string, inv Invocation, persons map[string]config.Person) string {
+func ReceiverFor(named string, inv Invocation, persons map[string]config.Person) string {
 	if _, ok := persons[named]; ok {
 		return named
 	}
@@ -179,5 +179,5 @@ func AudienceFor(named string, inv Invocation, persons map[string]config.Person)
 			}
 		}
 	}
-	return store.AudienceHousehold
+	return store.ReceiverHouse
 }

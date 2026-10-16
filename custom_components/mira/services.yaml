@@ -1,4 +1,4 @@
-add_notice:
+send_message:
   fields:
     text:
       required: true
@@ -16,8 +16,8 @@ add_notice:
           min: 0
           max: 3
           mode: box
-    audience:
-      example: household
+    receiver:
+      example: house
       selector:
         text:
     confidentiality:
@@ -69,8 +69,8 @@ assess:
       default: true
       selector:
         boolean:
-    audience:
-      example: household
+    receiver:
+      example: house
       selector:
         text:
     confidentiality:

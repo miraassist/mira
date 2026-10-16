@@ -136,7 +136,7 @@ func (h *Handler) taskLog(w http.ResponseWriter, r *http.Request) {
 	out := make([]assessmentJSON, 0, len(list))
 	for _, a := range list {
 		out = append(out, assessmentJSON{At: localTime(a.CreatedAt), Kind: a.Kind, Importance: a.Importance,
-			Answer: a.Answer, Spoken: a.Spoken, Input: a.Input, Notified: a.NoticeID != "", DryRun: a.DryRun})
+			Answer: a.Answer, Spoken: a.Spoken, Input: a.Input, Notified: a.MessageID != "", DryRun: a.DryRun})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

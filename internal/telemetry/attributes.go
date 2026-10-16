@@ -2,7 +2,7 @@
 // attribute names the agent uses.
 //
 // LLM spans follow the GenAI semantic conventions; everything specific to
-// Mira (prompt cache behaviour, channels, notices) lives under the "mira."
+// Mira (prompt cache behaviour, channels, messages) lives under the "mira."
 // prefix so it is obvious which attributes are ours.
 package telemetry
 
@@ -39,8 +39,8 @@ const (
 	AttrToolRounds    = attribute.Key("mira.conversation.tool_rounds")
 	AttrToolServer    = attribute.Key("mira.tool.server")
 	AttrToolBlocked   = attribute.Key("mira.tool.blocked_reason")
-	AttrNoticeID      = attribute.Key("mira.notice.id")
-	AttrNoticeCount   = attribute.Key("mira.notice.count")
+	AttrMessageID     = attribute.Key("mira.message.id")
+	AttrMessageCount  = attribute.Key("mira.message.count")
 	AttrLayer         = attribute.Key("mira.prompt.layer")
 	AttrRebuildReason = attribute.Key("mira.prompt.rebuild_reason")
 )
@@ -52,5 +52,5 @@ const (
 	MetricCacheHitRatio     = "mira.llm.cache_hit_ratio"
 	MetricToolCalls         = "mira.tool.calls"
 	MetricPrefixRebuilds    = "mira.prompt.prefix_rebuilds"
-	MetricNoticesDelivered  = "mira.notices.delivered"
+	MetricMessagesDelivered = "mira.messages.delivered"
 )

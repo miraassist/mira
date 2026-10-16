@@ -17,7 +17,7 @@ from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 
 from .conftest import AGENT_ID, AGENT_URL
 
-STATUS = {"pending_notices": 0, "quiet_mode": False}
+STATUS = {"pending_messages": 0, "quiet_mode": False}
 
 # What the agent's GET /v1/ui/ha returns: the shape of mira.yaml sections.
 AGENT = {

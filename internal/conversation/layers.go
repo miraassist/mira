@@ -121,11 +121,11 @@ func (e *Engine) personProfile(ctx context.Context, person string) string {
 	return clipProfile(p, e.cfg.Memory.MaxProfileChars)
 }
 
-// noticeContext links a voice turn to notices announced on the same
+// messageContext links a voice turn to messages announced on the same
 // satellite moments ago, so "Was genau?" can be answered from the details.
-// It also returns the ids of the notices that are still open, so the turn
+// It also returns the ids of the messages that are still open, so the turn
 // can acknowledge them once it is answered.
-func (e *Engine) noticeContext(ctx context.Context, deviceID string) (string, []string) {
+func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, []string) {
 	if deviceID == "" {
 		return "", nil
 	}
@@ -135,12 +135,12 @@ func (e *Engine) noticeContext(ctx context.Context, deviceID string) (string, []
 	}
 	var b strings.Builder
 	var open []string
-	for _, id := range a.NoticeIDs {
-		n, err := e.store.GetNotice(ctx, id)
+	for _, id := range a.MessageIDs {
+		n, err := e.store.GetMessage(ctx, id)
 		if err != nil {
 			continue
 		}
-		if n.State == store.NoticeDelivered {
+		if n.State == store.MessageDelivered {
 			open = append(open, n.ID)
 		}
 		b.WriteString("- [" + n.ID + "] " + n.Spoken)
@@ -154,7 +154,7 @@ func (e *Engine) noticeContext(ctx context.Context, deviceID string) (string, []
 
 // history loads layer 6.
 func (e *Engine) history(ctx context.Context, key string) ([]llm.Message, error) {
-	stored, err := e.store.Messages(ctx, key)
+	stored, err := e.store.ChatMessages(ctx, key)
 	if err != nil {
 		return nil, err
 	}
@@ -171,10 +171,10 @@ func (e *Engine) history(ctx context.Context, key string) ([]llm.Message, error)
 	return out, nil
 }
 
-func toStore(msgs []llm.Message) []store.Message {
-	out := make([]store.Message, 0, len(msgs))
+func toStore(msgs []llm.Message) []store.ChatMessage {
+	out := make([]store.ChatMessage, 0, len(msgs))
 	for _, m := range msgs {
-		sm := store.Message{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID, Name: m.Name}
+		sm := store.ChatMessage{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID, Name: m.Name}
 		if len(m.ToolCalls) > 0 {
 			sm.ToolCalls, _ = json.Marshal(m.ToolCalls)
 		}

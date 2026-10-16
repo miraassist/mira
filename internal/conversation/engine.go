@@ -89,11 +89,11 @@ type Options struct {
 	// StructurePrompt, when it returns text, replaces the structure block in
 	// layer 4: Home Assistant's own Assist prompt.
 	StructurePrompt func() string
-	// Afterword returns the notices waiting for an area as a closing
+	// Afterword returns the messages waiting for an area as a closing
 	// sentence, marking them heard, or "" when none wait.
 	Afterword func(ctx context.Context, area string) string
 	// Thread links the turn to its thread ("Vorgang", package threads) and
-	// renders it for layer 7. followedUp are the notices this turn answers.
+	// renders it for layer 7. followedUp are the messages this turn answers.
 	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
 	// Identify says who is speaking: a person key, or "" for anonymous.
 	Identify  func(ctx context.Context, req Request, sess store.Session) string
@@ -240,7 +240,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		person = e.identify(ctx, req, sess)
 	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID}
-	noticeText, followedUp := e.noticeContext(ctx, req.DeviceID)
+	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
 		Lang:           e.lang(),
 		Now:            now.In(e.loc),
@@ -248,7 +248,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		Person:         person,
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),
-		NoticeContext:  noticeText,
+		MessageContext: messageText,
 		Thread:         e.threadContext(ctx, sess, followedUp),
 		Extra:          req.Extra,
 		Text:           req.Text,
@@ -344,26 +344,26 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	if strings.TrimSpace(final.Content) == "" {
 		final.Content = e.texts().fallback
 	}
-	// Notices waiting for this room follow the answer ("Licht ist an.
+	// Messages waiting for this room follow the answer ("Licht ist an.
 	// Übrigens: ..."): whoever talks to the satellite is listening anyway.
 	// Not after a question, which the next turn completes, and not when the
-	// user just asked for the notices.
+	// user just asked for the messages.
 	if req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
-		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolNoticesRead) {
+		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) {
 		if extra := e.afterword(ctx, sess.AreaID); extra != "" {
 			final.Content = strings.TrimSpace(final.Content) + " " + extra
 		}
 	}
 	added = append(added, final)
-	if err := e.store.AppendMessages(ctx, key, toStore(added)...); err != nil {
+	if err := e.store.AppendChatMessages(ctx, key, toStore(added)...); err != nil {
 		return Response{}, fmt.Errorf("store transcript: %w", err)
 	}
 
 	// Whoever answered right after an announcement on this satellite has
 	// heard it; that is the acknowledgement the plan asks for.
 	for _, id := range followedUp {
-		if err := e.store.SetNoticeState(ctx, id, store.NoticeAcked); err != nil {
-			e.log.Warn("could not acknowledge notice", "notice", id, "error", err)
+		if err := e.store.SetMessageState(ctx, id, store.MessageAcked); err != nil {
+			e.log.Warn("could not acknowledge message", "message", id, "error", err)
 		}
 	}
 

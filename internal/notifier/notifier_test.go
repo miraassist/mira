@@ -136,14 +136,14 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	return e
 }
 
-func (e *env) notice(id string, importance int, mutate func(*store.Notice)) {
+func (e *env) message(id string, importance int, mutate func(*store.Message)) {
 	e.t.Helper()
-	n := store.Notice{ID: id, Source: store.SourceHATrigger, Importance: importance,
+	n := store.Message{ID: id, Source: store.SourceHATrigger, Importance: importance,
 		Spoken: "Hinweis " + id, Details: "Details " + id, ExpiresAt: e.now.Add(48 * time.Hour)}
 	if mutate != nil {
 		mutate(&n)
 	}
-	if _, _, err := e.st.PutNotice(context.Background(), n); err != nil {
+	if _, _, err := e.st.PutMessage(context.Background(), n); err != nil {
 		e.t.Fatal(err)
 	}
 }
@@ -167,7 +167,7 @@ func (e *env) tick() []string {
 }
 
 func (e *env) state(id string) string {
-	n, err := e.st.GetNotice(context.Background(), id)
+	n, err := e.st.GetMessage(context.Background(), id)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func (e *env) state(id string) string {
 // bathroom after quiet hours leads to exactly one announcement.
 func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 	e := newEnv(t, nil)
-	e.notice("inverter", 2, func(n *store.Notice) { n.Spoken = "Der Wechselrichter meldet seit drei Uhr einen Fehler" })
+	e.message("inverter", 2, func(n *store.Message) { n.Spoken = "Der Wechselrichter meldet seit drei Uhr einen Fehler" })
 
 	if out := e.presence("bad"); out.Skipped != "quiet hours" {
 		t.Fatalf("03:00 motion: %+v", out)
@@ -195,11 +195,11 @@ func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 	if got := calls[0].Data["start_message"]; got != "Guten Morgen. Der Wechselrichter meldet seit drei Uhr einen Fehler." {
 		t.Errorf("spoken %q", got)
 	}
-	if e.state("inverter") != store.NoticeDelivered {
-		t.Error("notice not marked delivered")
+	if e.state("inverter") != store.MessageDelivered {
+		t.Error("message not marked delivered")
 	}
 	a, err := e.st.RecentAnnouncement(context.Background(), "dev-bad", 2*time.Minute)
-	if err != nil || len(a.NoticeIDs) != 1 || a.NoticeIDs[0] != "inverter" {
+	if err != nil || len(a.MessageIDs) != 1 || a.MessageIDs[0] != "inverter" {
 		t.Fatalf("announcement for follow-up = %+v, %v", a, err)
 	}
 
@@ -209,7 +209,7 @@ func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 		t.Fatalf("second motion announced again: %+v", out)
 	}
 	if out := e.presence("kueche"); len(out.Announced) != 0 {
-		t.Fatalf("kitchen repeated the notice: %+v", out)
+		t.Fatalf("kitchen repeated the message: %+v", out)
 	}
 	if n := len(e.ha.calls); n != 1 {
 		t.Fatalf("%d service calls, want exactly one announcement", n)
@@ -227,24 +227,24 @@ func TestPresenceRules(t *testing.T) {
 		{"quiet hours wrap midnight", func(e *env) { e.now = at("23:10") }, "bad", "quiet hours", ""},
 		{"quiet mode", func(e *env) { e.st.SetBool(context.Background(), store.KeyQuietMode, true) }, "bad", "quiet mode", ""},
 		{"unknown area", nil, "keller", "area not configured", ""},
-		{"nothing pending", func(e *env) { e.st.SetNoticeState(context.Background(), "n1", store.NoticeAcked) }, "bad", "nothing pending", ""},
+		{"nothing pending", func(e *env) { e.st.SetMessageState(context.Background(), "n1", store.MessageAcked) }, "bad", "nothing pending", ""},
 		{"below min importance", func(e *env) {
-			e.st.SetNoticeState(context.Background(), "n1", store.NoticeAcked)
-			e.notice("low", 0, nil)
+			e.st.SetMessageState(context.Background(), "n1", store.MessageAcked)
+			e.message("low", 0, nil)
 		}, "bad", "nothing pending", ""},
 		{"start_conversation when supported", nil, "bad", "announce", "assist_satellite.start_conversation"},
 		{"announce when not", nil, "kueche", "announce", "assist_satellite.announce"},
-		{"expired notice", func(e *env) {
+		{"expired message", func(e *env) {
 			e.now = at("12:00")
-			e.st.ExpireNotices(context.Background())
+			e.st.ExpireMessages(context.Background())
 			e.now = at("07:00")
-			e.st.SetNoticeState(context.Background(), "n1", store.NoticeExpired)
+			e.st.SetMessageState(context.Background(), "n1", store.MessageExpired)
 		}, "bad", "nothing pending", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t, nil)
-			e.notice("n1", 2, nil)
+			e.message("n1", 2, nil)
 			e.now = at("07:00")
 			if c.setup != nil {
 				c.setup(e)
@@ -269,10 +269,10 @@ func TestPresenceRules(t *testing.T) {
 func TestCooldownPerArea(t *testing.T) {
 	e := newEnv(t, nil)
 	e.now = at("07:00")
-	e.notice("a", 2, nil)
+	e.message("a", 2, nil)
 	e.presence("bad")
 	e.now = at("07:10")
-	e.notice("b", 2, nil)
+	e.message("b", 2, nil)
 	if out := e.presence("bad"); out.Skipped != "cooldown" {
 		t.Fatalf("within cooldown: %+v", out)
 	}
@@ -280,7 +280,7 @@ func TestCooldownPerArea(t *testing.T) {
 		t.Fatalf("other area has no cooldown: %+v", out)
 	}
 	e.now = at("07:31")
-	e.notice("c", 2, nil)
+	e.message("c", 2, nil)
 	if out := e.presence("bad"); len(out.Announced) != 1 || out.Announced[0] != "c" {
 		t.Fatalf("after cooldown: %+v", out)
 	}
@@ -288,21 +288,21 @@ func TestCooldownPerArea(t *testing.T) {
 
 func TestBundlingTakesTheMostImportantThree(t *testing.T) {
 	e := newEnv(t, nil)
-	e.notice("n1", 1, nil)
-	e.notice("n2", 3, nil)
-	e.notice("n3", 2, nil)
-	e.notice("n4", 1, nil)
-	e.notice("n5", 2, nil)
+	e.message("n1", 1, nil)
+	e.message("n2", 3, nil)
+	e.message("n3", 2, nil)
+	e.message("n4", 1, nil)
+	e.message("n5", 2, nil)
 	e.now = at("12:00")
 	out := e.presence("bad")
 	if got := strings.Join(out.Announced, ","); got != "n2,n3,n5" {
 		t.Fatalf("announced %s", got)
 	}
 	text := e.ha.calls[0].Data["start_message"].(string)
-	if text != "Ich habe drei Hinweise. Hinweis n2. Außerdem: Hinweis n3. Und: Hinweis n5." {
+	if text != "Ich habe drei Nachrichten. Hinweis n2. Außerdem: Hinweis n3. Und: Hinweis n5." {
 		t.Errorf("text = %q", text)
 	}
-	if e.state("n1") != store.NoticePending || e.state("n4") != store.NoticePending {
+	if e.state("n1") != store.MessagePending || e.state("n4") != store.MessagePending {
 		t.Error("the rest must stay pending for later")
 	}
 }
@@ -312,7 +312,7 @@ func TestMediaPlayerSatelliteUsesTTS(t *testing.T) {
 		c.Satellites["bad"] = "media_player.echo_bad"
 		c.Notifier.TTSEntity = "tts.piper"
 	})
-	e.notice("n1", 2, nil)
+	e.message("n1", 2, nil)
 	e.now = at("08:00")
 	e.presence("bad")
 	c := e.ha.calls[0]
@@ -321,8 +321,8 @@ func TestMediaPlayerSatelliteUsesTTS(t *testing.T) {
 	}
 }
 
-func TestConfidentialNotices(t *testing.T) {
-	confidential := func(n *store.Notice) { n.Confidentiality = store.ConfidentialityConfidential }
+func TestConfidentialMessages(t *testing.T) {
+	confidential := func(n *store.Message) { n.Confidentiality = store.ConfidentialityConfidential }
 	cases := []struct {
 		name      string
 		policy    string
@@ -342,7 +342,7 @@ func TestConfidentialNotices(t *testing.T) {
 				cfg.Persons["anna"] = config.Person{Entity: "person.anna"}
 			})
 			e.ha.set("person.anna", c.anna, nil)
-			e.notice("secret", 2, func(n *store.Notice) { confidential(n); n.Audience = "ben" })
+			e.message("secret", 2, func(n *store.Message) { confidential(n); n.Receiver = "ben" })
 			e.now = at("08:00")
 			out := e.presence("bad")
 			spoken := len(out.Announced) == 1
@@ -358,7 +358,7 @@ func TestConfidentialNotices(t *testing.T) {
 
 func TestConfidentialNeverGoesOutOnTickWithoutWaitingForMotion(t *testing.T) {
 	e := newEnv(t, nil) // default policy: never
-	e.notice("secret", 1, func(n *store.Notice) { n.Confidentiality = store.ConfidentialityConfidential })
+	e.message("secret", 1, func(n *store.Message) { n.Confidentiality = store.ConfidentialityConfidential })
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("sent during quiet hours: %v", sent)
 	}
@@ -371,20 +371,20 @@ func TestConfidentialNeverGoesOutOnTickWithoutWaitingForMotion(t *testing.T) {
 	}
 }
 
-func TestPersonalNoticeForUntrackedRecipientIsSpoken(t *testing.T) {
+func TestPersonalMessageForUntrackedRecipientIsSpoken(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna", TelegramUserID: 222} })
 	e.ha.set("person.anna", "unknown", nil)
-	e.notice("for-anna", 1, func(n *store.Notice) { n.Audience = "anna" })
+	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
 	e.now = at("08:00")
 	if out := e.presence("bad"); len(out.Announced) != 1 {
 		t.Fatalf("a person without tracker is not known to be away: %+v", out)
 	}
 }
 
-func TestPersonalNoticeWaitsWhileRecipientIsAway(t *testing.T) {
+func TestPersonalMessageWaitsWhileRecipientIsAway(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Persons["anna"] = config.Person{Entity: "person.anna", TelegramUserID: 222} })
 	e.ha.set("person.anna", "not_home", nil)
-	e.notice("for-anna", 1, func(n *store.Notice) { n.Audience = "anna" })
+	e.message("for-anna", 1, func(n *store.Message) { n.Receiver = "anna" })
 	e.now = at("08:00")
 	out := e.presence("bad")
 	if len(out.Announced)+len(out.Private) != 0 {
@@ -399,8 +399,8 @@ func TestPersonalNoticeWaitsWhileRecipientIsAway(t *testing.T) {
 
 func TestEscalation(t *testing.T) {
 	e := newEnv(t, nil)
-	e.notice("important", 2, nil)
-	e.notice("minor", 1, nil)
+	e.message("important", 2, nil)
+	e.message("minor", 1, nil)
 	e.now = at("08:59")
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated before 09:00: %v", sent)
@@ -410,19 +410,19 @@ func TestEscalation(t *testing.T) {
 	if len(sent) != 1 || sent[0] != "important" || len(e.tg.sent[111]) != 1 {
 		t.Fatalf("escalation = %v, telegram %v", sent, e.tg.sent)
 	}
-	n, _ := e.st.GetNotice(context.Background(), "important")
-	if n.State != store.NoticeDelivered || n.DeliveredVia != "telegram" {
-		t.Errorf("notice after escalation = %+v", n)
+	n, _ := e.st.GetMessage(context.Background(), "important")
+	if n.State != store.MessageDelivered || n.DeliveredVia != "telegram" {
+		t.Errorf("message after escalation = %+v", n)
 	}
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated twice: %v", sent)
 	}
 }
 
-func TestEscalationGivesDaytimeNoticesAGracePeriod(t *testing.T) {
+func TestEscalationGivesDaytimeMessagesAGracePeriod(t *testing.T) {
 	e := newEnv(t, nil)
 	e.now = at("14:00")
-	e.notice("afternoon", 2, nil)
+	e.message("afternoon", 2, nil)
 	e.now = at("14:10")
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("escalated within grace: %v", sent)
@@ -437,7 +437,7 @@ func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) {
 		c.Persons = map[string]config.Person{"ben": {Entity: "person.ben", Notify: "notify.mobile_app_phone"}}
 	})
-	e.notice("n", 2, nil)
+	e.message("n", 2, nil)
 	e.now = at("09:30")
 	e.tick()
 	if got := e.ha.servicesCalled(); len(got) != 1 || got[0] != "notify.mobile_app_phone" {
@@ -445,7 +445,7 @@ func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
 	}
 
 	e2 := newEnv(t, func(c *config.Config) { c.Persons = nil })
-	e2.notice("n", 2, nil)
+	e2.message("n", 2, nil)
 	e2.now = at("09:30")
 	e2.tick()
 	if len(e2.tg.all) != 1 {
@@ -454,19 +454,19 @@ func TestPushFallbackAndHouseholdWithoutPersons(t *testing.T) {
 }
 
 func TestCompose(t *testing.T) {
-	one := []store.Notice{{Spoken: "Die Waschmaschine ist fertig"}}
+	one := []store.Message{{Spoken: "Die Waschmaschine ist fertig"}}
 	if got := Compose(i18n.DE, one, at("15:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Die Waschmaschine ist fertig." {
 		t.Errorf("got %q", got)
 	}
-	two := []store.Notice{{Spoken: "A."}, {Spoken: "B!"}}
-	if got := Compose(i18n.DE, two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Hinweise. A. Und: B!" {
+	two := []store.Message{{Spoken: "A."}, {Spoken: "B!"}}
+	if got := Compose(i18n.DE, two, at("07:00"), config.ClockTime{Hour: 6, Minute: 30}); got != "Guten Morgen. Ich habe zwei Nachrichten. A. Und: B!" {
 		t.Errorf("got %q", got)
 	}
 }
 
-func TestUrgentNoticeGoesOutAtOnceEvenAtNight(t *testing.T) {
+func TestUrgentMessageGoesOutAtOnceEvenAtNight(t *testing.T) {
 	e := newEnv(t, nil) // 03:00, inside quiet hours
-	e.notice("leak", 3, nil)
+	e.message("leak", 3, nil)
 	sent := e.tick()
 	if len(sent) != 1 || len(e.tg.sent[111]) != 1 {
 		t.Fatalf("sent = %v, telegram = %v", sent, e.tg.sent)
@@ -480,24 +480,24 @@ func TestUrgentNoticeGoesOutAtOnceEvenAtNight(t *testing.T) {
 		t.Errorf("spoken on = %v, want %v", spoken, want)
 	}
 	if again := e.tick(); len(again) != 0 {
-		t.Errorf("urgent notice sent twice: %v", again)
+		t.Errorf("urgent message sent twice: %v", again)
 	}
 }
 
-func TestUrgentConfidentialNoticeIsNotSpoken(t *testing.T) {
+func TestUrgentConfidentialMessageIsNotSpoken(t *testing.T) {
 	e := newEnv(t, nil)
-	e.notice("secret-leak", 3, func(n *store.Notice) { n.Confidentiality = store.ConfidentialityConfidential })
+	e.message("secret-leak", 3, func(n *store.Message) { n.Confidentiality = store.ConfidentialityConfidential })
 	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent[111]) != 1 {
 		t.Fatalf("sent = %v", sent)
 	}
 	if len(e.ha.calls) != 0 {
-		t.Errorf("confidential urgent notice was spoken: %+v", e.ha.calls)
+		t.Errorf("confidential urgent message was spoken: %+v", e.ha.calls)
 	}
 }
 
 func TestUrgentRuleCanBeTurnedOff(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.Urgent.MinImportance = 0 })
-	e.notice("leak", 3, nil)
+	e.message("leak", 3, nil)
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("sent during quiet hours without the urgent rule: %v", sent)
 	}

@@ -147,19 +147,19 @@ func TestAssessCondensesDataAndNotifies(t *testing.T) {
 			t.Errorf("prompt lacks %q:\n%s", want, prompt)
 		}
 	}
-	if v.NoticeID == "" || v.Importance != 3 {
+	if v.MessageID == "" || v.Importance != 3 {
 		t.Fatalf("verdict: %+v", v)
 	}
-	notices, _ := e.st.ListNotices(context.Background(), store.NoticeFilter{States: []string{store.NoticePending}})
-	if len(notices) != 1 || notices[0].Source != store.SourceTask || !strings.Contains(notices[0].Details, "40 L") {
-		t.Fatalf("notices: %+v", notices)
+	messages, _ := e.st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
+	if len(messages) != 1 || messages[0].Source != store.SourceTask || !strings.Contains(messages[0].Details, "40 L") {
+		t.Fatalf("messages: %+v", messages)
 	}
 
 	// An hour later the same verdict is withheld (cooldown), and the model
 	// sees what it said before.
 	e.now = e.now.Add(time.Hour)
 	v, _ = e.m.Assess(context.Background(), req)
-	if v.Withheld != "cooldown" || v.NoticeID != "" {
+	if v.Withheld != "cooldown" || v.MessageID != "" {
 		t.Errorf("not withheld: %+v", v)
 	}
 	if !strings.Contains(e.model.instructions[1], "Wichtigkeit 3 – Zwischen 2 und 3 Uhr liefen 40 Liter Wasser.") {
@@ -171,13 +171,13 @@ func TestAssessCondensesDataAndNotifies(t *testing.T) {
 	}
 }
 
-func TestDryRunAndDecideMakeNoNotice(t *testing.T) {
+func TestDryRunAndDecideMakeNoMessage(t *testing.T) {
 	e := setup(t)
 	e.nightWater()
 	off := false
 	e.model.answers = []string{`{"importance":2,"spoken":"Viel Wasser."}`}
 	v, _ := e.m.Assess(context.Background(), Request{Goal: "Wasser", Notify: &off})
-	if v.Withheld != "dry_run" || v.NoticeID != "" {
+	if v.Withheld != "dry_run" || v.MessageID != "" {
 		t.Errorf("dry run notified: %+v", v)
 	}
 	e.model.answers = []string{`{"answer":true,"reason":"40 Liter statt 0."}`}
@@ -189,9 +189,9 @@ func TestDryRunAndDecideMakeNoNotice(t *testing.T) {
 	if !strings.Contains(e.model.instructions[1], "## Frage\nLäuft unnötig Wasser?") {
 		t.Errorf("question missing:\n%s", e.model.instructions[1])
 	}
-	notices, _ := e.st.ListNotices(context.Background(), store.NoticeFilter{})
-	if len(notices) != 0 {
-		t.Errorf("notices: %+v", notices)
+	messages, _ := e.st.ListMessages(context.Background(), store.MessageFilter{})
+	if len(messages) != 0 {
+		t.Errorf("messages: %+v", messages)
 	}
 	if _, err := e.m.Assess(context.Background(), Request{}); err == nil {
 		t.Error("assess without goal")
@@ -284,7 +284,7 @@ func TestCheckEntitiesByIDNameAndAlias(t *testing.T) {
 func TestMiraCallsFindsNestedSteps(t *testing.T) {
 	var actions any
 	json.Unmarshal([]byte(`[{"if":[],"then":[{"action":"mira.decide","data":{"question":"q"}}]},
-		{"choose":[{"sequence":[{"action":"mira.assess"}]}]},{"action":"mira.add_notice"}]`), &actions)
+		{"choose":[{"sequence":[{"action":"mira.assess"}]}]},{"action":"mira.send_message"}]`), &actions)
 	calls := miraCalls(actions)
 	if len(calls) != 2 || calls[0].action != "mira.decide" || calls[1].action != "mira.assess" {
 		t.Fatalf("calls: %+v", calls)
@@ -309,7 +309,7 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 
 	// No trigger: refused; then the planner asks back.
 	e.model.answers = []string{
-		`{"title":"x","summary":"y","automation":{"triggers":[],"actions":[{"action":"mira.add_notice","data":{"text":"t"}}]}}`,
+		`{"title":"x","summary":"y","automation":{"triggers":[],"actions":[{"action":"mira.send_message","data":{"text":"t"}}]}}`,
 		`{"question":"Ab wann ist es ungewöhnlich?"}`,
 	}
 	_, err := e.m.DraftAutomation(context.Background(), "Licht zu ungewöhnlicher Zeit", nil)
@@ -328,7 +328,7 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 	e.model.answers = []string{`{"title":"Licht nachts","summary":"Ich melde mich, wenn nachts das Licht angeht.","automation":{
 "triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
 "conditions":[{"condition":"time","after":"00:00:00","before":"06:00:00"}],
-"actions":[{"action":"mira.add_notice","data":{"text":"Licht an.","importance":1}},
+"actions":[{"action":"mira.send_message","data":{"text":"Licht an.","importance":1}},
 {"action":"media_player.turn_on","target":{"entity_id":"media_player.radio_bad"}}]}}`}
 	d, err := e.m.DraftAutomation(context.Background(), "x", nil)
 	if err != nil {

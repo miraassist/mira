@@ -59,7 +59,7 @@
         "data_description": {
           "telegram_user_id": "Zahl; muss auf der Telegram-Allowlist des Agenten stehen.",
           "notify": "Notify-Dienst der Companion App",
-          "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
+          "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Nachrichten."
         }
       },
       "satellites": {
@@ -74,8 +74,8 @@
         "data_description": {
           "presence": "Bewegung an einem davon startet eine Ansage, z. B. Flur und Wohnzimmer.",
           "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
-          "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
-          "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
+          "mode": "Ansagen spricht Nachrichten, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
+          "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten."
         }
       }
     },
@@ -91,8 +91,8 @@
   },
   "entity": {
     "sensor": {
-      "pending_notices": {
-        "name": "Offene Hinweise"
+      "pending_messages": {
+        "name": "Wartende Nachrichten"
       }
     },
     "switch": {
@@ -107,9 +107,9 @@
     }
   },
   "services": {
-    "add_notice": {
-      "name": "Hinweis hinzufügen",
-      "description": "Stellt einen Hinweis ein. Der Agent sagt ihn auf einem Satelliten an, wenn jemand im Raum ist, oder schickt ihn privat.",
+    "send_message": {
+      "name": "Nachricht senden",
+      "description": "Schickt eine Nachricht über Mira. An das Haus sagt Mira sie auf einem Satelliten an, wenn jemand im Raum ist; an eine Person geht sie über deren Kanäle.",
       "fields": {
         "text": {
           "name": "Text",
@@ -123,31 +123,31 @@
           "name": "Wichtigkeit",
           "description": "0 nicht erwähnenswert, 1 nebenbei, 2 heute wichtig, 3 dringend."
         },
-        "audience": {
+        "receiver": {
           "name": "Empfänger",
-          "description": "household oder eine Personen-ID aus der Agent-Konfiguration."
+          "description": "house oder eine Person: die ID der HA-Person (z. B. anna)."
         },
         "confidentiality": {
           "name": "Vertraulichkeit",
-          "description": "Vertrauliche Hinweise werden nur gesprochen, wenn die Richtlinie des Agenten es erlaubt, sonst privat geschickt."
+          "description": "Vertrauliche Nachrichten werden nur gesprochen, wenn die Richtlinie des Agenten es erlaubt, sonst privat geschickt."
         },
         "dedupe_key": {
           "name": "Dedupe-Schlüssel",
-          "description": "Ein offener Hinweis mit gleichem Schlüssel wird aktualisiert statt doppelt angelegt."
+          "description": "Eine offene Nachricht mit gleichem Schlüssel wird aktualisiert statt doppelt angelegt."
         },
         "expires_in": {
           "name": "Gültig für",
-          "description": "Dauer wie 12h; danach verfällt der Hinweis. Standard 24h."
+          "description": "Dauer wie 12h; danach verfällt die Nachricht. Standard 24h."
         },
         "task": {
           "name": "Aufgabe",
-          "description": "Die ID der Automation ({{ this.attributes.id }}): die Meldung erscheint im Protokoll der Aufgabe."
+          "description": "Die ID der Automation ({{ this.attributes.id }}): die Nachricht erscheint im Protokoll der Aufgabe."
         }
       }
     },
     "assess": {
       "name": "Bewerten",
-      "description": "Mira beurteilt, was passiert ist, gemessen am Ziel und mit den Daten, die sie nachschlägt und verdichtet; wenn es sich lohnt, formuliert sie eine Meldung und stellt sie zu wie jede andere. Antwortet mit importance, spoken und notice_id.",
+      "description": "Mira beurteilt, was passiert ist, gemessen am Ziel und mit den Daten, die sie nachschlägt und verdichtet; wenn es sich lohnt, formuliert sie eine Nachricht und stellt sie zu wie jede andere. Antwortet mit importance, spoken und message_id.",
       "fields": {
         "goal": {
           "name": "Ziel",
@@ -171,19 +171,19 @@
         },
         "notify": {
           "name": "Melden",
-          "description": "Aus: nur das Urteil, keine Meldung (Probelauf)."
+          "description": "Aus: nur das Urteil, keine Nachricht (Probelauf)."
         },
-        "audience": {
+        "receiver": {
           "name": "Empfänger",
-          "description": "household oder eine Personen-ID aus der Mira-Konfiguration."
+          "description": "house oder eine Person: die ID der HA-Person (z. B. anna)."
         },
         "confidentiality": {
           "name": "Vertraulichkeit",
-          "description": "Vertrauliche Meldungen werden nur vorgelesen, wenn Miras Einstellung es erlaubt."
+          "description": "Vertrauliche Nachrichten werden nur vorgelesen, wenn Miras Einstellung es erlaubt."
         },
         "dedupe_key": {
           "name": "Schlüssel",
-          "description": "Eine offene Meldung mit demselben Schlüssel wird aktualisiert statt verdoppelt."
+          "description": "Eine offene Nachricht mit demselben Schlüssel wird aktualisiert statt verdoppelt."
         },
         "expires_in": {
           "name": "Gültig für",
@@ -197,7 +197,7 @@
     },
     "decide": {
       "name": "Entscheiden",
-      "description": "Mira beantwortet eine Ja/Nein-Frage mit den Daten, die sie nachschlägt; keine Meldung. Mit response_variable und einer Template-Bedingung verwenden.",
+      "description": "Mira beantwortet eine Ja/Nein-Frage mit den Daten, die sie nachschlägt; keine Nachricht. Mit response_variable und einer Template-Bedingung verwenden.",
       "fields": {
         "question": {
           "name": "Frage",

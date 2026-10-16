@@ -475,18 +475,18 @@ func TestVoiceConfirmationRequestKeepsListening(t *testing.T) {
 }
 
 // Plan acceptance, in fakes: "Was genau?" after an announcement gets the
-// notice's details, and answering acknowledges it.
+// message's details, and answering acknowledges it.
 func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Der Wechselrichter meldet Fehlercode zweiundvierzig."})
 	ctx := context.Background()
-	n, _, err := h.store.PutNotice(ctx, store.Notice{ID: "inv", Source: store.SourceHATrigger, Importance: 2,
+	n, _, err := h.store.PutMessage(ctx, store.Message{ID: "inv", Source: store.SourceHATrigger, Importance: 2,
 		Spoken: "Der Wechselrichter meldet einen Fehler.", Details: "Status fault, Fehlercode 42, seit 03:00.",
 		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.store.MarkDelivered(ctx, n.ID, "voice:kueche")
-	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", AreaID: "kueche", Channel: "voice", NoticeIDs: []string{"inv"}})
+	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", AreaID: "kueche", Channel: "voice", MessageIDs: []string{"inv"}})
 	h.clock.Advance(30 * time.Second)
 
 	_, err = h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Was genau?"})
@@ -495,26 +495,26 @@ func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
 	}
 	layer7 := lastContent(h.llm.Last().Request.Messages)
 	if !strings.Contains(layer7, "Du hast gerade gemeldet") || !strings.Contains(layer7, "Fehlercode 42") {
-		t.Fatalf("layer 7 lacks the notice details:\n%s", layer7)
+		t.Fatalf("layer 7 lacks the message details:\n%s", layer7)
 	}
-	if got, _ := h.store.GetNotice(ctx, "inv"); got.State != store.NoticeAcked {
-		t.Errorf("notice state = %s, want acked", got.State)
+	if got, _ := h.store.GetMessage(ctx, "inv"); got.State != store.MessageAcked {
+		t.Errorf("message state = %s, want acked", got.State)
 	}
 }
 
 func TestFollowUpWindowExpires(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Hallo."})
 	ctx := context.Background()
-	h.store.PutNotice(ctx, store.Notice{ID: "inv", Source: store.SourceHATrigger, Importance: 2, Spoken: "x", Details: "Fehlercode 42",
+	h.store.PutMessage(ctx, store.Message{ID: "inv", Source: store.SourceHATrigger, Importance: 2, Spoken: "x", Details: "Fehlercode 42",
 		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
 	h.store.MarkDelivered(ctx, "inv", "voice:kueche")
-	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", Channel: "voice", NoticeIDs: []string{"inv"}})
+	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", Channel: "voice", MessageIDs: []string{"inv"}})
 	h.clock.Advance(5 * time.Minute)
 	h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Hallo"})
 	if strings.Contains(lastContent(h.llm.Last().Request.Messages), "Fehlercode") {
-		t.Error("notice context outside the follow-up window")
+		t.Error("message context outside the follow-up window")
 	}
-	if got, _ := h.store.GetNotice(ctx, "inv"); got.State != store.NoticeDelivered {
+	if got, _ := h.store.GetMessage(ctx, "inv"); got.State != store.MessageDelivered {
 		t.Errorf("state = %s; an unrelated turn must not acknowledge", got.State)
 	}
 }
@@ -532,7 +532,7 @@ func TestAssessUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 	if !anyContains(rec.Request.Messages, "Kanalstil: Hintergrundjob") {
 		t.Error("background prefix not used")
 	}
-	if n, _ := h.store.Messages(context.Background(), "background:"); len(n) != 0 {
+	if n, _ := h.store.ChatMessages(context.Background(), "background:"); len(n) != 0 {
 		t.Error("an assessment must not leave a transcript")
 	}
 }
@@ -575,7 +575,7 @@ func TestAnnouncementWithoutToolCallGetsOneMoreChance(t *testing.T) {
 	if last := second[len(second)-1]; last.Role != llm.RoleUser || !strings.Contains(last.Content, "kein Werkzeug") {
 		t.Fatalf("no nudge sent: %+v", last)
 	}
-	stored, err := h.store.Messages(context.Background(), "voice:v1")
+	stored, err := h.store.ChatMessages(context.Background(), "voice:v1")
 	if err != nil {
 		t.Fatal(err)
 	}

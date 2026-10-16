@@ -12,11 +12,11 @@ für die Aufgaben und das Benutzer-Konzept die Spezifikationen unter
 Mira ist ein Haushalts-Agent für Home Assistant. Sie besteht aus zwei Teilen:
 
 - **Mira-Agent** (Go, `cmd/mira`): Gespräch, Gedächtnis, Urteile, Zustellung
-  von Meldungen, Web-UI. Läuft als eigener Prozess neben Home Assistant.
+  von Nachrichten, Web-UI. Läuft als eigener Prozess neben Home Assistant.
 - **Mira-Integration** (Python, `custom_components/mira`): verbindet HA mit
   dem Agenten. Sie stellt Mira als Konversations-Agent für Assist bereit,
   bietet Miras Aktionen für Automationen an (`mira.assess`, `mira.decide`,
-  `mira.add_notice`) und verwaltet Miras Automationen.
+  `mira.send_message`) und verwaltet Miras Automationen.
 
 Grundsatz: **HA sind die Sinne, Mira ist Verstand und Stimme.** HA kennt die
 Geräte, Zustände, Statistiken und entscheidet mit Triggern und Bedingungen,
@@ -51,7 +51,7 @@ flowchart LR
     SAT <--> ASSIST
     ASSIST <--> INT
     INT <-->|HTTP + Token| API
-    AUTO -->|mira.assess / decide / add_notice| INT
+    AUTO -->|mira.assess / decide / send_message| INT
     API --> ENG
     API --> TASKS
     ENG <--> LLM
@@ -73,21 +73,21 @@ flowchart LR
 |---|---|
 | `cmd/mira` | Start, Verdrahtung aller Teile (`app.go`), Befehle `run`, `chat`, `check`, `profile`, `skill` |
 | `cmd/testha` | Test-HA in Docker starten, befüllen, Sensoren schalten |
-| `internal/channels/haconv` | HTTP-API für die Integration: `/v1/conversation`, `/v1/notices`, `/v1/assess`, `/v1/decide`, `/v1/health`, `/v1/status` |
+| `internal/channels/haconv` | HTTP-API für die Integration: `/v1/conversation`, `/v1/messages`, `/v1/assess`, `/v1/decide`, `/v1/health`, `/v1/status` |
 | `internal/channels/telegram` | Telegram-Kanal (Long Polling, Allowlist) |
 | `internal/conversation` | Die Gesprächs-Engine: Prompt bauen, Modell fragen, Werkzeuge ausführen, Schutz gegen unbelegte Antworten, „Übrigens“, Abgabe an stärkere Modelle, isolierte Aufrufe |
 | `internal/prompt` | Prompt-Schichten, Beispielunterhaltung, Texte je Sprache |
 | `internal/llm` | OpenAI-kompatibler Client (LM Studio, llama.cpp, Gemini) |
-| `internal/tools` | Werkzeug-Register, Schutz (Guard) für kritische Aktionen, interne Werkzeuge (Gedächtnis, Erinnerungen, Meldungen) |
+| `internal/tools` | Werkzeug-Register, Schutz (Guard) für kritische Aktionen, interne Werkzeuge (Gedächtnis, Erinnerungen, Nachrichten) |
 | `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, Websuche |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
 | `internal/tasks` | Aufgaben: Urteile (`assess`, `decide`), Datenansichten, Entwurf und Verwaltung der Automationen, Werkzeuge |
-| `internal/notifier` | Zustellung: wann, wo, wie eine Meldung ankommt; Anzeige-Lampen; Erinnerungen |
+| `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeige-Lampen; Erinnerungen |
 | `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender |
 | `internal/ical`, `internal/feeds` | Kalender (iCal) und Feeds (RSS/Atom) lesen |
-| `internal/store` | SQLite: Sitzungen, Verläufe, Meldungen, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |
+| `internal/store` | SQLite: Sitzungen, Verläufe, Nachrichten, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |
 | `internal/profile` | Nächtliche Verdichtung der Fakten zum Haushaltsprofil |
 | `internal/ui` | Web-UI und ihre API (`/v1/ui/*`) |
 | `internal/announce` | mDNS-Ankündigung (`_mira._tcp`), damit HA Mira findet |
@@ -141,7 +141,7 @@ Wichtig:
   | 4 | Hausstruktur |
   | 5 | Haushaltsprofil |
   | 6 | Verlauf |
-  | 7 | aktueller Turn mit Uhrzeit, Raum, Gedächtnis-Treffern und Meldungskontext |
+  | 7 | aktueller Turn mit Uhrzeit, Raum, Gedächtnis-Treffern und Nachrichtskontext |
 
 - **Schutz gegen unbelegte Antworten.** Kündigt das Modell eine Aktion nur
   an, meldet es etwas als erledigt oder nennt es Messwerte und Zustände,
@@ -149,7 +149,7 @@ Wichtig:
   der Code die Antwort ehrlich („habe ich nicht nachgesehen“).
 - **Kritische Aktionen.** Bei Schlössern, Alarm und Garagentor verlangt der
   Guard ein ausdrückliches Ja im nächsten Turn.
-- **„Übrigens“.** Hat der Raum wartende Meldungen, hängt Mira sie an die
+- **„Übrigens“.** Hat der Raum wartende Nachrichten, hängt Mira sie an die
   Antwort an. Sie gelten dann als gehört.
 - **Weiterhören.** Endet die Antwort mit einer Frage, bleibt der Satellit im
   Zuhörmodus (`continue_conversation`).
@@ -225,10 +225,10 @@ sequenceDiagram
     M-->>T: importance 0–3, spoken, details
     T->>DB: Urteil protokollieren
     alt wichtig und nicht in der Sperrzeit
-        T->>DB: Meldung anlegen (Quelle task)
+        T->>DB: Nachricht anlegen (Quelle task)
         Note over N: stellt nach seinen Regeln zu
     end
-    T-->>I: Antwort (importance, spoken, notice_id)
+    T-->>I: Antwort (importance, spoken, message_id)
     I-->>HA: response_variable
 ```
 
@@ -240,20 +240,20 @@ sequenceDiagram
   - `same_hour`: die letzte Stunde gegen dieselbe Stunde an früheren Tagen;
   - `day`: heute bis jetzt gegen dieselben Wochentage.
 - **`mira.decide`** läuft genauso, liefert aber `{answer, reason}` und legt
-  nie eine Meldung an. Eine echte HA-Bedingung ist nicht möglich, weil HA
+  nie eine Nachricht an. Eine echte HA-Bedingung ist nicht möglich, weil HA
   Bedingungen synchron prüft. Stattdessen nutzt die Automation die Aktion
   mit `response_variable` und danach `condition: template`.
-- **`mira.add_notice`** legt ohne Urteil eine Meldung an, etwa für einen
+- **`mira.send_message`** legt ohne Urteil eine Nachricht an, etwa für einen
   Wassermelder.
 - **Probelauf** (UI oder Werkzeug `task_try`): Die Aktionen der Aufgabe
   laufen mit `notify: false`. Das Urteil kommt zurück, aber es entsteht keine
-  Meldung.
+  Nachricht.
 
-## 6. Ablauf: eine Meldung wird zugestellt
+## 6. Ablauf: eine Nachricht wird zugestellt
 
 ```mermaid
 flowchart TD
-    Q[Meldung wartet<br/>Wichtigkeit, Empfänger, vertraulich?] --> U{Wichtigkeit ≥ 3?}
+    Q[Nachricht wartet<br/>Wichtigkeit, Empfänger, vertraulich?] --> U{Wichtigkeit ≥ 3?}
     U -->|ja| NOW[Sofort: auf jedem Satelliten<br/>falls nicht vertraulich, und privat an alle]
     U -->|nein| QH{Ruhezeit oder Ruhemodus?}
     QH -->|ja| WAIT[wartet; Anzeige-Lampe leuchtet trotzdem]
@@ -270,7 +270,7 @@ flowchart TD
 
 Weitere Regeln:
 
-- **Vertrauliche Meldungen** werden nur vorgelesen, wenn die Einstellung es
+- **Vertrauliche Nachrichten** werden nur vorgelesen, wenn die Einstellung es
   erlaubt, etwa wenn der Empfänger allein zu Hause ist. Sonst gehen sie
   privat.
 - **Erinnerungen** und **Antworten auf eigene Fragen** (der Vorschlag einer
@@ -280,7 +280,7 @@ Weitere Regeln:
 - **Anzeige-Lampe während einer Ansage:** Sie leuchtet ruhig, solange der
   Satellit spricht, und geht mit dem Ende des Textes aus. Danach zeigt sie
   wieder, ob etwas wartet.
-- **Zustände einer Meldung:** wartet, zugestellt, erledigt, abgelaufen. Die
+- **Zustände einer Nachricht:** wartet, zugestellt, erledigt, abgelaufen. Die
   UI fasst zugestellt und erledigt zu einem Zustand zusammen.
 
 ## 7. Daten
@@ -288,11 +288,11 @@ Weitere Regeln:
 ```mermaid
 erDiagram
     sessions ||--o{ messages : "enthält"
-    notices }o--o| announcements : "angesagt in"
+    messages }o--o| announcements : "angesagt in"
     assessments }o--|| HA_AUTOMATION : "Urteile von"
     tasks ||--o| HA_AUTOMATION : "wird nach Ja zu"
     memory_facts }o--|| memory_profile : "verdichtet zu"
-    reminders }o--o| notices : "wird fällig als"
+    reminders }o--o| messages : "wird fällig als"
 
     sessions {
         text key PK
@@ -305,7 +305,7 @@ erDiagram
         text role
         text content
     }
-    notices {
+    messages {
         text id PK
         text source
         text dedupe_key
@@ -317,7 +317,7 @@ erDiagram
         text id PK
         text device_id
         text area_id
-        text notice_ids
+        text message_ids
     }
     tasks {
         text id PK
@@ -331,7 +331,7 @@ erDiagram
         text kind
         int importance
         text spoken
-        text notice_id
+        text message_id
     }
     memory_facts {
         text id PK

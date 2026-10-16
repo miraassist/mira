@@ -9,7 +9,7 @@ from custom_components.mira.automations import NotAllowed, check_actions, valida
 
 from .conftest import AGENT_URL
 
-STATUS = {"pending_notices": 0, "quiet_mode": False}
+STATUS = {"pending_messages": 0, "quiet_mode": False}
 
 TASK = {
     "alias": "Wasser",

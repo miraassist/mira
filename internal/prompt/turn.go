@@ -24,9 +24,9 @@ type Turn struct {
 	// Memories are facts retrieved for this turn. The compacted profile lives
 	// in layer 5; these are the situational hits.
 	Memories []string
-	// NoticeContext is the long form of notices announced moments ago, so a
+	// MessageContext is the long form of messages announced moments ago, so a
 	// follow-up question can be answered without another lookup.
-	NoticeContext string
+	MessageContext string
 	// Thread is the thread ("Vorgang") this turn belongs to or that waits at
 	// its place, rendered with its own heading by package threads.
 	Thread string
@@ -74,8 +74,8 @@ func (t Turn) Render() string {
 			}
 		}
 	}
-	if s := strings.TrimSpace(t.NoticeContext); s != "" {
-		b.WriteString("\n\n" + l.noticeContext + "\n")
+	if s := strings.TrimSpace(t.MessageContext); s != "" {
+		b.WriteString("\n\n" + l.messageContext + "\n")
 		b.WriteString(s)
 	}
 	if s := strings.TrimSpace(t.Thread); s != "" {

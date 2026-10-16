@@ -58,7 +58,7 @@ store:
   path: "/var/lib/mira/mira.db"
 
 prompt:
-  language: de   # de or en: prompts, notices and replies; Mira still answers in the language spoken to her
+  language: de   # de or en: prompts, messages and replies; Mira still answers in the language spoken to her
   # Static text appended to the system prompt. Part of the cached prefix,
   # so nothing in here may change between requests.
   persona: ""
@@ -108,7 +108,7 @@ persons:
 
 # Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
 # with the label "Mira" that call mira.assess, mira.decide or
-# mira.add_notice; create them in conversation or in Home Assistant
+# mira.send_message; create them in conversation or in Home Assistant
 # (docs/spec/aufgaben.md).
 
 notifier:
@@ -124,21 +124,21 @@ notifier:
   max_items_per_announcement: 3
   min_importance: 1
   follow_up_window: 2m
-  # Important notices nobody heard by this time go out privately.
+  # Important messages nobody heard by this time go out privately.
   escalate_to_telegram: { min_importance: 2, after: "09:00", grace: 30m }
-  # Urgent notices (water leak, smoke) go out at once, even in quiet hours:
+  # Urgent messages (water leak, smoke) go out at once, even in quiet hours:
   # privately to everyone and, unless confidential, on every satellite.
   urgent: { min_importance: 3, announce: true }
-  # When may a confidential notice be spoken? never | when_alone | always
+  # When may a confidential message be spoken? never | when_alone | always
   # when_alone: only its recipient (by the person entities) is home.
   confidential_voice: when_alone
   private_via: [telegram, push]
   # auto: start_conversation if the satellite supports it, else announce.
   delivery: auto
   # tts_entity: tts.piper
-  # Per room: "announce" (default) speaks notices when someone comes in;
+  # Per room: "announce" (default) speaks messages when someone comes in;
   # "indicate" only lights the room's indicator, and you ask "Hast du eine
-  # Benachrichtigung?". Urgent notices and reminders are spoken anyway.
+  # Benachrichtigung?". Urgent messages and reminders are spoken anyway.
   # room_mode: { wohnzimmer: indicate }
   # indicators: { wohnzimmer: light.wohnzimmer_ring_led_ring }   # e.g. an Echo's LED ring (echolocal)
   # indicator: { rgb_color: [32, 201, 176], effect: Pulse, brightness: 160 }   # teal from the logo

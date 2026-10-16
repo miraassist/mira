@@ -15,7 +15,7 @@ import (
 // Assess runs one stateless request on the background slot: the background
 // prefix (so the slot's cache stays warm), the instruction as layer 7, no
 // tool use, and an answer constrained to the given JSON schema. Watchers use
-// it to rate an event and word the notice.
+// it to rate an event and word the message.
 func (e *Engine) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
 	lock := e.locks[config.ChannelBackground]
 	lock.Lock()

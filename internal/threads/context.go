@@ -13,8 +13,8 @@ import (
 const maxLog = 12
 
 // Context links a turn to its thread and renders the thread for prompt
-// layer 7. A turn that answers one of a thread's notices (followedUp, the
-// notices announced on this satellite moments ago) joins that thread: the
+// layer 7. A turn that answers one of a thread's messages (followedUp, the
+// messages announced on this satellite moments ago) joins that thread: the
 // link is the code's, not the model's. Otherwise a thread waiting at the
 // turn's place is shown, and the model decides whether the user continues
 // it, cancels it or talks about something else.
@@ -24,7 +24,7 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []
 	}
 	t := m.texts()
 	for _, id := range followedUp {
-		n, err := m.opts.Store.GetNotice(ctx, id)
+		n, err := m.opts.Store.GetMessage(ctx, id)
 		if err != nil || n.ThreadID == "" {
 			continue
 		}
@@ -101,7 +101,7 @@ func (m *Manager) status(th store.Thread) string {
 	return b.String()
 }
 
-// summary is a thread in one paragraph, the details of its notices.
+// summary is a thread in one paragraph, the details of its messages.
 func (m *Manager) summary(th store.Thread) string {
 	var parts []string
 	for _, k := range sortedKeys(th.Fields) {

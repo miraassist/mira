@@ -57,13 +57,13 @@ func TestReminderSet(t *testing.T) {
 		t.Fatalf("reminders: %+v", list)
 	}
 	timer, trash, doctor := list[0], list[1], list[2]
-	if !timer.DueAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Audience != "household" {
+	if !timer.DueAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Receiver != "house" {
 		t.Errorf("timer: %+v", timer)
 	}
-	if trash.Audience != "ben" || trash.AreaID != "" {
+	if trash.Receiver != "ben" || trash.AreaID != "" {
 		t.Errorf("telegram reminder should go to the asking person: %+v", trash)
 	}
-	if doctor.Audience != "anna" || doctor.DueAt.Hour() != 8 {
+	if doctor.Receiver != "anna" || doctor.DueAt.Hour() != 8 {
 		t.Errorf("named person: %+v", doctor)
 	}
 

@@ -31,7 +31,7 @@ async def test_turn_is_forwarded_and_spoken(hass, aioclient_mock, entry):
     await _setup(hass, entry)
     assert hass.states.get(ENTITY_ID) is not None
 
-    result = await _say(hass, "Licht an", device_id="sat-kueche", extra="Notice: Wechselrichter", user_id="u-anna")
+    result = await _say(hass, "Licht an", device_id="sat-kueche", extra="Message: Wechselrichter", user_id="u-anna")
 
     assert result.response.speech["plain"]["speech"] == "Das Küchenlicht ist an."
     assert result.continue_conversation is False
@@ -42,7 +42,7 @@ async def test_turn_is_forwarded_and_spoken(hass, aioclient_mock, entry):
     assert body["device_id"] == "sat-kueche"
     assert body["language"] == "de"
     assert body["agent_id"] == ENTITY_ID
-    assert body["extra_system_prompt"] == "Notice: Wechselrichter"
+    assert body["extra_system_prompt"] == "Message: Wechselrichter"
     # The signed-in user goes along; Mira maps it to a person.
     assert body["user_id"] == "u-anna"
     # HA's chat session id is passed on, so the agent can key its session on it.

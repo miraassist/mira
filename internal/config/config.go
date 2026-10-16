@@ -150,7 +150,7 @@ type Prompt struct {
 	// Persona is appended to the built-in layer 1 text. It is part of the
 	// cached prefix, so it must not contain anything volatile.
 	Persona string `yaml:"persona"`
-	// Language is "de" or "en": the language of the prompt, of the notices
+	// Language is "de" or "en": the language of the prompt, of the messages
 	// and of everything Mira writes on her own. She still answers in the
 	// language she is spoken to in.
 	Language string `yaml:"language"`
@@ -208,7 +208,7 @@ type Sessions struct {
 }
 
 // Person is someone the agent can address personally. The key in the
-// persons map is the audience id notices use.
+// persons map is the receiver id messages use.
 //
 // With Home Assistant every HA person is a person (docs/spec/benutzer.md):
 // the key is the HA person's id, and Entity, Name and UserID come from
@@ -222,7 +222,7 @@ type Person struct {
 	// UserID is the HA user linked to the person; from Home Assistant.
 	UserID string `yaml:"-"`
 	// TelegramUserID is the private chat for confidential or escalated
-	// notices. Must be on the Telegram allowlist.
+	// messages. Must be on the Telegram allowlist.
 	TelegramUserID int64 `yaml:"telegram_user_id,omitempty"`
 	// Notify is a HA notify service for the companion app, such as
 	// "notify.mobile_app_phone".
@@ -238,14 +238,14 @@ type Notifier struct {
 	Cooldown                Duration       `yaml:"cooldown"`
 	MaxItemsPerAnnouncement int            `yaml:"max_items_per_announcement"`
 	EscalateToTelegram      Escalation     `yaml:"escalate_to_telegram"`
-	// Urgent notices (a water leak, smoke) go out at once, quiet hours or
+	// Urgent messages (a water leak, smoke) go out at once, quiet hours or
 	// not: privately to everyone and spoken on every satellite.
 	Urgent Urgent `yaml:"urgent"`
 	// FollowUpWindow is how long after an announcement a turn from the same
 	// satellite is treated as a reply to it.
 	FollowUpWindow Duration `yaml:"follow_up_window"`
 	MinImportance  int      `yaml:"min_importance"`
-	// ConfidentialVoice decides when a confidential notice may be spoken:
+	// ConfidentialVoice decides when a confidential message may be spoken:
 	// "never", "when_alone" (only its recipient is home, by the person
 	// entities) or "always". Otherwise it goes to a private channel.
 	ConfidentialVoice string `yaml:"confidential_voice"`
@@ -257,18 +257,18 @@ type Notifier struct {
 	// a media_player with TTSEntity.
 	Delivery  string `yaml:"delivery"`
 	TTSEntity string `yaml:"tts_entity"`
-	// RoomMode is per area "announce" (default: notices are spoken when
-	// someone comes in) or "indicate": notices are only shown on the area's
+	// RoomMode is per area "announce" (default: messages are spoken when
+	// someone comes in) or "indicate": messages are only shown on the area's
 	// indicator light, and the user asks for them ("Hast du eine
-	// Benachrichtigung?"). Urgent notices and reminders are spoken anyway.
+	// Benachrichtigung?"). Urgent messages and reminders are spoken anyway.
 	RoomMode map[string]string `yaml:"room_mode"`
-	// Indicators maps an area to the light that shows waiting notices, such
+	// Indicators maps an area to the light that shows waiting messages, such
 	// as the LED ring of a satellite.
 	Indicators map[string]string `yaml:"indicators"`
 	Indicator  IndicatorStyle    `yaml:"indicator"`
 }
 
-// IndicatorStyle is how an indicator light shows waiting notices.
+// IndicatorStyle is how an indicator light shows waiting messages.
 type IndicatorStyle struct {
 	RGBColor   []int  `yaml:"rgb_color"`
 	Effect     string `yaml:"effect"`
@@ -281,7 +281,7 @@ const (
 	RoomIndicate = "indicate"
 )
 
-// Indicates reports whether notices in an area are only shown, not spoken.
+// Indicates reports whether messages in an area are only shown, not spoken.
 func (n Notifier) Indicates(area string) bool { return n.RoomMode[area] == RoomIndicate }
 
 // Values of Notifier.ConfidentialVoice.
@@ -304,9 +304,9 @@ type MorningTrigger struct {
 }
 
 type Urgent struct {
-	// MinImportance from which a notice is urgent; 0 turns the rule off.
+	// MinImportance from which a message is urgent; 0 turns the rule off.
 	MinImportance int `yaml:"min_importance"`
-	// Announce speaks urgent notices on every satellite. Confidential ones
+	// Announce speaks urgent messages on every satellite. Confidential ones
 	// are never spoken this way.
 	Announce bool `yaml:"announce"`
 }
@@ -314,7 +314,7 @@ type Urgent struct {
 type Escalation struct {
 	MinImportance int       `yaml:"min_importance"`
 	After         ClockTime `yaml:"after"`
-	// Grace is how long a notice gets to be announced by voice before it
+	// Grace is how long a message gets to be announced by voice before it
 	// escalates, so one raised in the afternoon is not sent at once.
 	Grace Duration `yaml:"grace"`
 }
@@ -646,7 +646,7 @@ func (c Config) Validate() error {
 		add("notifier.confidential_voice when_alone needs persons with their person entities")
 	}
 	for id, p := range c.Persons {
-		if strings.Contains(id, " ") || id == "household" {
+		if strings.Contains(id, " ") || id == "household" || id == "house" {
 			add("persons: %q is not a valid person id", id)
 		}
 		if p.Entity != "" && !strings.HasPrefix(p.Entity, "person.") {

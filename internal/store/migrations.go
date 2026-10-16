@@ -248,6 +248,23 @@ DROP TABLE memory_profile;
 ALTER TABLE threads ADD COLUMN person TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// Notices become messages (docs/spec/nachrichten.md): a sender and a
+		// receiver ("house" or a person). The session transcripts, which
+		// had the name, are chat messages now.
+		name: "0013_messages",
+		stmt: `
+ALTER TABLE messages RENAME TO chat_messages;
+ALTER TABLE notices RENAME TO messages;
+ALTER TABLE messages RENAME COLUMN audience TO receiver;
+ALTER TABLE messages ADD COLUMN sender TEXT NOT NULL DEFAULT '';
+UPDATE messages SET receiver = 'house' WHERE receiver = 'household';
+ALTER TABLE announcements RENAME COLUMN notice_ids TO message_ids;
+ALTER TABLE assessments RENAME COLUMN notice_id TO message_id;
+ALTER TABLE reminders RENAME COLUMN audience TO receiver;
+UPDATE reminders SET receiver = 'house' WHERE receiver = 'household';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

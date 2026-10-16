@@ -1,4 +1,4 @@
-"""Status sensor, quiet mode switch and the add_notice service."""
+"""Status sensor, quiet mode switch and the send_message service."""
 
 import pytest
 
@@ -10,12 +10,12 @@ from custom_components.mira.const import DOMAIN
 
 from .conftest import AGENT_URL
 
-SENSOR = "sensor.mira_pending_notices"
+SENSOR = "sensor.mira_pending_messages"
 SWITCH = "switch.mira_quiet_mode"
 
 
 async def _setup(hass, entry, aioclient_mock, status=None):
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=status or {"pending_notices": 2, "quiet_mode": False})
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=status or {"pending_messages": 2, "quiet_mode": False})
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -43,24 +43,24 @@ async def test_agent_down_at_boot_keeps_conversation(hass, aioclient_mock, entry
     assert hass.states.get(SENSOR).state == STATE_UNAVAILABLE
 
 
-async def test_add_notice_service(hass, aioclient_mock, entry):
+async def test_send_message_service(hass, aioclient_mock, entry):
     await _setup(hass, entry, aioclient_mock)
-    aioclient_mock.post(f"{AGENT_URL}/v1/notices", json={"id": "01J", "created": True})
+    aioclient_mock.post(f"{AGENT_URL}/v1/messages", json={"id": "01J", "created": True})
     result = await hass.services.async_call(
         DOMAIN,
-        "add_notice",
+        "send_message",
         {"text": "Die Waschmaschine ist fertig.", "importance": 1, "dedupe_key": "washer:done", "confidentiality": "normal"},
         blocking=True,
         return_response=True,
     )
     assert result == {"id": "01J", "created": True}
-    sent = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/notices")][0][2]
+    sent = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/messages")][0][2]
     assert sent == {"text": "Die Waschmaschine ist fertig.", "importance": 1, "dedupe_key": "washer:done", "confidentiality": "normal"}
 
 
-async def test_add_notice_without_agent(hass):
+async def test_send_message_without_agent(hass):
     from homeassistant.setup import async_setup_component
 
     assert await async_setup_component(hass, DOMAIN, {})
     with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(DOMAIN, "add_notice", {"text": "x"}, blocking=True)
+        await hass.services.async_call(DOMAIN, "send_message", {"text": "x"}, blocking=True)

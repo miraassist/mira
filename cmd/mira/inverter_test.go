@@ -32,7 +32,7 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 // wiring: the inverter faults and a task (a Home Assistant automation)
 // calls mira.assess, the model rates it, motion in the bathroom gets it
 // announced on the satellite there, and "Was genau?" from that satellite is
-// answered with the details and acknowledges the notice.
+// answered with the details and acknowledges the message.
 func TestInverterCaseEndToEnd(t *testing.T) {
 	verdict := fakellm.Step{Content: `{"importance":2,"spoken":"Der Wechselrichter meldet einen Fehler.","details":"Status fault, Fehlercode 42."}`}
 	model := fakellm.New(verdict, verdict, verdict, fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."})
@@ -118,9 +118,9 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	var notice store.Notice
-	waitUntil(t, "the notice", func() bool {
-		notice, err = st.OpenNoticeByDedupeKey(ctx, "inverter:fault")
+	var message store.Message
+	waitUntil(t, "the message", func() bool {
+		message, err = st.OpenMessageByDedupeKey(ctx, "inverter:fault")
 		return err == nil
 	})
 
@@ -160,7 +160,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	if layer7 := turn[len(turn)-1].Content; !strings.Contains(layer7, "Fehlercode 42") {
 		t.Fatalf("follow-up lacks the details:\n%s", layer7)
 	}
-	if got, _ := st.GetNotice(ctx, notice.ID); got.State != store.NoticeAcked {
-		t.Errorf("notice state = %s, want acked", got.State)
+	if got, _ := st.GetMessage(ctx, message.ID); got.State != store.MessageAcked {
+		t.Errorf("message state = %s, want acked", got.State)
 	}
 }

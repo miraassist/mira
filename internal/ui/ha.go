@@ -30,7 +30,7 @@ type Room struct {
 	Presence  []string `json:"presence,omitempty"`
 	Morning   bool     `json:"morning"`
 	// Mode is "announce" (default) or "indicate"; Indicator is the light
-	// that shows waiting notices.
+	// that shows waiting messages.
 	Mode      string `json:"mode,omitempty"`
 	Indicator string `json:"indicator,omitempty"`
 }

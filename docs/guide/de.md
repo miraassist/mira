@@ -70,7 +70,7 @@ Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistan
 
 ![Die Gas-Aufgabe im Automations-Editor von Home Assistant: stündlicher Auslöser, Aktion „Mira: Bewerten“](img/ha-automation-de.png)
 
-Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Hinweis hinzufügen** (`mira.add_notice`). Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
+Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Nachricht senden** (`mira.send_message`). Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
 
 ## Mira meldet sich von selbst
 
@@ -83,7 +83,7 @@ Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmasc
 - **Ansagen**: Sobald jemand den Raum betritt (Bewegungsmelder), sagt Mira an, was ansteht. Die erste Bewegung nach der Ruhezeit bringt die Morgenansage.
 - **Nur anzeigen**: Mira spricht dich nicht von sich aus an. Die Anzeige-Lampe des Raums (z. B. der LED-Ring des Echo) pulsiert in Türkis, solange etwas wartet. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
 
-**Nebenbei**: Wenn du ohnehin mit dem Satelliten sprichst, hängt Mira Wartendes an ihre Antwort an – „Das Licht ist an. Übrigens: Morgen wird der Wertstoff abgeholt.“ Danach gilt die Meldung als gehört und die Lampe geht aus. Fragst du nach („Was genau?“), bekommst du die Details.
+**Nebenbei**: Wenn du ohnehin mit dem Satelliten sprichst, hängt Mira Wartendes an ihre Antwort an – „Das Licht ist an. Übrigens: Morgen wird der Wertstoff abgeholt.“ Danach gilt die Nachricht als gehört und die Lampe geht aus. Fragst du nach („Was genau?“), bekommst du die Details.
 
 **Wichtigkeit**:
 
@@ -99,9 +99,9 @@ Wenn Mira von sich aus spricht, leuchtet die Anzeige-Lampe des Raums ruhig, sola
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.
 
-**Vertrauliches und Persönliches**: Meldungen können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
+**Vertrauliches und Persönliches**: Nachrichten können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat per Telegram oder als Push-Nachricht aufs Handy.
 
-![Meldungen: wartende und zugestellte](img/meldungen-de.png)
+![Nachrichten: wartende und zugestellte](img/meldungen-de.png)
 
 ## Mira merkt sich Dinge
 
@@ -161,9 +161,9 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der App.
 
-- **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
+- **Nachrichten**: offene und zugestellte Nachrichten ansehen und quittieren.
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
-- **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Meldungen.
+- **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten.
 - **Räume** und **Personen**: zeigen, was du in der Integration eingerichtet hast (siehe unten).
 - **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
@@ -180,9 +180,9 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 ## In Home Assistant
 
-- **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Offene Hinweise** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
+- **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Wartende Nachrichten** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
-- Automationen können Mira Meldungen geben, mit der Aktion `mira.add_notice`.
+- Automationen können Mira Nachrichten geben, mit der Aktion `mira.send_message`.
 - **Mira im Seitenmenü** (siehe oben). Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)

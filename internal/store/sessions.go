@@ -24,9 +24,9 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
-// Message is one entry of a session transcript. Roles follow the OpenAI chat
+// ChatMessage is one entry of a session transcript. Roles follow the OpenAI chat
 // shape: system, user, assistant, tool.
-type Message struct {
+type ChatMessage struct {
 	ID         int64
 	Seq        int
 	Role       string
@@ -82,9 +82,9 @@ FROM sessions WHERE key = ?`, key).Scan(
 	return sess, nil
 }
 
-// AppendMessages adds turns to the end of a transcript. Sequence numbers are
+// AppendChatMessages adds turns to the end of a transcript. Sequence numbers are
 // assigned here so callers cannot create gaps or collisions.
-func (s *Store) AppendMessages(ctx context.Context, key string, msgs ...Message) error {
+func (s *Store) AppendChatMessages(ctx context.Context, key string, msgs ...ChatMessage) error {
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -92,12 +92,12 @@ func (s *Store) AppendMessages(ctx context.Context, key string, msgs ...Message)
 	return s.withTx(ctx, func(tx *sql.Tx) error {
 		var next int
 		err := tx.QueryRowContext(ctx,
-			`SELECT COALESCE(MAX(seq), 0) + 1 FROM messages WHERE session_key = ?`, key).Scan(&next)
+			`SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE session_key = ?`, key).Scan(&next)
 		if err != nil {
 			return err
 		}
 		stmt, err := tx.PrepareContext(ctx, `
-INSERT INTO messages(session_key, seq, role, content, tool_calls, tool_call_id, name, created_at)
+INSERT INTO chat_messages(session_key, seq, role, content, tool_calls, tool_call_id, name, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 		if err != nil {
 			return err
@@ -114,17 +114,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 }
 
 // Messages returns the transcript in order.
-func (s *Store) Messages(ctx context.Context, key string) ([]Message, error) {
+func (s *Store) ChatMessages(ctx context.Context, key string) ([]ChatMessage, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT id, seq, role, content, tool_calls, tool_call_id, name, created_at
-FROM messages WHERE session_key = ? ORDER BY seq`, key)
+FROM chat_messages WHERE session_key = ? ORDER BY seq`, key)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Message
+	var out []ChatMessage
 	for rows.Next() {
-		var m Message
+		var m ChatMessage
 		var toolCalls, created string
 		if err := rows.Scan(&m.ID, &m.Seq, &m.Role, &m.Content, &toolCalls, &m.ToolCallID, &m.Name, &created); err != nil {
 			return nil, err
@@ -138,10 +138,10 @@ FROM messages WHERE session_key = ? ORDER BY seq`, key)
 	return out, rows.Err()
 }
 
-// TruncateMessagesBefore drops the oldest turns of a session. History
+// TruncateChatMessagesBefore drops the oldest turns of a session. History
 // compaction uses it after folding them into a summary.
-func (s *Store) TruncateMessagesBefore(ctx context.Context, key string, seq int) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM messages WHERE session_key = ? AND seq < ?`, key, seq)
+func (s *Store) TruncateChatMessagesBefore(ctx context.Context, key string, seq int) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM chat_messages WHERE session_key = ? AND seq < ?`, key, seq)
 	return err
 }
 
@@ -159,7 +159,7 @@ func (s *Store) PurgeExpiredSessions(ctx context.Context) (int64, error) {
 // reset this way when its channel and id come back.
 func (s *Store) DeleteSession(ctx context.Context, key string) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE session_key = ?`, key); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM chat_messages WHERE session_key = ?`, key); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM confirmations WHERE session_key = ?`, key); err != nil {

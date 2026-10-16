@@ -7,7 +7,7 @@
 // mira.decide call: they condense data from Home Assistant into a few
 // numbers, add context (memory, who is home, the time, the task's earlier
 // judgements), let the model judge in an isolated call and deliver the
-// result as a notice. The other half drafts automations in conversation and
+// result as a message. The other half drafts automations in conversation and
 // saves them through the Mira integration once the user agrees.
 package tasks
 

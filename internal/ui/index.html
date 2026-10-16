@@ -178,7 +178,7 @@ html.ha section.card { border: var(--card-border, 1px solid var(--line)); }
 "use strict";
 const I18N = {
  "de": {
-  "tab_notices": "Meldungen",
+  "tab_messages": "Nachrichten",
   "tab_notifier": "Benachrichtigung",
   "tab_rooms": "Satelliten",
   "tab_persons": "Personen",
@@ -199,7 +199,7 @@ const I18N = {
   "remove": "Entfernen",
   "entity_search": "Entity suchen und auswählen …",
   "not_entity": "„{id}“ ist keine Entity-ID.",
-  "notices_title": "Meldungen",
+  "messages_title": "Nachrichten",
   "open_only": "nur wartende",
   "newer": "Neuere",
   "older": "Ältere",
@@ -213,10 +213,10 @@ const I18N = {
   "source_schedule": "Zeitplan",
   "source_external": "Automation",
   "loading": "Lädt …",
-  "no_notices": "Keine offenen Meldungen.",
+  "no_messages": "Keine offenen Nachrichten.",
   "since": "Seit",
   "importance": "Wichtigkeit",
-  "notice": "Meldung",
+  "message": "Nachricht",
   "status": "Status",
   "importance_short": [
    "–",
@@ -232,7 +232,7 @@ const I18N = {
   "quiet_from": "Ruhezeit von",
   "quiet_to": "Ruhezeit bis",
   "cooldown": "Pause pro Raum",
-  "max_items": "Höchstens Meldungen pro Ansage",
+  "max_items": "Höchstens Nachrichten pro Ansage",
   "min_importance": "Mindest-Wichtigkeit",
   "min_levels": [
    "0 – alles",
@@ -253,13 +253,13 @@ const I18N = {
   "escalation": "Eskalation",
   "from_importance": "Ab Wichtigkeit",
   "unheard_after": "Ungehört ab Uhrzeit",
-  "grace": "Karenz für neue Meldungen",
-  "escalation_hint": "Wichtige Meldungen, die bis zu dieser Uhrzeit kein Satellit angesagt hat, gehen privat raus.",
+  "grace": "Karenz für neue Nachrichten",
+  "escalation_hint": "Wichtige Nachrichten, die bis zu dieser Uhrzeit kein Satellit angesagt hat, gehen privat raus.",
   "urgent": "Dringend",
   "urgent_from": "Dringend ab Wichtigkeit",
   "off": "aus",
   "urgent_announce": "Auf allen Satelliten ansagen",
-  "urgent_hint": "Dringende Meldungen (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.",
+  "urgent_hint": "Dringende Nachrichten (Wasserleck, Rauch) gehen sofort raus, auch in der Ruhezeit.",
   "save": "Speichern",
   "discard": "Verwerfen",
   "name": "Name",
@@ -291,9 +291,9 @@ const I18N = {
   "announcements": "Ansagen",
   "add_room": "+ Raum",
   "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Was dazukommt (Bewegungsmelder, auch mehrere mit Komma, Morgenansage, ansagen oder anzeigen, Anzeige-Lampe), steht am Satelliten selbst in Home Assistant.",
-  "persons_ha_hint": "Jede Person aus Home Assistant ist auch für mich eine Person, angelegt wird hier nichts. Du stellst nur ein, was ich zusätzlich brauche: wohin persönliche Meldungen gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
+  "persons_ha_hint": "Jede Person aus Home Assistant ist auch für mich eine Person, angelegt wird hier nichts. Du stellst nur ein, was ich zusätzlich brauche: wohin persönliche Nachrichten gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
   "person": "Person",
-  "persons_hint": "Personen sind Empfänger persönlicher Meldungen. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
+  "persons_hint": "Personen sind Empfänger persönlicher Nachrichten. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
   "key": "Kürzel",
   "person_entity": "Person-Entity",
   "telegram_id": "Telegram-ID",
@@ -319,7 +319,7 @@ const I18N = {
   "unknown_person": "Ich weiß noch nicht, welche Person du bist, deshalb siehst du nur, was ich mir fürs Haus gemerkt habe. Ein Admin kann deine Person in Home Assistant mit deinem Benutzer verknüpfen (Einstellungen → Personen).",
   "empty_person_how": "{name} kann mir das per Telegram oder im Chat der HA-App sagen, z. B. „Merk dir, dass ich keinen Koriander mag.“ Am Satelliten geht es, wenn {name} allein zu Hause ist und „Allein = ich“ eingeschaltet hat.",
   "alone_is_me": "Allein = ich",
-  "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Meldungen.",
+  "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Nachrichten.",
   "compact_now": "Jetzt verdichten",
   "forget": "Vergessen",
   "fact_edit": "Bearbeiten",
@@ -356,7 +356,7 @@ const I18N = {
   "task_answer": "Antwort",
   "task_notified": "gemeldet",
   "task_dry": "Probelauf",
-  "task_fixed": "feste Meldung",
+  "task_fixed": "feste Nachricht",
   "no_tasks": "Noch keine Aufgaben. Sag Mira zum Beispiel „Achte auf den Wasserverbrauch“.",
   "task_delete_confirm": "Diese Aufgabe löschen? Die Automation in Home Assistant wird mit gelöscht.",
   "kind_usage": "Verbrauch pro Stunde",
@@ -368,7 +368,7 @@ const I18N = {
   "when_day": "tagsüber"
  },
  "en": {
-  "tab_notices": "Notices",
+  "tab_messages": "Messages",
   "tab_notifier": "Notifications",
   "tab_rooms": "Satellites",
   "tab_persons": "People",
@@ -389,7 +389,7 @@ const I18N = {
   "remove": "Remove",
   "entity_search": "Search and pick an entity …",
   "not_entity": "“{id}” is not an entity ID.",
-  "notices_title": "Notices",
+  "messages_title": "Messages",
   "open_only": "waiting only",
   "newer": "Newer",
   "older": "Older",
@@ -403,10 +403,10 @@ const I18N = {
   "source_schedule": "schedule",
   "source_external": "automation",
   "loading": "Loading …",
-  "no_notices": "No open notices.",
+  "no_messages": "No open messages.",
   "since": "Since",
   "importance": "Importance",
-  "notice": "Notice",
+  "message": "Message",
   "status": "Status",
   "importance_short": [
    "–",
@@ -422,7 +422,7 @@ const I18N = {
   "quiet_from": "Quiet hours from",
   "quiet_to": "Quiet hours until",
   "cooldown": "Pause per room",
-  "max_items": "Max notices per announcement",
+  "max_items": "Max messages per announcement",
   "min_importance": "Minimum importance",
   "min_levels": [
    "0 – everything",
@@ -433,7 +433,7 @@ const I18N = {
   "follow_up": "Follow-up window",
   "delivery": "Delivery on the satellite",
   "tts_entity": "TTS entity (only for tts)",
-  "confidential_title": "Confidential notices",
+  "confidential_title": "Confidential messages",
   "conf_voice": "Read confidential aloud",
   "conf_never": "never – always private",
   "conf_alone": "only when the recipient is home alone",
@@ -443,13 +443,13 @@ const I18N = {
   "escalation": "Escalation",
   "from_importance": "From importance",
   "unheard_after": "Unheard after",
-  "grace": "Grace for new notices",
-  "escalation_hint": "Important notices no satellite has announced by this time go out privately.",
+  "grace": "Grace for new messages",
+  "escalation_hint": "Important messages no satellite has announced by this time go out privately.",
   "urgent": "Urgent",
   "urgent_from": "Urgent from importance",
   "off": "off",
   "urgent_announce": "Announce on all satellites",
-  "urgent_hint": "Urgent notices (water leak, smoke) go out at once, even during quiet hours.",
+  "urgent_hint": "Urgent messages (water leak, smoke) go out at once, even during quiet hours.",
   "save": "Save",
   "discard": "Discard",
   "name": "Name",
@@ -481,9 +481,9 @@ const I18N = {
   "announcements": "Announcements",
   "add_room": "+ Room",
   "satellites_ha_hint": "Every Assist satellite with an area speaks in its area. What comes on top (motion sensors, several with commas, morning announcement, announce or indicate, indicator light) is stored on the satellite itself in Home Assistant.",
-  "persons_ha_hint": "Every person in Home Assistant is a person for me too; nothing is created here. You only set what I need on top: where personal notices go and whether the satellites count as this person when they are alone at home.",
+  "persons_ha_hint": "Every person in Home Assistant is a person for me too; nothing is created here. You only set what I need on top: where personal messages go and whether the satellites count as this person when they are alone at home.",
   "person": "Person",
-  "persons_hint": "People receive personal notices. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
+  "persons_hint": "People receive personal messages. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
   "key": "Key",
   "person_entity": "Person entity",
   "telegram_id": "Telegram ID",
@@ -509,7 +509,7 @@ const I18N = {
   "unknown_person": "I don't know yet which person you are, so you only see what I remembered for the house. An admin can link your person to your user in Home Assistant (Settings → People).",
   "empty_person_how": "{name} can tell me on Telegram or in the HA app's chat, e.g. \"Remember that I don't like coriander.\" At a satellite it works when {name} is alone at home and switched on \"Alone = me\".",
   "alone_is_me": "Alone = me",
-  "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private notices.",
+  "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private messages.",
   "compact_now": "Compact now",
   "forget": "Forget",
   "fact_edit": "Edit",
@@ -546,7 +546,7 @@ const I18N = {
   "task_answer": "answer",
   "task_notified": "reported",
   "task_dry": "dry run",
-  "task_fixed": "fixed notice",
+  "task_fixed": "fixed message",
   "no_tasks": "No tasks yet. Tell Mira, for example, \"Keep an eye on the water usage\".",
   "task_delete_confirm": "Delete this task? The automation in Home Assistant is deleted too.",
   "kind_usage": "usage per hour",
@@ -558,7 +558,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["notices", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
+const ALL_TABS = ["messages", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
 let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
@@ -759,7 +759,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { notices, tasks, notifier, rooms, persons, memory, guide };
+  const views = { messages, tasks, notifier, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -770,22 +770,22 @@ function render() {
   }
 }
 
-// ---- Meldungen ----------------------------------------------------------
-let openOnly = false, noticePage = 0;
-async function notices() {
+// ---- Nachrichten ----------------------------------------------------------
+let openOnly = false, messagePage = 0;
+async function messages() {
   const view = $("#view");
-  view.innerHTML = `<section class="card"><h2>${T.notices_title}</h2>
-    <label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; noticePage = 0; notices()"> ${T.open_only}</label>
+  view.innerHTML = `<section class="card"><h2>${T.messages_title}</h2>
+    <label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; messagePage = 0; messages()"> ${T.open_only}</label>
     <div id="list">${T.loading}</div></section>`;
   try {
-    const r = await api("GET", `/v1/ui/notices?page=${noticePage}${openOnly ? "&open=1" : ""}`);
+    const r = await api("GET", `/v1/ui/messages?page=${messagePage}${openOnly ? "&open=1" : ""}`);
     const items = r.items || [];
     const pager = r.page > 0 || r.more ? `<div class="actions">
-        ${r.page > 0 ? `<button class="secondary" onclick="noticePage--; notices()">${T.newer}</button>` : ""}
+        ${r.page > 0 ? `<button class="secondary" onclick="messagePage--; messages()">${T.newer}</button>` : ""}
         <span class="hint">${T.page} ${r.page + 1}</span>
-        ${r.more ? `<button class="secondary" onclick="noticePage++; notices()">${T.older}</button>` : ""}
+        ${r.more ? `<button class="secondary" onclick="messagePage++; messages()">${T.older}</button>` : ""}
       </div>` : "";
-    $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_notices}</p>` : items.map(n => `
+    $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_messages}</p>` : items.map(n => `
       <details class="item">
         <summary>
           <span class="lead"><span class="hint">${esc(n.created_at.slice(5))}</span>
@@ -804,7 +804,7 @@ function shownState(state) {
   return state === "acked" || state === "delivered" ? "delivered" : state;
 }
 async function ack(id) {
-  try { await api("POST", `/v1/ui/notices/${encodeURIComponent(id)}/ack`); notices(); } catch (e) { message(e.message, false); }
+  try { await api("POST", `/v1/ui/messages/${encodeURIComponent(id)}/ack`); messages(); } catch (e) { message(e.message, false); }
 }
 
 // ---- Benachrichtigung ---------------------------------------------------
@@ -1179,7 +1179,7 @@ async function taskLog(id) {
   try {
     const log = await api("GET", `/v1/ui/tasks/${encodeURIComponent(id)}/log`);
     el.innerHTML = log.length === 0 ? T.task_log_empty : `<ul>${log.map(a => `<li><b>${esc(a.at)}</b> · ${
-      a.kind === "decide" ? `${T.task_answer} ${a.answer ? T.yes : T.no}` : a.kind === "notice" ? T.task_fixed : `${T.importance} ${a.importance}`}${
+      a.kind === "decide" ? `${T.task_answer} ${a.answer ? T.yes : T.no}` : a.kind === "message" ? T.task_fixed : `${T.importance} ${a.importance}`}${
       a.notified ? ` · ${T.task_notified}` : ""}${a.dry_run ? ` · ${T.task_dry}` : ""}<br>${esc(a.spoken)}${
       a.input ? `<br><small>${esc(a.input)}</small>` : ""}</li>`).join("")}</ul>`;
   } catch (e) { el.textContent = e.message; }

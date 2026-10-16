@@ -2,7 +2,7 @@
 
 A Mira task ("Achte auf den Wasserverbrauch") is an ordinary automation:
 Home Assistant's triggers and conditions decide when, Mira's actions
-(mira.assess, mira.add_notice) decide what is worth saying and say it. The
+(mira.assess, mira.send_message) decide what is worth saying and say it. The
 automation is the source of truth; it carries the label "Mira" and is edited
 in Home Assistant's automation editor. The agent only keeps a reference.
 

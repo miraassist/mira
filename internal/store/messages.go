@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-// Notice states.
+// Message states.
 const (
-	NoticePending   = "pending"
-	NoticeDelivered = "delivered"
-	NoticeAcked     = "acked"
-	NoticeExpired   = "expired"
+	MessagePending   = "pending"
+	MessageDelivered = "delivered"
+	MessageAcked     = "acked"
+	MessageExpired   = "expired"
 )
 
-// Notice sources.
+// Message sources.
 const (
 	SourceHATrigger = "ha_trigger"
 	SourceSchedule  = "schedule"
@@ -25,10 +25,10 @@ const (
 	SourceTask      = "task"
 )
 
-// AudienceHousehold means anyone present may hear the notice.
-const AudienceHousehold = "household"
+// ReceiverHouse is the house as receiver: anyone present may hear the message.
+const ReceiverHouse = "house"
 
-// Confidentiality levels. A normal notice may be spoken to whoever is in the
+// Confidentiality levels. A normal message may be spoken to whoever is in the
 // room; a confidential one only when the notifier's policy says the right
 // person is the one listening, otherwise it goes to a private channel.
 const (
@@ -36,12 +36,12 @@ const (
 	ConfidentialityConfidential = "confidential"
 )
 
-type Notice struct {
+type Message struct {
 	ID           string
 	Source       string
 	DedupeKey    string
 	Importance   int
-	Audience     string
+	Receiver     string
 	Spoken       string
 	Details      string
 	CreatedAt    time.Time
@@ -52,38 +52,38 @@ type Notice struct {
 	DeliveredAt  time.Time
 	// Confidentiality is ConfidentialityNormal or ConfidentialityConfidential.
 	Confidentiality string
-	// ThreadID is the thread ("Vorgang") the notice belongs to, if any: a
-	// reply to it continues that thread, and the notice is withdrawn when
+	// ThreadID is the thread ("Vorgang") the message belongs to, if any: a
+	// reply to it continues that thread, and the message is withdrawn when
 	// the thread ends.
 	ThreadID string
 }
 
-// Confidential reports whether the notice must not be spoken to an unknown
+// Confidential reports whether the message must not be spoken to an unknown
 // listener.
-func (n Notice) Confidential() bool { return n.Confidentiality == ConfidentialityConfidential }
+func (n Message) Confidential() bool { return n.Confidentiality == ConfidentialityConfidential }
 
-// PutNotice inserts a notice, or updates the open notice with the same dedupe
+// PutMessage inserts a message, or updates the open message with the same dedupe
 // key instead of creating a duplicate. A sensor that flaps therefore produces
-// one row, not many. Returns the stored notice and whether it was new.
-func (s *Store) PutNotice(ctx context.Context, n Notice) (Notice, bool, error) {
+// one row, not many. Returns the stored message and whether it was new.
+func (s *Store) PutMessage(ctx context.Context, n Message) (Message, bool, error) {
 	if n.ID == "" {
-		return Notice{}, false, fmt.Errorf("notice needs an id")
+		return Message{}, false, fmt.Errorf("message needs an id")
 	}
 	if strings.TrimSpace(n.Spoken) == "" {
-		return Notice{}, false, fmt.Errorf("notice needs spoken text")
+		return Message{}, false, fmt.Errorf("message needs spoken text")
 	}
 	if n.State == "" {
-		n.State = NoticePending
+		n.State = MessagePending
 	}
-	if n.Audience == "" {
-		n.Audience = AudienceHousehold
+	if n.Receiver == "" {
+		n.Receiver = ReceiverHouse
 	}
 	switch n.Confidentiality {
 	case "":
 		n.Confidentiality = ConfidentialityNormal
 	case ConfidentialityNormal, ConfidentialityConfidential:
 	default:
-		return Notice{}, false, fmt.Errorf("unknown confidentiality %q", n.Confidentiality)
+		return Message{}, false, fmt.Errorf("unknown confidentiality %q", n.Confidentiality)
 	}
 	now := s.now()
 	n.UpdatedAt = now
@@ -96,17 +96,17 @@ func (s *Store) PutNotice(ctx context.Context, n Notice) (Notice, bool, error) {
 		if n.DedupeKey != "" {
 			var existing string
 			err := tx.QueryRowContext(ctx, `
-SELECT id FROM notices
-WHERE dedupe_key = ? AND state IN (?, ?)`, n.DedupeKey, NoticePending, NoticeDelivered).Scan(&existing)
+SELECT id FROM messages
+WHERE dedupe_key = ? AND state IN (?, ?)`, n.DedupeKey, MessagePending, MessageDelivered).Scan(&existing)
 			switch {
 			case err == nil:
 				// Refresh content and importance, but keep the original id and
 				// creation time so the follow-up link stays valid. Re-opening a
-				// delivered notice would announce it twice, so the state stays.
+				// delivered message would announce it twice, so the state stays.
 				_, err = tx.ExecContext(ctx, `
-UPDATE notices SET source = ?, importance = ?, audience = ?, spoken = ?, details = ?,
+UPDATE messages SET source = ?, importance = ?, receiver = ?, spoken = ?, details = ?,
                    updated_at = ?, expires_at = ?, confidentiality = ?
-WHERE id = ?`, n.Source, n.Importance, n.Audience, n.Spoken, n.Details,
+WHERE id = ?`, n.Source, n.Importance, n.Receiver, n.Spoken, n.Details,
 					formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.Confidentiality, existing)
 				if err != nil {
 					return err
@@ -118,10 +118,10 @@ WHERE id = ?`, n.Source, n.Importance, n.Audience, n.Spoken, n.Details,
 			}
 		}
 		_, err := tx.ExecContext(ctx, `
-INSERT INTO notices(id, source, dedupe_key, importance, audience, spoken, details,
+INSERT INTO messages(id, source, dedupe_key, importance, receiver, spoken, details,
                     created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?)`,
-			n.ID, n.Source, n.DedupeKey, n.Importance, n.Audience, n.Spoken, n.Details,
+			n.ID, n.Source, n.DedupeKey, n.Importance, n.Receiver, n.Spoken, n.Details,
 			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality, n.ThreadID)
 		if err != nil {
 			return err
@@ -130,47 +130,47 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?)`,
 		return nil
 	})
 	if err != nil {
-		return Notice{}, false, fmt.Errorf("put notice: %w", err)
+		return Message{}, false, fmt.Errorf("put message: %w", err)
 	}
-	stored, err := s.GetNotice(ctx, n.ID)
+	stored, err := s.GetMessage(ctx, n.ID)
 	return stored, created, err
 }
 
-func (s *Store) GetNotice(ctx context.Context, id string) (Notice, error) {
-	row := s.db.QueryRowContext(ctx, noticeSelect+` WHERE id = ?`, id)
-	n, err := scanNotice(row)
+func (s *Store) GetMessage(ctx context.Context, id string) (Message, error) {
+	row := s.db.QueryRowContext(ctx, messageSelect+` WHERE id = ?`, id)
+	n, err := scanMessage(row)
 	if err == sql.ErrNoRows {
-		return Notice{}, ErrNotFound
+		return Message{}, ErrNotFound
 	}
 	return n, err
 }
 
-const noticeSelect = `
-SELECT id, source, dedupe_key, importance, audience, spoken, details,
+const messageSelect = `
+SELECT id, source, dedupe_key, importance, receiver, spoken, details,
        created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id
-FROM notices`
+FROM messages`
 
 type scannable interface{ Scan(...any) error }
 
-func scanNotice(row scannable) (Notice, error) {
-	var n Notice
+func scanMessage(row scannable) (Message, error) {
+	var n Message
 	var created, updated, expires, delivered string
-	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Audience, &n.Spoken, &n.Details,
+	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Receiver, &n.Spoken, &n.Details,
 		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID)
 	if err != nil {
-		return Notice{}, err
+		return Message{}, err
 	}
 	n.CreatedAt, n.UpdatedAt = parseTime(created), parseTime(updated)
 	n.ExpiresAt, n.DeliveredAt = parseTime(expires), parseTime(delivered)
 	return n, nil
 }
 
-// NoticeFilter selects notices for listing.
-type NoticeFilter struct {
+// MessageFilter selects messages for listing.
+type MessageFilter struct {
 	States        []string
 	MinImportance int
-	Audience      string
-	// IncludeExpired keeps notices whose expires_at has passed.
+	Receiver      string
+	// IncludeExpired keeps messages whose expires_at has passed.
 	IncludeExpired bool
 	// NewestFirst orders by creation, newest first, for a history view.
 	NewestFirst bool
@@ -179,10 +179,10 @@ type NoticeFilter struct {
 	Offset int
 }
 
-// ListNotices returns matching notices, most important first and oldest first
+// ListMessages returns matching messages, most important first and oldest first
 // within the same importance. That is the order announcements are built in.
-func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, error) {
-	q := noticeSelect + ` WHERE importance >= ?`
+func (s *Store) ListMessages(ctx context.Context, f MessageFilter) ([]Message, error) {
+	q := messageSelect + ` WHERE importance >= ?`
 	args := []any{f.MinImportance}
 	if len(f.States) > 0 {
 		q += ` AND state IN (` + placeholders(len(f.States)) + `)`
@@ -190,9 +190,9 @@ func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, erro
 			args = append(args, st)
 		}
 	}
-	if f.Audience != "" {
-		q += ` AND audience = ?`
-		args = append(args, f.Audience)
+	if f.Receiver != "" {
+		q += ` AND receiver = ?`
+		args = append(args, f.Receiver)
 	}
 	if !f.IncludeExpired {
 		q += ` AND (expires_at = '' OR expires_at > ?)`
@@ -209,12 +209,12 @@ func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, erro
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("list notices: %w", err)
+		return nil, fmt.Errorf("list messages: %w", err)
 	}
 	defer rows.Close()
-	var out []Notice
+	var out []Message
 	for rows.Next() {
-		n, err := scanNotice(rows)
+		n, err := scanMessage(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -223,12 +223,12 @@ func (s *Store) ListNotices(ctx context.Context, f NoticeFilter) ([]Notice, erro
 	return out, rows.Err()
 }
 
-// MarkDelivered records that a notice went out over a channel.
+// MarkDelivered records that a message went out over a channel.
 func (s *Store) MarkDelivered(ctx context.Context, id, via string) error {
 	now := formatTime(s.now())
 	res, err := s.db.ExecContext(ctx, `
-UPDATE notices SET state = ?, delivered_via = ?, delivered_at = ?, updated_at = ?
-WHERE id = ? AND state = ?`, NoticeDelivered, via, now, now, id, NoticePending)
+UPDATE messages SET state = ?, delivered_via = ?, delivered_at = ?, updated_at = ?
+WHERE id = ? AND state = ?`, MessageDelivered, via, now, now, id, MessagePending)
 	if err != nil {
 		return err
 	}
@@ -238,9 +238,9 @@ WHERE id = ? AND state = ?`, NoticeDelivered, via, now, now, id, NoticePending)
 	return nil
 }
 
-// SetNoticeState moves a notice to acked or expired.
-func (s *Store) SetNoticeState(ctx context.Context, id, state string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE notices SET state = ?, updated_at = ? WHERE id = ?`,
+// SetMessageState moves a message to acked or expired.
+func (s *Store) SetMessageState(ctx context.Context, id, state string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE messages SET state = ?, updated_at = ? WHERE id = ?`,
 		state, formatTime(s.now()), id)
 	if err != nil {
 		return err
@@ -251,37 +251,37 @@ func (s *Store) SetNoticeState(ctx context.Context, id, state string) error {
 	return nil
 }
 
-// ExpireNotices moves every past-due pending or delivered notice to expired.
-func (s *Store) ExpireNotices(ctx context.Context) (int64, error) {
+// ExpireMessages moves every past-due pending or delivered message to expired.
+func (s *Store) ExpireMessages(ctx context.Context) (int64, error) {
 	now := formatTime(s.now())
 	res, err := s.db.ExecContext(ctx, `
-UPDATE notices SET state = ?, updated_at = ?
+UPDATE messages SET state = ?, updated_at = ?
 WHERE state IN (?, ?) AND expires_at <> '' AND expires_at <= ?`,
-		NoticeExpired, now, NoticePending, NoticeDelivered, now)
+		MessageExpired, now, MessagePending, MessageDelivered, now)
 	if err != nil {
 		return 0, err
 	}
 	return res.RowsAffected()
 }
 
-func (s *Store) CountPendingNotices(ctx context.Context) (int, error) {
+func (s *Store) CountPendingMessages(ctx context.Context) (int, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `
-SELECT COUNT(*) FROM notices
+SELECT COUNT(*) FROM messages
 WHERE state = ? AND (expires_at = '' OR expires_at > ?)`,
-		NoticePending, formatTime(s.now())).Scan(&n)
+		MessagePending, formatTime(s.now())).Scan(&n)
 	return n, err
 }
 
 // Announcement records what was spoken where, so a follow-up question from the
-// same satellite can be linked back to the notices it is about.
+// same satellite can be linked back to the messages it is about.
 type Announcement struct {
-	ID        string
-	DeviceID  string
-	AreaID    string
-	Channel   string
-	NoticeIDs []string
-	CreatedAt time.Time
+	ID         string
+	DeviceID   string
+	AreaID     string
+	Channel    string
+	MessageIDs []string
+	CreatedAt  time.Time
 }
 
 func (s *Store) RecordAnnouncement(ctx context.Context, a Announcement) error {
@@ -289,14 +289,14 @@ func (s *Store) RecordAnnouncement(ctx context.Context, a Announcement) error {
 		a.CreatedAt = s.now()
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO announcements(id, device_id, area_id, channel, notice_ids, created_at)
+INSERT INTO announcements(id, device_id, area_id, channel, message_ids, created_at)
 VALUES (?, ?, ?, ?, ?, ?)`,
-		a.ID, a.DeviceID, a.AreaID, a.Channel, strings.Join(a.NoticeIDs, ","), formatTime(a.CreatedAt))
+		a.ID, a.DeviceID, a.AreaID, a.Channel, strings.Join(a.MessageIDs, ","), formatTime(a.CreatedAt))
 	return err
 }
 
 // RecentAnnouncement returns the last announcement to a device if it happened
-// within the window, which is how the notifier links a reply to its notices.
+// within the window, which is how the notifier links a reply to its messages.
 func (s *Store) RecentAnnouncement(ctx context.Context, deviceID string, window time.Duration) (Announcement, error) {
 	if deviceID == "" {
 		return Announcement{}, ErrNotFound
@@ -305,7 +305,7 @@ func (s *Store) RecentAnnouncement(ctx context.Context, deviceID string, window 
 	var a Announcement
 	var ids, created string
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, device_id, area_id, channel, notice_ids, created_at
+SELECT id, device_id, area_id, channel, message_ids, created_at
 FROM announcements
 WHERE device_id = ? AND created_at >= ?
 ORDER BY created_at DESC LIMIT 1`, deviceID, cutoff).
@@ -317,7 +317,7 @@ ORDER BY created_at DESC LIMIT 1`, deviceID, cutoff).
 		return Announcement{}, err
 	}
 	if ids != "" {
-		a.NoticeIDs = strings.Split(ids, ",")
+		a.MessageIDs = strings.Split(ids, ",")
 	}
 	a.CreatedAt = parseTime(created)
 	return a, nil
@@ -345,27 +345,27 @@ func placeholders(n int) string {
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
 
-// OpenNoticeByDedupeKey returns the pending or delivered notice with the key.
+// OpenMessageByDedupeKey returns the pending or delivered message with the key.
 // Watchers use it to skip re-evaluating a sensor that keeps flapping.
-func (s *Store) OpenNoticeByDedupeKey(ctx context.Context, key string) (Notice, error) {
+func (s *Store) OpenMessageByDedupeKey(ctx context.Context, key string) (Message, error) {
 	if key == "" {
-		return Notice{}, ErrNotFound
+		return Message{}, ErrNotFound
 	}
-	row := s.db.QueryRowContext(ctx, noticeSelect+` WHERE dedupe_key = ? AND state IN (?, ?)`,
-		key, NoticePending, NoticeDelivered)
-	n, err := scanNotice(row)
+	row := s.db.QueryRowContext(ctx, messageSelect+` WHERE dedupe_key = ? AND state IN (?, ?)`,
+		key, MessagePending, MessageDelivered)
+	n, err := scanMessage(row)
 	if err == sql.ErrNoRows {
-		return Notice{}, ErrNotFound
+		return Message{}, ErrNotFound
 	}
 	return n, err
 }
 
-// WithdrawThreadNotices expires every open notice of a thread: when the
+// WithdrawThreadMessages expires every open message of a thread: when the
 // thread ends, its questions and proposals are moot.
-func (s *Store) WithdrawThreadNotices(ctx context.Context, threadID string) (int64, error) {
+func (s *Store) WithdrawThreadMessages(ctx context.Context, threadID string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
-UPDATE notices SET state = ?, updated_at = ?
-WHERE thread_id = ? AND state IN (?, ?)`, NoticeExpired, formatTime(s.now()), threadID, NoticePending, NoticeDelivered)
+UPDATE messages SET state = ?, updated_at = ?
+WHERE thread_id = ? AND state IN (?, ?)`, MessageExpired, formatTime(s.now()), threadID, MessagePending, MessageDelivered)
 	if err != nil {
 		return 0, err
 	}

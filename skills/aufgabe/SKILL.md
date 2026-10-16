@@ -16,8 +16,8 @@ metadata:
         - name: measure
           description: Ab wann es zählt, z. B. Uhrzeit von–bis oder Grenzwert. "- " mit Grund, wenn der Wunsch nichts Relatives enthält („ungewöhnlich“, „zu viel“, „spät“ sind relativ)
         - name: reaction
-          description: Was dann passiert – notice (fest melden), assess (Mira beurteilt jedes Mal selbst) oder switch (etwas schalten, nur wenn der Nutzer es will)
-          enum: [notice, assess, switch]
+          description: Was dann passiert – message (fest melden), assess (Mira beurteilt jedes Mal selbst) oder switch (etwas schalten, nur wenn der Nutzer es will)
+          enum: [message, assess, switch]
       finish: tasks.automation
 ---
 # Aufgabe einrichten
@@ -27,4 +27,4 @@ Aus dem Wunsch des Nutzers wird eine Automation in Home Assistant. Du sammelst, 
 - Trag mit thread_fill ein, was schon klar ist, auch aus dem Haus (Entitäten nachsehen statt fragen).
 - Frag nur nach, was fehlt, kurz und mit einem Vorschlag: „Ab wann ist es für dich ungewöhnlich, etwa zwischen Mitternacht und 6 Uhr?“
 - Relative Wünsche („ungewöhnlich“, „zu viel“, „spät“) brauchen einen Maßstab. Steht er in dem, was Mira über den Haushalt weiß, nimm ihn; sonst frag. Nur wenn der Nutzer ausdrücklich will, dass Mira es jedes Mal selbst beurteilt, ist reaction assess ohne festen Maßstab richtig.
-- Fest melden (notice) ist richtig, wenn das Ereignis immer gesagt werden soll (Melder schlägt an, Licht geht an).
+- Fest melden (message) ist richtig, wenn das Ereignis immer gesagt werden soll (Melder schlägt an, Licht geht an).

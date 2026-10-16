@@ -83,7 +83,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			}
 			log.Error("scheduled task failed", "skill", j.skill.Name, "error", err)
 		} else {
-			log.Info("scheduled task done", "skill", j.skill.Name, "notice", queued)
+			log.Info("scheduled task done", "skill", j.skill.Name, "message", queued)
 		}
 		next[soonest] = j.sched.Parsed().Next(r.Set.clock().In(r.Set.loc()).Add(time.Second))
 	}
@@ -96,8 +96,8 @@ type taskResult struct {
 	ExpiresInHours float64 `json:"expires_in_hours"`
 }
 
-// RunJob runs schedule index of a skill now and queues its notice, if it
-// has one. It reports whether a notice was queued.
+// RunJob runs schedule index of a skill now and queues its message, if it
+// has one. It reports whether a message was queued.
 func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) {
 	if index < 0 || index >= len(sk.Schedules) {
 		return false, fmt.Errorf("skill %s has no schedule %d", sk.Name, index)
@@ -123,11 +123,11 @@ func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) 
 		res.ExpiresInHours = 12
 	}
 	now := r.Set.clock()
-	_, _, err = r.Store.PutNotice(ctx, store.Notice{
+	_, _, err = r.Store.PutMessage(ctx, store.Message{
 		ID: ulid.Make().String(), Source: store.SourceSchedule,
-		// One notice per job and day: a rerun updates it.
+		// One message per job and day: a rerun updates it.
 		DedupeKey:  fmt.Sprintf("skill:%s:%d:%s", sk.Name, index, now.In(r.Set.loc()).Format("2006-01-02")),
-		Importance: res.Importance, Audience: store.AudienceHousehold,
+		Importance: res.Importance, Receiver: store.ReceiverHouse,
 		Spoken: res.Spoken, Details: strings.TrimSpace(res.Details),
 		ExpiresAt: now.Add(time.Duration(res.ExpiresInHours * float64(time.Hour))),
 	})
