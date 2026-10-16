@@ -66,7 +66,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
 	cfg.Persons = map[string]config.Person{"ben": {Entity: "person.ben"}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{
-		Areas: []string{"bad"}, Presence: map[string]string{"bad": "binary_sensor.bad_motion"},
+		Areas: []string{"bad"}, Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}},
 	}
 	cfg.Notifier.QuietHours = config.QuietHours{} // the test runs at any hour
 

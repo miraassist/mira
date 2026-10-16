@@ -157,8 +157,10 @@ func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
 		}
 	}
 	want := map[string]string{}
-	for area, sensor := range cfg.Notifier.MorningTrigger.Presence {
-		want[sensor] = "presence " + area
+	for area, sensors := range cfg.Notifier.MorningTrigger.Presence {
+		for _, sensor := range sensors {
+			want[sensor] = "presence " + area
+		}
 	}
 	for id, p := range cfg.Persons {
 		if p.Entity != "" {

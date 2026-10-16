@@ -195,7 +195,7 @@ const I18N = {
   "badge_ui": "in der UI geändert",
   "reset_button": "Zurück auf mira.yaml",
   "badge_file": "aus mira.yaml",
-  "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Räume sind dort eigene Einträge; Einstellungen für eine Person setzt du unter „Konfigurieren“ → „Einstellungen für eine Person“.",
+  "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Unter „Konfigurieren“ gibt es Einstellungen für einen Satelliten und für eine Person; gespeichert wird an Satellit und Person selbst.",
   "remove": "Entfernen",
   "entity_search": "Entity suchen und auswählen …",
   "not_entity": "„{id}“ ist keine Entity-ID.",
@@ -384,7 +384,7 @@ const I18N = {
   "badge_ui": "changed in the UI",
   "reset_button": "Back to mira.yaml",
   "badge_file": "from mira.yaml",
-  "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. Rooms are entries of their own there; settings for a person are under \"Configure\" → \"Settings for a person\".",
+  "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. Under \"Configure\" there are settings for a satellite and for a person, stored on the satellite and the person themselves.",
   "remove": "Remove",
   "entity_search": "Search and pick an entity …",
   "not_entity": "“{id}” is not an entity ID.",
@@ -639,8 +639,8 @@ if (!isAdmin) TABS = ["memory", "guide"];
 const tabOf = h => (TABS.includes(h) ? h : TABS[0]);
 let tab = tabOf(location.hash.slice(1));
 let entityNames = {};
-// Sections Home Assistant manages are edited there, as subentries of the
-// Mira integration; the page shows them read-only.
+// Sections Home Assistant manages are edited there, as settings on HA's
+// persons and satellites; the page shows them read-only.
 const managed = name => (config[name] || {}).managed_by === "home_assistant";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -871,7 +871,7 @@ function rooms() {
   const sats = val("satellites") || {}, n = val("notifier") || {}, mt = n.morning_trigger || {};
   const presence = mt.presence || {}, modes = n.room_mode || {}, inds = n.indicators || {};
   const areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
-  const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: presence[a] || "", active: list(mt.areas).includes(a), mode: modes[a] || "announce", ind: inds[a] || "" }));
+  const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: csv(presence[a]), active: list(mt.areas).includes(a), mode: modes[a] || "announce", ind: inds[a] || "" }));
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_rooms} ${source("satellites")}</h2>
@@ -905,7 +905,7 @@ function saveRooms() {
     const area = f("area").value.trim();
     if (!area) return;
     if (f("sat").value.trim()) sats[area] = f("sat").value.trim();
-    if (f("sensor").value.trim()) presence[area] = f("sensor").value.trim();
+    if (f("sensor").value.trim()) presence[area] = fromCsv(f("sensor").value);
     if (f("active").checked) areas.push(area);
     if (f("mode").value === "indicate") modes[area] = "indicate";
     if (f("ind").value.trim()) inds[area] = f("ind").value.trim();

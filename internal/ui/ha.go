@@ -20,14 +20,15 @@ const kvHAManaged = "ui_managed_by_ha"
 // notifier is only touched in its morning_trigger.
 var haSections = []string{"persons", "satellites"}
 
-// Room is one area as the integration sees it: its satellite, its presence
-// sensor and whether motion there starts the morning announcement. The agent
-// stores it as satellites plus notifier.morning_trigger.
+// Room is one area as the integration sees it: its satellite with Mira's
+// settings on it (docs/spec/ha-anbindung.md): the motion sensors and whether
+// motion there starts the morning announcement. The agent stores it as
+// satellites plus notifier.morning_trigger.
 type Room struct {
-	Area      string `json:"area"`
-	Satellite string `json:"satellite,omitempty"`
-	Presence  string `json:"presence,omitempty"`
-	Morning   bool   `json:"morning"`
+	Area      string   `json:"area"`
+	Satellite string   `json:"satellite,omitempty"`
+	Presence  []string `json:"presence,omitempty"`
+	Morning   bool     `json:"morning"`
 	// Mode is "announce" (default) or "indicate"; Indicator is the light
 	// that shows waiting notices.
 	Mode      string `json:"mode,omitempty"`
@@ -41,8 +42,26 @@ type haConfig struct {
 }
 
 type morningTrigger struct {
-	Areas    []string          `json:"areas"`
-	Presence map[string]string `json:"presence"`
+	Areas    []string              `json:"areas"`
+	Presence map[string]entityList `json:"presence"`
+}
+
+// entityList reads one entity id or a list, as the YAML allows both.
+type entityList []string
+
+func (e *entityList) UnmarshalJSON(b []byte) error {
+	var one string
+	if err := json.Unmarshal(b, &one); err == nil {
+		*e = entityList{one}
+		if one == "" {
+			*e = nil
+		}
+		return nil
+	}
+	var list []string
+	err := json.Unmarshal(b, &list)
+	*e = list
+	return err
 }
 
 func (h *Handler) managedByHA(r *http.Request) bool {
@@ -98,8 +117,8 @@ func (h *Handler) rooms() ([]Room, error) {
 	for _, area := range notifier.MorningTrigger.Areas {
 		room(area).Morning = true
 	}
-	for area, sensor := range notifier.MorningTrigger.Presence {
-		room(area).Presence = sensor
+	for area, sensors := range notifier.MorningTrigger.Presence {
+		room(area).Presence = sensors
 	}
 	for area, mode := range notifier.RoomMode {
 		room(area).Mode = mode
@@ -144,7 +163,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 		in.Persons = json.RawMessage("{}")
 	}
 	sats := map[string]string{}
-	mt := morningTrigger{Areas: []string{}, Presence: map[string]string{}}
+	mt := morningTrigger{Areas: []string{}, Presence: map[string]entityList{}}
 	modes, indicators := map[string]string{}, map[string]string{}
 	seen := map[string]bool{}
 	for _, room := range in.Rooms {
@@ -158,7 +177,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 		if room.Satellite != "" {
 			sats[room.Area] = room.Satellite
 		}
-		if room.Presence != "" {
+		if len(room.Presence) > 0 {
 			mt.Presence[room.Area] = room.Presence
 		}
 		if room.Morning {

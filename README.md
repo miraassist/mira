@@ -143,10 +143,14 @@ theme. There everyone, admins too, sees the house's memory and their own
 (person linked to the HA user); notices, tasks and settings are for admins,
 enforced by the proxy and the agent. The integration's options switch it off.
 
-The integration imports the agent's persons and rooms as subentries of its
-entry (Person, Raum), edited there with Home
-Assistant's entity and area pickers. Each change is checked by the agent
-before it is saved; what it refuses shows in the form. While the integration
+Mira keeps no lists of her own for what Home Assistant has
+(docs/spec/ha-anbindung.md): every HA person is a person for Mira, every
+Assist satellite with an area speaks for that area. What Mira needs on top
+is stored on the person or satellite itself, as entity registry options
+under `mira`, and set in the integration's options ("Configure": settings
+for a person, for a satellite). Entities labelled "Mira: nachfragen" are
+only switched after a yes. Each change is checked by the agent before it is
+saved; what it refuses shows in the form. While the integration
 manages them, the agent's web UI shows those sections read-only. Removing the
 integration hands them back. The device also has a quiet-mode switch, a
 pending-notices sensor and a button to compact the memory profile now.

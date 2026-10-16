@@ -187,7 +187,7 @@ func (g *Guard) critical(spec Spec, raw json.RawMessage) (bool, []string) {
 	mark := func(ids ...string) {
 		for _, id := range ids {
 			targets = append(targets, id)
-			if g.isCriticalEntity(id) {
+			if g.isCriticalEntity(snap, id) {
 				critical = true
 			}
 		}
@@ -220,9 +220,11 @@ func (g *Guard) critical(spec Spec, raw json.RawMessage) (bool, []string) {
 	return critical, slices.Compact(targets)
 }
 
-func (g *Guard) isCriticalEntity(id string) bool {
+// isCriticalEntity: by its domain, by the config, or by the label
+// "Mira: nachfragen" in Home Assistant.
+func (g *Guard) isCriticalEntity(snap structure.Snapshot, id string) bool {
 	id = strings.ToLower(id)
-	return g.entities[id] || g.domains[structure.Domain(id)]
+	return g.entities[id] || g.domains[structure.Domain(id)] || snap.Confirm[id]
 }
 
 func (g *Guard) similarCritical(snap structure.Snapshot, name string) []string {
@@ -232,7 +234,7 @@ func (g *Guard) similarCritical(snap structure.Snapshot, name string) []string {
 	}
 	var out []string
 	for id, names := range snap.EntityNames {
-		if !g.isCriticalEntity(id) {
+		if !g.isCriticalEntity(snap, id) {
 			continue
 		}
 		for _, n := range names {

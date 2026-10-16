@@ -38,8 +38,7 @@ from homeassistant.util.file import write_utf8_file_atomic
 from homeassistant.util.yaml import dump, load_yaml
 
 from .const import CONF_AGENT_USER, DOMAIN
-
-LABEL = "Mira"
+from .labels import LABEL_CONFIRM, LABEL_TASKS, ensure_label
 _LOCK = asyncio.Lock()
 
 # Domains a task never calls: they run arbitrary code or change Home
@@ -117,10 +116,12 @@ async def validate(hass: HomeAssistant, config: dict[str, Any], forbidden: dict[
     except Exception as err:  # probatio.Invalid in newer cores
         raise HomeAssistantError(str(err)) from err
     forbidden = forbidden or {}
+    # Entities labelled "Mira: nachfragen" need a yes each time, too.
+    labelled = {e.entity_id for e in er.async_entries_for_label(er.async_get(hass), LABEL_CONFIRM)}
     check_actions(
         config.get("actions", config.get("action")),
         set(forbidden.get("domains") or []),
-        set(forbidden.get("entities") or []),
+        set(forbidden.get("entities") or []) | labelled,
     )
 
 
@@ -165,10 +166,7 @@ async def save(
 
 @callback
 def _label(hass: HomeAssistant, entity_id: str) -> None:
-    labels = lr.async_get(hass)
-    label = labels.async_get_label_by_name(LABEL) or labels.async_create(
-        LABEL, icon="mdi:robot-happy-outline", color="teal", description="Aufgaben von Mira"
-    )
+    label = ensure_label(hass, LABEL_TASKS)
     entities = er.async_get(hass)
     entry = entities.async_get(entity_id)
     if entry is not None and label.label_id not in entry.labels:
@@ -192,7 +190,7 @@ async def delete(hass: HomeAssistant, automation_id: str) -> None:
 
 async def list_tasks(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Mira's automations: the ones labelled "Mira", with their config."""
-    label = lr.async_get(hass).async_get_label_by_name(LABEL)
+    label = lr.async_get(hass).async_get_label(LABEL_TASKS)
     if label is None:
         return []
     entities = er.async_get(hass)

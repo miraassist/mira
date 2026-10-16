@@ -111,7 +111,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad", "kueche": "assist_satellite.kueche"}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{
 		Areas:    []string{"bad", "kueche"},
-		Presence: map[string]string{"bad": "binary_sensor.bad_motion", "kueche": "binary_sensor.kueche_motion"},
+		Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}, "kueche": {"binary_sensor.kueche_motion"}},
 	}
 	cfg.Persons = map[string]config.Person{
 		"ben": {Entity: "person.ben", TelegramUserID: 111},

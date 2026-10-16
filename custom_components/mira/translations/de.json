@@ -33,7 +33,8 @@
         "title": "Mira",
         "menu_options": {
           "general": "Allgemein",
-          "person_pick": "Einstellungen für eine Person"
+          "person_pick": "Einstellungen für eine Person",
+          "satellite_pick": "Einstellungen für einen Satelliten"
         }
       },
       "general": {
@@ -67,11 +68,35 @@
           "notify": "Notify-Dienst der Companion App",
           "alone_is_me": "Bist du als Einzige(r) zu Hause, behandelt Mira die Sprachsatelliten wie dich: dein Gedächtnis, deine privaten Meldungen."
         }
+      },
+      "satellite_pick": {
+        "title": "Satellit wählen",
+        "description": "Jeder Assist-Satellit mit Bereich spricht für Mira in seinem Bereich. Hier stellst du ein, was dazukommt: Bewegungsmelder, Morgenansage, ansagen oder anzeigen. Lautsprecher ohne Assist nimmt Mira nur, wenn du sie hier einstellst.",
+        "data": {
+          "entity": "Satellit"
+        }
+      },
+      "satellite": {
+        "title": "Mira-Einstellungen für {satellite}",
+        "description": "Gespeichert wird am Satelliten selbst; der Raum ist sein Bereich in Home Assistant. Mehrere Bewegungsmelder sind möglich, jeder davon zählt als „jemand kommt herein“.",
+        "data": {
+          "presence": "Bewegungsmelder",
+          "morning": "Morgenansage",
+          "mode": "Zustellart",
+          "indicator": "Anzeige-Lampe"
+        },
+        "data_description": {
+          "presence": "Bewegung an einem davon startet eine Ansage, z. B. Flur und Wohnzimmer.",
+          "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
+          "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
+          "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
+        }
       }
     },
     "error": {
       "invalid_config": "Der Agent hat es abgelehnt: {error}",
-      "cannot_connect": "Der Agent ist nicht erreichbar."
+      "cannot_connect": "Der Agent ist nicht erreichbar.",
+      "no_area": "Der Satellit hat keinen Bereich. Ordne ihn (oder sein Gerät) in Home Assistant einem Bereich zu."
     },
     "abort": {
       "not_loaded": "Der Mira-Eintrag ist nicht geladen."
@@ -207,64 +232,6 @@
           "name": "Aufgabe",
           "description": "Die ID der Automation ({{ this.attributes.id }})."
         }
-      }
-    }
-  },
-  "config_subentries": {
-    "room": {
-      "entry_type": "Raum",
-      "initiate_flow": {
-        "user": "Raum hinzufügen",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Raum",
-          "description": "Wo Ansagen gesprochen werden.",
-          "data": {
-            "area": "Bereich",
-            "satellite": "Satellit",
-            "presence": "Anwesenheitssensor",
-            "morning": "Morgenansage",
-            "mode": "Zustellart",
-            "indicator": "Anzeige-Lampe"
-          },
-          "data_description": {
-            "satellite": "Spricht Ansagen in diesem Raum.",
-            "presence": "Bewegung hier startet eine Ansage.",
-            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
-            "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
-            "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
-          }
-        },
-        "reconfigure": {
-          "title": "Raum",
-          "description": "Wo Ansagen gesprochen werden.",
-          "data": {
-            "area": "Bereich",
-            "satellite": "Satellit",
-            "presence": "Anwesenheitssensor",
-            "morning": "Morgenansage",
-            "mode": "Zustellart",
-            "indicator": "Anzeige-Lampe"
-          },
-          "data_description": {
-            "satellite": "Spricht Ansagen in diesem Raum.",
-            "presence": "Bewegung hier startet eine Ansage.",
-            "morning": "Die erste Bewegung nach der Ruhezeit sagt an, was ansteht.",
-            "mode": "Ansagen spricht Meldungen, sobald jemand hereinkommt; Anzeigen lässt nur die Anzeige-Lampe leuchten, und du fragst „Hast du eine Benachrichtigung?“. Dringendes und Erinnerungen werden immer angesagt.",
-            "indicator": "Zeigt wartende Meldungen, z. B. der LED-Ring des Satelliten."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "Das gibt es schon.",
-        "invalid_config": "Der Agent hat es abgelehnt: {error}",
-        "cannot_connect": "Der Agent ist nicht erreichbar."
-      },
-      "abort": {
-        "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
-        "reconfigure_successful": "Gespeichert."
       }
     }
   },

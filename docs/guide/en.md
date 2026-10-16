@@ -187,11 +187,17 @@ Before Mira deletes something, she asks:
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)
 
-Mira knows every person in Home Assistant by herself; you create nobody. You set up rooms under Settings → Devices & services → Mira, one entry per room:
+Mira knows your persons and satellites by herself; you create nothing: every person in Home Assistant is a person for Mira too, and every Assist satellite speaks in its area.
 
 ![The Mira integration in Home Assistant](img/ha-integration-en.png)
 
-If Mira needs more for a person, go to **Configure** → **Settings for a person** there: Telegram id, push service and "Alone at home, the satellites are me". This is stored on the person itself; if the person is deleted, it goes with them. In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
+What Mira needs beyond that you set under Settings → Devices & services → Mira → **Configure**; it is stored right on the person or satellite and goes away with them.
+
+- **Settings for a satellite**: motion sensors (several too, such as hallway and living room), morning announcement, announce or only indicate, indicator light. The room is the satellite's area.
+- **Settings for a person**: Telegram id, push service and "Alone at home, the satellites are me".
+- **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
+
+In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
 
 ## More tools over MCP
 

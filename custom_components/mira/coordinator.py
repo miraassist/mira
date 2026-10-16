@@ -20,8 +20,8 @@ _LOGGER = logging.getLogger(__name__)
 class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Reads /v1/status every minute.
 
-    After every setup (a subentry change reloads the entry) it also sends the
-    subentries to the agent, until that worked once: an agent that was down
+    After every setup it also sends Mira's settings on HA's persons and
+    satellites to the agent, until that worked once: an agent that was down
     or restarted with an empty database gets them on the next poll.
     """
 
@@ -46,7 +46,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         try:
             await self.client.set_managed_config(build_config(self.hass, entry))
-        except MiraInvalidConfig as err:
+        except (MiraInvalidConfig, ValueError) as err:
             # Retrying cannot fix it; the agent keeps its last valid config.
             _LOGGER.error("The agent refused watchers, persons and rooms from Home Assistant: %s", err)
         except MiraError as err:

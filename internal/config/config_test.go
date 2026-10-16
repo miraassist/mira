@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func fakeEnv(pairs map[string]string) Lookup {
@@ -184,5 +186,20 @@ func TestRoutingNeedsKnownModels(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("missing %q in %v", want, err)
 		}
+	}
+}
+
+// A presence sensor may be one entity or a list of them.
+func TestPresenceOneOrMany(t *testing.T) {
+	var mt MorningTrigger
+	raw := "areas: [bad]\npresence:\n  bad: binary_sensor.bad\n  wohnzimmer: [binary_sensor.flur, binary_sensor.wz]\n"
+	if err := yaml.Unmarshal([]byte(raw), &mt); err != nil {
+		t.Fatal(err)
+	}
+	if got := mt.Presence["bad"]; len(got) != 1 || got[0] != "binary_sensor.bad" {
+		t.Errorf("one: %v", got)
+	}
+	if got := mt.Presence["wohnzimmer"]; len(got) != 2 {
+		t.Errorf("many: %v", got)
 	}
 }

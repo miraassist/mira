@@ -15,23 +15,25 @@ type Subscriber interface {
 // Run watches the presence sensors and runs Tick every minute until ctx ends.
 func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 	motion := make(chan string, 16)
-	for area, sensor := range n.cfg.MorningTrigger.Presence {
+	for area, sensors := range n.cfg.MorningTrigger.Presence {
 		if !n.areas[area] {
 			continue
 		}
-		trigger := map[string]any{"trigger": "state", "entity_id": sensor, "to": "on"}
-		cancel, err := sub.SubscribeTrigger(ctx, trigger, func(haws.Event) {
-			select {
-			case motion <- area:
-			default: // a burst of motion events; one is enough
+		for _, sensor := range sensors {
+			trigger := map[string]any{"trigger": "state", "entity_id": sensor, "to": "on"}
+			cancel, err := sub.SubscribeTrigger(ctx, trigger, func(haws.Event) {
+				select {
+				case motion <- area:
+				default: // a burst of motion events; one is enough
+				}
+			})
+			if err != nil {
+				n.log.Error("could not watch presence sensor", "area", area, "sensor", sensor, "error", err)
+				continue
 			}
-		})
-		if err != nil {
-			n.log.Error("could not watch presence sensor", "area", area, "sensor", sensor, "error", err)
-			continue
+			defer cancel()
+			n.log.Info("watching presence", "area", area, "sensor", sensor)
 		}
-		defer cancel()
-		n.log.Info("watching presence", "area", area, "sensor", sensor)
 	}
 
 	tick := time.NewTicker(time.Minute)

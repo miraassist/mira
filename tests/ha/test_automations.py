@@ -91,3 +91,36 @@ async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_
     await other.send_json_auto_id({"type": "mira/automation/list"})
     msg = await other.receive_json()
     assert not msg["success"] and msg["error"]["code"] == "unauthorized"
+
+
+async def test_labels_by_id_in_home_assistants_language(hass):
+    """Mira knows her labels by id; their names follow HA's language and
+    may be renamed without breaking anything."""
+    from homeassistant.helpers import label_registry as lr
+
+    from custom_components.mira.labels import LABEL_CONFIRM, LABEL_TASKS, ensure_labels
+
+    hass.config.language = "de"
+    ensure_labels(hass)
+    labels = lr.async_get(hass)
+    assert labels.async_get_label(LABEL_CONFIRM).name == "Mira: nachfragen"
+    assert labels.async_get_label(LABEL_TASKS).description == "Aufgaben von Mira"
+    labels.async_update(LABEL_CONFIRM, name="Vorsicht")
+    ensure_labels(hass)
+    assert labels.async_get_label(LABEL_CONFIRM).name == "Vorsicht"
+    assert len(labels.labels) == 2
+
+
+async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.mira.labels import LABEL_CONFIRM, ensure_labels
+
+    assert await async_setup_component(hass, "automation", {})
+    ensure_labels(hass)
+    registry = er.async_get(hass)
+    pump = registry.async_get_or_create("switch", "test", "pump", suggested_object_id="pumpe")
+    registry.async_update_entity(pump.entity_id, labels={LABEL_CONFIRM})
+    task = TASK | {"actions": [{"action": "switch.turn_on", "target": {"entity_id": pump.entity_id}}]}
+    with pytest.raises(NotAllowed):
+        await validate(hass, task)

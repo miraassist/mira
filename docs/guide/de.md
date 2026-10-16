@@ -187,11 +187,17 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)
 
-Jede Person aus Home Assistant kennt Mira von selbst, anlegen musst du niemanden. Räume richtest du unter Einstellungen → Geräte & Dienste → Mira ein, je Raum ein Eintrag:
+Mira kennt deine Personen und Satelliten von selbst, anlegen musst du nichts: Jede Person aus Home Assistant ist auch für Mira eine Person, und jeder Assist-Satellit spricht in seinem Bereich.
 
 ![Die Mira-Integration in Home Assistant](img/ha-integration-de.png)
 
-Braucht Mira für eine Person mehr, gehst du dort auf **Konfigurieren** → **Einstellungen für eine Person**: Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“. Gespeichert wird das an der Person selbst; wird sie gelöscht, verschwindet es mit. Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
+Was Mira darüber hinaus braucht, stellst du unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** ein; gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
+
+- **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), Morgenansage, ansagen oder nur anzeigen, Anzeige-Lampe. Der Raum ist der Bereich des Satelliten.
+- **Einstellungen für eine Person**: Telegram-ID, Push-Dienst und „Allein zu Hause sind die Satelliten ich“.
+- **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
+
+Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
 
 ## Weitere Werkzeuge über MCP
 

@@ -76,3 +76,24 @@ func (c *ClockTime) UnmarshalYAML(value *yaml.Node) error {
 }
 
 func (c ClockTime) MarshalYAML() (any, error) { return c.String(), nil }
+
+// Entities is one entity id or a list of them; in YAML either form works,
+// so "presence: binary_sensor.flur" stays valid next to a list.
+type Entities []string
+
+func (e *Entities) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		if value.Value == "" {
+			*e = nil
+		} else {
+			*e = Entities{value.Value}
+		}
+		return nil
+	}
+	var list []string
+	if err := value.Decode(&list); err != nil {
+		return err
+	}
+	*e = list
+	return nil
+}

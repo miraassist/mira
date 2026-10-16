@@ -14,19 +14,19 @@ func TestHomeAssistantManagesPersonsRooms(t *testing.T) {
 
 	// Import: rooms joined from satellites and the morning trigger.
 	code, body := call(t, srv, "GET", "/v1/ui/ha", "secret", "")
-	if code != 200 || !strings.Contains(body, `{"area":"bad","satellite":"assist_satellite.bad","presence":"binary_sensor.bad_motion","morning":true}`) ||
+	if code != 200 || !strings.Contains(body, `{"area":"bad","satellite":"assist_satellite.bad","presence":["binary_sensor.bad_motion"],"morning":true}`) ||
 		!strings.Contains(body, `{"area":"flur","satellite":"assist_satellite.flur","morning":false}`) || !strings.Contains(body, `"managed":false`) {
 		t.Fatalf("get: %d %s", code, body)
 	}
 
 	code, body = call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"persons":{"ben":{"entity":"person.ben"}},
-		"rooms":[{"area":"kueche","satellite":"assist_satellite.kueche","presence":"binary_sensor.k","morning":true,"mode":"indicate","indicator":"light.ring"},{"area":"flur"}]}`)
+		"rooms":[{"area":"kueche","satellite":"assist_satellite.kueche","presence":["binary_sensor.k","binary_sensor.k2"],"morning":true,"mode":"indicate","indicator":"light.ring"},{"area":"flur"}]}`)
 	if code != 200 || !strings.Contains(body, `"managed":true`) {
 		t.Fatalf("put: %d %s", code, body)
 	}
 	var notifier map[string]any
 	json.Unmarshal(cfg.sections["notifier"], &notifier)
-	if notifier["cooldown"] != "30m" || !strings.Contains(string(cfg.sections["notifier"]), `"morning_trigger":{"areas":["kueche"],"presence":{"kueche":"binary_sensor.k"}}`) {
+	if notifier["cooldown"] != "30m" || !strings.Contains(string(cfg.sections["notifier"]), `"morning_trigger":{"areas":["kueche"],"presence":{"kueche":["binary_sensor.k","binary_sensor.k2"]}}`) {
 		t.Errorf("notifier = %s", cfg.sections["notifier"])
 	}
 	if !strings.Contains(string(cfg.sections["notifier"]), `"room_mode":{"kueche":"indicate"}`) || !strings.Contains(string(cfg.sections["notifier"]), `"indicators":{"kueche":"light.ring"}`) {

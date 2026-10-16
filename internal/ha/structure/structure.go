@@ -9,6 +9,7 @@ package structure
 import (
 	"fmt"
 	"github.com/sker65/mira/internal/i18n"
+	"slices"
 	"sort"
 	"strings"
 
@@ -47,6 +48,9 @@ type Snapshot struct {
 	EntityNames map[string][]string
 	// AreaKeys maps a lower-cased area id, name or alias to the area id.
 	AreaKeys map[string]string
+	// Confirm are the entities labelled "Mira: nachfragen" (LabelConfirm):
+	// Mira switches them only after the user confirmed.
+	Confirm map[string]bool
 	// ExposureKnown is false when Home Assistant could not tell us which
 	// entities are exposed and the build fell back to including everything.
 	ExposureKnown bool
@@ -62,6 +66,10 @@ type entityRow struct {
 	aliases    []string
 }
 
+// LabelConfirm is the id of the label "Mira: nachfragen", which the
+// integration creates; the label's name may be anything.
+const LabelConfirm = "mira_confirm"
+
 // Build renders the structure block. It is a pure function of its input:
 // no clock, no randomness, no map iteration order.
 func Build(reg Registry) Snapshot {
@@ -73,7 +81,13 @@ func Build(reg Registry) Snapshot {
 		ExposedEntities: map[string]bool{},
 		EntityNames:     map[string][]string{},
 		AreaKeys:        map[string]string{},
+		Confirm:         map[string]bool{},
 		ExposureKnown:   reg.Exposed != nil,
+	}
+	for _, e := range reg.Entities {
+		if slices.Contains(e.Labels, LabelConfirm) {
+			snap.Confirm[e.EntityID] = true
+		}
 	}
 
 	areaByID := make(map[string]haws.Area, len(reg.Areas))

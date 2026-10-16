@@ -297,8 +297,10 @@ type QuietHours struct {
 }
 
 type MorningTrigger struct {
-	Areas    []string          `yaml:"areas"`
-	Presence map[string]string `yaml:"presence"`
+	Areas []string `yaml:"areas"`
+	// Presence are the motion sensors per area, one or several: any of
+	// them means someone came in.
+	Presence map[string]Entities `yaml:"presence"`
 }
 
 type Urgent struct {
@@ -605,7 +607,7 @@ func (c Config) Validate() error {
 		if _, ok := c.Satellites[area]; !ok {
 			add("notifier.morning_trigger.areas: %q has no entry in satellites", area)
 		}
-		if _, ok := c.Notifier.MorningTrigger.Presence[area]; !ok {
+		if len(c.Notifier.MorningTrigger.Presence[area]) == 0 {
 			add("notifier.morning_trigger.areas: %q has no presence sensor", area)
 		}
 	}

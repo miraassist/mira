@@ -1,9 +1,9 @@
 """Config flow for Mira: agent URL and token, checked against /v1/health.
 
 The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
-under "Discovered" and only asks for the token. Rooms are subentries with
-HA's own pickers; Mira's settings for a person are set under "Configure" and
-stored on the person; see managed.py.
+under "Discovered" and only asks for the token. Mira's settings for a person
+or a satellite are set under "Configure" and stored on that person or
+satellite; see managed.py.
 """
 
 from __future__ import annotations
@@ -17,13 +17,11 @@ from homeassistant.config_entries import (
     ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
-    ConfigSubentryFlow,
     OptionsFlow,
-    SubentryFlowResult,
 )
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import callback
-from homeassistant.helpers import area_registry as ar, selector
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
@@ -31,11 +29,14 @@ from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
 from .managed import (
     PERSON_FIELDS,
-    SUBENTRY_ROOM,
+    SATELLITE_DOMAINS,
+    SATELLITE_FIELDS,
     build_config,
     person_settings,
+    satellite_area,
+    satellite_settings,
     set_person_settings,
-    unique_id,
+    set_satellite_settings,
 )
 
 USER_SCHEMA = vol.Schema(
@@ -124,10 +125,6 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return MiraOptionsFlow()
 
-    @classmethod
-    @callback
-    def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {SUBENTRY_ROOM: RoomSubentryFlow}
 
 
 class MiraOptionsFlow(OptionsFlow):
@@ -138,7 +135,7 @@ class MiraOptionsFlow(OptionsFlow):
     _person: str = ""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["general", "person_pick"])
+        return self.async_show_menu(step_id="init", menu_options=["general", "person_pick", "satellite_pick"])
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -210,88 +207,59 @@ class MiraOptionsFlow(OptionsFlow):
             description_placeholders=placeholders,
         )
 
-    def _name(self) -> str:
-        state = self.hass.states.get(self._person)
-        return state.name if state else self._person
+    def _name(self, entity_id: str = "") -> str:
+        entity_id = entity_id or self._person
+        state = self.hass.states.get(entity_id)
+        return state.name if state else entity_id
 
+    _satellite: str = ""
 
-class _ManagedSubentryFlow(ConfigSubentryFlow):
-    """One form for adding and changing; the agent checks the result first.
+    async def async_step_satellite_pick(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._satellite = user_input["entity"]
+            if satellite_area(self.hass, self._satellite):
+                return await self.async_step_satellite()
+            errors["base"] = "no_area"
+        return self.async_show_form(
+            step_id="satellite_pick",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("entity"): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain=list(SATELLITE_DOMAINS))
+                    )
+                }
+            ),
+            errors=errors,
+        )
 
-    The whole config, with this form applied, goes to the agent before the
-    subentry is saved: what the agent refuses (an unknown area, a person
-    the Telegram allowlist does not know) is shown in the form instead.
-    """
-
-    subentry_type: str
-
-    def _schema(self, data: dict[str, Any]) -> vol.Schema:
-        raise NotImplementedError
-
-    def _title(self, data: dict[str, Any]) -> str:
-        raise NotImplementedError
-
-    def _normalize(self, data: dict[str, Any]) -> dict[str, Any]:
-        return data
-
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._form("user", None, user_input)
-
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
-        return await self._form("reconfigure", self._get_reconfigure_subentry().subentry_id, user_input)
-
-    async def _form(self, step_id: str, subentry_id: str | None, user_input: dict[str, Any] | None) -> SubentryFlowResult:
-        entry = self._get_entry()
+    async def async_step_satellite(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Mira's settings on a satellite: its motion sensors (several may
+        say someone came in), the morning announcement, announce or
+        indicate, the indicator light. Its room is its area."""
+        entry = self.config_entry
         if entry.state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="not_loaded")
-        old = dict(entry.subentries[subentry_id].data) if subentry_id else {}
+        old = satellite_settings(self.hass).get(self._satellite, {})
         errors: dict[str, str] = {}
-        placeholders = {"error": ""}
+        placeholders = {"error": "", "satellite": self._name(self._satellite)}
         if user_input is not None:
-            # Keep what the form does not show (imported extras); a field
-            # the user cleared is missing from user_input and stays cleared.
-            shown = {str(key) for key in self._schema(old).schema}
-            data = {k: v for k, v in old.items() if k not in shown} | user_input
-            uid = ""
+            data = {k: user_input.get(k) for k in SATELLITE_FIELDS}
             try:
-                data = self._normalize(data)
-                uid = unique_id(self.subentry_type, data)
-                if any(s.unique_id == uid and sid != subentry_id for sid, s in entry.subentries.items()):
-                    errors["base"] = "already_configured"
-                else:
-                    await entry.runtime_data.client.set_managed_config(
-                        build_config(self.hass, entry, (subentry_id, self.subentry_type, data))
-                    )
+                await entry.runtime_data.client.set_managed_config(
+                    build_config(self.hass, entry, satellite=(self._satellite, data))
+                )
             except (ValueError, MiraInvalidConfig) as err:
                 errors["base"], placeholders["error"] = "invalid_config", str(err)
             except MiraError:
                 errors["base"] = "cannot_connect"
             if not errors:
-                if subentry_id is None:
-                    return self.async_create_entry(title=self._title(data), data=data, unique_id=uid)
-                return self.async_update_and_abort(
-                    entry, self._get_reconfigure_subentry(), title=self._title(data), data=data, unique_id=uid
-                )
-        schema = self.add_suggested_values_to_schema(self._schema(old), user_input or old)
-        return self.async_show_form(
-            step_id=step_id, data_schema=schema, errors=errors, description_placeholders=placeholders
-        )
-
-
-class RoomSubentryFlow(_ManagedSubentryFlow):
-    """An area with a satellite that speaks there and a presence sensor."""
-
-    subentry_type = SUBENTRY_ROOM
-
-    def _schema(self, data: dict[str, Any]) -> vol.Schema:
-        return vol.Schema(
+                set_satellite_settings(self.hass, self._satellite, data)
+                return self.async_create_entry(data=dict(entry.options))
+        schema = vol.Schema(
             {
-                vol.Required("area"): selector.AreaSelector(),
-                vol.Optional("satellite"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=["assist_satellite", "media_player"])
-                ),
                 vol.Optional("presence"): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="binary_sensor")
+                    selector.EntitySelectorConfig(domain="binary_sensor", multiple=True)
                 ),
                 vol.Required("morning", default=True): selector.BooleanSelector(),
                 vol.Required("mode", default="announce"): selector.SelectSelector(
@@ -300,7 +268,9 @@ class RoomSubentryFlow(_ManagedSubentryFlow):
                 vol.Optional("indicator"): selector.EntitySelector(selector.EntitySelectorConfig(domain="light")),
             }
         )
-
-    def _title(self, data: dict[str, Any]) -> str:
-        area = ar.async_get(self.hass).async_get_area(data["area"])
-        return area.name if area else data["area"]
+        return self.async_show_form(
+            step_id="satellite",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input or old),
+            errors=errors,
+            description_placeholders=placeholders,
+        )

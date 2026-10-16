@@ -41,7 +41,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Memory.ProfileSchedule = ""
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
-	cfg.Notifier.MorningTrigger = config.MorningTrigger{Areas: []string{"bad"}, Presence: map[string]string{"bad": "binary_sensor.bad_motion"}}
+	cfg.Notifier.MorningTrigger = config.MorningTrigger{Areas: []string{"bad"}, Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}}}
 
 	start := func() (stop func()) {
 		ctx, cancel := context.WithCancel(context.Background())

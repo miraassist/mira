@@ -29,6 +29,7 @@ func house() structure.Snapshot {
 			{EntityID: "light.flur", AreaID: "flur", Name: "Flurlicht"},
 			{EntityID: "cover.garage", AreaID: "garage", Name: "Garagentor", Aliases: []string{"Tor"}},
 			{EntityID: "light.kueche", AreaID: "kueche", Name: "Küchenlicht"},
+			{EntityID: "switch.pumpe", AreaID: "garage", Name: "Pumpe", Labels: []string{structure.LabelConfirm}},
 		},
 	})
 }
@@ -66,6 +67,7 @@ func TestCriticalDetection(t *testing.T) {
 		{turnOn, `{"area":"Küche"}`, false},
 		{turnOff, `{"name":"Tor"}`, true}, // alias of a confirm entity
 		{turnOn, `{"entity_id":"lock.keller"}`, true},
+		{turnOn, `{"name":"Pumpe"}`, true}, // labelled "Mira: nachfragen" in Home Assistant
 		{live, `{}`, false},
 		{turnOn, `not json`, false},
 	}

@@ -33,7 +33,8 @@
         "title": "Mira",
         "menu_options": {
           "general": "General",
-          "person_pick": "Settings for a person"
+          "person_pick": "Settings for a person",
+          "satellite_pick": "Settings for a satellite"
         }
       },
       "general": {
@@ -67,11 +68,35 @@
           "notify": "Companion app notify service",
           "alone_is_me": "When you are the only person at home, Mira treats the voice satellites as you: your memory, your private notices."
         }
+      },
+      "satellite_pick": {
+        "title": "Choose a satellite",
+        "description": "Every Assist satellite with an area speaks for Mira in its area. Here you set what comes on top: motion sensors, the morning announcement, announce or indicate. Speakers without Assist Mira only uses when you set them up here.",
+        "data": {
+          "entity": "Satellite"
+        }
+      },
+      "satellite": {
+        "title": "Mira settings for {satellite}",
+        "description": "Stored on the satellite itself; the room is its area in Home Assistant. Several motion sensors are fine; any of them means someone came in.",
+        "data": {
+          "presence": "Motion sensors",
+          "morning": "Morning announcement",
+          "mode": "Delivery",
+          "indicator": "Indicator light"
+        },
+        "data_description": {
+          "presence": "Motion at any of them starts an announcement, e.g. hallway and living room.",
+          "morning": "The first motion after quiet hours announces what is pending.",
+          "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
+          "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
+        }
       }
     },
     "error": {
       "invalid_config": "The agent refused it: {error}",
-      "cannot_connect": "The agent is not reachable."
+      "cannot_connect": "The agent is not reachable.",
+      "no_area": "The satellite has no area. Assign it (or its device) to an area in Home Assistant."
     },
     "abort": {
       "not_loaded": "The Mira agent entry is not loaded."
@@ -207,64 +232,6 @@
           "name": "Task",
           "description": "The automation's id ({{ this.attributes.id }})."
         }
-      }
-    }
-  },
-  "config_subentries": {
-    "room": {
-      "entry_type": "Room",
-      "initiate_flow": {
-        "user": "Add room",
-        "reconfigure": "Change"
-      },
-      "step": {
-        "user": {
-          "title": "Room",
-          "description": "Where announcements are spoken.",
-          "data": {
-            "area": "Area",
-            "satellite": "Satellite",
-            "presence": "Presence sensor",
-            "morning": "Morning announcement",
-            "mode": "Delivery",
-            "indicator": "Indicator light"
-          },
-          "data_description": {
-            "satellite": "Speaks announcements in this room.",
-            "presence": "Motion here starts an announcement.",
-            "morning": "The first motion after quiet hours announces what is pending.",
-            "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
-            "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
-          }
-        },
-        "reconfigure": {
-          "title": "Room",
-          "description": "Where announcements are spoken.",
-          "data": {
-            "area": "Area",
-            "satellite": "Satellite",
-            "presence": "Presence sensor",
-            "morning": "Morning announcement",
-            "mode": "Delivery",
-            "indicator": "Indicator light"
-          },
-          "data_description": {
-            "satellite": "Speaks announcements in this room.",
-            "presence": "Motion here starts an announcement.",
-            "morning": "The first motion after quiet hours announces what is pending.",
-            "mode": "Announce speaks notices when someone comes in; indicate only lights the indicator, and you ask \"Do you have a notification?\". Urgent notices and reminders are always spoken.",
-            "indicator": "Shows waiting notices, e.g. the LED ring of the satellite."
-          }
-        }
-      },
-      "error": {
-        "already_configured": "This one exists already.",
-        "invalid_config": "The agent refused it: {error}",
-        "cannot_connect": "The agent is not reachable."
-      },
-      "abort": {
-        "not_loaded": "The Mira agent entry is not loaded.",
-        "reconfigure_successful": "Saved."
       }
     }
   },
