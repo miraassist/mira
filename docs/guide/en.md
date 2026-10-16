@@ -39,7 +39,7 @@ And with a question that has nothing to do with lights and switches:
 ## How to talk to Mira
 
 - **By voice**: through a voice satellite (e.g. the Echo in the living room). Say the wake word and then what you want. Mira knows which room the satellite is in: "Turn on the light" means the light in that room. If her answer is a question, the satellite keeps listening.
-- **On Telegram**: write to the Mira bot. Answers can be longer here, with lists and links. `/new` starts a new conversation.
+- **On Telegram**: write to the bot you set up in Home Assistant (integration "Telegram bot"). For Mira to answer, your chat must be one of your person's channels (see below). Answers can be longer here, with lists and links. `/new` starts a new conversation.
 - **In the Home Assistant app**: the Assist chat of the companion app talks to Mira too, typed or spoken.
 
 Mira answers in the language you speak to her in.
@@ -148,6 +148,17 @@ If the setup is connected to a stronger language model, Mira hands elaborate que
 
 At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the HA app come to you privately, by Telegram or as a push notification.
 
+## Messages to others
+
+- "Tell Anna I'll be late." – Anna hears: "Ben asks me to tell you: I'll be late."
+- "Leave a note for the house: the chimney sweep comes at 10." – whoever next comes into a room hears it (or the indicator light glows).
+- "Remind Ben tomorrow at 7 to take out the trash." – a message that is only delivered then.
+- "Send that to my phone." – it comes over your channels.
+
+A message to a person goes over their channels (Telegram, companion app), at a satellite only when they are recognised there. Each person sets whose messages they take: everyone, only persons Mira recognises, or nobody; Mira's own messages (tasks, reminders, warnings) always arrive. Someone who leaves a message in the living room without being recognised appears as "someone in Living room". The sender never learns whether a message was heard.
+
+A **broadcast** ("Tell everyone dinner is ready") is something else: it goes out on all satellites at once and is not kept.
+
 ## And of course: controlling the house
 
 - "Turn on the light in the living room." – "Dim the floor lamp to 30 percent."
@@ -194,7 +205,7 @@ Mira knows your persons and satellites by herself; you create nothing: every per
 What Mira needs beyond that is easiest to set in Mira's panel under **Satellites** and **People**; the same works in Home Assistant under Settings → Devices & services → Mira → **Configure**, with a collapsible section per person or satellite. It is stored right on the person or satellite and goes away with them.
 
 - **Settings for a satellite**: motion sensors (several too, such as hallway and living room), morning announcement, announce or only indicate, indicator light. The room is the satellite's area.
-- **Settings for a person**: Telegram id, push service and "Alone at home, the satellites are me".
+- **Settings for a person**: **channels** (notify targets, e.g. the Telegram chat of HA's Telegram integration and the companion app; personal messages go to the first that works), **take messages from** (everyone, persons only, nobody) and "Alone at home, the satellites are me".
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.

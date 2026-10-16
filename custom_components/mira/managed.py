@@ -114,7 +114,7 @@ def notify_targets(hass: HomeAssistant) -> list[str]:
     services = {
         f"notify.{name}"
         for name in hass.services.async_services_for_domain("notify")
-        if name not in ("send_message", "persistent_notification")
+        if name not in ("send_message", "persistent_notification", "notify")
     }
     return sorted(entities | services)
 

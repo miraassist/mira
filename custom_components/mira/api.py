@@ -27,6 +27,8 @@ class AgentReply:
     text: str
     conversation_id: str
     continue_conversation: bool
+    # For Telegram: the answer as Telegram HTML, split into messages.
+    html: list[str] | None = None
 
 
 class MiraClient:
@@ -57,6 +59,12 @@ class MiraClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MiraError(f"{method} {path}: {err!r}") from err
 
+    async def reset_conversation(self, channel: str, conversation_id: str) -> None:
+        """Start the conversation afresh ("/neu" on Telegram)."""
+        await self._request(
+            "POST", "/v1/conversation/reset", 10, json={"channel": channel, "conversation_id": conversation_id}
+        )
+
     async def health(self) -> dict[str, Any]:
         """Check the connection and the token."""
         return await self._request("GET", "/v1/health", 10)
@@ -71,6 +79,8 @@ class MiraClient:
         extra_system_prompt: str | None,
         timeout: float,
         user_id: str | None = None,
+        channel: str = "voice",
+        person: str = "",
     ) -> AgentReply:
         """Forward one user message and return the agent's answer."""
         data = await self._request(
@@ -85,12 +95,15 @@ class MiraClient:
                 "agent_id": agent_id,
                 "extra_system_prompt": extra_system_prompt or "",
                 "user_id": user_id or "",
+                "channel": channel,
+                "person": person,
             },
         )
         return AgentReply(
             text=str(data.get("text", "")),
             conversation_id=str(data.get("conversation_id") or conversation_id or ""),
             continue_conversation=bool(data.get("continue_conversation", False)),
+            html=[str(p) for p in data.get("html") or []] or None,
         )
 
     async def status(self) -> dict[str, Any]:

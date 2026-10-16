@@ -26,7 +26,7 @@ This repository holds both parts, released together under one version:
 
 | Part | Where | What it does |
 | --- | --- | --- |
-| Agent (Go) | `cmd/mira`, `internal/` | Prompting, tools, memory, security policy, Telegram |
+| Agent (Go) | `cmd/mira`, `internal/` | Prompting, tools, memory, messages, security policy |
 | Integration (HACS) | `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the agent |
 
 The integration does not use Home Assistant's LLM API and runs no tools. All

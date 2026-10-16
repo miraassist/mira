@@ -15,6 +15,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/sker65/mira/internal/channels/telegram"
 	"github.com/sker65/mira/internal/config"
 	"github.com/sker65/mira/internal/conversation"
 	"github.com/sker65/mira/internal/store"
@@ -75,6 +76,7 @@ func New(opts Options) *Server {
 	s := &Server{opts: opts, log: opts.Logger.With("component", "http"), mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /v1/health", s.health)
 	s.mux.HandleFunc("POST /v1/conversation", s.conversation)
+	s.mux.HandleFunc("POST /v1/conversation/reset", s.resetConversation)
 	s.mux.HandleFunc("GET /v1/status", s.status)
 	s.mux.HandleFunc("PUT /v1/quiet_mode", s.quietMode)
 	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
@@ -168,12 +170,23 @@ type conversationRequest struct {
 	// UserID is the signed-in HA user (the app, its chat); satellites
 	// send none.
 	UserID string `json:"user_id"`
+	// Channel is "voice" (default: satellites and the HA chat) or
+	// "telegram": a chat of HA's Telegram integration, passed on by the
+	// integration's adapter (docs/spec/kanaele.md).
+	Channel string `json:"channel"`
+	// Person is who writes on a messenger: the integration matched the
+	// chat to a person's channels. Trusted, like everything that comes with
+	// the token.
+	Person string `json:"person"`
 }
 
 type conversationResponse struct {
 	Text                 string `json:"text"`
 	ConversationID       string `json:"conversation_id"`
 	ContinueConversation bool   `json:"continue_conversation"`
+	// HTML is the answer for Telegram: Telegram's HTML, split into
+	// messages it accepts.
+	HTML []string `json:"html,omitempty"`
 }
 
 func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
@@ -188,18 +201,60 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.opts.TurnTimeout)
 	defer cancel()
+	channel := config.ChannelVoice
+	switch req.Channel {
+	case "", string(config.ChannelVoice):
+	case string(config.ChannelTelegram):
+		channel = config.ChannelTelegram
+	default:
+		writeError(w, http.StatusBadRequest, "channel must be voice or telegram")
+		return
+	}
 	resp, err := s.opts.Conversation.Handle(ctx, conversation.Request{
-		Channel: config.ChannelVoice, ConversationID: req.ConversationID, DeviceID: req.DeviceID,
+		Channel: channel, ConversationID: req.ConversationID, DeviceID: req.DeviceID,
 		Language: req.Language, Text: req.Text, Extra: req.ExtraSystemPrompt, HAUser: req.UserID,
+		Person: req.Person,
 	})
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)
 		writeError(w, http.StatusBadGateway, "the agent could not answer")
 		return
 	}
-	writeJSON(w, http.StatusOK, conversationResponse{
+	out := conversationResponse{
 		Text: resp.Text, ConversationID: resp.ConversationID, ContinueConversation: resp.ContinueConversation,
-	})
+	}
+	if channel == config.ChannelTelegram {
+		for _, part := range telegram.Split(resp.Text, telegram.MaxMessageLen) {
+			out.HTML = append(out.HTML, telegram.ToHTML(part))
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// resetter starts a conversation afresh ("/neu" on Telegram).
+type resetter interface {
+	ResetSession(ctx context.Context, ch config.Channel, conversationID string) error
+}
+
+func (s *Server) resetConversation(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Channel        string `json:"channel"`
+		ConversationID string `json:"conversation_id"`
+	}
+	if err := decode(r, &req); err != nil || req.ConversationID == "" {
+		writeError(w, http.StatusBadRequest, `body must be {"channel", "conversation_id"}`)
+		return
+	}
+	reset, ok := s.opts.Conversation.(resetter)
+	if !ok || (req.Channel != string(config.ChannelTelegram) && req.Channel != string(config.ChannelVoice)) {
+		writeError(w, http.StatusBadRequest, "cannot reset that conversation")
+		return
+	}
+	if err := reset.ResetSession(r.Context(), config.Channel(req.Channel), req.ConversationID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"reset": true})
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {

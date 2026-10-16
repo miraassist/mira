@@ -74,7 +74,7 @@ flowchart LR
 | `cmd/mira` | Start, Verdrahtung aller Teile (`app.go`), Befehle `run`, `chat`, `check`, `profile`, `skill` |
 | `cmd/testha` | Test-HA in Docker starten, befüllen, Sensoren schalten |
 | `internal/channels/haconv` | HTTP-API für die Integration: `/v1/conversation`, `/v1/messages`, `/v1/assess`, `/v1/decide`, `/v1/health`, `/v1/status` |
-| `internal/channels/telegram` | Telegram-Kanal (Long Polling, Allowlist) |
+| `internal/channels/telegram` | Antworten für Telegram formatieren (Telegram-HTML, Aufteilen); Telegram selbst läuft über HAs Integration und den Adapter `custom_components/mira/telegram.py` ([Kanäle](spec/kanaele.md)) |
 | `internal/conversation` | Die Gesprächs-Engine: Prompt bauen, Modell fragen, Werkzeuge ausführen, Schutz gegen unbelegte Antworten, „Übrigens“, Abgabe an stärkere Modelle, isolierte Aufrufe |
 | `internal/prompt` | Prompt-Schichten, Beispielunterhaltung, Texte je Sprache |
 | `internal/llm` | OpenAI-kompatibler Client (LM Studio, llama.cpp, Gemini) |
@@ -156,8 +156,11 @@ Wichtig:
 - **Fest im Code.** Ein schlichtes „Ja“ auf einen offenen Aufgabenvorschlag
   bestätigt der Code ohne Modell. Das steht auf der Besprechungsliste.
 
-Telegram läuft genauso, nur über den Telegram-Kanal statt über die
-Integration, mit eigenem Stil (Markdown, länger).
+Telegram läuft genauso über die Integration: HAs Telegram-Integration
+meldet eine Nachricht (`telegram_text`), der Adapter der Mira-Integration
+ordnet den Chat einer Person zu und schickt sie mit Kanal `telegram` an
+`/v1/conversation`; die Antwort (Telegram-HTML) geht mit
+`telegram_bot.send_message` zurück. Eigener Stil: Markdown, länger.
 
 ## 4. Ablauf: eine Aufgabe anlegen
 

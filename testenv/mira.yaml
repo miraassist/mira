@@ -59,9 +59,6 @@ mcp_servers:
     read_only: true
     web_content: true
 
-telegram:
-  enabled: false
-
 persons:
   anna: { entity: person.anna }
   ben: { entity: person.ben }

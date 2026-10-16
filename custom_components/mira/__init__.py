@@ -23,6 +23,7 @@ from .coordinator import MiraCoordinator
 from .labels import ensure_labels
 from .managed import import_settings
 from .panel import async_register_panel, async_register_views, async_remove_panel
+from .telegram import async_setup_telegram
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +172,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.runtime_data = MiraData(client=client, coordinator=coordinator)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+    # Telegram through Home Assistant's own integration (telegram.py).
+    entry.async_on_unload(async_setup_telegram(hass, entry))
     if entry.options.get(CONF_SIDEBAR, True):
         async_register_panel(hass, "Mira")
         entry.async_on_unload(lambda: async_remove_panel(hass))

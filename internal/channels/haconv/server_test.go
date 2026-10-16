@@ -82,6 +82,23 @@ func TestHealthReportsDegradedDependencies(t *testing.T) {
 	}
 }
 
+// A Telegram chat of HA's integration comes through the adapter with the
+// person it belongs to; the answer comes back as Telegram HTML.
+func TestConversationFromTelegram(t *testing.T) {
+	srv, conv, _ := setup(t)
+	code, body := do(t, srv, "POST", "/v1/conversation", "secret",
+		`{"text":"Hallo","conversation_id":"4711","language":"de","channel":"telegram","person":"ben"}`)
+	if code != 200 || conv.got.Channel != config.ChannelTelegram || conv.got.Person != "ben" || conv.got.ConversationID != "4711" {
+		t.Fatalf("response = %d %v, request %+v", code, body, conv.got)
+	}
+	if html, _ := body["html"].([]any); len(html) != 1 || html[0] != "Welches Licht?" {
+		t.Errorf("html = %v", body["html"])
+	}
+	if code, _ := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"x","channel":"fax"}`); code != 400 {
+		t.Errorf("unknown channel: %d", code)
+	}
+}
+
 func TestConversationIsForwardedAsVoice(t *testing.T) {
 	srv, conv, _ := setup(t)
 	code, body := do(t, srv, "POST", "/v1/conversation", "secret",
