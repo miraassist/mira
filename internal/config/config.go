@@ -607,8 +607,11 @@ func (c Config) Validate() error {
 			add("satellites[%s]: %q must be an assist_satellite or media_player entity", area, sat)
 		}
 	}
+	// With Home Assistant, persons and satellites come from there once Mira
+	// runs; the config alone does not know them, so rules that need them
+	// apply only without it.
 	for _, area := range c.Notifier.MorningTrigger.Areas {
-		if _, ok := c.Satellites[area]; !ok {
+		if _, ok := c.Satellites[area]; !ok && !c.HA.Enabled {
 			add("notifier.morning_trigger.areas: %q has no entry in satellites", area)
 		}
 		if len(c.Notifier.MorningTrigger.Presence[area]) == 0 {
@@ -641,7 +644,7 @@ func (c Config) Validate() error {
 	default:
 		add("notifier.delivery must be auto, start_conversation, announce or tts, not %q", c.Notifier.Delivery)
 	}
-	if c.Notifier.ConfidentialVoice == ConfidentialVoiceWhenAlone && len(c.Persons) == 0 {
+	if c.Notifier.ConfidentialVoice == ConfidentialVoiceWhenAlone && len(c.Persons) == 0 && !c.HA.Enabled {
 		add("notifier.confidential_voice when_alone needs persons with their person entities")
 	}
 	for id, p := range c.Persons {

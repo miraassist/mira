@@ -89,6 +89,25 @@ mcp_servers:
 	}
 }
 
+// With Home Assistant, persons and satellites come from there: a config
+// without them passes, without Home Assistant it does not.
+func TestValidatePersonsAndSatellitesFromHA(t *testing.T) {
+	notifier := `
+notifier:
+  confidential_voice: when_alone
+  morning_trigger:
+    areas: [wohnzimmer]
+    presence: { wohnzimmer: binary_sensor.pir }
+`
+	if _, err := Parse([]byte("ha: { enabled: true, url: \"http://ha\", token: t }\n"+notifier), fakeEnv(nil)); err != nil {
+		t.Fatalf("with Home Assistant: %v", err)
+	}
+	_, err := Parse([]byte("ha: { enabled: false }\n"+notifier), fakeEnv(nil))
+	if err == nil || !strings.Contains(err.Error(), "no entry in satellites") || !strings.Contains(err.Error(), "needs persons") {
+		t.Fatalf("without Home Assistant: want both errors, got %v", err)
+	}
+}
+
 func TestClockTimeAndDuration(t *testing.T) {
 	cfg, err := Parse([]byte(`
 ha: { enabled: false }
