@@ -390,3 +390,18 @@ func TestFactsAndProfilesPerOwner(t *testing.T) {
 		t.Errorf("anna's profile %q", p)
 	}
 }
+
+// A stored message is announced to whoever listens, for the indicators.
+func TestOnMessage(t *testing.T) {
+	s, _ := newStore(t)
+	got := make(chan struct{}, 2)
+	s.OnMessage(func() { got <- struct{}{} })
+	if _, _, err := s.PutMessage(context.Background(), Message{ID: "m1", Spoken: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-got:
+	case <-time.After(time.Second):
+		t.Fatal("not told about the new message")
+	}
+}

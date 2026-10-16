@@ -516,6 +516,13 @@ func (a *app) startProactive(parent context.Context) {
 		Composer: engineAssessor{a}.Assess, Screens: a.screens(ctx, cfg),
 	})
 	a.notifier = n
+	// A new message shows on the room's indicator at once, not at the
+	// next minute.
+	a.store.OnMessage(func() {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		n.SyncIndicators(ctx)
+	})
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
 }
 

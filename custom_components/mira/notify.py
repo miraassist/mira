@@ -47,7 +47,9 @@ class MiraNotify(NotifyEntity):
     async def async_send_message(self, message: str, title: str | None = None) -> None:
         text = f"{title}: {message}" if title else message
         try:
-            await self._entry.runtime_data.client.send_message({"text": text, "receiver": self._receiver})
+            await self._entry.runtime_data.client.send_message(
+                {"text": text, "receiver": self._receiver, "importance": 1}
+            )
         except MiraError as err:
             raise HomeAssistantError(f"Mira did not take the message: {err}") from err
         await self._entry.runtime_data.coordinator.async_request_refresh()

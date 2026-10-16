@@ -80,4 +80,4 @@ async def test_notify_entities_send_through_mira(hass, aioclient_mock, entry):
     assert set(ids) == {"house", "anna"}
     await hass.services.async_call("notify", "send_message", {"entity_id": ids["anna"], "message": "Waschmaschine fertig."}, blocking=True)
     _, _, sent, _ = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/messages"))
-    assert sent == {"text": "Waschmaschine fertig.", "receiver": "anna"}
+    assert sent == {"text": "Waschmaschine fertig.", "receiver": "anna", "importance": 1}

@@ -153,6 +153,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?)`,
 		return Message{}, false, fmt.Errorf("put message: %w", err)
 	}
 	stored, err := s.GetMessage(ctx, n.ID)
+	s.messageChanged()
 	return stored, created, err
 }
 

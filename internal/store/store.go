@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go driver, no cgo
@@ -24,6 +25,25 @@ type Clock func() time.Time
 type Store struct {
 	db    *sql.DB
 	clock Clock
+	// onMessage, when set, learns about every message stored or updated,
+	// so indicators can follow at once (OnMessage).
+	onMessage atomic.Pointer[func()]
+}
+
+// OnMessage sets what runs after a message was stored or updated; nil
+// clears it. It runs in its own goroutine and must not block the store.
+func (s *Store) OnMessage(fn func()) {
+	if fn == nil {
+		s.onMessage.Store(nil)
+		return
+	}
+	s.onMessage.Store(&fn)
+}
+
+func (s *Store) messageChanged() {
+	if fn := s.onMessage.Load(); fn != nil {
+		go (*fn)()
+	}
 }
 
 type Options struct {
