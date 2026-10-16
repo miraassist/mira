@@ -1,5 +1,7 @@
 # Vorgänge und Zieldefinitionen – Spezifikation
 
+Was das Modell vom Gespräch sieht (der Vorgang trägt das Anliegen, der Verlauf nur den Rückbezug, bei Sprache und Chat gleich), steht in [Kontext](kontext.md).
+
 Stand 2026-10-15, gebaut (Agent 0.4.0). Gilt für [Aufgaben](aufgaben.md) und kommende Anliegen
 wie Kalender oder Nachrichten an andere ([Benutzer](benutzer.md)).
 

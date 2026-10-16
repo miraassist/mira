@@ -129,20 +129,11 @@ sequenceDiagram
 
 Wichtig:
 
-- **Schichten und Cache.** Der Prompt besteht aus festen Schichten von
-  stabil nach volatil. Die Schichten 1 bis 5 sind byte-identisch, damit das
-  Modell den Anfang aus dem Cache nimmt.
-
-  | # | Schicht |
-  |---|---|
-  | 1 | Rolle und Regeln |
-  | 2 | Kanalstil |
-  | 3 | Werkzeuge |
-  | 4 | Hausstruktur |
-  | 5 | Haushaltsprofil |
-  | 6 | Verlauf |
-  | 7 | aktueller Turn mit Uhrzeit, Raum, Gedächtnis-Treffern und Nachrichtskontext |
-
+- **Kontext.** Was das Modell sieht, in fester Reihenfolge von stabil nach
+  volatil: Systemnachricht (Regeln, Haus-Struktur, Haus-Profil), Werkzeuge,
+  Beispielunterhaltung, Kanalstil, Verlauf, aktueller Turn. Der Anfang ist
+  byte-identisch und für alle Kanäle gleich, damit er aus dem Cache kommt.
+  Komposition, Cache und Kompaktierung: [Kontext](spec/kontext.md).
 - **Schutz gegen unbelegte Antworten.** Kündigt das Modell eine Aktion nur
   an, meldet es etwas als erledigt oder nennt es Messwerte und Zustände,
   ohne ein Werkzeug aufgerufen zu haben, muss es nachholen. Sonst ersetzt
