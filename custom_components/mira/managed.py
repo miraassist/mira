@@ -106,11 +106,20 @@ def person_from_agent(person: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def own_notify(hass: HomeAssistant) -> set[str]:
+    """Mira's own notify entities, the house's and each person's. They take
+    a message for Mira to deliver, so they are never a channel: one would
+    turn a person's message into a new message instead of delivering it."""
+    return {
+        e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify"
+    }
+
+
 def notify_targets(hass: HomeAssistant) -> list[str]:
     """What a person's channels can be: notify entities (e.g. a chat of
     HA's Telegram integration) and legacy notify services (the companion
-    app)."""
-    entities = {s.entity_id for s in hass.states.async_all("notify")}
+    app), without Mira's own."""
+    entities = {s.entity_id for s in hass.states.async_all("notify")} - own_notify(hass)
     services = {
         f"notify.{name}"
         for name in hass.services.async_services_for_domain("notify")
@@ -229,6 +238,11 @@ async def save_settings(
     satellites. Raises ValueError or the client's errors; nothing is stored
     then."""
     persons = {e: normalize_person(d) for e, d in (persons or {}).items()}
+    own = own_notify(hass)
+    for data in persons.values():
+        for c in data["channels"]:
+            if c in own:
+                raise ValueError(f"{c} is Mira's own and takes messages for her; a channel delivers them")
     satellites = {e: normalize_satellite(d) for e, d in (satellites or {}).items()}
     for entity in satellites:
         if not satellite_area(hass, entity):

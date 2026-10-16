@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.config_flow import FIELD_NAMES
 from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
+from custom_components.mira.managed import notify_targets
 
 from .conftest import AGENT_ID, AGENT_URL
 
@@ -187,6 +188,12 @@ async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
     assert _puts(aioclient_mock)[-1]["persons"] == {
         "ben_1": {"entity": entity, "channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True}
     }
+    # Mira's own notify entities take messages for her; they are no channel.
+    own = next(e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify")
+    assert own not in notify_targets(hass)
+    result = await _form(hass, entry, "persons")
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"channels": [own]})})
+    assert result["errors"] == {"base": "invalid_config"}
     # Emptied, the settings go away again.
     result = await _form(hass, entry, "persons")
     await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"alone_is_me": False})})
