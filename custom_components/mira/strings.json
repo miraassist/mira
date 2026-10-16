@@ -31,10 +31,12 @@
     "step": {
       "init": {
         "data": {
-          "timeout": "Answer timeout (seconds)"
+          "timeout": "Answer timeout (seconds)",
+          "sidebar": "Show in the sidebar"
         },
         "data_description": {
-          "timeout": "After this the satellite says a short error instead of staying silent."
+          "timeout": "After this the satellite says a short error instead of staying silent.",
+          "sidebar": "Mira's web UI as a page in Home Assistant, for admins. Each user can also hide it in their own sidebar."
         }
       }
     }

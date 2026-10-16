@@ -31,10 +31,12 @@
     "step": {
       "init": {
         "data": {
-          "timeout": "Antwort-Timeout (Sekunden)"
+          "timeout": "Antwort-Timeout (Sekunden)",
+          "sidebar": "Im Seitenmenü anzeigen"
         },
         "data_description": {
-          "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben."
+          "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben.",
+          "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant, für Admins. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden."
         }
       }
     }

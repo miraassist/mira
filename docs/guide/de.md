@@ -159,7 +159,7 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 ## Web-Oberfläche
 
-Unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf):
+In Home Assistant steht Mira für Admins im Seitenmenü, mit deiner HA-Anmeldung und im Aussehen deines HA-Themes, auch von unterwegs. Für sich allein läuft sie unter `http://<mira>:8787/ui` (Zugangs-Token beim ersten Aufruf). Beide zeigen dasselbe:
 
 - **Meldungen**: offene und zugestellte Meldungen ansehen und quittieren.
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, Link in den Editor von Home Assistant.
@@ -182,6 +182,7 @@ Ist die Mira-Integration in Home Assistant eingerichtet, bearbeitest du Räume u
 - **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Offene Hinweise** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
 - Automationen können Mira Meldungen geben, mit der Aktion `mira.add_notice`.
+- **Mira im Seitenmenü**: die Web-Oberfläche als Seite in Home Assistant, für Admins. Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)
 

@@ -1,8 +1,9 @@
 # Test dependencies of the HA integration (custom_components/mira).
 # pytest-homeassistant-custom-component pins the Home Assistant version;
-# the rest are the requirements of HA's conversation component, which the
-# harness does not install by itself. Bump together.
+# the rest are the requirements of HA's conversation and frontend
+# components, which the harness does not install by itself. Bump together.
 pytest-homeassistant-custom-component==0.13.372
 gazetteer-matcher==1.1.0
 hassil==3.12.1
 home-assistant-intents==2026.10.6
+home-assistant-frontend==20260930.3

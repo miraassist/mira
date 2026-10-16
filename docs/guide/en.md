@@ -159,7 +159,7 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 ## Web interface
 
-At `http://<mira>:8787/ui` (access token on first visit):
+In Home Assistant, Mira is in the sidebar for admins, with your HA login and in the look of your HA theme, also from away. On her own she runs at `http://<mira>:8787/ui` (access token on first visit). Both show the same:
 
 - **Notices**: see open and delivered notices and mark them done.
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, link into Home Assistant's editor.
@@ -182,6 +182,7 @@ If the Mira integration is set up in Home Assistant, you edit rooms and people t
 - **Device "Mira"** with the **Quiet mode** switch, the **Pending notices** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
 - Automations can give Mira notices with the action `mira.add_notice`.
+- **Mira in the sidebar**: the web interface as a page in Home Assistant, for admins. Switch it off in the integration's options; anyone can also hide it in just their own sidebar.
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)
 

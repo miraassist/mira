@@ -142,7 +142,8 @@ func (h *Handler) guide(w http.ResponseWriter, r *http.Request) {
 }
 
 // guideFile serves the guide's pictures and recordings; like the guide it
-// needs no token.
+// needs no token. Recordings come in ranges: Safari plays a video only
+// from a server that answers Range requests.
 func (h *Handler) guideFile(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	data, err := docs.GuideFile(name)
@@ -154,7 +155,7 @@ func (h *Handler) guideFile(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", t)
 	}
 	w.Header().Set("Cache-Control", "max-age=3600")
-	w.Write(data)
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
 }
 
 func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {

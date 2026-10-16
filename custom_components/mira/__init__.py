@@ -18,9 +18,10 @@ from homeassistant.helpers.typing import ConfigType
 
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
-from .const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN, VERSION
+from .const import CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
 from .coordinator import MiraCoordinator
 from .managed import import_subentries
+from .panel import async_register_panel, async_register_views, async_remove_panel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,6 +142,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, SERVICE_DECIDE, decide, schema=DECIDE_SCHEMA, supports_response=SupportsResponse.ONLY
     )
     async_register_commands(hass)
+    async_register_views(hass)
     return True
 
 
@@ -167,6 +169,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.runtime_data = MiraData(client=client, coordinator=coordinator)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+    if entry.options.get(CONF_SIDEBAR, True):
+        async_register_panel(hass, "Mira")
+        entry.async_on_unload(lambda: async_remove_panel(hass))
     return True
 
 

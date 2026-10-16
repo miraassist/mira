@@ -27,7 +27,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
-from .const import CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
+from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
 from .managed import SUBENTRY_PERSON, SUBENTRY_ROOM, build_config, unique_id
 
 USER_SCHEMA = vol.Schema(
@@ -126,16 +126,21 @@ class MiraConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class MiraOptionsFlow(OptionsFlow):
-    """Let the user tune how long a satellite waits for the agent."""
+    """How long a satellite waits for the agent; Mira in the sidebar."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = self.config_entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_TIMEOUT, default=current): vol.All(int, vol.Range(min=3, max=120))}
+                {
+                    vol.Required(CONF_TIMEOUT, default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): vol.All(
+                        int, vol.Range(min=3, max=120)
+                    ),
+                    vol.Required(CONF_SIDEBAR, default=options.get(CONF_SIDEBAR, True)): bool,
+                }
             ),
         )
 

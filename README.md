@@ -135,6 +135,12 @@ an urgent notice. These rules are enforced in code, not only in the prompt.
    with URL and token.
 4. Settings → Voice assistants: choose **Mira** as the conversation agent.
 
+Admins find Mira's web UI in Home Assistant's sidebar: the integration
+passes the page through Home Assistant (open, it holds no data) and its API
+calls through an authenticated, admin-only proxy that adds the agent's
+token. So it works over HA's HTTPS, with HA's login, and takes on HA's
+theme. The integration's options switch it off.
+
 The integration imports the agent's persons and rooms as subentries of its
 entry (Person, Raum), edited there with Home
 Assistant's entity and area pickers. Each change is checked by the agent

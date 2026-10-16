@@ -167,6 +167,22 @@ func TestGuideIsPublic(t *testing.T) {
 	}
 }
 
+// Guide files come in ranges, as Safari wants for videos.
+func TestGuideFilesInRanges(t *testing.T) {
+	srv, _, _ := setup(t)
+	req, _ := http.NewRequest("GET", srv.URL+"/ui/guide/img/aufgaben-liste-de.png", nil)
+	req.Header.Set("Range", "bytes=0-7")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Type") != "image/png" ||
+		!strings.HasPrefix(resp.Header.Get("Content-Range"), "bytes 0-7/") || resp.ContentLength != 8 {
+		t.Errorf("%d %q %q %d", resp.StatusCode, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Range"), resp.ContentLength)
+	}
+}
+
 // fakeTasks plays the task manager: one automation.
 type fakeTasks struct {
 	items   []tasks.Item

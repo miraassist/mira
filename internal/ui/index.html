@@ -148,6 +148,14 @@ dialog#dlg .actions { justify-content: flex-end; margin-top: 20px; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { dialog#dlg[open], dialog#dlg[open]::backdrop { animation: none; } }
+/* Inside Home Assistant: HA's theme (set from its variables, see haTheme),
+   HA's toolbar instead of Mira's header, Mira's colors only as accents. */
+html.ha body { font-family: var(--font); font-size: 14px; background: var(--bg); }
+html.ha header { padding: 6px 16px; background: var(--bg); backdrop-filter: none; border-bottom: 1px solid var(--line); border-image: none; }
+html.ha header h1, html.ha #lang { display: none; }
+html.ha nav button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+html.ha main { max-width: 1040px; padding-top: 16px; }
+html.ha section.card { border: var(--card-border, 1px solid var(--line)); }
 </style>
 </head>
 <body>
@@ -534,8 +542,70 @@ const I18N = {
 };
 const TABS = ["notices", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
 let token = localStorage.getItem("mira.token") || "";
-// The page's language: the visitor's choice, else the browser's.
-let lang = localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
+
+// Inside Home Assistant the integration's sidebar panel shows this page
+// through HA's own server, under /api/mira/: calls go through HA with the
+// logged-in HA user (no Mira token), and the page takes HA's theme and
+// language. The parent window is HA's frontend, same origin.
+const HA_BASE = "/api/mira";
+const embedded = location.pathname.startsWith(HA_BASE + "/");
+const haRoot = embedded ? (() => { try { return window.parent.document.querySelector("home-assistant"); } catch (e) { return null; } })() : null;
+const hass = () => haRoot && haRoot.hass;
+// url maps the agent's paths: the API through HA's authenticated proxy,
+// the page's files through the open one.
+const url = p => !embedded ? p : HA_BASE + (p.startsWith("/v1/") ? "/proxy" : "/panel") + p;
+async function authorization() {
+  if (!embedded) return "Bearer " + token;
+  const auth = hass() && hass().auth;
+  if (!auth) return "";
+  if (auth.expired) await auth.refreshAccessToken();
+  return "Bearer " + auth.accessToken;
+}
+// haTheme copies HA's theme variables onto the page's own.
+function haTheme() {
+  let cs;
+  try { cs = window.parent.getComputedStyle(window.parent.document.documentElement); } catch (e) { return; }
+  const v = n => cs.getPropertyValue(n).trim();
+  const st = document.documentElement.style;
+  const set = (k, ...names) => { const x = names.map(v).find(Boolean); if (x) st.setProperty(k, x); };
+  set("--bg", "--primary-background-color");
+  set("--panel", "--ha-card-background", "--card-background-color");
+  set("--text", "--primary-text-color");
+  set("--muted", "--secondary-text-color");
+  set("--line", "--divider-color");
+  set("--accent", "--primary-color");
+  set("--accent-2", "--primary-color");
+  set("--accent-text", "--text-primary-color");
+  set("--warn", "--error-color");
+  set("--badge", "--secondary-background-color");
+  set("--radius", "--ha-card-border-radius");
+  set("--shadow", "--ha-card-box-shadow");
+  set("--font", "--ha-font-family-body", "--paper-font-body1_-_font-family");
+  if (!v("--ha-card-box-shadow")) st.setProperty("--shadow", "none");
+  const dark = !!(hass() && hass().themes && hass().themes.darkMode);
+  st.colorScheme = dark ? "dark" : "light";
+}
+// haLink turns a link into Home Assistant into one that opens in HA itself.
+const haLink = u => { if (!embedded) return u; try { const x = new URL(u); return x.pathname + x.search + x.hash; } catch (e) { return u; } };
+const haTarget = embedded ? "_top" : "_blank";
+if (embedded) {
+  document.documentElement.classList.add("ha");
+  haTheme();
+  try { new MutationObserver(haTheme).observe(window.parent.document.documentElement, { attributes: true }); } catch (e) {}
+  document.querySelectorAll('img[src="/ui/icon.png"]').forEach(img => { img.src = url("/ui/icon.png"); });
+  // A link into HA opens there, the way HA's own links do.
+  document.addEventListener("click", e => {
+    const a = e.target.closest("a[data-ha]");
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    window.parent.history.pushState(null, "", a.getAttribute("href"));
+    window.parent.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+  });
+}
+
+// The page's language: HA's inside HA, else the visitor's choice, else the browser's.
+const haLang = embedded && hass() && hass().language;
+let lang = (haLang && haLang.slice(0, 2)) || localStorage.getItem("mira.lang") || ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en");
 if (!I18N[lang]) lang = "en";
 let T = I18N[lang];
 document.documentElement.lang = lang;
@@ -555,12 +625,12 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 async function api(method, path, body) {
-  const res = await fetch(path, {
-    method, headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+  const res = await fetch(url(path), {
+    method, headers: { "Authorization": await authorization(), "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { askToken(); throw new Error(T.token_wrong); }
+  if (res.status === 401 && !embedded) { askToken(); throw new Error(T.token_wrong); }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
@@ -948,7 +1018,7 @@ async function tasks() {
         ${t.summary ? `<p>${esc(t.summary)}</p>` : ""}
         <pre class="code">${esc(JSON.stringify(t.automation, null, 2))}</pre>
         <div class="actions">
-          ${t.edit_url ? `<a class="button secondary" href="${esc(t.edit_url)}" target="_blank" rel="noopener">${T.task_edit}</a>` : ""}
+          ${t.edit_url ? `<a class="button secondary" href="${esc(haLink(t.edit_url))}" target="${haTarget}" rel="noopener"${embedded ? " data-ha" : ""}>${T.task_edit}</a>` : ""}
           <button class="secondary" onclick="tryTask('${id}')">${T.task_try}</button>
           <button class="danger" onclick="deleteTask('${id}')">${T.remove}</button>
         </div>
@@ -996,7 +1066,7 @@ async function deleteTask(id) {
 async function guide() {
   $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
   try {
-    const res = await fetch("/ui/guide/" + lang);
+    const res = await fetch(url("/ui/guide/" + lang));
     $("#guide").innerHTML = markdown(await res.text());
   } catch (e) { message(e.message, false); }
 }
@@ -1053,10 +1123,10 @@ function markdown(md) {
 }
 // media shows a picture or a recording of the guide with its caption.
 function media(alt, src) {
-  const url = "/ui/guide/" + src;
+  const file = url("/ui/guide/" + src);
   const body = /\.(mp4|webm)$/.test(src)
-    ? `<video controls preload="metadata" src="${esc(url)}"></video>`
-    : `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(alt)}" loading="lazy"></a>`;
+    ? `<video controls preload="metadata" src="${esc(file)}"></video>`
+    : `<a href="${esc(file)}" target="_blank" rel="noopener"><img src="${esc(file)}" alt="${esc(alt)}" loading="lazy"></a>`;
   return `<figure>${body}${alt ? `<figcaption>${inline(alt)}</figcaption>` : ""}</figure>`;
 }
 
