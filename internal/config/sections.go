@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // UISections are the parts of the config the web UI may change. None of them
 // holds a secret; tokens and URLs stay in the YAML file and the environment.
-var UISections = []string{"notifier", "persons", "satellites"}
+var UISections = []string{"notifier", "persons", "satellites", "persona"}
 
 // section returns a pointer to the named section inside c.
 func (c *Config) section(name string) (any, error) {
@@ -21,6 +22,8 @@ func (c *Config) section(name string) (any, error) {
 		return &c.Persons, nil
 	case "satellites":
 		return &c.Satellites, nil
+	case "persona":
+		return &c.Prompt.Persona, nil
 	}
 	return nil, fmt.Errorf("unknown or read-only config section %q", name)
 }
@@ -85,6 +88,12 @@ func (c *Config) ApplySection(name string, raw []byte) error {
 			return fmt.Errorf("section %s: %w", name, err)
 		}
 		*p = v
+	case *string:
+		var v string
+		if err := yaml.Unmarshal(raw, &v); err != nil {
+			return fmt.Errorf("section %s: %w", name, err)
+		}
+		*p = strings.TrimSpace(v)
 	}
 	return nil
 }

@@ -29,13 +29,22 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 	}
 	return prompt.Prefix{
 		Lang:      e.lang(),
-		Agent:     prompt.AgentLayer(e.lang(), e.cfg.Prompt.Persona),
+		Agent:     prompt.AgentLayer(e.lang(), e.currentPersona()),
 		Style:     prompt.StyleFor(e.lang(), ch),
 		Tools:     toolList,
 		Structure: e.structureText(),
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
 		Examples:  prompt.Examples(e.lang(), toolList),
 	}, nil
+}
+
+// currentPersona is the persona as the web UI last set it, else the
+// config's.
+func (e *Engine) currentPersona() string {
+	if e.persona != nil {
+		return e.persona()
+	}
+	return e.cfg.Prompt.Persona
 }
 
 // structureText is layer 4: Home Assistant's Assist prompt when there is

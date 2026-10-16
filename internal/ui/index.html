@@ -180,6 +180,10 @@ const I18N = {
  "de": {
   "tab_messages": "Nachrichten",
   "tab_notifier": "Benachrichtigung",
+  "tab_persona": "Persönlichkeit",
+  "persona_hint": "Wie ich klinge: Ton, Humor, wie knapp ich antworte. Ich hänge den Text an meine festen Regeln an, er gilt für Sprache, Telegram und meine Ansagen. Wie lang Antworten am Satelliten sind und ob Listen erlaubt sind, regle ich je Kanal selbst; das gehört nicht hier hinein.",
+  "persona_placeholder": "Trocken, schlagfertig, ein bisschen frech – wie ein Mitbewohner mit Humor, nicht wie ein Diener. Keine Floskeln wie „Gern geschehen“. Bei Gerätebefehlen höchstens ein kurzer Satz …",
+  "persona_chars": "Zeichen",
   "tab_rooms": "Satelliten",
   "tab_persons": "Personen",
   "tab_memory": "Gedächtnis",
@@ -376,6 +380,10 @@ const I18N = {
  "en": {
   "tab_messages": "Messages",
   "tab_notifier": "Notifications",
+  "tab_persona": "Personality",
+  "persona_hint": "How I sound: tone, humour, how short I answer. I append this text to my fixed rules; it applies to voice, Telegram and my announcements. How long answers at a satellite are and whether lists are allowed I decide per channel myself; that does not belong here.",
+  "persona_placeholder": "Dry, quick-witted, a bit cheeky – like a flatmate with a sense of humour, not a servant. No phrases like \"You're welcome\". For device commands one short sentence at most …",
+  "persona_chars": "characters",
   "tab_rooms": "Satellites",
   "tab_persons": "People",
   "tab_memory": "Memory",
@@ -570,7 +578,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["messages", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
+const ALL_TABS = ["messages", "tasks", "notifier", "persona", "rooms", "persons", "memory", "guide"];
 let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
@@ -771,7 +779,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { messages, tasks, notifier, rooms, persons, memory, guide };
+  const views = { messages, tasks, notifier, persona, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -874,6 +882,21 @@ function saveNotifier() {
   n.escalate_to_telegram = { min_importance: num($("#esc_min").value, 2), after: $("#esc_after").value, grace: $("#esc_grace").value.trim() };
   n.urgent = { min_importance: num($("#urg_min").value, 3), announce: $("#urg_announce").checked };
   save({ notifier: n });
+}
+
+// ---- Persönlichkeit -------------------------------------------------------
+const PERSONA_MAX = 4000;
+function persona() {
+  const text = val("persona") || "";
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>${T.tab_persona} ${source("persona")}</h2>
+    <p class="hint">${T.persona_hint}</p>
+    <textarea id="persona" rows="16" maxlength="${PERSONA_MAX}" placeholder="${esc(T.persona_placeholder)}"
+      oninput="$('#persona_count').textContent = this.value.length">${esc(text)}</textarea>
+    <p class="hint"><span id="persona_count">${text.length}</span> / ${PERSONA_MAX} ${T.persona_chars}</p>
+    <div class="actions"><button class="primary" onclick="save({ persona: $('#persona').value.trim() })">${T.save}</button></div>
+  </section>`;
 }
 
 // ---- Räume --------------------------------------------------------------

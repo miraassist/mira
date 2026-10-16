@@ -148,6 +148,9 @@ type Store struct {
 	Path string `yaml:"path"`
 }
 
+// MaxPersonaChars bounds the persona: it is part of every request.
+const MaxPersonaChars = 4000
+
 type Prompt struct {
 	// Persona is appended to the built-in layer 1 text. It is part of the
 	// cached prefix, so it must not contain anything volatile.
@@ -668,6 +671,9 @@ func (c Config) Validate() error {
 
 	if c.Sessions.KeepTurns < 1 || c.Sessions.MaxTurns <= c.Sessions.KeepTurns {
 		add("sessions: keep_turns must be at least 1 and below max_turns (%d, %d)", c.Sessions.KeepTurns, c.Sessions.MaxTurns)
+	}
+	if n := len([]rune(c.Prompt.Persona)); n > MaxPersonaChars {
+		add("prompt.persona is %d characters long; at most %d fit, since it goes with every request", n, MaxPersonaChars)
 	}
 	if c.Notifier.MaxItemsPerAnnouncement < 1 {
 		add("notifier.max_items_per_announcement must be at least 1")

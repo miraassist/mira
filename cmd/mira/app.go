@@ -259,6 +259,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Guard:     tools.NewGuard(i18n.Of(cfg.Prompt.Language), cfg.Security, a.store, snapshot),
 		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify,
+		Persona: func() string { return a.liveConfig().Prompt.Persona },
 		Afterword: func(ctx context.Context, area string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier

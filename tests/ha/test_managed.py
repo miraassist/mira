@@ -108,6 +108,28 @@ async def _form(hass, entry, step):
     return await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": step})
 
 
+async def test_persona_lives_at_the_agent(hass, aioclient_mock, entry):
+    """The general options show the agent's persona and send a change back;
+    the entry does not keep it. Unchanged, nothing is sent."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/config", json={"persona": {"value": "Trocken."}})
+    aioclient_mock.put(f"{AGENT_URL}/v1/ui/config", json={})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    result = await _form(hass, entry, "general")
+    persona = next(k for k in result["data_schema"].schema if str(k) == "persona")
+    assert persona.description == {"suggested_value": "Trocken."}
+    await hass.config_entries.options.async_configure(result["flow_id"], {"timeout": 20, "sidebar": True, "persona": "Trocken."})
+    assert not [c for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
+    result = await _form(hass, entry, "general")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"timeout": 20, "sidebar": True, "persona": "  Frech.  "}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    puts = [c[2] for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
+    assert puts == [{"persona": "Frech."}]
+    assert "persona" not in entry.options
+
+
 async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, entry):
     """A room is a satellite's area; several motion sensors may say someone
     came in. Every Assist satellite with an area speaks there anyway. One

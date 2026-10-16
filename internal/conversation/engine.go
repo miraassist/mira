@@ -99,7 +99,10 @@ type Options struct {
 	// renders it for layer 7. followedUp are the messages this turn answers.
 	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
 	// Identify says who is speaking: a person key, or "" for anonymous.
-	Identify  func(ctx context.Context, req Request, sess store.Session) string
+	Identify func(ctx context.Context, req Request, sess store.Session) string
+	// Persona returns the persona as it is now, which the web UI can
+	// change; without it the config's applies.
+	Persona   func() string
 	Telemetry *telemetry.Provider
 	Logger    *slog.Logger
 	// Clock and Location set the time the model is told. Tests pin both.
@@ -118,6 +121,7 @@ type Engine struct {
 	afterword func(ctx context.Context, area string) string
 	thread    func(ctx context.Context, sess store.Session, followedUp []string) string
 	identify  func(ctx context.Context, req Request, sess store.Session) string
+	persona   func() string
 	tel       *telemetry.Provider
 	log       *slog.Logger
 	clock     func() time.Time
@@ -158,6 +162,7 @@ func New(opts Options) *Engine {
 		afterword: opts.Afterword,
 		thread:    opts.Thread,
 		identify:  opts.Identify,
+		persona:   opts.Persona,
 		tel:       opts.Telemetry,
 		log:       opts.Logger.With("component", "conversation"),
 		clock:     opts.Clock,

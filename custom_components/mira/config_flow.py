@@ -27,7 +27,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .api import MiraAuthError, MiraClient, MiraError, MiraInvalidConfig
-from .const import CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
+from .const import CONF_PERSONA, CONF_SIDEBAR, CONF_TIMEOUT, DEFAULT_TIMEOUT, DOMAIN
 from .managed import (
     ACCEPT,
     all_persons,
@@ -158,24 +158,52 @@ class MiraOptionsFlow(OptionsFlow):
     persons and satellites themselves (managed.py)."""
 
     _keys: dict[str, str] = {}
+    # The persona as the agent had it when the form opened; None without
+    # the agent.
+    _persona: str | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(step_id="init", menu_options=["general", "persons", "satellites"])
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        # The persona lives at the agent, like everything it is asked for
+        # per request; the entry keeps only what the integration itself
+        # needs. Without the agent the field is left out, so nothing is
+        # overwritten blindly.
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        client = runtime.client if runtime else None
+        errors: dict[str, str] = {}
+        placeholders = {"error": ""}
         if user_input is not None:
-            return self.async_create_entry(data=dict(self.config_entry.options) | user_input)
+            data = dict(user_input)
+            persona = data.pop(CONF_PERSONA, None)
+            if client and persona is not None and persona.strip() != self._persona:
+                try:
+                    await client.set_persona(persona.strip())
+                except MiraInvalidConfig as err:
+                    errors["base"], placeholders["error"] = "invalid_config", str(err)
+                except MiraError:
+                    errors["base"] = "cannot_connect"
+            if not errors:
+                return self.async_create_entry(data=dict(self.config_entry.options) | data)
+        else:
+            try:
+                self._persona = await client.persona() if client else None
+            except MiraError:
+                self._persona = None
         options = self.config_entry.options
-        return self.async_show_form(
-            step_id="general",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_TIMEOUT, default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): vol.All(
-                        int, vol.Range(min=3, max=120)
-                    ),
-                    vol.Required(CONF_SIDEBAR, default=options.get(CONF_SIDEBAR, True)): bool,
-                }
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_TIMEOUT, default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): vol.All(
+                int, vol.Range(min=3, max=120)
             ),
+            vol.Required(CONF_SIDEBAR, default=options.get(CONF_SIDEBAR, True)): bool,
+        }
+        if self._persona is not None:
+            fields[vol.Optional(CONF_PERSONA, description={"suggested_value": self._persona})] = selector.TextSelector(
+                selector.TextSelectorConfig(multiline=True)
+            )
+        return self.async_show_form(
+            step_id="general", data_schema=vol.Schema(fields), errors=errors, description_placeholders=placeholders
         )
 
     async def async_step_persons(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:

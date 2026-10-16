@@ -60,3 +60,26 @@ func TestCompactDurations(t *testing.T) {
 		}
 	}
 }
+
+// The persona is a section of its own: plain text, trimmed, bounded.
+func TestPersonaSection(t *testing.T) {
+	c := Default()
+	y, err := SectionYAML("persona", json.RawMessage(`"  Trocken und frech.\nKeine Floskeln.  "`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ApplySection("persona", y); err != nil {
+		t.Fatal(err)
+	}
+	if c.Prompt.Persona != "Trocken und frech.\nKeine Floskeln." {
+		t.Errorf("persona = %q", c.Prompt.Persona)
+	}
+	raw, _ := c.SectionJSON("persona")
+	if string(raw) != `"Trocken und frech.\nKeine Floskeln."` {
+		t.Errorf("persona as JSON: %s", raw)
+	}
+	c.Prompt.Persona = strings.Repeat("x", MaxPersonaChars+1)
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "prompt.persona") {
+		t.Errorf("want a length error, got %v", err)
+	}
+}

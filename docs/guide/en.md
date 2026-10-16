@@ -177,6 +177,7 @@ Mira is in Home Assistant's sidebar. You are signed in there already, she looks 
 - **Messages**: see open and delivered messages and mark them done.
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent messages.
+- **Personality**: how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it. The same field is in Home Assistant under Mira → Configure → General.
 - **Satellites** and **People**: all of them from Home Assistant, with what Mira needs on top; as an admin you set it right here (see below).
 - **Memory**: the house's and your own; edit and forget.
 - **Guide**: this page.

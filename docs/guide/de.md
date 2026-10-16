@@ -177,6 +177,7 @@ Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie 
 - **Nachrichten**: offene und zugestellte Nachrichten ansehen und quittieren.
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten.
+- **Persönlichkeit**: wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein. Dasselbe Feld gibt es in Home Assistant unter Mira → Konfigurieren → Allgemein.
 - **Satelliten** und **Personen**: alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; als Admin stellst du es hier direkt ein (siehe unten).
 - **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
