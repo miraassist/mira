@@ -11,11 +11,11 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/ha/structure"
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/prompt"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Outcome of a policy check.

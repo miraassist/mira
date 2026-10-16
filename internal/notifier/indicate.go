@@ -7,8 +7,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/store"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // In a room with mode "indicate", messages are not spoken when someone comes

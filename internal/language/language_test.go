@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/store"
 )
 
 func newResolver(t *testing.T, server func(context.Context) (string, error)) *Resolver {

@@ -2,12 +2,12 @@ package structure
 
 import (
 	"context"
-	"github.com/sker65/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/i18n"
 	"log/slog"
 	"sync"
 	"time"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 // Registry events that invalidate the structure block.

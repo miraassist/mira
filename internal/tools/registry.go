@@ -15,9 +15,9 @@ import (
 	"sort"
 	"unicode/utf8"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/mcp"
-	"github.com/sker65/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/mcp"
+	"github.com/miraassist/mira/internal/prompt"
 )
 
 // Spec describes a tool to the policy and the prompt builder.

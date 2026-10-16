@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/ical"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/ical"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 const secretURL = "https://example.org/cal?StandortID=geheim"

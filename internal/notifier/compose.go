@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Composer runs one isolated model request with a JSON answer (the

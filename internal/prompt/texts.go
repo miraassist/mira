@@ -1,6 +1,6 @@
 package prompt
 
-import "github.com/sker65/mira/internal/i18n"
+import "github.com/miraassist/mira/internal/i18n"
 
 // texts are the words of the prompt layers in one language. Layers 1 to 5
 // are part of the cached prefix: nothing here may vary between requests.

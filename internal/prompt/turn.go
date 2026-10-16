@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/i18n"
 )
 
 // Turn is layer 7: everything that is new about this request. Every volatile

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 // people is the directory of Home Assistant's persons: with Home Assistant

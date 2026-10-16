@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/conversation"
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/testsupport/fakellm"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {

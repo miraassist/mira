@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/llm"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/llm"
 )
 
 // Examples is a short, fixed sample conversation that follows the system

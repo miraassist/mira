@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 const (

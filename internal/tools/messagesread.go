@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/sker65/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/i18n"
 )
 
 const ToolMessagesRead = "messages_read"

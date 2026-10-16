@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/testsupport/fakeha"
-	"github.com/sker65/mira/internal/testsupport/fakellm"
-	"github.com/sker65/mira/internal/testsupport/fakemcp"
+	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/testsupport/fakeha"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 )
 
 func freeAddr(t *testing.T) string {

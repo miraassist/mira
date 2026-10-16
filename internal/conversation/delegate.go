@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/prompt"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 type delegatingKey struct{}

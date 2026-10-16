@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/testsupport/fakeha"
-	"github.com/sker65/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/testsupport/fakeha"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
 )
 
 func waitUntil(t *testing.T, what string, cond func() bool) {

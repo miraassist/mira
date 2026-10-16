@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/ical"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/ical"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 const (

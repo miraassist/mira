@@ -8,12 +8,12 @@ package structure
 
 import (
 	"fmt"
-	"github.com/sker65/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/i18n"
 	"slices"
 	"sort"
 	"strings"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 // Registry is the raw input of a build.

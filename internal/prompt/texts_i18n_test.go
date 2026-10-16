@@ -3,7 +3,7 @@ package prompt
 import (
 	"testing"
 
-	"github.com/sker65/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/i18n"
 )
 
 func TestTextsComplete(t *testing.T) {

@@ -25,8 +25,8 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/prompt"
 )
 
 // ErrUnknownTool is returned for a name no connected server offers.

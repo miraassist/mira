@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/docs"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/docs"
+	"github.com/miraassist/mira/internal/store"
 )
 
 //go:embed index.html

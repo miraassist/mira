@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Remind delivers a due scheduled message (a reminder) now. The user chose

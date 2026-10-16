@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 // simulated maps each simulated sensor to the input_boolean that drives it

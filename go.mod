@@ -1,4 +1,4 @@
-module github.com/sker65/mira
+module github.com/miraassist/mira
 
 go 1.27.2
 

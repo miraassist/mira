@@ -12,8 +12,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Request is what mira.assess and mira.decide send. Templates in it are

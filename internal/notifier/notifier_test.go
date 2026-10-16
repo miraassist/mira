@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/store"
 )
 
 type call struct {

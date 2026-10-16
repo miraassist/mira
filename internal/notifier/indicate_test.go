@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/store"
 )
 
 func indicateEnv(t *testing.T) *env {

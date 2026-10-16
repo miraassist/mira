@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tasks"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tasks"
 )
 
 type fakeConfig struct {

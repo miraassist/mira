@@ -1,6 +1,6 @@
 package tools
 
-import "github.com/sker65/mira/internal/i18n"
+import "github.com/miraassist/mira/internal/i18n"
 
 // texts are the descriptions of the internal tools (part of prompt layer 3),
 // their results, and the guard's messages to the model.

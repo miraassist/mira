@@ -23,14 +23,14 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/ha/structure"
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/prompt"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/telemetry"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/telemetry"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // Chatter is the part of the LLM client the engine uses.

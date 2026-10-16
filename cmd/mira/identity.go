@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/conversation"
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/conversation"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // identify says who is speaking in a turn: a person key, or "" for someone

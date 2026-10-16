@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/threads"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/threads"
 )
 
 // entityPattern finds entity ids in a field value ("light.bad und

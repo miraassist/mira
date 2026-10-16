@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/ha/structure"
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/store"
 )
 
 func f(v float64) *float64 { return &v }

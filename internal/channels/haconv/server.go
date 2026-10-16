@@ -15,11 +15,11 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/mira/internal/channels/telegram"
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/conversation"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tasks"
+	"github.com/miraassist/mira/internal/channels/telegram"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tasks"
 )
 
 // Conversation is the part of the engine the API needs.

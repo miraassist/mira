@@ -22,11 +22,11 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/skills"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tools"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // Result is what a finish's work yields.

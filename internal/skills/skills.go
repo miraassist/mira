@@ -27,7 +27,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/sker65/mira/internal/schedule"
+	"github.com/miraassist/mira/internal/schedule"
 )
 
 // Skill is one loaded and enabled skill.

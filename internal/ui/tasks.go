@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/tasks"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tasks"
 )
 
 // Tasks is what the UI does with Mira's tasks (package tasks): Mira's

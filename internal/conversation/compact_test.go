@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/store"
-	"github.com/sker65/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
 )
 
 func turns(t *testing.T, h *harness, key string) (n int, first string) {

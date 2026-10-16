@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
-	"github.com/sker65/mira/internal/i18n"
+	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/i18n"
 )
 
 // Views are how Mira condenses data from Home Assistant for a judgement: a

@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/sker65/mira/internal/config"
-	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 func TestAloneAtHome(t *testing.T) {

@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sker65/mira/internal/i18n"
-	"github.com/sker65/mira/internal/schedule"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/schedule"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Assessor runs one isolated background request with a JSON answer: no

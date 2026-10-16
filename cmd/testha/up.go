@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	haws "github.com/sker65/mira/internal/ha/ws"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 func up(ctx context.Context, dir string) error {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
 )
 
 func TestChatSendsSlotAndCachePrompt(t *testing.T) {

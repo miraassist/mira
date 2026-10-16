@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sker65/mira/internal/ha/structure"
-	haws "github.com/sker65/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/ha/structure"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
 // Entity is what the planner may choose from.

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/sker65/mira/internal/config"
+	"github.com/miraassist/mira/internal/config"
 )
 
 // screens finds, for satellites without an indicator light, an on-screen

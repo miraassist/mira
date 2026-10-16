@@ -6,10 +6,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sker65/mira/internal/config"
-	"github.com/sker65/mira/internal/llm"
-	"github.com/sker65/mira/internal/prompt"
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // Assess runs one stateless request on the background slot: the background

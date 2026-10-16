@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sker65/mira/internal/store"
+	"github.com/miraassist/mira/internal/store"
 )
 
 type fakeAssessor struct {
