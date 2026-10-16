@@ -177,7 +177,6 @@ Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie 
 - **Nachrichten**: offene und zugestellte Nachrichten ansehen und quittieren.
 - **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
 - **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten.
-- **Persönlichkeit**: wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein. Dasselbe Feld gibt es in Home Assistant unter Mira → Konfigurieren → Allgemein.
 - **Satelliten** und **Personen**: alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; als Admin stellst du es hier direkt ein (siehe unten).
 - **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
 - **Anleitung**: diese Seite.
@@ -214,6 +213,7 @@ Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter 
 
 ![Einstellungen für Personen unter „Konfigurieren“: ein Abschnitt pro Person](img/ha-person-de.png)
 
+- **Persönlichkeit** (unter **Allgemein**): wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
 
 Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.

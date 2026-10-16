@@ -177,7 +177,6 @@ Mira is in Home Assistant's sidebar. You are signed in there already, she looks 
 - **Messages**: see open and delivered messages and mark them done.
 - **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
 - **Notifications**: quiet hours, pauses, escalation, confidential and urgent messages.
-- **Personality**: how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it. The same field is in Home Assistant under Mira → Configure → General.
 - **Satellites** and **People**: all of them from Home Assistant, with what Mira needs on top; as an admin you set it right here (see below).
 - **Memory**: the house's and your own; edit and forget.
 - **Guide**: this page.
@@ -214,6 +213,7 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 
 ![Settings for people under "Configure": one section per person](img/ha-person-en.png)
 
+- **Personality** (under **General**): how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it.
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
