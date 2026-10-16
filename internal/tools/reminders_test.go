@@ -52,18 +52,18 @@ func TestReminderSet(t *testing.T) {
 	if _, err := run(t, set, voice, `{"text":"Arzt","at":"2026-10-17T08:30","for":"anna"}`); err != nil {
 		t.Fatal(err)
 	}
-	list, _ := st.PendingReminders(context.Background(), time.Time{})
+	list, _ := st.ScheduledMessages(context.Background(), time.Time{})
 	if len(list) != 3 {
 		t.Fatalf("reminders: %+v", list)
 	}
 	timer, trash, doctor := list[0], list[1], list[2]
-	if !timer.DueAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Receiver != "house" {
+	if !timer.DeliverAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Receiver != "house" {
 		t.Errorf("timer: %+v", timer)
 	}
 	if trash.Receiver != "ben" || trash.AreaID != "" {
 		t.Errorf("telegram reminder should go to the asking person: %+v", trash)
 	}
-	if doctor.Receiver != "anna" || doctor.DueAt.Hour() != 8 {
+	if doctor.Receiver != "anna" || doctor.DeliverAt.Hour() != 8 {
 		t.Errorf("named person: %+v", doctor)
 	}
 

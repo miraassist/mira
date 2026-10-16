@@ -345,6 +345,8 @@ type messageJSON struct {
 	Source          string `json:"source"`
 	CreatedAt       string `json:"created_at"`
 	DeliveredVia    string `json:"delivered_via,omitempty"`
+	// DeliverAt is when a scheduled message (a reminder) goes out.
+	DeliverAt string `json:"deliver_at,omitempty"`
 }
 
 func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
@@ -373,6 +375,9 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 		out = append(out, messageJSON{ID: n.ID, State: state, Importance: n.Importance, Receiver: n.Receiver,
 			Confidentiality: n.Confidentiality, Spoken: n.Spoken, Details: n.Details, Source: n.Source,
 			CreatedAt: localTime(n.CreatedAt), DeliveredVia: n.DeliveredVia})
+		if !n.DeliverAt.IsZero() {
+			out[len(out)-1].DeliverAt = localTime(n.DeliverAt)
+		}
 	}
 	more := len(out) > messagePage
 	if more {

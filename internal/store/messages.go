@@ -8,12 +8,17 @@ import (
 	"time"
 )
 
-// Message states.
+// Message states. A message with a delivery time (a reminder) is scheduled
+// until then; it counts as waiting only once it is due.
 const (
+	MessageScheduled = "scheduled"
 	MessagePending   = "pending"
 	MessageDelivered = "delivered"
 	MessageAcked     = "acked"
 	MessageExpired   = "expired"
+	MessageCancelled = "cancelled"
+	// MessageFailed is given up after MaxDeliveryAttempts.
+	MessageFailed = "failed"
 )
 
 // Message sources.
@@ -52,6 +57,17 @@ type Message struct {
 	DeliveredAt  time.Time
 	// Confidentiality is ConfidentialityNormal or ConfidentialityConfidential.
 	Confidentiality string
+	// Sender is who sent it: "person:<key>", "area:<id>" (someone at a
+	// satellite), or empty for Mira herself (a task, a skill, a reminder).
+	Sender string
+	// DeliverAt is when a scheduled message is delivered (a reminder); it
+	// is then spoken in AreaID, the room it was asked for in, or sent
+	// privately. Zero for a message that waits to be heard.
+	DeliverAt  time.Time
+	AreaID     string
+	SessionKey string
+	// Attempts counts failed deliveries of a scheduled message.
+	Attempts int
 	// ThreadID is the thread ("Vorgang") the message belongs to, if any: a
 	// reply to it continues that thread, and the message is withdrawn when
 	// the thread ends.
@@ -119,10 +135,12 @@ WHERE id = ?`, n.Source, n.Importance, n.Receiver, n.Spoken, n.Details,
 		}
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO messages(id, source, dedupe_key, importance, receiver, spoken, details,
-                    created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?)`,
+                    created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id,
+                    sender, deliver_at, area_id, session_key)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?)`,
 			n.ID, n.Source, n.DedupeKey, n.Importance, n.Receiver, n.Spoken, n.Details,
-			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality, n.ThreadID)
+			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality, n.ThreadID,
+			n.Sender, formatTime(n.DeliverAt), n.AreaID, n.SessionKey)
 		if err != nil {
 			return err
 		}
@@ -147,20 +165,22 @@ func (s *Store) GetMessage(ctx context.Context, id string) (Message, error) {
 
 const messageSelect = `
 SELECT id, source, dedupe_key, importance, receiver, spoken, details,
-       created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id
+       created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id,
+       sender, deliver_at, area_id, session_key, attempts
 FROM messages`
 
 type scannable interface{ Scan(...any) error }
 
 func scanMessage(row scannable) (Message, error) {
 	var n Message
-	var created, updated, expires, delivered string
+	var created, updated, expires, delivered, deliverAt string
 	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Receiver, &n.Spoken, &n.Details,
-		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID)
+		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID,
+		&n.Sender, &deliverAt, &n.AreaID, &n.SessionKey, &n.Attempts)
 	if err != nil {
 		return Message{}, err
 	}
-	n.CreatedAt, n.UpdatedAt = parseTime(created), parseTime(updated)
+	n.CreatedAt, n.UpdatedAt, n.DeliverAt = parseTime(created), parseTime(updated), parseTime(deliverAt)
 	n.ExpiresAt, n.DeliveredAt = parseTime(expires), parseTime(delivered)
 	return n, nil
 }

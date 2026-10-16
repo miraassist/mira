@@ -81,17 +81,20 @@ func Reminders(o ReminderOptions) []InternalTool {
 				if due.After(now.AddDate(1, 1, 0)) {
 					return "", errors.New(t.reminderTooFar)
 				}
-				r := store.Reminder{ID: ulid.Make().String(), DueAt: due, Text: a.Text, SessionKey: inv.SessionKey,
+				// A reminder is a message with a delivery time
+				// (docs/spec/nachrichten.md).
+				m := store.Message{ID: ulid.Make().String(), Source: store.SourceReminder, Importance: 2,
+					Spoken: strings.TrimSpace(a.Text), DeliverAt: due, SessionKey: inv.SessionKey,
 					Receiver: ReceiverFor(a.For, inv, o.Persons())}
 				if inv.Channel == config.ChannelVoice && o.Store != nil {
 					if sess, err := o.Store.GetSession(ctx, inv.SessionKey); err == nil {
-						r.AreaID = sess.AreaID
+						m.AreaID = sess.AreaID
 					}
 				}
-				if err := o.Store.AddReminder(ctx, r); err != nil {
+				if _, err := o.Store.ScheduleMessage(ctx, m); err != nil {
 					return "", err
 				}
-				return fmt.Sprintf(t.reminderSaved, i18n.FormatTime(o.Lang, due), r.ID), nil
+				return fmt.Sprintf(t.reminderSaved, i18n.FormatTime(o.Lang, due), m.ID), nil
 			},
 		},
 		{
@@ -100,7 +103,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 			Schema:      `{"type":"object","properties":{}}`,
 			ReadOnly:    true,
 			Run: func(ctx context.Context, inv Invocation) (string, error) {
-				list, err := o.Store.PendingReminders(ctx, time.Time{})
+				list, err := o.Store.ScheduledMessages(ctx, time.Time{})
 				if err != nil {
 					return "", err
 				}
@@ -109,7 +112,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 				}
 				var b strings.Builder
 				for _, r := range list {
-					fmt.Fprintf(&b, "- [%s] %s: %s", r.ID, i18n.FormatTime(o.Lang, r.DueAt.In(o.Location)), r.Text)
+					fmt.Fprintf(&b, "- [%s] %s: %s", r.ID, i18n.FormatTime(o.Lang, r.DeliverAt.In(o.Location)), r.Spoken)
 					if r.Receiver != store.ReceiverHouse {
 						fmt.Fprintf(&b, " (%s)", r.Receiver)
 					}
@@ -129,7 +132,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
 				}
-				if err := o.Store.SetReminderState(ctx, a.ID, store.ReminderCancelled); errors.Is(err, store.ErrNotFound) {
+				if err := o.Store.CancelScheduled(ctx, a.ID); errors.Is(err, store.ErrNotFound) {
 					return "", errors.New(t.noSuchReminder)
 				} else if err != nil {
 					return "", err

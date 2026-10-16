@@ -265,6 +265,25 @@ ALTER TABLE reminders RENAME COLUMN audience TO receiver;
 UPDATE reminders SET receiver = 'house' WHERE receiver = 'household';
 `,
 	},
+	{
+		// Reminders are messages with a delivery time (scheduled until
+		// then); their own table goes.
+		name: "0014_scheduled_messages",
+		stmt: `
+ALTER TABLE messages ADD COLUMN deliver_at TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN area_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN session_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+INSERT INTO messages(id, source, dedupe_key, importance, receiver, spoken, details, created_at, updated_at,
+                     expires_at, state, delivered_via, delivered_at, confidentiality, thread_id, sender,
+                     deliver_at, area_id, session_key, attempts)
+SELECT id, 'reminder', '', 2, receiver, text, '', created_at, updated_at, '', 'scheduled', '', '', 'normal', '', '',
+       due_at, area_id, session_key, attempts
+FROM reminders WHERE state = 'pending';
+DROP TABLE reminders;
+CREATE INDEX idx_messages_scheduled ON messages(state, deliver_at);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

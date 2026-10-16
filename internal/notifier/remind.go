@@ -10,26 +10,24 @@ import (
 	"github.com/sker65/mira/internal/store"
 )
 
-// Remind delivers a due reminder now. The user chose the time, so quiet
-// hours and cooldowns do not apply: it is spoken in the room it was asked
-// for in (unless quiet mode is on), otherwise it goes privately to its
-// receiver. The reminder is kept as a delivered message, so it shows in the
-// web UI and messages_list like any other.
-func (n *Notifier) Remind(ctx context.Context, r store.Reminder) error {
-	n.waitIdle(ctx, r.AreaID)
+// Remind delivers a due scheduled message (a reminder) now. The user chose
+// the time, so quiet hours and cooldowns do not apply: it is spoken in the
+// room it was asked for in (unless quiet mode is on), otherwise it goes
+// privately to its receiver. It stays a delivered message, so it shows in
+// the web UI and messages_list like any other.
+func (n *Notifier) Remind(ctx context.Context, m store.Message) error {
+	n.waitIdle(ctx, m.AreaID)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	nt, _, err := n.store.PutMessage(ctx, store.Message{
-		ID: "reminder-" + r.ID, Source: store.SourceReminder, DedupeKey: "reminder:" + r.ID,
-		Importance: 2, Receiver: r.Receiver,
-		Spoken:    fmt.Sprintf(textsFor(n.lang).reminder, strings.TrimRight(strings.TrimSpace(r.Text), ".")),
-		ExpiresAt: n.clock().Add(12 * time.Hour),
-	})
-	if err != nil {
+	if m.Source == store.SourceReminder {
+		m.Spoken = fmt.Sprintf(textsFor(n.lang).reminder, strings.TrimRight(strings.TrimSpace(m.Spoken), "."))
+	}
+	if err := n.store.ReleaseScheduled(ctx, m.ID, m.Spoken); err != nil {
 		return err
 	}
-	return n.deliverAsked(ctx, nt, r.AreaID, true)
+	m.State = store.MessagePending
+	return n.deliverAsked(ctx, m, m.AreaID, true)
 }
 
 // Tell delivers a message someone asked for and is waiting on, such as the
@@ -70,27 +68,24 @@ func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID st
 	return n.sendPrivate(ctx, nt)
 }
 
-// DueReminders delivers every reminder that is due. A failed delivery is
-// retried on the next call, and given up after store.MaxReminderAttempts.
-func (n *Notifier) DueReminders(ctx context.Context) {
-	due, err := n.store.PendingReminders(ctx, n.clock())
+// DueMessages delivers every scheduled message that is due. A failed
+// delivery is retried on the next call, and given up after
+// store.MaxDeliveryAttempts.
+func (n *Notifier) DueMessages(ctx context.Context) {
+	due, err := n.store.ScheduledMessages(ctx, n.clock())
 	if err != nil {
 		if ctx.Err() == nil {
-			n.log.Error("could not read reminders", "error", err)
+			n.log.Error("could not read scheduled messages", "error", err)
 		}
 		return
 	}
-	for _, r := range due {
-		if err := n.Remind(ctx, r); err != nil {
-			gaveUp, ferr := n.store.ReminderAttemptFailed(ctx, r.ID)
-			n.log.Error("reminder delivery failed", "reminder", r.ID, "gave_up", gaveUp, "error", errors.Join(err, ferr))
+	for _, m := range due {
+		if err := n.Remind(ctx, m); err != nil {
+			gaveUp, ferr := n.store.DeliveryFailed(ctx, m.ID)
+			n.log.Error("scheduled message delivery failed", "message", m.ID, "gave_up", gaveUp, "error", errors.Join(err, ferr))
 			continue
 		}
-		if err := n.store.SetReminderState(ctx, r.ID, store.ReminderDone); err != nil {
-			n.log.Error("could not close reminder", "reminder", r.ID, "error", err)
-			continue
-		}
-		n.log.Info("reminder delivered", "reminder", r.ID, "area", r.AreaID, "receiver", r.Receiver)
+		n.log.Info("scheduled message delivered", "message", m.ID, "area", m.AreaID, "receiver", m.Receiver)
 	}
 }
 

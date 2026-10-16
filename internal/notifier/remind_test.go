@@ -12,7 +12,8 @@ import (
 
 func (e *env) reminder(id string, due time.Time, area, receiver string) {
 	e.t.Helper()
-	if err := e.st.AddReminder(context.Background(), store.Reminder{ID: id, DueAt: due, Text: "Müll rausbringen", AreaID: area, Receiver: receiver}); err != nil {
+	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: id, Source: store.SourceReminder, Importance: 2,
+		DeliverAt: due, Spoken: "Müll rausbringen", AreaID: area, Receiver: receiver}); err != nil {
 		e.t.Fatal(err)
 	}
 }
@@ -23,12 +24,12 @@ func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 	e := newEnv(t, nil)
 	e.reminder("r1", e.now.Add(time.Minute), "kueche", store.ReceiverHouse)
 
-	e.n.DueReminders(context.Background())
+	e.n.DueMessages(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
 		t.Fatal("delivered before its time")
 	}
 	e.now = e.now.Add(2 * time.Minute)
-	e.n.DueReminders(context.Background())
+	e.n.DueMessages(context.Background())
 	called := e.ha.servicesCalled()
 	if len(called) != 1 || !strings.HasPrefix(called[0], "assist_satellite.") {
 		t.Fatalf("services: %v", called)
@@ -41,10 +42,10 @@ func TestReminderIsSpokenInItsRoomAtItsTime(t *testing.T) {
 	if e.ha.calls[0].Data["preannounce"] != true {
 		t.Errorf("no chime before a reminder: %v", e.ha.calls[0].Data)
 	}
-	if left, _ := e.st.PendingReminders(context.Background(), time.Time{}); len(left) != 0 {
+	if left, _ := e.st.ScheduledMessages(context.Background(), time.Time{}); len(left) != 0 {
 		t.Error("reminder still pending")
 	}
-	e.n.DueReminders(context.Background())
+	e.n.DueMessages(context.Background())
 	if len(e.ha.servicesCalled()) != 1 {
 		t.Error("delivered twice")
 	}
@@ -57,7 +58,7 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 	e.st.SetBool(context.Background(), store.KeyQuietMode, true)
 	e.reminder("r2", e.now, "bad", store.ReceiverHouse)
 
-	e.n.DueReminders(context.Background())
+	e.n.DueMessages(context.Background())
 	if len(e.ha.servicesCalled()) != 0 {
 		t.Errorf("spoken despite no room / quiet mode: %v", e.ha.servicesCalled())
 	}

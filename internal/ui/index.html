@@ -205,6 +205,9 @@ const I18N = {
   "older": "Ältere",
   "page": "Seite",
   "state_pending": "wartet",
+  "state_scheduled": "geplant",
+  "state_cancelled": "abgesagt",
+  "state_failed": "nicht zustellbar",
   "state_delivered": "zugestellt",
   "state_expired": "abgelaufen",
   "source_ha_trigger": "Watcher",
@@ -395,6 +398,9 @@ const I18N = {
   "older": "Older",
   "page": "Page",
   "state_pending": "waiting",
+  "state_scheduled": "scheduled",
+  "state_cancelled": "cancelled",
+  "state_failed": "undeliverable",
   "state_delivered": "delivered",
   "state_expired": "expired",
   "source_ha_trigger": "watcher",
@@ -789,7 +795,7 @@ async function messages() {
       <details class="item">
         <summary>
           <span class="lead"><span class="hint">${esc(n.created_at.slice(5))}</span>
-            <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + shownState(n.state)]}</span></span>
+            <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + shownState(n.state)]}${n.state === "scheduled" && n.deliver_at ? " " + esc(n.deliver_at.slice(5)) : ""}</span></span>
           <span class="short clip">${esc(n.spoken)}</span>
           ${n.state === "pending" ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : "<span></span>"}
         </summary>
