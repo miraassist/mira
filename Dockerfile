@@ -10,14 +10,17 @@
 # MCP servers over stdio need their runtime (e.g. node) and do not run in this
 # image; use MCP servers over HTTP.
 
-FROM golang:1.27.2 AS build
+# The build stage runs on the build machine and cross-compiles for the
+# target platform, so a multi-arch build needs no emulation.
+FROM --platform=$BUILDPLATFORM golang:1.27.2 AS build
+ARG TARGETOS TARGETARCH
 # VERSION overrides the version in the code (the release sets it from the tag).
 ARG VERSION=
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w ${VERSION:+-X main.version=${VERSION}}" -o /out/mira ./cmd/mira
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w ${VERSION:+-X main.version=${VERSION}}" -o /out/mira ./cmd/mira
 RUN mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
