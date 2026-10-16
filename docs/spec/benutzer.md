@@ -77,21 +77,7 @@ Die bisherige globale Einstellung für vertrauliche Meldungen (`confidential_voi
 
 ## Nachrichten an andere
 
-„Erinnere Ben morgen um 7 an den Müll“, „Sag Anna, dass es später wird.“
-
-- Das ist eine **Meldung** mit **Empfänger** und **Absender**. Absender ist die Person, wenn sie bekannt ist, sonst „jemand im Wohnzimmer“.
-- Mit Zeitpunkt wird daraus eine Erinnerung für den Empfänger, sonst wird sie gleich zugestellt.
-- Wortlaut bei der Zustellung: „Anna erinnert dich: …“, „Jemand im Wohnzimmer lässt dir ausrichten: …“
-
-**Einstellungen des Empfängers** (pro Person):
-
-| Einstellung | Werte | Standard |
-|---|---|---|
-| Kanäle | Telegram-ID, Handy (Notify-Dienst der Companion-App) | wie heute |
-| Allein zu Hause gelten die Satelliten als ich | an/aus | aus |
-| Nachrichten annehmen | von allen (auch anonym am Satelliten) / nur von Personen / von niemandem | von allen |
-
-Zugestellt wird immer über den privaten Kanal. Am Satelliten kommt eine Nachricht nur an, wenn die Regel „allein zu Hause“ für den Empfänger gilt.
+Eigene Spezifikation: [Nachrichten](nachrichten.md). Kurz: Aus den Meldungen werden Nachrichten mit Absender und Empfänger (eine Person oder das Haus); jede Person stellt ein, von wem sie Nachrichten annimmt. Niemand schreibt in das Gedächtnis eines anderen: „Merk dir für Ben …“ wird zur Nachricht an Ben.
 
 ## Aufgaben
 
