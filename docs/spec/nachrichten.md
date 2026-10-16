@@ -1,6 +1,6 @@
 # Nachrichten – Spezifikation
 
-Stand 2026-10-16, im Bau. Zwei Abstraktionen tragen Miras Kommunikation: [Kanal](kanaele.md) und **Nachricht** (dieses Dokument). Baut auf [Benutzer](benutzer.md) und [Mira in Home Assistant](ha-anbindung.md) auf.
+Stand 2026-10-16, gebaut in 0.6.0–0.6.4 (bis auf „erkannt am Satelliten“, siehe Offen). Zwei Abstraktionen tragen Miras Kommunikation: [Kanal](kanaele.md) und **Nachricht** (dieses Dokument). Baut auf [Benutzer](benutzer.md) und [Mira in Home Assistant](ha-anbindung.md) auf.
 
 ## Grundsatz
 

@@ -104,6 +104,11 @@
       "compact_profile": {
         "name": "Profil verdichten"
       }
+    },
+    "notify": {
+      "notify_house": {
+        "name": "Haus"
+      }
     }
   },
   "services": {

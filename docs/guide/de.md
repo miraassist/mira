@@ -193,7 +193,7 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 - **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Wartende Nachrichten** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
-- Automationen können Mira Nachrichten geben, mit der Aktion `mira.send_message`.
+- Automationen können Mira Nachrichten geben: mit HAs eigener Aktion `notify.send_message` an **Mira Haus** oder **Mira ‹Person›** (je eine notify-Entität fürs Haus und pro Person), oder mit `mira.send_message`, wenn es mehr braucht (Wichtigkeit, vertraulich, Ablauf).
 - **Mira im Seitenmenü** (siehe oben). Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.
 
 ![Das Gerät „Mira“ in Home Assistant](img/ha-geraet-de.png)

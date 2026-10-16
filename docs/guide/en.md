@@ -193,7 +193,7 @@ Before Mira deletes something, she asks:
 
 - **Device "Mira"** with the **Quiet mode** switch, the **Pending messages** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
-- Automations can give Mira messages with the action `mira.send_message`.
+- Automations can give Mira messages: with HA's own action `notify.send_message` to **Mira House** or **Mira ‹person›** (one notify entity for the house and one per person), or with `mira.send_message` when they need more (importance, confidential, expiry).
 - **Mira in the sidebar** (see above). Switch it off in the integration's options; anyone can also hide it in just their own sidebar.
 
 ![The "Mira" device in Home Assistant](img/ha-geraet-en.png)

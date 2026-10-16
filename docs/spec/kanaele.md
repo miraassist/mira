@@ -1,6 +1,6 @@
 # Kanäle – Spezifikation
 
-Stand 2026-10-16. Zwei Abstraktionen tragen Miras Kommunikation: **Kanal** (dieses Dokument) und **Nachricht** ([Nachrichten](nachrichten.md)). Baut auf [Mira in Home Assistant](ha-anbindung.md) auf: Was HA kann, baut Mira nicht nach.
+Stand 2026-10-16, gebaut in 0.6.2–0.6.3. Zwei Abstraktionen tragen Miras Kommunikation: **Kanal** (dieses Dokument) und **Nachricht** ([Nachrichten](nachrichten.md)). Baut auf [Mira in Home Assistant](ha-anbindung.md) auf: Was HA kann, baut Mira nicht nach.
 
 ## Grundsatz
 

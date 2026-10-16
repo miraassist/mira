@@ -104,6 +104,11 @@
       "compact_profile": {
         "name": "Compact profile"
       }
+    },
+    "notify": {
+      "notify_house": {
+        "name": "House"
+      }
     }
   },
   "services": {
