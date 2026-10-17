@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -114,11 +115,6 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	}
 	root := filepath.Dir(dir)
 	r := &evalRun{dir: dir, root: root, env: loadEnv(dir), client: &http.Client{Timeout: 2 * time.Minute}}
-	for k, v := range loadEnv(root) {
-		if _, ok := r.env[k]; !ok {
-			r.env[k] = v
-		}
-	}
 	r.haToken = r.env["TESTHA_ADMIN_TOKEN"]
 	raw, err := os.ReadFile(filepath.Join(root, *setupPath))
 	if err != nil {
@@ -286,9 +282,9 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 	}
 	cmd := exec.Command(bin, "-config", cfgPath, "run")
 	cmd.Dir, cmd.Stdout, cmd.Stderr = r.root, logFile, logFile
-	cmd.Env = os.Environ()
-	for k, v := range r.env {
-		cmd.Env = append(cmd.Env, k+"="+v)
+	cmd.Env, err = r.agentEnv(string(out))
+	if err != nil {
+		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, err
@@ -438,6 +434,39 @@ func (r *evalRun) call(ctx context.Context, method, url, token string, body, out
 		return nil
 	}
 	return json.Unmarshal(raw, out)
+}
+
+var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)`)
+
+// agentEnv is the eval agent's whole environment: a few harmless basics
+// and exactly the variables its config refers to, from testenv/.env only.
+// Nothing else reaches it, least of all the live instance's secrets.
+func (r *evalRun) agentEnv(config string) ([]string, error) {
+	var env []string
+	for _, k := range []string{"PATH", "HOME", "LANG", "TZ"} {
+		if v, ok := os.LookupEnv(k); ok {
+			env = append(env, k+"="+v)
+		}
+	}
+	var missing []string
+	seen := map[string]bool{}
+	for _, m := range envRef.FindAllStringSubmatch(config, -1) {
+		name := m[1]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		v, ok := r.env[name]
+		if !ok || v == "" {
+			missing = append(missing, name)
+			continue
+		}
+		env = append(env, name+"="+v)
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing in testenv/.env: %s", strings.Join(missing, ", "))
+	}
+	return env, nil
 }
 
 // printLogTail shows the end of the eval agent's log, for a failure.

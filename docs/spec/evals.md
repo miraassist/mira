@@ -73,7 +73,9 @@ cleanup: restore                # Test-HA in den Ausgangszustand
 
 ## Modell-Setups
 
-Ein Setup ist eine kleine Datei in `evals/setups/` mit `llm`, `models` und `routing`, wie in `mira.yaml`, ohne Schlüssel. Die Schlüssel kommen aus der Umgebung. Beispiele: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. Ein Setup beschreibt, was im Haus wirklich läuft, auch gemischt: Sprache lokal, schwierige Aufgaben in der Cloud.
+Ein Setup ist eine kleine Datei in `evals/setups/` mit `llm`, `models` und `routing`, wie in `mira.yaml`, ohne Schlüssel.
+
+**Secrets**: Der Runner liest nur `testenv/.env`, nie die `.env` einer echten Installation. Der Eval-Agent bekommt nur ein paar harmlose Grundvariablen (`PATH`, `HOME`, `LANG`, `TZ`) und genau die Variablen, die seine Config als `${…}` verlangt. Fehlt eine in `testenv/.env`, bricht der Runner mit ihrem Namen ab. Modell-Schlüssel für Evals (z. B. `GEMINI_API_TOKEN`) gehören deshalb in `testenv/.env`. Beispiele: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. Ein Setup beschreibt, was im Haus wirklich läuft, auch gemischt: Sprache lokal, schwierige Aufgaben in der Cloud.
 
 ## Lauf
 
