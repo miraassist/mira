@@ -1,6 +1,6 @@
 # Einrichtung – Spezifikation
 
-Stand 2026-10-17, gebaut in 0.6.22, Koppeln ohne Code, Modellwahl und Assistenten in 0.6.23, Koppeln erst nach der Zusammenfassung in 0.6.25, Übersicht zuerst in 0.6.26. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
+Stand 2026-10-17, gebaut in 0.6.22, Koppeln ohne Code, Modellwahl und Assistenten in 0.6.23, Koppeln erst nach der Zusammenfassung in 0.6.25, Übersicht zuerst in 0.6.26, Texte vereinfacht in 0.6.28. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -14,7 +14,7 @@ Künftig sind es drei, und keiner davon verlangt, eine Config-Datei zu verstehen
 1. **Mira über HACS installieren**, HA neu starten.
 2. **Container starten**, eine Zeile, ohne Config-Datei:
    `docker run -d --name mira --network host -v mira-data:/var/lib/mira ghcr.io/miraassist/mira`
-3. **Unter „Entdeckt“ Mira hinzufügen.** Eine Übersicht zeigt, was noch fehlt: das KI-Modell (LLM) und die Assistenten. „Koppeln“ erledigt den Rest.
+3. **Unter „Entdeckt“ Mira hinzufügen.** Eine Übersicht zeigt, was noch fehlt: das KI-Modell (LLM) und die Assistenten. „Mira jetzt nutzen“ erledigt den Rest.
 
 Für Assist freigeben bleibt, wie bisher, eine Entscheidung des Nutzers in HA.
 
@@ -32,15 +32,15 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
 ## 2. Koppeln statt Token tippen
 
 - **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank.
-- **Übersicht zuerst, Koppeln zuletzt.** Nach „Mira gefunden“ kommt gleich die Übersicht. Ihr Text zeigt, was gewählt ist und was noch fehlt; darunter die Zweige „KI-Modell (LLM) wählen“, „Assistenten wählen“ (der bevorzugte ist vorgewählt) und „Koppeln“. Jeder Zweig kehrt zur Übersicht zurück. Einen Zurück-Knopf haben HA-Dialoge nicht; die Übersicht ersetzt ihn. „Mira jetzt nutzen“ erscheint erst, wenn nichts mehr fehlt.
+- **Übersicht zuerst, Koppeln zuletzt.** Nach „Mira gefunden“ kommt gleich die Übersicht. Ihr Text zeigt, was gewählt ist und was noch fehlt; darunter die Zweige „KI-Modell (LLM) wählen“, „Mira verwenden in“ (die Assistenten; der bevorzugte ist vorgewählt) und „Mira jetzt nutzen“. Jeder Zweig kehrt zur Übersicht zurück. Einen Zurück-Knopf haben HA-Dialoge nicht; die Übersicht ersetzt ihn. „Mira jetzt nutzen“ erscheint erst, wenn nichts mehr fehlt.
   - Vorher ändert sich nichts, weder am Agenten noch in HA: kein Benutzer, kein Token, keine Kopplung. Ein abgebrochener Dialog lässt nichts halb eingerichtet zurück. HA lässt einen entdeckten Dialog beim Schließen offen und ruft beim Wiederöffnen den Schritt ohne Eingabe noch einmal auf. Daran erkennt die Integration das Wiederöffnen und zeigt die Übersicht, statt in einem Unterformular (etwa dem Schlüssel eines versehentlich gewählten Anbieters) festzustecken.
   - Damit der Dialog vorher Modelle auflisten und ausprobieren kann, beantwortet der Agent `/v1/setup/models` und `/v1/setup/probe` ohne Token, aber nur, solange er noch nie gekoppelt war.
-  - „Koppeln“ legt Benutzer und Token an, schaltet HAs MCP-Server ein und schickt dann HA-Adresse, Token und Modell in **einem** Aufruf (`POST /v1/pair`). Der Agent speichert alles, gibt seinen Zugangs-Token heraus und startet neu, oder er tut gar nichts. Geht es schief, widerruft die Integration den Token wieder.
-- **Ohne Code beim ersten Mal:** Ein Agent, der noch nie gekoppelt war, koppelt sich mit dem ersten Home Assistant, der „Koppeln“ abschließt.
+  - „Mira jetzt nutzen“ legt Benutzer und Token an, schaltet HAs MCP-Server ein und schickt dann HA-Adresse, Token und Modell in **einem** Aufruf (`POST /v1/pair`). Der Agent speichert alles, gibt seinen Zugangs-Token heraus und startet neu, oder er tut gar nichts. Geht es schief, widerruft die Integration den Token wieder.
+- **Ohne Code beim ersten Mal:** Ein Agent, der noch nie gekoppelt war, koppelt sich mit dem ersten Home Assistant, der „Mira jetzt nutzen“ abschließt.
   - **Warum das reicht:** Ein Angreifer im Heimnetz müsste zwischen Containerstart und Einrichtung zuschlagen. Er bliebe nicht unbemerkt: Der Dialog des Besitzers fragt dann nach einem Code. Die Anleitung sagt: im eigenen Heimnetz einrichten, nicht im Gästenetz.
   - Einen Code im mDNS-Eintrag gibt es bewusst nicht: Den könnte jedes Gerät im Netz lesen.
 - **Entfernen gibt frei:** Entfernt man die Integration, meldet sie das dem Agenten (`POST /v1/unpair`). Er macht einen neuen Token, vergisst den HA-Zugang, behält das Modell und wartet wieder auf Einrichtung, das nächste Mal wieder ohne Code; die Zusammenfassung zeigt dann „KI-Modell: bleibt …“.
-- **Erneutes Koppeln mit Code:** Ist der Agent noch gekoppelt (die Integration konnte ihn beim Entfernen nicht erreichen, oder ein anderer Home Assistant hat ihn), braucht es einen **Kopplungscode** aus sechs Ziffern: `mira pair` auf dem Rechner des Agenten (`docker exec mira /app/mira pair`). Er steht dann auch auf der Seite des Agenten. Der Code gilt 15 Minuten und 5 Versuche. Die Übersicht zeigt ihn als fehlend, mit dem Zweig „Kopplungscode eingeben“; verwendet wird er beim „Koppeln“, und stimmt er nicht, sagt die Übersicht das. Das Modell behält der Agent; ändern lässt es sich danach unter Konfigurieren.
+- **Erneutes Koppeln mit Code:** Ist der Agent noch gekoppelt (die Integration konnte ihn beim Entfernen nicht erreichen, oder ein anderer Home Assistant hat ihn), braucht es einen **Kopplungscode** aus sechs Ziffern: `mira pair` auf dem Rechner des Agenten (`docker exec mira /app/mira pair`). Er steht dann auch auf der Seite des Agenten. Der Code gilt 15 Minuten und 5 Versuche. Die Übersicht zeigt ihn als fehlend, mit dem Zweig „Kopplungscode eingeben“; verwendet wird er bei „Mira jetzt nutzen“, und stimmt er nicht, sagt die Übersicht das. Das Modell behält der Agent; ändern lässt es sich danach unter Konfigurieren.
 - **Wie bisher:** Steht ein Token in der Config (`server.token`), gilt der, ohne Kopplung. So bleiben bestehende Installationen unverändert.
 
 ## 3. Agent ohne Config-Datei
