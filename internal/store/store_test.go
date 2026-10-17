@@ -405,3 +405,28 @@ func TestOnMessage(t *testing.T) {
 		t.Fatal("not told about the new message")
 	}
 }
+
+// Between eval scenarios everything goes but the settings, and memory
+// search still works afterwards.
+func TestResetForEval(t *testing.T) {
+	s, _ := newStore(t)
+	ctx := context.Background()
+	s.SaveFact(ctx, Fact{ID: "a", Text: "Anna mag Tee.", Owner: "anna"})
+	s.SetKV(ctx, "language.last", "de")
+	if _, _, err := s.PutMessage(ctx, Message{ID: "m", Source: "test", Receiver: ReceiverHouse, Spoken: "x", Importance: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ResetForEval(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if facts, _ := s.AllFacts(ctx, "anna"); len(facts) != 0 {
+		t.Errorf("facts left: %v", facts)
+	}
+	if v, _ := s.GetKV(ctx, "language.last"); v != "de" {
+		t.Error("settings went too")
+	}
+	s.SaveFact(ctx, Fact{ID: "b", Text: "Ben mag Kaffee.", Owner: "ben"})
+	if found, err := s.SearchFacts(ctx, "Kaffee", []string{"ben"}, 5); err != nil || len(found) != 1 {
+		t.Errorf("search after reset: %v %v", found, err)
+	}
+}

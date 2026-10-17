@@ -435,7 +435,11 @@ func runAgent(parent context.Context, cfg config.Config) error {
 	}
 	a.runCtx = ctx
 	a.goRun(ctx, "people", a.watchPeople)
-	a.startProactive(ctx)
+	// The eval runner's agent announces nothing: the test Mira next to it
+	// does that, and an eval must not speak on a real device.
+	if !cfg.Server.Eval {
+		a.startProactive(ctx)
+	}
 
 	errs := make(chan error, 2)
 
@@ -765,7 +769,7 @@ func (u uiConfig) ResetSection(ctx context.Context, name string) error {
 func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	cfg := a.cfg
 	opts := haconv.Options{
-		Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
+		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 	}

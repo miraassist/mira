@@ -1,0 +1,16 @@
+name: termin-kalender-waehlen
+description: Termin eintragen bei zwei Kalendern ohne Standard; Mira fragt, welcher
+steps:
+  - say: Trag mir übermorgen um 17 Uhr Training ein
+    expect:
+      behaviour:
+        must: [thread:termin]
+        must_not: [action:calendar.create_event]
+      answer:
+        contains: [Familie, Ben]
+  - say: In den Kalender Ben
+    expect:
+      result:
+        - event_exists: { calendar: calendar.ben, day: "+2", start: "17:00", title: Training }
+      behaviour:
+        must: [action:calendar.create_event]

@@ -61,6 +61,10 @@ type Server struct {
 	Announce bool `yaml:"announce"`
 	// Name is the announced name.
 	Name string `yaml:"name"`
+	// Eval turns on eval mode (docs/spec/evals.md): every answer carries
+	// what happened in the turn, and the state can be reset between
+	// scenarios. Only for the eval runner's own agent.
+	Eval bool `yaml:"eval"`
 }
 
 type LLM struct {

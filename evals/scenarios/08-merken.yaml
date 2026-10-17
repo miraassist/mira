@@ -1,0 +1,16 @@
+name: merken
+description: Sich etwas fürs Haus merken (am Satelliten) und persönlich (per Telegram)
+core: true
+setup:
+  home: [anna, ben]   # two at home: the satellite is nobody in particular
+steps:
+  - say: Merk dir, dass der Schlüssel für den Keller im Flur hängt
+    expect:
+      result:
+        - fact_saved: { owner: house, contains: Keller }
+  - say: Merk dir, dass ich keine Pilze mag
+    person: anna
+    channel: telegram
+    expect:
+      result:
+        - fact_saved: { owner: anna, contains: Pilze }

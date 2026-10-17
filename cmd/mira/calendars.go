@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/miraassist/mira/internal/calendar"
+	"github.com/miraassist/mira/internal/trace"
 )
 
 // Calendars and to-do lists Mira may use: those exposed to Assist
@@ -34,6 +35,7 @@ func (a *app) calendarList(ctx context.Context) ([]calendar.Info, error) {
 }
 
 func (a *app) deleteEvent(ctx context.Context, entity, uid, recurrenceID string) error {
+	trace.Add(ctx, trace.Action, "calendar.delete", entity)
 	cmd := map[string]any{"type": "calendar/event/delete", "entity_id": entity, "uid": uid}
 	if recurrenceID != "" {
 		cmd["recurrence_id"] = recurrenceID

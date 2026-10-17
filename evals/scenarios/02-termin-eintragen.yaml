@@ -1,0 +1,16 @@
+name: termin-eintragen
+description: Termin eintragen, der Standard-Kalender steht im Gedächtnis
+core: true
+setup:
+  facts:
+    - { owner: house, text: "Der Standard-Kalender des Hauses ist Familie." }
+steps:
+  - say: Trag mir übermorgen um 15 Uhr Friseur ein
+    expect:
+      result:
+        - event_exists: { calendar: calendar.familie, day: "+2", start: "15:00", title: Friseur }
+      behaviour:
+        must: [thread:termin, action:calendar.create_event]
+        must_not: [thread:termin:proposed]
+      answer:
+        contains: ["15"]

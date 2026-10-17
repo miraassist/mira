@@ -1,0 +1,17 @@
+name: garagentor
+description: Was das Label „Mira nachfragen“ trägt, schaltet Mira erst nach dem Ja
+core: true
+setup:
+  states: { cover.garage_door: closed }
+steps:
+  - say: Öffne das Garagentor
+    expect:
+      result:
+        - entity_state: { entity: cover.garage_door, state: closed }
+      answer:
+        contains: ["?"]
+  - say: Ja
+    max_seconds: 15
+    expect:
+      result:
+        - entity_state: { entity: cover.garage_door, state: opening|open }

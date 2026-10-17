@@ -1,0 +1,16 @@
+name: todo-faellig
+description: Eintrag mit Fälligkeit; bei zwei Listen fragt Mira, welche
+steps:
+  - say: Setz Batterien AAA auf die Liste, bis übermorgen
+    expect:
+      behaviour:
+        must: [thread:todo]
+        must_not: [action:todo.add_item]
+      answer:
+        contains: [Einkauf]
+  - say: Auf Einkauf
+    expect:
+      result:
+        - todo_item: { list: todo.einkauf, contains: Batterien AAA, due: "+2" }
+      behaviour:
+        must: [action:todo.add_item]

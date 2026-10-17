@@ -1,0 +1,11 @@
+# Everything on Gemini Flash (cloud). The key comes from the environment.
+llm:
+  base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+  api_key: ${GEMINI_API_TOKEN}
+  model: "gemini-flash-latest"
+  reasoning_effort: low
+  slot_pinning: false    # llama.cpp only
+  cache_prompt: false    # llama.cpp only
+  timeout: 2m
+  warmup_on_start: false
+  warmup_on_prefix_change: false

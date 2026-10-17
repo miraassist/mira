@@ -1,6 +1,6 @@
 # Evals – Spezifikation
 
-Stand 2026-10-17, beschlossen, nicht gebaut.
+Stand 2026-10-17, gebaut in 0.6.19 (Runner `go run ./cmd/testha eval`, 12 Szenarien, Setups Gemini Flash und Qwen lokal).
 
 ## Wozu
 

@@ -1,0 +1,13 @@
+name: kalender-lesen
+description: Termine von morgen erfragen
+core: true
+setup:
+  events:
+    - { calendar: calendar.familie, summary: Zahnarzt, day: "+1", start: "10:00", end: "10:30" }
+steps:
+  - say: Was steht morgen im Kalender?
+    expect:
+      behaviour:
+        must: [tool:calendar_events]
+      answer:
+        contains: [Zahnarzt, "10"]

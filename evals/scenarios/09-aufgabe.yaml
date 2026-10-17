@@ -1,0 +1,15 @@
+name: aufgabe
+description: Aufgabe anlegen mit Vorschlag und Ja
+setup:
+  restore: [light.bed_light]
+steps:
+  - say: Sag Bescheid, wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht
+    expect:
+      behaviour:
+        must: [thread:aufgabe:proposed]
+      answer:
+        contains: [Nachttischlampe]
+  - say: Ja
+    expect:
+      result:
+        - task_exists: { contains: Nachttischlampe }

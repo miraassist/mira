@@ -1,0 +1,22 @@
+name: termin-absagen
+description: Termin absagen, erst nach dem Ja
+core: true
+setup:
+  events:
+    - { calendar: calendar.familie, summary: Zahnarzt, day: "+3", start: "15:00", end: "16:00" }
+steps:
+  - say: Sag meinen Zahnarzttermin ab
+    expect:
+      result:
+        - event_exists: { calendar: calendar.familie, day: "+3", title: Zahnarzt }
+      behaviour:
+        must: [tool:calendar_events, thread:termin-absagen:proposed]
+        must_not: [action:calendar.delete]
+      answer:
+        contains: [Zahnarzt]
+  - say: Ja
+    expect:
+      result:
+        - calendar_empty: { calendar: calendar.familie, day: "+3", title: Zahnarzt }
+      behaviour:
+        must: [action:calendar.delete]

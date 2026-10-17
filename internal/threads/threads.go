@@ -27,6 +27,7 @@ import (
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/trace"
 )
 
 // Result is what a finish's work yields.
@@ -177,6 +178,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 		return "", err
 	}
 	m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
+	trace.Add(ctx, trace.Thread, target, "started")
 	return m.texts().started + "\n\n" + sk.Body + "\n\n" + m.status(th), nil
 }
 
@@ -323,6 +325,7 @@ func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell b
 		m.log.Error("could not save a thread", "thread", th.ID, "error", err)
 	}
 	m.log.Info("thread advanced", "thread", th.ID, "state", th.State)
+	trace.Add(ctx, trace.Thread, th.Target, th.State)
 	if tell && say != "" {
 		m.tell(ctx, th, say)
 	}
@@ -396,6 +399,7 @@ func (m *Manager) confirm(ctx context.Context, th store.Thread) (string, error) 
 	}
 	m.logEntry(&th, "mira", done)
 	m.end(ctx, th, store.ThreadDone)
+	trace.Add(ctx, trace.Thread, th.Target, "confirmed")
 	return done, nil
 }
 

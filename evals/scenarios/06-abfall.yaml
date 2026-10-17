@@ -1,0 +1,10 @@
+name: abfall
+description: Nächste Abfuhr des Restmülls erfragen
+core: true
+steps:
+  - say: Wann wird der Restmüll abgeholt?
+    expect:
+      behaviour:
+        must: [tool:calendar_events]
+      answer:
+        contains: [Restabfall|Restmüll]

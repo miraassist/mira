@@ -1,0 +1,14 @@
+name: licht
+description: Licht schalten und Zustand abfragen
+core: true
+setup:
+  states: { light.bed_light: "off" }
+steps:
+  - say: Mach die Nachttischlampe an
+    expect:
+      result:
+        - entity_state: { entity: light.bed_light, state: "on" }
+  - say: Ist die Nachttischlampe an?
+    expect:
+      answer:
+        contains: [an|eingeschaltet|leuchtet]

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/miraassist/mira/internal/trace"
 )
 
 // haActions lets a skill finish with a Home Assistant action
@@ -29,6 +31,7 @@ func (h haActions) Call(ctx context.Context, action string, data map[string]any)
 	if !ok {
 		return fmt.Errorf("%q is no action", action)
 	}
+	trace.Add(ctx, trace.Action, action, "")
 	return h.a.ha.CallService(ctx, domain, service, data, nil)
 }
 

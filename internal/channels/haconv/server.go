@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
+	"github.com/miraassist/mira/internal/trace"
 )
 
 // Conversation is the part of the engine the API needs.
@@ -31,6 +33,9 @@ type Conversation interface {
 type HealthCheck func(ctx context.Context) error
 
 type Options struct {
+	// Eval is eval mode (docs/spec/evals.md): answers carry their trace,
+	// and POST /v1/eval/reset empties Mira's state between scenarios.
+	Eval         bool
 	Token        string
 	Conversation Conversation
 	Store        *store.Store
@@ -82,6 +87,9 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
 	s.mux.HandleFunc("POST /v1/assess", s.assess)
 	s.mux.HandleFunc("POST /v1/decide", s.decide)
+	if s.opts.Eval {
+		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
+	}
 	return s
 }
 
@@ -187,6 +195,8 @@ type conversationResponse struct {
 	// HTML is the answer for Telegram: Telegram's HTML, split into
 	// messages it accepts.
 	HTML []string `json:"html,omitempty"`
+	// Trace is what happened in the turn, in eval mode only.
+	Trace []trace.Event `json:"trace,omitempty"`
 }
 
 func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +232,7 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 	}
 	out := conversationResponse{
 		Text: resp.Text, ConversationID: resp.ConversationID, ContinueConversation: resp.ContinueConversation,
+		Trace: resp.Trace,
 	}
 	if channel == config.ChannelTelegram {
 		for _, part := range telegram.Split(resp.Text, telegram.MaxMessageLen) {
@@ -229,6 +240,40 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// evalReset empties Mira's state between eval scenarios (conversations,
+// threads, memory, messages) and puts in the facts a scenario starts with.
+// Only in eval mode.
+func (s *Server) evalReset(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Facts []struct {
+			Owner string `json:"owner"`
+			Text  string `json:"text"`
+		} `json:"facts"`
+	}
+	if r.ContentLength != 0 {
+		if err := decode(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	ctx := r.Context()
+	if err := s.opts.Store.ResetForEval(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i, f := range req.Facts {
+		owner := f.Owner
+		if owner == "" {
+			owner = store.OwnerHouse
+		}
+		if _, err := s.opts.Store.SaveFact(ctx, store.Fact{ID: fmt.Sprintf("eval-%d", i), Text: f.Text, Owner: owner, Author: "eval"}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reset"})
 }
 
 // resetter starts a conversation afresh ("/neu" on Telegram).

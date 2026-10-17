@@ -31,6 +31,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/telemetry"
 	"github.com/miraassist/mira/internal/tools"
+	mtrace "github.com/miraassist/mira/internal/trace"
 )
 
 // Chatter is the part of the LLM client the engine uses.
@@ -78,6 +79,8 @@ type Response struct {
 	Model            string
 	MorePromptTokens int
 	CompletionTokens int
+	// Trace is what happened in the turn, in eval mode only.
+	Trace []mtrace.Event
 }
 
 // Languages is package language as the engine needs it.
@@ -224,7 +227,12 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 		telemetry.AttrGenAIConversationID.String(key),
 	)
 
+	var rec *mtrace.Recorder
+	if e.cfg.Server.Eval {
+		ctx, rec = mtrace.With(ctx)
+	}
 	resp, err := e.turn(ctx, key, req)
+	resp.Trace = rec.Events()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		e.log.Error("turn failed", "session", key, "error", err)
@@ -311,10 +319,12 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 			chatReq.ToolChoice = "required"
 			force = false
 		}
+		began := time.Now()
 		out, err := client.Chat(ctx, chatReq)
 		if err != nil {
 			return Response{}, err
 		}
+		mtrace.AddRound(ctx, modelName, time.Since(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
 		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
 			resp.PromptTokens, resp.CachedTokens = out.Usage.PromptTokens, out.CachedTokens()
@@ -476,8 +486,10 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 		return e.texts(ctx).errorPrefix + e.texts(ctx).invalidJSONArgs
 	}
 
+	mtrace.Add(ctx, mtrace.Tool, name, string(args))
 	verdict := e.guard.Check(ctx, ts, spec, args)
 	if verdict.Outcome != tools.Allow {
+		mtrace.Add(ctx, mtrace.Blocked, name, verdict.Reason)
 		span.SetAttributes(telemetry.AttrToolBlocked.String(verdict.Reason))
 		record(verdict.Outcome.String())
 		e.log.Warn("tool call blocked",

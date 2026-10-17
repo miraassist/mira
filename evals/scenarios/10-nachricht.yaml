@@ -1,0 +1,11 @@
+name: nachricht
+description: Per Telegram eine Nachricht für eine andere Person hinterlassen
+steps:
+  - say: Sag Ben, dass das Essen im Ofen steht
+    person: anna
+    channel: telegram
+    expect:
+      result:
+        - message_for: { receiver: ben, contains: Ofen }
+      behaviour:
+        must: [tool:message_send]

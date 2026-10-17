@@ -47,6 +47,7 @@ var house = map[string]struct{ area, name string }{
 	"weather.forecast_mira_test":            {"", "Wetter"},
 	"todo.einkaufsliste":                    {"", ""},
 	"calendar.familie":                      {"", ""},
+	"calendar.ben":                          {"", ""},
 	"calendar.abfuhrtermine":                {"", ""},
 	"todo.einkauf":                          {"", ""},
 }
@@ -109,6 +110,12 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 		}
 	}
 	if err := ensurePersons(ctx, admin); err != nil {
+		return err
+	}
+	// The garage door is switched only after a yes (label "Mira:
+	// nachfragen"; the integration creates the label).
+	if err := call(ctx, admin, map[string]any{"type": "config/entity_registry/update",
+		"entity_id": "cover.garage_door", "labels": []string{"mira_confirm"}}, nil); err != nil {
 		return err
 	}
 	return ensureMCPServer(ctx, token)
