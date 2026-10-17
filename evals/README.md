@@ -7,6 +7,8 @@ nicht bestanden.
 
 Ausführen: `go run ./cmd/testha eval --setup evals/setups/<setup>.yaml`
 
-| Setup | Stand | Mira | bestanden | Bericht |
-|---|---|---|---|---|
-| gemini-flash | 2026-10-17 11:28 | 0.6.19 | 10 von 12 | [2026-10-17-gemini-flash.md](results/2026-10-17-gemini-flash.md) |
+Je Setup steht hier der letzte Lauf; frühere Läufe sind in der Git-Geschichte.
+
+| Setup | Modelle | Stand | Mira | bestanden | Bericht |
+|---|---|---|---|---|---|
+| gemini-flash | main: gemini-flash-latest | 2026-10-17 11:28 | 0.6.19 | 10 von 12 | [gemini-flash.md](results/gemini-flash.md) |

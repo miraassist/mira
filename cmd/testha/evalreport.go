@@ -147,14 +147,15 @@ func (r Report) markdown() string {
 	return b.String()
 }
 
-// write stores the report under evals/results/ and renews the overview in
-// evals/README.md: the latest run per setup.
+// write stores the report as evals/results/<setup>.md and .json, replacing
+// the setup's last one (earlier runs are in git's history), and renews the
+// overview in evals/README.md.
 func (r Report) write(dir string) error {
 	results := filepath.Join(dir, "results")
 	if err := os.MkdirAll(results, 0o755); err != nil {
 		return err
 	}
-	base := filepath.Join(results, strings.ReplaceAll(r.Date[:10], " ", "")+"-"+r.Setup)
+	base := filepath.Join(results, r.Setup)
 	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return err
@@ -176,7 +177,6 @@ func writeOverview(dir string) error {
 	}
 	sort.Strings(files)
 	latest := map[string]Report{}
-	file := map[string]string{}
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
 		if err != nil {
@@ -185,7 +185,6 @@ func writeOverview(dir string) error {
 		var r Report
 		if json.Unmarshal(raw, &r) == nil {
 			latest[r.Setup] = r
-			file[r.Setup] = strings.TrimSuffix(filepath.Base(f), ".json") + ".md"
 		}
 	}
 	var b strings.Builder
@@ -198,13 +197,16 @@ nicht bestanden.
 
 Ausführen: ` + "`go run ./cmd/testha eval --setup evals/setups/<setup>.yaml`" + `
 
-| Setup | Stand | Mira | bestanden | Bericht |
-|---|---|---|---|---|
+Je Setup steht hier der letzte Lauf; frühere Läufe sind in der Git-Geschichte.
+
+| Setup | Modelle | Stand | Mira | bestanden | Bericht |
+|---|---|---|---|---|---|
 `)
 	for _, name := range keys(latest) {
 		r := latest[name]
 		p, t := r.passed()
-		fmt.Fprintf(&b, "| %s | %s | %s | %d von %d | [%s](results/%s) |\n", name, r.Date, r.Mira, p, t, file[name], file[name])
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d von %d | [%s.md](results/%s.md) |\n",
+			name, strings.Join(r.Models, "<br>"), r.Date, r.Mira, p, t, name, name)
 	}
 	return os.WriteFile(filepath.Join(dir, "README.md"), []byte(b.String()), 0o644)
 }

@@ -107,8 +107,12 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	only := fs.String("scenario", "", "only these scenarios, comma-separated")
 	runs := fs.Int("runs", runsDefault, "runs per scenario")
 	keep := fs.Bool("no-report", false, "do not write a report")
+	overview := fs.Bool("overview", false, "only renew evals/README.md from the stored results")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *overview {
+		return writeOverview(filepath.Join(filepath.Dir(dir), "evals"))
 	}
 	if *setupPath == "" {
 		return fmt.Errorf("usage: testha eval --setup evals/setups/NAME.yaml [--scenario a,b] [--runs 3]")

@@ -91,7 +91,7 @@ go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario term
 
 Die Ergebnisse kommen ins Repo, für Transparenz: Wer Mira einsetzt, sieht, womit sie geprüft ist.
 
-- **Je Lauf:** `evals/results/<datum>-<setup>.md`, eine Tabelle Szenario × Quote, dazu Ebene 3, Dauer, Tokens und Kosten, Mira-Version und Modell-Version. Daneben `.json` mit denselben Daten, für Vergleiche über die Zeit.
+- **Je Setup:** `evals/results/<setup>.md`, eine Tabelle Szenario × Quote, dazu Ebene 3, Dauer, Tokens und Kosten. Im Inhalt stehen auch, wann der Lauf war, die Mira-Version und die Modelle je Rolle (Haupt- und weitere Modelle, Routing). Daneben `.json` mit denselben Daten. Der Dateiname ist nur das Setup, ohne Datum: Ein neuer Lauf ersetzt den alten, frühere Läufe findet man in der Git-Geschichte.
 - **Übersicht:** `evals/README.md` mit dem letzten Stand je Setup, „getestet mit“.
 - **Keine Setup-Details** aus einem echten Haus, keine Schlüssel: nur Modellnamen und Anbieter.
 
