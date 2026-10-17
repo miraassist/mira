@@ -65,7 +65,7 @@ Eine Einstellung dafür gibt es nicht.
 
 1. Mira sucht mit `calendar_events` (Zeitraum und Suchtext aus dem Satz).
 2. Gibt es genau einen Treffer, wird der abgesagt. Bei mehreren fragt Mira, welcher; bei keinem sagt sie es.
-3. **Nachfragen vor dem Löschen** („Arzt Dr. Berger, Montag 10 Uhr – absagen?“): Löschen lässt sich nicht zurückholen. *(Vorschlag, noch zu bestätigen.)*
+3. **Nachfragen vor dem Löschen** („Arzt Dr. Berger, Montag 10 Uhr – absagen?“): Löschen lässt sich nicht zurückholen (`confirm: true`, beschlossen).
 4. Abschluss ist ein Baustein im Kern, `calendar.delete`. HA hat dafür keine Aktion, nur den WebSocket-Befehl `calendar/event/delete` mit Termin-ID. Miras Benutzer darf ihn aufrufen (geprüft).
 5. **Bei Serien** wird nur dieser eine Termin abgesagt, außer der Nutzer sagt ausdrücklich „alle“.
 
