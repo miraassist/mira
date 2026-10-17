@@ -1,16 +1,10 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/mira-logo-dark.png">
-    <img src="docs/brand/mira-logo.png" alt="Mira" height="96">
-  </picture>
-</p>
+[![Mira](https://raw.githubusercontent.com/miraassist/mira/main/docs/brand/mira-logo.png)](https://mira-assist.com)
 
-<p align="center">
-  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Install with HACS" height="40"></a>
-  <br>
-  <a href="https://hacs.xyz"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
-  <a href="https://github.com/miraassist/mira/actions/workflows/ci.yml"><img src="https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-</p>
+**Website: [mira-assist.com](https://mira-assist.com)**
+
+[![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration)
+
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) [![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
 
 # Mira
 
