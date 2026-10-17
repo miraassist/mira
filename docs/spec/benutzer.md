@@ -33,7 +33,7 @@ Rollen (etwa Kinder ohne Schlösser) und Freigaben per Handy gibt es vorerst nic
 Mit Home Assistant ist **jede HA-Person automatisch eine Person bei Mira**. Mira legt keine eigenen Personen an und hält nichts synchron.
 
 - **Anker ist die HA-Person, nicht der HA-Benutzer.** Die Person ist das Haushaltsmitglied mit Anwesenheit (home/away), Name und Bild; der Benutzer ist nur ein Login. Es gibt Personen ohne Login (Kinder, Oma am Satelliten) und Logins ohne Person (Miras eigener HA-Benutzer, Service-Konten). HA verknüpft beides selbst über das Attribut `user_id` der Person, und legt beim Anlegen eines Benutzers standardmäßig eine Person an.
-- **Schlüssel** ist die interne ID der HA-Person (`attributes.id` der `person.*`-Entität, z. B. `stefan_rinke`). Sie bleibt, wenn die Entität umbenannt wird. Gedächtnis, Meldungen, Erinnerungen und Sitzungen hängen an diesem Schlüssel.
+- **Schlüssel** ist die interne ID der HA-Person (`attributes.id` der `person.*`-Entität, z. B. `anna_schmidt`). Sie bleibt, wenn die Entität umbenannt wird. Gedächtnis, Meldungen, Erinnerungen und Sitzungen hängen an diesem Schlüssel.
 - **Mira liest die Personen aus den Zuständen** (`person.*`, mit `id`, `user_id`, Name, Anwesenheit). Dafür braucht ihr HA-Benutzer keine Admin-Rechte. Neue Personen sieht sie beim nächsten Abgleich (jede Minute) oder sofort, wenn ein unbekannter HA-Benutzer auftaucht.
 - **Datensätze entstehen bei Bedarf:** Gedächtnis, Profil und Co. einer Person gibt es, sobald es etwas zu speichern gibt. Es gibt nichts anzulegen.
 - **Was nur Mira braucht, sind optionale Einstellungen an der Person:** Telegram-ID, Push-Dienst (Companion-App), „Allein zu Hause sind die Satelliten ich“. In der Integration heißt das „Mira-Einstellungen für eine Person“: man wählt eine HA-Person und setzt, was man braucht. Wer nichts davon braucht, stellt nichts ein.
@@ -98,4 +98,4 @@ Mira schaltet weiter mit ihrem eigenen HA-Benutzer. Ob ein Befehl erlaubt ist, e
 - `owner` (house oder Personen-ID aus HA) an: Fakten, Profil (eins pro Besitzer), Aufgaben, Erinnerungen, Sitzungen.
 - Meldungen: `owner`/`audience` wie bisher, dazu `sender`.
 - Personen: die HA-Person (ID, Entität, Name, Benutzer) plus Miras Einstellungen `telegram_user_id`, `notify`, `alone_is_me` und später `accept_messages` (all, persons, none).
-- Bisher ist alles Test: Daten werden nicht migriert. Alte Schlüssel (`stefan` statt `stefan_rinke`) bleiben einfach liegen.
+- Bisher ist alles Test: Daten werden nicht migriert. Alte Schlüssel (etwa `anna` statt `anna_schmidt`) bleiben einfach liegen.
