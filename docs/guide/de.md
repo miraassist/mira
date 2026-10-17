@@ -282,19 +282,19 @@ docker run -d --name mira --restart unless-stopped --network host \
   - **Eigener Server**: seine Adresse aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
 
   Dann das Modell aus der Liste. Mira probiert es gleich aus.
-- **Assistenten**, in denen Mira antwortet; der bevorzugte ist schon angehakt.
-- **Koppeln**, sobald nichts mehr fehlt. Fertig.
+- **Mira verwenden in**: die Assistenten, in denen Mira antwortet; der bevorzugte ist schon angehakt.
+- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt. Fertig.
 
 Schließt du den Dialog zwischendurch, geht es beim nächsten Öffnen in der Übersicht weiter.
 
 Steht Mira nicht unter „Entdeckt“: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
-Beim Koppeln richtet die Integration alles Übrige in Home Assistant selbst ein:
+Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
 - einen Benutzer **„Mira“** ohne Admin-Rechte, mit dem Mira Home Assistant anspricht;
 - den **MCP-Server** von Home Assistant, falls er noch fehlt;
 - **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
 
-Vor dem Koppeln passiert nichts. Brichst du den Dialog ab, bleibt nichts halb eingerichtet zurück.
+Vorher passiert nichts. Brichst du den Dialog ab, bleibt nichts halb eingerichtet zurück.
 
 Was Mira sehen und schalten darf, bestimmst du unter Einstellungen → Sprachassistenten → **Entitäten freigeben**.
 

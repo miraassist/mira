@@ -75,12 +75,8 @@ WORDS = {
         "none": "keinem (später unter Einstellungen → Sprachassistenten)",
         "code": "Kopplungscode",
         "model": "KI-Modell",
-        "answers": "Antwortet in",
+        "answers": "Mira verwenden in",
         "missing": "fehlt noch",
-        "todo": "Es fehlt noch: **{what}**. Wähle es unten aus.",
-        "ready": "Alles gewählt: **Koppeln**.",
-        "need_code": "Erst den Kopplungscode eingeben.",
-        "need_model": "Erst das KI-Modell wählen.",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist abgelaufen. Gib ihn neu ein; einen neuen gibt es mit `docker exec mira /app/mira pair`.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
     },
@@ -91,12 +87,8 @@ WORDS = {
         "none": "none (later under Settings → Voice assistants)",
         "code": "Pairing code",
         "model": "AI model",
-        "answers": "Answers in",
+        "answers": "Use Mira in",
         "missing": "still missing",
-        "todo": "Still missing: **{what}**. Choose it below.",
-        "ready": "Everything is chosen: **Pair**.",
-        "need_code": "Enter the pairing code first.",
-        "need_model": "Choose the AI model first.",
         "bad_code": "The pairing code is wrong or expired. Enter it again; get a new one with `docker exec mira /app/mira pair`.",
         "failed": "Pairing did not work: {error}",
     },
@@ -506,14 +498,12 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             missing.append(words["model"])
         chosen = ", ".join(names[p][0] for p in self._pipelines if p in names) or words["none"]
         lines.append(f"- **{words['answers']}:** {chosen}")
-        if missing:
-            lines.append("\n" + words["todo"].format(what=", ".join(missing)))
-        else:
-            lines.append("\n" + words["ready"])
+        # "Start using Mira" shows only once nothing is missing.
         options = ["pair" if self._code is not None else "model_source"]
         if names:
             options.append("assistants")
-        options.append("finish")
+        if not missing:
+            options.append("finish")
         return self.async_show_menu(
             step_id="summary",
             menu_options=options,
@@ -528,12 +518,6 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         paired and set up in one call; it starts anew and is waited for."""
         words = _words(self.hass)
         self._error = ""
-        if self._code == "":
-            self._error = words["need_code"]
-        elif not self._llm and not self._agent_model:
-            self._error = words["need_model"]
-        if self._error:
-            return await self.async_step_summary()
         refresh_id = None
         try:
             await ensure_mcp_server(self.hass)

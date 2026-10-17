@@ -282,19 +282,19 @@ docker run -d --name mira --restart unless-stopped --network host \
   - **Own server**: its address as Mira sees it (`localhost` is the machine Mira runs on).
 
   Then the model from the list. Mira tries it at once.
-- **Assistants** Mira answers in; the preferred one is already ticked.
-- **Pair**, once nothing is missing. Done.
+- **Use Mira in**: the assistants Mira answers in; the preferred one is already ticked.
+- **Start using Mira**: shows once nothing is missing. Done.
 
 If you close the dialog in between, opening it again goes on at the overview.
 
 If Mira is not under "Discovered": **Add integration** → Mira, and enter its address, such as `http://192.168.1.20:8787`.
 
-When pairing, the integration sets up the rest in Home Assistant by itself:
+Then the integration sets up the rest in Home Assistant by itself:
 - a user **"Mira"** without admin rights, which Mira uses to talk to Home Assistant;
 - Home Assistant's **MCP server**, if it is missing;
 - **Mira as the conversation agent** of the assistants you ticked.
 
-Nothing happens before "Pair". If you break the dialog off, nothing is left half set up.
+Nothing happens before that. If you break the dialog off, nothing is left half set up.
 
 What Mira may see and switch you decide under Settings → Voice assistants → **Expose entities**.
 

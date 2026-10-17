@@ -103,8 +103,8 @@ async def test_new_agent_is_paired_and_set_up_only_at_the_end(hass, aioclient_mo
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
     assert result["step_id"] == "summary"
-    result, _ = await _finish(hass, result)
-    assert result["step_id"] == "summary" and result["description_placeholders"]["error"], "Pair needs a model first"
+    # "Start using Mira" only once nothing is missing.
+    assert "finish" not in result["menu_options"]
     result = await _to(hass, result, "model_source")
     assert result["step_id"] == "model_source"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"source": "custom"})
@@ -203,6 +203,7 @@ async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock,
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
     assert result["step_id"] == "summary" and "pair" in result["menu_options"]
     assert "qwen3" in result["description_placeholders"]["status"]
+    assert "finish" not in result["menu_options"]
     result = await _to(hass, result, "pair")
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"code": "000000"})
     assert result["step_id"] == "summary"
