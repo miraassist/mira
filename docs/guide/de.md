@@ -262,6 +262,16 @@ Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
 
 Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` prüft, ob alle erreichbar sind.
 
+## Sicherheit: wie Mira und Home Assistant miteinander sprechen
+
+- **Zwei Schlüssel:**
+  - Home Assistant spricht Mira mit einem **Zugangs-Token** an, den du bei der Einrichtung einträgst.
+  - Mira spricht Home Assistant als **eigener Benutzer ohne Admin-Rechte** an.
+  - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
+- **Was Mira in HA darf:** nichts verwalten (keine Benutzer, keine Integrationen), aber Geräte schalten. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
+- **Läuft Mira auf demselben Rechner wie Home Assistant** (der Normalfall), bleibt alles auf diesem Rechner.
+- **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: der Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, ein Gästenetz oder ein geteiltes Netz ist dafür nicht geeignet.
+
 ## Gut zu wissen
 
 - Mira erfindet keine Werte: Fehlt ihr etwas, sagt sie es oder fragt nach.

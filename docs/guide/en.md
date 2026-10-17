@@ -262,6 +262,16 @@ Two switches decide how careful Mira is with a server:
 
 New or changed servers take effect when Mira restarts. `mira check` tells whether all of them are reachable.
 
+## Security: how Mira and Home Assistant talk
+
+- **Two keys:**
+  - Home Assistant reaches Mira with an **access token** you enter during setup.
+  - Mira reaches Home Assistant as **a user of her own without admin rights**.
+  - Whoever knows the access token can do all that Mira can. Treat it like a password.
+- **What Mira may do in HA:** manage nothing (no users, no integrations), but switch devices. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.
+- **If Mira runs on the same machine as Home Assistant** (the usual case), everything stays on that machine.
+- **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network; a guest network or a shared network is not the place for it.
+
 ## Good to know
 
 - Mira does not make up values: if something is missing, she says so or asks.

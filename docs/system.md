@@ -387,6 +387,22 @@ erDiagram
   mit Adresse. Sie erreichen kein Modell.
 - **Integration und Agent** sprechen nur mit Bearer-Token miteinander.
 
+### Verbindungen
+
+Zwischen Home Assistant und dem Agenten gibt es zwei Richtungen, auf getrennten Wegen:
+
+| Richtung | Weg | Absicherung |
+|---|---|---|
+| Integration → Agent | HTTP mit JSON: `/v1/conversation` (jeder Turn von Assist und Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (Personen, Satelliten, Freigabe), der Panel-Proxy | Bearer-Token (`server.token`), bei jeder Anfrage in konstanter Zeit geprüft. Ohne Token sind nur `/ui`, die Anleitung und `/v1/health` erreichbar, ohne Daten. Ein leerer Token schaltet die Prüfung ab, nur für die Entwicklung |
+| Agent → Home Assistant | WebSocket-API, MCP über HTTP (`/api/mcp/assist`), REST (Kalender, Grundeinstellungen) | Long-Lived-Token eines eigenen HA-Benutzers ohne Admin-Rechte |
+| Agent → Integration | über HA: eigene WebSocket-Befehle der Integration (`mira/automation/*`) | nur Miras HA-Benutzer oder ein Admin (die Integration kennt die ID aus `/v1/health`) |
+
+- **Panel:** Browser → HA (mit HAs Login) → Integration → Agent, mit dem Token und den Kopfzeilen `X-Mira-HA-User` und `X-Mira-HA-Admin`. Der Agent vertraut diesen Kopfzeilen, sobald der Token stimmt. Wer den Token hat, kann sich also als beliebiger HA-Benutzer ausgeben: Der Token ist der Schlüssel zu allem.
+- **Rechte des HA-Benutzers:** Kein Admin heißt, er verwaltet nichts in HA (keine Benutzer, Integrationen, Freigabeliste). Dienste kann er aber auf jeder Entität aufrufen, denn HA kennt für normale Benutzer keine Rechte pro Entität. Die Grenzen setzen Miras Wächter und die Freigabe für Assist, die HAs MCP-Werkzeuge einhalten. Der HA-Token des Agenten ist damit fast so mächtig wie ein normales Konto.
+- **Verschlüsselung:** Der Agent spricht unverschlüsseltes HTTP. Zu HA ist die Verbindung verschlüsselt, wenn `ha.url` mit `https://` beginnt.
+- **Gleicher Host** (der Standardfall: der Agent als Container neben HA): Alles läuft lokal. Mit `server.listen: 127.0.0.1:8787` ist der Agent von außen gar nicht erreichbar, wenn HA ihn über `localhost` anspricht.
+- **Getrennte Hosts im LAN:** Token, Gesprächstexte und Antworten gehen unverschlüsselt durchs Netz. Wer im LAN mitlesen kann, sieht sie. Der Agent lauscht dann auf allen Schnittstellen. Ohne Token kommt man nicht an Daten. Tokens deshalb lang und zufällig wählen, und den Port 8787 auf die HA beschränken, wo der Router oder Rechner das erlaubt.
+
 ## 9. Testen
 
 - **Go:** `go test ./...`
