@@ -31,22 +31,35 @@ type Server struct {
 	// Token, when set, is required as a bearer token.
 	Token string
 
-	mu    sync.Mutex
-	calls []Call
+	mu      sync.Mutex
+	calls   []Call
+	handler http.Handler
 }
 
 // New starts an empty server. Add tools with AddTool.
 func New(name string) *Server {
 	s := &Server{MCP: sdk.NewServer(&sdk.Implementation{Name: name, Version: "test"}, nil)}
-	handler := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s.MCP }, nil)
+	s.ForgetSessions()
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.Token != "" && r.Header.Get("Authorization") != "Bearer "+s.Token {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		handler.ServeHTTP(w, r)
+		s.mu.Lock()
+		h := s.handler
+		s.mu.Unlock()
+		h.ServeHTTP(w, r)
 	}))
 	return s
+}
+
+// ForgetSessions acts like a server that restarted: the sessions its
+// clients hold are gone, and their next request is refused.
+func (s *Server) ForgetSessions() {
+	h := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s.MCP }, nil)
+	s.mu.Lock()
+	s.handler = h
+	s.mu.Unlock()
 }
 
 // URL is the endpoint for the MCP client.

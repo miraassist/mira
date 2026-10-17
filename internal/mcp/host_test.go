@@ -186,3 +186,22 @@ func TestPromptQualifiesToolNames(t *testing.T) {
 		t.Error("unknown server did not fail")
 	}
 }
+
+// A remote server that restarts forgets its sessions. The next call fails
+// on the old session; Mira connects anew and repeats it once.
+func TestCallReconnectsWhenTheServerForgotTheSession(t *testing.T) {
+	ha := fakemcp.HA("Küche: Licht an")
+	t.Cleanup(ha.Close)
+	h := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint()},
+	}})
+	ha.ForgetSessions()
+	res, err := h.Call(context.Background(), "ha__GetLiveContext", nil)
+	if err != nil || res.Text != "Küche: Licht an" {
+		t.Fatalf("after the server forgot the session: %+v, %v", res, err)
+	}
+	ha.ForgetSessions()
+	if text, err := h.Prompt(context.Background(), "ha", "nope"); err == nil {
+		t.Errorf("unknown prompt answered %q", text)
+	}
+}

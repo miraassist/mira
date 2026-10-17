@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/miraassist/mira/internal/config"
@@ -270,6 +271,40 @@ func (h *Host) connectServer(ctx context.Context, s *server) error {
 	return nil
 }
 
+// lostSession reports a call that failed on the way, not in the tool: a
+// remote server over HTTP that restarted has forgotten the session, and
+// nothing told the client. A timeout is not one of them: the server may
+// have done the work, and doing it twice is worse than failing.
+func lostSession(err error) bool {
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+	var rpc *jsonrpc.Error
+	return !errors.As(err, &rpc) // an answer from the server is no lost session
+}
+
+// reconnect drops a session that failed a call and connects anew, for the
+// one repeat of that call. It returns nil when the server stays away; Run
+// then keeps trying as for any server that is down.
+func (h *Host) reconnect(ctx context.Context, s *server, failed *sdk.ClientSession, cause error) *sdk.ClientSession {
+	s.mu.Lock()
+	if s.session == failed {
+		s.session = nil
+	}
+	s.mu.Unlock()
+	_ = failed.Close()
+	h.log.Warn("mcp call failed on its session, connecting anew", "server", s.cfg.Name, "error", cause)
+	if err := h.connectServer(context.WithoutCancel(ctx), s); err != nil {
+		h.log.Warn("mcp server unreachable", "server", s.cfg.Name, "error", err)
+		h.rebuild()
+		return nil
+	}
+	h.rebuild()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.session
+}
+
 func (h *Host) refresh(ctx context.Context, s *server) {
 	s.mu.Lock()
 	session := s.session
@@ -393,9 +428,17 @@ func (h *Host) Call(ctx context.Context, qualified string, args json.RawMessage)
 		arguments = map[string]any{}
 	}
 
+	params := &sdk.CallToolParams{Name: toolName, Arguments: arguments}
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
-	res, err := session.CallTool(cctx, &sdk.CallToolParams{Name: toolName, Arguments: arguments})
+	res, err := session.CallTool(cctx, params)
+	if lostSession(err) {
+		if fresh := h.reconnect(ctx, s, session, err); fresh != nil {
+			rctx, rcancel := context.WithTimeout(ctx, h.callTimeout)
+			defer rcancel()
+			res, err = fresh.CallTool(rctx, params)
+		}
+	}
 	if err != nil {
 		return Result{}, fmt.Errorf("call %s: %w", qualified, err)
 	}
@@ -420,6 +463,13 @@ func (h *Host) Prompt(ctx context.Context, serverName, name string) (string, err
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
 	res, err := session.GetPrompt(cctx, &sdk.GetPromptParams{Name: name})
+	if lostSession(err) {
+		if fresh := h.reconnect(ctx, s, session, err); fresh != nil {
+			rctx, rcancel := context.WithTimeout(ctx, h.callTimeout)
+			defer rcancel()
+			res, err = fresh.GetPrompt(rctx, &sdk.GetPromptParams{Name: name})
+		}
+	}
 	if err != nil {
 		return "", fmt.Errorf("get prompt %s from %s: %w", name, serverName, err)
 	}
