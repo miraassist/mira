@@ -140,6 +140,7 @@ Wichtig:
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
   Weitere Werkzeuge und Skills (Verlauf, Wetter, Musik, Kamera, Listen): [Plan](spec/skills-plan.md).
   Prüfen, ob Mira mit einem Modell-Setup funktioniert: [Evals](spec/evals.md).
+  Wie man Mira einrichtet (Koppeln, Sprachmodell im Formular, Agent ohne Config-Datei): [Einrichtung](spec/einrichtung.md).
 - **Schutz gegen unbelegte Antworten.** Kündigt das Modell eine Aktion nur
   an, meldet es etwas als erledigt oder nennt es Messwerte und Zustände,
   ohne ein Werkzeug aufgerufen zu haben, muss es nachholen. Sonst ersetzt
