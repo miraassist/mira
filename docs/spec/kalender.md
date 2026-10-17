@@ -1,6 +1,6 @@
 # Kalender und To-do-Listen – Spezifikation
 
-Stand 2026-10-17, beschlossen, nicht gebaut. Baut auf [Skill-Aktionen](skill-aktionen.md) auf.
+Stand 2026-10-17, beschlossen, nicht gebaut. Baut auf [Skill-Aktionen](skill-aktionen.md) auf. Wie Daten dargestellt werden (Stufen, Zeitachse): [Kontext](kontext.md), Abschnitt 2.
 
 ## Grundsatz
 

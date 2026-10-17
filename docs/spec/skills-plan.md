@@ -1,6 +1,6 @@
 # Plan: weitere Werkzeuge und Skills
 
-Stand 2026-10-17, beschlossen, nicht gebaut. Gleiches Muster wie [Kalender](kalender.md): Was HA über Assist schon kann, baut Mira nicht nach. Für den Rest gilt:
+Stand 2026-10-17, beschlossen, nicht gebaut. Gleiches Muster wie [Kalender](kalender.md): Was HA über Assist schon kann, baut Mira nicht nach. Wie Daten dargestellt werden (Stufen, Zeitachse): [Kontext](kontext.md), Abschnitt 2. Für den Rest gilt:
 - **Lesen** bekommt ein eigenes Werkzeug mit knapper Darstellung: Mira bestimmt, wie das Modell die Daten sieht, statt rohe Mengen weiterzureichen.
 - **Handeln** wird eine [Skill-Aktion](skill-aktionen.md), möglichst ohne Code.
 
