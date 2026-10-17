@@ -122,7 +122,8 @@ var placeholder = regexp.MustCompile(`\{\{\s*([\w.]+)\s*\}\}`)
 
 // renderAction fills an action's placeholders. Data stays even when it comes
 // out empty (an optional field nobody filled): ESPHome actions want every
-// field, and an empty one means something (days "" is once). A placeholder
+// field, and an empty one means something (days "" is once). With
+// omit_empty it goes, for actions that take one of several fields. A placeholder
 // in the action itself that cannot be filled is an error: it would call the
 // wrong thing.
 func renderAction(a skills.Action, vars map[string]string) (done, error) {
@@ -143,7 +144,11 @@ func renderAction(a skills.Action, vars map[string]string) (done, error) {
 	}
 	for k, v := range a.Data {
 		if s, ok := v.(string); ok {
-			d.Data[k] = strings.TrimSpace(fill(s))
+			s = strings.TrimSpace(fill(s))
+			if s == "" && a.OmitEmpty {
+				continue
+			}
+			d.Data[k] = s
 			continue
 		}
 		d.Data[k] = v

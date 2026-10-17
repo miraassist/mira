@@ -128,13 +128,22 @@ Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Ass
 
 Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet einen Skill nur, wenn eine Frage ihn braucht.
 
-**Abfall**: Mira kennt den Abfuhrkalender deines Entsorgers.
+**Abfall**: Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Assistant (zum Beispiel über die Integration „Remote Calendar“ mit dem iCal-Link des Entsorgers); in `mira.yaml` steht beim Skill `abfall` sein Name.
 
 - „Wann wird der Restmüll abgeholt?“ – „Was wird nächste Woche abgeholt?“
 - Am Vorabend erinnert Mira von selbst: „Morgen wird der Wertstoff abgeholt.“
 - Ist die Abfuhr heute, sagt sie es, falls die Tonne noch raus muss.
 
 > 🎬 **Aufnahme folgt:** „Was wird nächste Woche abgeholt?“ am Satelliten.
+
+## Kalender und Listen
+
+Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist freigegeben sind (Einstellungen → Sprachassistenten → Entitäten freigeben). Mehrere Kalender sind kein Problem.
+
+- „Was steht diese Woche an?“ – „Wann ist der Elternabend?“ Mira liest die Termine knapp, nach Tag; lange Beschreibungen nennt sie nur, wenn du danach fragst.
+- „Trag mir Freitag um 15 Uhr Zahnarzt ein.“ Mira trägt ein und sagt, was eingetragen ist. Gibt es mehrere Kalender, fragt sie einmal, in welchen, und merkt sich das auf Wunsch als deinen Standard.
+- „Sag meinen Termin morgen beim Arzt ab.“ Mira sucht den Termin und fragt nach, bevor sie ihn löscht. Bei einem Serientermin sagt sie nur diesen einen ab, außer du willst alle.
+- „Setz Milch auf die Einkaufsliste.“ – „Setz Batterien drauf, bis Freitag.“ – „Was steht auf der Liste?“
 
 ## Im Internet nachschauen und schwierige Fragen
 

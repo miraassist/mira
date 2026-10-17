@@ -86,7 +86,8 @@ flowchart LR
 | `internal/tasks` | Aufgaben: Urteile (`assess`, `decide`), Datenansichten, Entwurf und Verwaltung der Automationen, Werkzeuge |
 | `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeigen (LED-Ring, Bildschirm); Erinnerungen |
 | `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender |
-| `internal/ical`, `internal/feeds` | Kalender (iCal) und Feeds (RSS/Atom) lesen |
+| `internal/calendar`, `internal/timeline` | Kalender aus Home Assistant lesen und ändern; die gemeinsame Darstellung der Zeitachse |
+| `internal/feeds` | Feeds (RSS/Atom) lesen |
 | `internal/store` | SQLite: Sitzungen, Verläufe, Nachrichten, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |
 | `internal/profile` | Nächtliche Verdichtung der Fakten zum Haushaltsprofil |
 | `internal/ui` | Web-UI und ihre API (`/v1/ui/*`) |

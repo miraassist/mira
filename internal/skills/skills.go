@@ -1,7 +1,7 @@
 // Package skills loads skills: folders with a SKILL.md in the Agent Skills
 // format (YAML frontmatter with name and description, Markdown body). Mira
-// reads her own additions from metadata.mira: settings, calendars and
-// schedules.
+// reads her own additions from metadata.mira: settings, schedules and a
+// target (docs/spec/vorgaenge.md, docs/spec/skill-aktionen.md).
 //
 // A skill costs the prompt one line until it is used: the skill_open tool
 // lists the enabled skills, and only opening one puts its instructions into
@@ -9,9 +9,8 @@
 // many skills are installed.
 //
 // Skills never run code. What they can do comes from the core: the tools
-// every conversation has, and safe building blocks such as calendar_events,
-// which reads a calendar by name — the URL stays in the config and never
-// reaches a model. A skill that needs more brings an MCP server (later).
+// every conversation has (calendar_events among them), the building blocks
+// of a target, and Home Assistant actions a target finishes with.
 package skills
 
 import (
@@ -39,7 +38,6 @@ type Skill struct {
 	Body      string
 	Dir       string
 	Settings  map[string]Setting
-	Calendars map[string]string // calendar name -> URL (from a setting)
 	Schedules []Schedule
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
@@ -97,6 +95,10 @@ type Finish struct {
 type Action struct {
 	Action string         `yaml:"action"`
 	Data   map[string]any `yaml:"data"`
+	// OmitEmpty leaves out data that comes out empty, for actions that take
+	// one of several fields (calendar.create_event: a time or a day). By
+	// default empty data stays: ESPHome actions want every field.
+	OmitEmpty bool `yaml:"omit_empty"`
 }
 
 func (f *Finish) UnmarshalYAML(node *yaml.Node) error {
@@ -123,7 +125,7 @@ type Setting struct {
 	Description string `yaml:"description"`
 	Required    bool   `yaml:"required"`
 	// Secret settings (URLs with an address or a token) are never shown to
-	// a model; the core uses them, for example as a calendar's URL.
+	// a model; the core uses them.
 	Secret bool `yaml:"secret"`
 }
 
@@ -143,7 +145,6 @@ type frontmatter struct {
 	Metadata    struct {
 		Mira struct {
 			Settings  map[string]Setting `yaml:"settings"`
-			Calendars map[string]string  `yaml:"calendars"`
 			Schedules []Schedule         `yaml:"schedules"`
 			Target    *Target            `yaml:"target"`
 		} `yaml:"mira"`
@@ -210,7 +211,7 @@ func load(dir string, values map[string]any) (Skill, error) {
 	}
 	m := meta.Metadata.Mira
 	s := Skill{Name: meta.Name, Description: strings.TrimSpace(meta.Description), Dir: dir,
-		Settings: m.Settings, Calendars: map[string]string{}}
+		Settings: m.Settings}
 
 	vals := map[string]string{}
 	for k, v := range values {
@@ -224,14 +225,6 @@ func load(dir string, values map[string]any) (Skill, error) {
 			return Skill{}, fmt.Errorf("setting %s is required: %s", k, decl.Description)
 		}
 	}
-	for cal, key := range m.Calendars {
-		if _, ok := m.Settings[key]; !ok {
-			return Skill{}, fmt.Errorf("calendar %s refers to unknown setting %s", cal, key)
-		}
-		if vals[key] != "" {
-			s.Calendars[cal] = vals[key]
-		}
-	}
 	for i, sc := range m.Schedules {
 		c, err := schedule.Parse(sc.Cron)
 		if err != nil {
@@ -241,6 +234,7 @@ func load(dir string, values map[string]any) (Skill, error) {
 			return Skill{}, fmt.Errorf("schedule %d has no task", i+1)
 		}
 		sc.cron = c
+		sc.Task = fill(sc.Task, vals, m.Settings)
 		s.Schedules = append(s.Schedules, sc)
 	}
 	if t := m.Target; t != nil {

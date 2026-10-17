@@ -1,6 +1,6 @@
 # Kalender und To-do-Listen – Spezifikation
 
-Stand 2026-10-17, beschlossen, nicht gebaut. Baut auf [Skill-Aktionen](skill-aktionen.md) auf. Wie Daten dargestellt werden (Stufen, Zeitachse): [Kontext](kontext.md), Abschnitt 2.
+Stand 2026-10-17, gebaut in 0.6.19. Baut auf [Skill-Aktionen](skill-aktionen.md) auf. Wie Daten dargestellt werden (Stufen, Zeitachse): [Kontext](kontext.md), Abschnitt 2.
 
 ## Grundsatz
 
@@ -59,7 +59,7 @@ Eine Einstellung dafür gibt es nicht.
 - Sonst fragt sie: „In welchen Kalender – Familie oder Anna?“ Nach der Antwort bietet sie an, sich das als Standard zu merken.
 - Nennt der Nutzer einen Kalender ausdrücklich („in den Familienkalender“), gilt der.
 
-## Absagen: Skill `termin_absagen`
+## Absagen: Skill `termin-absagen`
 
 „Sag meinen Termin morgen beim Arzt ab.“
 

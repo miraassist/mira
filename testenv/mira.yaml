@@ -99,5 +99,5 @@ skills:
   dirs: [skills]
   enabled:
     abfall:
-      calendar_url: "http://${HA_HOST}/local/abfall-test.ics"
+      calendar: calendar.abfuhrtermine
       types: [Restabfall, Wertstoff, Bioabfall, Altpapier]

@@ -55,7 +55,7 @@ DATA_SCHEMA = vol.All(
         vol.Schema(
             {
                 vol.Required("entity_id"): cv.entity_id,
-                vol.Optional("view", default="state"): vol.In(["state", "same_hour", "day"]),
+                vol.Optional("view", default="state"): vol.In(["state", "same_hour", "day", "upcoming"]),
             }
         )
     ],

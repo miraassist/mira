@@ -73,6 +73,7 @@ Miras Aktionen:
     view state: aktueller Zustand
     view same_hour: letzte volle Stunde gegen dieselbe Stunde der letzten 14 Tage (Verbrauch bei Zählern mit state_class total/total_increasing, Mittel bei Messwerten)
     view day: heute bis jetzt gegen dieselben Wochentage der Vorwochen
+    view upcoming: nur für Kalender (calendar.*): die Termine von jetzt bis Ende morgen
   cooldown: optional, z. B. "6h": innerhalb dieser Zeit meldet die Aufgabe nur, wenn es wichtiger wird
 - mira.send_message: feste Nachricht ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend). Der Text wird oft erst später vorgelesen: nenne die Uhrzeit per Vorlage und sprich in der Vergangenheit, z. B. "Um {{ now().strftime('%H:%M') }} ging das Licht im Schlafzimmer an."
 - mira.decide: Ja/Nein-Urteil mit response_variable, danach condition: template auf {{ d.answer }}, wenn erst Mira entscheiden soll, ob geschaltet wird.
@@ -106,6 +107,7 @@ Mira's actions:
     view state: the current state
     view same_hour: the last full hour against the same hour on the previous 14 days (usage for counters with state_class total/total_increasing, mean for measurements)
     view day: today so far against the same weekdays of earlier weeks
+    view upcoming: calendars only (calendar.*): the events from now to the end of tomorrow
   cooldown: optional, e.g. "6h": within it the task only reports again when it gets more important
 - mira.send_message: a fixed message without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent). The text is often read out later: give the time with a template and use the past tense, e.g. "At {{ now().strftime('%H:%M') }} the bedroom light went on."
 - mira.decide: a yes/no judgement with response_variable, then condition: template on {{ d.answer }}, when Mira should first decide whether to switch.

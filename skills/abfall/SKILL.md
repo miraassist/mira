@@ -5,34 +5,31 @@ license: MIT
 metadata:
   mira:
     settings:
-      calendar_url:
-        description: iCal-Adresse des Abfallkalenders (beim Entsorger als Abo/Sync-Link erhältlich)
+      calendar:
+        description: Der Kalender mit den Abfuhrterminen in Home Assistant, Name oder Entität (z. B. calendar.abfuhrtermine). Er muss für Assist freigegeben sein.
         required: true
-        secret: true
       types:
         description: Abfallarten, die interessieren, als Wortteile mit Komma, z. B. "Restabfall, Wertstoff". Leer heißt alle.
-    calendars:
-      abfall: calendar_url
     schedules:
       - cron: "0 18 * * *"
         task: >-
-          Prüfe mit calendar_events (Kalender "abfall", day "tomorrow"), ob morgen etwas
-          zu den interessanten Abfallarten abgeholt wird. Nimm nur, was diese Abfrage
-          liefert. Sagt sie "keine passenden Termine" oder nennt sie nur andere Arten:
-          importance 0 und spoken leer. Sonst: importance 1, spoken nennt kurz, was morgen
-          abgeholt wird, z. B. "Morgen wird der Restabfall abgeholt. Denk daran, die
-          Tonne rauszustellen."
+          Prüfe mit calendar_events (calendar "{{calendar}}", from und to beide der Tag
+          von morgen), ob morgen etwas zu den interessanten Abfallarten abgeholt wird.
+          Nimm nur, was diese Abfrage liefert. Ist nichts Passendes dabei: importance 0
+          und spoken leer. Sonst: importance 1, spoken nennt kurz, was morgen abgeholt
+          wird, z. B. "Morgen wird der Restabfall abgeholt. Denk daran, die Tonne
+          rauszustellen."
 ---
 # Abfall
 
-Der Kalender "abfall" enthält die Abfuhrtermine dieses Haushalts. Lies ihn mit
-`calendar_events` (calendar: "abfall"), statt Termine zu schätzen.
+Der Kalender "{{calendar}}" enthält die Abfuhrtermine dieses Haushalts. Lies ihn mit
+`calendar_events` (calendar: "{{calendar}}"), statt Termine zu schätzen.
 
 Interessante Abfallarten: {{types}}
 Termine anderer Arten (etwa die mobile Schadstoffsammlung) erwähnst du nur,
 wenn der Nutzer ausdrücklich danach fragt.
 
-- "Wann kommt der Restmüll?": den nächsten passenden Termin mit Wochentag und Datum nennen.
+- "Wann kommt der Restmüll?": den nächsten passenden Termin mit Wochentag und Datum nennen; frag dafür einen längeren Zeitraum ab (to in vier Wochen).
 - Ist der nächste Termin heute, weißt du nicht, ob schon abgeholt wurde. Sag dann: heute, und falls
   noch nicht abgeholt, schnell die Tonne rausstellen. Nenne zusätzlich den Termin danach.
 - Nenne nur Termine, die calendar_events geliefert hat. Rechne keine Termine aus Rhythmen hoch.

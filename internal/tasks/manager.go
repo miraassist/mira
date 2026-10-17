@@ -52,6 +52,8 @@ type Options struct {
 	Persons        func() map[string]config.Person
 	// Satellites maps an area to its satellite, for where a task was asked.
 	Satellites func() map[string]string
+	// Upcoming renders a calendar's events in a window (view upcoming).
+	Upcoming func(ctx context.Context, entity string, from, to time.Time) (string, error)
 	// HAURL is how Mira reaches Home Assistant. Links into its editor use
 	// the URL Home Assistant has configured for itself, this only without.
 	HAURL string

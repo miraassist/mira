@@ -128,13 +128,22 @@ At night Mira condenses each memory into a short profile. In Home Assistant, und
 
 Skills are extra abilities the setup switches on. Mira opens a skill only when a question needs it.
 
-**Waste**: Mira knows your waste collector's calendar.
+**Waste**: Mira knows your waste collector's calendar. It is a calendar in Home Assistant (for example through the "Remote Calendar" integration with your collector's iCal link); in `mira.yaml` the skill `abfall` names it.
 
 - "When is the residual waste collected?" – "What gets collected next week?"
 - On the evening before, Mira reminds you on her own: "The recycling is collected tomorrow."
 - If the collection is today, she says so in case the bin still has to go out.
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
+
+## Calendars and lists
+
+Mira uses the calendars and to-do lists from Home Assistant that are exposed to Assist (Settings → Voice assistants → Expose entities). Several calendars are no problem.
+
+- "What's on this week?" – "When is the parents' evening?" Mira reads the events briefly, by day; long descriptions only when you ask.
+- "Put the dentist in for Friday at 3 pm." Mira enters it and says what she entered. With several calendars she asks once which one, and on request remembers it as your default.
+- "Cancel my doctor's appointment tomorrow." Mira looks the event up and asks before she deletes it. Of a recurring event she cancels only this one, unless you want all.
+- "Put milk on the shopping list." – "Add batteries, due Friday." – "What's on the list?"
 
 ## Looking things up and hard questions
 

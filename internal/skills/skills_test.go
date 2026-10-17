@@ -3,8 +3,6 @@ package skills
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,17 +10,16 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/i18n"
-	"github.com/miraassist/mira/internal/ical"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
 
-const secretURL = "https://example.org/cal?StandortID=geheim"
+const abfallCalendar = "calendar.abfuhrtermine"
 
 func loadAbfall(t *testing.T, url string) Skill {
 	t.Helper()
 	list, err := Load([]string{"testdata/skills"}, map[string]map[string]any{
-		"abfall": {"calendar_url": url, "types": []any{"Restabfall", "Wertstoff"}},
+		"abfall": {"calendar": url, "types": []any{"Restabfall", "Wertstoff"}},
 	})
 	if err != nil || len(list) != 1 {
 		t.Fatalf("load: %v %v", list, err)
@@ -31,15 +28,12 @@ func loadAbfall(t *testing.T, url string) Skill {
 }
 
 func TestLoad(t *testing.T) {
-	sk := loadAbfall(t, secretURL)
-	if sk.Calendars["abfall"] != secretURL || len(sk.Schedules) != 1 || sk.Schedules[0].Cron != "0 18 * * *" {
+	sk := loadAbfall(t, abfallCalendar)
+	if len(sk.Schedules) != 1 || sk.Schedules[0].Cron != "0 18 * * *" {
 		t.Errorf("skill: %+v", sk)
 	}
-	if !strings.Contains(sk.Body, "Interessante Abfallarten: Restabfall, Wertstoff") {
-		t.Errorf("setting not filled in: %s", sk.Body)
-	}
-	if strings.Contains(sk.Body, "geheim") {
-		t.Error("secret setting reached the body")
+	if !strings.Contains(sk.Body, "Interessante Abfallarten: Restabfall, Wertstoff") || !strings.Contains(sk.Body, `"calendar.abfuhrtermine"`) {
+		t.Errorf("settings not filled in: %s", sk.Body)
 	}
 
 	for name, settings := range map[string]map[string]any{
@@ -51,7 +45,7 @@ func TestLoad(t *testing.T) {
 			t.Errorf("%s loaded", name)
 		}
 	}
-	if _, err := Load([]string{"testdata/skills"}, map[string]map[string]any{"abfall": {"calendar_url": "x", "farbe": "blau"}}); err == nil {
+	if _, err := Load([]string{"testdata/skills"}, map[string]map[string]any{"abfall": {"calendar": "x", "farbe": "blau"}}); err == nil {
 		t.Error("unknown setting accepted")
 	}
 }
@@ -69,77 +63,24 @@ func TestShippedSkillsLoad(t *testing.T) {
 	}
 }
 
-func calendarServer(t *testing.T) string {
-	t.Helper()
-	data, err := os.ReadFile("../ical/testdata/abfall.ics")
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(data) }))
-	t.Cleanup(srv.Close)
-	return srv.URL + "/cal?StandortID=geheim"
-}
-
 func berlinSet(t *testing.T, sk Skill) *Set {
 	berlin, _ := time.LoadLocation("Europe/Berlin")
-	return &Set{Lang: i18n.DE, Skills: []Skill{sk}, Calendar: &ical.Cache{}, Location: berlin,
+	return &Set{Lang: i18n.DE, Skills: []Skill{sk}, Location: berlin,
 		Clock: func() time.Time { return time.Date(2026, 10, 21, 18, 0, 0, 0, berlin) }}
 }
 
-func toolByName(list []tools.InternalTool, name string) tools.InternalTool {
-	for _, it := range list {
-		if it.Name == name {
-			return it
-		}
-	}
-	return tools.InternalTool{}
-}
-
 func TestTools(t *testing.T) {
-	set := berlinSet(t, loadAbfall(t, calendarServer(t)))
+	set := berlinSet(t, loadAbfall(t, abfallCalendar))
 	list := set.Tools()
-	if len(list) != 2 {
-		t.Fatalf("tools: %d", len(list))
+	if len(list) != 1 || !json.Valid([]byte(list[0].Schema)) || !list[0].ReadOnly {
+		t.Fatalf("tools: %+v", list)
 	}
-	for _, it := range list {
-		if strings.Contains(it.Description+it.Schema, "geheim") || !json.Valid([]byte(it.Schema)) || !it.ReadOnly {
-			t.Errorf("%s: secret, bad schema or not read-only", it.Name)
-		}
+	if !strings.Contains(list[0].Description, "- abfall: Abfuhrtermine") {
+		t.Errorf("skill list: %s", list[0].Description)
 	}
-	open := toolByName(list, ToolSkillOpen)
-	if !strings.Contains(open.Description, "- abfall: Abfuhrtermine") {
-		t.Errorf("skill list: %s", open.Description)
-	}
-	body, err := open.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"abfall"}`)})
-	if err != nil || !strings.Contains(body, "calendar_events") {
+	body, err := list[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"abfall"}`)})
+	if err != nil || !strings.Contains(body, "calendar.abfuhrtermine") {
 		t.Errorf("open: %q %v", body, err)
-	}
-
-	cal := toolByName(list, ToolCalendarEvents)
-	out, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","days":2,"match":"restabfall, wertstoff"}`)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "Heute ist Mittwoch, 21. Oktober 2026.") || !strings.Contains(out, "- morgen, Donnerstag, 22. Oktober 2026: Wertstoff") || strings.Contains(out, "Papier") {
-		t.Errorf("events:\n%s", out)
-	}
-	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","days":7,"match":"schadstoff"}`)})
-	if !strings.Contains(out, "Samstag, 24. Oktober 2026, 09:00 Uhr: Mobile Schadstoffsammlung") {
-		t.Errorf("timed event:\n%s", out)
-	}
-	// A short window still shows the next matches: here the window of one
-	// day is empty, the following two come anyway.
-	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","days":1,"match":"wertstoff, schadstoff"}`)})
-	if !strings.Contains(out, "Wertstoff") || !strings.Contains(out, "Schadstoff") {
-		t.Errorf("no look-ahead:\n%s", out)
-	}
-	// One day only: tomorrow's collection, and nothing else.
-	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"tomorrow"}`)})
-	if !strings.Contains(out, "- morgen, Donnerstag, 22. Oktober 2026: Wertstoff") || strings.Contains(out, "Schadstoff") {
-		t.Errorf("tomorrow:\n%s", out)
-	}
-	if _, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"nope"}`)}); err == nil {
-		t.Error("unknown calendar accepted")
 	}
 	if len((&Set{}).Tools()) != 0 {
 		t.Error("tools without skills")
@@ -157,7 +98,7 @@ func (f *fakeTasker) RunTask(_ context.Context, instruction string) (string, err
 }
 
 func TestRunJob(t *testing.T) {
-	sk := loadAbfall(t, secretURL)
+	sk := loadAbfall(t, abfallCalendar)
 	set := berlinSet(t, sk)
 	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
 	if err != nil {
@@ -171,7 +112,7 @@ func TestRunJob(t *testing.T) {
 	if err != nil || !queued {
 		t.Fatalf("run: %v %v", queued, err)
 	}
-	if !strings.Contains(tasker.instruction, "Prüfe mit calendar_events") || strings.Contains(tasker.instruction, "geheim") {
+	if !strings.Contains(tasker.instruction, `Prüfe mit calendar_events (calendar "calendar.abfuhrtermine"`) {
 		t.Errorf("instruction:\n%s", tasker.instruction)
 	}
 	list, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
@@ -188,26 +129,6 @@ func TestRunJob(t *testing.T) {
 func TestTextsComplete(t *testing.T) {
 	if missing := i18n.Missing(catalog); len(missing) > 0 {
 		t.Errorf("texts missing: %v", missing)
-	}
-}
-
-// Seen live: on collection day at 18:00 the model was given today's
-// collection and the next one, and announced today's for tomorrow. Asked
-// for tomorrow only, the tool says there is nothing.
-func TestCalendarTomorrowOnCollectionDay(t *testing.T) {
-	set := berlinSet(t, loadAbfall(t, calendarServer(t)))
-	set.Clock = func() time.Time { return time.Date(2026, 10, 15, 18, 0, 0, 0, set.Location) }
-	cal := toolByName(set.Tools(), ToolCalendarEvents)
-	out, err := cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"tomorrow","match":"restabfall, wertstoff"}`)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "morgen, Freitag, 16. Oktober 2026: keine passenden Termine.") || strings.Contains(out, "Restabfall") {
-		t.Errorf("tomorrow:\n%s", out)
-	}
-	out, _ = cal.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"calendar":"abfall","day":"today"}`)})
-	if !strings.Contains(out, "- heute, Donnerstag, 15. Oktober 2026: Restabfall") || strings.Contains(out, "Wertstoff") {
-		t.Errorf("today:\n%s", out)
 	}
 }
 

@@ -164,7 +164,7 @@
         },
         "data": {
           "name": "Daten",
-          "description": "Liste von Einträgen mit entity_id und view; view state, same_hour (letzte Stunde gegen dieselbe Stunde an 14 Tagen) oder day (heute bis jetzt gegen dieselben Wochentage)."
+          "description": "Liste von Einträgen mit entity_id und view; view state, same_hour (letzte Stunde gegen dieselbe Stunde an 14 Tagen) day (heute bis jetzt gegen dieselben Wochentage) oder upcoming (Termine eines Kalenders bis Ende morgen)."
         },
         "memory": {
           "name": "Gedächtnis",

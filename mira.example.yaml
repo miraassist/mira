@@ -166,10 +166,10 @@ telemetry:
 
 # Skills: folders with a SKILL.md (Agent Skills format) in skills.dirs.
 # Only enabled skills are used. A skill costs one line in the prompt until
-# Mira opens it; secret settings (URLs) never reach a model.
+# Mira opens it; secret settings never reach a model.
 skills:
   dirs: [skills]
   enabled:
     abfall:
-      calendar_url: "https://example.org/abfallkalender.ics"   # iCal sync link of your waste collector
+      calendar: calendar.abfuhrtermine   # the waste calendar in Home Assistant, exposed to Assist
       types: [Restabfall, Wertstoff]

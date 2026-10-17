@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/announce"
+	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
@@ -20,7 +21,6 @@ import (
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
-	"github.com/miraassist/mira/internal/ical"
 	"github.com/miraassist/mira/internal/language"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mcp"
@@ -46,6 +46,8 @@ type app struct {
 	// for what only the model reads.
 	langs *language.Resolver
 	lang  i18n.Lang
+	// calendar reads and changes Home Assistant's calendars.
+	calendar *calendar.Calendar
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
@@ -183,8 +185,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 	})...)
 	// The goals Mira works towards in threads come as skills too and are
-	// always on when their folder is there: "aufgabe" needs Home
-	// Assistant, "merken" does not.
+	// always on when their folder is there (builtinTargets).
 	enabled := map[string]map[string]any{}
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
@@ -206,11 +207,16 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
-	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, Calendar: &ical.Cache{}}
+	a.skills = &skills.Set{Lang: a.lang, Skills: loaded}
 	internal = append(internal, a.skills.Tools()...)
 	for _, sk := range loaded {
-		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules), "calendars", len(sk.Calendars))
+		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 	}
+	// Home Assistant's calendars, read the way Mira decides
+	// (docs/spec/kalender.md).
+	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
+		Calendars: a.calendarList, Delete: a.deleteEvent, Logger: a.log})
+	internal = append(internal, a.calendar.Tool(a.lang))
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
 	// Drafting and judging run on the engine, which is built from this
 	// registry: bound late through isolatedModel.
@@ -222,12 +228,19 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
 		Persons:    a.persons,
 		Satellites: func() map[string]string { return a.liveConfig().Satellites },
+		Upcoming: func(ctx context.Context, entity string, from, to time.Time) (string, error) {
+			return a.calendar.Render(ctx, calendar.Query{From: from, To: to, Calendar: entity})
+		},
 	})
 	internal = append(internal, a.tasks.Tools()...)
 	checks := map[string]threads.Check{}
 	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang)}
 	checks["entities"] = a.tasks.CheckEntities
+	checks["calendar_writable"] = a.calendar.CheckWritable
+	checks["calendar_event"] = a.calendar.CheckEvent
+	checks["todo_list"] = a.checkTodoList
 	finishers["tasks.automation"] = a.tasks.Finisher()
+	finishers["calendar.delete"] = a.calendar.Delete()
 	a.threads = threads.New(threads.Options{
 		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers, Actions: haActions{a},
 		Persons: a.persons, Logger: a.log,
@@ -541,7 +554,9 @@ func (a *app) haUser(ctx context.Context) string {
 }
 
 // builtinTargets are the goal skills that are always on.
-func builtinTargets() []string { return []string{"aufgabe", "merken", "wecker"} }
+func builtinTargets() []string {
+	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo"}
+}
 
 // isolatedModel runs the tasks' judgements and drafts on the named model,
 // without the house prompt.

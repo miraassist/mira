@@ -90,8 +90,9 @@ Mira bereitet Daten so auf, dass das Modell wenige, passende Zahlen sieht statt 
 | `state` | aktueller Zustand, seit wann |
 | `same_hour` | letzte volle Stunde (Verbrauch bei Zählern, Mittel bei Messwerten) neben derselben Stunde der letzten 14 Tage: Median, Bandbreite, Maximum. Quelle: `recorder/statistics_during_period` |
 | `day` | heute bis jetzt neben denselben Wochentagen der Vorwochen |
+| `upcoming` | nur Kalender: die Termine von jetzt bis Ende morgen, in der Darstellung der Zeitachse ([Kontext](kontext.md), Abschnitt 2) |
 
-Geplant, mit derselben Darstellung wie die Werkzeuge der Zeitachse ([Kontext](kontext.md), Abschnitt 2): `upcoming` (Kalender), `history` (Verlauf), `list` (Listen-Attribute); dazu `collected` (Gesammeltes, siehe „Später“).
+Geplant, mit derselben Darstellung: `history` (Verlauf), `list` (Listen-Attribute); dazu `collected` (Gesammeltes, siehe „Später“).
 
 ## Kontext jedes Urteils
 

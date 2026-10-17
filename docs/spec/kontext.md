@@ -23,7 +23,7 @@ Was nicht im Kontext steht: **Zustände von Geräten.** Die fragt das Modell bei
 
 ## 2. Darstellung von Entitäten
 
-Stand 2026-10-17, beschlossen; gebaut sind die Stufen A, B und D (mit den Grundformen „Wert“), die Zeitachse noch nicht.
+Stand 2026-10-17; gebaut sind die Stufen A, B und D, die Grundform „Wert“ und die Zeitachse mit `calendar_events` und `view: upcoming` (0.6.19). `history`, `weather_forecast` und `list_attribute` folgen.
 
 Eine Entität kommt zu verschiedenen Zeiten auf verschiedenen Wegen ins Modell, jeweils in einer eigenen Darstellung. Zu jedem Weg steht hier, ob HA sie liefert (Mira ändert sie nicht) oder Mira sie baut (Mira bestimmt, was das Modell sieht).
 

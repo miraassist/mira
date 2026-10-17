@@ -46,6 +46,9 @@ var house = map[string]struct{ area, name string }{
 	"sensor.outside_humidity":               {"", "Luftfeuchtigkeit außen"},
 	"weather.forecast_mira_test":            {"", "Wetter"},
 	"todo.einkaufsliste":                    {"", ""},
+	"calendar.familie":                      {"", ""},
+	"calendar.abfuhrtermine":                {"", ""},
+	"todo.einkauf":                          {"", ""},
 }
 
 var persons = []string{"Anna", "Ben"}
@@ -64,6 +67,9 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 	}
 	areaIDs, err := ensureAreas(ctx, admin)
 	if err != nil {
+		return err
+	}
+	if err := ensureLists(ctx, admin, token); err != nil {
 		return err
 	}
 	ents, err := admin.Entities(ctx)

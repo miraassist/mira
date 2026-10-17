@@ -23,6 +23,9 @@ const (
 	// ViewDay is today so far against the same weekday of the previous
 	// four weeks up to the same time.
 	ViewDay = "day"
+	// ViewUpcoming is a calendar's events from now to the end of tomorrow,
+	// the way calendar_events shows them (docs/spec/kontext.md, 2.2).
+	ViewUpcoming = "upcoming"
 )
 
 // DataRequest is one entry of mira.assess's data list.
@@ -63,12 +66,28 @@ func (m *Manager) render(ctx context.Context, data []DataRequest) string {
 			line = m.sameHour(ctx, t, e)
 		case ViewDay:
 			line = m.day(ctx, t, e)
+		case ViewUpcoming:
+			line = m.upcoming(ctx, t, e)
 		default:
 			line = m.stateLine(t, e, byID[e.ID])
 		}
 		fmt.Fprintf(&b, "- %s (%s%s): %s\n", e.Name, e.ID, areaSuffix(e), line)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// upcoming lists a calendar's events from now to the end of tomorrow.
+func (m *Manager) upcoming(ctx context.Context, t texts, e Entity) string {
+	if m.opts.Upcoming == nil || !strings.HasPrefix(e.ID, "calendar.") {
+		return t.viewUnknown
+	}
+	now := m.opts.Clock().In(m.opts.Location)
+	y, mo, d := now.Date()
+	out, err := m.opts.Upcoming(ctx, e.ID, now, time.Date(y, mo, d+2, 0, 0, 0, 0, m.opts.Location))
+	if err != nil {
+		return fmt.Sprintf(t.viewFailed, err)
+	}
+	return "\n" + out
 }
 
 func areaSuffix(e Entity) string {
