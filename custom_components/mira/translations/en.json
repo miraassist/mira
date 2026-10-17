@@ -10,7 +10,8 @@
       },
       "confirm": {
         "title": "Add Mira",
-        "description": "Mira was found at {url} and is not set up yet.\n\nNext you choose the AI model (LLM) Mira thinks with. Mira also gets its own Home Assistant user, without admin rights."
+        "description": "Mira found at {url}.\n\n**Add** pairs it with this Home Assistant, no code needed. Then you choose the AI model (LLM) Mira thinks with. Mira also gets its own Home Assistant user, without admin rights.",
+        "submit": "Add"
       },
       "pair": {
         "title": "Pair with Mira again",
@@ -79,7 +80,7 @@
       "no_id": "The agent did not announce an id; update it.",
       "setup_failed": "Setting up did not work: {error}"
     },
-    "flow_title": "{name}",
+    "flow_title": "{name} ({host})",
     "create_entry": {
       "default": "Mira is set up and answers in the assistants you chose.\n\nWhat Mira may see and switch you decide under **Settings → Voice assistants → Expose entities**."
     }

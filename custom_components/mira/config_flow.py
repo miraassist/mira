@@ -305,7 +305,11 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                 self.hass.config_entries.async_update_entry(entry, unique_id=agent_id)
                 return self.async_abort(reason="already_configured")
         self._url = url
-        self.context["title_placeholders"] = {"name": discovery_info.name.split(".")[0], "url": url}
+        self.context["title_placeholders"] = {
+            "name": discovery_info.name.split(".")[0],
+            "url": url,
+            "host": f"{host}:{discovery_info.port}",
+        }
         try:
             status = await self._client().pairing()
         except MiraError:

@@ -10,7 +10,8 @@
       },
       "confirm": {
         "title": "Mira hinzufügen",
-        "description": "Mira wurde unter {url} gefunden und ist noch nicht eingerichtet.\n\nAls Nächstes wählst du das KI-Modell (LLM), mit dem Mira denkt. Außerdem bekommt Mira einen eigenen Home-Assistant-Benutzer, ohne Admin-Rechte."
+        "description": "Mira gefunden unter {url}.\n\n**Hinzufügen** koppelt sie mit diesem Home Assistant, ein Code ist nicht nötig. Danach wählst du das KI-Modell (LLM), mit dem Mira denkt. Außerdem bekommt Mira einen eigenen Home-Assistant-Benutzer, ohne Admin-Rechte.",
+        "submit": "Hinzufügen"
       },
       "pair": {
         "title": "Mira erneut koppeln",
@@ -79,7 +80,7 @@
       "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren.",
       "setup_failed": "Die Einrichtung hat nicht geklappt: {error}"
     },
-    "flow_title": "{name}",
+    "flow_title": "{name} ({host})",
     "create_entry": {
       "default": "Mira ist eingerichtet und antwortet in den gewählten Assistenten.\n\nWas Mira sehen und schalten darf, bestimmst du unter **Einstellungen → Sprachassistenten → Entitäten freigeben**."
     }
