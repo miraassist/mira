@@ -210,3 +210,20 @@ func TestCalendarTomorrowOnCollectionDay(t *testing.T) {
 		t.Errorf("today:\n%s", out)
 	}
 }
+
+// The alarm clock finishes with a Home Assistant action and can take it
+// back; its days may stay empty.
+func TestWeckerFinishesWithAnAction(t *testing.T) {
+	list, err := Load([]string{"../../skills"}, map[string]map[string]any{"wecker": nil})
+	if err != nil || len(list) != 1 || list[0].Target == nil {
+		t.Fatalf("load: %v %v", list, err)
+	}
+	tg := list[0].Target
+	if tg.Finish.Name != FinishAction || tg.Finish.Action.Action != "esphome.{{ satellite.device }}_alarm_set" ||
+		tg.Undo == nil || tg.Confirm {
+		t.Errorf("target = %+v", tg)
+	}
+	if !tg.Fields[1].Optional || tg.Fields[0].Optional {
+		t.Errorf("fields = %+v", tg.Fields)
+	}
+}

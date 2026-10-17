@@ -10,6 +10,8 @@ type texts struct {
 	noTarget, noThread, nothingToConfirm, unknownField, notInEnum         string
 	checkFailed, started, working, workFailed, askUser, proposeUser       string
 	cancelled, yesLogged, memorySaved                                     string
+	noAction, notHere, actionProposal, actionDone, undoDesc               string
+	undone, undoneLogged, nothingToUndo                                   string
 	headerCurrent, headerWaiting, lineTarget, lineRequest, lineFields     string
 	lineLog, whoUser, whoMira, fieldMissing, stillMissing                 string
 	stateHint                                                             map[string]string
@@ -37,6 +39,14 @@ var catalog = map[i18n.Lang]texts{
 		cancelled:        "Vorgang abgebrochen.",
 		yesLogged:        "Ja",
 		memorySaved:      "Gemerkt: %s. Sag dem Nutzer kurz, dass es notiert ist.",
+		noAction:         "Das geht an diesem Satelliten nicht: Home Assistant hat hier keine Aktion %s. Sag das dem Nutzer ehrlich; kennst du mit deinen Werkzeugen einen anderen passenden Weg, schlag ihn vor.",
+		notHere:          "Das geht nur an einem Satelliten (es fehlt: %v). Sag das dem Nutzer.",
+		actionProposal:   "%s (%s)",
+		actionDone:       "Erledigt: %s mit %s. Sag dem Nutzer kurz und genau, was jetzt eingestellt ist.",
+		undoDesc:         "Nimmt zurück, was ein Vorgang hier eben ausgeführt hat (z. B. einen falsch verstandenen Wecker), wenn der Nutzer korrigiert („Nein, halb sieben“). Danach den Vorgang mit dem Richtigen neu starten.",
+		undone:           "Zurückgenommen: %s. Starte jetzt den Vorgang mit dem Richtigen neu.",
+		undoneLogged:     "zurückgenommen",
+		nothingToUndo:    "Hier gibt es nichts zurückzunehmen.",
 		headerCurrent:    "## Laufender Vorgang (diese Unterhaltung gehört dazu)",
 		headerWaiting:    "## Hier wartet ein Vorgang auf den Nutzer\nGehört seine Nachricht dazu, führe ihn weiter (thread_fill, thread_confirm) oder brich ihn ab (thread_cancel); sonst lass ihn stehen.",
 		lineTarget:       "Ziel: %s – %s\n",
@@ -75,6 +85,14 @@ var catalog = map[i18n.Lang]texts{
 		cancelled:        "Thread cancelled.",
 		yesLogged:        "yes",
 		memorySaved:      "Remembered: %s. Tell the user briefly that it is noted.",
+		noAction:         "That does not work at this satellite: Home Assistant has no action %s here. Tell the user honestly; if your tools offer another fitting way, suggest it.",
+		notHere:          "That only works at a satellite (missing: %v). Tell the user.",
+		actionProposal:   "%s (%s)",
+		actionDone:       "Done: %s with %s. Tell the user briefly and exactly what is set now.",
+		undoDesc:         "Takes back what a thread here just did (e.g. an alarm set from a misunderstanding) when the user corrects it (\"no, half past six\"). Then start the thread anew with the right values.",
+		undone:           "Taken back: %s. Now start the thread anew with the right values.",
+		undoneLogged:     "taken back",
+		nothingToUndo:    "There is nothing to take back here.",
 		headerCurrent:    "## Current thread (this conversation belongs to it)",
 		headerWaiting:    "## A thread waits for the user here\nIf the message belongs to it, continue it (thread_fill, thread_confirm) or cancel it (thread_cancel); otherwise leave it.",
 		lineTarget:       "Target: %s – %s\n",

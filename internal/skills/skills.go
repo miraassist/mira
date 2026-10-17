@@ -50,11 +50,16 @@ type Skill struct {
 // name building blocks of the core: a skill runs no code.
 type Target struct {
 	Fields []TargetField `yaml:"fields"`
-	// Confirm asks the user for a yes before Finish commits.
+	// Confirm asks the user for a yes before an action finish runs; the
+	// building blocks decide that themselves.
 	Confirm bool `yaml:"confirm"`
-	// Finish names the core building block that does the work and ends
-	// the thread, e.g. tasks.automation or memory.save.
-	Finish string `yaml:"finish"`
+	// Finish does the work and ends the thread: a building block of the
+	// core (tasks.automation, memory.save), or a Home Assistant action the
+	// skill names (docs/spec/skill-aktionen.md).
+	Finish Finish `yaml:"finish"`
+	// Undo takes back what an action finish did, for a correction ("no,
+	// half past six"); optional.
+	Undo *Action `yaml:"undo"`
 	// Timeout ends a thread nobody answers; default 15m.
 	Timeout string `yaml:"timeout"`
 	timeout time.Duration
@@ -73,6 +78,45 @@ type TargetField struct {
 	Description string   `yaml:"description"`
 	Check       string   `yaml:"check"`
 	Enum        []string `yaml:"enum"`
+	// Optional fields may stay empty; the thread does not wait for them.
+	Optional bool `yaml:"optional"`
+}
+
+// FinishAction is the name of a finish that calls a Home Assistant action.
+const FinishAction = "ha.action"
+
+// Finish is a building block by name, or a Home Assistant action.
+type Finish struct {
+	Name   string
+	Action *Action
+}
+
+// Action is a Home Assistant action with its data. Both may hold
+// placeholders: {{ field }} for the thread's fields, and the place: area,
+// area_name, satellite, satellite.device, person.
+type Action struct {
+	Action string         `yaml:"action"`
+	Data   map[string]any `yaml:"data"`
+}
+
+func (f *Finish) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		f.Name = strings.TrimSpace(node.Value)
+		return nil
+	}
+	var a Action
+	if err := node.Decode(&a); err != nil {
+		return err
+	}
+	f.Name, f.Action = FinishAction, &a
+	return nil
+}
+
+func (f Finish) String() string {
+	if f.Action != nil {
+		return f.Action.Action
+	}
+	return f.Name
 }
 
 type Setting struct {
@@ -200,8 +244,13 @@ func load(dir string, values map[string]any) (Skill, error) {
 		s.Schedules = append(s.Schedules, sc)
 	}
 	if t := m.Target; t != nil {
-		if len(t.Fields) == 0 || strings.TrimSpace(t.Finish) == "" {
+		if len(t.Fields) == 0 || t.Finish.Name == "" {
 			return Skill{}, errors.New("target needs fields and finish")
+		}
+		for _, a := range []*Action{t.Finish.Action, t.Undo} {
+			if a != nil && !strings.Contains(a.Action, ".") {
+				return Skill{}, fmt.Errorf("target action %q needs a domain, like esphome.show_alarm_set", a.Action)
+			}
 		}
 		for i, f := range t.Fields {
 			if !namePattern.MatchString(strings.ReplaceAll(f.Name, "_", "-")) || f.Description == "" {

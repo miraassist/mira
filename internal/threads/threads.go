@@ -34,7 +34,8 @@ type Result struct {
 	// Question asks the user for something the fields leave open; the
 	// thread waits for the answer.
 	Question string
-	// Proposal asks for a yes; Content is kept for the commit.
+	// Proposal asks for a yes. Content is kept on the thread: for the
+	// commit, or what was done, for a correction.
 	Proposal string
 	Content  json.RawMessage
 	// Done ends the thread successfully; the text is for the user.
@@ -64,6 +65,9 @@ type Options struct {
 	Targets   []skills.Skill
 	Checks    map[string]Check
 	Finishers map[string]Finisher
+	// Actions lets a skill finish with a Home Assistant action; without it
+	// such targets cannot finish.
+	Actions Actions
 	// Deliver brings a thread's question or proposal to whoever asked,
 	// like a reminder: spoken in the area, otherwise privately.
 	Deliver func(ctx context.Context, n store.Message, areaID string) error
@@ -229,10 +233,9 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 
 // work runs the finish once the fields are complete.
 func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Thread) (string, error) {
-	sk := m.targets[th.Target]
-	fin := m.opts.Finishers[sk.Target.Finish]
-	if fin == nil {
-		return "", fmt.Errorf("no building block %s", sk.Target.Finish)
+	fin, err := m.finisher(th.Target)
+	if err != nil {
+		return "", err
 	}
 	t := m.texts()
 	if !fin.Async() {
@@ -298,13 +301,15 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell bool) string {
 	t := m.texts()
 	var say string
+	if res.Content != nil {
+		th.Content = res.Content
+	}
 	switch {
 	case res.Question != "":
 		th.State = store.ThreadWaiting
 		say = res.Question
 	case res.Proposal != "":
 		th.State = store.ThreadProposed
-		th.Content = res.Content
 		say = res.Proposal
 	case res.Cancel != "":
 		th.State = store.ThreadCancelled
@@ -380,10 +385,9 @@ func (m *Manager) confirm(ctx context.Context, th store.Thread) (string, error) 
 	if th.State != store.ThreadProposed {
 		return "", errors.New(t.nothingToConfirm)
 	}
-	sk := m.targets[th.Target]
-	fin := m.opts.Finishers[sk.Target.Finish]
-	if fin == nil {
-		return "", fmt.Errorf("no building block %s", sk.Target.Finish)
+	fin, err := m.finisher(th.Target)
+	if err != nil {
+		return "", err
 	}
 	m.logEntry(&th, "user", t.yesLogged)
 	done, err := fin.Commit(ctx, th)
@@ -393,6 +397,21 @@ func (m *Manager) confirm(ctx context.Context, th store.Thread) (string, error) 
 	m.logEntry(&th, "mira", done)
 	m.end(ctx, th, store.ThreadDone)
 	return done, nil
+}
+
+// finisher is the building block that ends a target's threads.
+func (m *Manager) finisher(target string) (Finisher, error) {
+	sk := m.targets[target]
+	if sk.Target.Finish.Action != nil {
+		if m.opts.Actions == nil {
+			return nil, errors.New("no Home Assistant for the action " + sk.Target.Finish.Action.Action)
+		}
+		return actionFinish{m, sk}, nil
+	}
+	if fin := m.opts.Finishers[sk.Target.Finish.Name]; fin != nil {
+		return fin, nil
+	}
+	return nil, fmt.Errorf("no building block %s", sk.Target.Finish.Name)
 }
 
 // Cancel ends the turn's thread at the user's request.
@@ -456,7 +475,7 @@ func field(t *skills.Target, name string) (skills.TargetField, bool) {
 func missing(t *skills.Target, values map[string]string) []string {
 	var out []string
 	for _, f := range t.Fields {
-		if strings.TrimSpace(values[f.Name]) == "" {
+		if !f.Optional && strings.TrimSpace(values[f.Name]) == "" {
 			out = append(out, f.Name)
 		}
 	}

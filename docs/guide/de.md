@@ -142,13 +142,15 @@ Ist eine Websuche eingerichtet, schaut Mira nach, was sie nicht wissen kann: Öf
 
 Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Planungen, Rezepte, Vergleiche – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
 
-## Erinnerungen und Timer
+## Erinnerungen, Timer und Wecker
 
 - „Erinnere mich morgen um 19 Uhr daran, den Müll rauszubringen.“
 - „Stell einen Timer auf 10 Minuten.“ – „In einer halben Stunde erinnerst du mich an die Wäsche.“
 - „Welche Erinnerungen habe ich?“ – „Lösch die Erinnerung an die Wäsche.“
 
 Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat über deine Kanäle.
+
+**Wecker**: „Weck mich morgen um 6“ – „Weck mich werktags um halb sieben“ – „Weck mich zur üblichen Zeit“, wenn Mira die kennt. Der Wecker klingelt an dem Satelliten, an dem du gefragt hast, und zwar auf dem Gerät selbst: Schlummern und Ausschalten gehen dort wie gewohnt, und er klingelt auch, wenn Home Assistant gerade nicht läuft. Mira fragt nicht nach, sondern sagt, was sie gestellt hat; hat sie sich verhört, sag gleich „Nein, halb sieben“. Das geht an Satelliten, die Wecker können, etwa einem Echo Show mit TECHO5; an anderen sagt Mira, dass es dort nicht geht.
 
 ## Nachrichten an andere
 

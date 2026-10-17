@@ -138,6 +138,26 @@ func (s *Store) OpenThreads(ctx context.Context, place string) ([]Thread, error)
 	return out, rows.Err()
 }
 
+// RecentThreads returns the threads at a place changed since a time,
+// newest first, in any state.
+func (s *Store) RecentThreads(ctx context.Context, place string, since time.Time) ([]Thread, error) {
+	rows, err := s.db.QueryContext(ctx, threadSelect+` WHERE place = ? AND updated_at >= ? ORDER BY updated_at DESC, id DESC`,
+		place, formatTime(since))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Thread
+	for rows.Next() {
+		t, err := scanThread(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // SetSessionThread links a turn (session) to a thread.
 func (s *Store) SetSessionThread(ctx context.Context, sessionKey, threadID string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET thread_id = ? WHERE key = ?`, threadID, sessionKey)

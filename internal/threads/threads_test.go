@@ -62,12 +62,12 @@ func setup(t *testing.T) *env {
 	}
 	t.Cleanup(func() { e.st.Close() })
 	aufgabe := skills.Skill{Name: "aufgabe", Description: "Aufgabe einrichten", Body: "Sammle die Felder.",
-		Target: &skills.Target{Confirm: true, Finish: "fake", Fields: []skills.TargetField{
+		Target: &skills.Target{Confirm: true, Finish: skills.Finish{Name: "fake"}, Fields: []skills.TargetField{
 			{Name: "watch", Description: "was", Check: "known"},
 			{Name: "measure", Description: "ab wann"},
 		}}}
 	merken := skills.Skill{Name: "merken", Description: "merken", Body: "Frag nach.",
-		Target: &skills.Target{Finish: "memory.save", Fields: []skills.TargetField{{Name: "fact", Description: "was"}}}}
+		Target: &skills.Target{Finish: skills.Finish{Name: "memory.save"}, Fields: []skills.TargetField{{Name: "fact", Description: "was"}}}}
 	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{aufgabe, merken},
 		Checks: map[string]Check{"known": func(_ context.Context, v string) (string, error) {
 			if !strings.Contains(v, "licht") {

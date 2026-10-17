@@ -142,13 +142,15 @@ If a web search is set up, Mira looks up what she cannot know: opening hours, re
 
 If the setup is connected to a stronger language model, Mira hands elaborate questions over to it – explanations, planning, recipes, comparisons – and sums up the result for you. The stronger model can look things up but change nothing in the house.
 
-## Reminders and timers
+## Reminders, timers and alarms
 
 - "Remind me tomorrow at 7 pm to take out the trash."
 - "Set a timer for 10 minutes." – "Remind me about the laundry in half an hour."
 - "Which reminders do I have?" – "Delete the laundry reminder."
 
 At the time you chose, Mira speaks the reminder in the room where you asked for it – even during quiet hours, since you picked the time. Reminders set on Telegram or in the HA app come to you privately over your channels.
+
+**Alarm clock**: "Wake me tomorrow at 6" – "Wake me on weekdays at half past six" – "Wake me at the usual time", if Mira knows it. The alarm rings on the satellite where you asked, on the device itself: snooze and stop work there as usual, and it rings even when Home Assistant is down. Mira does not ask back but says what she set; if she misheard, just say "No, half past six". This works on satellites that have alarms, such as an Echo Show with TECHO5; on others Mira says it cannot.
 
 ## Messages to others
 

@@ -229,7 +229,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	checks["entities"] = a.tasks.CheckEntities
 	finishers["tasks.automation"] = a.tasks.Finisher()
 	a.threads = threads.New(threads.Options{
-		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers,
+		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers, Actions: haActions{a},
 		Persons: a.persons, Logger: a.log,
 		Deliver: func(ctx context.Context, n store.Message, area string) error {
 			a.proactiveMu.Lock()
@@ -541,7 +541,7 @@ func (a *app) haUser(ctx context.Context) string {
 }
 
 // builtinTargets are the goal skills that are always on.
-func builtinTargets() []string { return []string{"aufgabe", "merken"} }
+func builtinTargets() []string { return []string{"aufgabe", "merken", "wecker"} }
 
 // isolatedModel runs the tasks' judgements and drafts on the named model,
 // without the house prompt.

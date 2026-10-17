@@ -14,6 +14,7 @@ const (
 	ToolFill    = "thread_fill"
 	ToolConfirm = "thread_confirm"
 	ToolCancel  = "thread_cancel"
+	ToolUndo    = "thread_undo"
 )
 
 // Tools are the thread tools; none without a target. The list of targets
@@ -33,7 +34,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 		fmt.Fprintf(&list, "\n- %s: %s", name, m.targets[name].Description)
 	}
 	empty := `{"type":"object","properties":{}}`
-	return []tools.InternalTool{
+	out := []tools.InternalTool{
 		{
 			Name: ToolStart, Description: t.startDesc + list.String(),
 			Schema: fmt.Sprintf(`{"type":"object","properties":{"target":{"type":"string","enum":%s},"request":{"type":"string","description":%q}},"required":["target","request"]}`,
@@ -81,6 +82,20 @@ func (m *Manager) Tools() []tools.InternalTool {
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Cancel(ctx, inv) },
 		},
 	}
+	// Taking back is there only when a target can take back what it did.
+	for _, sk := range m.targets {
+		if sk.Target.Undo != nil {
+			out = append(out, tools.InternalTool{
+				Name: ToolUndo, Description: t.undoDesc, Schema: empty,
+				Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+					place, _ := m.place(ctx, inv)
+					return m.Undo(ctx, place)
+				},
+			})
+			break
+		}
+	}
+	return out
 }
 
 func sortedNames(names []string) []string {

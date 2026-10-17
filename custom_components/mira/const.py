@@ -4,7 +4,7 @@ DOMAIN = "mira"
 # The version of the code that runs: Home Assistant imports an integration
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
-VERSION = "0.6.17"
+VERSION = "0.6.18"
 
 CONF_PERSONA = "persona"
 CONF_TIMEOUT = "timeout"
