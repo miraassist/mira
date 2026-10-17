@@ -28,20 +28,20 @@ logic lives in the agent.
 
 ## Quick start
 
-No config file, four steps (details and troubleshooting in the guide:
+No config file, three steps (details and troubleshooting in the guide:
 [Deutsch](docs/guide/de.md#einrichtung) · [English](docs/guide/en.md#setup)):
 
-1. **Start the agent** on a machine with Docker in your home network:
+1. **Install the integration** with the HACS button above, restart Home Assistant.
+2. **Start the agent** on a machine with Docker in your home network:
    ```sh
    docker run -d --name mira --restart unless-stopped --network host \
      -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
    ```
-2. **Install the integration** with the HACS button above, restart Home Assistant.
-3. Settings → Devices & services: **Mira** is under **Discovered**. Click **Add**.
-4. **Choose the AI model (LLM)**: an AI integration Home Assistant already has (its key is taken over),
-   OpenAI, Gemini, OpenRouter or Mistral with your key, or a server of your own. Mira tries it before keeping it.
-   Then tick the assistants Mira answers in. The integration creates Mira's own Home Assistant user
-   (no admin rights), switches on Home Assistant's MCP server and makes Mira the assistants' conversation agent.
+3. Settings → Devices & services: **Mira** is under **Discovered** → **Add**. The dialog asks for
+   the AI model (LLM: an AI integration Home Assistant already has, OpenAI, Gemini, OpenRouter or
+   Mistral with your key, or a server of your own; tried at once) and the assistants Mira answers in,
+   shows a summary, and **Pair** does the rest: Mira's own Home Assistant user (no admin rights),
+   Home Assistant's MCP server, Mira as the assistants' conversation agent.
 
 ## Agent
 
@@ -157,13 +157,14 @@ an urgent message. These rules are enforced in code, not only in the prompt.
    with one click (an agent with `server.token` in `mira.yaml` asks for
    that token), then the form asks for the AI model and the assistants.
 
-Pairing (docs/spec/einrichtung.md): an agent that was never paired hands
-its access token to the first Home Assistant that adds it (`POST /v1/pair`);
-after that only with a code from `mira pair` (15 minutes, five tries). The
-integration then creates the HA user and token, switches on HA's MCP server
-and sends HA's address, the token and the model to the agent (`POST
-/v1/setup`), which tries the model with a real request, keeps everything in
-its database and starts anew. It makes Mira the conversation agent of the
+Pairing (docs/spec/einrichtung.md): the form chooses and tries the model
+first (the agent answers `/v1/setup/models` and `/v1/setup/probe` without a
+token only while it was never paired); nothing is changed before the
+summary's "Pair". That creates the HA user and token, switches on HA's MCP
+server and pairs and sets up the agent in one call (`POST /v1/pair` with HA's
+address, the token and the model), which keeps everything in its database,
+hands out its access token and starts anew. An agent that was never paired
+needs no code; after that a code from `mira pair` (15 minutes, five tries). It makes Mira the conversation agent of the
 assistants ticked in the form. Removing the integration revokes the token,
 gives the assistants their previous agent back and lets the agent go
 (`POST /v1/unpair`: a new token, paired again without a code); the HA user

@@ -20,12 +20,17 @@ import (
 // Handler serves pairing and setup (docs/spec/einrichtung.md):
 //
 //	GET  /v1/pair          open: the agent's id, whether it pairs without a
-//	                       code (never paired) or a code waits
-//	POST /v1/pair          open: {code} -> {token}; the first time code is ""
+//	                       code (never paired) or a code waits, its model
+//	POST /v1/pair          open: {code, ha_url, ha_token, llm} -> {token};
+//	                       pairs and sets up in one step, then restarts;
+//	                       the first time code is ""
 //	POST /v1/unpair        token: Home Assistant lets go; the agent restarts
 //	POST /v1/setup         token: {ha_url, ha_token, llm}; a trial request
 //	                       to the model first, then the agent restarts
-//	POST /v1/setup/models  token: {base_url, api_key} -> the models there
+//	POST /v1/setup/models  token, or open while never paired:
+//	                       {base_url, api_key} -> the models there
+//	POST /v1/setup/probe   token, or open while never paired: {llm}; the
+//	                       trial request alone
 //
 // Errors about the model carry a reason the integration shows: unreachable,
 // bad_key, no_model, no_tools, server_error.
@@ -41,9 +46,9 @@ type Handler struct {
 	Pairing bool
 	// SetupMode: Home Assistant or the model is missing; the agent waits.
 	SetupMode bool
-	// HasModel: a model is set (in the file or by setup); Home Assistant
-	// then does not ask for one.
-	HasModel bool
+	// Model: the model set (in the file or by setup); Home Assistant then
+	// need not ask for one.
+	Model string
 	// Restart applies new settings: the agent starts anew.
 	Restart func()
 	HTTP    *http.Client
@@ -64,7 +69,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/pair", h.pair)
 	mux.HandleFunc("POST /v1/unpair", h.auth(h.unpair))
 	mux.HandleFunc("POST /v1/setup", h.auth(h.setup))
-	mux.HandleFunc("POST /v1/setup/models", h.auth(h.models))
+	mux.HandleFunc("POST /v1/setup/models", h.authOrOpen(h.models))
+	mux.HandleFunc("POST /v1/setup/probe", h.authOrOpen(h.probeOnly))
 	if h.SetupMode {
 		mux.HandleFunc("GET /v1/health", h.health)
 		mux.HandleFunc("GET /", h.page)
@@ -79,6 +85,20 @@ func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+// authOrOpen lets the setup form choose a model before pairing: open while
+// the agent was never paired (pairing comes last, with everything chosen),
+// else with the token.
+func (h *Handler) authOrOpen(next http.HandlerFunc) http.HandlerFunc {
+	authed := h.auth(next)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.open(r.Context()) {
+			next(w, r)
+			return
+		}
+		authed(w, r)
 	}
 }
 
@@ -102,7 +122,7 @@ func (h *Handler) open(ctx context.Context) bool {
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": h.ID, "version": h.Version, "pairs": h.Pairing, "open": h.open(r.Context()),
-		"pairing": h.pending(r.Context()), "setup_mode": h.SetupMode,
+		"pairing": h.pending(r.Context()), "setup_mode": h.SetupMode, "model": h.Model,
 	})
 }
 
@@ -110,7 +130,7 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "setup", "id": h.ID, "version": h.Version, "open": h.open(r.Context()),
-		"pairing": h.pending(r.Context()), "model": h.HasModel,
+		"pairing": h.pending(r.Context()), "model": h.Model,
 	})
 }
 
@@ -120,13 +140,28 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Code string `json:"code"`
+		Code    string `json:"code"`
+		HAURL   string `json:"ha_url"`
+		HAToken string `json:"ha_token"`
+		LLM     *LLM   `json:"llm"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `body must be {"code": "123456"}`})
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `body must be {"code", "ha_url", "ha_token", "llm"}`})
 		return
 	}
-	token, err := Pair(r.Context(), h.Store, req.Code, h.now())
+	if req.HAURL == "" || req.HAToken == "" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "pairing needs ha_url and ha_token"})
+		return
+	}
+	if l := req.LLM; l != nil && (l.BaseURL == "" || l.Model == "") {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "the model needs an address and a name"})
+		return
+	}
+	if req.LLM == nil && h.Model == "" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "Mira has no model yet; choose one"})
+		return
+	}
+	token, err := Pair(r.Context(), h.Store, req.Code, h.now(), req.HAURL, req.HAToken, req.LLM)
 	if errors.Is(err, ErrBadCode) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
@@ -135,8 +170,28 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	h.Log.Info("paired with Home Assistant")
+	h.Log.Info("paired with Home Assistant and set up; starting anew", "model", req.LLM != nil)
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+	if h.Restart != nil {
+		time.AfterFunc(300*time.Millisecond, h.Restart)
+	}
+}
+
+// probeOnly is the trial request alone, for the setup form's model step.
+func (h *Handler) probeOnly(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LLM *LLM `json:"llm"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<14)).Decode(&req); err != nil || req.LLM == nil ||
+		req.LLM.BaseURL == "" || req.LLM.Model == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `body must be {"llm": {"kind", "base_url", "model", "api_key"}}`})
+		return
+	}
+	if err := h.probe(r.Context(), *req.LLM); err != nil {
+		writeModelError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (h *Handler) unpair(w http.ResponseWriter, r *http.Request) {

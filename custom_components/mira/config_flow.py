@@ -68,8 +68,22 @@ MODEL_ERRORS = {"unreachable", "bad_key", "no_model", "no_tools", "server_error"
 
 # The few words the model choice needs that name no product.
 WORDS = {
-    "de": {"custom": "Eigener Server (Adresse eingeben)", "from_ha": "Aus Home Assistant"},
-    "en": {"custom": "Own server (enter its address)", "from_ha": "From Home Assistant"},
+    "de": {
+        "custom": "Eigener Server (Adresse eingeben)",
+        "from_ha": "Aus Home Assistant",
+        "keeps": "bleibt {model}",
+        "none": "keinem (später unter Einstellungen → Sprachassistenten)",
+        "bad_code": "Der Kopplungscode stimmt nicht oder ist abgelaufen. Gib ihn neu ein; einen neuen gibt es mit `docker exec mira /app/mira pair`.",
+        "failed": "Das Koppeln hat nicht geklappt: {error}",
+    },
+    "en": {
+        "custom": "Own server (enter its address)",
+        "from_ha": "From Home Assistant",
+        "keeps": "stays {model}",
+        "none": "none (later under Settings → Voice assistants)",
+        "bad_code": "The pairing code is wrong or expired. Enter it again; get a new one with `docker exec mira /app/mira pair`.",
+        "failed": "Pairing did not work: {error}",
+    },
 }
 
 
@@ -239,14 +253,23 @@ class ModelSteps:
 
 
 class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
-    """Find the agent, pair with it (the first time without a code), set a
-    new one up (Home Assistant's access and the AI model), and make it the
-    conversation agent of the assistants (docs/spec/einrichtung.md)."""
+    """Find the agent, choose its AI model and the assistants it answers
+    in, and, after a summary, pair and set up in one step: nothing is done
+    at the agent or in Home Assistant before "Pair", so a setup broken off
+    leaves nothing behind (docs/spec/einrichtung.md)."""
 
     VERSION = 1
 
     _url: str = ""
+    # The agent's token: entered (mira.yaml) or handed out when pairing.
     _token: str = ""
+    # A pairing code, for an agent that was paired before.
+    _code: str | None = None
+    # The model the agent has already, if any.
+    _agent_model: str = ""
+    _llm: dict[str, Any] | None = None
+    _pipelines: list[str] | None = None
+    _error: str = ""
     _data: dict[str, Any] = {}
 
     def _client(self, token: str = "") -> MiraClient:
@@ -275,7 +298,7 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                 if status and status.get("id"):
                     await self.async_set_unique_id(status["id"])
                     self._abort_if_unique_id_configured(updates={CONF_URL: self._url})
-                return await self._step_auth(status, confirmed=True)
+                return await self._step_auth(status, discovered=False)
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
@@ -314,49 +337,36 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             status = await self._client().pairing()
         except MiraError:
             status = None
-        return await self._step_auth(status, confirmed=False)
+        return await self._step_auth(status, discovered=True)
 
-    async def _step_auth(self, status: dict[str, Any] | None, confirmed: bool) -> ConfigFlowResult:
-        """Pair without a code the first time (after the user said yes to a
-        discovered agent), with a code later; an agent whose token is in
-        its mira.yaml, or from before pairing, wants that token."""
+    async def _step_auth(self, status: dict[str, Any] | None, discovered: bool) -> ConfigFlowResult:
+        """An agent that pairs: the first time a click (for a discovered
+        one), later a code; an agent whose token is in its mira.yaml, or
+        from before pairing, wants that token."""
         if not status or not status.get("pairs"):
             return await self.async_step_token()
-        if status.get("open"):
-            if confirmed:
-                return await self.async_step_confirm({})
+        self._agent_model = str(status.get("model") or "")
+        if not status.get("open"):
+            return await self.async_step_pair()
+        if discovered:
             return await self.async_step_confirm()
-        return await self.async_step_pair()
+        return await self._choose()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """A new agent: one click, and Home Assistant pairs without a code."""
+        """A new agent was found; nothing happens yet."""
         if user_input is not None:
-            try:
-                self._token = await self._client().pair()
-            except MiraBadCode:
-                # Someone else paired first, or it was paired meanwhile.
-                return await self.async_step_pair()
-            except MiraError:
-                return self.async_abort(reason="cannot_connect")
-            return await self._after_auth()
+            return await self._choose()
         self._set_confirm_only()
         return self.async_show_form(step_id="confirm", description_placeholders={"url": self._url})
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The agent was paired before: a code from mira pair."""
-        errors: dict[str, str] = {}
+        """The agent was paired before: a code from mira pair. It is used,
+        and checked, only when pairing at the end."""
         if user_input is not None:
-            try:
-                self._token = await self._client().pair(user_input["code"])
-            except MiraBadCode:
-                errors["base"] = "bad_code"
-            except MiraError:
-                errors["base"] = "cannot_connect"
-            if not errors:
-                return await self._after_auth()
-        return self.async_show_form(
-            step_id="pair", data_schema=CODE_SCHEMA, errors=errors, description_placeholders={"url": self._url}
-        )
+            self._code = user_input["code"]
+            self._error = ""
+            return await self._choose()
+        return self.async_show_form(step_id="pair", data_schema=CODE_SCHEMA, description_placeholders={"url": self._url})
 
     async def async_step_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The token, for an agent whose token is set in its mira.yaml."""
@@ -364,68 +374,52 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._token = user_input[CONF_TOKEN]
             try:
-                await self._client().health()
+                health = await self._client().health()
             except MiraAuthError:
                 errors["base"] = "invalid_auth"
             except MiraError:
                 errors["base"] = "cannot_connect"
             if not errors:
-                return await self._after_auth()
+                if health.get("id") and not self.unique_id:
+                    await self.async_set_unique_id(health["id"])
+                    self._abort_if_unique_id_configured(updates={CONF_URL: self._url})
+                if health.get("status") != "setup":
+                    # Set up by its mira.yaml: only the assistants.
+                    return await self.async_step_assistants()
+                self._agent_model = str(health.get("model") or "")
+                return await self._choose()
         return self.async_show_form(
             step_id="token", data_schema=TOKEN_SCHEMA, errors=errors, description_placeholders={"url": self._url}
         )
 
-    async def _after_auth(self) -> ConfigFlowResult:
-        """A set-up agent goes on to the assistants; a new one gets Home
-        Assistant's access, and a model unless it has one."""
-        try:
-            health = await self._client().health()
-        except MiraError:
-            return self.async_abort(reason="cannot_connect")
-        if health.get("id") and not self.unique_id:
-            await self.async_set_unique_id(health["id"])
-            self._abort_if_unique_id_configured(updates={CONF_URL: self._url})
-        self._data = {CONF_URL: self._url, CONF_TOKEN: self._token}
-        if health.get("status") != "setup":
-            return await self.async_step_assistants()
-        if not health.get("model"):
+    async def _choose(self) -> ConfigFlowResult:
+        """The model unless the agent has one, then the assistants."""
+        if not self._agent_model and self._llm is None:
             return await self.async_step_model_source()
-        try:
-            await self._set_up(None)
-        except (MiraError, RuntimeError, TimeoutError) as err:
-            return self.async_abort(reason="setup_failed", description_placeholders={"error": str(err)})
         return await self.async_step_assistants()
 
     async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
-        await self._set_up(llm)
-        return await self.async_step_assistants()
-
-    async def _set_up(self, llm: dict[str, Any] | None) -> None:
-        """Mira's own HA user and token, HA's MCP server, all sent to the
-        agent; it starts anew and is waited for."""
-        await ensure_mcp_server(self.hass)
-        user_id, refresh_id, ha_token = await ensure_agent_access(self.hass)
-        try:
-            await self._client().setup(ha_url(self.hass), ha_token, llm)
-        except MiraError:
-            revoke_agent_token(self.hass, refresh_id)
-            raise
-        self._data.update({CONF_IMPORTED: True, CONF_AGENT_USER: user_id, CONF_AGENT_TOKEN: refresh_id})
-        await self._wait_ready()
+        await self._model_client().probe(llm)
+        self._llm = llm
+        if self._pipelines is None:
+            return await self.async_step_assistants()
+        return await self.async_step_summary()
 
     async def async_step_assistants(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Which assistants get Mira as their conversation agent; the
         preferred one is ticked. Done once Mira's entity exists."""
         pipelines = assistants(self.hass)
         if user_input is not None or not pipelines:
-            chosen = (user_input or {}).get(CONF_PIPELINES, [])
-            return self.async_create_entry(title="Mira", data={**self._data, CONF_PIPELINES: chosen})
-        preferred = [p for p, (_, pref) in pipelines.items() if pref]
+            self._pipelines = (user_input or {}).get(CONF_PIPELINES, [])
+            if not self._pairs_or_sets_up():
+                return self._create()
+            return await self.async_step_summary()
+        default = self._pipelines if self._pipelines is not None else [p for p, (_, pref) in pipelines.items() if pref]
         return self.async_show_form(
             step_id="assistants",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_PIPELINES, default=preferred): selector.SelectSelector(
+                    vol.Optional(CONF_PIPELINES, default=default): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=[selector.SelectOptionDict(value=p, label=name) for p, (name, _) in pipelines.items()],
                             multiple=True,
@@ -435,6 +429,66 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                 }
             ),
         )
+
+    def _pairs_or_sets_up(self) -> bool:
+        """Whether "Pair" still has to happen: always, unless the agent is
+        set up by its mira.yaml and was added with its token."""
+        return not self._token or bool(self._agent_model) or self._llm is not None or self._code is not None
+
+    async def async_step_summary(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """What will happen, with a way to change it; "Pair" does it all."""
+        words = _words(self.hass)
+        names = assistants(self.hass)
+        if self._llm:
+            source = self._source.label if self._source else self._llm["base_url"]
+            model = f"{source}, {self._llm['model']}"
+        else:
+            model = words["keeps"].format(model=self._agent_model)
+        chosen = ", ".join(names[p][0] for p in self._pipelines or [] if p in names) or words["none"]
+        # Before pairing the agent answers about models only while it was
+        # never paired; one paired before keeps its model for now.
+        options = ["finish", "pair" if self._code is not None else "model_source"]
+        if names:
+            options.append("assistants")
+        return self.async_show_menu(
+            step_id="summary",
+            menu_options=options,
+            description_placeholders={
+                "url": self._url,
+                "model": model,
+                "assistants": chosen,
+                "error": f"\n\n**{self._error}**" if self._error else "",
+            },
+        )
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Pair: Mira's own HA user and token, HA's MCP server, and the agent
+        paired and set up in one call; it starts anew and is waited for."""
+        words = _words(self.hass)
+        self._error = ""
+        refresh_id = None
+        try:
+            await ensure_mcp_server(self.hass)
+            user_id, refresh_id, ha_token = await ensure_agent_access(self.hass)
+            if self._token:
+                await self._client().setup(ha_url(self.hass), ha_token, self._llm)
+            else:
+                self._token = await self._client().pair(self._code or "", ha_url(self.hass), ha_token, self._llm)
+            await self._wait_ready()
+        except MiraBadCode:
+            self._error = words["bad_code"]
+        except (MiraError, RuntimeError, TimeoutError) as err:
+            self._error = words["failed"].format(error=err)
+        if self._error:
+            if refresh_id:
+                revoke_agent_token(self.hass, refresh_id)
+            return await self.async_step_summary()
+        self._data = {CONF_IMPORTED: True, CONF_AGENT_USER: user_id, CONF_AGENT_TOKEN: refresh_id}
+        return self._create()
+
+    def _create(self) -> ConfigFlowResult:
+        data = {CONF_URL: self._url, CONF_TOKEN: self._token, **self._data}
+        return self.async_create_entry(title="Mira", data={**data, CONF_PIPELINES: self._pipelines or []})
 
     async def _wait_ready(self) -> None:
         """The agent starts anew with what it got; wait until it runs."""

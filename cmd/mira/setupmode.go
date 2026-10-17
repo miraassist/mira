@@ -83,6 +83,14 @@ func restart() {
 	}
 }
 
+// model is the model set, or "" while there is none.
+func (p prepared) model() string {
+	if !p.hasModel {
+		return ""
+	}
+	return p.cfg.LLM.Model
+}
+
 func logPairing(log *slog.Logger, p prepared) {
 	switch {
 	case p.code != "":
@@ -110,7 +118,7 @@ func runSetupMode(ctx context.Context, p prepared) error {
 	logPairing(log, p)
 	mux := http.NewServeMux()
 	(&setup.Handler{Store: st, Token: p.cfg.Server.Token, ID: id, Version: version, Pairing: p.pairing,
-		SetupMode: true, HasModel: p.hasModel, Restart: restart, Log: log}).Register(mux)
+		SetupMode: true, Model: p.model(), Restart: restart, Log: log}).Register(mux)
 	ln, err := net.Listen("tcp", p.cfg.Server.Listen)
 	if err != nil {
 		return err

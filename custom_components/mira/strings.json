@@ -10,15 +10,16 @@
       },
       "confirm": {
         "title": "Add Mira",
-        "description": "Mira found at {url}.\n\n**Add** pairs it with this Home Assistant, no code needed. Then you choose the AI model (LLM) Mira thinks with. Mira also gets its own Home Assistant user, without admin rights.",
-        "submit": "Add"
+        "description": "Mira found at {url}.\n\nNext you choose the AI model (LLM) Mira thinks with, and the assistants it answers in. Pairing happens only at the very end, after a summary; no code needed.",
+        "submit": "Next"
       },
       "pair": {
-        "title": "Pair with Mira again",
-        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on, enter:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes.",
+        "title": "Pairing code",
+        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes and used when pairing at the end.",
         "data": {
           "code": "Pairing code"
-        }
+        },
+        "submit": "Next"
       },
       "token": {
         "title": "Mira's access token",
@@ -61,6 +62,17 @@
         "description": "Which assistants should Mira answer in? Voice satellites set to \"preferred\" follow the preferred assistant.",
         "data": {
           "pipelines": "Assistants"
+        },
+        "submit": "Next"
+      },
+      "summary": {
+        "title": "Summary",
+        "description": "- **Mira:** {url}\n- **AI model:** {model}\n- **Answers in:** {assistants}\n\nWhen pairing, Mira gets its own Home Assistant user without admin rights, and Home Assistant's MCP server is switched on if it is missing. This takes a few seconds.{error}",
+        "menu_options": {
+          "finish": "Pair",
+          "model_source": "Change the AI model",
+          "assistants": "Change the assistants",
+          "pair": "Enter the pairing code again"
         }
       }
     },

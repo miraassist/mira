@@ -76,11 +76,19 @@ class MiraClient:
         An agent from before pairing has no such route (MiraError)."""
         return await self._request("GET", "/v1/pair", 10)
 
-    async def pair(self, code: str = "") -> str:
-        """Trade the pairing code for the agent's token; the first time,
-        while the agent was never paired, without a code."""
-        body = await self._request("POST", "/v1/pair", 10, json={"code": code})
+    async def pair(self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None) -> str:
+        """Pair and set up in one step: the agent keeps Home Assistant's
+        access and the model, hands out its token and starts anew. The
+        first time, while the agent was never paired, without a code."""
+        body = await self._request(
+            "POST", "/v1/pair", 30, json={"code": code, "ha_url": ha_url, "ha_token": ha_token, "llm": llm}
+        )
         return str(body["token"])
+
+    async def probe(self, llm: dict[str, Any]) -> None:
+        """A trial request to the model, through the agent (a local model
+        may have to load first, hence the long wait)."""
+        await self._request("POST", "/v1/setup/probe", 200, json={"llm": llm})
 
     async def models(self, base_url: str, api_key: str) -> list[str]:
         """The models a model server offers, asked through the agent."""

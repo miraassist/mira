@@ -3,6 +3,8 @@ on Home Assistant's persons."""
 
 from ipaddress import ip_address
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from homeassistant import config_entries
@@ -252,9 +254,12 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     assert (await client.get("/api/mira/settings/persons")).status == 401
 
 
-async def test_discovery_asks_only_to_add(hass, aioclient_mock):
-    """A discovered agent that was never paired: one click, no code."""
-    aioclient_mock.get("http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True})
+async def test_discovery_asks_only_to_add(hass, aioclient_mock, hass_owner_user):
+    """A discovered agent that was never paired (here with its model kept):
+    one click, a summary, "Pair"; nothing is sent before that."""
+    aioclient_mock.get(
+        "http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True, "model": "qwen3"}
+    )
     aioclient_mock.post("http://192.168.1.20:8787/v1/pair", json={"token": "secret"})
     aioclient_mock.get("http://192.168.1.20:8787/v1/health", json={"status": "ok", "id": AGENT_ID})
     result = await hass.config_entries.flow.async_init(
@@ -262,11 +267,13 @@ async def test_discovery_asks_only_to_add(hass, aioclient_mock):
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm"
-    # Nothing is paired before the user says yes.
-    assert not any(c[0] == "POST" for c in aioclient_mock.mock_calls)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["step_id"] == "summary"
+    assert not any(c[0] == "POST" for c in aioclient_mock.mock_calls)
+    with patch("custom_components.mira.config_flow.ensure_mcp_server", AsyncMock()):
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_URL: "http://192.168.1.20:8787", CONF_TOKEN: "secret", "pipelines": []}
+    assert result["data"][CONF_URL] == "http://192.168.1.20:8787" and result["data"][CONF_TOKEN] == "secret"
     assert result["result"].unique_id == AGENT_ID
 
 

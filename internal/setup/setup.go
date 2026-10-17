@@ -207,43 +207,22 @@ func PendingCode(ctx context.Context, st *store.Store, now time.Time) (string, e
 // ErrBadCode is a wrong, used up or expired code.
 var ErrBadCode = errors.New("wrong or expired code")
 
-// Pair checks a code and, when it is right, hands out the token. The code
-// is spent either way after five tries. An agent that was never paired
-// hands it out without a code: whoever pairs first wins, and the owner
-// notices, because their own pairing then fails.
-func Pair(ctx context.Context, st *store.Store, code string, now time.Time) (string, error) {
-	paired, err := get(ctx, st, keyPaired)
-	if err != nil {
+// Pair pairs and sets up in one step: Home Assistant's access and maybe a
+// model are kept, and the token is handed out, or nothing happens at all.
+// So no agent is left paired but unusable when a setup is broken off.
+//
+// An agent that was never paired needs no code: whoever pairs first wins,
+// and the owner notices, because their own pairing then asks for a code.
+// Later a code from mira pair is needed; a wrong one counts, five spend it.
+func Pair(ctx context.Context, st *store.Store, code string, now time.Time, haURL, haToken string, l *LLM) (string, error) {
+	if haURL == "" || haToken == "" {
+		return "", errors.New("pairing needs Home Assistant's address and token")
+	}
+	if err := checkCode(ctx, st, code, now); err != nil {
 		return "", err
 	}
-	if paired == "" && strings.TrimSpace(code) == "" {
-		if err := st.SetKV(ctx, keyPaired, "1"); err != nil {
-			return "", err
-		}
-		return get(ctx, st, keyToken)
-	}
-	want, err := PendingCode(ctx, st, now)
-	if err != nil {
+	if err := Save(ctx, st, haURL, haToken, l); err != nil {
 		return "", err
-	}
-	if want == "" {
-		return "", ErrBadCode
-	}
-	triesRaw, err := get(ctx, st, keyCodeTries)
-	if err != nil {
-		return "", err
-	}
-	tries, _ := strconv.Atoi(triesRaw)
-	tries++
-	if err := st.SetKV(ctx, keyCodeTries, strconv.Itoa(tries)); err != nil {
-		return "", err
-	}
-	code = strings.ReplaceAll(strings.TrimSpace(code), " ", "")
-	if subtle.ConstantTimeCompare([]byte(code), []byte(want)) != 1 {
-		if tries >= codeMaxTries {
-			_ = st.DeleteKV(ctx, keyCode)
-		}
-		return "", ErrBadCode
 	}
 	if err := st.DeleteKV(ctx, keyCode); err != nil {
 		return "", err
@@ -252,6 +231,42 @@ func Pair(ctx context.Context, st *store.Store, code string, now time.Time) (str
 		return "", err
 	}
 	return get(ctx, st, keyToken)
+}
+
+// checkCode lets a pairing through: without a code while the agent was
+// never paired, else with the pending code.
+func checkCode(ctx context.Context, st *store.Store, code string, now time.Time) error {
+	paired, err := get(ctx, st, keyPaired)
+	if err != nil {
+		return err
+	}
+	code = strings.ReplaceAll(strings.TrimSpace(code), " ", "")
+	if paired == "" && code == "" {
+		return nil
+	}
+	want, err := PendingCode(ctx, st, now)
+	if err != nil {
+		return err
+	}
+	if want == "" {
+		return ErrBadCode
+	}
+	triesRaw, err := get(ctx, st, keyCodeTries)
+	if err != nil {
+		return err
+	}
+	tries, _ := strconv.Atoi(triesRaw)
+	tries++
+	if err := st.SetKV(ctx, keyCodeTries, strconv.Itoa(tries)); err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare([]byte(code), []byte(want)) != 1 {
+		if tries >= codeMaxTries {
+			_ = st.DeleteKV(ctx, keyCode)
+		}
+		return ErrBadCode
+	}
+	return nil
 }
 
 // Unpair is for when Home Assistant lets go of the agent (the integration

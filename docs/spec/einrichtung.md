@@ -1,6 +1,6 @@
 # Einrichtung – Spezifikation
 
-Stand 2026-10-17, gebaut in 0.6.22, Koppeln ohne Code, Modellwahl und Assistenten in 0.6.23. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
+Stand 2026-10-17, gebaut in 0.6.22, Koppeln ohne Code, Modellwahl und Assistenten in 0.6.23, Koppeln erst nach der Zusammenfassung in 0.6.25. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -9,13 +9,12 @@ Heute braucht ein neuer Nutzer neun Schritte:
 - auf dem Docker-Rechner: `mira.yaml` und `.env` schreiben, Container starten;
 - wieder in HA: denselben Token noch einmal eintragen, Mira als Gesprächsagent wählen.
 
-Künftig sind es vier, und keiner davon verlangt, eine Config-Datei zu verstehen oder einen Code abzutippen:
+Künftig sind es drei, und keiner davon verlangt, eine Config-Datei zu verstehen oder einen Code abzutippen:
 
-1. **Container starten**, eine Zeile, ohne Config-Datei:
+1. **Mira über HACS installieren**, HA neu starten.
+2. **Container starten**, eine Zeile, ohne Config-Datei:
    `docker run -d --name mira --network host -v mira-data:/var/lib/mira ghcr.io/miraassist/mira`
-2. **Mira über HACS installieren**, HA neu starten.
-3. **Unter „Entdeckt“ Mira hinzufügen**: ein Klick.
-4. **Das KI-Modell (LLM) wählen** und die Assistenten bestätigen, in denen Mira antwortet.
+3. **Unter „Entdeckt“ Mira hinzufügen.** Der Dialog fragt nach dem KI-Modell (LLM) und den Assistenten, zeigt eine Zusammenfassung, und „Koppeln“ erledigt den Rest.
 
 Für Assist freigeben bleibt, wie bisher, eine Entscheidung des Nutzers in HA.
 
@@ -33,12 +32,15 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
 ## 2. Koppeln statt Token tippen
 
 - **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank.
-- **Erstes Koppeln ohne Code:** Die Integration findet den Agenten per mDNS. Unter „Entdeckt“ fragt HA nur „Hinzufügen?“. Ein Agent, der noch nie gekoppelt war, gibt seinen Token dem ersten Home Assistant, der ihn hinzufügt (`POST /v1/pair` ohne Code).
-  - Gekoppelt wird erst nach dem Klick, nicht schon beim Entdecken.
-  - **Warum das reicht:** Ein Angreifer im Heimnetz müsste zwischen Containerstart und Einrichtung zuschlagen und bekäme einen Agenten ohne HA-Zugang und ohne Modell. Er bliebe nicht unbemerkt: Der Dialog des Besitzers fragt dann nach einem Code. Die Anleitung sagt: im eigenen Heimnetz einrichten, nicht im Gästenetz.
+- **Koppeln kommt zuletzt.** Der Dialog fragt erst alles ab: KI-Modell, Assistenten, dann eine Zusammenfassung mit „Koppeln“, „KI-Modell ändern“ und „Assistenten ändern“. Einen Zurück-Knopf haben HA-Dialoge nicht; die Zusammenfassung ersetzt ihn.
+  - Vorher ändert sich nichts, weder am Agenten noch in HA: kein Benutzer, kein Token, keine Kopplung. Ein abgebrochener Dialog lässt nichts halb eingerichtet zurück. HA lässt einen entdeckten Dialog beim Schließen offen; öffnet man die Karte wieder, geht es an derselben Stelle weiter.
+  - Damit der Dialog vorher Modelle auflisten und ausprobieren kann, beantwortet der Agent `/v1/setup/models` und `/v1/setup/probe` ohne Token, aber nur, solange er noch nie gekoppelt war.
+  - „Koppeln“ legt Benutzer und Token an, schaltet HAs MCP-Server ein und schickt dann HA-Adresse, Token und Modell in **einem** Aufruf (`POST /v1/pair`). Der Agent speichert alles, gibt seinen Zugangs-Token heraus und startet neu, oder er tut gar nichts. Geht es schief, widerruft die Integration den Token wieder.
+- **Ohne Code beim ersten Mal:** Ein Agent, der noch nie gekoppelt war, koppelt sich mit dem ersten Home Assistant, der „Koppeln“ abschließt.
+  - **Warum das reicht:** Ein Angreifer im Heimnetz müsste zwischen Containerstart und Einrichtung zuschlagen. Er bliebe nicht unbemerkt: Der Dialog des Besitzers fragt dann nach einem Code. Die Anleitung sagt: im eigenen Heimnetz einrichten, nicht im Gästenetz.
   - Einen Code im mDNS-Eintrag gibt es bewusst nicht: Den könnte jedes Gerät im Netz lesen.
-- **Entfernen gibt frei:** Entfernt man die Integration, meldet sie das dem Agenten (`POST /v1/unpair`). Er macht einen neuen Token, vergisst den HA-Zugang, behält das Modell und wartet wieder auf Einrichtung, das nächste Mal wieder ohne Code und ohne Modellfrage.
-- **Erneutes Koppeln mit Code:** Ist der Agent noch gekoppelt (die Integration konnte ihn beim Entfernen nicht erreichen, oder ein anderer Home Assistant hat ihn), braucht es einen **Kopplungscode** aus sechs Ziffern: `mira pair` auf dem Rechner des Agenten (`docker exec mira /app/mira pair`). Er steht dann auch auf der Seite des Agenten. Der Code gilt 15 Minuten und 5 Versuche.
+- **Entfernen gibt frei:** Entfernt man die Integration, meldet sie das dem Agenten (`POST /v1/unpair`). Er macht einen neuen Token, vergisst den HA-Zugang, behält das Modell und wartet wieder auf Einrichtung, das nächste Mal wieder ohne Code; die Zusammenfassung zeigt dann „KI-Modell: bleibt …“.
+- **Erneutes Koppeln mit Code:** Ist der Agent noch gekoppelt (die Integration konnte ihn beim Entfernen nicht erreichen, oder ein anderer Home Assistant hat ihn), braucht es einen **Kopplungscode** aus sechs Ziffern: `mira pair` auf dem Rechner des Agenten (`docker exec mira /app/mira pair`). Er steht dann auch auf der Seite des Agenten. Der Code gilt 15 Minuten und 5 Versuche. Der Dialog fragt ihn am Anfang ab und verwendet ihn beim „Koppeln“; stimmt er nicht, bietet die Zusammenfassung „Kopplungscode neu eingeben“. Das Modell behält der Agent; ändern lässt es sich danach unter Konfigurieren.
 - **Wie bisher:** Steht ein Token in der Config (`server.token`), gilt der, ohne Kopplung. So bleiben bestehende Installationen unverändert.
 
 ## 3. Agent ohne Config-Datei

@@ -264,31 +264,35 @@ Du brauchst zwei Dinge:
 - **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS nimmst du vorerst einen anderen Rechner; ein Add-on kommt später.
 - **Ein KI-Modell (LLM)**, mit dem Mira denkt. Am einfachsten ist ein Cloud-Anbieter wie Google Gemini oder OpenAI. Hast du in Home Assistant schon eine KI-Integration eingerichtet, übernimmt Mira sie samt Schlüssel. Ein eigener Server (LM Studio, Ollama, llama.cpp) geht auch, braucht aber eine starke Grafikkarte.
 
-Eine Config-Datei brauchst du nicht. Vier Schritte:
+Eine Config-Datei brauchst du nicht. Drei Schritte:
 
-**1. Mira starten.** Auf dem Docker-Rechner, eine Zeile:
+**1. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
+
+**2. Mira starten.** Auf dem Docker-Rechner, eine Zeile:
 
 ```sh
 docker run -d --name mira --restart unless-stopped --network host \
   -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
 ```
 
-**2. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
+**3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**. Der Dialog führt dich durch den Rest:
+- **KI-Modell (LLM)**, mit dem Mira denkt:
+  - **Aus Home Assistant**: eine KI-Integration, die du schon hast; nichts weiter einzugeben.
+  - **OpenAI, Google Gemini, OpenRouter, Mistral**: dein API-Schlüssel vom Anbieter.
+  - **Eigener Server**: seine Adresse aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
 
-**3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**.
-Steht Mira nicht dort: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
+  Dann das Modell aus der Liste. Mira probiert es gleich aus.
+- **Assistenten**, in denen Mira antwortet; der bevorzugte ist schon angehakt.
+- **Zusammenfassung** → **Koppeln**. Fertig.
 
-**4. Das KI-Modell wählen.** Der Dialog fragt, woher es kommt:
-- **Aus Home Assistant**: eine KI-Integration, die du schon hast. Nichts weiter einzugeben.
-- **OpenAI, Google Gemini, OpenRouter, Mistral**: dein API-Schlüssel vom Anbieter.
-- **Eigener Server**: seine Adresse, aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
+Steht Mira nicht unter „Entdeckt“: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
-Dann wählst du das Modell aus der Liste. Mira probiert es mit einer kurzen Anfrage aus, bevor sie es übernimmt. Zum Schluss hakst du an, in welchen Assistenten Mira antworten soll; der bevorzugte ist schon angehakt. Fertig.
-
-Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
+Beim Koppeln richtet die Integration alles Übrige in Home Assistant selbst ein:
 - einen Benutzer **„Mira“** ohne Admin-Rechte, mit dem Mira Home Assistant anspricht;
 - den **MCP-Server** von Home Assistant, falls er noch fehlt;
 - **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
+
+Vor dem Koppeln passiert nichts. Brichst du den Dialog ab, bleibt nichts halb eingerichtet zurück.
 
 Was Mira sehen und schalten darf, bestimmst du unter Einstellungen → Sprachassistenten → **Entitäten freigeben**.
 
@@ -303,11 +307,11 @@ Der Dialog sagt, was nicht stimmt, und du kannst es gleich dort korrigieren:
 - **„Das Modell benutzt keine Werkzeuge“**: Wähle ein anderes Modell. Mira braucht Werkzeuge zum Schalten und Nachschauen.
 
 Und sonst:
-- **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (Schritt 3).
-- **Der Dialog fragt nach einem Kopplungscode?** Diese Mira war schon mit einem Home Assistant gekoppelt, der sie nicht freigegeben hat. Entfernst du die Integration, gibt sie Mira frei. Einen Code bekommst du mit `docker exec mira /app/mira pair`.
+- **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (siehe Schritt 3).
+- **Der Dialog fragt nach einem Kopplungscode?** Diese Mira ist schon mit einem Home Assistant gekoppelt. Entfernst du dort die Integration, gibt sie Mira frei, und es geht wieder ohne Code. Sonst bekommst du einen Code mit `docker exec mira /app/mira pair`.
 - **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **KI-Modell (LLM)**.
 
-**Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der sie hinzufügt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code.
+**Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der das Koppeln abschließt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code.
 
 Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
 
