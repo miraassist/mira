@@ -3,6 +3,7 @@
 //	mira [-config mira.yaml] run          start the agent (default)
 //	mira [-config mira.yaml] chat TEXT    one turn through the full stack, printed
 //	mira [-config mira.yaml] check        validate the config and probe every dependency
+//	mira [-config mira.yaml] pair         a new pairing code for Home Assistant
 package main
 
 import (
@@ -23,7 +24,7 @@ import (
 // version is Mira's version: raised with every change that goes live, so
 // the web UI and /v1/health show at once which build runs. A release build
 // may still set it with -ldflags "-X main.version=...".
-var version = "0.6.21"
+var version = "0.6.22"
 
 func main() {
 	if err := run(); err != nil {
@@ -42,18 +43,21 @@ func run() error {
 	session := flag.String("session", "cli", "chat: conversation id; reuse it to continue a conversation")
 	device := flag.String("device", "", "chat: satellite device id, for -channel voice")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile | skill NAME [N]]\n\nflags:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile | skill NAME [N] | pair]\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
-	cfg, err := config.Load(*configPath)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// mira.yaml is optional: without it the integration sets the agent up
+	// (docs/spec/einrichtung.md).
+	p, err := prepare(ctx, *configPath)
 	if err != nil {
 		return err
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	cfg := p.cfg
 
 	args := flag.Args()
 	cmd := "run"
@@ -62,7 +66,17 @@ func run() error {
 	}
 	switch cmd {
 	case "run":
-		return runAgent(ctx, cfg)
+		if !p.ready {
+			return runSetupMode(ctx, p)
+		}
+		return runAgent(ctx, cfg, p)
+	case "pair":
+		return runPair(ctx, p)
+	}
+	if !p.ready {
+		return errNotSetUp
+	}
+	switch cmd {
 	case "chat":
 		if len(args) == 0 {
 			return errors.New("chat needs a message, e.g. mira chat \"Wie warm ist es im Wohnzimmer?\"")

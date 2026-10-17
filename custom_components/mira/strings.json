@@ -2,30 +2,64 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to the Mira agent",
-        "description": "Address and API token of the Mira agent (server.listen and server.token in its config).",
+        "title": "Connect Mira",
+        "description": "Usually Home Assistant finds Mira by itself, and it shows up under **Discovered**. If not, enter the address of the machine Mira runs on, with port 8787. On the same machine as Home Assistant that is `http://localhost:8787`.\n\nNo Mira yet? One line of Docker is enough, no config file needed: [setup in five steps]({guide}).",
         "data": {
-          "url": "Agent URL",
-          "token": "API token"
+          "url": "Address of Mira"
         }
       },
-      "zeroconf_confirm": {
-        "title": "Mira found",
-        "description": "A Mira agent announced itself at {url}. Enter its API token (server.token).",
+      "pair": {
+        "title": "Pair with Mira",
+        "description": "Mira shows a six-digit **pairing code**:\n- on its page {url}\n- in the log of its container (`docker logs mira`)\n\nThe code is valid for 15 minutes. Restart Mira for a new one.",
         "data": {
-          "token": "API token"
+          "code": "Pairing code"
+        }
+      },
+      "token": {
+        "title": "Mira's access token",
+        "description": "This Mira has its access token in its `mira.yaml` (`server.token`). Enter that token here.",
+        "data": {
+          "token": "Access token"
+        }
+      },
+      "model_kind": {
+        "title": "Language model",
+        "description": "Mira needs a language model. Where does it run?",
+        "data": {
+          "kind": "Model server"
+        }
+      },
+      "model_server": {
+        "title": "Model server",
+        "description": "The address **as Mira sees it**: `localhost` is the machine Mira runs on. A key is only needed for a cloud provider.{error}",
+        "data": {
+          "base_url": "Address",
+          "api_key": "Key (only for a cloud provider)"
+        }
+      },
+      "model": {
+        "title": "Choose the model",
+        "description": "These are the models available there.\n\nThen Mira sets itself up, which takes a few seconds:\n- it gets its own Home Assistant user, without admin rights;\n- Home Assistant's MCP server is switched on if it is not yet.{error}",
+        "data": {
+          "model": "Model"
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not reach the agent at this address.",
-      "invalid_auth": "The agent rejected the token."
+      "cannot_connect": "Could not reach Mira at this address.",
+      "invalid_auth": "Mira rejected the token.",
+      "bad_code": "The code is wrong or expired. Restart Mira for a new code.",
+      "model_server": "The model server answered with an error: {error}",
+      "setup_failed": "Setting up did not work: {error}"
     },
     "abort": {
       "already_configured": "This agent is already configured.",
       "no_id": "The agent did not announce an id; update it."
     },
-    "flow_title": "{name}"
+    "flow_title": "{name}",
+    "create_entry": {
+      "default": "Mira is set up.\n\nLast step: **Settings → Voice assistants** → open your assistant → **Conversation agent: Mira**.\n\nWhat Mira may see and switch you decide there under **Expose entities**. The first answer may take up to a minute while the language model loads."
+    }
   },
   "options": {
     "step": {
@@ -33,6 +67,7 @@
         "title": "Mira",
         "menu_options": {
           "general": "General",
+          "model": "Language model",
           "persons": "Settings for persons",
           "satellites": "Settings for satellites"
         }
@@ -77,11 +112,35 @@
           "morning": "When one of the motion sensors notices someone coming in, Mira says what is waiting. Off: she only tells when asked or after an answer (\"By the way …\"). The indicator (LED ring or overlay) shows it either way.",
           "indicator": "Shows waiting messages, e.g. the LED ring of the satellite."
         }
+      },
+      "model_kind": {
+        "title": "Language model",
+        "description": "Mira needs a language model. Where does it run?",
+        "data": {
+          "kind": "Model server"
+        }
+      },
+      "model_server": {
+        "title": "Model server",
+        "description": "The address **as Mira sees it**: `localhost` is the machine Mira runs on. A key is only needed for a cloud provider.{error}",
+        "data": {
+          "base_url": "Address",
+          "api_key": "Key (only for a cloud provider)"
+        }
+      },
+      "model": {
+        "title": "Choose the model",
+        "description": "Mira starts anew with the model you choose.{error}",
+        "data": {
+          "model": "Model"
+        }
       }
     },
     "error": {
       "invalid_config": "The agent refused it: {error}",
-      "cannot_connect": "The agent is not reachable."
+      "cannot_connect": "Could not reach Mira at this address.",
+      "model_server": "The model server answered with an error: {error}",
+      "setup_failed": "Setting up did not work: {error}"
     },
     "abort": {
       "not_loaded": "The Mira agent entry is not loaded.",
@@ -239,6 +298,14 @@
         "all": "Everyone (also someone at a satellite)",
         "persons": "Only persons Mira recognises",
         "none": "Nobody"
+      }
+    },
+    "model_kind": {
+      "options": {
+        "lmstudio": "LM Studio",
+        "ollama": "Ollama",
+        "llamacpp": "llama.cpp server",
+        "cloud": "Cloud provider with an OpenAI-compatible API (OpenAI, Gemini, …)"
       }
     }
   }

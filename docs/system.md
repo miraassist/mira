@@ -394,7 +394,7 @@ Zwischen Home Assistant und dem Agenten gibt es zwei Richtungen, auf getrennten 
 
 | Richtung | Weg | Absicherung |
 |---|---|---|
-| Integration → Agent | HTTP mit JSON: `/v1/conversation` (jeder Turn von Assist und Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (Personen, Satelliten, Freigabe), der Panel-Proxy | Bearer-Token (`server.token`), bei jeder Anfrage in konstanter Zeit geprüft. Ohne Token sind nur `/ui`, die Anleitung und `/v1/health` erreichbar, ohne Daten. Ein leerer Token schaltet die Prüfung ab, nur für die Entwicklung |
+| Integration → Agent | HTTP mit JSON: `/v1/conversation` (jeder Turn von Assist und Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (Personen, Satelliten, Freigabe), der Panel-Proxy | Bearer-Token (`server.token`), bei jeder Anfrage in konstanter Zeit geprüft. Ohne Token sind nur `/ui`, die Anleitung, `/v1/health` und das Koppeln (`/v1/pair`) erreichbar, ohne Daten. Den Token erzeugt der Agent beim ersten Start; die Integration holt ihn mit dem Kopplungscode (6 Ziffern, 15 Minuten, 5 Versuche). Steht `server.token` in `mira.yaml`, gilt der, ohne Kopplung |
 | Agent → Home Assistant | WebSocket-API, MCP über HTTP (`/api/mcp/assist`), REST (Kalender, Grundeinstellungen) | Long-Lived-Token eines eigenen HA-Benutzers ohne Admin-Rechte |
 | Agent → Integration | über HA: eigene WebSocket-Befehle der Integration (`mira/automation/*`) | nur Miras HA-Benutzer oder ein Admin (die Integration kennt die ID aus `/v1/health`) |
 

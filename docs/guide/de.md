@@ -231,16 +231,12 @@ Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benu
 
 ## Weitere Werkzeuge über MCP
 
-Mira kann zusätzliche Werkzeuge nutzen, die ein MCP-Server anbietet, etwa eine Websuche. Die Einrichtung trägt sie in `mira.yaml` unter `mcp_servers` ein; Mira verbindet sich beim Start und gibt dem Modell die Werkzeuge mit, mit dem Servernamen davor (`search__…`). Das funktioniert mit jedem Sprachmodell.
+Mira kann zusätzliche Werkzeuge nutzen, die ein MCP-Server anbietet, etwa eine Websuche. Du trägst sie in `mira.yaml` unter `mcp_servers` ein (Home Assistants eigener MCP-Server ist immer dabei); Mira verbindet sich beim Start und gibt dem Modell die Werkzeuge mit, mit dem Servernamen davor (`search__…`). Das funktioniert mit jedem Sprachmodell.
 
 Ein Server läuft entweder für sich und wird über HTTP erreicht, oder Mira startet ihn selbst als Programm (stdio):
 
 ```yaml
 mcp_servers:
-  - name: ha                       # Home Assistant, ist immer dabei
-    transport: http
-    url: "http://homeassistant.local:8123/api/mcp/assist"
-    token: ${HA_TOKEN}
   - name: search                   # Mira startet den Server selbst
     transport: stdio
     command: /usr/bin/node
@@ -262,10 +258,62 @@ Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
 
 Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` prüft, ob alle erreichbar sind.
 
+## Einrichtung
+
+Du brauchst drei Dinge:
+- **Home Assistant**.
+- **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS nimmst du vorerst einen anderen Rechner; ein Add-on kommt später.
+- **Ein Sprachmodell**: LM Studio, Ollama oder llama.cpp auf einem Rechner mit Grafikkarte, oder ein Cloud-Anbieter mit OpenAI-Schnittstelle und einem Schlüssel.
+
+Eine Config-Datei brauchst du nicht. Fünf Schritte:
+
+**1. Mira starten.** Auf dem Docker-Rechner, eine Zeile:
+
+```sh
+docker run -d --name mira --restart unless-stopped --network host \
+  -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
+```
+
+Mira wartet jetzt auf die Einrichtung und zeigt einen **Kopplungscode** aus sechs Ziffern. Du findest ihn:
+- im Browser unter `http://<rechner>:8787`;
+- oder mit `docker logs mira` (Zeile `pairing code: 123 456`).
+
+**2. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
+
+**3. Koppeln.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen** → den Kopplungscode eingeben.
+Steht Mira nicht dort: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
+
+**4. Das Sprachmodell wählen.**
+- Wähle, wo dein Modell läuft (LM Studio, Ollama, llama.cpp, Cloud). Die Adresse ist schon ausgefüllt.
+- Die Adresse gilt **aus Sicht von Mira**: `localhost` ist der Rechner, auf dem Mira läuft. Läuft das Modell woanders, trag dessen Adresse ein.
+- Für einen Cloud-Anbieter gibst du dessen Adresse und deinen Schlüssel ein.
+- Dann wählst du das Modell aus der Liste. Fertig.
+
+Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
+- einen Benutzer **„Mira“** ohne Admin-Rechte, mit dem Mira Home Assistant anspricht;
+- den **MCP-Server** von Home Assistant, falls er noch fehlt.
+
+**5. Mira als Gesprächsagent wählen.** Einstellungen → Sprachassistenten → deinen Assistenten öffnen → **Gesprächsagent: Mira**.
+
+Zum Schluss bestimmst du, was Mira sehen und schalten darf: Einstellungen → Sprachassistenten → **Entitäten freigeben**.
+
+### Wenn etwas hakt
+
+- **Code abgelaufen oder vertippt?** Der Code gilt 15 Minuten und fünf Versuche. Einen neuen bekommst du mit `docker restart mira` oder `docker exec mira /app/mira pair`.
+- **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (Schritt 3).
+- **„Der Modell-Server antwortet nicht“?**
+  - Prüfe die Adresse aus Sicht von Mira (siehe Schritt 4).
+  - Läuft LM Studio auf einem anderen Rechner, schalte dort „Serve on Local Network“ ein.
+  - Ollama hört von Haus aus nur auf seinen eigenen Rechner (`OLLAMA_HOST=0.0.0.0` ändert das).
+- **Die erste Antwort dauert?** Beim ersten Start lädt das Modell, das kann bis zu einer Minute dauern. Danach geht es schnell.
+- **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Sprachmodell**.
+
+Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
+
 ## Sicherheit: wie Mira und Home Assistant miteinander sprechen
 
 - **Zwei Schlüssel:**
-  - Home Assistant spricht Mira mit einem **Zugangs-Token** an, den du bei der Einrichtung einträgst.
+  - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Koppeln, du siehst ihn nie.
   - Mira spricht Home Assistant als **eigener Benutzer ohne Admin-Rechte** an.
   - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
 - **Was Mira in HA darf:** nichts verwalten (keine Benutzer, keine Integrationen), aber Geräte schalten. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.

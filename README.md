@@ -26,11 +26,32 @@ This repository holds both parts, released together under one version:
 The integration does not use Home Assistant's LLM API and runs no tools. All
 logic lives in the agent.
 
+## Quick start
+
+No config file, five steps (details and troubleshooting in the guide:
+[Deutsch](docs/guide/de.md#einrichtung) · [English](docs/guide/en.md#setup)):
+
+1. **Start the agent** on a machine with Docker in your home network:
+   ```sh
+   docker run -d --name mira --restart unless-stopped --network host \
+     -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
+   ```
+   It shows a six-digit **pairing code** at `http://<machine>:8787` and in `docker logs mira`.
+2. **Install the integration** with the HACS button above, restart Home Assistant.
+3. Settings → Devices & services: **Mira** is under **Discovered**. Add it and enter the pairing code.
+4. **Choose the language model** in the form: LM Studio, Ollama, llama.cpp or a cloud provider, then the model from the list.
+   The integration creates Mira's own Home Assistant user (no admin rights) and switches on Home Assistant's MCP server.
+5. Settings → Voice assistants: choose **Mira** as the conversation agent.
+
 ## Agent
+
+Running from source, or with your own `mira.yaml` for what goes beyond the
+setup form (more models and routing, more MCP servers, skills with settings):
 
 ```sh
 go build -o mira ./cmd/mira
-cp mira.example.yaml mira.yaml        # then edit; secrets come from ${ENV}
+./mira run                            # no config: waits to be set up by Home Assistant
+cp mira.example.yaml mira.yaml        # optional; secrets come from ${ENV}
 ./mira -config mira.yaml check        # probe the LLM, Home Assistant and MCP servers
 ./mira -config mira.yaml chat "Wie warm ist es im Wohnzimmer?"
 ./mira -config mira.yaml profile      # compact the remembered facts into the profile now
@@ -46,7 +67,8 @@ docker run -d --name mira --network host -e TZ=Europe/Berlin --env-file .env \
   -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira mira
 ```
 
-Set `store.path: /var/lib/mira/mira.db` (as in `mira.example.yaml`); the
+The database goes to `/var/lib/mira/mira.db` in the image (`MIRA_DATA`),
+`mira.db` in the working directory otherwise; `store.path` changes it. The
 built-in skills are in the image. `--network host` lets the integration find
 the agent by mDNS; without it, publish the port (`-p 8787:8787`) and enter
 the URL in the integration. MCP servers started over stdio need their own
@@ -57,9 +79,10 @@ Requirements:
   `llm.slot_pinning: true`) or LM Studio (`slot_pinning: false`; it picks
   slots by common prefix, which works well because all channels share the
   start of the prompt).
-- Home Assistant with the "Model Context Protocol Server" integration. Use
-  `/api/mcp/assist` as the MCP URL: it works for a non-admin user.
-- A dedicated, non-admin HA user with a long-lived token.
+- Home Assistant. Pairing sets up the rest there: a non-admin user "Mira"
+  with a long-lived token, and the "Model Context Protocol Server"
+  integration with the Assist API (`/api/mcp/assist`). With `ha.url` and
+  `ha.token` in `mira.yaml` instead, set both up by hand.
 - Optional: more MCP servers (web search, …) under `mcp_servers`, over HTTP or
   started by Mira (stdio). See "More tools over MCP" in the guide
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
@@ -129,10 +152,19 @@ an urgent message. These rules are enforced in code, not only in the prompt.
 1. Click **Install with HACS** above, or HACS → Custom repositories → `https://github.com/miraassist/mira`, type Integration.
 2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
-   (`_mira._tcp`, `server.announce`) and shows up under **Discovered**; it
-   only asks for the agent's `server.token`. Otherwise Add integration → Mira
-   with URL and token.
+   (`_mira._tcp`, `server.announce`) and shows up under **Discovered**;
+   otherwise Add integration → Mira with its URL. The form asks for the
+   pairing code the agent shows (or for `server.token`, when `mira.yaml`
+   sets one), then, for an agent not set up yet, for the language model.
 4. Settings → Voice assistants: choose **Mira** as the conversation agent.
+
+Pairing (docs/spec/einrichtung.md): with the code the integration fetches
+the agent's access token (`POST /v1/pair`; 15 minutes, five tries, a new code
+with `mira pair`). It then creates the HA user and token, switches on HA's
+MCP server and sends HA's address, the token and the model to the agent
+(`POST /v1/setup`), which keeps them in its database and starts anew.
+Removing the integration revokes the token; the user stays, Mira's
+automations refer to it.
 
 Mira's web UI is in Home Assistant's sidebar: the integration passes the
 page through Home Assistant (open, it holds no data) and its API calls

@@ -6,8 +6,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -362,7 +364,9 @@ type Telemetry struct {
 func Default() Config {
 	temp := 0.3
 	return Config{
-		Server: Server{Listen: "127.0.0.1:8787", Announce: true, Name: "Mira"},
+		// The image sets MIRA_LISTEN (all interfaces) and MIRA_DATA (its
+		// data folder): a container needs no config for either.
+		Server: Server{Listen: envOr("MIRA_LISTEN", "127.0.0.1:8787"), Announce: true, Name: "Mira"},
 		LLM: LLM{
 			BaseURL:              "http://localhost:8080/v1",
 			Model:                "local",
@@ -378,7 +382,7 @@ func Default() Config {
 			WarmupOnStart:        true,
 			WarmupOnPrefixChange: true,
 		},
-		Store: Store{Path: "mira.db"},
+		Store: Store{Path: dataPath("mira.db")},
 		HA: HA{
 			StructureDebounce:   Duration(30e9), // 30s
 			AssistPromptServer:  "ha",
@@ -429,6 +433,44 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("read config: %w", err)
 	}
 	return Parse(raw, OSLookup)
+}
+
+// LoadOptional is Load for a file that may be missing: then the defaults
+// apply, and the integration sets the rest up. hasLLM says whether the file
+// names a language model.
+func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		cfg, err = Parse(nil, OSLookup)
+		return cfg, false, err
+	}
+	if err != nil {
+		return Config{}, false, fmt.Errorf("read config: %w", err)
+	}
+	cfg, err = Parse(raw, OSLookup)
+	if err != nil {
+		return Config{}, false, err
+	}
+	var top map[string]any
+	_ = yaml.Unmarshal(raw, &top)
+	_, hasLLM = top["llm"]
+	return cfg, hasLLM, nil
+}
+
+func envOr(name, fallback string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// dataPath is a file in the data folder (MIRA_DATA), else in the working
+// folder.
+func dataPath(name string) string {
+	if dir := os.Getenv("MIRA_DATA"); dir != "" {
+		return filepath.Join(dir, name)
+	}
+	return name
 }
 
 // Parse is Load without the filesystem, so tests can drive it directly.
@@ -546,11 +588,10 @@ func (c Config) Validate() error {
 	if c.Store.Path == "" {
 		add("store.path must not be empty")
 	}
-	if c.HA.URL == "" {
-		add("ha.url must be set: Mira works through Home Assistant")
-	}
-	if c.HA.Token == "" {
-		add("ha.token must be set: Mira works through Home Assistant")
+	// Without both, the agent waits to be set up by the integration
+	// (docs/spec/einrichtung.md); one without the other is a mistake.
+	if (c.HA.URL == "") != (c.HA.Token == "") {
+		add("ha.url and ha.token come together: Mira works through Home Assistant")
 	}
 
 	seen := map[string]bool{}

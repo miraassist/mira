@@ -17,9 +17,10 @@ from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
+from .access import revoke_agent_token
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
-from .const import CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
+from .const import CONF_AGENT_TOKEN, CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
 from .coordinator import MiraCoordinator
 from .labels import ensure_labels
 from .managed import build_config, import_settings
@@ -230,7 +231,10 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
-    """Hand persons and rooms back to the agent's web UI."""
+    """Hand persons and rooms back to the agent's web UI, and withdraw the
+    token the integration made for the agent (its user stays: Mira's tasks
+    hang on it)."""
+    revoke_agent_token(hass, entry.data.get(CONF_AGENT_TOKEN))
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
     try:
         await client.release_managed_config()

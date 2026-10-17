@@ -1,6 +1,6 @@
 # Einrichtung – Spezifikation
 
-Stand 2026-10-17, beschlossen, nicht gebaut. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
+Stand 2026-10-17, gebaut in 0.6.22. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -33,7 +33,7 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
 
 ## 2. Koppeln statt Token tippen
 
-- **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank. Dazu erzeugt er einen **Kopplungscode** aus sechs Ziffern und zeigt ihn im Log und auf seiner Seite `/ui`, solange er nicht gekoppelt ist.
+- **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank. Dazu erzeugt er einen **Kopplungscode** aus sechs Ziffern und zeigt ihn im Log und auf seiner Startseite (`http://<rechner>:8787`), solange er nicht gekoppelt ist.
 - **Koppeln:** Die Integration findet den Agenten per mDNS. Das Formular fragt nur nach dem Code. Mit dem Code holt sich die Integration den Token (`POST /v1/pair`).
 - **Danach** ist der Code verbraucht. Neu gekoppelt wird nur mit einem neuen Code: Der Agent zeigt einen, wenn man ihn neu startet, solange er nicht gekoppelt ist, oder auf Wunsch über `mira pair`.
 - **Schutz:**
@@ -48,7 +48,7 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
   - Vorschläge für die Adresse: LM Studio, Ollama, llama.cpp, ein Cloud-Anbieter mit OpenAI-Schnittstelle.
   - Das Modell wählt man aus der Liste, die der Agent bei dieser Adresse abfragt (`/v1/models`).
   - Der Agent prüft die Verbindung, bevor gespeichert wird, und speichert alles in seiner Datenbank.
-  - Ändern lässt es sich später unter Konfigurieren → Allgemein.
+  - Ändern lässt es sich später unter Konfigurieren → Sprachmodell.
 - **Vorgaben für alles andere:**
   - Port 8787 auf allen Schnittstellen;
   - mDNS an;

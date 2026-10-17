@@ -61,7 +61,7 @@ func TestAgentEndToEnd(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- runAgent(ctx, cfg) }()
+	go func() { done <- runAgent(ctx, cfg, prepared{}) }()
 	defer func() {
 		http.DefaultClient.CloseIdleConnections()
 		cancel()

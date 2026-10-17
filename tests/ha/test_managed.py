@@ -252,14 +252,16 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     assert (await client.get("/api/mira/settings/persons")).status == 401
 
 
-async def test_discovery_asks_only_for_the_token(hass, aioclient_mock):
+async def test_discovery_asks_only_for_the_code(hass, aioclient_mock):
+    aioclient_mock.get("http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairing": True})
+    aioclient_mock.post("http://192.168.1.20:8787/v1/pair", json={"token": "secret"})
     aioclient_mock.get("http://192.168.1.20:8787/v1/health", json={"status": "ok", "id": AGENT_ID})
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_discovery()
     )
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "zeroconf_confirm"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_TOKEN: "secret"})
+    assert result["step_id"] == "pair"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"code": "123456"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {CONF_URL: "http://192.168.1.20:8787", CONF_TOKEN: "secret"}
     assert result["result"].unique_id == AGENT_ID

@@ -4,7 +4,7 @@ DOMAIN = "mira"
 # The version of the code that runs: Home Assistant imports an integration
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
-VERSION = "0.6.21"
+VERSION = "0.6.22"
 
 CONF_PERSONA = "persona"
 CONF_TIMEOUT = "timeout"
@@ -12,6 +12,8 @@ CONF_TIMEOUT = "timeout"
 CONF_IMPORTED = "imported"
 # The agent's Home Assistant user: only it may manage Mira's automations.
 CONF_AGENT_USER = "agent_user_id"
+# The refresh token the integration made for the agent (access.py).
+CONF_AGENT_TOKEN = "agent_token_id"
 DEFAULT_TIMEOUT = 15
 # Mira's web UI as a page in Home Assistant's sidebar (panel.py).
 CONF_SIDEBAR = "sidebar"

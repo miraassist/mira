@@ -26,6 +26,7 @@ import (
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/profile"
+	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
@@ -48,6 +49,9 @@ type app struct {
 	lang  i18n.Lang
 	// calendar reads and changes Home Assistant's calendars.
 	calendar *calendar.Calendar
+	// pairing: Home Assistant pairs with a code (the token is the agent's
+	// own).
+	pairing bool
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
@@ -86,7 +90,10 @@ type app struct {
 	warmup     func(reason string)
 }
 
-type buildOptions struct{}
+type buildOptions struct {
+	// pairing lets Home Assistant pair with a code; prepared by prepare.
+	pairing bool
+}
 
 // build wires everything that both run and chat need, and connects to Home
 // Assistant and the MCP servers. Long-running loops it starts end with ctx.
@@ -100,7 +107,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		return nil, err
 	}
 	slog.SetDefault(tel.Logger)
-	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}}
+	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing}
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
@@ -374,15 +381,16 @@ func (a *app) close() {
 	_ = a.tel.Shutdown(shutdownCtx)
 }
 
-func runAgent(parent context.Context, cfg config.Config) error {
+func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	a, err := build(ctx, cfg, buildOptions{})
+	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing})
 	if err != nil {
 		return err
 	}
 	defer a.close()
 	defer cancel() // runs before close: stop the loops, then wait for them
+	logPairing(a.log, p)
 
 	if err := a.llm.Health(ctx); err != nil {
 		a.log.Warn("llm server is not answering yet", "error", err)
@@ -805,6 +813,10 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	mux.Handle("/ui", page)
 	mux.Handle("/ui/", page)
 	mux.Handle("/v1/ui/", page)
+	// Pairing anew and changing the model from Home Assistant
+	// (docs/spec/einrichtung.md).
+	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
+		Pairing: a.pairing, Restart: restart, Log: a.log}).Register(mux)
 	mux.Handle("/", api)
 	return mux
 }

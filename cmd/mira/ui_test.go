@@ -45,7 +45,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	start := func() (stop func()) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- runAgent(ctx, cfg) }()
+		go func() { done <- runAgent(ctx, cfg, prepared{}) }()
 		return func() {
 			http.DefaultClient.CloseIdleConnections()
 			cancel()

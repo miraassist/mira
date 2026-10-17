@@ -1,4 +1,10 @@
-# Mira — example configuration. Copy to mira.yaml and adjust.
+# Mira — example configuration. The file is optional: without it the Home
+# Assistant integration sets Mira up (pairing code, Home Assistant access,
+# language model; docs/guide/en.md, "Setup"). Use it for what goes beyond:
+# more models and routing, more MCP servers, skills with settings.
+# What the integration sets wins over server.token, ha, llm and the "ha"
+# MCP server here; leave those out when you pair.
+# Copy to mira.yaml and adjust.
 # Secrets are never written here: ${NAME} is read from the environment.
 # Check a config and all dependencies with:  mira -config mira.yaml check
 
@@ -54,8 +60,9 @@ routing:
   delegate: smart
   tasks: smart        # plans standing orders; empty is background
 
-store:
-  path: "/var/lib/mira/mira.db"
+# store.path defaults to mira.db in $MIRA_DATA (/var/lib/mira in the image).
+# store:
+#   path: "/var/lib/mira/mira.db"
 
 # Mira speaks the language spoken to her (docs/spec/sprache.md); there is
 # no setting for it.

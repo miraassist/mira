@@ -16,6 +16,10 @@ class MiraAuthError(MiraError):
     """The agent rejected the token."""
 
 
+class MiraBadCode(MiraError):
+    """The pairing code is wrong, used up or expired."""
+
+
 class MiraInvalidConfig(MiraError):
     """The agent refused a config change; the message says why."""
 
@@ -50,6 +54,8 @@ class MiraClient:
             ) as resp:
                 if resp.status == 401:
                     raise MiraAuthError("token rejected")
+                if resp.status == 403 and path == "/v1/pair":
+                    raise MiraBadCode("wrong or expired code")
                 if resp.status == 422:
                     body = await resp.json(content_type=None)
                     raise MiraInvalidConfig(str((body or {}).get("error", "invalid config")))
@@ -58,6 +64,31 @@ class MiraClient:
                 return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MiraError(f"{method} {path}: {err!r}") from err
+
+    async def pairing(self) -> dict[str, Any]:
+        """Open: the agent's id, and whether it waits for a code or a setup.
+        An agent from before pairing has no such route (MiraError)."""
+        return await self._request("GET", "/v1/pair", 10)
+
+    async def pair(self, code: str) -> str:
+        """Trade the pairing code for the agent's token."""
+        body = await self._request("POST", "/v1/pair", 10, json={"code": code})
+        return str(body["token"])
+
+    async def models(self, base_url: str, api_key: str) -> list[str]:
+        """The models a model server offers, asked through the agent."""
+        body = await self._request("POST", "/v1/setup/models", 20, json={"base_url": base_url, "api_key": api_key})
+        return list(body.get("models") or [])
+
+    async def setup(self, ha_url: str | None, ha_token: str | None, llm: dict[str, Any] | None) -> None:
+        """Hand the agent Home Assistant's access and the model; it starts
+        anew afterwards."""
+        body: dict[str, Any] = {}
+        if ha_url and ha_token:
+            body["ha_url"], body["ha_token"] = ha_url, ha_token
+        if llm:
+            body["llm"] = llm
+        await self._request("POST", "/v1/setup", 30, json=body)
 
     async def reset_conversation(self, channel: str, conversation_id: str) -> None:
         """Start the conversation afresh ("/neu" on Telegram)."""
