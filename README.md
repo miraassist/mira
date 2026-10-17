@@ -28,7 +28,7 @@ logic lives in the agent.
 
 ## Quick start
 
-No config file, five steps (details and troubleshooting in the guide:
+No config file, four steps (details and troubleshooting in the guide:
 [Deutsch](docs/guide/de.md#einrichtung) · [English](docs/guide/en.md#setup)):
 
 1. **Start the agent** on a machine with Docker in your home network:
@@ -36,12 +36,12 @@ No config file, five steps (details and troubleshooting in the guide:
    docker run -d --name mira --restart unless-stopped --network host \
      -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
    ```
-   It shows a six-digit **pairing code** at `http://<machine>:8787` and in `docker logs mira`.
 2. **Install the integration** with the HACS button above, restart Home Assistant.
-3. Settings → Devices & services: **Mira** is under **Discovered**. Add it and enter the pairing code.
-4. **Choose the language model** in the form: LM Studio, Ollama, llama.cpp or a cloud provider, then the model from the list.
-   The integration creates Mira's own Home Assistant user (no admin rights) and switches on Home Assistant's MCP server.
-5. Settings → Voice assistants: choose **Mira** as the conversation agent.
+3. Settings → Devices & services: **Mira** is under **Discovered**. Click **Add**.
+4. **Choose the AI model (LLM)**: an AI integration Home Assistant already has (its key is taken over),
+   OpenAI, Gemini, OpenRouter or Mistral with your key, or a server of your own. Mira tries it before keeping it.
+   Then tick the assistants Mira answers in. The integration creates Mira's own Home Assistant user
+   (no admin rights), switches on Home Assistant's MCP server and makes Mira the assistants' conversation agent.
 
 ## Agent
 
@@ -153,18 +153,21 @@ an urgent message. These rules are enforced in code, not only in the prompt.
 2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
    (`_mira._tcp`, `server.announce`) and shows up under **Discovered**;
-   otherwise Add integration → Mira with its URL. The form asks for the
-   pairing code the agent shows (or for `server.token`, when `mira.yaml`
-   sets one), then, for an agent not set up yet, for the language model.
-4. Settings → Voice assistants: choose **Mira** as the conversation agent.
+   otherwise Add integration → Mira with its URL. A new agent is added
+   with one click (an agent with `server.token` in `mira.yaml` asks for
+   that token), then the form asks for the AI model and the assistants.
 
-Pairing (docs/spec/einrichtung.md): with the code the integration fetches
-the agent's access token (`POST /v1/pair`; 15 minutes, five tries, a new code
-with `mira pair`). It then creates the HA user and token, switches on HA's
-MCP server and sends HA's address, the token and the model to the agent
-(`POST /v1/setup`), which keeps them in its database and starts anew.
-Removing the integration revokes the token; the user stays, Mira's
-automations refer to it.
+Pairing (docs/spec/einrichtung.md): an agent that was never paired hands
+its access token to the first Home Assistant that adds it (`POST /v1/pair`);
+after that only with a code from `mira pair` (15 minutes, five tries). The
+integration then creates the HA user and token, switches on HA's MCP server
+and sends HA's address, the token and the model to the agent (`POST
+/v1/setup`), which tries the model with a real request, keeps everything in
+its database and starts anew. It makes Mira the conversation agent of the
+assistants ticked in the form. Removing the integration revokes the token,
+gives the assistants their previous agent back and lets the agent go
+(`POST /v1/unpair`: a new token, paired again without a code); the HA user
+stays, Mira's automations refer to it.
 
 Mira's web UI is in Home Assistant's sidebar: the integration passes the
 page through Home Assistant (open, it holds no data) and its API calls

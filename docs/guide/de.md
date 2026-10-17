@@ -260,12 +260,11 @@ Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` pr
 
 ## Einrichtung
 
-Du brauchst drei Dinge:
-- **Home Assistant**.
+Du brauchst zwei Dinge:
 - **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS nimmst du vorerst einen anderen Rechner; ein Add-on kommt später.
-- **Ein Sprachmodell**: LM Studio, Ollama oder llama.cpp auf einem Rechner mit Grafikkarte, oder ein Cloud-Anbieter mit OpenAI-Schnittstelle und einem Schlüssel.
+- **Ein KI-Modell (LLM)**, mit dem Mira denkt. Am einfachsten ist ein Cloud-Anbieter wie Google Gemini oder OpenAI. Hast du in Home Assistant schon eine KI-Integration eingerichtet, übernimmt Mira sie samt Schlüssel. Ein eigener Server (LM Studio, Ollama, llama.cpp) geht auch, braucht aber eine starke Grafikkarte.
 
-Eine Config-Datei brauchst du nicht. Fünf Schritte:
+Eine Config-Datei brauchst du nicht. Vier Schritte:
 
 **1. Mira starten.** Auf dem Docker-Rechner, eine Zeile:
 
@@ -274,46 +273,48 @@ docker run -d --name mira --restart unless-stopped --network host \
   -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
 ```
 
-Mira wartet jetzt auf die Einrichtung und zeigt einen **Kopplungscode** aus sechs Ziffern. Du findest ihn:
-- im Browser unter `http://<rechner>:8787`;
-- oder mit `docker logs mira` (Zeile `pairing code: 123 456`).
-
 **2. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
 
-**3. Koppeln.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen** → den Kopplungscode eingeben.
+**3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**.
 Steht Mira nicht dort: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
-**4. Das Sprachmodell wählen.**
-- Wähle, wo dein Modell läuft (LM Studio, Ollama, llama.cpp, Cloud). Die Adresse ist schon ausgefüllt.
-- Die Adresse gilt **aus Sicht von Mira**: `localhost` ist der Rechner, auf dem Mira läuft. Läuft das Modell woanders, trag dessen Adresse ein.
-- Für einen Cloud-Anbieter gibst du dessen Adresse und deinen Schlüssel ein.
-- Dann wählst du das Modell aus der Liste. Fertig.
+**4. Das KI-Modell wählen.** Der Dialog fragt, woher es kommt:
+- **Aus Home Assistant**: eine KI-Integration, die du schon hast. Nichts weiter einzugeben.
+- **OpenAI, Google Gemini, OpenRouter, Mistral**: dein API-Schlüssel vom Anbieter.
+- **Eigener Server**: seine Adresse, aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
+
+Dann wählst du das Modell aus der Liste. Mira probiert es mit einer kurzen Anfrage aus, bevor sie es übernimmt. Zum Schluss hakst du an, in welchen Assistenten Mira antworten soll; der bevorzugte ist schon angehakt. Fertig.
 
 Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
 - einen Benutzer **„Mira“** ohne Admin-Rechte, mit dem Mira Home Assistant anspricht;
-- den **MCP-Server** von Home Assistant, falls er noch fehlt.
+- den **MCP-Server** von Home Assistant, falls er noch fehlt;
+- **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
 
-**5. Mira als Gesprächsagent wählen.** Einstellungen → Sprachassistenten → deinen Assistenten öffnen → **Gesprächsagent: Mira**.
-
-Zum Schluss bestimmst du, was Mira sehen und schalten darf: Einstellungen → Sprachassistenten → **Entitäten freigeben**.
+Was Mira sehen und schalten darf, bestimmst du unter Einstellungen → Sprachassistenten → **Entitäten freigeben**.
 
 ### Wenn etwas hakt
 
-- **Code abgelaufen oder vertippt?** Der Code gilt 15 Minuten und fünf Versuche. Einen neuen bekommst du mit `docker restart mira` oder `docker exec mira /app/mira pair`.
-- **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (Schritt 3).
-- **„Der Modell-Server antwortet nicht“?**
-  - Prüfe die Adresse aus Sicht von Mira (siehe Schritt 4).
+Der Dialog sagt, was nicht stimmt, und du kannst es gleich dort korrigieren:
+- **„Der Anbieter hat den Schlüssel abgelehnt“**: Schlüssel prüfen und neu eingeben.
+- **„Mira erreicht diese Adresse nicht“** (eigener Server):
+  - Prüfe die Adresse aus Sicht von Mira.
   - Läuft LM Studio auf einem anderen Rechner, schalte dort „Serve on Local Network“ ein.
   - Ollama hört von Haus aus nur auf seinen eigenen Rechner (`OLLAMA_HOST=0.0.0.0` ändert das).
-- **Die erste Antwort dauert?** Beim ersten Start lädt das Modell, das kann bis zu einer Minute dauern. Danach geht es schnell.
-- **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Sprachmodell**.
+- **„Das Modell benutzt keine Werkzeuge“**: Wähle ein anderes Modell. Mira braucht Werkzeuge zum Schalten und Nachschauen.
+
+Und sonst:
+- **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (Schritt 3).
+- **Der Dialog fragt nach einem Kopplungscode?** Diese Mira war schon mit einem Home Assistant gekoppelt, der sie nicht freigegeben hat. Entfernst du die Integration, gibt sie Mira frei. Einen Code bekommst du mit `docker exec mira /app/mira pair`.
+- **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **KI-Modell (LLM)**.
+
+**Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der sie hinzufügt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code.
 
 Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
 
 ## Sicherheit: wie Mira und Home Assistant miteinander sprechen
 
 - **Zwei Schlüssel:**
-  - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Koppeln, du siehst ihn nie.
+  - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Hinzufügen, du siehst ihn nie.
   - Mira spricht Home Assistant als **eigener Benutzer ohne Admin-Rechte** an.
   - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
 - **Was Mira in HA darf:** nichts verwalten (keine Benutzer, keine Integrationen), aber Geräte schalten. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.

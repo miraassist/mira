@@ -1,12 +1,14 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,12 +19,18 @@ import (
 
 // Handler serves pairing and setup (docs/spec/einrichtung.md):
 //
-//	GET  /v1/pair          open: the agent's id and whether a code waits
-//	POST /v1/pair          open: {code} -> {token}
-//	POST /v1/setup         token: {ha_url, ha_token, llm}; the agent restarts
+//	GET  /v1/pair          open: the agent's id, whether it pairs without a
+//	                       code (never paired) or a code waits
+//	POST /v1/pair          open: {code} -> {token}; the first time code is ""
+//	POST /v1/unpair        token: Home Assistant lets go; the agent restarts
+//	POST /v1/setup         token: {ha_url, ha_token, llm}; a trial request
+//	                       to the model first, then the agent restarts
 //	POST /v1/setup/models  token: {base_url, api_key} -> the models there
 //
-// In setup mode (nothing set up yet) it also serves a page with the code.
+// Errors about the model carry a reason the integration shows: unreachable,
+// bad_key, no_model, no_tools, server_error.
+//
+// In setup mode (nothing set up yet) it also serves a page saying what to do.
 type Handler struct {
 	Store   *store.Store
 	Token   string // the token the agent runs with
@@ -33,6 +41,9 @@ type Handler struct {
 	Pairing bool
 	// SetupMode: Home Assistant or the model is missing; the agent waits.
 	SetupMode bool
+	// HasModel: a model is set (in the file or by setup); Home Assistant
+	// then does not ask for one.
+	HasModel bool
 	// Restart applies new settings: the agent starts anew.
 	Restart func()
 	HTTP    *http.Client
@@ -51,6 +62,7 @@ func (h *Handler) now() time.Time {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/pair", h.status)
 	mux.HandleFunc("POST /v1/pair", h.pair)
+	mux.HandleFunc("POST /v1/unpair", h.auth(h.unpair))
 	mux.HandleFunc("POST /v1/setup", h.auth(h.setup))
 	mux.HandleFunc("POST /v1/setup/models", h.auth(h.models))
 	if h.SetupMode {
@@ -78,16 +90,27 @@ func (h *Handler) pending(ctx context.Context) bool {
 	return err == nil && code != ""
 }
 
+// open: the agent was never paired, so the first pairing needs no code.
+func (h *Handler) open(ctx context.Context) bool {
+	if !h.Pairing {
+		return false
+	}
+	s, err := Load(ctx, h.Store)
+	return err == nil && s.Open
+}
+
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"id": h.ID, "version": h.Version, "pairing": h.pending(r.Context()), "setup_mode": h.SetupMode,
+		"id": h.ID, "version": h.Version, "pairs": h.Pairing, "open": h.open(r.Context()),
+		"pairing": h.pending(r.Context()), "setup_mode": h.SetupMode,
 	})
 }
 
 // health in setup mode: up, but waiting for setup.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status": "setup", "id": h.ID, "version": h.Version, "pairing": h.pending(r.Context()),
+		"status": "setup", "id": h.ID, "version": h.Version, "open": h.open(r.Context()),
+		"pairing": h.pending(r.Context()), "model": h.HasModel,
 	})
 }
 
@@ -116,6 +139,22 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
+func (h *Handler) unpair(w http.ResponseWriter, r *http.Request) {
+	if !h.Pairing {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this agent's token is set in mira.yaml"})
+		return
+	}
+	if err := Unpair(r.Context(), h.Store); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	h.Log.Info("Home Assistant let go of Mira; waiting to be paired again")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restarting"})
+	if h.Restart != nil {
+		time.AfterFunc(300*time.Millisecond, h.Restart)
+	}
+}
+
 func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		HAURL   string `json:"ha_url"`
@@ -135,13 +174,8 @@ func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "the model needs an address and a name"})
 			return
 		}
-		models, err := h.list(r.Context(), l.BaseURL, l.APIKey)
-		if err != nil {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "the model server does not answer: " + err.Error()})
-			return
-		}
-		if len(models) > 0 && !contains(models, l.Model) {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": fmt.Sprintf("the server has no model %q", l.Model)})
+		if err := h.probe(r.Context(), *l); err != nil {
+			writeModelError(w, err)
 			return
 		}
 	}
@@ -167,40 +201,143 @@ func (h *Handler) models(w http.ResponseWriter, r *http.Request) {
 	}
 	models, err := h.list(r.Context(), req.BaseURL, req.APIKey)
 	if err != nil {
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+		writeModelError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"models": models})
 }
 
-// list asks an OpenAI-compatible server for its models.
-func (h *Handler) list(ctx context.Context, baseURL, apiKey string) ([]string, error) {
+// ModelError is what went wrong with a model server, with a reason the
+// integration turns into a sentence.
+type ModelError struct {
+	Reason string // unreachable, bad_key, no_model, no_tools, server_error
+	Detail string
+}
+
+func (e *ModelError) Error() string { return e.Reason + ": " + e.Detail }
+
+func writeModelError(w http.ResponseWriter, err error) {
+	var me *ModelError
+	if !errors.As(err, &me) {
+		me = &ModelError{Reason: "server_error", Detail: err.Error()}
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": me.Detail, "reason": me.Reason})
+}
+
+// call sends one request to a model server and sorts out what failed.
+func (h *Handler) call(ctx context.Context, method, baseURL, path, apiKey string, body any, timeout time.Duration) ([]byte, error) {
 	client := h.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = &http.Client{}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/models", nil)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var rd io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		rd = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(baseURL, "/")+path, rd)
 	if err != nil {
-		return nil, err
+		return nil, &ModelError{Reason: "unreachable", Detail: err.Error()}
 	}
+	req.Header.Set("Content-Type", "application/json")
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &ModelError{Reason: "unreachable", Detail: err.Error()}
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		return raw, nil
+	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+		return nil, &ModelError{Reason: "bad_key", Detail: fmt.Sprintf("HTTP %d %s", resp.StatusCode, snippet(raw))}
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, &ModelError{Reason: "no_model", Detail: fmt.Sprintf("HTTP 404 %s", snippet(raw))}
+	default:
+		return nil, &ModelError{Reason: "server_error", Detail: fmt.Sprintf("HTTP %d %s", resp.StatusCode, snippet(raw))}
+	}
+}
+
+func snippet(raw []byte) string {
+	s := strings.TrimSpace(string(raw))
+	if len(s) > 200 {
+		s = s[:200] + "…"
+	}
+	return s
+}
+
+// probeTimeout leaves room for a local server to load the model first.
+const probeTimeout = 3 * time.Minute
+
+// probe is a real, small request: the model must answer and call a tool,
+// since Mira does everything through tools. It warms a local model too.
+func (h *Handler) probe(ctx context.Context, l LLM) error {
+	req := map[string]any{
+		"model": l.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": "You control a home. Use the tools to act."},
+			{"role": "user", "content": "Turn on the kitchen light."},
+		},
+		"tools": []map[string]any{{"type": "function", "function": map[string]any{
+			"name": "turn_on", "description": "Turn on a device by its name.",
+			"parameters": map[string]any{"type": "object", "properties": map[string]any{
+				"name": map[string]any{"type": "string"}}, "required": []string{"name"}},
+		}}},
+		"max_tokens": 1024,
+	}
+	if l.Kind != KindCloud {
+		req["cache_prompt"] = true
+	}
+	raw, err := h.call(ctx, http.MethodPost, l.BaseURL, "/chat/completions", l.APIKey, req, probeTimeout)
+	if err != nil {
+		var me *ModelError
+		if errors.As(err, &me) && me.Reason == "server_error" && mentionsModel(me.Detail) {
+			me.Reason = "no_model"
+		}
+		return err
+	}
+	var resp struct {
+		Choices []struct {
+			Message struct {
+				ToolCalls []json.RawMessage `json:"tool_calls"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil || len(resp.Choices) == 0 {
+		return &ModelError{Reason: "server_error", Detail: "no answer in the reply: " + snippet(raw)}
+	}
+	if len(resp.Choices[0].Message.ToolCalls) == 0 {
+		return &ModelError{Reason: "no_tools", Detail: l.Model}
+	}
+	return nil
+}
+
+func mentionsModel(s string) bool {
+	s = strings.ToLower(s)
+	return strings.Contains(s, "model")
+}
+
+// list asks an OpenAI-compatible server for its models.
+func (h *Handler) list(ctx context.Context, baseURL, apiKey string) ([]string, error) {
+	raw, err := h.call(ctx, http.MethodGet, baseURL, "/models", apiKey, nil, 15*time.Second)
+	if err != nil {
+		return nil, err
 	}
 	var body struct {
 		Data []struct {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, err
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, &ModelError{Reason: "server_error", Detail: "not an OpenAI-compatible list of models: " + snippet(raw)}
 	}
 	out := make([]string, 0, len(body.Data))
 	for _, m := range body.Data {
@@ -215,35 +352,27 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 	if !h.Pairing {
 		code = ""
 	}
-	shown := "–"
+	shown := ""
 	if len(code) == 6 {
-		shown = code[:3] + " " + code[3:]
+		shown = fmt.Sprintf(codeBlock, html.EscapeString(code[:3]+" "+code[3:]))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, setupPage, html.EscapeString(shown))
+	fmt.Fprintf(w, setupPage, shown)
 }
+
+const codeBlock = `<p>Kopplungscode / pairing code:</p><div class="code">%s</div>`
 
 const setupPage = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mira – Einrichtung</title>
 <style>body{font-family:system-ui,sans-serif;max-width:34rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:#222}
 .code{font-size:2.6rem;font-weight:700;letter-spacing:.15em;margin:.4rem 0 1rem}ol{padding-left:1.2rem}small{color:#666}
 @media (prefers-color-scheme:dark){body{background:#111;color:#eee}small{color:#aaa}}</style></head><body>
 <h1>Mira wartet auf die Einrichtung</h1>
-<p>Kopplungscode:</p><div class="code">%s</div>
-<ol><li>In Home Assistant: <b>Einstellungen → Geräte &amp; Dienste</b>. Mira steht unter <b>Entdeckt</b> (sonst: Integration hinzufügen → Mira).</li>
-<li>Den Kopplungscode eingeben.</li><li>Das Sprachmodell wählen. Fertig.</li></ol>
-<p><small>Der Code gilt 15 Minuten. Einen neuen bekommst du, wenn du Mira neu startest, oder mit <code>mira pair</code>.<br>
-Mira is waiting to be set up: in Home Assistant, add Mira under Settings → Devices &amp; services and enter the pairing code above.</small></p>
+%s
+<ol><li>In Home Assistant: <b>Einstellungen → Geräte &amp; Dienste</b>. Mira steht unter <b>Entdeckt</b> → <b>Hinzufügen</b> (sonst: Integration hinzufügen → Mira).</li>
+<li>Das KI-Modell (LLM) wählen.</li><li>Bestätigen, welche Assistenten Mira verwenden. Fertig.</li></ol>
+<p><small>Mira is waiting to be set up: in Home Assistant, add Mira under Settings → Devices &amp; services, choose the AI model (LLM), and confirm the assistants.</small></p>
 </body></html>`
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

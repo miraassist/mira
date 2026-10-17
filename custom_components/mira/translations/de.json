@@ -8,9 +8,13 @@
           "url": "Adresse von Mira"
         }
       },
+      "confirm": {
+        "title": "Mira hinzufügen",
+        "description": "Mira wurde unter {url} gefunden und ist noch nicht eingerichtet.\n\nAls Nächstes wählst du das KI-Modell (LLM), mit dem Mira denkt. Außerdem bekommt Mira einen eigenen Home-Assistant-Benutzer, ohne Admin-Rechte."
+      },
       "pair": {
-        "title": "Mit Mira koppeln",
-        "description": "Mira zeigt einen sechsstelligen **Kopplungscode**:\n- auf ihrer Seite {url}\n- im Log ihres Containers (`docker logs mira`)\n\nDer Code gilt 15 Minuten. Für einen neuen Mira neu starten.",
+        "title": "Mira erneut koppeln",
+        "description": "Diese Mira war schon mit einem Home Assistant gekoppelt. Zum erneuten Koppeln brauchst du einen **Kopplungscode**. Auf dem Rechner, auf dem Mira läuft:\n\n`docker exec mira /app/mira pair`\n\nDer Code steht dann dort und auf Miras Seite {url}. Er gilt 15 Minuten.",
         "data": {
           "code": "Kopplungscode"
         }
@@ -22,43 +26,62 @@
           "token": "Zugangs-Token"
         }
       },
-      "model_kind": {
-        "title": "Sprachmodell",
-        "description": "Mira braucht ein Sprachmodell. Wo läuft es?",
+      "model_source": {
+        "title": "KI-Modell (LLM)",
+        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **Aus Home Assistant**: eine KI-Integration, die du schon eingerichtet hast; Mira übernimmt ihren Schlüssel, du musst ihn nicht noch einmal eingeben.\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
         "data": {
-          "kind": "Modell-Server"
+          "source": "KI-Modell von"
+        }
+      },
+      "model_key": {
+        "title": "Schlüssel für {provider}",
+        "description": "Gib deinen API-Schlüssel für {provider} ein. Du bekommst ihn in deinem Konto beim Anbieter. Er geht nur an Mira und wird nicht wieder angezeigt.{error}",
+        "data": {
+          "api_key": "API-Schlüssel"
         }
       },
       "model_server": {
-        "title": "Modell-Server",
-        "description": "Die Adresse **aus Sicht von Mira**: `localhost` ist der Rechner, auf dem Mira läuft. Einen Schlüssel braucht nur ein Cloud-Anbieter.{error}",
+        "title": "Eigener Server",
+        "description": "Die Adresse des Servers **aus Sicht von Mira**, mit `/v1` am Ende, z. B. `http://192.168.1.30:1234/v1`. `localhost` ist der Rechner, auf dem Mira läuft. Einen Schlüssel nur, wenn der Server einen verlangt.{error}",
         "data": {
           "base_url": "Adresse",
-          "api_key": "Schlüssel (nur für einen Cloud-Anbieter)"
+          "api_key": "Schlüssel (optional)"
         }
       },
       "model": {
         "title": "Modell wählen",
-        "description": "Diese Modelle gibt es dort.\n\nDanach richtet Mira sich ein, das dauert ein paar Sekunden:\n- sie bekommt einen eigenen Home-Assistant-Benutzer, ohne Admin-Rechte;\n- HAs MCP-Server wird eingeschaltet, falls er es noch nicht ist.{error}",
+        "description": "Diese Modelle bietet {server} an. Mira probiert das Modell mit einer kurzen Anfrage aus, bevor sie es übernimmt; auf einem eigenen Server kann das eine Minute dauern, während das Modell lädt.{error}",
         "data": {
           "model": "Modell"
+        }
+      },
+      "assistants": {
+        "title": "Mira verwenden",
+        "description": "In welchen Assistenten soll Mira antworten? Sprach-Satelliten, die auf „bevorzugt“ stehen, folgen dem bevorzugten Assistenten.",
+        "data": {
+          "pipelines": "Assistenten"
         }
       }
     },
     "error": {
       "cannot_connect": "Mira ist unter dieser Adresse nicht erreichbar.",
       "invalid_auth": "Mira hat den Token abgelehnt.",
-      "bad_code": "Der Code ist falsch oder abgelaufen. Für einen neuen Code Mira neu starten.",
-      "model_server": "Der Modell-Server hat mit einem Fehler geantwortet: {error}",
-      "setup_failed": "Das Einrichten hat nicht geklappt: {error}"
+      "bad_code": "Der Code stimmt nicht oder ist abgelaufen. Einen neuen gibt es mit `docker exec mira /app/mira pair`.",
+      "setup_failed": "Das Einrichten hat nicht geklappt: {error}",
+      "model_unreachable": "Mira erreicht diese Adresse nicht. Prüfe sie aus Sicht von Mira; ein Server auf einem anderen Rechner muss Verbindungen aus dem Netz annehmen.{error}",
+      "model_bad_key": "Der Anbieter hat den Schlüssel abgelehnt. Prüfe ihn und gib ihn noch einmal ein.{error}",
+      "model_no_model": "Der Server kennt dieses Modell nicht, oder es ist nicht geladen.{error}",
+      "model_no_tools": "Das Modell antwortet, benutzt aber keine Werkzeuge. Die braucht Mira zum Schalten und Nachschauen; bitte wähle ein anderes Modell.{error}",
+      "model_server_error": "Der Server hat mit einem Fehler geantwortet.{error}"
     },
     "abort": {
       "already_configured": "Dieser Agent ist bereits eingerichtet.",
-      "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren."
+      "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren.",
+      "setup_failed": "Die Einrichtung hat nicht geklappt: {error}"
     },
     "flow_title": "{name}",
     "create_entry": {
-      "default": "Mira ist eingerichtet.\n\nLetzter Schritt: **Einstellungen → Sprachassistenten** → deinen Assistenten öffnen → **Gesprächsagent: Mira**.\n\nWas Mira sehen und schalten darf, bestimmst du dort unter **Entitäten freigeben**. Die erste Antwort kann bis zu einer Minute dauern, solange das Sprachmodell lädt."
+      "default": "Mira ist eingerichtet und antwortet in den gewählten Assistenten.\n\nWas Mira sehen und schalten darf, bestimmst du unter **Einstellungen → Sprachassistenten → Entitäten freigeben**."
     }
   },
   "options": {
@@ -67,7 +90,7 @@
         "title": "Mira",
         "menu_options": {
           "general": "Allgemein",
-          "model": "Sprachmodell",
+          "model": "KI-Modell (LLM)",
           "persons": "Einstellungen für Personen",
           "satellites": "Einstellungen für Satelliten"
         }
@@ -113,34 +136,45 @@
           "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten."
         }
       },
-      "model_kind": {
-        "title": "Sprachmodell",
-        "description": "Mira braucht ein Sprachmodell. Wo läuft es?",
-        "data": {
-          "kind": "Modell-Server"
-        }
-      },
       "model_server": {
-        "title": "Modell-Server",
-        "description": "Die Adresse **aus Sicht von Mira**: `localhost` ist der Rechner, auf dem Mira läuft. Einen Schlüssel braucht nur ein Cloud-Anbieter.{error}",
+        "title": "Eigener Server",
+        "description": "Die Adresse des Servers **aus Sicht von Mira**, mit `/v1` am Ende, z. B. `http://192.168.1.30:1234/v1`. `localhost` ist der Rechner, auf dem Mira läuft. Einen Schlüssel nur, wenn der Server einen verlangt.{error}",
         "data": {
           "base_url": "Adresse",
-          "api_key": "Schlüssel (nur für einen Cloud-Anbieter)"
+          "api_key": "Schlüssel (optional)"
         }
       },
       "model": {
         "title": "Modell wählen",
-        "description": "Mira startet mit dem gewählten Modell neu.{error}",
+        "description": "Diese Modelle bietet {server} an. Mira probiert das Modell aus, bevor sie es übernimmt, und startet dann damit neu.{error}",
         "data": {
           "model": "Modell"
+        }
+      },
+      "model_source": {
+        "title": "KI-Modell (LLM)",
+        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **Aus Home Assistant**: eine KI-Integration, die du schon eingerichtet hast; Mira übernimmt ihren Schlüssel, du musst ihn nicht noch einmal eingeben.\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
+        "data": {
+          "source": "KI-Modell von"
+        }
+      },
+      "model_key": {
+        "title": "Schlüssel für {provider}",
+        "description": "Gib deinen API-Schlüssel für {provider} ein. Du bekommst ihn in deinem Konto beim Anbieter. Er geht nur an Mira und wird nicht wieder angezeigt.{error}",
+        "data": {
+          "api_key": "API-Schlüssel"
         }
       }
     },
     "error": {
       "invalid_config": "Der Agent hat es abgelehnt: {error}",
       "cannot_connect": "Mira ist unter dieser Adresse nicht erreichbar.",
-      "model_server": "Der Modell-Server hat mit einem Fehler geantwortet: {error}",
-      "setup_failed": "Das Einrichten hat nicht geklappt: {error}"
+      "setup_failed": "Das Einrichten hat nicht geklappt: {error}",
+      "model_unreachable": "Mira erreicht diese Adresse nicht. Prüfe sie aus Sicht von Mira; ein Server auf einem anderen Rechner muss Verbindungen aus dem Netz annehmen.{error}",
+      "model_bad_key": "Der Anbieter hat den Schlüssel abgelehnt. Prüfe ihn und gib ihn noch einmal ein.{error}",
+      "model_no_model": "Der Server kennt dieses Modell nicht, oder es ist nicht geladen.{error}",
+      "model_no_tools": "Das Modell antwortet, benutzt aber keine Werkzeuge. Die braucht Mira zum Schalten und Nachschauen; bitte wähle ein anderes Modell.{error}",
+      "model_server_error": "Der Server hat mit einem Fehler geantwortet.{error}"
     },
     "abort": {
       "not_loaded": "Der Mira-Eintrag ist nicht geladen.",
@@ -298,14 +332,6 @@
         "all": "Allen (auch jemand am Satelliten)",
         "persons": "Nur Personen, die Mira erkennt",
         "none": "Niemandem"
-      }
-    },
-    "model_kind": {
-      "options": {
-        "lmstudio": "LM Studio",
-        "ollama": "Ollama",
-        "llamacpp": "llama.cpp-Server",
-        "cloud": "Cloud-Anbieter mit OpenAI-kompatibler Schnittstelle (OpenAI, Gemini, …)"
       }
     }
   }

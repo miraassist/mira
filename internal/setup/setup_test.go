@@ -26,16 +26,23 @@ func newStore(t *testing.T) *store.Store {
 	return st
 }
 
-// The right code hands out the token once; a wrong one counts, five spend
-// the code, and it expires after 15 minutes.
+// The first pairing needs no code, the next ones do: the right code hands
+// out the token once; a wrong one counts, five spend the code, and it
+// expires after 15 minutes. Unpairing makes a new token and opens again.
 func TestPairing(t *testing.T) {
 	ctx := context.Background()
 	st := newStore(t)
 	s, err := Load(ctx, st)
-	if err != nil || len(s.Token) != 64 {
-		t.Fatalf("token made at the first start: %q %v", s.Token, err)
+	if err != nil || len(s.Token) != 64 || !s.Open {
+		t.Fatalf("token made at the first start, open: %+v %v", s, err)
 	}
 	now := time.Now()
+	if token, err := Pair(ctx, st, "", now); err != nil || token != s.Token {
+		t.Fatalf("first pairing without a code: %q %v", token, err)
+	}
+	if _, err := Pair(ctx, st, "", now); err != ErrBadCode {
+		t.Fatal("a second pairing without a code worked")
+	}
 	code, _ := NewCode(ctx, st, now)
 	if _, err := Pair(ctx, st, "000000x", now); err != ErrBadCode {
 		t.Errorf("wrong code: %v", err)
@@ -62,6 +69,15 @@ func TestPairing(t *testing.T) {
 	if _, err := Pair(ctx, st, code, now.Add(16*time.Minute)); err != ErrBadCode {
 		t.Error("an expired code worked")
 	}
+
+	Save(ctx, st, "http://ha", "ha-token", &LLM{Kind: KindCloud, BaseURL: "u", Model: "m"})
+	if err := Unpair(ctx, st); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := Load(ctx, st)
+	if !after.Open || after.Token == token || after.HAToken != "" || after.LLM == nil {
+		t.Errorf("after unpairing: open, new token, no HA, model kept: %+v", after)
+	}
 }
 
 // What setup sent lands in the config: the token when the file has none,
@@ -87,17 +103,34 @@ func TestApply(t *testing.T) {
 	if Apply(file, s).Server.Token != "from-file" {
 		t.Error("a token in mira.yaml must win")
 	}
-	s.LLM.Kind = KindLlamaCpp
-	if c := Apply(config.Default(), s); !c.LLM.SlotPinning || !c.LLM.WarmupOnStart {
-		t.Error("llama.cpp keeps slots and warmup")
+	s.LLM.Kind = KindCustom
+	if c := Apply(config.Default(), s); c.LLM.SlotPinning || !c.LLM.CachePrompt || !c.LLM.WarmupOnStart {
+		t.Error("one's own server: warmup and cache_prompt, no slots")
 	}
 }
 
-// /v1/setup checks the model with its server before it keeps anything,
-// then the agent starts anew.
+// /v1/setup tries the model with a real request before it keeps anything:
+// a wrong key, a model without tools and an unknown model are refused with
+// their reason; then the agent starts anew.
 func TestSetupEndpoint(t *testing.T) {
 	models := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"data":[{"id":"qwen3"},{"id":"gemma"}]}`))
+		if r.Header.Get("Authorization") != "" && r.Header.Get("Authorization") != "Bearer good" {
+			w.WriteHeader(401)
+			return
+		}
+		var req struct {
+			Model string `json:"model"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		switch req.Model {
+		case "qwen3":
+			w.Write([]byte(`{"choices":[{"message":{"tool_calls":[{"id":"1","type":"function","function":{"name":"turn_on","arguments":"{}"}}]}}]}`))
+		case "chatty":
+			w.Write([]byte(`{"choices":[{"message":{"content":"I turned it on."}}]}`))
+		default:
+			w.WriteHeader(404)
+			w.Write([]byte(`{"error":"model not found"}`))
+		}
 	}))
 	t.Cleanup(models.Close)
 	st := newStore(t)
@@ -108,6 +141,7 @@ func TestSetupEndpoint(t *testing.T) {
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	var reason string
 	post := func(path, token string, body any) int {
 		raw, _ := json.Marshal(body)
 		req, _ := http.NewRequest("POST", srv.URL+path, bytes.NewReader(raw))
@@ -116,18 +150,34 @@ func TestSetupEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
+		var out struct {
+			Reason string `json:"reason"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		reason = out.Reason
 		return resp.StatusCode
 	}
 	if code := post("/v1/setup", "wrong", map[string]any{}); code != 401 {
 		t.Errorf("without the token: %d", code)
 	}
-	if code := post("/v1/setup", "tok", map[string]any{"llm": LLM{Kind: KindLMStudio, BaseURL: models.URL, Model: "nope"}}); code != 422 {
-		t.Errorf("unknown model: %d", code)
+	for model, want := range map[string]string{"nope": "no_model", "chatty": "no_tools"} {
+		if code := post("/v1/setup", "tok", map[string]any{"llm": LLM{Kind: KindCustom, BaseURL: models.URL, Model: model}}); code != 422 || reason != want {
+			t.Errorf("%s: %d %q, want %s", model, code, reason, want)
+		}
+	}
+	if code := post("/v1/setup", "tok", map[string]any{"llm": LLM{Kind: KindCloud, BaseURL: models.URL, Model: "qwen3", APIKey: "bad"}}); code != 422 || reason != "bad_key" {
+		t.Errorf("wrong key: %d %q", code, reason)
+	}
+	if code := post("/v1/setup", "tok", map[string]any{"llm": LLM{Kind: KindCloud, BaseURL: "http://127.0.0.1:1", Model: "qwen3"}}); code != 422 || reason != "unreachable" {
+		t.Errorf("no server: %d %q", code, reason)
+	}
+	if restarted.Load() {
+		t.Fatal("restarted although nothing was kept")
 	}
 	if code := post("/v1/setup", "tok", map[string]any{"ha_url": "http://ha:8123", "ha_token": "x",
-		"llm": LLM{Kind: KindLMStudio, BaseURL: models.URL, Model: "qwen3"}}); code != 200 {
-		t.Fatalf("setup: %d", code)
+		"llm": LLM{Kind: KindCloud, BaseURL: models.URL, Model: "qwen3", APIKey: "good"}}); code != 200 {
+		t.Fatalf("setup: %d %q", code, reason)
 	}
 	time.Sleep(400 * time.Millisecond)
 	if !restarted.Load() {

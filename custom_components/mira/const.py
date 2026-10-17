@@ -4,7 +4,7 @@ DOMAIN = "mira"
 # The version of the code that runs: Home Assistant imports an integration
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
-VERSION = "0.6.22"
+VERSION = "0.6.23"
 
 CONF_PERSONA = "persona"
 CONF_TIMEOUT = "timeout"
@@ -14,6 +14,12 @@ CONF_IMPORTED = "imported"
 CONF_AGENT_USER = "agent_user_id"
 # The refresh token the integration made for the agent (access.py).
 CONF_AGENT_TOKEN = "agent_token_id"
+# Assistants (Assist pipelines) to get Mira as their conversation agent
+# once its entity exists, and that entity, to hand them back on removal.
+CONF_PIPELINES = "pipelines"
+CONF_PIPELINE_AGENT = "pipeline_agent"
+# The agent each of those assistants had before, given back on removal.
+CONF_PIPELINES_BEFORE = "pipelines_before"
 DEFAULT_TIMEOUT = 15
 # Mira's web UI as a page in Home Assistant's sidebar (panel.py).
 CONF_SIDEBAR = "sidebar"

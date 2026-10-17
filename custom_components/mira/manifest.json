@@ -1,6 +1,9 @@
 {
   "domain": "mira",
   "name": "Mira",
+  "after_dependencies": [
+    "assist_pipeline"
+  ],
   "codeowners": [
     "@miraassist"
   ],
@@ -15,7 +18,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/miraassist/mira/issues",
   "requirements": [],
-  "version": "0.6.22",
+  "version": "0.6.23",
   "zeroconf": [
     "_mira._tcp.local."
   ]

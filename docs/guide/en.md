@@ -260,12 +260,11 @@ New or changed servers take effect when Mira restarts. `mira check` tells whethe
 
 ## Setup
 
-You need three things:
-- **Home Assistant**.
+You need two things:
 - **A machine with Docker** in your home network. It can be the one Home Assistant runs on. With Home Assistant OS, use another machine for now; an add-on comes later.
-- **A language model**: LM Studio, Ollama or llama.cpp on a machine with a graphics card, or a cloud provider with an OpenAI-compatible API and a key.
+- **An AI model (LLM)** Mira thinks with. Simplest is a cloud provider such as Google Gemini or OpenAI. If you already set up an AI integration in Home Assistant, Mira takes it over, key included. A server of your own (LM Studio, Ollama, llama.cpp) works too, but needs a strong graphics card.
 
-You need no config file. Five steps:
+You need no config file. Four steps:
 
 **1. Start Mira.** On the Docker machine, one line:
 
@@ -274,46 +273,48 @@ docker run -d --name mira --restart unless-stopped --network host \
   -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
 ```
 
-Mira now waits to be set up and shows a six-digit **pairing code**. You find it:
-- in the browser at `http://<machine>:8787`;
-- or with `docker logs mira` (line `pairing code: 123 456`).
-
 **2. Install the integration.** In Home Assistant through HACS: Custom repositories → `https://github.com/miraassist/mira`, type Integration. Install **Mira**, restart Home Assistant.
 
-**3. Pair.** Settings → Devices & services. Mira shows up under **Discovered** → **Add** → enter the pairing code.
+**3. Add Mira.** Settings → Devices & services. Mira shows up under **Discovered** → **Add**.
 If Mira is not there: **Add integration** → Mira, and enter its address, such as `http://192.168.1.20:8787`.
 
-**4. Choose the language model.**
-- Choose where your model runs (LM Studio, Ollama, llama.cpp, cloud). The address is filled in for you.
-- The address is **as Mira sees it**: `localhost` is the machine Mira runs on. If the model runs elsewhere, enter that machine's address.
-- For a cloud provider, enter its address and your key.
-- Then pick the model from the list. Done.
+**4. Choose the AI model.** The dialog asks where it comes from:
+- **From Home Assistant**: an AI integration you already have. Nothing more to enter.
+- **OpenAI, Google Gemini, OpenRouter, Mistral**: your API key from the provider.
+- **Own server**: its address, as Mira sees it (`localhost` is the machine Mira runs on).
+
+Then pick the model from the list. Mira tries it with a short request before keeping it. Last, tick the assistants Mira should answer in; the preferred one is already ticked. Done.
 
 Meanwhile the integration sets up the rest in Home Assistant by itself:
 - a user **"Mira"** without admin rights, which Mira uses to talk to Home Assistant;
-- Home Assistant's **MCP server**, if it is missing.
+- Home Assistant's **MCP server**, if it is missing;
+- **Mira as the conversation agent** of the assistants you ticked.
 
-**5. Choose Mira as the conversation agent.** Settings → Voice assistants → open your assistant → **Conversation agent: Mira**.
-
-Last, decide what Mira may see and switch: Settings → Voice assistants → **Expose entities**.
+What Mira may see and switch you decide under Settings → Voice assistants → **Expose entities**.
 
 ### If something goes wrong
 
-- **Code expired or mistyped?** The code holds for 15 minutes and five tries. Get a new one with `docker restart mira` or `docker exec mira /app/mira pair`.
-- **Mira not under "Discovered"?** Usually `--network host` is missing, or Mira is in another network. Then enter the address by hand (step 3).
-- **"The model server does not answer"?**
-  - Check the address as Mira sees it (see step 4).
+The dialog says what is wrong, and you can correct it right there:
+- **"The provider refused the key"**: check the key and enter it again.
+- **"Mira cannot reach this address"** (own server):
+  - Check the address as Mira sees it.
   - If LM Studio runs on another machine, switch on "Serve on Local Network" there.
   - Ollama only listens on its own machine by default (`OLLAMA_HOST=0.0.0.0` changes that).
-- **The first answer takes long?** On the first start the model loads, which can take up to a minute. After that it is quick.
-- **Another model?** Settings → Devices & services → Mira → **Configure** → **Language model**.
+- **"The model does not use tools"**: choose another model. Mira needs tools to switch and look things up.
+
+Otherwise:
+- **Mira not under "Discovered"?** Usually `--network host` is missing, or Mira is in another network. Then enter the address by hand (step 3).
+- **The dialog asks for a pairing code?** This Mira was paired with a Home Assistant that did not let it go. Removing the integration lets Mira go. Get a code with `docker exec mira /app/mira pair`.
+- **Another model?** Settings → Devices & services → Mira → **Configure** → **AI model (LLM)**.
+
+**Security while setting up:** A new Mira pairs with the first Home Assistant that adds it, without a code. So set it up in your own home network, not in a guest or shared network. Had someone beaten you to it, you would notice at once: your dialog would ask for a code.
 
 For advanced setups (several models, more MCP servers, skills with settings) there is the file `mira.yaml`; see [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). What you set in the integration wins over the file.
 
 ## Security: how Mira and Home Assistant talk
 
 - **Two keys:**
-  - Home Assistant reaches Mira with an **access token**. The integration fetches it when pairing; you never see it.
+  - Home Assistant reaches Mira with an **access token**. The integration fetches it when adding Mira; you never see it.
   - Mira reaches Home Assistant as **a user of her own without admin rights**.
   - Whoever knows the access token can do all that Mira can. Treat it like a password.
 - **What Mira may do in HA:** manage nothing (no users, no integrations), but switch devices. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.

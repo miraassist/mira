@@ -1,6 +1,6 @@
 # Einrichtung – Spezifikation
 
-Stand 2026-10-17, gebaut in 0.6.22. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
+Stand 2026-10-17, gebaut in 0.6.22, Koppeln ohne Code, Modellwahl und Assistenten in 0.6.23. Siehe auch [Mira in Home Assistant](ha-anbindung.md) und die Sicherheit der Verbindungen in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -9,14 +9,13 @@ Heute braucht ein neuer Nutzer neun Schritte:
 - auf dem Docker-Rechner: `mira.yaml` und `.env` schreiben, Container starten;
 - wieder in HA: denselben Token noch einmal eintragen, Mira als Gesprächsagent wählen.
 
-Künftig sind es fünf, und keiner davon verlangt, eine Config-Datei zu verstehen:
+Künftig sind es vier, und keiner davon verlangt, eine Config-Datei zu verstehen oder einen Code abzutippen:
 
 1. **Container starten**, eine Zeile, ohne Config-Datei:
    `docker run -d --name mira --network host -v mira-data:/var/lib/mira ghcr.io/miraassist/mira`
 2. **Mira über HACS installieren**, HA neu starten.
-3. **Unter „Entdeckt“ Mira hinzufügen** und den **Kopplungscode** eingeben, den der Agent zeigt.
-4. **Im Formular das Sprachmodell wählen**: Adresse, Modell, gegebenenfalls Schlüssel.
-5. **In der Sprachassistenten-Pipeline Mira wählen.**
+3. **Unter „Entdeckt“ Mira hinzufügen**: ein Klick.
+4. **Das KI-Modell (LLM) wählen** und die Assistenten bestätigen, in denen Mira antwortet.
 
 Für Assist freigeben bleibt, wie bisher, eine Entscheidung des Nutzers in HA.
 
@@ -33,22 +32,24 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
 
 ## 2. Koppeln statt Token tippen
 
-- **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank. Dazu erzeugt er einen **Kopplungscode** aus sechs Ziffern und zeigt ihn im Log und auf seiner Startseite (`http://<rechner>:8787`), solange er nicht gekoppelt ist.
-- **Koppeln:** Die Integration findet den Agenten per mDNS. Das Formular fragt nur nach dem Code. Mit dem Code holt sich die Integration den Token (`POST /v1/pair`).
-- **Danach** ist der Code verbraucht. Neu gekoppelt wird nur mit einem neuen Code: Der Agent zeigt einen, wenn man ihn neu startet, solange er nicht gekoppelt ist, oder auf Wunsch über `mira pair`.
-- **Schutz:**
-  - Der Code gilt 15 Minuten.
-  - Nach 5 falschen Versuchen ist er verbraucht.
-  - Den Code sieht nur, wer an das Log oder die Seite des Agenten kommt, also wer ihn betreibt.
+- **Erster Start** ohne Token in der Config: Der Agent erzeugt einen zufälligen Zugangs-Token (`server.token`) und speichert ihn in seiner Datenbank.
+- **Erstes Koppeln ohne Code:** Die Integration findet den Agenten per mDNS. Unter „Entdeckt“ fragt HA nur „Hinzufügen?“. Ein Agent, der noch nie gekoppelt war, gibt seinen Token dem ersten Home Assistant, der ihn hinzufügt (`POST /v1/pair` ohne Code).
+  - Gekoppelt wird erst nach dem Klick, nicht schon beim Entdecken.
+  - **Warum das reicht:** Ein Angreifer im Heimnetz müsste zwischen Containerstart und Einrichtung zuschlagen und bekäme einen Agenten ohne HA-Zugang und ohne Modell. Er bliebe nicht unbemerkt: Der Dialog des Besitzers fragt dann nach einem Code. Die Anleitung sagt: im eigenen Heimnetz einrichten, nicht im Gästenetz.
+  - Einen Code im mDNS-Eintrag gibt es bewusst nicht: Den könnte jedes Gerät im Netz lesen.
+- **Entfernen gibt frei:** Entfernt man die Integration, meldet sie das dem Agenten (`POST /v1/unpair`). Er macht einen neuen Token, vergisst den HA-Zugang, behält das Modell und wartet wieder auf Einrichtung, das nächste Mal wieder ohne Code und ohne Modellfrage.
+- **Erneutes Koppeln mit Code:** Ist der Agent noch gekoppelt (die Integration konnte ihn beim Entfernen nicht erreichen, oder ein anderer Home Assistant hat ihn), braucht es einen **Kopplungscode** aus sechs Ziffern: `mira pair` auf dem Rechner des Agenten (`docker exec mira /app/mira pair`). Er steht dann auch auf der Seite des Agenten. Der Code gilt 15 Minuten und 5 Versuche.
 - **Wie bisher:** Steht ein Token in der Config (`server.token`), gilt der, ohne Kopplung. So bleiben bestehende Installationen unverändert.
 
 ## 3. Agent ohne Config-Datei
 
-- **Sprachmodell im Formular:** Bei der Einrichtung fragt die Integration nach Adresse, Modell und gegebenenfalls Schlüssel.
-  - Vorschläge für die Adresse: LM Studio, Ollama, llama.cpp, ein Cloud-Anbieter mit OpenAI-Schnittstelle.
+- **KI-Modell (LLM) im Formular:** Gemeint ist das LLM, mit dem Mira denkt; „Sprachmodell“ heißt es nicht, das verwechselt man in HA mit Spracherkennung. Der Dialog fragt nur, woher es kommt, und meint den häufigsten Fall: ein Cloud-Anbieter, keine teure Hardware.
+  - **Aus Home Assistant:** Hat HA schon eine KI-Integration (OpenAI, Google Gemini, OpenRouter, Ollama), steht sie oben in der Liste. Die Integration liest Adresse, Schlüssel und Modell aus deren Eintrag und gibt sie dem Agenten. Der Schlüssel wird nie angezeigt, auch nicht als Passwortfeld. Ändert man ihn später in HA, wählt man unter Konfigurieren → KI-Modell noch einmal „Aus Home Assistant“. Anthropic fehlt, weil seine OpenAI-kompatible Schnittstelle ungetestet ist.
+  - **Anbieter:** OpenAI, Google Gemini, OpenRouter, Mistral mit fest eingetragener Adresse; gefragt wird nur der Schlüssel.
+  - **Eigener Server:** Adresse (aus Sicht des Agenten) und optional ein Schlüssel. Eine Kategorie „lokal“ mit LM Studio, Ollama, llama.cpp gibt es bewusst nicht, und der Agent sucht das Netz nicht ab.
   - Das Modell wählt man aus der Liste, die der Agent bei dieser Adresse abfragt (`/v1/models`).
-  - Der Agent prüft die Verbindung, bevor gespeichert wird, und speichert alles in seiner Datenbank.
-  - Ändern lässt es sich später unter Konfigurieren → Sprachmodell.
+  - **Probelauf:** Bevor gespeichert wird, schickt der Agent eine echte kleine Anfrage mit einem Werkzeug. Sie muss beantwortet werden und das Werkzeug aufrufen. Fehler kommen mit Grund zurück und stehen verständlich im Formular: nicht erreichbar, Schlüssel abgelehnt, Modell unbekannt oder nicht geladen, Modell ohne Werkzeuge. Ein lokales Modell wird dabei gleich geladen.
+  - Ändern lässt es sich später unter Konfigurieren → KI-Modell (LLM).
 - **Vorgaben für alles andere:**
   - Port 8787 auf allen Schnittstellen;
   - mDNS an;
@@ -56,6 +57,13 @@ In der Config des Agenten steht danach nichts mehr über HA (`ha.url`, `ha.token
   - die mitgelieferten Skills;
   - Sprache und Personen aus HA.
 - **`mira.yaml` bleibt optional,** für Fortgeschrittenes: weitere Modelle und Routing, weitere MCP-Server, Skills mit Einstellungen, Feinheiten des Notifiers. Was die Integration setzt (HA-Zugang, Sprachmodell), gilt vor der Datei; der Rest der Datei gilt wie bisher.
+
+## 4. Mira als Gesprächsagent
+
+Sonst wäre alles eingerichtet, und Mira antwortet trotzdem nie.
+- Der letzte Schritt im Dialog zeigt HAs Assistenten (Assist-Pipelines), der bevorzugte ist angehakt. Satelliten auf „bevorzugt“ folgen ihm.
+- Sobald Miras Entität existiert, setzt die Integration sie als Gesprächsagent dieser Assistenten und merkt sich, welchen Agenten jeder vorher hatte.
+- Beim Entfernen bekommen die Assistenten, die noch Mira nutzen, ihren vorherigen Agenten zurück, oder HAs eigenen, wenn es den vorherigen nicht mehr gibt.
 
 ## Datenbankpfad
 

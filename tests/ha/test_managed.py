@@ -252,18 +252,21 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     assert (await client.get("/api/mira/settings/persons")).status == 401
 
 
-async def test_discovery_asks_only_for_the_code(hass, aioclient_mock):
-    aioclient_mock.get("http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairing": True})
+async def test_discovery_asks_only_to_add(hass, aioclient_mock):
+    """A discovered agent that was never paired: one click, no code."""
+    aioclient_mock.get("http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True})
     aioclient_mock.post("http://192.168.1.20:8787/v1/pair", json={"token": "secret"})
     aioclient_mock.get("http://192.168.1.20:8787/v1/health", json={"status": "ok", "id": AGENT_ID})
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_discovery()
     )
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "pair"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"code": "123456"})
+    assert result["step_id"] == "confirm"
+    # Nothing is paired before the user says yes.
+    assert not any(c[0] == "POST" for c in aioclient_mock.mock_calls)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_URL: "http://192.168.1.20:8787", CONF_TOKEN: "secret"}
+    assert result["data"] == {CONF_URL: "http://192.168.1.20:8787", CONF_TOKEN: "secret", "pipelines": []}
     assert result["result"].unique_id == AGENT_ID
 
 
@@ -286,9 +289,12 @@ async def test_discovery_without_id(hass):
 async def test_removing_the_entry_hands_config_back(hass, aioclient_mock, entry):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     aioclient_mock.delete(f"{AGENT_URL}/v1/ui/ha", json={"managed": False})
+    aioclient_mock.post(f"{AGENT_URL}/v1/unpair", json={"status": "restarting"})
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.config_entries.async_remove(entry.entry_id)
     assert any(c[0] == "DELETE" and str(c[1]).endswith("/v1/ui/ha") for c in aioclient_mock.mock_calls)
+    # The agent lets go, so it pairs again without a code.
+    assert any(c[0] == "POST" and str(c[1]).endswith("/v1/unpair") for c in aioclient_mock.mock_calls)
 
 
 async def test_compact_button(hass, aioclient_mock, entry):

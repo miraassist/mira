@@ -21,7 +21,13 @@ class MiraBadCode(MiraError):
 
 
 class MiraInvalidConfig(MiraError):
-    """The agent refused a config change; the message says why."""
+    """The agent refused a config change; the message says why. For the
+    model, reason is one of unreachable, bad_key, no_model, no_tools,
+    server_error."""
+
+    def __init__(self, message: str, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass
@@ -57,8 +63,8 @@ class MiraClient:
                 if resp.status == 403 and path == "/v1/pair":
                     raise MiraBadCode("wrong or expired code")
                 if resp.status == 422:
-                    body = await resp.json(content_type=None)
-                    raise MiraInvalidConfig(str((body or {}).get("error", "invalid config")))
+                    body = await resp.json(content_type=None) or {}
+                    raise MiraInvalidConfig(str(body.get("error", "invalid config")), str(body.get("reason", "")))
                 if resp.status >= 400:
                     raise MiraError(f"{method} {path}: HTTP {resp.status}")
                 return await resp.json()
@@ -70,8 +76,9 @@ class MiraClient:
         An agent from before pairing has no such route (MiraError)."""
         return await self._request("GET", "/v1/pair", 10)
 
-    async def pair(self, code: str) -> str:
-        """Trade the pairing code for the agent's token."""
+    async def pair(self, code: str = "") -> str:
+        """Trade the pairing code for the agent's token; the first time,
+        while the agent was never paired, without a code."""
         body = await self._request("POST", "/v1/pair", 10, json={"code": code})
         return str(body["token"])
 
@@ -80,15 +87,21 @@ class MiraClient:
         body = await self._request("POST", "/v1/setup/models", 20, json={"base_url": base_url, "api_key": api_key})
         return list(body.get("models") or [])
 
+    async def unpair(self) -> None:
+        """Home Assistant lets go of the agent: it makes a new token and
+        waits to be paired again."""
+        await self._request("POST", "/v1/unpair", 10)
+
     async def setup(self, ha_url: str | None, ha_token: str | None, llm: dict[str, Any] | None) -> None:
-        """Hand the agent Home Assistant's access and the model; it starts
-        anew afterwards."""
+        """Hand the agent Home Assistant's access and the model; it tries
+        the model with a real request first (a local one may have to load,
+        hence the long wait), and starts anew afterwards."""
         body: dict[str, Any] = {}
         if ha_url and ha_token:
             body["ha_url"], body["ha_token"] = ha_url, ha_token
         if llm:
             body["llm"] = llm
-        await self._request("POST", "/v1/setup", 30, json=body)
+        await self._request("POST", "/v1/setup", 200, json=body)
 
     async def reset_conversation(self, channel: str, conversation_id: str) -> None:
         """Start the conversation afresh ("/neu" on Telegram)."""

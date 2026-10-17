@@ -13,14 +13,24 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv, device_registry as dr
+from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
-from .access import revoke_agent_token
+from .access import hand_back, revoke_agent_token, use_mira_in
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
-from .const import CONF_AGENT_TOKEN, CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
+from .const import (
+    CONF_AGENT_TOKEN,
+    CONF_AGENT_USER,
+    CONF_IMPORTED,
+    CONF_PIPELINE_AGENT,
+    CONF_PIPELINES,
+    CONF_PIPELINES_BEFORE,
+    CONF_SIDEBAR,
+    DOMAIN,
+    VERSION,
+)
 from .coordinator import MiraCoordinator
 from .labels import ensure_labels
 from .managed import build_config, import_settings
@@ -173,6 +183,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     await coordinator.async_refresh()
     entry.runtime_data = MiraData(client=client, coordinator=coordinator)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _use_in_assistants(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     # Telegram through Home Assistant's own integration (telegram.py).
     entry.async_on_unload(async_setup_telegram(hass, entry))
@@ -230,16 +241,40 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     return health
 
 
+async def _use_in_assistants(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
+    """Once, after setup: Mira becomes the conversation agent of the
+    assistants chosen in the form; her entity exists only now."""
+    chosen = entry.data.get(CONF_PIPELINES)
+    if chosen is None:
+        return
+    entity_id = er.async_get(hass).async_get_entity_id("conversation", DOMAIN, entry.entry_id)
+    if entity_id is None:
+        return
+    before = await use_mira_in(hass, chosen, entity_id)
+    data = {k: v for k, v in entry.data.items() if k != CONF_PIPELINES}
+    hass.config_entries.async_update_entry(
+        entry, data={**data, CONF_PIPELINE_AGENT: entity_id, CONF_PIPELINES_BEFORE: before}
+    )
+
+
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
-    """Hand persons and rooms back to the agent's web UI, and withdraw the
-    token the integration made for the agent (its user stays: Mira's tasks
-    hang on it)."""
+    """Hand persons and rooms back to the agent's web UI, the assistants
+    back to Home Assistant's own agent, and withdraw the token the
+    integration made for the agent (its user stays: Mira's tasks hang on
+    it). An agent that was paired lets go as well and waits to be paired
+    again, the next time without a code."""
     revoke_agent_token(hass, entry.data.get(CONF_AGENT_TOKEN))
+    await hand_back(hass, entry.data.get(CONF_PIPELINE_AGENT), entry.data.get(CONF_PIPELINES_BEFORE) or {})
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
     try:
         await client.release_managed_config()
     except MiraError as err:
         _LOGGER.warning("The agent still thinks Home Assistant manages its persons and rooms: %s", err)
+    try:
+        await client.unpair()
+    except MiraError as err:
+        # An agent with its token in mira.yaml, or one that is down.
+        _LOGGER.debug("The agent did not let go: %s", err)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool:

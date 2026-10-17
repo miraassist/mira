@@ -816,7 +816,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	// Pairing anew and changing the model from Home Assistant
 	// (docs/spec/einrichtung.md).
 	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
-		Pairing: a.pairing, Restart: restart, Log: a.log}).Register(mux)
+		Pairing: a.pairing, HasModel: true, Restart: restart, Log: a.log}).Register(mux)
 	mux.Handle("/", api)
 	return mux
 }

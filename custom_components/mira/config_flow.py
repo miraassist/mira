@@ -1,7 +1,8 @@
-"""Config flow for Mira: agent URL and token, checked against /v1/health.
+"""Config flow for Mira (docs/spec/einrichtung.md).
 
 The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
-under "Discovered" and only asks for the token. Mira's settings for a person
+under "Discovered". A new agent pairs without a code, gets Home Assistant's
+access and an AI model, and becomes the assistants' conversation agent. Mira's settings for a person
 or a satellite are set under "Configure" and stored on that person or
 satellite; see managed.py.
 """
@@ -21,24 +22,26 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_TOKEN, CONF_URL
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .access import ensure_agent_access, ensure_mcp_server, ha_url
+from .access import assistants, ensure_agent_access, ensure_mcp_server, ha_url, revoke_agent_token
 from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig
 from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
     CONF_IMPORTED,
     CONF_PERSONA,
+    CONF_PIPELINES,
     CONF_SIDEBAR,
     CONF_TIMEOUT,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
+from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, PROVIDERS, ModelSource, ha_sources
 from .managed import (
     ACCEPT,
     all_persons,
@@ -54,87 +57,197 @@ USER_SCHEMA = vol.Schema({vol.Required(CONF_URL, default="http://localhost:8787"
 TOKEN_SCHEMA = vol.Schema({vol.Required(CONF_TOKEN): str})
 CODE_SCHEMA = vol.Schema({vol.Required("code"): str})
 
-# Model servers the setup offers, with the address they usually have as
-# seen from the agent (docs/spec/einrichtung.md).
-MODEL_KINDS = {
-    "lmstudio": "http://localhost:1234/v1",
-    "ollama": "http://localhost:11434/v1",
-    "llamacpp": "http://localhost:8080/v1",
-    "cloud": "https://api.openai.com/v1",
-}
 # How long the agent may take to start anew after setup.
 SETUP_WAIT = 60
 
 # The guide's setup section, linked from the first form.
 GUIDE = "https://github.com/miraassist/mira/blob/main/docs/guide/{}.md#{}"
 
+# What the agent says went wrong with a model, as the form's error.
+MODEL_ERRORS = {"unreachable", "bad_key", "no_model", "no_tools", "server_error"}
+
+# The few words the model choice needs that name no product.
+WORDS = {
+    "de": {"custom": "Eigener Server (Adresse eingeben)", "from_ha": "Aus Home Assistant"},
+    "en": {"custom": "Own server (enter its address)", "from_ha": "From Home Assistant"},
+}
+
+
+def _words(hass: HomeAssistant) -> dict[str, str]:
+    return WORDS["de" if hass.config.language.startswith("de") else "en"]
+
+
+def _model_error(err: MiraError, errors: dict[str, str], placeholders: dict[str, str]) -> None:
+    """The agent's reason as the form's error, its detail below."""
+    reason = getattr(err, "reason", "")
+    errors["base"] = f"model_{reason}" if reason in MODEL_ERRORS else "setup_failed"
+    placeholders["error"] = f"\n\n`{err}`"
+
 
 class ModelSteps:
-    """Choosing the language model: the kind of server, its address (as the
-    agent sees it) and key, then a model from what it offers. Used by the
-    setup and by the options; _model_chosen does the rest."""
+    """Choosing the AI model (LLM): where it comes from (an AI integration
+    Home Assistant has, a cloud provider, or a server of one's own), then a
+    model from what it offers. The agent tries it with a real request
+    before it keeps it. Used by the setup and by the options; _use_model
+    does the rest."""
 
-    _kind: str = "lmstudio"
-    _base_url: str = ""
-    _api_key: str = ""
+    _source: ModelSource | None = None
     _models: list[str] = []
 
-    async def async_step_model_kind(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Which kind of model server."""
+    def _model_client(self) -> MiraClient:
+        raise NotImplementedError
+
+    async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
+        raise NotImplementedError
+
+    async def async_step_model_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Where the model comes from; what Home Assistant has comes first."""
+        from_ha = ha_sources(self.hass)
+        words = _words(self.hass)
         if user_input is not None:
-            self._kind = user_input["kind"]
+            choice = user_input["source"]
+            if choice in from_ha:
+                self._source = from_ha[choice]
+                return await self._list_models("model_source")
+            if choice in PROVIDERS:
+                name, base_url = PROVIDERS[choice]
+                self._source = ModelSource(name, base_url, "", KIND_CLOUD)
+                return await self.async_step_model_key()
+            self._source = ModelSource(words["custom"], "", "", KIND_CUSTOM)
             return await self.async_step_model_server()
+        options = [selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()]
+        options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in PROVIDERS.items()]
+        options.append(selector.SelectOptionDict(value=CUSTOM, label=words["custom"]))
         return self.async_show_form(
-            step_id="model_kind",
+            step_id="model_source",
             data_schema=vol.Schema(
                 {
-                    vol.Required("kind", default=self._kind): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=list(MODEL_KINDS), translation_key="model_kind")
+                    vol.Required("source", default=options[0]["value"]): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=options, mode=selector.SelectSelectorMode.LIST)
                     )
                 }
             ),
+            errors=getattr(self, "_source_errors", None),
+            description_placeholders=getattr(self, "_source_placeholders", {"error": ""}),
+        )
+
+    async def async_step_model_key(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """The key for a cloud provider."""
+        assert self._source
+        if user_input is not None:
+            self._source.api_key = user_input["api_key"].strip()
+            return await self._list_models("model_key")
+        return self._key_form({}, {"error": ""})
+
+    def _key_form(self, errors: dict[str, str], placeholders: dict[str, str]) -> ConfigFlowResult:
+        assert self._source
+        return self.async_show_form(
+            step_id="model_key",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("api_key"): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    )
+                }
+            ),
+            errors=errors,
+            description_placeholders={"provider": self._source.label, **placeholders},
         )
 
     async def async_step_model_server(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Its address as the agent sees it, and a key for a cloud."""
-        errors: dict[str, str] = {}
-        placeholders = {"error": ""}
+        """A server of one's own: its address as the agent sees it, maybe a key."""
+        assert self._source
         if user_input is not None:
-            self._base_url = user_input["base_url"].rstrip("/")
-            self._api_key = user_input.get("api_key", "")
-            try:
-                self._models = await self._model_client().models(self._base_url, self._api_key)
-            except MiraInvalidConfig as err:
-                errors["base"], placeholders["error"] = "model_server", str(err)
-            except MiraError:
-                errors["base"] = "cannot_connect"
-            if not errors:
-                return await self.async_step_model()
+            self._source.base_url = user_input["base_url"].strip().rstrip("/")
+            self._source.label = self._source.base_url
+            self._source.api_key = user_input.get("api_key", "").strip()
+            return await self._list_models("model_server")
+        return self._server_form({}, {"error": ""})
+
+    def _server_form(self, errors: dict[str, str], placeholders: dict[str, str]) -> ConfigFlowResult:
+        assert self._source
         return self.async_show_form(
             step_id="model_server",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("base_url", default=self._base_url or MODEL_KINDS[self._kind]): str,
-                    vol.Optional("api_key", default=self._api_key): selector.TextSelector(
-                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-                    ),
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required("base_url"): str,
+                        vol.Optional("api_key"): selector.TextSelector(
+                            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                        ),
+                    }
+                ),
+                {"base_url": self._source.base_url},
             ),
             errors=errors,
             description_placeholders=placeholders,
         )
 
+    async def _list_models(self, back: str) -> ConfigFlowResult:
+        """Ask the server for its models; on failure, back to the form."""
+        assert self._source
+        errors: dict[str, str] = {}
+        placeholders = {"error": ""}
+        try:
+            self._models = await self._model_client().models(self._source.base_url, self._source.api_key)
+        except MiraError as err:
+            _model_error(err, errors, placeholders)
+        if not errors:
+            return await self.async_step_model()
+        if back == "model_key":
+            return self._key_form(errors, placeholders)
+        if back == "model_server":
+            return self._server_form(errors, placeholders)
+        self._source_errors, self._source_placeholders = errors, placeholders
+        result = await self.async_step_model_source()
+        self._source_errors, self._source_placeholders = None, {"error": ""}
+        return result
 
+    async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """The model from the list; the agent tries it before keeping it."""
+        assert self._source
+        errors: dict[str, str] = {}
+        placeholders = {"error": ""}
+        if user_input is not None:
+            self._source.model = user_input["model"]
+            llm = {
+                "kind": self._source.kind,
+                "base_url": self._source.base_url,
+                "model": self._source.model,
+                "api_key": self._source.api_key,
+            }
+            try:
+                return await self._use_model(llm)
+            except MiraError as err:
+                _model_error(err, errors, placeholders)
+            except (RuntimeError, TimeoutError) as err:
+                errors["base"], placeholders["error"] = "setup_failed", f"\n\n`{err}`"
+        models = sorted(self._models)
+        default = self._source.model if self._source.model else vol.UNDEFINED
+        return self.async_show_form(
+            step_id="model",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("model", default=default): selector.SelectSelector(
+                        selector.SelectSelectorConfig(options=models, custom_value=True)
+                    )
+                }
+            ),
+            errors=errors,
+            description_placeholders={"server": self._source.label, **placeholders},
+        )
 
 
 class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
-    """Find the agent, pair with it, and, if it is new, set it up: Home
-    Assistant's access and the language model (docs/spec/einrichtung.md)."""
+    """Find the agent, pair with it (the first time without a code), set a
+    new one up (Home Assistant's access and the AI model), and make it the
+    conversation agent of the assistants (docs/spec/einrichtung.md)."""
 
     VERSION = 1
 
     _url: str = ""
     _token: str = ""
+    _data: dict[str, Any] = {}
 
     def _client(self, token: str = "") -> MiraClient:
         return MiraClient(async_get_clientsession(self.hass), self._url, token or self._token)
@@ -162,7 +275,7 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                 if status and status.get("id"):
                     await self.async_set_unique_id(status["id"])
                     self._abort_if_unique_id_configured(updates={CONF_URL: self._url})
-                return await self._step_auth(status)
+                return await self._step_auth(status, confirmed=True)
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(USER_SCHEMA, user_input),
@@ -197,16 +310,36 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             status = await self._client().pairing()
         except MiraError:
             status = None
-        return await self._step_auth(status)
+        return await self._step_auth(status, confirmed=False)
 
-    async def _step_auth(self, status: dict[str, Any] | None) -> ConfigFlowResult:
-        """A code when the agent offers pairing, else its token."""
-        if status and status.get("pairing"):
-            return await self.async_step_pair()
-        return await self.async_step_token()
+    async def _step_auth(self, status: dict[str, Any] | None, confirmed: bool) -> ConfigFlowResult:
+        """Pair without a code the first time (after the user said yes to a
+        discovered agent), with a code later; an agent whose token is in
+        its mira.yaml, or from before pairing, wants that token."""
+        if not status or not status.get("pairs"):
+            return await self.async_step_token()
+        if status.get("open"):
+            if confirmed:
+                return await self.async_step_confirm({})
+            return await self.async_step_confirm()
+        return await self.async_step_pair()
+
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """A new agent: one click, and Home Assistant pairs without a code."""
+        if user_input is not None:
+            try:
+                self._token = await self._client().pair()
+            except MiraBadCode:
+                # Someone else paired first, or it was paired meanwhile.
+                return await self.async_step_pair()
+            except MiraError:
+                return self.async_abort(reason="cannot_connect")
+            return await self._after_auth()
+        self._set_confirm_only()
+        return self.async_show_form(step_id="confirm", description_placeholders={"url": self._url})
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The pairing code the agent shows in its log and on its page."""
+        """The agent was paired before: a code from mira pair."""
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
@@ -239,7 +372,8 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         )
 
     async def _after_auth(self) -> ConfigFlowResult:
-        """A set-up agent is done; a new one gets Home Assistant and a model."""
+        """A set-up agent goes on to the assistants; a new one gets Home
+        Assistant's access, and a model unless it has one."""
         try:
             health = await self._client().health()
         except MiraError:
@@ -247,47 +381,55 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         if health.get("id") and not self.unique_id:
             await self.async_set_unique_id(health["id"])
             self._abort_if_unique_id_configured(updates={CONF_URL: self._url})
+        self._data = {CONF_URL: self._url, CONF_TOKEN: self._token}
         if health.get("status") != "setup":
-            return self.async_create_entry(title="Mira", data={CONF_URL: self._url, CONF_TOKEN: self._token})
-        return await self.async_step_model_kind()
+            return await self.async_step_assistants()
+        if not health.get("model"):
+            return await self.async_step_model_source()
+        try:
+            await self._set_up(None)
+        except (MiraError, RuntimeError, TimeoutError) as err:
+            return self.async_abort(reason="setup_failed", description_placeholders={"error": str(err)})
+        return await self.async_step_assistants()
 
-    async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The model, from what the server offers; then everything is set up."""
-        errors: dict[str, str] = {}
-        placeholders = {"error": ""}
-        if user_input is not None:
-            llm = {"kind": self._kind, "base_url": self._base_url, "model": user_input["model"], "api_key": self._api_key}
-            try:
-                await ensure_mcp_server(self.hass)
-                user_id, refresh_id, ha_token = await ensure_agent_access(self.hass)
-                await self._client().setup(ha_url(self.hass), ha_token, llm)
-                await self._wait_ready()
-            except MiraInvalidConfig as err:
-                errors["base"], placeholders["error"] = "model_server", str(err)
-            except (MiraError, RuntimeError, TimeoutError) as err:
-                errors["base"], placeholders["error"] = "setup_failed", str(err)
-            if not errors:
-                return self.async_create_entry(
-                    title="Mira",
-                    data={
-                        CONF_URL: self._url,
-                        CONF_TOKEN: self._token,
-                        CONF_IMPORTED: True,
-                        CONF_AGENT_USER: user_id,
-                        CONF_AGENT_TOKEN: refresh_id,
-                    },
-                )
+    async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
+        await self._set_up(llm)
+        return await self.async_step_assistants()
+
+    async def _set_up(self, llm: dict[str, Any] | None) -> None:
+        """Mira's own HA user and token, HA's MCP server, all sent to the
+        agent; it starts anew and is waited for."""
+        await ensure_mcp_server(self.hass)
+        user_id, refresh_id, ha_token = await ensure_agent_access(self.hass)
+        try:
+            await self._client().setup(ha_url(self.hass), ha_token, llm)
+        except MiraError:
+            revoke_agent_token(self.hass, refresh_id)
+            raise
+        self._data.update({CONF_IMPORTED: True, CONF_AGENT_USER: user_id, CONF_AGENT_TOKEN: refresh_id})
+        await self._wait_ready()
+
+    async def async_step_assistants(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Which assistants get Mira as their conversation agent; the
+        preferred one is ticked. Done once Mira's entity exists."""
+        pipelines = assistants(self.hass)
+        if user_input is not None or not pipelines:
+            chosen = (user_input or {}).get(CONF_PIPELINES, [])
+            return self.async_create_entry(title="Mira", data={**self._data, CONF_PIPELINES: chosen})
+        preferred = [p for p, (_, pref) in pipelines.items() if pref]
         return self.async_show_form(
-            step_id="model",
+            step_id="assistants",
             data_schema=vol.Schema(
                 {
-                    vol.Required("model"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=self._models, custom_value=True)
+                    vol.Optional(CONF_PIPELINES, default=preferred): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[selector.SelectOptionDict(value=p, label=name) for p, (name, _) in pipelines.items()],
+                            multiple=True,
+                            mode=selector.SelectSelectorMode.LIST,
+                        )
                     )
                 }
             ),
-            errors=errors,
-            description_placeholders=placeholders,
         )
 
     async def _wait_ready(self) -> None:
@@ -306,7 +448,6 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         return MiraOptionsFlow()
-
 
 
 # Field names inside the per-person and per-satellite sections. Home
@@ -351,33 +492,14 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
         return self.config_entry.runtime_data.client
 
     async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Another language model: the kind first, then server and model."""
-        if user_input is None and not self._models:
-            return await self.async_step_model_kind()
-        errors: dict[str, str] = {}
-        placeholders = {"error": ""}
-        if user_input is not None:
-            llm = {"kind": self._kind, "base_url": self._base_url, "model": user_input["model"], "api_key": self._api_key}
-            try:
-                await self._model_client().setup(None, None, llm)
-            except MiraInvalidConfig as err:
-                errors["base"], placeholders["error"] = "model_server", str(err)
-            except MiraError as err:
-                errors["base"], placeholders["error"] = "setup_failed", str(err)
-            if not errors:
-                return self.async_create_entry(data=dict(self.config_entry.options))
-        return self.async_show_form(
-            step_id="model",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("model"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=self._models, custom_value=True)
-                    )
-                }
-            ),
-            errors=errors,
-            description_placeholders=placeholders,
-        )
+        """Another AI model: where it comes from first, then the model."""
+        if self._source is None:
+            return await self.async_step_model_source()
+        return await ModelSteps.async_step_model(self, user_input)
+
+    async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
+        await self._model_client().setup(None, None, llm)
+        return self.async_create_entry(data=dict(self.config_entry.options))
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         # The persona lives at the agent, like everything it is asked for

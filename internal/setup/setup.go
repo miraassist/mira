@@ -1,6 +1,6 @@
 // Package setup lets the Mira integration set the agent up
-// (docs/spec/einrichtung.md): pairing with a code instead of typing a token,
-// and the Home Assistant access and the language model sent from Home
+// (docs/spec/einrichtung.md): pairing instead of typing a token (the first
+// time without a code, later with one), and the Home Assistant access and the language model sent from Home
 // Assistant instead of written into mira.yaml. What it gets is kept in the
 // database and laid over the config at start.
 package setup
@@ -38,14 +38,12 @@ const (
 	haMCPEndpoint = "/api/mcp/assist"
 )
 
-// Kinds of model servers the setup form offers. They decide what only
-// suits a local llama.cpp server (slots, cache_prompt) and whether the
-// model is warmed at start.
+// Kinds of model servers: a cloud provider, or a server of one's own.
+// Only one's own is warmed at start and gets cache_prompt; a cloud is
+// billed per token and may refuse fields it does not know.
 const (
-	KindLlamaCpp = "llamacpp"
-	KindLMStudio = "lmstudio"
-	KindOllama   = "ollama"
-	KindCloud    = "cloud"
+	KindCloud  = "cloud"
+	KindCustom = "custom"
 )
 
 // LLM is the language model as the setup form sets it.
@@ -60,8 +58,11 @@ type LLM struct {
 type Settings struct {
 	// Token is the agent's access token when mira.yaml has none; made at
 	// the first start.
-	Token   string
+	Token string
+	// Paired: Home Assistant has the token. Open: it never had, so the
+	// first pairing needs no code.
 	Paired  bool
+	Open    bool
 	HAURL   string
 	HAToken string
 	LLM     *LLM
@@ -87,6 +88,7 @@ func Load(ctx context.Context, st *store.Store) (Settings, error) {
 		return s, err
 	}
 	s.Paired = paired == "1"
+	s.Open = paired == ""
 	if s.HAURL, err = get(ctx, st, keyHAURL); err != nil {
 		return s, err
 	}
@@ -123,8 +125,8 @@ func Apply(cfg config.Config, s Settings) config.Config {
 	if l := s.LLM; l != nil {
 		cfg.LLM.BaseURL, cfg.LLM.Model, cfg.LLM.APIKey = strings.TrimRight(l.BaseURL, "/"), l.Model, l.APIKey
 		local := l.Kind != KindCloud
-		cfg.LLM.SlotPinning = l.Kind == KindLlamaCpp
-		cfg.LLM.CachePrompt = l.Kind == KindLlamaCpp
+		cfg.LLM.SlotPinning = false
+		cfg.LLM.CachePrompt = local
 		cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = local, local
 	}
 	return cfg
@@ -167,8 +169,8 @@ func Save(ctx context.Context, st *store.Store, haURL, haToken string, l *LLM) e
 	return nil
 }
 
-// NewCode starts pairing: a code of six digits that holds 15 minutes and
-// five tries. Pairing again drops the old pairing.
+// NewCode starts pairing anew (mira pair): a code of six digits that holds
+// 15 minutes and five tries. The old pairing stays until the code is used.
 func NewCode(ctx context.Context, st *store.Store, now time.Time) (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {
@@ -176,7 +178,7 @@ func NewCode(ctx context.Context, st *store.Store, now time.Time) (string, error
 	}
 	code := fmt.Sprintf("%06d", n.Int64())
 	for k, v := range map[string]string{
-		keyCode: code, keyCodeUntil: now.Add(codeLifetime).UTC().Format(time.RFC3339), keyCodeTries: "0", keyPaired: "0",
+		keyCode: code, keyCodeUntil: now.Add(codeLifetime).UTC().Format(time.RFC3339), keyCodeTries: "0",
 	} {
 		if err := st.SetKV(ctx, k, v); err != nil {
 			return "", err
@@ -206,8 +208,20 @@ func PendingCode(ctx context.Context, st *store.Store, now time.Time) (string, e
 var ErrBadCode = errors.New("wrong or expired code")
 
 // Pair checks a code and, when it is right, hands out the token. The code
-// is spent either way after five tries.
+// is spent either way after five tries. An agent that was never paired
+// hands it out without a code: whoever pairs first wins, and the owner
+// notices, because their own pairing then fails.
 func Pair(ctx context.Context, st *store.Store, code string, now time.Time) (string, error) {
+	paired, err := get(ctx, st, keyPaired)
+	if err != nil {
+		return "", err
+	}
+	if paired == "" && strings.TrimSpace(code) == "" {
+		if err := st.SetKV(ctx, keyPaired, "1"); err != nil {
+			return "", err
+		}
+		return get(ctx, st, keyToken)
+	}
 	want, err := PendingCode(ctx, st, now)
 	if err != nil {
 		return "", err
@@ -238,6 +252,26 @@ func Pair(ctx context.Context, st *store.Store, code string, now time.Time) (str
 		return "", err
 	}
 	return get(ctx, st, keyToken)
+}
+
+// Unpair is for when Home Assistant lets go of the agent (the integration
+// is removed): a new token, so the old one is worth nothing, Home
+// Assistant's access forgotten, and the next pairing again without a code.
+// The model stays.
+func Unpair(ctx context.Context, st *store.Store) error {
+	token, err := randomHex(tokenBytes)
+	if err != nil {
+		return err
+	}
+	if err := st.SetKV(ctx, keyToken, token); err != nil {
+		return err
+	}
+	for _, k := range []string{keyPaired, keyCode, keyHAURL, keyHAToken} {
+		if err := st.DeleteKV(ctx, k); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	}
+	return nil
 }
 
 func get(ctx context.Context, st *store.Store, key string) (string, error) {

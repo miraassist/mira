@@ -8,9 +8,13 @@
           "url": "Address of Mira"
         }
       },
+      "confirm": {
+        "title": "Add Mira",
+        "description": "Mira was found at {url} and is not set up yet.\n\nNext you choose the AI model (LLM) Mira thinks with. Mira also gets its own Home Assistant user, without admin rights."
+      },
       "pair": {
-        "title": "Pair with Mira",
-        "description": "Mira shows a six-digit **pairing code**:\n- on its page {url}\n- in the log of its container (`docker logs mira`)\n\nThe code is valid for 15 minutes. Restart Mira for a new one.",
+        "title": "Pair with Mira again",
+        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on, enter:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes.",
         "data": {
           "code": "Pairing code"
         }
@@ -22,43 +26,62 @@
           "token": "Access token"
         }
       },
-      "model_kind": {
-        "title": "Language model",
-        "description": "Mira needs a language model. Where does it run?",
+      "model_source": {
+        "title": "AI model (LLM)",
+        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **From Home Assistant**: an AI integration you already set up; Mira takes over its key, you need not enter it again.\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
         "data": {
-          "kind": "Model server"
+          "source": "AI model from"
+        }
+      },
+      "model_key": {
+        "title": "Key for {provider}",
+        "description": "Enter your API key for {provider}. You get it in your account with the provider. It goes to Mira only and is not shown again.{error}",
+        "data": {
+          "api_key": "API key"
         }
       },
       "model_server": {
-        "title": "Model server",
-        "description": "The address **as Mira sees it**: `localhost` is the machine Mira runs on. A key is only needed for a cloud provider.{error}",
+        "title": "Own server",
+        "description": "The address of the server **as Mira sees it**, with `/v1` at the end, e.g. `http://192.168.1.30:1234/v1`. `localhost` is the machine Mira runs on. A key only if the server wants one.{error}",
         "data": {
           "base_url": "Address",
-          "api_key": "Key (only for a cloud provider)"
+          "api_key": "Key (optional)"
         }
       },
       "model": {
         "title": "Choose the model",
-        "description": "These are the models available there.\n\nThen Mira sets itself up, which takes a few seconds:\n- it gets its own Home Assistant user, without admin rights;\n- Home Assistant's MCP server is switched on if it is not yet.{error}",
+        "description": "These are the models {server} offers. Mira tries the model with a short request before keeping it; on your own server that may take a minute while the model loads.{error}",
         "data": {
           "model": "Model"
+        }
+      },
+      "assistants": {
+        "title": "Use Mira",
+        "description": "Which assistants should Mira answer in? Voice satellites set to \"preferred\" follow the preferred assistant.",
+        "data": {
+          "pipelines": "Assistants"
         }
       }
     },
     "error": {
       "cannot_connect": "Could not reach Mira at this address.",
       "invalid_auth": "Mira rejected the token.",
-      "bad_code": "The code is wrong or expired. Restart Mira for a new code.",
-      "model_server": "The model server answered with an error: {error}",
-      "setup_failed": "Setting up did not work: {error}"
+      "bad_code": "The code is wrong or expired. Make a new one with `docker exec mira /app/mira pair`.",
+      "setup_failed": "Setting up did not work: {error}",
+      "model_unreachable": "Mira cannot reach this address. Check it as Mira sees it; a server on another machine must accept connections from the network.{error}",
+      "model_bad_key": "The provider refused the key. Check it and enter it again.{error}",
+      "model_no_model": "The server does not know this model, or it is not loaded.{error}",
+      "model_no_tools": "The model answered, but does not use tools. Mira needs that to switch and look things up; please choose another model.{error}",
+      "model_server_error": "The server answered with an error.{error}"
     },
     "abort": {
       "already_configured": "This agent is already configured.",
-      "no_id": "The agent did not announce an id; update it."
+      "no_id": "The agent did not announce an id; update it.",
+      "setup_failed": "Setting up did not work: {error}"
     },
     "flow_title": "{name}",
     "create_entry": {
-      "default": "Mira is set up.\n\nLast step: **Settings → Voice assistants** → open your assistant → **Conversation agent: Mira**.\n\nWhat Mira may see and switch you decide there under **Expose entities**. The first answer may take up to a minute while the language model loads."
+      "default": "Mira is set up and answers in the assistants you chose.\n\nWhat Mira may see and switch you decide under **Settings → Voice assistants → Expose entities**."
     }
   },
   "options": {
@@ -67,7 +90,7 @@
         "title": "Mira",
         "menu_options": {
           "general": "General",
-          "model": "Language model",
+          "model": "AI model (LLM)",
           "persons": "Settings for persons",
           "satellites": "Settings for satellites"
         }
@@ -113,34 +136,45 @@
           "indicator": "Shows waiting messages, e.g. the LED ring of the satellite."
         }
       },
-      "model_kind": {
-        "title": "Language model",
-        "description": "Mira needs a language model. Where does it run?",
-        "data": {
-          "kind": "Model server"
-        }
-      },
       "model_server": {
-        "title": "Model server",
-        "description": "The address **as Mira sees it**: `localhost` is the machine Mira runs on. A key is only needed for a cloud provider.{error}",
+        "title": "Own server",
+        "description": "The address of the server **as Mira sees it**, with `/v1` at the end, e.g. `http://192.168.1.30:1234/v1`. `localhost` is the machine Mira runs on. A key only if the server wants one.{error}",
         "data": {
           "base_url": "Address",
-          "api_key": "Key (only for a cloud provider)"
+          "api_key": "Key (optional)"
         }
       },
       "model": {
         "title": "Choose the model",
-        "description": "Mira starts anew with the model you choose.{error}",
+        "description": "These are the models {server} offers. Mira tries the model before keeping it, then starts anew with it.{error}",
         "data": {
           "model": "Model"
+        }
+      },
+      "model_source": {
+        "title": "AI model (LLM)",
+        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **From Home Assistant**: an AI integration you already set up; Mira takes over its key, you need not enter it again.\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
+        "data": {
+          "source": "AI model from"
+        }
+      },
+      "model_key": {
+        "title": "Key for {provider}",
+        "description": "Enter your API key for {provider}. You get it in your account with the provider. It goes to Mira only and is not shown again.{error}",
+        "data": {
+          "api_key": "API key"
         }
       }
     },
     "error": {
       "invalid_config": "The agent refused it: {error}",
       "cannot_connect": "Could not reach Mira at this address.",
-      "model_server": "The model server answered with an error: {error}",
-      "setup_failed": "Setting up did not work: {error}"
+      "setup_failed": "Setting up did not work: {error}",
+      "model_unreachable": "Mira cannot reach this address. Check it as Mira sees it; a server on another machine must accept connections from the network.{error}",
+      "model_bad_key": "The provider refused the key. Check it and enter it again.{error}",
+      "model_no_model": "The server does not know this model, or it is not loaded.{error}",
+      "model_no_tools": "The model answered, but does not use tools. Mira needs that to switch and look things up; please choose another model.{error}",
+      "model_server_error": "The server answered with an error.{error}"
     },
     "abort": {
       "not_loaded": "The Mira agent entry is not loaded.",
@@ -298,14 +332,6 @@
         "all": "Everyone (also someone at a satellite)",
         "persons": "Only persons Mira recognises",
         "none": "Nobody"
-      }
-    },
-    "model_kind": {
-      "options": {
-        "lmstudio": "LM Studio",
-        "ollama": "Ollama",
-        "llamacpp": "llama.cpp server",
-        "cloud": "Cloud provider with an OpenAI-compatible API (OpenAI, Gemini, …)"
       }
     }
   }

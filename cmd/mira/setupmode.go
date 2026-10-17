@@ -22,13 +22,17 @@ import (
 // (docs/spec/einrichtung.md).
 type prepared struct {
 	cfg config.Config
-	// pairing: the token is the agent's own, so Home Assistant pairs with
-	// a code. A token in mira.yaml is entered instead.
+	// pairing: the token is the agent's own, so Home Assistant pairs (the
+	// first time without a code). A token in mira.yaml is entered instead.
 	pairing bool
+	// open: never paired, so the first pairing needs no code.
+	open bool
 	// ready: Home Assistant and a model are set; otherwise the agent
 	// waits to be set up.
-	ready bool
-	code  string
+	ready    bool
+	hasModel bool
+	// code: a pairing code from mira pair, while it holds.
+	code string
 }
 
 func prepare(ctx context.Context, path string) (prepared, error) {
@@ -51,21 +55,18 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 		return prepared{}, err
 	}
 	p.ready = setup.Ready(p.cfg, hasLLM, s)
-	if p.pairing && !s.Paired {
+	p.hasModel = hasLLM || s.LLM != nil
+	if p.pairing {
+		p.open = s.Open
 		if p.code, err = setup.PendingCode(ctx, st, time.Now()); err != nil {
 			return prepared{}, err
-		}
-		if p.code == "" {
-			if p.code, err = setup.NewCode(ctx, st, time.Now()); err != nil {
-				return prepared{}, err
-			}
 		}
 	}
 	return p, nil
 }
 
 // errNotSetUp is for commands that need a set-up agent.
-var errNotSetUp = errors.New("Mira is not set up yet: add Mira in Home Assistant (Settings → Devices & services) and enter the pairing code")
+var errNotSetUp = errors.New("Mira is not set up yet: add Mira in Home Assistant (Settings → Devices & services)")
 
 // restart starts the agent anew with what setup saved: the same program,
 // arguments and environment.
@@ -83,9 +84,12 @@ func restart() {
 }
 
 func logPairing(log *slog.Logger, p prepared) {
-	if p.code != "" {
-		log.Info(fmt.Sprintf("pairing code: %s %s (Home Assistant: Settings → Devices & services → Mira; valid 15 minutes; a new one: mira pair)",
+	switch {
+	case p.code != "":
+		log.Info(fmt.Sprintf("pairing code: %s %s (Home Assistant: Settings → Devices & services → Mira; valid 15 minutes)",
 			p.code[:3], p.code[3:]))
+	case p.open:
+		log.Info("not paired yet: add Mira in Home Assistant under Settings → Devices & services (Discovered)")
 	}
 }
 
@@ -106,7 +110,7 @@ func runSetupMode(ctx context.Context, p prepared) error {
 	logPairing(log, p)
 	mux := http.NewServeMux()
 	(&setup.Handler{Store: st, Token: p.cfg.Server.Token, ID: id, Version: version, Pairing: p.pairing,
-		SetupMode: true, Restart: restart, Log: log}).Register(mux)
+		SetupMode: true, HasModel: p.hasModel, Restart: restart, Log: log}).Register(mux)
 	ln, err := net.Listen("tcp", p.cfg.Server.Listen)
 	if err != nil {
 		return err
@@ -130,7 +134,8 @@ func runSetupMode(ctx context.Context, p prepared) error {
 	return nil
 }
 
-// runPair makes a new pairing code, for when the old one expired.
+// runPair makes a pairing code, for pairing Home Assistant anew with an
+// agent that was paired before.
 func runPair(ctx context.Context, p prepared) error {
 	if !p.pairing {
 		return errors.New("this agent's token is set in mira.yaml: enter that token in Home Assistant instead of a code")
@@ -144,6 +149,6 @@ func runPair(ctx context.Context, p prepared) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Pairing code: %s %s (valid 15 minutes)\n", code[:3], code[3:])
+	fmt.Printf("Pairing code: %s %s (valid 15 minutes; enter it in Home Assistant when adding Mira)\n", code[:3], code[3:])
 	return nil
 }
