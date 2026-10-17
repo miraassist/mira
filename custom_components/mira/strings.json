@@ -10,12 +10,12 @@
       },
       "confirm": {
         "title": "Add Mira",
-        "description": "Mira found at {url}.\n\nNext you choose the AI model (LLM) Mira thinks with, and the assistants it answers in. Pairing happens only at the very end, after a summary; no code needed.",
+        "description": "Mira found at {url}.\n\nNext you see an overview: what is chosen and what is still missing, the AI model (LLM) and the assistants. Pairing happens only with **Pair**; no code needed.",
         "submit": "Next"
       },
       "pair": {
         "title": "Pairing code",
-        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes and used when pairing at the end.",
+        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes and used when pairing.",
         "data": {
           "code": "Pairing code"
         },
@@ -66,13 +66,13 @@
         "submit": "Next"
       },
       "summary": {
-        "title": "Summary",
-        "description": "- **Mira:** {url}\n- **AI model:** {model}\n- **Answers in:** {assistants}\n\nWhen pairing, Mira gets its own Home Assistant user without admin rights, and Home Assistant's MCP server is switched on if it is missing. This takes a few seconds.{error}",
+        "title": "Set up Mira",
+        "description": "{status}{error}",
         "menu_options": {
-          "finish": "Pair",
-          "model_source": "Change the AI model",
-          "assistants": "Change the assistants",
-          "pair": "Enter the pairing code again"
+          "model_source": "Choose the AI model (LLM)",
+          "assistants": "Choose the assistants",
+          "pair": "Enter the pairing code",
+          "finish": "Pair"
         }
       }
     },

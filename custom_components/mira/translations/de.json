@@ -10,12 +10,12 @@
       },
       "confirm": {
         "title": "Mira hinzufügen",
-        "description": "Mira gefunden unter {url}.\n\nAls Nächstes wählst du das KI-Modell (LLM), mit dem Mira denkt, und die Assistenten, in denen sie antwortet. Gekoppelt wird erst ganz am Ende, nach einer Zusammenfassung; ein Code ist nicht nötig.",
+        "description": "Mira gefunden unter {url}.\n\nAls Nächstes siehst du eine Übersicht: was schon gewählt ist und was noch fehlt, das KI-Modell (LLM) und die Assistenten. Gekoppelt wird erst mit **Koppeln**; ein Code ist nicht nötig.",
         "submit": "Weiter"
       },
       "pair": {
         "title": "Kopplungscode",
-        "description": "Diese Mira war schon mit einem Home Assistant gekoppelt. Zum erneuten Koppeln brauchst du einen **Kopplungscode**. Auf dem Rechner, auf dem Mira läuft:\n\n`docker exec mira /app/mira pair`\n\nDer Code steht dann dort und auf Miras Seite {url}. Er gilt 15 Minuten und wird am Ende beim Koppeln verwendet.",
+        "description": "Diese Mira war schon mit einem Home Assistant gekoppelt. Zum erneuten Koppeln brauchst du einen **Kopplungscode**. Auf dem Rechner, auf dem Mira läuft:\n\n`docker exec mira /app/mira pair`\n\nDer Code steht dann dort und auf Miras Seite {url}. Er gilt 15 Minuten und wird beim Koppeln verwendet.",
         "data": {
           "code": "Kopplungscode"
         },
@@ -66,13 +66,13 @@
         "submit": "Weiter"
       },
       "summary": {
-        "title": "Zusammenfassung",
-        "description": "- **Mira:** {url}\n- **KI-Modell:** {model}\n- **Antwortet in:** {assistants}\n\nBeim Koppeln bekommt Mira einen eigenen Home-Assistant-Benutzer ohne Admin-Rechte, und der MCP-Server von Home Assistant wird eingeschaltet, falls er fehlt. Das dauert ein paar Sekunden.{error}",
+        "title": "Mira einrichten",
+        "description": "{status}{error}",
         "menu_options": {
-          "finish": "Koppeln",
-          "model_source": "KI-Modell ändern",
-          "assistants": "Assistenten ändern",
-          "pair": "Kopplungscode neu eingeben"
+          "model_source": "KI-Modell (LLM) wählen",
+          "assistants": "Assistenten wählen",
+          "pair": "Kopplungscode eingeben",
+          "finish": "Koppeln"
         }
       }
     },

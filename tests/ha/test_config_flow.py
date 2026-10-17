@@ -79,6 +79,12 @@ def _calls(aioclient_mock, path):
     return [c[2] for c in aioclient_mock.mock_calls if c[0] == "POST" and str(c[1]).endswith(path)]
 
 
+async def _to(hass, result, step):
+    """A branch of the overview."""
+    assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
+    return await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": step})
+
+
 async def _finish(hass, result):
     """The summary's "Pair"."""
     assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
@@ -96,6 +102,10 @@ async def test_new_agent_is_paired_and_set_up_only_at_the_end(hass, aioclient_mo
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    assert result["step_id"] == "summary"
+    result, _ = await _finish(hass, result)
+    assert result["step_id"] == "summary" and result["description_placeholders"]["error"], "Pair needs a model first"
+    result = await _to(hass, result, "model_source")
     assert result["step_id"] == "model_source"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"source": "custom"})
     assert result["step_id"] == "model_server"
@@ -105,7 +115,7 @@ async def test_new_agent_is_paired_and_set_up_only_at_the_end(hass, aioclient_mo
     assert result["step_id"] == "model"
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"model": "qwen3"})
     assert result["step_id"] == "summary"
-    assert result["description_placeholders"]["model"] == "http://192.168.1.30:11434/v1, qwen3"
+    assert "http://192.168.1.30:11434/v1, qwen3" in result["description_placeholders"]["status"]
     llm = {"kind": "custom", "base_url": "http://192.168.1.30:11434/v1", "model": "qwen3", "api_key": ""}
     assert _calls(aioclient_mock, "/v1/setup/probe") == [{"llm": llm}]
     assert not _calls(aioclient_mock, "/v1/pair")
@@ -131,6 +141,13 @@ async def test_provider_asks_only_for_the_key_and_says_what_failed(hass, aioclie
     aioclient_mock.post(f"{AGENT_URL}/v1/setup/probe", status=422, json={"error": "gemma3", "reason": "no_tools"})
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    result = await _to(hass, result, "model_source")
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"source": "openai"})
+    assert result["step_id"] == "model_key"
+    # A wrong click, the dialog closed and opened again: back at the overview.
+    result = await hass.config_entries.flow.async_configure(result["flow_id"])
+    assert result["step_id"] == "summary"
+    result = await _to(hass, result, "model_source")
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"source": "gemini"})
     assert result["step_id"] == "model_key"
     assert result["description_placeholders"]["provider"] == "Google Gemini"
@@ -161,6 +178,7 @@ async def test_model_from_home_assistant_needs_no_key(hass, aioclient_mock, hass
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    result = await _to(hass, result, "model_source")
     source = f"ha:{ai.entry_id}"
     options = result["data_schema"].schema["source"].config["options"]
     assert options[0]["value"] == source and "gemini-flash-latest" in options[0]["label"]
@@ -183,10 +201,11 @@ async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock,
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", status=403)
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
-    assert result["step_id"] == "pair"
+    assert result["step_id"] == "summary" and "pair" in result["menu_options"]
+    assert "qwen3" in result["description_placeholders"]["status"]
+    result = await _to(hass, result, "pair")
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"code": "000000"})
     assert result["step_id"] == "summary"
-    assert "qwen3" in result["description_placeholders"]["model"]
     result, _ = await _finish(hass, result)
     assert result["step_id"] == "summary" and "pair" in result["menu_options"]
     assert result["description_placeholders"]["error"]

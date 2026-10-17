@@ -73,6 +73,14 @@ WORDS = {
         "from_ha": "Aus Home Assistant",
         "keeps": "bleibt {model}",
         "none": "keinem (später unter Einstellungen → Sprachassistenten)",
+        "code": "Kopplungscode",
+        "model": "KI-Modell",
+        "answers": "Antwortet in",
+        "missing": "fehlt noch",
+        "todo": "Es fehlt noch: **{what}**. Wähle es unten aus.",
+        "ready": "Alles gewählt. **Koppeln** richtet Mira ein: Sie bekommt einen eigenen Home-Assistant-Benutzer ohne Admin-Rechte, und der MCP-Server von Home Assistant wird eingeschaltet, falls er fehlt.",
+        "need_code": "Erst den Kopplungscode eingeben.",
+        "need_model": "Erst das KI-Modell wählen.",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist abgelaufen. Gib ihn neu ein; einen neuen gibt es mit `docker exec mira /app/mira pair`.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
     },
@@ -81,6 +89,14 @@ WORDS = {
         "from_ha": "From Home Assistant",
         "keeps": "stays {model}",
         "none": "none (later under Settings → Voice assistants)",
+        "code": "Pairing code",
+        "model": "AI model",
+        "answers": "Answers in",
+        "missing": "still missing",
+        "todo": "Still missing: **{what}**. Choose it below.",
+        "ready": "Everything is chosen. **Pair** sets Mira up: it gets its own Home Assistant user without admin rights, and Home Assistant's MCP server is switched on if it is missing.",
+        "need_code": "Enter the pairing code first.",
+        "need_model": "Choose the AI model first.",
         "bad_code": "The pairing code is wrong or expired. Enter it again; get a new one with `docker exec mira /app/mira pair`.",
         "failed": "Pairing did not work: {error}",
     },
@@ -114,8 +130,15 @@ class ModelSteps:
     async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
         raise NotImplementedError
 
+    async def _reopened(self, step_id: str) -> ConfigFlowResult | None:
+        """A dialog closed in this step and opened again; the setup goes
+        back to its overview, the options stay."""
+        return None
+
     async def async_step_model_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Where the model comes from; what Home Assistant has comes first."""
+        if user_input is None and (back := await self._reopened("model_source")):
+            return back
         from_ha = ha_sources(self.hass)
         words = _words(self.hass)
         if user_input is not None:
@@ -129,6 +152,11 @@ class ModelSteps:
                 return await self.async_step_model_key()
             self._source = ModelSource(words["custom"], "", "", KIND_CUSTOM)
             return await self.async_step_model_server()
+        return self._source_form(None, {"error": ""})
+
+    def _source_form(self, errors: dict[str, str] | None, placeholders: dict[str, str]) -> ConfigFlowResult:
+        from_ha = ha_sources(self.hass)
+        words = _words(self.hass)
         options = [selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()]
         options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in PROVIDERS.items()]
         options.append(selector.SelectOptionDict(value=CUSTOM, label=words["custom"]))
@@ -141,12 +169,14 @@ class ModelSteps:
                     )
                 }
             ),
-            errors=getattr(self, "_source_errors", None),
-            description_placeholders=getattr(self, "_source_placeholders", {"error": ""}),
+            errors=errors,
+            description_placeholders=placeholders,
         )
 
     async def async_step_model_key(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The key for a cloud provider."""
+        if user_input is None and (back := await self._reopened("model_key")):
+            return back
         assert self._source
         if user_input is not None:
             self._source.api_key = user_input["api_key"].strip()
@@ -170,6 +200,8 @@ class ModelSteps:
 
     async def async_step_model_server(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """A server of one's own: its address as the agent sees it, maybe a key."""
+        if user_input is None and (back := await self._reopened("model_server")):
+            return back
         assert self._source
         if user_input is not None:
             self._source.base_url = user_input["base_url"].strip().rstrip("/")
@@ -212,13 +244,12 @@ class ModelSteps:
             return self._key_form(errors, placeholders)
         if back == "model_server":
             return self._server_form(errors, placeholders)
-        self._source_errors, self._source_placeholders = errors, placeholders
-        result = await self.async_step_model_source()
-        self._source_errors, self._source_placeholders = None, {"error": ""}
-        return result
+        return self._source_form(errors, placeholders)
 
     async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The model from the list; the agent tries it before keeping it."""
+        if user_input is None and (back := await self._reopened("model")):
+            return back
         assert self._source
         errors: dict[str, str] = {}
         placeholders = {"error": ""}
@@ -253,10 +284,12 @@ class ModelSteps:
 
 
 class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
-    """Find the agent, choose its AI model and the assistants it answers
-    in, and, after a summary, pair and set up in one step: nothing is done
-    at the agent or in Home Assistant before "Pair", so a setup broken off
-    leaves nothing behind (docs/spec/einrichtung.md)."""
+    """Find the agent, then an overview that says what is chosen and what
+    is missing, with its branches: the AI model, the assistants Mira
+    answers in, "Pair". Every branch comes back to it, also when its
+    dialog was closed and opened again. Nothing is done at the agent or in
+    Home Assistant before "Pair", so a setup broken off leaves nothing
+    behind (docs/spec/einrichtung.md)."""
 
     VERSION = 1
 
@@ -271,6 +304,24 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     _pipelines: list[str] | None = None
     _error: str = ""
     _data: dict[str, Any] = {}
+    # The step last shown: a step run again without input while it is
+    # shown means its dialog was opened again.
+    _shown: str = ""
+
+    @callback
+    def async_show_form(self, *, step_id: str | None = None, **kwargs: Any) -> ConfigFlowResult:
+        self._shown = step_id or ""
+        return super().async_show_form(step_id=step_id, **kwargs)
+
+    @callback
+    def async_show_menu(self, *, step_id: str | None = None, **kwargs: Any) -> ConfigFlowResult:
+        self._shown = step_id or ""
+        return super().async_show_menu(step_id=step_id, **kwargs)
+
+    async def _reopened(self, step_id: str) -> ConfigFlowResult | None:
+        if self._shown == step_id:
+            return await self.async_step_summary()
+        return None
 
     def _client(self, token: str = "") -> MiraClient:
         return MiraClient(async_get_clientsession(self.hass), self._url, token or self._token)
@@ -347,25 +398,27 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             return await self.async_step_token()
         self._agent_model = str(status.get("model") or "")
         if not status.get("open"):
-            return await self.async_step_pair()
-        if discovered:
+            self._code = ""
+        elif discovered:
             return await self.async_step_confirm()
-        return await self._choose()
+        return await self.async_step_summary()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """A new agent was found; nothing happens yet."""
         if user_input is not None:
-            return await self._choose()
+            return await self.async_step_summary()
         self._set_confirm_only()
         return self.async_show_form(step_id="confirm", description_placeholders={"url": self._url})
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The agent was paired before: a code from mira pair. It is used,
         and checked, only when pairing at the end."""
+        if user_input is None and (back := await self._reopened("pair")):
+            return back
         if user_input is not None:
-            self._code = user_input["code"]
+            self._code = user_input["code"].strip()
             self._error = ""
-            return await self._choose()
+            return await self.async_step_summary()
         return self.async_show_form(step_id="pair", data_schema=CODE_SCHEMA, description_placeholders={"url": self._url})
 
     async def async_step_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -387,27 +440,22 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                     # Set up by its mira.yaml: only the assistants.
                     return await self.async_step_assistants()
                 self._agent_model = str(health.get("model") or "")
-                return await self._choose()
+                return await self.async_step_summary()
         return self.async_show_form(
             step_id="token", data_schema=TOKEN_SCHEMA, errors=errors, description_placeholders={"url": self._url}
         )
 
-    async def _choose(self) -> ConfigFlowResult:
-        """The model unless the agent has one, then the assistants."""
-        if not self._agent_model and self._llm is None:
-            return await self.async_step_model_source()
-        return await self.async_step_assistants()
-
     async def _use_model(self, llm: dict[str, Any]) -> ConfigFlowResult:
         await self._model_client().probe(llm)
         self._llm = llm
-        if self._pipelines is None:
-            return await self.async_step_assistants()
+        self._error = ""
         return await self.async_step_summary()
 
     async def async_step_assistants(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Which assistants get Mira as their conversation agent; the
         preferred one is ticked. Done once Mira's entity exists."""
+        if user_input is None and (back := await self._reopened("assistants")):
+            return back
         pipelines = assistants(self.hass)
         if user_input is not None or not pipelines:
             self._pipelines = (user_input or {}).get(CONF_PIPELINES, [])
@@ -436,27 +484,41 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         return not self._token or bool(self._agent_model) or self._llm is not None or self._code is not None
 
     async def async_step_summary(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """What will happen, with a way to change it; "Pair" does it all."""
+        """The overview: what is chosen, what is missing, and the branches;
+        "Pair" does it all."""
         words = _words(self.hass)
         names = assistants(self.hass)
+        if self._pipelines is None:
+            self._pipelines = [p for p, (_, pref) in names.items() if pref]
+        lines = [f"- **Mira:** {self._url}"]
+        missing = []
+        if self._code is not None:
+            lines.append(f"- **{words['code']}:** " + ("✓" if self._code else words["missing"]))
+            if not self._code:
+                missing.append(words["code"])
         if self._llm:
             source = self._source.label if self._source else self._llm["base_url"]
-            model = f"{source}, {self._llm['model']}"
+            lines.append(f"- **{words['model']}:** ✓ {source}, {self._llm['model']}")
+        elif self._agent_model:
+            lines.append(f"- **{words['model']}:** ✓ " + words["keeps"].format(model=self._agent_model))
         else:
-            model = words["keeps"].format(model=self._agent_model)
-        chosen = ", ".join(names[p][0] for p in self._pipelines or [] if p in names) or words["none"]
-        # Before pairing the agent answers about models only while it was
-        # never paired; one paired before keeps its model for now.
-        options = ["finish", "pair" if self._code is not None else "model_source"]
+            lines.append(f"- **{words['model']}:** {words['missing']}")
+            missing.append(words["model"])
+        chosen = ", ".join(names[p][0] for p in self._pipelines if p in names) or words["none"]
+        lines.append(f"- **{words['answers']}:** {chosen}")
+        if missing:
+            lines.append("\n" + words["todo"].format(what=", ".join(missing)))
+        else:
+            lines.append("\n" + words["ready"])
+        options = ["pair" if self._code is not None else "model_source"]
         if names:
             options.append("assistants")
+        options.append("finish")
         return self.async_show_menu(
             step_id="summary",
             menu_options=options,
             description_placeholders={
-                "url": self._url,
-                "model": model,
-                "assistants": chosen,
+                "status": "\n".join(lines),
                 "error": f"\n\n**{self._error}**" if self._error else "",
             },
         )
@@ -466,6 +528,12 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         paired and set up in one call; it starts anew and is waited for."""
         words = _words(self.hass)
         self._error = ""
+        if self._code == "":
+            self._error = words["need_code"]
+        elif not self._llm and not self._agent_model:
+            self._error = words["need_model"]
+        if self._error:
+            return await self.async_step_summary()
         refresh_id = None
         try:
             await ensure_mcp_server(self.hass)

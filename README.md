@@ -38,9 +38,9 @@ No config file, three steps (details and troubleshooting in the guide:
      -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
    ```
 3. Settings → Devices & services: **Mira** is under **Discovered** → **Add**. The dialog asks for
-   the AI model (LLM: an AI integration Home Assistant already has, OpenAI, Gemini, OpenRouter or
-   Mistral with your key, or a server of your own; tried at once) and the assistants Mira answers in,
-   shows a summary, and **Pair** does the rest: Mira's own Home Assistant user (no admin rights),
+   An overview shows what is chosen and what is missing: the AI model (LLM: an AI integration
+   Home Assistant already has, OpenAI, Gemini, OpenRouter or Mistral with your key, or a server of
+   your own; tried at once) and the assistants Mira answers in. **Pair** does the rest: Mira's own Home Assistant user (no admin rights),
    Home Assistant's MCP server, Mira as the assistants' conversation agent.
 
 ## Agent
