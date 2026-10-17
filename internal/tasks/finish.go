@@ -76,7 +76,12 @@ type automationFinisher struct{ m *Manager }
 func (automationFinisher) Async() bool { return true }
 
 func (f automationFinisher) Work(ctx context.Context, th store.Thread) (threads.Result, error) {
-	d, err := f.m.DraftAutomation(ctx, th.Request, th.Fields)
+	from := Origin{Person: th.Person}
+	from.Area, _ = strings.CutPrefix(th.Place, "area:")
+	if from.Area == th.Place {
+		from.Area = "" // not at a satellite: Telegram or the app chat
+	}
+	d, err := f.m.DraftAutomation(ctx, th.Request, th.Fields, from)
 	var question ErrQuestion
 	var cannot ErrCannot
 	switch {

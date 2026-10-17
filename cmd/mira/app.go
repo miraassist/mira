@@ -220,7 +220,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Planner:    isolatedModel{a, cfg.Routing.Tasks},
 		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
 		ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
-		Persons: a.persons,
+		Persons:    a.persons,
+		Satellites: func() map[string]string { return a.liveConfig().Satellites },
 	})
 	internal = append(internal, a.tasks.Tools()...)
 	checks := map[string]threads.Check{}

@@ -208,7 +208,7 @@ func TestDraftSaveManage(t *testing.T) {
 	e.ha.invalid = "sensor.ausgedacht"
 	e.model.answers = []string{strings.Replace(draft, "sensor.wasser", "sensor.ausgedacht", 1), draft}
 	d, err := e.m.DraftAutomation(context.Background(), "Achte auf den Wasserverbrauch.",
-		map[string]string{"watch": "Wasserzähler (sensor.wasser)", "measure": "- Mira beurteilt"})
+		map[string]string{"watch": "Wasserzähler (sensor.wasser)", "measure": "- Mira beurteilt"}, Origin{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 		`{"title":"x","summary":"y","automation":{"triggers":[],"actions":[{"action":"mira.send_message","data":{"text":"t"}}]}}`,
 		`{"question":"Ab wann ist es ungewöhnlich?"}`,
 	}
-	_, err := e.m.DraftAutomation(context.Background(), "Licht zu ungewöhnlicher Zeit", nil)
+	_, err := e.m.DraftAutomation(context.Background(), "Licht zu ungewöhnlicher Zeit", nil, Origin{})
 	var q ErrQuestion
 	if !errors.As(err, &q) || q.Question != "Ab wann ist es ungewöhnlich?" {
 		t.Fatalf("err: %v", err)
@@ -330,7 +330,7 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 "conditions":[{"condition":"time","after":"00:00:00","before":"06:00:00"}],
 "actions":[{"action":"mira.send_message","data":{"text":"Licht an.","importance":1}},
 {"action":"media_player.turn_on","target":{"entity_id":"media_player.radio_bad"}}]}}`}
-	d, err := e.m.DraftAutomation(context.Background(), "x", nil)
+	d, err := e.m.DraftAutomation(context.Background(), "x", nil, Origin{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,8 +343,37 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 	e.model.answers = []string{`{"title":"Licht","summary":"s","automation":{
 "triggers":[{"trigger":"state","entity_id":"light.schlafzimmer","to":"on"}],
 "actions":[{"action":"mira.assess","data":{"goal":"g","observation":"o"}}]}}`}
-	d, _ = e.m.DraftAutomation(context.Background(), "x", nil)
+	d, _ = e.m.DraftAutomation(context.Background(), "x", nil, Origin{})
 	if text := e.m.ProposalText(d); !strings.Contains(text, "entscheide ich jedes Mal selbst") {
 		t.Errorf("proposal hides that Mira judges: %s", text)
+	}
+}
+
+// A task asked at a satellite by a known person: the planner learns where
+// and from whom, with the person's memory, and the person owns the
+// judgements.
+func TestDraftKnowsWhereAndFromWhom(t *testing.T) {
+	e := setup(t)
+	e.m.opts.Satellites = func() map[string]string { return map[string]string{"schlafzimmer": "assist_satellite.show"} }
+	ctx := context.Background()
+	e.st.SaveFact(ctx, store.Fact{ID: "a", Text: "Anna steht werktags um 6 auf.", Owner: "anna"})
+	e.st.SaveFact(ctx, store.Fact{ID: "b", Text: "Ben hört gern Jazz.", Owner: "ben"})
+	e.model.answers = []string{draft}
+	d, err := e.m.DraftAutomation(ctx, "Achte auf den Wasserverbrauch.", nil, Origin{Area: "schlafzimmer", Person: "anna"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instruction := e.model.instructions[0]
+	for _, want := range []string{"Bereich schlafzimmer", "assist_satellite.show", "Gesprochen hat anna", "werktags um 6"} {
+		if !strings.Contains(instruction, want) {
+			t.Errorf("instruction lacks %q", want)
+		}
+	}
+	if strings.Contains(instruction, "Jazz") {
+		t.Error("someone else's memory went along")
+	}
+	actions := d.Automation["actions"].([]any)
+	if owner := actions[0].(map[string]any)["data"].(map[string]any)["owner"]; owner != "anna" {
+		t.Errorf("owner = %v", owner)
 	}
 }

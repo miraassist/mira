@@ -120,6 +120,8 @@ Ja ist `thread_confirm`. Der Ablauf unten ist der ursprüngliche Entwurf.
 4. Mira stellt den Vorschlag zu, im selben Raum oder Chat: kurz, was beobachtet wird und wann sie sich meldet, und „Soll ich so vorgehen?“.
 5. Bei Ja speichert die Integration die Automation (`mira/automation/save`), mit Label „Mira“. Mira merkt sich die ID.
 
+**Wo und von wem** (seit 0.6.17): Der Entwurf erfährt, an welchem Satelliten der Auftrag kam (Bereich, Satellit) und wer gesprochen hat, wenn Mira es weiß (Telegram, HA-App, allein zu Hause). So lösen sich „hier“ und „ich“ auf, und das Gedächtnis dieser Person geht mit. Die Person wird **Besitzer** der Aufgabe: Der Code trägt sie als `owner` in jedes `mira.assess` und `mira.decide` ein, und jedes Urteil sieht dann auch ihr Gedächtnis.
+
 Weitere Werkzeuge:
 - `task_list`: Mira-Automationen aus HA, plus offene Vorschläge.
 - `task_delete`.

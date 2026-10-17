@@ -50,6 +50,8 @@ type Options struct {
 	Model, Planner Model
 	QuietHours     config.QuietHours
 	Persons        func() map[string]config.Person
+	// Satellites maps an area to its satellite, for where a task was asked.
+	Satellites func() map[string]string
 	// HAURL is how Mira reaches Home Assistant. Links into its editor use
 	// the URL Home Assistant has configured for itself, this only without.
 	HAURL string
@@ -118,7 +120,14 @@ func (e ErrCannot) Error() string { return e.Reason }
 // thread collected, and has Home Assistant check it. A refused draft is
 // made once more with the reason. The planner may instead ask back
 // (errQuestion) or say the house cannot do it (errCannot).
-func (m *Manager) DraftAutomation(ctx context.Context, request string, fields map[string]string) (Draft, error) {
+// Origin is where and from whom a task came: the area of the satellite it
+// was asked at, and the person when Mira knew who spoke. Either may be
+// empty.
+type Origin struct {
+	Area, Person string
+}
+
+func (m *Manager) DraftAutomation(ctx context.Context, request string, fields map[string]string, from Origin) (Draft, error) {
 	states, err := m.opts.Source.States(ctx)
 	if err != nil {
 		return Draft{}, err
@@ -126,7 +135,8 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 	goal := strings.TrimSpace(request)
 	// What Mira knows may hold the measure the request leaves open: with it
 	// the planner builds a fixed condition instead of asking back.
-	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal}))
+	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
+	instruction += m.originText(from)
 	instruction += m.fieldsText(fields)
 	t := m.texts()
 	var d Draft
@@ -155,8 +165,64 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 		m.log.Info("draft refused, drafting again", "error", err)
 		instruction += fmt.Sprintf(t.redraft, err.Error())
 	}
-	m.log.Info("automation drafted", "title", d.Title)
+	// A person's task judges with their memory: the owner is set here, not
+	// left to the model.
+	if from.Person != "" {
+		setOwner(d.Automation, from.Person)
+	}
+	m.log.Info("automation drafted", "title", d.Title, "area", from.Area, "person", from.Person)
 	return d, nil
+}
+
+// originText tells the planner where and from whom the task came, so "here"
+// and "me" resolve.
+func (m *Manager) originText(from Origin) string {
+	t := m.texts()
+	var b strings.Builder
+	if from.Area != "" {
+		name := m.opts.Snapshot().AreaNames[from.Area]
+		if name == "" {
+			name = from.Area
+		}
+		sat := ""
+		if m.opts.Satellites != nil {
+			sat = m.opts.Satellites()[from.Area]
+		}
+		fmt.Fprintf(&b, t.draftArea, name, from.Area, sat)
+	}
+	if from.Person != "" {
+		name := from.Person
+		if m.opts.Persons != nil {
+			if p, ok := m.opts.Persons()[from.Person]; ok && p.Name != "" {
+				name = p.Name
+			}
+		}
+		fmt.Fprintf(&b, t.draftPerson, name)
+	}
+	return b.String()
+}
+
+// setOwner makes every mira.assess and mira.decide in an automation judge
+// for the person, wherever it sits (also inside choose or if).
+func setOwner(node any, person string) {
+	switch v := node.(type) {
+	case map[string]any:
+		if a, _ := v["action"].(string); a == "mira.assess" || a == "mira.decide" {
+			data, _ := v["data"].(map[string]any)
+			if data == nil {
+				data = map[string]any{}
+				v["data"] = data
+			}
+			data["owner"] = person
+		}
+		for _, child := range v {
+			setOwner(child, person)
+		}
+	case []any:
+		for _, child := range v {
+			setOwner(child, person)
+		}
+	}
 }
 
 // fieldsText renders a thread's fields for the planner.

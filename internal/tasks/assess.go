@@ -264,21 +264,32 @@ func (m *Manager) memory(ctx context.Context, r Request) string {
 		return ""
 	}
 	var parts []string
-	if profile, _, err := m.opts.Store.Profile(ctx, store.OwnerHouse); err == nil && strings.TrimSpace(profile) != "" {
-		parts = append(parts, strings.TrimSpace(profile))
+	for _, owner := range []string{store.OwnerHouse, r.Owner} {
+		if owner == "" {
+			continue
+		}
+		if profile, _, err := m.opts.Store.Profile(ctx, owner); err == nil && strings.TrimSpace(profile) != "" {
+			parts = append(parts, strings.TrimSpace(profile))
+		}
 	}
 	if mode == memoryRelevant {
 		// A household has few facts, and the full-text search only matches
 		// whole words ("Wasserverbrauch" misses "Wasser"): while they are
-		// few, all go along; beyond that the best matches. Tasks belong to
-		// the house for now, so only its memory goes along.
-		facts, err := m.opts.Store.AllFacts(ctx, store.OwnerHouse)
-		if err == nil && len(facts) > allFactsUpTo {
-			facts, err = m.opts.Store.SearchFacts(ctx, r.Goal+" "+r.Question+" "+r.Observation, []string{store.OwnerHouse}, maxFacts)
+		// few, all go along; beyond that the best matches. A person's task
+		// also takes that person's memory.
+		owners := []string{store.OwnerHouse}
+		if r.Owner != "" {
+			owners = append(owners, r.Owner)
 		}
-		if err == nil {
-			for _, f := range facts {
-				parts = append(parts, "- "+f.Text)
+		for _, owner := range owners {
+			facts, err := m.opts.Store.AllFacts(ctx, owner)
+			if err == nil && len(facts) > allFactsUpTo {
+				facts, err = m.opts.Store.SearchFacts(ctx, r.Goal+" "+r.Question+" "+r.Observation, []string{owner}, maxFacts)
+			}
+			if err == nil {
+				for _, f := range facts {
+					parts = append(parts, "- "+f.Text)
+				}
 			}
 		}
 	}

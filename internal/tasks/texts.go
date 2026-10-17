@@ -20,7 +20,7 @@ type texts struct {
 	earlierDecide, earlierQuiet, earlierSaid      string
 	// Drafting.
 	draftSystem, draftIntro, draftRules, redraft                           string
-	draftFields                                                            string
+	draftFields, draftArea, draftPerson                                    string
 	draftForbidden, alsoSwitches                                           string
 	conditionsAre, judgesItself, noCondition                               string
 	condBetween, condAfter, condBefore, condAbove, condBelow, condTemplate string
@@ -173,6 +173,8 @@ JSON-Objekt:
 		draftRules:      draftRulesDE,
 		redraft:         "\n\nDein letzter Entwurf wurde abgelehnt: %s. Mach einen neuen, der das behebt.",
 		draftFields:     "\n\nWas im Gespräch dazu geklärt ist (hat Vorrang vor deinen Annahmen):",
+		draftArea:       "\n\nDer Auftrag kam am Satelliten im Bereich %s (%s, Satellit %s). „Hier“ heißt dieser Bereich.",
+		draftPerson:     "\n\nGesprochen hat %s. „Ich“, „mich“ und „mir“ meinen diese Person; was Mira über sie weiß, steht oben mit.",
 		draftForbidden:  "nichts weiter",
 		alsoSwitches:    "Dabei schaltet sie außerdem: %s.",
 		conditionsAre:   "Bedingung: %s.",
@@ -252,6 +254,8 @@ JSON object:
 		draftRules:      draftRulesEN,
 		redraft:         "\n\nYour last draft was refused: %s. Make a new one that fixes it.",
 		draftFields:     "\n\nWhat the conversation settled (takes precedence over your assumptions):",
+		draftArea:       "\n\nThe task came at the satellite in the area %s (%s, satellite %s). \"Here\" means this area.",
+		draftPerson:     "\n\n%s was speaking. \"I\", \"me\" and \"my\" mean this person; what Mira knows about them is included above.",
 		draftForbidden:  "nothing else",
 		alsoSwitches:    "It also switches: %s.",
 		conditionsAre:   "Condition: %s.",
