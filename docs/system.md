@@ -137,6 +137,7 @@ Wichtig:
   Welche Sprache Mira wann spricht: [Sprache](spec/sprache.md).
   Skills, die eine HA-Aktion aufrufen (z. B. Wecker): [Skill-Aktionen](spec/skill-aktionen.md).
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
+  Weitere Werkzeuge und Skills (Verlauf, Wetter, Musik, Kamera, Listen): [Plan](spec/skills-plan.md).
 - **Schutz gegen unbelegte Antworten.** Kündigt das Modell eine Aktion nur
   an, meldet es etwas als erledigt oder nennt es Messwerte und Zustände,
   ohne ein Werkzeug aufgerufen zu haben, muss es nachholen. Sonst ersetzt
