@@ -26,6 +26,18 @@ Ein Richter-Modell für Ebene 3 gibt es vorerst nicht.
 
 Das Ergebnis je Szenario und Setup ist die Quote, nicht ein einzelnes Ja oder Nein.
 
+## Zeit
+
+Ist Mira zu langsam, ist sie nicht benutzbar. Die Zeit gehört deshalb ins Ergebnis, und zwar so:
+
+- **Hart, entscheidet mit:** die Grenze, ab der es beim Nutzer kaputt ist. Bei Sprache ist das das Antwort-Timeout der Integration (Standard 15 s): Danach sagt der Satellit eine Fehlermeldung. Bei Telegram sind es 60 s. Ein Schritt darüber gilt als **nicht bestanden**, egal was danach in HA steht. Die Grenzen kommen aus der Konfiguration, nicht aus dem Szenario.
+- **Weich, wird ausgewiesen:** je Schritt Median und Maximum der Antwortzeit über die 3 Durchläufe. Bei Sprache eingestuft als **gut** (bis 3 s), **brauchbar** (bis 8 s) oder **langsam** (darüber).
+- **Aufgeteilt:** wie viel davon auf das Modell entfiel (Runden, Tokens) und wie viel auf Werkzeuge und HA, aus dem Protokoll des Agenten.
+- **Hintergrund gesondert:** Was im Hintergrund läuft (der Entwurf einer Aufgabe), wird als Zeit bis zum Vorschlag gemessen und zählt nicht zur Antwortzeit.
+- **Ausnahme:** Eine eigene Grenze im Szenario (`max_seconds` an einem Schritt) gibt es nur selten, etwa für eine Websuche.
+
+**Warmup:** Der Runner wartet, bis das Warmup des Agenten fertig ist, und schickt dann je Kanal einen Turn, der nicht zählt. So liegt der feste Anfang des Prompts bei einem lokalen Modell im Cache. Erst danach wird gemessen. Alle 3 Durchläufe zählen; ist der erste langsamer, soll man das sehen.
+
 ## Szenarien
 
 Eine YAML-Datei je Szenario in `evals/scenarios/`:
@@ -71,7 +83,7 @@ go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario term
 
 - Der Lauf startet **einen eigenen Agenten** mit der Test-Konfiguration, dem Setup und einer frischen Datenbank. Das ist nicht die laufende Test-Mira, damit nichts von vorher hineinwirkt.
 - Er schickt die Schritte an `/v1/conversation`, wie es die Integration tut. Dann prüft er Ergebnis und Ablauf: den Ablauf aus einem Protokoll, das der Agent im Eval-Betrieb je Turn schreibt (Werkzeugaufrufe, Vorgänge, Aktionen).
-- Er misst je Szenario Dauer, Tokens und, wo der Anbieter Preise hat, die Kosten.
+- Er misst je Schritt die Antwortzeit (siehe „Zeit“), je Szenario Tokens und, wo der Anbieter Preise hat, die Kosten.
 
 ## Ergebnisse im Repo
 
