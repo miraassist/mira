@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Recordings of the guide come from their own server: it does not learn where they are watched. -->
+<meta name="referrer" content="no-referrer">
 <title>Mira</title>
 <link rel="icon" type="image/png" href="/ui/icon.png">
 <style>
@@ -1258,7 +1260,7 @@ function markdown(md) {
     if (line.startsWith("```")) { flush(); code = []; continue; }
     if (!line.trim()) { flush(); continue; }
     if ((m = line.match(/^(#{1,3})\s+(.*)/))) { flush(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
-    if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
+    if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+|https:\/\/[^\s)]+\.(?:mp4|webm))\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
     if ((m = line.match(/^>\s?(.*)/))) { if (!quote.length) flush(); quote.push(m[1]); continue; }
     if (line.startsWith("|")) { if (!table) { flush(); table = []; } table.push(line); continue; }
     if ((m = line.match(/^\s*[-*]\s+(.*)/))) { item("ul", m[1]); continue; }
@@ -1270,10 +1272,12 @@ function markdown(md) {
   return out.join("\n");
 }
 // media shows a picture or a recording of the guide with its caption.
+// Pictures come with the agent; recordings live on their own server
+// (docs/guide/img/README.md), fetched without a referer (meta above).
 function media(alt, src) {
-  const file = url("/ui/guide/" + src);
+  const file = src.startsWith("https://") ? src : url("/ui/guide/" + src);
   const body = /\.(mp4|webm)$/.test(src)
-    ? `<video controls preload="metadata" src="${esc(file)}"></video>`
+    ? `<video controls playsinline preload="metadata" src="${esc(file)}"></video>`
     : `<a href="${esc(file)}" target="_blank" rel="noopener"><img src="${esc(file)}" alt="${esc(alt)}" loading="lazy"></a>`;
   return `<figure>${body}${alt ? `<figcaption>${inline(alt)}</figcaption>` : ""}</figure>`;
 }

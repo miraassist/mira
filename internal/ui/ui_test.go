@@ -169,6 +169,24 @@ func TestGuideIsPublic(t *testing.T) {
 	}
 }
 
+// Recordings of the guide come from their own server over https; the page
+// lets the browser load them and sends no referer.
+func TestPageAllowsRecordingsFromTheirServer(t *testing.T) {
+	srv, _, _ := setup(t)
+	resp, err := http.Get(srv.URL + "/ui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "media-src 'self' https:") {
+		t.Errorf("CSP = %q", csp)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `<meta name="referrer" content="no-referrer">`) {
+		t.Error("the page sends a referer")
+	}
+}
+
 // asHA calls like the Home Assistant integration's proxy does: with the
 // token and the signed-in HA user.
 func asHA(t *testing.T, srv *httptest.Server, method, path, user string, admin bool, body string) (int, string) {
