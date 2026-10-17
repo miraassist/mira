@@ -55,10 +55,13 @@ type Config interface {
 }
 
 type Options struct {
-	Token    string
-	Sections []string
-	Config   Config
-	Store    *store.Store
+	// SetExposed keeps what Home Assistant exposes to Assist, as the
+	// integration sends it.
+	SetExposed func(ctx context.Context, ids []string) error
+	Token      string
+	Sections   []string
+	Config     Config
+	Store      *store.Store
 	// Entities lists Home Assistant entities for autocompletion.
 	Entities func() []Entity
 	// CompactProfile rebuilds the profile now.

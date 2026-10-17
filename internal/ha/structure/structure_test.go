@@ -224,6 +224,28 @@ func TestRebuildSurvivesMissingExposureList(t *testing.T) {
 	}
 }
 
+// What the integration sent is what Mira sees, even though Home
+// Assistant does not give the list to a user who is no admin.
+func TestExposureFromTheIntegration(t *testing.T) {
+	src := &fakeSource{exposeEr: errors.New("unauthorized")}
+	src.set(sampleRegistry())
+	var first string
+	for _, e := range sampleRegistry().Entities {
+		first = e.EntityID
+		break
+	}
+	c := NewCache(Options{Source: src, Exposed: func(context.Context) (map[string]bool, bool) {
+		return map[string]bool{first: true}, true
+	}})
+	if _, err := c.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	snap := c.Snapshot()
+	if !snap.ExposureKnown || len(snap.ExposedEntities) != 1 || !snap.ExposedEntities[first] {
+		t.Errorf("exposed = %v, known %v", snap.ExposedEntities, snap.ExposureKnown)
+	}
+}
+
 func TestRegistryEventsAreDebounced(t *testing.T) {
 	src := &fakeSource{}
 	src.set(sampleRegistry())

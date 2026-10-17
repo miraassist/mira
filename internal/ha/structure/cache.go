@@ -45,6 +45,10 @@ type Options struct {
 	// produces identical bytes does not call it: the prompt cache is still
 	// valid and there is nothing to warm up.
 	OnChange func(Snapshot)
+	// Exposed, when it knows, is what Home Assistant exposes to Assist as
+	// the Mira integration sent it (docs/spec/ha-anbindung.md). It comes
+	// before asking Home Assistant, which only answers admins.
+	Exposed func(ctx context.Context) (map[string]bool, bool)
 }
 
 // Cache holds the current structure snapshot and keeps it up to date.
@@ -55,6 +59,7 @@ type Cache struct {
 	debounce time.Duration
 	log      *slog.Logger
 	onChange func(Snapshot)
+	exposed  func(ctx context.Context) (map[string]bool, bool)
 
 	mu   sync.RWMutex
 	snap Snapshot
@@ -76,6 +81,7 @@ func NewCache(opts Options) *Cache {
 		sub:      opts.Subscriber,
 		debounce: opts.Debounce,
 		log:      opts.Logger.With("component", "ha-structure"),
+		exposed:  opts.Exposed,
 		onChange: opts.OnChange,
 		dirty:    make(chan struct{}, 1),
 	}
@@ -104,12 +110,19 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	exposed, err := c.src.ExposedEntities(ctx)
-	if err != nil {
-		// Not fatal: Build falls back to the registry options, and the
-		// snapshot records that exposure is unknown.
-		c.log.Warn("could not read the exposure list, falling back to entity options", "error", err)
-		exposed = nil
+	var exposed map[string]bool
+	known := false
+	if c.exposed != nil {
+		exposed, known = c.exposed(ctx)
+	}
+	if !known {
+		exposed, err = c.src.ExposedEntities(ctx)
+		if err != nil {
+			// Not fatal: Build falls back to the registry options, and the
+			// snapshot records that exposure is unknown.
+			c.log.Warn("could not read the exposure list, falling back to entity options", "error", err)
+			exposed = nil
+		}
 	}
 
 	snap := Build(Registry{Lang: c.lang, Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -194,7 +195,15 @@ def build_config(
             continue
         if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
             rooms[area] = room_to_agent(area, entry.entity_id, {})
-    return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)]}
+    return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)], "exposed": exposed_entities(hass)}
+
+
+def exposed_entities(hass: HomeAssistant) -> list[str]:
+    """What Home Assistant exposes to Assist, decided the way it does
+    itself. The agent's own user may not read that list (it is no admin), so
+    the integration hands it over: it is the line for everything Mira reads
+    by herself (docs/spec/ha-anbindung.md)."""
+    return sorted(e for e in hass.states.async_entity_ids() if async_should_expose(hass, "conversation", e))
 
 
 def normalize_person(data: dict[str, Any]) -> dict[str, Any]:

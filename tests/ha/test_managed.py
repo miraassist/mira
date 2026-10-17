@@ -296,3 +296,22 @@ async def test_compact_button(hass, aioclient_mock, entry):
     await hass.async_block_till_done()
     await hass.services.async_call("button", "press", {"entity_id": "button.mira_compact_profile"}, blocking=True)
     assert str(aioclient_mock.mock_calls[-1][1]).endswith("/v1/ui/memory/compact")
+
+
+async def test_exposed_entities_reach_the_agent(hass, aioclient_mock, entry):
+    """The agent's user may not read what Assist sees; the integration
+    sends it along, and again when it changes."""
+    from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
+
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    hass.states.async_set("calendar.familie", "off", {"friendly_name": "Familie"})
+    hass.states.async_set("calendar.geheim", "off", {"friendly_name": "Geheim"})
+    async_expose_entity(hass, "conversation", "calendar.familie", True)
+    async_expose_entity(hass, "conversation", "calendar.geheim", False)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    exposed = _puts(aioclient_mock)[-1]["exposed"]
+    assert "calendar.familie" in exposed and "calendar.geheim" not in exposed
+    async_expose_entity(hass, "conversation", "calendar.geheim", True)
+    await hass.async_block_till_done()
+    assert "calendar.geheim" in _puts(aioclient_mock)[-1]["exposed"]

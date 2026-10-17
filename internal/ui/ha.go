@@ -39,6 +39,9 @@ type haConfig struct {
 	Persons json.RawMessage `json:"persons"`
 	Rooms   []Room          `json:"rooms"`
 	Managed bool            `json:"managed"`
+	// Exposed is what Home Assistant exposes to Assist; nil from an older
+	// integration.
+	Exposed []string `json:"exposed,omitempty"`
 }
 
 type morningTrigger struct {
@@ -153,7 +156,13 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.log.Info("config changed by Home Assistant", "rooms", len(in.Rooms))
+	if in.Exposed != nil && h.opts.SetExposed != nil {
+		if err := h.opts.SetExposed(r.Context(), in.Exposed); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	h.log.Info("config changed by Home Assistant", "rooms", len(in.Rooms), "exposed", len(in.Exposed))
 	h.getHA(w, r)
 }
 

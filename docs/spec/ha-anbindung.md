@@ -37,6 +37,15 @@ Fast alles, was heute ein „Raum“ ist, ist eine Eigenschaft des Satelliten:
 - Die Unter-Einträge „Raum“ der Integration entfallen. Bereiche selbst lassen sich in HA nicht dekorieren (die Bereichs-Registry hat keine Optionen); auch deshalb ist der Satellit der Anker.
 - Ohne Integration bleibt alles in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `indicators`); `presence` darf dort eine Entität oder eine Liste sein.
 
+## Was Mira sieht: die Freigabe für Assist
+
+Was Mira sehen darf, bestimmt HAs „Für Assist freigeben“. HAs eigene Werkzeuge über MCP halten das selbst ein. Miras eigene Teile sprechen HA aber direkt an und müssen dieselbe Grenze einhalten: Kalender lesen, die Prüfungen von Kalender und Liste, der Katalog für Aufgaben-Entwürfe, der eigene Strukturblock und der Wächter.
+
+- **Die Integration liefert die Liste.** Bei jedem Abgleich (`PUT /v1/ui/ha`) schickt sie neben Personen und Satelliten `exposed`: die IDs aller Entitäten, die HA für Assist freigibt. Sie bestimmt das wie HA selbst (`async_should_expose`). Ändert sich eine Freigabe, schickt sie neu.
+- **Der Agent merkt sich die Liste** dauerhaft und nimmt sie als maßgeblich.
+- **Ohne Integration** fragt der Agent HAs Freigabeliste selbst ab. Das geht nur mit Admin-Rechten, die Miras Benutzer bewusst nicht hat. Danach weicht er auf die Optionen der Entitäts-Registry aus und zuletzt auf „alles“, mit Warnung im Log.
+- **Warum nicht aus dem ableiten, was Mira sieht:** HAs Assist-Prompt und `GetLiveContext` nennen nur Namen, keine IDs, und lassen Kalender ganz weg. Eine Grenze für den Datenschutz darf nicht auf Namen raten.
+
 ## Nachfragen vor dem Schalten
 
 Mira schaltet eine Entität erst nach ausdrücklichem „Ja“, wenn

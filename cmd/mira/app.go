@@ -305,7 +305,7 @@ func (a *app) startHA(ctx context.Context) error {
 	}
 	a.structure = structure.NewCache(structure.Options{
 		Lang:   a.lang,
-		Source: a.ha, Subscriber: a.ha,
+		Source: a.ha, Subscriber: a.ha, Exposed: a.exposed,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
 			if a.assist != nil {
@@ -781,6 +781,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
+		SetExposed: a.setExposed,
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))
 			for k := range a.persons() {

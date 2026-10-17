@@ -8,9 +8,10 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components.homeassistant.exposed_entities import async_listen_entity_updates
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -21,7 +22,7 @@ from .automations import async_register_commands
 from .const import CONF_AGENT_USER, CONF_IMPORTED, CONF_SIDEBAR, DOMAIN, VERSION
 from .coordinator import MiraCoordinator
 from .labels import ensure_labels
-from .managed import import_settings
+from .managed import build_config, import_settings
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
 
@@ -174,10 +175,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     # Telegram through Home Assistant's own integration (telegram.py).
     entry.async_on_unload(async_setup_telegram(hass, entry))
+    # A change of what Assist sees reaches the agent at once.
+    entry.async_on_unload(async_listen_entity_updates(hass, "conversation", lambda: _send_exposed(hass, entry)))
     if entry.options.get(CONF_SIDEBAR, True):
         async_register_panel(hass, "Mira")
         entry.async_on_unload(lambda: async_remove_panel(hass))
     return True
+
+
+@callback
+def _send_exposed(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
+    """Sends the settings again, with what Assist now sees. Only while the
+    integration manages them (after the first import)."""
+    if not entry.data.get(CONF_IMPORTED):
+        return
+
+    async def send() -> None:
+        try:
+            await entry.runtime_data.client.set_managed_config(build_config(hass, entry))
+        except (MiraError, ValueError) as err:
+            _LOGGER.warning("Could not tell the agent what Assist sees: %s", err)
+
+    hass.async_create_task(send())
 
 
 async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> dict[str, Any]:
