@@ -1,4 +1,4 @@
-[![Mira](https://raw.githubusercontent.com/miraassist/mira/main/docs/brand/mira-logo.png)](https://mira-assist.com)
+[![Mira](https://raw.githubusercontent.com/miraassist/mira/main/docs/brand/mira-logo-small.png)](https://mira-assist.com)
 
 **Website: [mira-assist.com](https://mira-assist.com)**
 
