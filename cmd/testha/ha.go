@@ -40,10 +40,41 @@ func loadEnv(dir string) env {
 	s := bufio.NewScanner(f)
 	for s.Scan() {
 		if k, v, ok := strings.Cut(s.Text(), "="); ok && !strings.HasPrefix(k, "#") {
-			e[strings.TrimSpace(k)] = strings.TrimSpace(v)
+			e[strings.TrimSpace(k)] = unquoteEnv(strings.TrimSpace(v))
 		}
 	}
 	return e
+}
+
+// unquoteEnv takes the quotes off a value written for the shell, which also
+// reads this file (`set -a; . testenv/.env`).
+func unquoteEnv(v string) string {
+	if len(v) >= 2 && v[0] == '\'' && v[len(v)-1] == '\'' {
+		return v[1 : len(v)-1]
+	}
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		return strings.NewReplacer(`\"`, `"`, `\\`, `\`, `\$`, `$`, "\\`", "`").Replace(v[1 : len(v)-1])
+	}
+	return v
+}
+
+// quoteEnv writes a value so the shell reads it back as it is: as it is when
+// it holds nothing special, else in quotes.
+func quoteEnv(v string) string {
+	safe := true
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_@%+=:,./-", r)) {
+			safe = false
+			break
+		}
+	}
+	switch {
+	case safe:
+		return v
+	case !strings.Contains(v, "'"):
+		return "'" + v + "'"
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`, "`", "\\`").Replace(v) + `"`
 }
 
 func (e env) save(dir string) error {
@@ -55,7 +86,7 @@ func (e env) save(dir string) error {
 	var b strings.Builder
 	b.WriteString("# Written by `go run ./cmd/testha up`. Test-only secrets; not in git.\n")
 	for _, k := range keys {
-		fmt.Fprintf(&b, "%s=%s\n", k, e[k])
+		fmt.Fprintf(&b, "%s=%s\n", k, quoteEnv(e[k]))
 	}
 	return os.WriteFile(filepath.Join(dir, ".env"), []byte(b.String()), 0o600)
 }
