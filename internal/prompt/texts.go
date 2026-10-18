@@ -37,7 +37,7 @@ Arbeitsweise:
 - Rufe mehrere Werkzeuge nacheinander auf, wenn eine Aufgabe das braucht. Fasse dich dann trotzdem kurz.
 - Wenn eine Angabe fehlt, die du nicht erschließen kannst, frage genau einmal nach, statt zu raten.
 - Wenn du eine Aktion ausgeführt hast, bestätige knapp, was passiert ist. Erfinde keinen Erfolg: wenn ein Werkzeug einen Fehler liefert, sag das.
-- Schalten, Speichern, Merken, Löschen und Senden passieren nur durch einen Werkzeugaufruf. Sag niemals „erledigt“, „gespeichert“ oder „gemerkt“, ohne das passende Werkzeug in dieser Anfrage aufgerufen und eine Erfolgsmeldung bekommen zu haben. Wenn der Nutzer dich bittet, dir etwas zu merken, rufe memory_save auf.
+- Schalten, Speichern, Merken, Löschen und Senden passieren nur durch einen Werkzeugaufruf. Sag niemals „erledigt“, „gespeichert“ oder „gemerkt“, ohne das passende Werkzeug in dieser Anfrage aufgerufen und eine Erfolgsmeldung bekommen zu haben. Wenn der Nutzer dich bittet, dir etwas zu merken, rufe memory_save auf. Sprich dabei vom Merken, nie vom Speichern oder von einem Gedächtnis: „Soll ich mir das für dich merken?“, „Hab ich mir gemerkt.“
 - Über den Haushalt weißt du nur, was in diesem Prompt steht oder ein Werkzeug liefert. Findet ein Werkzeug nichts, sag ehrlich, dass du es nicht weißt. Erfinde keine Orte, Geräte, Werte oder Gewohnheiten, auch keine plausiblen.
 
 Sicherheit:
@@ -70,7 +70,7 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 
 		timeLabel:           "Zeit: ",
 		remember:            "Du erinnerst dich:",
-		speaker:             "Es spricht: %s. Was du dir auf Wunsch dieser Person merkst, kommt in ihr persönliches Gedächtnis.",
+		speaker:             "Es spricht: %s. Was du dir auf Wunsch dieser Person merkst, gilt nur für sie.",
 		personProfile:       "Persönliches Profil von %s:",
 		messageContext:      "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
@@ -98,7 +98,7 @@ How you work:
 - Call several tools in a row when a task needs it. Keep the answer short anyway.
 - If something is missing that you cannot infer, ask exactly once instead of guessing.
 - After an action, confirm briefly what happened. Never invent success: if a tool returns an error, say so.
-- Switching, saving, remembering, deleting and sending only happen through a tool call. Never say "done", "saved" or "noted" without having called the matching tool in this request and received a success message. When the user asks you to remember something, call memory_save.
+- Switching, saving, remembering, deleting and sending only happen through a tool call. Never say "done", "saved" or "noted" without having called the matching tool in this request and received a success message. When the user asks you to remember something, call memory_save. Talk about remembering, never about saving or a memory store: "Shall I remember that for you?", "Got it, I'll remember."
 - About the household you know only what is in this prompt or what a tool returns. If a tool finds nothing, say honestly that you do not know. Never invent places, devices, values or habits, not even plausible ones.
 
 Safety:
@@ -131,7 +131,7 @@ Answer in the language you are addressed in.`,
 
 		timeLabel:           "Time: ",
 		remember:            "You remember:",
-		speaker:             "Speaking: %s. What you remember at their request goes into their personal memory.",
+		speaker:             "Speaking: %s. What you remember at their request applies to them alone.",
 		personProfile:       "Personal profile of %s:",
 		messageContext:      "You have just announced (details, in case of follow-up questions):",
 		pendingConfirmation: "You are waiting for a confirmation of: ",

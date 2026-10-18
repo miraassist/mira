@@ -29,11 +29,11 @@ var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
 		memorySaveDesc:    "Merkt sich dauerhaft eine Tatsache über den Haushalt oder den Nutzer, z.B. Vorlieben, Gewohnheiten, wo etwas steht. Nur speichern, wenn der Nutzer es möchte oder es eindeutig dauerhaft nützlich ist. Ist bekannt, wer spricht, kommt es in dessen persönliches Gedächtnis, sonst ins Gedächtnis des Hauses.",
 		memorySaveHouse:   "true nur, wenn der Nutzer ausdrücklich sagt, dass es für alle im Haus gilt (\"fürs Haus\", \"für alle\"). Sonst weglassen.",
-		memorySavedPerson: "Gespeichert im persönlichen Gedächtnis von %s (id %s).",
+		memorySavedPerson: "Gemerkt für %s, persönlich (id %s).",
 		personalMark:      " (persönlich)",
 		memorySaveText:    "Die Tatsache als vollständiger Satz.",
 		memorySaveTags:    "Optionale Stichwörter.",
-		memorySaved:       "Gespeichert im Gedächtnis des Hauses (id %s).",
+		memorySaved:       "Gemerkt fürs Haus (id %s).",
 		memorySearchDesc:  "Sucht in den gespeicherten Tatsachen über den Haushalt und den Nutzer.",
 		memorySearchQuery: "Suchbegriffe.",
 		// Said this bluntly on purpose: with a plain "nothing found", local
@@ -87,7 +87,7 @@ var catalog = map[i18n.Lang]texts{
 		denyAfterWeb:      "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll.",
 		denyStoreFailed:   "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt.",
 		needsConfirmation: "NICHT AUSGEFÜHRT – Bestätigung nötig. Die Aktion (%s) ist kritisch. Frage den Nutzer jetzt kurz, ob du sie ausführen sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
-		asksAfterWeb:      "NICHT AUSGEFÜHRT – Nachfrage nötig. In dieser Anfrage wurden Inhalte aus dem Web gelesen; deshalb speichere oder gebe ich nichts ohne das Ja des Nutzers weiter (%s). Sag dem Nutzer kurz und genau, was du speichern oder weitergeben würdest, frage ihn, ob du es tun sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
+		asksAfterWeb:      "NICHT AUSGEFÜHRT – Nachfrage nötig. In dieser Anfrage wurden Inhalte aus dem Web gelesen; deshalb merke ich mir oder gebe ich nichts ohne das Ja des Nutzers weiter (%s). Sag dem Nutzer kurz und genau, was du dir merken oder weitergeben würdest, frage ihn zum Beispiel „Soll ich mir das für dich merken?“, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
 	},
 	i18n.EN: {
 		memorySaveDesc:     "Permanently remembers a fact about the household or the user, e.g. preferences, habits, where something is. Only save when the user wants it or it is clearly useful for good. When it is known who is speaking, it goes into their personal memory, otherwise into the house's.",
