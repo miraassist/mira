@@ -87,7 +87,7 @@ flowchart LR
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
 | `internal/tasks` | Aufgaben: Urteile (`assess`, `decide`), Datenansichten, Entwurf und Verwaltung der Automationen, Werkzeuge |
 | `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeigen (LED-Ring, Bildschirm); Erinnerungen |
-| `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender |
+| `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender. Ein Skill, der nicht starten kann, wird ausgelassen und mit lesbarem Grund im Log und in `/v1/status` (`problems`) gemeldet; die Integration zeigt ihn als Reparatur in HA |
 | `internal/calendar`, `internal/timeline` | Kalender aus Home Assistant lesen und ändern; die gemeinsame Darstellung der Zeitachse |
 | `internal/feeds` | Feeds (RSS/Atom) lesen |
 | `internal/store` | SQLite: Sitzungen, Verläufe, Nachrichten, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |

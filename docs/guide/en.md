@@ -136,6 +136,63 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
+## Creating your own skill
+
+A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules. A skill runs no program code; it only tells Mira what to do, when and with what, using the tools she already has (reading calendars, messages, controlling the house and so on).
+
+**1. Create the folder.** Skills live in the skills directory, `skills/` next to Mira by default. Create a folder there. Its name is the skill's name: lower-case words with hyphens, such as `plants`. If Mira runs in a container, mount a folder of your own as a volume and add it under `skills.dirs` in `mira.yaml`. The skills that come with Mira stay available.
+
+**2. Write `SKILL.md`.** The file begins with a header between two lines of `---`, followed by the instructions as text:
+
+- `name`: exactly the folder's name.
+- `description`: one sentence on when the skill is needed. That is all Mira sees until she opens the skill; a good sentence makes her open it at the right time.
+- Optionally under `metadata:` → `mira:`:
+  - `settings`: values every household fills in itself, each with a `description` (it also appears in error messages) and `required: true` if the skill cannot work without it.
+  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house.
+- The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`.
+
+**3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled conversation skills for tasks, remembering, appointments, to-dos and alarms switch themselves on.
+
+**Example: watering plants.** The folder `skills/plants` holds the file `SKILL.md`:
+
+```markdown
+---
+name: plants
+description: Which plants need watering when; reminds on Sundays.
+metadata:
+  mira:
+    settings:
+      plants:
+        description: The plants with their rhythm, for example "fern every Sunday, cactus on the first Sunday of the month".
+        required: true
+    schedules:
+      - cron: "0 10 * * 0"
+        task: >-
+          Today is Sunday. Which of these plants need watering today: {{plants}}?
+          If none: importance 0 and spoken empty. Otherwise: importance 1, and spoken
+          says briefly what needs watering.
+---
+# Watering plants
+
+The household's plants and their rhythm: {{plants}}
+
+If someone asks when something needs watering, answer from this list and do
+not guess. If a plant is not in the list, say so honestly.
+```
+
+In `mira.yaml` you switch it on:
+
+```yaml
+skills:
+  enabled:
+    plants:
+      plants: "fern every Sunday, cactus on the first Sunday of the month"
+```
+
+Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with `mira skill plants`.
+
+**When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.enabled". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
+
 ## Calendars and lists
 
 Mira uses the calendars and to-do lists from Home Assistant that are exposed to Assist (Settings → Voice assistants → Expose entities). Several calendars are no problem.

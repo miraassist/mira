@@ -18,11 +18,11 @@ const abfallCalendar = "calendar.abfuhrtermine"
 
 func loadAbfall(t *testing.T, url string) Skill {
 	t.Helper()
-	list, err := Load([]string{"testdata/skills"}, map[string]map[string]any{
+	list, problems := Load([]string{"testdata/skills"}, map[string]map[string]any{
 		"abfall": {"calendar": url, "types": []any{"Restabfall", "Wertstoff"}},
 	})
-	if err != nil || len(list) != 1 {
-		t.Fatalf("load: %v %v", list, err)
+	if len(problems) != 0 || len(list) != 1 {
+		t.Fatalf("load: %v %v", list, problems)
 	}
 	return list[0]
 }
@@ -36,17 +36,48 @@ func TestLoad(t *testing.T) {
 		t.Errorf("settings not filled in: %s", sk.Body)
 	}
 
-	for name, settings := range map[string]map[string]any{
-		"abfall": {}, // required setting missing
-		"kaputt": {}, // name does not match the folder
-		"fehlt":  {}, // no such skill
+	// A skill that cannot start is left out with a reason the user can read;
+	// the others still load.
+	for name, c := range map[string]struct {
+		settings map[string]any
+		want     string
+	}{
+		"abfall": {map[string]any{}, "Die Einstellung „calendar“ fehlt in der mira.yaml"},
+		"kaputt": {nil, "muss genauso heißen wie der Ordner"},
+		"fehlt":  {nil, "Es gibt keinen Ordner „fehlt“"},
 	} {
-		if _, err := Load([]string{"testdata/skills"}, map[string]map[string]any{name: settings}); err == nil {
-			t.Errorf("%s loaded", name)
+		list, problems := Load([]string{"testdata/skills"}, map[string]map[string]any{name: c.settings})
+		if len(list) != 0 || len(problems) != 1 || problems[0].Skill != name || !strings.Contains(problems[0].Text(i18n.DE), c.want) {
+			t.Errorf("%s: %v %+v", name, list, problems)
 		}
 	}
-	if _, err := Load([]string{"testdata/skills"}, map[string]map[string]any{"abfall": {"calendar": "x", "farbe": "blau"}}); err == nil {
-		t.Error("unknown setting accepted")
+	list, problems := Load([]string{"testdata/skills"}, map[string]map[string]any{
+		"abfall": {"calendar": "x", "farbe": "blau"}, "kaputt": nil})
+	if len(list) != 0 || len(problems) != 2 {
+		t.Fatalf("problems: %v %+v", list, problems)
+	}
+	if got := problems[0].Text(i18n.DE); !strings.Contains(got, "„farbe“") || !strings.Contains(got, "calendar, types") {
+		t.Errorf("unknown setting: %q", got)
+	}
+	if got := problems[0].Text(i18n.EN); !strings.Contains(got, `"farbe"`) {
+		t.Errorf("english: %q", got)
+	}
+	ok, bad := Load([]string{"testdata/skills"}, map[string]map[string]any{"abfall": {"calendar": "x"}, "kaputt": nil})
+	if len(ok) != 1 || len(bad) != 1 {
+		t.Errorf("one broken skill stopped the other: %v %v", ok, bad)
+	}
+}
+
+func TestProblemTextsComplete(t *testing.T) {
+	for _, l := range i18n.All {
+		if len(problemTexts[l]) != len(problemTexts[i18n.DE]) {
+			t.Errorf("%s has %d problem texts, de has %d", l, len(problemTexts[l]), len(problemTexts[i18n.DE]))
+		}
+		for kind, text := range problemTexts[l] {
+			if text == "" || problemTexts[i18n.DE][kind] == "" {
+				t.Errorf("%s: text for %s missing", l, kind)
+			}
+		}
 	}
 }
 
@@ -135,9 +166,9 @@ func TestTextsComplete(t *testing.T) {
 // The alarm clock finishes with a Home Assistant action and can take it
 // back; its days may stay empty.
 func TestWeckerFinishesWithAnAction(t *testing.T) {
-	list, err := Load([]string{"../../skills"}, map[string]map[string]any{"wecker": nil})
-	if err != nil || len(list) != 1 || list[0].Target == nil {
-		t.Fatalf("load: %v %v", list, err)
+	list, problems := Load([]string{"../../skills"}, map[string]map[string]any{"wecker": nil})
+	if len(problems) != 0 || len(list) != 1 || list[0].Target == nil {
+		t.Fatalf("load: %v %v", list, problems)
 	}
 	tg := list[0].Target
 	if tg.Finish.Name != FinishAction || tg.Finish.Action.Action != "esphome.{{ satellite.device }}_alarm_set" ||
@@ -146,5 +177,50 @@ func TestWeckerFinishesWithAnAction(t *testing.T) {
 	}
 	if !tg.Fields[1].Optional || tg.Fields[0].Optional {
 		t.Errorf("fields = %+v", tg.Fields)
+	}
+}
+
+// The example skill in the guides must load: what the guide shows is what
+// works.
+func TestGuideExampleLoads(t *testing.T) {
+	for file, c := range map[string]struct{ marker, name, setting string }{
+		"../../docs/guide/de.md": {"## Eigenen Skill erstellen", "blumen", "pflanzen"},
+		"../../docs/guide/en.md": {"## Creating your own skill", "plants", "plants"},
+	} {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(raw)
+		i := strings.Index(text, c.marker)
+		if i < 0 {
+			t.Fatalf("%s: section missing", file)
+		}
+		block := text[i:]
+		start := strings.Index(block, "```markdown\n")
+		end := strings.Index(block[start+12:], "```")
+		if start < 0 || end < 0 {
+			t.Fatalf("%s: no example", file)
+		}
+		dir := t.TempDir()
+		if err := os.Mkdir(filepath.Join(dir, c.name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, c.name, "SKILL.md"), []byte(block[start+12:start+12+end]), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		list, problems := Load([]string{dir}, map[string]map[string]any{c.name: {c.setting: "Farn jeden Sonntag"}})
+		if len(problems) != 0 || len(list) != 1 {
+			t.Fatalf("%s: %v %+v", file, list, problems)
+		}
+		sk := list[0]
+		if len(sk.Schedules) != 1 || !strings.Contains(sk.Schedules[0].Task, "Farn jeden Sonntag") || !strings.Contains(sk.Body, "Farn jeden Sonntag") {
+			t.Errorf("%s: setting not filled in: %+v", file, sk)
+		}
+		// Without the setting the skill does not start, and says which one.
+		_, problems = Load([]string{dir}, map[string]map[string]any{c.name: nil})
+		if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "„"+c.setting+"“") {
+			t.Errorf("%s: %+v", file, problems)
+		}
 	}
 }

@@ -15,7 +15,6 @@ package skills
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -155,10 +154,11 @@ var namePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // Load finds every enabled skill in dirs (the first folder of that name
 // wins) and checks it against its settings. A skill that is enabled but
-// missing or broken is an error: the user asked for it.
-func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, error) {
+// missing or broken is left out and comes back as a Problem: the agent must
+// start anyway, and the problem is shown to whoever enabled the skill.
+func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, []Problem) {
 	var out []Skill
-	var errs []error
+	var problems []Problem
 	names := make([]string, 0, len(enabled))
 	for n := range enabled {
 		names = append(names, n)
@@ -167,17 +167,18 @@ func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, error) {
 	for _, name := range names {
 		dir := find(dirs, name)
 		if dir == "" {
-			errs = append(errs, fmt.Errorf("skill %s: no folder %s/SKILL.md in %s", name, name, strings.Join(dirs, ", ")))
+			problems = append(problems, Problem{Skill: name, kind: "nofolder", args: []any{name, strings.Join(dirs, ", ")}})
 			continue
 		}
-		s, err := load(dir, enabled[name])
-		if err != nil {
-			errs = append(errs, fmt.Errorf("skill %s: %w", name, err))
+		s, p := load(dir, enabled[name])
+		if p != nil {
+			p.Skill = name
+			problems = append(problems, *p)
 			continue
 		}
 		out = append(out, s)
 	}
-	return out, errors.Join(errs...)
+	return out, problems
 }
 
 func find(dirs []string, name string) string {
@@ -190,24 +191,24 @@ func find(dirs []string, name string) string {
 	return ""
 }
 
-func load(dir string, values map[string]any) (Skill, error) {
+func load(dir string, values map[string]any) (Skill, *Problem) {
 	raw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
 	if err != nil {
-		return Skill{}, err
+		return Skill{}, problem("unreadable", err)
 	}
-	fm, body, err := split(raw)
-	if err != nil {
-		return Skill{}, err
+	fm, body, p := split(raw)
+	if p != nil {
+		return Skill{}, p
 	}
 	var meta frontmatter
 	if err := yaml.Unmarshal(fm, &meta); err != nil {
-		return Skill{}, fmt.Errorf("frontmatter: %w", err)
+		return Skill{}, problem("yaml", err)
 	}
 	if meta.Name != filepath.Base(dir) || !namePattern.MatchString(meta.Name) {
-		return Skill{}, fmt.Errorf("name %q must match its folder and be lower-case words with hyphens", meta.Name)
+		return Skill{}, problem("name", meta.Name)
 	}
 	if strings.TrimSpace(meta.Description) == "" {
-		return Skill{}, errors.New("description is missing")
+		return Skill{}, problem("nodesc")
 	}
 	m := meta.Metadata.Mira
 	s := Skill{Name: meta.Name, Description: strings.TrimSpace(meta.Description), Dir: dir,
@@ -216,22 +217,30 @@ func load(dir string, values map[string]any) (Skill, error) {
 	vals := map[string]string{}
 	for k, v := range values {
 		if _, ok := m.Settings[k]; !ok {
-			return Skill{}, fmt.Errorf("unknown setting %s", k)
+			if len(m.Settings) == 0 {
+				return Skill{}, problem("nosettings", k)
+			}
+			known := make([]string, 0, len(m.Settings))
+			for name := range m.Settings {
+				known = append(known, name)
+			}
+			sort.Strings(known)
+			return Skill{}, problem("unknownsetting", k, strings.Join(known, ", "))
 		}
 		vals[k] = render(v)
 	}
 	for k, decl := range m.Settings {
 		if decl.Required && vals[k] == "" {
-			return Skill{}, fmt.Errorf("setting %s is required: %s", k, decl.Description)
+			return Skill{}, problem("required", k, decl.Description)
 		}
 	}
 	for i, sc := range m.Schedules {
 		c, err := schedule.Parse(sc.Cron)
 		if err != nil {
-			return Skill{}, fmt.Errorf("schedule %d: %w", i+1, err)
+			return Skill{}, problem("cron", i+1, err)
 		}
 		if strings.TrimSpace(sc.Task) == "" {
-			return Skill{}, fmt.Errorf("schedule %d has no task", i+1)
+			return Skill{}, problem("notask", i+1)
 		}
 		sc.cron = c
 		sc.Task = fill(sc.Task, vals, m.Settings)
@@ -239,22 +248,22 @@ func load(dir string, values map[string]any) (Skill, error) {
 	}
 	if t := m.Target; t != nil {
 		if len(t.Fields) == 0 || t.Finish.Name == "" {
-			return Skill{}, errors.New("target needs fields and finish")
+			return Skill{}, problem("targetneeds")
 		}
 		for _, a := range []*Action{t.Finish.Action, t.Undo} {
 			if a != nil && !strings.Contains(a.Action, ".") {
-				return Skill{}, fmt.Errorf("target action %q needs a domain, like esphome.show_alarm_set", a.Action)
+				return Skill{}, problem("targetaction", a.Action)
 			}
 		}
 		for i, f := range t.Fields {
 			if !namePattern.MatchString(strings.ReplaceAll(f.Name, "_", "-")) || f.Description == "" {
-				return Skill{}, fmt.Errorf("target field %d needs a name and a description", i+1)
+				return Skill{}, problem("targetfield", i+1)
 			}
 		}
 		if t.Timeout != "" {
 			d, err := time.ParseDuration(t.Timeout)
 			if err != nil || d <= 0 {
-				return Skill{}, fmt.Errorf("target timeout %q is not a duration like 15m", t.Timeout)
+				return Skill{}, problem("targettimeout", t.Timeout)
 			}
 			t.timeout = d
 		}
@@ -265,15 +274,15 @@ func load(dir string, values map[string]any) (Skill, error) {
 }
 
 // split separates the YAML frontmatter from the Markdown body.
-func split(raw []byte) ([]byte, []byte, error) {
+func split(raw []byte) ([]byte, []byte, *Problem) {
 	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))
 	if !bytes.HasPrefix(raw, []byte("---")) {
-		return nil, nil, errors.New("SKILL.md must start with --- frontmatter")
+		return nil, nil, problem("nofront")
 	}
 	rest := raw[3:]
 	end := bytes.Index(rest, []byte("\n---"))
 	if end < 0 {
-		return nil, nil, errors.New("frontmatter is not closed with ---")
+		return nil, nil, problem("frontopen")
 	}
 	body := rest[end+4:]
 	if i := bytes.IndexByte(body, '\n'); i >= 0 {

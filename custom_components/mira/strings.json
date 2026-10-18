@@ -350,5 +350,11 @@
         "none": "Nobody"
       }
     }
+  },
+  "issues": {
+    "skill_problem": {
+      "title": "The skill {name} is not running",
+      "description": "Mira started without it. {text}\n\nChange the skill's folder or its entry under skills.enabled in mira.yaml. The problem disappears here once Mira has been restarted and the skill starts."
+    }
   }
 }

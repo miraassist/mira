@@ -136,6 +136,63 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 
 > 🎬 **Aufnahme folgt:** „Was wird nächste Woche abgeholt?“ am Satelliten.
 
+## Eigenen Skill erstellen
+
+Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung für Mira, auf Wunsch mit Einstellungen und Zeitplänen. Ein Skill führt keinen Programmcode aus; er sagt Mira nur, was sie wann und womit tun soll, mit den Werkzeugen, die sie ohnehin hat (Kalender lesen, Nachrichten, Haussteuerung und so weiter).
+
+**1. Ordner anlegen.** Die Skills liegen im Skill-Verzeichnis, standardmäßig `skills/` neben Mira. Dort legst du einen Ordner an. Sein Name ist der Name des Skills: kleine Wörter mit Bindestrichen, zum Beispiel `blumen`. Läuft Mira im Container, bindest du einen eigenen Ordner als Volume ein und trägst ihn zusätzlich unter `skills.dirs` in der `mira.yaml` ein. Die mitgelieferten Skills bleiben dabei erhalten.
+
+**2. `SKILL.md` schreiben.** Die Datei beginnt mit einem Kopfbereich zwischen zwei Zeilen `---`, danach folgt die Anleitung als Text:
+
+- `name`: genau der Name des Ordners.
+- `description`: ein Satz, wann der Skill gebraucht wird. Mehr sieht Mira nicht, bis sie den Skill öffnet; ist der Satz gut, öffnet sie ihn zur rechten Zeit.
+- Optional unter `metadata:` → `mira:`:
+  - `settings`: Angaben, die jeder Haushalt selbst einträgt, jeweils mit einer `description` (die erscheint auch in Fehlermeldungen) und `required: true`, wenn der Skill ohne sie nicht arbeiten kann.
+  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus.
+- Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein.
+
+**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills.enabled` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit einem Doppelpunkt. Nur die mitgelieferten Gesprächs-Skills für Aufgaben, Merken, Termine, To-dos und Wecker schalten sich selbst ein.
+
+**Beispiel: Blumen gießen.** Der Ordner `skills/blumen` enthält die Datei `SKILL.md`:
+
+```markdown
+---
+name: blumen
+description: Welche Pflanzen wann gegossen werden; erinnert sonntags ans Gießen.
+metadata:
+  mira:
+    settings:
+      pflanzen:
+        description: Die Pflanzen mit ihrem Rhythmus, zum Beispiel "Farn jeden Sonntag, Kaktus am ersten Sonntag im Monat".
+        required: true
+    schedules:
+      - cron: "0 10 * * 0"
+        task: >-
+          Heute ist Sonntag. Welche dieser Pflanzen müssen heute gegossen werden: {{pflanzen}}?
+          Ist keine dran: importance 0 und spoken leer. Sonst: importance 1, und spoken
+          nennt kurz, was gegossen werden muss.
+---
+# Blumen gießen
+
+Die Pflanzen dieses Haushalts und ihr Rhythmus: {{pflanzen}}
+
+Fragt jemand, wann etwas gegossen werden muss, antworte aus dieser Liste und
+rate nicht. Fehlt eine Pflanze in der Liste, sag das ehrlich.
+```
+
+In der `mira.yaml` wird der Skill eingeschaltet:
+
+```yaml
+skills:
+  enabled:
+    blumen:
+      pflanzen: "Farn jeden Sonntag, Kaktus am ersten Sonntag im Monat"
+```
+
+Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet sie aus der Liste, und sonntags um 10 Uhr meldet sie sich von selbst. Den Zeitplan probierst du mit `mira skill blumen` sofort aus.
+
+**Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.enabled“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
+
 ## Kalender und Listen
 
 Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist freigegeben sind (Einstellungen → Sprachassistenten → Entitäten freigeben). Mehrere Kalender sind kein Problem.

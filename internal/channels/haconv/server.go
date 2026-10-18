@@ -57,6 +57,16 @@ type Options struct {
 	// HAUser returns the agent's Home Assistant user id, which the
 	// integration lets manage Mira's automations; "" when unknown.
 	HAUser func(ctx context.Context) string
+	// Problems are what did not start and why, in plain words; the
+	// integration shows them as repairs.
+	Problems func() []Problem
+}
+
+// Problem is something that did not start: a skill with a wrong setting.
+type Problem struct {
+	Source string `json:"source"`
+	Name   string `json:"name"`
+	Text   string `json:"text"`
 }
 
 // Tasks judges for automations (package tasks).
@@ -313,7 +323,11 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"pending_messages": pending, "quiet_mode": quiet})
+	problems := []Problem{}
+	if s.opts.Problems != nil {
+		problems = append(problems, s.opts.Problems()...)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems})
 }
 
 func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {

@@ -58,7 +58,9 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
-	tasks  *tasks.Manager
+	// problems are the skills that did not start, as the user can read them.
+	problems []haconv.Problem
+	tasks    *tasks.Manager
 	// threads runs threads ("Vorgänge"): concerns over several turns.
 	threads *threads.Manager
 	// people are Home Assistant's persons (people.go).
@@ -209,10 +211,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			enabled[name] = nil
 		}
 	}
-	all, err := skills.Load(cfg.Skills.Dirs, enabled)
-	if err != nil {
-		return nil, err
-	}
+	// A skill that cannot start is left out and reported (log, and the
+	// integration shows it as a repair); the agent starts all the same.
+	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
 	var loaded, targets []skills.Skill
 	for _, sk := range all {
 		if sk.Target != nil {
@@ -281,6 +282,21 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	checks["todo_list"] = a.checkTodoList
 	finishers["tasks.automation"] = a.tasks.Finisher()
 	finishers["calendar.delete"] = a.calendar.Delete()
+	var known []string
+	for name := range finishers {
+		known = append(known, name)
+	}
+	sort.Strings(known)
+	var startable []skills.Skill
+	for _, sk := range targets {
+		if fin := sk.Target.Finish; fin.Action == nil && finishers[fin.Name] == nil {
+			problems = append(problems, skills.NewProblem(sk.Name, skills.KindUnknownFinish, fin.Name, strings.Join(known, ", ")))
+			continue
+		}
+		startable = append(startable, sk)
+	}
+	targets = startable
+	a.setProblems(problems)
 	a.threads = threads.New(threads.Options{
 		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers, Actions: haActions{a},
 		Persons: a.persons, Logger: a.log,
@@ -811,6 +827,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
+		Problems: func() []haconv.Problem { return a.problems },
 	}
 	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)
@@ -998,4 +1015,15 @@ func otlpEndpoint(s string) string {
 	s = strings.TrimPrefix(s, "http://")
 	s = strings.TrimPrefix(s, "https://")
 	return strings.TrimRight(s, "/")
+}
+
+// setProblems logs each skill that did not start in plain words and keeps
+// them for /v1/status.
+func (a *app) setProblems(list []skills.Problem) {
+	a.problems = nil
+	for _, p := range list {
+		text := p.Text(a.lang)
+		a.log.Warn("skill not started", "skill", p.Skill, "problem", text)
+		a.problems = append(a.problems, haconv.Problem{Source: "skill", Name: p.Skill, Text: text})
+	}
 }

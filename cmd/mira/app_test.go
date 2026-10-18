@@ -146,3 +146,76 @@ func TestAgentEndToEnd(t *testing.T) {
 		t.Errorf("voice turn reused %d tokens, the voice warmup sent %d", reqs[3].CachedTokens, reqs[0].PromptTokens)
 	}
 }
+
+// An enabled skill that cannot start (a required setting is missing) must not
+// keep the agent from starting: it is left out and /v1/status says why, in
+// words the user can act on.
+func TestBrokenSkillDoesNotStopTheAgent(t *testing.T) {
+	model := fakellm.New(fakellm.Step{Content: "."}, fakellm.Step{Content: "."}, fakellm.Step{Content: "."})
+	defer model.Close()
+	ha := fakeha.New()
+	defer ha.Close()
+	haMCP := fakemcp.HA("")
+	haMCP.Token = ha.Token
+	defer haMCP.Close()
+
+	cfg := config.Default()
+	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
+	cfg.LLM.BaseURL = model.BaseURL()
+	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
+	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
+	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}
+	cfg.Telemetry.LogLevel = "error"
+	cfg.Skills.Dirs = []string{"../../internal/skills/testdata/skills"}
+	cfg.Skills.Enabled = map[string]map[string]any{"abfall": {}, "gibtsnicht": nil}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- runAgent(ctx, cfg, prepared{}) }()
+	defer func() {
+		http.DefaultClient.CloseIdleConnections()
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("runAgent: %v", err)
+			}
+		case <-time.After(15 * time.Second):
+			t.Error("agent did not shut down")
+		}
+	}()
+
+	var status struct {
+		Problems []struct{ Source, Name, Text string } `json:"problems"`
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		req, _ := http.NewRequest("GET", "http://"+cfg.Server.Listen+"/v1/status", nil)
+		req.Header.Set("Authorization", "Bearer api-token")
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			raw, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				json.Unmarshal(raw, &status)
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("agent did not come up")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if len(status.Problems) != 2 {
+		t.Fatalf("problems = %+v", status.Problems)
+	}
+	got := map[string]string{}
+	for _, p := range status.Problems {
+		if p.Source != "skill" {
+			t.Errorf("source = %q", p.Source)
+		}
+		got[p.Name] = p.Text
+	}
+	if !strings.Contains(got["abfall"], "„calendar“ fehlt in der mira.yaml") || !strings.Contains(got["gibtsnicht"], "Es gibt keinen Ordner") {
+		t.Errorf("texts = %v", got)
+	}
+}

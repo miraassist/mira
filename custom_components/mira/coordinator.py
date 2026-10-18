@@ -8,6 +8,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiraClient, MiraError, MiraInvalidConfig
@@ -38,7 +39,31 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except MiraError as err:
             raise UpdateFailed(str(err)) from err
         await self._sync()
+        self._show_problems(status.get("problems") or [])
         return status
+
+    def _show_problems(self, problems: list[dict[str, Any]]) -> None:
+        """What did not start at the agent (a skill with a wrong setting) is
+        a repair in Home Assistant, in the words the agent logged. A problem
+        that is gone is taken away again."""
+        wanted: dict[str, dict[str, Any]] = {}
+        for problem in problems:
+            if isinstance(problem, dict) and problem.get("name"):
+                wanted[f"{problem.get('source', 'skill')}_{problem['name']}"] = problem
+        registry = ir.async_get(self.hass)
+        for domain, issue_id in list(registry.issues):
+            if domain == DOMAIN and issue_id.startswith("skill_") and issue_id not in wanted:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+        for issue_id, problem in wanted.items():
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="skill_problem",
+                translation_placeholders={"name": str(problem["name"]), "text": str(problem.get("text", ""))},
+            )
 
     async def _sync(self) -> None:
         entry = self.config_entry
