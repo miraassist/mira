@@ -2,6 +2,7 @@ package websearch
 
 import (
 	"bytes"
+	"encoding/base64"
 	"net/url"
 	"strings"
 	"unicode/utf8"
@@ -41,6 +42,65 @@ func parseResults(body []byte) (results []Result, blocked bool) {
 		blocked = true
 	}
 	return results, blocked
+}
+
+// parseBing reads Bing's results page: every li.b_algo with the link in its
+// h2 and the snippet in its caption.
+func parseBing(body []byte) []Result {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
+		return nil
+	}
+	var results []Result
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.DataAtom == atom.Li && hasClass(attr(n, "class"), "b_algo") {
+			var r Result
+			var inner func(c *html.Node)
+			inner = func(c *html.Node) {
+				if c.Type == html.ElementNode {
+					switch {
+					case c.DataAtom == atom.A && r.URL == "" && c.Parent != nil && c.Parent.DataAtom == atom.H2:
+						r.Title = collapse(nodeText(c))
+						r.URL = bingTarget(attr(c, "href"))
+					case c.DataAtom == atom.P && r.Snippet == "":
+						r.Snippet = collapse(nodeText(c))
+					}
+				}
+				for k := c.FirstChild; k != nil; k = k.NextSibling {
+					inner(k)
+				}
+			}
+			inner(n)
+			if r.URL != "" && r.Title != "" {
+				results = append(results, r)
+			}
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	return results
+}
+
+// bingTarget unpacks Bing's redirect (bing.com/ck/a?…&u=a1<base64 of the
+// address>); other links stay as they are.
+func bingTarget(href string) string {
+	u, err := url.Parse(href)
+	if err != nil || !strings.HasSuffix(u.Host, "bing.com") {
+		return href
+	}
+	packed := u.Query().Get("u")
+	if !strings.HasPrefix(packed, "a1") {
+		return href
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(packed[2:], "="))
+	if err != nil || !strings.HasPrefix(string(raw), "http") {
+		return href
+	}
+	return string(raw)
 }
 
 func result(block *html.Node) (Result, bool) {

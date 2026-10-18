@@ -59,18 +59,52 @@ func TestQuery(t *testing.T) {
 
 type sent struct{ q, kl string }
 
-// A bot check instead of results is said as such, not as "no hits".
-func TestBlocked(t *testing.T) {
-	page := fixture(t, "blocked.html")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(page) }))
-	t.Cleanup(srv.Close)
-	s := New(Options{Lang: i18n.EN, SearchURL: srv.URL, HTTP: srv.Client()})
-	if _, err := s.Query(context.Background(), "x"); err != ErrBlocked {
-		t.Fatalf("got %v", err)
+// DuckDuckGo's bot check (here as HTTP 202, as it sends it) makes the
+// search ask Bing, whose links are unpacked; when both fail, the tool says
+// plainly that it could not look it up, so the model does not guess.
+func TestFallback(t *testing.T) {
+	blocked := fixture(t, "blocked.html")
+	bing := fixture(t, "bing.html")
+	ddg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		w.Write(blocked)
+	}))
+	t.Cleanup(ddg.Close)
+	var asked string
+	fb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = r.URL.Query().Get("q") + "|" + r.URL.Query().Get("setlang")
+		w.Write(bing)
+	}))
+	t.Cleanup(fb.Close)
+	s := New(Options{Lang: i18n.DE, SearchURL: ddg.URL, FallbackURL: fb.URL, HTTP: ddg.Client()})
+	results, err := s.Query(context.Background(), "Baumarkt Sonntag")
+	if err != nil {
+		t.Fatal(err)
 	}
-	out := run(t, s, ToolSearch, `{"query":"x"}`)
-	if !strings.Contains(out, "bot check") {
-		t.Errorf("tool said %q", out)
+	want := []Result{
+		{Title: "Öffnungszeiten im Baumarkt", URL: "https://example.org/baumarkt/oeffnungszeiten", Snippet: "Montag bis Samstag 8 bis 20 Uhr, sonntags geschlossen."},
+		{Title: "Direkter Link", URL: "https://example.net/direkt", Snippet: "Ohne Umweg."},
+	}
+	if len(results) != len(want) || results[0] != want[0] || results[1] != want[1] {
+		t.Errorf("results: %+v", results)
+	}
+	if asked != "Baumarkt Sonntag|de" {
+		t.Errorf("Bing was asked %q", asked)
+	}
+
+	fb.Close()
+	en := New(Options{Lang: i18n.EN, SearchURL: ddg.URL, FallbackURL: fb.URL, HTTP: ddg.Client()})
+	if _, err := en.Query(context.Background(), "x"); err != ErrBlocked {
+		t.Fatalf("both failed, got %v", err)
+	}
+	for _, tool := range en.Tools() {
+		if tool.Name != ToolSearch {
+			continue
+		}
+		_, err := tool.Run(context.Background(), tools.Invocation{Name: ToolSearch, Args: json.RawMessage(`{"query":"x"}`)})
+		if err == nil || !strings.Contains(err.Error(), "do not guess") {
+			t.Errorf("tool error %v", err)
+		}
 	}
 }
 
@@ -165,13 +199,18 @@ func run(t *testing.T, s *Search, name, args string) string {
 	return ""
 }
 
-// TestLive asks the real DuckDuckGo and reads the first hit, to notice when
-// the results page changed. Only with MIRA_LIVE_SEARCH=1.
+// TestLive asks the real DuckDuckGo and Bing and reads the first hit, to
+// notice when a results page changed. Only with MIRA_LIVE_SEARCH=1.
 func TestLive(t *testing.T) {
 	if os.Getenv("MIRA_LIVE_SEARCH") != "1" {
 		t.Skip("MIRA_LIVE_SEARCH=1 runs it against the real DuckDuckGo")
 	}
 	s := New(Options{Lang: i18n.DE})
+	if r, err := s.bing(context.Background(), "Wikipedia Eiffelturm"); err != nil || len(r) == 0 {
+		t.Fatalf("bing: %v %+v", err, r)
+	} else {
+		t.Logf("bing: %d hits, first %s", len(r), r[0].URL)
+	}
 	results, err := s.Query(context.Background(), "Wikipedia Eiffelturm")
 	if err != nil || len(results) == 0 {
 		t.Fatalf("search: %v %+v", err, results)

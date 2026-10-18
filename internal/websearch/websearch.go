@@ -28,6 +28,9 @@ const (
 	ToolPage   = "web_page"
 
 	defaultSearchURL = "https://html.duckduckgo.com/html/"
+	// fallbackURL: Bing's results page, asked when DuckDuckGo shows a bot
+	// check (it does after a few searches in a row from one address).
+	fallbackURL = "https://www.bing.com/search"
 	// userAgent: DuckDuckGo's HTML page answers a plain browser string.
 	userAgent    = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 	maxResults   = 5
@@ -51,6 +54,7 @@ type Options struct {
 	// pages on the loopback interface.
 	HTTP         *http.Client
 	SearchURL    string
+	FallbackURL  string
 	AllowPrivate bool
 	Logger       *slog.Logger
 }
@@ -64,6 +68,9 @@ type Search struct {
 func New(opts Options) *Search {
 	if opts.SearchURL == "" {
 		opts.SearchURL = defaultSearchURL
+	}
+	if opts.FallbackURL == "" {
+		opts.FallbackURL = fallbackURL
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -109,8 +116,23 @@ type Result struct {
 	Title, URL, Snippet string
 }
 
-// Query asks DuckDuckGo and returns up to five hits.
+// Query asks DuckDuckGo and, when that is blocked or fails, Bing; it
+// returns up to five hits.
 func (s *Search) Query(ctx context.Context, query string) ([]Result, error) {
+	results, err := s.duckDuckGo(ctx, query)
+	if err == nil {
+		return results, nil
+	}
+	s.log.Warn("web search: DuckDuckGo did not answer, asking Bing", "error", err)
+	fallback, ferr := s.bing(ctx, query)
+	if ferr != nil {
+		s.log.Warn("web search: Bing did not answer either", "error", ferr)
+		return nil, err
+	}
+	return fallback, nil
+}
+
+func (s *Search) duckDuckGo(ctx context.Context, query string) ([]Result, error) {
 	form := url.Values{"q": {query}, "kl": {region(s.opts.Lang)}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.opts.SearchURL, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -125,7 +147,8 @@ func (s *Search) Query(ctx context.Context, query string) ([]Result, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		// 202 is how DuckDuckGo sends its bot check.
+		if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 			return nil, ErrBlocked
 		}
 		return nil, fmt.Errorf("search: HTTP %d", resp.StatusCode)
@@ -137,6 +160,37 @@ func (s *Search) Query(ctx context.Context, query string) ([]Result, error) {
 	results, blocked := parseResults(body)
 	if len(results) == 0 && blocked {
 		return nil, ErrBlocked
+	}
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+	return results, nil
+}
+
+func (s *Search) bing(ctx context.Context, query string) ([]Result, error) {
+	q := url.Values{"q": {query}, "setlang": {string(s.opts.Lang)}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.opts.FallbackURL+"?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", acceptLanguage(s.opts.Lang))
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bing: HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes))
+	if err != nil {
+		return nil, err
+	}
+	results := parseBing(body)
+	if len(results) == 0 {
+		return nil, errors.New("bing: no results on the page")
 	}
 	if len(results) > maxResults {
 		results = results[:maxResults]

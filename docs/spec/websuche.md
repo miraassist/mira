@@ -1,6 +1,6 @@
 # Websuche – Spezifikation
 
-Stand 2026-10-18, beschlossen und gebaut in 0.6.29. Siehe auch die Sicherheitsregeln in der [Systemdoku](../system.md).
+Stand 2026-10-18, beschlossen und gebaut in 0.6.29, Rückfall auf Bing in 0.6.30. Siehe auch die Sicherheitsregeln in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -20,6 +20,9 @@ Künftig bringt Mira die Suche selbst mit. Sie ist **an**, ohne Einrichtung und 
 - **Quelle:** die HTML-Ergebnisseite von DuckDuckGo (`html.duckduckgo.com`), ein einfacher HTTP-Abruf.
   - Kein Schlüssel und kein Konto nötig.
   - Region nach Miras Sprache (`de-de`, `us-en`).
+- **Rückfall:** Zeigt DuckDuckGo eine Bot-Prüfung (es schickt sie als HTTP 202, schon nach wenigen Suchen hintereinander von einer Adresse) oder antwortet nicht, fragt Mira Bing über dessen Ergebnisseite (`bing.com/search`, auch ohne Schlüssel). Bings verpackte Links werden entpackt.
+  - Mojeek und Brave Search wurden ausprobiert: Beide sperren einfache Abrufe (Captcha, HTTP 429).
+  - Gehen beide nicht, sagt das Werkzeug dem Modell ausdrücklich, dass es nicht nachschauen konnte und nicht aus dem Gedächtnis raten soll.
 - **Bewusst ohne Browser:** Bing oder Brave über einen ferngesteuerten Browser (wie im bisherigen MCP-Server) sind langsam, machen das Image um Hunderte MB größer und brechen bei jeder Änderung der Seiten.
 - **Seitentext:**
   - Mira lädt die Seite (höchstens 2 MB, nur HTML oder Text) und lässt Skripte, Navigation, Kopf- und Fußzeilen, Formulare und Ähnliches weg.
@@ -28,9 +31,8 @@ Künftig bringt Mira die Suche selbst mit. Sie ist **an**, ohne Einrichtung und 
   - Suche und Seite haben je 10 Sekunden.
   - Nur `http` und `https`.
   - Adressen im eigenen Netz (privat, Loopback, link-local) lehnt `web_page` ab, auch nach einer Weiterleitung. Eine Webseite soll Mira nicht dazu bringen, Geräte im Heimnetz abzufragen.
-- **Gesperrt:**
-  - Zeigt DuckDuckGo statt Treffern eine Bot-Prüfung, sagt das Werkzeug das. Das Modell sagt dann ehrlich, dass die Suche gerade nicht geht, statt zu raten.
-  - Für einen Haushalt mit ein paar Suchen am Tag ist das selten.
+- **Grenze dieser Lösung:** Es sind Abrufe der Ergebnisseiten ohne offizielle Schnittstelle. Sie können sich ändern oder sperren. Mehr Aufwand ist hier bewusst nicht vorgesehen; wer eine verlässlichere Suche will, bindet eine mit Schlüssel als MCP-Server ein (etwa Brave Search) und schaltet die eingebaute ab.
+- **Kleine Modelle:** Der Kurztext eines Treffers enthält die Antwort oft nicht. Ein kleines Modell (getestet: qwen3-30b-a3b) liest dann die Seite nicht nach, sondern antwortet aus dem Gedächtnis, auch falsch. Auch eine strengere Beschreibung des Werkzeugs änderte das nicht.
 
 ## Sicherheit
 
