@@ -113,3 +113,45 @@ func TestCutKeepsTheRunningThread(t *testing.T) {
 		t.Errorf("log:\n%s", h.logs.String())
 	}
 }
+
+// The log says how large each request is and what went into it that changes:
+// the turns of history grow turn by turn, and the long start is described
+// only the first time, not while it stays the same.
+func TestLogDescribesTheContext(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Eins."}, fakellm.Step{Content: "Zwei."}, fakellm.Step{Content: "Drei."})
+	for _, text := range []string{"Erste Frage", "Zweite Frage", "Dritte Frage"} {
+		h.say(t, config.ChannelTelegram, "c1", text)
+	}
+	var contexts, rounds []string
+	for _, line := range strings.Split(h.logs.String(), "\n") {
+		switch {
+		case strings.Contains(line, `msg="context built"`):
+			contexts = append(contexts, line)
+		case strings.Contains(line, `msg="model round"`):
+			rounds = append(rounds, line)
+		}
+	}
+	if len(contexts) != 3 || len(rounds) != 3 {
+		t.Fatalf("%d context lines, %d round lines:\n%s", len(contexts), len(rounds), h.logs.String())
+	}
+	for i, want := range []string{"history_turns=0", "history_turns=1", "history_turns=2"} {
+		if !strings.Contains(contexts[i], want) {
+			t.Errorf("turn %d: %s lacks %s", i+1, contexts[i], want)
+		}
+	}
+	if !strings.Contains(contexts[0], "prefix_changed=true") || !strings.Contains(contexts[0], "tools_chars=") {
+		t.Errorf("the first turn must describe the start: %s", contexts[0])
+	}
+	for _, later := range contexts[1:] {
+		if strings.Contains(later, "prefix_changed") {
+			t.Errorf("an unchanged start must not be described again: %s", later)
+		}
+	}
+	for _, r := range rounds {
+		for _, field := range []string{"ms=", "messages=", "message_chars=", "tools=", "tool_chars=", "prompt_tokens=", "cached_tokens="} {
+			if !strings.Contains(r, field) {
+				t.Errorf("round line lacks %s: %s", field, r)
+			}
+		}
+	}
+}

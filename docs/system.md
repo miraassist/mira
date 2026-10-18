@@ -95,7 +95,7 @@ flowchart LR
 | `internal/announce` | mDNS-Ankündigung (`_mira._tcp`), damit HA Mira findet |
 | `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Konfiguration, Sprachen, Cron, OpenTelemetry |
 
-Wo die Zeit eines Gesprächs bleibt, steht im Log: Jeder Aufruf des Modells erscheint als `model round` (Runde, Modell, `ms`, Tokens, davon aus dem Cache), jedes Werkzeug als `tool done` (Name, `ms`, ob es scheiterte), und `turn done` nennt die Gesamtdauer in `ms`. Scheitert ein Aufruf des Modells, steht `model round failed` mit der Dauer da.
+Wo die Zeit eines Gesprächs bleibt, steht im Log: Jeder Aufruf des Modells erscheint als `model round` (Runde, Modell, `ms`, Zahl und Zeichen der Nachrichten und der Werkzeuge, Tokens, davon aus dem Cache), jedes Werkzeug als `tool done` (Name, `ms`, ob es scheiterte), und `turn done` nennt die Gesamtdauer in `ms`. Scheitert ein Aufruf des Modells, steht `model round failed` mit der Dauer da. Vor dem ersten Aufruf jedes Gesprächsschritts steht `context built`: wie viele Schritte Verlauf mitgehen (`history_turns`, Nachrichten, Zeichen), wie groß der Teil für diesen Schritt ist und welche seiner Teile da sind (Erinnerungen, Profil, Vorgang). Der lange, gleichbleibende Anfang (Regeln, Werkzeuge, Haus) steht nur, wenn er sich ändert (`prefix_changed`), mit der Größe seiner Teile. Gekürzt wird ein Verlauf weiter nur nach `history compacted`.
 
 ## 3. Ablauf: ein Sprachbefehl
 

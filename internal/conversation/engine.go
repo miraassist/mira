@@ -149,6 +149,11 @@ type Engine struct {
 	// mid-turn.
 	locks map[config.Channel]*sync.Mutex
 
+	// lastPrefix is the hash of each channel's last request start, to log
+	// when it changes (ctxlog.go).
+	ctxMu      sync.Mutex
+	lastPrefix map[config.Channel]string
+
 	warm chan string
 }
 
@@ -169,24 +174,25 @@ func New(opts Options) *Engine {
 		opts.Structure = func() structure.Snapshot { return structure.Snapshot{} }
 	}
 	e := &Engine{
-		cfg:       opts.Config,
-		models:    map[string]Chatter{config.MainModel: opts.LLM},
-		store:     opts.Store,
-		tools:     opts.Tools,
-		guard:     opts.Guard,
-		structure: opts.Structure,
-		assist:    opts.StructurePrompt,
-		afterword: opts.Afterword,
-		thread:    opts.Thread,
-		identify:  opts.Identify,
-		persona:   opts.Persona,
-		languages: opts.Languages,
-		tel:       opts.Telemetry,
-		log:       opts.Logger.With("component", "conversation"),
-		clock:     opts.Clock,
-		loc:       opts.Location,
-		locks:     map[config.Channel]*sync.Mutex{},
-		warm:      make(chan string, 1),
+		cfg:        opts.Config,
+		models:     map[string]Chatter{config.MainModel: opts.LLM},
+		store:      opts.Store,
+		tools:      opts.Tools,
+		guard:      opts.Guard,
+		structure:  opts.Structure,
+		assist:     opts.StructurePrompt,
+		afterword:  opts.Afterword,
+		thread:     opts.Thread,
+		identify:   opts.Identify,
+		persona:    opts.Persona,
+		languages:  opts.Languages,
+		tel:        opts.Telemetry,
+		log:        opts.Logger.With("component", "conversation"),
+		clock:      opts.Clock,
+		loc:        opts.Location,
+		locks:      map[config.Channel]*sync.Mutex{},
+		lastPrefix: map[config.Channel]string{},
+		warm:       make(chan string, 1),
 	}
 	for name, m := range opts.Models {
 		e.models[name] = m
@@ -315,6 +321,8 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	built := prompt.Build(prefix, history, turn)
 	msgs := built.Messages
 	added := []llm.Message{msgs[len(msgs)-1]} // the rendered layer 7
+	e.logContext(ctx, key, req.Channel, prefix, built, history, turn, added[0].Content)
+	toolCount, toolChars := toolsSize(built.Tools)
 
 	resp := Response{ConversationID: req.ConversationID, PrefixHash: built.PrefixHash}
 	resp.Model = modelName
@@ -338,7 +346,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 				"ms", time.Since(began).Milliseconds(), "error", err)
 			return Response{}, err
 		}
-		e.logRound(key, round, modelName, time.Since(began), out)
+		e.logRound(key, round, modelName, time.Since(began), out, len(chatReq.Messages), messagesSize(chatReq.Messages), toolCount, toolChars)
 		mtrace.AddRound(ctx, modelName, time.Since(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
 		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
@@ -434,8 +442,9 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 
 // logRound is one call to the model: how long it took and what it cost. With
 // the tool times it shows where the time of a turn went.
-func (e *Engine) logRound(key string, round int, model string, took time.Duration, out *llm.ChatResponse) {
+func (e *Engine) logRound(key string, round int, model string, took time.Duration, out *llm.ChatResponse, messages, messageChars, tools, toolChars int) {
 	e.log.Info("model round", "session", key, "round", round, "model", model, "ms", took.Milliseconds(),
+		"messages", messages, "message_chars", messageChars, "tools", tools, "tool_chars", toolChars,
 		"prompt_tokens", out.Usage.PromptTokens, "cached_tokens", out.CachedTokens(),
 		"completion_tokens", out.Usage.CompletionTokens)
 }
