@@ -213,31 +213,6 @@ func TestSubscriptionsSurviveReconnect(t *testing.T) {
 	}
 }
 
-func TestExposedEntities(t *testing.T) {
-	srv := fakeha.New()
-	defer srv.Close()
-	srv.SetExposed("light.kueche", "sensor.inverter_status")
-	c, ctx := startClient(t, srv, "test-token")
-
-	exposed, err := c.ExposedEntities(ctx)
-	if err != nil {
-		t.Fatalf("ExposedEntities: %v", err)
-	}
-	if !exposed["light.kueche"] || !exposed["sensor.inverter_status"] {
-		t.Errorf("exposed = %v", exposed)
-	}
-	if exposed["light.bad"] {
-		t.Error("an entity that was not exposed came back as exposed")
-	}
-
-	// A Home Assistant version without the command must surface an error, so
-	// the caller can fall back rather than believe the house is empty.
-	srv.FailExposedEntities(true)
-	if _, err := c.ExposedEntities(ctx); err == nil {
-		t.Error("an unsupported command should be an error, not an empty map")
-	}
-}
-
 func TestCallFailsFastWhileDisconnected(t *testing.T) {
 	srv := fakeha.New()
 	c, err := haws.New(haws.Options{URL: srv.URL, Token: "test-token", Logger: quietLogger(),

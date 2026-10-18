@@ -23,7 +23,6 @@ type Source interface {
 	Areas(context.Context) ([]haws.Area, error)
 	Devices(context.Context) ([]haws.Device, error)
 	Entities(context.Context) ([]haws.Entity, error)
-	ExposedEntities(context.Context) (map[string]bool, error)
 }
 
 // Subscriber is the part of the WebSocket client the cache needs for
@@ -116,13 +115,7 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 		exposed, known = c.exposed(ctx)
 	}
 	if !known {
-		exposed, err = c.src.ExposedEntities(ctx)
-		if err != nil {
-			// Not fatal: Build falls back to the registry options, and the
-			// snapshot records that exposure is unknown.
-			c.log.Warn("could not read the exposure list, falling back to entity options", "error", err)
-			exposed = nil
-		}
+		exposed = nil
 	}
 
 	snap := Build(Registry{Lang: c.lang, Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})
@@ -133,8 +126,7 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 	c.mu.Unlock()
 
 	if !snap.ExposureKnown {
-		c.log.Warn("exposure is unknown; the structure block lists every usable entity",
-			"entities", snap.EntityCount)
+		c.log.Warn("what Assist may see is not known yet; Mira waits for the integration's list")
 	}
 	c.log.Info("structure block built",
 		"areas", snap.AreaCount, "entities", snap.EntityCount, "changed", changed)

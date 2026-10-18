@@ -38,10 +38,6 @@ type Server struct {
 	devices  []haws.Device
 	entities []haws.Entity
 	states   []haws.State
-	exposed  map[string]map[string]any
-	// exposedErr makes the exposure command fail, which is the case on
-	// Home Assistant versions that do not have it.
-	exposedErr bool
 
 	calls []ServiceCall
 	// conns holds live connections so events can be pushed and so a test can
@@ -66,9 +62,8 @@ type connState struct {
 
 func New() *Server {
 	s := &Server{
-		Token:   "test-token",
-		conns:   map[*connState]bool{},
-		exposed: map[string]map[string]any{},
+		Token: "test-token",
+		conns: map[*connState]bool{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/websocket", s.handle)
@@ -87,24 +82,6 @@ func (s *Server) SetStates(states []haws.State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.states = states
-}
-
-// SetExposed marks entity ids as exposed to the conversation assistant.
-func (s *Server) SetExposed(entityIDs ...string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.exposed = map[string]map[string]any{}
-	for _, id := range entityIDs {
-		s.exposed[id] = map[string]any{"conversation": true}
-	}
-}
-
-// FailExposedEntities makes the exposure command return an error, imitating a
-// Home Assistant version that does not support it.
-func (s *Server) FailExposedEntities(fail bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.exposedErr = fail
 }
 
 // ServiceCalls returns everything that was called so far.
@@ -313,7 +290,6 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 
 	s.mu.Lock()
 	areas, devices, entities, states := s.areas, s.devices, s.entities, s.states
-	exposed, exposedErr := s.exposed, s.exposedErr
 	s.mu.Unlock()
 
 	switch cmdType {
@@ -327,12 +303,6 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		reply(entities)
 	case haws.CmdGetStates:
 		reply(states)
-	case haws.CmdExposedEntities:
-		if exposedErr {
-			fail("unknown_command", "command not supported")
-			return
-		}
-		reply(map[string]any{"exposed_entities": exposed})
 	case haws.CmdPing:
 		writeJSON(cs.conn, map[string]any{"id": id, "type": "pong"})
 	case haws.CmdCallService:

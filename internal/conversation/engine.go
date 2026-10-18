@@ -256,6 +256,17 @@ func (e *Engine) threadContext(ctx context.Context, sess store.Session, followed
 func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, error) {
 	now := e.clock()
 	snap := e.structure()
+	if !snap.ExposureKnown {
+		// What Assist may see comes from the integration (docs/spec/ha-anbindung.md).
+		// Until it has sent that, no tool runs: Home Assistant's MCP server would
+		// act on what is exposed there, and the guard cannot know those names.
+		e.log.Warn("turn refused: the list of what Assist may see has not arrived", "session", key)
+		lang := e.lang(ctx)
+		if e.languages != nil {
+			lang = e.languages.Turn(ctx, req.Language, "", "")
+		}
+		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).waitingForHA}, nil
+	}
 
 	sess, err := e.openSession(ctx, key, req, snap)
 	if err != nil {

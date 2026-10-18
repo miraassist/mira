@@ -2,7 +2,6 @@ package structure
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"strings"
 	"sync"
@@ -99,26 +98,22 @@ func TestBuildIsIndependentOfInputOrder(t *testing.T) {
 	}
 }
 
-func TestBuildWithoutExposureListUsesEntityOptions(t *testing.T) {
+// Without the list nothing is exposed: not knowing what the user shared
+// never means everything is shared, whatever the entities' own options say.
+func TestBuildWithoutExposureListListsNothing(t *testing.T) {
 	reg := sampleRegistry()
 	reg.Exposed = nil
 	for i := range reg.Entities {
-		if reg.Entities[i].EntityID == "light.secret" {
-			reg.Entities[i].Options = map[string]any{"conversation": map[string]any{"should_expose": false}}
-		}
+		reg.Entities[i].Options = map[string]any{"conversation": map[string]any{"should_expose": true}}
 	}
 	snap := Build(reg)
 	if snap.ExposureKnown {
 		t.Error("ExposureKnown = true without an exposure list")
 	}
-	if strings.Contains(snap.Block, "light.secret") {
-		t.Error("entity marked should_expose=false must stay out")
-	}
-	if !strings.Contains(snap.Block, "light.bad") {
-		t.Error("unmarked entity must be included in the fallback")
+	if len(snap.ExposedEntities) != 0 || strings.Contains(snap.Block, "light.bad") {
+		t.Errorf("listed without a list: %v\n%s", snap.ExposedEntities, snap.Block)
 	}
 }
-
 func TestFriendlyFromEntityID(t *testing.T) {
 	if got := friendlyFromEntityID("light.kueche_decke"); got != "Kueche Decke" {
 		t.Errorf("got %q", got)
@@ -127,10 +122,14 @@ func TestFriendlyFromEntityID(t *testing.T) {
 
 // fakeSource is an in-memory Source whose data and failures the test controls.
 type fakeSource struct {
-	mu       sync.Mutex
-	reg      Registry
-	exposeEr error
-	reads    atomic.Int32
+	mu    sync.Mutex
+	reg   Registry
+	reads atomic.Int32
+}
+
+// exposed is what the integration would have sent: the registry's list.
+func (f *fakeSource) exposed(context.Context) (map[string]bool, bool) {
+	return f.get().Exposed, true
 }
 
 func (f *fakeSource) set(reg Registry) { f.mu.Lock(); f.reg = reg; f.mu.Unlock() }
@@ -143,12 +142,6 @@ func (f *fakeSource) Areas(context.Context) ([]haws.Area, error) {
 func (f *fakeSource) Devices(context.Context) ([]haws.Device, error) { return f.get().Devices, nil }
 func (f *fakeSource) Entities(context.Context) ([]haws.Entity, error) {
 	return f.get().Entities, nil
-}
-func (f *fakeSource) ExposedEntities(context.Context) (map[string]bool, error) {
-	if f.exposeEr != nil {
-		return nil, f.exposeEr
-	}
-	return f.get().Exposed, nil
 }
 
 // fakeSubscriber hands out the registered handlers so the test can fire them.
@@ -182,7 +175,7 @@ func TestRebuildCallsOnChangeOnlyWhenTheBlockChanged(t *testing.T) {
 	src := &fakeSource{}
 	src.set(sampleRegistry())
 	var changes atomic.Int32
-	c := NewCache(Options{Source: src, OnChange: func(Snapshot) { changes.Add(1) }})
+	c := NewCache(Options{Source: src, Exposed: src.exposed, OnChange: func(Snapshot) { changes.Add(1) }})
 	ctx := context.Background()
 
 	if changed, err := c.Rebuild(ctx); err != nil || !changed {
@@ -209,25 +202,25 @@ func TestRebuildCallsOnChangeOnlyWhenTheBlockChanged(t *testing.T) {
 	}
 }
 
-func TestRebuildSurvivesMissingExposureList(t *testing.T) {
-	src := &fakeSource{exposeEr: errors.New("unknown_command")}
+func TestRebuildWithoutTheIntegrationsListShowsNothing(t *testing.T) {
+	src := &fakeSource{}
 	src.set(sampleRegistry())
 	c := NewCache(Options{Source: src})
 	if _, err := c.Rebuild(context.Background()); err != nil {
 		t.Fatalf("Rebuild: %v", err)
 	}
 	if c.Snapshot().ExposureKnown {
-		t.Error("ExposureKnown must be false when the list could not be read")
+		t.Error("ExposureKnown must be false before the integration sent the list")
 	}
-	if c.Block() == "" {
-		t.Error("fallback produced an empty block")
+	if strings.Contains(c.Block(), "light.bad") || len(c.Snapshot().ExposedEntities) != 0 {
+		t.Errorf("nothing may be listed without the list:\n%s", c.Block())
 	}
 }
 
 // What the integration sent is what Mira sees, even though Home
 // Assistant does not give the list to a user who is no admin.
 func TestExposureFromTheIntegration(t *testing.T) {
-	src := &fakeSource{exposeEr: errors.New("unauthorized")}
+	src := &fakeSource{}
 	src.set(sampleRegistry())
 	var first string
 	for _, e := range sampleRegistry().Entities {
@@ -251,7 +244,7 @@ func TestRegistryEventsAreDebounced(t *testing.T) {
 	src.set(sampleRegistry())
 	sub := &fakeSubscriber{}
 	changed := make(chan Snapshot, 4)
-	c := NewCache(Options{Source: src, Subscriber: sub, Debounce: 50 * time.Millisecond,
+	c := NewCache(Options{Source: src, Exposed: src.exposed, Subscriber: sub, Debounce: 50 * time.Millisecond,
 		OnChange: func(s Snapshot) { changed <- s }})
 
 	ctx, cancel := context.WithCancel(context.Background())

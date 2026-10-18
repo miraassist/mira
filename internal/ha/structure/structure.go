@@ -191,21 +191,11 @@ func writeRows(b *strings.Builder, t texts, rows []entityRow) {
 
 // isExposed decides whether an entity belongs in the block.
 //
-// The authoritative answer is the exposure list from Home Assistant. When it
-// is unavailable the entity registry options are tried, and only if nothing
-// at all is marked does the build fall back to including every usable entity
-// — an empty house would make the agent useless, so the caller is warned
-// through Snapshot.ExposureKnown instead.
+// Only what the user exposed to Assist counts, and only the list the Mira
+// integration sent (docs/spec/ha-anbindung.md). Without it nothing is
+// exposed: not knowing what was shared never means everything is.
 func isExposed(e haws.Entity, exposed map[string]bool) bool {
-	if exposed != nil {
-		return exposed[e.EntityID]
-	}
-	if opts, ok := e.Options["conversation"].(map[string]any); ok {
-		if v, ok := opts["should_expose"].(bool); ok {
-			return v
-		}
-	}
-	return true
+	return exposed[e.EntityID]
 }
 
 // friendlyFromEntityID builds a readable name when the registry has none:

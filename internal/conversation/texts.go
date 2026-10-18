@@ -23,6 +23,7 @@ type texts struct {
 	unknownTool     string // %s = tool name
 	invalidJSONArgs string
 	delegated       string
+	waitingForHA    string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -39,6 +40,7 @@ var catalog = map[i18n.Lang]texts{
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
 		delegated:       "Kanal: abgegebene Aufgabe. Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
+		waitingForHA:    "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
 	},
 	i18n.EN: {
 		voiceInArea:     "Channel: voice, satellite in area %[1]s. Without a room given, area %[1]s is meant.",
@@ -53,6 +55,7 @@ var catalog = map[i18n.Lang]texts{
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",
 		delegated:       "Channel: delegated task. Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
+		waitingForHA:    "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
 	},
 }
 

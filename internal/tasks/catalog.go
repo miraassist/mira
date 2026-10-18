@@ -34,13 +34,12 @@ func (e Entity) numeric() bool {
 	return err == nil || e.StateClass != ""
 }
 
-// Catalog lists the entities Mira may watch: the ones exposed to Assist
-// (all usable ones when exposure is unknown), with what a plan needs to
-// know about them.
+// Catalog lists the entities Mira may watch: the ones exposed to Assist,
+// with what a plan needs to know about them.
 func Catalog(states []haws.State, snap structure.Snapshot) []Entity {
 	var out []Entity
 	for _, s := range states {
-		if len(snap.ExposedEntities) > 0 && !snap.ExposedEntities[s.EntityID] {
+		if !snap.ExposedEntities[s.EntityID] {
 			continue
 		}
 		domain, _, _ := strings.Cut(s.EntityID, ".")

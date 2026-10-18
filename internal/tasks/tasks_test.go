@@ -84,6 +84,8 @@ func (m *fakeModel) Ask(_ context.Context, _, instruction string, _ json.RawMess
 	return a, nil
 }
 
+var exposedInTests = map[string]bool{"sensor.wasser": true, "person.anna": true, "person.ben": true}
+
 type env struct {
 	m     *Manager
 	st    *store.Store
@@ -112,6 +114,10 @@ func setup(t *testing.T) *env {
 		QuietHours: config.QuietHours{From: config.ClockTime{Hour: 23, Minute: 30}, To: config.ClockTime{Hour: 6, Minute: 30}},
 		Persons: func() map[string]config.Person {
 			return map[string]config.Person{"anna": {Entity: "person.anna"}, "ben": {Entity: "person.ben"}}
+		},
+		// What the user shared with Assist; Mira sees nothing else.
+		Snapshot: func() structure.Snapshot {
+			return structure.Snapshot{ExposedEntities: exposedInTests}
 		},
 		HAURL: "http://ha:8123", Clock: func() time.Time { return e.now }, Location: time.UTC})
 	return e
@@ -265,7 +271,8 @@ func TestDraftSaveManage(t *testing.T) {
 func TestCheckEntitiesByIDNameAndAlias(t *testing.T) {
 	e := setup(t)
 	e.m.opts.Snapshot = func() structure.Snapshot {
-		return structure.Snapshot{EntityNames: map[string][]string{"sensor.wasser": {"sensor.wasser", "wasserzähler", "hauptwasser"}}}
+		return structure.Snapshot{ExposedEntities: exposedInTests,
+			EntityNames: map[string][]string{"sensor.wasser": {"sensor.wasser", "wasserzähler", "hauptwasser"}}}
 	}
 	if v, err := e.m.CheckEntities(context.Background(), "sensor.wasser"); err != nil || v != "sensor.wasser" {
 		t.Errorf("by id: %q %v", v, err)

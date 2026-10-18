@@ -98,10 +98,6 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	}
 	report("home assistant", nil, c.Endpoint())
 
-	_, exposeErr := c.ExposedEntities(ctx)
-	if exposeErr != nil {
-		fmt.Printf("  ! exposure list not readable (%v); falling back to entity options\n", exposeErr)
-	}
 	cache := structure.NewCache(structure.Options{Lang: i18n.Default, Source: c, Logger: tel.Logger})
 	if _, err := cache.Rebuild(ctx); err != nil {
 		report("structure", err, "")

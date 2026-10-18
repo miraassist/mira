@@ -50,8 +50,9 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 		LLM:    llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"}),
 		Models: map[string]conversation.Chatter{"smart": llm.New(llm.Options{BaseURL: smart.BaseURL(), Model: "cloud"})},
 		Store:  st, Tools: registry,
-		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil),
-		Logger: quietLogger(), Location: time.UTC,
+		Structure: houseSnapshot,
+		Guard:     tools.NewGuard(i18n.DE, cfg.Security, st, nil),
+		Logger:    quietLogger(), Location: time.UTC,
 	})
 	return engine, main, smart
 }
@@ -146,5 +147,33 @@ func TestNoDelegateToolWithoutDelegateModel(t *testing.T) {
 		if it.Name == tools.ToolDelegate {
 			t.Fatal("delegate offered without a delegate model")
 		}
+	}
+}
+
+// Before the integration has sent what Assist may see, Mira answers that she
+// waits and runs no tool: Home Assistant would act on what is exposed there,
+// and the guard cannot know those names yet.
+func TestTurnWaitsForTheExposureList(t *testing.T) {
+	model := fakellm.New(fakellm.Step{Content: "must not be asked"})
+	defer model.Close()
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	cfg := config.Default()
+	engine := conversation.New(conversation.Options{
+		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "local"}),
+		Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
+		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil),
+		Logger: quietLogger(), Location: time.UTC,
+		// no Structure: the list has not arrived
+	})
+	resp := handle(t, engine, config.ChannelTelegram, "Mach das Licht an")
+	if !strings.Contains(resp.Text, "warte noch auf die Verbindung mit Home Assistant") {
+		t.Errorf("answer = %q", resp.Text)
+	}
+	if n := len(model.Requests()); n != 0 {
+		t.Errorf("the model was asked %d times", n)
 	}
 }

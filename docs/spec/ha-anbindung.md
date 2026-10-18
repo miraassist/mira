@@ -43,7 +43,11 @@ Was Mira sehen darf, bestimmt HAs „Für Assist freigeben“. HAs eigene Werkze
 
 - **Die Integration liefert die Liste.** Bei jedem Abgleich (`PUT /v1/ui/ha`) schickt sie neben Personen und Satelliten `exposed`: die IDs aller Entitäten, die HA für Assist freigibt. Sie bestimmt das wie HA selbst (`async_should_expose`). Ändert sich eine Freigabe, schickt sie neu.
 - **Der Agent merkt sich die Liste** dauerhaft und nimmt sie als maßgeblich.
-- **Ohne Integration** fragt der Agent HAs Freigabeliste selbst ab. Das geht nur mit Admin-Rechten, die Miras Benutzer bewusst nicht hat. Danach weicht er auf die Optionen der Entitäts-Registry aus und zuletzt auf „alles“, mit Warnung im Log.
+- **Ohne diese Liste gilt nichts als freigegeben,** und Mira handelt nicht.
+  - Der Agent fragt HA nicht selbst: Die Freigabeliste kann nur ein Admin lesen, und Miras Benutzer hat bewusst keine Admin-Rechte. Auch die Entitäts-Optionen und ein „alles“ als Ersatz gibt es nicht.
+  - Der Hausplan ist ohne Liste leer, ebenso die Auswahl für Aufgaben, Kalender und Listen.
+  - Ein Gespräch beantwortet Mira ohne Liste mit: „Ich warte noch auf die Verbindung mit Home Assistant …“ Sie ruft kein Werkzeug und fragt das Modell nicht. Sonst würde HAs MCP-Server schalten, was dort freigegeben ist, während der Wächter diese Namen im leeren Plan nicht kennt.
+  - Das betrifft nur den Zeitraum vor dem ersten Abgleich der Integration. Danach merkt sich der Agent die Liste auch über Neustarts.
 - **Warum nicht aus dem ableiten, was Mira sieht:** HAs Assist-Prompt und `GetLiveContext` nennen nur Namen, keine IDs, und lassen Kalender ganz weg. Eine Grenze für den Datenschutz darf nicht auf Namen raten.
 
 ## Nachfragen vor dem Schalten

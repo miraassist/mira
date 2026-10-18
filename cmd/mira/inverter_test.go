@@ -60,6 +60,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.LLM.BaseURL = model.BaseURL()
 	cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = false, false // keep the model script in order
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
+	seedExposed(t, cfg.Store.Path, "assist_satellite.bad", "sensor.inverter_status")
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}

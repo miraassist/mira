@@ -554,64 +554,6 @@ func callList[T any](ctx context.Context, c *Client, cmdType string) ([]T, error
 	return out, nil
 }
 
-// ExposedEntities returns the entity ids exposed to the conversation
-// assistant, as a set.
-//
-// The command is not part of the documented WebSocket API surface and may be
-// missing on some versions; callers should treat an error as "exposure is
-// unknown" and fall back to the entity registry options rather than
-// presenting an empty house to the model.
-func (c *Client) ExposedEntities(ctx context.Context) (map[string]bool, error) {
-	raw, err := c.Call(ctx, map[string]any{"type": CmdExposedEntities})
-	if err != nil {
-		return nil, err
-	}
-	var payload struct {
-		ExposedEntities map[string]map[string]any `json:"exposed_entities"`
-	}
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		// Some versions answer with the map directly instead of wrapping it.
-		var flat map[string]map[string]any
-		if err2 := json.Unmarshal(raw, &flat); err2 != nil {
-			return nil, fmt.Errorf("decode exposed entities: %w", err)
-		}
-		payload.ExposedEntities = flat
-	}
-	out := make(map[string]bool, len(payload.ExposedEntities))
-	for entityID, assistants := range payload.ExposedEntities {
-		if shouldExpose(assistants) {
-			out[entityID] = true
-		}
-	}
-	return out, nil
-}
-
-// shouldExpose reads the per-assistant exposure flags. "conversation" is the
-// assistant the voice pipeline and this agent share.
-func shouldExpose(assistants map[string]any) bool {
-	if v, ok := assistants["conversation"]; ok {
-		return truthy(v)
-	}
-	for _, v := range assistants {
-		if truthy(v) {
-			return true
-		}
-	}
-	return false
-}
-
-func truthy(v any) bool {
-	switch t := v.(type) {
-	case bool:
-		return t
-	case map[string]any:
-		if inner, ok := t["should_expose"]; ok {
-			return truthy(inner)
-		}
-	}
-	return false
-}
-
 // Ping checks a live connection.
 func (c *Client) Ping(ctx context.Context) error {
 	_, err := c.Call(ctx, map[string]any{"type": CmdPing})

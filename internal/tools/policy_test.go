@@ -31,6 +31,8 @@ func house() structure.Snapshot {
 			{EntityID: "light.kueche", AreaID: "kueche", Name: "Küchenlicht"},
 			{EntityID: "switch.pumpe", AreaID: "garage", Name: "Pumpe", Labels: []string{structure.LabelConfirm}},
 		},
+		// What the user shared with Assist.
+		Exposed: map[string]bool{"lock.haustuer": true, "light.flur": true, "cover.garage": true, "light.kueche": true, "switch.pumpe": true},
 	})
 }
 

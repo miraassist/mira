@@ -29,7 +29,6 @@ const (
 	CmdSubscribeEvents    = "subscribe_events"
 	CmdSubscribeEntities  = "subscribe_entities"
 	CmdUnsubscribeEvents  = "unsubscribe_events"
-	CmdExposedEntities    = "homeassistant/expose_entity/list"
 	CmdPing               = "ping"
 )
 

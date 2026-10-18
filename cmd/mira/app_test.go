@@ -14,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
@@ -26,6 +27,21 @@ func freeAddr(t *testing.T) string {
 	}
 	defer l.Close()
 	return l.Addr().String()
+}
+
+// seedExposed keeps what the integration would have sent: the entities
+// exposed to Assist.
+func seedExposed(t *testing.T, dbPath string, ids ...string) {
+	t.Helper()
+	st, err := store.Open(context.Background(), store.Options{Path: dbPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	raw, _ := json.Marshal(ids)
+	if err := st.SetKV(context.Background(), kvExposed, string(raw)); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestAgentEndToEnd starts the real wiring against fakes and drives one voice
@@ -45,7 +61,6 @@ func TestAgentEndToEnd(t *testing.T) {
 		[]haws.Device{{ID: "sat-kueche", AreaID: "kueche", Name: "Satellit"}},
 		[]haws.Entity{{EntityID: "light.kueche", AreaID: "kueche", Name: "Küchenlicht"}},
 	)
-	ha.SetExposed("light.kueche")
 
 	haMCP := fakemcp.HA("Küchenlicht: aus")
 	haMCP.Token = ha.Token
@@ -58,6 +73,7 @@ func TestAgentEndToEnd(t *testing.T) {
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}
 	cfg.Telemetry.LogLevel = "error"
+	seedExposed(t, cfg.Store.Path, "light.kueche")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

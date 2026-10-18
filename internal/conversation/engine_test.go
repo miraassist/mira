@@ -80,6 +80,8 @@ func houseSnapshot() structure.Snapshot {
 			{EntityID: "sensor.kueche_temperatur", AreaID: "kueche", Name: "Temperatur"},
 			{EntityID: "lock.haustuer", AreaID: "flur", Name: "Haustür"},
 		},
+		// What the user shared with Assist.
+		Exposed: map[string]bool{"light.kueche": true, "sensor.kueche_temperatur": true, "lock.haustuer": true},
 	})
 }
 
