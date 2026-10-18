@@ -254,6 +254,7 @@ func (e *Engine) threadContext(ctx context.Context, sess store.Session, followed
 }
 
 func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, error) {
+	turnBegan := time.Now()
 	now := e.clock()
 	snap := e.structure()
 	if !snap.ExposureKnown {
@@ -333,8 +334,11 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		began := time.Now()
 		out, err := client.Chat(ctx, chatReq)
 		if err != nil {
+			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
+				"ms", time.Since(began).Milliseconds(), "error", err)
 			return Response{}, err
 		}
+		e.logRound(key, round, modelName, time.Since(began), out)
 		mtrace.AddRound(ctx, modelName, time.Since(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
 		resp.CompletionTokens += out.Usage.CompletionTokens
 		if round == 0 {
@@ -423,8 +427,17 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,
-		"more_prompt_tokens", resp.MorePromptTokens, "completion_tokens", resp.CompletionTokens)
+		"more_prompt_tokens", resp.MorePromptTokens, "completion_tokens", resp.CompletionTokens,
+		"ms", time.Since(turnBegan).Milliseconds())
 	return resp, nil
+}
+
+// logRound is one call to the model: how long it took and what it cost. With
+// the tool times it shows where the time of a turn went.
+func (e *Engine) logRound(key string, round int, model string, took time.Duration, out *llm.ChatResponse) {
+	e.log.Info("model round", "session", key, "round", round, "model", model, "ms", took.Milliseconds(),
+		"prompt_tokens", out.Usage.PromptTokens, "cached_tokens", out.CachedTokens(),
+		"completion_tokens", out.Usage.CompletionTokens)
 }
 
 func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
@@ -509,10 +522,13 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 		return verdict.Message
 	}
 
+	began := time.Now()
 	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
 	})
 	e.guard.Observe(ts, spec)
+	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
+		"error", err != nil || isError)
 	switch {
 	case err != nil:
 		record("error")

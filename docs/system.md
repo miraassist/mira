@@ -95,6 +95,8 @@ flowchart LR
 | `internal/announce` | mDNS-Ankündigung (`_mira._tcp`), damit HA Mira findet |
 | `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Konfiguration, Sprachen, Cron, OpenTelemetry |
 
+Wo die Zeit eines Gesprächs bleibt, steht im Log: Jeder Aufruf des Modells erscheint als `model round` (Runde, Modell, `ms`, Tokens, davon aus dem Cache), jedes Werkzeug als `tool done` (Name, `ms`, ob es scheiterte), und `turn done` nennt die Gesamtdauer in `ms`. Scheitert ein Aufruf des Modells, steht `model round failed` mit der Dauer da.
+
 ## 3. Ablauf: ein Sprachbefehl
 
 ```mermaid

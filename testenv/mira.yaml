@@ -71,14 +71,6 @@ mcp_servers:
     transport: http
     url: "http://${HA_HOST}/api/mcp/assist"
     token: ${HA_TOKEN}
-  # Web search, started by Mira (stdio). Paths in testenv/.env; without
-  # them the server is just unreachable and Mira runs without it.
-  - name: search
-    transport: stdio
-    command: ${SEARCH_MCP_COMMAND}
-    args: ["${SEARCH_MCP_SCRIPT}"]
-    read_only: true
-    web_content: true
 
 persons:
   anna: { entity: person.anna }
