@@ -137,7 +137,16 @@ Stand 2026-10-18, gemessen mit Gemini Flash über die OpenAI-Schnittstelle.
 
 **Gemessen**
 - **Wachstum:** Die erste Anfrage eines Gesprächs hatte etwa 8.900 Tokens, die 27. etwa 15.800: im Schnitt rund 260 Tokens je Turn, bei Turns mit Kalender oder Vorgang bis 1.400. Über 90 % der Anfrage ist der gleichbleibende Anfang, davon etwa 72 % die 51 Werkzeugdefinitionen.
-- **Zeit:** Gemini braucht je 10.000 Tokens mehr etwa 0,3 bis 0,4 Sekunden (9.000 Tokens: 2,0 s, 31.000 Tokens: 2,45 s). Das Wachstum macht Mira bei Gemini nicht merklich langsamer.
+- **Zeit:** Gemini braucht je 10.000 Tokens mehr etwa 0,3 bis 0,4 Sekunden. Das Wachstum macht Mira bei Gemini nicht merklich langsamer. Gemessen mit Miras echter Anfrage, mit zusätzlichem Verlauf aufgefüllt, ohne Cache, vier Aufrufe je Größe:
+
+  | Verlauf (Paare aus Frage und Antwort) | Tokens | Antwortzeit (Median) | Einzelwerte |
+  |---|---|---|---|
+  | keiner | 8.959 | 2,0 s | 1,7 · 1,8 · 2,2 · 2,8 |
+  | 30 | 15.680 | 2,05 s | 1,8 · 2,0 · 2,1 · 2,2 |
+  | 60 | 22.422 | 2,25 s | 1,8 · 2,2 · 2,3 · 2,6 |
+  | 100 | 31.382 | 2,45 s | 2,3 · 2,4 · 2,5 · 2,6 |
+
+  Eine einzelne Runde brauchte also unter 3 Sekunden. Ein Gespräch mit Werkzeug hat zwei Runden. Der Ausreißer von 13 Sekunden beim Löschen eines Termins am 2026-10-18 ist damit nicht erklärt; das Log (`model round`, `tool done`) soll zeigen, ob er wiederkommt und wo er sitzt.
 - **Cache:** Gemini meldet Cache-Treffer nur bei einer vollständig gleichen Anfrage. Wurde nur das Ende geändert, kam in vier Versuchen kein Treffer. Lokale Server cachen den gleichbleibenden Anfang.
 - **Log:** `model round`, `tool done`, `context built`, `turn done` (docs/system.md) zeigen Zeit und Größe je Runde.
 
