@@ -144,6 +144,10 @@ notifier:
   max_items_per_announcement: 3
   min_importance: 1
   follow_up_window: 2m
+  # A message left at a satellite does not wait in that same room for this
+  # long (whoever left it is standing there); other rooms get it at once.
+  # 0 turns it off. Also set in the HA options (General).
+  own_message_hold: 10m
   # Important messages nobody heard by this time go out privately.
   escalate_to_telegram: { min_importance: 2, after: "09:00", grace: 30m }
   # Urgent messages (water leak, smoke) go out at once, even in quiet hours:

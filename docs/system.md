@@ -81,6 +81,7 @@ flowchart LR
 | `internal/tools` | Werkzeug-Register, Schutz (Guard) für kritische Aktionen, interne Werkzeuge (Gedächtnis, Erinnerungen, Nachrichten) |
 | `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, weitere MCP-Server |
 | `internal/websearch` | Eingebaute Websuche: `web_search` (DuckDuckGo-HTML), `web_page` (Haupttext einer Seite); liest nur, fremder Webtext, abschaltbar ([Websuche](spec/websuche.md)) |
+| `internal/radio` | `radio_play`: Sender im Radio Browser von HA suchen und auf dem Lautsprecher des Raums starten ([Radio](spec/radio.md)) |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
@@ -141,6 +142,7 @@ Wichtig:
   Welche Sprache Mira wann spricht: [Sprache](spec/sprache.md).
   Skills, die eine HA-Aktion aufrufen (z. B. Wecker): [Skill-Aktionen](spec/skill-aktionen.md).
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
+  Radio auf dem Lautsprecher eines Raums: [Radio](spec/radio.md).
   Weitere Werkzeuge und Skills (Verlauf, Wetter, Musik, Kamera, Listen): [Plan](spec/skills-plan.md).
   Prüfen, ob Mira mit einem Modell-Setup funktioniert: [Evals](spec/evals.md).
   Wie man Mira einrichtet (Koppeln, Sprachmodell im Formular, Agent ohne Config-Datei): [Einrichtung](spec/einrichtung.md).
@@ -151,7 +153,9 @@ Wichtig:
 - **Kritische Aktionen.** Bei Schlössern, Alarm und Garagentor verlangt der
   Guard ein ausdrückliches Ja im nächsten Turn.
 - **„Übrigens“.** Hat der Raum wartende Nachrichten, hängt Mira sie an die
-  Antwort an. Sie gelten dann als gehört.
+  Antwort an. Sie gelten dann als gehört. Eine Nachricht, die jemand an einem
+  Satelliten hinterlassen hat, wartet in genau diesem Raum erst nach
+  `notifier.own_message_hold` (Standard 10 Minuten).
 - **Weiterhören.** Endet die Antwort mit einer Frage, bleibt der Satellit im
   Zuhörmodus (`continue_conversation`).
 - **Fest im Code.** Ein schlichtes „Ja“ auf einen offenen Aufgabenvorschlag

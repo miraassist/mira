@@ -85,7 +85,9 @@ Requirements:
   `ha.token` in `mira.yaml` instead, set both up by hand.
 - Optional: more MCP servers under `mcp_servers`, over HTTP or started by
   Mira (stdio). A web search is built in (DuckDuckGo, no key; switched in the
-  integration's options, docs/spec/websuche.md). See "More tools over MCP" in the guide
+  integration's options, docs/spec/websuche.md). Radio is built in too: "play SWR3"
+  finds the station in Home Assistant's Radio Browser and starts it on the
+  room's speaker (`radio_play`, docs/spec/radio.md). See "More tools over MCP" in the guide
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
 
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the satellites and
@@ -112,7 +114,8 @@ Echo's LED ring) pulses while messages wait, satellites with a screen
 Benachrichtigung?" reads them out (`messages_read`); with motion sensors and
 "announce on entry" (`notifier.morning_trigger.areas`) Mira says them by
 herself when someone comes in. Several messages are worded by the model as
-one announcement. When you
+one announcement. A message left at a satellite is not announced in that room
+until `notifier.own_message_hold` (10 minutes) has passed. When you
 talk to a satellite anyway, what waits for its room follows the answer
 ("Licht ist an. Übrigens: ..."), except after a question back and in quiet
 hours. Urgent messages and reminders are always spoken.
