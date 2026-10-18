@@ -29,9 +29,11 @@ The container uses a bridge network on purpose: in the host network HA
 discovers the real devices of the house and sets some of them up by itself.
 The seed also disables any integration that came from network discovery.
 
+Entities you add to the test house yourself (a lamp, say) are hidden from Assist by `testha up`. List them in `testenv/.env` to keep them exposed and on the dashboard: `TESTHA_EXPOSE="light.lampe|Wohnzimmer|Farblampe;switch.x|Büro"` (area and name optional).
+
 The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the
 simulated sensors and for who is home, Mira's quiet mode, the Show's alarm
-buttons, and a view of the house with the lists and calendars. `testha up`
+buttons, a card for each voice satellite (state, alarm buttons, assistant, wake word), and a view of the house with the lists and calendars. `testha up`
 writes it, and `testha dashboard` writes it anew (changes made in the UI are
 overwritten; make a dashboard of your own for those).
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
@@ -62,7 +63,33 @@ var discoverySources = map[string]bool{
 	"usb": true, "mqtt": true, "integration_discovery": true, "discovery": true,
 }
 
-func seed(ctx context.Context, admin *haws.Client, token string) error {
+// extra is an entity added to the test house on top of `house` (a lamp, say):
+// exposed to Assist, with the area and name given. It comes from TESTHA_EXPOSE
+// in testenv/.env (not in git, since it names what is in someone's network):
+// "light.lampe|Wohnzimmer|Farblampe;switch.x|Büro". Area and name are optional.
+type extra struct{ entity, area, name string }
+
+func parseExtras(s string) []extra {
+	var out []extra
+	for _, item := range strings.Split(s, ";") {
+		parts := strings.Split(item, "|")
+		id := strings.TrimSpace(parts[0])
+		if id == "" {
+			continue
+		}
+		x := extra{entity: id}
+		if len(parts) > 1 {
+			x.area = strings.TrimSpace(parts[1])
+		}
+		if len(parts) > 2 {
+			x.name = strings.TrimSpace(parts[2])
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
+func seed(ctx context.Context, admin *haws.Client, token string, extras []extra) error {
 	if err := disableDiscovered(ctx, admin); err != nil {
 		return err
 	}
@@ -78,16 +105,26 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 		return err
 	}
 	var expose, hide []string
+	extraOf := map[string]extra{}
+	for _, x := range extras {
+		extraOf[x.entity] = x
+	}
+	inHouse := 0
 	for _, e := range ents {
 		want, ok := house[e.EntityID]
+		if ok {
+			inHouse++
+		} else if x, isExtra := extraOf[e.EntityID]; isExtra {
+			want, ok = struct{ area, name string }{x.area, x.name}, true
+		}
 		if !ok {
 			hide = append(hide, e.EntityID)
 			continue
 		}
 		expose = append(expose, e.EntityID)
 		update := map[string]any{"type": "config/entity_registry/update", "entity_id": e.EntityID}
-		if want.area != "" {
-			update["area_id"] = areaIDs[want.area]
+		if id := areaIDs[want.area]; want.area != "" && id != "" {
+			update["area_id"] = id
 		}
 		if want.name != "" {
 			update["name"] = want.name
@@ -98,8 +135,17 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 			}
 		}
 	}
-	if len(expose) != len(house) {
-		return fmt.Errorf("only %d of %d house entities exist; is the demo integration loaded?", len(expose), len(house))
+	if inHouse != len(house) {
+		return fmt.Errorf("only %d of %d house entities exist; is the demo integration loaded?", inHouse, len(house))
+	}
+	for _, x := range extras {
+		found := false
+		for _, id := range expose {
+			found = found || id == x.entity
+		}
+		if !found {
+			fmt.Printf("TESTHA_EXPOSE: %s does not exist (yet); skipped\n", x.entity)
+		}
 	}
 	for should, ids := range map[bool][]string{true: expose, false: hide} {
 		if err := call(ctx, admin, map[string]any{
@@ -118,7 +164,7 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 		"entity_id": "cover.garage_door", "labels": []string{"mira_confirm"}}, nil); err != nil {
 		return err
 	}
-	if err := ensureDashboard(ctx, admin); err != nil {
+	if err := ensureDashboard(ctx, admin, extras); err != nil {
 		return fmt.Errorf("dashboard: %w", err)
 	}
 	return ensureMCPServer(ctx, token)

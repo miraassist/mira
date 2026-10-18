@@ -60,7 +60,7 @@ func up(ctx context.Context, dir string) error {
 			return err
 		}
 	}
-	if err := seed(ctx, admin, e["TESTHA_ADMIN_TOKEN"]); err != nil {
+	if err := seed(ctx, admin, e["TESTHA_ADMIN_TOKEN"], parseExtras(e["TESTHA_EXPOSE"])); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	fmt.Printf("test HA ready at %s (admin / %s); tokens in %s/.env\n", haURL, e["TESTHA_ADMIN_PASSWORD"], dir)
