@@ -145,6 +145,10 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 - „Sag meinen Termin morgen beim Arzt ab.“ Mira sucht den Termin und fragt nach, bevor sie ihn löscht. Bei einem Serientermin sagt sie nur diesen einen ab, außer du willst alle.
 - „Setz Milch auf die Einkaufsliste.“ – „Setz Batterien drauf, bis Freitag.“ – „Was steht auf der Liste?“
 
+## Radio hören
+
+„Spiel SWR3.“ – „Mach im Wohnzimmer das Radio an.“ Mira sucht den Sender im Radio Browser von Home Assistant, der immer dabei ist, und spielt ihn auf dem Lautsprecher des Raums. Der Lautsprecher muss für Assist freigegeben sein (Einstellungen → Sprachassistenten → Entitäten freigeben). Findet sie mehrere passende Sender, nennt sie ein paar und fragt, welcher es sein soll. Lauter, leiser und Pause gehen wie bei jedem Medienspieler.
+
 ## Im Internet nachschauen und schwierige Fragen
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.

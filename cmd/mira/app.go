@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/profile"
+	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
@@ -234,6 +236,28 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
+	// Radio on the room's speaker (docs/spec/radio.md).
+	internal = append(internal, radio.Tool(radio.Options{
+		Lang: a.lang, Search: radio.Search(a.ha), Play: radio.Play(a.ha),
+		Players: func(area string) []radio.Player {
+			snap := snapshot()
+			var out []radio.Player
+			for id := range snap.ExposedEntities {
+				if strings.HasPrefix(id, "media_player.") && snap.EntityArea[id] == area {
+					out = append(out, radio.Player{Entity: id, Names: snap.EntityNames[id]})
+				}
+			}
+			sort.Slice(out, func(i, j int) bool { return out[i].Entity < out[j].Entity })
+			return out
+		},
+		Area: func(name string) string { return snapshot().AreaKeys[name] },
+		AreaName: func(id string) string {
+			if name := snapshot().AreaNames[id]; name != "" {
+				return name
+			}
+			return id
+		},
+	}))
 	// Drafting and judging run on the engine, which is built from this
 	// registry: bound late through isolatedModel.
 	a.tasks = tasks.New(tasks.Options{

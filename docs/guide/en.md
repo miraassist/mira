@@ -145,6 +145,10 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 - "Cancel my doctor's appointment tomorrow." Mira looks the event up and asks before she deletes it. Of a recurring event she cancels only this one, unless you want all.
 - "Put milk on the shopping list." – "Add batteries, due Friday." – "What's on the list?"
 
+## Listening to the radio
+
+"Play SWR3." – "Turn on the radio in the living room." Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. Louder, quieter and pause work like on any media player.
+
 ## Looking things up and hard questions
 
 Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.
