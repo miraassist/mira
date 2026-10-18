@@ -112,11 +112,13 @@
         "data": {
           "timeout": "Antwort-Timeout (Sekunden)",
           "sidebar": "Im Seitenmenü anzeigen",
+          "web_search": "Internetsuche",
           "persona": "Persönlichkeit"
         },
         "data_description": {
           "timeout": "Danach sagt der Satellit eine kurze Fehlermeldung, statt stumm zu bleiben.",
           "sidebar": "Miras Web-Oberfläche als Seite in Home Assistant; wer kein Admin ist, sieht dort nur sein Gedächtnis, das des Hauses und die Anleitung. Jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.",
+          "web_search": "Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Ausschalten, wenn du eine andere Suche verwendest.",
           "persona": "Wie Mira klingt: Ton, Humor, wie knapp sie antwortet. Wird an ihre festen Regeln angehängt und gilt für Sprache, Telegram und Ansagen. Antwortlänge je Kanal und Listen regelt sie selbst."
         }
       },

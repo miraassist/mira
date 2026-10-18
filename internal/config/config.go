@@ -50,6 +50,7 @@ type Config struct {
 	Security   Security          `yaml:"security"`
 	Memory     Memory            `yaml:"memory"`
 	Skills     Skills            `yaml:"skills"`
+	WebSearch  WebSearch         `yaml:"web_search"`
 	Telemetry  Telemetry         `yaml:"telemetry"`
 }
 
@@ -361,9 +362,16 @@ type Telemetry struct {
 
 // Default returns the configuration the agent runs with when the YAML says
 // nothing. Every Load result starts from this.
+// WebSearch is Mira's own web search (docs/spec/websuche.md); the
+// integration switches it in its options.
+type WebSearch struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 func Default() Config {
 	temp := 0.3
 	return Config{
+		WebSearch: WebSearch{Enabled: true},
 		// The image sets MIRA_LISTEN (all interfaces) and MIRA_DATA (its
 		// data folder): a container needs no config for either.
 		Server: Server{Listen: envOr("MIRA_LISTEN", "127.0.0.1:8787"), Announce: true, Name: "Mira"},

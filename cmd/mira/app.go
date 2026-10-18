@@ -34,6 +34,7 @@ import (
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
+	"github.com/miraassist/mira/internal/websearch"
 )
 
 // app is the wired agent. Fields are nil for disabled parts.
@@ -113,6 +114,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if err != nil {
 		return nil, err
 	}
+	// The config as it runs: the file with what the web UI or Home
+	// Assistant changed. Read from the start, by the web search switch too.
+	a.fileCfg = cfg
+	a.live = a.withUIOverrides(ctx, cfg)
 	// What only the model reads (tool descriptions, the structure block) is
 	// built once, in the language last spoken; what is said follows each
 	// turn, area or person (docs/spec/sprache.md).
@@ -224,6 +229,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
 		Calendars: a.calendarList, Delete: a.deleteEvent, Logger: a.log})
 	internal = append(internal, a.calendar.Tool(a.lang))
+	// Mira's own web search (docs/spec/websuche.md); switched in the
+	// integration's options, so it is asked at every turn.
+	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
+		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
 	// Drafting and judging run on the engine, which is built from this
 	// registry: bound late through isolatedModel.
@@ -430,8 +439,6 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.goRun(ctx, "profile", compactor.Run)
 	}
 
-	a.fileCfg = cfg
-	a.live = a.withUIOverrides(ctx, cfg)
 	// The persons come from Home Assistant; read them before the notifier
 	// starts with them.
 	if a.ha.Connected() {

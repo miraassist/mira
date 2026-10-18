@@ -4,9 +4,11 @@ DOMAIN = "mira"
 # The version of the code that runs: Home Assistant imports an integration
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
-VERSION = "0.6.28"
+VERSION = "0.6.29"
 
 CONF_PERSONA = "persona"
+# Mira's own web search, switched at the agent (docs/spec/websuche.md).
+CONF_WEB_SEARCH = "web_search"
 CONF_TIMEOUT = "timeout"
 # Set once the agent's persons and rooms were imported as settings on HA's persons and satellites.
 CONF_IMPORTED = "imported"

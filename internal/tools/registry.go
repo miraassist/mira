@@ -59,8 +59,16 @@ type InternalTool struct {
 	Description string
 	Schema      string
 	ReadOnly    bool
-	Run         func(ctx context.Context, inv Invocation) (string, error)
+	// WebContent: the result is untrusted third-party text (a web page);
+	// the guard locks critical actions for the rest of the turn.
+	WebContent bool
+	// Enabled, when set, decides at each turn whether the tool is offered;
+	// a switched-off tool is unknown to the model.
+	Enabled func() bool
+	Run     func(ctx context.Context, inv Invocation) (string, error)
 }
+
+func (t InternalTool) on() bool { return t.Enabled == nil || t.Enabled() }
 
 // MCPSource is the part of the MCP host the registry uses.
 type MCPSource interface {
@@ -93,7 +101,7 @@ func NewRegistry(src MCPSource, internal ...InternalTool) *Registry {
 func (r *Registry) Specs(readOnly bool) []Spec {
 	var out []Spec
 	for _, t := range r.internal {
-		if readOnly && !t.ReadOnly {
+		if (readOnly && !t.ReadOnly) || !t.on() {
 			continue
 		}
 		out = append(out, internalSpec(t))
@@ -127,15 +135,16 @@ func (r *Registry) Defs(readOnly bool) []prompt.ToolDef {
 
 func internalSpec(t InternalTool) Spec {
 	return Spec{
-		ToolDef:  prompt.ToolDef{Name: t.Name, Description: t.Description, Schema: json.RawMessage(t.Schema)},
-		ReadOnly: t.ReadOnly,
-		Internal: true,
+		ToolDef:    prompt.ToolDef{Name: t.Name, Description: t.Description, Schema: json.RawMessage(t.Schema)},
+		ReadOnly:   t.ReadOnly,
+		WebContent: t.WebContent,
+		Internal:   true,
 	}
 }
 
 // Lookup finds a tool by the name the model used.
 func (r *Registry) Lookup(name string) (Spec, bool) {
-	if t, ok := r.internal[name]; ok {
+	if t, ok := r.internal[name]; ok && t.on() {
 		return internalSpec(t), true
 	}
 	if r.mcp != nil {
@@ -153,7 +162,7 @@ var ErrUnknownTool = errors.New("unknown tool")
 // Guard first. The returned text is what the model reads; isError marks a
 // failed call so the model does not claim success.
 func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, isError bool, err error) {
-	if t, ok := r.internal[inv.Name]; ok {
+	if t, ok := r.internal[inv.Name]; ok && t.on() {
 		out, err := t.Run(ctx, inv)
 		if err != nil {
 			return "Fehler: " + err.Error(), true, nil

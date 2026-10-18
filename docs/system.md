@@ -79,7 +79,8 @@ flowchart LR
 | `internal/prompt` | Prompt-Schichten, Beispielunterhaltung, Texte je Sprache |
 | `internal/llm` | OpenAI-kompatibler Client (LM Studio, llama.cpp, Gemini) |
 | `internal/tools` | Werkzeug-Register, Schutz (Guard) für kritische Aktionen, interne Werkzeuge (Gedächtnis, Erinnerungen, Nachrichten) |
-| `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, Websuche |
+| `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, weitere MCP-Server |
+| `internal/websearch` | Eingebaute Websuche: `web_search` (DuckDuckGo-HTML), `web_page` (Haupttext einer Seite); liest nur, fremder Webtext, abschaltbar ([Websuche](spec/websuche.md)) |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
@@ -384,6 +385,10 @@ erDiagram
   im selben Turn sind sie gesperrt. Hintergrundaufgaben schreiben nie.
 - **Fremder Text ist Daten.** Web-Ergebnisse, Feeds und Kalender gelten
   als Daten, nie als Anweisungen.
+- **Die eingebaute Websuche** (`web_search`, `web_page`) ist als „liest
+  nur“ und „fremder Webtext“ markiert wie ein MCP-Server mit `read_only`
+  und `web_content`. `web_page` liest keine Adressen im eigenen Netz (auch
+  nicht nach einer Weiterleitung), nur `http`/`https`, höchstens 2 MB.
 - **Geheimnisse** stehen nur in `.env`, etwa Tokens oder die Kalender-URL
   mit Adresse. Sie erreichen kein Modell.
 - **Integration und Agent** sprechen nur mit Bearer-Token miteinander.

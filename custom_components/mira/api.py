@@ -182,14 +182,26 @@ class MiraClient:
         """Rebuild the memory profile from the stored facts now."""
         return await self._request("POST", "/v1/ui/memory/compact", 180)
 
-    async def persona(self) -> str:
-        """The persona as the agent has it now."""
-        sections = await self._request("GET", "/v1/ui/config", 10)
-        return str(((sections or {}).get("persona") or {}).get("value") or "")
+    async def general(self) -> dict[str, Any]:
+        """What the options' "General" sets at the agent: the persona and
+        whether the web search is on."""
+        sections = await self._request("GET", "/v1/ui/config", 10) or {}
+        search = (sections.get("web_search") or {}).get("value") or {}
+        return {
+            "persona": str((sections.get("persona") or {}).get("value") or ""),
+            "web_search": bool(search.get("enabled", True)),
+        }
 
-    async def set_persona(self, text: str) -> None:
-        """Change the persona; the agent checks it first (MiraInvalidConfig)."""
-        await self._request("PUT", "/v1/ui/config", 10, json={"persona": text})
+    async def set_general(self, changes: dict[str, Any]) -> None:
+        """Change the persona and/or the web search switch; the agent checks
+        them first (MiraInvalidConfig)."""
+        body: dict[str, Any] = {}
+        if "persona" in changes:
+            body["persona"] = changes["persona"]
+        if "web_search" in changes:
+            body["web_search"] = {"enabled": bool(changes["web_search"])}
+        if body:
+            await self._request("PUT", "/v1/ui/config", 10, json=body)
 
     async def managed_config(self) -> dict[str, Any]:
         """Watchers, persons and rooms as the agent has them now."""

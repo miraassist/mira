@@ -1,0 +1,187 @@
+package websearch
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/tools"
+)
+
+func fixture(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// The results page gives the hits in order, without ads, with DuckDuckGo's
+// redirect undone and the snippet's markup gone; the query and region go
+// along.
+func TestQuery(t *testing.T) {
+	page := fixture(t, "results.html")
+	var got sent
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		got = sent{q: r.PostForm.Get("q"), kl: r.PostForm.Get("kl")}
+		w.Write(page)
+	}))
+	t.Cleanup(srv.Close)
+	s := New(Options{Lang: i18n.DE, SearchURL: srv.URL, HTTP: srv.Client()})
+	results, err := s.Query(context.Background(), "Baumarkt Sonntag")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.q != "Baumarkt Sonntag" || got.kl != "de-de" {
+		t.Errorf("sent %+v", got)
+	}
+	want := []Result{
+		{Title: "Öffnungszeiten im Baumarkt", URL: "https://example.org/baumarkt/oeffnungszeiten", Snippet: "Montag bis Samstag 8 bis 20 Uhr, sonntags geschlossen."},
+		{Title: "Verkaufsoffene Sonntage", URL: "https://example.net/sonntag", Snippet: "Termine für verkaufsoffene Sonntage."},
+		{Title: "Ohne Kurztext", URL: "https://example.com/ohne-text"},
+	}
+	if len(results) != len(want) {
+		t.Fatalf("results: %+v", results)
+	}
+	for i := range want {
+		if results[i] != want[i] {
+			t.Errorf("%d: %+v, want %+v", i, results[i], want[i])
+		}
+	}
+}
+
+type sent struct{ q, kl string }
+
+// A bot check instead of results is said as such, not as "no hits".
+func TestBlocked(t *testing.T) {
+	page := fixture(t, "blocked.html")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(page) }))
+	t.Cleanup(srv.Close)
+	s := New(Options{Lang: i18n.EN, SearchURL: srv.URL, HTTP: srv.Client()})
+	if _, err := s.Query(context.Background(), "x"); err != ErrBlocked {
+		t.Fatalf("got %v", err)
+	}
+	out := run(t, s, ToolSearch, `{"query":"x"}`)
+	if !strings.Contains(out, "bot check") {
+		t.Errorf("tool said %q", out)
+	}
+}
+
+// A page gives its title and main text: Latin-1 decoded, without scripts,
+// navigation, header, footer, aside, form and hidden parts.
+func TestRead(t *testing.T) {
+	page := fixture(t, "page.html")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=iso-8859-1")
+		w.Write(page)
+	}))
+	t.Cleanup(srv.Close)
+	s := New(Options{Lang: i18n.DE, AllowPrivate: true})
+	p, err := s.Read(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Title != "Öffnungszeiten - Baumarkt am See" {
+		t.Errorf("title %q", p.Title)
+	}
+	for _, want := range []string{"Öffnungszeiten\n", "Montag bis Samstag von 8 bis 20 Uhr", "Gartencenter: ab 7 Uhr\nHolzzuschnitt", "Parkplätze"} {
+		if !strings.Contains(p.Text, want) {
+			t.Errorf("missing %q in\n%s", want, p.Text)
+		}
+	}
+	for _, not := range []string{"tracking", "color", "Angebote", "Newsletter", "Suchen", "Impressum", "Versteckter"} {
+		if strings.Contains(p.Text, not) {
+			t.Errorf("%q should be left out:\n%s", not, p.Text)
+		}
+	}
+}
+
+// Pages in the own network, other schemes and non-HTML are refused.
+func TestReadRefuses(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Write([]byte("%PDF"))
+	}))
+	t.Cleanup(srv.Close)
+	s := New(Options{Lang: i18n.DE})
+	if _, err := s.Read(context.Background(), srv.URL); err != errPrivate {
+		t.Errorf("loopback: %v", err)
+	}
+	if out := run(t, s, ToolPage, `{"url":"http://192.168.1.1/"}`); !strings.Contains(out, "eigenen Netz") {
+		t.Errorf("private address: %q", out)
+	}
+	if _, err := s.Read(context.Background(), "file:///etc/passwd"); err == nil {
+		t.Error("file: was read")
+	}
+	open := New(Options{Lang: i18n.DE, AllowPrivate: true})
+	if _, err := open.Read(context.Background(), srv.URL); err == nil || !strings.Contains(err.Error(), "application/pdf") {
+		t.Errorf("pdf: %v", err)
+	}
+}
+
+// Both tools only read and carry web content; switched off, the registry
+// neither offers nor runs them.
+func TestToolsSwitch(t *testing.T) {
+	on := true
+	s := New(Options{Lang: i18n.DE, Enabled: func() bool { return on }})
+	reg := tools.NewRegistry(nil, s.Tools()...)
+	for _, name := range []string{ToolSearch, ToolPage} {
+		spec, ok := reg.Lookup(name)
+		if !ok || !spec.ReadOnly || !spec.WebContent {
+			t.Errorf("%s: %+v %v", name, spec, ok)
+		}
+	}
+	if n := len(reg.Specs(true)); n != 2 {
+		t.Errorf("background jobs get %d tools", n)
+	}
+	on = false
+	if _, ok := reg.Lookup(ToolSearch); ok || len(reg.Specs(false)) != 0 {
+		t.Error("switched off, still offered")
+	}
+	if _, _, err := reg.Execute(context.Background(), tools.Invocation{Name: ToolSearch, Args: json.RawMessage(`{"query":"x"}`)}); err == nil {
+		t.Error("switched off, still run")
+	}
+}
+
+func run(t *testing.T, s *Search, name, args string) string {
+	t.Helper()
+	for _, tool := range s.Tools() {
+		if tool.Name == name {
+			out, err := tool.Run(context.Background(), tools.Invocation{Name: name, Args: json.RawMessage(args)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+	}
+	t.Fatalf("no tool %s", name)
+	return ""
+}
+
+// TestLive asks the real DuckDuckGo and reads the first hit, to notice when
+// the results page changed. Only with MIRA_LIVE_SEARCH=1.
+func TestLive(t *testing.T) {
+	if os.Getenv("MIRA_LIVE_SEARCH") != "1" {
+		t.Skip("MIRA_LIVE_SEARCH=1 runs it against the real DuckDuckGo")
+	}
+	s := New(Options{Lang: i18n.DE})
+	results, err := s.Query(context.Background(), "Wikipedia Eiffelturm")
+	if err != nil || len(results) == 0 {
+		t.Fatalf("search: %v %+v", err, results)
+	}
+	for _, r := range results {
+		t.Logf("%s | %s | %.80s", r.Title, r.URL, r.Snippet)
+	}
+	p, err := s.Read(context.Background(), results[0].URL)
+	if err != nil || len(p.Text) < 200 {
+		t.Fatalf("page %s: %v (%d chars)", results[0].URL, err, len(p.Text))
+	}
+	t.Logf("page %q: %d chars, cut %v\n%.300s", p.Title, len(p.Text), p.Cut, p.Text)
+}

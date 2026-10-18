@@ -147,7 +147,9 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 
 ## Im Internet nachschauen und schwierige Fragen
 
-Ist eine Websuche eingerichtet, schaut Mira nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.
+Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.
+
+Die Suche ist eingebaut und braucht keine Einrichtung. Ausschalten kannst du sie unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Allgemein** → **Internetsuche**, etwa wenn du eine andere Suche verwendest (siehe „Weitere Werkzeuge über MCP“).
 
 Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Planungen, Rezepte, Vergleiche – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
 
@@ -231,7 +233,7 @@ Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benu
 
 ## Weitere Werkzeuge über MCP
 
-Mira kann zusätzliche Werkzeuge nutzen, die ein MCP-Server anbietet, etwa eine Websuche. Du trägst sie in `mira.yaml` unter `mcp_servers` ein (Home Assistants eigener MCP-Server ist immer dabei); Mira verbindet sich beim Start und gibt dem Modell die Werkzeuge mit, mit dem Servernamen davor (`search__…`). Das funktioniert mit jedem Sprachmodell.
+Mira kann zusätzliche Werkzeuge nutzen, die ein MCP-Server anbietet, etwa eine andere Websuche als die eingebaute. Du trägst sie in `mira.yaml` unter `mcp_servers` ein (Home Assistants eigener MCP-Server ist immer dabei); Mira verbindet sich beim Start und gibt dem Modell die Werkzeuge mit, mit dem Servernamen davor (`search__…`). Das funktioniert mit jedem Sprachmodell.
 
 Ein Server läuft entweder für sich und wird über HTTP erreicht, oder Mira startet ihn selbst als Programm (stdio):
 

@@ -81,13 +81,21 @@ mcp_servers:
     transport: http
     url: "http://homeassistant.local:8123/api/mcp"
     token: ${HA_TOKEN}
+  # Mira has her own web search (web_search below); a search of your own
+  # runs as an MCP server like this one, with the built-in switched off.
   - name: search
     transport: http
     url: "http://localhost:9100/mcp"
+    disabled: true
     read_only: true
     # Results are untrusted web text: using this server locks critical
     # actions (locks, alarm, garage) for the rest of the turn.
     web_content: true
+
+# Mira's own web search (docs/spec/websuche.md): DuckDuckGo, no key. The
+# integration's options ("General" → "Web search") win over this.
+web_search:
+  enabled: true
 
 # Telegram runs through Home Assistant's own Telegram integration
 # (telegram_bot); Mira has no bot of her own (docs/spec/kanaele.md).

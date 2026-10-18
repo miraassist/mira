@@ -83,8 +83,9 @@ Requirements:
   with a long-lived token, and the "Model Context Protocol Server"
   integration with the Assist API (`/api/mcp/assist`). With `ha.url` and
   `ha.token` in `mira.yaml` instead, set both up by hand.
-- Optional: more MCP servers (web search, …) under `mcp_servers`, over HTTP or
-  started by Mira (stdio). See "More tools over MCP" in the guide
+- Optional: more MCP servers under `mcp_servers`, over HTTP or started by
+  Mira (stdio). A web search is built in (DuckDuckGo, no key; switched in the
+  integration's options, docs/spec/websuche.md). See "More tools over MCP" in the guide
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
 
 Web UI: `http://<agent>:8787/ui` edits the notifier, and the satellites and

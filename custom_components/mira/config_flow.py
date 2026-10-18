@@ -38,6 +38,7 @@ from .const import (
     CONF_PIPELINES,
     CONF_SIDEBAR,
     CONF_TIMEOUT,
+    CONF_WEB_SEARCH,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
@@ -591,9 +592,9 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
     persons and satellites themselves (managed.py)."""
 
     _keys: dict[str, str] = {}
-    # The persona as the agent had it when the form opened; None without
-    # the agent.
-    _persona: str | None = None
+    # The persona and the web search switch as the agent had them when the
+    # form opened; None without the agent.
+    _general: dict[str, Any] | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(step_id="init", menu_options=["general", "model", "persons", "satellites"])
@@ -612,20 +613,26 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
         return self.async_create_entry(data=dict(self.config_entry.options))
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        # The persona lives at the agent, like everything it is asked for
-        # per request; the entry keeps only what the integration itself
-        # needs. Without the agent the field is left out, so nothing is
-        # overwritten blindly.
+        # The persona and the web search switch live at the agent, like
+        # everything it is asked for per request; the entry keeps only what
+        # the integration itself needs. Without the agent those fields are
+        # left out, so nothing is overwritten blindly.
         runtime = getattr(self.config_entry, "runtime_data", None)
         client = runtime.client if runtime else None
         errors: dict[str, str] = {}
         placeholders = {"error": ""}
         if user_input is not None:
             data = dict(user_input)
+            changes: dict[str, Any] = {}
             persona = data.pop(CONF_PERSONA, None)
-            if client and persona is not None and persona.strip() != self._persona:
+            if self._general is not None and persona is not None and persona.strip() != self._general["persona"]:
+                changes["persona"] = persona.strip()
+            search = data.pop(CONF_WEB_SEARCH, None)
+            if self._general is not None and search is not None and search != self._general["web_search"]:
+                changes["web_search"] = search
+            if client and changes:
                 try:
-                    await client.set_persona(persona.strip())
+                    await client.set_general(changes)
                 except MiraInvalidConfig as err:
                     errors["base"], placeholders["error"] = "invalid_config", str(err)
                 except MiraError:
@@ -634,9 +641,9 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
                 return self.async_create_entry(data=dict(self.config_entry.options) | data)
         else:
             try:
-                self._persona = await client.persona() if client else None
+                self._general = await client.general() if client else None
             except MiraError:
-                self._persona = None
+                self._general = None
         options = self.config_entry.options
         fields: dict[Any, Any] = {
             vol.Required(CONF_TIMEOUT, default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): vol.All(
@@ -644,9 +651,10 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
             ),
             vol.Required(CONF_SIDEBAR, default=options.get(CONF_SIDEBAR, True)): bool,
         }
-        if self._persona is not None:
-            fields[vol.Optional(CONF_PERSONA, description={"suggested_value": self._persona})] = selector.TextSelector(
-                selector.TextSelectorConfig(multiline=True)
+        if self._general is not None:
+            fields[vol.Required(CONF_WEB_SEARCH, default=self._general["web_search"])] = bool
+            fields[vol.Optional(CONF_PERSONA, description={"suggested_value": self._general["persona"]})] = (
+                selector.TextSelector(selector.TextSelectorConfig(multiline=True))
             )
         return self.async_show_form(
             step_id="general", data_schema=vol.Schema(fields), errors=errors, description_placeholders=placeholders

@@ -147,7 +147,9 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 
 ## Looking things up and hard questions
 
-If a web search is set up, Mira looks up what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.
+Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.
+
+The search is built in and needs no setup. You can switch it off under Settings → Devices & services → Mira → **Configure** → **General** → **Web search**, for instance if you use another search (see "More tools over MCP").
 
 If the setup is connected to a stronger language model, Mira hands elaborate questions over to it – explanations, planning, recipes, comparisons – and sums up the result for you. The stronger model can look things up but change nothing in the house.
 
@@ -231,7 +233,7 @@ In the HA app's Assist chat and in the sidebar Mira recognises you by your HA us
 
 ## More tools over MCP
 
-Mira can use extra tools that an MCP server offers, such as a web search. You list them in `mira.yaml` under `mcp_servers` (Home Assistant's own MCP server is always there); Mira connects at start and hands the tools to the model, prefixed with the server name (`search__…`). This works with any language model.
+Mira can use extra tools that an MCP server offers, such as a web search other than the built-in one. You list them in `mira.yaml` under `mcp_servers` (Home Assistant's own MCP server is always there); Mira connects at start and hands the tools to the model, prefixed with the server name (`search__…`). This works with any language model.
 
 A server either runs on its own and is reached over HTTP, or Mira starts it as a program (stdio):
 
