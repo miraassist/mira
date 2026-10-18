@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +12,15 @@ import (
 )
 
 func up(ctx context.Context, dir string) error {
+	// configuration.yaml includes these; a fresh start has none yet.
+	for name, empty := range map[string]string{"automations.yaml": "[]\n", "scenes.yaml": "[]\n", "scripts.yaml": "{}\n"} {
+		path := filepath.Join(dir, "ha", name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			if err := os.WriteFile(path, []byte(empty), 0o644); err != nil {
+				return err
+			}
+		}
+	}
 	if err := compose(ctx, dir, "up", "-d"); err != nil {
 		return err
 	}

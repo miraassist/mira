@@ -21,6 +21,10 @@ demo:
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 
+# Scenes and scripts made in the UI or by Mira's tests (like the automations).
+scene: !include scenes.yaml
+script: !include scripts.yaml
+
 # Test trackers for the persons: flipping "Sim zu Hause <Person>" reports
 # device_tracker.sim_<person> as home or not_home (also at start); `testha
 # up` links each tracker to its person.
