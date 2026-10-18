@@ -44,10 +44,35 @@ Rezept suchen, Schritt für Schritt vorlesen, Timer stellen, Zutaten auf die Ein
 Vorlieben kommen aus dem Gedächtnis („Maria isst keine Nüsse“). Mira antwortet auf „Was kommt als Nächstes?“ und
 „Wie lange noch?“ statt eines festen Ablaufs.
 
-## 4. Gute-Nacht-Geschichte
+## 4. Vorlesen: Geschichten für Kinder
 
-Eine Geschichte nach Wunsch, mit den Namen der Kinder, passend zum Alter, in der Länge, die man sagt. Optional
-mit Einschlafgeräuschen danach (Adresse abspielen) und Licht, das langsam ausgeht.
+Mira liest eine Geschichte vor, passend zum Alter, zur Länge und zum Anlass. Es gibt zwei Quellen, die sich
+ergänzen:
+
+- **Selbst erzählt.** Mira erfindet eine Geschichte nach Wunsch („eine mit einem Drachen, zehn Minuten“), mit den Namen
+  der Kinder. Keine Rechtefrage, aber jedes Mal neu.
+- **Aus einer Sammlung.** Beispiel: [Zwergenstark, Kindergeschichten](https://zwergenstark.de/kindergeschichten/).
+  Die Seite ordnet ihre Geschichten so, wie ein Skill sie braucht:
+  - **Themen:** Gute-Nacht-Geschichten, Tiergeschichten, Abenteuergeschichten, Fantasiereisen (zum Einschlafen),
+    Beliebte Geschichten, nach Jahreszeit sowie Weihnachten und Halloween.
+  - **Alter:** an jeder Geschichte steht eine Altersangabe („ab 3 Jahren“, „Ab 6-8 Jahre“, „3-7 Jahre“, „8-12 Jahre“).
+    Die Schreibweisen sind uneinheitlich, der Skill rechnet sie auf eine Altersspanne um und vergleicht sie mit dem
+    Alter der Person (siehe oben). Ohne Alter fragt Mira einmal nach, was passt.
+  - **Dauer:** „ca. 5 Min.“ bis etwa 37 Minuten. Der Skill wählt die Länge, die zum Anlass passt („kurz vor dem
+    Einschlafen“ höchstens 10 Minuten). Lange Geschichten liest Mira in Teilen („Ich lese morgen weiter“) und
+    merkt sich die Stelle.
+  - **Formate:** Text zum Vorlesen, außerdem Hörgeschichten (Audio), Gedichte und Mitmach-Geschichten. Audio braucht
+    „Adresse abspielen“, der Rest geht über die Stimme von Mira.
+- **Was Mira dazu tut:** Sie merkt sich, was ein Kind schon gehört hat, und wiederholt es nicht ungefragt. Sie schlägt
+  zur Jahreszeit passende Geschichten vor (Weihnachten, Halloween). Nach der Geschichte fragt sie, ob das Licht ausgehen
+  und ein Einschlafgeräusch (siehe Szenen) laufen soll.
+- **Wie sie an die Geschichten kommt:** Die Seite hat nach meinem Eindruck keinen Feed und keine Schnittstelle, nur die
+  Übersicht mit Kacheln (Titel, Alter, Dauer) und eine Suche. Der Skill würde mit der Internetsuche und dem Lesen der
+  Seite arbeiten, begrenzt auf diese Adresse.
+- **Vorher klären:** Die Inhalte sind urheberrechtlich geschützt, und zu Vorlesen oder Nutzung in einer Anwendung
+  habe ich in den Angaben der Seite nichts gefunden (AGB und Impressum habe ich nicht gelesen). Vor dem Bauen die
+  Bedingungen lesen und beim Betreiber nachfragen, ob das Vorlesen im eigenen Haushalt in Ordnung ist, oder ob es
+  einen Weg gibt (Feed, Erlaubnis). Bis dahin bleibt die selbst erzählte Variante.
 
 ## 5. Quiz
 
