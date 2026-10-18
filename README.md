@@ -2,6 +2,10 @@
 
 **Website: [mira-assist.com](https://mira-assist.com)**
 
+[![Mira Voice Assistant: Chats in deutsch (video on YouTube)](https://img.youtube.com/vi/N-RfuKgBsEs/sddefault.jpg)](https://youtu.be/N-RfuKgBsEs)
+
+▶ [Mira Voice Assistant: Chats in deutsch](https://youtu.be/N-RfuKgBsEs) (YouTube)
+
 [![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration)
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) [![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
