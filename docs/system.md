@@ -143,6 +143,7 @@ Wichtig:
   Skills, die eine HA-Aktion aufrufen (z. B. Wecker): [Skill-Aktionen](spec/skill-aktionen.md).
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
   Radio auf dem Lautsprecher eines Raums: [Radio](spec/radio.md).
+  Geplante Aktionen in HA (Einschlaf-Timer, Aufräumen): [Geplante Aktionen](spec/geplante-aktionen.md).
   Ideen für weitere Skills (Szenen, Briefing, Kochen, Geschichten, Quiz, Lernen): [Skill-Ideen](spec/skill-ideen.md).
   Weitere Werkzeuge und Skills (Verlauf, Wetter, Musik, Kamera, Listen): [Plan](spec/skills-plan.md).
   Prüfen, ob Mira mit einem Modell-Setup funktioniert: [Evals](spec/evals.md).
