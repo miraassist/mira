@@ -40,9 +40,14 @@ variables:                      # was die Integration beim Aufräumen und Mira b
 triggers:
   - trigger: time
     at: "22:35:00"
-conditions:                     # ohne das käme der Auslöser täglich wieder
+  - trigger: homeassistant      # war HA zur Fälligkeit aus: jetzt nachholen
+    event: start
+conditions:                     # frühestens zur Fälligkeit, nur einmal, nicht ewig später
   - condition: template
-    value_template: "{{ now().date().isoformat() == '2026-10-18' }}"
+    value_template: >-
+      {{ now() >= as_datetime('2026-10-18T22:35:00+02:00')
+         and now() < as_datetime('2026-10-18T22:35:00+02:00') + timedelta(hours=12)
+         and this.attributes.last_triggered is none }}
 actions:
   - action: media_player.volume_set     # Ausblenden: mehrere Schritte mit Warten
     ...
@@ -53,8 +58,12 @@ actions:
 mode: single
 ```
 
-- **Auslöser:** eine Uhrzeit auf die Sekunde mit einer Datumsbedingung. Das reicht auch über Mitternacht und für
-  Zeiten in mehr als 24 Stunden. Ein Vorlagen-Auslöser mit `now()` wäre nur auf die Minute genau.
+- **Auslöser:** eine Uhrzeit auf die Sekunde, dazu der Start von Home Assistant. Das reicht auch über Mitternacht
+  und für Zeiten in mehr als 24 Stunden. Ein Vorlagen-Auslöser mit `now()` wäre nur auf die Minute genau.
+- **Bedingung: frühestens zur Fälligkeit und nur einmal.** `now() >= mira_due` und noch nie ausgelöst
+  (`last_triggered` ist leer). Ist HA zur Fälligkeit aus, löst der Start von HA die Automation aus, und sie
+  wird nachgeholt: sonst brennt das Licht die ganze Nacht. Eine **Obergrenze** (zwölf Stunden nach der
+  Fälligkeit) verhindert, dass ein Timer von gestern Abend heute Mittag etwas ausschaltet; danach verfällt er.
 - **Fälligkeit und Besitzer** stehen in `variables`. Das ist strukturiert, überlebt Änderungen im Editor von HA und
   braucht keinen eigenen Speicher.
 - **„Schon gelaufen?“** liest die Integration aus der Automation selbst: `last_triggered` und die Zahl der laufenden
@@ -68,11 +77,13 @@ danach jede Minute.
 Für jede Automation mit dem Label `mira_once`, mit `mira_due` aus den Variablen:
 
 1. **Gelaufen und fertig** (`last_triggered` gesetzt, keine laufenden Durchläufe): löschen.
-2. **Fällig, aber noch nicht gelaufen**, innerhalb der **Frist** (fünf Minuten, etwa weil HA beim Start nicht
-   ausgelöst hat): die Automation jetzt auslösen (`automation.trigger`, ohne die Bedingungen), danach wie 1.
-3. **Überfällig** (nach der Frist, nie gelaufen): löschen und den Besitzer benachrichtigen („Der Schlaf-Timer um
-   22:35 konnte nicht ausgeführt werden“), als Nachricht über die Agenten-API.
+2. **Verfallen** (mehr als zwölf Stunden nach der Fälligkeit und nie gelaufen, etwa weil jemand die Automation
+   abgeschaltet hat): löschen und den Besitzer benachrichtigen („Der Schlaf-Timer um 22:35 ist nicht
+   ausgeführt worden“), als Nachricht über die Agenten-API.
+3. **Fällig, nicht gelaufen und nicht verfallen:** nichts tun, die Automation holt es selbst nach (Start von HA).
 4. **Noch nicht fällig:** nichts tun.
+
+Das Nachholen steckt damit in der Automation selbst und nicht in der Kehrrunde. Die Kehrrunde räumt nur auf.
 
 Ändert jemand `mira_due` im Editor, gilt der neue Wert. Fehlt die Variable, ist es keine Mira-Automation mehr, und
 die Kehrrunde lässt sie in Ruhe.
@@ -104,6 +115,8 @@ Entitäten wählt („Mach in einer Stunde das Licht aus“). Dieselbe Prüfung,
 
 ## Offen
 
+- **Start von HA:** Beim Nachholen sind Player und Lampen eventuell noch nicht erreichbar. Die Aktionen warten
+  deshalb kurz (bis zu zwei Minuten) auf die Zielgeräte und machen dann weiter, auch wenn eines fehlt.
 - **Ausblenden:** Lautstärke in Schritten senken (mehrere Aktionen mit Warten). Erst nach der einfachen Version.
 - **Das Hörbuch:** Beim Stoppen soll die Stelle bleiben. Das ist Sache von Music Assistant (siehe Skill-Ideen), nicht
   des Timers.
