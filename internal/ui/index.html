@@ -90,7 +90,8 @@ button:focus-visible, a.button:focus-visible { outline: 3px solid color-mix(in s
 .guide figure { margin: 14px 0 18px; }
 .guide figure img, .guide figure video { display: block; max-width: 100%; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow); }
 .guide figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
-.guide aside.note { margin: 12px 0; padding: 10px 14px; border-radius: 12px; background: var(--rose-tint); border-left: 4px solid var(--magenta); }
+/* Dialogs and hints in the guide: calm teal, so they do not look like an error. */
+.guide aside.note { margin: 12px 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, var(--panel)); border-left: 4px solid var(--accent-2); }
 .guide pre.code { white-space: pre; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--ok-tint); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 13px; }
