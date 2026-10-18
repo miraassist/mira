@@ -9,6 +9,35 @@ Das Muster: Ein Skill bündelt Anleitung, Einstellungen und Zeitpläne. Er nutzt
 ohnehin hat (Kalender, Listen, Suche, Haussteuerung, Gedächtnis, Nachrichten). Die Stärke gegenüber
 Alexa-Skills ist der Dialog, das Wissen über Haus und Personen und das Melden von selbst.
 
+## Must have (Alexa kann es, Mira soll es besser können)
+
+### Hörbuch weiterhören
+
+„Lies mein Hörbuch weiter.“ – „Welches Kapitel war ich?“ – „Fang das Buch von vorn an.“ – „Spiel Kapitel 5.“
+
+- **Über Music Assistant.** Er kennt Hörbücher (Ordner mit Kapiteln, m4b/m4a oder viele MP3 in CD1, CD2 …), führt die
+  Warteschlange und merkt sich die Position selbst. Wer die Funktion will, installiert Music Assistant; ohne ihn gibt es
+  den Skill nicht. Der Show kann in Home Assistant nicht an eine Stelle springen und keine Warteschlange führen
+  (die Funktionen des Players), deshalb reicht ein direktes Abspielen nicht.
+- **Mira ist die Stimme davor:** Sie versteht den Wunsch, wählt Buch und Player (Raum), startet das Hörbuch und
+  weiß, welches Buch zu wem gehört („Annas Buch“, „das Buch von Ben“). Sie sagt ehrlich, wenn Music Assistant fehlt
+  oder das Buch nicht gefunden wird.
+- **Zu klären vor dem Bauen:** Kann Music Assistant im Haushalt Hörbücher mit Position abspielen (Test im Live-HA)?
+  Welche Werkzeuge bietet er Mira an, oder braucht es ein eigenes Werkzeug wie bei `radio_play`?
+- **Dazu der Einschlaf-Timer** (unten), denn Hörbuch und Einschlafen gehören zusammen.
+
+### Einschlaf-Timer
+
+„Schlaf-Timer 30 Minuten.“ – „Schalte in 20 Minuten alles aus.“ – „Noch zehn Minuten.“ – „Doch abbrechen.“
+
+- Nach der gewählten Zeit hört das Abspielen auf (Hörbuch, Radio, Musik), auf Wunsch leiser werdend, und das Licht geht
+  aus. Beim Hörbuch bleibt die Stelle erhalten.
+- **Neu im Kern:** Mira kann heute zu einer Zeit **etwas sagen** (Erinnerung), aber nicht zu einer Zeit **etwas tun**.
+  Der Timer braucht einmalige, geplante Aktionen: etwa als kurzlebige Automation in Home Assistant, die danach
+  verschwindet, oder als geplanter Aufruf im Agenten. Das gleiche brauchen „Mach in einer Stunde das Licht aus“ und
+  Szenen mit Verzögerung.
+- Verlängern und Abbrechen im Gespräch („Noch zehn Minuten“).
+
 ## Voraussetzungen, die mehrere Skills brauchen
 
 - **Adresse abspielen.** Ein Werkzeug, das einen Ton oder Stream auf dem Lautsprecher eines Raums startet,
@@ -16,6 +45,9 @@ Alexa-Skills ist der Dialog, das Wissen über Haus und Personen und das Melden v
   Nachrichten.
 - **Alter der Personen (optional).** Wer ein Kind ist, bekommt andere Geschichten, Quizfragen und Aufgaben.
   Das Alter ist freiwillig; ohne Angabe nimmt Mira an, es sei ein Erwachsener. Braucht: Geschichte, Quiz, Lernen.
+- **Zustand für Skills.** Ein Skill soll sich etwas merken können, was nicht im Gespräch steht: welches Hörbuch, welche
+  Geschichten schon gehört, Quizpunkte, was beim Lernen sitzt. Heute kann ein Skill nur das Gedächtnis (Fakten als Text)
+  nutzen, ohne gezieltes Ändern; dazu der Abschnitt „Wie ein Skill sich etwas merkt“ unten.
 - **Gedächtnis importieren und exportieren.** Haus-Wissen als Datei, die man von Hand pflegt. Braucht: Handbuch.
 
 ## 1. Szenen: „Gute Nacht“, „Guten Morgen“, „Heimkino geht los“
@@ -99,3 +131,17 @@ eine Einstellung für den Sensor und antwortet kurz mit der Abfahrt.
 
 - **Skills mit Marken-Anbindung** (Fahrdienst, Lieferdienst): brauchen Dienste und Konten, die Mira nicht hat.
 - **Musik** (Interpreten, Alben): Sache von Music Assistant, siehe [Plan](skills-plan.md).
+
+## Wie ein Skill sich etwas merkt
+
+Ein Skill hat keinen eigenen Speicher und führt keinen Code aus. Was er hat:
+
+1. **Das Gedächtnis** (`memory_save`, `memory_search`, `memory_forget`): Fakten als Text, je Person oder fürs Haus,
+   durchsuchbar über Stichwörter. Das reicht für „Anna hört gerade ‚Der kleine Prinz‘“. Nachteil: Es gibt kein
+   „ändern“, nur neu speichern und das alte vergessen, und gefunden wird über Wörter, nicht über feste Felder.
+2. **Das System, das den Zustand schon führt:** Bei Hörbüchern ist das Music Assistant (Position, Warteschlange). Mira
+   muss sich dann nur merken, welches Buch gemeint ist, und fragt für den Rest dort nach. Das ist der sauberste Weg.
+3. **Ein einfacher Speicher je Skill (offen):** Ein Skill bekäme ein paar benannte Werte je Person („Buch“,
+   „Kapitel“, „Punkte“), die Mira lesen und setzen kann. Das brauchen mehrere Ideen hier: Hörbuch (falls MA die Stelle
+   nicht liefert), Quiz, Lernen, Geschichten (schon gehört). Ob das nötig ist, entscheidet sich beim ersten Skill,
+   der es wirklich braucht.
