@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -81,5 +82,21 @@ func TestPersonaSection(t *testing.T) {
 	c.Prompt.Persona = strings.Repeat("x", MaxPersonaChars+1)
 	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "prompt.persona") {
 		t.Errorf("want a length error, got %v", err)
+	}
+}
+
+// A held-back own message is on by default and may be turned off, not below 0.
+func TestOwnMessageHoldConfig(t *testing.T) {
+	if got := Default().Notifier.OwnMessageHold.Duration(); got != 10*time.Minute {
+		t.Errorf("default: %v", got)
+	}
+	c := Default()
+	c.Notifier.OwnMessageHold = Duration(-time.Minute)
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "own_message_hold") {
+		t.Errorf("negative accepted: %v", err)
+	}
+	c.Notifier.OwnMessageHold = 0
+	if err := c.Validate(); err != nil {
+		t.Errorf("0 rejected: %v", err)
 	}
 }

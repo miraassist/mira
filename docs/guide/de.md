@@ -172,6 +172,8 @@ Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie geste
 
 An eine Person geht eine Nachricht über ihre Kanäle (Telegram, Companion-App), am Satelliten nur, wenn sie dort als sie erkannt ist. Jede Person stellt ein, von wem sie Nachrichten annimmt: von allen, nur von Personen, die Mira erkennt, oder von niemandem; Miras eigene Nachrichten (Aufgaben, Erinnerungen, Warnungen) kommen immer an. Wer etwas von jemandem im Wohnzimmer hinterlässt, ohne erkannt zu sein, erscheint als „jemand im Bereich Wohnzimmer“. Ob eine Nachricht gehört wurde, erfährt der Absender nicht.
 
+Eine Nachricht fürs Haus, die du an einem Satelliten hinterlässt, wird in genau diesem Raum zehn Minuten lang nicht angesagt oder angezeigt: Du stehst ja dort. Alle anderen Räume bekommen sie sofort. Die Zeit stellst du in Home Assistant unter „Konfigurieren → Allgemein“ ein; 0 heißt: nicht warten. Dringendes und Erinnerungen sind davon nicht betroffen.
+
 Eine **Durchsage** („Sag allen, das Essen ist fertig“) ist etwas anderes: Sie geht sofort über alle Satelliten und wird nicht gespeichert.
 
 ## Und natürlich: das Haus steuern

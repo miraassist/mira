@@ -172,6 +172,8 @@ At the time you chose, Mira speaks the reminder in the room where you asked for 
 
 A message to a person goes over their channels (Telegram, companion app), at a satellite only when they are recognised there. Each person sets whose messages they take: everyone, only persons Mira recognises, or nobody; Mira's own messages (tasks, reminders, warnings) always arrive. Someone who leaves a message in the living room without being recognised appears as "someone in Living room". The sender never learns whether a message was heard.
 
+A message for the house that you leave at a satellite is not announced or shown in that same room for ten minutes: you are standing there. All other rooms get it at once. You set the time in Home Assistant under "Configure → General"; 0 means no waiting. Urgent messages and reminders are not affected.
+
 A **broadcast** ("Tell everyone dinner is ready") is something else: it goes out on all satellites at once and is not kept.
 
 ## And of course: controlling the house

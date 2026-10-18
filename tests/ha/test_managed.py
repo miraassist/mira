@@ -117,7 +117,11 @@ async def test_general_lives_at_the_agent(hass, aioclient_mock, entry):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     aioclient_mock.get(
         f"{AGENT_URL}/v1/ui/config",
-        json={"persona": {"value": "Trocken."}, "web_search": {"value": {"enabled": True}}},
+        json={
+            "persona": {"value": "Trocken."},
+            "web_search": {"value": {"enabled": True}},
+            "notifier": {"value": {"cooldown": "30m", "own_message_hold": "10m"}},
+        },
     )
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/config", json={})
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -125,17 +129,22 @@ async def test_general_lives_at_the_agent(hass, aioclient_mock, entry):
     keys = {str(k): k for k in result["data_schema"].schema}
     assert keys["persona"].description == {"suggested_value": "Trocken."}
     assert keys["web_search"].default() is True
-    same = {"timeout": 20, "sidebar": True, "web_search": True, "persona": "Trocken."}
+    assert keys["own_message_hold"].default() == 10
+    same = {"timeout": 20, "sidebar": True, "web_search": True, "persona": "Trocken.", "own_message_hold": 10}
     await hass.config_entries.options.async_configure(result["flow_id"], same)
     assert not [c for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
     result = await _form(hass, entry, "general")
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {**same, "web_search": False, "persona": "  Frech.  "}
+        result["flow_id"], {**same, "web_search": False, "persona": "  Frech.  ", "own_message_hold": 0}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     puts = [c[2] for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
-    assert puts == [{"persona": "Frech.", "web_search": {"enabled": False}}]
-    assert "persona" not in entry.options and "web_search" not in entry.options
+    # The notifier section goes back whole, only the hold changed.
+    assert puts == [{
+        "persona": "Frech.", "web_search": {"enabled": False},
+        "notifier": {"cooldown": "30m", "own_message_hold": "0m"},
+    }]
+    assert "persona" not in entry.options and "own_message_hold" not in entry.options
 
 async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, entry):
     """A room is a satellite's area; several motion sensors may say someone

@@ -65,8 +65,11 @@ type Message struct {
 	// DeliverAt is when a scheduled message is delivered (a reminder); it
 	// is then spoken in AreaID, the room it was asked for in, or sent
 	// privately. Zero for a message that waits to be heard.
-	DeliverAt  time.Time
-	AreaID     string
+	DeliverAt time.Time
+	AreaID    string
+	// OriginArea is the room a person left the message in, "" when it did not
+	// come from a satellite. The notifier holds it back there for a while.
+	OriginArea string
 	SessionKey string
 	// Attempts counts failed deliveries of a scheduled message.
 	Attempts int
@@ -138,11 +141,11 @@ WHERE id = ?`, n.Source, n.Importance, n.Receiver, n.Spoken, n.Details,
 		_, err := tx.ExecContext(ctx, `
 INSERT INTO messages(id, source, dedupe_key, importance, receiver, spoken, details,
                     created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id,
-                    sender, deliver_at, area_id, session_key)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?)`,
+                    sender, deliver_at, area_id, session_key, origin_area)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)`,
 			n.ID, n.Source, n.DedupeKey, n.Importance, n.Receiver, n.Spoken, n.Details,
 			formatTime(n.CreatedAt), formatTime(n.UpdatedAt), formatTime(n.ExpiresAt), n.State, n.Confidentiality, n.ThreadID,
-			n.Sender, formatTime(n.DeliverAt), n.AreaID, n.SessionKey)
+			n.Sender, formatTime(n.DeliverAt), n.AreaID, n.SessionKey, n.OriginArea)
 		if err != nil {
 			return err
 		}
@@ -169,7 +172,7 @@ func (s *Store) GetMessage(ctx context.Context, id string) (Message, error) {
 const messageSelect = `
 SELECT id, source, dedupe_key, importance, receiver, spoken, details,
        created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id,
-       sender, deliver_at, area_id, session_key, attempts
+       sender, deliver_at, area_id, session_key, attempts, origin_area
 FROM messages`
 
 type scannable interface{ Scan(...any) error }
@@ -179,7 +182,7 @@ func scanMessage(row scannable) (Message, error) {
 	var created, updated, expires, delivered, deliverAt string
 	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Receiver, &n.Spoken, &n.Details,
 		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID,
-		&n.Sender, &deliverAt, &n.AreaID, &n.SessionKey, &n.Attempts)
+		&n.Sender, &deliverAt, &n.AreaID, &n.SessionKey, &n.Attempts, &n.OriginArea)
 	if err != nil {
 		return Message{}, err
 	}

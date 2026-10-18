@@ -102,7 +102,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 				}
 				m := store.Message{ID: ulid.Make().String(), Source: store.SourcePerson, Sender: senderOf(inv),
 					Importance: 1, Receiver: receiver, Spoken: spoken, SessionKey: inv.SessionKey,
-					ExpiresAt: o.Clock().Add(7 * 24 * time.Hour)}
+					OriginArea: inv.Area, ExpiresAt: o.Clock().Add(7 * 24 * time.Hour)}
 				if a.At != "" || a.InMinutes != 0 {
 					now := o.Clock().In(o.Location)
 					due, err := dueTime(now, a.At, a.InMinutes, o.Location)

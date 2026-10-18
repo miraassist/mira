@@ -284,6 +284,14 @@ DROP TABLE reminders;
 CREATE INDEX idx_messages_scheduled ON messages(state, deliver_at);
 `,
 	},
+	{
+		// The room a message was left in, so it does not wait there for
+		// whoever left it (notifier.own_message_hold).
+		name: "0015_message_origin_area",
+		stmt: `
+ALTER TABLE messages ADD COLUMN origin_area TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

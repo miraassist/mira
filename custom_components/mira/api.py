@@ -5,7 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import re
+
 import aiohttp
+
+
+def _minutes(value: Any) -> int | None:
+    """The minutes of a duration the agent writes like "10m", "1h30m" or "0s"."""
+    parts = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", str(value or ""))
+    if not parts or not any(parts.groups()):
+        return None
+    hours, minutes, seconds = (int(p or 0) for p in parts.groups())
+    return hours * 60 + minutes + seconds // 60
 
 
 class MiraError(Exception):
@@ -187,9 +198,14 @@ class MiraClient:
         whether the web search is on."""
         sections = await self._request("GET", "/v1/ui/config", 10) or {}
         search = (sections.get("web_search") or {}).get("value") or {}
+        notifier = (sections.get("notifier") or {}).get("value")
         return {
             "persona": str((sections.get("persona") or {}).get("value") or ""),
             "web_search": bool(search.get("enabled", True)),
+            # The whole section, since it is replaced as a whole; the hold in
+            # minutes, None when this agent does not know it.
+            "notifier": notifier if isinstance(notifier, dict) else None,
+            "own_message_hold": _minutes(notifier.get("own_message_hold")) if isinstance(notifier, dict) else None,
         }
 
     async def set_general(self, changes: dict[str, Any]) -> None:
@@ -200,6 +216,8 @@ class MiraClient:
             body["persona"] = changes["persona"]
         if "web_search" in changes:
             body["web_search"] = {"enabled": bool(changes["web_search"])}
+        if "notifier" in changes:
+            body["notifier"] = changes["notifier"]
         if body:
             await self._request("PUT", "/v1/ui/config", 10, json=body)
 

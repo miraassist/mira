@@ -157,6 +157,11 @@ func TestMessageSend(t *testing.T) {
 	if m := got["house"]; m.Spoken != "Jemand im Bereich Küche lässt ausrichten: Der Schornsteinfeger kommt um 10." || m.Sender != "area:kueche" {
 		t.Errorf("to the house: %+v", m)
 	}
+	// The room it was left in is kept (it does not wait there at first); a
+	// message from Telegram has none.
+	if got["house"].OriginArea != "kueche" || got["ben"].OriginArea != "" {
+		t.Errorf("origin areas: house %q, ben %q", got["house"].OriginArea, got["ben"].OriginArea)
+	}
 	scheduled, _ := st.ScheduledMessages(context.Background(), time.Time{})
 	if len(scheduled) != 1 || scheduled[0].Receiver != "ben" || scheduled[0].DeliverAt.Hour() != 7 {
 		t.Errorf("scheduled: %+v", scheduled)

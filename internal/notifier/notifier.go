@@ -189,7 +189,9 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	for _, nt := range pending {
 		switch n.route(nt, home) {
 		case routeVoice:
-			voice = append(voice, nt)
+			if !n.heldAt(nt, area) {
+				voice = append(voice, nt)
+			}
 		case routePrivate:
 			private = append(private, nt)
 		}

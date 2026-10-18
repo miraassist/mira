@@ -38,6 +38,7 @@ from .const import (
     CONF_PIPELINES,
     CONF_SIDEBAR,
     CONF_TIMEOUT,
+    CONF_OWN_HOLD,
     CONF_WEB_SEARCH,
     DEFAULT_TIMEOUT,
     DOMAIN,
@@ -630,6 +631,10 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
             search = data.pop(CONF_WEB_SEARCH, None)
             if self._general is not None and search is not None and search != self._general["web_search"]:
                 changes["web_search"] = search
+            hold = data.pop(CONF_OWN_HOLD, None)
+            if self._general is not None and self._general["notifier"] is not None and hold is not None \
+                    and hold != self._general["own_message_hold"]:
+                changes["notifier"] = {**self._general["notifier"], "own_message_hold": f"{int(hold)}m"}
             if client and changes:
                 try:
                     await client.set_general(changes)
@@ -651,6 +656,10 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
             ),
             vol.Required(CONF_SIDEBAR, default=options.get(CONF_SIDEBAR, True)): bool,
         }
+        if self._general is not None and self._general["own_message_hold"] is not None:
+            fields[vol.Required(CONF_OWN_HOLD, default=self._general["own_message_hold"])] = vol.All(
+                int, vol.Range(min=0, max=240)
+            )
         if self._general is not None:
             fields[vol.Required(CONF_WEB_SEARCH, default=self._general["web_search"])] = bool
             fields[vol.Optional(CONF_PERSONA, description={"suggested_value": self._general["persona"]})] = (

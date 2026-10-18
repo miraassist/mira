@@ -31,6 +31,8 @@ Wie die Meldungen heute: Mira stellt im Haus zu.
 
 Einstellungen eines Empfängers gibt es hier nicht; das Haus nimmt alles an.
 
+**Eigener Raum:** Eine Nachricht, die jemand an einem Satelliten hinterlässt, merkt sich den Raum (`origin_area`). Dort gilt sie `notifier.own_message_hold` lang (Standard 10 Minuten, bei geplanten Nachrichten ab Fälligkeit) nicht als wartend: keine Ansage beim Eintreten, kein Leuchtring, kein Hinweis auf dem Bildschirm, kein „Übrigens“, keine Antwort auf „Gibt es Neues?“. Andere Räume bekommen sie sofort, danach auch der eigene. Dringendes, Erinnerungen, Aufgaben und private Wege kennen die Frist nicht. Eingestellt wird sie in den HA-Optionen („Allgemein“, Minuten; 0 = aus).
+
 ## Empfänger: eine Person
 
 **Einstellungen der Person** (an der HA-Person, `options["mira"]`):

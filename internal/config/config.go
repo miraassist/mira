@@ -260,6 +260,10 @@ type Notifier struct {
 	// FollowUpWindow is how long after an announcement a turn from the same
 	// satellite is treated as a reply to it.
 	FollowUpWindow Duration `yaml:"follow_up_window"`
+	// OwnMessageHold is how long a message left at a satellite does not count
+	// as waiting there: whoever left it is standing there. Other rooms hear it
+	// at once. 0 turns the hold off.
+	OwnMessageHold Duration `yaml:"own_message_hold"`
 	MinImportance  int      `yaml:"min_importance"`
 	// ConfidentialVoice decides when a confidential message may be spoken:
 	// "never", "when_alone" (only its recipient is home, by the person
@@ -409,6 +413,7 @@ func Default() Config {
 			EscalateToTelegram:      Escalation{MinImportance: 2, After: ClockTime{9, 0}, Grace: Duration(30 * 60e9)},
 			Urgent:                  Urgent{MinImportance: 3, Announce: true},
 			FollowUpWindow:          Duration(2 * 60e9),
+			OwnMessageHold:          Duration(10 * 60e9),
 			MinImportance:           1,
 			ConfidentialVoice:       ConfidentialVoiceNever,
 			Delivery:                "auto",
@@ -707,6 +712,9 @@ func (c Config) Validate() error {
 	}
 	if c.Notifier.MaxItemsPerAnnouncement < 1 {
 		add("notifier.max_items_per_announcement must be at least 1")
+	}
+	if c.Notifier.OwnMessageHold < 0 {
+		add("notifier.own_message_hold must not be negative")
 	}
 
 	if len(errs) == 0 {

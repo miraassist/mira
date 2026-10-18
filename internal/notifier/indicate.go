@@ -29,11 +29,26 @@ func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Message, e
 		if nt.Source == store.SourceReminder {
 			continue // spoken at its time, never waits
 		}
-		if n.route(nt, home) == routeVoice {
+		if n.route(nt, home) == routeVoice && !n.heldAt(nt, area) {
 			out = append(out, nt)
 		}
 	}
 	return out, nil
+}
+
+// heldAt reports whether a message does not count as waiting in area yet: it
+// was left there, and whoever left it is standing there
+// (notifier.own_message_hold, counted from when it became due).
+func (n *Notifier) heldAt(nt store.Message, area string) bool {
+	hold := n.cfg.OwnMessageHold.Duration()
+	if hold <= 0 || nt.OriginArea == "" || nt.OriginArea != area {
+		return false
+	}
+	ref := nt.CreatedAt
+	if !nt.DeliverAt.IsZero() {
+		ref = nt.DeliverAt
+	}
+	return n.clock().Before(ref.Add(hold))
 }
 
 // syncIndicators turns each indicator light on while messages wait for its

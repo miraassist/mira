@@ -219,3 +219,52 @@ func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 		t.Errorf("not taken away: %+v", got)
 	}
 }
+
+// A message left in a room is not waiting there for whoever left it, for
+// notifier.own_message_hold; other rooms get it at once, and after the hold
+// the own room too.
+func TestOwnMessageHold(t *testing.T) {
+	e := indicateEnv(t)
+	e.message("n1", 1, func(n *store.Message) {
+		n.OriginArea, n.CreatedAt = "kueche", e.now
+		n.Spoken = "Der Müll muss raus"
+	})
+	e.tick()
+	for _, l := range e.lightCalls() {
+		if l.Service == "turn_on" {
+			t.Errorf("ring in the sender's room: %+v", l)
+		}
+	}
+	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+		t.Errorf("afterword in the sender's room: %q", got)
+	}
+	if text, _ := e.n.ReadOut(context.Background(), "kueche", ""); text != "" {
+		t.Errorf("read out in the sender's room: %q", text)
+	}
+	// Another room hears it at once; a message left there is held back there.
+	e.message("n2", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "bad", e.now })
+	if out := e.presence("bad"); len(out.Announced) != 1 || out.Announced[0] != "n1" {
+		t.Errorf("announced on entry in the bathroom: %+v", out)
+	}
+
+	e.message("n3", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.now })
+	e.now = e.now.Add(11 * time.Minute)
+	e.tick()
+	if lights := e.lightCalls(); len(lights) == 0 || lights[len(lights)-1].Service != "turn_on" {
+		t.Errorf("no ring after the hold: %+v", lights)
+	}
+	if got := e.n.Afterword(context.Background(), "kueche"); !strings.Contains(got, "Hinweis n3") {
+		t.Errorf("afterword after the hold: %q", got)
+	}
+}
+
+// A hold of 0 turns the rule off.
+func TestOwnMessageHoldOff(t *testing.T) {
+	e := indicateEnv(t)
+	e.n.cfg.OwnMessageHold = 0
+	e.message("n1", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "kueche", e.now })
+	e.tick()
+	if lights := e.lightCalls(); len(lights) != 1 {
+		t.Errorf("ring: %+v", lights)
+	}
+}
