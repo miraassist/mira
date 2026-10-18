@@ -14,7 +14,7 @@ Home Assistant ist dabei ihr Werkzeugkasten: Lampen, Sensoren, Sprach-Satelliten
 
 ## Ein Gespräch mit Mira
 
-> 🎬 **Aufnahme folgt:** ein Sprachdialog am Satelliten – eine Frage, für die Mira im Internet nachschaut, eine Nachfrage dazu, und am Ende ein Auftrag fürs Haus.
+![Eine Aufgabe einrichten: Mira fragt nach, schlägt vor und richtet sie nach deinem Ja ein](https://mira-assist.com/videos/mira-chat-de.mp4#t=266,312)
 
 So klingt das, zum Beispiel beim Einrichten einer Aufgabe:
 
@@ -52,6 +52,8 @@ Gib Mira eine dauerhafte Aufgabe, und sie behält etwas für dich im Blick:
 - „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
 - „Melde dich sofort, wenn einer der Lecksensoren anschlägt.“
 
+![Ein Auftrag für den Lecksensor und die Meldung, wenn er anschlägt](https://mira-assist.com/videos/mira-chat-de.mp4#t=623,673)
+
 So läuft das Einrichten ab:
 
 1. Fehlt Mira etwas, fragt sie zurück, statt zu raten – etwa „Welche Uhrzeit ist für dich ungewöhnlich?“. Antworte einfach; das Gespräch bleibt beim Thema, auch über mehrere Sätze.
@@ -76,7 +78,7 @@ Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten**
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.
 
-> 🎬 **Aufnahme folgt:** Der LED-Ring pulsiert, du fragst „Hast du eine Benachrichtigung?“, Mira liest vor.
+![Eine Nachricht fürs Haus hinterlassen und später nach Benachrichtigungen fragen](https://mira-assist.com/videos/mira-chat-de.mp4#t=195,227)
 
 Pro Satellit stellst du ein:
 
@@ -111,6 +113,8 @@ Wenn Mira von sich aus spricht, leuchtet der LED-Ring des Raums ruhig, solange s
 - „Merk dir mal was.“ – Mira fragt „Was denn?“, und du sagst es im nächsten Satz.
 - „Was weißt du über den Schornsteinfeger?“ – „Vergiss das mit dem Schornsteinfeger.“
 
+![Mira etwas merken lassen, auch mit „Merk dir mal was“](https://mira-assist.com/videos/mira-chat-de.mp4#t=416,467)
+
 Was Mira weiß, nutzt sie auch beim Aufpassen: Sag ihr „Merk dir, die Nachttischlampe nach Mitternacht ist ungewöhnlich“, und ihre Aufgaben beurteilen danach.
 
 Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
@@ -134,7 +138,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 - Am Vorabend erinnert Mira von selbst: „Morgen wird der Wertstoff abgeholt.“
 - Ist die Abfuhr heute, sagt sie es, falls die Tonne noch raus muss.
 
-> 🎬 **Aufnahme folgt:** „Was wird nächste Woche abgeholt?“ am Satelliten.
+![Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
 ## Eigenen Skill erstellen
 
@@ -202,13 +206,25 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 - „Sag meinen Termin morgen beim Arzt ab.“ Mira sucht den Termin und fragt nach, bevor sie ihn löscht. Bei einem Serientermin sagt sie nur diesen einen ab, außer du willst alle.
 - „Setz Milch auf die Einkaufsliste.“ – „Setz Batterien drauf, bis Freitag.“ – „Was steht auf der Liste?“
 
+![Einen Termin eintragen und den Standardkalender merken](https://mira-assist.com/videos/mira-chat-de.mp4#t=7,60)
+
+![Die Einkaufsliste](https://mira-assist.com/videos/mira-chat-de.mp4#t=99,137)
+
+![Die Termine der Woche, und einen Termin absagen](https://mira-assist.com/videos/mira-chat-de.mp4#t=538,591)
+
 ## Radio hören
 
 „Spiel SWR3.“ – „Mach im Wohnzimmer das Radio an.“ Mira sucht den Sender im Radio Browser von Home Assistant, der immer dabei ist, und spielt ihn auf dem Lautsprecher des Raums. Der Lautsprecher muss für Assist freigegeben sein (Einstellungen → Sprachassistenten → Entitäten freigeben). Findet sie mehrere passende Sender, nennt sie ein paar und fragt, welcher es sein soll. Lauter, leiser und Pause gehen wie bei jedem Medienspieler.
 
+![Das Lieblingsradio: Mira fragt nach dem Sender, merkt ihn sich und spielt ihn](https://mira-assist.com/videos/mira-chat-de.mp4#t=717)
+
 ## Im Internet nachschauen und schwierige Fragen
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.
+
+![Öffnungszeiten nachschlagen, mit Nachfrage](https://mira-assist.com/videos/mira-chat-de.mp4#t=317,350)
+
+![Ein Spielergebnis nachschlagen](https://mira-assist.com/videos/mira-chat-de.mp4#t=381,406)
 
 Die Suche ist eingebaut und braucht keine Einrichtung. Ausschalten kannst du sie unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Allgemein** → **Internetsuche**, etwa wenn du eine andere Suche verwendest (siehe „Weitere Werkzeuge über MCP“).
 
@@ -219,6 +235,10 @@ Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwe
 - „Erinnere mich morgen um 19 Uhr daran, den Müll rauszubringen.“
 - „Stell einen Timer auf 10 Minuten.“ – „In einer halben Stunde erinnerst du mich an die Wäsche.“
 - „Welche Erinnerungen habe ich?“ – „Lösch die Erinnerung an die Wäsche.“
+
+![Eine Erinnerung](https://mira-assist.com/videos/mira-chat-de.mp4#t=64,98)
+
+![Einen Wecker stellen, ändern und wieder löschen](https://mira-assist.com/videos/mira-chat-de.mp4#t=139,194)
 
 Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat über deine Kanäle.
 
@@ -231,6 +251,8 @@ Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie geste
 - „Erinnere Ben morgen um 7 an den Müll.“ – eine Nachricht, die erst dann zugestellt wird.
 - „Schick mir das aufs Handy.“ – kommt über deine Kanäle.
 
+![Eine zweite Nachricht fürs Haus: Mira hängt sie an die nächste Antwort an](https://mira-assist.com/videos/mira-chat-de.mp4#t=228,265)
+
 An eine Person geht eine Nachricht über ihre Kanäle (Telegram, Companion-App), am Satelliten nur, wenn sie dort als sie erkannt ist. Jede Person stellt ein, von wem sie Nachrichten annimmt: von allen, nur von Personen, die Mira erkennt, oder von niemandem; Miras eigene Nachrichten (Aufgaben, Erinnerungen, Warnungen) kommen immer an. Wer etwas von jemandem im Wohnzimmer hinterlässt, ohne erkannt zu sein, erscheint als „jemand im Bereich Wohnzimmer“. Ob eine Nachricht gehört wurde, erfährt der Absender nicht.
 
 Eine Nachricht fürs Haus, die du an einem Satelliten hinterlässt, wird in genau diesem Raum zehn Minuten lang nicht angesagt oder angezeigt: Du stehst ja dort. Alle anderen Räume bekommen sie sofort. Die Zeit stellst du in Home Assistant unter „Konfigurieren → Allgemein“ ein; 0 heißt: nicht warten. Dringendes und Erinnerungen sind davon nicht betroffen.
@@ -241,6 +263,8 @@ Eine **Durchsage** („Sag allen, das Essen ist fertig“) ist etwas anderes: Si
 
 - „Mach im Wohnzimmer das Licht an.“ – „Dimm die Stehlampe auf 30 Prozent.“
 - „Wie warm ist es im Bad?“ – „Welche Fenster sind offen?“ – „Wie wird das Wetter morgen?“
+
+![Eine Lampe in Farbe und Helligkeit steuern, auch mit „meine Lieblingsfarbe“](https://mira-assist.com/videos/mira-chat-de.mp4#t=471,536)
 
 Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht nachsehen, sagt sie das ehrlich.
 
