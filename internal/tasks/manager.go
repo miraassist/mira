@@ -345,6 +345,9 @@ func otherActions(actions any) []string {
 				}
 			}
 		}
+		if rep, ok := a["repeat"].(map[string]any); ok {
+			out = append(out, otherActions(rep["sequence"])...)
+		}
 	}
 	return out
 }
@@ -639,6 +642,9 @@ func miraCalls(actions any) []miraCall {
 					out = append(out, miraCalls(om["sequence"])...)
 				}
 			}
+		}
+		if rep, ok := a["repeat"].(map[string]any); ok {
+			out = append(out, miraCalls(rep["sequence"])...)
 		}
 	}
 	return out

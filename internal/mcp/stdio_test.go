@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,5 +49,24 @@ func TestStdioServerThatLogsToStdout(t *testing.T) {
 	res, err := h.Call(context.Background(), "chatty__echo", nil)
 	if err != nil || res.Text != "pong" {
 		t.Fatalf("call = %+v, %v", res, err)
+	}
+}
+
+// A server started over stdio gets only the few variables it needs to run,
+// never Mira's own secrets; the config's env list adds what it asks for.
+func TestStdioEnvKeepsSecretsAway(t *testing.T) {
+	parent := []string{
+		"PATH=/usr/bin", "HOME=/home/x", "LANG=de_DE.UTF-8", "LC_ALL=C", "HTTPS_PROXY=http://proxy:3128",
+		"HA_TOKEN=secret", "MIRA_API_TOKEN=secret", "GEMINI_API_TOKEN=secret", "OPENAI_API_KEY=secret",
+	}
+	env := mcp.StdioEnv(parent, []string{"MAX_RESULTS=5"})
+	joined := strings.Join(env, "\n")
+	for _, want := range []string{"PATH=/usr/bin", "HOME=/home/x", "LANG=de_DE.UTF-8", "LC_ALL=C", "HTTPS_PROXY=http://proxy:3128", "MAX_RESULTS=5"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %s in\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "secret") {
+		t.Errorf("a secret reached the server:\n%s", joined)
 	}
 }

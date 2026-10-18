@@ -11,7 +11,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miraassist/mira/internal/store"
@@ -54,6 +56,45 @@ type Handler struct {
 	HTTP    *http.Client
 	Clock   func() time.Time
 	Log     *slog.Logger
+
+	gate gate
+}
+
+// gate limits calls made without the token: at most openPerMinute a minute
+// and openParallel at once.
+type gate struct {
+	mu    sync.Mutex
+	times []time.Time
+	busy  int
+}
+
+const (
+	openPerMinute = 20
+	openParallel  = 2
+)
+
+func (g *gate) enter(now time.Time) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	keep := g.times[:0]
+	for _, t := range g.times {
+		if now.Sub(t) < time.Minute {
+			keep = append(keep, t)
+		}
+	}
+	g.times = keep
+	if len(g.times) >= openPerMinute || g.busy >= openParallel {
+		return false
+	}
+	g.times = append(g.times, now)
+	g.busy++
+	return true
+}
+
+func (g *gate) leave() {
+	g.mu.Lock()
+	g.busy--
+	g.mu.Unlock()
 }
 
 func (h *Handler) now() time.Time {
@@ -95,6 +136,13 @@ func (h *Handler) authOrOpen(next http.HandlerFunc) http.HandlerFunc {
 	authed := h.auth(next)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.open(r.Context()) {
+			// These routes make the agent send requests to an address the
+			// caller names, so the few that are open are rationed.
+			if !h.gate.enter(h.now()) {
+				writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many requests; wait a minute"})
+				return
+			}
+			defer h.gate.leave()
 			next(w, r)
 			return
 		}
@@ -281,9 +329,13 @@ func writeModelError(w http.ResponseWriter, err error) {
 
 // call sends one request to a model server and sorts out what failed.
 func (h *Handler) call(ctx context.Context, method, baseURL, path, apiKey string, body any, timeout time.Duration) ([]byte, error) {
+	if u, err := url.Parse(baseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, &ModelError{Reason: "unreachable", Detail: "only http and https addresses are used"}
+	}
 	client := h.HTTP
 	if client == nil {
-		client = &http.Client{}
+		// A redirect is never followed: the address is the one the caller named.
+		client = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -313,20 +365,51 @@ func (h *Handler) call(ctx context.Context, method, baseURL, path, apiKey string
 	case resp.StatusCode == http.StatusOK:
 		return raw, nil
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, &ModelError{Reason: "bad_key", Detail: fmt.Sprintf("HTTP %d %s", resp.StatusCode, snippet(raw))}
+		return nil, &ModelError{Reason: "bad_key", Detail: statusText(resp.StatusCode, raw)}
 	case resp.StatusCode == http.StatusNotFound:
-		return nil, &ModelError{Reason: "no_model", Detail: fmt.Sprintf("HTTP 404 %s", snippet(raw))}
+		return nil, &ModelError{Reason: "no_model", Detail: statusText(404, raw)}
 	default:
-		return nil, &ModelError{Reason: "server_error", Detail: fmt.Sprintf("HTTP %d %s", resp.StatusCode, snippet(raw))}
+		return nil, &ModelError{Reason: "server_error", Detail: statusText(resp.StatusCode, raw)}
 	}
 }
 
-func snippet(raw []byte) string {
-	s := strings.TrimSpace(string(raw))
-	if len(s) > 200 {
-		s = s[:200] + "…"
+// statusText is the status, and the model server's own error message if it
+// sent one in the usual form ({"error": "…"} or {"error": {"message": "…"}}).
+// Nothing else of the body: this call can be made without the token before
+// the first pairing, and must not read other servers' answers out to a caller.
+func statusText(status int, raw []byte) string {
+	out := fmt.Sprintf("HTTP %d", status)
+	if msg := errorMessage(raw); msg != "" {
+		out += " " + msg
 	}
-	return s
+	return out
+}
+
+func errorMessage(raw []byte) string {
+	var one struct {
+		Error any `json:"error"`
+	}
+	if json.Unmarshal(raw, &one) != nil {
+		var many []struct {
+			Error any `json:"error"`
+		}
+		if json.Unmarshal(raw, &many) != nil || len(many) == 0 {
+			return ""
+		}
+		one = many[0]
+	}
+	msg := ""
+	switch e := one.Error.(type) {
+	case string:
+		msg = e
+	case map[string]any:
+		msg, _ = e["message"].(string)
+	}
+	msg = strings.Join(strings.Fields(msg), " ")
+	if r := []rune(msg); len(r) > 200 {
+		msg = string(r[:200]) + "…"
+	}
+	return msg
 }
 
 // probeTimeout leaves room for a local server to load the model first.
@@ -367,7 +450,7 @@ func (h *Handler) probe(ctx context.Context, l LLM) error {
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &resp); err != nil || len(resp.Choices) == 0 {
-		return &ModelError{Reason: "server_error", Detail: "no answer in the reply: " + snippet(raw)}
+		return &ModelError{Reason: "server_error", Detail: "no answer in the reply"}
 	}
 	if len(resp.Choices[0].Message.ToolCalls) == 0 {
 		return &ModelError{Reason: "no_tools", Detail: l.Model}
@@ -392,7 +475,7 @@ func (h *Handler) list(ctx context.Context, baseURL, apiKey string) ([]string, e
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, &ModelError{Reason: "server_error", Detail: "not an OpenAI-compatible list of models: " + snippet(raw)}
+		return nil, &ModelError{Reason: "server_error", Detail: "not an OpenAI-compatible list of models"}
 	}
 	out := make([]string, 0, len(body.Data))
 	for _, m := range body.Data {

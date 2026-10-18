@@ -384,3 +384,16 @@ func TestDraftKnowsWhereAndFromWhom(t *testing.T) {
 		t.Errorf("owner = %v", owner)
 	}
 }
+
+// The proposal names what the automation really does, also inside a repeat.
+func TestProposalNamesActionsInsideRepeat(t *testing.T) {
+	actions := []any{
+		map[string]any{"repeat": map[string]any{"count": 2, "sequence": []any{
+			map[string]any{"action": "light.toggle", "target": map[string]any{"entity_id": "light.flur"}},
+		}}},
+	}
+	got := otherActions(actions)
+	if len(got) != 1 || got[0] != "light.toggle (light.flur)" {
+		t.Errorf("otherActions = %v", got)
+	}
+}

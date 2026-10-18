@@ -383,6 +383,25 @@ erDiagram
   der Nutzer bei Bedarf selbst im Editor von HA ein.
 - **Kritische Aktionen** brauchen ein Ja des Nutzers. Nach Web-Inhalten
   im selben Turn sind sie gesperrt. Hintergrundaufgaben schreiben nie.
+- **Was Mira behält oder weitergibt** (`memory_save`, `message_send`,
+  `thread_confirm`, in der Spezifikation `AskAfterWeb`) führt sie nach
+  Web-Inhalten im selben Turn nur nach dem Ja des Nutzers aus. Die Rückfrage
+  nutzt dieselbe Technik wie bei kritischen Aktionen, ist aber keine Sperre.
+  Kalender und Feeds zählen nicht als Web-Inhalt, sonst ginge „was steht an,
+  erinnere mich daran“ nicht mehr.
+- **Aufgaben** (Automationen, die Mira anlegt) prüft die Integration vor dem
+  Speichern vollständig: Sie folgt jedem Schritt, den HA kennt (auch
+  `repeat`, `parallel`, `choose`), verlangt den Namen der Aktion und ihre
+  Ziele ausgeschrieben statt als Vorlage und lehnt Schritte ab, die sie
+  nicht versteht. Der Vorschlag nennt, was die Automation schaltet, aus dem
+  Code, nicht aus dem Text des Modells.
+- **Programme über stdio** bekommen nur Suchpfad, Heimatordner, Sprache und
+  Proxy aus Miras Umgebung, keine Zugangsdaten.
+- **Vor der ersten Kopplung** sind `/v1/pair`, `/v1/setup/models` und
+  `/v1/setup/probe` offen. Die beiden letzten schicken Anfragen an eine
+  Adresse, die der Aufrufer nennt: höchstens 20 pro Minute und 2 gleichzeitig,
+  nur `http`/`https`, ohne Weiterleitungen, und von der Antwort kommt nur die
+  Fehlermeldung des Modell-Servers zurück, nie der Rumpf.
 - **Fremder Text ist Daten.** Web-Ergebnisse, Feeds und Kalender gelten
   als Daten, nie als Anweisungen.
 - **Die eingebaute Websuche** (`web_search`, `web_page`) ist als „liest

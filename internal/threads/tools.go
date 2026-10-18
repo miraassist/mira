@@ -74,7 +74,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 			},
 		},
 		{
-			Name: ToolConfirm, Description: t.confirmDesc, Schema: empty,
+			Name: ToolConfirm, Description: t.confirmDesc, Schema: empty, AskAfterWeb: true,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Confirm(ctx, inv) },
 		},
 		{

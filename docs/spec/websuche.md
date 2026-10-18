@@ -40,6 +40,7 @@ Beide Werkzeuge haben dieselben zwei Markierungen wie bisher der MCP-Server für
 - **Liest nur:** Sie ändern nichts. Deshalb dürfen sie auch Hintergrundarbeiten nutzen, etwa das Beurteilen von Aufgaben oder schwierige Fragen, die an ein stärkeres Modell abgegeben werden.
 - **Fremder Webtext:** Was sie liefern, kann versteckte Anweisungen enthalten.
   - Nach ihrem Aufruf sind für den Rest der Anfrage kritische Aktionen gesperrt: Schlösser, Alarmanlage und alles, was nachfragen muss.
+  - Etwas zu merken, eine Nachricht zu schicken oder eine Aufgabe anzulegen führt Mira in derselben Anfrage nur nach dem Ja des Nutzers aus (`AskAfterWeb`).
   - Das regelt der Code im Guard, nicht der Prompt.
 
 ## Abschalten

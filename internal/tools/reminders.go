@@ -59,6 +59,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 	return []InternalTool{
 		{
 			Name:        ToolMessageSend,
+			AskAfterWeb: true,
 			Description: t.messageSendDesc,
 			Schema: schema(`{"type":"object","properties":{"to":{"type":"string","description":%q},"text":{"type":"string","description":%q},"at":{"type":"string","description":%q},"in_minutes":{"type":"integer","description":%q}},"required":["to","text"]}`,
 				t.messageTo, t.messageSendText, t.reminderAt, t.reminderInMinutes),

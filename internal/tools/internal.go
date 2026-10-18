@@ -35,6 +35,7 @@ func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 	list := []InternalTool{
 		{
 			Name:        ToolMemorySave,
+			AskAfterWeb: true,
 			Description: t.memorySaveDesc,
 			Schema:      schema(`{"type":"object","properties":{"text":{"type":"string","description":%q},"tags":{"type":"array","items":{"type":"string"},"description":%q},"house":{"type":"boolean","description":%q}},"required":["text"]}`, t.memorySaveText, t.memorySaveTags, t.memorySaveHouse),
 			Run: func(ctx context.Context, inv Invocation) (string, error) {

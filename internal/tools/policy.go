@@ -132,11 +132,16 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 	}
 
 	critical, targets := g.critical(spec, args)
-	if !critical {
+	// What a web page could talk the model into keeping or passing on
+	// (memory, messages, ending a thread) runs after web content only with
+	// the user's yes: the same question as for a critical action, but not
+	// locked.
+	askOnly := !critical && spec.AskAfterWeb && ts.webContentSeen
+	if !critical && !askOnly {
 		return Verdict{Outcome: Allow, Targets: targets}
 	}
 
-	if ts.webContentSeen {
+	if critical && ts.webContentSeen {
 		return Verdict{Outcome: Deny, Reason: "after_web_content", Targets: targets,
 			Message: g.texts.denyAfterWeb}
 	}
@@ -158,6 +163,10 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 		}
 	}
 	ts.confirmationRequested = true
+	if askOnly {
+		return Verdict{Outcome: NeedsConfirmation, Reason: "after_web_content_ask", Targets: targets,
+			Message: fmt.Sprintf(g.texts.asksAfterWeb, summary)}
+	}
 	return Verdict{Outcome: NeedsConfirmation, Reason: "critical", Targets: targets,
 		Message: fmt.Sprintf(g.texts.needsConfirmation, summary)}
 }

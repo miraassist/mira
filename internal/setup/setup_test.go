@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -258,5 +259,68 @@ func TestPairEndpoint(t *testing.T) {
 	}
 	if code, _ := post("/v1/setup/models", map[string]any{"base_url": models.URL}); code != 401 {
 		t.Errorf("models after pairing without the token: %d", code)
+	}
+}
+
+// Before the first pairing the model routes are open, but they must not read
+// other servers' answers out to the caller, follow a redirect, take a
+// non-web address, or be called without limit.
+func TestOpenRoutesAreHarmless(t *testing.T) {
+	var inner atomic.Int32
+	secret := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		inner.Add(1)
+		w.Write([]byte("internal-secret-value"))
+	}))
+	t.Cleanup(secret.Close)
+	srvModels := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/leak/models":
+			w.WriteHeader(500)
+			w.Write([]byte("<html>internal-secret-value</html>"))
+		case "/err/models":
+			w.WriteHeader(404)
+			w.Write([]byte(`{"error":{"message":"model not loaded"}}`))
+		case "/redirect/models":
+			http.Redirect(w, r, secret.URL, http.StatusFound)
+		}
+	}))
+	t.Cleanup(srvModels.Close)
+
+	st := newStore(t)
+	h := &Handler{Store: st, Token: "tok", ID: "id", Version: "t", Pairing: true, SetupMode: true, Log: slog.Default()}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	models := func(base string) (int, string) {
+		raw, _ := json.Marshal(map[string]string{"base_url": base})
+		resp, err := http.Post(srv.URL+"/v1/setup/models", "application/json", bytes.NewReader(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out bytes.Buffer
+		out.ReadFrom(resp.Body)
+		return resp.StatusCode, out.String()
+	}
+	if code, body := models(srvModels.URL + "/leak"); code != 422 || strings.Contains(body, "internal-secret-value") {
+		t.Errorf("a foreign answer was read out: %d %s", code, body)
+	}
+	if code, body := models(srvModels.URL + "/err"); code != 422 || !strings.Contains(body, "model not loaded") {
+		t.Errorf("the model server's own error message must come through: %d %s", code, body)
+	}
+	if code, _ := models(srvModels.URL + "/redirect"); code != 422 || inner.Load() != 0 {
+		t.Errorf("a redirect was followed: %d, %d calls", code, inner.Load())
+	}
+	if code, body := models("file:///etc/passwd"); code != 422 || !strings.Contains(body, "http") {
+		t.Errorf("a non-web address was taken: %d %s", code, body)
+	}
+	// 4 calls so far; the 20 a minute are used up, then 429.
+	var last int
+	for i := 0; i < 20; i++ {
+		last, _ = models(srvModels.URL + "/err")
+	}
+	if last != http.StatusTooManyRequests {
+		t.Errorf("no limit on the open routes: %d", last)
 	}
 }

@@ -23,6 +23,7 @@ automations.yaml, reload that one automation.
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 import uuid
 
@@ -71,40 +72,104 @@ def _entities(step: dict[str, Any]) -> tuple[list[str], bool]:
     return ids, broad
 
 
+_TEMPLATE = re.compile(r"\{[{%#]")
+# Steps that cannot switch anything: they wait, set a variable, stop, or test.
+_HARMLESS = ("condition", "delay", "wait_template", "wait_for_trigger", "variables", "stop", "set_conversation_response")
+_TARGET_KEYS = ("entity_id", "area_id", "device_id", "floor_id", "label_id")
+
+
+def _templated(value: Any) -> bool:
+    """Whether a value is, or holds, a template."""
+    if isinstance(value, str):
+        return bool(_TEMPLATE.search(value))
+    if isinstance(value, dict):
+        return any(_templated(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_templated(v) for v in value)
+    return False
+
+
 def check_actions(actions: Any, forbidden_domains: set[str] = frozenset(), forbidden_entities: set[str] = frozenset()) -> None:
     """Raise NotAllowed if an action calls what a task may not: a domain in
     _NEVER or forbidden_domains, an entity in forbidden_entities, or – when
     such entities are configured for the called domain – a broad target
-    that might include one. Looks inside choose/if/sequence/parallel."""
+    that might include one.
+
+    The check is complete or it refuses: it follows every step Home
+    Assistant knows (if, choose, repeat, parallel, sequence), the name of an
+    action and its targets must be written out, not a template, and a step it
+    does not understand is refused. A template could name what the check is
+    there to keep out."""
     if isinstance(actions, dict):
         actions = [actions]
-    for step in actions or []:
-        if not isinstance(step, dict):
-            raise NotAllowed(f"unexpected action {step!r}")
-        name = step.get("action") or step.get("service")
-        if name:
-            domain = str(name).split(".", 1)[0]
-            if domain == DOMAIN:
-                continue
-            if domain in _NEVER or domain in forbidden_domains:
-                raise NotAllowed(f"a task may not call {name}")
-            ids, broad = _entities(step)
-            for entity_id in ids:
-                if entity_id in forbidden_entities or entity_id.split(".", 1)[0] in forbidden_domains:
-                    raise NotAllowed(f"a task may not switch {entity_id}; that needs an explicit yes each time")
-            if broad and any(e.split(".", 1)[0] == domain for e in forbidden_entities):
-                raise NotAllowed(f"{name} on areas or devices might reach a protected entity; name the entities")
-            continue
-        if "device_id" in step and "domain" in step:
-            if step["domain"] in _NEVER or step["domain"] in forbidden_domains:
-                raise NotAllowed(f"a task may not use {step['domain']} devices")
-            continue
-        for key in ("then", "else", "sequence", "parallel", "default"):
-            if key in step:
-                check_actions(step[key], forbidden_domains, forbidden_entities)
-        if "choose" in step:
-            for option in step["choose"] or []:
-                check_actions(option.get("sequence"), forbidden_domains, forbidden_entities)
+    if actions is None:
+        return
+    if not isinstance(actions, (list, tuple)):
+        raise NotAllowed(f"unexpected actions {actions!r}")
+    for step in actions:
+        _check_step(step, forbidden_domains, forbidden_entities)
+
+
+def _check_step(step: Any, forbidden_domains: set[str], forbidden_entities: set[str]) -> None:
+    if not isinstance(step, dict):
+        raise NotAllowed(f"unexpected action {step!r}")
+    if "service_template" in step:
+        raise NotAllowed("the action of a task must be written out, not a template")
+    name = step.get("action") or step.get("service")
+    if name is not None:
+        _check_call(step, name, forbidden_domains, forbidden_entities)
+        return
+    if "scene" in step:
+        if _templated(step["scene"]):
+            raise NotAllowed("the scene of a task must be written out, not a template")
+        return
+    if "domain" in step and "device_id" in step:
+        if step["domain"] in _NEVER or step["domain"] in forbidden_domains:
+            raise NotAllowed(f"a task may not use {step['domain']} devices")
+        return
+    if "event" in step:
+        raise NotAllowed("a task may not fire events")
+    nested = False
+    for key in ("then", "else", "sequence", "parallel", "default"):
+        if key in step:
+            nested = True
+            check_actions(step[key], forbidden_domains, forbidden_entities)
+    if "choose" in step:
+        nested = True
+        for option in step["choose"] or []:
+            if not isinstance(option, dict):
+                raise NotAllowed(f"unexpected choice {option!r}")
+            check_actions(option.get("sequence"), forbidden_domains, forbidden_entities)
+    if "repeat" in step:
+        nested = True
+        repeat = step["repeat"]
+        if not isinstance(repeat, dict):
+            raise NotAllowed(f"unexpected repeat {repeat!r}")
+        check_actions(repeat.get("sequence"), forbidden_domains, forbidden_entities)
+    if nested or "if" in step or any(key in step for key in _HARMLESS):
+        return
+    raise NotAllowed(f"unexpected action {step!r}")
+
+
+def _check_call(step: dict[str, Any], name: Any, forbidden_domains: set[str], forbidden_entities: set[str]) -> None:
+    if not isinstance(name, str) or _templated(name):
+        raise NotAllowed("the action of a task must be written out, not a template")
+    domain = name.split(".", 1)[0]
+    if domain == DOMAIN:
+        return
+    if domain in _NEVER or domain in forbidden_domains:
+        raise NotAllowed(f"a task may not call {name}")
+    for holder in (step.get("target"), step.get("data")):
+        if isinstance(holder, dict) and any(_templated(holder.get(key)) for key in _TARGET_KEYS):
+            raise NotAllowed(f"the targets of {name} must be written out, not a template")
+    ids, broad = _entities(step)
+    for entity_id in ids:
+        if entity_id == "all":
+            broad = True
+        elif entity_id in forbidden_entities or entity_id.split(".", 1)[0] in forbidden_domains:
+            raise NotAllowed(f"a task may not switch {entity_id}; that needs an explicit yes each time")
+    if broad and any(e.split(".", 1)[0] == domain for e in forbidden_entities):
+        raise NotAllowed(f"{name} on areas or devices might reach a protected entity; name the entities")
 
 
 async def validate(hass: HomeAssistant, config: dict[str, Any], forbidden: dict[str, Any] | None = None) -> None:

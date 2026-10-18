@@ -54,6 +54,38 @@ def test_what_a_task_may_call():
             check_actions(forbidden, domains, entities)
 
 
+def test_the_check_cannot_be_walked_around():
+    """A template, a nesting or a step the check does not know must not hide
+    what it keeps out; and what is fine stays fine inside any nesting."""
+    domains, entities = set(FORBIDDEN["domains"]), set(FORBIDDEN["entities"])
+    for sneaky in (
+        [{"repeat": {"count": 2, "sequence": [{"action": "shell_command.x"}]}}],
+        [{"action": "{{ 'shell' ~ '_command.x' }}"}],
+        [{"service_template": "{{ 'lock.unlock' }}"}],
+        [{"action": "light.turn_on", "target": {"entity_id": "{{ states('input_text.x') }}"}}],
+        [{"action": "switch.turn_on", "target": {"entity_id": "all"}}],
+        [{"event": "call_service", "event_data": {}}],
+        [{"made_up_step": {"x": 1}}],
+        [{"parallel": [{"sequence": [{"action": "lock.unlock"}]}]}],
+        [{"if": [], "then": [{"repeat": {"while": [], "sequence": [{"action": "script.turn_on"}]}}]}],
+        [{"choose": ["not a dict"]}],
+        "not a list of steps",
+    ):
+        with pytest.raises(NotAllowed):
+            check_actions(sneaky, domains, {"switch.garage_tor", *entities})
+    check_actions(
+        [
+            {"repeat": {"count": 2, "sequence": [{"action": "light.toggle", "target": {"entity_id": "light.flur"}}]}},
+            {"parallel": [{"sequence": [{"delay": "00:00:05"}, {"action": "notify.phone", "data": {"message": "{{ trigger.to_state.state }}"}}]}]},
+            {"action": "mira.assess", "data": {"task": "{{ this.attributes.id }}", "goal": "g"}},
+            {"scene": "scene.abend"},
+            {"wait_for_trigger": [], "timeout": 5},
+        ],
+        domains,
+        entities,
+    )
+
+
 async def test_validate_uses_home_assistant(hass):
     assert await async_setup_component(hass, "automation", {})
     await validate(hass, TASK)

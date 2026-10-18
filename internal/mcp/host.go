@@ -554,6 +554,31 @@ func (h *Host) Status() []Status {
 	return out
 }
 
+// stdioKeep is what a program Mira starts gets of her environment: where to
+// find things, the locale and the proxy settings. Nothing else, above all not
+// her own secrets (Home Assistant's token, her access token, model keys); the
+// config's env list hands over what a server needs.
+var stdioKeep = map[string]bool{
+	"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "TZ": true,
+	"LANG": true, "LANGUAGE": true, "TMPDIR": true, "TEMP": true, "TMP": true,
+	"SSL_CERT_FILE": true, "SSL_CERT_DIR": true, "NODE_EXTRA_CA_CERTS": true,
+	"HTTP_PROXY": true, "HTTPS_PROXY": true, "NO_PROXY": true,
+	"http_proxy": true, "https_proxy": true, "no_proxy": true,
+}
+
+// StdioEnv is the environment of a server started over stdio: the few
+// variables in stdioKeep (and LC_*, XDG_*) from parent, then the config's own.
+func StdioEnv(parent, extra []string) []string {
+	var out []string
+	for _, kv := range parent {
+		name, _, _ := strings.Cut(kv, "=")
+		if stdioKeep[name] || strings.HasPrefix(name, "LC_") || strings.HasPrefix(name, "XDG_") {
+			out = append(out, kv)
+		}
+	}
+	return append(out, extra...)
+}
+
 // DialTransport connects with the transport the config names.
 func DialTransport(ctx context.Context, client *sdk.Client, cfg config.MCPServer) (*sdk.ClientSession, error) {
 	var transport sdk.Transport
@@ -566,7 +591,7 @@ func DialTransport(ctx context.Context, client *sdk.Client, cfg config.MCPServer
 		transport = &sdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: hc}
 	case config.TransportStdio:
 		cmd := exec.Command(cfg.Command, cfg.Args...)
-		cmd.Env = append(os.Environ(), cfg.Env...)
+		cmd.Env = StdioEnv(os.Environ(), cfg.Env)
 		cmd.Stderr = os.Stderr
 		t, err := stdioTransport(cmd, slog.Default().With("component", "mcp", "server", cfg.Name))
 		if err != nil {

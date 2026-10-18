@@ -22,6 +22,7 @@ type texts struct {
 
 	denyBackground, denyAfterWeb, denyStoreFailed string
 	needsConfirmation                             string // %s = summary of the action
+	asksAfterWeb                                  string // %s = summary of the call
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -86,6 +87,7 @@ var catalog = map[i18n.Lang]texts{
 		denyAfterWeb:      "Abgelehnt: In dieser Anfrage wurden bereits Inhalte aus dem Web gelesen. Kritische Aktionen sind deshalb gesperrt. Sag dem Nutzer, dass er den Befehl bitte noch einmal direkt geben soll.",
 		denyStoreFailed:   "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt.",
 		needsConfirmation: "NICHT AUSGEFÜHRT – Bestätigung nötig. Die Aktion (%s) ist kritisch. Frage den Nutzer jetzt kurz, ob du sie ausführen sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
+		asksAfterWeb:      "NICHT AUSGEFÜHRT – Nachfrage nötig. In dieser Anfrage wurden Inhalte aus dem Web gelesen; deshalb speichere oder gebe ich nichts ohne das Ja des Nutzers weiter (%s). Sag dem Nutzer kurz und genau, was du speichern oder weitergeben würdest, frage ihn, ob du es tun sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
 	},
 	i18n.EN: {
 		memorySaveDesc:     "Permanently remembers a fact about the household or the user, e.g. preferences, habits, where something is. Only save when the user wants it or it is clearly useful for good. When it is known who is speaking, it goes into their personal memory, otherwise into the house's.",
@@ -146,6 +148,7 @@ var catalog = map[i18n.Lang]texts{
 		denyAfterWeb:      "Denied: this request has already read content from the web. Critical actions are therefore locked. Tell the user to give the command again directly.",
 		denyStoreFailed:   "Denied: the confirmation could not be recorded. The action was not performed.",
 		needsConfirmation: "NOT PERFORMED – confirmation needed. The action (%s) is critical. Ask the user briefly now whether you should perform it, and end your answer with that question. Only when they agree in the next step, call the tool again with the same arguments.",
+		asksAfterWeb:      "NOT PERFORMED – question needed. Content from the web was read in this request, so I do not keep or pass on anything without the user's yes (%s). Tell the user briefly and exactly what you would keep or pass on, ask whether you should, and end your answer with that question. Only when they agree in the next step, call the tool again with the same arguments.",
 	},
 }
 

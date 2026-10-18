@@ -258,6 +258,8 @@ Two switches decide how careful Mira is with a server:
 - **`read_only: true`**: the server only reads and changes nothing. Only such tools are also available to background work (judging tasks, delegated hard questions). Without the switch the tools exist only in conversation.
 - **`web_content: true`**: what the server returns is third-party text, from web pages for example, and may hide instructions. Once Mira has used such a tool, critical actions are locked for the rest of the request: everything listed under `security` as needing confirmation, such as locks, alarm, garage.
 
+A program Mira starts herself (stdio) gets only the bare minimum of her environment: search path, home folder, language and proxy settings. It does not get her credentials (Home Assistant token, model keys). What the server needs goes under `env`, for instance `env: ["API_KEY=${BRAVE_KEY}"]`.
+
 New or changed servers take effect when Mira restarts. `mira check` tells whether all of them are reachable.
 
 ## Setup
@@ -332,6 +334,6 @@ For advanced setups (several models, more MCP servers, skills with settings) the
 ## Good to know
 
 - Mira does not make up values: if something is missing, she says so or asks.
-- After a web search Mira performs no critical actions until you give the command again directly.
+- After a web search Mira performs no critical actions until you give the command again directly. Remembering something, sending a message or creating a task then only happens after your yes. So a web page cannot slip her anything she keeps or passes on.
 - If speech recognition gets you wrong, speak clearly and in one sentence.
 - A Telegram conversation goes on as long as you keep writing. Mira sees its last exchanges (about 30 to 50) and everything about the matter you are working on; older parts drop out, what she remembered stays. `/new` starts over.

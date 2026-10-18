@@ -26,6 +26,10 @@ type Spec struct {
 	ReadOnly   bool
 	WebContent bool
 	Internal   bool
+	// AskAfterWeb: the tool keeps or passes on what the model says (memory,
+	// messages to others, ending a thread). After web content in the same
+	// turn it runs only after the user's yes.
+	AskAfterWeb bool
 }
 
 // Invocation is a call as the conversation loop hands it over.
@@ -62,6 +66,8 @@ type InternalTool struct {
 	// WebContent: the result is untrusted third-party text (a web page);
 	// the guard locks critical actions for the rest of the turn.
 	WebContent bool
+	// AskAfterWeb: see Spec.
+	AskAfterWeb bool
 	// Enabled, when set, decides at each turn whether the tool is offered;
 	// a switched-off tool is unknown to the model.
 	Enabled func() bool
@@ -135,10 +141,11 @@ func (r *Registry) Defs(readOnly bool) []prompt.ToolDef {
 
 func internalSpec(t InternalTool) Spec {
 	return Spec{
-		ToolDef:    prompt.ToolDef{Name: t.Name, Description: t.Description, Schema: json.RawMessage(t.Schema)},
-		ReadOnly:   t.ReadOnly,
-		WebContent: t.WebContent,
-		Internal:   true,
+		ToolDef:     prompt.ToolDef{Name: t.Name, Description: t.Description, Schema: json.RawMessage(t.Schema)},
+		ReadOnly:    t.ReadOnly,
+		WebContent:  t.WebContent,
+		Internal:    true,
+		AskAfterWeb: t.AskAfterWeb,
 	}
 }
 

@@ -258,6 +258,8 @@ Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
 - **`read_only: true`**: Der Server liest nur und ändert nichts. Nur solche Werkzeuge stehen auch Hintergrundarbeiten (Beurteilen von Aufgaben, abgegebene schwierige Fragen) zur Verfügung. Ohne den Schalter gibt es die Werkzeuge nur im Gespräch.
 - **`web_content: true`**: Was der Server liefert, ist fremder Text, zum Beispiel aus Webseiten, und könnte versteckte Anweisungen enthalten. Sobald Mira ein solches Werkzeug benutzt hat, sind für den Rest der Anfrage kritische Aktionen gesperrt: alles, was unter `security` als bestätigungspflichtig eingetragen ist, etwa Schlösser, Alarmanlage, Garage.
 
+Ein Programm, das Mira selbst startet (stdio), bekommt nur das Nötigste aus ihrer Umgebung: Suchpfad, Heimatordner, Sprache und Proxy-Einstellungen. Ihre Zugangsdaten (Home-Assistant-Token, Modell-Schlüssel) bekommt es nicht. Was der Server braucht, trägst du unter `env` ein, zum Beispiel `env: ["API_KEY=${BRAVE_KEY}"]`.
+
 Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` prüft, ob alle erreichbar sind.
 
 ## Einrichtung
@@ -332,6 +334,6 @@ Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstell
 ## Gut zu wissen
 
 - Mira erfindet keine Werte: Fehlt ihr etwas, sagt sie es oder fragt nach.
-- Nach einer Websuche führt Mira keine kritischen Aktionen aus, bis du den Befehl noch einmal direkt gibst.
+- Nach einer Websuche führt Mira keine kritischen Aktionen aus, bis du den Befehl noch einmal direkt gibst. Etwas zu merken, eine Nachricht zu schicken oder eine Aufgabe anzulegen macht sie dann erst nach deinem Ja. So kann eine Webseite ihr nichts unterschieben, was sie dauerhaft behält oder weitergibt.
 - Bei Spracherkennungsfehlern hilft es, deutlich und in einem Satz zu sprechen.
 - Ein Gespräch per Telegram läuft weiter, solange du schreibst. Mira sieht davon die letzten Wechsel (etwa 30 bis 50) und alles zum Anliegen, an dem ihr gerade arbeitet; Älteres fällt heraus, was sie sich gemerkt hat, bleibt. `/neu` beginnt von vorn.
