@@ -1261,6 +1261,8 @@ function markdown(md) {
     if (line.startsWith("```")) { flush(); code = []; continue; }
     if (!line.trim()) { flush(); continue; }
     if ((m = line.match(/^(#{1,3})\s+(.*)/))) { flush(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    // A recording is "▶ [caption](https://….mp4#t=start,end)": a plain link on GitHub, a player here.
+    if ((m = line.match(/^▶\s+\[([^\]]*)\]\((https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
     if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+|https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
     if ((m = line.match(/^>\s?(.*)/))) { if (!quote.length) flush(); quote.push(m[1]); continue; }
     if (line.startsWith("|")) { if (!table) { flush(); table = []; } table.push(line); continue; }

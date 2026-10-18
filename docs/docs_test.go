@@ -26,10 +26,10 @@ func TestGuidesMatch(t *testing.T) {
 	}
 }
 
-// A recording in the guide is a line of its own that the web UI turns into a
-// video player; the time marks must be a start before the end.
+// A recording in the guide is a line of its own ("▶ [caption](url)": a link on
+// GitHub) that the web UI turns into a video player; the time marks must be a start before the end.
 func TestGuideVideosAreWellFormed(t *testing.T) {
-	line := regexp.MustCompile(`^!\[[^\]]*\]\(https://[^\s)]+\.(?:mp4|webm)(?:#t=([\d:.,]+))?\)$`)
+	line := regexp.MustCompile(`^▶ \[[^\]]*\]\(https://[^\s)]+\.(?:mp4|webm)(?:#t=([\d:.,]+))?\)$`)
 	any := regexp.MustCompile(`\.(?:mp4|webm)`)
 	for _, lang := range []string{"de", "en"} {
 		raw, err := Guide(lang)
@@ -37,7 +37,7 @@ func TestGuideVideosAreWellFormed(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, l := range strings.Split(string(raw), "\n") {
-			if !any.MatchString(l) || !strings.HasPrefix(l, "![") {
+			if !any.MatchString(l) || !(strings.HasPrefix(l, "![") || strings.HasPrefix(l, "▶")) {
 				continue
 			}
 			m := line.FindStringSubmatch(l)
