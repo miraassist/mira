@@ -203,9 +203,14 @@ def _write(path: str, data: list[dict[str, Any]]) -> None:
 
 
 async def save(
-    hass: HomeAssistant, config: dict[str, Any], automation_id: str | None, forbidden: dict[str, Any] | None = None
+    hass: HomeAssistant,
+    config: dict[str, Any],
+    automation_id: str | None,
+    forbidden: dict[str, Any] | None = None,
+    label_id: str = LABEL_TASKS,
 ) -> dict[str, Any]:
-    """Validate, write and reload one automation; label it "Mira"."""
+    """Validate, write and reload one automation; label it "Mira" (or the
+    given label)."""
     await validate(hass, config, forbidden)
     automation_id = automation_id or f"mira_{uuid.uuid4().hex[:12]}"
     item = {"id": automation_id} | {k: v for k, v in config.items() if k != "id"}
@@ -225,13 +230,13 @@ async def save(
         raise HomeAssistantError(
             "the automation was written but not loaded; does configuration.yaml include automations.yaml?"
         )
-    _label(hass, entity_id)
+    _label(hass, entity_id, label_id)
     return {"id": automation_id, "entity_id": entity_id}
 
 
 @callback
-def _label(hass: HomeAssistant, entity_id: str) -> None:
-    label = ensure_label(hass, LABEL_TASKS)
+def _label(hass: HomeAssistant, entity_id: str, label_id: str = LABEL_TASKS) -> None:
+    label = ensure_label(hass, label_id)
     entities = er.async_get(hass)
     entry = entities.async_get(entity_id)
     if entry is not None and label.label_id not in entry.labels:
@@ -253,9 +258,10 @@ async def delete(hass: HomeAssistant, automation_id: str) -> None:
     await hass.services.async_call("automation", "reload", {}, blocking=True)
 
 
-async def list_tasks(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """Mira's automations: the ones labelled "Mira", with their config."""
-    label = lr.async_get(hass).async_get_label(LABEL_TASKS)
+async def list_tasks(hass: HomeAssistant, label_id: str = LABEL_TASKS) -> list[dict[str, Any]]:
+    """Mira's automations: the ones labelled "Mira" (or the given label),
+    with their config."""
+    label = lr.async_get(hass).async_get_label(label_id)
     if label is None:
         return []
     entities = er.async_get(hass)
@@ -271,6 +277,7 @@ async def list_tasks(hass: HomeAssistant) -> list[dict[str, Any]]:
                 "id": entry.unique_id,
                 "entity_id": entry.entity_id,
                 "state": state.state if state else "unavailable",
+                "current": int(state.attributes.get("current") or 0) if state else 0,
                 "last_triggered": (
                     state.attributes.get("last_triggered").isoformat()
                     if state and state.attributes.get("last_triggered")

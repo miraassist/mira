@@ -20,6 +20,7 @@ from homeassistant.helpers.typing import ConfigType
 from .access import hand_back, revoke_agent_token, use_mira_in
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
+from .once import async_register_commands as async_register_once_commands
 from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
@@ -156,6 +157,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, SERVICE_DECIDE, decide, schema=DECIDE_SCHEMA, supports_response=SupportsResponse.ONLY
     )
     async_register_commands(hass)
+    async_register_once_commands(hass)
     async_register_views(hass)
     ensure_labels(hass)
     return True

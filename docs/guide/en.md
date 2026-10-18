@@ -246,6 +246,14 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 **Confirming important actions**: locks, the alarm system, the garage door and the like Mira only operates after you explicitly say "Yes" to her question.
 
+## Sleep timer
+
+"Sleep timer 30 minutes." – "Turn the music off in half an hour, and the light too." – "Ten more minutes." – "Never mind, cancel." – "Which timers do I have?"
+
+After the time the playback in the room stops (audiobook, radio, music), and on request the light goes off too. A second sleep timer in the same room replaces the first. You can have at most ten open timers per person and room.
+
+The timer runs in **Home Assistant**, not in Mira: it is created there as a one-time automation with the label "Mira: once" and removes itself after it ran. If Home Assistant is off at the time, it catches up at start, so the light does not burn all night. The speaker and the light have to be exposed to Assist. A timer never switches locks, the alarm system or the garage door.
+
 ## Scenes and scripts from Home Assistant
 
 Scenes ("Good night", "Home cinema") and scripts that you made in Home Assistant and exposed to Assist can be started by Mira:

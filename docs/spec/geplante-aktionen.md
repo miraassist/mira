@@ -1,6 +1,6 @@
 # Geplante Aktionen (Einschlaf-Timer): Spezifikation
 
-Stand 2026-10-18. Entworfen, nicht gebaut. Beschlossen mit dem Nutzer: Der Zustand und der Scheduler liegen in
+Stand 2026-10-18, gebaut in 0.6.45. Beschlossen mit dem Nutzer: Der Zustand und der Scheduler liegen in
 **Home Assistant**; Erinnerungen bleiben vorerst bei Mira. Einmalige Automationen tragen ein eigenes **Label**; das
 **Aufräumen übernimmt die Integration**.
 
@@ -21,7 +21,7 @@ fünf Minuten“). Siehe [Skill-Ideen](skill-ideen.md).
 | Wer löst aus | Der Notifier von Mira | Home Assistant |
 | Läuft, wenn die andere Seite aus ist | nein (Mira muss laufen) | ja (Mira muss nicht laufen) |
 
-Beides bleibt nebeneinander. „Welche Timer habe ich?“ zeigt beide Arten zusammen.
+Beides bleibt nebeneinander. „Welche Timer habe ich?“ fragt beide Listen ab.
 
 ## Die Automation
 
@@ -30,9 +30,10 @@ Eine **einmalige Automation** ist eine gewöhnliche HA-Automation mit dem Label 
 [Aufgaben](aufgaben.md), damit sie dort nicht in der Aufgabenliste erscheint.
 
 ```yaml
-alias: "Schlaf-Timer Wohnzimmer"
-description: "Mira: Schlaf-Timer, Anna, Wohnzimmer"
+alias: "Schlaf-Timer Wohnzimmer 837deda7"   # das Ende ist für jeden Timer anders, siehe unten
+description: "Mira: Schlaf-Timer Wohnzimmer"
 variables:                      # was die Integration beim Aufräumen und Mira beim Auflisten liest
+  mira_title: "Schlaf-Timer Wohnzimmer"
   mira_due: "2026-10-18T22:35:00+02:00"
   mira_owner: anna
   mira_area: wohnzimmer
@@ -42,11 +43,10 @@ triggers:
     at: "22:35:00"
   - trigger: homeassistant      # war HA zur Fälligkeit aus: jetzt nachholen
     event: start
-conditions:                     # frühestens zur Fälligkeit, nur einmal, nicht ewig später
+conditions:                     # frühestens zur Fälligkeit, nur einmal
   - condition: template
     value_template: >-
-      {{ now() >= as_datetime('2026-10-18T22:35:00+02:00')
-         and now() < as_datetime('2026-10-18T22:35:00+02:00') + timedelta(hours=12)
+      {{ now() >= as_datetime('2026-10-18T22:35:00+02:00') - timedelta(seconds=2)
          and this.attributes.last_triggered is none }}
 actions:
   - action: media_player.volume_set     # Ausblenden: mehrere Schritte mit Warten
@@ -60,10 +60,15 @@ mode: single
 
 - **Auslöser:** eine Uhrzeit auf die Sekunde, dazu der Start von Home Assistant. Das reicht auch über Mitternacht
   und für Zeiten in mehr als 24 Stunden. Ein Vorlagen-Auslöser mit `now()` wäre nur auf die Minute genau.
-- **Bedingung: frühestens zur Fälligkeit und nur einmal.** `now() >= mira_due` und noch nie ausgelöst
-  (`last_triggered` ist leer). Ist HA zur Fälligkeit aus, löst der Start von HA die Automation aus, und sie
-  wird nachgeholt: sonst brennt das Licht die ganze Nacht. Eine **Obergrenze** (zwölf Stunden nach der
-  Fälligkeit) verhindert, dass ein Timer von gestern Abend heute Mittag etwas ausschaltet; danach verfällt er.
+- **Bedingung: frühestens zur Fälligkeit und nur einmal.** `now() >= mira_due` (zwei Sekunden Spiel für die Uhr)
+  und noch nie ausgelöst (`last_triggered` ist leer). Ist HA zur Fälligkeit aus, löst der Start von HA die
+  Automation aus, und sie wird nachgeholt: sonst brennt das Licht die ganze Nacht. Es gibt **keine Obergrenze**
+  und keinen Verfall; was fällig ist und noch nicht lief, läuft, sobald HA wieder da ist.
+- **Jeder Timer hat einen eigenen Namen.** HA macht die Entitäts-ID aus dem Namen und stellt den Zustand einer
+  neuen Entität aus der letzten mit derselben ID wieder her, auch aus einer gelöschten. Ein zweiter „Schlaf-Timer
+  Wohnzimmer“ hätte „schon gelaufen“ vom ersten geerbt und nie ausgelöst. Der Test gegen eine echte HA hat das
+  gezeigt. Darum hängt der Name eine Kennung an (die letzten acht Zeichen der Automations-ID). Der lesbare Titel
+  steht in `mira_title`.
 - **Fälligkeit und Besitzer** stehen in `variables`. Das ist strukturiert, überlebt Änderungen im Editor von HA und
   braucht keinen eigenen Speicher.
 - **„Schon gelaufen?“** liest die Integration aus der Automation selbst: `last_triggered` und die Zahl der laufenden
@@ -74,26 +79,23 @@ mode: single
 Die Integration verwaltet die Automationen von Mira schon (`automations.py`). Neu: eine Kehrrunde, beim Start und
 danach jede Minute.
 
-Für jede Automation mit dem Label `mira_once`, mit `mira_due` aus den Variablen:
+Für jede Automation mit dem Label `mira_once`:
 
 1. **Gelaufen und fertig** (`last_triggered` gesetzt, keine laufenden Durchläufe): löschen.
-2. **Verfallen** (mehr als zwölf Stunden nach der Fälligkeit und nie gelaufen, etwa weil jemand die Automation
-   abgeschaltet hat): löschen und den Besitzer benachrichtigen („Der Schlaf-Timer um 22:35 ist nicht
-   ausgeführt worden“), als Nachricht über die Agenten-API.
-3. **Fällig, nicht gelaufen und nicht verfallen:** nichts tun, die Automation holt es selbst nach (Start von HA).
-4. **Noch nicht fällig:** nichts tun.
+2. **Alles andere:** nichts tun. Fällig und nicht gelaufen holt die Automation selbst nach (Start von HA),
+   noch nicht Fälliges wartet. Wer einen Timer in HA abschaltet, behält ihn, bis er ihn selbst löscht.
 
 Das Nachholen steckt damit in der Automation selbst und nicht in der Kehrrunde. Die Kehrrunde räumt nur auf.
 
-Ändert jemand `mira_due` im Editor, gilt der neue Wert. Fehlt die Variable, ist es keine Mira-Automation mehr, und
-die Kehrrunde lässt sie in Ruhe.
+Ändert jemand `mira_due` im Editor, ohne die Zeit des Auslösers anzupassen, gilt weiter die Zeit des Auslösers; der
+Editor von HA ist dafür nicht gedacht. Verlängern und Abbrechen geschehen im Gespräch.
 
 ## Anlegen, Ändern, Abbrechen
 
 Es läuft über die Integration (Websocket-Befehle, wie bei Aufgaben):
 
 - **`once_save`:** prüft (`check_actions`, im Zweifel ablehnend), setzt Label und Variablen, schreibt und lädt die
-  Automation. Grenzen: höchstens sieben Tage in die Zukunft und höchstens zehn offene je Person.
+  Automation. Grenze: **höchstens zehn offene Timer je Person und Raum**. Sonst keine, weder in der Zeit noch in der Dauer.
 - **Kritische Aktionen** (Schlösser, Alarmanlage, Garagentor, Entitäten mit dem Label „Mira: nachfragen“) sind in
   geplanten Aktionen **verboten**: Eine Bestätigung von heute Abend soll nachts um drei nichts aufmachen.
 - **`once_list`, `once_delete`:** wie bei Aufgaben, nach Label und Variablen gefiltert.
@@ -105,8 +107,8 @@ Zuerst nur der Fall, den man wirklich braucht (kein Modell schreibt Aktionen):
 
 - **`sleep_timer(minutes, room?, lights_off?)`:** Mira baut die Aktionen selbst: die Player des Raums stoppen
   (die freigegebenen Player im Bereich, wie bei `radio_play`), Licht im Raum aus. Raum ist der des Satelliten.
-- **`timer_list`:** die einmaligen Automationen der Person und, aus Miras Datenbank, ihre Erinnerungen. Mit „wie
-  lange noch“.
+- **`timer_list`:** die einmaligen Automationen der Person im Raum, mit „wie lange noch“. Erinnerungen listet das
+  vorhandene Erinnerungswerkzeug; das Modell ruft bei „Welche Timer habe ich?“ beide auf.
 - **`timer_extend(id?, add_minutes)`, `timer_cancel(id?)`:** ohne Kennung gilt der Timer der Person im Raum; gibt es
   mehrere, fragt Mira nach.
 
@@ -115,8 +117,6 @@ Entitäten wählt („Mach in einer Stunde das Licht aus“). Dieselbe Prüfung,
 
 ## Offen
 
-- **Start von HA:** Beim Nachholen sind Player und Lampen eventuell noch nicht erreichbar. Die Aktionen warten
-  deshalb kurz (bis zu zwei Minuten) auf die Zielgeräte und machen dann weiter, auch wenn eines fehlt.
 - **Ausblenden:** Lautstärke in Schritten senken (mehrere Aktionen mit Warten). Erst nach der einfachen Version.
 - **Das Hörbuch:** Beim Stoppen soll die Stelle bleiben. Das ist Sache von Music Assistant (siehe Skill-Ideen), nicht
   des Timers.

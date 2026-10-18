@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_IMPORTED, DOMAIN
 from .managed import build_config
+from .once import sweep
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +35,11 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._synced = False
 
     async def _async_update_data(self) -> dict[str, Any]:
+        # Finished one-time timers go, whether or not the agent answers.
+        try:
+            await sweep(self.hass)
+        except Exception:  # noqa: BLE001 - a failing sweep must not stop the status
+            _LOGGER.exception("Cleaning up finished timers failed")
         try:
             status = await self.client.status()
         except MiraError as err:

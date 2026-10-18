@@ -28,6 +28,8 @@ Alexa-Skills ist der Dialog, das Wissen über Haus und Personen und das Melden v
 
 ### Einschlaf-Timer
 
+Gebaut in 0.6.45, siehe [Geplante Aktionen](geplante-aktionen.md).
+
 „Schlaf-Timer 30 Minuten.“ – „Schalte in 20 Minuten alles aus.“ – „Noch zehn Minuten.“ – „Doch abbrechen.“
 
 - Nach der gewählten Zeit hört das Abspielen auf (Hörbuch, Radio, Musik), auf Wunsch leiser werdend, und das Licht geht

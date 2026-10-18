@@ -34,6 +34,7 @@ import (
 	"github.com/miraassist/mira/internal/tasks"
 	"github.com/miraassist/mira/internal/telemetry"
 	"github.com/miraassist/mira/internal/threads"
+	"github.com/miraassist/mira/internal/timer"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/websearch"
@@ -237,6 +238,22 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
+	// Sleep timer: one-time automations in Home Assistant (docs/spec/geplante-aktionen.md).
+	internal = append(internal, timer.Tools(timer.Options{
+		Lang: a.lang, HA: a.ha,
+		Players: func(area string) []string { return exposedIn(snapshot(), area, "media_player.") },
+		Lights:  func(area string) []string { return exposedIn(snapshot(), area, "light.") },
+		Area:    func(name string) string { return snapshot().AreaKeys[name] },
+		AreaName: func(id string) string {
+			if name := snapshot().AreaNames[id]; name != "" {
+				return name
+			}
+			return id
+		},
+		Forbidden: func() map[string]any {
+			return map[string]any{"domains": nonEmpty(cfg.Security.ConfirmDomains), "entities": nonEmpty(cfg.Security.ConfirmEntities)}
+		},
+	})...)
 	// Radio on the room's speaker (docs/spec/radio.md).
 	internal = append(internal, radio.Tool(radio.Options{
 		Lang: a.lang, Search: radio.Search(a.ha), Play: radio.Play(a.ha),
@@ -1026,4 +1043,24 @@ func (a *app) setProblems(list []skills.Problem) {
 		a.log.Warn("skill not started", "skill", p.Skill, "problem", text)
 		a.problems = append(a.problems, haconv.Problem{Source: "skill", Name: p.Skill, Text: text})
 	}
+}
+
+// exposedIn lists the entities of a domain prefix ("light.") that are exposed
+// to Assist and in an area, sorted.
+func exposedIn(snap structure.Snapshot, area, prefix string) []string {
+	var out []string
+	for id := range snap.ExposedEntities {
+		if strings.HasPrefix(id, prefix) && snap.EntityArea[id] == area {
+			out = append(out, id)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func nonEmpty(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

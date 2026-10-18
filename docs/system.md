@@ -82,6 +82,7 @@ flowchart LR
 | `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, weitere MCP-Server |
 | `internal/websearch` | Eingebaute Websuche: `web_search` (DuckDuckGo-HTML), `web_page` (Haupttext einer Seite); liest nur, fremder Webtext, abschaltbar ([Websuche](spec/websuche.md)) |
 | `internal/radio` | `radio_play`: Sender im Radio Browser von HA suchen und auf dem Lautsprecher des Raums starten ([Radio](spec/radio.md)) |
+| `internal/timer` | Schlaf-Timer: `sleep_timer`, `timer_list`, `timer_extend`, `timer_cancel`; legt über die Integration einmalige Automationen in HA an ([Geplante Aktionen](spec/geplante-aktionen.md)) |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |

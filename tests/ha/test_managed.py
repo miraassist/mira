@@ -133,6 +133,7 @@ async def test_general_lives_at_the_agent(hass, aioclient_mock, entry):
     same = {"timeout": 20, "sidebar": True, "web_search": True, "persona": "Trocken.", "own_message_hold": 10}
     await hass.config_entries.options.async_configure(result["flow_id"], same)
     assert not [c for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
+    await hass.async_block_till_done()  # the options update reloads the entry
     result = await _form(hass, entry, "general")
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {**same, "web_search": False, "persona": "  Frech.  ", "own_message_hold": 0}

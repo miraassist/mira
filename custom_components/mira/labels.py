@@ -16,6 +16,9 @@ LABEL_TASKS = "mira"
 # "Mira: nachfragen": Mira switches such an entity only after a yes; tasks
 # never switch it. The agent reads it from the entity registry itself.
 LABEL_CONFIRM = "mira_confirm"
+# "Mira: einmalig": an automation that runs once and is then removed by the
+# integration (once.py). Not a task, so it is not in the task list.
+LABEL_ONCE = "mira_once"
 
 # id: (seed name, icon, color, {language: (name, description)})
 _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
@@ -32,6 +35,15 @@ _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
         {
             "de": ("Mira: nachfragen", "Mira schaltet das erst, nachdem du es bestätigt hast."),
             "en": ("Mira: confirm first", "Mira only switches this after you confirmed."),
+        },
+    ),
+    LABEL_ONCE: (
+        "mira_once",
+        "mdi:timer-sand",
+        "blue",
+        {
+            "de": ("Mira: einmalig", "Läuft einmal und räumt sich dann auf (Schlaf-Timer)."),
+            "en": ("Mira: once", "Runs once and then removes itself (sleep timer)."),
         },
     ),
 }

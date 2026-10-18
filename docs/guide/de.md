@@ -270,6 +270,14 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 **Wichtige Aktionen bestätigen**: Schlösser, Alarmanlage, Garagentor und Ähnliches führt Mira erst aus, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
+## Einschlaf-Timer
+
+„Schlaf-Timer 30 Minuten.“ – „Schalte in einer halben Stunde die Musik aus, und das Licht auch.“ – „Noch zehn Minuten.“ – „Doch abbrechen.“ – „Welche Timer habe ich?“
+
+Nach der Zeit hört im Raum die Wiedergabe auf (Hörbuch, Radio, Musik), auf Wunsch geht auch das Licht aus. Ein zweiter Schlaf-Timer im selben Raum ersetzt den ersten. Du kannst höchstens zehn offene Timer je Person und Raum haben.
+
+Der Timer läuft in **Home Assistant**, nicht in Mira: Er wird dort als einmalige Automation mit dem Label „Mira: einmalig“ angelegt und räumt sich nach dem Ablauf selbst auf. Ist Home Assistant zur Zeit aus, holt er es beim Start nach, damit das Licht nicht die ganze Nacht brennt. Der Lautsprecher und das Licht müssen für Assist freigegeben sein. Schlösser, Alarmanlage und Garagentor schaltet ein Timer nie.
+
 ## Szenen und Skripte aus Home Assistant
 
 Szenen („Gute Nacht“, „Heimkino“) und Skripte, die du in Home Assistant angelegt und für Assist freigegeben hast, kann Mira starten:
