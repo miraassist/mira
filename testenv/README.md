@@ -50,3 +50,26 @@ machine, which its integration may overwrite again.
 
 No voice satellite: announcements can be tested up to the
 `assist_satellite` call, not heard.
+
+## Two languages (planned)
+
+The demos and the tests must run in German and in English, each one clean:
+what Mira says and what the dashboard shows use that language's names. English
+aliases next to German names are **not** enough ("I switched on the Stehlampe"
+does not work for a recording).
+
+So `testha up` takes a language, `TESTHA_LANG=de|en` in `testenv/.env` (default
+`de`), and switches everything that is named:
+
+- Home Assistant's `language` and country, and a second pipeline (speech
+  recognition and voice in that language) that the satellites' "Assistant"
+  select can pick.
+- The areas, the names of the exposed devices, the lists and calendars, the
+  dashboard and the simulated sensors, and the appointments and waste
+  collection dates the seed writes.
+- Going back to `de` restores the German house. Both must stay in step: a new
+  entity gets both names.
+
+Open: whether Mira answers cleanly in English with the skills, which are
+written in German only (`skills/*/SKILL.md`). To be tried first; if not, the
+skills get English texts.
