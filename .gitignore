@@ -27,3 +27,6 @@ __pycache__/
 
 # Private demo scripts, not for the repo
 /docs/demo/
+
+# Private to-do list, not for the repo
+/docs/todo.local.md
