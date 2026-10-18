@@ -270,6 +270,19 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 **Wichtige Aktionen bestätigen**: Schlösser, Alarmanlage, Garagentor und Ähnliches führt Mira erst aus, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
+## Szenen und Skripte aus Home Assistant
+
+Szenen („Gute Nacht“, „Heimkino“) und Skripte, die du in Home Assistant angelegt und für Assist freigegeben hast, kann Mira starten:
+
+- „Gute Nacht.“ – „Schalte die Szene Heimkino ein.“ – „Ich will mit Regen einschlafen.“
+
+Wie Mira den richtigen Ablauf erkennt, hängt an zwei Angaben in Home Assistant:
+
+- **Der Name** sollte sagen, was passiert: „Gute Nacht“, „Heimkino“, „Einschlafen mit Regen“.
+- **Bei Skripten die Beschreibung** (`description` im Skript): ein Satz, was es tut, zum Beispiel „Spielt leise Regengeräusche zum Einschlafen auf dem Show im Wohnzimmer.“ Mira liest diesen Satz. Ohne ihn hat sie nur den Namen, und bei einem Wunsch wie „Mach Regengeräusche an“ kann sie sich verschätzen und stattdessen einen Radiosender suchen.
+
+Bei Szenen reicht der Name. Wichtige Aktionen (Schlösser, Alarmanlage, Garagentor) in einem Ablauf fragen weiter nach, wie überall.
+
 ## Mira in Home Assistant
 
 Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der App.

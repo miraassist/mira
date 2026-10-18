@@ -55,7 +55,7 @@ type texts struct {
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
-		desc:            "Startet einen Radiosender auf dem Lautsprecher eines Raums (ohne Raumangabe: der Raum, in dem der Nutzer spricht). Für „Spiel SWR3“, „Mach das Radio an“, „Ich will Radio hören“. Beenden, leiser, lauter geht mit den normalen Medienwerkzeugen.",
+		desc:            "Startet einen Radiosender auf dem Lautsprecher eines Raums (ohne Raumangabe: der Raum, in dem der Nutzer spricht). Nur für echte Radiosender: „Spiel SWR3“, „Mach das Radio an“, „Ich will Radio hören“. Naturgeräusche, Musik und Abläufe wie „Einschlafen mit Regen“ sind keine Sender; passt dazu ein Skript oder eine Szene des Nutzers, nimm diese. Beenden, leiser, lauter geht mit den normalen Medienwerkzeugen.",
 		stationDesc:     "Name des Senders, so wie der Nutzer ihn sagt, etwa „SWR3“ oder „Deutschlandfunk“.",
 		roomDesc:        "Raum, in dem das Radio laufen soll; weglassen für den Raum des Nutzers.",
 		playerDesc:      "Name des Lautsprechers, nur nötig, wenn der Raum mehrere hat.",
@@ -68,7 +68,7 @@ var catalog = map[i18n.Lang]texts{
 		playing:         "Läuft: %s im Raum %s.",
 	},
 	i18n.EN: {
-		desc:            "Starts a radio station on a room's speaker (without a room: the room the user is speaking in). For \"play SWR3\", \"turn on the radio\", \"I want to listen to the radio\". Stopping, quieter, louder work with the normal media tools.",
+		desc:            "Starts a radio station on a room's speaker (without a room: the room the user is speaking in). Only for real radio stations: \"play SWR3\", \"turn on the radio\", \"I want to listen to the radio\". Nature sounds, music and routines such as \"sleep with rain\" are not stations; if one of the user's scripts or scenes fits, use that. Stopping, quieter, louder work with the normal media tools.",
 		stationDesc:     "The station's name as the user says it, such as \"SWR3\" or \"BBC Radio 4\".",
 		roomDesc:        "The room the radio should play in; leave out for the user's room.",
 		playerDesc:      "Name of the speaker, only needed if the room has several.",

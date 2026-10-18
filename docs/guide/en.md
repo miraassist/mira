@@ -246,6 +246,19 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 **Confirming important actions**: locks, the alarm system, the garage door and the like Mira only operates after you explicitly say "Yes" to her question.
 
+## Scenes and scripts from Home Assistant
+
+Scenes ("Good night", "Home cinema") and scripts that you made in Home Assistant and exposed to Assist can be started by Mira:
+
+- "Good night." – "Turn on the Home cinema scene." – "I want to fall asleep to rain."
+
+How Mira picks the right routine depends on two things in Home Assistant:
+
+- **The name** should say what happens: "Good night", "Home cinema", "Sleep with rain".
+- **For scripts, the description** (`description` in the script): one sentence on what it does, for example "Plays soft rain sounds for falling asleep on the Show in the living room." Mira reads that sentence. Without it she only has the name, and for a request such as "Play rain sounds" she may guess wrong and look for a radio station instead.
+
+For scenes the name is enough. Important actions (locks, alarm system, garage door) inside a routine still ask for confirmation, as everywhere.
+
 ## Mira in Home Assistant
 
 Mira is in Home Assistant's sidebar. You are signed in there already, she looks like your HA theme (light or dark) and speaks your HA language; this works from away in the app too.
