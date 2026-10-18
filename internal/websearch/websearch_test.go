@@ -108,6 +108,52 @@ func TestFallback(t *testing.T) {
 	}
 }
 
+// A search brings the start of the first readable hit with it: a first hit
+// that cannot be read is passed over, and only the first two are tried.
+func TestSearchExcerpt(t *testing.T) {
+	page := fixture(t, "page.html")
+	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/gone":
+			http.NotFound(w, r)
+		case "/empty":
+			w.Write([]byte("<html><body><script>build()</script></body></html>"))
+		default:
+			w.Header().Set("Content-Type", "text/html; charset=iso-8859-1")
+			w.Write(page)
+		}
+	}))
+	t.Cleanup(site.Close)
+	search := func(paths ...string) string {
+		var b strings.Builder
+		b.WriteString(`<div id="links" class="results">`)
+		for i, p := range paths {
+			c := string(rune('A' + i))
+			b.WriteString(`<div class="result"><h2 class="result__title"><a class="result__a" href="` + site.URL + p + `">Treffer ` + c + `</a></h2><a class="result__snippet" href="x">Kurztext ` + c + `</a></div>`)
+		}
+		b.WriteString(`</div>`)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(b.String())) }))
+		t.Cleanup(srv.Close)
+		// The search page and the site are both on the loopback interface.
+		return run(t, New(Options{Lang: i18n.DE, SearchURL: srv.URL, HTTP: http.DefaultClient, AllowPrivate: true}), ToolSearch, `{"query":"x"}`)
+	}
+
+	out := search("/gone", "/page")
+	if !strings.Contains(out, "1. Treffer A") || !strings.Contains(out, "2. Treffer B") {
+		t.Errorf("hits missing:\n%s", out)
+	}
+	if !strings.Contains(out, "Anfang von Treffer 2 ("+site.URL+"/page):") || !strings.Contains(out, "Montag bis Samstag von 8 bis 20 Uhr") {
+		t.Errorf("no excerpt of the second hit:\n%s", out)
+	}
+	if strings.Contains(out, "Impressum") || strings.Contains(out, "Newsletter") {
+		t.Errorf("excerpt holds page furniture:\n%s", out)
+	}
+	out = search("/gone", "/empty", "/page")
+	if strings.Contains(out, "Anfang von Treffer") || !strings.Contains(out, "3. Treffer C") {
+		t.Errorf("tried more than two hits, or lost hits:\n%s", out)
+	}
+}
+
 // A page gives its title and main text: Latin-1 decoded, without scripts,
 // navigation, header, footer, aside, form and hidden parts.
 func TestRead(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/net/html/charset"
 
@@ -260,6 +261,38 @@ func (s *Search) Read(ctx context.Context, raw string) (Page, error) {
 		p.Text, p.Cut = strings.TrimSpace(string(r[:maxPageChars]))+" …", true
 	}
 	return p, nil
+}
+
+const (
+	// excerptChars is how much of a page comes with the hits; pages with
+	// less text than minExcerpt (scripts build them) are passed over.
+	excerptChars = 1500
+	minExcerpt   = 200
+	excerptTries = 2
+	excerptTime  = 6 * time.Second
+)
+
+// excerpt reads the start of the first readable page among the first hits
+// that has text; it returns the hit's number, address and the text, or
+// nothing.
+func (s *Search) excerpt(ctx context.Context, hits []Result) (n int, addr, text string) {
+	ctx, cancel := context.WithTimeout(ctx, excerptTime)
+	defer cancel()
+	for i, h := range hits {
+		if i >= excerptTries {
+			break
+		}
+		p, err := s.Read(ctx, h.URL)
+		if err != nil || utf8.RuneCountInString(p.Text) < minExcerpt {
+			continue
+		}
+		t := p.Text
+		if r := []rune(t); len(r) > excerptChars {
+			t = strings.TrimSpace(string(r[:excerptChars])) + " …"
+		}
+		return i + 1, h.URL, t
+	}
+	return 0, "", ""
 }
 
 func checkScheme(u *url.URL) error {

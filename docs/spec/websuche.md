@@ -1,6 +1,6 @@
 # Websuche – Spezifikation
 
-Stand 2026-10-18, beschlossen und gebaut in 0.6.29, Rückfall auf Bing in 0.6.30. Siehe auch die Sicherheitsregeln in der [Systemdoku](../system.md).
+Stand 2026-10-18, beschlossen und gebaut in 0.6.29, Rückfall auf Bing in 0.6.30, Seitenanfang bei den Treffern in 0.6.31. Siehe auch die Sicherheitsregeln in der [Systemdoku](../system.md).
 
 ## Ziel
 
@@ -10,10 +10,10 @@ Künftig bringt Mira die Suche selbst mit. Sie ist **an**, ohne Einrichtung und 
 
 ## Die Werkzeuge
 
-- **`web_search`**: eine Suchanfrage, Antwort: bis zu 5 Treffer mit Titel, Adresse und Kurztext.
+- **`web_search`**: eine Suchanfrage, Antwort: bis zu 5 Treffer mit Titel, Adresse und Kurztext. Dazu der **Seitenanfang** (etwa 1.500 Zeichen Haupttext) des ersten lesbaren Treffers.
 - **`web_page`**: eine Adresse, Antwort: Titel und Haupttext der Seite, gekürzt auf eine handliche Länge. Damit liest Mira einen Treffer genauer, wenn der Kurztext nicht reicht.
 
-„Suchen und gleich die Seiten lesen“ ist kein eigenes Werkzeug. Das Modell ruft beide nacheinander auf und liest nur, was es braucht.
+Den Seitenanfang liest `web_search` selbst mit, weil der Kurztext eines Treffers die Antwort oft nicht enthält und kleine Modelle von sich aus nicht nachlesen. Es versucht die ersten zwei Treffer (höchstens 6 Sekunden zusammen) und nimmt den ersten, der sich lesen lässt und mindestens 200 Zeichen Text hat. Seiten, die ihren Inhalt erst per Skript aufbauen, scheiden so aus. Mehr will das Modell, liest es einen Treffer mit `web_page` ganz.
 
 ## Wie gesucht wird
 
@@ -32,7 +32,7 @@ Künftig bringt Mira die Suche selbst mit. Sie ist **an**, ohne Einrichtung und 
   - Nur `http` und `https`.
   - Adressen im eigenen Netz (privat, Loopback, link-local) lehnt `web_page` ab, auch nach einer Weiterleitung. Eine Webseite soll Mira nicht dazu bringen, Geräte im Heimnetz abzufragen.
 - **Grenze dieser Lösung:** Es sind Abrufe der Ergebnisseiten ohne offizielle Schnittstelle. Sie können sich ändern oder sperren. Mehr Aufwand ist hier bewusst nicht vorgesehen; wer eine verlässlichere Suche will, bindet eine mit Schlüssel als MCP-Server ein (etwa Brave Search) und schaltet die eingebaute ab.
-- **Kleine Modelle:** Der Kurztext eines Treffers enthält die Antwort oft nicht. Ein kleines Modell (getestet: qwen3-30b-a3b) liest dann die Seite nicht nach, sondern antwortet aus dem Gedächtnis, auch falsch. Auch eine strengere Beschreibung des Werkzeugs änderte das nicht.
+- **Grenzen des Seitenanfangs:** Tagesaktuelles (Spielergebnisse, Nachrichten) steht oft nicht auf der ersten lesbaren Seite oder weiter unten. Ein kleines Modell (getestet: qwen3-30b-a3b) vertauscht dann Einzelheiten oder rät aus dem Gedächtnis; eine strengere Beschreibung des Werkzeugs änderte das nicht. Ein stärkeres Modell (getestet: Gemini Flash) antwortet ehrlich, wenn nichts da ist.
 
 ## Sicherheit
 
