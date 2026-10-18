@@ -59,10 +59,12 @@ func run() error {
 		return compose(ctx, dir, "down")
 	case "reset":
 		return reset(ctx, dir)
+	case "dashboard":
+		return dashboardCmd(ctx, dir)
 	case "eval":
 		return evalCmd(ctx, dir, args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (up, set, env, down, reset, eval)", args[0])
+		return fmt.Errorf("unknown command %q (up, set, env, down, reset, dashboard, eval)", args[0])
 	}
 }
 

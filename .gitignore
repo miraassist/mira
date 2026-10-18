@@ -24,3 +24,6 @@ __pycache__/
 /deploy/
 # Implementation plan: kept locally, not published.
 /Mira – Implementierungsplan.md
+
+# Private demo scripts, not for the repo
+/docs/demo/

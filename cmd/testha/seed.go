@@ -118,6 +118,9 @@ func seed(ctx context.Context, admin *haws.Client, token string) error {
 		"entity_id": "cover.garage_door", "labels": []string{"mira_confirm"}}, nil); err != nil {
 		return err
 	}
+	if err := ensureDashboard(ctx, admin); err != nil {
+		return fmt.Errorf("dashboard: %w", err)
+	}
 	return ensureMCPServer(ctx, token)
 }
 

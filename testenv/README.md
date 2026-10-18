@@ -8,6 +8,7 @@ German-named areas, simulated leak/motion/window sensors, and a non-admin user
 ```sh
 go run ./cmd/testha up        # start, onboard, seed; writes testenv/.env
 go run ./cmd/testha set binary_sensor.lecksensor_keller on
+go run ./cmd/testha dashboard # (re)write the dashboard "Mira Simulation"
 go run ./cmd/testha down      # stop, keep state
 go run ./cmd/testha reset     # delete all state
 ```
@@ -27,6 +28,12 @@ go run ./cmd/testha reset     # delete all state
 The container uses a bridge network on purpose: in the host network HA
 discovers the real devices of the house and sets some of them up by itself.
 The seed also disables any integration that came from network discovery.
+
+The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the
+simulated sensors and for who is home, Mira's quiet mode, the Show's alarm
+buttons, and a view of the house with the lists and calendars. `testha up`
+writes it, and `testha dashboard` writes it anew (changes made in the UI are
+overwritten; make a dashboard of your own for those).
 
 Simulated sensors are template binary sensors driven by `input_boolean.sim_*`;
 `testha set` flips them. Any other entity is set directly in the state
