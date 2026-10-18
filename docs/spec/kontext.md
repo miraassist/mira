@@ -130,3 +130,21 @@ Was das Modell vom Gespräch sieht: **der laufende Vorgang + die letzten Turns.*
 
 - **Keine Zusammenfassung durch ein Modell**: kostet einen Aufruf, ist nicht vorhersehbar, und was bleiben soll, steht im Gedächtnis oder im Ergebnis eines Vorgangs.
 - **Alte Turns bleiben wörtlich**, auch mit ihrem damaligen Teil 6 (Uhrzeit, Gedächtnis-Treffer); sie werden nicht verschlankt.
+
+## 8. Beobachtet und Ideen (nicht beschlossen)
+
+Stand 2026-10-18, gemessen mit Gemini Flash über die OpenAI-Schnittstelle.
+
+**Gemessen**
+- **Wachstum:** Die erste Anfrage eines Gesprächs hatte etwa 8.900 Tokens, die 27. etwa 15.800: im Schnitt rund 260 Tokens je Turn, bei Turns mit Kalender oder Vorgang bis 1.400. Über 90 % der Anfrage ist der gleichbleibende Anfang, davon etwa 72 % die 51 Werkzeugdefinitionen.
+- **Zeit:** Gemini braucht je 10.000 Tokens mehr etwa 0,3 bis 0,4 Sekunden (9.000 Tokens: 2,0 s, 31.000 Tokens: 2,45 s). Das Wachstum macht Mira bei Gemini nicht merklich langsamer.
+- **Cache:** Gemini meldet Cache-Treffer nur bei einer vollständig gleichen Anfrage. Wurde nur das Ende geändert, kam in vier Versuchen kein Treffer. Lokale Server cachen den gleichbleibenden Anfang.
+- **Log:** `model round`, `tool done`, `context built`, `turn done` (docs/system.md) zeigen Zeit und Größe je Runde.
+
+**Kosten:** Sie hängen an den Eingabe-Tokens, und die begrenzt `context_tokens` (mit `compact_at_fraction`). Eine zweite Kostengrenze gibt es nicht. Bei einem Cloud-Modell ist `context_tokens` also keine Fensterbreite, sondern die Grenze der Anfrage. In der Test-Konfiguration steht es für Gemini auf 24.000 (Kürzung ab etwa 21.600 Tokens).
+
+**Ideen**
+1. **Vorgabe `context_tokens` bei Cloud-Modellen prüfen.** Das Einrichtungsformular setzt den Wert nicht, es gilt die Vorgabe 16.384. Der gleichbleibende Anfang hat allein 9.000 bis 11.000 Tokens, die Grenze von 90 % (14.700) erreicht der Verlauf nach etwa 20 Turns. Dann will Mira kürzen, hat aber weniger als `keep_turns` Turns, und `history cannot be cut further` steht bei jedem Turn im Log. Eine passende Vorgabe für Cloud-Modelle wäre zu überlegen.
+2. **Alte Werkzeug-Ergebnisse im Verlauf verkürzen** (Kalenderlisten, Zustände), nach den letzten paar Turns durch einen Kurztext ersetzt. Das hielte den Verlauf klein, ohne das Gespräch zu kürzen. Es widerspricht dem Satz in Abschnitt 7 („Alte Turns bleiben wörtlich“) und müsste gegen ihn abgewogen werden.
+3. **Kleiner Kontext für die Antwort nach einer Bestätigung.** Beendet ein Werkzeug die Anfrage (`thread_confirm`, `thread_cancel`, `thread_undo`), könnte die zweite Runde nur Persönlichkeit, den Turn und das Ergebnis des Aufrufs bekommen, ohne Werkzeuge, Haus und Verlauf. Die Antwort käme wie bisher ins Protokoll. Offen: Nur bei Cloud-Modellen, weil eine abweichende Anfrage bei einem lokalen Server den Cache verdrängt. Bei Fehlern und bei mehreren Aufrufen nacheinander bleibt es beim vollen Kontext. Die Ergebnistexte der Finisher müssten für sich verständlich sein. Der Gewinn liegt eher bei den Kosten als bei der Zeit. Vorerst nicht gebaut.
+4. **Werkzeuge kürzen.** 51 Definitionen sind 72 % jeder Anfrage. Home Assistants MCP-Beschreibungen sind lang, viele Werkzeuge werden nie gebraucht. Ein Filter nach Kanal oder Nutzung würde jede Runde verkleinern, ginge aber gegen den gemeinsamen Anfang aller Kanäle (Abschnitt 3), der lokal den Cache hält.
