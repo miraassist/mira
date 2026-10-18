@@ -19,3 +19,20 @@ services:
       - ./ha:/config
       - ../custom_components/mira:/config/custom_components/mira:ro
     restart: "no"
+
+  # A broker of its own for test devices (a Tasmota lamp, say), so they never
+  # need the real house's broker. The test HA reaches it as "mosquitto";
+  # devices in the LAN as this machine's address, port 1883. No password, like
+  # the test HA itself: do not keep it running on a network you do not trust.
+  mosquitto:
+    container_name: mira-test-mqtt
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    restart: "no"
+
+volumes:
+  mosquitto-data:

@@ -29,6 +29,13 @@ The container uses a bridge network on purpose: in the host network HA
 discovers the real devices of the house and sets some of them up by itself.
 The seed also disables any integration that came from network discovery.
 
+A broker of its own, `mosquitto` (container `mira-test-mqtt`, port 1883 on this
+machine, no password), is there for test devices that speak MQTT, such as a
+Tasmota lamp: point the device at this machine's address and port 1883. The
+test HA has the MQTT and Tasmota integrations on it, so the device shows up by
+itself. Home Assistant's Tasmota integration needs the device's topic to
+contain `%prefix%` (the default, `%prefix%/%topic%/`, does).
+
 Entities you add to the test house yourself (a lamp, say) are hidden from Assist by `testha up`. List them in `testenv/.env` to keep them exposed and on the dashboard: `TESTHA_EXPOSE="light.lampe|Wohnzimmer|Farblampe;switch.x|Büro"` (area and name optional).
 
 The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the
