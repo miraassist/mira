@@ -21,12 +21,12 @@ func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 	logins := map[string]string{"person.stefan_rinke": "stefan", "person.anna": "anna.m"}
 	cals := []calendar.Info{{Name: "Stefan"}, {Name: "ben "}, {Name: "Familie"}, {Name: ""}}
 	got := reachablePeople(persons, logins, cals)
-	want := []struct{ key, cal string }{{"anna", ""}, {"ben", "ben "}, {"stefan_rinke", "Stefan"}}
+	want := []struct{ key, login, cal string }{{"anna", "anna.m", ""}, {"ben", "", "ben "}, {"stefan_rinke", "stefan", "Stefan"}}
 	if len(got) != len(want) {
 		t.Fatalf("people: %+v", got)
 	}
 	for i, w := range want {
-		if got[i].Key != w.key || got[i].Calendar != w.cal {
+		if got[i].Key != w.key || got[i].Login != w.login || got[i].Calendar != w.cal {
 			t.Errorf("person %d: %+v, want %s with calendar %q", i, got[i], w.key, w.cal)
 		}
 	}

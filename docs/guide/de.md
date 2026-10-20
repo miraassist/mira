@@ -145,6 +145,22 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 - „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
 
+**Pakete**: Mira liest die Versandmails der Paketdienste und weiß, wann welches Paket kommt.
+
+- „Wann kommt mein Paket?“ – „Kommt heute was?“ – „Ist das Paket von Amazon schon da?“
+- Im Briefing: „Heute kommt zwischen 10 und 12 dein Paket von Amazon.“
+- Eine neuere Mail ändert den Eintrag (neuer Tag, Zeitfenster, abholbereit), eine Stornierung löscht ihn, Zugestelltes räumt Mira am nächsten Tag weg. Abholcodes nennt Mira nie.
+
+So richtest du es ein:
+
+1. In Home Assistant die Integration **IMAP** hinzufügen, mit deinem Mail-Postfach.
+2. Beim Einrichten als **Suche** nur die Paketdienste angeben, zum Beispiel `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
+3. Den Eintrag in **„Pakete“** umbenennen (für alle im Haus) oder in **„Pakete“ und deinen Login-Namen**, etwa „Pakete stefan“ (nur für dich).
+
+Den Kalender „Pakete“ (oder „Pakete stefan“) legt Mira selbst an; dort siehst du die Pakete auch in der Kalenderansicht. Mira liest nur Mails, die ab jetzt ankommen.
+
+Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `routing` als `mail`. Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
+
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
 ## Eigenen Skill erstellen

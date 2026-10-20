@@ -35,10 +35,11 @@ type Runner struct {
 }
 
 // Person is someone a per_person schedule runs for: the receiver key of
-// their messages, their name, the name of their own calendar ("" if none)
-// and their personal profile (what Mira knows about them, "" if nothing).
+// their messages, their name, the login name of their Home Assistant user
+// ("" if unknown), the name of their own calendar ("" if none) and their
+// personal profile (what Mira knows about them, "" if nothing).
 type Person struct {
-	Key, Name, Calendar, Profile string
+	Key, Name, Login, Calendar, Profile string
 }
 
 type job struct {
@@ -141,7 +142,11 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 		if cal == "" {
 			cal = "-"
 		}
-		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", cal).Replace(task)
+		login := p.Login
+		if login == "" {
+			login = "-"
+		}
+		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", cal, "{{person_login}}", login).Replace(task)
 		profile := strings.TrimSpace(p.Profile)
 		if profile == "" {
 			profile = t.noProfile

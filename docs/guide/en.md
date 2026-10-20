@@ -141,6 +141,22 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 - "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
 - In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
 
+**Parcels** (skill `pakete`): Mira reads the shipping mails of the parcel services and knows when which parcel comes.
+
+- "When is my parcel coming?" – "Is anything coming today?" – "Has the parcel from Amazon arrived?"
+- In the briefing: "Your parcel from Amazon comes today between 10 and 12."
+- A newer mail changes the entry (new day, time window, ready for pickup), a cancellation removes it, and Mira clears delivered parcels the next day. Mira never says pickup codes.
+
+To set it up:
+
+1. In Home Assistant, add the **IMAP** integration with your mailbox.
+2. When setting it up, enter a **search** for the parcel services only, for example `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
+3. Rename the entry to **"Pakete"** (for everyone in the house) or to **"Pakete" and your login name**, such as "Pakete stefan" (just for you).
+
+Mira creates the calendar "Pakete" (or "Pakete stefan") herself; you see the parcels in the calendar view there too. Mira reads only mails that arrive from now on.
+
+Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `routing` as `mail`. Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
+
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
 ## Creating your own skill

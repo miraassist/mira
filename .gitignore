@@ -30,3 +30,6 @@ __pycache__/
 
 # Private to-do list, not for the repo
 /docs/todo.local.md
+
+# Example mails with personal data, not for the repo (cleaned copies go elsewhere)
+/testenv/mails/

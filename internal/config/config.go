@@ -122,6 +122,10 @@ type Routing struct {
 	// background model. Planning reads the whole house once per order, so
 	// a cloud model keeps it off the local GPU while someone is talking.
 	Tasks string `yaml:"tasks"`
+	// Mail is the model that reads the mails of the mail calendars
+	// (docs/spec/mail-kalender.md); empty is the background model. It sees
+	// the mails, so a local model keeps them in the house.
+	Mail string `yaml:"mail"`
 }
 
 // Model returns the settings of a model by name; "" and "main" are llm.
@@ -593,7 +597,7 @@ func (c Config) Validate() error {
 		}
 	}
 	for role, name := range map[string]string{"voice": c.Routing.Voice, "telegram": c.Routing.Telegram,
-		"background": c.Routing.Background, "delegate": c.Routing.Delegate, "tasks": c.Routing.Tasks} {
+		"background": c.Routing.Background, "delegate": c.Routing.Delegate, "tasks": c.Routing.Tasks, "mail": c.Routing.Mail} {
 		if _, ok := c.Model(name); !ok {
 			add("routing.%s: no model %q (main or one of models)", role, name)
 		}

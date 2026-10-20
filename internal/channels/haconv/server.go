@@ -19,6 +19,7 @@ import (
 	"github.com/miraassist/mira/internal/channels/telegram"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
 	"github.com/miraassist/mira/internal/trace"
@@ -64,6 +65,16 @@ type Options struct {
 	// that the integration last sent ("" if none), so it can see whether
 	// the agent has the current one.
 	ExposedHash func(ctx context.Context) string
+	// Mail is the mail calendar (docs/spec/mail-kalender.md); nil turns
+	// POST /v1/mail off.
+	Mail Mail
+}
+
+// Mail takes the mails the integration passes on.
+type Mail interface {
+	// AppNames are the mail applications, for /v1/status (mail_apps).
+	AppNames() []string
+	Handle(ctx context.Context, m mailcal.Mail) (mailcal.Outcome, error)
 }
 
 // Problem is something that did not start: a skill with a wrong setting.
@@ -101,6 +112,7 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
 	s.mux.HandleFunc("POST /v1/assess", s.assess)
 	s.mux.HandleFunc("POST /v1/decide", s.decide)
+	s.mux.HandleFunc("POST /v1/mail", s.mail)
 	if s.opts.Eval {
 		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
 	}
@@ -335,7 +347,39 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.opts.ExposedHash != nil {
 		status["exposed_hash"] = s.opts.ExposedHash(r.Context())
 	}
+	apps := []string{}
+	if s.opts.Mail != nil {
+		apps = append(apps, s.opts.Mail.AppNames()...)
+	}
+	status["mail_apps"] = apps
 	writeJSON(w, http.StatusOK, status)
+}
+
+// mail takes one mail of an IMAP entry and keeps its calendar entry. The
+// answer says what the mail did; it waits for the model.
+func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Mail == nil {
+		writeError(w, http.StatusNotFound, "no mail calendar")
+		return
+	}
+	var m mailcal.Mail
+	if err := decode(r, &m); err != nil || strings.TrimSpace(m.Entry) == "" {
+		writeError(w, http.StatusBadRequest, `body must be {"entry", "sender", "subject", "date", "text"}`)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	defer cancel()
+	out, err := s.opts.Mail.Handle(ctx, m)
+	switch {
+	case errors.Is(err, mailcal.ErrNoApp):
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	case err != nil:
+		s.log.Warn("mail failed", "entry", m.Entry, "err", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {

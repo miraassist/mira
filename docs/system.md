@@ -90,6 +90,7 @@ flowchart LR
 | `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeigen (LED-Ring, Bildschirm); Erinnerungen |
 | `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender. Ein Skill, der nicht starten kann, wird ausgelassen und mit lesbarem Grund im Log und in `/v1/status` (`problems`) gemeldet; die Integration zeigt ihn als Reparatur in HA |
 | `internal/calendar`, `internal/timeline` | Kalender aus Home Assistant lesen und ändern; die gemeinsame Darstellung der Zeitachse |
+| `internal/mailcal` | Mail-Kalender: Mails aus HAs IMAP-Integration (die Integration reicht sie über `POST /v1/mail` weiter) isoliert auswerten und als Eintrag in einem Kalender pflegen; stündliches Aufräumen ([Mail-Kalender](spec/mail-kalender.md)) |
 | `internal/feeds` | Feeds (RSS/Atom) lesen |
 | `internal/store` | SQLite: Sitzungen, Verläufe, Nachrichten, Gedächtnis, Erinnerungen, Aufgaben-Vorschläge, Protokoll der Urteile |
 | `internal/profile` | Nächtliche Verdichtung der Fakten zum Haushaltsprofil |
@@ -143,6 +144,7 @@ Wichtig:
   Welche Sprache Mira wann spricht: [Sprache](spec/sprache.md).
   Skills, die eine HA-Aktion aufrufen (z. B. Wecker): [Skill-Aktionen](spec/skill-aktionen.md).
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
+  Mails, die etwas mit Zeit ankündigen, als Kalendereintrag (erste Anwendung Pakete): [Mail-Kalender](spec/mail-kalender.md), [Pakete](spec/pakete.md).
   Radio auf dem Lautsprecher eines Raums: [Radio](spec/radio.md).
   Geplante Aktionen in HA (Einschlaf-Timer, Aufräumen): [Geplante Aktionen](spec/geplante-aktionen.md).
   Ideen für weitere Skills (Szenen, Briefing, Kochen, Geschichten, Quiz, Lernen): [Skill-Ideen](spec/skill-ideen.md).
@@ -412,7 +414,9 @@ erDiagram
   nur `http`/`https`, ohne Weiterleitungen, und von der Antwort kommt nur die
   Fehlermeldung des Modell-Servers zurück, nie der Rumpf.
 - **Fremder Text ist Daten.** Web-Ergebnisse, Feeds und Kalender gelten
-  als Daten, nie als Anweisungen.
+  als Daten, nie als Anweisungen. Mails liest ein isolierter Aufruf ohne
+  Haus, Werkzeuge und Gedächtnis; übernommen werden nur Felder eines festen
+  Schemas, die der Code prüft.
 - **Die eingebaute Websuche** (`web_search`, `web_page`) ist als „liest
   nur“ und „fremder Webtext“ markiert wie ein MCP-Server mit `read_only`
   und `web_content`. `web_page` liest keine Adressen im eigenen Netz (auch

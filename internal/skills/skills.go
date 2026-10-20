@@ -41,6 +41,16 @@ type Skill struct {
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
 	Target *Target
+	// Mail, when set, makes the skill a mail application: mails of an IMAP
+	// entry named like the skill go into a calendar of that name
+	// (docs/spec/mail-kalender.md).
+	Mail *Mail
+}
+
+// Mail is a skill's part in the mail calendar: how to read its mails. The
+// schema and the checks are the core's.
+type Mail struct {
+	Extract string `yaml:"extract"`
 }
 
 // Target is a goal definition (docs/spec/vorgaenge.md). Checks and Finish
@@ -152,6 +162,7 @@ type frontmatter struct {
 			Settings  map[string]Setting `yaml:"settings"`
 			Schedules []Schedule         `yaml:"schedules"`
 			Target    *Target            `yaml:"target"`
+			Mail      *Mail              `yaml:"mail"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -274,6 +285,14 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 			t.timeout = d
 		}
 		s.Target = t
+	}
+	if m.Mail != nil {
+		if strings.TrimSpace(m.Mail.Extract) == "" {
+			return Skill{}, problem("mailextract")
+		}
+		mail := *m.Mail
+		mail.Extract = fill(strings.TrimSpace(mail.Extract), vals, m.Settings)
+		s.Mail = &mail
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	return s, nil

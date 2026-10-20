@@ -1,0 +1,15 @@
+From: Beispiel-Shop <service@beispiel-shop.example>
+To: pakete@test.local
+Subject: Ihre Bestellung 2024-88771 wurde storniert
+Date: {{DATE}}
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hallo Erika Mustermann,
+
+Ihre Bestellung 2024-88771 (Gartenschlauch 20 m) wurde auf Ihren Wunsch storniert.
+Die Sendung H1234567890123456789 geht an uns zurück. Den Betrag erstatten wir in
+den nächsten Tagen.
+
+Ihr Beispiel-Shop

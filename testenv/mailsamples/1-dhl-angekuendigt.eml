@@ -1,0 +1,21 @@
+From: DHL Paket <noreply@dhl.example>
+To: pakete@test.local
+Subject: Ihr DHL Paket kommt am {{TOMORROW_WEEKDAY}}
+Date: {{DATE}}
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hallo Erika Mustermann,
+
+Ihre Sendung von Musterversand GmbH ist unterwegs.
+
+Voraussichtliche Zustellung: {{TOMORROW_WEEKDAY}}, {{TOMORROW}}
+Sendungsnummer: 00340434161094042557
+Bestellnummer: 302-1234567-7654321
+Inhalt laut Absender: Druckerpatronen
+
+Sie möchten Ihr Paket woanders empfangen? Ändern Sie die Zustellung hier:
+https://www.dhl.example/sendung?id=00340434161094042557&token=abc123
+
+Ihr DHL Team

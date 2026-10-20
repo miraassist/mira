@@ -1,0 +1,18 @@
+From: DHL Paket <noreply@dhl.example>
+To: pakete@test.local
+Subject: Ihr DHL Paket kommt heute zwischen 10:15 und 12:15 Uhr
+Date: {{DATE}}
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hallo Erika Mustermann,
+
+gute Nachrichten: Ihr Paket von Musterversand GmbH wird heute zugestellt.
+
+Zeitfenster: {{TODAY}}, 10:15 - 12:15 Uhr
+Sendungsnummer: 00340434161094042557
+
+Live-Verfolgung: https://www.dhl.example/live?id=00340434161094042557
+
+Ihr DHL Team

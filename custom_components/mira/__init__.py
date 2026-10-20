@@ -35,6 +35,7 @@ from .const import (
 )
 from .coordinator import MiraCoordinator
 from .labels import ensure_labels
+from .mail import async_setup_mail
 from .managed import async_config, import_settings
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
@@ -193,6 +194,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.async_on_unload(async_at_started(hass, lambda _hass: coordinator.async_request_refresh()))
     # Telegram through Home Assistant's own integration (telegram.py).
     entry.async_on_unload(async_setup_telegram(hass, entry))
+    # Mails of IMAP entries named like a mail application (mail.py).
+    entry.async_on_unload(async_setup_mail(hass, entry))
     # A change of what Assist sees reaches the agent at once.
     entry.async_on_unload(async_listen_entity_updates(hass, "conversation", lambda: _send_exposed(hass, entry)))
     if entry.options.get(CONF_SIDEBAR, True):

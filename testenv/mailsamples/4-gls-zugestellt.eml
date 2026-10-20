@@ -1,0 +1,14 @@
+From: GLS <noreply@gls.example>
+To: pakete@test.local
+Subject: Ihr Paket wurde zugestellt
+Date: {{DATE}}
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Guten Tag,
+
+Ihr GLS Paket 61234567890 vom Versender Gartenwelt Muster wurde heute um 14:02 Uhr
+zugestellt. Abgestellt: Garage.
+
+Ihr GLS Team

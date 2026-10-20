@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_IMPORTED, DOMAIN
+from .mail import ensure_calendars
 from .managed import async_config, exposed_entities, exposed_hash
 from .once import sweep
 
@@ -45,6 +46,10 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except MiraError as err:
             raise UpdateFailed(str(err)) from err
         await self._sync(status)
+        try:
+            await ensure_calendars(self.hass, list(status.get("mail_apps") or []))
+        except Exception:  # noqa: BLE001 - a missing calendar must not stop the status
+            _LOGGER.exception("Creating the calendars of the mail entries failed")
         self._show_problems(status.get("problems") or [])
         return status
 

@@ -51,6 +51,23 @@ machine, which its integration may overwrite again.
 No voice satellite: announcements can be tested up to the
 `assist_satellite` call, not heard.
 
+## Mail calendar
+
+A mail server of its own, GreenMail (container `mira-test-mail`, SMTP on port
+3025, IMAPS on 3993, kept in memory), holds the mailbox `pakete@test.local`.
+
+```sh
+go run ./cmd/testha mail             # all samples, 30 s apart
+go run ./cmd/testha mail -wait 45s 3 # only the sample starting with 3
+```
+
+The first run creates the IMAP entry "Pakete" in the test HA (search
+`UNSEEN`: GreenMail knows no `UNDELETED`), the integration then creates the
+calendar "Pakete" within a minute. The samples in `testenv/mailsamples` are
+made up; their dates are filled in at delivery, and each gets a new
+Message-ID (HA reports a mail as new only when its id differs from the last
+one's). Real mails stay out of the repo: `testenv/mails/` is ignored.
+
 ## Fake TECHO5 devices
 
 Tests must not depend on real satellites being plugged in. The test HA therefore

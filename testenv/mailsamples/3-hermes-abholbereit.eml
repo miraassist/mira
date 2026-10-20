@@ -1,0 +1,20 @@
+From: Hermes <info@hermes.example>
+To: pakete@test.local
+Subject: =?utf-8?q?Ihre_Sendung_liegt_im_PaketShop_f=C3=BCr_Sie_bereit?=
+Date: {{DATE}}
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<html><head><style>p{font-family:Arial}</style></head><body>
+<table><tr><td>
+<p>Hallo Erika&nbsp;Mustermann,</p>
+<p>wir konnten Sie leider nicht antreffen. Ihre Sendung von <b>Beispiel-Shop</b>
+liegt ab sofort im PaketShop für Sie bereit:</p>
+<p><b>Kiosk am Markt</b><br>Marktplatz 1<br>12345 Musterstadt</p>
+<p>Abholung bis: <b>{{UNTIL}}</b></p>
+<p>Sendungsnummer: H1234567890123456789</p>
+<p>Ihr Abholcode: <b>482913</b></p>
+<p><a href="https://www.hermes.example/abholen?code=482913">Abholschein anzeigen</a></p>
+</td></tr></table>
+</body></html>

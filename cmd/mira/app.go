@@ -24,6 +24,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/language"
 	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/profile"
@@ -53,6 +54,8 @@ type app struct {
 	lang  i18n.Lang
 	// calendar reads and changes Home Assistant's calendars.
 	calendar *calendar.Calendar
+	// mail keeps the mail calendars (mail.go); nil without a mail skill.
+	mail *mailcal.Service
 	// pairing: Home Assistant pairs with a code (the token is the agent's
 	// own).
 	pairing bool
@@ -223,7 +226,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
 	}
-	for _, name := range builtinTargets() {
+	for _, name := range append(builtinTargets(), builtinMail()...) {
 		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
 			enabled[name] = nil
 		}
@@ -249,6 +252,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
 		Calendars: a.calendarList, Delete: a.deleteEvent, Logger: a.log})
 	internal = append(internal, a.calendar.Tool(a.lang))
+	// Mails that announce something with a time, kept in a calendar
+	// (docs/spec/mail-kalender.md); the mail skills say what to read.
+	if apps := mailApps(loaded); len(apps) > 0 {
+		a.mail = mailcal.New(mailcal.Options{Calendar: mailCalendar{a}, Model: isolatedModel{a, cfg.Routing.Mail},
+			Apps: func() map[string]string { return apps }, Logger: a.log})
+		a.log.Info("mail calendar on", "apps", a.mail.AppNames())
+	}
 	// Mira's own web search (docs/spec/websuche.md); switched in the
 	// integration's options, so it is asked at every turn.
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
@@ -509,6 +519,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 
 	if a.threads != nil && a.threads.HasTargets() {
 		a.goRun(ctx, "threads", a.threads.Run)
+	}
+
+	if a.mail != nil {
+		a.goRun(ctx, "mail", a.mail.Run)
 	}
 
 	if a.skills != nil && len(a.skills.Skills) > 0 {
@@ -870,6 +884,9 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash,
+	}
+	if a.mail != nil {
+		opts.Mail = a.mail
 	}
 	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)

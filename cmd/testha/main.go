@@ -8,6 +8,7 @@
 //	go run ./cmd/testha down          stop the container, keep its state
 //	go run ./cmd/testha reset         stop and delete all state; next up starts fresh
 //	go run ./cmd/testha contract      compare the real TECHO5 devices with the fakes' contract
+//	go run ./cmd/testha mail [N...]   deliver the sample mails to the IMAP entry "Pakete"
 //
 // Everything up does is idempotent: it only creates what is missing.
 package main
@@ -66,8 +67,10 @@ func run() error {
 		return evalCmd(ctx, dir, args[1:])
 	case "contract":
 		return contractCmd(ctx, dir, args[1:])
+	case "mail":
+		return mailCmd(ctx, dir, args[1:])
 	default:
-		return fmt.Errorf("unknown command %q (up, set, env, down, reset, dashboard, eval, contract)", args[0])
+		return fmt.Errorf("unknown command %q (up, set, env, down, reset, dashboard, eval, contract, mail)", args[0])
 	}
 }
 

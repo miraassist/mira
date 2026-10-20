@@ -27,16 +27,18 @@ metadata:
       - cron: "35 5 * * *"
         per_person: true
         task: >-
-          Persönliches Morgen-Briefing für {{person}}. Zwei mögliche Teile, beide nur,
+          Persönliches Morgen-Briefing für {{person}}. Drei mögliche Teile, alle nur,
           wenn es sie gibt: die Termine von heute aus dem eigenen Kalender
-          {{person_calendar}} („-“ heißt: keiner, dann keine Termine); und zwei kurze
+          {{person_calendar}} („-“ heißt: keiner, dann keine Termine); die Pakete, die
+          heute kommen, aus dem Kalender „Pakete {{person_login}}“ (nur wenn es ihn
+          gibt; „Pakete -“ heißt: keiner), mit Zeitfenster und Shop; und zwei kurze
           Schlagzeilen von heute zu Themen, für die sich {{person}} laut dem, was du
           über sie weißt (unten), interessiert, über die Internetsuche. Kein Wetter,
           kein Müll, keine Themen des Hauses: die kommen im Briefing fürs Haus. Gibt
-          es weder Termine noch eigene Themen: importance 0 und spoken leer. Sonst
+          es weder Termine noch Pakete noch eigene Themen: importance 0 und spoken leer. Sonst
           importance 1, spoken höchstens drei kurze Sätze an {{person}} gerichtet
           (du-Form, z. B. „Du hast heute um halb zehn Zahnarzt.“), details die Termine
-          mit Uhrzeit und die Schlagzeilen, expires_in_hours 8.
+          mit Uhrzeit, die Pakete und die Schlagzeilen, expires_in_hours 8.
       - cron: "0 18 * * *"
         task: >-
           Stell das Abend-Briefing für morgen zusammen, fürs ganze Haus. Nur mit dem,

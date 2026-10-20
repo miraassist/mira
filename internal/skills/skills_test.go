@@ -180,6 +180,18 @@ func TestWeckerFinishesWithAnAction(t *testing.T) {
 	}
 }
 
+// Pakete is a mail application: it loads without settings, and its mail
+// section tells the extraction what to keep and never the pickup codes.
+func TestPaketeIsAMailApplication(t *testing.T) {
+	list, problems := Load([]string{"../../skills"}, map[string]map[string]any{"pakete": nil})
+	if len(problems) != 0 || len(list) != 1 || list[0].Mail == nil || list[0].Target != nil {
+		t.Fatalf("load: %+v %v", list, problems)
+	}
+	if ex := list[0].Mail.Extract; !strings.Contains(ex, "Sendungsnummer") || !strings.Contains(ex, "Nie Abholcodes") {
+		t.Errorf("extract: %q", ex)
+	}
+}
+
 // The example skill in the guides must load: what the guide shows is what
 // works.
 func TestGuideExampleLoads(t *testing.T) {
@@ -234,7 +246,7 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "tag"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	skill := "---\nname: tag\ndescription: Der eigene Tag.\nmetadata:\n  mira:\n    schedules:\n      - cron: \"35 5 * * *\"\n        per_person: true\n        task: Termine von {{person}} im Kalender {{person_calendar}}.\n---\nAnleitung.\n"
+	skill := "---\nname: tag\ndescription: Der eigene Tag.\nmetadata:\n  mira:\n    schedules:\n      - cron: \"35 5 * * *\"\n        per_person: true\n        task: Termine von {{person}} im Kalender {{person_calendar}}, Pakete {{person_login}}.\n---\nAnleitung.\n"
 	if err := os.WriteFile(filepath.Join(dir, "tag", "SKILL.md"), []byte(skill), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -253,17 +265,17 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 		"Anna": `{"importance":0,"spoken":""}`,
 	}}
 	r := &Runner{Set: berlinSet(t, sk), Tasker: tasker, Store: st, People: func(context.Context) []Person {
-		return []Person{{Key: "anna", Name: "Anna"}, {Key: "ben", Name: "Ben", Calendar: "Ben", Profile: "Ben interessiert sich für den KSC."}}
+		return []Person{{Key: "anna", Name: "Anna"}, {Key: "ben", Name: "Ben", Login: "ben", Calendar: "Ben", Profile: "Ben interessiert sich für den KSC."}}
 	}}
 	queued, err := r.RunJob(context.Background(), sk, 0)
 	if err != nil || !queued {
 		t.Fatalf("run: %v %v", queued, err)
 	}
-	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben.") ||
+	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben, Pakete ben.") ||
 		!strings.Contains(tasker.seen[1], "Was du über Ben weißt") || !strings.Contains(tasker.seen[1], "Ben interessiert sich für den KSC.") {
 		t.Errorf("tasks: %q", tasker.seen)
 	}
-	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
+	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -, Pakete -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
 		t.Errorf("Anna without calendar and memory: %q", tasker.seen[0])
 	}
 	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})

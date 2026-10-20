@@ -36,5 +36,22 @@ services:
       - mosquitto-data:/mosquitto/data
     restart: "no"
 
+  # A mail server of its own for the mail calendar (docs/spec/mail-kalender.md):
+  # the test HA's IMAP entry "Pakete" reads the mailbox pakete@test.local
+  # (password pakete, IMAPS with a self-signed certificate: verify_ssl off);
+  # `go run ./cmd/testha mail` delivers the sample mails
+  # from testenv/mailsamples over SMTP. Kept in memory: a restart empties it.
+  greenmail:
+    container_name: mira-test-mail
+    image: greenmail/standalone:2.1.3
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imaps -Dgreenmail.hostname=0.0.0.0
+        -Dgreenmail.users=pakete:pakete@test.local -Dgreenmail.verbose=false
+    ports:
+      - "3025:3025"
+      - "3993:3993"
+    restart: "no"
+
 volumes:
   mosquitto-data:
