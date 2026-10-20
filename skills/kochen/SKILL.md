@@ -33,8 +33,9 @@ seid.
      man ihn vorlesen kann, mit Mengen, Zeit und Temperatur. Eine Wartezeit (ruhen,
      backen, köcheln) ist ein eigener Schritt.
    Will der Nutzer mittendrin für eine andere Zahl kochen, rechne von der Zahl im
-   Plan aus neu (nie von einer geschätzten), und schreib den Plan neu; erledigte
-   Schritte bleiben dabei `- [x]`.
+   Plan aus neu (nie von einer geschätzten), und schreib den Plan neu. Hake dabei
+   genau die Schritte ab, die vorher abgehakt waren, nicht mehr und nicht weniger;
+   der aktuelle Schritt bleibt offen.
 4. **Vorlesen.** Lies immer nur **einen** Schritt vor, kurz und gesprochen, nicht
    als Liste. Den ersten gleich nach dem Plan.
    - „weiter“, „fertig“, „und jetzt?“: den aktuellen Schritt abhaken (`check`),
