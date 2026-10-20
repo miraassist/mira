@@ -86,10 +86,13 @@ telemetry:
   otlp_endpoint: ""
   log_level: info
 
-# The waste skill against a made-up calendar the test HA serves.
+# The waste skill against a made-up calendar the test HA serves; the briefing.
 skills:
   dirs: [skills]
   enabled:
     abfall:
       calendar: calendar.abfuhrtermine
       types: [Restabfall, Wertstoff, Bioabfall, Altpapier]
+    briefing:
+      kalender: Familie
+      themen: Deutschland

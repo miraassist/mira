@@ -134,6 +134,12 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 - On the evening before, Mira reminds you on her own: "The recycling is collected tomorrow."
 - If the collection is today, she says so in case the bin still has to go out.
 
+**Briefing**: a short overview of what is coming, in three or four sentences.
+
+- In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow.
+- "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
+- In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
+
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
 ## Creating your own skill
