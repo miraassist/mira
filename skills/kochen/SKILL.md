@@ -15,17 +15,27 @@ Vorgang mit Plan: Der Plan überdauert das Gespräch, und im Kontext steht, wo i
 seid.
 
 1. **Rezept finden.** Nennt der Nutzer kein bestimmtes Rezept, such eins mit
-   `web_search` (z. B. „Pfannkuchen Rezept chefkoch“) und lies das beste mit
-   `web_page`. Ist die Websuche aus, sag das und frag, ob er das Rezept selbst
-   vorgibt. Sag in einem Satz, welches Rezept es ist (Name, Dauer, für wie viele),
-   und frag, für wie viele Personen; rechne die Mengen dann um.
-2. **Plan schreiben** mit `thread_plan` (action `write`), knapp:
+   `web_search` (z. B. „Pfannkuchen Rezept chefkoch“) und lies es mit `web_page`;
+   der Schnipsel aus der Suche reicht nicht. Ist die Websuche aus, sag das und frag,
+   ob er das Rezept selbst vorgibt. Sag in einem Satz, welches Rezept es ist (Name,
+   Dauer, für wie viele), und frag, für wie viele Personen.
+2. **Mengen für die gewünschte Zahl.**
+   - Kann die Seite umrechnen, rechnet die Seite: Bei chefkoch.de hängst du
+     `?portionen=N` an die Adresse und liest sie damit noch einmal mit `web_page`.
+   - Sonst rechnest du, von der Zahl aus, für die das Rezept gilt. Unpraktische
+     Mengen rundest du sinnvoll („1,5 Eier“ → „1 großes oder 2 kleine Eier“,
+     „0,5 Prise“ → „1 Prise“).
+3. **Plan schreiben** mit `thread_plan` (action `write`), knapp:
    - eine Überschrift mit dem Namen des Rezepts;
-   - die Zutaten als einfache Liste mit Mengen für die gewünschte Zahl, ohne Kästchen;
+   - die Zeile „Zutaten für N Portionen (Rezept für M)“, dann die Zutaten als
+     einfache Liste mit Mengen, ohne Kästchen;
    - die Schritte als Kästchen `- [ ] …`, ein Handgriff pro Kästchen, so kurz, dass
-     man ihn vorlesen kann, mit Zeit und Temperatur. Eine Wartezeit (ruhen,
+     man ihn vorlesen kann, mit Mengen, Zeit und Temperatur. Eine Wartezeit (ruhen,
      backen, köcheln) ist ein eigener Schritt.
-3. **Vorlesen.** Lies immer nur **einen** Schritt vor, kurz und gesprochen, nicht
+   Will der Nutzer mittendrin für eine andere Zahl kochen, rechne von der Zahl im
+   Plan aus neu (nie von einer geschätzten), und schreib den Plan neu; erledigte
+   Schritte bleiben dabei `- [x]`.
+4. **Vorlesen.** Lies immer nur **einen** Schritt vor, kurz und gesprochen, nicht
    als Liste. Den ersten gleich nach dem Plan.
    - „weiter“, „fertig“, „und jetzt?“: den aktuellen Schritt abhaken (`check`),
      den nächsten vorlesen.
@@ -33,9 +43,9 @@ seid.
    - „zurück“: den zuletzt erledigten wieder öffnen (`uncheck`) und vorlesen.
    - Fragen („Wie viel Mehl?“, „Wie heiß?“) beantwortest du aus dem Plan; reicht
      der Kontext nicht, lies ihn mit `read`.
-4. **Wartezeit:** Liest du einen Schritt mit Wartezeit vor (ruhen, backen,
+5. **Wartezeit:** Liest du einen Schritt mit Wartezeit vor (ruhen, backen,
    köcheln), biete im selben Satz einen Timer an („Soll ich einen Timer auf 30
    Minuten stellen?“) und stell ihn auf Ja mit dem Timer-Werkzeug von Home Assistant.
-5. **Zutaten auf die Einkaufsliste** nur, wenn der Nutzer das möchte.
-6. **Ende:** Ist der letzte Schritt abgehakt, wünsch guten Appetit. Will der Nutzer
+6. **Zutaten auf die Einkaufsliste** nur, wenn der Nutzer das möchte.
+7. **Ende:** Ist der letzte Schritt abgehakt, wünsch guten Appetit. Will der Nutzer
    nicht mehr kochen, beende den Vorgang mit `thread_cancel`.
