@@ -51,6 +51,43 @@ machine, which its integration may overwrite again.
 No voice satellite: announcements can be tested up to the
 `assist_satellite` call, not heard.
 
+## Fake TECHO5 devices
+
+Tests must not depend on real satellites being plugged in. The test HA therefore
+has two fake devices next to the real ones (`techo5_fake`, mounted from
+`testenv/techo5_fake`, enabled by `techo5_fake:` in `configuration.yaml`):
+
+| Device | Room | Like |
+|---|---|---|
+| Fake Show (`fake_show`) | Schlafzimmer | an Echo Show with TECHO5: screen hint, presence |
+| Fake Echo (`fake_echo`) | Bad | an Echo with TECHO5 Dot: LED ring, no screen |
+
+What they offer comes from a recording of a real device, the **contract**
+(`techo5_fake/contract/show.json`, `echo.json`): every ESPHome action with its
+fields (`esphome.fake_show_alarm_set` …), and the entities under the same ids as
+on the real device. The ones Mira uses behave like the device: alarms
+(`alarm_set`, `alarm_delete`, `alarms_list` with the same answer), the device's
+own timers (`timer_start` …), Home Assistant's timers (`HassStartTimer` runs on
+them, so Home Assistant offers the timer tools for them), announcing and
+starting a conversation, the speaker (`play_media`, `media_stop`), the screen
+hint (`notify`), the ring, the sleep timer and sleep sounds as selects. Every
+other action is accepted and only logged. They speak nothing (no speech
+synthesis, so no cloud voice is paid for).
+
+What a fake was told is in `sensor.fake_show_fake_log` / `sensor.fake_echo_fake_log`
+(attribute `log`, the last 50 entries with time, kind and data: announcements
+with their text, actions with their fields, media played, ring on/off).
+Presence is off until set: `go run ./cmd/testha set binary_sensor.fake_show_presence on`.
+
+The evals use the fakes: a step without `at:` is said at the Fake Show
+(Schlafzimmer), and alarms are read from the fakes only.
+
+**Contract:** `go run ./cmd/testha contract` compares the real TECHO5 devices in
+the test HA with the recording and says what a new firmware changed (actions,
+fields, entities), and how much of it the fakes offer. After a firmware update:
+check the differences, then `go run ./cmd/testha contract record` and restart
+the test HA, so the fakes offer the new actions too.
+
 ## Two languages (planned)
 
 The demos and the tests must run in German and in English, each one clean:

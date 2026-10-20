@@ -1,0 +1,12 @@
+{
+  "domain": "techo5_fake",
+  "name": "TECHO5 Fake (test only)",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["assist_satellite", "intent", "conversation"],
+  "documentation": "https://github.com/miraassist/mira/blob/main/testenv/README.md",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

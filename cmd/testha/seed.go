@@ -51,7 +51,15 @@ var house = map[string]struct{ area, name string }{
 	"calendar.ben":                          {"", ""},
 	"calendar.abfuhrtermine":                {"", ""},
 	"todo.einkauf":                          {"", ""},
+	// The fake TECHO5 devices (testenv/techo5_fake): their speakers, like
+	// the real ones, are exposed so Mira can play on them.
+	"media_player.fake_show_speaker": {"Schlafzimmer", "Fake Show Lautsprecher"},
+	"media_player.fake_echo_speaker": {"Bad", "Fake Echo Lautsprecher"},
 }
+
+// fakeDevices puts the fake TECHO5 devices into their rooms, next to the real
+// ones, so tests run without hardware while the real Show stays for voice.
+var fakeDevices = map[string]string{"Fake Show": "Schlafzimmer", "Fake Echo": "Bad"}
 
 var persons = []string{"Anna", "Ben"}
 
@@ -154,6 +162,9 @@ func seed(ctx context.Context, admin *haws.Client, token string, extras []extra)
 		}, nil); err != nil {
 			return err
 		}
+	}
+	if err := placeFakes(ctx, admin, areaIDs); err != nil {
+		return err
 	}
 	if err := ensurePersons(ctx, admin); err != nil {
 		return err
@@ -298,6 +309,34 @@ func ensureMCPServer(ctx context.Context, token string) error {
 	}
 	if flow.Type != "create_entry" {
 		return fmt.Errorf("mcp_server setup ended with %q", flow.Type)
+	}
+	return nil
+}
+
+// placeFakes gives the fake TECHO5 devices their areas. Missing fakes (the
+// integration not loaded) are reported, not an error.
+func placeFakes(ctx context.Context, admin *haws.Client, areaIDs map[string]string) error {
+	devices, err := admin.Devices(ctx)
+	if err != nil {
+		return err
+	}
+	for name, area := range fakeDevices {
+		found := false
+		for _, d := range devices {
+			if d.Name != name {
+				continue
+			}
+			found = true
+			if d.AreaID == areaIDs[area] {
+				continue
+			}
+			if err := call(ctx, admin, map[string]any{"type": "config/device_registry/update", "device_id": d.ID, "area_id": areaIDs[area]}, nil); err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+		}
+		if !found {
+			fmt.Printf("fake device %q missing; is techo5_fake loaded?\n", name)
+		}
 	}
 	return nil
 }

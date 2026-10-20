@@ -18,6 +18,8 @@ services:
     volumes:
       - ./ha:/config
       - ../custom_components/mira:/config/custom_components/mira:ro
+      # Fake TECHO5 devices (Show, Echo) for tests without real hardware.
+      - ./techo5_fake:/config/custom_components/techo5_fake:ro
     restart: "no"
 
   # A broker of its own for test devices (a Tasmota lamp, say), so they never

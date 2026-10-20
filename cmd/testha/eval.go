@@ -336,7 +336,18 @@ func (r *evalRun) prepare(ctx context.Context) error {
 	if err := r.call(ctx, "GET", testMira+"/v1/ui/ha", r.token, nil, &managed); err != nil {
 		return fmt.Errorf("read the test Mira's settings from Home Assistant: %w", err)
 	}
-	if err := r.agent(ctx, "PUT", "/v1/ui/ha", managed, nil); err != nil {
+	// The test Mira's settings do not carry what Assist sees (the integration
+	// sends that list itself); without it the eval agent switches nothing.
+	exposed, err := r.exposed(ctx)
+	if err != nil {
+		return fmt.Errorf("read what Assist sees: %w", err)
+	}
+	var settings map[string]any
+	if err := json.Unmarshal(managed, &settings); err != nil {
+		return err
+	}
+	settings["exposed"] = exposed
+	if err := r.agent(ctx, "PUT", "/v1/ui/ha", settings, nil); err != nil {
 		return fmt.Errorf("hand the settings to the eval agent: %w", err)
 	}
 	var tpl string
@@ -354,9 +365,23 @@ func (r *evalRun) prepare(ctx context.Context) error {
 	}
 	fmt.Print("warmup …")
 	started := time.Now()
+	// The agent takes the list of what Assist sees on its next rebuild of
+	// the house (structure_debounce); until then it answers that it waits
+	// for Home Assistant, without asking the model. That costs nothing.
 	for area := range r.devices {
-		if _, err := r.say(ctx, Step{Say: "Hallo", At: area}, "warmup-voice"); err != nil {
-			return fmt.Errorf("warmup: %w", err)
+		deadline := time.Now().Add(90 * time.Second)
+		for {
+			t, err := r.say(ctx, Step{Say: "Hallo", At: area}, "warmup-voice")
+			if err != nil {
+				return fmt.Errorf("warmup: %w", err)
+			}
+			if !strings.Contains(t.Text, "Ich warte noch auf die Verbindung") {
+				break
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("the eval agent never learned what Assist sees")
+			}
+			time.Sleep(time.Second)
 		}
 		break
 	}
@@ -493,4 +518,28 @@ func keys[V any](m map[string]V) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// exposed is what the test Home Assistant exposes to Assist, as the Mira
+// integration would send it (testha up sets it for every entity).
+func (r *evalRun) exposed(ctx context.Context) ([]string, error) {
+	admin, stop, err := connect(ctx, r.env["TESTHA_ADMIN_TOKEN"])
+	if err != nil {
+		return nil, err
+	}
+	defer stop()
+	var out struct {
+		Exposed map[string]map[string]bool `json:"exposed_entities"`
+	}
+	if err := call(ctx, admin, map[string]any{"type": "homeassistant/expose_entity/list"}, &out); err != nil {
+		return nil, err
+	}
+	ids := []string{}
+	for id, by := range out.Exposed {
+		if by["conversation"] {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return ids, nil
 }

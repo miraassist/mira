@@ -1,0 +1,421 @@
+{
+  "model": "Echo 2nd gen (radar) · TECHO5 v1.0.21",
+  "services": {
+    "alarm_delete": {
+      "fields": [
+        "label",
+        "time"
+      ]
+    },
+    "alarm_delete_id": {
+      "fields": [
+        "id"
+      ]
+    },
+    "alarm_set": {
+      "fields": [
+        "days",
+        "label",
+        "time"
+      ]
+    },
+    "alarm_set_light_only": {
+      "fields": [
+        "days",
+        "label",
+        "time"
+      ]
+    },
+    "alarm_set_silent": {
+      "fields": [
+        "days",
+        "label",
+        "time"
+      ]
+    },
+    "alarm_snooze_for": {
+      "fields": [
+        "sentence"
+      ],
+      "response": true
+    },
+    "alarms_follow": {
+      "fields": [
+        "entities"
+      ]
+    },
+    "alarms_list": {
+      "fields": [],
+      "response": true
+    },
+    "announce_house": {
+      "fields": [
+        "text"
+      ]
+    },
+    "copy_settings": {
+      "fields": [
+        "devices",
+        "settings"
+      ]
+    },
+    "home_assistant": {
+      "fields": [
+        "token",
+        "url"
+      ]
+    },
+    "home_cameras": {
+      "fields": [
+        "cameras"
+      ]
+    },
+    "home_go2rtc": {
+      "fields": [
+        "address"
+      ],
+      "response": true
+    },
+    "home_radio": {
+      "fields": [
+        "field",
+        "now",
+        "service",
+        "speaker",
+        "speaker_field",
+        "stations"
+      ]
+    },
+    "home_show_camera": {
+      "fields": [
+        "entity",
+        "seconds"
+      ]
+    },
+    "home_show_camera_sound": {
+      "fields": [
+        "entity",
+        "seconds",
+        "sound"
+      ]
+    },
+    "home_weather": {
+      "fields": [
+        "entity"
+      ]
+    },
+    "intercom_call": {
+      "fields": [
+        "device"
+      ]
+    },
+    "leave_home_assistant": {
+      "fields": [
+        "confirm"
+      ]
+    },
+    "notify": {
+      "fields": [
+        "chime",
+        "icon",
+        "message",
+        "seconds",
+        "speak",
+        "tag",
+        "title"
+      ]
+    },
+    "notify_picture": {
+      "fields": [
+        "chime",
+        "message",
+        "picture",
+        "seconds",
+        "sound",
+        "speak",
+        "tag",
+        "title"
+      ]
+    },
+    "phone_account": {
+      "fields": [
+        "password",
+        "server",
+        "username"
+      ]
+    },
+    "phone_answer": {
+      "fields": []
+    },
+    "phone_call": {
+      "fields": [
+        "number"
+      ]
+    },
+    "phone_contacts": {
+      "fields": [
+        "contacts"
+      ]
+    },
+    "phone_hangup": {
+      "fields": []
+    },
+    "recordings": {
+      "fields": [],
+      "response": true
+    },
+    "reminder_set": {
+      "fields": [
+        "days",
+        "label",
+        "ring_on",
+        "time"
+      ],
+      "response": true
+    },
+    "ssh_keys": {
+      "fields": [
+        "keys"
+      ]
+    },
+    "timer_add": {
+      "fields": [
+        "duration",
+        "id"
+      ]
+    },
+    "timer_cancel": {
+      "fields": [
+        "id"
+      ]
+    },
+    "timer_pause": {
+      "fields": [
+        "id"
+      ]
+    },
+    "timer_remove": {
+      "fields": [
+        "duration",
+        "id"
+      ]
+    },
+    "timer_resume": {
+      "fields": [
+        "id"
+      ]
+    },
+    "timer_start": {
+      "fields": [
+        "duration",
+        "label"
+      ],
+      "response": true
+    },
+    "turn_audio": {
+      "fields": [
+        "id",
+        "page"
+      ],
+      "response": true
+    },
+    "voice_effect": {
+      "fields": [
+        "effect"
+      ]
+    },
+    "wake_clip_audio": {
+      "fields": [
+        "id",
+        "page"
+      ],
+      "response": true
+    },
+    "wake_clips": {
+      "fields": [
+        "kind",
+        "page"
+      ],
+      "response": true
+    }
+  },
+  "entities": [
+    "assist_satellite.assist_satellit",
+    "binary_sensor.alarm_sounding",
+    "binary_sensor.playback_headphones",
+    "binary_sensor.sounding",
+    "binary_sensor.timer_sounding",
+    "button.answer_call",
+    "button.assistant_1_wake",
+    "button.assistant_2_wake",
+    "button.bluetooth_disconnect",
+    "button.bluetooth_forget",
+    "button.bluetooth_forget_phones",
+    "button.bluetooth_reconnect",
+    "button.bluetooth_reconnect_phone",
+    "button.cancel_request",
+    "button.check_for_updates",
+    "button.hang_up",
+    "button.purge_cache",
+    "button.restart",
+    "button.snooze_alarm",
+    "button.stop_alarm_or_timer",
+    "button.test_playback",
+    "event.action_button",
+    "event.mute_button",
+    "event.update_outcome",
+    "event.volume_down_button",
+    "event.volume_up_button",
+    "light.ring_led_ring",
+    "light.ring_led_ring_segment_1",
+    "light.ring_led_ring_segment_10",
+    "light.ring_led_ring_segment_11",
+    "light.ring_led_ring_segment_12",
+    "light.ring_led_ring_segment_2",
+    "light.ring_led_ring_segment_3",
+    "light.ring_led_ring_segment_4",
+    "light.ring_led_ring_segment_5",
+    "light.ring_led_ring_segment_6",
+    "light.ring_led_ring_segment_7",
+    "light.ring_led_ring_segment_8",
+    "light.ring_led_ring_segment_9",
+    "media_player.speaker",
+    "number.assistant_1_follow_up_time",
+    "number.assistant_1_follow_ups_in_a_row",
+    "number.assistant_1_max_listening_time",
+    "number.assistant_1_max_thinking_time",
+    "number.assistant_1_recordings_kept",
+    "number.assistant_1_reply_buffer",
+    "number.assistant_1_wake_word_threshold",
+    "number.assistant_2_follow_up_time",
+    "number.assistant_2_follow_ups_in_a_row",
+    "number.assistant_2_max_listening_time",
+    "number.assistant_2_max_thinking_time",
+    "number.assistant_2_recordings_kept",
+    "number.assistant_2_reply_buffer",
+    "number.assistant_2_wake_word_threshold",
+    "number.metrics_interval",
+    "number.microphone_confirm_threshold",
+    "number.microphone_microphone_gain",
+    "number.microphone_room_sensitivity",
+    "number.microphone_stop_word_threshold",
+    "number.minimum_cpu_cores",
+    "number.nearest_device_offset",
+    "number.nearest_device_window",
+    "number.playback_bass",
+    "number.playback_music_ducking",
+    "number.playback_night_volume",
+    "number.playback_treble",
+    "number.ring_volume",
+    "number.snooze_length",
+    "select.aktivierungswort",
+    "select.aktivierungswort_2",
+    "select.alarm_sound",
+    "select.alarm_words",
+    "select.assistant_1_follow_up_tone",
+    "select.assistant_1_reply_delivery",
+    "select.assistant_1_replying_effect",
+    "select.assistant_1_thinking_effect",
+    "select.assistant_1_wake_word_effect",
+    "select.assistant_1_wake_word_tone",
+    "select.assistant_2_follow_up_tone",
+    "select.assistant_2_reply_delivery",
+    "select.assistant_2_replying_effect",
+    "select.assistant_2_thinking_effect",
+    "select.assistant_2_wake_word_effect",
+    "select.assistant_2_wake_word_tone",
+    "select.assistent",
+    "select.assistent_2",
+    "select.call_ring",
+    "select.microphone_microphone_echo_canceller",
+    "select.microphone_microphone_mixing",
+    "select.microphone_mute_led_brightness",
+    "select.playback_audio_output",
+    "select.playback_music_during_a_turn",
+    "select.playback_quiet_hours",
+    "select.playback_voice_resampling",
+    "select.playback_white_noise_layer_1",
+    "select.playback_white_noise_layer_2",
+    "select.ring_ring_follows_the_room",
+    "select.ring_ring_on_failure",
+    "select.ring_ring_while_muted",
+    "select.sleep_timer",
+    "select.sprechpausen_erkennung",
+    "select.update_channel",
+    "select.weather_source",
+    "sensor.ble_advertisements",
+    "sensor.bluetooth_audio",
+    "sensor.cached_data",
+    "sensor.cpu_cores",
+    "sensor.cpu_cores_online",
+    "sensor.cpu_temperature",
+    "sensor.free_space",
+    "sensor.hardware_color",
+    "sensor.ip_address",
+    "sensor.last_boot",
+    "sensor.last_heard",
+    "sensor.last_reply",
+    "sensor.last_wake_score",
+    "sensor.last_wake_word",
+    "sensor.load_average",
+    "sensor.lux",
+    "sensor.memory_available",
+    "sensor.microphone_ambient_noise",
+    "sensor.microphone_room_floor",
+    "sensor.microphone_room_level",
+    "sensor.missed_ring",
+    "sensor.next_alarm",
+    "sensor.now_playing_album",
+    "sensor.now_playing_artist",
+    "sensor.now_playing_source",
+    "sensor.now_playing_state",
+    "sensor.now_playing_title",
+    "sensor.phone",
+    "sensor.phone_call",
+    "sensor.playback_sendspin_state",
+    "sensor.radio_artist",
+    "sensor.radio_station",
+    "sensor.radio_temperature",
+    "sensor.radio_title",
+    "sensor.sounding_what",
+    "sensor.timers",
+    "sensor.update_status",
+    "sensor.wake_clips",
+    "sensor.wake_clips_by_kind",
+    "sensor.wake_light_brightness",
+    "sensor.wake_light_color",
+    "sensor.wifi_received",
+    "sensor.wifi_sent",
+    "sensor.wifi_signal",
+    "switch.airplay",
+    "switch.allow_drop_in",
+    "switch.bluetooth_pairing",
+    "switch.bluetooth_phone",
+    "switch.bluetooth_proxy",
+    "switch.dlna",
+    "switch.install_updates_automatically",
+    "switch.intercom_do_not_disturb",
+    "switch.microphone_ambient_noise_sensor",
+    "switch.microphone_clap_gesture",
+    "switch.microphone_confirm_wake_with_home_assistant",
+    "switch.microphone_end_of_speech_on_the_device",
+    "switch.microphone_keep_wake_clips",
+    "switch.microphone_microphone_echo_cancellation",
+    "switch.microphone_microphone_leveling",
+    "switch.microphone_microphone_mute",
+    "switch.microphone_microphone_noise_reduction",
+    "switch.microphone_wake_word_on_home_assistant",
+    "switch.nearest_device_answers",
+    "switch.playback_duck_after_a_near_miss",
+    "switch.playback_home_assistant_sounds_for_muting_and_timers",
+    "switch.playback_sendspin",
+    "switch.playback_speaker_eq",
+    "switch.remote_api",
+    "switch.settings_sharing",
+    "switch.setup_page",
+    "switch.skip_certificate_checks",
+    "switch.spotify_connect",
+    "switch.ssh",
+    "update.firmware"
+  ]
+}

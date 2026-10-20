@@ -18,6 +18,9 @@ default_config:
 # Lights, switches, sensors, covers, media players and more, without hardware.
 demo:
 
+# Fake TECHO5 devices, a Show and an Echo (testenv/techo5_fake).
+techo5_fake:
+
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 

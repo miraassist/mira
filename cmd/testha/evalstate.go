@@ -297,7 +297,9 @@ func (r *evalRun) alarmNodes(ctx context.Context) ([]string, error) {
 			continue
 		}
 		for name := range d.Services {
-			if node, ok := strings.CutSuffix(name, "_alarms_list"); ok {
+			// Only the fake devices (testenv/techo5_fake): evals must not
+			// depend on real hardware being on.
+			if node, ok := strings.CutSuffix(name, "_alarms_list"); ok && strings.HasPrefix(node, "fake_") {
 				out = append(out, node)
 			}
 		}

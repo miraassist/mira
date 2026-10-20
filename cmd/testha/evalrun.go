@@ -140,7 +140,8 @@ func (r *evalRun) runScenario(ctx context.Context, sc Scenario, run int) RunResu
 	answerOK := true
 	for i, step := range sc.Steps {
 		if step.At == "" && step.Channel == "" {
-			step.At = "wohnzimmer"
+			// The fake Show (testenv/techo5_fake): evals run without hardware.
+			step.At = "schlafzimmer"
 		}
 		t, err := r.say(ctx, step, conv)
 		sr := StepResult{Say: step.Say, Text: t.Text, Seconds: t.Took.Seconds()}

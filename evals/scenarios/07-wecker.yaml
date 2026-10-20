@@ -1,19 +1,19 @@
 name: wecker
-description: Wecker an der Show stellen und gleich korrigieren
+description: Wecker an der (Fake-)Show stellen und gleich korrigieren
 core: true
 steps:
   - say: Weck mich morgen um sechs
     expect:
       result:
-        - alarm_set: { device: show, time: "06:00" }
+        - alarm_set: { device: fake_show, time: "06:00" }
       behaviour:
-        must: [thread:wecker, action:esphome.show_alarm_set]
+        must: [thread:wecker, action:esphome.fake_show_alarm_set]
       answer:
         contains: ["6"]
   - say: Nein, halb sieben
     expect:
       result:
-        - alarm_set: { device: show, time: "06:30" }
-        - alarm_set: { device: show, time: "06:00", not: true }
+        - alarm_set: { device: fake_show, time: "06:30" }
+        - alarm_set: { device: fake_show, time: "06:00", not: true }
       behaviour:
         must: [tool:thread_undo]
