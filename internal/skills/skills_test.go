@@ -225,10 +225,11 @@ func TestGuideExampleLoads(t *testing.T) {
 	}
 }
 
-// A per_person schedule runs once for each person with a calendar of their
-// own, with their name and calendar in the task, and its message goes to
-// that person; a person with nothing to report gets nothing.
-func TestPerPersonScheduleRunsForEachPersonWithACalendar(t *testing.T) {
+// A per_person schedule runs once for each person it is given, with their
+// name, their calendar ("-" without one) and what Mira knows about them in
+// the task, and its message goes to that person; a person with nothing to
+// report gets nothing.
+func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "tag"), 0o755); err != nil {
 		t.Fatal(err)
@@ -252,14 +253,18 @@ func TestPerPersonScheduleRunsForEachPersonWithACalendar(t *testing.T) {
 		"Anna": `{"importance":0,"spoken":""}`,
 	}}
 	r := &Runner{Set: berlinSet(t, sk), Tasker: tasker, Store: st, People: func(context.Context) []Person {
-		return []Person{{Key: "anna", Name: "Anna", Calendar: "Anna"}, {Key: "ben", Name: "Ben", Calendar: "Ben"}}
+		return []Person{{Key: "anna", Name: "Anna"}, {Key: "ben", Name: "Ben", Calendar: "Ben", Profile: "Ben interessiert sich für den KSC."}}
 	}}
 	queued, err := r.RunJob(context.Background(), sk, 0)
 	if err != nil || !queued {
 		t.Fatalf("run: %v %v", queued, err)
 	}
-	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben.") {
+	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben.") ||
+		!strings.Contains(tasker.seen[1], "Was du über Ben weißt") || !strings.Contains(tasker.seen[1], "Ben interessiert sich für den KSC.") {
 		t.Errorf("tasks: %q", tasker.seen)
+	}
+	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
+		t.Errorf("Anna without calendar and memory: %q", tasker.seen[0])
 	}
 	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
 	if len(msgs) != 1 || msgs[0].Receiver != "ben" || msgs[0].Spoken != "Du hast um 9 Zahnarzt." || !strings.HasSuffix(msgs[0].DedupeKey, ":ben") {

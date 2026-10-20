@@ -82,30 +82,42 @@ func features(attrs map[string]any) int {
 	return int(f)
 }
 
-// peopleWithCalendars are the persons with a calendar of their own, by
-// convention: an exposed calendar named like the person in Home Assistant
-// ("Ben" is Ben's), case and spaces aside. Skill schedules with per_person
-// run for them (docs/spec/kalender.md).
-func (a *app) peopleWithCalendars(ctx context.Context) []skills.Person {
+// briefingPeople are the persons a per_person skill schedule runs for: those
+// a personal message can reach, by a channel of their own or because "alone
+// at home is me" lets a satellite count as them. Each with their own
+// calendar, by convention one named like the person in Home Assistant ("Ben"
+// is Ben's; docs/spec/kalender.md), and their personal profile.
+func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 	cals, err := a.calendarList(ctx)
 	if err != nil {
 		a.log.Warn("could not read the calendars for personal schedules", "error", err)
-		return nil
 	}
-	return ownCalendars(a.persons(), cals)
+	out := reachablePeople(a.persons(), cals)
+	for i := range out {
+		if p, _, err := a.store.Profile(ctx, out[i].Key); err == nil {
+			out[i].Profile = p
+		}
+	}
+	return out
 }
 
-// ownCalendars matches persons and calendars by name.
-func ownCalendars(persons map[string]config.Person, cals []calendar.Info) []skills.Person {
+// reachablePeople are the persons a personal message reaches, with the
+// calendar named like them, if any.
+func reachablePeople(persons map[string]config.Person, cals []calendar.Info) []skills.Person {
 	byName := map[string]string{}
 	for _, c := range cals {
 		byName[strings.ToLower(strings.TrimSpace(c.Name))] = c.Name
 	}
 	var out []skills.Person
 	for key, p := range persons {
-		if name, ok := byName[strings.ToLower(strings.TrimSpace(p.Name))]; ok && p.Name != "" {
-			out = append(out, skills.Person{Key: key, Name: p.Name, Calendar: name})
+		if len(p.Channels) == 0 && !p.AloneIsMe {
+			continue
 		}
+		name := p.Name
+		if name == "" {
+			name = key
+		}
+		out = append(out, skills.Person{Key: key, Name: name, Calendar: byName[strings.ToLower(strings.TrimSpace(name))]})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out

@@ -30,15 +30,15 @@ type Runner struct {
 	Tasker Tasker
 	Store  *store.Store
 	Logger *slog.Logger
-	// People are the persons with a calendar of their own, for schedules
-	// with per_person.
+	// People are the persons a per_person schedule runs for.
 	People func(ctx context.Context) []Person
 }
 
 // Person is someone a per_person schedule runs for: the receiver key of
-// their messages, their name, and the name of their own calendar.
+// their messages, their name, the name of their own calendar ("" if none)
+// and their personal profile (what Mira knows about them, "" if nothing).
 type Person struct {
-	Key, Name, Calendar string
+	Key, Name, Calendar, Profile string
 }
 
 type job struct {
@@ -137,7 +137,16 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 	t := i18n.Pick(catalog, r.Set.Lang)
 	task := strings.TrimSpace(sk.Schedules[index].Task)
 	if p.Key != "" {
-		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", p.Calendar).Replace(task)
+		cal := p.Calendar
+		if cal == "" {
+			cal = "-"
+		}
+		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", cal).Replace(task)
+		profile := strings.TrimSpace(p.Profile)
+		if profile == "" {
+			profile = t.noProfile
+		}
+		task += "\n\n" + fmt.Sprintf(t.personContext, p.Name) + "\n" + profile
 	}
 	instruction := fmt.Sprintf(t.taskIntro, sk.Name) + sk.Body + "\n\n---\n\n" + task + t.taskRules
 	raw, err := r.Tasker.RunTask(ctx, instruction)

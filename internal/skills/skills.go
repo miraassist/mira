@@ -133,10 +133,11 @@ type Setting struct {
 type Schedule struct {
 	Cron string `yaml:"cron"`
 	Task string `yaml:"task"`
-	// PerPerson runs the task once for each person who has a calendar of
-	// their own (one named like the person in Home Assistant), with
-	// {{person}} and {{person_calendar}} filled in; the message goes to that
-	// person, not to the house.
+	// PerPerson runs the task once for each person a message can reach (a
+	// channel of their own, or "alone at home is me"), with {{person}} and
+	// {{person_calendar}} (their own calendar, one named like them; "-" if
+	// none) filled in and what Mira knows about them added; the message goes
+	// to that person, not to the house.
 	PerPerson bool `yaml:"per_person"`
 	cron      schedule.Cron
 }

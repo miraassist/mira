@@ -66,7 +66,7 @@ Alarmanlage scharf, Wecker, Geräusche zum Einschlafen).
 
 ## 2. Morgen- und Abendbriefing
 
-Gebaut in 0.6.51 als Skill `briefing` (`skills/briefing`): Zeitpläne 5:30 und 18:00 fürs Haus, auf Nachfrage auch mit dem Kalender der sprechenden Person. Seit 0.6.52 zusätzlich 5:35 je Person mit eigenem Kalender (`per_person`, Kalender heißt wie die Person).
+Gebaut in 0.6.51 als Skill `briefing` (`skills/briefing`): Zeitpläne 5:30 und 18:00 fürs Haus, auf Nachfrage auch mit dem Kalender der sprechenden Person. Seit 0.6.52 zusätzlich 5:35 je Person, die eine persönliche Nachricht erreicht (`per_person`): eigene Termine (Kalender heißt wie die Person) und Schlagzeilen zu ihren Themen aus dem persönlichen Gedächtnis.
 
 Zur gewählten Zeit meldet sich Mira von selbst: Wetter, Termine, Müllabfuhr, wartende Nachrichten, ein paar
 Nachrichten des Tages. Das ist der Flash-Briefing-Klassiker, nur persönlich.
