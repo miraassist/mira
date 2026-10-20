@@ -85,7 +85,7 @@ flowchart LR
 | `internal/timer` | `sleep_timer` (set, list, extend, cancel): legt über die Integration einmalige Automationen in HA an ([Geplante Aktionen](spec/geplante-aktionen.md)). Die Countdown-Timer sind HAs eigene Werkzeuge, die der MCP-Host mit der Gerätekennung des Satelliten abholt |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
-| `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
+| `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4: der gemeinsame Anfang aller Fassungen (ohne Gerät und je Satellit) ist Schicht 4, was HA je Gerät anhängt, kommt in den Turn ([Kontext](spec/kontext.md), 1.1) |
 | `internal/tasks` | Aufgaben: Urteile (`assess`, `decide`), Datenansichten, Entwurf und Verwaltung der Automationen, Werkzeuge |
 | `internal/notifier` | Zustellung: wann, wo, wie eine Nachricht ankommt; Anzeigen (LED-Ring, Bildschirm); Erinnerungen |
 | `internal/skills` | Skills im Agent-Skills-Format (`SKILL.md`), Zeitpläne, Kalender. Ein Skill, der nicht starten kann, wird ausgelassen und mit lesbarem Grund im Log und in `/v1/status` (`problems`) gemeldet; die Integration zeigt ihn als Reparatur in HA |

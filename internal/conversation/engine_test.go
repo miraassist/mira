@@ -697,3 +697,58 @@ func TestTurnFollowsTheSentLanguage(t *testing.T) {
 		t.Errorf("languages asked with %q", langs.sent)
 	}
 }
+
+// The lines Home Assistant's Assist prompt adds for the asking satellite are
+// in the turn, not in the system message: the same message for every room,
+// so the cache behind it holds.
+func TestDeviceLinesGoInTheTurnAndNotInLayerFour(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Ok."}, fakellm.Step{Content: "Ok."}, fakellm.Step{Content: "Ok."})
+	hints := map[string]string{
+		"sat-kueche": "You are in area Küche and all generic commands should target this area.",
+		"":           "This device is not able to start timers.",
+	}
+	e := conversation.New(conversation.Options{
+		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
+		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
+		StructurePrompt: func() string { return "Static Context: Küchenlicht" },
+		DeviceHints:     func(device string) string { return hints[device] },
+	})
+	ask := func(conv, device string) {
+		t.Helper()
+		if _, err := e.Handle(context.Background(), conversation.Request{
+			Channel: config.ChannelVoice, ConversationID: conv, DeviceID: device, Text: "Hallo", Language: "de"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ask("v1", "sat-kueche")
+	ask("v2", "")
+	reqs := h.llm.Requests()
+	if len(reqs) != 2 {
+		t.Fatalf("requests = %d", len(reqs))
+	}
+	system := func(i int) string { return reqs[i].Request.Messages[0].Content }
+	if system(0) != system(1) || !strings.Contains(system(0), "Static Context: Küchenlicht") {
+		t.Error("the system message must not depend on the device")
+	}
+	if strings.Contains(system(0), "You are in area") || strings.Contains(system(0), "not able to start timers") {
+		t.Error("device lines leaked into layer 4")
+	}
+	if got := lastContent(reqs[0].Request.Messages); !strings.Contains(got, "You are in area Küche") || strings.Contains(got, "not able to start timers") {
+		t.Errorf("turn of the satellite: %s", got)
+	}
+	if got := lastContent(reqs[1].Request.Messages); !strings.Contains(got, "This device is not able to start timers.") {
+		t.Errorf("turn without a device: %s", got)
+	}
+	// With the own structure block (no Assist prompt) there is nothing to add to.
+	own := conversation.New(conversation.Options{
+		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
+		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
+		StructurePrompt: func() string { return "" }, DeviceHints: func(string) string { return "hint" },
+	})
+	if _, err := own.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice, ConversationID: "v3", Text: "Hallo", Language: "de"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := lastContent(h.llm.Requests()[2].Request.Messages); strings.Contains(got, "hint") {
+		t.Errorf("hints without the Assist prompt: %s", got)
+	}
+}

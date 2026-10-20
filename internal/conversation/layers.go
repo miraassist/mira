@@ -58,6 +58,16 @@ func (e *Engine) structureText() string {
 	return e.structure().Block
 }
 
+// deviceHintsFor are the lines of Home Assistant's Assist prompt that depend
+// on the device asking, for the turn layer. Only while layer 4 is that
+// prompt: with the own block there is nothing to add to.
+func (e *Engine) deviceHintsFor(device string) string {
+	if e.assist == nil || e.deviceHints == nil || e.assist() == "" {
+		return ""
+	}
+	return e.deviceHints(device)
+}
+
 func clipProfile(p string, max int) string {
 	p = strings.TrimSpace(p)
 	if max <= 0 || len([]rune(p)) <= max {

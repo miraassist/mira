@@ -19,6 +19,7 @@ type texts struct {
 	// Layer 7.
 	timeLabel, remember, messageContext, pendingConfirmation, pendingRule, extraContext string
 	speaker, personProfile                                                              string // %s = person
+	deviceHints                                                                         string
 
 	// The sample exchange, see Examples.
 	exampleChannel, exampleArea, exampleLight                      string
@@ -70,6 +71,7 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 
 		timeLabel:           "Zeit: ",
 		remember:            "Du erinnerst dich:",
+		deviceHints:         "Hinweise von Home Assistant für dieses Gerät:",
 		speaker:             "Es spricht: %s. Was du dir auf Wunsch dieser Person merkst, gilt nur für sie.",
 		personProfile:       "Persönliches Profil von %s:",
 		messageContext:      "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
@@ -131,6 +133,7 @@ Answer in the language you are addressed in.`,
 
 		timeLabel:           "Time: ",
 		remember:            "You remember:",
+		deviceHints:         "Notes from Home Assistant for this device:",
 		speaker:             "Speaking: %s. What you remember at their request applies to them alone.",
 		personProfile:       "Personal profile of %s:",
 		messageContext:      "You have just announced (details, in case of follow-up questions):",

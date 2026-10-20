@@ -535,6 +535,12 @@ func (h *Host) Call(ctx context.Context, qualified string, args json.RawMessage)
 // exposed entities this way. The text names tools as the server knows them;
 // they are rewritten to the qualified names the model sees.
 func (h *Host) Prompt(ctx context.Context, serverName, name string) (string, error) {
+	return h.PromptAs(ctx, serverName, name, "")
+}
+
+// PromptAs is Prompt as a satellite would get it: Home Assistant adds the
+// area it is in and whether it can start timers. "" asks without a device.
+func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (string, error) {
 	s, ok := h.byName[serverName]
 	if !ok {
 		return "", fmt.Errorf("unknown mcp server %q", serverName)
@@ -547,12 +553,16 @@ func (h *Host) Prompt(ctx context.Context, serverName, name string) (string, err
 	}
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
-	res, err := session.GetPrompt(cctx, &sdk.GetPromptParams{Name: name})
+	params := &sdk.GetPromptParams{Name: name}
+	if device != "" && s.cfg.WantsDevice() {
+		params.Meta = sdk.Meta{deviceMeta: device}
+	}
+	res, err := session.GetPrompt(cctx, params)
 	if lostSession(err) {
 		if fresh := h.reconnect(ctx, s, session, err); fresh != nil {
 			rctx, rcancel := context.WithTimeout(ctx, h.callTimeout)
 			defer rcancel()
-			res, err = fresh.GetPrompt(rctx, &sdk.GetPromptParams{Name: name})
+			res, err = fresh.GetPrompt(rctx, params)
 		}
 	}
 	if err != nil {

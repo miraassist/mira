@@ -399,3 +399,24 @@ func TestGoldenEnglish(t *testing.T) {
 	b.WriteString("\n=== turn ===\n" + turn.Render() + "\n")
 	compareGolden(t, "prefix_voice_en.txt", b.String())
 }
+
+// The lines Home Assistant adds for the asking device come in the turn
+// layer, after the channel context and before who speaks; without them the
+// turn is as it was.
+func TestTurnCarriesTheDeviceHints(t *testing.T) {
+	turn := Turn{Lang: i18n.DE, Now: time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC), ChannelContext: "Kanal: Sprache", Person: "anna", Text: "Hallo"}
+	plain := turn.Render()
+	if strings.Contains(plain, "Hinweise von Home Assistant") {
+		t.Fatal("hints without any")
+	}
+	turn.DeviceHints = "You are in area Küche and all generic commands should target this area."
+	got := turn.Render()
+	i, j, k := strings.Index(got, "Kanal: Sprache"), strings.Index(got, "Hinweise von Home Assistant für dieses Gerät:"), strings.Index(got, "Es spricht: anna")
+	if !(i >= 0 && i < j && j < k) || !strings.Contains(got, "You are in area Küche") {
+		t.Errorf("order or text wrong:\n%s", got)
+	}
+	turn.Lang = i18n.EN
+	if !strings.Contains(turn.Render(), "Notes from Home Assistant for this device:") {
+		t.Error("english label missing")
+	}
+}

@@ -168,6 +168,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if cfg.HA.AssistPromptServer != "" {
 		a.assist = assistprompt.New(assistprompt.Options{
 			Source: a.mcp, Server: cfg.HA.AssistPromptServer,
+			Devices: func() []string {
+				if a.structure == nil {
+					return nil
+				}
+				return a.structure.Snapshot().SatelliteDevices
+			},
 			Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
 			OnChange: func() { a.warmup("structure_changed") },
 		})
@@ -347,13 +353,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		models[name] = c
 	}
 	var assistText func() string
+	var deviceHints func(string) string
 	if a.assist != nil {
 		assistText = a.assist.Text
+		deviceHints = a.assist.Tail
 	}
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard:     tools.NewGuard(a.lang, cfg.Security, a.store, snapshot),
-		Structure: snapshot, StructurePrompt: assistText, Telemetry: tel, Logger: a.log,
+		Structure: snapshot, StructurePrompt: assistText, DeviceHints: deviceHints, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify,
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
 		Languages: a.langs,

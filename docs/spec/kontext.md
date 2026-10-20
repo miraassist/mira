@@ -1,6 +1,6 @@
 # Kontext – Spezifikation
 
-Stand 2026-10-16, gebaut in 0.6.9. Gilt für alle Kanäle. Siehe auch [Vorgänge](vorgaenge.md) und [Kanäle](kanaele.md).
+Stand 2026-10-20, gebaut in 0.6.9; Geräte-Anteil von HAs Prompt (Abschnitt 1.1) in 0.6.48. Gilt für alle Kanäle. Siehe auch [Vorgänge](vorgaenge.md) und [Kanäle](kanaele.md).
 
 Der **Kontext** ist alles, was das Modell bei einer Anfrage sieht. Zwei Dinge macht Mira damit:
 - **Komposition**: was in welcher Reihenfolge ins Kontextfenster kommt;
@@ -17,7 +17,28 @@ In dieser Reihenfolge (`internal/prompt`, `prompt.Build`):
 | 3 | **Beispielunterhaltung** | ein fester kurzer Austausch, der Ton und Werkzeuggebrauch zeigt | nie | – |
 | 4 | **Kanalstil** | wie auf diesem Kanal geantwortet wird (Sprache: kurz, ohne Markdown; Telegram: länger, Listen, Links), als Nachricht mit fester Bestätigung | nie (pro Kanal fest) | 2 |
 | 5 | **Verlauf** | die bisherigen Turns dieser Sitzung, wörtlich, mit Werkzeugaufrufen und Ergebnissen (Abschnitt 4, 5) | jeder Turn hängt an; Kompaktierung kürzt | 6 |
-| 6 | **Aktueller Turn** | Uhrzeit; Kanal und Raum; wer spricht und dessen persönliches Profil; passende Gedächtnis-Fakten; Stand des laufenden Vorgangs; Kontext einer gerade angesagten Nachricht; offene Bestätigung; der Text | jede Anfrage | 7 |
+| 6 | **Aktueller Turn** | Uhrzeit; Kanal und Raum; die Zeilen, die HAs Assist-Prompt für dieses Gerät anhängt (1.1); wer spricht und dessen persönliches Profil; passende Gedächtnis-Fakten; Stand des laufenden Vorgangs; Kontext einer gerade angesagten Nachricht; offene Bestätigung; der Text | jede Anfrage | 7 |
+
+### 1.1 HAs Assist-Prompt: der gemeinsame Anfang in Teil 1, das Gerät im Turn
+
+HAs Assist-Prompt (Teil 1, Haus-Struktur) ist nicht für jedes Gerät derselbe. Home Assistant hängt **am Ende** Zeilen an, die vom fragenden Gerät abhängen: in welchem Bereich es steht („You are in area Wohnzimmer and all generic commands … should target this area“, sonst die Bitte, einen Bereich zu nennen) und ob es Timer starten kann („This device is not able to start timers“, wenn nicht). HA tut das ans Ende, weil sein eigener Cache genauso am gleichen Anfang hängt. Gemessen (HA 2026.10): rund 3,5 KB Prompt, davon nur die letzten ein bis zwei Zeilen geräteabhängig.
+
+Mira holt den Prompt über MCP (`prompts/get` „Assist“) deshalb **nicht nur ohne Gerät**, sonst bekäme sie die Fassung „kann keine Timer“ und das Modell verweigerte Timer, auch wo das Gerät sie kann (so geschehen). Stattdessen:
+
+1. Sie holt ihn **einmal ohne Gerät** und **einmal als jeder Satellit** (die Kennung geht in `_meta` mit `io.home-assistant/device_id`, wie bei den Werkzeugen).
+2. **Der gemeinsame Anfang aller Fassungen**, bis zur ersten Abweichung und an einer Zeilengrenze abgeschnitten, ist **Teil 1** (der Prompt-Cache `internal/ha/assistprompt`). Er ist für alle Räume und Kanäle gleich, also bleibt der Cache dahinter (Werkzeuge, Beispiele, Verlauf) erhalten.
+3. **Der Rest der Fassung des fragenden Satelliten** ist sein Stück und kommt in den **Turn** (Teil 6), unter der Überschrift „Hinweise von Home Assistant für dieses Gerät:“, nach der Zeile mit dem Kanal. Ein Kanal ohne Gerät (Telegram) bekommt das Stück der Fassung ohne Gerät. Dort stimmt „kann keine Timer“ auch. Hintergrundjobs (Beurteilen, Skill-Zeitpläne) bekommen keine Hinweise.
+4. **Erkannt wird durch den Vergleich**, nicht durch Kenntnis des Textes: Mira weiß nichts von Raum- oder Timer-Sätzen, sie nimmt, was sich zwischen den Fassungen unterscheidet. Ändert HA den Wortlaut oder kommt eine weitere geräteabhängige Zeile dazu, folgt Mira ohne Änderung.
+
+Eigenschaften:
+- **Teil 1 ändert sich nur, wenn das Haus sich ändert** (neue oder umbenannte Entität), nicht wenn ein Gerät dazukommt oder die Stücke sich ändern. Nur eine Änderung von Teil 1 löst das Aufwärmen aus (`prefix_hash` ändert sich dann).
+- **Annahme „am Ende“:** Käme der Unterschied künftig weiter vorn, wird der gemeinsame Anfang kürzer und mehr wandert in den Turn. Das bleibt richtig, nur der Cache-Gewinn schrumpft. Liegt der gemeinsame Teil unter 90 % der Länge, steht eine Warnung im Log.
+- **Ausfall:** Antwortet ein Satellit nicht, behält er sein altes Stück; antwortet die Fassung ohne Gerät nicht, bleibt alles, wie es war.
+- **Ohne Satelliten** (keiner bekannt) ist der ganze Prompt Teil 1, wie vorher.
+- **Hat Mira den Prompt von HA nicht** (sie nutzt dann ihren eigenen Strukturblock), gibt es auch keine Hinweise.
+- **Kosten:** ein bis zwei Zeilen im Turn je Sprachanfrage (geschätzt etwa 40 Token) und ein Abruf je Satellit zusätzlich, wenn der Prompt neu geholt wird (alle paar Minuten und bei Änderungen).
+
+Dieselbe Regel gilt für die **Werkzeuge**: Die Liste wird einmal ohne Gerät und einmal als jeder Satellit geholt und vereinigt, und jeder Aufruf trägt die Kennung des Satelliten, damit HA ihn bedient wie seine eigenen Agenten (Timer, Raum für Befehle ohne Raum; [Geplante Aktionen](geplante-aktionen.md)). **Was Home Assistant anbietet, bauen wir nicht nach, und es geht nichts verloren, weil der Kontext nicht mitkommt.**
 
 Was nicht im Kontext steht: **Zustände von Geräten.** Die fragt das Modell bei Bedarf über Werkzeuge ab; die Regeln verlangen das.
 
@@ -96,6 +117,7 @@ Modelle (lokal wie in der Cloud) rechnen einen **gleichen Anfang** nicht neu, so
 - Teile 1–4 sind für gleiche Eingaben **byte-identisch**: keine Zeitstempel, IDs, Zufallswerte oder unsortierten Listen;
 - **der gemeinsame Anfang (1–3) ist für alle Kanäle gleich**, nur der Kanalstil unterscheidet sich; so teilen sich Sprache, Telegram und Hintergrundjobs den Cache;
 - **Volatiles nur im Turn**, auch das persönliche Profil (sonst bräche der gemeinsame Anfang je Person);
+- **Auch was vom Gerät abhängt, nur im Turn**: die Zeilen, die HAs Assist-Prompt für den Raum und die Timer des fragenden Satelliten anhängt (1.1); Teil 1 ist nur der Teil, den alle Fassungen gemeinsam haben;
 - der Verlauf wird **nur angehängt**, nie mittendrin geändert; zwischen Verlauf und Turn wird nichts eingefügt;
 - ein Fingerabdruck der Teile 1–5 (`prefix_hash`) steht in jedem Log-Eintrag „turn done“: ändert er sich unerwartet, ist der Cache versehentlich gebrochen.
 

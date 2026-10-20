@@ -105,6 +105,9 @@ type Options struct {
 	// StructurePrompt, when it returns text, replaces the structure block in
 	// layer 4: Home Assistant's own Assist prompt.
 	StructurePrompt func() string
+	// DeviceHints returns the lines Home Assistant's Assist prompt adds for a
+	// satellite ("" for none); they go into the turn layer, not layer 4.
+	DeviceHints func(device string) string
 	// Afterword returns the messages waiting for an area as a closing
 	// sentence, marking them heard, or "" when none wait.
 	Afterword func(ctx context.Context, area string) string
@@ -127,22 +130,23 @@ type Options struct {
 }
 
 type Engine struct {
-	cfg       config.Config
-	models    map[string]Chatter
-	store     *store.Store
-	tools     *tools.Registry
-	guard     *tools.Guard
-	structure func() structure.Snapshot
-	assist    func() string
-	afterword func(ctx context.Context, area string) string
-	thread    func(ctx context.Context, sess store.Session, followedUp []string) string
-	identify  func(ctx context.Context, req Request, sess store.Session) string
-	persona   func() string
-	languages Languages
-	tel       *telemetry.Provider
-	log       *slog.Logger
-	clock     func() time.Time
-	loc       *time.Location
+	cfg         config.Config
+	models      map[string]Chatter
+	store       *store.Store
+	tools       *tools.Registry
+	guard       *tools.Guard
+	structure   func() structure.Snapshot
+	assist      func() string
+	deviceHints func(device string) string
+	afterword   func(ctx context.Context, area string) string
+	thread      func(ctx context.Context, sess store.Session, followedUp []string) string
+	identify    func(ctx context.Context, req Request, sess store.Session) string
+	persona     func() string
+	languages   Languages
+	tel         *telemetry.Provider
+	log         *slog.Logger
+	clock       func() time.Time
+	loc         *time.Location
 
 	// One turn per channel at a time: each channel owns one llama.cpp slot,
 	// and interleaving two sessions on a slot would evict each other's cache
@@ -174,25 +178,26 @@ func New(opts Options) *Engine {
 		opts.Structure = func() structure.Snapshot { return structure.Snapshot{} }
 	}
 	e := &Engine{
-		cfg:        opts.Config,
-		models:     map[string]Chatter{config.MainModel: opts.LLM},
-		store:      opts.Store,
-		tools:      opts.Tools,
-		guard:      opts.Guard,
-		structure:  opts.Structure,
-		assist:     opts.StructurePrompt,
-		afterword:  opts.Afterword,
-		thread:     opts.Thread,
-		identify:   opts.Identify,
-		persona:    opts.Persona,
-		languages:  opts.Languages,
-		tel:        opts.Telemetry,
-		log:        opts.Logger.With("component", "conversation"),
-		clock:      opts.Clock,
-		loc:        opts.Location,
-		locks:      map[config.Channel]*sync.Mutex{},
-		lastPrefix: map[config.Channel]string{},
-		warm:       make(chan string, 1),
+		cfg:         opts.Config,
+		models:      map[string]Chatter{config.MainModel: opts.LLM},
+		store:       opts.Store,
+		tools:       opts.Tools,
+		guard:       opts.Guard,
+		structure:   opts.Structure,
+		assist:      opts.StructurePrompt,
+		deviceHints: opts.DeviceHints,
+		afterword:   opts.Afterword,
+		thread:      opts.Thread,
+		identify:    opts.Identify,
+		persona:     opts.Persona,
+		languages:   opts.Languages,
+		tel:         opts.Telemetry,
+		log:         opts.Logger.With("component", "conversation"),
+		clock:       opts.Clock,
+		loc:         opts.Location,
+		locks:       map[config.Channel]*sync.Mutex{},
+		lastPrefix:  map[config.Channel]string{},
+		warm:        make(chan string, 1),
 	}
 	for name, m := range opts.Models {
 		e.models[name] = m
@@ -298,6 +303,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		Lang:           e.lang(ctx),
 		Now:            now.In(e.loc),
 		ChannelContext: e.channelContext(ctx, req, sess, snap),
+		DeviceHints:    e.deviceHintsFor(req.DeviceID),
 		Person:         person,
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),

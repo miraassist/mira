@@ -18,6 +18,11 @@ type Turn struct {
 	// ChannelContext describes where the request came from, for example which
 	// satellite and therefore which room is meant without an explicit one.
 	ChannelContext string
+	// DeviceHints are the lines Home Assistant's Assist prompt adds for the
+	// device that asks (its area, whether it can start timers). They come
+	// last in HA's prompt and here too, so layer 4 stays the same for every
+	// device (docs/spec/kontext.md).
+	DeviceHints string
 	// Person is who is speaking, when known; PersonProfile is their
 	// compacted personal memory (the house's is layer 5).
 	Person, PersonProfile string
@@ -54,6 +59,10 @@ func (t Turn) Render() string {
 	b.WriteString(FormatTime(t.Lang, t.Now))
 	if s := strings.TrimSpace(t.ChannelContext); s != "" {
 		b.WriteString("\n")
+		b.WriteString(s)
+	}
+	if s := strings.TrimSpace(t.DeviceHints); s != "" {
+		b.WriteString("\n" + l.deviceHints + "\n")
 		b.WriteString(s)
 	}
 	if t.Person != "" {
