@@ -89,9 +89,9 @@ func only(t *testing.T, cal *fakeCal) Event {
 
 func TestAnnouncedThenTodayThenDelivered(t *testing.T) {
 	m := &fakeModel{items: []item{
-		{Relevant: true, Title: "Paket von Amazon: Druckerpatronen", Key: "00340434", Status: "scheduled", Day: "2026-10-21", Details: "DHL, Sendung 00340434"},
-		{Relevant: true, Title: "Paket von Amazon: Druckerpatronen", Key: "00340434", Status: "scheduled", Day: "2026-10-21", Start: "10:15", End: "12:15"},
-		{Relevant: true, Title: "Paket von Amazon zugestellt", Key: "00340434", Status: "done", Day: "2026-10-21"},
+		{Relevant: true, Title: "Paket von Amazon: Druckerpatronen", Keys: []string{"00340434"}, Status: "scheduled", Day: "2026-10-21", Details: []string{"DHL, Sendung 00340434", "Bestellnummer: ", "Abholung bis:"}},
+		{Relevant: true, Title: "Paket von Amazon: Druckerpatronen", Keys: []string{"00340434"}, Status: "scheduled", Day: "2026-10-21", Start: "10:15", End: "12:15"},
+		{Relevant: true, Title: "Paket von Amazon zugestellt", Keys: []string{"00340434"}, Status: "done", Day: "2026-10-21"},
 	}}
 	s, cal := service(m)
 	ctx := context.Background()
@@ -103,6 +103,9 @@ func TestAnnouncedThenTodayThenDelivered(t *testing.T) {
 	e := only(t, cal)
 	if !e.AllDay || e.Day.Format("2006-01-02") != "2026-10-21" || !strings.Contains(e.Description, "mira-mail: 00340434") || !strings.Contains(e.Description, "DHL, Sendung") {
 		t.Errorf("entry: %+v", e)
+	}
+	if strings.Contains(e.Description, "Bestellnummer") || strings.Contains(e.Description, "Abholung") {
+		t.Errorf("empty detail lines kept: %q", e.Description)
 	}
 	// The mail reached the model as data: plain text, with sender and date.
 	if in := m.instructions[0]; !strings.Contains(in, "Hallo du") || strings.Contains(in, "<p>") || !strings.Contains(in, "Absender: noreply@dhl.de") || !strings.Contains(in, "Pakete lesen.") {
@@ -125,8 +128,8 @@ func TestAnnouncedThenTodayThenDelivered(t *testing.T) {
 // An older mail never overwrites a newer one, whatever the order of arrival.
 func TestAnOlderMailIsDropped(t *testing.T) {
 	m := &fakeModel{items: []item{
-		{Relevant: true, Title: "Paket heute", Key: "K1", Status: "scheduled", Day: "2026-10-20", Start: "10:00", End: "12:00"},
-		{Relevant: true, Title: "Paket angekündigt", Key: "K1", Status: "scheduled", Day: "2026-10-22"},
+		{Relevant: true, Title: "Paket heute", Keys: []string{"K1"}, Status: "scheduled", Day: "2026-10-20", Start: "10:00", End: "12:00"},
+		{Relevant: true, Title: "Paket angekündigt", Keys: []string{"K1"}, Status: "scheduled", Day: "2026-10-22"},
 	}}
 	s, cal := service(m)
 	s.Handle(context.Background(), mail("Pakete", now))
@@ -141,9 +144,9 @@ func TestAnOlderMailIsDropped(t *testing.T) {
 
 func TestCancelledRemovesAndUnknownCancelIsIgnored(t *testing.T) {
 	m := &fakeModel{items: []item{
-		{Relevant: true, Title: "Termin", Key: "B7", Status: "scheduled", Day: "2026-10-23"},
-		{Relevant: true, Title: "Termin", Key: "B7", Status: "cancelled", Day: "2026-10-23"},
-		{Relevant: true, Title: "Anderer", Key: "B8", Status: "cancelled", Day: "2026-10-23"},
+		{Relevant: true, Title: "Termin", Keys: []string{"B7"}, Status: "scheduled", Day: "2026-10-23"},
+		{Relevant: true, Title: "Termin", Keys: []string{"B7"}, Status: "cancelled", Day: "2026-10-23"},
+		{Relevant: true, Title: "Anderer", Keys: []string{"B8"}, Status: "cancelled", Day: "2026-10-23"},
 	}}
 	s, cal := service(m)
 	ctx := context.Background()
@@ -178,7 +181,7 @@ func TestChecks(t *testing.T) {
 			t.Errorf("case %d: %+v %v", i, e, ok)
 		}
 	}
-	m := &fakeModel{items: []item{{Relevant: true, Title: "x", Key: "a b/c", Day: "2026-10-21"}}}
+	m := &fakeModel{items: []item{{Relevant: true, Title: "x", Keys: []string{"a b/c"}, Day: "2026-10-21"}}}
 	s2, cal := service(m)
 	s2.Handle(context.Background(), mail("Pakete", now))
 	if e := only(t, cal); !strings.Contains(e.Description, "mira-mail: -") {
@@ -246,5 +249,51 @@ func TestCleanup(t *testing.T) {
 		if _, ok := cal.events[uid]; ok {
 			t.Errorf("%s kept", uid)
 		}
+	}
+}
+
+// An update keeps what the newer mail does not name; any shared key finds
+// the entry, and the keys add up.
+func TestUpdateKeepsWhatTheMailDoesNotName(t *testing.T) {
+	m := &fakeModel{items: []item{
+		{Relevant: true, Title: "Paket von Shop: Druckerpatronen", Keys: []string{"S1"}, Status: "scheduled", Day: "2026-10-21",
+			Start: "10:00", End: "12:00", Location: "Kiosk", Details: []string{"Paketdienst: DHL", "Bestellnummer: O9"}},
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"s1", "O9"}, Status: "scheduled", Day: "2026-10-21",
+			Details: []string{"Sendungsnummer: S1", "paketdienst: DHL Express"}},
+		{Relevant: true, Title: "Paket von Shop zugestellt", Keys: []string{"O9"}, Status: "done", Day: "2026-10-21"},
+	}}
+	s, cal := service(m)
+	ctx := context.Background()
+	s.Handle(ctx, mail("Pakete", now))
+	out, _ := s.Handle(ctx, mail("Pakete", now.Add(time.Hour)))
+	e := only(t, cal)
+	want := "Sendungsnummer: S1\npaketdienst: DHL Express\nBestellnummer: O9\n\nmira-mail: S1, O9\n"
+	if out.Action != "updated" || e.Summary != "Paket von Shop: Druckerpatronen" || e.Location != "Kiosk" ||
+		e.Start.Format("15:04") != "10:00" || e.End.Format("15:04") != "12:00" || !strings.HasPrefix(e.Description, want) {
+		t.Errorf("merged: %+v %+v", out, e)
+	}
+	// The order number alone finds it too; a new title replaces the old.
+	out, _ = s.Handle(ctx, mail("Pakete", now.Add(2*time.Hour)))
+	if e = only(t, cal); out.Action != "updated" || e.Summary != "Paket von Shop zugestellt" || !strings.Contains(e.Description, "Status: done") {
+		t.Errorf("by the second key: %+v %+v", out, e)
+	}
+}
+
+// Without a day there is no entry until a mail names one; a cancellation
+// needs no day.
+func TestNoDayNoEntryButCancelWithoutDay(t *testing.T) {
+	m := &fakeModel{items: []item{
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"A1"}, Status: "scheduled"},
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"A1"}, Status: "scheduled", Day: "2026-10-22"},
+		{Relevant: true, Keys: []string{"A1"}, Status: "cancelled"},
+	}}
+	s, cal := service(m)
+	ctx := context.Background()
+	if out, _ := s.Handle(ctx, mail("Pakete", now)); out.Action != "ignored" || len(cal.events) != 0 {
+		t.Errorf("without day: %+v", out)
+	}
+	s.Handle(ctx, mail("Pakete", now.Add(time.Hour)))
+	if out, _ := s.Handle(ctx, mail("Pakete", now.Add(2*time.Hour))); out.Action != "deleted" || len(cal.events) != 0 {
+		t.Errorf("cancel without day: %+v %+v", out, cal.events)
 	}
 }

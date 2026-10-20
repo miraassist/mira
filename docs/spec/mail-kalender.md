@@ -69,28 +69,36 @@ IMAP-Eintrag „Pakete“ (Suche)
   |---|---|
   | `relevant` | ob die Mail etwas für diesen Kalender ankündigt; sonst wird sie verworfen |
   | `title` | Titel des Eintrags, kurz („Paket von Amazon: Druckerpatronen“) |
-  | `key` | stabile Kennung (Sendungs-, Bestell-, Buchungsnummer); leer, wenn keine |
+  | `keys` | alle Kennungen der Sache (Sendungs-, Bestell-, Buchungsnummer); leer, wenn keine |
   | `status` | `scheduled` (angekündigt, bestätigt, geändert), `cancelled` (abgesagt), `done` (erledigt, zugestellt) |
-  | `day` | Tag (YYYY-MM-DD) |
+  | `day` | Tag (YYYY-MM-DD); leer, wenn die Mail keinen nennt |
   | `start`, `end` | Uhrzeit oder Zeitfenster (HH:MM), leer für ganztägig |
   | `location` | Ort, kurz |
-  | `details` | Einzelheiten für die Beschreibung, kurz; nie Codes, PINs oder Passwörter |
+  | `details` | Einzelheiten, je Zeile „Bezeichnung: Wert“; nie Codes, PINs oder Passwörter |
 
 - **Prüfung im Code**, bevor etwas übernommen wird: `day` gültig und höchstens 7 Tage vor, höchstens ein Jahr nach dem
-  Datum der Mail; Uhrzeiten gültig, `end` nach `start` (sonst ohne `end`); `key` nur Buchstaben, Ziffern und
-  Bindestrich (höchstens 40); Titel (80), Ort (100) und Einzelheiten (300) gekürzt. Was nicht passt, fällt weg; ohne
-  Titel oder Tag gibt es keinen Eintrag.
+  Datum der Mail; Uhrzeiten gültig, `end` nach `start` (sonst ohne `end`); jeder Schlüssel nur Buchstaben, Ziffern
+  und Bindestrich (höchstens 40), höchstens 8; Titel (80) und Ort (100) gekürzt, Einzelheiten höchstens 6 Zeilen zu
+  100 Zeichen. Was nicht passt, fällt weg.
+- **Ohne Titel oder Tag gibt es keinen Eintrag**, bis eine Mail den Tag nennt (eine Versandmail ohne Zustelltag
+  trägt nichts ein). Eine Absage braucht keinen Tag: Sie löscht den Eintrag, den sie über einen Schlüssel findet.
 
 ## 4. Der Kalendereintrag
 
 - Mit `start` (und `end`): Termin; sonst ganztägig am `day`. Ohne `end` dauert ein Termin eine Stunde.
-- **Beschreibung:** die Einzelheiten, darunter zwei feste Zeilen, die Mira liest:
-  - `mira-mail: <key>` (die Kennung; ohne Schlüssel `mira-mail: -`),
+- **Beschreibung:** die Einzelheiten, darunter feste Zeilen, die Mira liest:
+  - `mira-mail: <key>, <key>` (die Kennungen; ohne Schlüssel `mira-mail: -`),
   - `Stand: <Datum der Mail>` und `Status: <status>`.
-- **Kennung:** Vor dem Anlegen sucht Mira in den Einträgen des Kalenders von 30 Tagen vor bis ein Jahr nach heute
-  nach `mira-mail: <key>`. Gefunden: ändern. Die interne Kennung des Kalenders hilft nicht, die vergibt der Kalender.
+- **Kennungen:** Verschiedene Mails zur selben Sache nennen oft verschiedene Nummern (der Shop die Bestellnummer, der
+  Paketdienst die Sendungsnummer). Vor dem Anlegen sucht Mira in den Einträgen des Kalenders von 30 Tagen vor bis ein
+  Jahr nach heute einen, der **einen** Schlüssel mit der Mail teilt (Groß- und Kleinschreibung egal). Gefunden:
+  ändern, und die Schlüssel beider kommen zusammen. Die interne Kennung des Kalenders hilft nicht, die vergibt der
+  Kalender.
 - **Ohne Schlüssel:** Ein zweiter isolierter Aufruf bekommt die offenen Einträge (Titel, Tag) und sagt, ob die Mail
   denselben betrifft (Nummer) oder einen neuen. Im Zweifel neu.
+- **Was die neue Mail nicht nennt, bleibt:** die Einzelheiten, deren Bezeichnung sie nicht nennt; der Ort, wenn sie
+  keinen nennt; das Zeitfenster, wenn sie denselben Tag ohne Zeit nennt; der Titel, wenn der neue nur sein Anfang ist
+  („Paket von Amazon“ lässt „Paket von Amazon: Druckerpatronen“ stehen).
 - **Die neueste Mail gewinnt:** Ist das Datum der Mail älter als der `Stand` des gefundenen Eintrags, wird sie
   verworfen. So ist es gleich, in welcher Reihenfolge Mails ankommen; doppelte Verarbeitung ändert nichts.
 - **Status:** `cancelled` löscht den Eintrag; `done` lässt ihn bis zum Ende seines Tages stehen.

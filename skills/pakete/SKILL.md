@@ -8,24 +8,33 @@ metadata:
       extract: >-
         Diese Mails kommen von Paketdiensten und Shops. Relevant ist eine Mail, die
         eine Sendung an den Empfänger ankündigt oder ihren Stand meldet (verschickt,
-        unterwegs, kommt heute, zugestellt, liegt zur Abholung bereit, storniert,
-        zurück an den Absender). Nicht relevant: Werbung, Rechnungen, Bewertungsbitten,
-        Umfragen, Sendungen, die der Empfänger selbst verschickt.
-        Titel: „Paket von <Shop oder Absender>“, mit dem Inhalt, wenn die Mail ihn
-        nennt („Paket von Amazon: Druckerpatronen“); liegt es zur Abholung bereit:
-        „Paket von <Shop> abholbereit“. Ist der Shop unbekannt, der Paketdienst
-        („Paket per DHL“).
-        Kennung: die Sendungsnummer; ohne sie die Bestellnummer des Shops; sonst leer.
+        unterwegs, kommt heute, zugestellt, abgestellt, liegt zur Abholung bereit,
+        storniert, zurück an den Absender). Nicht relevant: Werbung, Rechnungen,
+        Bewertungsbitten, Umfragen, Sendungen, die der Empfänger selbst verschickt.
+        Titel: „Paket von <Shop oder Absender>“, mit der Ware, wenn die Mail sie
+        nennt („Paket von Amazon: Druckerpatronen“); nur die Ware, nie „1 Artikel“
+        oder eine Nummer. Liegt es zur Abholung bereit: „Paket von <Shop>
+        abholbereit“. Ist der Shop unbekannt, der Paketdienst („Paket per DHL“).
+        Kennungen (keys): alle Nummern, die diese Sendung oder Bestellung bezeichnen:
+        Sendungsnummer, Bestellnummer, Sendungs-ID des Shops. Keine Kunden-,
+        Rechnungs- oder Telefonnummern.
         Status: angekündigt, verschickt, unterwegs, kommt heute, abholbereit:
-        scheduled; zugestellt oder abgeholt: done; storniert oder zurück an den
-        Absender: cancelled.
+        scheduled; zugestellt, abgestellt (auch „wird am gewünschten Ort
+        abgestellt“) oder abgeholt: done; storniert oder zurück an den Absender:
+        cancelled.
         Tag und Zeit: der angekündigte Zustelltag und, wenn genannt, das Zeitfenster
-        (start und end). Nennt die Mail nur einen Zeitraum über mehrere Tage, den
-        ersten Tag, ganztägig. Liegt das Paket zur Abholung bereit: der Tag der Mail,
-        ganztägig, als Ort der PaketShop oder die Packstation mit Adresse; bis wann
-        es dort liegt, gehört in die Einzelheiten. Zugestellt: der Tag der Mail.
-        Einzelheiten: Paketdienst, Sendungsnummer, Bestellnummer, wo es abgelegt
-        wurde. Nie Abholcodes, PINs, Passwörter oder Links.
+        (start und end). Nennt die Mail eine Spanne („in 1–2 Werktagen“, „Mittwoch
+        bis Freitag“), den ersten Tag, ganztägig. Nennt sie keinen Zustelltag (etwa
+        nur „versandt“), bleibt day leer; der Versandtag ist kein Zustelltag.
+        Abholbereit: der Tag der Mail, ganztägig. Zugestellt oder abgestellt: der
+        Tag der Mail.
+        Ort (location): nur wo das Paket abzuholen ist, PaketShop oder Packstation
+        mit Adresse; sonst leer. Wo es abgestellt wird oder wurde, gehört in die
+        Einzelheiten.
+        Einzelheiten (details), je Zeile „Bezeichnung: Wert“, nur diese:
+        „Paketdienst“, „Sendungsnummer“, „Bestellnummer“, „Ablageort“, „Abholung
+        bis“. Nie Namen oder Adresse des Empfängers, Öffnungszeiten, Abholcodes,
+        PINs, Passwörter oder Links.
 ---
 # Pakete
 

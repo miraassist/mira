@@ -24,14 +24,18 @@ liefern Privatkunden oft kein Zeitfenster. Die Versandmails haben beides und meh
 
 - Relevant ist eine Mail, die eine Sendung an den Nutzer ankündigt oder ihren Stand meldet; Werbung, Rechnungen und
   Bewertungsbitten nicht.
-- **Titel:** „Paket von <Shop>“, mit Inhalt, wenn bekannt („Paket von Amazon: Druckerpatronen“); liegt es zur
-  Abholung bereit: „Paket von <Shop> abholbereit“.
-- **Kennung:** die Sendungsnummer, sonst die Bestellnummer des Shops.
-- **Status:** angekündigt, unterwegs, heute: `scheduled`; zugestellt oder abgeholt: `done`; storniert oder
-  zurückgeschickt: `cancelled`.
-- **Tag und Zeit:** der angekündigte Zustelltag und das Zeitfenster; bei Abholung der Tag der Mail (ganztägig) und als
-  Ort der PaketShop oder die Packstation, bis wann es dort liegt in den Einzelheiten.
-- **Einzelheiten:** Versender, Sendungsnummer, Bestellnummer. **Nie Abholcodes, PINs oder Links mit Kennungen.**
+- **Titel:** „Paket von <Shop>“, mit der Ware, wenn die Mail sie nennt („Paket von Amazon: Druckerpatronen“), nie
+  „1 Artikel“ oder eine Nummer; liegt es zur Abholung bereit: „Paket von <Shop> abholbereit“.
+- **Kennungen:** alle Nummern der Sendung oder Bestellung: Sendungsnummer, Bestellnummer, Sendungs-ID des Shops. So
+  findet die Mail des Paketdienstes den Eintrag aus der Mail des Shops.
+- **Status:** angekündigt, verschickt, unterwegs, heute, abholbereit: `scheduled`; zugestellt, abgestellt oder
+  abgeholt: `done`; storniert oder zurückgeschickt: `cancelled`.
+- **Tag und Zeit:** der angekündigte Zustelltag und das Zeitfenster; bei einer Spanne („in 1–2 Werktagen“) der erste
+  Tag. **Ohne Zustelltag** (nur „versandt“) kein Eintrag; der Versandtag ist kein Zustelltag. Abholbereit,
+  zugestellt: der Tag der Mail.
+- **Ort:** nur der Abholort (PaketShop, Packstation); wo es abgestellt wird, steht in den Einzelheiten.
+- **Einzelheiten:** nur Paketdienst, Sendungsnummer, Bestellnummer, Ablageort, Abholung bis. **Nie Namen oder Adresse
+  des Empfängers, Abholcodes, PINs oder Links.**
 
 **Fragen** (Text des Skills): „Wann kommt mein Paket?“ liest den Kalender „Pakete“ und den eigenen der Person
 („Pakete <Login>“, wenn die Person bekannt ist). Mira nennt Tag, Zeitfenster, Shop und Inhalt; Abholort ja, Codes nie.

@@ -162,8 +162,10 @@ func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
 	if !item.Relevant {
 		return Outcome{Action: "ignored", Reason: "not relevant"}, nil
 	}
-	entry, ok := s.check(&item, m.Date)
-	if !ok {
+	entry, dated := s.check(&item, m.Date)
+	if !dated && item.Status != statusCancelled {
+		// Nothing to put into the calendar until a mail names the day; a
+		// cancellation needs none.
 		return Outcome{Action: "ignored", Reason: "no title or day"}, nil
 	}
 
@@ -178,12 +180,15 @@ func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
 	case found != nil && !newer(m.Date, *found):
 		return Outcome{Action: "ignored", Reason: "older than the entry", Title: found.Summary}, nil
 	case found != nil && item.Status == statusCancelled:
+		out.Title = found.Summary
 		out.Action, err = "deleted", s.o.Calendar.Delete(ctx, entity, found.UID)
-	case found != nil:
-		entry.Description = describe(item, m.Date)
-		out.Action, err = "updated", s.o.Calendar.Update(ctx, entity, found.UID, entry)
 	case item.Status == statusCancelled:
 		return Outcome{Action: "ignored", Reason: "cancels nothing known"}, nil
+	case found != nil:
+		entry = merge(*found, entry, &item)
+		entry.Description = describe(item, m.Date)
+		out.Title = entry.Summary
+		out.Action, err = "updated", s.o.Calendar.Update(ctx, entity, found.UID, entry)
 	default:
 		entry.Description = describe(item, m.Date)
 		out.Action, err = "created", s.o.Calendar.Create(ctx, entity, entry)
@@ -191,8 +196,56 @@ func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	s.log.Info("mail kept", "calendar", name, "action", out.Action, "title", out.Title, "key", item.Key != "")
+	s.log.Info("mail kept", "calendar", name, "action", out.Action, "title", out.Title, "keys", len(item.Keys))
 	return out, nil
+}
+
+// merge keeps of the entry a mail updates what the mail does not name: its
+// keys, the details whose label the mail does not give, the place, the time
+// window on the same day, and a title the new one only begins (content the
+// mail does not repeat). The item takes the merged keys and details.
+func merge(old Event, e Entry, it *item) Entry {
+	m, _ := marks(old.Description)
+	it.Keys = mergeKeys(m.keys, it.Keys)
+	it.Details = mergeDetails(it.Details, m.details)
+	if e.Location == "" {
+		e.Location = old.Location
+	}
+	if e.Start.IsZero() && !old.AllDay && old.Day.Equal(e.Day) {
+		e.Start, e.End = old.Start, old.End
+	}
+	if strings.HasPrefix(strings.ToLower(old.Summary), strings.ToLower(e.Summary)) {
+		e.Summary = old.Summary
+	}
+	return e
+}
+
+// mergeDetails is the new lines, then the old ones whose label ("Label:
+// value") no new line has, up to maxDetails.
+func mergeDetails(lines, old []string) []string {
+	out := append([]string(nil), lines...)
+	have := map[string]bool{}
+	for _, l := range lines {
+		have[label(l)] = true
+	}
+	for _, l := range old {
+		if len(out) >= maxDetails {
+			break
+		}
+		if k := label(l); !have[k] {
+			out = append(out, l)
+			have[k] = true
+		}
+	}
+	return out
+}
+
+// label is a detail line's part before its colon, or the whole line.
+func label(line string) string {
+	if i := strings.Index(line, ":"); i > 0 {
+		line = line[:i]
+	}
+	return strings.ToLower(strings.TrimSpace(line))
 }
 
 func (s *Service) lock(name string) *sync.Mutex {
@@ -217,40 +270,56 @@ const (
 )
 
 func describe(it item, date time.Time) string {
-	key := it.Key
-	if key == "" {
-		key = "-"
+	keys := strings.Join(it.Keys, ", ")
+	if keys == "" {
+		keys = "-"
 	}
 	var b strings.Builder
-	if d := strings.TrimSpace(it.Details); d != "" {
-		b.WriteString(d + "\n\n")
+	if len(it.Details) > 0 {
+		b.WriteString(strings.Join(it.Details, "\n") + "\n\n")
 	}
-	b.WriteString(markKey + key + "\n")
+	b.WriteString(markKey + keys + "\n")
 	b.WriteString(markStand + date.UTC().Format(time.RFC3339) + "\n")
 	b.WriteString(markStatus + it.Status)
 	return b.String()
 }
 
-// marks reads the lines Mira wrote; ok is false for an entry Mira did not make.
-func marks(description string) (key string, stand time.Time, status string, ok bool) {
+// mark is what Mira wrote into an entry's description.
+type mark struct {
+	keys    []string
+	details []string
+	stand   time.Time
+	status  string
+}
+
+// marks reads the lines Mira wrote; ok is false for an entry Mira did not
+// make. The details are the lines before the key line.
+func marks(description string) (m mark, ok bool) {
 	for _, line := range strings.Split(description, "\n") {
 		line = strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(line, markKey):
-			key, ok = strings.TrimSpace(strings.TrimPrefix(line, markKey)), true
+			ok = true
+			for _, k := range strings.Split(strings.TrimPrefix(line, markKey), ",") {
+				if k = strings.TrimSpace(k); k != "" && k != "-" {
+					m.keys = append(m.keys, k)
+				}
+			}
 		case strings.HasPrefix(line, markStand):
-			stand, _ = time.Parse(time.RFC3339, strings.TrimSpace(strings.TrimPrefix(line, markStand)))
+			m.stand, _ = time.Parse(time.RFC3339, strings.TrimSpace(strings.TrimPrefix(line, markStand)))
 		case strings.HasPrefix(line, markStatus):
-			status = strings.TrimSpace(strings.TrimPrefix(line, markStatus))
+			m.status = strings.TrimSpace(strings.TrimPrefix(line, markStatus))
+		case !ok && line != "":
+			m.details = append(m.details, line)
 		}
 	}
-	return key, stand, status, ok
+	return m, ok
 }
 
 // newer: the mail is newer than what the entry was last changed from.
 func newer(date time.Time, e Event) bool {
-	_, stand, _, _ := marks(e.Description)
-	return stand.IsZero() || date.After(stand)
+	m, _ := marks(e.Description)
+	return m.stand.IsZero() || date.After(m.stand)
 }
 
 // --- the mail to text --------------------------------------------------------

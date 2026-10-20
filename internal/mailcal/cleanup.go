@@ -29,12 +29,12 @@ func (s *Service) Cleanup(ctx context.Context) error {
 			continue
 		}
 		for _, e := range events {
-			_, _, status, ok := marks(e.Description)
+			m, ok := marks(e.Description)
 			day := e.Day.In(s.o.Location)
 			if !ok || !day.Before(today) {
 				continue
 			}
-			if status == statusDone || day.Before(today.AddDate(0, 0, -7)) {
+			if m.status == statusDone || day.Before(today.AddDate(0, 0, -7)) {
 				if err := s.o.Calendar.Delete(ctx, entity, e.UID); err != nil {
 					s.log.Warn("could not remove an old entry", "calendar", name, "error", err)
 					continue

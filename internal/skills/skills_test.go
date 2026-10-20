@@ -187,7 +187,7 @@ func TestPaketeIsAMailApplication(t *testing.T) {
 	if len(problems) != 0 || len(list) != 1 || list[0].Mail == nil || list[0].Target != nil {
 		t.Fatalf("load: %+v %v", list, problems)
 	}
-	if ex := list[0].Mail.Extract; !strings.Contains(ex, "Sendungsnummer") || !strings.Contains(ex, "Nie Abholcodes") {
+	if ex := list[0].Mail.Extract; !strings.Contains(ex, "Sendungsnummer") || !strings.Contains(ex, "Abholcodes") {
 		t.Errorf("extract: %q", ex)
 	}
 }
