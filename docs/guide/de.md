@@ -155,7 +155,7 @@ So richtest du es ein:
 
 1. In Home Assistant die Integration **IMAP** hinzufügen, mit deinem Mail-Postfach.
 2. Beim Einrichten als **Suche** nur die Paketdienste angeben, zum Beispiel `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
-3. Den Eintrag in **„Pakete“** umbenennen (für alle im Haus) oder in **„Pakete“ und deinen Login-Namen**, etwa „Pakete stefan“ (nur für dich).
+3. Nach dem Einrichten zeigt Home Assistant das neue Gerät („IMAP (deine Adresse)“). Das **Gerät** umbenennen in **„Pakete“** (für alle im Haus) oder in **„Pakete“ und deinen Login-Namen**, etwa „Pakete stefan“ (nur für dich).
 
 Den Kalender „Pakete“ (oder „Pakete stefan“) legt Mira selbst an; dort siehst du die Pakete auch in der Kalenderansicht. Mira liest nur Mails, die ab jetzt ankommen.
 

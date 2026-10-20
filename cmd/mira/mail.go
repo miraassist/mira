@@ -14,7 +14,7 @@ import (
 // the WebSocket commands calendar/event/create, update and delete.
 
 // builtinMail are the mail applications that are on when their folder is
-// there; the name of the IMAP entry is the switch.
+// there; the name of the IMAP entry's device is the switch.
 func builtinMail() []string {
 	return []string{"pakete"}
 }

@@ -28,8 +28,8 @@ import (
 
 // Mail is one mail as the Mira integration hands it over.
 type Mail struct {
-	// Entry is the name of the IMAP entry in Home Assistant: "<app>" or
-	// "<app> <login>". The calendar has the same name.
+	// Entry is the name of the IMAP entry's device in Home Assistant:
+	// "<app>" or "<app> <login>". The calendar has the same name.
 	Entry   string    `json:"entry"`
 	Sender  string    `json:"sender"`
 	Subject string    `json:"subject"`
@@ -122,7 +122,7 @@ func (s *Service) AppNames() []string {
 	return out
 }
 
-// App says which application an IMAP entry's name belongs to ("Pakete
+// App says which application an IMAP device's name belongs to ("Pakete
 // stefan" is pakete); "" when none.
 func (s *Service) App(entry string) string {
 	f := strings.Fields(strings.ToLower(entry))

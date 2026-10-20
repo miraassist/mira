@@ -8,7 +8,7 @@
 //	go run ./cmd/testha down          stop the container, keep its state
 //	go run ./cmd/testha reset         stop and delete all state; next up starts fresh
 //	go run ./cmd/testha contract      compare the real TECHO5 devices with the fakes' contract
-//	go run ./cmd/testha mail [N...]   deliver the sample mails to the IMAP entry "Pakete"
+//	go run ./cmd/testha mail [N...]   deliver the sample mails to the IMAP device "Pakete"
 //
 // Everything up does is idempotent: it only creates what is missing.
 package main

@@ -1,7 +1,9 @@
-"""The mails of IMAP entries named like a mail application go to the agent;
-other entries and repeated last mails do not."""
+"""The mails of IMAP entries whose device is named like a mail application
+go to the agent; other entries and repeated last mails do not. The entry's
+own title does not count."""
 
 from homeassistant.core import SupportsResponse
+from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.mail import _date, app_of
@@ -33,10 +35,18 @@ async def test_new_mails_of_a_mail_entry_reach_the_agent(hass, aioclient_mock, e
         f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "mail_apps": ["pakete"]}
     )
     aioclient_mock.post(f"{AGENT_URL}/v1/mail", json={"action": "created"})
-    pakete = MockConfigEntry(domain="imap", title="Pakete stefan")
-    other = MockConfigEntry(domain="imap", title="me@example.com")
-    pakete.add_to_hass(hass)
-    other.add_to_hass(hass)
+    # Renamed device: counts. Entry title "Pakete" with the device as set up:
+    # does not.
+    pakete = MockConfigEntry(domain="imap", title="me@example.com")
+    other = MockConfigEntry(domain="imap", title="Pakete")
+    devices = dr.async_get(hass)
+    for imap in (pakete, other):
+        imap.add_to_hass(hass)
+        devices.async_get_or_create(
+            config_entry_id=imap.entry_id, identifiers={("imap", imap.entry_id)}, name="IMAP (me@example.com)"
+        )
+    (device,) = dr.async_entries_for_config_entry(devices, pakete.entry_id)
+    devices.async_update_device(device.id, name_by_user="Pakete  stefan")
 
     async def fetch(call):
         return {"text": "Ihr Paket kommt morgen.", "sender": "a@dhl.example", "subject": "Paket",

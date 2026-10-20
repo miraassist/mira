@@ -37,7 +37,7 @@ services:
     restart: "no"
 
   # A mail server of its own for the mail calendar (docs/spec/mail-kalender.md):
-  # the test HA's IMAP entry "Pakete" reads the mailbox pakete@test.local
+  # the test HA's IMAP entry (device "Pakete") reads the mailbox pakete@test.local
   # (password pakete, IMAPS with a self-signed certificate: verify_ssl off);
   # `go run ./cmd/testha mail` delivers the sample mails
   # from testenv/mailsamples over SMTP. Kept in memory: a restart empties it.

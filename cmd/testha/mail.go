@@ -13,7 +13,7 @@ import (
 )
 
 // The mail calendar in the test HA (docs/spec/mail-kalender.md): the IMAP
-// entry "Pakete" reads the GreenMail mailbox pakete@test.local, and mail
+// entry with the device "Pakete" reads the GreenMail mailbox pakete@test.local, and mail
 // delivers the samples from testenv/mailsamples to it, one after the other.
 //
 //	go run ./cmd/testha mail                    all samples, in name order
@@ -113,33 +113,26 @@ func fill(raw []byte, now time.Time) []byte {
 }
 
 // ensureIMAP creates the IMAP entry for the GreenMail mailbox once and names
-// it "Pakete" (its name is the switch for the mail calendar).
+// its device "Pakete" (the device's name is the switch for the mail
+// calendar; the entry's own title does not count).
 func ensureIMAP(ctx context.Context, token string) error {
 	var entries []struct {
-		EntryID string `json:"entry_id"`
-		Domain  string `json:"domain"`
-		Title   string `json:"title"`
+		Domain string `json:"domain"`
+		Title  string `json:"title"`
 	}
 	if err := api(ctx, "GET", "/api/config/config_entries/entry", token, nil, &entries); err != nil {
 		return err
 	}
-	id := ""
+	found := false
 	for _, e := range entries {
-		if e.Domain == "imap" && (e.Title == mailEntry || e.Title == mailAddr || e.Title == mailUser) {
-			if e.Title == mailEntry {
-				return nil
-			}
-			id = e.EntryID
-		}
+		// Older runs named the entry itself "Pakete".
+		found = found || e.Domain == "imap" && (e.Title == mailEntry || e.Title == mailAddr || e.Title == mailUser)
 	}
-	if id == "" {
+	if !found {
 		var flow struct {
 			FlowID string         `json:"flow_id"`
 			Type   string         `json:"type"`
 			Errors map[string]any `json:"errors"`
-			Result struct {
-				EntryID string `json:"entry_id"`
-			} `json:"result"`
 		}
 		if err := api(ctx, "POST", "/api/config/config_entries/flow", token, map[string]any{"handler": "imap"}, &flow); err != nil {
 			return err
@@ -154,16 +147,37 @@ func ensureIMAP(ctx context.Context, token string) error {
 		if flow.Type != "create_entry" {
 			return fmt.Errorf("imap setup ended with %q %v", flow.Type, flow.Errors)
 		}
-		id = flow.Result.EntryID
 	}
 	admin, stop, err := connect(ctx, token)
 	if err != nil {
 		return err
 	}
 	defer stop()
-	_, err = admin.Call(ctx, map[string]any{"type": "config_entries/update", "entry_id": id, "title": mailEntry})
-	if err == nil {
-		fmt.Println("IMAP entry", mailEntry, "set up")
+	// HA names the entry's device "IMAP (<user>)"; it appears with the
+	// entry's sensor, a moment after the setup.
+	for wait := 0; wait < 20; wait++ {
+		devices, err := admin.Devices(ctx)
+		if err != nil {
+			return err
+		}
+		for _, d := range devices {
+			if d.Name != "IMAP ("+mailUser+")" {
+				continue
+			}
+			if d.NameByUser == mailEntry {
+				return nil
+			}
+			_, err := admin.Call(ctx, map[string]any{"type": "config/device_registry/update", "device_id": d.ID, "name_by_user": mailEntry})
+			if err == nil {
+				fmt.Println("IMAP device", mailEntry, "set up")
+			}
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
 	}
-	return err
+	return fmt.Errorf("no device %q in the test HA", "IMAP ("+mailUser+")")
 }

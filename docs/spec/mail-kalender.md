@@ -1,6 +1,6 @@
 # Mail-Kalender – Spezifikation
 
-Stand 2026-10-20. Beschlossen, gebaut (0.6.56). Erste Anwendung: [Pakete](pakete.md).
+Stand 2026-10-20. Beschlossen, gebaut (0.6.57). Erste Anwendung: [Pakete](pakete.md).
 
 ## Ziel
 
@@ -16,34 +16,37 @@ wie man Fragen dazu beantwortet, sagt ein **Skill** je Anwendung (`pakete`, spä
 ## Grundsatz
 
 - **Nichts nachbauen, was HA anbietet:** Mails kommen über die IMAP-Integration von Home Assistant.
-- **Konvention vor Einstellung:** Der Name des IMAP-Eintrags bestimmt Anwendung, Kalender und Besitzer.
+- **Konvention vor Einstellung:** Der Name des IMAP-Geräts bestimmt Anwendung, Kalender und Besitzer.
 - **Mails sind fremder Text:** Ausgewertet wird isoliert; heraus kommen nur geprüfte Daten, nie Anweisungen.
 
-## 1. Der IMAP-Eintrag und sein Name
+## 1. Der IMAP-Eintrag und der Name seines Geräts
 
 - Der Nutzer richtet in HA die **IMAP-Integration** ein. Ein Eintrag hat einen Ordner (Vorgabe: Posteingang) und eine
   **Suche** in IMAP-Syntax (etwa `OR FROM dhl.de FROM hermesworld.com`); beides lässt sich kombinieren. Mira setzt auf
   die Suche; ein eigener Ordner per Regel im Mailprogramm ist möglich, wenn die Suche nicht reicht.
 - Je Anwendung ein Eintrag, denn jede Anwendung hat ihre eigenen Absender. Man kann mehrere Einträge auf dasselbe
   Postfach anlegen.
-- **Der Name des Eintrags** (in HA umbenennbar, Vorgabe die Mail-Adresse) folgt der Konvention
-  **`<Anwendung>`** oder **`<Anwendung> <Login>`**:
+- **Der Name des Geräts**, das HA zu jedem IMAP-Eintrag anlegt (Vorgabe „IMAP (Mail-Adresse)“), folgt der
+  Konvention **`<Anwendung>`** oder **`<Anwendung> <Login>`**. Es gilt nur der Gerätename, nicht der Name des
+  Eintrags: Das Gerät zeigt HA nach dem Einrichten als Erstes, und es ist das, was man umbenennt. Zwei Namen, die
+  beide gelten, wären eine Falle (Eintrag und Gerät sehen in HA fast gleich aus).
+  - Beispiele:
   - „Pakete“: Anwendung `pakete`, gehört dem **Haus**.
   - „Pakete stefan“: Anwendung `pakete`, gehört der Person mit dem Login-Namen `stefan` (oder die so heißt, wie beim
     [Kalender](kalender.md)).
-  - Die Anwendung ist der Name eines Mail-Skills (Groß- und Kleinschreibung egal). Einträge, deren Name zu keinem
-    Mail-Skill passt, liest Mira nicht.
-- **Der Kalender heißt wie der Eintrag:** „Pakete“, „Pakete stefan“. Fehlt er, legt die Integration einen lokalen
+  - Die Anwendung ist der Name eines Mail-Skills (Groß- und Kleinschreibung egal). Einträge, deren Gerätename zu
+    keinem Mail-Skill passt, liest Mira nicht.
+- **Der Kalender heißt wie das Gerät:** „Pakete“, „Pakete stefan“. Fehlt er, legt die Integration einen lokalen
   Kalender dieses Namens an und gibt ihn für Assist frei.
 - Abweichende Namen per Einstellung: später, wenn jemand sie braucht.
 
 ## 2. Der Weg einer Mail
 
 ```
-IMAP-Eintrag „Pakete“ (Suche)
+IMAP-Eintrag mit Gerät „Pakete“ (Suche)
   → HA: Ereignis imap_content (neue Mail)
-  → Mira-Integration: Eintrag passt zu einem Mail-Skill? vollen Text holen (imap.fetch)
-  → Agent POST /v1/mail: Name des Eintrags, Absender, Betreff, Datum, Text
+  → Mira-Integration: Gerätename passt zu einem Mail-Skill? vollen Text holen (imap.fetch)
+  → Agent POST /v1/mail: Gerätename, Absender, Betreff, Datum, Text
   → Agent: Auswertung isoliert (Anleitung des Skills, festes Schema), Felder prüfen
   → Agent: Eintrag im Kalender anlegen, ändern oder löschen, wenn die Mail neuer ist
 ```
@@ -122,7 +125,7 @@ metadata:
   Skill.
 - Der Text des Skills ist, wie bei jedem Skill, die Anleitung für Fragen („Wann kommt mein Paket?“).
 - Mail-Skills ohne Pflichteinstellungen schalten sich ein, wenn ihr Ordner da ist, wie die eingebauten Ziele: Der
-  Name des IMAP-Eintrags ist der Schalter.
+  Gerätename des IMAP-Eintrags ist der Schalter.
 
 ## 6. Mitlesen im Briefing
 
@@ -131,7 +134,7 @@ gibt; das Haus-Briefing „Pakete“, wenn er in seiner Einstellung `kalender` s
 
 ## 7. Test
 
-- Die Test-HA bekommt einen IMAP-Server im Container (GreenMail) und einen IMAP-Eintrag „Pakete“;
+- Die Test-HA bekommt einen IMAP-Server im Container (GreenMail) und einen IMAP-Eintrag mit Gerät „Pakete“;
   `go run ./cmd/testha mail` stellt die Beispielmails zu (testenv/README.md).
 - Beispielmails: selbst geschriebene nach den Mustern von DHL, GLS, Hermes und eBay (im Repo, ohne echte Daten);
   echte Mails nur lokal (`testenv/mails/`, nicht im Git).

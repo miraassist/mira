@@ -151,7 +151,7 @@ To set it up:
 
 1. In Home Assistant, add the **IMAP** integration with your mailbox.
 2. When setting it up, enter a **search** for the parcel services only, for example `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
-3. Rename the entry to **"Pakete"** (for everyone in the house) or to **"Pakete" and your login name**, such as "Pakete stefan" (just for you).
+3. After setup Home Assistant shows the new device ("IMAP (your address)"). Rename the **device** to **"Pakete"** (for everyone in the house) or to **"Pakete" and your login name**, such as "Pakete stefan" (just for you).
 
 Mira creates the calendar "Pakete" (or "Pakete stefan") herself; you see the parcels in the calendar view there too. Mira reads only mails that arrive from now on.
 

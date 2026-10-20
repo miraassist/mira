@@ -61,7 +61,8 @@ go run ./cmd/testha mail             # all samples, 30 s apart
 go run ./cmd/testha mail -wait 45s 3 # only the sample starting with 3
 ```
 
-The first run creates the IMAP entry "Pakete" in the test HA (search
+The first run creates an IMAP entry in the test HA and names its device
+"Pakete" (search
 `UNSEEN`: GreenMail knows no `UNDELETED`), the integration then creates the
 calendar "Pakete" within a minute. The samples in `testenv/mailsamples` are
 made up; their dates are filled in at delivery, and each gets a new

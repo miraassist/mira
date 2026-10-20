@@ -1,6 +1,6 @@
 # Pakete – Spezifikation
 
-Stand 2026-10-20. Beschlossen, gebaut (0.6.56). Die erste Anwendung des [Mail-Kalenders](mail-kalender.md); wie Mails
+Stand 2026-10-20. Beschlossen, gebaut (0.6.57). Die erste Anwendung des [Mail-Kalenders](mail-kalender.md); wie Mails
 hereinkommen, ausgewertet und eingetragen werden, steht dort.
 
 ## Ziel
@@ -15,7 +15,8 @@ liefern Privatkunden oft kein Zeitfenster. Die Versandmails haben beides und meh
 
 - In HA einen **IMAP-Eintrag** anlegen, mit einer Suche nach den Absendern der Paketdienste, etwa
   `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu` (Ordner: Posteingang).
-- Den Eintrag **„Pakete“** nennen (fürs Haus) oder **„Pakete <Login>“** (für eine Person, etwa „Pakete stefan“).
+- Das **Gerät** des Eintrags **„Pakete“** nennen (fürs Haus) oder **„Pakete <Login>“** (für eine Person, etwa
+  „Pakete stefan“). Der Name des Eintrags selbst zählt nicht.
 - Den Kalender gleichen Namens legt Mira an, wenn es ihn nicht gibt.
 
 ## Skill `pakete`
