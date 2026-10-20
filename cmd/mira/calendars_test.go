@@ -29,3 +29,24 @@ func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 		}
 	}
 }
+
+// "Stefan Rinke" owns the calendar "Stefan" by first name, unless another
+// person has that first name too.
+func TestOwnCalendarByFirstName(t *testing.T) {
+	cals := []calendar.Info{{Name: "Stefan"}, {Name: "Familie"}}
+	got := reachablePeople(map[string]config.Person{
+		"stefan_rinke": {Name: "Stefan Rinke", AloneIsMe: true},
+	}, cals)
+	if len(got) != 1 || got[0].Calendar != "Stefan" {
+		t.Errorf("by first name: %+v", got)
+	}
+	got = reachablePeople(map[string]config.Person{
+		"stefan_rinke": {Name: "Stefan Rinke", AloneIsMe: true},
+		"stefan_meier": {Name: "Stefan Meier", Channels: []string{"notify.x"}},
+	}, cals)
+	for _, p := range got {
+		if p.Calendar != "" {
+			t.Errorf("ambiguous first name still matched: %+v", got)
+		}
+	}
+}

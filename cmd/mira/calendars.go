@@ -101,12 +101,20 @@ func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 	return out
 }
 
-// reachablePeople are the persons a personal message reaches, with the
-// calendar named like them, if any.
+// reachablePeople are the persons a personal message reaches, with their
+// own calendar, if any: one named like the person ("Stefan Rinke"), or like
+// their first name ("Stefan") when no other person has it.
 func reachablePeople(persons map[string]config.Person, cals []calendar.Info) []skills.Person {
+	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 	byName := map[string]string{}
 	for _, c := range cals {
-		byName[strings.ToLower(strings.TrimSpace(c.Name))] = c.Name
+		byName[norm(c.Name)] = c.Name
+	}
+	firstNames := map[string]int{}
+	for _, p := range persons {
+		if f := strings.Fields(p.Name); len(f) > 0 {
+			firstNames[norm(f[0])]++
+		}
 	}
 	var out []skills.Person
 	for key, p := range persons {
@@ -117,7 +125,11 @@ func reachablePeople(persons map[string]config.Person, cals []calendar.Info) []s
 		if name == "" {
 			name = key
 		}
-		out = append(out, skills.Person{Key: key, Name: name, Calendar: byName[strings.ToLower(strings.TrimSpace(name))]})
+		cal := byName[norm(name)]
+		if f := strings.Fields(name); cal == "" && len(f) > 1 && firstNames[norm(f[0])] == 1 {
+			cal = byName[norm(f[0])]
+		}
+		out = append(out, skills.Person{Key: key, Name: name, Calendar: cal})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
