@@ -253,6 +253,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Forbidden: func() map[string]any {
 			return map[string]any{"domains": nonEmpty(cfg.Security.ConfirmDomains), "entities": nonEmpty(cfg.Security.ConfirmEntities)}
 		},
+		// The countdown timer is Home Assistant's own, on the satellite
+		// that heard the request.
+		Intents: timer.HTTPIntents{URL: cfg.HA.URL, Token: cfg.HA.Token},
+		DeviceOf: func(ctx context.Context, key string) string {
+			if sess, err := a.store.GetSession(ctx, key); err == nil {
+				return sess.DeviceID
+			}
+			return ""
+		},
 	})...)
 	// Radio on the room's speaker (docs/spec/radio.md).
 	internal = append(internal, radio.Tool(radio.Options{

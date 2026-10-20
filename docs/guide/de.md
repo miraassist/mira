@@ -270,6 +270,14 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 **Wichtige Aktionen bestätigen**: Schlösser, Alarmanlage, Garagentor und Ähnliches führt Mira erst aus, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
+## Timer
+
+„Stell einen Timer auf 10 Minuten für die Nudeln.“ – „Wie lange noch?“ – „Noch fünf Minuten dazu.“ – „Timer anhalten.“ – „Timer abbrechen.“
+
+Das sind die Timer von Home Assistant, und sie laufen auf dem Satelliten, an dem du sprichst: Er zählt herunter, zeigt den Rest (der Show auf dem Bildschirm), klingelt, und du stoppst ihn mit „Stopp“. Mira baut keinen eigenen Timer, sie bedient den von Home Assistant. Mehrere Timer unterscheidet der Name („den Nudel-Timer“). Auf einem Gerät ohne Timer, etwa in Telegram, sagt Mira das ehrlich.
+
+Eine **Erinnerung** („Erinnere mich in einer Stunde an die Wäsche“) ist etwas anderes: Mira sagt dir dann den Text.
+
 ## Einschlaf-Timer
 
 „Schlaf-Timer 30 Minuten.“ – „Schalte in einer halben Stunde die Musik aus, und das Licht auch.“ – „Noch zehn Minuten.“ – „Doch abbrechen.“ – „Welche Timer habe ich?“

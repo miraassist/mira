@@ -185,11 +185,11 @@ func TestListShowsOnlyTheUsersOwnOpenTimers(t *testing.T) {
 	run(t, by[ToolSleep], anna, `{"minutes":30}`)
 	run(t, by[ToolSleep], tools.Invocation{Person: "ben", Area: "wohnzimmer"}, `{"minutes":45}`)
 	ha.timers = append(ha.timers, Timer{ID: "old", Owner: "anna", Area: "bad", Ran: true, Due: now.Format(time.RFC3339)})
-	out := run(t, by[ToolList], anna, `{}`)
+	out := run(t, by[ToolSleep], anna, `{"action":"list"}`)
 	if strings.Count(out, "\n") != 0 || !strings.Contains(out, "in 30 Minuten") || !strings.Contains(out, "Raum Wohnzimmer") {
 		t.Errorf("list: %q", out)
 	}
-	if out := run(t, by[ToolList], tools.Invocation{Person: "zoe", Area: "bad"}, `{}`); out != "Keine offenen Timer." {
+	if out := run(t, by[ToolSleep], tools.Invocation{Person: "zoe", Area: "bad"}, `{"action":"list"}`); out != "Keine offenen Schlaf-Timer." {
 		t.Errorf("empty: %q", out)
 	}
 }
@@ -197,7 +197,7 @@ func TestListShowsOnlyTheUsersOwnOpenTimers(t *testing.T) {
 func TestExtendAddsToTheDueTimeAndKeepsTheActions(t *testing.T) {
 	by, ha := setup()
 	run(t, by[ToolSleep], anna, `{"minutes":30,"lights_off":true}`)
-	out := run(t, by[ToolExtend], anna, `{"add_minutes":10}`)
+	out := run(t, by[ToolSleep], anna, `{"action":"extend","minutes":10}`)
 	if !strings.Contains(out, "22:45") || !strings.Contains(out, "in 40 Minuten") {
 		t.Errorf("answer: %q", out)
 	}
@@ -210,7 +210,7 @@ func TestExtendAddsToTheDueTimeAndKeepsTheActions(t *testing.T) {
 	}
 	// Due but not run (Home Assistant was off): the extension counts from now.
 	ha.timers[0].Due = now.Add(-time.Hour).Format(time.RFC3339)
-	run(t, by[ToolExtend], anna, `{"add_minutes":10}`)
+	run(t, by[ToolSleep], anna, `{"action":"extend","minutes":10}`)
 	if ha.timers[0].Due != now.Add(10*time.Minute).Format(time.RFC3339) {
 		t.Errorf("overdue extend: %+v", ha.timers[0])
 	}
@@ -222,17 +222,17 @@ func TestSeveralTimersAreAskedAbout(t *testing.T) {
 		{ID: "a", Title: "Schlaf-Timer Wohnzimmer", Owner: "anna", Area: "wohnzimmer", Due: now.Add(10 * time.Minute).Format(time.RFC3339), Kind: "sleep"},
 		{ID: "b", Title: "Schlaf-Timer Bad", Owner: "anna", Area: "bad", Due: now.Add(20 * time.Minute).Format(time.RFC3339), Kind: "sleep"},
 	}
-	out := run(t, by[ToolCancel], anna, `{}`)
-	if !strings.Contains(out, "mehrere Timer") || !strings.Contains(out, "a (") || len(ha.timers) != 2 {
+	out := run(t, by[ToolSleep], anna, `{"action":"cancel"}`)
+	if !strings.Contains(out, "mehrere Schlaf-Timer") || !strings.Contains(out, "a (") || len(ha.timers) != 2 {
 		t.Errorf("ask: %q %+v", out, ha.timers)
 	}
-	if out := run(t, by[ToolCancel], anna, `{"id":"b"}`); out != "Der Timer ist abgebrochen." || len(ha.timers) != 1 || ha.timers[0].ID != "a" {
+	if out := run(t, by[ToolSleep], anna, `{"action":"cancel","id":"b"}`); out != "Der Schlaf-Timer ist abgebrochen." || len(ha.timers) != 1 || ha.timers[0].ID != "a" {
 		t.Errorf("cancel by id: %q %+v", out, ha.timers)
 	}
-	if out := run(t, by[ToolCancel], anna, `{"id":"zzz"}`); !strings.Contains(out, "keinen offenen Timer") {
+	if out := run(t, by[ToolSleep], anna, `{"action":"cancel","id":"zzz"}`); !strings.Contains(out, "keinen offenen Schlaf-Timer") {
 		t.Errorf("unknown id: %q", out)
 	}
-	if out := run(t, by[ToolCancel], anna, `{}`); out != "Der Timer ist abgebrochen." || len(ha.timers) != 0 {
+	if out := run(t, by[ToolSleep], anna, `{"action":"cancel"}`); out != "Der Schlaf-Timer ist abgebrochen." || len(ha.timers) != 0 {
 		t.Errorf("cancel the only one: %q %+v", out, ha.timers)
 	}
 }

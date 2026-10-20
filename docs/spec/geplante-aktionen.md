@@ -23,6 +23,20 @@ fünf Minuten“). Siehe [Skill-Ideen](skill-ideen.md).
 
 Beides bleibt nebeneinander. „Welche Timer habe ich?“ fragt beide Listen ab.
 
+## Countdown-Timer sind etwas Drittes
+
+„Timer auf zehn Minuten für die Nudeln“ baut Mira **nicht** nach. Das sind die Timer von Home Assistant
+(`HassStartTimer` und Verwandte): Der Satellit, der sie bekommt, zählt herunter, zeigt den Rest und klingelt
+(TECHO5 tut das auf Show wie auf Echo, auf dem Show mit Bildschirm). Das Werkzeug `timer` ruft diese Intents über
+`POST /api/intent/handle` mit der Gerätekennung des Satelliten auf, an dem gesprochen wurde. Die Anbieter von
+Sprachmodellen in Home Assistant bekommen diese Werkzeuge von dessen eigener Schnittstelle; Mira geht über MCP, dort
+fehlen sie, weil sie ein Gerät brauchen. Aktionen: `start`, `status`, `cancel` (auch alle), `add`, `remove`,
+`pause`, `resume`. Nichts wird bei Mira gespeichert. Ohne Satelliten (Telegram) sagt Mira ehrlich, dass es hier keinen
+Timer gibt. Die Timer von Home Assistant liegen im Speicher von Home Assistant und überstehen dessen Neustart nicht.
+
+Damit sind es drei Dinge: der Countdown-Timer (HA, am Satelliten), die Erinnerung (Mira sagt einen Text) und der
+Schlaf-Timer (HA-Automation, tut etwas).
+
 ## Die Automation
 
 Eine **einmalige Automation** ist eine gewöhnliche HA-Automation mit dem Label **„Mira: einmalig“**
@@ -105,12 +119,11 @@ Es läuft über die Integration (Websocket-Befehle, wie bei Aufgaben):
 
 Zuerst nur der Fall, den man wirklich braucht (kein Modell schreibt Aktionen):
 
-- **`sleep_timer(minutes, room?, lights_off?)`:** Mira baut die Aktionen selbst: die Player des Raums stoppen
+- **`sleep_timer(action, minutes?, room?, lights_off?, id?)`** (ein Werkzeug, `action`: `set` (Standard), `list`, `extend`, `cancel`):
+  `set` ist der Schlaf-Timer. Mira baut die Aktionen selbst: die Player des Raums stoppen
   (die freigegebenen Player im Bereich, wie bei `radio_play`), Licht im Raum aus. Raum ist der des Satelliten.
-- **`timer_list`:** die einmaligen Automationen der Person im Raum, mit „wie lange noch“. Erinnerungen listet das
-  vorhandene Erinnerungswerkzeug; das Modell ruft bei „Welche Timer habe ich?“ beide auf.
-- **`timer_extend(id?, add_minutes)`, `timer_cancel(id?)`:** ohne Kennung gilt der Timer der Person im Raum; gibt es
-  mehrere, fragt Mira nach.
+  `list` zeigt die Schlaf-Timer der Person im Raum mit „wie lange noch“.
+  `extend` und `cancel` brauchen keine Kennung, wenn die Person im Raum nur einen hat; gibt es mehrere, fragt Mira nach.
 
 Später, nach dem ersten Fall: ein allgemeines `action_schedule` mit Aktionen, die das Modell aus den freigegebenen
 Entitäten wählt („Mach in einer Stunde das Licht aus“). Dieselbe Prüfung, dieselben Grenzen.
