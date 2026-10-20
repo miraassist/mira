@@ -13,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_IMPORTED, DOMAIN
-from .managed import build_config, exposed_entities, exposed_hash
+from .managed import async_config, exposed_entities, exposed_hash
 from .once import sweep
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._synced and (theirs is None or theirs == exposed_hash(exposed_entities(self.hass))):
             return
         try:
-            await self.client.set_managed_config(build_config(self.hass, entry))
+            await self.client.set_managed_config(await async_config(self.hass, entry))
         except (MiraInvalidConfig, ValueError) as err:
             # Retrying cannot fix it; the agent keeps its last valid config.
             _LOGGER.error("The agent refused watchers, persons and rooms from Home Assistant: %s", err)

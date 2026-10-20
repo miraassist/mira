@@ -92,7 +92,7 @@ func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 	if err != nil {
 		a.log.Warn("could not read the calendars for personal schedules", "error", err)
 	}
-	out := reachablePeople(a.persons(), cals)
+	out := reachablePeople(a.persons(), a.logins(ctx), cals)
 	for i := range out {
 		if p, _, err := a.store.Profile(ctx, out[i].Key); err == nil {
 			out[i].Profile = p
@@ -102,18 +102,15 @@ func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 }
 
 // reachablePeople are the persons a personal message reaches, with their
-// own calendar, if any: one named like the person ("Stefan Rinke"), or like
-// their first name ("Stefan") when no other person has it.
-func reachablePeople(persons map[string]config.Person, cals []calendar.Info) []skills.Person {
+// own calendar, if any: one named like the login of their Home Assistant
+// user ("stefan"), or like the person ("Stefan Rinke"), case and spaces
+// aside. logins is person entity: login.
+func reachablePeople(persons map[string]config.Person, logins map[string]string, cals []calendar.Info) []skills.Person {
 	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 	byName := map[string]string{}
 	for _, c := range cals {
-		byName[norm(c.Name)] = c.Name
-	}
-	firstNames := map[string]int{}
-	for _, p := range persons {
-		if f := strings.Fields(p.Name); len(f) > 0 {
-			firstNames[norm(f[0])]++
+		if n := norm(c.Name); n != "" {
+			byName[n] = c.Name
 		}
 	}
 	var out []skills.Person
@@ -125,9 +122,9 @@ func reachablePeople(persons map[string]config.Person, cals []calendar.Info) []s
 		if name == "" {
 			name = key
 		}
-		cal := byName[norm(name)]
-		if f := strings.Fields(name); cal == "" && len(f) > 1 && firstNames[norm(f[0])] == 1 {
-			cal = byName[norm(f[0])]
+		cal := byName[norm(logins[p.Entity])]
+		if cal == "" {
+			cal = byName[norm(name)]
 		}
 		out = append(out, skills.Person{Key: key, Name: name, Calendar: cal})
 	}

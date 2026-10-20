@@ -42,6 +42,10 @@ type haConfig struct {
 	// Exposed is what Home Assistant exposes to Assist; nil from an older
 	// integration.
 	Exposed []string `json:"exposed,omitempty"`
+	// Logins are the login names of the persons' Home Assistant users, by
+	// person entity; only an admin may read them, so the integration sends
+	// them. nil from an older integration.
+	Logins map[string]string `json:"logins,omitempty"`
 }
 
 type morningTrigger struct {
@@ -158,6 +162,12 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Exposed != nil && h.opts.SetExposed != nil {
 		if err := h.opts.SetExposed(r.Context(), in.Exposed); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if in.Logins != nil && h.opts.SetLogins != nil {
+		if err := h.opts.SetLogins(r.Context(), in.Logins); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

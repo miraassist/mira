@@ -18,6 +18,7 @@ import (
 )
 
 type fakeConfig struct {
+	logins   map[string]string
 	sections map[string]json.RawMessage
 	over     map[string]bool
 }
@@ -53,7 +54,11 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
 		CompactProfile: func(context.Context) (bool, error) { return true, nil },
 		Persons:        func() []string { return []string{"anna", "ben"} },
-		PersonOfHAUser: func(_ context.Context, user string) string { return map[string]string{"u-anna": "anna"}[user] }})
+		PersonOfHAUser: func(_ context.Context, user string) string { return map[string]string{"u-anna": "anna"}[user] },
+		SetLogins: func(_ context.Context, l map[string]string) error {
+			cfg.logins = l
+			return nil
+		}})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, cfg, st

@@ -200,6 +200,33 @@ def build_config(
     return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)], "exposed": exposed_entities(hass)}
 
 
+async def async_config(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    persons: dict[str, dict[str, Any]] | None = None,
+    satellites: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """build_config plus the persons' login names (what the agent may not
+    read itself)."""
+    return build_config(hass, entry, persons, satellites) | {"logins": await person_logins(hass)}
+
+
+async def person_logins(hass: HomeAssistant) -> dict[str, str]:
+    """The login name of each person's Home Assistant user, by person
+    entity. A calendar named like it is the person's (docs/spec/kalender.md).
+    Only an admin may read users, which the agent's user is not."""
+    out: dict[str, str] = {}
+    for state in hass.states.async_all("person"):
+        user_id = state.attributes.get("user_id")
+        if not user_id or (user := await hass.auth.async_get_user(user_id)) is None:
+            continue
+        for cred in user.credentials:
+            if cred.auth_provider_type == "homeassistant" and (login := cred.data.get("username")):
+                out[state.entity_id] = str(login)
+                break
+    return out
+
+
 def exposed_hash(ids: list[str]) -> str:
     """The fingerprint of the list, as the agent computes it for /v1/status:
     sha256 of the sorted ids joined by newlines."""
@@ -264,7 +291,7 @@ async def save_settings(
     for entity in satellites:
         if not satellite_area(hass, entity):
             raise ValueError(f"{entity} has no area")
-    await entry.runtime_data.client.set_managed_config(build_config(hass, entry, persons, satellites))
+    await entry.runtime_data.client.set_managed_config(await async_config(hass, entry, persons, satellites))
     for entity, data in persons.items():
         set_person_settings(hass, entity, data)
     for entity, data in satellites.items():

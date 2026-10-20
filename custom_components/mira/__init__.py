@@ -35,7 +35,7 @@ from .const import (
 )
 from .coordinator import MiraCoordinator
 from .labels import ensure_labels
-from .managed import build_config, import_settings
+from .managed import async_config, import_settings
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
 
@@ -213,7 +213,7 @@ def _send_exposed(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
 
     async def send() -> None:
         try:
-            await entry.runtime_data.client.set_managed_config(build_config(hass, entry))
+            await entry.runtime_data.client.set_managed_config(await async_config(hass, entry))
         except (MiraError, ValueError) as err:
             _LOGGER.warning("Could not tell the agent what Assist sees: %s", err)
 

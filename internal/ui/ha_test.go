@@ -64,3 +64,20 @@ func TestHomeAssistantManagesPersonsRooms(t *testing.T) {
 		t.Errorf("after release: %d", code)
 	}
 }
+
+// The login names of the persons' users come along and are kept; an older
+// integration without them changes nothing.
+func TestHomeAssistantSendsTheLogins(t *testing.T) {
+	srv, cfg, _ := setup(t)
+	if code, body := call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"persons":{},"rooms":[],"logins":{"person.stefan":"stefan"}}`); code != 200 {
+		t.Fatalf("put: %d %s", code, body)
+	}
+	if cfg.logins["person.stefan"] != "stefan" {
+		t.Errorf("logins = %v", cfg.logins)
+	}
+	cfg.logins = nil
+	call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"persons":{},"rooms":[]}`)
+	if cfg.logins != nil {
+		t.Errorf("logins set without any: %v", cfg.logins)
+	}
+}

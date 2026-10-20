@@ -8,18 +8,20 @@ import (
 )
 
 // Personal schedules run for whom a personal message reaches (a channel, or
-// "alone at home is me"), with the calendar named like them, case and spaces
+// "alone at home is me"). Their own calendar is the one named like the
+// login of their Home Assistant user, else like the person, case and spaces
 // aside; without one the calendar is empty.
 func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 	persons := map[string]config.Person{
-		"ben":  {Name: "Ben", Channels: []string{"notify.ben_phone"}},
-		"anna": {Name: "Anna", AloneIsMe: true},
-		"oma":  {Name: "Oma Hilde", Channels: []string{"notify.oma"}},
-		"gast": {Name: "Gast"}, // no channel: a personal message would not reach them
+		"stefan_rinke": {Name: "Stefan Rinke", Entity: "person.stefan_rinke", AloneIsMe: true},
+		"ben":          {Name: "Ben", Entity: "person.ben", Channels: []string{"notify.ben_phone"}},
+		"anna":         {Name: "Anna", Entity: "person.anna", AloneIsMe: true},
+		"gast":         {Name: "Gast", Entity: "person.gast"}, // no channel: a message would not reach them
 	}
-	cals := []calendar.Info{{Name: "ben "}, {Name: "Familie"}, {Name: "OMA HILDE"}}
-	got := reachablePeople(persons, cals)
-	want := []struct{ key, cal string }{{"anna", ""}, {"ben", "ben "}, {"oma", "OMA HILDE"}}
+	logins := map[string]string{"person.stefan_rinke": "stefan", "person.anna": "anna.m"}
+	cals := []calendar.Info{{Name: "Stefan"}, {Name: "ben "}, {Name: "Familie"}, {Name: ""}}
+	got := reachablePeople(persons, logins, cals)
+	want := []struct{ key, cal string }{{"anna", ""}, {"ben", "ben "}, {"stefan_rinke", "Stefan"}}
 	if len(got) != len(want) {
 		t.Fatalf("people: %+v", got)
 	}
@@ -30,23 +32,13 @@ func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 	}
 }
 
-// "Stefan Rinke" owns the calendar "Stefan" by first name, unless another
-// person has that first name too.
-func TestOwnCalendarByFirstName(t *testing.T) {
-	cals := []calendar.Info{{Name: "Stefan"}, {Name: "Familie"}}
+// A first name alone is no claim: "Stefan Rinke" without a login "stefan"
+// does not own the calendar "Stefan".
+func TestNoCalendarByFirstName(t *testing.T) {
 	got := reachablePeople(map[string]config.Person{
-		"stefan_rinke": {Name: "Stefan Rinke", AloneIsMe: true},
-	}, cals)
-	if len(got) != 1 || got[0].Calendar != "Stefan" {
-		t.Errorf("by first name: %+v", got)
-	}
-	got = reachablePeople(map[string]config.Person{
-		"stefan_rinke": {Name: "Stefan Rinke", AloneIsMe: true},
-		"stefan_meier": {Name: "Stefan Meier", Channels: []string{"notify.x"}},
-	}, cals)
-	for _, p := range got {
-		if p.Calendar != "" {
-			t.Errorf("ambiguous first name still matched: %+v", got)
-		}
+		"stefan_rinke": {Name: "Stefan Rinke", Entity: "person.stefan_rinke", AloneIsMe: true},
+	}, nil, []calendar.Info{{Name: "Stefan"}})
+	if len(got) != 1 || got[0].Calendar != "" {
+		t.Errorf("matched by first name: %+v", got)
 	}
 }

@@ -53,7 +53,7 @@ Das ist der Haupt-Anwendungsfall: „Trag mir Freitag um 15 Uhr Zahnarzt ein.“
 
 ## Persönliche Kalender: Konvention statt Einstellung
 
-Ein freigegebener Kalender, der so heißt wie eine Person in Home Assistant (Groß- und Kleinschreibung und Leerzeichen am Rand egal), ist der Kalender dieser Person: „Ben“ gehört Ben. Passt der volle Name nicht, zählt der Vorname, wenn keine andere Person ihn hat: „Stefan“ gehört „Stefan Rinke“. Es gibt dafür keine Einstellung. Genutzt wird das von Skill-Zeitplänen mit `per_person: true` (sie laufen je Person, die eine persönliche Nachricht erreicht, und bekommen deren Kalender, falls es einen gibt, und ihr persönliches Profil; `cmd/mira/calendars.go`, `reachablePeople`) und vom Briefing auf Nachfrage.
+Ein freigegebener Kalender, der so heißt wie der **Login-Name** des HA-Benutzers einer Person oder wie die **Person** selbst (Groß- und Kleinschreibung und Leerzeichen am Rand egal), ist der Kalender dieser Person: „Stefan“ gehört der Person „Stefan Rinke“ mit dem Login `stefan`, „Ben“ gehört Ben. Ein Vorname allein zählt nicht (HA hat dafür kein Feld). Den Login-Namen darf nur ein Admin lesen; die Integration schickt ihn deshalb mit den Einstellungen (`logins`, Person → Login), der Agent hält ihn (`ha_logins`). Es gibt dafür keine Einstellung. Genutzt wird das von Skill-Zeitplänen mit `per_person: true` (sie laufen je Person, die eine persönliche Nachricht erreicht, und bekommen deren Kalender, falls es einen gibt, und ihr persönliches Profil; `cmd/mira/calendars.go`, `reachablePeople`) und vom Briefing auf Nachfrage.
 
 ## Welcher Kalender: fragen und merken
 

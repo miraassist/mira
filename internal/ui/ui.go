@@ -58,10 +58,12 @@ type Options struct {
 	// SetExposed keeps what Home Assistant exposes to Assist, as the
 	// integration sends it.
 	SetExposed func(ctx context.Context, ids []string) error
-	Token      string
-	Sections   []string
-	Config     Config
-	Store      *store.Store
+	// SetLogins keeps the persons' login names (person entity: login).
+	SetLogins func(ctx context.Context, logins map[string]string) error
+	Token     string
+	Sections  []string
+	Config    Config
+	Store     *store.Store
 	// Entities lists Home Assistant entities for autocompletion.
 	Entities func() []Entity
 	// CompactProfile rebuilds the profile now.

@@ -67,3 +67,25 @@ func (a *app) exposedHash(ctx context.Context) string {
 	sum := sha256.Sum256([]byte(strings.Join(ids, "\n")))
 	return hex.EncodeToString(sum[:])
 }
+
+// kvLogins are the login names of the persons' Home Assistant users, by
+// person entity, as the integration last sent them. A calendar named like a
+// person's login is theirs (docs/spec/kalender.md).
+const kvLogins = "ha_logins"
+
+func (a *app) setLogins(ctx context.Context, logins map[string]string) error {
+	raw, err := json.Marshal(logins)
+	if err != nil {
+		return err
+	}
+	return a.store.SetKV(ctx, kvLogins, string(raw))
+}
+
+// logins is the kept map; empty when the integration never sent one.
+func (a *app) logins(ctx context.Context) map[string]string {
+	out := map[string]string{}
+	if raw, err := a.store.GetKV(ctx, kvLogins); err == nil {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	return out
+}

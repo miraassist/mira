@@ -77,3 +77,25 @@ async def test_nothing_is_sent_while_home_assistant_is_starting(hass, aioclient_
     hass.set_state(CoreState.running)
     await _poll(entry)
     assert len(_puts(aioclient_mock)) == 1
+
+
+async def test_the_logins_of_the_persons_go_along(hass, aioclient_mock, entry, hass_admin_user):
+    """A calendar named like a person's login is theirs; the agent may not
+    read users, so the integration sends the logins."""
+    from homeassistant.auth.models import Credentials
+
+    from custom_components.mira.managed import person_logins
+
+    cred = Credentials(auth_provider_type="homeassistant", auth_provider_id=None, data={"username": "stefan"}, is_new=False)
+    await hass.auth.async_link_user(hass_admin_user, cred)
+    hass.states.async_set("person.stefan_rinke", "home", {"user_id": hass_admin_user.id, "friendly_name": "Stefan Rinke"})
+    hass.states.async_set("person.gast", "home", {"friendly_name": "Gast"})
+    assert await person_logins(hass) == {"person.stefan_rinke": "stefan"}
+
+    _agent(aioclient_mock, "")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    _agent(aioclient_mock, "")
+    await _poll(entry)
+    puts = _puts(aioclient_mock)
+    assert puts and puts[-1][2]["logins"] == {"person.stefan_rinke": "stefan"}
