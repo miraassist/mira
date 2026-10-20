@@ -18,9 +18,12 @@ const maxLog = 12
 // link is the code's, not the model's. Otherwise a thread waiting at the
 // turn's place is shown, and the model decides whether the user continues
 // it, cancels it or talks about something else.
-func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []string) string {
+//
+// foreign reports a thread that carries third-party text (a plan made from
+// a web page): the turn then asks before it keeps or passes anything on.
+func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []string) (text string, foreign bool) {
 	if !m.HasTargets() {
-		return ""
+		return "", false
 	}
 	t := m.texts()
 	for _, id := range followedUp {
@@ -37,7 +40,7 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []
 	}
 	if sess.ThreadID != "" {
 		if th, err := m.opts.Store.GetThread(ctx, sess.ThreadID); err == nil && store.ThreadOpen(th.State) {
-			return t.headerCurrent + "\n" + m.describe(th)
+			return t.headerCurrent + "\n" + m.describe(th), m.isPlan(th) && planOf(th).Foreign
 		}
 	}
 	place := sess.Key
@@ -46,9 +49,9 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []
 	}
 	open, err := m.opts.Store.OpenThreads(ctx, place)
 	if err != nil || len(open) == 0 {
-		return ""
+		return "", false
 	}
-	return t.headerWaiting + "\n" + m.describe(open[0])
+	return t.headerWaiting + "\n" + m.describe(open[0]), m.isPlan(open[0]) && planOf(open[0]).Foreign
 }
 
 // describe renders a thread for the model: target, request, fields, log
@@ -74,14 +77,23 @@ func (m *Manager) describe(th store.Thread) string {
 			fmt.Fprintf(&b, "\n- %s: %s", who, e.Text)
 		}
 	}
-	b.WriteString("\n" + t.stateHint[th.State])
+	if m.isPlan(th) {
+		// A plan outlives the conversation that started it: its
+		// instructions go with it into every later one.
+		b.WriteString("\n" + t.planHint + "\n" + t.lineInstructions + "\n" + sk.Body)
+	} else {
+		b.WriteString("\n" + t.stateHint[th.State])
+	}
 	return b.String()
 }
 
-// status lists the fields: filled, missing.
+// status lists the fields: filled, missing; for a plan, where it stands.
 func (m *Manager) status(th store.Thread) string {
 	t := m.texts()
 	sk := m.targets[th.Target]
+	if sk.Target.Plan {
+		return t.linePlan + "\n" + m.planStatus(th)
+	}
 	var b strings.Builder
 	b.WriteString(t.lineFields)
 	for _, f := range sk.Target.Fields {

@@ -233,3 +233,24 @@ func TestAskAfterWebContent(t *testing.T) {
 		t.Errorf("one yes approves one call: %+v", v)
 	}
 }
+
+// A foreign plan in the context (docs/spec/vorgaenge.md, Pläne): keeping or
+// passing on asks as after web content, but critical actions are not
+// locked, they ask as always.
+func TestForeignPlanInContext(t *testing.T) {
+	ctx := context.Background()
+	g, _ := newGuard()
+	ts := &TurnState{SessionKey: "s", ForeignContext: true}
+	if !ts.Foreign() || ts.WebContentSeen() {
+		t.Fatalf("foreign %v, web %v", ts.Foreign(), ts.WebContentSeen())
+	}
+	if v := g.Check(ctx, ts, memorySave, args(`{"text":"x"}`)); v.Outcome != NeedsConfirmation || v.Reason != "after_web_content_ask" {
+		t.Errorf("keeping: %+v", v)
+	}
+	if v := g.Check(ctx, ts, turnOn, args(`{"name":"Haustür"}`)); v.Outcome != NeedsConfirmation || v.Reason != "critical" {
+		t.Errorf("critical: %+v", v)
+	}
+	if v := g.Check(ctx, ts, turnOn, args(`{"name":"Küchenlicht"}`)); v.Outcome != Allow {
+		t.Errorf("light: %+v", v)
+	}
+}

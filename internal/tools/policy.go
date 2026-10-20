@@ -110,6 +110,11 @@ type TurnState struct {
 	// Pending is the confirmation the previous turn asked for, already taken
 	// out of the store. It approves at most one call.
 	Pending *store.Confirmation
+	// ForeignContext: the turn's context holds third-party text that Mira
+	// wrote down earlier, such as a plan made from a web page. What keeps or
+	// passes on asks for a yes, as after web content; critical actions are
+	// not locked (docs/spec/vorgaenge.md, Pläne).
+	ForeignContext bool
 
 	webContentSeen        bool
 	pendingUsed           bool
@@ -122,6 +127,11 @@ func (t *TurnState) ConfirmationRequested() bool { return t.confirmationRequeste
 
 // WebContentSeen reports whether the turn has read untrusted web content.
 func (t *TurnState) WebContentSeen() bool { return t.webContentSeen }
+
+// Foreign reports whether the turn has third-party text before it: web
+// content it read, or a foreign plan in its context. What Mira writes down
+// now (a plan) counts as foreign then.
+func (t *TurnState) Foreign() bool { return t.webContentSeen || t.ForeignContext }
 
 // Check decides whether a call may run. A call that needs confirmation is
 // stored as pending for the session before Check returns.
@@ -138,7 +148,7 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 	// (memory, messages, ending a thread) runs after web content only with
 	// the user's yes: the same question as for a critical action, but not
 	// locked.
-	askOnly := !critical && spec.AskAfterWeb && ts.webContentSeen
+	askOnly := !critical && spec.AskAfterWeb && ts.Foreign()
 	if !critical && !askOnly {
 		return Verdict{Outcome: Allow, Targets: targets}
 	}

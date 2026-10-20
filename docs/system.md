@@ -145,6 +145,7 @@ Wichtig:
   Skills, die eine HA-Aktion aufrufen (z. B. Wecker): [Skill-Aktionen](spec/skill-aktionen.md).
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
   Mails, die etwas mit Zeit ankündigen, als Kalendereintrag (erste Anwendung Pakete): [Mail-Kalender](spec/mail-kalender.md), [Pakete](spec/pakete.md).
+  Lange Abläufe Schritt für Schritt (Kochen), als Vorgang mit Plan: [Vorgänge, Pläne](spec/vorgaenge.md).
   Radio auf dem Lautsprecher eines Raums: [Radio](spec/radio.md).
   Geplante Aktionen in HA (Einschlaf-Timer, Aufräumen): [Geplante Aktionen](spec/geplante-aktionen.md).
   Ideen für weitere Skills (Szenen, Briefing, Kochen, Geschichten, Quiz, Lernen): [Skill-Ideen](spec/skill-ideen.md).
@@ -398,6 +399,10 @@ erDiagram
   `thread_confirm`, in der Spezifikation `AskAfterWeb`) führt sie nach
   Web-Inhalten im selben Turn nur nach dem Ja des Nutzers aus. Die Rückfrage
   nutzt dieselbe Technik wie bei kritischen Aktionen, ist aber keine Sperre.
+  Dasselbe gilt in jedem Gespräch, in dem ein **fremder Plan** im Kontext
+  steht (einer, den Mira in einem Gespräch mit Web-Inhalt geschrieben hat,
+  etwa aus einem Rezept); kritische Aktionen sind dann nicht gesperrt,
+  sie fragen wie immer nach.
   Kalender und Feeds zählen nicht als Web-Inhalt, sonst ginge „was steht an,
   erinnere mich daran“ nicht mehr.
 - **Aufgaben** (Automationen, die Mira anlegt) prüft die Integration vor dem

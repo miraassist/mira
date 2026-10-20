@@ -46,6 +46,8 @@ type Invocation struct {
 	// DeviceID is the satellite's device id of a voice turn. Home Assistant's
 	// tools get it, so they act as for its own conversation agents.
 	DeviceID string
+	// Foreign: the turn has third-party text before it (TurnState.Foreign).
+	Foreign bool
 }
 
 // Author is how a fact or message records who it came from: the person, else

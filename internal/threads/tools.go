@@ -15,6 +15,7 @@ const (
 	ToolConfirm = "thread_confirm"
 	ToolCancel  = "thread_cancel"
 	ToolUndo    = "thread_undo"
+	ToolPlan    = "thread_plan"
 )
 
 // Tools are the thread tools; none without a target. The list of targets
@@ -81,6 +82,28 @@ func (m *Manager) Tools() []tools.InternalTool {
 			Name: ToolCancel, Description: t.cancelDesc, Schema: empty,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Cancel(ctx, inv) },
 		},
+	}
+	// The plan tool is there only when a target has a plan.
+	for _, sk := range m.targets {
+		if sk.Target.Plan {
+			out = append(out, tools.InternalTool{
+				Name: ToolPlan, Description: t.planDesc,
+				Schema: fmt.Sprintf(`{"type":"object","properties":{"action":{"type":"string","enum":["write","check","uncheck","read"]},"text":{"type":"string","description":%q},"step":{"type":"integer","description":%q}},"required":["action"]}`,
+					t.planTextDesc, t.planStepDesc),
+				Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+					var a struct {
+						Action string `json:"action"`
+						Text   string `json:"text"`
+						Step   int    `json:"step"`
+					}
+					if err := json.Unmarshal(inv.Args, &a); err != nil {
+						return "", err
+					}
+					return m.Plan(ctx, inv, strings.TrimSpace(a.Action), a.Text, a.Step)
+				},
+			})
+			break
+		}
 	}
 	// Taking back is there only when a target can take back what it did.
 	for _, sk := range m.targets {

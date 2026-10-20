@@ -216,6 +216,19 @@ Then restart Mira. She answers "When does the cactus need water?" from the list,
 
 **When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.enabled". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
 
+## Cooking and baking
+
+Mira cooks with you, step by step, even when a step takes half an hour.
+
+- "Let's make pancakes." Mira looks up a recipe on the web, tells you which one, and asks how many it is for. Then she reads out the first step.
+- "Next", "again", "back": also minutes later, in a new conversation in the same room. Mira knows where you are.
+- "How much milk do I need?" Mira answers from the recipe.
+- When something has to wait, she offers a timer: "Shall I set a timer for 30 minutes?"
+- The **Plans** tab of the Mira page shows the recipe with all its steps; the ones done are ticked off.
+- "Stop cooking" ends it. Otherwise it ends by itself half an hour after the last step, or after an hour without "next".
+
+Mira needs her web search for this; it is built in and on unless you switch it off.
+
 ## Calendars and lists
 
 Mira uses the calendars and to-do lists from Home Assistant that are exposed to Assist (Settings → Voice assistants → Expose entities). Several calendars are no problem.

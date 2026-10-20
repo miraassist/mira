@@ -95,6 +95,12 @@ func newHarness(t *testing.T, script ...fakellm.Step) *harness {
 
 func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm.Step) *harness {
 	t.Helper()
+	return newHarnessTools(t, mutate, nil, script...)
+}
+
+// newHarnessTools adds internal tools of the test's own.
+func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.InternalTool, script ...fakellm.Step) *harness {
+	t.Helper()
 	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &syncBuffer{}}
 
 	h.llm = fakellm.New(script...)
@@ -130,7 +136,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 	}
 	t.Cleanup(host.Close)
 
-	registry := tools.NewRegistry(host, tools.Internal(i18n.DE, h.store, nil)...)
+	registry := tools.NewRegistry(host, append(tools.Internal(i18n.DE, h.store, nil), extra...)...)
 	h.engine = conversation.New(conversation.Options{
 		Config:    cfg,
 		LLM:       llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),
@@ -322,6 +328,32 @@ func TestWebContentLocksCriticalToolsForTheTurn(t *testing.T) {
 	}
 	if len(h.search.Calls()) != 1 {
 		t.Fatal("search did not run")
+	}
+}
+
+// What Mira writes down in a later turn of a conversation that read web
+// content counts as foreign (a plan made from a recipe); another
+// conversation's does not.
+func TestWebContentStaysForeignInTheConversation(t *testing.T) {
+	var foreign []bool
+	note := tools.InternalTool{Name: "note", Description: "notiert", Schema: `{"type":"object","properties":{}}`,
+		Run: func(_ context.Context, inv tools.Invocation) (string, error) {
+			foreign = append(foreign, inv.Foreign)
+			return "ok", nil
+		}}
+	h := newHarnessTools(t, nil, []tools.InternalTool{note},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "search__web_search", `{"query":"Pfannkuchen"}`)}},
+		fakellm.Step{Content: "Für wie viele?"},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c2", "note", `{}`)}},
+		fakellm.Step{Content: "Los gehts."},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c3", "note", `{}`)}},
+		fakellm.Step{Content: "Notiert."},
+	)
+	h.say(t, config.ChannelTelegram, "1", "Lass uns Pfannkuchen backen")
+	h.say(t, config.ChannelTelegram, "1", "Für zwei")
+	h.say(t, config.ChannelTelegram, "2", "Notier was")
+	if len(foreign) != 2 || !foreign[0] || foreign[1] {
+		t.Errorf("foreign = %v, want [true false]", foreign)
 	}
 }
 

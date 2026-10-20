@@ -332,7 +332,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	sort.Strings(known)
 	var startable []skills.Skill
 	for _, sk := range targets {
-		if fin := sk.Target.Finish; fin.Action == nil && finishers[fin.Name] == nil {
+		if fin := sk.Target.Finish; !sk.Target.Plan && fin.Action == nil && finishers[fin.Name] == nil {
 			problems = append(problems, skills.NewProblem(sk.Name, skills.KindUnknownFinish, fin.Name, strings.Join(known, ", ")))
 			continue
 		}
@@ -670,7 +670,7 @@ func (a *app) haUser(ctx context.Context) string {
 
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
-	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo"}
+	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen"}
 }
 
 // isolatedModel runs the tasks' judgements and drafts on the named model,
@@ -914,6 +914,16 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		},
 		AreaName: func(id string) string { return a.structure.Snapshot().AreaNames[id] },
 		Tasks:    a.tasks, Threads: a.threads,
+		Plans: func(ctx context.Context) ([]ui.Plan, error) {
+			list, err := a.threads.Plans(ctx)
+			out := make([]ui.Plan, 0, len(list))
+			for _, p := range list {
+				out = append(out, ui.Plan{ID: p.ID, Target: p.Target, Request: p.Request, Place: p.Place, Plan: p.Plan,
+					Done: p.Done, Steps: p.Steps, Finished: p.Finished,
+					Started: p.Started.In(time.Local).Format("15:04"), Updated: p.Updated.In(time.Local).Format("15:04")})
+			}
+			return out, err
+		},
 	}
 	page := ui.New(uiOpts)
 	mux := http.NewServeMux()

@@ -106,6 +106,12 @@ pre.code { background: var(--badge); padding: 10px; border-radius: 10px; overflo
 a.button { display: inline-block; text-decoration: none; }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 label.checkline input { width: auto; }
+.plan .step { display: flex; gap: 8px; align-items: baseline; margin: 4px 0; }
+.plan .step input { width: auto; }
+.plan .step.done { color: var(--muted); text-decoration: line-through; }
+.plan .step.current { font-weight: 700; }
+.plan h4 { margin: 12px 0 4px; }
+.plan p { margin: 4px 0; }
 details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
 details.item > summary::-webkit-details-marker { display: none; }
 details.item > summary::before { content: "▸"; color: var(--magenta); transition: transform .15s; }
@@ -341,6 +347,12 @@ const I18N = {
   "mode_announce": "ansagen",
   "mode_indicate": "nur anzeigen",
   "tab_guide": "Anleitung",
+  "tab_plans": "Pläne",
+  "plans_hint": "Was du gerade mit Mira Schritt für Schritt machst, etwa ein Rezept. Hier siehst du, wo ihr steht; weiter geht es im Gespräch (\"weiter\", \"nochmal\", \"zurück\").",
+  "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
+  "plan_steps": "Schritte erledigt",
+  "plan_since": "seit",
+  "plan_finished": "fertig",
   "tab_tasks": "Aufgaben",
   "tasks_hint": "Aufgaben gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie entwirft eine Home-Assistant-Automation mit dem Label „Mira“, du bestätigst sie. Home Assistant entscheidet, wann etwas passiert, Mira beurteilt und meldet. Bearbeiten kannst du sie im Automations-Editor von Home Assistant.",
   "tasks_ha_error": "Home Assistant nicht erreichbar",
@@ -537,6 +549,12 @@ const I18N = {
   "mode_announce": "announce",
   "mode_indicate": "indicate only",
   "tab_guide": "Guide",
+  "tab_plans": "Plans",
+  "plans_hint": "What you are doing with Mira step by step right now, such as a recipe. Here you see where you are; it goes on in conversation (\"next\", \"again\", \"back\").",
+  "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
+  "plan_steps": "steps done",
+  "plan_since": "since",
+  "plan_finished": "done",
   "tab_tasks": "Tasks",
   "tasks_hint": "You give Mira tasks in conversation, e.g. \"Keep an eye on the water usage\". She drafts a Home Assistant automation labelled \"Mira\", you confirm it. Home Assistant decides when something happens, Mira judges and reports. You edit them in Home Assistant's automation editor.",
   "tasks_ha_error": "Home Assistant not reachable",
@@ -573,7 +591,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["messages", "tasks", "notifier", "rooms", "persons", "memory", "guide"];
+const ALL_TABS = ["messages", "tasks", "plans", "notifier", "rooms", "persons", "memory", "guide"];
 let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
@@ -652,7 +670,7 @@ let config = {};
 // Inside Home Assistant, someone who is no admin gets their memory and the
 // guide; the agent and the integration enforce that, the page follows.
 const isAdmin = !embedded || !!(hass() && hass().user && hass().user.is_admin);
-if (!isAdmin) TABS = ["memory", "guide"];
+if (!isAdmin) TABS = ["plans", "memory", "guide"];
 const tabOf = h => (TABS.includes(h) ? h : TABS[0]);
 let tab = tabOf(location.hash.slice(1));
 let entityNames = {};
@@ -774,7 +792,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { messages, tasks, notifier, rooms, persons, memory, guide };
+  const views = { messages, tasks, plans, notifier, rooms, persons, memory, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -1130,6 +1148,44 @@ async function compact() {
     await memory();
     message(r.changed ? T.profile_updated : T.profile_unchanged, true);
   } catch (e) { message(e.message, false); memory(); }
+}
+
+// ---- Pläne ----------------------------------------------------------------
+// The running plans, read-only; the tab follows them by itself.
+let planTimer = null;
+async function plans() {
+  clearTimeout(planTimer);
+  if (!$("#planlist")) {
+    $("#view").innerHTML = `<section class="card"><h2>${T.tab_plans}</h2><p class="hint">${T.plans_hint}</p><div id="planlist">${T.loading}</div></section>`;
+  }
+  try {
+    const r = await api("GET", "/v1/ui/plans");
+    const list = r.plans || [];
+    $("#planlist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_plans}</p>` : list.map(p => `
+      <div class="item plan">
+        <h3>${esc(p.request || p.target)}</h3>
+        <p class="hint">${p.place ? `<span class="badge">${esc(p.place)}</span> ` : ""}${p.steps ? `${p.done}/${p.steps} ${T.plan_steps} · ` : ""}${T.plan_since} ${esc(p.started)}${p.finished ? ` · <span class="badge ui">${T.plan_finished}</span>` : ""}</p>
+        ${planHtml(p.plan)}
+      </div>`).join("");
+  } catch (e) { message(e.message, false); }
+  if (tab === "plans") planTimer = setTimeout(plans, 10000);
+}
+// planHtml shows a plan's Markdown: checkboxes as steps (the first open one
+// is the current), headings, the rest as lines.
+function planHtml(md) {
+  let current = false;
+  return String(md || "").split("\n").map(line => {
+    const box = line.match(/^\s*[-*+]\s+\[([ xX])\]\s*(.*)$/);
+    if (box) {
+      const done = box[1] !== " ";
+      const cls = done ? " done" : current ? "" : " current";
+      if (!done) current = true;
+      return `<div class="step${cls}"><input type="checkbox" disabled${done ? " checked" : ""}><span>${esc(box[2])}</span></div>`;
+    }
+    const head = line.match(/^#{1,6}\s+(.*)$/);
+    if (head) return `<h4>${esc(head[1])}</h4>`;
+    return line.trim() ? `<p>${esc(line.replace(/^\s*[-*+]\s+/, "• "))}</p>` : "";
+  }).join("");
 }
 
 // ---- Aufträge -----------------------------------------------------------

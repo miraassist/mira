@@ -97,6 +97,9 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
     assert headers["X-Mira-HA-User"] == hass_admin_user.id
     assert headers["X-Mira-HA-Admin"] == "0"
     assert (await client.put("/api/mira/proxy/v1/ui/memory/f1", json={"text": "x"})).status == 200
+    # Everyone may follow the running plans (cooking in the kitchen).
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/plans", json={"plans": []})
+    assert (await client.get("/api/mira/proxy/v1/ui/plans")).status == 200
     for method, path in [
         ("GET", "/api/mira/proxy/v1/ui/config"),
         ("GET", "/api/mira/proxy/v1/ui/messages"),

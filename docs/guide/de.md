@@ -220,6 +220,19 @@ Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet
 
 **Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.enabled“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
 
+## Kochen und Backen
+
+Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.
+
+- „Lass uns Pfannkuchen backen.“ Mira sucht ein Rezept im Netz, sagt, welches es ist, und fragt, für wie viele. Dann liest sie den ersten Schritt vor.
+- „Weiter“, „nochmal“, „zurück“: auch Minuten später, in einem neuen Gespräch im selben Raum. Mira weiß, wo ihr seid.
+- „Wie viel Milch brauche ich?“ Mira antwortet aus dem Rezept.
+- Bei Wartezeiten bietet sie einen Timer an: „Soll ich einen Timer auf 30 Minuten stellen?“
+- Im Reiter **Pläne** der Mira-Seite siehst du das Rezept mit allen Schritten; die erledigten sind abgehakt.
+- „Hör auf mit dem Kochen“ beendet es. Sonst endet es von selbst eine halbe Stunde nach dem letzten Schritt, oder nach einer Stunde ohne „weiter“.
+
+Mira braucht dafür ihre Internetsuche; sie ist eingebaut und an, solange du sie nicht ausschaltest.
+
 ## Kalender und Listen
 
 Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist freigegeben sind (Einstellungen → Sprachassistenten → Entitäten freigeben). Mehrere Kalender sind kein Problem.

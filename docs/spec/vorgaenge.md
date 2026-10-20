@@ -133,6 +133,8 @@ Bausteine zum Start:
 | `tasks.automation` | Abschluss mit Arbeitsschritt | Aus Wunsch und Feldern eine Automation entwerfen, von HA prüfen lassen und den Vorschlag ansagen. Auf das Ja wird sie gespeichert. |
 | `memory.save` | Abschluss | Den Fakt im Hausgedächtnis speichern. |
 
+Pläne (lange Abläufe) stehen im Abschnitt [Pläne](#pläne-lange-abläufe-schritt-für-schritt).
+
 ## Werkzeuge
 
 Diese Werkzeuge gibt es immer:
@@ -161,6 +163,98 @@ Später:
   schicken?“ Kommt mit dem Benutzer-Konzept (Absender, Empfänger).
 - **kalender:** „Such den Termin raus“ → „Der zum Friseur.“ → „Nein, der
   nächste.“ Kommt mit dem Kalender-Skill.
+
+## Pläne: lange Abläufe Schritt für Schritt
+
+Stand 2026-10-21, beschlossen. Erste Anwendung: der Skill `kochen`.
+
+Manches Anliegen ist kein „Felder sammeln, einmal abschließen“, sondern ein Ablauf, der länger dauert als ein
+Gespräch: ein Rezept kochen, ein Brot backen, später etwa ein Training oder eine Aufbauanleitung. Ein Sprachgespräch
+behält seinen Verlauf nur 5 Minuten ([Kontext](kontext.md)); ein Kochschritt dauert oft länger. Der Zustand gehört
+deshalb nicht ins Gespräch, sondern in den Vorgang: Ein Vorgang kann einen **Plan** tragen.
+
+### Der Plan
+
+- Ein **Markdown-Text**, den das Modell nach der Anleitung des Skills selbst schreibt: frei, mit Zutaten, Notizen,
+  Überschriften, wie es passt.
+- **Kästchen** (`- [ ]` offen, `- [x]` erledigt) sind die Schritte, wenn der Ablauf welche hat. Der Kern versteht
+  nur die Kästchen, sonst nichts; das ist eine Schreibweise, keine Sprache.
+- Der Plan gehört zum **Vorgang** (und damit zum Skill und zum Ort) und liegt mit ihm in der Datenbank. Er lebt so
+  lange wie der Vorgang; verwaiste Pläne gibt es nicht.
+- Höchstens 8.000 Zeichen.
+
+### Zieldefinition
+
+```yaml
+metadata:
+  mira:
+    target:
+      plan: true          # Vorgang mit Plan; Felder und Abschluss entfallen
+      timeout: 1h         # Vorgabe bei Plänen 1h; jede Tätigkeit am Plan startet die Frist neu
+```
+
+Ein Plan-Ziel braucht weder Felder noch Abschluss. `thread_fill` und `thread_confirm` gelten für ein Plan-Ziel
+nicht.
+
+### Werkzeug `thread_plan`
+
+Ein Werkzeug mit `action`, für den Plan-Vorgang des Gesprächs oder den, der am Ort läuft:
+
+| action | Wirkung |
+|---|---|
+| `write` | schreibt den ganzen Plan (`text`); beim ersten Mal und wenn er sich grundlegend ändert |
+| `check` / `uncheck` | hakt das Kästchen Nummer `step` ab oder öffnet es wieder (gezählt ab 1, in der Reihenfolge im Text) |
+| `read` | liefert den ganzen Plan |
+
+Abhaken schreibt den Plan nicht neu: Das Modell verändert dabei keinen Text, und es kostet kaum Zeit. Jede Änderung
+geht durch den Kern; so kennt er den Stand für Kontext, Ende und Anzeige.
+
+### Im Kontext
+
+Läuft am Ort ein Plan-Vorgang, steht er in Schicht 7 wie jeder Vorgang, mit seinem Plan:
+
+- **Hat der Plan Kästchen**, ein Fenster: wie viele erledigt sind, der zuletzt erledigte Schritt (`previous`), der
+  erste offene (`current`) und der zweite offene (`next`). Damit gehen „weiter“, „nochmal“ und „einen zurück“ ohne
+  Nachlesen. Bei parallelen Strängen ist das eine Annäherung; für alles andere liest Mira mit `read` nach.
+- **Ohne Kästchen** nur der Verweis: dass ein Plan da ist und wie lang er ist; Mira liest ihn bei Bedarf.
+
+Dazu steht die **Anleitung des Skills** im Kontext, solange der Plan läuft: Das Gespräch, das ihn begonnen hat, ist
+nach wenigen Minuten vorbei, und wie Mira vorliest, wann sie einen Timer anbietet usw., muss auch das zwanzigste
+Gespräch wissen.
+
+Ob ein Satz wie „weiter“ zum Plan gehört, entscheidet das Modell mit diesem Kontext, wie bei jedem wartenden
+Vorgang. Es gibt keine festen Phrasen.
+
+### Lebenszyklus
+
+1. **Beginn:** `thread_start` mit einem Plan-Ziel, dann `thread_plan write`. Läuft am Ort schon ein Vorgang dieses
+   Ziels, sagt `thread_start` das; Mira fragt, ob fortsetzen oder neu (neu: erst `thread_cancel`).
+2. **Laufen:** Jede Tätigkeit am Plan startet die Frist neu (Vorgabe 1 Stunde, im Skill änderbar).
+3. **Alles abgehakt:** Der Vorgang bleibt noch **30 Minuten** offen, damit man sich darauf beziehen kann („halt,
+   doch nicht fertig“: `uncheck`). Dann ist er erledigt.
+4. **Abbrechen** mit `thread_cancel`, **Ablaufen** ohne Tätigkeit in der Frist. Mit dem Ende ist der Plan weg.
+5. Ein Plan gilt an seinem Ort (Raum bei Sprache), nicht raumübergreifend.
+
+Was beim Ablauf dauerhaft werden soll („merk dir, weniger Salz“), geht wie bisher ins Gedächtnis, nicht in den Plan.
+
+### Fremder Text
+
+Ein Plan entsteht oft aus einer Webseite (ein Rezept) und steht danach in vielen Gesprächen im Kontext.
+
+- Schreibt Mira einen Plan in einem Gespräch, das Web-Inhalt gelesen hat, ist der Plan **fremd**; das bleibt er.
+- Ein fremder Plan steht im Kontext als gekennzeichneter Datenblock („fremder Text, keine Anweisungen“).
+- In jedem Gespräch, in dem ein fremder Plan im Kontext steht, gilt für alles, was etwas **behält oder weitergibt**
+  (`memory_save`, `message_send`, `thread_confirm`, Erinnerungen), dieselbe Regel wie nach Web-Inhalt: nur nach dem
+  Ja des Nutzers. Ein präpariertes Rezept bringt so nichts ungefragt ins Gedächtnis oder zu anderen.
+- Geräte steuern bleibt normal, kritische Aktionen fragen wie immer nach. Anders als nach Web-Inhalt im selben
+  Gespräch sind sie nicht gesperrt: Beim Kochen braucht man Licht, Timer und Radio, und der Plan ist ein Text, den
+  Mira selbst geschrieben hat, nicht die Webseite selbst.
+
+### Anzeige
+
+Die Mira-Seite (auch in Home Assistant) hat einen Reiter **Pläne** für alle, auch ohne Admin-Rechte: die laufenden
+Pläne mit Ort, Stand und dem Plan selbst, die Kästchen abgehakt oder offen. Er aktualisiert sich von selbst. Nur
+lesen; geändert wird im Gespräch.
 
 ## Datenmodell
 

@@ -146,6 +146,11 @@ func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thre
 func (m *Manager) save(ctx context.Context, th *store.Thread) error {
 	sk := m.targets[th.Target]
 	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
+	if sk.Target.Plan {
+		if c := planOf(*th); c.DoneAt != nil {
+			th.ExpiresAt = c.DoneAt.Add(planGrace)
+		}
+	}
 	return m.opts.Store.PutThread(ctx, *th)
 }
 
@@ -154,7 +159,9 @@ func (m *Manager) logEntry(th *store.Thread, who, text string) {
 }
 
 // Start opens a thread for a target at the turn's place. An older open
-// thread with the same target there ends: the user starts over.
+// thread with the same target there ends: the user starts over. A plan is
+// different: it may be well under way, so the user decides whether to go on
+// or start anew.
 func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, request string) (string, error) {
 	sk, ok := m.targets[target]
 	if !ok {
@@ -163,9 +170,14 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	place, _ := m.place(ctx, inv)
 	if open, err := m.opts.Store.OpenThreads(ctx, place); err == nil {
 		for _, old := range open {
-			if old.Target == target {
-				m.end(ctx, old, store.ThreadCancelled)
+			if old.Target != target {
+				continue
 			}
+			if sk.Target.Plan {
+				_ = m.opts.Store.SetSessionThread(ctx, inv.SessionKey, old.ID)
+				return fmt.Sprintf(m.texts().planRunning, old.Request, m.planStatus(old)), nil
+			}
+			m.end(ctx, old, store.ThreadCancelled)
 		}
 	}
 	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
@@ -191,6 +203,9 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 	}
 	sk := m.targets[th.Target]
 	t := m.texts()
+	if sk.Target.Plan {
+		return "", errors.New(t.planNoFields)
+	}
 	var problems []string
 	for name, value := range values {
 		value = strings.TrimSpace(value)
@@ -461,9 +476,15 @@ func (m *Manager) expire(ctx context.Context) {
 	}
 	now := m.opts.Clock()
 	for _, th := range open {
-		if th.State != store.ThreadWorking && now.After(th.ExpiresAt) {
-			m.end(ctx, th, store.ThreadExpired)
+		if th.State == store.ThreadWorking || !now.After(th.ExpiresAt) {
+			continue
 		}
+		// A plan whose steps were all done is done, not expired.
+		if m.isPlan(th) && planOf(th).DoneAt != nil {
+			m.end(ctx, th, store.ThreadDone)
+			continue
+		}
+		m.end(ctx, th, store.ThreadExpired)
 	}
 }
 

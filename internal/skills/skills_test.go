@@ -192,6 +192,32 @@ func TestPaketeIsAMailApplication(t *testing.T) {
 	}
 }
 
+// Kochen is a run with a plan: no fields, no finish, an hour per step.
+func TestKochenIsAPlan(t *testing.T) {
+	list, problems := Load([]string{"../../skills"}, map[string]map[string]any{"kochen": nil})
+	if len(problems) != 0 || len(list) != 1 || list[0].Target == nil || !list[0].Target.Plan {
+		t.Fatalf("load: %+v %v", list, problems)
+	}
+	if d := list[0].Target.TimeoutDuration(); d != time.Hour {
+		t.Errorf("timeout: %v", d)
+	}
+}
+
+// A plan with fields or a finish is a mistake in the skill.
+func TestPlanWithFieldsIsAProblem(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skill := "---\nname: x\ndescription: X.\nmetadata:\n  mira:\n    target:\n      plan: true\n      fields:\n        - name: a\n          description: A\n---\nText.\n"
+	if err := os.WriteFile(filepath.Join(dir, "x", "SKILL.md"), []byte(skill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if list, problems := Load([]string{dir}, map[string]map[string]any{"x": nil}); len(list) != 0 || len(problems) != 1 {
+		t.Errorf("plan with fields: %+v %v", list, problems)
+	}
+}
+
 // The example skill in the guides must load: what the guide shows is what
 // works.
 func TestGuideExampleLoads(t *testing.T) {

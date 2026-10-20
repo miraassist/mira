@@ -56,6 +56,10 @@ type Mail struct {
 // Target is a goal definition (docs/spec/vorgaenge.md). Checks and Finish
 // name building blocks of the core: a skill runs no code.
 type Target struct {
+	// Plan makes a thread that carries a plan (a Markdown text with
+	// checkboxes) for a long run step by step, such as cooking; it has no
+	// fields and no finish (docs/spec/vorgaenge.md, Pläne).
+	Plan   bool          `yaml:"plan"`
 	Fields []TargetField `yaml:"fields"`
 	// Confirm asks the user for a yes before an action finish runs; the
 	// building blocks decide that themselves.
@@ -67,15 +71,20 @@ type Target struct {
 	// Undo takes back what an action finish did, for a correction ("no,
 	// half past six"); optional.
 	Undo *Action `yaml:"undo"`
-	// Timeout ends a thread nobody answers; default 15m.
+	// Timeout ends a thread nobody answers; default 15m, 1h for a plan.
+	// Every step of a plan starts it anew.
 	Timeout string `yaml:"timeout"`
 	timeout time.Duration
 }
 
-// TimeoutDuration is Timeout parsed, 15 minutes by default.
+// TimeoutDuration is Timeout parsed, 15 minutes by default (1 hour for a
+// plan).
 func (t Target) TimeoutDuration() time.Duration {
-	if t.timeout > 0 {
+	switch {
+	case t.timeout > 0:
 		return t.timeout
+	case t.Plan:
+		return time.Hour
 	}
 	return 15 * time.Minute
 }
@@ -264,7 +273,10 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		s.Schedules = append(s.Schedules, sc)
 	}
 	if t := m.Target; t != nil {
-		if len(t.Fields) == 0 || t.Finish.Name == "" {
+		if t.Plan && (len(t.Fields) > 0 || t.Finish.Name != "") {
+			return Skill{}, problem("targetplan")
+		}
+		if !t.Plan && (len(t.Fields) == 0 || t.Finish.Name == "") {
 			return Skill{}, problem("targetneeds")
 		}
 		for _, a := range []*Action{t.Finish.Action, t.Undo} {

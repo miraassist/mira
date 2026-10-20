@@ -50,8 +50,10 @@ PAGE = "/api/mira/panel/ui"
 # The agent's page and its files; nothing else goes through the open view.
 PAGE_FILES = re.compile(r"ui/?|ui/icon\.png|ui/guide/(de|en)|ui/guide/img/[\w.-]+")
 API = "v1/ui/"
-# What a user who is no admin may call: their memory, and changing a fact.
+# What a user who is no admin may call: their memory, changing a fact, and
+# following the running plans.
 NON_ADMIN_LIST = "v1/ui/memory"
+NON_ADMIN_PLANS = "v1/ui/plans"
 NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$)[\w-]+")
 # Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
 HEADER_USER = "X-Mira-HA-User"
@@ -160,7 +162,7 @@ async def _forward(
 def _allowed(method: str, path: str) -> bool:
     """Whether a user who is no admin may make this call."""
     if method == "GET":
-        return path == NON_ADMIN_LIST
+        return path in (NON_ADMIN_LIST, NON_ADMIN_PLANS)
     return method in ("PUT", "DELETE") and NON_ADMIN_FACT.fullmatch(path) is not None
 
 

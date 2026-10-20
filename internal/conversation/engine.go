@@ -113,7 +113,7 @@ type Options struct {
 	Afterword func(ctx context.Context, area string) string
 	// Thread links the turn to its thread ("Vorgang", package threads) and
 	// renders it for layer 7. followedUp are the messages this turn answers.
-	Thread func(ctx context.Context, sess store.Session, followedUp []string) string
+	Thread func(ctx context.Context, sess store.Session, followedUp []string) (text string, foreign bool)
 	// Identify says who is speaking: a person key, or "" for anonymous.
 	Identify func(ctx context.Context, req Request, sess store.Session) string
 	// Languages says which language applies (docs/spec/sprache.md); tests
@@ -139,7 +139,7 @@ type Engine struct {
 	assist      func() string
 	deviceHints func(device string) string
 	afterword   func(ctx context.Context, area string) string
-	thread      func(ctx context.Context, sess store.Session, followedUp []string) string
+	thread      func(ctx context.Context, sess store.Session, followedUp []string) (string, bool)
 	identify    func(ctx context.Context, req Request, sess store.Session) string
 	persona     func() string
 	languages   Languages
@@ -152,6 +152,10 @@ type Engine struct {
 	// and interleaving two sessions on a slot would evict each other's cache
 	// mid-turn.
 	locks map[config.Channel]*sync.Mutex
+	// webSeen notes the conversations that read web content, and when: what
+	// Mira writes down in a later turn of one (a plan) counts as foreign.
+	webMu   sync.Mutex
+	webSeen map[string]time.Time
 
 	// lastPrefix is the hash of each channel's last request start, to log
 	// when it changes (ctxlog.go).
@@ -196,6 +200,7 @@ func New(opts Options) *Engine {
 		clock:       opts.Clock,
 		loc:         opts.Location,
 		locks:       map[config.Channel]*sync.Mutex{},
+		webSeen:     map[string]time.Time{},
 		lastPrefix:  map[config.Channel]string{},
 		warm:        make(chan string, 1),
 	}
@@ -256,10 +261,11 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	return resp, nil
 }
 
-// threadContext is the turn's thread for layer 7, if any.
-func (e *Engine) threadContext(ctx context.Context, sess store.Session, followedUp []string) string {
+// threadContext is the turn's thread for layer 7, if any, and whether it
+// carries third-party text.
+func (e *Engine) threadContext(ctx context.Context, sess store.Session, followedUp []string) (string, bool) {
 	if e.thread == nil {
-		return ""
+		return "", false
 	}
 	return e.thread(ctx, sess, followedUp)
 }
@@ -299,6 +305,8 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID, DeviceID: sess.DeviceID}
 	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
+	threadText, foreign := e.threadContext(ctx, sess, followedUp)
+	ts.ForeignContext = foreign
 	turn := prompt.Turn{
 		Lang:           e.lang(ctx),
 		Now:            now.In(e.loc),
@@ -308,7 +316,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),
 		MessageContext: messageText,
-		Thread:         e.threadContext(ctx, sess, followedUp),
+		Thread:         threadText,
 		Extra:          req.Extra,
 		Text:           req.Text,
 	}
@@ -436,6 +444,9 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	resp.Text = strings.TrimSpace(final.Content)
 	// A satellite keeps listening after a question, and always after a
 	// confirmation request: the user's "yes" must reach this session.
+	if ts.WebContentSeen() {
+		e.noteWeb(key)
+	}
 	resp.ContinueConversation = req.Channel == config.ChannelVoice &&
 		(expectsReply(resp.Text) || ts.ConfirmationRequested())
 	e.log.Info("turn done",
@@ -540,7 +551,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	began := time.Now()
 	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
-		DeviceID: ts.DeviceID,
+		DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
 	})
 	e.guard.Observe(ts, spec)
 	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
@@ -629,4 +640,29 @@ func (e *Engine) ResetSession(ctx context.Context, ch config.Channel, conversati
 	lock.Lock()
 	defer lock.Unlock()
 	return e.store.DeleteSession(ctx, SessionKey(ch, conversationID))
+}
+
+// webMemory is how long a conversation's web content counts; longer than
+// any voice conversation lasts.
+const webMemory = time.Hour
+
+// noteWeb remembers that a conversation read web content.
+func (e *Engine) noteWeb(key string) {
+	e.webMu.Lock()
+	defer e.webMu.Unlock()
+	now := time.Now()
+	for k, at := range e.webSeen {
+		if now.Sub(at) > webMemory {
+			delete(e.webSeen, k)
+		}
+	}
+	e.webSeen[key] = now
+}
+
+// sawWeb reports whether a conversation read web content in an earlier turn.
+func (e *Engine) sawWeb(key string) bool {
+	e.webMu.Lock()
+	defer e.webMu.Unlock()
+	at, ok := e.webSeen[key]
+	return ok && time.Since(at) <= webMemory
 }

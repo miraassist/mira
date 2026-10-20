@@ -70,6 +70,8 @@ type Options struct {
 	CompactProfile func(ctx context.Context) (bool, error)
 	// Tasks are Mira's tasks.
 	Tasks Tasks
+	// Plans are the running plans, for everyone to follow.
+	Plans PlanSource
 	// Threads confirms or cancels tasks still being planned.
 	Threads Threads
 	// Persons lists the configured person keys; each gets a memory card, if
@@ -120,6 +122,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.authAnyone(h.forget))
 	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.authAnyone(h.editFact))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
+	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.enableTask(true)))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/pause", h.auth(h.enableTask(false)))
