@@ -224,3 +224,66 @@ func TestGuideExampleLoads(t *testing.T) {
 		}
 	}
 }
+
+// A per_person schedule runs once for each person with a calendar of their
+// own, with their name and calendar in the task, and its message goes to
+// that person; a person with nothing to report gets nothing.
+func TestPerPersonScheduleRunsForEachPersonWithACalendar(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "tag"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skill := "---\nname: tag\ndescription: Der eigene Tag.\nmetadata:\n  mira:\n    schedules:\n      - cron: \"35 5 * * *\"\n        per_person: true\n        task: Termine von {{person}} im Kalender {{person_calendar}}.\n---\nAnleitung.\n"
+	if err := os.WriteFile(filepath.Join(dir, "tag", "SKILL.md"), []byte(skill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	list, problems := Load([]string{dir}, map[string]map[string]any{"tag": nil})
+	if len(problems) != 0 || len(list) != 1 || !list[0].Schedules[0].PerPerson {
+		t.Fatalf("load: %+v %+v", list, problems)
+	}
+	sk := list[0]
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	tasker := &perPersonTasker{answers: map[string]string{
+		"Ben":  `{"importance":1,"spoken":"Du hast um 9 Zahnarzt."}`,
+		"Anna": `{"importance":0,"spoken":""}`,
+	}}
+	r := &Runner{Set: berlinSet(t, sk), Tasker: tasker, Store: st, People: func(context.Context) []Person {
+		return []Person{{Key: "anna", Name: "Anna", Calendar: "Anna"}, {Key: "ben", Name: "Ben", Calendar: "Ben"}}
+	}}
+	queued, err := r.RunJob(context.Background(), sk, 0)
+	if err != nil || !queued {
+		t.Fatalf("run: %v %v", queued, err)
+	}
+	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben.") {
+		t.Errorf("tasks: %q", tasker.seen)
+	}
+	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
+	if len(msgs) != 1 || msgs[0].Receiver != "ben" || msgs[0].Spoken != "Du hast um 9 Zahnarzt." || !strings.HasSuffix(msgs[0].DedupeKey, ":ben") {
+		t.Errorf("messages: %+v", msgs)
+	}
+	// Nobody with a calendar of their own: nothing runs.
+	r.People = func(context.Context) []Person { return nil }
+	tasker.seen = nil
+	if queued, err := r.RunJob(context.Background(), sk, 0); err != nil || queued || len(tasker.seen) != 0 {
+		t.Errorf("without people: %v %v %q", queued, err, tasker.seen)
+	}
+}
+
+type perPersonTasker struct {
+	answers map[string]string
+	seen    []string
+}
+
+func (f *perPersonTasker) RunTask(_ context.Context, instruction string) (string, error) {
+	f.seen = append(f.seen, instruction)
+	for name, a := range f.answers {
+		if strings.Contains(instruction, "Termine von "+name) {
+			return a, nil
+		}
+	}
+	return `{"importance":0}`, nil
+}

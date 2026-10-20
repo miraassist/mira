@@ -51,6 +51,10 @@ Das ist der Haupt-Anwendungsfall: „Trag mir Freitag um 15 Uhr Zahnarzt ein.“
 - **Kein Nachfragen**, ob es passt. Mira sagt, was sie eingetragen hat: Titel, Tag, Uhrzeit, Kalender.
 - **Korrektur** („Nein, 16 Uhr“): Mira sagt den eben eingetragenen Termin ab, wie unten, und trägt neu ein. HA gibt beim Eintragen keine Termin-ID zurück; Mira findet ihn über `calendar_events` wieder.
 
+## Persönliche Kalender: Konvention statt Einstellung
+
+Ein freigegebener Kalender, der so heißt wie eine Person in Home Assistant (Groß- und Kleinschreibung und Leerzeichen am Rand egal), ist der Kalender dieser Person: „Ben“ gehört Ben. Es gibt dafür keine Einstellung. Genutzt wird das von Skill-Zeitplänen mit `per_person: true` (sie laufen je Person mit eigenem Kalender, die Nachricht geht an die Person; `cmd/mira/calendars.go`, `ownCalendars`) und vom Briefing auf Nachfrage. Eine Person ohne Kalender ihres Namens bekommt nichts Persönliches.
+
 ## Welcher Kalender: fragen und merken
 
 Eine Einstellung dafür gibt es nicht.

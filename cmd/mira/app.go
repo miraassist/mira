@@ -512,7 +512,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	}
 
 	if a.skills != nil && len(a.skills.Skills) > 0 {
-		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
+		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.peopleWithCalendars}
 		a.goRun(ctx, "skills", runner.Run)
 	}
 
@@ -1009,7 +1009,12 @@ func runSkill(parent context.Context, cfg config.Config, name string, index int)
 	if !ok {
 		return fmt.Errorf("skill %s is not enabled (skills.enabled)", name)
 	}
-	runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log}
+	// Home Assistant's persons, as the running agent has them, for
+	// schedules that run per person.
+	if _, err := a.people.refresh(ctx, a.ha); err != nil {
+		a.log.Warn("could not read the persons from home assistant", "error", err)
+	}
+	runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.peopleWithCalendars}
 	queued, err := runner.RunJob(ctx, sk, index)
 	if err != nil {
 		return err

@@ -141,6 +141,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 **Briefing**: eine kurze Übersicht, was ansteht, in drei, vier Sätzen.
 
 - Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht.
+- **Dein eigener Kalender:** Heißt ein Kalender in Home Assistant so wie du (Bens Kalender heißt „Ben“), ist es deiner. Dann bekommst du morgens zusätzlich eine eigene Nachricht mit deinen Terminen von heute, über deine Kanäle (Handy, Telegram) oder am Satelliten, wenn Mira dich dort erkennt. Ohne Termine kommt nichts.
 - „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
 
@@ -158,7 +159,7 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 - `description`: ein Satz, wann der Skill gebraucht wird. Mehr sieht Mira nicht, bis sie den Skill öffnet; ist der Satz gut, öffnet sie ihn zur rechten Zeit.
 - Optional unter `metadata:` → `mira:`:
   - `settings`: Angaben, die jeder Haushalt selbst einträgt, jeweils mit einer `description` (die erscheint auch in Fehlermeldungen) und `required: true`, wenn der Skill ohne sie nicht arbeiten kann.
-  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus.
+  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die einen eigenen Kalender hat (einen, der so heißt wie die Person in Home Assistant); `{{person}}` und `{{person_calendar}}` werden eingesetzt, und die Nachricht geht an diese Person statt ans Haus.
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein.
 
 **3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills.enabled` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit einem Doppelpunkt. Nur die mitgelieferten Gesprächs-Skills für Aufgaben, Merken, Termine, To-dos und Wecker schalten sich selbst ein.

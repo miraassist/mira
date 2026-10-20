@@ -137,6 +137,7 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 **Briefing**: a short overview of what is coming, in three or four sentences.
 
 - In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow.
+- **Your own calendar:** if a calendar in Home Assistant is named like you (Ben's is called "Ben"), it is yours. You then also get a message of your own in the morning with today's appointments, over your channels (phone, Telegram) or at a satellite when Mira recognises you there. Without appointments nothing comes.
 - "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
 - In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
 
@@ -154,7 +155,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 - `description`: one sentence on when the skill is needed. That is all Mira sees until she opens the skill; a good sentence makes her open it at the right time.
 - Optionally under `metadata:` → `mira:`:
   - `settings`: values every household fills in itself, each with a `description` (it also appears in error messages) and `required: true` if the skill cannot work without it.
-  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house.
+  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person who has a calendar of their own (one named like the person in Home Assistant); `{{person}}` and `{{person_calendar}}` are filled in, and the message goes to that person instead of the house.
 - The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`.
 
 **3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled conversation skills for tasks, remembering, appointments, to-dos and alarms switch themselves on.

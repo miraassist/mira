@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -29,6 +30,15 @@ type Runner struct {
 	Tasker Tasker
 	Store  *store.Store
 	Logger *slog.Logger
+	// People are the persons with a calendar of their own, for schedules
+	// with per_person.
+	People func(ctx context.Context) []Person
+}
+
+// Person is someone a per_person schedule runs for: the receiver key of
+// their messages, their name, and the name of their own calendar.
+type Person struct {
+	Key, Name, Calendar string
 }
 
 type job struct {
@@ -97,13 +107,39 @@ type taskResult struct {
 }
 
 // RunJob runs schedule index of a skill now and queues its message, if it
-// has one. It reports whether a message was queued.
+// has one: for the house, or, with per_person, one for each person with a
+// calendar of their own. It reports whether a message was queued.
 func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) {
 	if index < 0 || index >= len(sk.Schedules) {
 		return false, fmt.Errorf("skill %s has no schedule %d", sk.Name, index)
 	}
+	if !sk.Schedules[index].PerPerson {
+		return r.runFor(ctx, sk, index, Person{})
+	}
+	var people []Person
+	if r.People != nil {
+		people = r.People(ctx)
+	}
+	queued := false
+	var errs []error
+	for _, p := range people {
+		q, err := r.runFor(ctx, sk, index, p)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", p.Key, err))
+		}
+		queued = queued || q
+	}
+	return queued, errors.Join(errs...)
+}
+
+// runFor runs one task: for the house when p is empty, else for p.
+func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (bool, error) {
 	t := i18n.Pick(catalog, r.Set.Lang)
-	instruction := fmt.Sprintf(t.taskIntro, sk.Name) + sk.Body + "\n\n---\n\n" + strings.TrimSpace(sk.Schedules[index].Task) + t.taskRules
+	task := strings.TrimSpace(sk.Schedules[index].Task)
+	if p.Key != "" {
+		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", p.Calendar).Replace(task)
+	}
+	instruction := fmt.Sprintf(t.taskIntro, sk.Name) + sk.Body + "\n\n---\n\n" + task + t.taskRules
 	raw, err := r.Tasker.RunTask(ctx, instruction)
 	if err != nil {
 		return false, err
@@ -123,11 +159,17 @@ func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) 
 		res.ExpiresInHours = 12
 	}
 	now := r.Set.clock()
+	// One message per job, day (and person): a rerun updates it.
+	dedupe := fmt.Sprintf("skill:%s:%d:%s", sk.Name, index, now.In(r.Set.loc()).Format("2006-01-02"))
+	receiver := store.ReceiverHouse
+	if p.Key != "" {
+		dedupe += ":" + p.Key
+		receiver = p.Key
+	}
 	_, _, err = r.Store.PutMessage(ctx, store.Message{
 		ID: ulid.Make().String(), Source: store.SourceSchedule,
-		// One message per job and day: a rerun updates it.
-		DedupeKey:  fmt.Sprintf("skill:%s:%d:%s", sk.Name, index, now.In(r.Set.loc()).Format("2006-01-02")),
-		Importance: res.Importance, Receiver: store.ReceiverHouse,
+		DedupeKey:  dedupe,
+		Importance: res.Importance, Receiver: receiver,
 		Spoken: res.Spoken, Details: strings.TrimSpace(res.Details),
 		ExpiresAt: now.Add(time.Duration(res.ExpiresInHours * float64(time.Hour))),
 	})
