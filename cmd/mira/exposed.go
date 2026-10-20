@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 
 	"github.com/miraassist/mira/internal/store"
 )
@@ -43,4 +47,23 @@ func (a *app) exposed(ctx context.Context) (map[string]bool, bool) {
 		out[id] = true
 	}
 	return out, true
+}
+
+// exposedHash is a fingerprint of the kept list, for /v1/status: the
+// integration compares it with its own and sends the list again when they
+// differ (a late-discovered device, an agent that started with an empty
+// database). "" while no list was ever sent. The integration computes the
+// same: sha256 of the sorted ids joined by newlines.
+func (a *app) exposedHash(ctx context.Context) string {
+	raw, err := a.store.GetKV(ctx, kvExposed)
+	if err != nil {
+		return ""
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return ""
+	}
+	slices.Sort(ids)
+	sum := sha256.Sum256([]byte(strings.Join(ids, "\n")))
+	return hex.EncodeToString(sum[:])
 }

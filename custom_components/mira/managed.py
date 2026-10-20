@@ -20,6 +20,8 @@ Tasks are automations labelled "Mira"
 
 from __future__ import annotations
 
+import hashlib
+
 from typing import Any
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -196,6 +198,12 @@ def build_config(
         if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
             rooms[area] = room_to_agent(area, entry.entity_id, {})
     return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)], "exposed": exposed_entities(hass)}
+
+
+def exposed_hash(ids: list[str]) -> str:
+    """The fingerprint of the list, as the agent computes it for /v1/status:
+    sha256 of the sorted ids joined by newlines."""
+    return hashlib.sha256("\n".join(sorted(ids)).encode()).hexdigest()
 
 
 def exposed_entities(hass: HomeAssistant) -> list[str]:

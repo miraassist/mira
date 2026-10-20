@@ -60,6 +60,10 @@ type Options struct {
 	// Problems are what did not start and why, in plain words; the
 	// integration shows them as repairs.
 	Problems func() []Problem
+	// ExposedHash is a fingerprint of the list of entities exposed to Assist
+	// that the integration last sent ("" if none), so it can see whether
+	// the agent has the current one.
+	ExposedHash func(ctx context.Context) string
 }
 
 // Problem is something that did not start: a skill with a wrong setting.
@@ -327,7 +331,11 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Problems != nil {
 		problems = append(problems, s.opts.Problems()...)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems})
+	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems}
+	if s.opts.ExposedHash != nil {
+		status["exposed_hash"] = s.opts.ExposedHash(r.Context())
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {

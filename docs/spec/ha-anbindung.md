@@ -48,6 +48,11 @@ Was Mira sehen darf, bestimmt HAs „Für Assist freigeben“. HAs eigene Werkze
   - Der Hausplan ist ohne Liste leer, ebenso die Auswahl für Aufgaben, Kalender und Listen.
   - Ein Gespräch beantwortet Mira ohne Liste mit: „Ich warte noch auf die Verbindung mit Home Assistant …“ Sie ruft kein Werkzeug und fragt das Modell nicht. Sonst würde HAs MCP-Server schalten, was dort freigegeben ist, während der Wächter diese Namen im leeren Plan nicht kennt.
   - Das betrifft nur den Zeitraum vor dem ersten Abgleich der Integration. Danach merkt sich der Agent die Liste auch über Neustarts.
+- **Die Liste bleibt richtig, wenn einer von beiden neu startet** (seit 0.6.50):
+  - Der Agent meldet in `/v1/status` einen **Fingerabdruck** seiner Liste (`exposed_hash`: sha256 der sortierten Kennungen, durch Zeilenumbrüche verbunden; leer, solange er nie eine bekam). Die Integration berechnet denselben aus HA und vergleicht bei **jeder Abfrage** (jede Minute), nach dem Start von HA und bei jeder Änderung der Freigabe. Weicht er ab, sendet sie die Liste neu. Das deckt ein später entdecktes Gerät (MQTT, Discovery), einen verpassten Versand und einen Agenten ab, der mit leerer Datenbank startet.
+  - **Solange HA startet, wird nichts gesendet** (Zustand „läuft“ erst nach dem Start-Ereignis). Beim Start melden sich die Entitäten nacheinander an; eine Liste aus den ersten Sekunden wäre kurz und würde die vollständige beim Agenten ersetzen (so geschehen: 14 statt 185). Bis dahin behält der Agent die gespeicherte Liste.
+  - Ein Agent, der den Fingerabdruck nicht meldet (älter), wird nur einmal bedient wie früher.
+  - **Neustart des Agenten** (etwa nach einer Änderung der Konfiguration) ändert nichts: Die Liste liegt in seiner Datenbank. Nur bei leerer Datenbank holt der Abgleich sie innerhalb einer Minute nach.
 - **Warum nicht aus dem ableiten, was Mira sieht:** HAs Assist-Prompt und `GetLiveContext` nennen nur Namen, keine IDs, und lassen Kalender ganz weg. Eine Grenze für den Datenschutz darf nicht auf Namen raten.
 
 ## Nachfragen vor dem Schalten

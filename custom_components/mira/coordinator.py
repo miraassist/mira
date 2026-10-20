@@ -7,13 +7,13 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_IMPORTED, DOMAIN
-from .managed import build_config
+from .managed import build_config, exposed_entities, exposed_hash
 from .once import sweep
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             status = await self.client.status()
         except MiraError as err:
             raise UpdateFailed(str(err)) from err
-        await self._sync()
+        await self._sync(status)
         self._show_problems(status.get("problems") or [])
         return status
 
@@ -71,9 +71,18 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_placeholders={"name": str(problem["name"]), "text": str(problem.get("text", ""))},
             )
 
-    async def _sync(self) -> None:
+    async def _sync(self, status: dict[str, Any]) -> None:
+        """Sends the settings once, and the list of what Assist sees again
+        whenever the agent's fingerprint of it differs from ours: a device
+        that was discovered later, an agent that started with an empty
+        database. Not while Home Assistant is still starting: its entities
+        are not all there yet, and a short list would replace a complete one
+        at the agent."""
         entry = self.config_entry
-        if self._synced or not entry.data.get(CONF_IMPORTED):
+        if not entry.data.get(CONF_IMPORTED) or self.hass.state is not CoreState.running:
+            return
+        theirs = status.get("exposed_hash")
+        if self._synced and (theirs is None or theirs == exposed_hash(exposed_entities(self.hass))):
             return
         try:
             await self.client.set_managed_config(build_config(self.hass, entry))

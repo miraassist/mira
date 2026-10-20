@@ -11,10 +11,11 @@ import voluptuous as vol
 from homeassistant.components.homeassistant.exposed_entities import async_listen_entity_updates
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
+from homeassistant.core import CoreState, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
 from .access import hand_back, revoke_agent_token, use_mira_in
@@ -187,6 +188,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _use_in_assistants(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+    # Once Home Assistant has started, compare at once what Assist sees with
+    # what the agent has, without waiting for the next poll.
+    entry.async_on_unload(async_at_started(hass, lambda _hass: coordinator.async_request_refresh()))
     # Telegram through Home Assistant's own integration (telegram.py).
     entry.async_on_unload(async_setup_telegram(hass, entry))
     # A change of what Assist sees reaches the agent at once.
@@ -201,7 +205,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
 def _send_exposed(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
     """Sends the settings again, with what Assist now sees. Only while the
     integration manages them (after the first import)."""
-    if not entry.data.get(CONF_IMPORTED):
+    if not entry.data.get(CONF_IMPORTED) or hass.state is not CoreState.running:
+        # While Home Assistant starts, its entities register one after the
+        # other; a list sent now would be short. The status poll compares
+        # the agent's fingerprint with ours once it runs (coordinator.py).
         return
 
     async def send() -> None:

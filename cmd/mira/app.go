@@ -869,7 +869,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
-		Problems: func() []haconv.Problem { return a.problems },
+		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash,
 	}
 	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)
