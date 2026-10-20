@@ -191,7 +191,7 @@ class MiraClient:
 
     async def mail(self, mail: dict[str, Any]) -> dict[str, Any]:
         """Hand over one mail of a mail calendar; waits while the model reads it."""
-        return await self._request("POST", "/v1/mail", 200, json=mail)
+        return await self._request("POST", "/v1/mail", 320, json=mail)
 
     async def compact_profile(self) -> dict[str, Any]:
         """Rebuild the memory profile from the stored facts now."""

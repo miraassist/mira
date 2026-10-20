@@ -367,7 +367,8 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `body must be {"entry", "sender", "subject", "date", "text"}`)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	// Reading and matching, each tried twice at most (mailcal.Options).
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 	out, err := s.opts.Mail.Handle(ctx, m)
 	switch {

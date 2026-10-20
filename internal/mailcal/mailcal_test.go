@@ -297,3 +297,30 @@ func TestNoDayNoEntryButCancelWithoutDay(t *testing.T) {
 		t.Errorf("cancel without day: %+v %+v", out, cal.events)
 	}
 }
+
+// hangingModel gives no answer to its first call until the call's time is
+// up, then answers.
+type hangingModel struct {
+	fakeModel
+	calls int
+}
+
+func (h *hangingModel) Ask(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error) {
+	h.calls++
+	if h.calls == 1 {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	return h.fakeModel.Ask(ctx, system, instruction, schema)
+}
+
+// A call that hangs is tried once more; the mail is not lost.
+func TestAHangingCallIsTriedOnceMore(t *testing.T) {
+	m := &hangingModel{fakeModel: fakeModel{items: []item{{Relevant: true, Title: "Paket", Keys: []string{"A1"}, Day: "2026-10-21"}}}}
+	cal := &fakeCal{events: map[string]Event{}}
+	s := New(Options{Calendar: cal, Model: m, Location: berlin, Clock: func() time.Time { return now }, AttemptTimeout: 20 * time.Millisecond,
+		Apps: func() map[string]string { return map[string]string{"pakete": "Pakete lesen."} }})
+	if out, err := s.Handle(context.Background(), mail("Pakete", now)); err != nil || out.Action != "created" || m.calls != 2 {
+		t.Errorf("retry: %+v %v, %d calls", out, err, m.calls)
+	}
+}

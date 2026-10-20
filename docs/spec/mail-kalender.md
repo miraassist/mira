@@ -61,7 +61,8 @@ IMAP-Eintrag „Pakete“ (Suche)
 
 - Ein **isolierter** Modellaufruf: kein Haus, keine Werkzeuge, kein Gedächtnis, kein Verlauf. Er bekommt die
   **Mail-Anleitung des Skills** und die Mail, als Daten gekennzeichnet.
-- **Modell:** Rolle `mail` unter `routing`; ohne Angabe das Modell für Hintergrundaufgaben. Ein Cloud-Modell sieht
+- **Modell:** Rolle `mail` unter `routing`; ohne Angabe das Modell für Hintergrundaufgaben. Ein Aufruf, der
+  scheitert oder nach 60 s keine Antwort hat, wird einmal wiederholt (ein Cloud-Modell bleibt ab und zu ohne Antwort). Ein Cloud-Modell sieht
   die Mails (Namen, Adressen, Bestellungen, bei Terminen auch Gesundheitsdaten); der Guide rät zu einem lokalen.
 - **Schema** (JSON):
 

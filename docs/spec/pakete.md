@@ -24,7 +24,7 @@ liefern Privatkunden oft kein Zeitfenster. Die Versandmails haben beides und meh
 
 - Relevant ist eine Mail, die eine Sendung an den Nutzer ankündigt oder ihren Stand meldet; Werbung, Rechnungen und
   Bewertungsbitten nicht.
-- **Titel:** „Paket von <Shop>“, mit der Ware, wenn die Mail sie nennt („Paket von Amazon: Druckerpatronen“), nie
+- **Titel:** „Paket von <Shop>“, mit der Ware, wenn die Mail sie nennt („Paket von Amazon: Druckerpatronen“), kurz (höchstens fünf Wörter), nie
   „1 Artikel“ oder eine Nummer; liegt es zur Abholung bereit: „Paket von <Shop> abholbereit“.
 - **Kennungen:** alle Nummern der Sendung oder Bestellung: Sendungsnummer, Bestellnummer, Sendungs-ID des Shops. So
   findet die Mail des Paketdienstes den Eintrag aus der Mail des Shops.

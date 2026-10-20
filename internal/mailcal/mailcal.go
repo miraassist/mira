@@ -82,6 +82,10 @@ type Options struct {
 	Location *time.Location
 	Clock    func() time.Time
 	Logger   *slog.Logger
+	// AttemptTimeout bounds one model call; a call that takes longer is
+	// tried once more. Default 60 s: a local model with a cold prompt takes
+	// about 50.
+	AttemptTimeout time.Duration
 }
 
 type Service struct {
@@ -100,6 +104,9 @@ func New(o Options) *Service {
 	}
 	if o.Logger == nil {
 		o.Logger = slog.Default()
+	}
+	if o.AttemptTimeout == 0 {
+		o.AttemptTimeout = 60 * time.Second
 	}
 	return &Service{o: o, log: o.Logger.With("component", "mailcal"), locks: map[string]*sync.Mutex{}}
 }

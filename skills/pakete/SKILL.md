@@ -12,8 +12,8 @@ metadata:
         storniert, zurück an den Absender). Nicht relevant: Werbung, Rechnungen,
         Bewertungsbitten, Umfragen, Sendungen, die der Empfänger selbst verschickt.
         Titel: „Paket von <Shop oder Absender>“, mit der Ware, wenn die Mail sie
-        nennt („Paket von Amazon: Druckerpatronen“); nur die Ware, nie „1 Artikel“
-        oder eine Nummer. Liegt es zur Abholung bereit: „Paket von <Shop>
+        nennt („Paket von Amazon: Druckerpatronen“); nur die Ware, kurz, höchstens
+        fünf Wörter, nie „1 Artikel“ oder eine Nummer. Liegt es zur Abholung bereit: „Paket von <Shop>
         abholbereit“. Ist der Shop unbekannt, der Paketdienst („Paket per DHL“).
         Kennungen (keys): alle Nummern, die diese Sendung oder Bestellung bezeichnen:
         Sendungsnummer, Bestellnummer, Sendungs-ID des Shops. Keine Kunden-,
