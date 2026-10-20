@@ -374,8 +374,7 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, mailcal.ErrNoApp):
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
-	case err != nil:
-		s.log.Warn("mail failed", "entry", m.Entry, "err", err)
+	case err != nil: // logged by the mail calendar
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/miraassist/mira/internal/llm"
 )
 
 // Mail is one mail as the Mira integration hands it over.
@@ -139,6 +141,20 @@ var ErrNoApp = errors.New("no mail application for this entry")
 // Handle reads one mail and keeps its entry. Mails of one calendar are
 // handled one after the other.
 func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
+	ctx, tally := llm.WithTally(ctx)
+	started := time.Now()
+	out, err := s.handle(ctx, m)
+	attrs := append([]any{"calendar", oneLine(m.Entry), "action", out.Action, "reason", out.Reason, "title", out.Title,
+		"ms", time.Since(started).Milliseconds()}, tally.Attrs()...)
+	if err != nil {
+		s.log.Warn("mail failed", append(attrs, "error", err)...)
+	} else {
+		s.log.Info("mail read", attrs...)
+	}
+	return out, err
+}
+
+func (s *Service) handle(ctx context.Context, m Mail) (Outcome, error) {
 	app := s.App(m.Entry)
 	if app == "" {
 		return Outcome{}, fmt.Errorf("%w: %q", ErrNoApp, m.Entry)
@@ -196,7 +212,6 @@ func (s *Service) Handle(ctx context.Context, m Mail) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	s.log.Info("mail kept", "calendar", name, "action", out.Action, "title", out.Title, "keys", len(item.Keys))
 	return out, nil
 }
 

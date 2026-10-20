@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/llm"
@@ -85,10 +86,12 @@ func (e *Engine) AssessIsolatedOn(ctx context.Context, modelName, system, instru
 			"json_schema": map[string]any{"name": "result", "schema": schema},
 		}
 	}
+	started := time.Now()
 	out, err := client.Chat(ctx, req)
 	if err != nil {
 		return "", err
 	}
+	llm.Count(ctx, modelName, time.Since(started), out)
 	text := stripThinking(out.Message().Content)
 	if text == "" {
 		return "", errors.New("empty answer")
