@@ -250,7 +250,7 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 "Set a timer for 10 minutes for the pasta." – "How long is left?" – "Five more minutes." – "Pause the timer." – "Cancel the timer."
 
-These are Home Assistant's own timers, and they run on the satellite you speak to: it counts down, shows what is left (the Show on its screen), rings, and you stop it with "stop". Mira builds no timer of her own, she operates the one of Home Assistant. Several timers are told apart by name ("the pasta timer"). On a device without timers, such as Telegram, Mira says so honestly.
+These are Home Assistant's own timers, and they run on the satellite you speak to: it counts down, shows what is left (the Show on its screen), rings, and you stop it with "stop". Mira builds no timer of her own, she uses the tools Home Assistant gives its voice assistants for it. Several timers are told apart by name ("the pasta timer"). On a device without timers, such as Telegram, Mira says so honestly.
 
 A **reminder** ("Remind me in an hour about the laundry") is something else: Mira then tells you the text.
 

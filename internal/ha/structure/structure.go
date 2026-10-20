@@ -54,6 +54,10 @@ type Snapshot struct {
 	// ExposureKnown is false when Home Assistant could not tell us which
 	// entities are exposed and the build fell back to including everything.
 	ExposureKnown bool
+	// SatelliteDevices are the device ids of the voice satellites (Assist
+	// satellite entities), sorted. The MCP host asks Home Assistant for its
+	// tools as each of them would get them.
+	SatelliteDevices []string
 	// Counts for logging and telemetry.
 	AreaCount, EntityCount int
 }
@@ -88,7 +92,12 @@ func Build(reg Registry) Snapshot {
 		if slices.Contains(e.Labels, LabelConfirm) {
 			snap.Confirm[e.EntityID] = true
 		}
+		if Domain(e.EntityID) == "assist_satellite" && e.Usable() && e.DeviceID != "" &&
+			!slices.Contains(snap.SatelliteDevices, e.DeviceID) {
+			snap.SatelliteDevices = append(snap.SatelliteDevices, e.DeviceID)
+		}
 	}
+	slices.Sort(snap.SatelliteDevices)
 
 	areaByID := make(map[string]haws.Area, len(reg.Areas))
 	for _, a := range reg.Areas {

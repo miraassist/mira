@@ -313,3 +313,22 @@ func TestResolveNameAndArea(t *testing.T) {
 		t.Errorf("unknown area resolved to %v", got)
 	}
 }
+
+// The voice satellites' devices are kept, whatever is exposed: the agent asks
+// Home Assistant for its tools as each of them would get them.
+func TestBuildKeepsTheSatelliteDevices(t *testing.T) {
+	snap := Build(Registry{
+		Entities: []haws.Entity{
+			{EntityID: "assist_satellite.show", DeviceID: "dev-b"},
+			{EntityID: "assist_satellite.echo", DeviceID: "dev-a"},
+			{EntityID: "assist_satellite.dup", DeviceID: "dev-a"},
+			{EntityID: "assist_satellite.off", DeviceID: "dev-c", DisabledBy: "user"},
+			{EntityID: "assist_satellite.nodevice"},
+			{EntityID: "light.lamp", DeviceID: "dev-d"},
+		},
+		Exposed: map[string]bool{},
+	})
+	if got := strings.Join(snap.SatelliteDevices, ","); got != "dev-a,dev-b" {
+		t.Errorf("satellite devices = %q", got)
+	}
+}

@@ -205,3 +205,77 @@ func TestCallReconnectsWhenTheServerForgotTheSession(t *testing.T) {
 		t.Errorf("unknown prompt answered %q", text)
 	}
 }
+
+// Home Assistant's MCP server offers a satellite its timers only when asked
+// as that satellite. The host asks as each satellite and joins the lists, and
+// a call carries the satellite that made the request.
+func TestDeviceContextBringsTheToolsOfTheSatelliteAlong(t *testing.T) {
+	ha := fakemcp.HA("Küche: Licht an")
+	t.Cleanup(ha.Close)
+	ha.AddDeviceTool("HassStartTimer", "Starts a timer", `{"type":"object","properties":{"minutes":{"type":"integer"}}}`,
+		func(map[string]any) (string, bool) { return `{"response_type":"action_done"}`, false })
+	yes := true
+	cfg := config.MCPServer{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), DeviceContext: &yes}
+
+	h := start(t, mcp.Options{Servers: []config.MCPServer{cfg}, Devices: func() []string { return []string{"sat-kueche", "sat-bad"} }})
+	if _, ok := h.Lookup("ha__HassStartTimer"); !ok {
+		t.Fatalf("the satellite's timer tool is missing: %v", h.Tools())
+	}
+	if _, ok := h.Lookup("ha__GetLiveContext"); !ok {
+		t.Error("the plain tools are missing")
+	}
+	// Once without a satellite and once as each.
+	if got := ha.Lists(); len(got) != 3 || got[0] != "" || got[1] != "sat-kueche" || got[2] != "sat-bad" {
+		t.Errorf("listings: %q", got)
+	}
+
+	// The call names the satellite of the request.
+	ctx := mcp.WithDevice(context.Background(), "sat-kueche")
+	if _, err := h.Call(ctx, "ha__HassStartTimer", json.RawMessage(`{"minutes":5}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.Call(context.Background(), "ha__HassTurnOn", json.RawMessage(`{"name":"x"}`)); err != nil {
+		t.Fatal(err)
+	}
+	calls := ha.Calls()
+	if len(calls) != 2 || calls[0].Device != "sat-kueche" || calls[1].Device != "" {
+		t.Errorf("calls: %+v", calls)
+	}
+}
+
+// A server that does not take the satellite (a web search) is neither asked
+// as a satellite nor told which one.
+func TestOtherServersDoNotGetTheSatellite(t *testing.T) {
+	search := fakemcp.Search("Ergebnis")
+	t.Cleanup(search.Close)
+	cfg := config.MCPServer{Name: "search", Transport: config.TransportHTTP, URL: search.Endpoint()}
+	h := start(t, mcp.Options{Servers: []config.MCPServer{cfg}, Devices: func() []string { return []string{"sat-kueche"} }})
+	if _, err := h.Call(mcp.WithDevice(context.Background(), "sat-kueche"), "search__web_search", json.RawMessage(`{"query":"x"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := search.Lists(); len(got) != 1 || got[0] != "" {
+		t.Errorf("listings: %q", got)
+	}
+	if c := search.Calls(); len(c) != 1 || c[0].Device != "" {
+		t.Errorf("calls: %+v", c)
+	}
+}
+
+// A satellite that comes back with timers shows up at the next refresh.
+func TestRefreshPicksUpANewSatellite(t *testing.T) {
+	ha := fakemcp.HA("x")
+	t.Cleanup(ha.Close)
+	ha.AddDeviceTool("HassStartTimer", "Starts a timer", `{"type":"object","properties":{}}`, func(map[string]any) (string, bool) { return "{}", false })
+	yes := true
+	cfg := config.MCPServer{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), DeviceContext: &yes}
+	devices := []string{}
+	h := start(t, mcp.Options{Servers: []config.MCPServer{cfg}, Devices: func() []string { return devices }})
+	if _, ok := h.Lookup("ha__HassStartTimer"); ok {
+		t.Fatal("timers without any satellite")
+	}
+	devices = []string{"sat-1"}
+	h.Refresh(context.Background())
+	if _, ok := h.Lookup("ha__HassStartTimer"); !ok {
+		t.Error("the new satellite's tools did not arrive")
+	}
+}

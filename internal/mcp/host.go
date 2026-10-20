@@ -74,6 +74,34 @@ type Options struct {
 	Connector   Connector
 	// Version is reported to the servers as the client version.
 	Version string
+	// Devices are the voice satellites' device ids. A server with
+	// device_context is asked for its tools as each of them would get them,
+	// and the lists are joined: Home Assistant's timers, for one, exist only
+	// for a satellite that has them.
+	Devices func() []string
+	// RefreshInterval is how often those lists are fetched again, since
+	// Home Assistant does not announce that a satellite came back with
+	// timers. 0 means every five minutes.
+	RefreshInterval time.Duration
+}
+
+// deviceMeta is the key Home Assistant's MCP server reads the requesting
+// satellite from.
+const deviceMeta = "io.home-assistant/device_id"
+
+type deviceKey struct{}
+
+// WithDevice marks the calls made with ctx as coming from that satellite.
+func WithDevice(ctx context.Context, id string) context.Context {
+	if id == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, deviceKey{}, id)
+}
+
+func deviceOf(ctx context.Context) string {
+	id, _ := ctx.Value(deviceKey{}).(string)
+	return id
 }
 
 type server struct {
@@ -87,15 +115,17 @@ type server struct {
 
 // Host owns the server connections.
 type Host struct {
-	log         *slog.Logger
-	servers     []*server
-	byName      map[string]*server
-	onChange    func([]Tool)
-	readOnly    map[string]bool
-	retry       time.Duration
-	callTimeout time.Duration
-	connect     Connector
-	version     string
+	log          *slog.Logger
+	servers      []*server
+	byName       map[string]*server
+	onChange     func([]Tool)
+	readOnly     map[string]bool
+	retry        time.Duration
+	callTimeout  time.Duration
+	connect      Connector
+	version      string
+	devices      func() []string
+	refreshEvery time.Duration
 
 	// mu guards the aggregated view.
 	mu        sync.RWMutex
@@ -120,16 +150,21 @@ func New(opts Options) *Host {
 	if opts.Version == "" {
 		opts.Version = "dev"
 	}
+	if opts.RefreshInterval == 0 {
+		opts.RefreshInterval = 5 * time.Minute
+	}
 	h := &Host{
-		log:         opts.Logger.With("component", "mcp"),
-		byName:      map[string]*server{},
-		onChange:    opts.OnChange,
-		readOnly:    map[string]bool{},
-		retry:       opts.RetryInterval,
-		callTimeout: opts.CallTimeout,
-		connect:     opts.Connector,
-		version:     opts.Version,
-		toolIndex:   map[string]Tool{},
+		log:          opts.Logger.With("component", "mcp"),
+		byName:       map[string]*server{},
+		onChange:     opts.OnChange,
+		readOnly:     map[string]bool{},
+		retry:        opts.RetryInterval,
+		callTimeout:  opts.CallTimeout,
+		connect:      opts.Connector,
+		version:      opts.Version,
+		devices:      opts.Devices,
+		refreshEvery: opts.RefreshInterval,
+		toolIndex:    map[string]Tool{},
 	}
 	for _, name := range opts.ReadOnlyTools {
 		h.readOnly[name] = true
@@ -178,11 +213,15 @@ func (h *Host) Start(ctx context.Context) error {
 func (h *Host) Run(ctx context.Context) error {
 	t := time.NewTicker(h.retry)
 	defer t.Stop()
+	refresh := time.NewTicker(h.refreshEvery)
+	defer refresh.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			h.closeAll()
 			return ctx.Err()
+		case <-refresh.C:
+			h.Refresh(ctx)
 		case <-t.C:
 			changed := false
 			for _, s := range h.servers {
@@ -325,9 +364,52 @@ func (h *Host) refresh(ctx context.Context, s *server) {
 	h.rebuild()
 }
 
+// Refresh lists again the tools of the servers that depend on the satellite
+// (device_context). A satellite that came back with timers, or a new one,
+// shows in the list; without a satellite known, nothing is asked.
+func (h *Host) Refresh(ctx context.Context) {
+	for _, s := range h.servers {
+		if s.cfg.WantsDevice() && s.connected() {
+			h.refresh(ctx, s)
+		}
+	}
+}
+
+// listTools asks for the tools. For a server that takes the satellite into
+// account, once without one and once as each satellite would get them; the
+// lists are joined, so nothing a satellite is offered is lost.
 func (h *Host) listTools(ctx context.Context, cfg config.MCPServer, session *sdk.ClientSession) ([]Tool, error) {
+	out, err := h.listOne(ctx, cfg, session, "")
+	if err != nil || !cfg.WantsDevice() || h.devices == nil {
+		return out, err
+	}
+	have := map[string]bool{}
+	for _, t := range out {
+		have[t.Name] = true
+	}
+	for _, device := range h.devices() {
+		more, err := h.listOne(ctx, cfg, session, device)
+		if err != nil {
+			h.log.Warn("could not list the tools for a satellite", "server", cfg.Name, "error", err)
+			continue
+		}
+		for _, t := range more {
+			if !have[t.Name] {
+				have[t.Name] = true
+				out = append(out, t)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.ClientSession, device string) ([]Tool, error) {
 	var out []Tool
-	for t, err := range session.Tools(ctx, nil) {
+	var params *sdk.ListToolsParams
+	if device != "" {
+		params = &sdk.ListToolsParams{Meta: sdk.Meta{deviceMeta: device}}
+	}
+	for t, err := range session.Tools(ctx, params) {
 		if err != nil {
 			return nil, fmt.Errorf("list tools: %w", err)
 		}
@@ -429,6 +511,9 @@ func (h *Host) Call(ctx context.Context, qualified string, args json.RawMessage)
 	}
 
 	params := &sdk.CallToolParams{Name: toolName, Arguments: arguments}
+	if device := deviceOf(ctx); device != "" && s.cfg.WantsDevice() {
+		params.Meta = sdk.Meta{deviceMeta: device}
+	}
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
 	res, err := session.CallTool(cctx, params)

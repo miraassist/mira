@@ -102,6 +102,8 @@ type TurnState struct {
 	Channel    config.Channel
 	// Person is who speaks, when known; Area is the satellite's area.
 	Person, Area string
+	// DeviceID is the satellite's device id of a voice turn.
+	DeviceID string
 	// UserText is the user's message of this turn. Only it can approve a
 	// pending confirmation; tool results never reach this field.
 	UserText string

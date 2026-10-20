@@ -203,3 +203,24 @@ func TestPresenceOneOrMany(t *testing.T) {
 		t.Errorf("many: %v", got)
 	}
 }
+
+// Home Assistant's Assist MCP server gets the satellite by default; others
+// only when asked.
+func TestDeviceContextByDefaultOnlyForHomeAssistant(t *testing.T) {
+	no, yes := false, true
+	for name, c := range map[string]struct {
+		s    MCPServer
+		want bool
+	}{
+		"assist url":     {MCPServer{URL: "http://ha:8123/api/mcp/assist"}, true},
+		"with a slash":   {MCPServer{URL: "http://ha:8123/api/mcp/assist/"}, true},
+		"search":         {MCPServer{URL: "http://localhost:9100/mcp"}, false},
+		"stdio":          {MCPServer{Command: "node"}, false},
+		"explicitly on":  {MCPServer{URL: "http://x/mcp", DeviceContext: &yes}, true},
+		"explicitly off": {MCPServer{URL: "http://ha:8123/api/mcp/assist", DeviceContext: &no}, false},
+	} {
+		if got := c.s.WantsDevice(); got != c.want {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
+	}
+}

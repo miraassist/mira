@@ -198,6 +198,21 @@ type MCPServer struct {
 	// (search, fetch). Using one locks critical tools for the rest of the turn.
 	WebContent bool `yaml:"web_content"`
 	Disabled   bool `yaml:"disabled"`
+	// DeviceContext sends the satellite's device id with a voice request's
+	// tool calls and asks for the tool list as each satellite would get it.
+	// Home Assistant's MCP server then offers the same tools as to its own
+	// conversation agents (the timers, for one). On by default for Home
+	// Assistant's Assist server; other servers do not know the field.
+	DeviceContext *bool `yaml:"device_context"`
+}
+
+// WantsDevice reports whether the device id of the satellite goes to this
+// server: set explicitly, else for Home Assistant's Assist MCP server.
+func (s MCPServer) WantsDevice() bool {
+	if s.DeviceContext != nil {
+		return *s.DeviceContext
+	}
+	return strings.HasSuffix(strings.TrimRight(s.URL, "/"), "/api/mcp/assist")
 }
 
 // Sessions bound what the model sees of a conversation (docs/spec/kontext.md).

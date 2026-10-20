@@ -274,7 +274,7 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 „Stell einen Timer auf 10 Minuten für die Nudeln.“ – „Wie lange noch?“ – „Noch fünf Minuten dazu.“ – „Timer anhalten.“ – „Timer abbrechen.“
 
-Das sind die Timer von Home Assistant, und sie laufen auf dem Satelliten, an dem du sprichst: Er zählt herunter, zeigt den Rest (der Show auf dem Bildschirm), klingelt, und du stoppst ihn mit „Stopp“. Mira baut keinen eigenen Timer, sie bedient den von Home Assistant. Mehrere Timer unterscheidet der Name („den Nudel-Timer“). Auf einem Gerät ohne Timer, etwa in Telegram, sagt Mira das ehrlich.
+Das sind die Timer von Home Assistant, und sie laufen auf dem Satelliten, an dem du sprichst: Er zählt herunter, zeigt den Rest (der Show auf dem Bildschirm), klingelt, und du stoppst ihn mit „Stopp“. Mira baut keinen eigenen Timer, sie nutzt die Werkzeuge, die Home Assistant seinen Sprachassistenten dafür gibt. Mehrere Timer unterscheidet der Name („den Nudel-Timer“). Auf einem Gerät ohne Timer, etwa in Telegram, sagt Mira das ehrlich.
 
 Eine **Erinnerung** („Erinnere mich in einer Stunde an die Wäsche“) ist etwas anderes: Mira sagt dir dann den Text.
 

@@ -43,6 +43,9 @@ type Invocation struct {
 	Person string
 	// Area is the satellite's area of a voice turn.
 	Area string
+	// DeviceID is the satellite's device id of a voice turn. Home Assistant's
+	// tools get it, so they act as for its own conversation agents.
+	DeviceID string
 }
 
 // Author is how a fact or message records who it came from: the person, else
@@ -179,7 +182,7 @@ func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, is
 	if r.mcp == nil {
 		return "", true, fmt.Errorf("%w: %s", ErrUnknownTool, inv.Name)
 	}
-	res, err := r.mcp.Call(ctx, inv.Name, inv.Args)
+	res, err := r.mcp.Call(mcp.WithDevice(ctx, inv.DeviceID), inv.Name, inv.Args)
 	if errors.Is(err, mcp.ErrUnknownTool) {
 		return "", true, fmt.Errorf("%w: %s", ErrUnknownTool, inv.Name)
 	}

@@ -19,7 +19,12 @@ import (
 type Call struct {
 	Tool string
 	Args map[string]any
+	// Device is the satellite the call named in its metadata ("" for none).
+	Device string
 }
+
+// deviceMeta is where Home Assistant's MCP server reads the satellite from.
+const deviceMeta = "io.home-assistant/device_id"
 
 // Handler answers a tool call. Returning isError reports a tool-level failure.
 type Handler func(args map[string]any) (text string, isError bool)
@@ -34,11 +39,16 @@ type Server struct {
 	mu      sync.Mutex
 	calls   []Call
 	handler http.Handler
+	// deviceOnly are tools offered only in a listing that names a satellite
+	// (Home Assistant's timers); lists records the satellite of each listing.
+	deviceOnly map[string]bool
+	lists      []string
 }
 
 // New starts an empty server. Add tools with AddTool.
 func New(name string) *Server {
-	s := &Server{MCP: sdk.NewServer(&sdk.Implementation{Name: name, Version: "test"}, nil)}
+	s := &Server{MCP: sdk.NewServer(&sdk.Implementation{Name: name, Version: "test"}, nil), deviceOnly: map[string]bool{}}
+	s.MCP.AddReceivingMiddleware(s.listing)
 	s.ForgetSessions()
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.Token != "" && r.Header.Get("Authorization") != "Bearer "+s.Token {
@@ -76,12 +86,59 @@ func (s *Server) AddTool(name, description, schema string, readOnly bool, h Hand
 		if len(req.Params.Arguments) > 0 {
 			_ = json.Unmarshal(req.Params.Arguments, &args)
 		}
+		device, _ := req.Params.Meta[deviceMeta].(string)
 		s.mu.Lock()
-		s.calls = append(s.calls, Call{Tool: name, Args: args})
+		s.calls = append(s.calls, Call{Tool: name, Args: args, Device: device})
 		s.mu.Unlock()
 		text, isErr := h(args)
 		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: text}}, IsError: isErr}, nil
 	})
+}
+
+// AddDeviceTool registers a tool that the server offers only to a listing
+// that names a satellite, as Home Assistant does with its timers.
+func (s *Server) AddDeviceTool(name, description, schema string, h Handler) {
+	s.mu.Lock()
+	s.deviceOnly[name] = true
+	s.mu.Unlock()
+	s.AddTool(name, description, schema, false, h)
+}
+
+// Lists returns the satellite of each tool listing so far ("" for none).
+func (s *Server) Lists() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.lists...)
+}
+
+// listing is a middleware that records tools/list requests and hides the
+// device-only tools from those without a satellite.
+func (s *Server) listing(next sdk.MethodHandler) sdk.MethodHandler {
+	return func(ctx context.Context, method string, req sdk.Request) (sdk.Result, error) {
+		if method != "tools/list" {
+			return next(ctx, method, req)
+		}
+		device := ""
+		if p, ok := req.GetParams().(*sdk.ListToolsParams); ok && p != nil {
+			device, _ = p.Meta[deviceMeta].(string)
+		}
+		s.mu.Lock()
+		s.lists = append(s.lists, device)
+		s.mu.Unlock()
+		res, err := next(ctx, method, req)
+		if lr, ok := res.(*sdk.ListToolsResult); ok && err == nil && device == "" {
+			s.mu.Lock()
+			var keep []*sdk.Tool
+			for _, t := range lr.Tools {
+				if !s.deviceOnly[t.Name] {
+					keep = append(keep, t)
+				}
+			}
+			s.mu.Unlock()
+			lr.Tools = keep
+		}
+		return res, err
+	}
 }
 
 // SetPrompt serves a prompt template with a single text message, the way

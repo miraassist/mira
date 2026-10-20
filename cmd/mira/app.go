@@ -61,7 +61,9 @@ type app struct {
 	skills *skills.Set
 	// problems are the skills that did not start, as the user can read them.
 	problems []haconv.Problem
-	tasks    *tasks.Manager
+	// satellites are the voice satellites' device ids last seen in the structure.
+	satellites []string
+	tasks      *tasks.Manager
 	// threads runs threads ("Vorgänge"): concerns over several turns.
 	threads *threads.Manager
 	// people are Home Assistant's persons (people.go).
@@ -144,6 +146,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.mcp = mcp.New(mcp.Options{
 		Servers: cfg.MCPServers, Logger: a.log, Version: version,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
+		// Home Assistant's tools as each voice satellite would get them
+		// (the timers exist only for those that have them).
+		Devices: func() []string {
+			if a.structure == nil {
+				return nil
+			}
+			return a.structure.Snapshot().SatelliteDevices
+		},
 		OnChange: func(tools []mcp.Tool) {
 			a.log.Info("tool list changed", "tools", len(tools))
 			a.warmup("tools_changed")
@@ -252,15 +262,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		Forbidden: func() map[string]any {
 			return map[string]any{"domains": nonEmpty(cfg.Security.ConfirmDomains), "entities": nonEmpty(cfg.Security.ConfirmEntities)}
-		},
-		// The countdown timer is Home Assistant's own, on the satellite
-		// that heard the request.
-		Intents: timer.HTTPIntents{URL: cfg.HA.URL, Token: cfg.HA.Token},
-		DeviceOf: func(ctx context.Context, key string) string {
-			if sess, err := a.store.GetSession(ctx, key); err == nil {
-				return sess.DeviceID
-			}
-			return ""
 		},
 	})...)
 	// Radio on the room's speaker (docs/spec/radio.md).
@@ -390,6 +391,13 @@ func (a *app) startHA(ctx context.Context) error {
 		Source: a.ha, Subscriber: a.ha, Exposed: a.exposed,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
+			// A satellite that came or went changes the tools it is offered.
+			if !slices.Equal(a.satellites, s.SatelliteDevices) {
+				a.satellites = s.SatelliteDevices
+				if a.mcp != nil {
+					go a.mcp.Refresh(context.WithoutCancel(ctx))
+				}
+			}
 			if a.assist != nil {
 				// The Assist prompt follows the registry; its own change
 				// triggers the warmup.

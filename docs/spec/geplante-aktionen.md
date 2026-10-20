@@ -26,13 +26,24 @@ Beides bleibt nebeneinander. „Welche Timer habe ich?“ fragt beide Listen ab.
 ## Countdown-Timer sind etwas Drittes
 
 „Timer auf zehn Minuten für die Nudeln“ baut Mira **nicht** nach. Das sind die Timer von Home Assistant
-(`HassStartTimer` und Verwandte): Der Satellit, der sie bekommt, zählt herunter, zeigt den Rest und klingelt
-(TECHO5 tut das auf Show wie auf Echo, auf dem Show mit Bildschirm). Das Werkzeug `timer` ruft diese Intents über
-`POST /api/intent/handle` mit der Gerätekennung des Satelliten auf, an dem gesprochen wurde. Die Anbieter von
-Sprachmodellen in Home Assistant bekommen diese Werkzeuge von dessen eigener Schnittstelle; Mira geht über MCP, dort
-fehlen sie, weil sie ein Gerät brauchen. Aktionen: `start`, `status`, `cancel` (auch alle), `add`, `remove`,
-`pause`, `resume`. Nichts wird bei Mira gespeichert. Ohne Satelliten (Telegram) sagt Mira ehrlich, dass es hier keinen
-Timer gibt. Die Timer von Home Assistant liegen im Speicher von Home Assistant und überstehen dessen Neustart nicht.
+(`HassStartTimer`, `HassCancelTimer`, `HassTimerStatus`, `HassIncreaseTimer`, `HassDecreaseTimer`, `HassPauseTimer`,
+`HassUnpauseTimer`): Der Satellit, der sie bekommt, zählt herunter, zeigt den Rest und klingelt (TECHO5 tut das auf
+Show wie auf Echo; der Show hat zusätzlich den Bildschirm). Mira nutzt diese Werkzeuge selbst, so wie HA sie seinen
+eigenen Konversations-Agenten gibt.
+
+Dass sie bei Mira ankommen, liegt an einer Zeile: HAs MCP-Server baut die Werkzeugliste **für ein Gerät**, wenn die
+Anfrage dessen Kennung in den Metadaten trägt (`_meta` mit `io.home-assistant/device_id`). Ohne Gerät fehlen die
+Timer-Werkzeuge (26 statt 33 gemessen), und HA bevorzugt den Raum des Satelliten bei Befehlen ohne Raum nicht. Mira
+schickt die Kennung des Satelliten daher bei **jedem** Aufruf eines HA-Werkzeugs im Sprachgespräch mit
+(`device_context`, für HAs Assist-Server eingeschaltet) und fragt die Liste einmal ohne und einmal als jeder Satellit ab
+und vereinigt sie, damit ihr nichts fehlt, was ein Satellit angeboten bekommt. Die Liste wird alle fünf Minuten und bei
+jeder Änderung der Satelliten neu geholt, denn HA meldet nicht, dass ein Satellit mit Timern zurückkam.
+
+Regel dahinter: **Was HA anbietet, bauen wir nicht nach**, auch nicht, um Token zu sparen. Und wir lassen Werkzeuge nicht
+dadurch verschwinden, dass der Kontext (hier das Gerät) nicht mitkommt. Wer das je anders entscheidet, tut es bewusst.
+
+Nichts wird bei Mira gespeichert. Ohne Satelliten (Telegram) kennt HA keine Timer, und Mira sagt das ehrlich. Die Timer
+von Home Assistant liegen im Speicher von Home Assistant und überstehen dessen Neustart nicht.
 
 Damit sind es drei Dinge: der Countdown-Timer (HA, am Satelliten), die Erinnerung (Mira sagt einen Text) und der
 Schlaf-Timer (HA-Automation, tut etwas).

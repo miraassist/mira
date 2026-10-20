@@ -292,7 +292,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 	if e.languages != nil {
 		ctx = i18n.WithLang(ctx, e.languages.Turn(ctx, req.Language, sess.AreaID, person))
 	}
-	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID}
+	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID, DeviceID: sess.DeviceID}
 	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
 	turn := prompt.Turn{
 		Lang:           e.lang(ctx),
@@ -534,6 +534,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	began := time.Now()
 	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
+		DeviceID: ts.DeviceID,
 	})
 	e.guard.Observe(ts, spec)
 	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),

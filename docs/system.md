@@ -82,7 +82,7 @@ flowchart LR
 | `internal/mcp` | MCP-Host: HA-Assist-Werkzeuge, weitere MCP-Server |
 | `internal/websearch` | Eingebaute Websuche: `web_search` (DuckDuckGo-HTML), `web_page` (Haupttext einer Seite); liest nur, fremder Webtext, abschaltbar ([Websuche](spec/websuche.md)) |
 | `internal/radio` | `radio_play`: Sender im Radio Browser von HA suchen und auf dem Lautsprecher des Raums starten ([Radio](spec/radio.md)) |
-| `internal/timer` | `sleep_timer` (set, list, extend, cancel): legt über die Integration einmalige Automationen in HA an ([Geplante Aktionen](spec/geplante-aktionen.md)); `timer`: bedient die Timer von Home Assistant auf dem Satelliten (`/api/intent/handle`, `HassStartTimer` und Verwandte) |
+| `internal/timer` | `sleep_timer` (set, list, extend, cancel): legt über die Integration einmalige Automationen in HA an ([Geplante Aktionen](spec/geplante-aktionen.md)). Die Countdown-Timer sind HAs eigene Werkzeuge, die der MCP-Host mit der Gerätekennung des Satelliten abholt |
 | `internal/ha/ws` | WebSocket-Client zu HA: Zustände, Registries, Statistik, Dienste, Abos |
 | `internal/ha/structure` | Hausstruktur (Bereiche, Entitäten) als Prompt-Schicht 4 |
 | `internal/ha/assistprompt` | HAs eigener Assist-Prompt als Alternative für Schicht 4 |
@@ -428,7 +428,7 @@ Zwischen Home Assistant und dem Agenten gibt es zwei Richtungen, auf getrennten 
 | Richtung | Weg | Absicherung |
 |---|---|---|
 | Integration → Agent | HTTP mit JSON: `/v1/conversation` (jeder Turn von Assist und Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (Personen, Satelliten, Freigabe), der Panel-Proxy | Bearer-Token (`server.token`), bei jeder Anfrage in konstanter Zeit geprüft. Ohne Token sind nur `/ui`, die Anleitung, `/v1/health` und das Koppeln (`/v1/pair`) erreichbar, ohne Daten. Den Token erzeugt der Agent beim ersten Start; die Integration holt ihn beim ersten Hinzufügen ohne Code, später nur mit einem Kopplungscode aus `mira pair` (6 Ziffern, 15 Minuten, 5 Versuche). Entfernen der Integration gibt den Agenten frei (`/v1/unpair`, neuer Token). Steht `server.token` in `mira.yaml`, gilt der, ohne Kopplung |
-| Agent → Home Assistant | WebSocket-API, MCP über HTTP (`/api/mcp/assist`), REST (Kalender, Grundeinstellungen) | Long-Lived-Token eines eigenen HA-Benutzers ohne Admin-Rechte |
+| Agent → Home Assistant | WebSocket-API, MCP über HTTP (`/api/mcp/assist`, bei Sprachgesprächen mit der Gerätekennung des Satelliten), REST (Kalender, Grundeinstellungen) | Long-Lived-Token eines eigenen HA-Benutzers ohne Admin-Rechte |
 | Agent → Integration | über HA: eigene WebSocket-Befehle der Integration (`mira/automation/*`) | nur Miras HA-Benutzer oder ein Admin (die Integration kennt die ID aus `/v1/health`) |
 
 - **Panel:** Browser → HA (mit HAs Login) → Integration → Agent, mit dem Token und den Kopfzeilen `X-Mira-HA-User` und `X-Mira-HA-Admin`. Der Agent vertraut diesen Kopfzeilen, sobald der Token stimmt. Wer den Token hat, kann sich also als beliebiger HA-Benutzer ausgeben: Der Token ist der Schlüssel zu allem.
