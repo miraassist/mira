@@ -108,6 +108,15 @@ def _model_error(err: MiraError, errors: dict[str, str], placeholders: dict[str,
     placeholders["error"] = f"\n\n`{err}`"
 
 
+
+def _best_host(info: ZeroconfServiceInfo) -> str:
+    """The agent's address to use: a plain IPv4 one of those it announced,
+    else whatever Home Assistant found first."""
+    for ip in info.ip_addresses:
+        if ip.version == 4 and not ip.is_link_local and not ip.is_loopback:
+            return str(ip)
+    return info.host
+
 class ModelSteps:
     """Choosing the AI model (LLM): where it comes from (an AI integration
     Home Assistant has, a cloud provider, or a server of one's own), then a
@@ -317,6 +326,14 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             return await self.async_step_summary()
         return None
 
+    async def _answers(self, url: str) -> bool:
+        """Whether an agent answers at this address."""
+        try:
+            await MiraClient(async_get_clientsession(self.hass), url, "").pairing()
+        except MiraError:
+            return False
+        return True
+
     def _client(self, token: str = "") -> MiraClient:
         return MiraClient(async_get_clientsession(self.hass), self._url, token or self._token)
 
@@ -361,11 +378,18 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         agent_id = discovery_info.properties.get("id")
         if not agent_id:
             return self.async_abort(reason="no_id")
-        host = discovery_info.host
-        if ":" in host:
+        host = _best_host(discovery_info)
+        ipv6 = ":" in host
+        if ipv6:
             host = f"[{host}]"
         url = f"http://{host}:{discovery_info.port}"
         await self.async_set_unique_id(agent_id)
+        # A known agent keeps the address it has as long as that answers: an
+        # agent announces several, and one of them may be gone tomorrow. An
+        # IPv6 address is never taken over for it (usually a temporary one).
+        known = next((e for e in self._async_current_entries(include_ignore=False) if e.unique_id == agent_id), None)
+        if known is not None and (ipv6 or await self._answers(known.data[CONF_URL])):
+            return self.async_abort(reason="already_configured")
         self._abort_if_unique_id_configured(updates={CONF_URL: url})
         # An entry from before agents had ids: same address, same agent.
         for entry in self._async_current_entries(include_ignore=False):

@@ -5,6 +5,8 @@ from ipaddress import ip_address
 
 from unittest.mock import AsyncMock, patch
 
+import aiohttp
+
 import pytest
 
 from homeassistant import config_entries
@@ -292,13 +294,46 @@ async def test_discovery_asks_only_to_add(hass, aioclient_mock, hass_owner_user)
     assert result["result"].unique_id == AGENT_ID
 
 
-async def test_discovery_of_a_known_agent_updates_its_address(hass, entry):
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=_discovery(host="10.0.0.5")
+async def _rediscover(hass, info):
+    return await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=info
     )
-    assert result["type"] is FlowResultType.ABORT
+
+
+async def test_a_known_agent_keeps_the_address_that_answers(hass, aioclient_mock, entry):
+    """An agent announces several addresses and one may be gone tomorrow:
+    as long as the one in the entry answers, it stays."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", json={"id": AGENT_ID, "pairs": True})
+    result = await _rediscover(hass, _discovery(host="10.0.0.5"))
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "already_configured"
+    assert entry.data[CONF_URL] == AGENT_URL
+
+
+async def test_a_known_agent_moves_when_its_address_does_not_answer(hass, aioclient_mock, entry):
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
+    result = await _rediscover(hass, _discovery(host="10.0.0.5"))
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_URL] == "http://10.0.0.5:8787"
+
+
+async def test_an_ipv6_address_is_never_taken_over(hass, aioclient_mock, entry):
+    """Usually a temporary privacy address: it expired and the agent was
+    lost. Even with the entry's own address dead, it is not switched to one."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
+    await _rediscover(hass, _discovery(host="fdf4:27c6:8ba:0:4298:2414:e338:b4cc"))
+    assert entry.data[CONF_URL] == AGENT_URL
+
+
+async def test_ipv4_is_preferred_among_the_announced_addresses(hass, aioclient_mock, entry):
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
+    info = _discovery(host="fdf4:27c6:8ba:0:4298:2414:e338:b4cc")
+    info = ZeroconfServiceInfo(
+        ip_address=info.ip_address,
+        ip_addresses=[ip_address("fdf4:27c6:8ba:0:4298:2414:e338:b4cc"), ip_address("192.168.178.186")],
+        hostname=info.hostname, name=info.name, port=info.port, type=info.type, properties=info.properties,
+    )
+    await _rediscover(hass, info)
+    assert entry.data[CONF_URL] == "http://192.168.178.186:8787"
 
 
 async def test_discovery_without_id(hass):

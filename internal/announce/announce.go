@@ -69,8 +69,17 @@ func Run(ctx context.Context, opts Options) error {
 // would be the one it picks.
 var virtualPrefixes = []string{"docker", "br-", "veth", "virbr", "cni", "flannel", "podman", "lxc", "vnet", "tun", "tap", "zt", "tailscale", "wg"}
 
+// announcable says whether an address is one Home Assistant should be pointed
+// at: a plain IPv4 address of the local network. IPv6 addresses are left out
+// on purpose: most are temporary privacy addresses that change by the day, so
+// an entry that kept one lost the agent when it expired. The agent
+// announces once at start; an address that lives only hours would not do.
+func announcable(ip net.IP) bool {
+	return ip.To4() != nil && !ip.IsLinkLocalUnicast() && !ip.IsLoopback()
+}
+
 // lanInterfaces are the interfaces that are up, can multicast and are not
-// virtual, with their IPv4 and global IPv6 addresses.
+// virtual, with their IPv4 addresses.
 func lanInterfaces() ([]net.Interface, []string) {
 	all, err := net.Interfaces()
 	if err != nil {
@@ -92,7 +101,7 @@ func lanInterfaces() ([]net.Interface, []string) {
 		before := len(ips)
 		for _, a := range addrs {
 			ipnet, ok := a.(*net.IPNet)
-			if !ok || ipnet.IP.IsLinkLocalUnicast() || ipnet.IP.IsLoopback() {
+			if !ok || !announcable(ipnet.IP) {
 				continue
 			}
 			ips = append(ips, ipnet.IP.String())
