@@ -321,7 +321,7 @@ To get it running:
 2. In Home Assistant, add the IMAP integration with a **search** for the senders, such as `FROM doctolib.de`.
 3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). Mira creates the calendar of the same name.
 
-What Mira handles herself: every new mail is read by a model call of its own, without the house, tools or memory. Only a title, keys, status, day, time, place and details come out, and Mira checks them. A newer mail changes the entry, an older one is dropped, a cancellation removes it, and Mira clears what is done or past. 
+What Mira handles herself: every new mail is read by a model call of its own, without the house, tools or memory. Only a title, keys, status, day, time, place and details come out, and Mira checks them. A newer mail changes the entry, an older one is dropped, a cancellation removes it, and Mira clears what is done or past.
 
 **Note:** Mails can contain private data. For reading mails, a local model is therefore the better choice; which model reads the mails goes under `routing` as `mail` in `mira.yaml`.
 

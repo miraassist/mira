@@ -325,7 +325,7 @@ So kommt es zum Laufen:
 2. In Home Assistant die IMAP-Integration hinzufügen, mit einer **Suche** nach den Absendern, etwa `FROM doctolib.de`.
 3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legt Mira an.
 
-Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne Haus, Werkzeuge und Gedächtnis. Heraus kommen nur Titel, Kennungen, Status, Tag, Uhrzeit, Ort und Einzelheiten, die Mira prüft. Eine neuere Mail ändert den Eintrag, eine ältere wird verworfen, eine Absage löscht ihn, Erledigtes und Vergangenes räumt Mira weg. 
+Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne Haus, Werkzeuge und Gedächtnis. Heraus kommen nur Titel, Kennungen, Status, Tag, Uhrzeit, Ort und Einzelheiten, die Mira prüft. Eine neuere Mail ändert den Eintrag, eine ältere wird verworfen, eine Absage löscht ihn, Erledigtes und Vergangenes räumt Mira weg.
 
 **Hinweis:** Mails können private Daten enthalten. Für das Auswerten von Mails nimmst du deshalb besser ein lokales Modell; welches Modell die Mails liest, steht in der `mira.yaml` unter `routing` als `mail`.
 
