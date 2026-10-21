@@ -281,8 +281,22 @@ func TestAG05_RightsDoNotReplaceTheGuard(t *testing.T) {
 	// When the model calls a critical action (such as opening a lock)
 	e.main.steps = []step{{calls: []llm.ToolCall{call("lock_open", "{}")}}, {text: "ok"}}
 	e.rt.Call(context.Background(), background("a", AllRights), "x", CallContext{Rights: AllRights})
-	// Then the guard asks first, as before
+	// Then the guard does not just run it: in the background, where nobody
+	// can confirm, it refuses
 	if e.count("lock_open") != 0 || toolResult(e.main, 0) == "" || strings.Contains(toolResult(e.main, 0), "ok") {
+		t.Errorf("ran %v, result %q", e.ran, toolResult(e.main, 0))
+	}
+}
+
+// AG-08 In the background the rights decide what may change
+func TestAG08_InTheBackgroundTheRightsDecide(t *testing.T) {
+	e := setup(t)
+	// Given a background run with the effective right "act on the house"
+	// When the model calls an action that changes something and is not critical
+	e.main.steps = []step{{calls: []llm.ToolCall{call("radio_play", "{}")}}, {text: "ok"}}
+	e.rt.Call(context.Background(), background("a", ReadHouse|ActOnHouse), "x", CallContext{Rights: AllRights})
+	// Then it runs
+	if e.count("radio_play") != 1 {
 		t.Errorf("ran %v, result %q", e.ran, toolResult(e.main, 0))
 	}
 }
@@ -300,7 +314,8 @@ func TestAG06_SubAgentsThirdPartyTextCountsForTheCaller(t *testing.T) {
 		{calls: []llm.ToolCall{call("web_page", "{}")}}, {text: "Seite gelesen"},
 		{calls: []llm.ToolCall{call(tools.ToolMemorySave, `{"text":"x"}`)}}, {text: "ok"}}
 	res, _ := e.rt.Call(context.Background(), background("first", AllRights), "x", CallContext{Rights: AllRights})
-	// Then Mira asks first, as after web content in its own run
+	// Then it counts as after web content in its own run: in the background
+	// it is refused
 	if e.count(tools.ToolMemorySave) != 0 || !res.Foreign {
 		t.Errorf("ran %v, foreign %v", e.ran, res.Foreign)
 	}

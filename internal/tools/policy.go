@@ -115,6 +115,10 @@ type TurnState struct {
 	// passes on asks for a yes, as after web content; critical actions are
 	// not locked (docs/spec/vorgaenge.md, Pläne).
 	ForeignContext bool
+	// ByRights: an agent's run (docs/spec/agenten.md, Rights). Its rights,
+	// already checked, decide what it may change, not the background
+	// channel; what needs a yes is refused, as nobody can give one.
+	ByRights bool
 
 	webContentSeen        bool
 	pendingUsed           bool
@@ -138,7 +142,7 @@ func (t *TurnState) Foreign() bool { return t.webContentSeen || t.ForeignContext
 func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.RawMessage) Verdict {
 	name := spec.QualifiedName()
 
-	if ts.Channel == config.ChannelBackground && !spec.ReadOnly {
+	if ts.Channel == config.ChannelBackground && !spec.ReadOnly && !ts.ByRights {
 		return Verdict{Outcome: Deny, Reason: "background_write",
 			Message: g.texts.denyBackground}
 	}
@@ -151,6 +155,10 @@ func (g *Guard) Check(ctx context.Context, ts *TurnState, spec Spec, args json.R
 	askOnly := !critical && spec.AskAfterWeb && ts.Foreign()
 	if !critical && !askOnly {
 		return Verdict{Outcome: Allow, Targets: targets}
+	}
+	if ts.ByRights && ts.Channel == config.ChannelBackground {
+		return Verdict{Outcome: Deny, Reason: "nobody_to_confirm", Targets: targets,
+			Message: g.texts.denyNoConfirm}
 	}
 
 	if critical && ts.webContentSeen {

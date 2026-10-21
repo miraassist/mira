@@ -15,13 +15,10 @@ import (
 // BackgroundContext builds an agent's background profile
 // (docs/spec/agenten.md, Context profiles): the background prefix, so the
 // slot's cache stays warm, and the agent's instructions and input as layer 7.
-// The run holds the background channel until it releases it.
+// It takes no lock: the runtime limits the access to each model.
 func (e *Engine) BackgroundContext(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
-	lock := e.locks[config.ChannelBackground]
-	lock.Lock()
 	prefix, err := e.Prefix(ctx, config.ChannelBackground)
 	if err != nil {
-		lock.Unlock()
 		return agent.Built{}, err
 	}
 	lang := e.lang(ctx)
@@ -41,7 +38,7 @@ func (e *Engine) BackgroundContext(ctx context.Context, cc agent.CallContext, in
 		Text:           strings.Join(text, "\n\n"),
 	}
 	built := prompt.Build(prefix, nil, turn)
-	b := agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash, Release: lock.Unlock}
+	b := agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash}
 	if slot := e.cfg.SlotFor(config.ChannelBackground); slot >= 0 {
 		b.IDSlot = llm.IntPtr(slot)
 	}

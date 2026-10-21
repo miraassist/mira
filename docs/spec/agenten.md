@@ -78,7 +78,10 @@ A small rights model, only what Mira already tells apart today:
 - When an agent calls another, it passes on in the call context at most its own effective rights. An agent that may
   not act on the house cannot do so through another one either.
 - The rights add to the existing rules, they do not replace them: the guard still asks before critical actions,
-  locks them after web content, and after third-party text Mira asks before keeping or passing anything on.
+  locks them after web content, and after third-party text Mira asks before keeping or passing anything on. In the
+  background nobody can give that yes, so there these calls are refused.
+- In an agent's run the rights decide what may change, also in the background profile: the background channel's rule
+  "only read-only tools" applies to the old background turns, not to agents.
 - If a called agent read third-party text, the result says so; for the caller it then counts as if it had read it
   itself.
 
@@ -419,6 +422,10 @@ From that:
     cannot forge `mira_agent_done`.
 31. **What a turn belongs to:** to the person when known, otherwise to the room; an area labelled "Mira: privater
     Bereich" is a hard border. Part of step 5.
+32. **No lock in the background profile:** the runtime's limit per model is the only one; an agent calling another
+    cannot block itself, and `delegate` does not wait for skill jobs.
+33. **In the background the rights decide** what an agent may change, not the background channel's rule; what needs
+    a yes (critical actions, keeping or passing on after third-party text) is refused there, as nobody can confirm.
 
 ## Open questions
 

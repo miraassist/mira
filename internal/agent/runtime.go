@@ -42,9 +42,6 @@ type Built struct {
 	// PrefixHash and IDSlot go into the request as in a conversation turn.
 	PrefixHash string
 	IDSlot     *int
-	// Release frees what the builder holds until the run ends (the
-	// background channel); nil when it holds nothing.
-	Release func()
 }
 
 type Options struct {
@@ -144,15 +141,12 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 	}
 	me := &run{agent: spec.Name, cc: cc, rights: cc.Rights.And(spec.Rights),
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
-			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign}}
+			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
 	ctx = context.WithValue(ctx, runKey{}, me)
 
 	b, offered, err := r.build(ctx, spec, input, cc)
 	if err != nil {
 		return finish(Failed, err)
-	}
-	if b.Release != nil {
-		defer b.Release()
 	}
 	msgs := b.Messages
 	maxRounds := spec.Limits.MaxRounds

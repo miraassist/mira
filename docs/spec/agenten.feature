@@ -42,20 +42,28 @@ Feature: AG Agents
   Scenario: AG-05 Rights do not replace the guard
     Given a run with the effective right "act on the house"
     When the model calls a critical action (such as opening a lock)
-    Then the guard asks first, as before
+    Then the guard does not just run it: in a conversation it asks first, as before; in the background, where nobody
+      can confirm, it refuses
 
   @step1
   Scenario: AG-06 A sub-agent's third-party text counts for the caller
     Given a run without any third-party text involved yet
     When it calls a sub-agent that reads a web page
     And the run then wants to keep or pass something on (remember, message)
-    Then Mira asks first, as after web content in its own run
+    Then it counts as after web content in its own run: in a conversation Mira asks first; in the background it is
+      refused
 
   @step1
   Scenario: AG-07 After web content critical actions stay locked
     Given a run that has read web content
     When the model then calls a critical action
     Then it is not run, not even with a yes
+
+  @step3
+  Scenario: AG-08 In the background the rights decide what may change
+    Given a background run with the effective right "act on the house"
+    When the model calls an action that changes something and is not critical
+    Then it runs; the background channel's rule "only read-only tools" does not apply to agents
 
   # --- Depth (agenten.md: Depth) ---------------------------------------------------------------------
 
