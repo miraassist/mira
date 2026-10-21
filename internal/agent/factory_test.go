@@ -25,7 +25,7 @@ func (e *env) fromYAML(t *testing.T, text string) []Problem {
 	if err := yaml.Unmarshal([]byte(text), &file); err != nil {
 		t.Fatal(err)
 	}
-	return e.rt.RegisterDefined(FromConfig(file.Agents.Defined), func(m string) bool { return m == "main" || m == "smart" })
+	return e.rt.RegisterDefined(FromConfig(file.Agents.Defined), e.cfg.Model)
 }
 
 // AG-A1 A YAML agent in mira.yaml can be called
@@ -104,7 +104,7 @@ Der Garten.
 	for name, d := range loaded[0].Agents {
 		defs = append(defs, Defined{Name: name, Skill: "garten", Def: d})
 	}
-	if p := e.rt.RegisterDefined(defs, func(string) bool { return true }); len(p) != 0 {
+	if p := e.rt.RegisterDefined(defs, e.cfg.Model); len(p) != 0 {
 		t.Fatalf("problems %+v", p)
 	}
 	// When it is called
@@ -269,5 +269,24 @@ func TestMO13_AnUnknownModelOfAnOwnAgentIsAProblem(t *testing.T) {
 	e.cfg.Agents = file.Agents
 	if res, _ := e.rt.Call(context.Background(), Spec{Name: "delegate", Profile: Isolated}, "x", CallContext{}); res.Model != "main" {
 		t.Errorf("model %q", res.Model)
+	}
+}
+
+// MO-20 An agent that must run locally does not start on a cloud model
+func TestMO20_AnAgentThatMustRunLocallyDoesNotStartOnACloudModel(t *testing.T) {
+	e := setup(t)
+	// Given a YAML agent with privacy local and a model with privacy cloud
+	// When Mira loads it
+	problems := e.fromYAML(t, `
+agents:
+  arztbrief: { description: Liest Arztbriefe., instructions: Lies., model: smart, privacy: local }
+  mail.read: { model: smart, privacy: local }
+`)
+	// Then it is not started, and the problem names the model and the rule
+	if len(problems) != 2 || !strings.Contains(problems[0].Text(i18n.DE), "„smart“ ist cloud") || !strings.Contains(problems[0].Text(i18n.DE), "privacy: local") {
+		t.Fatalf("problems %+v", problems)
+	}
+	if _, ok := e.rt.lookup("arztbrief"); ok {
+		t.Error("the agent was started")
 	}
 }

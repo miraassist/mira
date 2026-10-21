@@ -34,7 +34,7 @@ func twoModelsRouted(t *testing.T, agents string) (*conversation.Engine, *fakell
 }
 
 // twoModelsDelivering hands the finished asynchronous runs to deliver.
-func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Deliverer) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Deliverer, change ...func(*config.Config)) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
 	main, smart := fakellm.New(), fakellm.New()
 	t.Cleanup(main.Close)
@@ -53,6 +53,9 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 	}
 	if err := yaml.Unmarshal([]byte(agentsYAML), &cfg.Agents); err != nil {
 		t.Fatal(err)
+	}
+	for _, c := range change {
+		c(&cfg)
 	}
 	cfg.HA.URL, cfg.HA.Token = "http://ha", "t"
 	if err := cfg.Validate(); err != nil {
@@ -302,5 +305,22 @@ func TestMO08_SlotPinningPerModel(t *testing.T) {
 	handle(t, e, config.ChannelTelegram, "Hallo")
 	if smart.Last().HasSlot {
 		t.Error("smart has no pin_slots but sent id_slot")
+	}
+}
+
+// A conversation takes the fallback of its failing model too, for the
+// rest of the turn.
+func TestConversationTakesTheFallback(t *testing.T) {
+	e, main, smart := twoModelsDelivering(t, "conversation.telegram: { model: smart }", nil, func(c *config.Config) {
+		s := c.Models["smart"]
+		s.Fallback = config.MainModel
+		c.Models["smart"] = s
+	})
+	smart.Push(fakellm.Step{Status: 503, Body: "overloaded"}, fakellm.Step{Status: 503, Body: "overloaded"},
+		fakellm.Step{Status: 503, Body: "overloaded"})
+	main.Push(fakellm.Step{Content: "Hallo von main."})
+	r := handle(t, e, config.ChannelTelegram, "Hallo")
+	if r.Text != "Hallo von main." || r.Model != "main" || r.FallbackFrom != "smart" {
+		t.Errorf("answer %+v", r)
 	}
 }

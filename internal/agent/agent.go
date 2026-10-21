@@ -79,7 +79,9 @@ type Spec struct {
 	// Model names the agent's model (agents from YAML); without it the
 	// model is what mira.yaml names for the agent under agents, else main
 	// (docs/spec/modelle.md).
-	Model   string
+	Model string
+	// Privacy local makes the agent run only on a local model.
+	Privacy string
 	Profile Profile
 	// Instructions are the system message (isolated) or the instructions
 	// before the input (background).
@@ -196,7 +198,9 @@ type Result struct {
 	// if it had read it itself.
 	Foreign bool
 	// Model, its calls, their time and tokens.
-	Model                    string
+	Model string
+	// FallbackFrom is the model that failed when Model is its fallback.
+	FallbackFrom             string
 	ModelCalls               int
 	ModelTime                time.Duration
 	PromptTokens, Completion int
@@ -216,4 +220,6 @@ var (
 	ErrProfile = errors.New("this context profile runs elsewhere")
 	// ErrNoAnswer: the model gave no answer.
 	ErrNoAnswer = errors.New("the model gave no answer")
+	// ErrPrivacy: the agent must run on a local model, and its model is not.
+	ErrPrivacy = errors.New("must run on a local model")
 )

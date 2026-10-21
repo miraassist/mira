@@ -80,6 +80,8 @@ type Response struct {
 	Model            string
 	MorePromptTokens int
 	CompletionTokens int
+	// FallbackFrom is the model that failed when Model is its fallback.
+	FallbackFrom string
 	// ModelCalls and ModelTime are the turn's calls to the model and the
 	// time they took, for the agent's log line.
 	ModelCalls int
@@ -280,7 +282,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
 			Rights: agent.AllRights}, ts)
 	resp, err := e.turn(ctx, ts, req, snap)
-	done(agent.Result{Model: resp.Model, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
+	done(agent.Result{Model: resp.Model, FallbackFrom: resp.FallbackFrom, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
 		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}, err)
 	resp.Trace = rec.Events()
 	if err != nil {
@@ -390,7 +392,12 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if err != nil {
 		return Response{}, err
 	}
-	client, model, modelName := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(req.Channel)))
+	agentName := config.ChannelAgent(req.Channel)
+	client, model, modelName := e.modelFor(e.cfg.ModelFor(agentName))
+	mustBeLocal := e.cfg.PrivacyFor(agentName) == config.PrivacyLocal
+	if mustBeLocal && model.Privacy != config.PrivacyLocal {
+		return Response{}, fmt.Errorf("%s must run on a local model; its model %s is %s", agentName, modelName, model.Privacy)
+	}
 	built := prompt.Build(prefix, history, turn)
 	msgs := built.Messages
 	added := []llm.Message{msgs[len(msgs)-1]} // the rendered layer 7
@@ -403,7 +410,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	var final llm.Message
 	nudged, forced, force := false, false, false
 	for round := 0; ; round++ {
-		chatReq := e.chatRequest(req.Channel, msgs, built)
+		chatReq := e.chatRequestOn(modelName, req.Channel, msgs, built)
 		switch {
 		case round >= maxRounds:
 			// Out of rounds: the model has to answer with what it has.
@@ -414,6 +421,24 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		began := time.Now()
 		out, err := e.chat(ctx, client, modelName, model, chatReq)
+		// A model that failed passes to its fallback (docs/spec/modelle.md),
+		// which serves the rest of the turn.
+		for err != nil && ctx.Err() == nil {
+			next, ok := e.cfg.Fallback(modelName, mustBeLocal)
+			if !ok {
+				break
+			}
+			e.log.Warn("model failed, taking its fallback", "session", key, "model", modelName, "fallback", next, "error", err)
+			if resp.FallbackFrom == "" {
+				resp.FallbackFrom = modelName
+			}
+			client, model, modelName = e.modelFor(next)
+			resp.Model = modelName
+			choice := chatReq.ToolChoice
+			chatReq = e.chatRequestOn(modelName, req.Channel, msgs, built)
+			chatReq.ToolChoice = choice
+			out, err = e.chat(ctx, client, modelName, model, chatReq)
+		}
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
 				"ms", time.Since(began).Milliseconds(), "error", err)
@@ -537,8 +562,14 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 		"completion_tokens", out.Usage.CompletionTokens)
 }
 
+// chatRequest is a request of a channel's conversation on its model.
 func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
-	_, model, name := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(ch)))
+	return e.chatRequestOn(e.cfg.ModelFor(config.ChannelAgent(ch)), ch, msgs, built)
+}
+
+// chatRequestOn is a request of a channel on a model, with its settings.
+func (e *Engine) chatRequestOn(modelName string, ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
+	_, model, name := e.modelFor(modelName)
 	r := modelRequest(model, msgs)
 	r.Tools = built.Tools
 	r.Channel = string(ch)

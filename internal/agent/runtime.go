@@ -232,10 +232,12 @@ type execution struct {
 	model  config.LLM
 	// slot is the model's llama.cpp slot of the background prefix, if it
 	// pins one.
-	slot    *int
-	b       Built
-	offered []llm.Tool
-	msgs    []llm.Message
+	slot *int
+	// mustBeLocal: the agent may run only on a local model.
+	mustBeLocal bool
+	b           Built
+	offered     []llm.Tool
+	msgs        []llm.Message
 	// round is the next model call's round; maxRounds bounds the tool rounds.
 	round, maxRounds int
 	t                texts
@@ -260,10 +262,11 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 	if !ok {
 		return ex, ctx, fmt.Errorf("no model %q", ex.res.Model)
 	}
-	ex.client, ex.model = client, model
-	if s := cfg.SlotFor(ex.res.Model, config.ChannelBackground); s >= 0 && spec.Profile == Background {
-		ex.slot = llm.IntPtr(s)
+	ex.mustBeLocal = spec.Privacy == config.PrivacyLocal || cfg.PrivacyFor(spec.Name) == config.PrivacyLocal
+	if ex.mustBeLocal && model.Privacy != config.PrivacyLocal {
+		return ex, ctx, fmt.Errorf("%s %w; its model %s is %s", spec.Name, ErrPrivacy, ex.res.Model, model.Privacy)
 	}
+	ex.use(cfg, client, ex.res.Model, model)
 	ex.me = &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
 			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
@@ -290,11 +293,42 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 	return ex, ctx, nil
 }
 
+// use makes a model the run's model: its client, settings and slot.
+func (ex *execution) use(cfg config.Config, client Chatter, name string, model config.LLM) {
+	ex.client, ex.model, ex.res.Model, ex.slot = client, model, name, nil
+	if s := cfg.SlotFor(name, config.ChannelBackground); s >= 0 && ex.spec.Profile == Background {
+		ex.slot = llm.IntPtr(s)
+	}
+}
+
+// fallback switches the run to the fallback of its failed model, when
+// there is one it may take (docs/spec/modelle.md, Fallback); the run keeps
+// it for its remaining rounds.
+func (r *Runtime) fallback(ex *execution, failed error) bool {
+	cfg := r.o.Config()
+	next, ok := cfg.Fallback(ex.res.Model, ex.mustBeLocal)
+	if !ok {
+		return false
+	}
+	client, model, ok := r.o.Models(next)
+	if !ok {
+		return false
+	}
+	r.log.Warn("model failed, taking its fallback", "agent", ex.spec.Name, "call_id", ex.res.CallID,
+		"model", ex.res.Model, "fallback", next, "error", failed)
+	if ex.res.FallbackFrom == "" {
+		ex.res.FallbackFrom = ex.res.Model
+	}
+	ex.use(cfg, client, next, model)
+	return true
+}
+
 // loop runs the model rounds until the answer. It returns Done, Failed, or
 // Cancelled when ctx ended; the caller tells why ctx ended.
 func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
-	spec, model := ex.spec, ex.model
+	spec := ex.spec
 	for ; ; ex.round++ {
+		model := ex.model
 		// No new round once the run is to stop (cancelled, expired, shutdown).
 		if ctx.Err() != nil {
 			return Cancelled, ctx.Err()
@@ -320,6 +354,15 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 				"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
 		}
 		out, err := r.chat(ctx, ex.client, ex.res.Model, model.Parallel, req, spec.Limits, &ex.res)
+		for err != nil && ctx.Err() == nil && r.fallback(ex, err) {
+			// The same request with the fallback's own settings.
+			req.Temperature, req.MaxTokens, req.ReasoningEffort = ex.model.Temperature, ex.model.MaxTokens, ex.model.ReasoningEffort
+			req.IDSlot, req.CachePrompt = ex.slot, nil
+			if spec.Profile == Background && ex.model.CachePrompt {
+				req.CachePrompt = llm.BoolPtr(true)
+			}
+			out, err = r.chat(ctx, ex.client, ex.res.Model, ex.model.Parallel, req, spec.Limits, &ex.res)
+		}
 		ex.res.Foreign = ex.me.ts.Foreign()
 		if err != nil {
 			if ctx.Err() != nil {
@@ -638,6 +681,9 @@ func (r *Runtime) logRun(spec Spec, cc CallContext, res Result, took time.Durati
 		"origin", cc.Origin, "mode", cc.Mode.String(), "status", res.Status, "model", res.Model,
 		"ms", took.Milliseconds(), "model_calls", res.ModelCalls, "model_ms", res.ModelTime.Milliseconds(),
 		"prompt_tokens", res.PromptTokens, "completion_tokens", res.Completion}
+	if res.FallbackFrom != "" {
+		attrs = append(attrs, "fallback_from", res.FallbackFrom)
+	}
 	if err != nil {
 		r.log.Warn("agent done", append(attrs, "error", err)...)
 		return

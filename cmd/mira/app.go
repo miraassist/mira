@@ -233,6 +233,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
 	var loaded, targets []skills.Skill
 	for _, sk := range all {
+		// A skill that must run locally does not start on a cloud model
+		// (docs/spec/modelle.md, Privacy as a rule).
+		if name, model, privacy := notLocal(cfg, sk); name != "" {
+			problems = append(problems, skills.NewProblem(sk.Name, skills.KindNotLocal, name, model, privacy))
+			continue
+		}
 		if sk.Target != nil {
 			targets = append(targets, sk)
 		} else {

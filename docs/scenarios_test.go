@@ -18,7 +18,7 @@ import (
 // have its Go test.
 var builtSteps = map[string][]int{
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8}, // docs/spec/agenten.md, Switching over in steps
-	"MO": {1, 2},                   // docs/spec/modelle.md, Steps
+	"MO": {1, 2, 3, 4},             // docs/spec/modelle.md, Steps
 }
 
 var (

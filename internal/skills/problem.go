@@ -27,6 +27,7 @@ func NewProblem(skill, kind string, args ...any) Problem {
 const (
 	KindUnknownFinish = "unknownfinish"
 	KindUnknownAgent  = "unknownagent"
+	KindNotLocal      = "notlocal"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -67,6 +68,8 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mailextract":    "Der Abschnitt mail braucht eine Anleitung (extract): wie Mira die Mails liest.",
 		"agent":          "Der Agent „%s“ unter agents ist so nicht lesbar (%s).",
 		"unknownagent":   "Das Gespräch (target) nennt den Agenten „%s“, den es nicht gibt. Beschreibe ihn unter agents, in der mira.yaml oder im Skill.",
+		"privacyword":    "privacy ist „%s“; hier geht nur local.",
+		"notlocal":       "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
 	},
 	i18n.EN: {
 		"nofolder":       "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or remove \"%[1]s\" from skills.enabled in mira.yaml.",
@@ -90,5 +93,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mailextract":    "The mail section needs instructions (extract): how Mira reads the mails.",
 		"agent":          "The agent \"%s\" under agents cannot be read like this (%s).",
 		"unknownagent":   "The conversation (target) names the agent \"%s\", which does not exist. Describe it under agents, in mira.yaml or in the skill.",
+		"privacyword":    "privacy is \"%s\"; only local goes here.",
+		"notlocal":       "The skill must run locally (privacy: local), but its agent %s runs on the model \"%s\" (%s). Give the agent a local model in mira.yaml under agents.",
 	},
 }

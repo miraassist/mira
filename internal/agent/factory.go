@@ -83,8 +83,8 @@ func Own(name string) bool { return slices.Contains(codeAgents, name) }
 var agentName = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 
 // RegisterDefined checks the YAML agents and registers those that fit.
-// known says whether a model name exists.
-func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool) []Problem {
+// models gives a model's settings by name.
+func (r *Runtime) RegisterDefined(defs []Defined, models func(name string) (config.LLM, bool)) []Problem {
 	var problems []Problem
 	seen := map[string]bool{}
 	for _, d := range defs {
@@ -99,10 +99,16 @@ func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool)
 		case slices.Contains(codeAgents, d.Name) && d.Skill == "":
 			// One of Mira's own agents: mira.yaml names only its model and
 			// privacy (docs/spec/modelle.md).
-			if extra := ownExtra(d.Def); extra != "" {
-				fail("ownfields", extra)
-			} else if d.Def.Model != "" && !known(d.Def.Model) {
+			model, known := models(d.Def.Model)
+			switch {
+			case ownExtra(d.Def) != "":
+				fail("ownfields", ownExtra(d.Def))
+			case d.Def.Model != "" && !known:
 				fail("ownmodel", d.Def.Model)
+			case d.Def.Privacy != "" && d.Def.Privacy != config.PrivacyLocal:
+				fail("privacyword", d.Def.Privacy)
+			case d.Def.Privacy == config.PrivacyLocal && model.Privacy != config.PrivacyLocal:
+				fail("ownprivacy", modelName(d.Def.Model), model.Privacy)
 			}
 			continue
 		case !agentName.MatchString(d.Name):
@@ -112,7 +118,7 @@ func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool)
 			fail("taken", d.Name)
 			continue
 		}
-		spec, kind, args := specOf(d, known)
+		spec, kind, args := specOf(d, models)
 		if kind != "" {
 			fail(kind, args...)
 			continue
@@ -121,6 +127,14 @@ func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool)
 		r.Register(spec)
 	}
 	return problems
+}
+
+// modelName is a model's name as an agent's entry gives it; empty is main.
+func modelName(name string) string {
+	if name == "" {
+		return config.MainModel
+	}
+	return name
 }
 
 // ownExtra names a field an entry for one of Mira's own agents may not set.
@@ -145,7 +159,7 @@ func ownExtra(d config.AgentDef) string {
 }
 
 // specOf turns a YAML description into a Spec, or says what does not fit.
-func specOf(d Defined, known func(string) bool) (Spec, string, []any) {
+func specOf(d Defined, models func(string) (config.LLM, bool)) (Spec, string, []any) {
 	def := d.Def
 	spec := Spec{Name: d.Name, Description: strings.TrimSpace(def.Description),
 		Instructions: strings.TrimSpace(def.Instructions), Model: def.Model}
@@ -165,8 +179,20 @@ func specOf(d Defined, known func(string) bool) (Spec, string, []any) {
 	}
 	if spec.Model == "" {
 		spec.Model = config.MainModel
-	} else if !known(spec.Model) {
+	}
+	model, known := models(spec.Model)
+	if !known {
 		return spec, "model", []any{spec.Model}
+	}
+	switch def.Privacy {
+	case "":
+	case config.PrivacyLocal:
+		if model.Privacy != config.PrivacyLocal {
+			return spec, "privacy", []any{spec.Model, model.Privacy}
+		}
+		spec.Privacy = config.PrivacyLocal
+	default:
+		return spec, "privacyword", []any{def.Privacy}
 	}
 	switch {
 	case len(def.Tools.Names) > 0:
@@ -222,6 +248,9 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"schema":         "input oder output ist kein gültiges Schema (%s).",
 		"ownfields":      "Für Miras eigene Agenten gehen hier nur model und privacy, nicht %s.",
 		"ownmodel":       "Das Modell „%s“ gibt es nicht; der Agent nimmt main. Trag es unter models ein.",
+		"privacy":        "Der Agent muss lokal laufen (privacy: local), aber sein Modell „%s“ ist %s. Nimm ein Modell mit privacy: local.",
+		"ownprivacy":     "Der Agent muss lokal laufen (privacy: local), aber sein Modell „%s“ ist %s; jeder Aufruf scheitert. Nimm ein Modell mit privacy: local.",
+		"privacyword":    "privacy ist „%s“; hier geht nur local.",
 	},
 	i18n.EN: {
 		"yaml":           "The description cannot be read like this (%s). Usually a field name is misspelt or an indent is wrong.",
@@ -237,5 +266,8 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"schema":         "input or output is not a valid schema (%s).",
 		"ownfields":      "For Mira's own agents only model and privacy go here, not %s.",
 		"ownmodel":       "There is no model \"%s\"; the agent takes main. Add it under models.",
+		"privacy":        "The agent must run locally (privacy: local), but its model \"%s\" is %s. Take a model with privacy: local.",
+		"ownprivacy":     "The agent must run locally (privacy: local), but its model \"%s\" is %s; every call fails. Take a model with privacy: local.",
+		"privacyword":    "privacy is \"%s\"; only local goes here.",
 	},
 }

@@ -50,6 +50,9 @@ type Skill struct {
 	// name, with the settings filled into description and instructions
 	// (docs/spec/agenten.md, Factory).
 	Agents map[string]config.AgentDef
+	// Privacy local makes every agent the skill uses run on a local model
+	// (docs/spec/modelle.md, Privacy as a rule).
+	Privacy string
 }
 
 // Mail is a skill's part in the mail calendar: how to read its mails. The
@@ -198,6 +201,7 @@ type frontmatter struct {
 			Target    *Target              `yaml:"target"`
 			Mail      *Mail                `yaml:"mail"`
 			Agents    map[string]yaml.Node `yaml:"agents"`
+			Privacy   string               `yaml:"privacy"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -264,7 +268,10 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	}
 	m := meta.Metadata.Mira
 	s := Skill{Name: meta.Name, Description: strings.TrimSpace(meta.Description), Dir: dir,
-		Settings: m.Settings}
+		Settings: m.Settings, Privacy: m.Privacy}
+	if s.Privacy != "" && s.Privacy != config.PrivacyLocal {
+		return Skill{}, problem("privacyword", s.Privacy)
+	}
 
 	vals := map[string]string{}
 	for k, v := range values {
@@ -346,6 +353,9 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		d.Description = fill(strings.TrimSpace(d.Description), vals, m.Settings)
 		d.Instructions = fill(strings.TrimSpace(d.Instructions), vals, m.Settings)
+		if s.Privacy == config.PrivacyLocal {
+			d.Privacy = config.PrivacyLocal
+		}
 		if s.Agents == nil {
 			s.Agents = map[string]config.AgentDef{}
 		}

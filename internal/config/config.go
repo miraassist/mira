@@ -65,8 +65,9 @@ type Agents struct {
 	// instead of stopping the agent. Entries for Mira's own agents are here
 	// too (only model and privacy).
 	Defined map[string]yaml.Node `yaml:"-"`
-	// models is the model each entry names, for ModelFor.
-	models map[string]string
+	// models and privacy are what each entry names, for ModelFor and
+	// PrivacyFor.
+	models, privacy map[string]string
 }
 
 // UnmarshalYAML reads max_depth and the agents beside it.
@@ -84,14 +85,15 @@ func (a *Agents) UnmarshalYAML(n *yaml.Node) error {
 		}
 		if a.Defined == nil {
 			a.Defined = map[string]yaml.Node{}
-			a.models = map[string]string{}
+			a.models, a.privacy = map[string]string{}, map[string]string{}
 		}
 		a.Defined[key] = *val
 		var named struct {
-			Model string `yaml:"model"`
+			Model   string `yaml:"model"`
+			Privacy string `yaml:"privacy"`
 		}
 		if val.Decode(&named) == nil {
-			a.models[key] = named.Model
+			a.models[key], a.privacy[key] = named.Model, named.Privacy
 		}
 	}
 	return nil
@@ -243,6 +245,30 @@ func (c Config) ModelFor(agent string) string {
 		}
 	}
 	return MainModel
+}
+
+// PrivacyFor is what an agent's entry under agents says about privacy:
+// PrivacyLocal when it must run on a local model, else "".
+func (c Config) PrivacyFor(agent string) string {
+	if c.Agents.privacy[agent] == PrivacyLocal {
+		return PrivacyLocal
+	}
+	return ""
+}
+
+// Fallback is the model to take after name failed: its fallback, unless
+// the caller must run locally and the fallback is not local
+// (docs/spec/modelle.md). ok is false when there is none to take.
+func (c Config) Fallback(name string, mustBeLocal bool) (string, bool) {
+	m, ok := c.Model(name)
+	if !ok || m.Fallback == "" {
+		return "", false
+	}
+	next, ok := c.Models[m.Fallback]
+	if !ok || (mustBeLocal && next.Privacy != PrivacyLocal) {
+		return "", false
+	}
+	return m.Fallback, true
 }
 
 // ChannelAgent is the conversation agent of a channel; the background

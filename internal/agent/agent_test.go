@@ -32,6 +32,7 @@ type step struct {
 	calls []llm.ToolCall
 	text  string
 	hang  bool
+	err   error // the model fails
 }
 
 // model is a scripted model; it counts calls and how many ran at once.
@@ -65,6 +66,9 @@ func (m *model) Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatRespons
 	if s.hang {
 		<-ctx.Done()
 		return nil, ctx.Err()
+	}
+	if s.err != nil {
+		return nil, s.err
 	}
 	if m.delay > 0 {
 		select {
@@ -828,5 +832,108 @@ func TestMO10_AnAgentWithoutAModelTakesMain(t *testing.T) {
 	// Then it takes main
 	if res.Model != "main" || e.main.calls() != 1 {
 		t.Errorf("model %q", res.Model)
+	}
+}
+
+// fallbackEnv has the models main (local), smart and lite (cloud), each a
+// scripted model of its own; their fallbacks come from the test.
+func fallbackEnv(t *testing.T, models string) (*Runtime, map[string]*model, *syncBuffer) {
+	t.Helper()
+	cfg, err := config.Parse([]byte("ha: { url: http://ha, token: t }\n"+models), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := map[string]*model{"main": {}, "smart": {}, "lite": {}}
+	logs := &syncBuffer{}
+	rt := New(Options{Config: func() config.Config { return cfg },
+		Models: func(name string) (Chatter, config.LLM, bool) {
+			m, ok := cfg.Model(name)
+			return clients[name], m, ok
+		}, Logger: slog.New(slog.NewTextHandler(logs, nil))})
+	return rt, clients, logs
+}
+
+const threeModels = `
+models:
+  main: { endpoint: http://lokal/v1, model: m, privacy: local, max_tokens: 100 }
+  smart: { endpoint: https://cloud/v1, model: m, privacy: cloud, fallback: %s, max_tokens: 900 }
+  lite: { endpoint: https://cloud/v1, model: m, privacy: cloud, fallback: main }
+`
+
+// MO-30 A failing model passes to its fallback
+func TestMO30_AFailingModelPassesToItsFallback(t *testing.T) {
+	// Given smart with fallback main
+	rt, clients, logs := fallbackEnv(t, fmt.Sprintf(threeModels, "main"))
+	// When smart fails after its retries
+	clients["smart"].steps = []step{{err: errors.New("503")}}
+	clients["main"].steps = []step{{text: "von main"}}
+	res, err := rt.Call(context.Background(), Spec{Name: "a", Model: "smart", Profile: Isolated}, "x", CallContext{})
+	// Then the call is made on main, with main's settings
+	// And the log line names main and that it was a fallback from smart
+	if err != nil || res.Text != "von main" || res.Model != "main" || clients["main"].reqs[0].MaxTokens != 100 {
+		t.Fatalf("%+v, %v", res, err)
+	}
+	if !strings.Contains(logs.String(), "model=main") || !strings.Contains(logs.String(), "fallback_from=smart") {
+		t.Errorf("log:\n%s", logs)
+	}
+}
+
+// MO-31 A busy model is waited for, not passed by
+func TestMO31_ABusyModelIsWaitedForNotPassedBy(t *testing.T) {
+	// Given smart with fallback main and all of smart's requests taken
+	rt, clients, _ := fallbackEnv(t, `
+models:
+  main: { endpoint: http://lokal/v1, model: m, privacy: local }
+  smart: { endpoint: https://cloud/v1, model: m, privacy: cloud, parallel: 1, fallback: main }
+`)
+	clients["smart"].steps = []step{{hang: true}, {text: "endlich"}}
+	busy, stop := context.WithCancel(context.Background())
+	defer stop()
+	go rt.Call(busy, Spec{Name: "a", Model: "smart", Profile: Isolated}, "x", CallContext{})
+	time.Sleep(30 * time.Millisecond)
+	// When another call for smart comes
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	_, err := rt.Call(ctx, Spec{Name: "b", Model: "smart", Profile: Isolated}, "x", CallContext{})
+	// Then it waits for smart
+	if err == nil || clients["main"].calls() != 0 {
+		t.Errorf("err %v, main called %d times", err, clients["main"].calls())
+	}
+}
+
+// MO-33 A chain of fallbacks is followed
+func TestMO33_AChainOfFallbacksIsFollowed(t *testing.T) {
+	// Given smart with fallback lite and lite with fallback main
+	rt, clients, _ := fallbackEnv(t, fmt.Sprintf(threeModels, "lite"))
+	// When smart and lite fail
+	clients["smart"].steps = []step{{err: errors.New("503")}}
+	clients["lite"].steps = []step{{err: errors.New("timeout")}}
+	clients["main"].steps = []step{{text: "von main"}}
+	res, err := rt.Call(context.Background(), Spec{Name: "a", Model: "smart", Profile: Isolated}, "x", CallContext{})
+	// Then the call is made on main
+	if err != nil || res.Model != "main" || res.FallbackFrom != "smart" || clients["lite"].calls() != 1 {
+		t.Errorf("%+v, %v", res, err)
+	}
+}
+
+// MO-22 A local requirement never falls back to the cloud
+func TestMO22_ALocalRequirementNeverFallsBackToTheCloud(t *testing.T) {
+	// Given an agent with privacy local on a local model whose fallback is a cloud model
+	rt, clients, _ := fallbackEnv(t, `
+models:
+  main: { endpoint: http://lokal/v1, model: m, privacy: local, fallback: smart }
+  smart: { endpoint: https://cloud/v1, model: m, privacy: cloud }
+`)
+	// When the local model fails
+	clients["main"].steps = []step{{err: errors.New("lm studio is down")}}
+	_, err := rt.Call(context.Background(), Spec{Name: "a", Privacy: config.PrivacyLocal, Profile: Isolated}, "x", CallContext{})
+	// Then the cloud model is not called, and the call fails
+	if err == nil || clients["smart"].calls() != 0 {
+		t.Errorf("err %v, smart called %d times", err, clients["smart"].calls())
+	}
+	// Without the requirement the fallback is taken.
+	clients["main"].steps = []step{{err: errors.New("lm studio is down")}}
+	if res, err := rt.Call(context.Background(), Spec{Name: "b", Profile: Isolated}, "x", CallContext{}); err != nil || res.Model != "smart" {
+		t.Errorf("without privacy: %+v, %v", res, err)
 	}
 }

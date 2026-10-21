@@ -166,7 +166,7 @@ func TestAG49_AnUnknownAgentInATargetIsAProblemOfTheSkill(t *testing.T) {
 func TestThreadAgentRunsAndFillsTheField(t *testing.T) {
 	a, _, _ := deliveryApp(t, fakellm.Step{Content: "Topfschlagen"})
 	if p := a.agents.RegisterDefined([]agent.Defined{{Name: "spielideen",
-		Def: config.AgentDef{Description: "Spielideen.", Instructions: "Nenne ein Spiel."}}}, func(string) bool { return true }); len(p) != 0 {
+		Def: config.AgentDef{Description: "Spielideen.", Instructions: "Nenne ein Spiel."}}}, a.cfg.Model); len(p) != 0 {
 		t.Fatal(p)
 	}
 	target := skills.Skill{Name: "geburtstag", Description: "Feier", Body: "Plane.", Target: &skills.Target{
@@ -197,4 +197,33 @@ func setMain(cfg *config.Config, change func(*config.LLM)) {
 	m := cfg.Main()
 	change(&m)
 	cfg.Models[config.MainModel] = m
+}
+
+// MO-21 A skill that must run locally checks its agents
+func TestMO21_ASkillThatMustRunLocallyChecksItsAgents(t *testing.T) {
+	// Given a mail skill with privacy local and mail.read on a cloud model
+	cfg, err := config.Parse([]byte(`
+ha: { url: http://ha, token: t }
+models:
+  main: { endpoint: http://lokal/v1, model: m, privacy: local }
+  smart: { endpoint: https://cloud/v1, model: m, privacy: cloud }
+agents:
+  mail.read: { model: smart }
+`), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	arzt := skills.Skill{Name: "arzt", Privacy: config.PrivacyLocal, Mail: &skills.Mail{Extract: "Termine."}}
+	// When Mira loads it
+	name, model, privacy := notLocal(cfg, arzt)
+	// Then the skill is not started, and the problem names mail.read and its model
+	text := skills.NewProblem("arzt", skills.KindNotLocal, name, model, privacy).Text(i18n.DE)
+	if name != "mail.read" || !strings.Contains(text, "mail.read") || !strings.Contains(text, "„smart“") {
+		t.Errorf("not local: %q %q %q: %s", name, model, privacy, text)
+	}
+	// Without the rule, or with local models, it starts.
+	arzt.Privacy = ""
+	if name, _, _ := notLocal(cfg, arzt); name != "" {
+		t.Error("a skill without privacy local was checked")
+	}
 }

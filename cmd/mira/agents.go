@@ -62,10 +62,7 @@ func (a *app) registerAgents() {
 			}
 		}
 	}
-	problems := a.agents.RegisterDefined(defs, func(model string) bool {
-		_, ok := a.cfg.Model(model)
-		return ok
-	})
+	problems := a.agents.RegisterDefined(defs, a.cfg.Model)
 	failed := map[string]bool{}
 	for _, p := range problems {
 		text := p.Text(a.lang)
@@ -283,4 +280,46 @@ func (a *app) dispatchForThread(ctx context.Context, th store.Thread, into, name
 		Person: th.Person, Place: area, Mode: agent.Mode{Async: true,
 			Delivery: agent.Delivery{Route: agent.ToThread, Thread: th.ID, Into: into}}})
 	return err
+}
+
+// notLocal is, for a skill that must run locally, the first agent it uses
+// whose model is not local, with that model and its privacy; "" when all
+// fit. The agents a skill uses: its own, those its target names, and for a
+// mail skill mail.read and mail.match.
+func notLocal(cfg config.Config, sk skills.Skill) (agentName, model, privacy string) {
+	if sk.Privacy != config.PrivacyLocal {
+		return "", "", ""
+	}
+	var used []string
+	if sk.Mail != nil {
+		used = append(used, "mail.read", "mail.match")
+	}
+	if t := sk.Target; t != nil {
+		if t.Agent != "" {
+			used = append(used, t.Agent)
+		}
+		for _, f := range t.Fields {
+			if f.Agent != "" {
+				used = append(used, f.Agent)
+			}
+		}
+	}
+	used = append(used, sortedNames(sk.Agents)...)
+	for _, name := range used {
+		model := cfg.ModelFor(name)
+		if d, ok := sk.Agents[name]; ok {
+			model = modelNameOf(d.Model)
+		}
+		if m, ok := cfg.Model(model); !ok || m.Privacy != config.PrivacyLocal {
+			return name, model, m.Privacy
+		}
+	}
+	return "", "", ""
+}
+
+func modelNameOf(name string) string {
+	if name == "" {
+		return config.MainModel
+	}
+	return name
 }
