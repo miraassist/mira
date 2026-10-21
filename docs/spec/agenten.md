@@ -2,6 +2,9 @@
 
 Stand 2026-10-21, beschlossen. Nichts davon ist gebaut.
 
+Die prüfbaren Regeln stehen als nummerierte Szenarien in [agenten.feature](agenten.feature); jeder Go-Test dazu trägt
+die Nummer im Namen (`TestAG07_…`).
+
 ## Ziel
 
 Mira ruft ihre Modelle heute an acht Stellen auf, jede auf ihre Art: das Gespräch, die Zeitpläne der Skills, das
