@@ -1,6 +1,6 @@
 # Models
 
-Status: specified, not built. Scenarios: [modelle.feature](modelle.feature).
+Status: built. Scenarios: [modelle.feature](modelle.feature).
 
 ## Goal
 

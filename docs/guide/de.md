@@ -556,6 +556,51 @@ Ein Programm, das Mira selbst startet (stdio), bekommt nur das Nötigste aus ihr
 
 Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` prüft, ob alle erreichbar sind.
 
+## Mehrere Modelle
+
+Die Integration richtet ein Modell ein: Es heißt in Mira **`main`**, und jeder Teil von Mira nimmt es. Willst du mehr, etwa ein lokales Modell für Mails und ein Cloud-Modell für schwierige Fragen, trägst du die Modelle in `mira.yaml` unter `models` ein und sagst unter `agents`, wer welches nimmt:
+
+```yaml
+models:
+  main:
+    endpoint: http://localhost:1234/v1   # LM Studio auf diesem Rechner
+    model: qwen/qwen3-30b-a3b-2507
+    privacy: local                       # die Daten bleiben im Haus
+  smart:
+    endpoint: https://generativelanguage.googleapis.com/v1beta/openai
+    model: gemini-flash-latest
+    token: ${GEMINI_API_TOKEN}           # der Schlüssel kommt aus der Umgebung
+    privacy: cloud                       # die Daten gehen zum Anbieter
+    fallback: main                       # klappt smart nicht, nimmt Mira main
+
+agents:
+  conversation.telegram: { model: smart }
+  delegate: { model: smart }
+  mail.read: { model: main, privacy: local }
+  mail.match: { model: main, privacy: local }
+```
+
+- **`privacy`** muss bei jedem Modell stehen: `local` (dein eigener Server) oder `cloud` (ein Anbieter).
+- **`parallel`** ist, wie viele Anfragen ein Modell gleichzeitig bekommt; ohne Angabe 1 bei `local`, 4 bei `cloud`.
+- **`fallback`** nennt ein anderes Modell, das Mira nimmt, wenn dieses nicht antwortet. Ist es nur gerade beschäftigt, wartet Mira.
+- **Wer was nimmt:** Ohne Eintrag unter `agents` nimmt jeder Teil `main`. Die Teile heißen: `conversation.voice` (Sprache), `conversation.telegram` (Telegram), `delegate` (schwierige Fragen), `skill.task` (Zeitpläne der Skills, Briefing), `notify.compose` (Ansagen), `tasks.assess`, `tasks.decide`, `tasks.plan` (Aufgaben), `mail.read`, `mail.match` (Mails), `profile.compact` (Gedächtnis-Profil).
+- **`privacy: local`** bei einem Teil heißt: Er läuft nur auf einem lokalen Modell, auch kein Fallback in die Cloud. Ein Skill kann das ebenso verlangen (`privacy: local` unter `metadata.mira`); dann prüft Mira beim Start alle Teile, die er nutzt. Passt etwas nicht, startet er nicht, und Home Assistant zeigt unter **Reparaturen**, was zu ändern ist.
+
+Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.
+
+## Befehle
+
+Das Programm `mira` hat ein paar Befehle. Im Container rufst du sie mit `docker exec mira /app/mira …` auf.
+
+| Befehl | Was er tut |
+|---|---|
+| `mira run` | startet Mira (das läuft im Container ohnehin) |
+| `mira check` | prüft die Einstellungen und ob die Modelle, Home Assistant und die MCP-Server erreichbar sind |
+| `mira pair` | gibt einen Kopplungscode für die Integration aus |
+| `mira skill NAME` | führt den Zeitplan eines Skills sofort aus und zeigt, was Mira sagen würde; hat er mehrere, wählt eine Zahl dahinter einen (ab 0) |
+| `mira chat "…"` | ein Gesprächszug im Terminal, ohne Home Assistant als Oberfläche; `-channel voice` oder `telegram`, `-session` für einen weiteren Zug im selben Gespräch |
+| `mira profile` | baut das Gedächtnis-Profil neu aus den gemerkten Fakten |
+
 ## Einrichtung
 
 Du brauchst zwei Dinge:
