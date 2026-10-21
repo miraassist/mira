@@ -3,7 +3,8 @@
 # (agenten.md, "Switching over in steps") the scenario gets built.
 #
 # Groups: AG-0x rights · AG-1x depth · AG-2x synchronous · AG-3x asynchronous and run record ·
-#         AG-4x delivery · AG-5x log · AG-6x calls from Home Assistant and as a tool · AG-7x model
+#         AG-4x delivery · AG-5x log · AG-6x calls from Home Assistant and as a tool · AG-7x model ·
+#         AG-8x runtime
 
 Feature: AG Agents
 
@@ -255,3 +256,80 @@ Feature: AG Agents
     When the conversation is called
     Then it has the tool delegate
     And the delegate agent takes the model main
+
+  # --- Runtime (agenten.md: Runtime) -----------------------------------------------------------------
+
+  @step1
+  Scenario: AG-80 A local model serves one run at a time
+    Given two runs that use the same local model
+    When both want to call the model at the same moment
+    Then the second waits until the first call is answered
+
+  @step1
+  Scenario: AG-81 A cloud model serves several runs at once
+    Given two runs that use the same cloud model
+    When both call the model at the same moment
+    Then both calls run at the same time
+
+  @step6
+  Scenario: AG-82 An asynchronous run runs in the runtime
+    When an agent is called asynchronously
+    Then the runtime runs it in the background
+    And the runtime can cancel it
+
+  @step6
+  Scenario: AG-83 Two runs change the same plan at the same time
+    Given a plan with the steps 1 and 2 open
+    When one run ticks off step 1 and another step 2 at the same time
+    Then both steps are ticked off
+
+  @step6
+  Scenario: AG-84 After every round the new parts are stored
+    Given an asynchronous run
+    When a round ends
+    Then the model's answer and the tool results of that round are in the database
+
+  @step6
+  Scenario: AG-85 A run is continued after a restart
+    Given an asynchronous run that stored two rounds
+    When the agent is restarted
+    Then the run goes on after the second round
+
+  @step6
+  Scenario: AG-86 An interrupted model call is made again
+    Given an asynchronous run that was waiting for the model when the agent stopped
+    When the agent starts again
+    Then the run makes that model call again
+
+  @step6
+  Scenario: AG-87 An interrupted read-only tool is run again
+    Given an asynchronous run with a read-only tool started but without a stored result
+    When the agent starts again
+    Then the tool is run again
+
+  @step6
+  Scenario: AG-88 An interrupted tool that changes something is not repeated
+    Given an asynchronous run with an acting tool started but without a stored result
+    When the agent starts again
+    Then the tool is not run again
+    And the model gets that its result is unknown because the run was interrupted
+
+  @step6
+  Scenario: AG-89 Synchronous calls are not continued
+    Given a synchronous run without run-on that was running when the agent stopped
+    When the agent starts again
+    Then the run is not continued
+
+  @step6
+  Scenario: AG-90 The time limits count across a restart
+    Given an asynchronous run whose time limit passed while the agent was stopped
+    When the agent starts again
+    Then the run record has the status "expired"
+    And the run is not continued
+
+  @step6
+  Scenario: AG-91 On shutdown no new round starts
+    Given an asynchronous run between two rounds
+    When the agent shuts down
+    Then no new round starts
+    And everything up to then is stored

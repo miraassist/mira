@@ -127,6 +127,49 @@ Every run writes one uniform line `agent done`: agent, call ID, ID of the callin
 model, duration, model calls, tokens. Through the call IDs a whole tree of calls can be followed. Lines that say what
 a run achieved (such as `mail read`) stay in addition.
 
+## Runtime
+
+### Running
+
+- A **synchronous** run runs in the caller's goroutine, with the caller's timeout.
+- An **asynchronous** run (and a synchronous one that runs on after its timeout) is handed to the **runtime**: it
+  runs each in a goroutine of its own, can cancel it, and shuts down in order.
+- **Access to the models** is limited per model, not per channel as today: a local model serves one request at a
+  time, a cloud model several. The runtime starts with fixed defaults for this.
+
+### Shared state
+
+Memory, plans, threads and messages live in Mira's SQLite database (one connection, WAL), so a single write is safe
+already. What is not safe today is "read, change, write back" (a whole thread is read, changed and written back;
+two runs at once and the first one's change is lost).
+
+- **No locks in the agents.** A change is either a single write in the database, or it checks a version number:
+  write only if nothing changed since reading, else read again and retry.
+- **No lock is held while a model thinks** (that takes seconds and would block everything).
+- Adding a fact is a single write already. Ticking off a plan step and changing a thread get the version check.
+
+### Surviving a restart
+
+Asynchronous runs survive a restart of the agent and are continued.
+
+- **Stored in the SQLite database**, next to the run record: the call context and the run's history (instruction,
+  input, the model's answers, tool results).
+- **After every round** the new parts are written, as rows of their own (not the whole history again). A round is
+  a model call of seconds; a write takes milliseconds.
+- **Before a tool runs** "started" is stored, **after it** its result.
+- **On shutdown** the runtime starts no new round and stops. **On start** it loads every run with the status
+  "running" and continues it from the last stored point. This works after a crash or a hard kill too, not only after
+  an orderly shutdown.
+- **Continuing:**
+  - a model call that was running is simply made again (it has no effect outside);
+  - a tool that was started but has no result: a read-only one is run again; for one that changes something the
+    model gets "result unknown, the run was interrupted" and decides itself whether to look;
+  - the time limits of a run count across the restart: a run that took too long is "expired" instead of continued.
+- **Synchronous calls are not continued:** their caller (Home Assistant or a conversation) has no connection any
+  more after the restart and got an error. Only what runs asynchronously, or ran on after its timeout, is continued;
+  its result goes out on its delivery route.
+- Only asynchronous runs store anything; synchronous runs write nothing extra.
+
 ## The building block in the code
 
 A package `internal/agent`:
@@ -145,15 +188,16 @@ context, and the same log line.
 Steps 1 to 5 change no behavior (except `delegate`, step 4); the existing tests must stay green unchanged, and tests
 per agent come in addition.
 
-1. **Building block:** `Spec`, `CallContext`, rights, synchronous `Call`, depth, log line. No user yet.
+1. **Building block:** `Spec`, `CallContext`, rights, synchronous `Call`, depth, log line, access to the models
+   limited per model. A run's history is a structure of its own, so it can be stored later. No user yet.
 2. **Isolated agents:** `mail.read`, `mail.match`, `tasks.plan`, `tasks.assess`, `tasks.decide`, `profile.compact`.
    The mail calendar's retry moves into the limits of `mail.*`.
 3. **Background without tools:** `notify.compose`.
 4. **Background with tools:** `skill.task`, `delegate`. `delegate` becomes an ordinary agent as a tool. The only
    change in behavior: without `routing.delegate` it exists anyway, with `main` (see Decided, 13).
 5. **Conversation:** `conversation.voice`, `conversation.telegram`.
-6. **Asynchronous:** run record, query, delivery as a Home Assistant event and as a message; the Home Assistant
-   action.
+6. **Asynchronous:** the runtime with storing and continuing, run record, query, delivery as a Home Assistant event
+   and as a message; the Home Assistant action; the version check for plans and threads.
 7. **Continuation** as a delivery route.
 8. **Factory:** agents in YAML.
 
