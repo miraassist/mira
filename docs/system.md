@@ -146,6 +146,7 @@ Wichtig:
   Kalender lesen, Termine eintragen und absagen, To-do mit Fälligkeit: [Kalender](spec/kalender.md).
   Mails, die etwas mit Zeit ankündigen, als Kalendereintrag (erste Anwendung Pakete): [Mail-Kalender](spec/mail-kalender.md), [Pakete](spec/pakete.md).
   Lange Abläufe Schritt für Schritt (Kochen), als Vorgang mit Plan: [Vorgänge, Pläne](spec/vorgaenge.md).
+  Agenten als Baustein (Beschreibung, Aufruf-Kontext, Rechte, synchron und asynchron), Entwurf: [Agenten](spec/agenten.md).
   Radio auf dem Lautsprecher eines Raums: [Radio](spec/radio.md).
   Geplante Aktionen in HA (Einschlaf-Timer, Aufräumen): [Geplante Aktionen](spec/geplante-aktionen.md).
   Ideen für weitere Skills (Szenen, Briefing, Kochen, Geschichten, Quiz, Lernen): [Skill-Ideen](spec/skill-ideen.md).
