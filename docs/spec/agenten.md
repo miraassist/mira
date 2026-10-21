@@ -253,3 +253,12 @@ From that:
 12. **Callable from Home Assistant** are all agents.
 13. **`delegate` without an entry:** the rule "without an entry `main`" holds for it too; the tool `delegate` thus
     always exists, also without `routing.delegate` (today it does not then).
+14. **The event `mira_agent_done` is fired by the integration:** Mira's own Home Assistant user may not fire events
+    (`fire_event` is admin only). The agent calls an action of its own integration, allowed only for Mira's user
+    (like the `mira/automation` commands today), and the integration fires the event at once.
+15. **Checking the output schema:** a small check of our own for the parts of JSON Schema we use (object, required
+    fields, types, `enum`, arrays), no library.
+16. **The right each tool needs** is derived from what the tools already declare: Home Assistant tools that only
+    read need "read the house", the others "act on the house"; tools that read web content need "web". Mira's own
+    tools name their right explicitly (`memory_save`: "remember"; `message_send` and reminders: "messages"; radio and
+    sleep timer: "act on the house"). The table of all tools goes into this spec with step 1.
