@@ -250,3 +250,10 @@ Funktionalität: AG Agenten
     Angenommen in routing steht für die Rolle eines Agenten das Modell smart
     Wenn der Agent läuft
     Dann nimmt er das Modell smart
+
+  @schritt4
+  Szenario: AG-72 Den Delegate-Agenten gibt es auch ohne Eintrag
+    Angenommen in routing steht für delegate nichts
+    Wenn das Gespräch gerufen wird
+    Dann hat es das Werkzeug delegate
+    Und der Delegate-Agent nimmt das Modell main

@@ -146,7 +146,7 @@ und einen Aufruf-Kontext, und dieselbe Protokollzeile.
 
 ## Umstellung in Schritten
 
-Die Schritte 1 bis 5 ändern kein Verhalten; die vorhandenen Tests müssen unverändert grün bleiben, dazu kommen Tests
+Die Schritte 1 bis 5 ändern kein Verhalten (außer `delegate`, Schritt 4); die vorhandenen Tests müssen unverändert grün bleiben, dazu kommen Tests
 je Agent.
 
 1. **Baustein:** `Spec`, `CallContext`, Rechte, synchroner `Call`, Tiefe, Protokollzeile. Noch kein Nutzer.
@@ -154,6 +154,7 @@ je Agent.
    `profile.compact`. Die Wiederholung des Mail-Kalenders wandert in die Grenzen von `mail.*`.
 3. **Hintergrund ohne Werkzeuge:** `notify.compose`.
 4. **Hintergrund mit Werkzeugen:** `skill.task`, `delegate`. `delegate` wird ein gewöhnlicher Agent als Werkzeug.
+   Die einzige Änderung im Verhalten: Ohne `routing.delegate` gibt es ihn trotzdem, mit `main` (siehe Entschieden, 13).
 5. **Gespräch:** `conversation.voice`, `conversation.telegram`.
 6. **Asynchron:** Lauf-Datensatz, Abfrage, Zustellen als HA-Ereignis und als Nachricht; die HA-Aktion.
 7. **Fortsetzung** als Zustellweg.
@@ -252,4 +253,6 @@ Daraus:
 10. **Namen:** `mira.agent`, `mira.agent_result`, `mira_agent_done`, `agents.max_depth`.
 11. **Vorgaben:** Tiefe höchstens 3; ein Lauf-Datensatz bleibt 60 Minuten nach seinem Ende.
 12. **Aus Home Assistant aufrufbar** sind alle Agenten.
+13. **`delegate` ohne Eintrag:** Die Regel „ohne Eintrag `main`“ gilt auch für ihn; das Werkzeug `delegate` gibt es
+    damit immer, auch ohne `routing.delegate` (heute gibt es es dann nicht).
 
