@@ -202,9 +202,6 @@ func loadScenarios(dir, only string) ([]Scenario, error) {
 
 func modelsOf(setup map[string]any) []string {
 	var out []string
-	if llm, ok := setup["llm"].(map[string]any); ok {
-		out = append(out, fmt.Sprintf("main: %v", llm["model"]))
-	}
 	if models, ok := setup["models"].(map[string]any); ok {
 		names := make([]string, 0, len(models))
 		for n := range models {
@@ -217,17 +214,19 @@ func modelsOf(setup map[string]any) []string {
 			}
 		}
 	}
-	if routing, ok := setup["routing"].(map[string]any); ok {
-		keys := make([]string, 0, len(routing))
-		for k := range routing {
+	if agents, ok := setup["agents"].(map[string]any); ok {
+		keys := make([]string, 0, len(agents))
+		for k := range agents {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
 		var parts []string
 		for _, k := range keys {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, routing[k]))
+			if a, ok := agents[k].(map[string]any); ok && a["model"] != nil {
+				parts = append(parts, fmt.Sprintf("%s=%v", k, a["model"]))
+			}
 		}
-		out = append(out, "routing: "+strings.Join(parts, ", "))
+		out = append(out, "agents: "+strings.Join(parts, ", "))
 	}
 	return out
 }
@@ -253,12 +252,26 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 	if err := yaml.Unmarshal(raw, &cfg); err != nil {
 		return nil, err
 	}
-	for _, k := range []string{"llm", "models", "routing"} {
-		if v, ok := r.setup[k]; ok {
-			cfg[k] = v
-		} else {
-			delete(cfg, k)
+	// The setup's models replace the test config's, and so do its agents'
+	// models: the test config's entries that only name a model go.
+	if v, ok := r.setup["models"]; ok {
+		cfg["models"] = v
+		agents, _ := cfg["agents"].(map[string]any)
+		for k, v := range agents {
+			if entry, ok := v.(map[string]any); ok && onlyModel(entry) {
+				delete(agents, k)
+			}
 		}
+	}
+	if setupAgents, ok := r.setup["agents"].(map[string]any); ok {
+		agents, _ := cfg["agents"].(map[string]any)
+		if agents == nil {
+			agents = map[string]any{}
+		}
+		for k, v := range setupAgents {
+			agents[k] = v
+		}
+		cfg["agents"] = agents
 	}
 	server, _ := cfg["server"].(map[string]any)
 	if server == nil {
@@ -542,4 +555,15 @@ func (r *evalRun) exposed(ctx context.Context) ([]string, error) {
 	}
 	sort.Strings(ids)
 	return ids, nil
+}
+
+// onlyModel: an agent entry that names only a model (and privacy), as
+// Mira's own agents have them.
+func onlyModel(entry map[string]any) bool {
+	for k := range entry {
+		if k != "model" && k != "privacy" {
+			return false
+		}
+	}
+	return true
 }

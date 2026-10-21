@@ -36,10 +36,18 @@ func runCheck(ctx context.Context, cfg config.Config) error {
 	}
 	fmt.Println("config ok")
 
-	client := llm.New(llm.Options{BaseURL: cfg.LLM.BaseURL, APIKey: cfg.LLM.APIKey, Model: cfg.LLM.Model, Telemetry: tel})
-	hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	report("llm", client.Health(hctx), cfg.LLM.BaseURL)
-	cancel()
+	names := make([]string, 0, len(cfg.Models))
+	for name := range cfg.Models {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		m := cfg.Models[name]
+		client := llm.New(llm.Options{BaseURL: m.BaseURL, APIKey: m.APIKey, Model: m.Model, Telemetry: tel})
+		hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		report("model "+name, client.Health(hctx), m.BaseURL+" ("+m.Privacy+")")
+		cancel()
+	}
 
 	checkHA(ctx, cfg, tel, report)
 

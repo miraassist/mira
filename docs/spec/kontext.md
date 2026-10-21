@@ -144,7 +144,7 @@ What the model sees of the conversation: **the running thread + the last turns.*
 |---|---|---|
 | `sessions.max_turns` | 50 | from here on it is cut |
 | `sessions.keep_turns` | 30 | this many turns remain after the cut |
-| `llm.compact_at_fraction` (per model) | 0.9 | fraction of the context window (`context_tokens`) from which it is cut |
+| `models.<name>.compact_at_fraction` | 0.9 | fraction of the context window (`context_tokens`) from which it is cut |
 | `sessions.voice_ttl` | 5m | session duration voice |
 | `sessions.telegram_ttl` | off | session duration Telegram (off = no time limit) |
 

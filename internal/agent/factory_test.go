@@ -193,7 +193,7 @@ agents:
 	for _, p := range problems {
 		got[p.Agent] = p.kind
 	}
-	want := map[string]string{"delegate": "taken", "Gross": "name", "ohne": "nodesc", "tippfehler": "yaml",
+	want := map[string]string{"delegate": "ownfields", "Gross": "name", "ohne": "nodesc", "tippfehler": "yaml",
 		"modell": "model", "rechte": "rights", "werkzeug": "isolatedtools"}
 	for name, kind := range want {
 		if got[name] != kind {
@@ -229,5 +229,45 @@ agents:
 		if res, err := e.rt.CallByName(context.Background(), "wetter", json.RawMessage(in), CallContext{}); err != nil || res.Status != Done {
 			t.Errorf("input %q: %+v, %v", in, res, err)
 		}
+	}
+}
+
+// MO-12 Mira's own agents take only model and privacy
+func TestMO12_MirasOwnAgentsTakeOnlyModelAndPrivacy(t *testing.T) {
+	e := setup(t)
+	// Given an entry for delegate under agents with instructions
+	// When Mira loads it
+	problems := e.fromYAML(t, `
+agents:
+  delegate: { model: smart, instructions: Sei knapp. }
+  tasks.plan: { model: smart }
+`)
+	// Then the entry is not taken, the problem names the field, and Mira starts
+	if len(problems) != 1 || problems[0].Agent != "delegate" || !strings.Contains(problems[0].Text(i18n.DE), "instructions") {
+		t.Errorf("problems %+v", problems)
+	}
+	if _, ok := e.rt.lookup("tasks.plan"); ok {
+		t.Error("an entry for one of Mira's own agents became an agent of its own")
+	}
+}
+
+// MO-13 An unknown model of one of Mira's own agents is a problem
+func TestMO13_AnUnknownModelOfAnOwnAgentIsAProblem(t *testing.T) {
+	e := setup(t)
+	// Given agents.delegate.model names a model that does not exist
+	text := "agents:\n  delegate: { model: gibtsnicht }\n"
+	// When Mira loads it
+	problems := e.fromYAML(t, text)
+	// Then the problem names the model, and delegate takes main
+	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "„gibtsnicht“") {
+		t.Errorf("problems %+v", problems)
+	}
+	var file struct {
+		Agents config.Agents `yaml:"agents"`
+	}
+	yaml.Unmarshal([]byte(text), &file)
+	e.cfg.Agents = file.Agents
+	if res, _ := e.rt.Call(context.Background(), Spec{Name: "delegate", Profile: Isolated}, "x", CallContext{}); res.Model != "main" {
+		t.Errorf("model %q", res.Model)
 	}
 }

@@ -102,8 +102,8 @@ func TestApply(t *testing.T) {
 	if len(cfg.MCPServers) != 1 || cfg.MCPServers[0].URL != "http://ha:8123/api/mcp/assist" || cfg.MCPServers[0].Token != "ha-token" {
 		t.Errorf("mcp: %+v", cfg.MCPServers)
 	}
-	if cfg.LLM.BaseURL != "https://cloud/v1" || cfg.LLM.SlotPinning || cfg.LLM.CachePrompt || cfg.LLM.WarmupOnStart {
-		t.Errorf("cloud model: %+v", cfg.LLM)
+	if m := cfg.Main(); m.BaseURL != "https://cloud/v1" || len(m.PinSlots) != 0 || m.CachePrompt || m.WarmupOnStart {
+		t.Errorf("cloud model: %+v", m)
 	}
 	if !Ready(cfg, false, s) || Ready(config.Default(), false, Settings{}) {
 		t.Error("ready")
@@ -114,8 +114,37 @@ func TestApply(t *testing.T) {
 		t.Error("a token in mira.yaml must win")
 	}
 	s.LLM.Kind = KindCustom
-	if c := Apply(config.Default(), s); c.LLM.SlotPinning || !c.LLM.CachePrompt || !c.LLM.WarmupOnStart {
+	if m := Apply(config.Default(), s).Main(); len(m.PinSlots) != 0 || !m.CachePrompt || !m.WarmupOnStart {
 		t.Error("one's own server: warmup and cache_prompt, no slots")
+	}
+}
+
+// MO-40 The integration's model becomes main
+func TestMO40_TheIntegrationsModelBecomesMain(t *testing.T) {
+	// Given the integration set a model from a provider
+	file := config.Default()
+	file.Models["smart"] = config.LLM{BaseURL: "https://other", Model: "x", Privacy: config.PrivacyCloud}
+	s := Settings{LLM: &LLM{Kind: KindCloud, BaseURL: "https://provider/v1", Model: "flash", APIKey: "k"}}
+	// When Mira starts
+	cfg := Apply(file, s)
+	// Then main is that model, with privacy cloud, over what mira.yaml says for main
+	if m := cfg.Main(); m.BaseURL != "https://provider/v1" || m.Model != "flash" || m.APIKey != "k" ||
+		m.Privacy != config.PrivacyCloud || m.Parallel != 4 {
+		t.Errorf("main %+v", m)
+	}
+	if _, ok := cfg.Models["smart"]; !ok || file.Main().Model == "flash" {
+		t.Error("the file's other models must stay, and the file's config must not change")
+	}
+}
+
+// MO-41 An own server from the integration is local
+func TestMO41_AnOwnServerFromTheIntegrationIsLocal(t *testing.T) {
+	// Given the integration set a model on an own server
+	s := Settings{LLM: &LLM{Kind: KindCustom, BaseURL: "http://lmstudio:1234/v1", Model: "qwen"}}
+	// When Mira starts
+	// Then main has privacy local
+	if m := Apply(config.Default(), s).Main(); m.Privacy != config.PrivacyLocal || m.Parallel != 1 {
+		t.Errorf("main %+v", m)
 	}
 }
 

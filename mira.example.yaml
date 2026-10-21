@@ -17,49 +17,42 @@ server:
   announce: true
   name: Mira
 
-llm:
-  base_url: "http://localhost:8080/v1"   # llama.cpp server
-  model: "local"
-  # One llama.cpp slot per channel keeps each channel's prompt cache warm.
-  # Start llama-server with at least --parallel 3.
-  slots: { voice: 0, telegram: 1, background: 2 }
-  slot_pinning: true     # set false for servers without id_slot (LM Studio, vLLM, OpenAI)
-  cache_prompt: true
-  max_tool_rounds: 8
-  temperature: 0.3
-  max_tokens: 1024
-  timeout: 2m
-  context_tokens: 16384  # per slot: llama-server --ctx-size divided by --parallel
-  warmup_on_start: true
-  warmup_on_prefix_change: true
-
-# Further models by name; the one above is "main". Settings they leave out
-# come from main, except slots, cache_prompt and warmups (local only).
-# Without a local model, point llm itself at a cloud endpoint instead.
+# The language models by name (docs/spec/modelle.md). main must exist: every
+# agent that names no model takes it. Settings a model leaves out come from
+# main, except cache_prompt, warmups and pin_slots (each model's own).
 models:
+  main:
+    endpoint: "http://localhost:8080/v1"   # llama.cpp server
+    model: "local"
+    privacy: local         # local: the data stays in the house; cloud: it leaves it
+    parallel: 1            # requests at once; without it local 1, cloud 4
+    # One llama.cpp slot per channel keeps each channel's prompt cache warm.
+    # Start llama-server with at least --parallel 3; leave it out for servers
+    # without id_slot (LM Studio, vLLM, OpenAI).
+    pin_slots: { voice: 0, telegram: 1, background: 2 }
+    cache_prompt: true     # llama.cpp and LM Studio only
+    max_tool_rounds: 8
+    temperature: 0.3
+    max_tokens: 1024
+    timeout: 2m
+    context_tokens: 16384  # per slot: llama-server --ctx-size divided by --parallel
+    warmup_on_start: true
+    warmup_on_prefix_change: true
   smart:
-    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-    api_key: ${GEMINI_API_TOKEN}
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
     model: "gemini-flash-latest"
+    privacy: cloud
     reasoning_effort: low    # thinking costs time and money
     context_tokens: 200000
+    fallback: main           # taken when smart fails
   lite:
-    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-    api_key: ${GEMINI_API_TOKEN}
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
     model: "gemini-flash-lite-latest"
+    privacy: cloud
     reasoning_effort: low
     context_tokens: 200000
-
-# Which model serves what; empty is main. delegate is the model the voice
-# and Telegram model hands harder tasks to (the tool delegate); it may look
-# things up but changes nothing.
-routing:
-  voice: main
-  telegram: main
-  background: lite
-  delegate: smart
-  tasks: smart        # plans standing orders; empty is main
-  # mail: local       # reads the mails of the mail calendars; empty is main
 
 # store.path defaults to mira.db in $MIRA_DATA (/var/lib/mira in the image).
 # store:
@@ -186,8 +179,20 @@ telemetry:
 
 # Agents: how deep agents may call each other, and agents described in YAML
 # (docs/spec/agenten.md, Factory). Call them from automations with mira.agent.
+# Every agent takes main unless it names its model here (Mira's own agents
+# take only model and privacy). delegate is the model the conversation hands
+# harder tasks to; mail.read and mail.match read the mails of the mail
+# calendars, so a local model keeps them in the house.
 agents:
   max_depth: 3
+  skill.task: { model: lite }
+  notify.compose: { model: lite }
+  tasks.assess: { model: lite }
+  tasks.decide: { model: lite }
+  profile.compact: { model: lite }
+  delegate: { model: smart }
+  tasks.plan: { model: smart }
+  # mail.read: { model: main, privacy: local }
   # recipe:
   #   description: Turns a recipe page into a list of steps.
   #   context: background          # isolated (the default) or background

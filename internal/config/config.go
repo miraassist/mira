@@ -32,11 +32,9 @@ const (
 
 type Config struct {
 	Server Server `yaml:"server"`
-	LLM    LLM    `yaml:"llm"`
-	// Models are further models by name, e.g. a cloud model for harder
-	// work. The model under llm is called "main".
+	// Models are the language models by name (docs/spec/modelle.md); main
+	// must exist. An agent without a model takes main.
 	Models     map[string]LLM `yaml:"models"`
-	Routing    Routing        `yaml:"routing"`
 	Store      Store          `yaml:"store"`
 	Prompt     Prompt         `yaml:"prompt"`
 	HA         HA             `yaml:"ha"`
@@ -64,8 +62,11 @@ type Agents struct {
 	MaxDepth int `yaml:"max_depth"`
 	// Defined are the YAML agents by name, as written: each is read and
 	// checked on its own when Mira starts, so a mistake in one leaves it out
-	// instead of stopping the agent.
+	// instead of stopping the agent. Entries for Mira's own agents are here
+	// too (only model and privacy).
 	Defined map[string]yaml.Node `yaml:"-"`
+	// models is the model each entry names, for ModelFor.
+	models map[string]string
 }
 
 // UnmarshalYAML reads max_depth and the agents beside it.
@@ -83,8 +84,15 @@ func (a *Agents) UnmarshalYAML(n *yaml.Node) error {
 		}
 		if a.Defined == nil {
 			a.Defined = map[string]yaml.Node{}
+			a.models = map[string]string{}
 		}
 		a.Defined[key] = *val
+		var named struct {
+			Model string `yaml:"model"`
+		}
+		if val.Decode(&named) == nil {
+			a.models[key] = named.Model
+		}
 	}
 	return nil
 }
@@ -93,8 +101,11 @@ func (a *Agents) UnmarshalYAML(n *yaml.Node) error {
 // skill under metadata.mira.agents (docs/spec/agenten.md, Factory).
 type AgentDef struct {
 	Description string `yaml:"description"`
-	// Model is a model name (under models, or main); empty is main.
+	// Model is a model name (under models); empty is main.
 	Model string `yaml:"model"`
+	// Privacy local makes the agent run only on a local model
+	// (docs/spec/modelle.md, Privacy as a rule).
+	Privacy string `yaml:"privacy"`
 	// Context is isolated (the default) or background.
 	Context string `yaml:"context"`
 	// Tools is none (the default), read_only, or a list of tools and agents.
@@ -150,17 +161,24 @@ type Server struct {
 	Eval bool `yaml:"eval"`
 }
 
+// LLM is a language model (docs/spec/modelle.md).
 type LLM struct {
-	BaseURL string `yaml:"base_url"`
+	BaseURL string `yaml:"endpoint"`
 	Model   string `yaml:"model"`
-	APIKey  string `yaml:"api_key"`
-	// Slots pins each channel to a llama.cpp slot so its KV cache survives
-	// between turns. Ignored when SlotPinning is false.
-	Slots map[Channel]int `yaml:"slots"`
-	// SlotPinning and CachePrompt are llama.cpp extensions to the OpenAI API.
-	// Turn them off to talk to a server that rejects unknown fields
-	// (LM Studio, vLLM, the OpenAI API itself).
-	SlotPinning   bool     `yaml:"slot_pinning"`
+	APIKey  string `yaml:"token"`
+	// Privacy is PrivacyLocal (the data stays in the own network) or
+	// PrivacyCloud; required.
+	Privacy string `yaml:"privacy"`
+	// Parallel is how many requests the model takes at once; without it 1
+	// for a local model, 4 for a cloud model.
+	Parallel int `yaml:"parallel"`
+	// Fallback is the model taken when this one fails.
+	Fallback string `yaml:"fallback"`
+	// PinSlots pins each conversation channel to a llama.cpp slot so its
+	// KV cache survives between turns; without it no id_slot is sent.
+	PinSlots map[Channel]int `yaml:"pin_slots"`
+	// CachePrompt is llama.cpp's cache_prompt; a server that rejects
+	// unknown fields must not get it.
 	CachePrompt   bool     `yaml:"cache_prompt"`
 	MaxToolRounds int      `yaml:"max_tool_rounds"`
 	Temperature   *float64 `yaml:"temperature"`
@@ -187,78 +205,53 @@ type Skills struct {
 	Enabled map[string]map[string]any `yaml:"enabled"`
 }
 
-// MainModel is the name of the model configured under llm.
+// MainModel is the model every config has; an agent without a model takes
+// it.
 const MainModel = "main"
 
-// Routing says which model serves which kind of work. Empty means main.
-type Routing struct {
-	Voice      string `yaml:"voice"`
-	Telegram   string `yaml:"telegram"`
-	Background string `yaml:"background"`
-	// Delegate is the model the delegate tool hands harder tasks to; empty
-	// is main.
-	Delegate string `yaml:"delegate"`
-	// Tasks is the model that plans standing orders (the agent tasks.plan);
-	// empty is main. Planning reads the whole house once per order, so
-	// a cloud model keeps it off the local GPU while someone is talking.
-	Tasks string `yaml:"tasks"`
-	// Mail is the model that reads the mails of the mail calendars (the
-	// agents mail.read and mail.match, docs/spec/mail-kalender.md); empty is
-	// main. It sees
-	// the mails, so a local model keeps them in the house.
-	Mail string `yaml:"mail"`
-}
+// Privacy of a model.
+const (
+	PrivacyLocal = "local"
+	PrivacyCloud = "cloud"
+)
 
-// Model returns the settings of a model by name; "" and "main" are llm.
+// Requests at once when a model does not say (docs/spec/modelle.md).
+const (
+	localParallel = 1
+	cloudParallel = 4
+)
+
+// Model returns the settings of a model by name; "" is main.
 func (c Config) Model(name string) (LLM, bool) {
-	if name == "" || name == MainModel {
-		return c.LLM, true
+	if name == "" {
+		name = MainModel
 	}
 	m, ok := c.Models[name]
 	return m, ok
 }
 
-// RoleModel names the model of an agent's role in routing (voice,
-// telegram, background, delegate, tasks, mail); without an entry, or for a
-// role routing does not know, it is main (docs/spec/agenten.md, Model
-// choice).
-func (c Config) RoleModel(role string) string {
-	var name string
-	switch role {
-	case "voice":
-		name = c.Routing.Voice
-	case "telegram":
-		name = c.Routing.Telegram
-	case "background":
-		name = c.Routing.Background
-	case "delegate":
-		name = c.Routing.Delegate
-	case "tasks":
-		name = c.Routing.Tasks
-	case "mail":
-		name = c.Routing.Mail
+// Main is the model main.
+func (c Config) Main() LLM { return c.Models[MainModel] }
+
+// ModelFor names the model of an agent: what its entry under agents says
+// (Mira's own agents: docs/spec/modelle.md), else main; a name no model
+// has is main too (the agent's entry reports it).
+func (c Config) ModelFor(agent string) string {
+	if name := c.Agents.models[agent]; name != "" {
+		if _, ok := c.Models[name]; ok {
+			return name
+		}
 	}
-	if name == "" {
-		return MainModel
-	}
-	return name
+	return MainModel
 }
 
-// RouteFor names the model that serves a channel.
-func (c Config) RouteFor(ch Channel) string {
-	var name string
-	switch ch {
-	case ChannelVoice:
-		name = c.Routing.Voice
-	case ChannelTelegram:
-		name = c.Routing.Telegram
-	case ChannelBackground:
-		name = c.Routing.Background
+// ChannelAgent is the conversation agent of a channel; the background
+// channel's prefix serves skill.task and the other background agents.
+func ChannelAgent(ch Channel) string {
+	if ch == ChannelBackground {
+		return "skill.task"
 	}
-	if name == "" {
-		return MainModel
-	}
-	return name
+	return "conversation." + string(ch)
 }
 
 type Store struct {
@@ -498,29 +491,24 @@ type WebSearch struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-func Default() Config {
+// mainDefaults are what main takes for the settings mira.yaml leaves out;
+// the other models take them from main.
+func mainDefaults() LLM {
 	temp := 0.3
+	return LLM{MaxToolRounds: 8, Temperature: &temp, MaxTokens: 1024, Timeout: Duration(120e9), // 2m
+		ContextTokens: 16384, CompactAtFraction: 0.9}
+}
+
+func Default() Config {
 	return Config{
 		WebSearch: WebSearch{Enabled: true},
 		Agents:    Agents{MaxDepth: 3},
 		// The image sets MIRA_LISTEN (all interfaces) and MIRA_DATA (its
 		// data folder): a container needs no config for either.
 		Server: Server{Listen: envOr("MIRA_LISTEN", "127.0.0.1:8787"), Announce: true, Name: "Mira"},
-		LLM: LLM{
-			BaseURL:              "http://localhost:8080/v1",
-			Model:                "local",
-			Slots:                map[Channel]int{ChannelVoice: 0, ChannelTelegram: 1, ChannelBackground: 2},
-			SlotPinning:          true,
-			CachePrompt:          true,
-			MaxToolRounds:        8,
-			Temperature:          &temp,
-			MaxTokens:            1024,
-			Timeout:              Duration(120e9), // 2m
-			ContextTokens:        16384,
-			CompactAtFraction:    0.9,
-			WarmupOnStart:        true,
-			WarmupOnPrefixChange: true,
-		},
+		// main until mira.yaml or the integration says what it is.
+		Models: map[string]LLM{MainModel: fillFrom(LLM{BaseURL: "http://localhost:8080/v1", Model: "local",
+			Privacy: PrivacyLocal, Parallel: localParallel}, mainDefaults())},
 		Store: Store{Path: dataPath("mira.db")},
 		HA: HA{
 			StructureDebounce:   Duration(30e9), // 30s
@@ -577,7 +565,7 @@ func Load(path string) (Config, error) {
 
 // LoadOptional is Load for a file that may be missing: then the defaults
 // apply, and the integration sets the rest up. hasLLM says whether the file
-// names a language model.
+// names the language models.
 func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -593,7 +581,7 @@ func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
 	}
 	var top map[string]any
 	_ = yaml.Unmarshal(raw, &top)
-	_, hasLLM = top["llm"]
+	_, hasLLM = top["models"]
 	return cfg, hasLLM, nil
 }
 
@@ -619,7 +607,17 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	if err := oldModelKeys(expanded); err != nil {
+		return Config{}, err
+	}
 	cfg := Default()
+	// The file's models replace the default main, not add to it.
+	var top map[string]any
+	if yaml.Unmarshal(expanded, &top) == nil {
+		if _, ok := top["models"]; ok {
+			cfg.Models = nil
+		}
+	}
 	dec := yaml.NewDecoder(strings.NewReader(string(expanded)))
 	dec.KnownFields(true)
 	if err := dec.Decode(&cfg); err != nil && err.Error() != "EOF" {
@@ -632,29 +630,40 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 	return cfg, nil
 }
 
+// oldModelKeys refuses a config of before the named models
+// (docs/spec/modelle.md, Decided 4), saying what to write instead.
+func oldModelKeys(raw []byte) error {
+	var top map[string]any
+	_ = yaml.Unmarshal(raw, &top)
+	var errs []string
+	if _, ok := top["llm"]; ok {
+		errs = append(errs, "llm is now models.main: move the section under models as main, with endpoint (was base_url), token (was api_key) and privacy (local or cloud)")
+	}
+	if _, ok := top["routing"]; ok {
+		errs = append(errs, "routing is gone: give each agent its model under agents, e.g. agents: { conversation.telegram: { model: smart } }")
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("invalid config:\n  - %s", strings.Join(errs, "\n  - "))
+}
+
 func (c *Config) normalize() {
-	c.LLM.BaseURL = strings.TrimRight(c.LLM.BaseURL, "/")
-	// Further models take what they leave out from main, except what only
-	// suits a local llama.cpp server: slots, cache_prompt and warmups.
+	// main takes defaults for what it leaves out, the other models take it
+	// from main; cache_prompt, warmups and slots stay each model's own.
+	if main, ok := c.Models[MainModel]; ok {
+		c.Models[MainModel] = fillFrom(main, mainDefaults())
+	}
 	for name, m := range c.Models {
+		if name != MainModel {
+			m = fillFrom(m, c.Models[MainModel])
+		}
 		m.BaseURL = strings.TrimRight(m.BaseURL, "/")
-		if m.MaxToolRounds == 0 {
-			m.MaxToolRounds = c.LLM.MaxToolRounds
-		}
-		if m.Temperature == nil {
-			m.Temperature = c.LLM.Temperature
-		}
-		if m.MaxTokens == 0 {
-			m.MaxTokens = c.LLM.MaxTokens
-		}
-		if m.Timeout == 0 {
-			m.Timeout = c.LLM.Timeout
-		}
-		if m.ContextTokens == 0 {
-			m.ContextTokens = c.LLM.ContextTokens
-		}
-		if m.CompactAtFraction == 0 {
-			m.CompactAtFraction = c.LLM.CompactAtFraction
+		if m.Parallel == 0 {
+			m.Parallel = localParallel
+			if m.Privacy == PrivacyCloud {
+				m.Parallel = cloudParallel
+			}
 		}
 		c.Models[name] = m
 	}
@@ -689,6 +698,29 @@ func (c *Config) normalize() {
 	}
 }
 
+// fillFrom gives m the settings it leaves out from base.
+func fillFrom(m, base LLM) LLM {
+	if m.MaxToolRounds == 0 {
+		m.MaxToolRounds = base.MaxToolRounds
+	}
+	if m.Temperature == nil {
+		m.Temperature = base.Temperature
+	}
+	if m.MaxTokens == 0 {
+		m.MaxTokens = base.MaxTokens
+	}
+	if m.Timeout == 0 {
+		m.Timeout = base.Timeout
+	}
+	if m.ContextTokens == 0 {
+		m.ContextTokens = base.ContextTokens
+	}
+	if m.CompactAtFraction == 0 {
+		m.CompactAtFraction = base.CompactAtFraction
+	}
+	return m
+}
+
 func (c Config) Validate() error {
 	var errs []string
 	add := func(format string, args ...any) { errs = append(errs, fmt.Sprintf(format, args...)) }
@@ -696,34 +728,41 @@ func (c Config) Validate() error {
 	if c.Server.Listen == "" {
 		add("server.listen must not be empty")
 	}
+	if _, ok := c.Models[MainModel]; !ok {
+		add("models needs main: the model every agent takes that names none")
+	}
 	for name, m := range c.Models {
-		if name == MainModel {
-			add("models.%s: the name main is the model under llm", name)
-		}
 		if m.BaseURL == "" || m.Model == "" {
-			add("models.%s needs base_url and model", name)
+			add("models.%s needs endpoint and model", name)
+		}
+		if m.Privacy != PrivacyLocal && m.Privacy != PrivacyCloud {
+			add("models.%s needs privacy: local (the data stays in the own network) or cloud", name)
+		}
+		if m.Parallel < 0 {
+			add("models.%s: parallel must not be negative", name)
+		}
+		if m.MaxToolRounds < 1 {
+			add("models.%s: max_tool_rounds must be at least 1", name)
+		}
+		if m.ContextTokens < 512 {
+			add("models.%s: context_tokens must be at least 512", name)
+		}
+		if m.CompactAtFraction <= 0 || m.CompactAtFraction >= 1 {
+			add("models.%s: compact_at_fraction must be between 0 and 1 (exclusive)", name)
+		}
+		for ch := range m.PinSlots {
+			if ch != ChannelVoice && ch != ChannelTelegram && ch != ChannelBackground {
+				add("models.%s.pin_slots: %q is no channel (voice, telegram, background)", name, ch)
+			}
+		}
+		if m.Fallback != "" {
+			if _, ok := c.Models[m.Fallback]; !ok {
+				add("models.%s.fallback: no model %q", name, m.Fallback)
+			}
 		}
 	}
-	for role, name := range map[string]string{"voice": c.Routing.Voice, "telegram": c.Routing.Telegram,
-		"background": c.Routing.Background, "delegate": c.Routing.Delegate, "tasks": c.Routing.Tasks, "mail": c.Routing.Mail} {
-		if _, ok := c.Model(name); !ok {
-			add("routing.%s: no model %q (main or one of models)", role, name)
-		}
-	}
-	if c.LLM.BaseURL == "" {
-		add("llm.base_url must not be empty")
-	}
-	if c.LLM.Model == "" {
-		add("llm.model must not be empty")
-	}
-	if c.LLM.MaxToolRounds < 1 {
-		add("llm.max_tool_rounds must be at least 1")
-	}
-	if c.LLM.ContextTokens < 512 {
-		add("llm.context_tokens must be at least 512")
-	}
-	if c.LLM.CompactAtFraction <= 0 || c.LLM.CompactAtFraction >= 1 {
-		add("llm.compact_at_fraction must be between 0 and 1 (exclusive)")
+	if circle := fallbackCircle(c.Models); circle != "" {
+		add("models: the fallbacks go in a circle: %s", circle)
 	}
 	if c.Store.Path == "" {
 		add("store.path must not be empty")
@@ -756,12 +795,6 @@ func (c Config) Validate() error {
 			}
 		default:
 			add("mcp_servers[%d] (%s): unknown transport %q", i, s.Name, s.Transport)
-		}
-	}
-
-	for _, ch := range []Channel{ChannelVoice, ChannelTelegram, ChannelBackground} {
-		if _, ok := c.LLM.Slots[ch]; !ok && c.LLM.SlotPinning {
-			add("llm.slots is missing channel %q", ch)
 		}
 	}
 
@@ -854,17 +887,38 @@ func (c Config) Validate() error {
 	return fmt.Errorf("invalid config:\n  - %s", strings.Join(errs, "\n  - "))
 }
 
-// SlotFor returns the llama.cpp slot for a channel, or -1 when slot pinning is
-// off. A negative slot means "let the server choose".
-func (c Config) SlotFor(ch Channel) int {
-	// Slots belong to the local main model.
-	if !c.LLM.SlotPinning || c.RouteFor(ch) != MainModel {
+// SlotFor returns a model's llama.cpp slot for a channel, or -1 when the
+// model pins none. A negative slot means "let the server choose".
+func (c Config) SlotFor(model string, ch Channel) int {
+	m, ok := c.Model(model)
+	if !ok {
 		return -1
 	}
-	if slot, ok := c.LLM.Slots[ch]; ok {
+	if slot, ok := m.PinSlots[ch]; ok {
 		return slot
 	}
 	return -1
+}
+
+// fallbackCircle names a circle of fallbacks ("a → b → a"), or "".
+func fallbackCircle(models map[string]LLM) string {
+	names := make([]string, 0, len(models))
+	for n := range models {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, start := range names {
+		path := []string{start}
+		seen := map[string]bool{start: true}
+		for next := models[start].Fallback; next != ""; next = models[next].Fallback {
+			path = append(path, next)
+			if seen[next] {
+				return strings.Join(path, " → ")
+			}
+			seen[next] = true
+		}
+	}
+	return ""
 }
 
 // SessionTTL returns how long a session of this channel survives inactivity.

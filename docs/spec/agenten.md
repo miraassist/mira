@@ -27,11 +27,11 @@ What belongs to an agent, the same on every call:
 
 | Part | Meaning | Examples |
 |---|---|---|
-| **Name** | what it is called in the log, in `routing` and as a tool | `conversation.voice`, `mail.read`, `tasks.plan` |
+| **Name** | what it is called in the log, under `agents` in `mira.yaml` and as a tool | `conversation.voice`, `mail.read`, `tasks.plan` |
 | **Description** | when to call it; for the calling model, as with a tool | "Reads a shipping mail and returns title, day and keys." |
 | **Input** | schema of what it gets on a call | `{text}`, `{mail: {sender, subject, date, text}}` |
 | **Output** | form of the answer | text, or JSON following a schema |
-| **Model** | the role in `routing` | `routing.mail`; without an entry `main` |
+| **Model** | its model ([Models](modelle.md)) | `agents.mail.read.model`; without an entry `main` |
 | **Context** | what the model sees, as a profile | *conversation* (layers 1–7, history), *background* (fixed prefix with the house, no history), *isolated* (only a system message of its own and the input) |
 | **Tools** | which tools and which other agents it can call | *none*, *read only*, *all*, or a list |
 | **Rights** | the most the agent needs (see Rights) | `mail.read`: none; `conversation.voice`: all |
@@ -370,9 +370,9 @@ per agent come in addition.
 
 ## Model choice
 
-`routing` stays; its keys are the agents' roles (`voice`, `telegram`, `background`, `delegate`, `tasks`, `mail`).
-Without an entry for its role, every agent takes `main`. New roles come only when someone needs them. Whether there
-should be any number of named models instead of fixed roles is a separate, later topic.
+Every agent names its model; without one it takes `main`. YAML agents name it in their description, Mira's own
+agents get it in `mira.yaml` under `agents` (only `model` and `privacy`). The roles of `routing` are gone; see
+[Models](modelle.md).
 
 ## Factory: agents in YAML (optional, last)
 

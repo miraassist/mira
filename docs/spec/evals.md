@@ -73,7 +73,9 @@ cleanup: restore                # test HA back to its initial state
 
 ## Model setups
 
-A setup is a small file in `evals/setups/` with `llm`, `models` and `routing`, as in `mira.yaml`, without keys.
+A setup is a small file in `evals/setups/` with `models` and, if needed, the agents' models under `agents`, as in
+`mira.yaml`, without keys. It replaces the test config's models, and the test config's entries that only name a
+model.
 
 **Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval agent gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name. Model keys for evals (e.g. `GEMINI_API_TOKEN`) therefore belong in `testenv/.env`. Examples: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. A setup describes what really runs in the house, mixed too: voice local, difficult tasks in the cloud.
 
@@ -91,7 +93,7 @@ go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario term
 
 The results go into the repo, for transparency: Whoever uses Mira sees what she is tested with.
 
-- **Per setup:** `evals/results/<setup>.md`, a table scenario × rate, plus level 3, duration, tokens and costs. The content also states when the run was, the Mira version and the models per role (main and further models, routing). Next to it `.json` with the same data. The file name is only the setup, without a date: A new run replaces the old one, earlier runs are found in the Git history.
+- **Per setup:** `evals/results/<setup>.md`, a table scenario × rate, plus level 3, duration, tokens and costs. The content also states when the run was, the Mira version and the models (and which agents take which). Next to it `.json` with the same data. The file name is only the setup, without a date: A new run replaces the old one, earlier runs are found in the Git history.
 - **Overview:** `evals/README.md` with the latest state per setup, "tested with".
 - **No setup details** from a real house, no keys: only model names and providers.
 

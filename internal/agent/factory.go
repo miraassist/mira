@@ -76,6 +76,10 @@ var Callable = []string{"delegate", "skill.task", "notify.compose"}
 var codeAgents = []string{"conversation.voice", "conversation.telegram", "delegate", "skill.task", "notify.compose",
 	"mail.read", "mail.match", "tasks.assess", "tasks.decide", "tasks.plan", "profile.compact"}
 
+// Own reports whether a name is one of Mira's own agents: its entry under
+// agents names only its model and privacy.
+func Own(name string) bool { return slices.Contains(codeAgents, name) }
+
 var agentName = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 
 // RegisterDefined checks the YAML agents and registers those that fit.
@@ -91,6 +95,15 @@ func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool)
 		switch {
 		case d.Err != nil:
 			fail("yaml", d.Err)
+			continue
+		case slices.Contains(codeAgents, d.Name) && d.Skill == "":
+			// One of Mira's own agents: mira.yaml names only its model and
+			// privacy (docs/spec/modelle.md).
+			if extra := ownExtra(d.Def); extra != "" {
+				fail("ownfields", extra)
+			} else if d.Def.Model != "" && !known(d.Def.Model) {
+				fail("ownmodel", d.Def.Model)
+			}
 			continue
 		case !agentName.MatchString(d.Name):
 			fail("name", d.Name)
@@ -108,6 +121,27 @@ func (r *Runtime) RegisterDefined(defs []Defined, known func(model string) bool)
 		r.Register(spec)
 	}
 	return problems
+}
+
+// ownExtra names a field an entry for one of Mira's own agents may not set.
+func ownExtra(d config.AgentDef) string {
+	switch {
+	case d.Description != "":
+		return "description"
+	case d.Instructions != "":
+		return "instructions"
+	case d.Context != "":
+		return "context"
+	case d.Tools.Word != "" || len(d.Tools.Names) > 0:
+		return "tools"
+	case len(d.Rights) > 0:
+		return "rights"
+	case len(d.Input) > 0:
+		return "input"
+	case len(d.Output) > 0:
+		return "output"
+	}
+	return ""
 }
 
 // specOf turns a YAML description into a Spec, or says what does not fit.
@@ -186,6 +220,8 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"isolatedtools":  "Ein Agent mit context isolated hat keine Werkzeuge. Lass tools weg, oder nimm context background.",
 		"rights":         "Diese Rechte gibt es nicht: %s. Möglich sind read_house, act_on_house, remember, messages, web.",
 		"schema":         "input oder output ist kein gültiges Schema (%s).",
+		"ownfields":      "Für Miras eigene Agenten gehen hier nur model und privacy, nicht %s.",
+		"ownmodel":       "Das Modell „%s“ gibt es nicht; der Agent nimmt main. Trag es unter models ein.",
 	},
 	i18n.EN: {
 		"yaml":           "The description cannot be read like this (%s). Usually a field name is misspelt or an indent is wrong.",
@@ -199,5 +235,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"isolatedtools":  "An agent with context isolated has no tools. Leave tools out, or take context background.",
 		"rights":         "These rights do not exist: %s. Possible are read_house, act_on_house, remember, messages, web.",
 		"schema":         "input or output is not a valid schema (%s).",
+		"ownfields":      "For Mira's own agents only model and privacy go here, not %s.",
+		"ownmodel":       "There is no model \"%s\"; the agent takes main. Add it under models.",
 	},
 }

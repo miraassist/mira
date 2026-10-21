@@ -68,7 +68,12 @@ func TestAgentEndToEnd(t *testing.T) {
 
 	cfg := config.Default()
 	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
-	cfg.LLM.BaseURL = model.BaseURL()
+	// main as a local llama.cpp server: a slot per channel, the prompt
+	// cache, warmups.
+	setMain(&cfg, func(m *config.LLM) {
+		m.BaseURL, m.CachePrompt, m.WarmupOnStart, m.WarmupOnPrefixChange = model.BaseURL(), true, true, true
+		m.PinSlots = map[config.Channel]int{config.ChannelVoice: 0, config.ChannelTelegram: 1, config.ChannelBackground: 2}
+	})
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}
@@ -161,7 +166,12 @@ func TestBrokenSkillDoesNotStopTheAgent(t *testing.T) {
 
 	cfg := config.Default()
 	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
-	cfg.LLM.BaseURL = model.BaseURL()
+	// main as a local llama.cpp server: a slot per channel, the prompt
+	// cache, warmups.
+	setMain(&cfg, func(m *config.LLM) {
+		m.BaseURL, m.CachePrompt, m.WarmupOnStart, m.WarmupOnPrefixChange = model.BaseURL(), true, true, true
+		m.PinSlots = map[config.Channel]int{config.ChannelVoice: 0, config.ChannelTelegram: 1, config.ChannelBackground: 2}
+	})
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}

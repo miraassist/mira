@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"net"
-	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -42,9 +40,8 @@ type Built struct {
 	// them too, with tool_choice none: they are part of the prompt the
 	// model has cached.
 	Tools []llm.Tool
-	// PrefixHash and IDSlot go into the request as in a conversation turn.
+	// PrefixHash goes into the request as in a conversation turn.
 	PrefixHash string
-	IDSlot     *int
 }
 
 type Options struct {
@@ -88,12 +85,6 @@ type Runtime struct {
 	stopping atomic.Bool
 	wg       sync.WaitGroup
 }
-
-// Requests at the same time per model (docs/spec/agenten.md, Decided 26).
-const (
-	localSlots = 1
-	cloudSlots = 4
-)
 
 func New(o Options) *Runtime {
 	if o.Logger == nil {
@@ -162,7 +153,7 @@ func (r *Runtime) Enter(ctx context.Context, spec Spec, cc CallContext, ts *tool
 // Acquire waits for a free request slot of a model, for a caller that talks
 // to the model itself (a conversation turn); release frees it.
 func (r *Runtime) Acquire(ctx context.Context, name string, model config.LLM) (release func(), err error) {
-	return r.acquire(ctx, name, isLocal(model.BaseURL))
+	return r.acquire(ctx, name, model.Parallel)
 }
 
 // run is a running call, as the calls made inside it find it in ctx.
@@ -234,12 +225,14 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 
 // execution is a run as the loop drives it.
 type execution struct {
-	spec    Spec
-	me      *run
-	res     Result
-	client  Chatter
-	model   config.LLM
-	local   bool
+	spec   Spec
+	me     *run
+	res    Result
+	client Chatter
+	model  config.LLM
+	// slot is the model's llama.cpp slot of the background prefix, if it
+	// pins one.
+	slot    *int
 	b       Built
 	offered []llm.Tool
 	msgs    []llm.Message
@@ -258,7 +251,7 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 	ex := &execution{spec: spec, res: Result{CallID: cc.CallID}, t: i18n.Pick(catalog, lang(cc))}
 	ex.res.Model = spec.Model
 	if ex.res.Model == "" {
-		ex.res.Model = cfg.RoleModel(spec.Role)
+		ex.res.Model = cfg.ModelFor(spec.Name)
 	}
 	if cc.Depth > cfg.Agents.MaxDepth {
 		return ex, ctx, ErrDepth
@@ -267,7 +260,10 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 	if !ok {
 		return ex, ctx, fmt.Errorf("no model %q", ex.res.Model)
 	}
-	ex.client, ex.model, ex.local = client, model, isLocal(model.BaseURL)
+	ex.client, ex.model = client, model
+	if s := cfg.SlotFor(ex.res.Model, config.ChannelBackground); s >= 0 && spec.Profile == Background {
+		ex.slot = llm.IntPtr(s)
+	}
 	ex.me = &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
 			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
@@ -305,7 +301,7 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 		}
 		req := llm.ChatRequest{Messages: ex.msgs, Temperature: model.Temperature, MaxTokens: model.MaxTokens,
 			ReasoningEffort: model.ReasoningEffort, Channel: string(config.ChannelBackground),
-			PrefixHash: ex.b.PrefixHash, IDSlot: ex.b.IDSlot}
+			PrefixHash: ex.b.PrefixHash, IDSlot: ex.slot}
 		if spec.Profile == Background && model.CachePrompt {
 			req.CachePrompt = llm.BoolPtr(true)
 		}
@@ -323,7 +319,7 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 			req.ResponseFormat = map[string]any{"type": "json_schema",
 				"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
 		}
-		out, err := r.chat(ctx, ex.client, ex.res.Model, ex.local, req, spec.Limits, &ex.res)
+		out, err := r.chat(ctx, ex.client, ex.res.Model, model.Parallel, req, spec.Limits, &ex.res)
 		ex.res.Foreign = ex.me.ts.Foreign()
 		if err != nil {
 			if ctx.Err() != nil {
@@ -573,11 +569,11 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 
 // chat makes one model call within the model's slots, tried again after the
 // limits when it fails or hangs.
-func (r *Runtime) chat(ctx context.Context, client Chatter, model string, local bool, req llm.ChatRequest, lim Limits, res *Result) (*llm.ChatResponse, error) {
+func (r *Runtime) chat(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, lim Limits, res *Result) (*llm.ChatResponse, error) {
 	var err error
 	for attempt := 0; attempt <= lim.Retries; attempt++ {
 		var out *llm.ChatResponse
-		out, err = r.attempt(ctx, client, model, local, req, lim.AttemptTimeout, res)
+		out, err = r.attempt(ctx, client, model, parallel, req, lim.AttemptTimeout, res)
 		if err == nil {
 			return out, nil
 		}
@@ -591,8 +587,8 @@ func (r *Runtime) chat(ctx context.Context, client Chatter, model string, local 
 	return nil, err
 }
 
-func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, local bool, req llm.ChatRequest, timeout time.Duration, res *Result) (*llm.ChatResponse, error) {
-	release, err := r.acquire(ctx, model, local)
+func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, timeout time.Duration, res *Result) (*llm.ChatResponse, error) {
+	release, err := r.acquire(ctx, model, parallel)
 	if err != nil {
 		return nil, err
 	}
@@ -615,17 +611,16 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, loc
 	return out, nil
 }
 
-// acquire waits for a free slot of a model: a local model serves one
-// request at a time, a cloud model a few.
-func (r *Runtime) acquire(ctx context.Context, model string, local bool) (func(), error) {
+// acquire waits for a free request of a model: it takes parallel at once
+// (docs/spec/modelle.md, parallel).
+func (r *Runtime) acquire(ctx context.Context, model string, parallel int) (func(), error) {
+	if parallel < 1 {
+		parallel = 1
+	}
 	r.mu.Lock()
 	slot, ok := r.slots[model]
 	if !ok {
-		n := cloudSlots
-		if local {
-			n = localSlots
-		}
-		slot = make(chan struct{}, n)
+		slot = make(chan struct{}, parallel)
 		r.slots[model] = slot
 	}
 	r.mu.Unlock()
@@ -635,25 +630,6 @@ func (r *Runtime) acquire(ctx context.Context, model string, local bool) (func()
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-}
-
-// isLocal: a model whose address is in the own network (localhost, a
-// private or link-local address, a name of the local network).
-func isLocal(base string) bool {
-	u, err := url.Parse(base)
-	if err != nil {
-		return false
-	}
-	host := strings.ToLower(u.Hostname())
-	switch {
-	case host == "localhost", strings.HasSuffix(host, ".local"), strings.HasSuffix(host, ".lan"),
-		strings.HasSuffix(host, ".home"), strings.HasSuffix(host, ".internal"), host == "host.docker.internal":
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
-	}
-	return false
 }
 
 // logRun writes the one line every run writes (docs/spec/agenten.md, Log).

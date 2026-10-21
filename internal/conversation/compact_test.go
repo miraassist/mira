@@ -68,7 +68,9 @@ func TestHistoryIsCutNearTheContextLimit(t *testing.T) {
 	h := newHarnessWith(t, func(c *config.Config) {
 		c.Sessions.MaxTurns, c.Sessions.KeepTurns = 50, 1
 		// The fake counts the prompt's characters as tokens: a few turns fill it.
-		c.LLM.ContextTokens, c.LLM.CompactAtFraction = 1, 0.9
+		m := c.Main()
+		m.ContextTokens, m.CompactAtFraction = 1, 0.9
+		c.Models[config.MainModel] = m
 	}, fakellm.Step{Content: "A."}, fakellm.Step{Content: "B."}, fakellm.Step{Content: "C."})
 	h.say(t, config.ChannelTelegram, "7", "eins")
 	h.say(t, config.ChannelTelegram, "7", "zwei")

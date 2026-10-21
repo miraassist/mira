@@ -15,34 +15,45 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/tools"
+
+	"gopkg.in/yaml.v3"
 )
 
 // twoModels is an engine with a local main model (slots, cache_prompt) and
 // a cloud model "smart" that serves Telegram and delegated tasks.
 func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
-	return twoModelsRouted(t, config.Routing{Telegram: "smart", Delegate: "smart"})
+	return twoModelsRouted(t, "conversation.telegram: { model: smart }\ndelegate: { model: smart }")
 }
 
-func twoModelsRouted(t *testing.T, routing config.Routing) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+// twoModelsRouted gives the agents their models as mira.yaml's agents
+// section does.
+func twoModelsRouted(t *testing.T, agents string) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
-	return twoModelsDelivering(t, routing, nil)
+	return twoModelsDelivering(t, agents, nil)
 }
 
 // twoModelsDelivering hands the finished asynchronous runs to deliver.
-func twoModelsDelivering(t *testing.T, routing config.Routing, deliver agent.Deliverer) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Deliverer) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
 	main, smart := fakellm.New(), fakellm.New()
 	t.Cleanup(main.Close)
 	t.Cleanup(smart.Close)
 
 	cfg := config.Default()
-	cfg.LLM.SlotPinning, cfg.LLM.CachePrompt, cfg.LLM.MaxToolRounds = true, true, 3
-	cfg.Models = map[string]config.LLM{"smart": {
-		BaseURL: smart.BaseURL(), Model: "cloud", MaxToolRounds: 3, MaxTokens: 512,
-		ContextTokens: 100000, CompactAtFraction: 0.8, ReasoningEffort: "low",
-	}}
-	cfg.Routing = routing
+	m := cfg.Main()
+	m.PinSlots = map[config.Channel]int{config.ChannelVoice: 0, config.ChannelTelegram: 1, config.ChannelBackground: 2}
+	m.CachePrompt, m.MaxToolRounds, m.WarmupOnStart = true, 3, true
+	cfg.Models[config.MainModel] = m
+	cfg.Models["smart"] = config.LLM{
+		BaseURL: smart.BaseURL(), Model: "cloud", Privacy: config.PrivacyCloud, Parallel: 4, MaxToolRounds: 3,
+		MaxTokens: 512, ContextTokens: 100000, CompactAtFraction: 0.8, ReasoningEffort: "low",
+		// It asks for warmups; a cloud model never gets them.
+		WarmupOnStart: true, WarmupOnPrefixChange: true,
+	}
+	if err := yaml.Unmarshal([]byte(agentsYAML), &cfg.Agents); err != nil {
+		t.Fatal(err)
+	}
 	cfg.HA.URL, cfg.HA.Token = "http://ha", "t"
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
@@ -65,7 +76,7 @@ func twoModelsDelivering(t *testing.T, routing config.Routing, deliver agent.Del
 		Models: func(name string) (agent.Chatter, config.LLM, bool) {
 			switch name {
 			case config.MainModel:
-				return mainClient, cfg.LLM, true
+				return mainClient, cfg.Main(), true
 			case "smart":
 				return smartClient, cfg.Models["smart"], true
 			}
@@ -98,7 +109,9 @@ func handle(t *testing.T, e *conversation.Engine, ch config.Channel, text string
 	return resp
 }
 
-func TestChannelsUseTheirModels(t *testing.T) {
+// MO-11 Mira's own agents take the model mira.yaml names
+func TestMO11_MirasOwnAgentsTakeTheModelMiraYAMLNames(t *testing.T) {
+	// Given agents.conversation.telegram.model is smart
 	e, main, smart := twoModels(t)
 	main.Push(fakellm.Step{Content: "Hallo aus der Küche."})
 	smart.Push(fakellm.Step{Content: "Hallo aus der Cloud."})
@@ -106,6 +119,8 @@ func TestChannelsUseTheirModels(t *testing.T) {
 	if r := handle(t, e, config.ChannelVoice, "Hallo"); r.Text != "Hallo aus der Küche." || r.Model != "main" {
 		t.Errorf("voice: %+v", r)
 	}
+	// When someone writes on Telegram
+	// Then the turn runs on smart
 	if r := handle(t, e, config.ChannelTelegram, "Hallo"); r.Text != "Hallo aus der Cloud." || r.Model != "smart" {
 		t.Errorf("telegram: %+v", r)
 	}
@@ -127,15 +142,24 @@ func TestChannelsUseTheirModels(t *testing.T) {
 	}
 }
 
-func TestOnlyTheLocalModelIsWarmed(t *testing.T) {
-	e, main, smart := twoModels(t)
-	e.WarmupAll(context.Background(), "test")
+// MO-07 Only models that want it are warmed up
+func TestMO07_OnlyModelsThatWantItAreWarmedUp(t *testing.T) {
+	// Given main local with warmup_on_start and smart cloud
+	e, main, smart := twoModelsRouted(t, "conversation.telegram: { model: smart }")
+	// When Mira starts
+	e.WarmupAll(context.Background(), conversation.WarmupStartup)
+	// Then main is warmed for the conversation channels whose agent takes main, smart is not warmed
 	if len(smart.Requests()) != 0 {
 		t.Errorf("the cloud model was warmed %d times", len(smart.Requests()))
 	}
 	// Slots are pinned: voice and background stay local, Telegram is cloud.
 	if n := len(main.Requests()); n != 2 {
 		t.Errorf("main warmed %d times, want 2", n)
+	}
+	// A prefix change warms only models with warmup_on_prefix_change.
+	e.WarmupAll(context.Background(), "structure_changed")
+	if n := len(main.Requests()); n != 2 {
+		t.Errorf("main warmed again without warmup_on_prefix_change: %d", n)
 	}
 }
 
@@ -177,7 +201,7 @@ func TestDelegateHandsATaskToTheStrongerModel(t *testing.T) {
 // AG-72 The delegate agent exists without an entry too
 func TestAG72_TheDelegateAgentExistsWithoutAnEntry(t *testing.T) {
 	// Given routing has nothing for delegate
-	e, main, _ := twoModelsRouted(t, config.Routing{})
+	e, main, _ := twoModelsRouted(t, "")
 	main.Push(
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Erkläre Ebbe und Flut."}`)}},
 		fakellm.Step{Content: "Der Mond zieht am Wasser."},
@@ -237,7 +261,7 @@ func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
 	}
 	delivered := make(chan delivery, 1)
 	// Given a voice conversation that calls an agent as a tool
-	e, main, smart := twoModelsDelivering(t, config.Routing{Telegram: "smart", Delegate: "smart"},
+	e, main, smart := twoModelsDelivering(t, "conversation.telegram: { model: smart }\ndelegate: { model: smart }",
 		func(_ context.Context, rec store.AgentRun, cc agent.CallContext) { delivered <- delivery{rec, cc} })
 	main.Push(
 		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Plane die Woche."}`)}},
@@ -260,5 +284,23 @@ func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the run was not delivered")
+	}
+}
+
+// MO-08 Slot pinning per model
+func TestMO08_SlotPinningPerModel(t *testing.T) {
+	// Given main with pin_slots for voice, telegram and background
+	e, main, smart := twoModelsRouted(t, "conversation.telegram: { model: smart }")
+	main.Push(fakellm.Step{Content: "Hallo."})
+	smart.Push(fakellm.Step{Content: "Hallo."})
+	// When a voice turn runs on main
+	handle(t, e, config.ChannelVoice, "Hallo")
+	// Then the request carries the voice slot; a model without pin_slots sends none
+	if r := main.Last(); !r.HasSlot || r.Slot != 0 {
+		t.Errorf("voice: slot %d (%v)", r.Slot, r.HasSlot)
+	}
+	handle(t, e, config.ChannelTelegram, "Hallo")
+	if smart.Last().HasSlot {
+		t.Error("smart has no pin_slots but sent id_slot")
 	}
 }

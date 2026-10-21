@@ -295,14 +295,14 @@ Feature: AG Agents
   # --- Model (agenten.md: Model choice) --------------------------------------------------------------
 
   @step1
-  Scenario: AG-70 Without an entry for its role an agent takes main
-    Given routing has nothing for an agent's role
+  Scenario: AG-70 Without an entry an agent takes main
+    Given mira.yaml names no model for an agent
     When the agent runs
     Then it takes the model main
 
   @step1
   Scenario: AG-71 With an entry an agent takes the model entered
-    Given routing has the model smart for an agent's role
+    Given mira.yaml names the model smart for an agent
     When the agent runs
     Then it takes the model smart
 

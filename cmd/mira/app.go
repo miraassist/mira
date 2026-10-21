@@ -137,10 +137,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.langs = newLanguages(cfg, a.store, a.log)
 	a.lang = a.langs.Last(ctx)
 
-	a.llm = llm.New(llm.Options{
-		BaseURL: cfg.LLM.BaseURL, APIKey: cfg.LLM.APIKey, Model: cfg.LLM.Model,
-		Timeout: cfg.LLM.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
-	})
 	a.models = map[string]*llm.Client{}
 	for name, m := range cfg.Models {
 		a.models[name] = llm.New(llm.Options{
@@ -148,6 +144,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			Timeout: m.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
 		})
 	}
+	a.llm = a.models[config.MainModel]
 
 	a.mcp = mcp.New(mcp.Options{
 		Servers: cfg.MCPServers, Logger: a.log, Version: version,
@@ -401,7 +398,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 	})
 	a.registerAgents()
-	if cfg.LLM.WarmupOnPrefixChange {
+	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnPrefixChange }) {
 		a.warmup = a.engine.RequestWarmup
 	}
 	return a, nil
@@ -520,8 +517,8 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.log.Warn("llm server is not answering yet", "error", err)
 	}
 	a.goRun(ctx, "warmup", a.engine.RunWarmups)
-	if cfg.LLM.WarmupOnStart {
-		a.engine.RequestWarmup("startup")
+	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnStart }) {
+		a.engine.RequestWarmup(conversation.WarmupStartup)
 	}
 	a.goRun(ctx, "session-purge", func(ctx context.Context) error {
 		t := time.NewTicker(10 * time.Minute)
@@ -893,7 +890,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	cfg := a.cfg
 	opts := haconv.Options{
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
-		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
+		Logger: a.log, TurnTimeout: longestTimeout(cfg), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash, Agents: a.agents,
 	}
@@ -945,7 +942,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	// Pairing anew and changing the model from Home Assistant
 	// (docs/spec/einrichtung.md).
 	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
-		Pairing: a.pairing, Model: cfg.LLM.Model, Restart: restart, Log: a.log}).Register(mux)
+		Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log}).Register(mux)
 	mux.Handle("/", api)
 	return mux
 }
@@ -1132,4 +1129,24 @@ func nonEmpty(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// anyModel reports whether one of the models has a setting.
+func anyModel(cfg config.Config, has func(config.LLM) bool) bool {
+	for _, m := range cfg.Models {
+		if has(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// longestTimeout bounds a conversation request: the longest a model may
+// take, whichever the conversation agents name.
+func longestTimeout(cfg config.Config) time.Duration {
+	var longest time.Duration
+	for _, m := range cfg.Models {
+		longest = max(longest, m.Timeout.Duration())
+	}
+	return longest
 }

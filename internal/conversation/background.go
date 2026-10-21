@@ -7,7 +7,6 @@ import (
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
-	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -38,11 +37,7 @@ func (e *Engine) BackgroundContext(ctx context.Context, cc agent.CallContext, in
 		Text:           strings.Join(text, "\n\n"),
 	}
 	built := prompt.Build(prefix, nil, turn)
-	b := agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash}
-	if slot := e.cfg.SlotFor(config.ChannelBackground); slot >= 0 {
-		b.IDSlot = llm.IntPtr(slot)
-	}
-	return b, nil
+	return agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash}, nil
 }
 
 // ExtractJSON returns the outermost JSON object in s. Models that ignore the

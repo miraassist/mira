@@ -20,6 +20,8 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
+
+	"gopkg.in/yaml.v3"
 )
 
 // --- fakes -------------------------------------------------------------------
@@ -198,14 +200,13 @@ func setup(t *testing.T) *env {
 	sec := config.Default().Security
 	sec.ConfirmTools = []string{"lock_open"}
 	guard := tools.NewGuard(i18n.DE, sec, confirmations{}, func() structure.Snapshot { return structure.Snapshot{} })
-	e.cfg.Models = map[string]config.LLM{"smart": {BaseURL: "https://api.example.com/v1"}}
-	e.cfg.LLM.BaseURL = "http://localhost:1234/v1"
+	e.cfg.Models["smart"] = config.LLM{BaseURL: "https://api.example.com/v1", Privacy: config.PrivacyCloud, Parallel: 4}
 	e.opts = Options{
 		Config: func() config.Config { return e.cfg },
 		Models: func(name string) (Chatter, config.LLM, bool) {
 			switch name {
 			case "main":
-				return e.main, e.cfg.LLM, true
+				return e.main, e.cfg.Main(), true
 			case "smart":
 				return e.smart, e.cfg.Models["smart"], true
 			}
@@ -646,9 +647,9 @@ func lastUser(req llm.ChatRequest) string {
 // AG-70 Without an entry for its role an agent takes main
 func TestAG70_WithoutAnEntryTheAgentTakesMain(t *testing.T) {
 	e := setup(t)
-	// Given routing has nothing for an agent's role
+	// Given mira.yaml names no model for an agent
 	// When the agent runs
-	res, _ := e.rt.Call(context.Background(), Spec{Name: "a", Role: "mail", Profile: Isolated}, "x", CallContext{})
+	res, _ := e.rt.Call(context.Background(), Spec{Name: "mail.read", Profile: Isolated}, "x", CallContext{})
 	// Then it takes the model main
 	if res.Model != "main" || len(e.main.reqs) != 1 || len(e.smart.reqs) != 0 {
 		t.Errorf("model %s, main %d, smart %d", res.Model, len(e.main.reqs), len(e.smart.reqs))
@@ -658,10 +659,12 @@ func TestAG70_WithoutAnEntryTheAgentTakesMain(t *testing.T) {
 // AG-71 With an entry an agent takes the model entered
 func TestAG71_WithAnEntryTheAgentTakesThatModel(t *testing.T) {
 	e := setup(t)
-	// Given routing has the model smart for an agent's role
-	e.cfg.Routing.Mail = "smart"
+	// Given mira.yaml names the model smart for an agent
+	if err := yaml.Unmarshal([]byte("mail.read: { model: smart }"), &e.cfg.Agents); err != nil {
+		t.Fatal(err)
+	}
 	// When the agent runs
-	res, _ := e.rt.Call(context.Background(), Spec{Name: "a", Role: "mail", Profile: Isolated}, "x", CallContext{})
+	res, _ := e.rt.Call(context.Background(), Spec{Name: "mail.read", Profile: Isolated}, "x", CallContext{})
 	// Then it takes the model smart
 	if res.Model != "smart" || len(e.smart.reqs) != 1 || len(e.main.reqs) != 0 {
 		t.Errorf("model %s, main %d, smart %d", res.Model, len(e.main.reqs), len(e.smart.reqs))
@@ -714,18 +717,6 @@ func TestAG81_CloudModelServesSeveralRunsAtOnce(t *testing.T) {
 func TestTextsComplete(t *testing.T) {
 	if missing := i18n.Missing(catalog); len(missing) > 0 {
 		t.Errorf("texts missing: %v", missing)
-	}
-}
-
-func TestIsLocal(t *testing.T) {
-	for url, want := range map[string]bool{
-		"http://localhost:1234/v1": true, "http://192.168.178.10:8080": true, "http://127.0.0.1": true,
-		"http://lmstudio.local:1234": true, "https://generativelanguage.googleapis.com/v1beta/openai": false,
-		"https://api.example.com": false, "http://10.0.0.5": true,
-	} {
-		if got := isLocal(url); got != want {
-			t.Errorf("%s: %v", url, got)
-		}
 	}
 }
 
@@ -787,5 +778,55 @@ func TestOutputSchemaGoesAlongWithTools(t *testing.T) {
 		if len(req.Tools) == 0 || req.ResponseFormat == nil {
 			t.Errorf("request %d: %d tools, response_format %v", i, len(req.Tools), req.ResponseFormat)
 		}
+	}
+}
+
+// MO-05 How many requests at once follows privacy unless set
+func TestMO05_RequestsAtOnceFollowPrivacyUnlessSet(t *testing.T) {
+	// Given a local model and a cloud model without parallel, and a cloud model with parallel 2
+	cfg, err := config.Parse([]byte(`
+ha: { url: http://ha, token: t }
+models:
+  main: { endpoint: http://lokal/v1, model: m, privacy: local }
+  smart: { endpoint: https://cloud/v1, model: m, privacy: cloud }
+  lite: { endpoint: https://cloud/v1, model: m, privacy: cloud, parallel: 2 }
+`), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := map[string]*model{"main": {delay: 40 * time.Millisecond}, "smart": {delay: 40 * time.Millisecond},
+		"lite": {delay: 40 * time.Millisecond}}
+	rt := New(Options{Config: func() config.Config { return cfg },
+		Models: func(name string) (Chatter, config.LLM, bool) {
+			m, ok := cfg.Model(name)
+			return clients[name], m, ok
+		}})
+	// When requests come in at the same time
+	var wg sync.WaitGroup
+	for name := range clients {
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				rt.Call(context.Background(), Spec{Name: "a", Model: name, Profile: Isolated}, "x", CallContext{})
+			}()
+		}
+	}
+	wg.Wait()
+	// Then the local one takes 1 at a time, the first cloud one 4, the second 2
+	if a, b, c := clients["main"].maxAtOne.Load(), clients["smart"].maxAtOne.Load(), clients["lite"].maxAtOne.Load(); a != 1 || b != 4 || c != 2 {
+		t.Errorf("at once: main %d, smart %d, lite %d", a, b, c)
+	}
+}
+
+// MO-10 An agent without a model takes main
+func TestMO10_AnAgentWithoutAModelTakesMain(t *testing.T) {
+	e := setup(t)
+	// Given Mira's own agent tasks.assess with no entry under agents
+	// When it runs
+	res, _ := e.rt.Call(context.Background(), Spec{Name: "tasks.assess", Profile: Isolated}, "x", CallContext{})
+	// Then it takes main
+	if res.Model != "main" || e.main.calls() != 1 {
+		t.Errorf("model %q", res.Model)
 	}
 }

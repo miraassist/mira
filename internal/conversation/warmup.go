@@ -10,6 +10,10 @@ import (
 
 // RequestWarmup schedules a warmup of every slot. Calls while one is pending
 // collapse into it; the reason of the first one is logged.
+// WarmupStartup is the reason of the warmup at the start; other reasons are
+// prefix changes.
+const WarmupStartup = "startup"
+
 func (e *Engine) RequestWarmup(reason string) {
 	select {
 	case e.warm <- reason:
@@ -40,16 +44,28 @@ func (e *Engine) RunWarmups(ctx context.Context) error {
 // only occupy the server (LM Studio: about 48 seconds each for a cold
 // prompt of 9000 tokens) and evict each other's cache entries.
 func (e *Engine) WarmupAll(ctx context.Context, reason string) {
-	// Only channels on the main model are warmed: it is the local one with a
-	// cache to fill. A warmup of a cloud model costs money and buys nothing.
+	// Only local models that want it are warmed (warmup_on_start at the
+	// start, warmup_on_prefix_change otherwise), for the channels whose
+	// agent takes them. A warmup of a cloud model costs money and buys
+	// nothing (docs/spec/modelle.md).
 	var channels []config.Channel
+	byModel := map[string]int{}
 	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
-		if e.cfg.RouteFor(ch) == config.MainModel {
-			channels = append(channels, ch)
+		name := e.cfg.ModelFor(config.ChannelAgent(ch))
+		m, _ := e.cfg.Model(name)
+		wants := m.WarmupOnPrefixChange
+		if reason == WarmupStartup {
+			wants = m.WarmupOnStart
 		}
-	}
-	if !e.cfg.LLM.SlotPinning && len(channels) > 1 {
-		channels = channels[:1]
+		if !wants || m.Privacy != config.PrivacyLocal {
+			continue
+		}
+		// Without pinned slots one channel covers the others (see above).
+		if len(m.PinSlots) == 0 && byModel[name] > 0 {
+			continue
+		}
+		byModel[name]++
+		channels = append(channels, ch)
 	}
 	for _, ch := range channels {
 		if ctx.Err() != nil {
@@ -69,7 +85,7 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 	built := prompt.WarmupRequest(prefix)
 	req := e.chatRequest(ch, built.Messages, built)
 	started := time.Now()
-	client, model, name := e.modelFor(config.MainModel)
+	client, model, name := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(ch)))
 	release, err := e.agents.Acquire(ctx, name, model)
 	if err != nil {
 		return err

@@ -63,10 +63,11 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 	t.Cleanup(func() { st.Close() })
 
 	cfg := config.Default()
-	cfg.LLM.BaseURL = model.BaseURL()
+	setMain(&cfg, func(m *config.LLM) { m.BaseURL = model.BaseURL() })
 	cfg.Persons = map[string]config.Person{"anna": {Name: "Anna"}}
 	a := &app{cfg: cfg, live: cfg, log: quiet, ha: client, store: st, lang: i18n.DE,
 		llm: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "test"})}
+	a.models = map[string]*llm.Client{config.MainModel: a.llm}
 	registry := tools.NewRegistry(nil)
 	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil)
 	a.agents = a.newAgents(registry, guard)
@@ -189,4 +190,11 @@ func TestThreadAgentRunsAndFillsTheField(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// setMain changes the model main of a config.
+func setMain(cfg *config.Config, change func(*config.LLM)) {
+	m := cfg.Main()
+	change(&m)
+	cfg.Models[config.MainModel] = m
 }

@@ -7,32 +7,36 @@ server:
   # Not announced: the real Home Assistant would offer the test agent.
   announce: false
 
-llm:
-  base_url: "http://localhost:1234/v1"   # LM Studio on this host
-  model: "qwen/qwen3-30b-a3b-2507"
-  slot_pinning: false
-  cache_prompt: true
-  temperature: 0.3
-  timeout: 2m
-  context_tokens: 16384
-  warmup_on_start: false
-  warmup_on_prefix_change: false
-
-# Testing the flows on Gemini Flash (the local model is too slow or not loaded).
 models:
+  main:
+    endpoint: "http://localhost:1234/v1"   # LM Studio on this host
+    model: "qwen/qwen3-30b-a3b-2507"
+    privacy: local
+    cache_prompt: true
+    temperature: 0.3
+    timeout: 2m
+    context_tokens: 16384
+  # Testing the flows on Gemini Flash (the local model is too slow or not loaded).
   smart:
-    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
-    api_key: ${GEMINI_API_TOKEN}
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
     model: "gemini-flash-latest"
+    privacy: cloud
     reasoning_effort: low
     context_tokens: 24000
 
-routing:
-  voice: smart
-  telegram: smart
-  background: smart
-  tasks: smart
-  mail: smart
+# Every agent of the flows on smart; delegate stays on main.
+agents:
+  conversation.voice: { model: smart }
+  conversation.telegram: { model: smart }
+  skill.task: { model: smart }
+  notify.compose: { model: smart }
+  tasks.assess: { model: smart }
+  tasks.decide: { model: smart }
+  tasks.plan: { model: smart }
+  profile.compact: { model: smart }
+  mail.read: { model: smart }
+  mail.match: { model: smart }
 
 store:
   path: "testenv/mira.db"

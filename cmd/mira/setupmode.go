@@ -88,7 +88,7 @@ func (p prepared) model() string {
 	if !p.hasModel {
 		return ""
 	}
-	return p.cfg.LLM.Model
+	return p.cfg.Main().Model
 }
 
 func logPairing(log *slog.Logger, p prepared) {

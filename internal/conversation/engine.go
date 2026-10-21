@@ -100,7 +100,7 @@ type Languages interface {
 type Options struct {
 	Config config.Config
 	// LLM is the main model. Models holds the further ones by name, as in
-	// config.Models; config.Routing says which serves what.
+	// config.Models; each agent names its model (config.ModelFor).
 	LLM    Chatter
 	Models map[string]Chatter
 	Store  *store.Store
@@ -275,7 +275,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area,
 		DeviceID: req.DeviceID, Place: place}
-	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: "conversation." + string(req.Channel), Role: string(req.Channel),
+	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: config.ChannelAgent(req.Channel),
 		Profile: agent.Conversation, Rights: agent.AllRights},
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
 			Rights: agent.AllRights}, ts)
@@ -390,7 +390,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if err != nil {
 		return Response{}, err
 	}
-	client, model, modelName := e.modelFor(e.cfg.RouteFor(req.Channel))
+	client, model, modelName := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(req.Channel)))
 	built := prompt.Build(prefix, history, turn)
 	msgs := built.Messages
 	added := []llm.Message{msgs[len(msgs)-1]} // the rendered layer 7
@@ -538,12 +538,12 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 }
 
 func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
-	_, model, _ := e.modelFor(e.cfg.RouteFor(ch))
+	_, model, name := e.modelFor(e.cfg.ModelFor(config.ChannelAgent(ch)))
 	r := modelRequest(model, msgs)
 	r.Tools = built.Tools
 	r.Channel = string(ch)
 	r.PrefixHash = built.PrefixHash
-	if slot := e.cfg.SlotFor(ch); slot >= 0 {
+	if slot := e.cfg.SlotFor(name, ch); slot >= 0 {
 		r.IDSlot = llm.IntPtr(slot)
 	}
 	return r
@@ -573,7 +573,7 @@ func (e *Engine) modelFor(name string) (Chatter, config.LLM, string) {
 	m, ok := e.cfg.Model(name)
 	c := e.models[name]
 	if !ok || c == nil {
-		name, m, c = config.MainModel, e.cfg.LLM, e.models[config.MainModel]
+		name, m, c = config.MainModel, e.cfg.Main(), e.models[config.MainModel]
 	}
 	return c, m, name
 }

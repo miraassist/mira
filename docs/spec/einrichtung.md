@@ -58,7 +58,7 @@ After that, the agent's config contains nothing about HA anymore (`ha.url`, `ha.
   - the database in the data folder;
   - the bundled skills;
   - language and persons from HA.
-- **`mira.yaml` stays optional,** for advanced things: further models and routing, further MCP servers, skills with settings, finer points of the notifier. What the integration sets (HA access, language model) applies before the file; the rest of the file applies as before.
+- **`mira.yaml` stays optional,** for advanced things: further models and which agent takes which (docs/spec/modelle.md), further MCP servers, skills with settings, finer points of the notifier. What the integration sets (HA access, language model) applies before the file; the rest of the file applies as before.
 
 ## 4. Mira as conversation agent
 

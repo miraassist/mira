@@ -161,7 +161,7 @@ So richtest du es ein:
 
 Den Kalender „Pakete“ (oder „Pakete stefan“) legt Mira selbst an; dort siehst du die Pakete auch in der Kalenderansicht. Mira liest nur Mails, die ab jetzt ankommen.
 
-Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `routing` als `mail`. Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
+Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `agents` bei `mail.read` und `mail.match` (`{ model: main }`). Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
 
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
@@ -332,7 +332,7 @@ Mit `done: "●"` im Abschnitt `mail` setzt Mira ein Zeichen vor den Titel erled
 
 Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne Haus, Werkzeuge und Gedächtnis. Heraus kommen nur Titel, Kennungen, Status, Tag, Uhrzeit, Ort und Einzelheiten, die Mira prüft. Eine neuere Mail ändert den Eintrag, eine ältere wird verworfen, eine Absage löscht ihn, Erledigtes und Vergangenes räumt Mira weg.
 
-**Hinweis:** Mails können private Daten enthalten. Für das Auswerten von Mails nimmst du deshalb besser ein lokales Modell; welches Modell die Mails liest, steht in der `mira.yaml` unter `routing` als `mail`.
+**Hinweis:** Mails können private Daten enthalten. Für das Auswerten von Mails nimmst du deshalb besser ein lokales Modell; welches Modell die Mails liest, steht in der `mira.yaml` unter `agents` bei `mail.read` und `mail.match`.
 
 ### Eigene Agenten
 

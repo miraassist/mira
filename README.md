@@ -50,7 +50,7 @@ No config file, three steps (details and troubleshooting in the guide:
 ## Agent
 
 Running from source, or with your own `mira.yaml` for what goes beyond the
-setup form (more models and routing, more MCP servers, skills with settings):
+setup form (more models, more MCP servers, skills with settings):
 
 ```sh
 go build -o mira ./cmd/mira
@@ -100,13 +100,15 @@ once. Changes are stored in the database on top of `mira.yaml` (the file is
 never rewritten; each section can be reset to it) and apply at once. The page
 is in German or English, following the browser, with a switch in its header.
 
-Models: `llm` is the main model; `models` adds more by name, local or in
-the cloud (any OpenAI-compatible endpoint, e.g. Gemini), and `routing` says
-which serves voice, Telegram and background jobs. The conversation model
-has a `delegate` tool that hands harder tasks (planning, explanations,
-research) to the model `routing.delegate` names, typically a stronger one,
-and reads back its answer. Only the local main model is warmed up; a cloud model is billed per
-token, and each turn logs its model and token counts.
+Models: `models` names them, each with an endpoint, a token and whether it
+is `local` or `cloud` (any OpenAI-compatible endpoint, e.g. Gemini); `main`
+must exist, and every agent takes it unless `agents` names another for it
+(`agents: { conversation.telegram: { model: smart } }`). The conversation
+model has a `delegate` tool that hands harder tasks (planning,
+explanations, research) to the model `agents.delegate.model` names,
+typically a stronger one, and reads back its answer. Only local models are
+warmed up; a cloud model is billed per token, and each turn logs its model
+and token counts.
 
 Reminders: "remind me tomorrow at seven" and timers are built in
 (`reminder_set`). At the time Mira speaks the reminder in the room it was

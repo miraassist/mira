@@ -157,7 +157,7 @@ To set it up:
 
 Mira creates the calendar "Pakete" (or "Pakete stefan") herself; you see the parcels in the calendar view there too. Mira reads only mails that arrive from now on.
 
-Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `routing` as `mail`. Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
+Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `agents` for `mail.read` and `mail.match` (`{ model: main }`). Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
@@ -328,7 +328,7 @@ With `done: "●"` in the `mail` section, Mira puts a sign before the title of e
 
 What Mira handles herself: every new mail is read by a model call of its own, without the house, tools or memory. Only a title, keys, status, day, time, place and details come out, and Mira checks them. A newer mail changes the entry, an older one is dropped, a cancellation removes it, and Mira clears what is done or past.
 
-**Note:** Mails can contain private data. For reading mails, a local model is therefore the better choice; which model reads the mails goes under `routing` as `mail` in `mira.yaml`.
+**Note:** Mails can contain private data. For reading mails, a local model is therefore the better choice; which model reads the mails goes under `agents` for `mail.read` and `mail.match` in `mira.yaml`.
 
 ### Your own agents
 

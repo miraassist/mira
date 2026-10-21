@@ -75,11 +75,16 @@ type house struct {
 	places  []string
 }
 
-func newHouse(t *testing.T, baseURL string, delay time.Duration) *house {
+func newHouse(t *testing.T, privacy string, delay time.Duration) *house {
 	t.Helper()
 	h := &house{model: &slowModel{delay: delay}, private: map[string]bool{}, plans: map[string]string{}}
 	cfg := config.Default()
-	cfg.LLM.BaseURL = baseURL
+	m := cfg.Main()
+	m.Privacy, m.Parallel = privacy, 1
+	if privacy == config.PrivacyCloud {
+		m.Parallel = 4
+	}
+	cfg.Models[config.MainModel] = m
 	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +141,7 @@ func (h *house) startPlan(place, plan string) {
 // AG-95 Two conversations in different rooms run at the same time on a cloud model
 func TestAG95_TwoConversationsRunAtTheSameTimeOnACloudModel(t *testing.T) {
 	// Given two satellites in different rooms and a cloud model for conversations
-	h := newHouse(t, "https://api.example.com/v1", 200*time.Millisecond)
+	h := newHouse(t, config.PrivacyCloud, 200*time.Millisecond)
 	// When two persons ask at the same moment
 	var wg sync.WaitGroup
 	for _, dev := range []string{"sat-kueche", "sat-wohnzimmer"} {
@@ -155,7 +160,7 @@ func TestAG95_TwoConversationsRunAtTheSameTimeOnACloudModel(t *testing.T) {
 
 // AG-96 Two turns of the same session run one after the other
 func TestAG96_TwoTurnsOfTheSameSessionRunOneAfterTheOther(t *testing.T) {
-	h := newHouse(t, "https://api.example.com/v1", 100*time.Millisecond)
+	h := newHouse(t, config.PrivacyCloud, 100*time.Millisecond)
 	// Given a session with a turn still running
 	// When a second turn of the same session arrives
 	var wg sync.WaitGroup
@@ -178,7 +183,7 @@ func TestAG96_TwoTurnsOfTheSameSessionRunOneAfterTheOther(t *testing.T) {
 
 // AG-B1 A known person's conversation follows them to another satellite
 func TestAGB1_AKnownPersonsConversationFollowsThem(t *testing.T) {
-	h := newHouse(t, "http://localhost:1234/v1", 0)
+	h := newHouse(t, config.PrivacyLocal, 0)
 	// Given a person known to Mira (alone at home) talking at the satellite in the kitchen
 	h.person = "anna"
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")
@@ -197,7 +202,7 @@ func TestAGB1_AKnownPersonsConversationFollowsThem(t *testing.T) {
 
 // AG-B2 Without a known person the conversation stays in its room
 func TestAGB2_WithoutAKnownPersonTheConversationStaysInItsRoom(t *testing.T) {
-	h := newHouse(t, "http://localhost:1234/v1", 0)
+	h := newHouse(t, config.PrivacyLocal, 0)
 	// Given several persons at home and nobody recognized
 	// And a conversation at the satellite in the kitchen
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")
@@ -213,7 +218,7 @@ func TestAGB2_WithoutAKnownPersonTheConversationStaysInItsRoom(t *testing.T) {
 
 // AG-B3 A private area is a hard border
 func TestAGB3_APrivateAreaIsAHardBorder(t *testing.T) {
-	h := newHouse(t, "http://localhost:1234/v1", 0)
+	h := newHouse(t, config.PrivacyLocal, 0)
 	// Given the area "Gästezimmer" has the label "Mira: privater Bereich"
 	h.private["gaeste"] = true
 	// And a known person starts a plan there
@@ -230,7 +235,7 @@ func TestAGB3_APrivateAreaIsAHardBorder(t *testing.T) {
 
 // AG-B4 Nothing comes into a private area from outside
 func TestAGB4_NothingComesIntoAPrivateAreaFromOutside(t *testing.T) {
-	h := newHouse(t, "http://localhost:1234/v1", 0)
+	h := newHouse(t, config.PrivacyLocal, 0)
 	// Given a known person with a running plan from the kitchen
 	h.person = "anna"
 	h.say(t, "sat-kueche", "k1", "Merk dir das Wort Erdbeere.")

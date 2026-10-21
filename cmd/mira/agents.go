@@ -28,8 +28,8 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 	return agent.New(agent.Options{
 		Config: a.liveConfig,
 		Models: func(name string) (agent.Chatter, config.LLM, bool) {
-			if name == "" || name == config.MainModel {
-				return a.llm, a.cfg.LLM, true
+			if name == "" {
+				name = config.MainModel
 			}
 			c, ok := a.models[name]
 			m, known := a.cfg.Models[name]
@@ -74,6 +74,9 @@ func (a *app) registerAgents() {
 		a.problems = append(a.problems, haconv.Problem{Source: "agent", Name: p.Agent, Text: text})
 	}
 	for _, d := range defs {
+		if d.Skill == "" && agent.Own(d.Name) {
+			continue
+		}
 		if !failed[d.Skill+"/"+d.Name] {
 			a.log.Info("agent enabled", "agent", d.Name, "skill", d.Skill)
 		}
@@ -170,13 +173,12 @@ var resultCatalog = map[i18n.Lang]resultTexts{
 type isolatedAgent struct {
 	a      *app
 	name   string
-	role   string
 	origin agent.Origin
 	limits agent.Limits
 }
 
 func (m isolatedAgent) Ask(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error) {
-	res, err := m.a.agents.Call(ctx, agent.Spec{Name: m.name, Role: m.role, Profile: agent.Isolated,
+	res, err := m.a.agents.Call(ctx, agent.Spec{Name: m.name, Profile: agent.Isolated,
 		Instructions: system, Output: schema, Limits: m.limits}, instruction, agent.CallContext{Origin: m.origin})
 	if err != nil {
 		return "", err
@@ -196,11 +198,11 @@ func (m isolatedAgent) AssessIsolated(ctx context.Context, system, instruction s
 
 // The isolated internal agents.
 func (a *app) mailRead() isolatedAgent {
-	return isolatedAgent{a: a, name: "mail.read", role: "mail", origin: agent.FromIMAP, limits: mailLimits}
+	return isolatedAgent{a: a, name: "mail.read", origin: agent.FromIMAP, limits: mailLimits}
 }
 
 func (a *app) mailMatch() isolatedAgent {
-	return isolatedAgent{a: a, name: "mail.match", role: "mail", origin: agent.FromIMAP, limits: mailLimits}
+	return isolatedAgent{a: a, name: "mail.match", origin: agent.FromIMAP, limits: mailLimits}
 }
 
 // mailLimits: a model call that hangs is tried once more after 60 s (a
@@ -208,19 +210,19 @@ func (a *app) mailMatch() isolatedAgent {
 var mailLimits = agent.Limits{AttemptTimeout: 60 * time.Second, Retries: 1}
 
 func (a *app) tasksAssess() isolatedAgent {
-	return isolatedAgent{a: a, name: "tasks.assess", role: "background", origin: agent.FromAutomation}
+	return isolatedAgent{a: a, name: "tasks.assess", origin: agent.FromAutomation}
 }
 
 func (a *app) tasksDecide() isolatedAgent {
-	return isolatedAgent{a: a, name: "tasks.decide", role: "background", origin: agent.FromAutomation}
+	return isolatedAgent{a: a, name: "tasks.decide", origin: agent.FromAutomation}
 }
 
 func (a *app) tasksPlan() isolatedAgent {
-	return isolatedAgent{a: a, name: "tasks.plan", role: "tasks", origin: agent.FromCode}
+	return isolatedAgent{a: a, name: "tasks.plan", origin: agent.FromCode}
 }
 
 func (a *app) profileCompact() isolatedAgent {
-	return isolatedAgent{a: a, name: "profile.compact", role: "background", origin: agent.FromSchedule}
+	return isolatedAgent{a: a, name: "profile.compact", origin: agent.FromSchedule}
 }
 
 // notifyCompose words announcements: several messages as one, or a run's
@@ -233,7 +235,7 @@ func (a *app) notifyCompose(ctx context.Context, instruction string, schema json
 
 func notifyComposeSpec(schema json.RawMessage) agent.Spec {
 	return agent.Spec{Name: "notify.compose", Description: "Words announcements and results for the house.",
-		Role: "background", Profile: agent.Background, Output: schema}
+		Profile: agent.Background, Output: schema}
 }
 
 // agentNames are the agents a skill's target may name: Mira's own with a

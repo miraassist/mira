@@ -59,7 +59,7 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 
 func (e *Engine) delegateSpec(ctx context.Context) agent.Spec {
 	return agent.Spec{Name: "delegate", Description: "Hands a harder task to a stronger model and returns its answer.",
-		Role: "delegate", Profile: agent.Background, Instructions: e.texts(ctx).delegated,
+		Profile: agent.Background, Instructions: e.texts(ctx).delegated,
 		Tools: agent.Tools{Kind: agent.AllTools}, Rights: agent.ReadHouse | agent.Web}
 }
 
@@ -77,7 +77,7 @@ func (e *Engine) RunTask(ctx context.Context, instruction string) (string, error
 
 func taskSpec() agent.Spec {
 	return agent.Spec{Name: "skill.task", Description: "Runs a skill's job in the background and answers in JSON.",
-		Role: "background", Profile: agent.Background, Tools: agent.Tools{Kind: agent.AllTools},
+		Profile: agent.Background, Tools: agent.Tools{Kind: agent.AllTools},
 		Rights: agent.ReadHouse | agent.Web}
 }
 

@@ -33,8 +33,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 
 	cfg := config.Default()
 	cfg.Server = config.Server{Listen: freeAddr(t), Token: "api-token"}
-	cfg.LLM.BaseURL = model.BaseURL()
-	cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = false, false
+	setMain(&cfg, func(m *config.LLM) { m.BaseURL = model.BaseURL() })
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	seedExposed(t, cfg.Store.Path, "assist_satellite.bad", "binary_sensor.bad_motion", "binary_sensor.flur_motion", "binary_sensor.leck")
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}

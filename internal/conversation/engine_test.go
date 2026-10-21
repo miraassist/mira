@@ -116,7 +116,12 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 		{Name: "ha", Transport: config.TransportHTTP, URL: h.ha.Endpoint()},
 		{Name: "search", Transport: config.TransportHTTP, URL: h.search.Endpoint(), WebContent: true},
 	}
-	cfg.LLM.MaxToolRounds = 3
+	// main as a local llama.cpp server: a slot per channel, the prompt
+	// cache, warmups.
+	m := cfg.Main()
+	m.PinSlots = map[config.Channel]int{config.ChannelVoice: 0, config.ChannelTelegram: 1, config.ChannelBackground: 2}
+	m.CachePrompt, m.MaxToolRounds, m.WarmupOnStart, m.WarmupOnPrefixChange = true, 3, true, true
+	cfg.Models[config.MainModel] = m
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -585,13 +590,17 @@ func TestFollowUpWindowExpires(t *testing.T) {
 func TestBackgroundAgentUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Klar:\n```json\n{\"importance\":2}\n```"})
 	client := llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"})
+	cfg := config.Default()
+	m := cfg.Main()
+	m.PinSlots = map[config.Channel]int{config.ChannelBackground: 2}
+	cfg.Models[config.MainModel] = m
 	rt := agent.New(agent.Options{
-		Config:     config.Default,
-		Models:     func(string) (agent.Chatter, config.LLM, bool) { return client, config.Default().LLM, true },
+		Config:     func() config.Config { return cfg },
+		Models:     func(string) (agent.Chatter, config.LLM, bool) { return client, cfg.Main(), true },
 		Background: h.engine.BackgroundContext,
 		Logger:     quietLogger(),
 	})
-	res, err := rt.Call(context.Background(), agent.Spec{Name: "notify.compose", Role: "background",
+	res, err := rt.Call(context.Background(), agent.Spec{Name: "notify.compose",
 		Profile: agent.Background, Output: json.RawMessage(`{"type":"object"}`)}, "Bewerte das.", agent.CallContext{})
 	if err != nil || res.Text != `{"importance":2}` {
 		t.Fatalf("Call = %q, %v", res.Text, err)
@@ -692,7 +701,11 @@ func anyContains(msgs []llm.Message, s string) bool {
 }
 
 func TestWithoutSlotPinningOneWarmupCoversAllChannels(t *testing.T) {
-	h := newHarnessWith(t, func(c *config.Config) { c.LLM.SlotPinning = false })
+	h := newHarnessWith(t, func(c *config.Config) {
+		m := c.Main()
+		m.PinSlots = nil
+		c.Models[config.MainModel] = m
+	})
 	h.engine.WarmupAll(context.Background(), "test")
 	if n := len(h.llm.Requests()); n != 1 {
 		t.Fatalf("warmups = %d, want 1", n)

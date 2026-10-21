@@ -76,10 +76,9 @@ type Spec struct {
 	Input json.RawMessage
 	// Output is the JSON schema of the answer; nil for text.
 	Output json.RawMessage
-	// Role is the agent's role in routing; without an entry the model is
-	// main.
-	Role string
-	// Model names a model directly (agents from YAML); it wins over Role.
+	// Model names the agent's model (agents from YAML); without it the
+	// model is what mira.yaml names for the agent under agents, else main
+	// (docs/spec/modelle.md).
 	Model   string
 	Profile Profile
 	// Instructions are the system message (isolated) or the instructions

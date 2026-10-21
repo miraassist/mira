@@ -379,12 +379,11 @@ func TestAG91_OnShutdownNoNewRoundStarts(t *testing.T) {
 // AG-92 At most 10 runs at the same time
 func TestAG92_AtMostTenRunsAtTheSameTime(t *testing.T) {
 	e := setup(t)
-	e.cfg.Routing.Background = "smart"
 	for i := 0; i < 11; i++ {
 		e.smart.steps = append(e.smart.steps, step{hang: true})
 	}
 	spec := worker()
-	spec.Role = "background"
+	spec.Model = "smart"
 	// Given 10 asynchronous runs are running
 	// When an eleventh is called
 	var ids []string
@@ -438,12 +437,11 @@ func TestAG94_AfterARestartARunOfAGoneAgentFails(t *testing.T) {
 // AG-97 Conversations do not count towards the 10 runs
 func TestAG97_ConversationsDoNotCountTowardsTheTenRuns(t *testing.T) {
 	e := setup(t)
-	e.cfg.Routing.Background = "smart"
 	for i := 0; i < maxAsync; i++ {
 		e.smart.steps = append(e.smart.steps, step{hang: true})
 	}
 	spec := worker()
-	spec.Role = "background"
+	spec.Model = "smart"
 	// Given 10 asynchronous runs are running
 	var ids []string
 	for i := 0; i < maxAsync; i++ {
@@ -460,7 +458,7 @@ func TestAG97_ConversationsDoNotCountTowardsTheTenRuns(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	ctx, done := e.rt.Enter(ctx, Spec{Name: "conversation.voice", Profile: Conversation}, CallContext{}, nil)
-	release, err := e.rt.Acquire(ctx, "main", e.cfg.LLM)
+	release, err := e.rt.Acquire(ctx, "main", e.cfg.Main())
 	// Then the conversation runs without waiting for them
 	if err != nil {
 		t.Fatalf("the conversation waits: %v", err)

@@ -32,14 +32,14 @@ func TestParseAppliesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if cfg.LLM.MaxToolRounds != 8 {
-		t.Errorf("max_tool_rounds = %d, want 8", cfg.LLM.MaxToolRounds)
+	if cfg.Main().MaxToolRounds != 8 || cfg.Main().Privacy != PrivacyLocal || cfg.Main().Parallel != 1 {
+		t.Errorf("main = %+v", cfg.Main())
 	}
 	if got := cfg.SessionTTL(ChannelVoice).Duration(); got != 5*time.Minute {
 		t.Errorf("voice ttl = %v, want 5m", got)
 	}
-	if got := cfg.SlotFor(ChannelBackground); got != 2 {
-		t.Errorf("background slot = %d, want 2", got)
+	if got := cfg.SlotFor(MainModel, ChannelBackground); got != -1 {
+		t.Errorf("background slot = %d, want none without pin_slots", got)
 	}
 	if cfg.HA.Token != "ha-secret" {
 		t.Errorf("ha token = %q, want expanded value", cfg.HA.Token)
@@ -120,21 +120,6 @@ notifier:
 	}
 }
 
-func TestSlotPinningOffYieldsNegativeSlot(t *testing.T) {
-	cfg, err := Parse([]byte(`
-ha: { url: "http://ha", token: t }
-llm:
-  slot_pinning: false
-  cache_prompt: false
-`), fakeEnv(nil))
-	if err != nil {
-		t.Fatalf("Parse: %v", err)
-	}
-	if got := cfg.SlotFor(ChannelVoice); got != -1 {
-		t.Errorf("slot = %d, want -1 when pinning is off", got)
-	}
-}
-
 // The shipped example must always load, so it cannot rot as the config grows.
 func TestExampleConfigLoads(t *testing.T) {
 	raw, err := os.ReadFile("../../mira.example.yaml")
@@ -149,19 +134,17 @@ func TestExampleConfigLoads(t *testing.T) {
 	if len(cfg.MCPServers) != 2 || !cfg.MCPServers[1].WebContent || cfg.HA.Token != "b" {
 		t.Errorf("example parsed wrong: %+v", cfg.MCPServers)
 	}
-	// Further models inherit what they leave out from main, but never the
-	// local-only settings.
 	smart := cfg.Models["smart"]
-	if smart.MaxToolRounds != cfg.LLM.MaxToolRounds || smart.Timeout != cfg.LLM.Timeout || smart.CachePrompt || smart.WarmupOnStart {
+	if smart.APIKey != "d" || smart.Privacy != PrivacyCloud || smart.Parallel != 4 || smart.CachePrompt || smart.WarmupOnStart {
 		t.Errorf("smart = %+v", smart)
 	}
-	if cfg.RouteFor(ChannelBackground) != "lite" || cfg.RouteFor(ChannelVoice) != MainModel || cfg.SlotFor(ChannelBackground) != -1 {
-		t.Error("routing parsed wrong")
+	if cfg.ModelFor("delegate") != "smart" || cfg.ModelFor("conversation.voice") != MainModel {
+		t.Errorf("agents' models: delegate %s, voice %s", cfg.ModelFor("delegate"), cfg.ModelFor("conversation.voice"))
 	}
 }
 
 func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
-	raw := []byte("# set ${UNSET_IN_COMMENT} before starting\nllm:\n  model: ${MODEL}\nha:\n  url: http://ha\n  token: t\n")
+	raw := []byte("# set ${UNSET_IN_COMMENT} before starting\nmodels:\n  main: { endpoint: http://x, model: ${MODEL}, privacy: local }\nha:\n  url: http://ha\n  token: t\n")
 	cfg, err := Parse(raw, func(k string) (string, bool) {
 		if k == "MODEL" {
 			return "qwen", true
@@ -171,21 +154,112 @@ func TestEnvReferencesInCommentsAreIgnored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.LLM.Model != "qwen" {
-		t.Errorf("model = %q", cfg.LLM.Model)
+	if cfg.Main().Model != "qwen" {
+		t.Errorf("model = %q", cfg.Main().Model)
 	}
 }
 
-func TestRoutingNeedsKnownModels(t *testing.T) {
-	c := Default()
-	c.HA.URL, c.HA.Token = "http://ha", "t"
-	c.Routing.Delegate = "nope"
-	c.Models = map[string]LLM{"main": {BaseURL: "x", Model: "y"}, "half": {Model: "y"}}
-	err := c.Validate()
-	for _, want := range []string{`routing.delegate: no model "nope"`, "models.main: the name main", "models.half needs base_url"} {
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("missing %q in %v", want, err)
+func parseModels(t *testing.T, models string) (Config, error) {
+	t.Helper()
+	return Parse([]byte("ha: { url: http://ha, token: t }\n"+models), func(k string) (string, bool) {
+		if k == "GEMINI_API_TOKEN" {
+			return "geheim", true
 		}
+		return "", false
+	})
+}
+
+// MO-01 A model is a named entry
+func TestMO01_AModelIsANamedEntry(t *testing.T) {
+	// Given mira.yaml has the models main and smart with endpoint, model, token and privacy
+	// When Mira loads it
+	cfg, err := parseModels(t, `
+models:
+  main: { endpoint: "http://lmstudio:1234/v1/", model: qwen, privacy: local }
+  smart: { endpoint: https://gemini/v1, model: flash, token: "${GEMINI_API_TOKEN}", privacy: cloud }
+`)
+	// Then both models exist under their names, the token taken from the environment
+	if err != nil {
+		t.Fatal(err)
+	}
+	main, smart := cfg.Models["main"], cfg.Models["smart"]
+	if main.BaseURL != "http://lmstudio:1234/v1" || main.Model != "qwen" || smart.APIKey != "geheim" || smart.Privacy != PrivacyCloud {
+		t.Errorf("main %+v\nsmart %+v", main, smart)
+	}
+}
+
+// MO-02 Without main Mira does not load
+func TestMO02_WithoutMainMiraDoesNotLoad(t *testing.T) {
+	// Given mira.yaml has models but none called main
+	// When Mira loads it
+	_, err := parseModels(t, "models:\n  smart: { endpoint: http://x, model: y, privacy: cloud }\n")
+	// Then loading fails, and the error says that main is needed
+	if err == nil || !strings.Contains(err.Error(), "models needs main") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// MO-03 A model needs its privacy
+func TestMO03_AModelNeedsItsPrivacy(t *testing.T) {
+	// Given a model without privacy
+	// When Mira loads it
+	_, err := parseModels(t, "models:\n  main: { endpoint: http://x, model: y }\n")
+	// Then loading fails, and the error names the model and that privacy is local or cloud
+	if err == nil || !strings.Contains(err.Error(), "models.main needs privacy: local") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// MO-04 The old llm and routing are refused with what to write instead
+func TestMO04_TheOldLLMAndRoutingAreRefused(t *testing.T) {
+	// Given mira.yaml still has llm or routing
+	// When Mira loads it
+	_, err := parseModels(t, "llm: { base_url: http://x, model: y }\nrouting: { delegate: smart }\n")
+	// Then loading fails, and the error says to write models.main instead of llm, agents.<name>.model instead of routing
+	if err == nil || !strings.Contains(err.Error(), "llm is now models.main") || !strings.Contains(err.Error(), "routing is gone") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// MO-06 Settings a model leaves out come from main
+func TestMO06_SettingsAModelLeavesOutComeFromMain(t *testing.T) {
+	// Given main with max_tokens 1024 and a model smart without max_tokens
+	cfg, err := parseModels(t, `
+models:
+  main: { endpoint: http://x, model: y, privacy: local, max_tokens: 1024, cache_prompt: true, pin_slots: { voice: 0 } }
+  smart: { endpoint: http://z, model: w, privacy: cloud }
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// When smart is called
+	// Then it is called with max_tokens 1024
+	smart := cfg.Models["smart"]
+	if smart.MaxTokens != 1024 || smart.CachePrompt || len(smart.PinSlots) != 0 {
+		t.Errorf("smart = %+v", smart)
+	}
+	if cfg.SlotFor("main", ChannelVoice) != 0 || cfg.SlotFor("smart", ChannelVoice) != -1 {
+		t.Error("slots are not each model's own")
+	}
+}
+
+// MO-32 A circle of fallbacks does not load
+func TestMO32_ACircleOfFallbacksDoesNotLoad(t *testing.T) {
+	// Given smart with fallback lite and lite with fallback smart
+	// When Mira loads it
+	_, err := parseModels(t, `
+models:
+  main: { endpoint: http://x, model: y, privacy: local }
+  smart: { endpoint: http://x, model: y, privacy: cloud, fallback: lite }
+  lite: { endpoint: http://x, model: y, privacy: cloud, fallback: smart }
+`)
+	// Then loading fails, and the error names the circle
+	if err == nil || !strings.Contains(err.Error(), "lite → smart → lite") {
+		t.Errorf("err = %v", err)
+	}
+	if _, err := parseModels(t, "models:\n  main: { endpoint: http://x, model: y, privacy: local, fallback: nope }\n"); err == nil ||
+		!strings.Contains(err.Error(), `models.main.fallback: no model "nope"`) {
+		t.Errorf("unknown fallback: %v", err)
 	}
 }
 

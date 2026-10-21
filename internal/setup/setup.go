@@ -123,11 +123,24 @@ func Apply(cfg config.Config, s Settings) config.Config {
 			URL: cfg.HA.URL + haMCPEndpoint, Token: cfg.HA.Token}}, cfg.MCPServers...)
 	}
 	if l := s.LLM; l != nil {
-		cfg.LLM.BaseURL, cfg.LLM.Model, cfg.LLM.APIKey = strings.TrimRight(l.BaseURL, "/"), l.Model, l.APIKey
+		// The integration's model is main (docs/spec/modelle.md): a
+		// provider is cloud, an own server local.
+		main := cfg.Main()
+		main.BaseURL, main.Model, main.APIKey = strings.TrimRight(l.BaseURL, "/"), l.Model, l.APIKey
 		local := l.Kind != KindCloud
-		cfg.LLM.SlotPinning = false
-		cfg.LLM.CachePrompt = local
-		cfg.LLM.WarmupOnStart, cfg.LLM.WarmupOnPrefixChange = local, local
+		main.Privacy, main.Parallel = config.PrivacyCloud, 4
+		if local {
+			main.Privacy, main.Parallel = config.PrivacyLocal, 1
+		}
+		main.PinSlots = nil
+		main.CachePrompt = local
+		main.WarmupOnStart, main.WarmupOnPrefixChange = local, local
+		models := make(map[string]config.LLM, len(cfg.Models))
+		for name, m := range cfg.Models {
+			models[name] = m
+		}
+		models[config.MainModel] = main
+		cfg.Models = models
 	}
 	return cfg
 }
