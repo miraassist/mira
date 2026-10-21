@@ -215,3 +215,19 @@ func TestProblemTextsComplete(t *testing.T) {
 		t.Error("the languages differ")
 	}
 }
+
+// An agent without an input schema can be called without any input.
+func TestAgentWithoutInputNeedsNone(t *testing.T) {
+	e := setup(t)
+	e.fromYAML(t, `
+agents:
+  wetter:
+    description: Sagt, wie warm es ist.
+    instructions: Sag, wie warm es ist.
+`)
+	for _, in := range []string{``, `{}`} {
+		if res, err := e.rt.CallByName(context.Background(), "wetter", json.RawMessage(in), CallContext{}); err != nil || res.Status != Done {
+			t.Errorf("input %q: %+v, %v", in, res, err)
+		}
+	}
+}

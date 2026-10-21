@@ -117,7 +117,8 @@ the call ID.
 names in its description; whoever set up the automation decided to call it. `mira.agent` can be called by whoever can
 call Home Assistant actions, like `mira.assess` today. A conversation gets its rights as today.
 
-**Fields of `mira.agent`:** `agent`, `input` (an object), `mode` (`sync` / `async`), `timeout` (default 60 s),
+**Fields of `mira.agent`:** `agent`, `input` (an object; for an agent without an input schema `{"input": text}`,
+and without any input it gets an empty text), `mode` (`sync` / `async`), `timeout` (default 60 s),
 `on_timeout` (`cancel` / `run_on`, default `cancel`), `delivery` (`event` / `message`, default `event`; for `message`
 also `receiver`). `mira.agent_result` and `mira.agent_cancel` take only the call ID.
 

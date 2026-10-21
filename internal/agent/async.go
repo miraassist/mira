@@ -361,16 +361,20 @@ func (r *Runtime) CallByName(ctx context.Context, name string, input json.RawMes
 	return r.Call(ctx, spec, text, cc)
 }
 
-// inputFor is what an agent gets as input from a JSON object.
+// inputFor is what an agent gets as input from a JSON object. An agent
+// without an input schema takes {"input": text}; without it, an empty text.
 func inputFor(spec Spec, raw json.RawMessage) (string, error) {
-	if len(raw) == 0 || !json.Valid(raw) {
+	if len(spec.Input) == 0 && len(raw) == 0 {
+		return "", nil
+	}
+	if !json.Valid(raw) {
 		return "", errors.New("the input is not JSON")
 	}
 	if len(spec.Input) == 0 {
 		var in struct {
 			Input string `json:"input"`
 		}
-		if err := json.Unmarshal(raw, &in); err != nil || in.Input == "" {
+		if err := json.Unmarshal(raw, &in); err != nil {
 			return "", errors.New(`the input needs {"input": "…"}`)
 		}
 		return in.Input, nil
