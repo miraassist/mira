@@ -171,10 +171,12 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 - `description`: one sentence on when the skill is needed. That is all Mira sees until she opens the skill; a good sentence makes her open it at the right time.
 - Optionally under `metadata:` → `mira:`:
   - `settings`: values every household fills in itself, each with a `description` (it also appears in error messages) and `required: true` if the skill cannot work without it.
-  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). `{{person}}` and `{{person_calendar}}` are filled in (the calendar named like the login or the person; "-" without one), Mira adds what she knows about the person, and the message goes to that person instead of the house.
+  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) and `{{person_calendar}}` (the calendar named like the login or the person; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house.
+  - `target`: turns the skill into a concern over several turns, with questions back or as a run step by step (see below).
+  - `mail`: turns the skill into a mail application (see below).
 - The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`.
 
-**3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled conversation skills for tasks, remembering, appointments, to-dos and alarms switch themselves on.
+**3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels switch themselves on.
 
 **Example: watering plants.** The folder `skills/plants` holds the file `SKILL.md`:
 
@@ -215,6 +217,111 @@ skills:
 Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with `mira skill plants`.
 
 **When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.enabled". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
+
+### A concern with questions back
+
+Some things need several details Mira has to ask for first, and end with an action in Home Assistant. That is what `target` with fields is for. Mira collects the fields over several turns, asks for what is missing, and at the end calls the action the skill names. The model only fills the fields; which action runs is up to the skill.
+
+**Example: coffee.** You have a script `script.coffee` in Home Assistant that takes a variable `strength`. The skill `skills/coffee/SKILL.md`:
+
+```markdown
+---
+name: coffee
+description: Make coffee at the machine ("Make me a coffee", "a strong one, please").
+metadata:
+  mira:
+    target:
+      timeout: 5m
+      fields:
+        - name: strength
+          description: How strong the coffee should be
+          enum: [mild, normal, strong]
+      finish:
+        action: script.coffee
+        data:
+          strength: "{{ strength }}"
+---
+# Coffee
+
+If the user does not say how strong, ask briefly: "Mild, normal or strong?" Then say
+in one sentence that the coffee is on its way.
+```
+
+- **Fields** (`fields`): `name`, `description` (Mira asks along it), optionally `optional: true`, `enum` (only these values) and `check`, a built-in check: `entities` (devices in the house), `calendar_writable`, `calendar_event`, `todo_list`.
+- **Finish** (`finish`): a Home Assistant action with `data`. In `{{ … }}` Mira puts the fields, and the place: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (the satellite's ESPHome name) and `{{ person }}` when known. Empty values stay; with `omit_empty: true` they are left out. Instead of an action, a built-in finish works too: `memory.save`, `tasks.automation`, `calendar.delete`.
+- `confirm: true` makes Mira ask before the action. `undo` names a second action that takes back what was done when you correct it ("No, mild"). `timeout` is how long Mira waits for an answer (15 minutes by default).
+- What Home Assistant switches only with a yes (locks, alarm, the label "Mira: confirm first") asks here too.
+
+The bundled skills `wecker`, `termin` and `todo` are further examples.
+
+### A run step by step
+
+Some things last longer than a conversation: a recipe, a workout, assembly instructions. That is what `target` with `plan: true` is for. At the start Mira writes a plan herself, a Markdown text with the steps as checkboxes, and then works through it with you.
+
+**Example: workout.** `skills/workout/SKILL.md`:
+
+```markdown
+---
+name: workout
+description: Guide a short workout step by step ("Let's work out"); then "next", "again", "back".
+metadata:
+  mira:
+    target:
+      plan: true
+      timeout: 30m
+---
+# Workout
+
+Ask how much time the user has. Then write a plan with thread_plan (write): a
+heading, below it the exercises as checkboxes, each with a duration or repetitions,
+for example "- [ ] 30 seconds of jumping jacks". Read out only one exercise at a
+time. On "next" tick it off (check) and read the next one; on "back" open the last
+one again (uncheck). Offer a timer for exercises with a duration.
+```
+
+Mira does the rest by herself:
+- The plan belongs to the thread in the room where it started. It outlasts the conversation: minutes later, in a new conversation, Mira knows where you are.
+- While it runs, Mira sees the step done last, the current and the next one, and the skill's instructions. She reads the whole plan when she needs it.
+- Every step starts the time limit (`timeout`, 1 hour by default) anew. Once all steps are done, the run stays open for another 30 minutes in case something is left; then it ends. "Stop" ends it at once.
+- Everyone in the house sees the running plan in the **Plans** tab of the Mira page.
+- If the plan comes from the web (a recipe, say), Mira asks before she remembers or passes anything on while it runs.
+- A plan without checkboxes works too (a menu, say); Mira then only sees that there is one and reads it when needed.
+
+The bundled skill `kochen` is a detailed example.
+
+### Reading mails
+
+A skill with `mail` reads mails that announce something with a date and puts them into a calendar, the way `pakete` does with shipping mails. The skill only says what to take from a mail; what may come out, and how entries are created, changed and cleaned up, Mira handles herself.
+
+**Example: doctor's appointments.** `skills/doctor/SKILL.md`:
+
+```markdown
+---
+name: doctor
+description: Doctor's appointments from the practices' confirmation mails ("When is my next doctor's appointment?").
+metadata:
+  mira:
+    mail:
+      extract: >-
+        Relevant are confirmations, changes and cancellations of appointments with
+        doctors and practices. Title: "Appointment at <practice or doctor>". Keys: the
+        appointment or booking number. Status: confirmed or moved: scheduled; cancelled:
+        cancelled. Day and time of the appointment, as the place the practice's address.
+        Details: the reason, if given. Never insurance numbers or links.
+---
+# Doctor's appointments
+
+The appointments are in the calendar "Doctor" (for the house) and "Doctor <login>" (for a
+person). When someone asks about doctor's appointments, read them with calendar_events
+from today on.
+```
+
+To get it running:
+1. Switch the skill on under `skills.enabled` (`doctor:`).
+2. In Home Assistant, add the IMAP integration with a **search** for the senders, such as `FROM doctolib.de`.
+3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). Mira creates the calendar of the same name.
+
+What Mira handles herself: every new mail is read by a model call of its own, without the house, tools or memory. Only a title, keys, status, day, time, place and details come out, and Mira checks them. A newer mail changes the entry, an older one is dropped, a cancellation removes it, and Mira clears what is done or past. The model for this goes under `routing` as `mail` in `mira.yaml`. Doctor's mails contain health data; a local model keeps them in the house.
 
 ## Cooking and baking
 

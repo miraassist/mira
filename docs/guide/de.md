@@ -175,10 +175,12 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 - `description`: ein Satz, wann der Skill gebraucht wird. Mehr sieht Mira nicht, bis sie den Skill öffnet; ist der Satz gut, öffnet sie ihn zur rechten Zeit.
 - Optional unter `metadata:` → `mira:`:
   - `settings`: Angaben, die jeder Haushalt selbst einträgt, jeweils mit einer `description` (die erscheint auch in Fehlermeldungen) und `required: true`, wenn der Skill ohne sie nicht arbeiten kann.
-  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). `{{person}}` und `{{person_calendar}}` werden eingesetzt (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne), Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus.
+  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). Eingesetzt werden `{{person}}` (der Name), `{{person_login}}` (der Login-Name in Home Assistant, „-“ ohne) und `{{person_calendar}}` (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne). Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus.
+  - `target`: macht aus dem Skill ein Anliegen über mehrere Gesprächszüge, mit Rückfragen oder als Ablauf Schritt für Schritt (siehe unten).
+  - `mail`: macht aus dem Skill eine Mail-Anwendung (siehe unten).
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein.
 
-**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills.enabled` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit einem Doppelpunkt. Nur die mitgelieferten Gesprächs-Skills für Aufgaben, Merken, Termine, To-dos und Wecker schalten sich selbst ein.
+**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills.enabled` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit einem Doppelpunkt. Nur die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete schalten sich selbst ein.
 
 **Beispiel: Blumen gießen.** Der Ordner `skills/blumen` enthält die Datei `SKILL.md`:
 
@@ -219,6 +221,111 @@ skills:
 Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet sie aus der Liste, und sonntags um 10 Uhr meldet sie sich von selbst. Den Zeitplan probierst du mit `mira skill blumen` sofort aus.
 
 **Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.enabled“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
+
+### Ein Anliegen mit Rückfragen
+
+Manches braucht mehrere Angaben, die Mira erst erfragen muss, und endet mit einer Aktion in Home Assistant. Dafür gibt es `target` mit Feldern. Mira sammelt die Felder über mehrere Gesprächszüge, fragt nach, was fehlt, und ruft am Ende die Aktion auf, die der Skill festlegt. Das Modell füllt nur die Felder; welche Aktion läuft, steht im Skill.
+
+**Beispiel: Kaffee.** Du hast in Home Assistant ein Skript `script.kaffee`, das eine Variable `staerke` nimmt. Der Skill `skills/kaffee/SKILL.md`:
+
+```markdown
+---
+name: kaffee
+description: Kaffee an der Maschine kochen („Mach mir einen Kaffee“, „einen starken bitte“).
+metadata:
+  mira:
+    target:
+      timeout: 5m
+      fields:
+        - name: staerke
+          description: Wie stark der Kaffee sein soll
+          enum: [mild, normal, stark]
+      finish:
+        action: script.kaffee
+        data:
+          staerke: "{{ staerke }}"
+---
+# Kaffee
+
+Sagt der Nutzer nicht, wie stark, frag kurz: „Mild, normal oder stark?“ Sag danach
+in einem Satz, dass der Kaffee läuft.
+```
+
+- **Felder** (`fields`): `name`, `description` (danach richtet sich Mira beim Fragen), auf Wunsch `optional: true`, `enum` (nur diese Werte) und `check`, eine eingebaute Prüfung: `entities` (Geräte im Haus), `calendar_writable`, `calendar_event`, `todo_list`.
+- **Abschluss** (`finish`): eine Aktion von Home Assistant mit `data`. In `{{ … }}` setzt Mira die Felder ein, dazu den Ort: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (der ESPHome-Name des Satelliten) und `{{ person }}`, falls bekannt. Leere Werte bleiben stehen; mit `omit_empty: true` fallen sie weg. Statt einer Aktion geht auch ein eingebauter Abschluss: `memory.save`, `tasks.automation`, `calendar.delete`.
+- `confirm: true` lässt Mira vor der Aktion fragen. `undo` nennt eine zweite Aktion, die das Ausgeführte zurücknimmt, wenn du korrigierst („Nein, mild“). `timeout` ist, wie lange Mira auf eine Antwort wartet (Vorgabe 15 Minuten).
+- Was in Home Assistant nur mit Ja geschaltet wird (Schlösser, Alarm, das Label „Mira: nachfragen“), fragt auch hier nach.
+
+Die mitgelieferten Skills `wecker`, `termin` und `todo` sind weitere Beispiele.
+
+### Ein Ablauf Schritt für Schritt
+
+Manches dauert länger als ein Gespräch: ein Rezept, ein Training, eine Aufbauanleitung. Dafür gibt es `target` mit `plan: true`. Mira schreibt am Anfang selbst einen Plan, ein Markdown-Text mit den Schritten als Kästchen, und arbeitet ihn dann mit dir ab.
+
+**Beispiel: Training.** `skills/training/SKILL.md`:
+
+```markdown
+---
+name: training
+description: Ein kurzes Training Schritt für Schritt anleiten („Lass uns trainieren“); danach „weiter“, „nochmal“, „zurück“.
+metadata:
+  mira:
+    target:
+      plan: true
+      timeout: 30m
+---
+# Training
+
+Frag, wie viel Zeit der Nutzer hat. Schreib dann mit thread_plan (write) einen
+Plan: eine Überschrift, darunter die Übungen als Kästchen, jede mit Dauer oder
+Wiederholungen, zum Beispiel „- [ ] 30 Sekunden Hampelmann“. Lies immer nur eine
+Übung vor. Bei „weiter“ hakst du sie ab (check) und liest die nächste vor, bei
+„zurück“ öffnest du die letzte wieder (uncheck). Biete bei Übungen mit Dauer
+einen Timer an.
+```
+
+Den Rest macht Mira von selbst:
+- Der Plan gehört zum Vorgang im Raum, in dem er begonnen wurde. Er überdauert das Gespräch: Auch Minuten später, in einem neuen Gespräch, weiß Mira, wo ihr seid.
+- Solange er läuft, sieht Mira den zuletzt erledigten, den aktuellen und den nächsten Schritt sowie die Anleitung des Skills. Den ganzen Plan liest sie bei Bedarf nach.
+- Jeder Schritt startet die Frist (`timeout`, Vorgabe 1 Stunde) neu. Sind alle Schritte erledigt, bleibt der Ablauf noch 30 Minuten offen, falls doch noch etwas ist; dann endet er. „Hör auf“ beendet ihn sofort.
+- Im Reiter **Pläne** der Mira-Seite sieht jeder im Haus den laufenden Plan.
+- Stammt der Plan aus dem Netz (etwa ein Rezept), fragt Mira, solange er läuft, nach, bevor sie sich etwas merkt oder etwas weitergibt.
+- Ein Plan ohne Kästchen geht auch (etwa ein Menü); dann sieht Mira nur, dass es ihn gibt, und liest ihn bei Bedarf.
+
+Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel.
+
+### Mails auswerten
+
+Ein Skill mit `mail` wertet Mails aus, die etwas mit einem Termin ankündigen, und trägt sie in einen Kalender ein, so wie `pakete` die Versandmails. Der Skill sagt nur, was aus einer Mail zu holen ist; was ins Ergebnis darf und wie Einträge angelegt, geändert und aufgeräumt werden, regelt Mira selbst.
+
+**Beispiel: Arzttermine.** `skills/arzt/SKILL.md`:
+
+```markdown
+---
+name: arzt
+description: Arzttermine aus den Bestätigungsmails der Praxen („Wann ist mein nächster Arzttermin?“).
+metadata:
+  mira:
+    mail:
+      extract: >-
+        Relevant sind Bestätigungen, Verschiebungen und Absagen von Terminen bei Ärzten
+        und Praxen. Titel: „Termin bei <Praxis oder Arzt>“. Kennungen: die Termin- oder
+        Buchungsnummer. Status: bestätigt oder verschoben: scheduled; abgesagt: cancelled.
+        Tag und Uhrzeit des Termins, als Ort die Adresse der Praxis. Einzelheiten: der
+        Grund, falls genannt. Nie Versichertennummern oder Links.
+---
+# Arzttermine
+
+Die Termine stehen im Kalender „Arzt“ (fürs Haus) und „Arzt <Login>“ (für eine Person).
+Fragt jemand nach Arztterminen, lies sie mit calendar_events von heute an.
+```
+
+So kommt es zum Laufen:
+1. Den Skill unter `skills.enabled` einschalten (`arzt:`).
+2. In Home Assistant die IMAP-Integration hinzufügen, mit einer **Suche** nach den Absendern, etwa `FROM doctolib.de`.
+3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legt Mira an.
+
+Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne Haus, Werkzeuge und Gedächtnis. Heraus kommen nur Titel, Kennungen, Status, Tag, Uhrzeit, Ort und Einzelheiten, die Mira prüft. Eine neuere Mail ändert den Eintrag, eine ältere wird verworfen, eine Absage löscht ihn, Erledigtes und Vergangenes räumt Mira weg. Das Modell dafür steht in der `mira.yaml` unter `routing` als `mail`. Arztmails enthalten Gesundheitsdaten; ein lokales Modell hält sie im Haus.
 
 ## Kochen und Backen
 

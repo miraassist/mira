@@ -218,6 +218,42 @@ func TestPlanWithFieldsIsAProblem(t *testing.T) {
 	}
 }
 
+// Every example skill in the guides' section on writing skills loads,
+// without a problem: what the guide shows is what works.
+func TestAllGuideExamplesLoad(t *testing.T) {
+	settings := map[string]map[string]any{"blumen": {"pflanzen": "Farn"}, "plants": {"plants": "Fern"}}
+	for file, marker := range map[string]string{
+		"../../docs/guide/de.md": "## Eigenen Skill erstellen",
+		"../../docs/guide/en.md": "## Creating your own skill",
+	} {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		section := string(raw)[strings.Index(string(raw), marker)+len(marker):]
+		section = section[:strings.Index(section, "\n## ")]
+		blocks := strings.Split(section, "```markdown\n")[1:]
+		if len(blocks) != 4 {
+			t.Fatalf("%s: %d examples", file, len(blocks))
+		}
+		for _, b := range blocks {
+			text := b[:strings.Index(b, "```")]
+			name := strings.TrimSpace(strings.SplitN(strings.SplitN(text, "name:", 2)[1], "\n", 2)[0])
+			dir := t.TempDir()
+			if err := os.Mkdir(filepath.Join(dir, name), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, name, "SKILL.md"), []byte(text), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			list, problems := Load([]string{dir}, map[string]map[string]any{name: settings[name]})
+			if len(problems) != 0 || len(list) != 1 {
+				t.Errorf("%s, %s: %+v %v", file, name, list, problems)
+			}
+		}
+	}
+}
+
 // The example skill in the guides must load: what the guide shows is what
 // works.
 func TestGuideExampleLoads(t *testing.T) {
