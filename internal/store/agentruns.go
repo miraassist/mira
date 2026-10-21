@@ -23,10 +23,20 @@ type AgentRun struct {
 	Error  string
 	// Foreign: the run read third-party text.
 	Foreign bool
+	// Usage is what the run cost, once it ended.
+	Usage AgentUsage
 	// Deadline is when the run expires; EndedAt is zero while it runs.
 	StartedAt time.Time
 	Deadline  time.Time
 	EndedAt   time.Time
+}
+
+// AgentUsage is a run's model, its calls and tokens.
+type AgentUsage struct {
+	Model            string
+	ModelCalls       int
+	PromptTokens     int
+	CompletionTokens int
 }
 
 // AgentStep is one part a run's round added: a model answer, a tool marked
@@ -54,11 +64,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	return err
 }
 
-// EndAgentRun gives a run its final status, its output or error, and
-// whether it read third-party text.
-func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText string, foreign bool) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE agent_runs SET status = ?, output = ?, error = ?, foreign_text = ?, ended_at = ? WHERE call_id = ?`,
-		status, output, errText, foreign, formatTime(s.now()), callID)
+// EndAgentRun gives a run its final status, its output or error, whether
+// it read third-party text, and what it cost.
+func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText string, foreign bool, u AgentUsage) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE agent_runs SET status = ?, output = ?, error = ?, foreign_text = ?, ended_at = ?,
+	model = ?, model_calls = ?, prompt_tokens = ?, completion_tokens = ? WHERE call_id = ?`,
+		status, output, errText, foreign, formatTime(s.now()), u.Model, u.ModelCalls, u.PromptTokens, u.CompletionTokens, callID)
 	if err != nil {
 		return err
 	}
@@ -68,13 +79,15 @@ func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText
 	return nil
 }
 
-const agentRunSelect = `SELECT call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at, foreign_text FROM agent_runs`
+const agentRunSelect = `SELECT call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at, foreign_text,
+	model, model_calls, prompt_tokens, completion_tokens FROM agent_runs`
 
 func scanAgentRun(row scannable) (AgentRun, error) {
 	var r AgentRun
 	var call, started, deadline, ended string
 	if err := row.Scan(&r.CallID, &r.ParentID, &r.Agent, &r.Status, &call, &r.Input, &r.Output, &r.Error,
-		&started, &deadline, &ended, &r.Foreign); err != nil {
+		&started, &deadline, &ended, &r.Foreign, &r.Usage.Model, &r.Usage.ModelCalls, &r.Usage.PromptTokens,
+		&r.Usage.CompletionTokens); err != nil {
 		return AgentRun{}, err
 	}
 	r.Call = json.RawMessage(call)
@@ -93,7 +106,18 @@ func (s *Store) GetAgentRun(ctx context.Context, callID string) (AgentRun, error
 // RunningAgentRuns are the runs still running, oldest first: after a
 // restart they are continued.
 func (s *Store) RunningAgentRuns(ctx context.Context) ([]AgentRun, error) {
-	rows, err := s.db.QueryContext(ctx, agentRunSelect+` WHERE status = 'running' ORDER BY started_at`)
+	return s.agentRuns(ctx, agentRunSelect+` WHERE status = 'running' ORDER BY started_at`)
+}
+
+// RecentAgentRuns are the runs still running and those that ended since,
+// running ones first, then newest first (the run view).
+func (s *Store) RecentAgentRuns(ctx context.Context, since time.Time) ([]AgentRun, error) {
+	return s.agentRuns(ctx, agentRunSelect+` WHERE status = 'running' OR ended_at >= ?
+	ORDER BY status = 'running' DESC, started_at DESC`, formatTime(since))
+}
+
+func (s *Store) agentRuns(ctx context.Context, query string, args ...any) ([]AgentRun, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

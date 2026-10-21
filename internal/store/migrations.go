@@ -332,6 +332,16 @@ ALTER TABLE threads ADD COLUMN calls TEXT NOT NULL DEFAULT '{}';
 ALTER TABLE agent_runs ADD COLUMN foreign_text INTEGER NOT NULL DEFAULT 0;
 `,
 	},
+	{
+		// What a run cost, for the run view on Mira's page.
+		name: "0018_agent_run_usage",
+		stmt: `
+ALTER TABLE agent_runs ADD COLUMN model TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_runs ADD COLUMN model_calls INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0;
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

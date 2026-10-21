@@ -138,6 +138,7 @@ p.empty { margin: 4px 0 0; font-size: 15px; }
 details.profile { margin: 0 0 10px; }
 details.profile > summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px; }
 details.profile pre { background: var(--badge); padding: 10px 12px; border-radius: 10px; margin-top: 8px; }
+.runpre { background: var(--badge); padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18em; overflow: auto; font-size: 13px; }
 td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @media (max-width: 600px) { td.fact-actions { white-space: normal; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
@@ -350,6 +351,22 @@ const I18N = {
   "tab_plans": "Pläne",
   "plans_hint": "Was du gerade mit Mira Schritt für Schritt machst, etwa ein Rezept. Hier siehst du, wo ihr steht; weiter geht es im Gespräch (\"weiter\", \"nochmal\", \"zurück\").",
   "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
+  "tab_agents": "Agenten",
+  "agents_hint": "Zum Fehlersuchen: die Läufe, die Mira im Hintergrund speichert (asynchrone Aufrufe), bis 60 Minuten nach ihrem Ende. Gespräche und andere direkte Aufrufe stehen nur im Log.",
+  "no_runs": "Gerade ist kein gespeicherter Lauf da.",
+  "run_call": "Aufruf",
+  "run_from": "aufgerufen von",
+  "run_input": "Eingabe",
+  "run_output": "Ergebnis",
+  "run_error": "Fehler",
+  "run_model": "Modell",
+  "run_started": "gestartet",
+  "run_result": "Ergebnis von",
+  "run_state": "Weiß jetzt",
+  "run_web": "hat Webinhalt gelesen",
+  "run_foreign": "fremder Text im Spiel",
+  "run_calls": "Aufrufe",
+  "run_tokens": "Tokens",
   "plan_steps": "Schritte erledigt",
   "plan_since": "seit",
   "plan_finished": "fertig",
@@ -552,6 +569,22 @@ const I18N = {
   "tab_plans": "Plans",
   "plans_hint": "What you are doing with Mira step by step right now, such as a recipe. Here you see where you are; it goes on in conversation (\"next\", \"again\", \"back\").",
   "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
+  "tab_agents": "Agents",
+  "agents_hint": "For debugging: the runs Mira stores in the background (asynchronous calls), until 60 minutes after their end. Conversations and other direct calls are only in the log.",
+  "no_runs": "No stored run at the moment.",
+  "run_call": "Call",
+  "run_from": "called by",
+  "run_input": "Input",
+  "run_output": "Output",
+  "run_error": "Error",
+  "run_model": "Model",
+  "run_started": "started",
+  "run_result": "Result of",
+  "run_state": "Now knows",
+  "run_web": "read web content",
+  "run_foreign": "third-party text involved",
+  "run_calls": "calls",
+  "run_tokens": "tokens",
   "plan_steps": "steps done",
   "plan_since": "since",
   "plan_finished": "done",
@@ -591,7 +624,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["messages", "tasks", "plans", "notifier", "rooms", "persons", "memory", "guide"];
+const ALL_TABS = ["messages", "tasks", "plans", "notifier", "rooms", "persons", "memory", "agents", "guide"];
 let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
@@ -792,7 +825,7 @@ function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
   nav();
-  const views = { messages, tasks, plans, notifier, rooms, persons, memory, guide };
+  const views = { messages, tasks, plans, notifier, rooms, persons, memory, agents, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -1148,6 +1181,58 @@ async function compact() {
     await memory();
     message(r.changed ? T.profile_updated : T.profile_unchanged, true);
   } catch (e) { message(e.message, false); memory(); }
+}
+
+// ---- Agenten --------------------------------------------------------------
+// The stored agent runs, read-only (docs/spec/agenten.md, Run view). The
+// list follows by itself while no run is opened.
+let runTimer = null;
+async function agents() {
+  clearTimeout(runTimer);
+  if (!$("#runlist")) {
+    $("#view").innerHTML = `<section class="card"><h2>${T.tab_agents}</h2><p class="hint">${T.agents_hint}</p><div id="runlist">${T.loading}</div></section>`;
+  }
+  if (!document.querySelector("#runlist details[open]")) {
+    try {
+      const list = (await api("GET", "/v1/ui/agents")).runs || [];
+      $("#runlist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_runs}</p>` : list.map(r => `
+        <details class="item run" ontoggle="if (this.open) runDetail(this, '${esc(r.call_id)}')">
+          <summary>
+            <span class="lead"><h3>${esc(r.agent)}</h3><span class="badge${r.status === "running" ? " ui" : ""}">${esc(r.status)}</span></span>
+            <span class="short">${esc(r.started)}${r.ended ? "–" + esc(r.ended) : ""} · ${(r.duration_ms / 1000).toFixed(1)} s${r.model ? ` · ${esc(r.model)} · ${r.model_calls} ${T.run_calls} · ${r.prompt_tokens + r.completion_tokens} ${T.run_tokens}` : ""}${r.route ? ` · ${esc(r.route)}` : ""}</span>
+            <span class="short">${r.parent_id ? `${T.run_from} ${esc(r.parent_id)}` : ""}</span>
+          </summary>
+          <div class="rundetail">${T.loading}</div>
+        </details>`).join("");
+    } catch (e) { message(e.message, false); }
+  }
+  if (tab === "agents") runTimer = setTimeout(agents, 10000);
+}
+// runDetail shows one run: its call, input, every stored step, the output.
+async function runDetail(el, id) {
+  const box = el.querySelector(".rundetail");
+  try {
+    const d = await api("GET", "/v1/ui/agents/" + encodeURIComponent(id));
+    const c = d.call || {};
+    const pre = text => `<pre class="runpre">${esc(text)}</pre>`;
+    const step = s => {
+      const b = s.body || {};
+      switch (s.kind) {
+        case "answer": return `<p><b>${T.run_model}:</b> ${esc(b.content || "")}</p>` +
+          (b.tool_calls || []).map(tc => `<p>→ <code>${esc(tc.function.name)}</code></p>${pre(tc.function.arguments || "{}")}`).join("");
+        case "started": return `<p class="hint">▶ <code>${esc(b.name)}</code> ${T.run_started}</p>`;
+        case "result": return `<p><b>${T.run_result} <code>${esc(b.name)}</code>:</b></p>${pre(b.content || "")}`;
+        case "state": return `<p class="hint">${T.run_state}: ${[b.web ? T.run_web : "", b.foreign ? T.run_foreign : ""].filter(Boolean).join(", ")}</p>`;
+      }
+      return pre(JSON.stringify(b, null, 2));
+    };
+    box.innerHTML = `
+      <p class="hint"><b>${T.run_call}:</b> ${esc(d.call_id)} · ${esc(c.origin || "")} · ${esc(c.mode || "")}${c.delivery ? " → " + esc(c.delivery) : ""}${c.thread ? ` (${esc(c.thread)} / ${esc(c.into)})` : ""} · ${esc(c.rights || "")} · depth ${c.depth}${c.person ? " · " + esc(c.person) : ""}${c.place ? " · " + esc(c.place) : ""}${d.foreign ? " · " + T.run_foreign : ""}</p>
+      <p><b>${T.run_input}:</b></p>${pre(d.input || "")}
+      ${(d.steps || []).map(step).join("")}
+      ${d.output ? `<p><b>${T.run_output}:</b></p>${pre(d.output)}` : ""}
+      ${d.error ? `<p><b>${T.run_error}:</b> ${esc(d.error)}</p>` : ""}`;
+  } catch (e) { box.textContent = e.message; }
 }
 
 // ---- Pläne ----------------------------------------------------------------

@@ -123,6 +123,9 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.authAnyone(h.editFact))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
+	// The stored agent runs, for debugging (agents.go).
+	h.mux.HandleFunc("GET /v1/ui/agents", h.auth(h.runs))
+	h.mux.HandleFunc("GET /v1/ui/agents/{id}", h.auth(h.run))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.enableTask(true)))
 	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/pause", h.auth(h.enableTask(false)))
