@@ -45,11 +45,11 @@ type Options struct {
 	Source   Source
 	HA       HA
 	Snapshot func() structure.Snapshot
-	// Model judges (assess, decide); Planner drafts automations. Both may
-	// be the same.
-	Model, Planner Model
-	QuietHours     config.QuietHours
-	Persons        func() map[string]config.Person
+	// Model judges (assess), Decider decides, Planner drafts automations.
+	// Decider and Planner default to Model.
+	Model, Decider, Planner Model
+	QuietHours              config.QuietHours
+	Persons                 func() map[string]config.Person
 	// Satellites maps an area to its satellite, for where a task was asked.
 	Satellites func() map[string]string
 	// Upcoming renders a calendar's events in a window (view upcoming).
@@ -85,6 +85,9 @@ func New(opts Options) *Manager {
 	}
 	if opts.Planner == nil {
 		opts.Planner = opts.Model
+	}
+	if opts.Decider == nil {
+		opts.Decider = opts.Model
 	}
 	return &Manager{opts: opts, log: opts.Logger.With("component", "tasks")}
 }

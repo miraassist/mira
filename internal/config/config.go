@@ -126,12 +126,13 @@ type Routing struct {
 	Background string `yaml:"background"`
 	// Delegate is the model the delegate tool hands harder tasks to.
 	Delegate string `yaml:"delegate"`
-	// Tasks is the model that plans standing orders; empty is the
-	// background model. Planning reads the whole house once per order, so
+	// Tasks is the model that plans standing orders (the agent tasks.plan);
+	// empty is main. Planning reads the whole house once per order, so
 	// a cloud model keeps it off the local GPU while someone is talking.
 	Tasks string `yaml:"tasks"`
-	// Mail is the model that reads the mails of the mail calendars
-	// (docs/spec/mail-kalender.md); empty is the background model. It sees
+	// Mail is the model that reads the mails of the mail calendars (the
+	// agents mail.read and mail.match, docs/spec/mail-kalender.md); empty is
+	// main. It sees
 	// the mails, so a local model keeps them in the house.
 	Mail string `yaml:"mail"`
 }

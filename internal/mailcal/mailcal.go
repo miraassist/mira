@@ -75,16 +75,16 @@ type Model interface {
 
 type Options struct {
 	Calendar Calendar
-	Model    Model
+	// Model reads a mail (the agent mail.read); Matcher says which open
+	// entry a mail without a key is about (mail.match), default Model. A
+	// hanging or failed call is tried again by the agent's limits.
+	Model   Model
+	Matcher Model
 	// Apps returns the mail applications by skill name (lower case).
 	Apps     func() map[string]App
 	Location *time.Location
 	Clock    func() time.Time
 	Logger   *slog.Logger
-	// AttemptTimeout bounds one model call; a call that takes longer is
-	// tried once more. Default 60 s: a local model with a cold prompt takes
-	// about 50.
-	AttemptTimeout time.Duration
 }
 
 // App is a mail application, from its skill's mail section.
@@ -113,8 +113,8 @@ func New(o Options) *Service {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	if o.AttemptTimeout == 0 {
-		o.AttemptTimeout = 60 * time.Second
+	if o.Matcher == nil {
+		o.Matcher = o.Model
 	}
 	return &Service{o: o, log: o.Logger.With("component", "mailcal"), locks: map[string]*sync.Mutex{}}
 }

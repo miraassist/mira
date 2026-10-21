@@ -364,6 +364,7 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, loc
 	if err != nil {
 		return nil, err
 	}
+	llm.Count(ctx, model, time.Since(began), out)
 	res.PromptTokens += out.Usage.PromptTokens
 	res.Completion += out.Usage.CompletionTokens
 	return out, nil

@@ -64,7 +64,7 @@ IMAP entry with device "Pakete" (search)
 
 - An **isolated** model call: no house, no tools, no memory, no history. It gets the
   **mail instructions of the skill** and the mail, marked as data.
-- **Model:** role `mail` under `routing`; without it, the model for background tasks. A call that
+- **Model:** role `mail` under `routing`; without it, `main` (docs/spec/agenten.md). A call that
   fails or has no answer after 60 s is repeated once (a cloud model stays without an answer now and then). A cloud model sees
   the mails (names, addresses, orders, for appointments also health data); the guide recommends a local one.
 - **Schema** (JSON):

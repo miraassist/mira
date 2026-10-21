@@ -58,8 +58,8 @@ routing:
   telegram: main
   background: lite
   delegate: smart
-  tasks: smart        # plans standing orders; empty is background
-  # mail: local       # reads the mails of the mail calendars; empty is background
+  tasks: smart        # plans standing orders; empty is main
+  # mail: local       # reads the mails of the mail calendars; empty is main
 
 # store.path defaults to mira.db in $MIRA_DATA (/var/lib/mira in the image).
 # store:

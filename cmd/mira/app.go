@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/announce"
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/channels/haconv"
@@ -52,6 +53,8 @@ type app struct {
 	// for what only the model reads.
 	langs *language.Resolver
 	lang  i18n.Lang
+	// agents is the runtime of Mira's agents (docs/spec/agenten.md).
+	agents *agent.Runtime
 	// calendar reads and changes Home Assistant's calendars.
 	calendar *calendar.Calendar
 	// mail keeps the mail calendars (mail.go); nil without a mail skill.
@@ -255,7 +258,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Mails that announce something with a time, kept in a calendar
 	// (docs/spec/mail-kalender.md); the mail skills say what to read.
 	if apps := mailApps(loaded); len(apps) > 0 {
-		a.mail = mailcal.New(mailcal.Options{Calendar: mailCalendar{a}, Model: isolatedModel{a, cfg.Routing.Mail},
+		a.mail = mailcal.New(mailcal.Options{Calendar: mailCalendar{a}, Model: a.mailRead(), Matcher: a.mailMatch(),
 			Apps: func() map[string]mailcal.App { return apps }, Logger: a.log})
 		a.log.Info("mail calendar on", "apps", a.mail.AppNames())
 	}
@@ -302,12 +305,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	}))
-	// Drafting and judging run on the engine, which is built from this
-	// registry: bound late through isolatedModel.
+	// Judging, deciding and drafting are isolated agents (agents.go), bound
+	// late: the agent runtime is built after this registry.
 	a.tasks = tasks.New(tasks.Options{
 		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
-		Model:      isolatedModel{a, cfg.RouteFor(config.ChannelBackground)},
-		Planner:    isolatedModel{a, cfg.Routing.Tasks},
+		Model:      a.tasksAssess(),
+		Decider:    a.tasksDecide(),
+		Planner:    a.tasksPlan(),
 		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
 		ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
 		Persons:    a.persons,
@@ -368,9 +372,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		assistText = a.assist.Text
 		deviceHints = a.assist.Tail
 	}
+	guard := tools.NewGuard(a.lang, cfg.Security, a.store, snapshot)
+	a.agents = a.newAgents(registry, guard)
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
-		Guard:     tools.NewGuard(a.lang, cfg.Security, a.store, snapshot),
+		Guard:     guard,
 		Structure: snapshot, StructurePrompt: assistText, DeviceHints: deviceHints, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify,
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
@@ -671,17 +677,6 @@ func (a *app) haUser(ctx context.Context) string {
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
 	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen"}
-}
-
-// isolatedModel runs the tasks' judgements and drafts on the named model,
-// without the house prompt.
-type isolatedModel struct {
-	a     *app
-	model string
-}
-
-func (m isolatedModel) Ask(ctx context.Context, system, instruction string, schema json.RawMessage) (string, error) {
-	return m.a.engine.AssessIsolatedOn(ctx, m.model, system, instruction, schema)
 }
 
 // persons are the configured persons from the live config.
@@ -988,7 +983,7 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 func (a *app) profileCompactor() *profile.Compactor {
 	return profile.New(profile.Options{
 		Lang:  a.lang,
-		Store: a.store, Assessor: a.engine, Schedule: a.cfg.Memory.ProfileSchedule,
+		Store: a.store, Assessor: a.profileCompact(), Schedule: a.cfg.Memory.ProfileSchedule,
 		MaxChars: a.cfg.Memory.MaxProfileChars, Logger: a.log,
 		OnChange: func() { a.warmup("profile_changed") },
 	})

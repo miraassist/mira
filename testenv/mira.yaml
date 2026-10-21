@@ -32,6 +32,7 @@ routing:
   telegram: smart
   background: smart
   tasks: smart
+  mail: smart
 
 store:
   path: "testenv/mira.db"

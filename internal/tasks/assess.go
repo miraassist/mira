@@ -159,7 +159,7 @@ func (m *Manager) Decide(ctx context.Context, r Request) (Decision, error) {
 	key := taskKey(r.Task, r.Question)
 	data := m.render(ctx, r.Data)
 	prompt := m.judgement(ctx, key, r, data) + t.decideRules
-	raw, err := m.opts.Model.Ask(ctx, t.judgeSystem, prompt, json.RawMessage(decisionSchema))
+	raw, err := m.opts.Decider.Ask(ctx, t.judgeSystem, prompt, json.RawMessage(decisionSchema))
 	if err != nil {
 		return Decision{}, err
 	}
