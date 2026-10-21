@@ -84,6 +84,19 @@ the call ID.
   `mira.agent`. All agents can be called from Home Assistant.
 - **From the code:** directly, as the notifier calls `notify.compose` today.
 
+**Rights of a call from outside:** a call from Home Assistant (`mira.agent`) gets the rights the agent itself
+names in its description; whoever set up the automation decided to call it. `mira.agent` can be called by whoever can
+call Home Assistant actions, like `mira.assess` today. A conversation gets its rights as today.
+
+**Cancelling:** the HA action `mira.agent_cancel` with the call ID cancels a running run; in a conversation "vergiss
+es" ends it through the thread, as today.
+
+**Duplicate calls from Home Assistant:** Home Assistant's own run modes handle them. Automations, like scripts, have
+`mode` (default `single`: while the automation runs, a second trigger is dropped). An automation that calls
+synchronously, or calls asynchronously and waits for `mira_agent_done` (`wait_for_trigger`), therefore starts no
+second run. Only one that calls asynchronously and does not wait can start two runs; that is its author's choice.
+Mira has no deduplication key of its own for this.
+
 ## Synchronous and asynchronous
 
 The **caller** decides, in the mode of the call context.
@@ -136,6 +149,8 @@ a run achieved (such as `mail read`) stay in addition.
   runs each in a goroutine of its own, can cancel it, and shuts down in order.
 - **Access to the models** is limited per model, not per channel as today: a local model serves one request at a
   time, a cloud model several. The runtime starts with fixed defaults for this.
+- **At most 10 runs at the same time** in the runtime, a fixed default without a setting; another one waits until
+  one ends.
 
 ### Shared state
 
@@ -169,6 +184,10 @@ Asynchronous runs survive a restart of the agent and are continued.
   more after the restart and got an error. Only what runs asynchronously, or ran on after its timeout, is continued;
   its result goes out on its delivery route.
 - Only asynchronous runs store anything; synchronous runs write nothing extra.
+- **The agent changed in the meantime** (an update, an edited YAML description): the run goes on with the new
+  description. If the agent no longer exists, the run fails, with that reason.
+- **Stored content** can hold private data (mails, web pages). It goes with the run record, 60 minutes after the
+  run's end.
 
 ## The building block in the code
 
@@ -292,7 +311,7 @@ From that:
 8. **Synchronous or asynchronous is the caller's choice**, synchronous with a timeout.
 9. **Asynchronous results** lie in a run record with call ID and output following the schema; the caller is
    notified. A message is one of the routes, not the only one.
-10. **Names:** `mira.agent`, `mira.agent_result`, `mira_agent_done`, `agents.max_depth`.
+10. **Names:** `mira.agent`, `mira.agent_result`, `mira.agent_cancel`, `mira_agent_done`, `agents.max_depth`.
 11. **Defaults:** depth at most 3; a run record stays 60 minutes after its end.
 12. **Callable from Home Assistant** are all agents.
 13. **`delegate` without an entry:** the rule "without an entry `main`" holds for it too; the tool `delegate` thus
@@ -306,3 +325,9 @@ From that:
     read need "read the house", the others "act on the house"; tools that read web content need "web". Mira's own
     tools name their right explicitly (`memory_save`: "remember"; `message_send` and reminders: "messages"; radio and
     sleep timer: "act on the house"). The table of all tools goes into this spec with step 1.
+17. **Rights from outside:** a call from Home Assistant gets the rights the agent names; `mira.agent` can be called
+    by whoever can call Home Assistant actions.
+18. **Cancelling:** `mira.agent_cancel` with the call ID.
+19. **A new version during a run:** the run goes on with the new description; without the agent it fails.
+20. **At most 10 runs at the same time**, a fixed default.
+21. **No deduplication key:** Home Assistant's run modes (`single`, waiting for the result) cover duplicate calls.

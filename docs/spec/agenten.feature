@@ -333,3 +333,35 @@ Feature: AG Agents
     When the agent shuts down
     Then no new round starts
     And everything up to then is stored
+
+  @step6
+  Scenario: AG-67 A call from Home Assistant gets the agent's own rights
+    Given an agent whose description names the rights "read the house" and "messages"
+    When an automation calls it with mira.agent
+    Then the run's effective rights are "read the house" and "messages"
+
+  @step6
+  Scenario: AG-68 Cancelling a run from Home Assistant
+    Given an asynchronous run with its call ID
+    When an automation calls mira.agent_cancel with this call ID
+    Then the run is cancelled
+    And no further round starts
+
+  @step6
+  Scenario: AG-92 At most 10 runs at the same time
+    Given 10 asynchronous runs are running
+    When an eleventh is called
+    Then it waits until one of the 10 ends
+
+  @step6
+  Scenario: AG-93 After a restart a run goes on with the agent as it is now
+    Given an asynchronous run of an agent whose description changed while the agent was stopped
+    When the agent starts again
+    Then the run goes on with the new description
+
+  @step6
+  Scenario: AG-94 After a restart a run of an agent that no longer exists fails
+    Given an asynchronous run of an agent that no longer exists after the restart
+    When the agent starts again
+    Then the run record has the status "failed"
+    And the reason is that the agent no longer exists
