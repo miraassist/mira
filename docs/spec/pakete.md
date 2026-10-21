@@ -38,6 +38,9 @@ liefern Privatkunden oft kein Zeitfenster. Die Versandmails haben beides und meh
 - **Einzelheiten:** nur Paketdienst, Sendungsnummer, Bestellnummer, Ablageort, Abholung bis. **Nie Namen oder Adresse
   des Empfängers, Abholcodes, PINs oder Links.**
 
+**Zugestellt** (`mail.done: "●"`): Ein zugestelltes oder abgeholtes Paket steht als „● Paket von …“ im Kalender,
+bis zum Ende des Tages.
+
 **Fragen** (Text des Skills): „Wann kommt mein Paket?“ liest den Kalender „Pakete“ und den eigenen der Person
 („Pakete <Login>“, wenn die Person bekannt ist). Mira nennt Tag, Zeitfenster, Shop und Inhalt; Abholort ja, Codes nie.
 

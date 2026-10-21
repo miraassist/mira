@@ -256,7 +256,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// (docs/spec/mail-kalender.md); the mail skills say what to read.
 	if apps := mailApps(loaded); len(apps) > 0 {
 		a.mail = mailcal.New(mailcal.Options{Calendar: mailCalendar{a}, Model: isolatedModel{a, cfg.Routing.Mail},
-			Apps: func() map[string]string { return apps }, Logger: a.log})
+			Apps: func() map[string]mailcal.App { return apps }, Logger: a.log})
 		a.log.Info("mail calendar on", "apps", a.mail.AppNames())
 	}
 	// Mira's own web search (docs/spec/websuche.md); switched in the

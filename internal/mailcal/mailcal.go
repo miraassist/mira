@@ -76,9 +76,8 @@ type Model interface {
 type Options struct {
 	Calendar Calendar
 	Model    Model
-	// Apps returns the mail applications: skill name (lower case) to its
-	// mail.extract.
-	Apps     func() map[string]string
+	// Apps returns the mail applications by skill name (lower case).
+	Apps     func() map[string]App
 	Location *time.Location
 	Clock    func() time.Time
 	Logger   *slog.Logger
@@ -86,6 +85,15 @@ type Options struct {
 	// tried once more. Default 60 s: a local model with a cold prompt takes
 	// about 50.
 	AttemptTimeout time.Duration
+}
+
+// App is a mail application, from its skill's mail section.
+type App struct {
+	// Extract tells the isolated reading what to take from a mail.
+	Extract string
+	// Done marks the title of an entry that is done (a parcel delivered),
+	// such as "●"; empty for none.
+	Done string
 }
 
 type Service struct {
@@ -178,7 +186,8 @@ func (s *Service) handle(ctx context.Context, m Mail) (Outcome, error) {
 	if m.Date.IsZero() {
 		m.Date = s.o.Clock()
 	}
-	item, err := s.extract(ctx, s.o.Apps()[app], m)
+	spec := s.o.Apps()[app]
+	item, err := s.extract(ctx, spec.Extract, m)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -208,18 +217,42 @@ func (s *Service) handle(ctx context.Context, m Mail) (Outcome, error) {
 	case item.Status == statusCancelled:
 		return Outcome{Action: "ignored", Reason: "cancels nothing known"}, nil
 	case found != nil:
-		entry = merge(*found, entry, &item)
+		old := *found
+		old.Summary = unmarkDone(old.Summary, spec.Done)
+		entry = merge(old, entry, &item)
+		entry.Summary = markDone(entry.Summary, spec.Done, item.Status)
 		entry.Description = describe(item, m.Date)
 		out.Title = entry.Summary
 		out.Action, err = "updated", s.o.Calendar.Update(ctx, entity, found.UID, entry)
 	default:
+		entry.Summary = markDone(entry.Summary, spec.Done, item.Status)
 		entry.Description = describe(item, m.Date)
+		out.Title = entry.Summary
 		out.Action, err = "created", s.o.Calendar.Create(ctx, entity, entry)
 	}
 	if err != nil {
 		return Outcome{}, err
 	}
 	return out, nil
+}
+
+// markDone puts the application's done mark before the title of an entry that
+// is done ("● Paket von Amazon"), so it shows in a calendar's short line;
+// speech skips such a sign.
+func markDone(title, done, status string) string {
+	title = unmarkDone(title, done)
+	if done == "" || status != statusDone {
+		return title
+	}
+	return done + " " + title
+}
+
+// unmarkDone takes the done mark off a title.
+func unmarkDone(title, done string) string {
+	if done == "" {
+		return title
+	}
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(title), done))
 }
 
 // merge keeps of the entry a mail updates what the mail does not name: its

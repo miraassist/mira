@@ -5,6 +5,7 @@ license: MIT
 metadata:
   mira:
     mail:
+      done: "●"
       extract: >-
         Diese Mails kommen von Paketdiensten und Shops. Relevant ist eine Mail, die
         eine Sendung an den Empfänger ankündigt oder ihren Stand meldet (verschickt,
@@ -41,7 +42,8 @@ metadata:
 Die Paketmails landen in Kalendern, die mit „Pakete“ anfangen: „Pakete“ gehört dem
 ganzen Haus, „Pakete <Name>“ einer Person. Jeder Eintrag ist ein Paket: der Titel
 nennt Shop und Inhalt, der Tag und das Zeitfenster sagen, wann es kommt, der Ort,
-wo es abholbereit liegt. Status „done“ in der Beschreibung heißt: schon da.
+wo es abholbereit liegt. Ein ● vor dem Titel und Status „done“ in der Beschreibung
+heißen: schon da. Das Zeichen sprichst du nicht mit.
 
 Fragt jemand nach Paketen („Wann kommt mein Paket?“, „Kommt heute was?“, „Ist das
 Paket von Amazon schon da?“), lies mit `calendar_events` den Kalender „Pakete“ und

@@ -51,6 +51,9 @@ type Skill struct {
 // schema and the checks are the core's.
 type Mail struct {
 	Extract string `yaml:"extract"`
+	// Done is a short sign the core puts before the title of an entry
+	// that is done ("●"); the calendar's short line shows it first.
+	Done string `yaml:"done"`
 }
 
 // Target is a goal definition (docs/spec/vorgaenge.md). Checks and Finish
@@ -304,6 +307,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		mail := *m.Mail
 		mail.Extract = fill(strings.TrimSpace(mail.Extract), vals, m.Settings)
+		mail.Done = strings.TrimSpace(mail.Done)
 		s.Mail = &mail
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)

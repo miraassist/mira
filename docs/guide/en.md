@@ -145,7 +145,7 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 
 - "When is my parcel coming?" – "Is anything coming today?" – "Has the parcel from Amazon arrived?"
 - In the briefing: "Your parcel from Amazon comes today between 10 and 12."
-- A newer mail changes the entry (new day, time window, ready for pickup), a cancellation removes it, and Mira clears delivered parcels the next day. Mira never says pickup codes.
+- A newer mail changes the entry (new day, time window, ready for pickup), a cancellation removes it. A delivered parcel gets a dot before its title ("● Paket von Amazon") and is gone the next day. Mira never says pickup codes.
 
 To set it up:
 
@@ -320,6 +320,8 @@ To get it running:
 1. Switch the skill on under `skills.enabled` (`doctor:`).
 2. In Home Assistant, add the IMAP integration with a **search** for the senders, such as `FROM doctolib.de`.
 3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). Mira creates the calendar of the same name.
+
+With `done: "●"` in the `mail` section, Mira puts a sign before the title of entries that are done, as with parcels. Pick a sign your calendar display can show.
 
 What Mira handles herself: every new mail is read by a model call of its own, without the house, tools or memory. Only a title, keys, status, day, time, place and details come out, and Mira checks them. A newer mail changes the entry, an older one is dropped, a cancellation removes it, and Mira clears what is done or past.
 

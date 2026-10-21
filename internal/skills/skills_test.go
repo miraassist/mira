@@ -190,6 +190,9 @@ func TestPaketeIsAMailApplication(t *testing.T) {
 	if ex := list[0].Mail.Extract; !strings.Contains(ex, "Sendungsnummer") || !strings.Contains(ex, "Abholcodes") {
 		t.Errorf("extract: %q", ex)
 	}
+	if list[0].Mail.Done != "●" {
+		t.Errorf("done mark: %q", list[0].Mail.Done)
+	}
 }
 
 // Kochen is a run with a plan: no fields, no finish, an hour per step.

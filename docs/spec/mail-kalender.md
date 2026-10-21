@@ -106,6 +106,11 @@ IMAP-Eintrag mit Gerät „Pakete“ (Suche)
 - **Die neueste Mail gewinnt:** Ist das Datum der Mail älter als der `Stand` des gefundenen Eintrags, wird sie
   verworfen. So ist es gleich, in welcher Reihenfolge Mails ankommen; doppelte Verarbeitung ändert nichts.
 - **Status:** `cancelled` löscht den Eintrag; `done` lässt ihn bis zum Ende seines Tages stehen.
+- **Zeichen für erledigt:** Nennt der Skill eins (`mail.done`, bei Pakete „●“), setzt der Kern es vor den Titel,
+  sobald ein Eintrag `done` ist („● Paket von Amazon: Ladekabel“), und nimmt es wieder weg, wenn er wieder offen
+  ist. Ein Zeichen statt eines Worts, weil Kalenderansichten oft nur den Anfang des Titels zeigen; die
+  Sprachausgabe überspringt es. Es muss in der Schrift der Anzeige vorkommen (die Go-Schrift der TECHO5-Geräte hat
+  kein Häkchen, aber ●).
 - **Aufräumen** (stündlich): Einträge mit Status `done`, deren Tag vorbei ist, und alle Einträge, deren Tag mehr als
   eine Woche vorbei ist, löscht Mira. Nur in Mail-Kalendern und nur Einträge mit `mira-mail:`.
 
@@ -123,6 +128,7 @@ metadata:
 
 - `extract` geht als Anleitung an den isolierten Aufruf. Das Schema und die Prüfung legt der Kern fest, nicht der
   Skill.
+- `done` (optional): das Zeichen für erledigte Einträge, siehe Abschnitt 4.
 - Der Text des Skills ist, wie bei jedem Skill, die Anleitung für Fragen („Wann kommt mein Paket?“).
 - Mail-Skills ohne Pflichteinstellungen schalten sich ein, wenn ihr Ordner da ist, wie die eingebauten Ziele: Der
   Gerätename des IMAP-Eintrags ist der Schalter.

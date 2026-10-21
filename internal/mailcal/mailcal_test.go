@@ -69,7 +69,7 @@ var now = time.Date(2026, 10, 20, 9, 0, 0, 0, berlin)
 func service(m *fakeModel) (*Service, *fakeCal) {
 	cal := &fakeCal{events: map[string]Event{}}
 	return New(Options{Calendar: cal, Model: m, Location: berlin, Clock: func() time.Time { return now },
-		Apps: func() map[string]string { return map[string]string{"pakete": "Pakete lesen."} }}), cal
+		Apps: func() map[string]App { return map[string]App{"pakete": {Extract: "Pakete lesen.", Done: "●"}} }}), cal
 }
 
 func mail(entry string, at time.Time) Mail {
@@ -274,7 +274,7 @@ func TestUpdateKeepsWhatTheMailDoesNotName(t *testing.T) {
 	}
 	// The order number alone finds it too; a new title replaces the old.
 	out, _ = s.Handle(ctx, mail("Pakete", now.Add(2*time.Hour)))
-	if e = only(t, cal); out.Action != "updated" || e.Summary != "Paket von Shop zugestellt" || !strings.Contains(e.Description, "Status: done") {
+	if e = only(t, cal); out.Action != "updated" || e.Summary != "● Paket von Shop zugestellt" || !strings.Contains(e.Description, "Status: done") {
 		t.Errorf("by the second key: %+v %+v", out, e)
 	}
 }
@@ -319,8 +319,33 @@ func TestAHangingCallIsTriedOnceMore(t *testing.T) {
 	m := &hangingModel{fakeModel: fakeModel{items: []item{{Relevant: true, Title: "Paket", Keys: []string{"A1"}, Day: "2026-10-21"}}}}
 	cal := &fakeCal{events: map[string]Event{}}
 	s := New(Options{Calendar: cal, Model: m, Location: berlin, Clock: func() time.Time { return now }, AttemptTimeout: 20 * time.Millisecond,
-		Apps: func() map[string]string { return map[string]string{"pakete": "Pakete lesen."} }})
+		Apps: func() map[string]App { return map[string]App{"pakete": {Extract: "Pakete lesen."}} }})
 	if out, err := s.Handle(context.Background(), mail("Pakete", now)); err != nil || out.Action != "created" || m.calls != 2 {
 		t.Errorf("retry: %+v %v, %d calls", out, err, m.calls)
+	}
+}
+
+// A done entry gets the application's mark before its title, and loses it
+// when it is open again; the mark does not get in the way of keeping the
+// longer title.
+func TestDoneMark(t *testing.T) {
+	m := &fakeModel{items: []item{
+		{Relevant: true, Title: "Paket von Shop: Ladekabel", Keys: []string{"S1"}, Status: "scheduled", Day: "2026-10-21"},
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"S1"}, Status: "done", Day: "2026-10-21"},
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"S1"}, Status: "done", Day: "2026-10-21"},
+		{Relevant: true, Title: "Paket von Shop", Keys: []string{"S1"}, Status: "scheduled", Day: "2026-10-22"},
+		{Relevant: true, Title: "Paket von Oma", Keys: []string{"O1"}, Status: "done", Day: "2026-10-21"},
+	}}
+	s, cal := service(m)
+	ctx := context.Background()
+	s.Handle(ctx, mail("Pakete", now))
+	for i, want := range []string{"● Paket von Shop: Ladekabel", "● Paket von Shop: Ladekabel", "Paket von Shop: Ladekabel"} {
+		s.Handle(ctx, mail("Pakete", now.Add(time.Duration(i+1)*time.Hour)))
+		if e := only(t, cal); e.Summary != want {
+			t.Errorf("step %d: %q, want %q", i, e.Summary, want)
+		}
+	}
+	if out, _ := s.Handle(ctx, mail("Pakete", now.Add(5*time.Hour))); out.Title != "● Paket von Oma" {
+		t.Errorf("created done: %+v", out)
 	}
 }

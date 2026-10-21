@@ -149,7 +149,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 
 - „Wann kommt mein Paket?“ – „Kommt heute was?“ – „Ist das Paket von Amazon schon da?“
 - Im Briefing: „Heute kommt zwischen 10 und 12 dein Paket von Amazon.“
-- Eine neuere Mail ändert den Eintrag (neuer Tag, Zeitfenster, abholbereit), eine Stornierung löscht ihn, Zugestelltes räumt Mira am nächsten Tag weg. Abholcodes nennt Mira nie.
+- Eine neuere Mail ändert den Eintrag (neuer Tag, Zeitfenster, abholbereit), eine Stornierung löscht ihn. Zugestelltes bekommt einen Punkt vor den Titel („● Paket von Amazon“) und verschwindet am nächsten Tag. Abholcodes nennt Mira nie.
 
 So richtest du es ein:
 
@@ -324,6 +324,8 @@ So kommt es zum Laufen:
 1. Den Skill unter `skills.enabled` einschalten (`arzt:`).
 2. In Home Assistant die IMAP-Integration hinzufügen, mit einer **Suche** nach den Absendern, etwa `FROM doctolib.de`.
 3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legt Mira an.
+
+Mit `done: "●"` im Abschnitt `mail` setzt Mira ein Zeichen vor den Titel erledigter Einträge, so wie bei Paketen. Nimm ein Zeichen, das deine Kalenderanzeige darstellen kann.
 
 Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne Haus, Werkzeuge und Gedächtnis. Heraus kommen nur Titel, Kennungen, Status, Tag, Uhrzeit, Ort und Einzelheiten, die Mira prüft. Eine neuere Mail ändert den Eintrag, eine ältere wird verworfen, eine Absage löscht ihn, Erledigtes und Vergangenes räumt Mira weg.
 

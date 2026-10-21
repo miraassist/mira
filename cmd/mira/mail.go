@@ -19,13 +19,12 @@ func builtinMail() []string {
 	return []string{"pakete"}
 }
 
-// mailApps are the mail applications of the loaded skills: name to their
-// mail.extract.
-func mailApps(loaded []skills.Skill) map[string]string {
-	out := map[string]string{}
+// mailApps are the mail applications of the loaded skills, by name.
+func mailApps(loaded []skills.Skill) map[string]mailcal.App {
+	out := map[string]mailcal.App{}
 	for _, sk := range loaded {
 		if sk.Mail != nil {
-			out[strings.ToLower(sk.Name)] = sk.Mail.Extract
+			out[strings.ToLower(sk.Name)] = mailcal.App{Extract: sk.Mail.Extract, Done: sk.Mail.Done}
 		}
 	}
 	return out
