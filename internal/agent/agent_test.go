@@ -771,3 +771,21 @@ func TestToolsOffered(t *testing.T) {
 		t.Errorf("no tools: %d tools sent, tool_choice %q", len(req.Tools), req.ToolChoice)
 	}
 }
+
+// An agent with tools and an output schema sends the answer's form with
+// the tools, in every round (Decided 35).
+func TestOutputSchemaGoesAlongWithTools(t *testing.T) {
+	e := setup(t)
+	spec := background("a", AllRights)
+	spec.Output = json.RawMessage(`{"type":"object","properties":{"satz":{"type":"string"}},"required":["satz"]}`)
+	e.main.steps = []step{{calls: []llm.ToolCall{call("look", "{}")}}, {text: `{"satz":"25 Grad"}`}}
+	res, err := e.rt.Call(context.Background(), spec, "x", CallContext{Rights: AllRights})
+	if err != nil || res.Text != `{"satz":"25 Grad"}` {
+		t.Fatalf("%+v, %v", res, err)
+	}
+	for i, req := range e.main.reqs {
+		if len(req.Tools) == 0 || req.ResponseFormat == nil {
+			t.Errorf("request %d: %d tools, response_format %v", i, len(req.Tools), req.ResponseFormat)
+		}
+	}
+}

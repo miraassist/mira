@@ -433,6 +433,9 @@ From that:
     a yes (critical actions, keeping or passing on after third-party text) is refused there, as nobody can confirm.
 34. **Time limit of an asynchronous run:** 60 minutes from its start, fixed, without a setting; beyond it the run is
     "expired". `timeout` of `mira.agent` applies to synchronous calls only.
+35. **Output schema and tools together:** the answer's form (`response_format`) goes along with every request of an
+    agent with an output schema, also when tools are offered; no extra call to bring the answer into form. An agent
+    that needs tools and an output schema takes a model that can do both.
 
 ## Open questions
 

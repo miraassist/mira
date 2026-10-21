@@ -307,14 +307,14 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 			if ex.round >= ex.maxRounds {
 				req.ToolChoice = "none"
 			}
-		} else {
-			if len(ex.b.Tools) > 0 {
-				req.Tools, req.ToolChoice = ex.b.Tools, "none"
-			}
-			if len(spec.Output) > 0 {
-				req.ResponseFormat = map[string]any{"type": "json_schema",
-					"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
-			}
+		} else if len(ex.b.Tools) > 0 {
+			req.Tools, req.ToolChoice = ex.b.Tools, "none"
+		}
+		// The answer's form goes along with the tools too (Decided 35): an
+		// agent that needs both takes a model that can do both.
+		if len(spec.Output) > 0 {
+			req.ResponseFormat = map[string]any{"type": "json_schema",
+				"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
 		}
 		out, err := r.chat(ctx, ex.client, ex.res.Model, ex.local, req, spec.Limits, &ex.res)
 		ex.res.Foreign = ex.me.ts.Foreign()

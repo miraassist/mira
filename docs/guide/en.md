@@ -352,7 +352,7 @@ agents:
       properties: { steps: { type: array, items: { type: string } } }
 ```
 
-Without `model` the agent takes the main model; with `model: smart` one from `models`. In a skill, Mira fills the skill's settings into `{{…}}`, as everywhere.
+Without `model` the agent takes the main model; with `model: smart` one from `models`. If an agent needs tools and a fixed form of answer (`output`) at once, take a model that can do both together; Gemini can. In a skill, Mira fills the skill's settings into `{{…}}`, as everywhere.
 
 If something in the description does not fit, a misspelt field for example, only this agent does not start. Home Assistant then shows under **Repairs** what to change.
 
