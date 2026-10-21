@@ -317,22 +317,7 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 	)
 	go func() {
 		ctx := context.WithoutCancel(ctx)
-		var res Result
-		work := func(ctx context.Context) error {
-			var err error
-			res, err = fin.Work(ctx, th)
-			return err
-		}
-		var err error
-		if m.opts.Run != nil {
-			err = m.opts.Run(ctx, th.ID, m.targets[th.Target].Target.Finish.Name, work)
-		} else {
-			err = work(ctx)
-		}
-		if err != nil {
-			m.log.Error("thread work failed", "thread", th.ID, "error", err)
-			res = Result{Cancel: fmt.Sprintf(t.workFailed, th.Request)}
-		}
+		res := m.runWork(ctx, fin, th)
 		mu.Lock()
 		defer mu.Unlock()
 		if !abandoned {
@@ -361,6 +346,60 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 		abandoned = true
 	}
 	return t.working, nil
+}
+
+// runWork runs a thread's background work, as a job of the runtime when
+// there is one; a failure ends the thread with that said.
+func (m *Manager) runWork(ctx context.Context, fin Finisher, th store.Thread) Result {
+	var res Result
+	work := func(ctx context.Context) error {
+		var err error
+		res, err = fin.Work(ctx, th)
+		return err
+	}
+	var err error
+	if m.opts.Run != nil {
+		err = m.opts.Run(ctx, th.ID, m.targets[th.Target].Target.Finish.Name, work)
+	} else {
+		err = work(ctx)
+	}
+	if err != nil {
+		m.log.Error("thread work failed", "thread", th.ID, "error", err)
+		res = Result{Cancel: fmt.Sprintf(m.texts().workFailed, th.Request)}
+	}
+	return res
+}
+
+// Resume starts anew the background work of the threads that were working
+// when the agent stopped: the work is not stored, and it changes nothing
+// before the user's yes. Its result comes as a message of the thread, as
+// for slow work.
+func (m *Manager) Resume(ctx context.Context) {
+	open, err := m.opts.Store.OpenThreads(ctx, "")
+	if err != nil {
+		m.log.Error("could not read the open threads", "error", err)
+		return
+	}
+	for _, th := range open {
+		if th.State != store.ThreadWorking {
+			continue
+		}
+		fin, err := m.finisher(th.Target)
+		if err != nil {
+			m.log.Warn("a working thread cannot go on", "thread", th.ID, "error", err)
+			continue
+		}
+		m.log.Info("thread work started again", "thread", th.ID, "target", th.Target)
+		go func(th store.Thread) {
+			// Not ended by a shutdown: a thread that is still working then
+			// starts again after the next start.
+			ctx := context.WithoutCancel(ctx)
+			res := m.runWork(ctx, fin, th)
+			if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil && cur.State == store.ThreadWorking {
+				m.apply(ctx, cur, res, true)
+			}
+		}(th)
+	}
 }
 
 // apply records a work result and, for background work, tells the user.

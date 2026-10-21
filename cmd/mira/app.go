@@ -568,9 +568,13 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	if !cfg.Server.Eval {
 		a.startProactive(ctx)
 	}
-	// Asynchronous runs that were running when the agent stopped go on.
+	// Asynchronous runs that were running when the agent stopped go on;
+	// threads that were working start their work anew.
 	if err := a.agents.Resume(ctx); err != nil {
 		a.log.Error("could not take up the asynchronous runs", "error", err)
+	}
+	if a.threads != nil && a.threads.HasTargets() {
+		a.threads.Resume(ctx)
 	}
 
 	errs := make(chan error, 2)

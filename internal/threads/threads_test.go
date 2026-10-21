@@ -302,3 +302,22 @@ func TestWorkRunsAsAJobAndEndsWithTheThread(t *testing.T) {
 		t.Errorf("ran %v, cancelled %v", ran, cancelled)
 	}
 }
+
+// A thread that was working when the agent stopped starts its work anew,
+// and the result comes as a message of the thread.
+func TestWorkingThreadStartsAgainAfterARestart(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	th := store.Thread{ID: "th1", Target: "aufgabe", Place: "area:wohnzimmer", State: store.ThreadWorking,
+		Request: "Licht melden", Fields: map[string]string{"watch": "licht", "measure": "nachts"}}
+	if err := e.st.PutThread(ctx, &th); err != nil {
+		t.Fatal(err)
+	}
+	e.m.Resume(ctx)
+	if n := e.next(t); n.ThreadID != "th1" || n.Spoken != "Ab wann ist es ungewöhnlich?" {
+		t.Errorf("message %+v", n)
+	}
+	if got, _ := e.st.GetThread(ctx, "th1"); got.State != store.ThreadWaiting {
+		t.Errorf("state %s", got.State)
+	}
+}
