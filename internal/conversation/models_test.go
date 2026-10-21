@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/i18n"
@@ -20,6 +21,11 @@ import (
 // a cloud model "smart" that serves Telegram and delegated tasks.
 func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
+	return twoModelsRouted(t, config.Routing{Telegram: "smart", Delegate: "smart"})
+}
+
+func twoModelsRouted(t *testing.T, routing config.Routing) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+	t.Helper()
 	main, smart := fakellm.New(), fakellm.New()
 	t.Cleanup(main.Close)
 	t.Cleanup(smart.Close)
@@ -30,7 +36,7 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 		BaseURL: smart.BaseURL(), Model: "cloud", MaxToolRounds: 3, MaxTokens: 512,
 		ContextTokens: 100000, CompactAtFraction: 0.8, ReasoningEffort: "low",
 	}}
-	cfg.Routing = config.Routing{Telegram: "smart", Delegate: "smart"}
+	cfg.Routing = routing
 	cfg.HA.URL, cfg.HA.Token = "http://ha", "t"
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
@@ -45,13 +51,33 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 	var engine *conversation.Engine
 	delegate := func(ctx context.Context, task string) (string, error) { return engine.Delegate(ctx, task) }
 	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st, delegate)...)
+	mainClient := llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"})
+	smartClient := llm.New(llm.Options{BaseURL: smart.BaseURL(), Model: "cloud"})
+	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil)
+	agents := agent.New(agent.Options{
+		Config: func() config.Config { return cfg },
+		Models: func(name string) (agent.Chatter, config.LLM, bool) {
+			switch name {
+			case config.MainModel:
+				return mainClient, cfg.LLM, true
+			case "smart":
+				return smartClient, cfg.Models["smart"], true
+			}
+			return nil, config.LLM{}, false
+		},
+		Tools: registry, Guard: guard,
+		Background: func(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
+			return engine.BackgroundContext(ctx, cc, instructions, input)
+		},
+		Logger: quietLogger(),
+	})
 	engine = conversation.New(conversation.Options{
 		Config: cfg,
-		LLM:    llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"}),
-		Models: map[string]conversation.Chatter{"smart": llm.New(llm.Options{BaseURL: smart.BaseURL(), Model: "cloud"})},
-		Store:  st, Tools: registry,
+		LLM:    mainClient,
+		Models: map[string]conversation.Chatter{"smart": smartClient},
+		Store:  st, Tools: registry, Agents: agents,
 		Structure: houseSnapshot,
-		Guard:     tools.NewGuard(i18n.DE, cfg.Security, st, nil),
+		Guard:     guard,
 		Logger:    quietLogger(), Location: time.UTC,
 	})
 	return engine, main, smart
@@ -128,11 +154,11 @@ func TestDelegateHandsATaskToTheStrongerModel(t *testing.T) {
 		t.Fatalf("delegate model got %d requests", len(reqs))
 	}
 	first := reqs[0].Request.Messages
-	if last := first[len(first)-1].Content; !strings.Contains(last, "Plane ein Menü für vier Personen.") || !strings.Contains(last, "abgegebene Aufgabe") {
+	if last := first[len(first)-1].Content; !strings.Contains(last, "Plane ein Menü für vier Personen.") || !strings.Contains(last, "Abgegebene Aufgabe") {
 		t.Errorf("delegated turn: %q", last)
 	}
 	refused := reqs[1].Request.Messages[len(reqs[1].Request.Messages)-1]
-	if refused.Role != llm.RoleTool || !strings.Contains(refused.Content, "cannot be called from a delegated task") {
+	if refused.Role != llm.RoleTool || !strings.Contains(refused.Content, "cannot be called from an agent's run") {
 		t.Errorf("nested delegate not refused: %+v", refused)
 	}
 	// The fast model reads the stronger model's answer as the tool result.
@@ -142,11 +168,29 @@ func TestDelegateHandsATaskToTheStrongerModel(t *testing.T) {
 	}
 }
 
-func TestNoDelegateToolWithoutDelegateModel(t *testing.T) {
-	for _, it := range tools.Internal(i18n.DE, nil, nil) {
-		if it.Name == tools.ToolDelegate {
-			t.Fatal("delegate offered without a delegate model")
-		}
+// AG-72 The delegate agent exists without an entry too
+func TestAG72_TheDelegateAgentExistsWithoutAnEntry(t *testing.T) {
+	// Given routing has nothing for delegate
+	e, main, _ := twoModelsRouted(t, config.Routing{})
+	main.Push(
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Erkläre Ebbe und Flut."}`)}},
+		fakellm.Step{Content: "Der Mond zieht am Wasser."},
+		fakellm.Step{Content: "Der Mond macht das."},
+	)
+	// When the conversation is called
+	r := handle(t, e, config.ChannelVoice, "Warum gibt es Ebbe?")
+	// Then it has the tool delegate
+	offered := false
+	for _, tl := range main.Requests()[0].Request.Tools {
+		offered = offered || tl.Function.Name == tools.ToolDelegate
+	}
+	if !offered {
+		t.Fatal("no delegate tool")
+	}
+	// And the delegate agent takes the model main
+	reqs := main.Requests()
+	if len(reqs) != 3 || !strings.Contains(lastContent(reqs[1].Request.Messages), "Erkläre Ebbe und Flut.") || r.Text != "Der Mond macht das." {
+		t.Errorf("%d requests to main, answer %q", len(reqs), r.Text)
 	}
 }
 

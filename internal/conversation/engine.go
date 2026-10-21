@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/agent"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -96,11 +97,13 @@ type Options struct {
 	Config config.Config
 	// LLM is the main model. Models holds the further ones by name, as in
 	// config.Models; config.Routing says which serves what.
-	LLM       Chatter
-	Models    map[string]Chatter
-	Store     *store.Store
-	Tools     *tools.Registry
-	Guard     *tools.Guard
+	LLM    Chatter
+	Models map[string]Chatter
+	Store  *store.Store
+	Tools  *tools.Registry
+	Guard  *tools.Guard
+	// Agents runs the agents the engine calls (delegate, skill.task).
+	Agents    *agent.Runtime
 	Structure func() structure.Snapshot
 	// StructurePrompt, when it returns text, replaces the structure block in
 	// layer 4: Home Assistant's own Assist prompt.
@@ -135,6 +138,7 @@ type Engine struct {
 	store       *store.Store
 	tools       *tools.Registry
 	guard       *tools.Guard
+	agents      *agent.Runtime
 	structure   func() structure.Snapshot
 	assist      func() string
 	deviceHints func(device string) string
@@ -187,6 +191,7 @@ func New(opts Options) *Engine {
 		store:       opts.Store,
 		tools:       opts.Tools,
 		guard:       opts.Guard,
+		agents:      opts.Agents,
 		structure:   opts.Structure,
 		assist:      opts.StructurePrompt,
 		deviceHints: opts.DeviceHints,

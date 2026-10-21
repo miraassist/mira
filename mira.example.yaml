@@ -50,9 +50,9 @@ models:
     reasoning_effort: low
     context_tokens: 200000
 
-# Which model serves what; empty is main. delegate gives the voice and
-# Telegram model a tool to hand harder tasks to a stronger model, which may
-# look things up but changes nothing. Leave it empty to turn the tool off.
+# Which model serves what; empty is main. delegate is the model the voice
+# and Telegram model hands harder tasks to (the tool delegate); it may look
+# things up but changes nothing.
 routing:
   voice: main
   telegram: main

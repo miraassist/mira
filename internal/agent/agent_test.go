@@ -509,6 +509,60 @@ func TestAG51_SubAgentsCanBeMatchedToTheirCaller(t *testing.T) {
 
 // --- Model ---------------------------------------------------------------------
 
+// AG-60 An agent in the tool list is a tool
+func TestAG60_AnAgentInTheToolListIsATool(t *testing.T) {
+	e := setup(t)
+	// Given an agent with a second agent in its tool list
+	e.rt.Register(Spec{Name: "house.check", Description: "prüft das Haus", Profile: Background,
+		Tools: Tools{Kind: ListedTools, Names: []string{"look"}}, Rights: ReadHouse})
+	first := background("first", AllRights)
+	first.Tools = Tools{Kind: ListedTools, Names: []string{"look", "house.check"}}
+	// When its model is called
+	e.main.steps = []step{{calls: []llm.ToolCall{call("house_check", `{"input":"Ist alles zu?"}`)}},
+		{calls: []llm.ToolCall{call("look", "{}")}}, {text: "alles zu"}, {text: "ok"}}
+	e.rt.Call(context.Background(), first, "x", CallContext{Rights: AllRights})
+	// Then it sees the second agent as a tool, with name, description and input schema
+	var sub *llm.Tool
+	for i, tl := range e.main.reqs[0].Tools {
+		if tl.Function.Name == "house_check" {
+			sub = &e.main.reqs[0].Tools[i]
+		}
+	}
+	if sub == nil || sub.Function.Description != "prüft das Haus" || !strings.Contains(string(sub.Function.Parameters), `"input"`) {
+		t.Fatalf("tools offered: %+v", e.main.reqs[0].Tools)
+	}
+	// and calling it runs the second agent with the input
+	if e.count("look") != 1 || !strings.Contains(lastUser(e.main.reqs[1]), "Ist alles zu?") || toolResult(e.main, 0) != "alles zu" {
+		t.Errorf("ran %v, sub input %q, result %q", e.ran, lastUser(e.main.reqs[1]), toolResult(e.main, 0))
+	}
+}
+
+// AG-61 An agent not in the tool list is no tool
+func TestAG61_AnAgentNotInTheToolListIsNoTool(t *testing.T) {
+	e := setup(t)
+	// Given an agent without a second agent in its tool list
+	e.rt.Register(Spec{Name: "house.check", Description: "prüft das Haus", Profile: Background})
+	first := background("first", AllRights)
+	first.Tools = Tools{Kind: ListedTools, Names: []string{"look"}}
+	// When its model is called
+	e.rt.Call(context.Background(), first, "x", CallContext{Rights: AllRights})
+	// Then it does not see the second agent
+	for _, tl := range e.main.reqs[0].Tools {
+		if tl.Function.Name == "house_check" {
+			t.Fatal("the second agent is offered")
+		}
+	}
+}
+
+func lastUser(req llm.ChatRequest) string {
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if req.Messages[i].Role == llm.RoleUser {
+			return req.Messages[i].Content
+		}
+	}
+	return ""
+}
+
 // AG-70 Without an entry for its role an agent takes main
 func TestAG70_WithoutAnEntryTheAgentTakesMain(t *testing.T) {
 	e := setup(t)

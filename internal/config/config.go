@@ -118,13 +118,13 @@ type Skills struct {
 // MainModel is the name of the model configured under llm.
 const MainModel = "main"
 
-// Routing says which model serves which kind of work. Empty means main;
-// an empty Delegate turns the delegate tool off.
+// Routing says which model serves which kind of work. Empty means main.
 type Routing struct {
 	Voice      string `yaml:"voice"`
 	Telegram   string `yaml:"telegram"`
 	Background string `yaml:"background"`
-	// Delegate is the model the delegate tool hands harder tasks to.
+	// Delegate is the model the delegate tool hands harder tasks to; empty
+	// is main.
 	Delegate string `yaml:"delegate"`
 	// Tasks is the model that plans standing orders (the agent tasks.plan);
 	// empty is main. Planning reads the whole house once per order, so

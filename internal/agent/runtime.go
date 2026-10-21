@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -65,8 +67,9 @@ type Runtime struct {
 	o   Options
 	log *slog.Logger
 
-	mu    sync.Mutex
-	slots map[string]chan struct{}
+	mu     sync.Mutex
+	slots  map[string]chan struct{}
+	agents map[string]Spec
 }
 
 // Requests at the same time per model (docs/spec/agenten.md, Decided 26).
@@ -79,8 +82,20 @@ func New(o Options) *Runtime {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	return &Runtime{o: o, log: o.Logger.With("component", "agent"), slots: map[string]chan struct{}{}}
+	return &Runtime{o: o, log: o.Logger.With("component", "agent"), slots: map[string]chan struct{}{},
+		agents: map[string]Spec{}}
 }
+
+// Register makes an agent known by its name: an agent that names it in its
+// tool list gets it as a tool.
+func (r *Runtime) Register(spec Spec) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.agents[spec.Name] = spec
+}
+
+// InRun reports whether ctx belongs to an agent's run.
+func InRun(ctx context.Context) bool { return current(ctx) != nil }
 
 // run is a running call, as the calls made inside it find it in ctx.
 type run struct {
@@ -88,6 +103,8 @@ type run struct {
 	cc     CallContext
 	rights Rights
 	ts     *tools.TurnState
+	// subs are the agents offered as tools, by tool name.
+	subs map[string]Spec
 }
 
 type runKey struct{}
@@ -147,6 +164,12 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 	b, offered, err := r.build(ctx, spec, input, cc)
 	if err != nil {
 		return finish(Failed, err)
+	}
+	if spec.Profile != Isolated {
+		me.subs = r.subAgents(spec.Tools)
+		for _, name := range slices.Sorted(maps.Keys(me.subs)) {
+			offered = append(offered, me.subs[name].asTool())
+		}
 	}
 	msgs := b.Messages
 	maxRounds := spec.Limits.MaxRounds
@@ -312,6 +335,68 @@ func (r *Runtime) offer(want Tools, all []llm.Tool) []llm.Tool {
 	return all
 }
 
+// subAgents are the registered agents a tool list names, by tool name.
+func (r *Runtime) subAgents(want Tools) map[string]Spec {
+	if want.Kind != ListedTools {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out map[string]Spec
+	for _, name := range want.Names {
+		if sub, ok := r.agents[name]; ok {
+			if out == nil {
+				out = map[string]Spec{}
+			}
+			out[toolName(name)] = sub
+		}
+	}
+	return out
+}
+
+// toolName is an agent's name as a tool: tool names have no dots.
+func toolName(agent string) string { return strings.ReplaceAll(agent, ".", "_") }
+
+// textInput is the input schema of an agent that takes plain text.
+var textInput = json.RawMessage(`{"type":"object","properties":{"input":{"type":"string"}},"required":["input"]}`)
+
+// asTool is the agent as a calling model sees it: name, description and
+// input schema.
+func (s Spec) asTool() llm.Tool {
+	schema := s.Input
+	if len(schema) == 0 {
+		schema = textInput
+	}
+	return llm.Tool{Type: "function", Function: llm.ToolFunction{Name: toolName(s.Name), Description: s.Description,
+		Parameters: schema}}
+}
+
+// callSub runs an agent called as a tool, inside the calling run; its answer
+// is the tool result.
+func (r *Runtime) callSub(ctx context.Context, sub Spec, args string, t texts) string {
+	raw := json.RawMessage(args)
+	if len(raw) == 0 || !json.Valid(raw) {
+		return t.badArgs
+	}
+	input := args
+	if len(sub.Input) == 0 {
+		var in struct {
+			Input string `json:"input"`
+		}
+		if err := json.Unmarshal(raw, &in); err != nil || strings.TrimSpace(in.Input) == "" {
+			return t.badArgs
+		}
+		input = in.Input
+	} else if err := checkSchema(sub.Input, raw); err != nil {
+		return t.errorPrefix + err.Error()
+	}
+	res, err := r.Call(ctx, sub, input, CallContext{})
+	if err != nil {
+		return t.errorPrefix + err.Error()
+	}
+	return res.Text
+}
+
 // BuildTools turns tool definitions into what a model request takes, for a
 // BackgroundContext.
 func BuildTools(defs []prompt.ToolDef) ([]llm.Tool, error) { return prompt.BuildTools(defs) }
@@ -320,6 +405,9 @@ func BuildTools(defs []prompt.ToolDef) ([]llm.Tool, error) { return prompt.Build
 // guard, as for every tool.
 func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t texts) string {
 	name := call.Function.Name
+	if sub, ok := me.subs[name]; ok {
+		return r.callSub(ctx, sub, call.Function.Arguments, t)
+	}
 	spec, ok := r.o.Tools.Lookup(name)
 	if !ok {
 		return fmt.Sprintf(t.unknownTool, name)

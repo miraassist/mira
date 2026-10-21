@@ -206,12 +206,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 
 	snapshot := a.structure.Snapshot
-	// The delegate tool exists only with a delegate model. It is bound late:
-	// the engine it calls is built from the registry.
-	var delegate tools.Delegator
-	if cfg.Routing.Delegate != "" {
-		delegate = func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
-	}
+	// The delegate tool is bound late: the engine it calls is built from the
+	// registry.
+	delegate := func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
 	internal := tools.Internal(a.lang, a.store, delegate)
 	internal = append(internal, tools.Reminders(tools.ReminderOptions{
 		Lang: a.lang, Store: a.store,
@@ -376,7 +373,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.agents = a.newAgents(registry, guard)
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
-		Guard:     guard,
+		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: assistText, DeviceHints: deviceHints, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify,
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
