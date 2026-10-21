@@ -137,14 +137,20 @@ const (
 	// ToMessage: a message to a person or the house, worded by
 	// notify.compose.
 	ToMessage Route = "message"
+	// ToThread: into a field (or the plan) of a thread, which goes on with
+	// it (docs/spec/agenten.md, Continuation).
+	ToThread Route = "thread"
 )
 
 // Delivery is the route; for a message also its receiver (a person's key or
-// "house") and the room it is for, if any.
+// "house") and the room it is for, if any; for a thread its id and the field
+// ("plan" for its plan).
 type Delivery struct {
 	Route    Route
 	Receiver string
 	Area     string
+	Thread   string
+	Into     string
 }
 
 func (m Mode) String() string {

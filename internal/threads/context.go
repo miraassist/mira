@@ -88,13 +88,20 @@ func (m *Manager) status(th store.Thread) string {
 	t := m.texts()
 	sk := m.targets[th.Target]
 	if sk.Target.Plan {
+		if th.Calls[PlanField] != "" {
+			return t.linePlan + "\n" + fmt.Sprintf(t.planByAgent, sk.Target.Agent)
+		}
 		return t.linePlan + "\n" + m.planStatus(th)
 	}
 	var b strings.Builder
 	b.WriteString(t.lineFields)
 	for _, f := range sk.Target.Fields {
 		v := strings.TrimSpace(th.Fields[f.Name])
-		if v == "" {
+		switch {
+		case v == "" && th.Calls[f.Name] != "":
+			// An agent fills it: nothing to ask the user.
+			v = fmt.Sprintf(t.fieldByAgent, f.Agent)
+		case v == "":
 			v = t.fieldMissing
 		}
 		desc := f.Description
@@ -103,8 +110,14 @@ func (m *Manager) status(th store.Thread) string {
 		}
 		fmt.Fprintf(&b, "\n- %s – %s: %s", f.Name, desc, v)
 	}
-	if miss := missing(sk.Target, th.Fields); len(miss) > 0 {
-		fmt.Fprintf(&b, "\n"+t.stillMissing, strings.Join(miss, ", "))
+	var ask []string
+	for _, name := range missing(sk.Target, th.Fields) {
+		if th.Calls[name] == "" {
+			ask = append(ask, name)
+		}
+	}
+	if len(ask) > 0 {
+		fmt.Fprintf(&b, "\n"+t.stillMissing, strings.Join(ask, ", "))
 	}
 	return b.String()
 }

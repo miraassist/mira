@@ -24,7 +24,10 @@ func NewProblem(skill, kind string, args ...any) Problem {
 }
 
 // Kinds used outside the package.
-const KindUnknownFinish = "unknownfinish"
+const (
+	KindUnknownFinish = "unknownfinish"
+	KindUnknownAgent  = "unknownagent"
+)
 
 // Text is the problem in a language, without the skill's name.
 func (p Problem) Text(l i18n.Lang) string {
@@ -63,6 +66,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"unknownfinish":  "Der Abschluss „%s“ ist Mira nicht bekannt. Bekannt sind: %s. Oder rufe stattdessen eine Home-Assistant-Aktion auf (finish: action).",
 		"mailextract":    "Der Abschnitt mail braucht eine Anleitung (extract): wie Mira die Mails liest.",
 		"agent":          "Der Agent „%s“ unter agents ist so nicht lesbar (%s).",
+		"unknownagent":   "Das Gespräch (target) nennt den Agenten „%s“, den es nicht gibt. Beschreibe ihn unter agents, in der mira.yaml oder im Skill.",
 	},
 	i18n.EN: {
 		"nofolder":       "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or remove \"%[1]s\" from skills.enabled in mira.yaml.",
@@ -85,5 +89,6 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"unknownfinish":  "Mira does not know the finish \"%s\". Known: %s. Or call a Home Assistant action instead (finish: action).",
 		"mailextract":    "The mail section needs instructions (extract): how Mira reads the mails.",
 		"agent":          "The agent \"%s\" under agents cannot be read like this (%s).",
+		"unknownagent":   "The conversation (target) names the agent \"%s\", which does not exist. Describe it under agents, in mira.yaml or in the skill.",
 	},
 }

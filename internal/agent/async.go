@@ -45,7 +45,7 @@ var (
 // RunStore keeps the asynchronous runs and their history (package store).
 type RunStore interface {
 	PutAgentRun(ctx context.Context, r store.AgentRun) error
-	EndAgentRun(ctx context.Context, callID, status, output, errText string) error
+	EndAgentRun(ctx context.Context, callID, status, output, errText string, foreign bool) error
 	GetAgentRun(ctx context.Context, callID string) (store.AgentRun, error)
 	RunningAgentRuns(ctx context.Context) ([]store.AgentRun, error)
 	AddAgentStep(ctx context.Context, callID, kind string, body json.RawMessage) error
@@ -264,7 +264,7 @@ func (r *Runtime) end(rec store.AgentRun, spec Spec, cc CallContext, res Result,
 	if err != nil {
 		errText = err.Error()
 	}
-	if e := r.o.Runs.EndAgentRun(ctx, rec.CallID, string(res.Status), res.Text, errText); e != nil {
+	if e := r.o.Runs.EndAgentRun(ctx, rec.CallID, string(res.Status), res.Text, errText, res.Foreign); e != nil {
 		r.log.Error("could not end a run record", "call_id", rec.CallID, "error", e)
 	}
 	r.logRun(spec, cc, res, took, err)

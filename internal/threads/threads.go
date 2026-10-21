@@ -82,10 +82,16 @@ type Options struct {
 	// logged, limited and cancellable like every run. Without it the work
 	// runs directly.
 	Run func(ctx context.Context, id, name string, work func(ctx context.Context) error) error
-	// Cancel ends the background work of a thread that ended meanwhile.
+	// Cancel ends the background work of a thread that ended meanwhile,
+	// and the agents still filling its fields.
 	Cancel func(id string) bool
-	Clock  func() time.Time
-	Logger *slog.Logger
+	// Dispatch starts an agent that fills a field of th (or its plan), as
+	// an asynchronous run with the route back into the thread, under the
+	// call id the thread chose (agents.go). Without it no agent fills a
+	// field.
+	Dispatch func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error
+	Clock    func() time.Time
+	Logger   *slog.Logger
 }
 
 type Manager struct {
@@ -223,9 +229,11 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
 		State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{}}
 	m.logEntry(&th, "user", th.Request)
+	launches := m.dispatch(&th)
 	if err := m.save(ctx, &th); err != nil {
 		return "", err
 	}
+	m.start(ctx, th, launches)
 	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
 		return "", err
 	}
@@ -280,9 +288,12 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 		_, _ = m.opts.Store.WithdrawThreadMessages(ctx, th.ID)
 	}
 	if len(problems) > 0 || len(missing(sk.Target, th.Fields)) > 0 {
+		// An agent whose input is there now starts.
+		launches := m.dispatch(&th)
 		if err := m.save(ctx, &th); err != nil {
 			return "", err
 		}
+		m.start(ctx, th, launches)
 		return strings.Join(append(problems, m.status(th)), "\n"), nil
 	}
 	return m.work(ctx, inv, th)
@@ -536,10 +547,11 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 
 // end closes a thread and withdraws its open messages.
 func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
-	// Its background work, if any, is no longer wanted.
+	// Its background work, if any, is no longer wanted, nor its agents.
 	if th.State == store.ThreadWorking && m.opts.Cancel != nil {
 		m.opts.Cancel(th.ID)
 	}
+	m.cancelAgents(th)
 	if _, err := m.change(ctx, th.ID, func(now *store.Thread) error {
 		now.State = state
 		return nil

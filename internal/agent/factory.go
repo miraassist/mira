@@ -67,6 +67,10 @@ func (p Problem) Text(l i18n.Lang) string {
 	return fmt.Sprintf(format, p.args...)
 }
 
+// Callable are Mira's own agents with a fixed description, callable by
+// name (Decided 12); cmd/mira registers exactly these.
+var Callable = []string{"delegate", "skill.task", "notify.compose"}
+
 // codeAgents are the agents of the code; a YAML agent may not take their
 // names.
 var codeAgents = []string{"conversation.voice", "conversation.telegram", "delegate", "skill.task", "notify.compose",

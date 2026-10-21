@@ -66,9 +66,12 @@ type Mail struct {
 type Target struct {
 	// Plan makes a thread that carries a plan (a Markdown text with
 	// checkboxes) for a long run step by step, such as cooking; it has no
-	// fields and no finish (docs/spec/vorgaenge.md, Pläne).
-	Plan   bool          `yaml:"plan"`
-	Fields []TargetField `yaml:"fields"`
+	// fields and no finish (docs/spec/vorgaenge.md, Pläne). Agent and Input
+	// let an agent write the plan when the thread starts.
+	Plan   bool           `yaml:"plan"`
+	Agent  string         `yaml:"agent"`
+	Input  map[string]any `yaml:"input"`
+	Fields []TargetField  `yaml:"fields"`
 	// Confirm asks the user for a yes before an action finish runs; the
 	// building blocks decide that themselves.
 	Confirm bool `yaml:"confirm"`
@@ -104,6 +107,20 @@ type TargetField struct {
 	Enum        []string `yaml:"enum"`
 	// Optional fields may stay empty; the thread does not wait for them.
 	Optional bool `yaml:"optional"`
+	// Agent fills the field instead of the user, with Input (placeholders:
+	// the thread's fields, {{ request }}); it starts once every field its
+	// input names is there (docs/spec/agenten.md, Continuation).
+	Agent string         `yaml:"agent"`
+	Input map[string]any `yaml:"input"`
+}
+
+// AgentInput is an agent's input for a field or a plan: what the skill
+// wrote, or else what the user asked for.
+func AgentInput(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return map[string]any{"input": "{{ request }}"}
+	}
+	return input
 }
 
 // FinishAction is the name of a finish that calls a Home Assistant action.

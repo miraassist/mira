@@ -59,6 +59,9 @@ type Thread struct {
 	// Version counts the changes; PutThread writes only over the version it
 	// was read with.
 	Version int
+	// Calls are the agents' runs filling its fields, by field ("plan" for
+	// a plan): their call ids.
+	Calls map[string]string
 }
 
 // ErrConflict: the thread changed since it was read.
@@ -88,15 +91,19 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 	if len(content) == 0 {
 		content = json.RawMessage("{}")
 	}
+	calls, _ := json.Marshal(t.Calls)
+	if t.Calls == nil {
+		calls = []byte("{}")
+	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET state = excluded.state, request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
-	version = threads.version + 1
+	calls = excluded.calls, version = threads.version + 1
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version)
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls))
 	if err != nil {
 		return err
 	}
@@ -114,17 +121,18 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
-	var fields, log, content, created, updated, expires string
+	var fields, log, content, created, updated, expires, calls string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version); err != nil {
+		&created, &updated, &expires, &t.Version, &calls); err != nil {
 		return Thread{}, err
 	}
 	_ = json.Unmarshal([]byte(fields), &t.Fields)
 	_ = json.Unmarshal([]byte(log), &t.Log)
+	_ = json.Unmarshal([]byte(calls), &t.Calls)
 	t.Content = json.RawMessage(content)
 	t.CreatedAt, t.UpdatedAt, t.ExpiresAt = parseTime(created), parseTime(updated), parseTime(expires)
 	return t, nil

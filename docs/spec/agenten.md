@@ -163,10 +163,58 @@ When the run is done, the caller is notified, on the route it gave in the call c
 2. **Message** to a person or the house. The announcement agent (`notify.compose`) words it from the run's
    output ("So hab ich mir das gedacht"); the output itself goes into the message's details. This is the route for
    people.
-3. **Continuation** of the calling agent or thread with the result. This route comes last.
+3. **Continuation** of a thread with the result: the result goes into a field of the thread (or its plan), and the
+   thread goes on (see Continuation: agents fill a thread). Only threads continue; an agent that needs another's
+   result calls it synchronously.
 
 The core of it exists already: the task planner runs asynchronously, its draft lies as JSON in the thread (the
 thread ID is the call ID), and an announcement is made from it.
+
+## Continuation: agents fill a thread
+
+An asynchronous answer that someone goes on with needs someone who waits: a thread ("Vorgang"). It lives across
+several conversations and waits anyway, for the user's answers. So the continuation is: **agents fill a thread's
+fields, as the user does**.
+
+- **The skill says it**, in its target: a field names the agent that fills it and its input. Mira starts the agent
+  herself, as soon as everything its input names is there; several agents run at once.
+
+  ```yaml
+  target:
+    fields:
+      - name: gaeste
+        description: How many children come.        # Mira asks the user
+      - name: wetter
+        description: The forecast for the day.
+        agent: wetter                                # an agent fills it
+        input: { tag: "{{ datum }}" }                # thread fields and {{ request }}
+      - name: datum
+        description: The day.
+    finish: …                                        # once all are there
+  ```
+
+  A plan target (`plan: true`, no fields) names its agent on the target: `agent` and `input`; its result is the
+  plan.
+- **The input** is an object as the agent's input schema asks, with placeholders: `{{ field }}` for the thread's
+  fields, `{{ request }}` for what the user asked for. An agent without an input schema gets
+  `{ input: "…" }`; without any input it gets `{ input: "{{ request }}" }`. The agent starts once every field its
+  input names is filled. A field the user filled meanwhile keeps the user's answer.
+- **The call** is asynchronous with the route "thread": the thread's ID and the field (or the plan). The call
+  context is the thread's: its person and its place. The call IDs stay with the thread.
+- **A result arrives:** it is filled in as if the user had said it: the field's check runs, the log says "agent
+  wetter: …". When then every field is there, the finish runs as always (question, proposal, done); what it says
+  comes as a message of the thread, as for slow work. A plan from an agent is written into the thread, and the user
+  gets a message that it is there. Third-party text the agent read counts for the thread (a foreign plan).
+- **An agent fails:** the log says so, and the thread asks the user for that field, as a message of the thread. The
+  thread goes on; the user can cancel it as always.
+- **The thread ends** (cancelled, expired): its agents still running are cancelled.
+- **While an agent works** the thread shows the model that this field is being filled, so it does not ask the user
+  for it.
+- **A restart:** the agents' runs go on (Surviving a restart), and their results reach the thread afterwards.
+- **An unknown agent** in a skill's target is a problem of the skill when Mira starts; the skill is left out.
+
+Idea for later: the model may send agents for a thread itself, with a tool (`thread_delegate(agent, input, into)`),
+also ones the skill does not name.
 
 ## Depth
 
@@ -302,7 +350,7 @@ per agent come in addition.
 5. **Conversation:** `conversation.voice`, `conversation.telegram`.
 6. **Asynchronous:** the runtime with storing and continuing, run record, query, delivery as a Home Assistant event
    and as a message; the Home Assistant action; the version check for plans and threads.
-7. **Continuation** as a delivery route. Still to be specified; it waits until step 6 is built.
+7. **Continuation:** agents fill a thread's fields (see Continuation: agents fill a thread).
 8. **Factory:** agents in YAML. Independent of step 7; can be built after step 6.
 
 ## Model choice
@@ -447,8 +495,11 @@ From that:
 35. **Output schema and tools together:** the answer's form (`response_format`) goes along with every request of an
     agent with an output schema, also when tools are offered; no extra call to bring the answer into form. An agent
     that needs tools and an output schema takes a model that can do both.
+36. **Continuation only for threads:** an asynchronous result someone goes on with goes into a thread; agents fill
+    a thread's fields (or its plan) as the user does. The skill's target names the agents (the model sending agents
+    itself stays an idea). A result goes into fields or the plan only. A failed agent makes the thread ask the user
+    for that field.
 
 ## Open questions
 
-1. **Continuation** (step 7): the calling run waits (stored, status "waiting") and is woken with the result; what a
-   thread does with a result. To be specified once step 6 is built.
+None at the moment.

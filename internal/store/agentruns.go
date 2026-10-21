@@ -21,6 +21,8 @@ type AgentRun struct {
 	Input  string
 	Output string
 	Error  string
+	// Foreign: the run read third-party text.
+	Foreign bool
 	// Deadline is when the run expires; EndedAt is zero while it runs.
 	StartedAt time.Time
 	Deadline  time.Time
@@ -52,10 +54,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	return err
 }
 
-// EndAgentRun gives a run its final status, its output or error.
-func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE agent_runs SET status = ?, output = ?, error = ?, ended_at = ? WHERE call_id = ?`,
-		status, output, errText, formatTime(s.now()), callID)
+// EndAgentRun gives a run its final status, its output or error, and
+// whether it read third-party text.
+func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText string, foreign bool) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE agent_runs SET status = ?, output = ?, error = ?, foreign_text = ?, ended_at = ? WHERE call_id = ?`,
+		status, output, errText, foreign, formatTime(s.now()), callID)
 	if err != nil {
 		return err
 	}
@@ -65,13 +68,13 @@ func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText
 	return nil
 }
 
-const agentRunSelect = `SELECT call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at FROM agent_runs`
+const agentRunSelect = `SELECT call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at, foreign_text FROM agent_runs`
 
 func scanAgentRun(row scannable) (AgentRun, error) {
 	var r AgentRun
 	var call, started, deadline, ended string
 	if err := row.Scan(&r.CallID, &r.ParentID, &r.Agent, &r.Status, &call, &r.Input, &r.Output, &r.Error,
-		&started, &deadline, &ended); err != nil {
+		&started, &deadline, &ended, &r.Foreign); err != nil {
 		return AgentRun{}, err
 	}
 	r.Call = json.RawMessage(call)

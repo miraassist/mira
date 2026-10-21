@@ -15,6 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -102,6 +103,10 @@ func (a *app) deliverRun(ctx context.Context, rec store.AgentRun, cc agent.CallC
 	case agent.ToMessage:
 		if err := a.resultMessage(ctx, rec, cc.Mode.Delivery); err != nil {
 			a.log.Error("could not deliver a run's result as a message", "call_id", rec.CallID, "error", err)
+		}
+	case agent.ToThread:
+		if a.threads != nil {
+			a.threads.AgentResult(ctx, cc.Mode.Delivery.Thread, cc.Mode.Delivery.Into, rec)
 		}
 	}
 }
@@ -229,4 +234,51 @@ func (a *app) notifyCompose(ctx context.Context, instruction string, schema json
 func notifyComposeSpec(schema json.RawMessage) agent.Spec {
 	return agent.Spec{Name: "notify.compose", Description: "Words announcements and results for the house.",
 		Role: "background", Profile: agent.Background, Output: schema}
+}
+
+// agentNames are the agents a skill's target may name: Mira's own with a
+// fixed description and those described in YAML (whether these start is
+// checked later; one that does not fails like any agent).
+func (a *app) agentNames() map[string]bool {
+	names := map[string]bool{}
+	for _, n := range agent.Callable {
+		names[n] = true
+	}
+	for n := range a.cfg.Agents.Defined {
+		names[n] = true
+	}
+	if a.skills != nil {
+		for _, sk := range a.skills.Skills {
+			for n := range sk.Agents {
+				names[n] = true
+			}
+		}
+	}
+	return names
+}
+
+// unknownAgent is the first agent a target names that does not exist.
+func unknownAgent(t *skills.Target, known map[string]bool) string {
+	if t.Agent != "" && !known[t.Agent] {
+		return t.Agent
+	}
+	for _, f := range t.Fields {
+		if f.Agent != "" && !known[f.Agent] {
+			return f.Agent
+		}
+	}
+	return ""
+}
+
+// dispatchForThread starts an agent that fills a field of a thread: an
+// asynchronous run in the thread's call context, delivered back into it.
+func (a *app) dispatchForThread(ctx context.Context, th store.Thread, into, name, callID string, input json.RawMessage) error {
+	area, _ := strings.CutPrefix(th.Place, "area:")
+	if area == th.Place {
+		area = ""
+	}
+	_, err := a.agents.CallByName(ctx, name, input, agent.CallContext{CallID: callID, Origin: agent.FromCode,
+		Person: th.Person, Place: area, Mode: agent.Mode{Async: true,
+			Delivery: agent.Delivery{Route: agent.ToThread, Thread: th.ID, Into: into}}})
+	return err
 }

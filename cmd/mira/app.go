@@ -331,10 +331,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		known = append(known, name)
 	}
 	sort.Strings(known)
+	agentNames := a.agentNames()
 	var startable []skills.Skill
 	for _, sk := range targets {
 		if fin := sk.Target.Finish; !sk.Target.Plan && fin.Action == nil && finishers[fin.Name] == nil {
 			problems = append(problems, skills.NewProblem(sk.Name, skills.KindUnknownFinish, fin.Name, strings.Join(known, ", ")))
+			continue
+		}
+		if name := unknownAgent(sk.Target, agentNames); name != "" {
+			problems = append(problems, skills.NewProblem(sk.Name, skills.KindUnknownAgent, name))
 			continue
 		}
 		startable = append(startable, sk)
@@ -358,7 +363,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return a.agents.Job(ctx, agent.Spec{Name: name, Profile: agent.Isolated, Rights: agent.AllRights},
 				agent.CallContext{CallID: id, Origin: agent.FromCode, Rights: agent.AllRights}, work)
 		},
-		Cancel: func(id string) bool { return a.agents.Cancel(id) },
+		Cancel:   func(id string) bool { return a.agents.Cancel(id) },
+		Dispatch: a.dispatchForThread,
 	})
 	for _, sk := range targets {
 		a.log.Info("target enabled", "target", sk.Name, "finish", sk.Target.Finish)

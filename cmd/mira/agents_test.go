@@ -16,10 +16,13 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/notifier"
+	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
+	"gopkg.in/yaml.v3"
 )
 
 // quietHA is Home Assistant as the notifier needs it, doing nothing.
@@ -135,5 +138,55 @@ func TestAG100_AResultAsAMessageIsWordedByNotifyCompose(t *testing.T) {
 	if len(reqs) != 1 || !strings.Contains(reqs[0].Request.Messages[len(reqs[0].Request.Messages)-1].Content, `"items":["Milch"]`) ||
 		reqs[0].Request.ResponseFormat == nil {
 		t.Errorf("notify.compose was not asked as expected: %+v", reqs)
+	}
+}
+
+// AG-49 An unknown agent in a target is a problem of the skill
+func TestAG49_AnUnknownAgentInATargetIsAProblemOfTheSkill(t *testing.T) {
+	a := &app{cfg: config.Default()}
+	a.cfg.Agents.Defined = map[string]yaml.Node{"wetter": {}}
+	known := a.agentNames()
+	// Given a skill whose target names an agent that does not exist
+	target := &skills.Target{Fields: []skills.TargetField{{Name: "wetter", Agent: "wetter"}, {Name: "x", Agent: "gibtsnicht"}}}
+	// When Mira starts
+	name := unknownAgent(target, known)
+	// Then the skill is left out, and the problem names the agent
+	text := skills.NewProblem("geburtstag", skills.KindUnknownAgent, name).Text(i18n.DE)
+	if name != "gibtsnicht" || !strings.Contains(text, "„gibtsnicht“") {
+		t.Errorf("unknown %q, problem %q", name, text)
+	}
+	if unknownAgent(&skills.Target{Plan: true, Agent: "delegate"}, known) != "" {
+		t.Error("Mira's own agent is unknown")
+	}
+}
+
+// An agent a thread starts runs in the runtime, and its result reaches the
+// thread through the delivery: the whole way, with the app's wiring.
+func TestThreadAgentRunsAndFillsTheField(t *testing.T) {
+	a, _, _ := deliveryApp(t, fakellm.Step{Content: "Topfschlagen"})
+	if p := a.agents.RegisterDefined([]agent.Defined{{Name: "spielideen",
+		Def: config.AgentDef{Description: "Spielideen.", Instructions: "Nenne ein Spiel."}}}, func(string) bool { return true }); len(p) != 0 {
+		t.Fatal(p)
+	}
+	target := skills.Skill{Name: "geburtstag", Description: "Feier", Body: "Plane.", Target: &skills.Target{
+		Finish: skills.Finish{Name: "memory.save"}, Fields: []skills.TargetField{
+			{Name: "fact", Description: "was", Agent: "spielideen"}}}}
+	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{target},
+		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
+		Dispatch:  a.dispatchForThread, Cancel: a.agents.Cancel})
+	ctx := context.Background()
+	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+	if _, err := a.threads.Start(ctx, inv, "geburtstag", "Plane Tims Geburtstag"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; ; i++ {
+		facts, _ := a.store.AllFacts(ctx)
+		if len(facts) == 1 && facts[0].Text == "Topfschlagen" {
+			break
+		}
+		if i > 200 {
+			t.Fatalf("the agent's result did not reach the thread: %+v", facts)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

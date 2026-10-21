@@ -183,11 +183,59 @@ Feature: AG Agents
     When the run is done
     Then the person gets a message that the conversation worded from the result
 
+  # --- Continuation: agents fill a thread (agenten.md: Continuation) --------------------------------
+
   @step7
-  Scenario: AG-42 Delivery as a continuation
-    Given a run that calls another agent asynchronously with the delivery route "continuation"
-    When the called run is done
-    Then the calling run goes on with its result
+  Scenario: AG-42 An agent's result fills a field of the thread
+    Given a thread whose target has a field an agent fills
+    When the agent is done
+    Then its result is in the field, checked as if the user had given it
+    And the log says which agent filled it
+
+  @step7
+  Scenario: AG-43 An agent starts once its input is there
+    Given a field whose agent takes another field as input
+    When the user gives that other field
+    Then the agent is started with it, in the thread's call context
+
+  @step7
+  Scenario: AG-44 Several agents run at once, the last result finishes
+    Given a thread with two fields filled by agents and the other fields given
+    When both agents run
+    Then they run at the same time
+    And when the second result is there, the finish runs and its answer comes as a message of the thread
+
+  @step7
+  Scenario: AG-45 A failed agent makes the thread ask the user
+    Given a field an agent fills
+    When the agent fails
+    Then the log says so
+    And the thread asks the user for that field, as a message of the thread
+
+  @step7
+  Scenario: AG-46 Ending the thread cancels its agents
+    Given a thread with an agent still running
+    When the user cancels the thread
+    Then the agent's run is cancelled
+
+  @step7
+  Scenario: AG-47 An agent writes a plan
+    Given a plan target that names an agent
+    When the thread starts and the agent is done
+    Then its result is the thread's plan, marked foreign if the agent read third-party text
+    And the user gets a message that the plan is there
+
+  @step7
+  Scenario: AG-48 While an agent works the model does not ask for its field
+    Given a field an agent is filling
+    When the model sees the thread
+    Then the field shows that an agent fills it
+
+  @step7
+  Scenario: AG-49 An unknown agent in a target is a problem of the skill
+    Given a skill whose target names an agent that does not exist
+    When Mira starts
+    Then the skill is left out, and the problem names the agent
 
   # --- Log (agenten.md: Log) -------------------------------------------------------------------------
 

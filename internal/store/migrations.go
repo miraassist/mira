@@ -322,6 +322,16 @@ CREATE TABLE agent_run_steps (
 );
 `,
 	},
+	{
+		// Agents fill a thread's fields (docs/spec/agenten.md, Continuation):
+		// the thread keeps their call ids by field; a run record keeps
+		// whether the run read third-party text, for a foreign plan.
+		name: "0017_thread_calls",
+		stmt: `
+ALTER TABLE threads ADD COLUMN calls TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE agent_runs ADD COLUMN foreign_text INTEGER NOT NULL DEFAULT 0;
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {
