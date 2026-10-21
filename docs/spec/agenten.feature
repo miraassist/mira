@@ -4,7 +4,7 @@
 #
 # Groups: AG-0x rights · AG-1x depth · AG-2x synchronous · AG-3x asynchronous and run record ·
 #         AG-4x delivery · AG-5x log · AG-6x calls from Home Assistant and as a tool · AG-7x model ·
-#         AG-8x runtime
+#         AG-8x/9x runtime · AG-Ax YAML agents
 
 Feature: AG Agents
 
@@ -365,3 +365,71 @@ Feature: AG Agents
     When the agent starts again
     Then the run record has the status "failed"
     And the reason is that the agent no longer exists
+
+  @step5
+  Scenario: AG-95 Two conversations in different rooms run at the same time on a cloud model
+    Given two satellites in different rooms and a cloud model for conversations
+    When two persons ask at the same moment
+    Then both turns run at the same time
+
+  @step5
+  Scenario: AG-96 Two turns of the same session run one after the other
+    Given a session with a turn still running
+    When a second turn of the same session arrives
+    Then it starts after the first one has ended
+
+  @step6
+  Scenario: AG-97 Conversations do not count towards the 10 runs
+    Given 10 asynchronous runs are running
+    When a person talks to Mira
+    Then the conversation runs without waiting for them
+
+  @step6
+  Scenario: AG-98 The defaults of mira.agent
+    When an automation calls mira.agent with only agent and input
+    Then the call is synchronous with a timeout of 60 seconds
+    And at the timeout it is cancelled
+
+  @step6
+  Scenario: AG-99 An agent as a tool at a satellite answers late
+    Given a voice conversation that calls an agent as a tool
+    When the agent is not done after 5 seconds
+    Then Mira tells the user she will come back
+    And the run goes on and its result comes as a message to the room or the person
+
+  @step6
+  Scenario: AG-100 A result delivered as a message is worded by the announcement agent
+    Given an asynchronous call with the delivery route "message"
+    When the run is done
+    Then the message's spoken text comes from notify.compose
+    And the run's output is in the message's details
+
+  @step8
+  Scenario: AG-A1 A YAML agent in mira.yaml can be called
+    Given an agent described in mira.yaml under agents
+    When an automation calls mira.agent with its name and a fitting input
+    Then the agent runs with the instructions, input schema and output schema from the YAML
+
+  @step8
+  Scenario: AG-A2 A YAML agent in a skill can be called
+    Given an agent described in a skill under metadata.mira.agents
+    When it is called
+    Then it runs, with the skill's settings filled into its placeholders
+
+  @step8
+  Scenario: AG-A3 A YAML agent without a model takes main
+    Given a YAML agent without model
+    When it runs
+    Then it takes the model main
+
+  @step8
+  Scenario: AG-A4 A YAML agent without rights may only read the house
+    Given a YAML agent without rights
+    When it runs
+    Then its effective rights are at most "read the house"
+
+  @step8
+  Scenario: AG-A5 A YAML agent cannot use the conversation profile
+    Given a YAML agent with context conversation
+    When Mira loads it
+    Then it is not started, and the problem names the profile
