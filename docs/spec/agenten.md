@@ -82,6 +82,21 @@ A small rights model, only what Mira already tells apart today:
 - If a called agent read third-party text, the result says so; for the caller it then counts as if it had read it
   itself.
 
+### The right each tool needs
+
+Derived from what a tool declares (`internal/agent/rights.go`, `RightFor`):
+
+| Tool | Right |
+|---|---|
+| a tool that returns web content (`web_search`, `web_page`, MCP servers marked `web_content`) | web |
+| a Home Assistant or MCP tool that only reads | read the house |
+| any other Home Assistant or MCP tool | act on the house |
+| `memory_save`, `memory_forget` | remember |
+| `message_send`, `message_ack`, `reminder_set`, `reminder_cancel` | messages |
+| `radio_play`, `sleep_timer`, `task_delete`, `task_enable` | act on the house |
+| `thread_fill`, `thread_confirm`, `thread_undo` (filling or confirming may run the thread's finish, an action or a fact; taking back runs an action) | act on the house |
+| every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `thread_start`, `thread_cancel`, `thread_plan`, `delegate`) | read the house |
+
 ## Calling
 
 All ways go through the same interface: agent, input, call context; back comes the answer, or for asynchronous calls

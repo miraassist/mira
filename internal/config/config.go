@@ -51,7 +51,15 @@ type Config struct {
 	Memory     Memory            `yaml:"memory"`
 	Skills     Skills            `yaml:"skills"`
 	WebSearch  WebSearch         `yaml:"web_search"`
+	Agents     Agents            `yaml:"agents"`
 	Telemetry  Telemetry         `yaml:"telemetry"`
+}
+
+// Agents are the settings of Mira's agents (docs/spec/agenten.md).
+type Agents struct {
+	// MaxDepth is how deep agents may call each other; an outside call has
+	// depth 0. Default 3.
+	MaxDepth int `yaml:"max_depth"`
 }
 
 type Server struct {
@@ -135,6 +143,32 @@ func (c Config) Model(name string) (LLM, bool) {
 	}
 	m, ok := c.Models[name]
 	return m, ok
+}
+
+// RoleModel names the model of an agent's role in routing (voice,
+// telegram, background, delegate, tasks, mail); without an entry, or for a
+// role routing does not know, it is main (docs/spec/agenten.md, Model
+// choice).
+func (c Config) RoleModel(role string) string {
+	var name string
+	switch role {
+	case "voice":
+		name = c.Routing.Voice
+	case "telegram":
+		name = c.Routing.Telegram
+	case "background":
+		name = c.Routing.Background
+	case "delegate":
+		name = c.Routing.Delegate
+	case "tasks":
+		name = c.Routing.Tasks
+	case "mail":
+		name = c.Routing.Mail
+	}
+	if name == "" {
+		return MainModel
+	}
+	return name
 }
 
 // RouteFor names the model that serves a channel.
@@ -395,6 +429,7 @@ func Default() Config {
 	temp := 0.3
 	return Config{
 		WebSearch: WebSearch{Enabled: true},
+		Agents:    Agents{MaxDepth: 3},
 		// The image sets MIRA_LISTEN (all interfaces) and MIRA_DATA (its
 		// data folder): a container needs no config for either.
 		Server: Server{Listen: envOr("MIRA_LISTEN", "127.0.0.1:8787"), Announce: true, Name: "Mira"},
@@ -728,6 +763,9 @@ func (c Config) Validate() error {
 	}
 	if n := len([]rune(c.Prompt.Persona)); n > MaxPersonaChars {
 		add("prompt.persona is %d characters long; at most %d fit, since it goes with every request", n, MaxPersonaChars)
+	}
+	if c.Agents.MaxDepth < 0 {
+		add("agents.max_depth must not be negative")
 	}
 	if c.Notifier.MaxItemsPerAnnouncement < 1 {
 		add("notifier.max_items_per_announcement must be at least 1")
