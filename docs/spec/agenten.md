@@ -216,6 +216,20 @@ fields, as the user does**.
 Idea for later: the model may send agents for a thread itself, with a tool (`thread_delegate(agent, input, into)`),
 also ones the skill does not name.
 
+## Run view
+
+For debugging, Mira's page gets a tab **"Agenten"** (admins only), read-only. It shows what the runtime stores, nothing
+more: the asynchronous runs (and those running on after their timeout) of the last 60 minutes; synchronous runs
+(conversations, mails, most calls) are not stored and appear only in the log.
+
+- **The list**, newest first: agent, status, start, duration, model, model calls, tokens, the calling call's ID, and
+  the delivery route. Running ones at the top; the list updates by itself.
+- **One run, opened**: its input, its call context (origin, person, place, rights, depth), and its rounds in order:
+  each answer of the model with the tool calls and their arguments, each tool marked as started, each result, each
+  change of what its guard knows (web content read, third-party text); at the end its output or error.
+- Stored content can hold private data (mails, web pages); the tab is for admins, as the other tabs of the page
+  that show settings.
+
 ## Depth
 
 An agent can call another, which calls another again. The depth is limited, by the setting `agents.max_depth`,
@@ -352,6 +366,7 @@ per agent come in addition.
    and as a message; the Home Assistant action; the version check for plans and threads.
 7. **Continuation:** agents fill a thread's fields (see Continuation: agents fill a thread).
 8. **Factory:** agents in YAML. Independent of step 7; can be built after step 6.
+9. **Run view:** the stored runs on Mira's page (see Run view).
 
 ## Model choice
 
@@ -502,4 +517,4 @@ From that:
 
 ## Open questions
 
-None at the moment.
+None at the moment. Models (named models instead of roles) are specified in [Models](modelle.md).

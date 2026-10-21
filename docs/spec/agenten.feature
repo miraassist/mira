@@ -497,6 +497,27 @@ Feature: AG Agents
     When Mira loads it
     Then it is not started, and the problem names the profile
 
+  # --- Run view (agenten.md: Run view) -----------------------------------------------------------------
+
+  @step9
+  Scenario: AG-C1 The stored runs are listed
+    Given two asynchronous runs, one done and one running
+    When an admin opens the tab Agenten on Mira's page
+    Then both are listed, the running one first, with agent, status, start, duration, model, model calls and tokens
+
+  @step9
+  Scenario: AG-C2 A run shows its rounds
+    Given a done run that called a tool and read a web page
+    When the admin opens it
+    Then its input, call context, the model's answers with the tool calls, the results, the change of what its guard
+      knows and its output are shown in order
+
+  @step9
+  Scenario: AG-C3 Only admins see the tab
+    Given a user of Home Assistant who is no admin
+    When they open Mira's page
+    Then there is no tab Agenten, and the runs cannot be read
+
   @step5
   Scenario: AG-B1 A known person's conversation follows them to another satellite
     Given a person known to Mira (alone at home) talking at the satellite in the kitchen
