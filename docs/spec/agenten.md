@@ -1,6 +1,6 @@
 # Agenten – Spezifikation
 
-Stand 2026-10-21, Entwurf. Nichts davon ist gebaut.
+Stand 2026-10-21, beschlossen. Nichts davon ist gebaut.
 
 ## Ziel
 
@@ -80,8 +80,8 @@ asynchronen Aufrufen die Aufruf-ID.
   ihn als Werkzeug: Name, Beschreibung, Eingabe-Schema. Der Aufruf-Kontext kommt vom aufrufenden Lauf. So
   funktioniert `delegate` heute schon, nur fest eingebaut.
 - **Aus Home Assistant:** eine Aktion, etwa am Ende einer Automation, mit Agent, Eingabe und Modus; synchron mit
-  Antwort für die Automation (`response_variable`), so wie `mira.assess` heute. Vorschlag für den Namen:
-  `mira.agent`.
+  Antwort für die Automation (`response_variable`), so wie `mira.assess` heute. Name: `mira.agent`.
+  Aus Home Assistant aufrufbar sind alle Agenten.
 - **Aus dem Code:** direkt, so wie heute der Notifier `notify.compose` ruft.
 
 ## Synchron und asynchron
@@ -101,14 +101,14 @@ Jeder asynchrone Lauf (und jeder synchrone, der nach dem Timeout weiterläuft) b
 - die Ausgabe nach dem Schema des Agenten, oder der Fehler;
 - Beginn und Ende.
 
-Nach einer Frist wird er gelöscht. Abfragen lässt er sich jederzeit über die Aufruf-ID, auch aus Home Assistant
-(Vorschlag: `mira.agent_result`).
+60 Minuten nach dem Ende wird er gelöscht. Bis dahin lässt er sich über die Aufruf-ID abfragen, auch aus Home
+Assistant (`mira.agent_result`).
 
 ### Zustellen
 
 Ist der Lauf fertig, wird der Aufrufer benachrichtigt, auf dem Weg, den er im Aufruf-Kontext angegeben hat:
 1. **Home-Assistant-Ereignis** mit Aufruf-ID, Agent, Status und Ausgabe; eine Automation kann daran weitermachen
-   (Vorschlag: `mira_agent_done`).
+   (`mira_agent_done`).
 2. **Nachricht** an eine Person oder das Haus. Das Gespräch formuliert sie daraus („So hab ich mir das gedacht“);
    das ist der Weg für Menschen.
 3. **Fortsetzung** des aufrufenden Agenten oder Vorgangs mit dem Ergebnis. Dieser Weg kommt zuletzt.
@@ -118,8 +118,8 @@ Vorgangs-ID ist die Aufruf-ID), und daraus wird eine Ansage.
 
 ## Tiefe
 
-Ein Agent kann einen anderen rufen, der wieder einen ruft. Die Tiefe ist begrenzt, mit einer Einstellung
-(Vorschlag: `agents.max_depth`). Wird sie überschritten, scheitert der Aufruf mit diesem Grund.
+Ein Agent kann einen anderen rufen, der wieder einen ruft. Die Tiefe ist begrenzt, mit der Einstellung
+`agents.max_depth`, Vorgabe 3. Wird sie überschritten, scheitert der Aufruf mit diesem Grund.
 
 ## Protokoll
 
@@ -246,10 +246,7 @@ Daraus:
 8. **Synchron oder asynchron entscheidet der Aufrufer**, synchron mit Timeout.
 9. **Asynchrone Ergebnisse** liegen als Lauf-Datensatz mit Aufruf-ID und Ausgabe nach Schema; der Aufrufer wird
    benachrichtigt. Eine Nachricht ist einer der Wege, nicht der einzige.
+10. **Namen:** `mira.agent`, `mira.agent_result`, `mira_agent_done`, `agents.max_depth`.
+11. **Vorgaben:** Tiefe höchstens 3; ein Lauf-Datensatz bleibt 60 Minuten nach seinem Ende.
+12. **Aus Home Assistant aufrufbar** sind alle Agenten.
 
-## Offene Fragen
-
-1. **Namen:** die HA-Aktionen (`mira.agent`, `mira.agent_result`), das HA-Ereignis (`mira_agent_done`) und die
-   Einstellung für die Tiefe (`agents.max_depth`) sind Vorschläge.
-2. **Vorgaben:** wie tief Agenten einander höchstens rufen dürfen, und wie lange ein Lauf-Datensatz bleibt.
-3. **Welche internen Agenten aus Home Assistant aufrufbar sind:** alle, oder nur ausgewählte?
