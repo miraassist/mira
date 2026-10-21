@@ -1,26 +1,26 @@
-# Kalender und To-do-Listen – Spezifikation
+# Calendars and to-do lists – spec
 
-Stand 2026-10-17, gebaut in 0.6.19. Baut auf [Skill-Aktionen](skill-aktionen.md) auf. Wie Daten dargestellt werden (Stufen, Zeitachse): [Kontext](kontext.md), Abschnitt 2.
+Status 2026-10-17: built in 0.6.19. Builds on [Skill actions](skill-aktionen.md). How data is presented (levels, timeline): [Context](kontext.md), section 2.
 
-## Grundsatz
+## Principle
 
-Kalender und To-do-Listen sind Konzepte von Home Assistant; Mira nutzt sie, statt eigene zu führen. Mehrere Kalender sind der Normalfall (Familie, eigener, Google, Feiertage, Abfuhr …).
+Calendars and to-do lists are Home Assistant concepts; Mira uses them instead of keeping her own. Several calendars are the normal case (family, own, Google, holidays, waste collection …).
 
-- **Was Mira sieht**, regelt HAs Freigabe für Assist, wie bei allen Entitäten: nur freigegebene Kalender und Listen.
-- **Beschreibbar** ist ein Kalender, wenn HA es angibt (`supported_features`: Eintragen, Löschen). Feiertage oder Kalenderwochen sind nur zum Lesen da; Mira bietet sie zum Eintragen nicht an.
+- **What Mira sees** is governed by HA's exposure to Assist, as for all entities: only exposed calendars and lists.
+- A calendar is **writable** if HA says so (`supported_features`: create, delete). Holidays or calendar weeks are read-only; Mira does not offer them for adding events.
 
-## Lesen: eigenes Werkzeug `calendar_events`
+## Reading: own tool `calendar_events`
 
-HAs Werkzeug `calendar_get_events` liefert alle Termine eines Zeitraums roh, mit langen Beschreibungen (Einladungen, Links). Mira nutzt es nicht. Sie hat ein eigenes Werkzeug und bestimmt selbst, wie das Modell den Kalender sieht.
+HA's tool `calendar_get_events` returns all events of a period raw, with long descriptions (invitations, links). Mira does not use it. She has her own tool and decides herself how the model sees the calendar.
 
-| Parameter | Bedeutung |
+| Parameter | Meaning |
 |---|---|
-| `from`, `to` | Zeitraum; Standard: heute bis in 7 Tagen |
-| `calendar` | ein Kalender; Standard: alle freigegebenen |
-| `query` | Suchtext im Titel, z. B. „Arzt“ |
-| `details` | auch Beschreibungen; Standard nein |
+| `from`, `to` | period; default: today until 7 days from now |
+| `calendar` | one calendar; default: all exposed |
+| `query` | search text in the title, e.g. "Arzt" |
+| `details` | also descriptions; default no |
 
-Darstellung, knapp:
+Presentation, compact:
 
 ```
 Mo 20.10.
@@ -29,69 +29,69 @@ Fr 24.10.
 - [t2] ganztägig Geburtstag Oma (Familie)
 ```
 
-- Nach Tag gruppiert, mit Wochentag; ganztägige Termine als „ganztägig“.
-- Der Ort wird gekürzt. Die Beschreibung kommt nur mit `details` und auch dann gekürzt und ohne Links.
-- Höchstens 40 Termine, dann „und N weitere“.
-- Jeder Termin hat eine kurze Kennung (`t1`, `t2` …) zum Absagen. Die Termin-ID von HA (`uid`, bei Serien `recurrence_id`) behält der Code für sich; das Modell sieht sie nicht.
-- Quelle ist HAs REST-API `/api/calendars/<entität>`. Sie liefert die Termin-ID, Miras Benutzer darf sie lesen.
+- Grouped by day, with weekday; all-day events as "ganztägig".
+- The location is shortened. The description only comes with `details`, and even then shortened and without links.
+- At most 40 events, then "und N weitere".
+- Every event has a short ID (`t1`, `t2` …) for cancelling. HA's event ID (`uid`, for series `recurrence_id`) the code keeps to itself; the model does not see it.
+- The source is HA's REST API `/api/calendars/<entity>`. It returns the event ID, Mira's user may read it.
 
-**Für Aufgaben** kommt dieselbe Darstellung als Ansicht `view: upcoming` für Kalender-Entitäten in `mira.assess` und `mira.decide` hinzu (Standard: die nächsten 24 Stunden), z. B. für „Sag mir abends, was morgen ansteht“.
+**For tasks** the same presentation is added as view `view: upcoming` for calendar entities in `mira.assess` and `mira.decide` (default: the next 24 hours), e.g. for "Sag mir abends, was morgen ansteht".
 
-## Eintragen: Skill `termin`
+## Adding: skill `termin`
 
-Das ist der Haupt-Anwendungsfall: „Trag mir Freitag um 15 Uhr Zahnarzt ein.“ Er ist eine Skill-Aktion ohne eigenen Code.
+This is the main use case: "Trag mir Freitag um 15 Uhr Zahnarzt ein." It is a skill action without code of its own.
 
-- **Felder:**
-  - Titel;
-  - Beginn (Datum mit Uhrzeit, oder nur Datum für ganztägig);
-  - Ende oder Dauer, optional (Standard 1 Stunde);
-  - Ort, optional;
-  - Kalender.
-- **Abschluss:** `calendar.create_event`.
-- **Kein Nachfragen**, ob es passt. Mira sagt, was sie eingetragen hat: Titel, Tag, Uhrzeit, Kalender.
-- **Korrektur** („Nein, 16 Uhr“): Mira sagt den eben eingetragenen Termin ab, wie unten, und trägt neu ein. HA gibt beim Eintragen keine Termin-ID zurück; Mira findet ihn über `calendar_events` wieder.
+- **Fields:**
+  - title;
+  - start (date with time, or date only for all-day);
+  - end or duration, optional (default 1 hour);
+  - location, optional;
+  - calendar.
+- **Finish:** `calendar.create_event`.
+- **No question back** whether it fits. Mira says what she added: title, day, time, calendar.
+- **Correction** ("Nein, 16 Uhr"): Mira cancels the event she just added, as below, and adds it again. HA returns no event ID when adding; Mira finds it again via `calendar_events`.
 
-## Persönliche Kalender: Konvention statt Einstellung
+## Personal calendars: convention instead of setting
 
-Ein freigegebener Kalender, der so heißt wie der **Login-Name** des HA-Benutzers einer Person oder wie die **Person** selbst (Groß- und Kleinschreibung und Leerzeichen am Rand egal), ist der Kalender dieser Person: „Stefan“ gehört der Person „Stefan Rinke“ mit dem Login `stefan`, „Ben“ gehört Ben. Ein Vorname allein zählt nicht (HA hat dafür kein Feld). Den Login-Namen darf nur ein Admin lesen; die Integration schickt ihn deshalb mit den Einstellungen (`logins`, Person → Login), der Agent hält ihn (`ha_logins`). Es gibt dafür keine Einstellung. Genutzt wird das von Skill-Zeitplänen mit `per_person: true` (sie laufen je Person, die eine persönliche Nachricht erreicht, und bekommen deren Kalender, falls es einen gibt, und ihr persönliches Profil; `cmd/mira/calendars.go`, `reachablePeople`) und vom Briefing auf Nachfrage.
+An exposed calendar that is named like the **login name** of a person's HA user or like the **person** themselves (case and leading/trailing spaces do not matter) is that person's calendar: "Stefan" belongs to the person "Stefan Rinke" with the login `stefan`, "Ben" belongs to Ben. A first name alone does not count (HA has no field for it). Only an admin may read the login name; the integration therefore sends it with the settings (`logins`, person → login), the agent keeps it (`ha_logins`). There is no setting for this. It is used by skill schedules with `per_person: true` (they run per person who receives a personal message, and get that person's calendar, if there is one, and their personal profile; `cmd/mira/calendars.go`, `reachablePeople`) and by the briefing on request.
 
-## Welcher Kalender: fragen und merken
+## Which calendar: ask and remember
 
-Eine Einstellung dafür gibt es nicht.
-- Steht im Gedächtnis der Person ein Standard („Mein Kalender ist Familie“), nimmt Mira ihn.
-- Gibt es nur einen beschreibbaren Kalender, nimmt sie den.
-- Sonst fragt sie: „In welchen Kalender – Familie oder Anna?“ Nach der Antwort bietet sie an, sich das als Standard zu merken.
-- Nennt der Nutzer einen Kalender ausdrücklich („in den Familienkalender“), gilt der.
+There is no setting for this.
+- If the person's memory holds a default ("Mein Kalender ist Familie"), Mira takes it.
+- If there is only one writable calendar, she takes that one.
+- Otherwise she asks: "In welchen Kalender – Familie oder Anna?" After the answer she offers to remember it as the default.
+- If the user names a calendar explicitly ("in den Familienkalender"), that one applies.
 
-## Absagen: Skill `termin-absagen`
+## Cancelling: skill `termin-absagen`
 
-„Sag meinen Termin morgen beim Arzt ab.“
+"Sag meinen Termin morgen beim Arzt ab."
 
-1. Mira sucht mit `calendar_events` (Zeitraum und Suchtext aus dem Satz).
-2. Gibt es genau einen Treffer, wird der abgesagt. Bei mehreren fragt Mira, welcher; bei keinem sagt sie es.
-3. **Nachfragen vor dem Löschen** („Arzt Dr. Berger, Montag 10 Uhr – absagen?“): Löschen lässt sich nicht zurückholen (`confirm: true`, beschlossen).
-4. Abschluss ist ein Baustein im Kern, `calendar.delete`. HA hat dafür keine Aktion, nur den WebSocket-Befehl `calendar/event/delete` mit Termin-ID. Miras Benutzer darf ihn aufrufen (geprüft).
-5. **Bei Serien** wird nur dieser eine Termin abgesagt, außer der Nutzer sagt ausdrücklich „alle“.
+1. Mira searches with `calendar_events` (period and search text from the sentence).
+2. If there is exactly one match, it is cancelled. With several, Mira asks which one; with none, she says so.
+3. **Question back before deleting** ("Arzt Dr. Berger, Montag 10 Uhr – absagen?"): deleting cannot be undone (`confirm: true`, decided).
+4. The finish is a building block in the core, `calendar.delete`. HA has no action for this, only the WebSocket command `calendar/event/delete` with event ID. Mira's user may call it (checked).
+5. **For series** only this one event is cancelled, unless the user explicitly says "alle".
 
-## To-do-Listen
+## To-do lists
 
-- **Lesen, Hinzufügen, Abhaken, Entfernen** über HAs Assist-Werkzeuge (`todo__get_items`, `HassListAddItem`, `HassListCompleteItem`, `HassListRemoveItem`). Die gibt es schon.
-- **Neu ist der Skill `todo`** für Einträge mit **Fälligkeit oder Beschreibung** („Setz Batterien auf die Liste, bis Freitag“). Das können HAs Assist-Werkzeuge nicht.
-  - Felder: Eintrag, Liste, fällig (optional), Beschreibung (optional).
-  - Abschluss: `todo.add_item`.
-  - Ohne Fälligkeit und Beschreibung reicht HAs `HassListAddItem`.
-- **Welche Liste:** wie beim Kalender. Gibt es nur eine, nimmt Mira die; sonst steht der Standard im Gedächtnis, oder sie fragt.
+- **Reading, adding, checking off, removing** via HA's Assist tools (`todo__get_items`, `HassListAddItem`, `HassListCompleteItem`, `HassListRemoveItem`). These already exist.
+- **New is the skill `todo`** for items with **due date or description** ("Setz Batterien auf die Liste, bis Freitag"). HA's Assist tools cannot do that.
+  - Fields: item, list, due (optional), description (optional).
+  - Finish: `todo.add_item`.
+  - Without due date and description, HA's `HassListAddItem` is enough.
+- **Which list:** as with the calendar. If there is only one, Mira takes it; otherwise the default is in memory, or she asks.
 
-## Abfall-Skill
+## Waste skill
 
-Der Skill `abfall` liest seine Termine künftig über `calendar_events` aus einem Kalender in HA (z. B. Abfuhrtermine) statt selbst eine iCal-Datei zu holen. Miras eigene Kalender-Logik (`internal/ical`) entfällt. Statt `calendar_url` nennt der Skill die Kalender-Entität.
+The skill `abfall` will read its dates via `calendar_events` from a calendar in HA (e.g. collection dates) instead of fetching an iCal file itself. Mira's own calendar logic (`internal/ical`) is dropped. Instead of `calendar_url` the skill names the calendar entity.
 
-## Test-Umgebung
+## Test environment
 
-Die Test-HA hat einen lokalen Kalender „Familie“ (`calendar.familie`, beschreibbar) und eine lokale Liste „Einkauf“ (`todo.einkauf`, mit Fälligkeit und Beschreibung). Beide sind für Assist freigegeben und haben Beispieleinträge, darunter ein Termin mit langer Beschreibung und Link. Beim Bau kommt das ins Seed-Programm (`cmd/testha`), damit es sich wiederherstellen lässt.
+The test HA has a local calendar "Familie" (`calendar.familie`, writable) and a local list "Einkauf" (`todo.einkauf`, with due date and description). Both are exposed to Assist and have sample entries, among them an event with a long description and a link. When building, this goes into the seed program (`cmd/testha`) so that it can be restored.
 
-## Bewusst nicht
+## Deliberately not
 
-- **HAs `calendar_get_events`**: zu viel und zu roh.
-- **Termine ändern**: vorerst absagen und neu eintragen.
-- **Eine Einstellung für Standard-Kalender oder -Liste**: Das steht im Gedächtnis.
+- **HA's `calendar_get_events`**: too much and too raw.
+- **Changing events**: for now cancel and add again.
+- **A setting for the default calendar or list**: that is in memory.

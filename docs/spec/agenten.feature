@@ -1,259 +1,257 @@
-# language: de
+# Testable rules of docs/spec/agenten.md. Each scenario has a fixed number (AG-nn) that is never reused; its Go
+# test carries the number in its name (TestAG07_…). The tags @step1 … @step8 say in which step of the switch-over
+# (agenten.md, "Switching over in steps") the scenario gets built.
 #
-# Prüfbare Regeln zu docs/spec/agenten.md. Jedes Szenario hat eine feste Nummer (AG-nn), die nie
-# wiederverwendet wird; der Go-Test dazu trägt sie im Namen (TestAG07_…). Die Tags @schritt1 … @schritt8
-# sagen, in welchem Schritt der Umstellung (agenten.md, „Umstellung in Schritten“) das Szenario gebaut wird.
-#
-# Gruppen: AG-0x Rechte · AG-1x Tiefe · AG-2x synchron · AG-3x asynchron und Lauf-Datensatz ·
-#          AG-4x Zustellen · AG-5x Protokoll · AG-6x Aufruf aus Home Assistant und als Werkzeug · AG-7x Modell
+# Groups: AG-0x rights · AG-1x depth · AG-2x synchronous · AG-3x asynchronous and run record ·
+#         AG-4x delivery · AG-5x log · AG-6x calls from Home Assistant and as a tool · AG-7x model
 
-Funktionalität: AG Agenten
+Feature: AG Agents
 
-  # --- Rechte (agenten.md: Rechte) -------------------------------------------------------------------
+  # --- Rights (agenten.md: Rights) -------------------------------------------------------------------
 
-  @schritt1
-  Szenario: AG-01 Wirksam ist, was Aufruf-Kontext und Agent beide erlauben
-    Angenommen ein Agent, dessen Beschreibung die Rechte „Haus lesen“ und „Netz“ nennt
-    Und ein Aufruf-Kontext mit den Rechten „Haus lesen“ und „Haus schalten“
-    Wenn der Agent mit diesem Aufruf-Kontext läuft
-    Dann sind seine wirksamen Rechte nur „Haus lesen“
+  @step1
+  Scenario: AG-01 Effective is what both call context and agent allow
+    Given an agent whose description names the rights "read the house" and "web"
+    And a call context with the rights "read the house" and "act on the house"
+    When the agent runs with this call context
+    Then its effective rights are only "read the house"
 
-  @schritt1
-  Szenario: AG-02 Ohne das Recht „Haus schalten“ wird eine schaltende Aktion abgelehnt
-    Angenommen ein Lauf ohne das wirksame Recht „Haus schalten“
-    Wenn das Modell eine Aktion aufruft, die in Home Assistant etwas ändert
-    Dann wird die Aktion nicht ausgeführt
-    Und das Modell bekommt als Ergebnis, dass dieser Lauf nicht schalten darf
+  @step1
+  Scenario: AG-02 Without the right "act on the house" an acting action is refused
+    Given a run without the effective right "act on the house"
+    When the model calls an action that changes something in Home Assistant
+    Then the action is not run
+    And the model gets as the result that this run may not act on the house
 
-  @schritt1
-  Szenario: AG-03 Ein Unter-Agent bekommt höchstens die wirksamen Rechte seines Aufrufers
-    Angenommen ein Lauf mit den wirksamen Rechten „Haus lesen“ und „Netz“
-    Und ein zweiter Agent, dessen Beschreibung alle Rechte nennt
-    Wenn der Lauf den zweiten Agenten ruft
-    Dann enthält dessen Aufruf-Kontext höchstens „Haus lesen“ und „Netz“
+  @step1
+  Scenario: AG-03 A sub-agent gets at most its caller's effective rights
+    Given a run with the effective rights "read the house" and "web"
+    And a second agent whose description names all rights
+    When the run calls the second agent
+    Then that one's call context holds at most "read the house" and "web"
 
-  @schritt1
-  Szenario: AG-04 Wer nicht schalten darf, kann auch über einen anderen Agenten nicht schalten
-    Angenommen ein Lauf ohne das wirksame Recht „Haus schalten“
-    Und ein zweiter Agent, der Aktionen in Home Assistant aufrufen kann
-    Wenn der Lauf den zweiten Agenten ruft und dessen Modell eine schaltende Aktion aufruft
-    Dann wird die Aktion nicht ausgeführt
+  @step1
+  Scenario: AG-04 Who may not act on the house cannot do so through another agent either
+    Given a run without the effective right "act on the house"
+    And a second agent that can call actions in Home Assistant
+    When the run calls the second agent and that one's model calls an acting action
+    Then the action is not run
 
-  @schritt1
-  Szenario: AG-05 Rechte ersetzen den Wächter nicht
-    Angenommen ein Lauf mit dem wirksamen Recht „Haus schalten“
-    Wenn das Modell eine kritische Aktion aufruft (etwa ein Schloss öffnen)
-    Dann fragt der Wächter wie bisher nach, bevor sie ausgeführt wird
+  @step1
+  Scenario: AG-05 Rights do not replace the guard
+    Given a run with the effective right "act on the house"
+    When the model calls a critical action (such as opening a lock)
+    Then the guard asks first, as before
 
-  @schritt1
-  Szenario: AG-06 Fremder Text eines Unter-Agenten gilt für den Aufrufer
-    Angenommen ein Lauf, in dem noch kein fremder Text im Spiel ist
-    Wenn er einen Unter-Agenten ruft, der eine Webseite liest
-    Und der Lauf danach etwas behalten oder weitergeben will (Merken, Nachricht)
-    Dann fragt Mira vorher nach, wie nach Web-Inhalt im eigenen Lauf
+  @step1
+  Scenario: AG-06 A sub-agent's third-party text counts for the caller
+    Given a run without any third-party text involved yet
+    When it calls a sub-agent that reads a web page
+    And the run then wants to keep or pass something on (remember, message)
+    Then Mira asks first, as after web content in its own run
 
-  @schritt1
-  Szenario: AG-07 Nach Web-Inhalt bleiben kritische Aktionen gesperrt
-    Angenommen ein Lauf, der Web-Inhalt gelesen hat
-    Wenn das Modell danach eine kritische Aktion aufruft
-    Dann wird sie nicht ausgeführt, auch nicht mit einem Ja
+  @step1
+  Scenario: AG-07 After web content critical actions stay locked
+    Given a run that has read web content
+    When the model then calls a critical action
+    Then it is not run, not even with a yes
 
-  # --- Tiefe (agenten.md: Tiefe) ---------------------------------------------------------------------
+  # --- Depth (agenten.md: Depth) ---------------------------------------------------------------------
 
-  @schritt1
-  Szenario: AG-10 Ein äußerer Aufruf hat Tiefe 0, jeder Unter-Agent eine mehr
-    Wenn Home Assistant einen Agenten ruft
-    Dann hat dessen Aufruf-Kontext die Tiefe 0
-    Und ein Agent, den er ruft, hat die Tiefe 1
+  @step1
+  Scenario: AG-10 An outside call has depth 0, each sub-agent one more
+    When Home Assistant calls an agent
+    Then its call context has depth 0
+    And an agent it calls has depth 1
 
-  @schritt1
-  Szenario: AG-11 Ein Aufruf über die erlaubte Tiefe hinaus scheitert
-    Angenommen die Einstellung agents.max_depth ist nicht gesetzt
-    Und ein Lauf mit der Tiefe 3
-    Wenn er einen weiteren Agenten ruft
-    Dann scheitert der Aufruf
-    Und der Grund ist, dass die erlaubte Tiefe erreicht ist
+  @step1
+  Scenario: AG-11 A call beyond the allowed depth fails
+    Given the setting agents.max_depth is not set
+    And a run with depth 3
+    When it calls another agent
+    Then the call fails
+    And the reason is that the allowed depth is reached
 
-  @schritt1
-  Szenario: AG-12 Die erlaubte Tiefe ist einstellbar
-    Angenommen agents.max_depth ist 1
-    Und ein Lauf mit der Tiefe 1
-    Wenn er einen weiteren Agenten ruft
-    Dann scheitert der Aufruf
+  @step1
+  Scenario: AG-12 The allowed depth is a setting
+    Given agents.max_depth is 1
+    And a run with depth 1
+    When it calls another agent
+    Then the call fails
 
-  # --- Synchron (agenten.md: Synchron und asynchron) -------------------------------------------------
+  # --- Synchronous (agenten.md: Synchronous and asynchronous) ----------------------------------------
 
-  @schritt1
-  Szenario: AG-20 Synchron bekommt der Aufrufer die Antwort
-    Wenn ein Agent synchron mit einem Timeout gerufen wird
-    Und er vor dem Timeout fertig ist
-    Dann bekommt der Aufrufer seine Antwort
+  @step1
+  Scenario: AG-20 Synchronously the caller gets the answer
+    When an agent is called synchronously with a timeout
+    And it is done before the timeout
+    Then the caller gets its answer
 
-  @schritt1
-  Szenario: AG-21 Timeout, und der Aufrufer will abbrechen
-    Angenommen ein synchroner Aufruf, dessen Aufrufer beim Timeout abbrechen will
-    Wenn der Agent bis zum Timeout nicht fertig ist
-    Dann wird der Lauf abgebrochen
-    Und der Aufrufer bekommt, dass die Zeit abgelaufen ist
+  @step1
+  Scenario: AG-21 Timeout, and the caller wants to cancel
+    Given a synchronous call whose caller wants to cancel at the timeout
+    When the agent is not done by the timeout
+    Then the run is cancelled
+    And the caller gets that the time is up
 
-  @schritt6
-  Szenario: AG-22 Timeout, und der Aufrufer lässt weiterlaufen
-    Angenommen ein synchroner Aufruf, dessen Aufrufer beim Timeout weiterlaufen lassen will
-    Wenn der Agent bis zum Timeout nicht fertig ist
-    Dann bekommt der Aufrufer die Aufruf-ID
-    Und der Lauf läuft weiter und wird wie ein asynchroner zugestellt
+  @step6
+  Scenario: AG-22 Timeout, and the caller lets it run on
+    Given a synchronous call whose caller wants it to run on at the timeout
+    When the agent is not done by the timeout
+    Then the caller gets the call ID
+    And the run goes on and is delivered like an asynchronous one
 
-  @schritt1
-  Szenario: AG-23 Eine Ausgabe, die nicht dem Schema entspricht, ist kein Ergebnis
-    Angenommen ein Agent mit einem Schema für die Ausgabe
-    Wenn das Modell eine Antwort gibt, die dem Schema nicht entspricht
-    Dann gilt der Lauf als fehlgeschlagen
+  @step1
+  Scenario: AG-23 An output that does not follow the schema is no result
+    Given an agent with a schema for its output
+    When the model gives an answer that does not follow the schema
+    Then the run counts as failed
 
-  @schritt1
-  Szenario: AG-24 Ein hängender Modellaufruf wird nach den Grenzen wiederholt
-    Angenommen ein Agent mit den Grenzen „60 s je Versuch, einmal wiederholen“
-    Wenn der erste Modellaufruf nach 60 s keine Antwort hat
-    Dann wird er einmal wiederholt
-    Und mit der Antwort des zweiten Versuchs geht der Lauf weiter
+  @step1
+  Scenario: AG-24 A hanging model call is retried following the limits
+    Given an agent with the limits "60 s per attempt, retry once"
+    When the first model call has no answer after 60 s
+    Then it is retried once
+    And the run goes on with the answer of the second attempt
 
-  # --- Asynchron und Lauf-Datensatz (agenten.md: Der Lauf-Datensatz) --------------------------------
+  # --- Asynchronous and run record (agenten.md: The run record) --------------------------------------
 
-  @schritt6
-  Szenario: AG-30 Asynchron kommt sofort die Aufruf-ID
-    Wenn ein Agent asynchron gerufen wird
-    Dann bekommt der Aufrufer sofort eine Aufruf-ID
-    Und der Lauf-Datensatz hat den Status „läuft“
+  @step6
+  Scenario: AG-30 Asynchronously the call ID comes at once
+    When an agent is called asynchronously
+    Then the caller gets a call ID at once
+    And the run record has the status "running"
 
-  @schritt6
-  Szenario: AG-31 Ein fertiger Lauf hält seine Ausgabe
-    Angenommen ein asynchroner Lauf eines Agenten mit einem Schema für die Ausgabe
-    Wenn der Lauf fertig ist
-    Dann hat der Lauf-Datensatz den Status „fertig“
-    Und er enthält die Ausgabe nach dem Schema
+  @step6
+  Scenario: AG-31 A finished run holds its output
+    Given an asynchronous run of an agent with a schema for its output
+    When the run is done
+    Then the run record has the status "done"
+    And it holds the output following the schema
 
-  @schritt6
-  Szenario: AG-32 Ein gescheiterter Lauf hält seinen Fehler
-    Angenommen ein asynchroner Lauf
-    Wenn der Lauf scheitert
-    Dann hat der Lauf-Datensatz den Status „fehlgeschlagen“
-    Und er enthält den Fehler
+  @step6
+  Scenario: AG-32 A failed run holds its error
+    Given an asynchronous run
+    When the run fails
+    Then the run record has the status "failed"
+    And it holds the error
 
-  @schritt6
-  Szenario: AG-33 Ein Lauf über seine Zeitgrenzen hinaus ist abgelaufen
-    Angenommen ein asynchroner Lauf
-    Wenn er seine Zeitgrenzen überschreitet
-    Dann hat der Lauf-Datensatz den Status „abgelaufen“
+  @step6
+  Scenario: AG-33 A run beyond its time limits has expired
+    Given an asynchronous run
+    When it exceeds its time limits
+    Then the run record has the status "expired"
 
-  @schritt6
-  Szenario: AG-34 Der Lauf-Datensatz kennt seinen Aufrufer
-    Wenn ein Lauf einen anderen Agenten asynchron ruft
-    Dann enthält dessen Lauf-Datensatz die Aufruf-ID des aufrufenden Laufs
+  @step6
+  Scenario: AG-34 The run record knows its caller
+    When a run calls another agent asynchronously
+    Then that one's run record holds the call ID of the calling run
 
-  @schritt6
-  Szenario: AG-35 Über die Aufruf-ID lässt sich ein Lauf abfragen
-    Angenommen ein asynchroner Lauf mit seiner Aufruf-ID
-    Wenn der Aufrufer mit der Aufruf-ID nachfragt
-    Dann bekommt er den Lauf-Datensatz mit Status und, falls fertig, der Ausgabe
+  @step6
+  Scenario: AG-35 A run can be queried by its call ID
+    Given an asynchronous run with its call ID
+    When the caller asks with the call ID
+    Then it gets the run record with the status and, if done, the output
 
-  @schritt6
-  Szenario: AG-36 60 Minuten nach seinem Ende ist ein Lauf-Datensatz weg
-    Angenommen ein Lauf, der vor 61 Minuten fertig wurde
-    Wenn jemand mit seiner Aufruf-ID nachfragt
-    Dann gibt es den Lauf nicht mehr
+  @step6
+  Scenario: AG-36 60 minutes after its end a run record is gone
+    Given a run that was done 61 minutes ago
+    When someone asks with its call ID
+    Then the run no longer exists
 
-  # --- Zustellen (agenten.md: Zustellen) -------------------------------------------------------------
+  # --- Delivery (agenten.md: Delivery) ---------------------------------------------------------------
 
-  @schritt6
-  Szenario: AG-40 Zustellen als Home-Assistant-Ereignis
-    Angenommen ein asynchroner Aufruf mit dem Zustellweg „HA-Ereignis“
-    Wenn der Lauf fertig ist
-    Dann feuert Home Assistant das Ereignis mira_agent_done
-    Und es enthält Aufruf-ID, Agent, Status und Ausgabe
+  @step6
+  Scenario: AG-40 Delivery as a Home Assistant event
+    Given an asynchronous call with the delivery route "HA event"
+    When the run is done
+    Then Home Assistant fires the event mira_agent_done
+    And it holds call ID, agent, status and output
 
-  @schritt6
-  Szenario: AG-41 Zustellen als Nachricht
-    Angenommen ein asynchroner Aufruf mit dem Zustellweg „Nachricht an eine Person“
-    Wenn der Lauf fertig ist
-    Dann bekommt die Person eine Nachricht, die das Gespräch aus dem Ergebnis formuliert hat
+  @step6
+  Scenario: AG-41 Delivery as a message
+    Given an asynchronous call with the delivery route "message to a person"
+    When the run is done
+    Then the person gets a message that the conversation worded from the result
 
-  @schritt7
-  Szenario: AG-42 Zustellen als Fortsetzung
-    Angenommen ein Lauf, der einen anderen Agenten asynchron mit dem Zustellweg „Fortsetzung“ ruft
-    Wenn der gerufene Lauf fertig ist
-    Dann geht der aufrufende Lauf mit dessen Ergebnis weiter
+  @step7
+  Scenario: AG-42 Delivery as a continuation
+    Given a run that calls another agent asynchronously with the delivery route "continuation"
+    When the called run is done
+    Then the calling run goes on with its result
 
-  # --- Protokoll (agenten.md: Protokoll) -------------------------------------------------------------
+  # --- Log (agenten.md: Log) -------------------------------------------------------------------------
 
-  @schritt1
-  Szenario: AG-50 Jeder Lauf schreibt eine Zeile „agent done“
-    Wenn ein Lauf endet, gleich wie
-    Dann steht im Log eine Zeile „agent done“
-    Und sie nennt Agent, Aufruf-ID, Tiefe, Herkunft, Modus, Status, Modell, Dauer, Modellaufrufe und Tokens
+  @step1
+  Scenario: AG-50 Every run writes a line "agent done"
+    When a run ends, however it ends
+    Then the log has a line "agent done"
+    And it names agent, call ID, depth, origin, mode, status, model, duration, model calls and tokens
 
-  @schritt1
-  Szenario: AG-51 Unter-Agenten lassen sich ihrem Aufrufer zuordnen
-    Wenn ein Lauf einen anderen Agenten ruft
-    Dann nennt die Zeile „agent done“ des gerufenen Laufs die Aufruf-ID des aufrufenden Laufs und seine Tiefe
+  @step1
+  Scenario: AG-51 Sub-agents can be matched to their caller
+    When a run calls another agent
+    Then the called run's line "agent done" names the calling run's call ID and its depth
 
-  # --- Aufruf aus Home Assistant und als Werkzeug (agenten.md: Aufrufen) -----------------------------
+  # --- Calls from Home Assistant and as a tool (agenten.md: Calling) ---------------------------------
 
-  @schritt4
-  Szenario: AG-60 Ein Agent in der Werkzeugliste ist ein Werkzeug
-    Angenommen ein Agent, in dessen Werkzeugliste ein zweiter Agent steht
-    Wenn sein Modell gerufen wird
-    Dann sieht es den zweiten Agenten als Werkzeug, mit Name, Beschreibung und Eingabe-Schema
+  @step4
+  Scenario: AG-60 An agent in the tool list is a tool
+    Given an agent with a second agent in its tool list
+    When its model is called
+    Then it sees the second agent as a tool, with name, description and input schema
 
-  @schritt4
-  Szenario: AG-61 Ein Agent, der nicht in der Werkzeugliste steht, ist kein Werkzeug
-    Angenommen ein Agent, in dessen Werkzeugliste ein zweiter Agent nicht steht
-    Wenn sein Modell gerufen wird
-    Dann sieht es den zweiten Agenten nicht
+  @step4
+  Scenario: AG-61 An agent not in the tool list is no tool
+    Given an agent without a second agent in its tool list
+    When its model is called
+    Then it does not see the second agent
 
-  @schritt6
-  Szenario: AG-62 Aus Home Assistant synchron mit Antwort
-    Wenn eine Automation die Aktion mira.agent synchron mit einem Agenten und seiner Eingabe aufruft
-    Dann bekommt die Automation die Antwort des Agenten in ihrer response_variable
+  @step6
+  Scenario: AG-62 From Home Assistant synchronously with an answer
+    When an automation calls the action mira.agent synchronously with an agent and its input
+    Then the automation gets the agent's answer in its response_variable
 
-  @schritt6
-  Szenario: AG-63 Aus Home Assistant asynchron
-    Wenn eine Automation die Aktion mira.agent asynchron aufruft
-    Dann bekommt sie die Aufruf-ID
-    Und das Ergebnis kommt als Ereignis mira_agent_done
+  @step6
+  Scenario: AG-63 From Home Assistant asynchronously
+    When an automation calls the action mira.agent asynchronously
+    Then it gets the call ID
+    And the result comes as the event mira_agent_done
 
-  @schritt6
-  Szenario: AG-64 Aus Home Assistant einen Lauf abfragen
-    Angenommen eine Aufruf-ID eines Laufs
-    Wenn eine Automation die Aktion mira.agent_result mit dieser Aufruf-ID aufruft
-    Dann bekommt sie den Lauf-Datensatz
+  @step6
+  Scenario: AG-64 Query a run from Home Assistant
+    Given a call ID of a run
+    When an automation calls the action mira.agent_result with this call ID
+    Then it gets the run record
 
-  @schritt6
-  Szenario: AG-65 Aus Home Assistant sind alle Agenten aufrufbar
-    Angenommen ein beliebiger Agent, intern oder aus YAML
-    Wenn eine Automation mira.agent mit seinem Namen und einer passenden Eingabe aufruft
-    Dann läuft der Agent
+  @step6
+  Scenario: AG-65 All agents can be called from Home Assistant
+    Given any agent, internal or from YAML
+    When an automation calls mira.agent with its name and a fitting input
+    Then the agent runs
 
-  @schritt6
-  Szenario: AG-66 Ein unbekannter Agent
-    Wenn eine Automation mira.agent mit einem Namen aufruft, den es nicht gibt
-    Dann scheitert der Aufruf mit diesem Grund
+  @step6
+  Scenario: AG-66 An unknown agent
+    When an automation calls mira.agent with a name that does not exist
+    Then the call fails with that reason
 
-  # --- Modell (agenten.md: Modellwahl) ---------------------------------------------------------------
+  # --- Model (agenten.md: Model choice) --------------------------------------------------------------
 
-  @schritt1
-  Szenario: AG-70 Ohne Eintrag für seine Rolle nimmt ein Agent main
-    Angenommen in routing steht für die Rolle eines Agenten nichts
-    Wenn der Agent läuft
-    Dann nimmt er das Modell main
+  @step1
+  Scenario: AG-70 Without an entry for its role an agent takes main
+    Given routing has nothing for an agent's role
+    When the agent runs
+    Then it takes the model main
 
-  @schritt1
-  Szenario: AG-71 Mit Eintrag nimmt ein Agent das eingetragene Modell
-    Angenommen in routing steht für die Rolle eines Agenten das Modell smart
-    Wenn der Agent läuft
-    Dann nimmt er das Modell smart
+  @step1
+  Scenario: AG-71 With an entry an agent takes the model entered
+    Given routing has the model smart for an agent's role
+    When the agent runs
+    Then it takes the model smart
 
-  @schritt4
-  Szenario: AG-72 Den Delegate-Agenten gibt es auch ohne Eintrag
-    Angenommen in routing steht für delegate nichts
-    Wenn das Gespräch gerufen wird
-    Dann hat es das Werkzeug delegate
-    Und der Delegate-Agent nimmt das Modell main
+  @step4
+  Scenario: AG-72 The delegate agent exists without an entry too
+    Given routing has nothing for delegate
+    When the conversation is called
+    Then it has the tool delegate
+    And the delegate agent takes the model main

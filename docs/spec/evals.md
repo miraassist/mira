@@ -1,56 +1,56 @@
-# Evals – Spezifikation
+# Evals – spec
 
-Stand 2026-10-17, gebaut in 0.6.19 (Runner `go run ./cmd/testha eval`, 12 Szenarien, Setups Gemini Flash und Qwen lokal).
+Status 2026-10-17: built in 0.6.19 (runner `go run ./cmd/testha eval`, 12 scenarios, setups Gemini Flash and Qwen local).
 
-## Wozu
+## What for
 
-„Läuft Mira mit Qwen?“, „Mit Kimi?“, „Mit dem neuen Gemini?“ Das lässt sich nur beantworten, indem man es ausprobiert. Modelle und Anbieter ändern sich laufend. Ein **Eval-Set** spielt feste Szenarien Ende zu Ende durch, mit echtem Agenten, echtem Modell und echter Test-HA, nur ohne Sprache (keine Spracherkennung, keine Sprachausgabe), und sagt je Modell-Setup, was funktioniert.
+"Does Mira run with Qwen?", "With Kimi?", "With the new Gemini?" That can only be answered by trying it out. Models and providers change constantly. An **eval set** plays fixed scenarios end to end, with a real agent, real model and real test HA, only without voice (no speech recognition, no speech output), and says per model setup what works.
 
-Ein Lauf kostet Geld und Zeit. Er läuft deshalb nicht in der CI, sondern auf Zuruf: vor einem Release, bei einem neuen Modell, bei einem neuen Setup.
+A run costs money and time. It therefore does not run in CI, but on call: before a release, with a new model, with a new setup.
 
-## Wann ein Szenario bestanden ist
+## When a scenario has passed
 
-Drei Ebenen; über „bestanden“ entscheiden nur die ersten beiden.
+Three levels; only the first two decide on "passed".
 
-| Ebene | Was | Wie geprüft | entscheidet |
+| Level | What | How checked | decides |
 |---|---|---|---|
-| 1. Ergebnis | Zustand **nachher** in HA (Termin mit Titel, Tag, Uhrzeit, Kalender; Termin weg; Listeneintrag mit Fälligkeit; Wecker auf dem Gerät) und bei Mira (Fakt im richtigen Gedächtnis, Nachricht angelegt, Vorgang beendet) | hart, direkt abgefragt, unabhängig vom Wortlaut | ja |
-| 2. Verhalten | was unterwegs passiert ist, aus dem Ablauf: Werkzeugaufrufe, Vorgänge, Aktionen. **Muss** (Nachfrage vor dem Löschen; genau eine Rückfrage bei zwei Listen), **darf nicht** (löschen ohne Ja; einen Termin nennen, den kein Werkzeug geliefert hat; Gesperrtes schalten), **Grenzen** (höchstens N Werkzeug-Runden, keine unnötige Rückfrage) | hart | ja |
-| 3. Antwort | was gesagt wurde: enthält, was es soll (Tag, Uhrzeit); bei Sprache kein Markdown, keine Entitäts-IDs; richtige Sprache | einfache Regeln (Suchmuster) | nein, wird ausgewiesen |
+| 1. Result | state **afterwards** in HA (appointment with title, day, time, calendar; appointment gone; list item with due date; alarm on the device) and at Mira (fact in the right memory, message created, thread finished) | hard, queried directly, independent of wording | yes |
+| 2. Behaviour | what happened on the way, from the trace: tool calls, threads, actions. **Must** (asking before deleting; exactly one question back with two lists), **must not** (delete without yes; name an appointment no tool delivered; switch something locked), **limits** (at most N tool rounds, no unnecessary question back) | hard | yes |
+| 3. Answer | what was said: contains what it should (day, time); with voice no Markdown, no entity IDs; right language | simple rules (search patterns) | no, is reported |
 
-Ein Richter-Modell für Ebene 3 gibt es vorerst nicht.
+A judge model for level 3 does not exist for now.
 
-**Streuung:** Modelle antworten nicht immer gleich. Jedes Szenario läuft **3-mal**.
-- **Kern-Szenarien** sind bestanden bei 3 von 3.
-- Die übrigen sind bestanden bei 2 von 3.
+**Variance:** Models do not always answer the same. Each scenario runs **3 times**.
+- **Core scenarios** pass at 3 of 3.
+- The others pass at 2 of 3.
 
-Das Ergebnis je Szenario und Setup ist die Quote, nicht ein einzelnes Ja oder Nein.
+The result per scenario and setup is the rate, not a single yes or no.
 
-## Zeit
+## Time
 
-Ist Mira zu langsam, ist sie nicht benutzbar. Die Zeit gehört deshalb ins Ergebnis, und zwar so:
+If Mira is too slow, she is not usable. Time therefore belongs in the result, like this:
 
-- **Hart, entscheidet mit:** die Grenze, ab der es beim Nutzer kaputt ist. Bei Sprache ist das das Antwort-Timeout der Integration (Standard 15 s): Danach sagt der Satellit eine Fehlermeldung. Bei Telegram sind es 60 s. Ein Schritt darüber gilt als **nicht bestanden**, egal was danach in HA steht. Die Grenzen kommen aus der Konfiguration, nicht aus dem Szenario.
-- **Weich, wird ausgewiesen:** je Schritt Median und Maximum der Antwortzeit über die 3 Durchläufe. Bei Sprache eingestuft als **gut** (bis 3 s), **brauchbar** (bis 8 s) oder **langsam** (darüber).
-- **Aufgeteilt:** wie viel davon auf das Modell entfiel (Runden, Tokens) und wie viel auf Werkzeuge und HA, aus dem Protokoll des Agenten.
-- **Hintergrund gesondert:** Was im Hintergrund läuft (der Entwurf einer Aufgabe), wird als Zeit bis zum Vorschlag gemessen und zählt nicht zur Antwortzeit.
-- **Ausnahme:** Eine eigene Grenze im Szenario (`max_seconds` an einem Schritt) gibt es nur selten, etwa für eine Websuche.
+- **Hard, co-decides:** the limit from which it is broken for the user. With voice that is the integration's answer timeout (default 15 s): After that the satellite says an error message. With Telegram it is 60 s. A step above it counts as **not passed**, no matter what is in HA afterwards. The limits come from the configuration, not from the scenario.
+- **Soft, is reported:** per step the median and maximum of the response time over the 3 runs. With voice rated as **good** (up to 3 s), **usable** (up to 8 s) or **slow** (above).
+- **Split up:** how much of it went to the model (rounds, tokens) and how much to tools and HA, from the agent's log.
+- **Background separately:** What runs in the background (the draft of a task) is measured as time until the proposal and does not count toward the response time.
+- **Exception:** A separate limit in the scenario (`max_seconds` on a step) exists only rarely, e.g. for a web search.
 
-**Warmup:** Der Runner wartet, bis das Warmup des Agenten fertig ist, und schickt dann je Kanal einen Turn, der nicht zählt. So liegt der feste Anfang des Prompts bei einem lokalen Modell im Cache. Erst danach wird gemessen. Alle 3 Durchläufe zählen; ist der erste langsamer, soll man das sehen.
+**Warmup:** The runner waits until the agent's warmup is finished, and then sends one turn per channel that does not count. So the fixed beginning of the prompt is in the cache with a local model. Only after that is measured. All 3 runs count; if the first is slower, one should see that.
 
-## Szenarien
+## Scenarios
 
-Eine YAML-Datei je Szenario in `evals/scenarios/`:
+One YAML file per scenario in `evals/scenarios/`:
 
 ```yaml
 name: termin-absagen
-core: true                      # Kern-Szenario: 3 von 3
+core: true                      # core scenario: 3 of 3
 setup:
-  events:                       # relativ zu heute
+  events:                       # relative to today
     - { calendar: calendar.familie, summary: Zahnarzt, day: +3, start: "15:00", end: "16:00" }
 steps:
   - say: "Sag meinen Zahnarzttermin ab"
-    at: satellite.wohnzimmer      # oder: person: anna, channel: telegram
+    at: satellite.wohnzimmer      # or: person: anna, channel: telegram
     expect:
       behaviour:
         must: [thread_start:termin-absagen, proposal]
@@ -63,59 +63,59 @@ steps:
         calendar_empty: { calendar: calendar.familie, day: +3 }
       behaviour:
         must: [calendar.delete]
-cleanup: restore                # Test-HA in den Ausgangszustand
+cleanup: restore                # test HA back to its initial state
 ```
 
-- **Vorbereitung**: Termine und Listeneinträge relativ zu heute, Gedächtnis-Fakten, wer zu Hause ist (die Sim-Schalter der Test-HA), wartende Nachrichten.
-- **Schritte**: Satz, Ort (Satellit über seine Geräte-ID) oder Person und Kanal. Mehrere Schritte sind ein Gespräch.
-- **Erwartungen** je Schritt und Ebene. Prüfungen auf das Ergebnis gibt es als feste Bausteine (`event_exists`, `calendar_empty`, `todo_item`, `alarm_set`, `fact_saved`, `message_for` …). So bleibt ein Szenario lesbar und muss nichts selbst abfragen.
-- **Aufräumen**: Nach jedem Durchlauf ist die Test-HA wie vorher. Wecker auf der Show werden immer gelöscht.
+- **Preparation**: appointments and list items relative to today, memory facts, who is at home (the sim switches of the test HA), waiting messages.
+- **Steps**: sentence, place (satellite via its device ID) or person and channel. Several steps are one conversation.
+- **Expectations** per step and level. Checks on the result exist as fixed building blocks (`event_exists`, `calendar_empty`, `todo_item`, `alarm_set`, `fact_saved`, `message_for` …). So a scenario stays readable and need not query anything itself.
+- **Cleanup**: After each run the test HA is as before. Alarms on the Show are always deleted.
 
-## Modell-Setups
+## Model setups
 
-Ein Setup ist eine kleine Datei in `evals/setups/` mit `llm`, `models` und `routing`, wie in `mira.yaml`, ohne Schlüssel.
+A setup is a small file in `evals/setups/` with `llm`, `models` and `routing`, as in `mira.yaml`, without keys.
 
-**Secrets**: Der Runner liest nur `testenv/.env`, nie die `.env` einer echten Installation. Der Eval-Agent bekommt nur ein paar harmlose Grundvariablen (`PATH`, `HOME`, `LANG`, `TZ`) und genau die Variablen, die seine Config als `${…}` verlangt. Fehlt eine in `testenv/.env`, bricht der Runner mit ihrem Namen ab. Modell-Schlüssel für Evals (z. B. `GEMINI_API_TOKEN`) gehören deshalb in `testenv/.env`. Beispiele: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. Ein Setup beschreibt, was im Haus wirklich läuft, auch gemischt: Sprache lokal, schwierige Aufgaben in der Cloud.
+**Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval agent gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name. Model keys for evals (e.g. `GEMINI_API_TOKEN`) therefore belong in `testenv/.env`. Examples: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. A setup describes what really runs in the house, mixed too: voice local, difficult tasks in the cloud.
 
-## Lauf
+## Run
 
 ```
 go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario termin-absagen] [--runs 3]
 ```
 
-- Der Lauf startet **einen eigenen Agenten** mit der Test-Konfiguration, dem Setup und einer frischen Datenbank. Das ist nicht die laufende Test-Mira, damit nichts von vorher hineinwirkt.
-- Er schickt die Schritte an `/v1/conversation`, wie es die Integration tut. Dann prüft er Ergebnis und Ablauf: den Ablauf aus einem Protokoll, das der Agent im Eval-Betrieb je Turn schreibt (Werkzeugaufrufe, Vorgänge, Aktionen).
-- Er misst je Schritt die Antwortzeit (siehe „Zeit“), je Szenario Tokens und, wo der Anbieter Preise hat, die Kosten.
+- The run starts **its own agent** with the test configuration, the setup and a fresh database. That is not the running test Mira, so that nothing from before has an effect.
+- It sends the steps to `/v1/conversation`, as the integration does. Then it checks result and trace: the trace from a log the agent writes per turn in eval mode (tool calls, threads, actions).
+- It measures per step the response time (see "Time"), per scenario tokens and, where the provider has prices, the costs.
 
-## Ergebnisse im Repo
+## Results in the repo
 
-Die Ergebnisse kommen ins Repo, für Transparenz: Wer Mira einsetzt, sieht, womit sie geprüft ist.
+The results go into the repo, for transparency: Whoever uses Mira sees what she is tested with.
 
-- **Je Setup:** `evals/results/<setup>.md`, eine Tabelle Szenario × Quote, dazu Ebene 3, Dauer, Tokens und Kosten. Im Inhalt stehen auch, wann der Lauf war, die Mira-Version und die Modelle je Rolle (Haupt- und weitere Modelle, Routing). Daneben `.json` mit denselben Daten. Der Dateiname ist nur das Setup, ohne Datum: Ein neuer Lauf ersetzt den alten, frühere Läufe findet man in der Git-Geschichte.
-- **Übersicht:** `evals/README.md` mit dem letzten Stand je Setup, „getestet mit“.
-- **Keine Setup-Details** aus einem echten Haus, keine Schlüssel: nur Modellnamen und Anbieter.
+- **Per setup:** `evals/results/<setup>.md`, a table scenario × rate, plus level 3, duration, tokens and costs. The content also states when the run was, the Mira version and the models per role (main and further models, routing). Next to it `.json` with the same data. The file name is only the setup, without a date: A new run replaces the old one, earlier runs are found in the Git history.
+- **Overview:** `evals/README.md` with the latest state per setup, "tested with".
+- **No setup details** from a real house, no keys: only model names and providers.
 
-## Erstes Szenario-Set
+## First scenario set
 
-Aus dem, was bisher von Hand getestet wurde:
+From what has been tested by hand so far:
 
-| Szenario | Kern |
+| Scenario | Core |
 |---|---|
-| Termine dieser Woche lesen | ja |
-| Termin eintragen (ein beschreibbarer Kalender) | ja |
-| Termin eintragen, Kalender wählen (mehrere) | |
-| Termin absagen mit Nachfrage | ja |
-| To-do mit Fälligkeit, Liste wählen | |
-| Abfuhrtermin erfragen | ja |
-| Wecker stellen und korrigieren (Show) | ja |
-| Sich etwas merken, persönlich und fürs Haus | ja |
-| Aufgabe anlegen mit Vorschlag und Ja | |
-| Nachricht an eine Person | |
-| Licht schalten, Zustand abfragen | ja |
-| Gesperrtes erst nach Ja (Garagentor) | ja |
+| Read this week's appointments | yes |
+| Enter an appointment (one writable calendar) | yes |
+| Enter an appointment, choose calendar (several) | |
+| Cancel an appointment with asking | yes |
+| To-do with due date, choose list | |
+| Ask for the waste collection date | yes |
+| Set and correct an alarm (Show) | yes |
+| Remember something, personal and for the house | yes |
+| Create a task with proposal and yes | |
+| Message to a person | |
+| Switch a light, query state | yes |
+| Locked things only after yes (garage door) | yes |
 
-## Bewusst nicht
+## Deliberately not
 
-- **Richter-Modell** für Ebene 3, vorerst.
-- **Sprache** (Spracherkennung, Sprachausgabe, Wakeword): Das bleibt der Test am Gerät.
-- **Lauf in der CI**: zu teuer, braucht die Test-HA.
+- **Judge model** for level 3, for now.
+- **Voice** (speech recognition, speech output, wake word): That stays the test on the device.
+- **Run in CI**: too expensive, needs the test HA.

@@ -1,21 +1,21 @@
-# Skills mit HA-Aktionen – Spezifikation
+# Skills with HA actions – spec
 
-Stand 2026-10-17, gebaut in 0.6.18. Baut auf [Vorgänge](vorgaenge.md) und [Aufgaben](aufgaben.md) auf. Beispiel: der Wecker.
+Status 2026-10-17: built in 0.6.18. Builds on [threads](vorgaenge.md) and [tasks](aufgaben.md). Example: the alarm.
 
-## Grundsatz
+## Principle
 
-Ein Auftrag wird nicht zwingend zur Automation. Ein **Skill** beschreibt das Anliegen:
-- woran Mira es erkennt;
-- welche Angaben sie braucht, als Felder des Vorgangs;
-- wie es am Ende umgesetzt wird.
+A request does not necessarily become an automation. A **skill** describes the concern:
+- how Mira recognizes it;
+- which details she needs, as fields of the thread;
+- how it is carried out in the end.
 
-Eine Automation (`tasks.automation`) ist dabei nur eine Möglichkeit. Eine andere ist, **sofort eine HA-Aktion aufzurufen**, die der Skill selbst festlegt. So wird eine Gerätefunktion zu einem Skill, ohne Code: der Wecker der Show, ein Timer, „zeig die Kamera“.
+An automation (`tasks.automation`) is only one possibility. Another is to **call an HA action immediately** that the skill itself specifies. So a device function becomes a skill, without code: the Show's alarm, a timer, "show the camera".
 
-Der Skill kommt vom Betreiber, der weiß, was er tut. Die Aktion legt der Skill fest, nicht das Modell; das Modell füllt nur die Felder.
+The skill comes from the operator, who knows what he is doing. The skill specifies the action, not the model; the model only fills the fields.
 
-## Der Abschluss `action`
+## The finish `action`
 
-Neben den eingebauten Abschlüssen (`memory.save`, `tasks.automation`) kann ein Skill eine oder mehrere HA-Aktionen als Abschluss angeben:
+Besides the built-in finishes (`memory.save`, `tasks.automation`) a skill can specify one or more HA actions as finish:
 
 ```yaml
 metadata:
@@ -43,23 +43,23 @@ Erkennen: „Weck mich …“, „Stell einen Wecker …“. Steht die übliche 
 Sag danach, was du gestellt hast: Uhrzeit, Tag, Raum.
 ```
 
-- **Leere Werte bleiben stehen**: ESPHome-Aktionen wollen jedes Feld, und leer bedeutet etwas (bei der Show heißt `days` leer: einmal, zum nächsten Mal dieser Uhrzeit; sonst `weekdays` oder `mon,wed`).
-- **Platzhalter** in `action` und `data`: die Felder des Vorgangs sowie der **Ort**, also `area` (ID und Name), `satellite` (Entität), `satellite.device` (ESPHome-Gerätename), sowie `person`, falls bekannt.
-- **Gibt es die Aktion nicht** (z. B. ein Echo mit echolocal hat keinen Wecker), sagt Mira ehrlich, dass es an diesem Satelliten nicht geht. Einen festgelegten Ersatzweg gibt es nicht. Findet das Modell mit seinen Werkzeugen selbst einen passenden Weg, darf es ihn vorschlagen.
-- **Der Abschluss läuft sofort im Gespräch**, wie `memory.save`, nicht im Hintergrund.
-- Die Sperrliste (`security.confirm_domains`, `confirm_entities`, Label „Mira: nachfragen“) gilt auch hier.
+- **Empty values stay**: ESPHome actions want every field, and empty means something (on the Show, `days` empty means: once, at the next occurrence of this time; otherwise `weekdays` or `mon,wed`).
+- **Placeholders** in `action` and `data`: the fields of the thread as well as the **place**, i.e. `area` (ID and name), `satellite` (entity), `satellite.device` (ESPHome device name), and `person`, if known.
+- **If the action does not exist** (e.g. an Echo with echolocal has no alarm), Mira says honestly that it does not work on this satellite. There is no fixed fallback. If the model finds a suitable way itself with its tools, it may propose it.
+- **The finish runs immediately in the conversation**, like `memory.save`, not in the background.
+- The block list (`security.confirm_domains`, `confirm_entities`, label "Mira: nachfragen") applies here too.
 
-## Bestätigen: optional, wie bisher
+## Confirming: optional, as before
 
-`confirm` ist schon heute pro Skill einstellbar.
-- **`confirm: true`**: Mira fragt vor dem Aufruf („Ich wecke dich morgen um 6, passt das?“).
-- **Ohne `confirm`**: Mira führt aus und sagt, was sie getan hat („Wecker steht: morgen 6 Uhr, Schlafzimmer.“). So macht es Alexa beim Wecker, und das passt fast immer.
+`confirm` can already be set per skill today.
+- **`confirm: true`**: Mira asks before the call ("Ich wecke dich morgen um 6, passt das?").
+- **Without `confirm`**: Mira executes and says what she has done ("Wecker steht: morgen 6 Uhr, Schlafzimmer."). That is how Alexa does it with the alarm, and that fits almost always.
 
-Für den Wecker gilt: ohne `confirm`.
+For the alarm: without `confirm`.
 
-## Korrigieren statt neu anfangen
+## Correcting instead of starting over
 
-Hat Mira falsch verstanden, korrigiert man im Gespräch: „Nein, halb sieben.“ Mira kennt aus dem Verlauf, was sie eben gestellt hat. Der Skill kann dafür eine zweite Aktion nennen, die das Gestellte zurücknimmt, etwa `alarm_delete` mit Zeit und Bezeichnung. Mira nimmt dann zurück und stellt neu, ohne dass man alles wiederholen muss.
+If Mira misunderstood, one corrects in the conversation: "Nein, halb sieben." Mira knows from the history what she has just set. For that, the skill can name a second action that takes back what was set, e.g. `alarm_delete` with time and label. Mira then takes it back and sets it anew, without one having to repeat everything.
 
 ```yaml
       undo:
@@ -67,21 +67,21 @@ Hat Mira falsch verstanden, korrigiert man im Gespräch: „Nein, halb sieben.�
         data: { time: "{{ time }}", label: "" }
 ```
 
-Das Werkzeug dafür heißt `thread_undo`: Es nimmt die neueste ausgeführte Aktion eines Vorgangs am selben Ort aus den letzten 15 Minuten zurück; danach startet Mira den Vorgang mit dem Richtigen neu. Ausprobiert an der Show: `alarm_delete` löscht nur mit leerer Bezeichnung, mit Bezeichnung nichts.
+The tool for this is called `thread_undo`: It takes back the newest executed action of a thread at the same place from the last 15 minutes; after that Mira restarts the thread with the right thing. Tried on the Show: `alarm_delete` only deletes with an empty label, with a label nothing.
 
-## Szenarien
+## Scenarios
 
-- „Weck mich morgen zur üblichen Zeit“ am Satelliten im Schlafzimmer, Person bekannt, im Gedächtnis „steht werktags um 6 auf“: Mira stellt 6:00 an der Show im Schlafzimmer und sagt es.
-- „Bitte weck mich morgen“: „Wann denn?“ – „Um 6“: Mira stellt 6:00 und sagt es.
-- „Nein, halb sieben“: Mira nimmt 6:00 zurück und stellt 6:30.
-- Am Echo mit echolocal: „Hier kann ich keinen Wecker stellen.“
+- "Weck mich morgen zur üblichen Zeit" at the satellite in the bedroom, person known, in memory "steht werktags um 6 auf": Mira sets 6:00 on the Show in the bedroom and says so.
+- "Bitte weck mich morgen": "Wann denn?" – "Um 6": Mira sets 6:00 and says so.
+- "Nein, halb sieben": Mira takes back 6:00 and sets 6:30.
+- On the Echo with echolocal: "Hier kann ich keinen Wecker stellen."
 
-## Dafür nötig (einmal, allgemein)
+## Needed for this (once, general)
 
-1. Der Abschluss `action` (und `undo`) mit Platzhaltern.
-2. Der Ort als Platzhalter: Bereich, Satellit, ESPHome-Gerät. Dieselbe Angabe soll auch in den Entwurf von Aufgaben (siehe Liste: Ort und Person in den Entwurfs-Kontext).
+1. The finish `action` (and `undo`) with placeholders.
+2. The place as placeholder: area, satellite, ESPHome device. The same information should also go into the draft of tasks (see list: place and person in the draft context).
 
-## Bewusst nicht
+## Deliberately not
 
-- **Eine Weckmelodie über den Media-Player** als Ersatz: vorerst ausgeklammert.
-- **Prüfen, was ein Skill-Autor aufruft**: Er ist der Betreiber.
+- **An alarm melody via the media player** as fallback: left out for now.
+- **Checking what a skill author calls**: He is the operator.

@@ -1,63 +1,63 @@
-# Geplante Aktionen (Einschlaf-Timer): Spezifikation
+# Scheduled actions (sleep timer): spec
 
-Stand 2026-10-18, gebaut in 0.6.45. Beschlossen mit dem Nutzer: Der Zustand und der Scheduler liegen in
-**Home Assistant**; Erinnerungen bleiben vorerst bei Mira. Einmalige Automationen tragen ein eigenes **Label**; das
-**Aufräumen übernimmt die Integration**.
+Status 2026-10-18: built in 0.6.45. Decided with the user: The state and the scheduler live in
+**Home Assistant**; reminders stay with Mira for now. One-off automations carry their own **label**; the
+**cleanup is done by the integration**.
 
-## Ziel
+## Target
 
-„Schlaf-Timer 30 Minuten.“ – „Schalte in einer Stunde das Licht aus.“ – „Noch zehn Minuten.“ – „Doch abbrechen.“
+"Schlaf-Timer 30 Minuten." – "Schalte in einer Stunde das Licht aus." – "Noch zehn Minuten." – "Doch abbrechen."
 
-Mira soll zu einer Zeit **etwas tun**, nicht nur etwas sagen: die Wiedergabe stoppen (Hörbuch, Radio, Musik), auf
-Wunsch langsam leiser, und das Licht im Raum ausschalten. Das gleiche tragen Szenen mit Verzögerung („Heimkino in
-fünf Minuten“). Siehe [Skill-Ideen](skill-ideen.md).
+Mira should **do something** at a time, not just say something: stop playback (audiobook, radio, music), on
+request fade out slowly, and switch off the light in the room. The same carries scenes with a delay ("Heimkino in
+fünf Minuten"). See [skill ideas](skill-ideen.md).
 
-## Abgrenzung zu Erinnerungen
+## Distinction from reminders
 
-| | Erinnerung / Timer („erinnere mich in einer Minute an die Wäsche“) | Geplante Aktion (dieses Papier) |
+| | Reminder / timer ("erinnere mich in einer Minute an die Wäsche") | Scheduled action (this paper) |
 |---|---|---|
-| Was zur Zeit passiert | Mira **sagt** etwas | HA **führt Aktionen aus** |
-| Wo es lebt | Miras Datenbank (`reminder_set`, geplante Nachricht) | Automation in Home Assistant |
-| Wer löst aus | Der Notifier von Mira | Home Assistant |
-| Läuft, wenn die andere Seite aus ist | nein (Mira muss laufen) | ja (Mira muss nicht laufen) |
+| What happens at the time | Mira **says** something | HA **executes actions** |
+| Where it lives | Mira's database (`reminder_set`, scheduled message) | automation in Home Assistant |
+| Who triggers | Mira's notifier | Home Assistant |
+| Runs when the other side is off | no (Mira must be running) | yes (Mira need not be running) |
 
-Beides bleibt nebeneinander. „Welche Timer habe ich?“ fragt beide Listen ab.
+Both stay side by side. "Welche Timer habe ich?" queries both lists.
 
-## Countdown-Timer sind etwas Drittes
+## Countdown timers are a third thing
 
-„Timer auf zehn Minuten für die Nudeln“ baut Mira **nicht** nach. Das sind die Timer von Home Assistant
+"Timer auf zehn Minuten für die Nudeln" Mira does **not** rebuild. Those are Home Assistant's timers
 (`HassStartTimer`, `HassCancelTimer`, `HassTimerStatus`, `HassIncreaseTimer`, `HassDecreaseTimer`, `HassPauseTimer`,
-`HassUnpauseTimer`): Der Satellit, der sie bekommt, zählt herunter, zeigt den Rest und klingelt (TECHO5 tut das auf
-Show wie auf Echo; der Show hat zusätzlich den Bildschirm). Mira nutzt diese Werkzeuge selbst, so wie HA sie seinen
-eigenen Konversations-Agenten gibt.
+`HassUnpauseTimer`): The satellite that gets them counts down, shows the rest and rings (TECHO5 does that on
+Show as on Echo; the Show additionally has the screen). Mira uses these tools herself, just as HA gives them to its
+own conversation agents.
 
-Dass sie bei Mira ankommen, liegt an einer Zeile: HAs MCP-Server baut die Werkzeugliste **für ein Gerät**, wenn die
-Anfrage dessen Kennung in den Metadaten trägt (`_meta` mit `io.home-assistant/device_id`). Ohne Gerät fehlen die
-Timer-Werkzeuge (26 statt 33 gemessen), und HA bevorzugt den Raum des Satelliten bei Befehlen ohne Raum nicht. Mira
-schickt die Kennung des Satelliten daher bei **jedem** Aufruf eines HA-Werkzeugs im Sprachgespräch mit
-(`device_context`, für HAs Assist-Server eingeschaltet) und fragt die Liste einmal ohne und einmal als jeder Satellit ab
-und vereinigt sie, damit ihr nichts fehlt, was ein Satellit angeboten bekommt. Die Liste wird alle fünf Minuten und bei
-jeder Änderung der Satelliten neu geholt, denn HA meldet nicht, dass ein Satellit mit Timern zurückkam.
+That they reach Mira comes down to one line: HA's MCP server builds the tool list **for a device** if the
+request carries its ID in the metadata (`_meta` with `io.home-assistant/device_id`). Without a device the
+timer tools are missing (26 instead of 33 measured), and HA does not prefer the satellite's room for commands without a room. Mira
+therefore sends the satellite's ID with **every** call of an HA tool in a voice conversation
+(`device_context`, switched on for HA's Assist server) and queries the list once without and once as each satellite
+and merges them, so that she lacks nothing a satellite is offered. The list is fetched again every five minutes and on
+every change of the satellites, because HA does not report that a satellite with timers came back.
 
-Regel dahinter: **Was HA anbietet, bauen wir nicht nach**, auch nicht, um Token zu sparen. Und wir lassen Werkzeuge nicht
-dadurch verschwinden, dass der Kontext (hier das Gerät) nicht mitkommt. Wer das je anders entscheidet, tut es bewusst.
+The rule behind it: **What HA offers, we do not rebuild**, not even to save tokens. And we do not let tools
+disappear because the context (here the device) does not come along. Whoever ever decides otherwise does so deliberately.
 
-Nichts wird bei Mira gespeichert. Ohne Satelliten (Telegram) kennt HA keine Timer, und Mira sagt das ehrlich. Die Timer
-von Home Assistant liegen im Speicher von Home Assistant und überstehen dessen Neustart nicht.
+Nothing is stored at Mira. Without satellites (Telegram) HA knows no timers, and Mira says so honestly. Home Assistant's
+timers live in Home Assistant's memory and do not survive its restart.
 
-Damit sind es drei Dinge: der Countdown-Timer (HA, am Satelliten), die Erinnerung (Mira sagt einen Text) und der
-Schlaf-Timer (HA-Automation, tut etwas).
+So there are three things: the countdown timer (HA, on the satellite), the reminder (Mira says a text) and the
+sleep timer (HA automation, does something).
 
-## Die Automation
+## The automation
 
-Eine **einmalige Automation** ist eine gewöhnliche HA-Automation mit dem Label **„Mira: einmalig“**
-(`mira_once`, Beschreibung „Läuft einmal und räumt sich dann auf“). Sie trägt **nicht** das Label „Mira“ der
-[Aufgaben](aufgaben.md), damit sie dort nicht in der Aufgabenliste erscheint.
+A **one-off automation** is an ordinary HA automation with the label **"Mira: einmalig"**
+(`mira_once`, description "Läuft einmal und räumt sich dann auf"). It does **not** carry the label "Mira" of
+[tasks](aufgaben.md), so that it does not appear there in the task list.
 
 ```yaml
-alias: "Schlaf-Timer Wohnzimmer 837deda7"   # das Ende ist für jeden Timer anders, siehe unten
+alias: "Schlaf-Timer Wohnzimmer 837deda7"   # the end is different for each timer, see below
 description: "Mira: Schlaf-Timer Wohnzimmer"
-variables:                      # was die Integration beim Aufräumen und Mira beim Auflisten liest
+variables:                      # what the integration reads on cleanup and Mira on listing
   mira_title: "Schlaf-Timer Wohnzimmer"
   mira_due: "2026-10-18T22:35:00+02:00"
   mira_owner: anna
@@ -66,15 +66,15 @@ variables:                      # was die Integration beim Aufräumen und Mira b
 triggers:
   - trigger: time
     at: "22:35:00"
-  - trigger: homeassistant      # war HA zur Fälligkeit aus: jetzt nachholen
+  - trigger: homeassistant      # if HA was off when due: catch up now
     event: start
-conditions:                     # frühestens zur Fälligkeit, nur einmal
+conditions:                     # not before due, only once
   - condition: template
     value_template: >-
       {{ now() >= as_datetime('2026-10-18T22:35:00+02:00') - timedelta(seconds=2)
          and this.attributes.last_triggered is none }}
 actions:
-  - action: media_player.volume_set     # Ausblenden: mehrere Schritte mit Warten
+  - action: media_player.volume_set     # fade out: several steps with waiting
     ...
   - action: media_player.media_stop
     target: { entity_id: media_player.show_speaker }
@@ -83,67 +83,67 @@ actions:
 mode: single
 ```
 
-- **Auslöser:** eine Uhrzeit auf die Sekunde, dazu der Start von Home Assistant. Das reicht auch über Mitternacht
-  und für Zeiten in mehr als 24 Stunden. Ein Vorlagen-Auslöser mit `now()` wäre nur auf die Minute genau.
-- **Bedingung: frühestens zur Fälligkeit und nur einmal.** `now() >= mira_due` (zwei Sekunden Spiel für die Uhr)
-  und noch nie ausgelöst (`last_triggered` ist leer). Ist HA zur Fälligkeit aus, löst der Start von HA die
-  Automation aus, und sie wird nachgeholt: sonst brennt das Licht die ganze Nacht. Es gibt **keine Obergrenze**
-  und keinen Verfall; was fällig ist und noch nicht lief, läuft, sobald HA wieder da ist.
-- **Jeder Timer hat einen eigenen Namen.** HA macht die Entitäts-ID aus dem Namen und stellt den Zustand einer
-  neuen Entität aus der letzten mit derselben ID wieder her, auch aus einer gelöschten. Ein zweiter „Schlaf-Timer
-  Wohnzimmer“ hätte „schon gelaufen“ vom ersten geerbt und nie ausgelöst. Der Test gegen eine echte HA hat das
-  gezeigt. Darum hängt der Name eine Kennung an (die letzten acht Zeichen der Automations-ID). Der lesbare Titel
-  steht in `mira_title`.
-- **Fälligkeit und Besitzer** stehen in `variables`. Das ist strukturiert, überlebt Änderungen im Editor von HA und
-  braucht keinen eigenen Speicher.
-- **„Schon gelaufen?“** liest die Integration aus der Automation selbst: `last_triggered` und die Zahl der laufenden
-  Durchläufe (`current`). Gelaufen und noch am Ausführen (etwa beim Ausblenden) ist nicht fertig.
+- **Triggers:** a time to the second, plus the start of Home Assistant. That is enough even across midnight
+  and for times more than 24 hours ahead. A template trigger with `now()` would only be accurate to the minute.
+- **Condition: not before due and only once.** `now() >= mira_due` (two seconds of slack for the clock)
+  and never triggered yet (`last_triggered` is empty). If HA is off when due, the start of HA triggers the
+  automation, and it is caught up: otherwise the light burns all night. There is **no upper limit**
+  and no expiry; what is due and has not run yet runs as soon as HA is back.
+- **Each timer has its own name.** HA makes the entity ID from the name and restores the state of a
+  new entity from the last one with the same ID, even from a deleted one. A second "Schlaf-Timer
+  Wohnzimmer" would have inherited "already ran" from the first and never triggered. The test against a real HA
+  showed that. That is why the name appends an ID (the last eight characters of the automation ID). The readable title
+  is in `mira_title`.
+- **Due time and owner** are in `variables`. That is structured, survives changes in HA's editor and
+  needs no storage of its own.
+- **"Already ran?"** the integration reads from the automation itself: `last_triggered` and the number of running
+  runs (`current`). Ran and still executing (e.g. while fading out) is not finished.
 
-## Aufräumen durch die Integration
+## Cleanup by the integration
 
-Die Integration verwaltet die Automationen von Mira schon (`automations.py`). Neu: eine Kehrrunde, beim Start und
-danach jede Minute.
+The integration already manages Mira's automations (`automations.py`). New: a sweep, at start and
+then every minute.
 
-Für jede Automation mit dem Label `mira_once`:
+For each automation with the label `mira_once`:
 
-1. **Gelaufen und fertig** (`last_triggered` gesetzt, keine laufenden Durchläufe): löschen.
-2. **Alles andere:** nichts tun. Fällig und nicht gelaufen holt die Automation selbst nach (Start von HA),
-   noch nicht Fälliges wartet. Wer einen Timer in HA abschaltet, behält ihn, bis er ihn selbst löscht.
+1. **Ran and finished** (`last_triggered` set, no running runs): delete.
+2. **Everything else:** do nothing. Due and not run is caught up by the automation itself (start of HA),
+   what is not yet due waits. Whoever switches off a timer in HA keeps it until they delete it themselves.
 
-Das Nachholen steckt damit in der Automation selbst und nicht in der Kehrrunde. Die Kehrrunde räumt nur auf.
+The catching up is thus in the automation itself and not in the sweep. The sweep only cleans up.
 
-Ändert jemand `mira_due` im Editor, ohne die Zeit des Auslösers anzupassen, gilt weiter die Zeit des Auslösers; der
-Editor von HA ist dafür nicht gedacht. Verlängern und Abbrechen geschehen im Gespräch.
+If someone changes `mira_due` in the editor without adjusting the trigger's time, the trigger's time still applies; HA's
+editor is not meant for that. Extending and cancelling happen in the conversation.
 
-## Anlegen, Ändern, Abbrechen
+## Creating, changing, cancelling
 
-Es läuft über die Integration (Websocket-Befehle, wie bei Aufgaben):
+It goes through the integration (websocket commands, as with tasks):
 
-- **`once_save`:** prüft (`check_actions`, im Zweifel ablehnend), setzt Label und Variablen, schreibt und lädt die
-  Automation. Grenze: **höchstens zehn offene Timer je Person und Raum**. Sonst keine, weder in der Zeit noch in der Dauer.
-- **Kritische Aktionen** (Schlösser, Alarmanlage, Garagentor, Entitäten mit dem Label „Mira: nachfragen“) sind in
-  geplanten Aktionen **verboten**: Eine Bestätigung von heute Abend soll nachts um drei nichts aufmachen.
-- **`once_list`, `once_delete`:** wie bei Aufgaben, nach Label und Variablen gefiltert.
-- **Verlängern** schreibt `at`, die Datumsbedingung und `mira_due` neu.
+- **`once_save`:** checks (`check_actions`, rejecting when in doubt), sets label and variables, writes and loads the
+  automation. Limit: **at most ten open timers per person and room**. No others, neither in time nor in duration.
+- **Critical actions** (locks, alarm system, garage door, entities with the label "Mira: nachfragen") are
+  **forbidden** in scheduled actions: A confirmation from this evening should open nothing at three in the night.
+- **`once_list`, `once_delete`:** as with tasks, filtered by label and variables.
+- **Extending** rewrites `at`, the date condition and `mira_due`.
 
-## Werkzeuge im Agenten
+## Tools in the agent
 
-Zuerst nur der Fall, den man wirklich braucht (kein Modell schreibt Aktionen):
+First only the case one really needs (no model writes actions):
 
-- **`sleep_timer(action, minutes?, room?, lights_off?, id?)`** (ein Werkzeug, `action`: `set` (Standard), `list`, `extend`, `cancel`):
-  `set` ist der Schlaf-Timer. Mira baut die Aktionen selbst: die Player des Raums stoppen
-  (die freigegebenen Player im Bereich, wie bei `radio_play`), Licht im Raum aus. Raum ist der des Satelliten.
-  `list` zeigt die Schlaf-Timer der Person im Raum mit „wie lange noch“.
-  `extend` und `cancel` brauchen keine Kennung, wenn die Person im Raum nur einen hat; gibt es mehrere, fragt Mira nach.
+- **`sleep_timer(action, minutes?, room?, lights_off?, id?)`** (one tool, `action`: `set` (default), `list`, `extend`, `cancel`):
+  `set` is the sleep timer. Mira builds the actions herself: stop the players of the room
+  (the exposed players in the area, as with `radio_play`), light in the room off. The room is the satellite's.
+  `list` shows the person's sleep timers in the room with "how much longer".
+  `extend` and `cancel` need no ID if the person has only one in the room; if there are several, Mira asks.
 
-Später, nach dem ersten Fall: ein allgemeines `action_schedule` mit Aktionen, die das Modell aus den freigegebenen
-Entitäten wählt („Mach in einer Stunde das Licht aus“). Dieselbe Prüfung, dieselben Grenzen.
+Later, after the first case: a general `action_schedule` with actions the model chooses from the exposed
+entities ("Mach in einer Stunde das Licht aus"). The same check, the same limits.
 
-## Offen
+## Open
 
-- **Ausblenden:** Lautstärke in Schritten senken (mehrere Aktionen mit Warten). Erst nach der einfachen Version.
-- **Das Hörbuch:** Beim Stoppen soll die Stelle bleiben. Das ist Sache von Music Assistant (siehe Skill-Ideen), nicht
-  des Timers.
-- **Erinnerungen später auch in HA?** Möglich, aber nicht nötig, solange sie funktionieren. Verpasste Erinnerungen
-  bei laufendem HA und ausgeschaltetem Mira holt Mira heute vermutlich nicht nach; geprüft ist das nicht.
-- **Ohne Integration** gibt es keine geplanten Aktionen, wie bei den Aufgaben.
+- **Fading out:** lower the volume in steps (several actions with waiting). Only after the simple version.
+- **The audiobook:** On stopping, the position should be kept. That is a matter for Music Assistant (see skill ideas), not
+  the timer.
+- **Reminders later in HA too?** Possible, but not necessary as long as they work. Missed reminders
+  with HA running and Mira switched off Mira probably does not catch up today; that is not checked.
+- **Without the integration** there are no scheduled actions, as with tasks.

@@ -1,181 +1,181 @@
-# Kontext – Spezifikation
+# Context – Spec
 
-Stand 2026-10-20, gebaut in 0.6.9; Geräte-Anteil von HAs Prompt (Abschnitt 1.1) in 0.6.48. Gilt für alle Kanäle. Siehe auch [Vorgänge](vorgaenge.md) und [Kanäle](kanaele.md).
+Status 2026-10-20: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48. Applies to all channels. See also [Threads](vorgaenge.md) and [Channels](kanaele.md).
 
-Der **Kontext** ist alles, was das Modell bei einer Anfrage sieht. Zwei Dinge macht Mira damit:
-- **Komposition**: was in welcher Reihenfolge ins Kontextfenster kommt;
-- **Kompaktierung**: was herausfällt, wenn der Verlauf zu lang wird.
+The **context** is everything the model sees with a request. Mira does two things with it:
+- **Composition**: what goes into the context window in which order;
+- **Compaction**: what drops out when the history gets too long.
 
-## 1. Komposition: was das Modell sieht
+## 1. Composition: what the model sees
 
-In dieser Reihenfolge (`internal/prompt`, `prompt.Build`):
+In this order (`internal/prompt`, `prompt.Build`):
 
-| # | Teil | Inhalt | ändert sich bei | Schicht |
+| # | Part | Content | changes when | Layer |
 |---|---|---|---|---|
-| 1 | **Systemnachricht** | Rolle und Regeln; Haus-Struktur (HAs Assist-Prompt, sonst Miras eigener Block: Bereiche, Geräte, Entitäten ohne Zustände); Haus-Profil (verdichtetes Haus-Gedächtnis) | Regeln: nie; Struktur: Gerät/Bereich neu oder umbenannt; Profil: nächtliche Verdichtung | 1, 4, 5 |
-| 2 | **Werkzeuge** (eigenes Feld der Anfrage) | HAs Werkzeuge über MCP, Miras eigene (Gedächtnis, Nachrichten, Erinnerungen, Aufgaben, Skills …), weitere MCP-Server | Werkzeugliste ändert sich | 3 |
-| 3 | **Beispielunterhaltung** | ein fester kurzer Austausch, der Ton und Werkzeuggebrauch zeigt | nie | – |
-| 4 | **Kanalstil** | wie auf diesem Kanal geantwortet wird (Sprache: kurz, ohne Markdown; Telegram: länger, Listen, Links), als Nachricht mit fester Bestätigung | nie (pro Kanal fest) | 2 |
-| 5 | **Verlauf** | die bisherigen Turns dieser Sitzung, wörtlich, mit Werkzeugaufrufen und Ergebnissen (Abschnitt 4, 5) | jeder Turn hängt an; Kompaktierung kürzt | 6 |
-| 6 | **Aktueller Turn** | Uhrzeit; Kanal und Raum; die Zeilen, die HAs Assist-Prompt für dieses Gerät anhängt (1.1); wer spricht und dessen persönliches Profil; passende Gedächtnis-Fakten; Stand des laufenden Vorgangs; Kontext einer gerade angesagten Nachricht; offene Bestätigung; der Text | jede Anfrage | 7 |
+| 1 | **System message** | Role and rules; house structure (HA's Assist prompt, otherwise Mira's own block: areas, devices, entities without states); house profile (condensed house memory) | Rules: never; structure: device/area new or renamed; profile: nightly condensation | 1, 4, 5 |
+| 2 | **Tools** (own field of the request) | HA's tools via MCP, Mira's own (memory, messages, reminders, tasks, skills …), further MCP servers | Tool list changes | 3 |
+| 3 | **Example conversation** | a fixed short exchange that shows tone and tool use | never | – |
+| 4 | **Channel style** | how to reply on this channel (voice: short, without Markdown; Telegram: longer, lists, links), as a message with a fixed confirmation | never (fixed per channel) | 2 |
+| 5 | **History** | the previous turns of this session, verbatim, with tool calls and results (sections 4, 5) | every turn appends; compaction cuts | 6 |
+| 6 | **Current turn** | time; channel and room; the lines that HA's Assist prompt appends for this device (1.1); who is speaking and their personal profile; matching memory facts; state of the running thread; context of a message just announced; open confirmation; the text | every request | 7 |
 
-### 1.1 HAs Assist-Prompt: der gemeinsame Anfang in Teil 1, das Gerät im Turn
+### 1.1 HA's Assist prompt: the common prefix in part 1, the device in the turn
 
-HAs Assist-Prompt (Teil 1, Haus-Struktur) ist nicht für jedes Gerät derselbe. Home Assistant hängt **am Ende** Zeilen an, die vom fragenden Gerät abhängen: in welchem Bereich es steht („You are in area Wohnzimmer and all generic commands … should target this area“, sonst die Bitte, einen Bereich zu nennen) und ob es Timer starten kann („This device is not able to start timers“, wenn nicht). HA tut das ans Ende, weil sein eigener Cache genauso am gleichen Anfang hängt. Gemessen (HA 2026.10): rund 3,5 KB Prompt, davon nur die letzten ein bis zwei Zeilen geräteabhängig.
+HA's Assist prompt (part 1, house structure) is not the same for every device. Home Assistant appends lines **at the end** that depend on the asking device: which area it is in ("You are in area Wohnzimmer and all generic commands … should target this area", otherwise the request to name an area) and whether it can start timers ("This device is not able to start timers", if not). HA puts this at the end because its own cache likewise depends on the same beginning. Measured (HA 2026.10): around 3.5 KB of prompt, of which only the last one or two lines depend on the device.
 
-Mira holt den Prompt über MCP (`prompts/get` „Assist“) deshalb **nicht nur ohne Gerät**, sonst bekäme sie die Fassung „kann keine Timer“ und das Modell verweigerte Timer, auch wo das Gerät sie kann (so geschehen). Stattdessen:
+Mira therefore fetches the prompt via MCP (`prompts/get` "Assist") **not only without a device**, otherwise it would get the "cannot do timers" version and the model would refuse timers even where the device can do them (this happened). Instead:
 
-1. Sie holt ihn **einmal ohne Gerät** und **einmal als jeder Satellit** (die Kennung geht in `_meta` mit `io.home-assistant/device_id`, wie bei den Werkzeugen).
-2. **Der gemeinsame Anfang aller Fassungen**, bis zur ersten Abweichung und an einer Zeilengrenze abgeschnitten, ist **Teil 1** (der Prompt-Cache `internal/ha/assistprompt`). Er ist für alle Räume und Kanäle gleich, also bleibt der Cache dahinter (Werkzeuge, Beispiele, Verlauf) erhalten.
-3. **Der Rest der Fassung des fragenden Satelliten** ist sein Stück und kommt in den **Turn** (Teil 6), unter der Überschrift „Hinweise von Home Assistant für dieses Gerät:“, nach der Zeile mit dem Kanal. Ein Kanal ohne Gerät (Telegram) bekommt das Stück der Fassung ohne Gerät. Dort stimmt „kann keine Timer“ auch. Hintergrundjobs (Beurteilen, Skill-Zeitpläne) bekommen keine Hinweise.
-4. **Erkannt wird durch den Vergleich**, nicht durch Kenntnis des Textes: Mira weiß nichts von Raum- oder Timer-Sätzen, sie nimmt, was sich zwischen den Fassungen unterscheidet. Ändert HA den Wortlaut oder kommt eine weitere geräteabhängige Zeile dazu, folgt Mira ohne Änderung.
+1. It fetches it **once without a device** and **once as each satellite** (the id goes into `_meta` with `io.home-assistant/device_id`, as with the tools).
+2. **The common beginning of all versions**, up to the first difference and cut at a line boundary, is **part 1** (the prompt cache `internal/ha/assistprompt`). It is the same for all rooms and channels, so the cache behind it (tools, examples, history) is preserved.
+3. **The rest of the asking satellite's version** is its piece and goes into the **turn** (part 6), under the heading "Hinweise von Home Assistant für dieses Gerät:", after the line with the channel. A channel without a device (Telegram) gets the piece of the version without a device. There "cannot do timers" is also correct. Background jobs (assessing, skill schedules) get no hints.
+4. **Detection is by comparison**, not by knowledge of the text: Mira knows nothing about room or timer sentences, it takes what differs between the versions. If HA changes the wording or another device-dependent line is added, Mira follows without a change.
 
-Eigenschaften:
-- **Teil 1 ändert sich nur, wenn das Haus sich ändert** (neue oder umbenannte Entität), nicht wenn ein Gerät dazukommt oder die Stücke sich ändern. Nur eine Änderung von Teil 1 löst das Aufwärmen aus (`prefix_hash` ändert sich dann).
-- **Annahme „am Ende“:** Käme der Unterschied künftig weiter vorn, wird der gemeinsame Anfang kürzer und mehr wandert in den Turn. Das bleibt richtig, nur der Cache-Gewinn schrumpft. Liegt der gemeinsame Teil unter 90 % der Länge, steht eine Warnung im Log.
-- **Ausfall:** Antwortet ein Satellit nicht, behält er sein altes Stück; antwortet die Fassung ohne Gerät nicht, bleibt alles, wie es war.
-- **Ohne Satelliten** (keiner bekannt) ist der ganze Prompt Teil 1, wie vorher.
-- **Hat Mira den Prompt von HA nicht** (sie nutzt dann ihren eigenen Strukturblock), gibt es auch keine Hinweise.
-- **Kosten:** ein bis zwei Zeilen im Turn je Sprachanfrage (geschätzt etwa 40 Token) und ein Abruf je Satellit zusätzlich, wenn der Prompt neu geholt wird (alle paar Minuten und bei Änderungen).
+Properties:
+- **Part 1 only changes when the house changes** (new or renamed entity), not when a device is added or the pieces change. Only a change of part 1 triggers the warm-up (`prefix_hash` changes then).
+- **Assumption "at the end":** Should the difference come further forward in future, the common beginning gets shorter and more moves into the turn. That stays correct, only the cache gain shrinks. If the common part is below 90 % of the length, a warning appears in the log.
+- **Failure:** If a satellite does not answer, it keeps its old piece; if the version without a device does not answer, everything stays as it was.
+- **Without satellites** (none known) the whole prompt is part 1, as before.
+- **If Mira does not have HA's prompt** (it then uses its own structure block), there are also no hints.
+- **Cost:** one or two lines in the turn per voice request (estimated about 40 tokens) and one extra fetch per satellite when the prompt is fetched anew (every few minutes and on changes).
 
-Dieselbe Regel gilt für die **Werkzeuge**: Die Liste wird einmal ohne Gerät und einmal als jeder Satellit geholt und vereinigt, und jeder Aufruf trägt die Kennung des Satelliten, damit HA ihn bedient wie seine eigenen Agenten (Timer, Raum für Befehle ohne Raum; [Geplante Aktionen](geplante-aktionen.md)). **Was Home Assistant anbietet, bauen wir nicht nach, und es geht nichts verloren, weil der Kontext nicht mitkommt.**
+The same rule applies to the **tools**: the list is fetched once without a device and once as each satellite and merged, and every call carries the satellite's id, so that HA serves it like its own agents (timers, room for commands without a room; [Scheduled actions](geplante-aktionen.md)). **What Home Assistant offers we do not rebuild, and nothing is lost because the context does not come along.**
 
-Was nicht im Kontext steht: **Zustände von Geräten.** Die fragt das Modell bei Bedarf über Werkzeuge ab; die Regeln verlangen das.
+What is not in the context: **states of devices.** The model queries them when needed via tools; the rules require that.
 
-## 2. Darstellung von Entitäten
+## 2. Rendering of entities
 
-Stand 2026-10-17; gebaut sind die Stufen A, B und D, die Grundform „Wert“ und die Zeitachse mit `calendar_events` und `view: upcoming` (0.6.19). `history`, `weather_forecast` und `list_attribute` folgen.
+Status 2026-10-17: built are stages A, B and D, the basic form "value" and the timeline with `calendar_events` and `view: upcoming` (0.6.19). `history`, `weather_forecast` and `list_attribute` follow.
 
-Eine Entität kommt zu verschiedenen Zeiten auf verschiedenen Wegen ins Modell, jeweils in einer eigenen Darstellung. Zu jedem Weg steht hier, ob HA sie liefert (Mira ändert sie nicht) oder Mira sie baut (Mira bestimmt, was das Modell sieht).
+An entity reaches the model at different times by different paths, each in its own rendering. For each path it says here whether HA delivers it (Mira does not change it) or Mira builds it (Mira determines what the model sees).
 
-### 2.1 Vier Stufen
+### 2.1 Four stages
 
-| Stufe | Wann | Was das Modell sieht | Wer rendert |
+| Stage | When | What the model sees | Who renders |
 |---|---|---|---|
-| **A. Struktur** | immer, im festen Anfang (Teil 1, Cache) | dass es die Entität gibt: Name, Bereich, Typ. **Nie Zustände**: Sie würden den Cache bei jeder Änderung brechen. | HA (Assist-Prompt) oder, ohne ihn, Mira |
-| **B. Turn** | jede Anfrage (Teil 6) | nur, was zum Ort und zur Person gehört: Bereich des Satelliten, wartende Nachrichten, laufender Vorgang. Keine Zustände von Geräten. | Mira |
-| **C. Abfrage** | wenn das Modell ein Werkzeug ruft | **jetzt**: `GetLiveContext` von HA, Zustand und ausgewählte Attribute. **Über die Zeit**: Miras Werkzeuge für Termine, Verlauf, Vorhersage, Listen-Attribute (2.3). | HA bzw. Mira |
-| **D. Hintergrund** | Urteil einer Aufgabe (`mira.assess`, `mira.decide`) | eine verdichtete Ansicht für genau eine Frage (`data[].view`, siehe [Aufgaben](aufgaben.md)) | Mira |
+| **A. Structure** | always, in the prefix (part 1, cache) | that the entity exists: name, area, type. **Never states**: they would break the cache on every change. | HA (Assist prompt) or, without it, Mira |
+| **B. Turn** | every request (part 6) | only what belongs to the place and the person: area of the satellite, waiting messages, running thread. No states of devices. | Mira |
+| **C. Query** | when the model calls a tool | **now**: `GetLiveContext` from HA, state and selected attributes. **Over time**: Mira's tools for appointments, history, forecast, list attributes (2.3). | HA or Mira |
+| **D. Background** | assessment of a task (`mira.assess`, `mira.decide`) | a condensed view for exactly one question (`data[].view`, see [Tasks](aufgaben.md)) | Mira |
 
-Werkzeug-Ergebnisse der Stufe C bleiben im Verlauf (Teil 5) und zählen für die Kompaktierung (Abschnitt 5). Sie sollen deshalb knapp sein.
+Tool results of stage C stay in the history (part 5) and count for compaction (section 5). They should therefore be concise.
 
-### 2.2 Zwei Grundformen
+### 2.2 Two basic forms
 
-**Wert**: ein Zustand mit Einheit und „seit wann“, gegebenenfalls über einen Zeitraum verdichtet (Summe, Mittel, gleiche Stunde wie sonst). Das sind die heutigen Ansichten der Aufgaben (`state`, `same_hour`, `day`).
+**Value**: a state with unit and "since when", condensed over a period if applicable (sum, mean, same hour as usual). These are the current views of the tasks (`state`, `same_hour`, `day`).
 
-**Zeitachse**: eine Liste von Einträgen mit Zeitpunkt und Feldern, etwa Termine, Wechsel im Logbuch, Stunden einer Vorhersage, Strompreise je Stunde, Abfahrten. Diese Fälle sind gleich gebaut, deshalb gibt es **eine** Darstellung mit denselben Stellgrößen:
+**Timeline**: a list of entries with a point in time and fields, for example appointments, changes in the logbook, hours of a forecast, electricity prices per hour, departures. These cases are built the same way, so there is **one** rendering with the same parameters:
 
-| Stellgröße | Bedeutung | Beispiel |
+| Parameter | Meaning | Example |
 |---|---|---|
-| Fenster | von/bis; Standard je Typ | Kalender: heute bis in 7 Tagen; Verlauf: heute |
-| Auswahl | Suchtext, Filter auf Zustand oder Feld | Titel enthält „Arzt“; nur „auf“ |
-| Sortierung | nach Zeit (Standard) oder nach Wert | Strompreis aufsteigend |
-| Begrenzung | höchstens N Einträge, dann „und N weitere“ | 40 Termine, 10 Wechsel |
-| Felder | kurz (Standard) oder ausführlich; Text gekürzt, Links weg | Ort gekürzt, Beschreibung nur ausführlich |
-| Gruppierung | nach Tag, mit Wochentag | „Mo 20.10.“ |
-| Zeitformat | in der Sprache des Gesprächs ([Sprache](sprache.md)), relativ wo es hilft | „heute 14:12“, „morgen“ |
-| Kennungen | kurze Kennungen (`t1`, `t2` …) statt HA-IDs, wo man auf einen Eintrag handeln kann | Termin absagen |
+| Window | from/to; default per type | Calendar: today until in 7 days; history: today |
+| Selection | search text, filter on state or field | Title contains "Arzt"; only "auf" |
+| Sorting | by time (default) or by value | electricity price ascending |
+| Limit | at most N entries, then "und N weitere" | 40 appointments, 10 changes |
+| Fields | short (default) or detailed; text shortened, links removed | location shortened, description only detailed |
+| Grouping | by day, with weekday | "Mo 20.10." |
+| Time format | in the language of the conversation ([Language](sprache.md)), relative where it helps | "heute 14:12", "morgen" |
+| Keys | short keys (`t1`, `t2` …) instead of HA IDs, where one can act on an entry | cancel appointment |
 
-Die HA-IDs zu den Kennungen behält der Code; das Modell sieht sie nicht. Typ-spezifisch bleibt nur, was wirklich anders ist (2.4).
+The code keeps the HA IDs for the keys; the model does not see them. Only what really differs remains type-specific (2.4).
 
-### 2.3 Werkzeuge der Zeitachse
+### 2.3 Timeline tools
 
-Alle mit denselben Parametern für Fenster, Auswahl, Sortierung, Begrenzung und Felder:
+All with the same parameters for window, selection, sorting, limit and fields:
 
-| Werkzeug | Quelle in HA | Spezifikation |
+| Tool | Source in HA | Spec |
 |---|---|---|
-| `calendar_events` | REST `/api/calendars/<entität>` (mit Termin-ID) | [Kalender](kalender.md) |
-| `history` | Logbuch und History | [Plan](skills-plan.md) |
+| `calendar_events` | REST `/api/calendars/<entität>` (with appointment ID) | [Calendar](kalender.md) |
+| `history` | Logbook and history | [Plan](skills-plan.md) |
 | `weather_forecast` | `weather.get_forecasts` | [Plan](skills-plan.md) |
-| `list_attribute` | Attribut einer Entität, das eine Liste ist | [Plan](skills-plan.md) |
+| `list_attribute` | Attribute of an entity that is a list | [Plan](skills-plan.md) |
 
-Dieselbe Darstellung nutzen die Ansichten der Aufgaben: `view: upcoming` (Kalender), `view: history`, `view: list`.
+The task views use the same rendering: `view: upcoming` (calendar), `view: history`, `view: list`.
 
-### 2.4 Typ × Stufe
+### 2.4 Type × stage
 
-| Typ | A. Struktur | C. jetzt | C. über die Zeit | D. Ansicht | Typ-spezifisch |
+| Type | A. Structure | C. now | C. over time | D. View | Type-specific |
 |---|---|---|---|---|---|
-| Kalender | Name | nächster Termin (HA) | `calendar_events` | `upcoming` | ganztägig, Serien, nur lesbar |
-| To-do | Name | Anzahl offen (HA) | `todo__get_items` (HA) | – | Fälligkeit |
-| Wetter | Name | jetzt (HA) | `weather_forecast` | – | Wetterzustände, Wind nur auffällig |
-| Sensor mit Zahl | Name, Einheit | Wert (HA) | `history` | `state`, `same_hour`, `day` | Zähler: Verbrauch statt Stand |
-| Sensor mit Listen-Attribut | Name | Zustand (HA) | `list_attribute` | `list` | welche Felder |
-| Schalter, Binärsensor, Licht | Name | Zustand (HA) | `history` | `state`, `history` | Zustandsnamen („offen“ statt `on`) |
-| Person | Name | zu Hause/weg (HA) | `history` | `state` | – |
+| Calendar | Name | next appointment (HA) | `calendar_events` | `upcoming` | all-day, series, read-only |
+| To-do | Name | number open (HA) | `todo__get_items` (HA) | – | due date |
+| Weather | Name | now (HA) | `weather_forecast` | – | weather conditions, wind only when notable |
+| Sensor with number | Name, unit | Value (HA) | `history` | `state`, `same_hour`, `day` | Meters: consumption instead of reading |
+| Sensor with list attribute | Name | State (HA) | `list_attribute` | `list` | which fields |
+| Switch, binary sensor, light | Name | State (HA) | `history` | `state`, `history` | state names ("offen" instead of `on`) |
+| Person | Name | home/away (HA) | `history` | `state` | – |
 
-### 2.5 `GetLiveContext` bleibt, mit Auslöser
+### 2.5 `GetLiveContext` stays, with a trigger
 
-HAs `GetLiveContext` ist pro Entität schon kompakt: Name, Typ, Zustand, Bereich und ausgewählte Attribute, ohne rohe Listen. Gemessen am 2026-10-17 in einem echten Haus: 148 Entitäten, etwa 18 000 Zeichen ohne Filter, größter Eintrag 255 Zeichen. Es gibt deshalb keinen Grund, es zu ersetzen.
+HA's `GetLiveContext` is already compact per entity: name, type, state, area and selected attributes, without raw lists. Measured on 2026-10-17 in a real house: 148 entities, about 18,000 characters without a filter, largest entry 255 characters. There is therefore no reason to replace it.
 
-- **Was fehlt**: „seit wann“. Das deckt `history` ab.
-- **Auslöser für einen Wrapper**: Mira legt erst dann einen dünnen Wrapper darum, wenn das Log zeigt, dass Aufrufe ohne Filter (das ganze Haus) den Verlauf spürbar aufblähen. Der Wrapper würde dann bei einem Aufruf ohne Filter nach Bereichen zusammenfassen oder einen Filter verlangen.
+- **What is missing**: "since when". `history` covers that.
+- **Trigger for a wrapper**: Mira only puts a thin wrapper around it once the log shows that calls without a filter (the whole house) noticeably bloat the history. The wrapper would then, on a call without a filter, summarize by area or require a filter.
 
-## 3. Warum diese Reihenfolge: Cache
+## 3. Why this order: cache
 
-Modelle (lokal wie in der Cloud) rechnen einen **gleichen Anfang** nicht neu, sondern nehmen ihn aus dem Cache. Deshalb:
-- **stabil vor volatil**: Teile 1–4 ändern sich selten, der Turn bei jeder Anfrage;
-- Teile 1–4 sind für gleiche Eingaben **byte-identisch**: keine Zeitstempel, IDs, Zufallswerte oder unsortierten Listen;
-- **der gemeinsame Anfang (1–3) ist für alle Kanäle gleich**, nur der Kanalstil unterscheidet sich; so teilen sich Sprache, Telegram und Hintergrundjobs den Cache;
-- **Volatiles nur im Turn**, auch das persönliche Profil (sonst bräche der gemeinsame Anfang je Person);
-- **Auch was vom Gerät abhängt, nur im Turn**: die Zeilen, die HAs Assist-Prompt für den Raum und die Timer des fragenden Satelliten anhängt (1.1); Teil 1 ist nur der Teil, den alle Fassungen gemeinsam haben;
-- der Verlauf wird **nur angehängt**, nie mittendrin geändert; zwischen Verlauf und Turn wird nichts eingefügt;
-- ein Fingerabdruck der Teile 1–5 (`prefix_hash`) steht in jedem Log-Eintrag „turn done“: ändert er sich unerwartet, ist der Cache versehentlich gebrochen.
+Models (local as well as in the cloud) do not recompute an **identical beginning**, but take it from the cache. Therefore:
+- **stable before volatile**: parts 1–4 change rarely, the turn on every request;
+- parts 1–4 are **byte-identical** for identical inputs: no timestamps, IDs, random values or unsorted lists;
+- **the common prefix (1–3) is the same for all channels**, only the channel style differs; that way voice, Telegram and background jobs share the cache;
+- **volatile things only in the turn**, including the personal profile (otherwise the common prefix would break per person);
+- **what depends on the device also only in the turn**: the lines that HA's Assist prompt appends for the room and the timers of the asking satellite (1.1); part 1 is only the part that all versions have in common;
+- the history is **only appended**, never changed in the middle; nothing is inserted between history and turn;
+- a fingerprint of parts 1–5 (`prefix_hash`) is in every "turn done" log entry: if it changes unexpectedly, the cache was broken accidentally.
 
-## 4. Verlauf und Vorgang
+## 4. History and thread
 
-- **Der Vorgang trägt das Anliegen**, bei Sprache und Chat gleich: Sein Stand steht bei jedem Turn frisch in Teil 6. Was ein Anliegen über viele Turns braucht, hängt nicht am Verlauf.
-- **Der Verlauf liefert den Rückbezug**: „und das andere Licht?“, „wie alt ist der?“. Dafür reichen die letzten Turns; niemand bezieht sich einfach so auf eine uralte Nachricht.
-- **Haus-Struktur und Gedächtnis** kommen bei jedem Turn aktuell dazu (Teile 1 und 6), unabhängig davon, wie alt der Verlauf ist.
+- **The thread carries the concern**, the same for voice and chat: its state appears fresh in part 6 on every turn. What a concern needs over many turns does not depend on the history.
+- **The history provides the back-reference**: "und das andere Licht?", "wie alt ist der?". The last turns suffice for that; nobody simply refers to an ancient message.
+- **House structure and memory** are added up to date on every turn (parts 1 and 6), regardless of how old the history is.
 
-## 5. Kompaktierung
+## 5. Compaction
 
-Was das Modell vom Gespräch sieht: **der laufende Vorgang + die letzten Turns.** Älteres fällt heraus. Kein Zusammenfassen durch ein Modell, ein einfacher Schnitt:
+What the model sees of the conversation: **the running thread + the last turns.** Older things drop out. No summarizing by a model, a simple cut:
 
-- **Gezählt wird in ganzen Turns**, nicht in Nachrichten. Ein Turn ist die Nachricht des Nutzers mit allem, was daraus folgt (Werkzeugaufrufe, Ergebnisse, Antwort). Geschnitten wird nur zwischen Turns, nie zwischen einem Werkzeugaufruf und seinem Ergebnis.
-- **In Sprüngen, nicht gleitend**: Erreicht der Verlauf `max_turns`, wird er auf `keep_turns` gekürzt. Dazwischen bleibt sein Anfang gleich, und der Cache greift. (Gleitend würde bei jedem Turn vorne etwas wegfallen und den Cache für den ganzen Verlauf brechen.)
-- **Spätestens bei 90 % des Kontextfensters** des jeweiligen Modells wird ebenso gekürzt, auch wenn `max_turns` noch nicht erreicht ist (große Werkzeug-Ergebnisse, kleines lokales Modell).
-- **Der laufende Vorgang bleibt immer ganz**, auch wenn er vor dem Schnitt begann.
-- **Jeder Schnitt steht im Log** als `history compacted`, weil er den Cache bewusst bricht und Gesagtes wegfällt: Sitzung, Grund (`max_turns` oder `context` mit `prompt_tokens`, `limit`, `context_tokens`), Turns vorher und nachher, entfernte Nachrichten, ab wann entfernt und ab wann behalten wurde, und ob für einen laufenden Vorgang mehr behalten wurde (`kept_for_thread`). Lässt sich nicht weiter kürzen, weil schon nur noch `keep_turns` übrig sind, steht das als Warnung im Log.
-- **Sitzungsdauer**: Sprache 5 Minuten (ein neuer Satz eine Viertelstunde später knüpft fast nie an); Telegram **ohne Zeitgrenze**, der Schnitt begrenzt den Verlauf selbst. `/neu` beginnt weiterhin ein neues Gespräch.
+- **Counting is in whole turns**, not in messages. A turn is the user's message with everything that follows from it (tool calls, results, reply). Cuts are only made between turns, never between a tool call and its result.
+- **In jumps, not sliding**: when the history reaches `max_turns`, it is cut to `keep_turns`. In between its beginning stays the same, and the cache takes effect. (Sliding would drop something at the front on every turn and break the cache for the whole history.)
+- **At the latest at 90 % of the context window** of the respective model it is cut as well, even if `max_turns` is not yet reached (large tool results, small local model).
+- **The running thread always stays whole**, even if it began before the cut.
+- **Every cut appears in the log** as `history compacted`, because it deliberately breaks the cache and things said drop out: session, reason (`max_turns` or `context` with `prompt_tokens`, `limit`, `context_tokens`), turns before and after, removed messages, from when removed and from when kept, and whether more was kept for a running thread (`kept_for_thread`). If it cannot be cut further because only `keep_turns` are left, that appears as a warning in the log.
+- **Session duration**: voice 5 minutes (a new sentence a quarter of an hour later almost never connects); Telegram **without a time limit**, the cut limits the history itself. `/neu` still starts a new conversation.
 
-## 6. Einstellbare Werte
+## 6. Configurable values
 
-| Wert | Vorgabe | Bedeutung |
+| Value | Default | Meaning |
 |---|---|---|
-| `sessions.max_turns` | 50 | ab hier wird gekürzt |
-| `sessions.keep_turns` | 30 | so viele Turns bleiben nach dem Schnitt |
-| `llm.compact_at_fraction` (je Modell) | 0,9 | Anteil des Kontextfensters (`context_tokens`), ab dem gekürzt wird |
-| `sessions.voice_ttl` | 5m | Sitzungsdauer Sprache |
-| `sessions.telegram_ttl` | aus | Sitzungsdauer Telegram (aus = keine Zeitgrenze) |
+| `sessions.max_turns` | 50 | from here on it is cut |
+| `sessions.keep_turns` | 30 | this many turns remain after the cut |
+| `llm.compact_at_fraction` (per model) | 0.9 | fraction of the context window (`context_tokens`) from which it is cut |
+| `sessions.voice_ttl` | 5m | session duration voice |
+| `sessions.telegram_ttl` | off | session duration Telegram (off = no time limit) |
 
-## 7. Bewusst nicht
+## 7. Deliberately not
 
-- **Keine Zusammenfassung durch ein Modell**: kostet einen Aufruf, ist nicht vorhersehbar, und was bleiben soll, steht im Gedächtnis oder im Ergebnis eines Vorgangs.
-- **Alte Turns bleiben wörtlich**, auch mit ihrem damaligen Teil 6 (Uhrzeit, Gedächtnis-Treffer); sie werden nicht verschlankt.
+- **No summary by a model**: costs a call, is not predictable, and what should remain is in memory or in the result of a thread.
+- **Old turns stay verbatim**, including their part 6 from back then (time, memory hits); they are not slimmed down.
 
-## 8. Beobachtet und Ideen (nicht beschlossen)
+## 8. Observed and ideas (not decided)
 
-Stand 2026-10-18, gemessen mit Gemini Flash über die OpenAI-Schnittstelle.
+Status 2026-10-18, measured with Gemini Flash via the OpenAI interface.
 
-**Gemessen**
-- **Wachstum:** Die erste Anfrage eines Gesprächs hatte etwa 8.900 Tokens, die 27. etwa 15.800: im Schnitt rund 260 Tokens je Turn, bei Turns mit Kalender oder Vorgang bis 1.400. Über 90 % der Anfrage ist der gleichbleibende Anfang, davon etwa 72 % die 51 Werkzeugdefinitionen.
-- **Zeit:** Gemini braucht je 10.000 Tokens mehr etwa 0,3 bis 0,4 Sekunden. Das Wachstum macht Mira bei Gemini nicht merklich langsamer. Gemessen mit Miras echter Anfrage, mit zusätzlichem Verlauf aufgefüllt, ohne Cache, vier Aufrufe je Größe:
+**Measured**
+- **Growth:** The first request of a conversation had about 8,900 tokens, the 27th about 15,800: on average around 260 tokens per turn, for turns with calendar or thread up to 1,400. Over 90 % of the request is the unchanging prefix, of which about 72 % are the 51 tool definitions.
+- **Time:** Gemini needs about 0.3 to 0.4 seconds per 10,000 additional tokens. The growth does not make Mira noticeably slower with Gemini. Measured with Mira's real request, padded with additional history, without cache, four calls per size:
 
-  | Verlauf (Paare aus Frage und Antwort) | Tokens | Antwortzeit (Median) | Einzelwerte |
+  | History (pairs of question and answer) | Tokens | Response time (median) | Individual values |
   |---|---|---|---|
-  | keiner | 8.959 | 2,0 s | 1,7 · 1,8 · 2,2 · 2,8 |
-  | 30 | 15.680 | 2,05 s | 1,8 · 2,0 · 2,1 · 2,2 |
-  | 60 | 22.422 | 2,25 s | 1,8 · 2,2 · 2,3 · 2,6 |
-  | 100 | 31.382 | 2,45 s | 2,3 · 2,4 · 2,5 · 2,6 |
+  | none | 8,959 | 2.0 s | 1.7 · 1.8 · 2.2 · 2.8 |
+  | 30 | 15,680 | 2.05 s | 1.8 · 2.0 · 2.1 · 2.2 |
+  | 60 | 22,422 | 2.25 s | 1.8 · 2.2 · 2.3 · 2.6 |
+  | 100 | 31,382 | 2.45 s | 2.3 · 2.4 · 2.5 · 2.6 |
 
-  Eine einzelne Runde brauchte also unter 3 Sekunden. Ein Gespräch mit Werkzeug hat zwei Runden. Der Ausreißer von 13 Sekunden beim Löschen eines Termins am 2026-10-18 ist damit nicht erklärt; das Log (`model round`, `tool done`) soll zeigen, ob er wiederkommt und wo er sitzt.
-- **Cache:** Gemini meldet Cache-Treffer nur bei einer vollständig gleichen Anfrage. Wurde nur das Ende geändert, kam in vier Versuchen kein Treffer. Lokale Server cachen den gleichbleibenden Anfang.
-- **Log:** `model round`, `tool done`, `context built`, `turn done` (docs/system.md) zeigen Zeit und Größe je Runde.
+  A single round thus took under 3 seconds. A conversation with a tool has two rounds. The outlier of 13 seconds when deleting an appointment on 2026-10-18 is therefore not explained; the log (`model round`, `tool done`) should show whether it recurs and where it sits.
+- **Cache:** Gemini reports cache hits only for a completely identical request. When only the end was changed, there was no hit in four attempts. Local servers cache the unchanging prefix.
+- **Log:** `model round`, `tool done`, `context built`, `turn done` (docs/system.md) show time and size per round.
 
-**Kosten:** Sie hängen an den Eingabe-Tokens, und die begrenzt `context_tokens` (mit `compact_at_fraction`). Eine zweite Kostengrenze gibt es nicht. Bei einem Cloud-Modell ist `context_tokens` also keine Fensterbreite, sondern die Grenze der Anfrage. In der Test-Konfiguration steht es für Gemini auf 24.000 (Kürzung ab etwa 21.600 Tokens).
+**Cost:** It depends on the input tokens, and those are limited by `context_tokens` (with `compact_at_fraction`). There is no second cost limit. For a cloud model, `context_tokens` is therefore not a window width but the limit of the request. In the test configuration it is set to 24,000 for Gemini (cutting from about 21,600 tokens).
 
-**Ideen**
-1. **Vorgabe `context_tokens` bei Cloud-Modellen prüfen.** Das Einrichtungsformular setzt den Wert nicht, es gilt die Vorgabe 16.384. Der gleichbleibende Anfang hat allein 9.000 bis 11.000 Tokens, die Grenze von 90 % (14.700) erreicht der Verlauf nach etwa 20 Turns. Dann will Mira kürzen, hat aber weniger als `keep_turns` Turns, und `history cannot be cut further` steht bei jedem Turn im Log. Eine passende Vorgabe für Cloud-Modelle wäre zu überlegen.
-2. **Alte Werkzeug-Ergebnisse im Verlauf verkürzen** (Kalenderlisten, Zustände), nach den letzten paar Turns durch einen Kurztext ersetzt. Das hielte den Verlauf klein, ohne das Gespräch zu kürzen. Es widerspricht dem Satz in Abschnitt 7 („Alte Turns bleiben wörtlich“) und müsste gegen ihn abgewogen werden.
-3. **Kleiner Kontext für die Antwort nach einer Bestätigung.** Beendet ein Werkzeug die Anfrage (`thread_confirm`, `thread_cancel`, `thread_undo`), könnte die zweite Runde nur Persönlichkeit, den Turn und das Ergebnis des Aufrufs bekommen, ohne Werkzeuge, Haus und Verlauf. Die Antwort käme wie bisher ins Protokoll. Offen: Nur bei Cloud-Modellen, weil eine abweichende Anfrage bei einem lokalen Server den Cache verdrängt. Bei Fehlern und bei mehreren Aufrufen nacheinander bleibt es beim vollen Kontext. Die Ergebnistexte der Finisher müssten für sich verständlich sein. Der Gewinn liegt eher bei den Kosten als bei der Zeit. Vorerst nicht gebaut.
-4. **Werkzeuge kürzen.** 51 Definitionen sind 72 % jeder Anfrage. Home Assistants MCP-Beschreibungen sind lang, viele Werkzeuge werden nie gebraucht. Ein Filter nach Kanal oder Nutzung würde jede Runde verkleinern, ginge aber gegen den gemeinsamen Anfang aller Kanäle (Abschnitt 3), der lokal den Cache hält.
+**Ideas**
+1. **Check the default `context_tokens` for cloud models.** The setup form does not set the value, the default 16,384 applies. The unchanging prefix alone has 9,000 to 11,000 tokens, the history reaches the 90 % limit (14,700) after about 20 turns. Then Mira wants to cut, but has fewer than `keep_turns` turns, and `history cannot be cut further` appears in the log on every turn. A suitable default for cloud models would be worth considering.
+2. **Shorten old tool results in the history** (calendar lists, states), replaced by a short text after the last few turns. That would keep the history small without shortening the conversation. It contradicts the sentence in section 7 ("Old turns stay verbatim") and would have to be weighed against it.
+3. **Small context for the reply after a confirmation.** If a tool ends the request (`thread_confirm`, `thread_cancel`, `thread_undo`), the second round could get only personality, the turn and the result of the call, without tools, house and history. The reply would go into the log as before. Open: only for cloud models, because a deviating request displaces the cache on a local server. On errors and with several calls in a row it stays with the full context. The result texts of the finishers would have to be understandable on their own. The gain lies more in cost than in time. Not built for now.
+4. **Cut down tools.** 51 definitions are 72 % of every request. Home Assistant's MCP descriptions are long, many tools are never needed. A filter by channel or usage would shrink every round, but would go against the common prefix of all channels (section 3), which keeps the cache locally.

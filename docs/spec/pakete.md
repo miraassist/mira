@@ -1,56 +1,56 @@
-# Pakete – Spezifikation
+# Parcels – spec
 
-Stand 2026-10-20. Beschlossen, gebaut (0.6.57). Die erste Anwendung des [Mail-Kalenders](mail-kalender.md); wie Mails
-hereinkommen, ausgewertet und eingetragen werden, steht dort.
+Status 2026-10-20: decided, built (0.6.57). The first application of the [mail calendar](mail-kalender.md); how mails
+come in, are read and entered is described there.
 
-## Ziel
+## Target
 
-„Wann kommt mein Paket?“ – „Kommt heute was?“ – im Briefing: „Heute kommt zwischen 10 und 12 Uhr dein Paket von
-Amazon.“
+"Wann kommt mein Paket?" – "Kommt heute was?" – in the briefing: "Heute kommt zwischen 10 und 12 Uhr dein Paket von
+Amazon."
 
-Die Schnittstellen der Paketdienste helfen wenig: Sie brauchen die Sendungsnummer, die man vorher nicht kennt, und
-liefern Privatkunden oft kein Zeitfenster. Die Versandmails haben beides und mehr, und das für alle Versender gleich.
+The carriers' interfaces help little: They need the tracking number, which one does not know beforehand, and
+often deliver no time window to private customers. The shipping mails have both and more, and the same for all senders.
 
-## Einrichten
+## Setup
 
-- In HA einen **IMAP-Eintrag** anlegen, mit einer Suche nach den Absendern der Paketdienste, etwa
-  `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu` (Ordner: Posteingang).
-- Das **Gerät** des Eintrags **„Pakete“** nennen (fürs Haus) oder **„Pakete <Login>“** (für eine Person, etwa
-  „Pakete stefan“). Der Name des Eintrags selbst zählt nicht.
-- Den Kalender gleichen Namens legt Mira an, wenn es ihn nicht gibt.
+- In HA create an **IMAP entry**, with a search for the senders of the carriers, e.g.
+  `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu` (folder: inbox).
+- Name the **device** of the entry **"Pakete"** (for the house) or **"Pakete <login>"** (for a person, e.g.
+  "Pakete stefan"). The name of the entry itself does not count.
+- Mira creates the calendar of the same name if it does not exist.
 
 ## Skill `pakete`
 
-**Auswertung** (`mail.extract`): Was die Anleitung dem isolierten Aufruf sagt:
+**Reading** (`mail.extract`): What the instructions tell the isolated call:
 
-- Relevant ist eine Mail, die eine Sendung an den Nutzer ankündigt oder ihren Stand meldet; Werbung, Rechnungen und
-  Bewertungsbitten nicht.
-- **Titel:** „Paket von <Shop>“, mit der Ware, wenn die Mail sie nennt („Paket von Amazon: Druckerpatronen“), kurz (höchstens fünf Wörter), nie
-  „1 Artikel“ oder eine Nummer; liegt es zur Abholung bereit: „Paket von <Shop> abholbereit“.
-- **Kennungen:** alle Nummern der Sendung oder Bestellung: Sendungsnummer, Bestellnummer, Sendungs-ID des Shops. So
-  findet die Mail des Paketdienstes den Eintrag aus der Mail des Shops.
-- **Status:** angekündigt, verschickt, unterwegs, heute, abholbereit: `scheduled`; zugestellt, abgestellt oder
-  abgeholt: `done`; storniert oder zurückgeschickt: `cancelled`.
-- **Tag und Zeit:** der angekündigte Zustelltag und das Zeitfenster; bei einer Spanne („in 1–2 Werktagen“) der erste
-  Tag. **Ohne Zustelltag** (nur „versandt“) kein Eintrag; der Versandtag ist kein Zustelltag. Abholbereit,
-  zugestellt: der Tag der Mail.
-- **Ort:** nur der Abholort (PaketShop, Packstation); wo es abgestellt wird, steht in den Einzelheiten.
-- **Einzelheiten:** nur Paketdienst, Sendungsnummer, Bestellnummer, Ablageort, Abholung bis. **Nie Namen oder Adresse
-  des Empfängers, Abholcodes, PINs oder Links.**
+- Relevant is a mail that announces a shipment to the user or reports its status; advertising, invoices and
+  review requests are not.
+- **Title:** "Paket von <Shop>", with the goods if the mail names them ("Paket von Amazon: Druckerpatronen"), short (at most five words), never
+  "1 Artikel" or a number; if it is ready for pickup: "Paket von <Shop> abholbereit".
+- **Keys:** all numbers of the shipment or order: tracking number, order number, shipment ID of the shop. So
+  the carrier's mail finds the entry from the shop's mail.
+- **Status:** announced, shipped, on the way, today, ready for pickup: `scheduled`; delivered, dropped off or
+  picked up: `done`; cancelled or returned: `cancelled`.
+- **Day and time:** the announced delivery day and the time window; with a range ("in 1–2 Werktagen") the first
+  day. **Without a delivery day** (only "shipped") no entry; the shipping day is not a delivery day. Ready for pickup,
+  delivered: the day of the mail.
+- **Location:** only the pickup place (PaketShop, Packstation); where it is dropped off is in the details.
+- **Details:** only carrier, tracking number, order number, drop-off place, pickup until. **Never names or address
+  of the recipient, pickup codes, PINs or links.**
 
-**Zugestellt** (`mail.done: "●"`): Ein zugestelltes oder abgeholtes Paket steht als „● Paket von …“ im Kalender,
-bis zum Ende des Tages.
+**Delivered** (`mail.done: "●"`): A delivered or picked-up parcel stands as "● Paket von …" in the calendar,
+until the end of the day.
 
-**Fragen** (Text des Skills): „Wann kommt mein Paket?“ liest den Kalender „Pakete“ und den eigenen der Person
-(„Pakete <Login>“, wenn die Person bekannt ist). Mira nennt Tag, Zeitfenster, Shop und Inhalt; Abholort ja, Codes nie.
+**Questions** (text of the skill): "Wann kommt mein Paket?" reads the calendar "Pakete" and the person's own
+("Pakete <login>", if the person is known). Mira names day, time window, shop and contents; pickup place yes, codes never.
 
 ## Briefing
 
-Das persönliche Briefing liest „Pakete {{person_login}}“ mit: „Heute kommt zwischen 10 und 12 dein Paket von
-Amazon.“ Das Haus-Briefing liest „Pakete“, wenn er in seiner Einstellung `kalender` steht.
+The personal briefing reads "Pakete {{person_login}}" too: "Heute kommt zwischen 10 und 12 dein Paket von
+Amazon." The house briefing reads "Pakete" if it is in its setting `kalender`.
 
-## Grenzen
+## Limits
 
-- Microsoft 365 und Outlook.com gehen mit der IMAP-Integration von HA nicht (kein OAuth); Gmail braucht ein
-  App-Passwort.
-- Zeigt ein Versender das Zeitfenster nur auf seiner Webseite und nicht in der Mail, kennt Mira nur den Tag.
+- Microsoft 365 and Outlook.com do not work with HA's IMAP integration (no OAuth); Gmail needs an
+  app password.
+- If a sender shows the time window only on its website and not in the mail, Mira knows only the day.

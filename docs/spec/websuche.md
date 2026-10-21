@@ -1,57 +1,57 @@
-# Websuche – Spezifikation
+# Web search – spec
 
-Stand 2026-10-18, beschlossen und gebaut in 0.6.29, Rückfall auf Bing in 0.6.30, Seitenanfang bei den Treffern in 0.6.31. Siehe auch die Sicherheitsregeln in der [Systemdoku](../system.md).
+Status 2026-10-18: decided and built in 0.6.29, fallback to Bing in 0.6.30, page start with the results in 0.6.31. See also the security rules in the [system docs](../system.md).
 
-## Ziel
+## Target
 
-Im Internet nachschauen gehört zu dem, was Mira von einer Sprachsteuerung unterscheidet: Öffnungszeiten, Ergebnisse, Neuigkeiten, „Wie lange kocht ein Ei?“. Bisher ging das nur mit einem eigenen MCP-Server für die Suche. Der lief als Node-Programm neben Mira und im Container gar nicht, weil das Image kein Node hat.
+Looking things up on the internet is part of what distinguishes Mira from a voice control: opening hours, results, news, "Wie lange kocht ein Ei?". So far this only worked with a separate MCP server for search. It ran as a Node program next to Mira and not at all in the container, because the image has no Node.
 
-Künftig bringt Mira die Suche selbst mit. Sie ist **an**, ohne Einrichtung und ohne Schlüssel. Abschalten kann man sie, etwa wenn man eine andere Suche als MCP-Server einbindet.
+From now on Mira brings search herself. It is **on**, without setup and without a key. It can be switched off, for instance when another search is added as an MCP server.
 
-## Die Werkzeuge
+## The tools
 
-- **`web_search`**: eine Suchanfrage, Antwort: bis zu 5 Treffer mit Titel, Adresse und Kurztext. Dazu der **Seitenanfang** (etwa 1.500 Zeichen Haupttext) des ersten lesbaren Treffers.
-- **`web_page`**: eine Adresse, Antwort: Titel und Haupttext der Seite, gekürzt auf eine handliche Länge. Damit liest Mira einen Treffer genauer, wenn der Kurztext nicht reicht.
+- **`web_search`**: a search query; answer: up to 5 results with title, address and snippet. Plus the **page start** (about 1,500 characters of main text) of the first readable result.
+- **`web_page`**: an address; answer: title and main text of the page, shortened to a manageable length. With this Mira reads a result more closely when the snippet is not enough.
 
-Den Seitenanfang liest `web_search` selbst mit, weil der Kurztext eines Treffers die Antwort oft nicht enthält und kleine Modelle von sich aus nicht nachlesen. Es versucht die ersten zwei Treffer (höchstens 6 Sekunden zusammen) und nimmt den ersten, der sich lesen lässt und mindestens 200 Zeichen Text hat. Seiten, die ihren Inhalt erst per Skript aufbauen, scheiden so aus. Mehr will das Modell, liest es einen Treffer mit `web_page` ganz.
+`web_search` reads the page start itself, because a result's snippet often does not contain the answer and small models do not look further on their own. It tries the first two results (at most 6 seconds together) and takes the first one that can be read and has at least 200 characters of text. Pages that build their content only via script are excluded this way. If the model wants more, it reads a result in full with `web_page`.
 
-## Wie gesucht wird
+## How searching works
 
-- **Quelle:** die HTML-Ergebnisseite von DuckDuckGo (`html.duckduckgo.com`), ein einfacher HTTP-Abruf.
-  - Kein Schlüssel und kein Konto nötig.
-  - Region nach Miras Sprache (`de-de`, `us-en`).
-- **Rückfall:** Zeigt DuckDuckGo eine Bot-Prüfung (es schickt sie als HTTP 202, schon nach wenigen Suchen hintereinander von einer Adresse) oder antwortet nicht, fragt Mira Bing über dessen Ergebnisseite (`bing.com/search`, auch ohne Schlüssel). Bings verpackte Links werden entpackt.
-  - Mojeek und Brave Search wurden ausprobiert: Beide sperren einfache Abrufe (Captcha, HTTP 429).
-  - Gehen beide nicht, sagt das Werkzeug dem Modell ausdrücklich, dass es nicht nachschauen konnte und nicht aus dem Gedächtnis raten soll.
-- **Bewusst ohne Browser:** Bing oder Brave über einen ferngesteuerten Browser (wie im bisherigen MCP-Server) sind langsam, machen das Image um Hunderte MB größer und brechen bei jeder Änderung der Seiten.
-- **Seitentext:**
-  - Mira lädt die Seite (höchstens 2 MB, nur HTML oder Text) und lässt Skripte, Navigation, Kopf- und Fußzeilen, Formulare und Ähnliches weg.
-  - Gibt es `<article>` oder `<main>` mit genug Text, nimmt sie das, sonst den ganzen Inhalt.
-- **Grenzen:**
-  - Suche und Seite haben je 10 Sekunden.
-  - Nur `http` und `https`.
-  - Adressen im eigenen Netz (privat, Loopback, link-local) lehnt `web_page` ab, auch nach einer Weiterleitung. Eine Webseite soll Mira nicht dazu bringen, Geräte im Heimnetz abzufragen.
-- **Grenze dieser Lösung:** Es sind Abrufe der Ergebnisseiten ohne offizielle Schnittstelle. Sie können sich ändern oder sperren. Mehr Aufwand ist hier bewusst nicht vorgesehen; wer eine verlässlichere Suche will, bindet eine mit Schlüssel als MCP-Server ein (etwa Brave Search) und schaltet die eingebaute ab.
-- **Grenzen des Seitenanfangs:** Tagesaktuelles (Spielergebnisse, Nachrichten) steht oft nicht auf der ersten lesbaren Seite oder weiter unten. Ein kleines Modell (getestet: qwen3-30b-a3b) vertauscht dann Einzelheiten oder rät aus dem Gedächtnis; eine strengere Beschreibung des Werkzeugs änderte das nicht. Ein stärkeres Modell (getestet: Gemini Flash) antwortet ehrlich, wenn nichts da ist.
+- **Source:** DuckDuckGo's HTML results page (`html.duckduckgo.com`), a simple HTTP fetch.
+  - No key and no account needed.
+  - Region by Mira's language (`de-de`, `us-en`).
+- **Fallback:** If DuckDuckGo shows a bot check (it sends it as HTTP 202, already after a few searches in a row from one address) or does not answer, Mira asks Bing via its results page (`bing.com/search`, also without a key). Bing's wrapped links are unwrapped.
+  - Mojeek and Brave Search were tried: both block simple fetches (captcha, HTTP 429).
+  - If neither works, the tool explicitly tells the model that it could not look it up and should not guess from memory.
+- **Deliberately without a browser:** Bing or Brave via a remote-controlled browser (as in the previous MCP server) are slow, make the image hundreds of MB larger and break with every change to the pages.
+- **Page text:**
+  - Mira loads the page (at most 2 MB, only HTML or text) and leaves out scripts, navigation, headers and footers, forms and the like.
+  - If there is an `<article>` or `<main>` with enough text, she takes that, otherwise the whole content.
+- **Limits:**
+  - Search and page have 10 seconds each.
+  - Only `http` and `https`.
+  - `web_page` rejects addresses in the own network (private, loopback, link-local), also after a redirect. A web page should not get Mira to query devices in the home network.
+- **Limit of this solution:** These are fetches of results pages without an official interface. They can change or block. More effort is deliberately not planned here; whoever wants a more reliable search adds one with a key as an MCP server (for instance Brave Search) and switches off the built-in one.
+- **Limits of the page start:** Up-to-the-day information (match results, news) is often not on the first readable page or further down. A small model (tested: qwen3-30b-a3b) then mixes up details or guesses from memory; a stricter tool description did not change that. A stronger model (tested: Gemini Flash) answers honestly when nothing is there.
 
-## Sicherheit
+## Security
 
-Beide Werkzeuge haben dieselben zwei Markierungen wie bisher der MCP-Server für die Suche:
-- **Liest nur:** Sie ändern nichts. Deshalb dürfen sie auch Hintergrundarbeiten nutzen, etwa das Beurteilen von Aufgaben oder schwierige Fragen, die an ein stärkeres Modell abgegeben werden.
-- **Fremder Webtext:** Was sie liefern, kann versteckte Anweisungen enthalten.
-  - Nach ihrem Aufruf sind für den Rest der Anfrage kritische Aktionen gesperrt: Schlösser, Alarmanlage und alles, was nachfragen muss.
-  - Etwas zu merken, eine Nachricht zu schicken oder eine Aufgabe anzulegen führt Mira in derselben Anfrage nur nach dem Ja des Nutzers aus (`AskAfterWeb`).
-  - Das regelt der Code im Guard, nicht der Prompt.
+Both tools have the same two markings as the previous MCP server for search:
+- **Read only:** They change nothing. Therefore background work may use them too, for instance assessing tasks or hard questions handed off to a stronger model.
+- **Third-party web text:** What they return can contain hidden instructions.
+  - After they are called, critical actions are blocked for the rest of the request: locks, alarm panel and everything that must ask first.
+  - Remembering something, sending a message or creating a task Mira carries out in the same request only after the user's yes (`AskAfterWeb`).
+  - This is governed by the code in the guard, not by the prompt.
 
-## Abschalten
+## Switching off
 
-- **Wo:** In den Optionen der Integration unter **Allgemein**, Schalter **Internetsuche**, Vorgabe: an.
-- **Wie:**
-  - Die Integration schickt den Schalter als Config-Abschnitt `web_search` an den Agenten (`PUT /v1/ui/config`), wie die Persönlichkeit.
-  - Der Agent speichert ihn in seiner Datenbank. Die Werkzeuge verschwinden oder erscheinen sofort, ohne Neustart.
-- **`mira.yaml`:** `web_search: {enabled: false}` stellt die Vorgabe um. Was in HA eingestellt ist, gilt davor.
-- **Ohne die eingebaute Suche:** Eine andere Suche bindet man als MCP-Server ein (`mcp_servers`, mit `read_only` und `web_content`). Beide gleichzeitig zu nutzen geht, ist aber selten sinnvoll.
+- **Where:** In the integration's options under **General**, switch **Web search**, default: on.
+- **How:**
+  - The integration sends the switch as config section `web_search` to the agent (`PUT /v1/ui/config`), like the personality.
+  - The agent stores it in its database. The tools disappear or appear immediately, without a restart.
+- **`mira.yaml`:** `web_search: {enabled: false}` changes the default. What is set in HA takes precedence.
+- **Without the built-in search:** Another search is added as an MCP server (`mcp_servers`, with `read_only` and `web_content`). Using both at the same time works, but rarely makes sense.
 
-## Später, wenn nötig
+## Later, if needed
 
-Eine Quelle mit offizieller Schnittstelle, etwa die Brave Search API (Schlüssel, kostenloses Kontingent) oder ein eigener SearXNG-Server. Das wäre dann eine Auswahl neben dem Schalter. Gebaut wird es erst, wenn DuckDuckGo im Alltag nicht reicht.
+A source with an official interface, for instance the Brave Search API (key, free quota) or an own SearXNG server. That would then be a choice next to the switch. It will only be built when DuckDuckGo is not enough in everyday use.

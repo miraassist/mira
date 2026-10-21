@@ -1,27 +1,27 @@
-# Radio – Spezifikation
+# Radio – Spec
 
-Stand 2026-10-18, beschlossen und gebaut in 0.6.37.
+Status 2026-10-18: decided and built in 0.6.37.
 
-## Ziel
+## Target
 
-„Spiel SWR3“ muss gehen, wie bei Alexa. Die Assist-Werkzeuge von Home Assistant bieten dafür nichts an: Suchen und Abspielen gibt es dort nur für Player, die „Medien suchen“ können, und das kann der ESPHome-Lautsprecher der Satelliten (etwa TECHO5) nicht. Mira sucht deshalb selbst in der Quelle „Radio Browser“ von Home Assistant, die immer dabei ist, und spielt den Sender mit `media_player.play_media`.
+"Spiel SWR3" must work, like with Alexa. Home Assistant's Assist tools offer nothing for this: searching and playing exist there only for players that can "search media", and the ESPHome speaker of the satellites (such as TECHO5) cannot do that. Mira therefore searches itself in Home Assistant's "Radio Browser" source, which is always included, and plays the station with `media_player.play_media`.
 
-## Das Werkzeug
+## The tool
 
 **`radio_play(station, room?, player?)`**
 
-- **Raum:** ohne Angabe der Raum des Satelliten, an dem gesprochen wird; sonst der genannte Raum. Kennt Mira keinen Raum (etwa bei Telegram ohne Angabe), sagt sie das und fragt.
-- **Player:** der für Assist freigegebene `media_player` im Bereich. Gibt es keinen, sagt Mira das ehrlich. Gibt es mehrere, fragt sie, welcher (`player`); das Werkzeug nennt sie dafür mit ihrem Namen in Home Assistant und der Entität („Show Bad Speaker (media_player.show_bad_speaker)“), damit Mira nicht nach der Kennung rät.
-- **Bestätigung** nennt den Lautsprecher, nicht nur den Raum („Läuft: SWR3 auf Show Bad Speaker im Raum Bad“): Mira sagt, wo es wirklich läuft, und eine Verwechslung fällt sofort auf.
-- **Suche:** WebSocket `media_source/search_media` auf `media-source://radio_browser`, die beliebtesten zuerst. Nur abspielbare Treffer der Radio-Browser-Quelle zählen.
-- **Auswahl:** Gleicht ein Treffer dem Namen (Groß- und Kleinschreibung, Leerzeichen und Satzzeichen egal, „SWR 3“ = „SWR3“), läuft er. Ist es genau ein Treffer, läuft er. Sonst nennt Mira bis zu fünf Namen und fragt nach.
-- **Abspielen:** `media_player.play_media` mit der Adresse und dem Typ des Treffers. Home Assistant holt den Stream und wandelt ihn um.
-- **Ohne Radio Browser** (Integration fehlt oder keine Verbindung) sagt Mira, dass die Suche gerade nicht geht.
+- **Room:** if not given, the room of the satellite being spoken to; otherwise the named room. If Mira knows no room (for example on Telegram without one being given), it says so and asks.
+- **Player:** the `media_player` in the area that is exposed to Assist. If there is none, Mira says so honestly. If there are several, it asks which one (`player`); for that the tool names them with their name in Home Assistant and the entity ("Show Bad Speaker (media_player.show_bad_speaker)"), so that Mira does not guess the id.
+- **Confirmation** names the speaker, not just the room ("Läuft: SWR3 auf Show Bad Speaker im Raum Bad"): Mira says where it is really playing, and a mix-up is noticed immediately.
+- **Search:** WebSocket `media_source/search_media` on `media-source://radio_browser`, the most popular first. Only playable hits from the Radio Browser source count.
+- **Selection:** If a hit matches the name (upper and lower case, spaces and punctuation do not matter, "SWR 3" = "SWR3"), it plays. If there is exactly one hit, it plays. Otherwise Mira names up to five names and asks back.
+- **Playing:** `media_player.play_media` with the address and the type of the hit. Home Assistant fetches the stream and converts it.
+- **Without Radio Browser** (integration missing or no connection) Mira says that searching does not work right now.
 
-Es fragt nichts nach: Radio ist nicht kritisch.
+It asks nothing back: radio is not critical.
 
-## Was nicht dazugehört
+## What is not part of it
 
-- **Beenden, leiser, lauter, Pause:** die normalen Medienwerkzeuge von Home Assistant. Gibt es ein Gerät, das auf Pause nicht sauber aufhört, kommt ein Stop-Werkzeug dazu.
-- **Eigene Lieblingssender** mit Stream-Adresse und ein Mira-Label für „spielt Musik“ pro Player gibt es nicht; beides lässt sich später ergänzen.
-- **Musik** (Interpreten, Alben, Playlists) ist Sache von Music Assistant und noch offen.
+- **Stop, quieter, louder, pause:** Home Assistant's normal media tools. If there is a device that does not stop cleanly on pause, a stop tool is added.
+- **Own favorite stations** with stream address and a Mira label for "plays music" per player do not exist; both can be added later.
+- **Music** (artists, albums, playlists) is a matter for Music Assistant and still open.

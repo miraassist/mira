@@ -1,50 +1,50 @@
-# Sprache – Spezifikation
+# Language – spec
 
-Stand 2026-10-16, gebaut in 0.6.14. Gilt für alle Kanäle. Siehe auch [Kontext](kontext.md) und [Nachrichten](nachrichten.md).
+Status 2026-10-16: built in 0.6.14. Applies to all channels. See also [Context](kontext.md) and [Messages](nachrichten.md).
 
-## Grundsatz
+## Principle
 
-Mira spricht die Sprache, die gesprochen wird. Im Haus hat nicht „das Haus“ eine Sprache, sondern jedes Gespräch. Eine eigene Einstellung für die Sprache gibt es nicht.
+Mira speaks the language that is spoken. In the house, it is not "the house" that has a language, but each conversation. There is no separate setting for the language.
 
-Die Sprache bestimmt Miras eigene Texte: ihre Regeln und den Kanalstil im Prompt, feste Sätze („Übrigens: …“, Hinweise), Ansagen und was sie von sich aus schreibt. Dass sie in der Sprache antwortet, in der man sie anspricht, regelt wie bisher eine Zeile in ihren Regeln.
+The language determines Mira's own texts: her rules and the channel style in the prompt, fixed sentences ("Übrigens: …", hints), announcements and what she writes on her own. That she answers in the language in which she is addressed is governed, as before, by a line in her rules.
 
-## Welche Sprache wann
+## Which language when
 
-| Wann | Sprache |
+| When | Language |
 |---|---|
-| **Gespräch** (Satellit, Chat der HA-App) | die Sprache, die HA mit der Anfrage schickt (die der Assist-Pipeline) |
-| **Ansage an einem Satelliten** | die Sprache, die an diesem Satelliten zuletzt gesprochen wurde |
-| **Nachricht an eine Person** (Kanäle, Eskalation, Telegram) | die Sprache, die diese Person zuletzt gesprochen hat |
-| **alles ohne Satellit und Person** (Haus-Profil verdichten, Urteile der Aufgaben) | die zuletzt gesprochene Sprache überhaupt |
-| **noch nie gesprochen** (erster Start) | die Server-Sprache von HA (Einstellungen → System → Allgemein) |
+| **Conversation** (satellite, chat of the HA app) | the language HA sends with the request (that of the Assist pipeline) |
+| **Announcement at a satellite** | the language last spoken at this satellite |
+| **Message to a person** (channels, escalation, Telegram) | the language this person last spoke |
+| **everything without satellite and person** (condensing the house profile, judgments of tasks) | the language last spoken at all |
+| **never spoken yet** (first start) | HA's server language (Settings → System → General) |
 
-- **Telegram** hat keine Pipeline. Ein Gespräch dort nimmt die zuletzt gesprochene Sprache der Person.
-- **Die Person ist nur bekannt, wenn sie eindeutig ist**: per Telegram, im Chat der HA-App, am Satelliten nach der Regel „allein zu Hause“. Weitere Logik zum Erkennen kommt nicht dazu.
-- Die Server-Sprache liest der Agent über HAs WebSocket (`get_config`), ohne Admin-Rechte.
+- **Telegram** has no pipeline. A conversation there takes the person's last spoken language.
+- **The person is only known if they are unambiguous**: via Telegram, in the chat of the HA app, at the satellite by the "alone at home" rule. No further recognition logic is added.
+- The agent reads the server language via HA's WebSocket (`get_config`), without admin rights.
 
-## Zuletzt gesprochen: dauerhaft
+## Last spoken: persistent
 
-Sitzungen laufen ab und werden gelöscht. Die zuletzt gesprochene Sprache wird deshalb **getrennt gespeichert** und überlebt das:
-- je Satellit,
-- je Person,
-- insgesamt.
+Sessions expire and are deleted. The last spoken language is therefore **stored separately** and survives that:
+- per satellite,
+- per person,
+- overall.
 
-Jeder Turn mit einer Sprache von HA aktualisiert die drei Einträge, soweit Satellit und Person bekannt sind.
+Every turn with a language from HA updates the three entries, as far as satellite and person are known.
 
-## Was sich ändert
+## What changes
 
-- `prompt.language` gibt es nicht mehr. Mira läuft nur mit HA, eine Sprache einzustellen braucht es nicht.
-- Der Prompt hat je Sprache seinen eigenen festen Anfang. Bei einem lokalen Modell bricht ein Wechsel zwischen Sprachen den Cache; bei einer Sprache im Haus ändert sich nichts.
-- Gespeichertes bleibt in der Sprache, in der es entstand: Fakten, Nachrichtentexte. Eine Ansage formuliert das Modell ohnehin neu, in der Sprache der Ansage.
+- `prompt.language` no longer exists. Mira runs only with HA; there is no need to set a language.
+- The prompt has its own fixed beginning per language. With a local model, a switch between languages breaks the cache; with one language in the house nothing changes.
+- What is stored stays in the language in which it was created: facts, message texts. The model rephrases an announcement anyway, in the language of the announcement.
 
-## Was nur das Modell liest
+## What only the model reads
 
-Nicht alles folgt der Sprache des Gesprächs. Was nur das Modell liest, wird beim Start einmal gebaut, in der dann zuletzt gesprochenen Sprache (sonst der Server-Sprache): die Beschreibungen von Miras Werkzeugen, die Texte, die sie dem Modell zurückgeben, der Wächter für Rückfragen, Miras eigener Strukturblock, die Abschlüsse von Vorgängen. Was der Mensch hört oder liest, folgt dagegen dem Gespräch, dem Raum oder der Person: der Prompt (Regeln, Kanalstil, Beispiele, Hinweise im Turn), feste Sätze, Ansagen, Erinnerungen, der Text auf dem Bildschirm.
+Not everything follows the language of the conversation. What only the model reads is built once at startup, in the language last spoken at that time (otherwise the server language): the descriptions of Mira's tools, the texts they return to the model, the guard for questions back, Mira's own structure block, the finishes of threads. What the human hears or reads, on the other hand, follows the conversation, the room or the person: the prompt (rules, channel style, examples, hints in the turn), fixed sentences, announcements, reminders, the text on the screen.
 
-**Offen für gemischtsprachige Haushalte:** Für das Modell ist eine deutsche Werkzeugbeschreibung in einem englischen Gespräch normalerweise kein Problem. Es kann aber sein, dass es in einem Haushalt, in dem zwei Sprachen gesprochen werden, doch stört, etwa wenn ein kleines lokales Modell dann Wörter aus Werkzeug-Ergebnissen in die Antwort mischt. Dann wären auch Werkzeuge, Wächter und Strukturblock je Sprache bereitzuhalten.
+**Open for mixed-language households:** For the model, a German tool description in an English conversation is normally not a problem. It may be, however, that in a household in which two languages are spoken it does interfere, for example when a small local model then mixes words from tool results into the answer. Then tools, guard and structure block would also have to be kept per language.
 
-## Bewusst nicht
+## Deliberately not
 
-- **Die Sprache aus dem HA-Profil einer Person**: Sie liegt in HAs Benutzerdaten, die Miras HA-Benutzer für andere nicht lesen darf. Was jemand zuletzt gesprochen hat, ist ohnehin näher dran.
-- **Die Pipeline je Satellit nachschlagen**: Die zuletzt dort gesprochene Sprache reicht.
-- **Eine Einstellung dafür.**
+- **The language from a person's HA profile**: it is in HA's user data, which Mira's HA user may not read for others. What someone last spoke is closer anyway.
+- **Looking up the pipeline per satellite**: the language last spoken there is enough.
+- **A setting for it.**

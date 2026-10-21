@@ -1,76 +1,76 @@
-# Mira in Home Assistant: dekorieren statt eigener Listen – Spezifikation
+# Mira in Home Assistant: decorate instead of own lists – spec
 
-Stand 2026-10-16, gebaut in 0.5.9. Ergänzt [Benutzer](benutzer.md) und [Aufgaben](aufgaben.md).
+Status 2026-10-16: built in 0.5.9. Complements [Users](benutzer.md) and [Tasks](aufgaben.md).
 
-## Grundsatz
+## Principle
 
-Was es in Home Assistant schon gibt, legt Mira nicht noch einmal an. Sie hängt ihre Einstellungen an die Dinge in HA:
+What already exists in Home Assistant, Mira does not create again. She attaches her settings to the things in HA:
 
-| Was Mira braucht | Wo es liegt |
+| What Mira needs | Where it lives |
 |---|---|
-| Personen | HAs Personen; Miras Einstellungen als Entity-Registry-Optionen `options["mira"]` an der Person ([Benutzer](benutzer.md)) |
-| Räume | die **Satelliten**; Miras Einstellungen als `options["mira"]` am Satelliten, der Bereich ist der des Satelliten |
-| Aufgaben | Automationen mit dem Label „Mira“ ([Aufgaben](aufgaben.md)) |
-| „erst nach Bestätigung schalten“ | das Label „Mira: nachfragen“ an der Entität |
-| was Mira sieht | HAs Freigabe für Assist, wie gehabt |
+| Persons | HA's persons; Mira's settings as entity registry options `options["mira"]` on the person ([Users](benutzer.md)) |
+| Rooms | the **satellites**; Mira's settings as `options["mira"]` on the satellite, the area is the satellite's area |
+| Tasks | automations with the label "Mira" ([Tasks](aufgaben.md)) |
+| "switch only after confirmation" | the label "Mira: nachfragen" on the entity |
+| what Mira sees | HA's exposure to Assist, as before |
 
-**Faustregel:** Ein Merkmal, das da ist oder nicht, ist ein **Label** (sichtbar und setzbar in HAs normaler Oberfläche, filterbar). Eine Einstellung mit Wert ist eine **Option an der Entität**. Eigene Listen nur für das, was es in HA nicht gibt (Ruhezeiten, Eskalation …).
+**Rule of thumb:** A property that is either there or not is a **label** (visible and settable in HA's normal UI, filterable). A setting with a value is an **option on the entity**. Own lists only for what does not exist in HA (quiet hours, escalation …).
 
-Lesen und schreiben:
-- **Geschrieben** wird über die Integration (Admin): Formulare unter Geräte & Dienste → Mira → **Konfigurieren**. Der Agent prüft jede Eingabe, bevor sie gespeichert wird.
-- **Gelesen** werden Labels direkt vom Agenten: Sein HA-Benutzer (kein Admin) darf Entity- und Label-Registry lesen, und er bekommt Änderungen mit. Personen- und Satelliten-Einstellungen schickt die Integration bei jeder Änderung an den Agenten, wie bisher.
-- Eine gelöschte Entität nimmt ihre Optionen mit; es bleibt nichts liegen.
+Reading and writing:
+- **Writing** happens through the integration (admin): forms under Devices & services → Mira → **Configure**. The agent checks every input before it is stored.
+- **Reading** labels is done directly by the agent: its HA user (no admin) may read the entity and label registries, and it gets notified of changes. Person and satellite settings are sent by the integration to the agent on every change, as before.
+- A deleted entity takes its options with it; nothing is left behind.
 
-## Räume sind Satelliten
+## Rooms are satellites
 
-Fast alles, was heute ein „Raum“ ist, ist eine Eigenschaft des Satelliten:
+Almost everything that is a "room" today is a property of the satellite:
 
-| Einstellung am Satelliten (`options["mira"]`) | Bedeutung |
+| Setting on the satellite (`options["mira"]`) | Meaning |
 |---|---|
-| `presence` | **Liste** von Bewegungsmeldern; jeder davon löst „jemand kommt herein“ aus (z. B. Flur-PIR und Wohnzimmer-PIR für das Wohnzimmer-Echo) |
-| `morning` | **beim Hereinkommen ansagen**: Merkt einer der Bewegungsmelder jemanden, sagt Mira von selbst an, was wartet (nach der Ruhezeit mit „Guten Morgen“) |
-| `indicator` | die Anzeige, z. B. der LED-Ring des Echo: leuchtet, solange etwas wartet, unabhängig von Bewegungsmeldern. Satelliten mit Bildschirm brauchen keine Einstellung, Mira erkennt sie von selbst |
+| `presence` | **list** of motion sensors; each of them triggers "someone comes in" (e.g. hallway PIR and living room PIR for the living room Echo) |
+| `morning` | **announce on entering**: when one of the motion sensors detects someone, Mira announces on her own what is waiting (after quiet hours with "Guten Morgen") |
+| `indicator` | the indicator, e.g. the LED ring of the Echo: lights up as long as something is waiting, independent of motion sensors. Satellites with a screen need no setting, Mira detects them on her own |
 
-- Der **Bereich** ist der des Satelliten in HA (Entität, sonst ihr Gerät). Ein Satellit ohne Bereich kann nicht eingestellt werden.
-- Satelliten sind `assist_satellite.*`, für Lautsprecher ohne Assist auch `media_player.*` (mit `notifier.tts_entity`).
-- Vorerst **ein Satellit pro Bereich**: Ein zweiter im selben Bereich wird abgelehnt. Mehrere pro Bereich wären ein eigener Schritt (wer spricht dann?).
-- Die Unter-Einträge „Raum“ der Integration entfallen. Bereiche selbst lassen sich in HA nicht dekorieren (die Bereichs-Registry hat keine Optionen); auch deshalb ist der Satellit der Anker.
-- Ohne Integration bleibt alles in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `indicators`); `presence` darf dort eine Entität oder eine Liste sein.
+- The **area** is the satellite's area in HA (entity, otherwise its device). A satellite without an area cannot be configured.
+- Satellites are `assist_satellite.*`, for speakers without Assist also `media_player.*` (with `notifier.tts_entity`).
+- For now **one satellite per area**: a second one in the same area is rejected. Several per area would be a separate step (who speaks then?).
+- The integration's "room" sub-entries are dropped. Areas themselves cannot be decorated in HA (the area registry has no options); that is another reason why the satellite is the anchor.
+- Without the integration everything stays in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `indicators`); `presence` may be an entity or a list there.
 
-## Was Mira sieht: die Freigabe für Assist
+## What Mira sees: exposure to Assist
 
-Was Mira sehen darf, bestimmt HAs „Für Assist freigeben“. HAs eigene Werkzeuge über MCP halten das selbst ein. Miras eigene Teile sprechen HA aber direkt an und müssen dieselbe Grenze einhalten: Kalender lesen, die Prüfungen von Kalender und Liste, der Katalog für Aufgaben-Entwürfe, der eigene Strukturblock und der Wächter.
+What Mira may see is determined by HA's "Expose to Assist". HA's own tools via MCP respect that themselves. Mira's own parts, however, talk to HA directly and must keep the same boundary: reading calendars, the checks of calendar and list, the catalog for task drafts, her own structure block and the guard.
 
-- **Die Integration liefert die Liste.** Bei jedem Abgleich (`PUT /v1/ui/ha`) schickt sie neben Personen und Satelliten `exposed`: die IDs aller Entitäten, die HA für Assist freigibt. Sie bestimmt das wie HA selbst (`async_should_expose`). Ändert sich eine Freigabe, schickt sie neu.
-- **Der Agent merkt sich die Liste** dauerhaft und nimmt sie als maßgeblich.
-- **Ohne diese Liste gilt nichts als freigegeben,** und Mira handelt nicht.
-  - Der Agent fragt HA nicht selbst: Die Freigabeliste kann nur ein Admin lesen, und Miras Benutzer hat bewusst keine Admin-Rechte. Auch die Entitäts-Optionen und ein „alles“ als Ersatz gibt es nicht.
-  - Der Hausplan ist ohne Liste leer, ebenso die Auswahl für Aufgaben, Kalender und Listen.
-  - Ein Gespräch beantwortet Mira ohne Liste mit: „Ich warte noch auf die Verbindung mit Home Assistant …“ Sie ruft kein Werkzeug und fragt das Modell nicht. Sonst würde HAs MCP-Server schalten, was dort freigegeben ist, während der Wächter diese Namen im leeren Plan nicht kennt.
-  - Das betrifft nur den Zeitraum vor dem ersten Abgleich der Integration. Danach merkt sich der Agent die Liste auch über Neustarts.
-- **Login-Namen:** Mit den Einstellungen schickt die Integration den Login-Namen des HA-Benutzers jeder Person (`logins`), denn den darf nur ein Admin lesen. Er bestimmt, welcher Kalender einer Person gehört ([Kalender](kalender.md)).
-- **Die Liste bleibt richtig, wenn einer von beiden neu startet** (seit 0.6.50):
-  - Der Agent meldet in `/v1/status` einen **Fingerabdruck** seiner Liste (`exposed_hash`: sha256 der sortierten Kennungen, durch Zeilenumbrüche verbunden; leer, solange er nie eine bekam). Die Integration berechnet denselben aus HA und vergleicht bei **jeder Abfrage** (jede Minute), nach dem Start von HA und bei jeder Änderung der Freigabe. Weicht er ab, sendet sie die Liste neu. Das deckt ein später entdecktes Gerät (MQTT, Discovery), einen verpassten Versand und einen Agenten ab, der mit leerer Datenbank startet.
-  - **Solange HA startet, wird nichts gesendet** (Zustand „läuft“ erst nach dem Start-Ereignis). Beim Start melden sich die Entitäten nacheinander an; eine Liste aus den ersten Sekunden wäre kurz und würde die vollständige beim Agenten ersetzen (so geschehen: 14 statt 185). Bis dahin behält der Agent die gespeicherte Liste.
-  - Ein Agent, der den Fingerabdruck nicht meldet (älter), wird nur einmal bedient wie früher.
-  - **Neustart des Agenten** (etwa nach einer Änderung der Konfiguration) ändert nichts: Die Liste liegt in seiner Datenbank. Nur bei leerer Datenbank holt der Abgleich sie innerhalb einer Minute nach.
-- **Warum nicht aus dem ableiten, was Mira sieht:** HAs Assist-Prompt und `GetLiveContext` nennen nur Namen, keine IDs, und lassen Kalender ganz weg. Eine Grenze für den Datenschutz darf nicht auf Namen raten.
+- **The integration supplies the list.** On every sync (`PUT /v1/ui/ha`) it sends, alongside persons and satellites, `exposed`: the IDs of all entities that HA exposes to Assist. It determines this the same way HA itself does (`async_should_expose`). If an exposure changes, it sends again.
+- **The agent stores the list** persistently and treats it as authoritative.
+- **Without this list nothing counts as exposed,** and Mira does not act.
+  - The agent does not ask HA itself: the exposure list can only be read by an admin, and Mira's user deliberately has no admin rights. There is also no fallback to entity options or to "everything".
+  - Without the list the house plan is empty, as is the selection for tasks, calendars and lists.
+  - Without the list, Mira answers a conversation with: "Ich warte noch auf die Verbindung mit Home Assistant …" She calls no tool and does not ask the model. Otherwise HA's MCP server would switch whatever is exposed there, while the guard does not know these names in the empty plan.
+  - This only concerns the period before the integration's first sync. After that the agent keeps the list across restarts too.
+- **Login names:** With the settings, the integration sends the login name of each person's HA user (`logins`), because only an admin may read it. It determines which calendar belongs to a person ([Calendar](kalender.md)).
+- **The list stays correct when either of the two restarts** (since 0.6.50):
+  - The agent reports a **fingerprint** of its list in `/v1/status` (`exposed_hash`: sha256 of the sorted IDs, joined by line breaks; empty as long as it never received one). The integration computes the same from HA and compares on **every poll** (every minute), after HA has started and on every change of exposure. If it differs, it sends the list again. This covers a device discovered later (MQTT, discovery), a missed send and an agent that starts with an empty database.
+  - **While HA is starting, nothing is sent** (state "running" only after the start event). During startup the entities register one after another; a list from the first seconds would be short and would replace the complete one at the agent (this happened: 14 instead of 185). Until then the agent keeps the stored list.
+  - An agent that does not report the fingerprint (older) is served only once, as before.
+  - **Restarting the agent** (for instance after a configuration change) changes nothing: the list is in its database. Only with an empty database does the sync fetch it within a minute.
+- **Why not derive it from what Mira sees:** HA's Assist prompt and `GetLiveContext` only give names, no IDs, and leave out calendars entirely. A privacy boundary must not guess by names.
 
-## Nachfragen vor dem Schalten
+## Asking before switching
 
-Mira schaltet eine Entität erst nach ausdrücklichem „Ja“, wenn
-- ihre Domain in `security.confirm_domains` steht (Standard: Schlösser, Alarmanlagen), **oder**
-- sie in `security.confirm_entities` steht (YAML), **oder**
-- sie das Label **„Mira: nachfragen“** trägt.
+Mira switches an entity only after an explicit "Ja" if
+- its domain is in `security.confirm_domains` (default: locks, alarm panels), **or**
+- it is in `security.confirm_entities` (YAML), **or**
+- it carries the label **"Mira: nachfragen"**.
 
-Feiner wird es nicht: Was Mira überhaupt sieht, regelt HAs Freigabe; „nur lesen“ oder Rollen gibt es nicht. Hintergrundjobs dürfen wie bisher nur lesen.
+It does not get finer than that: what Mira sees at all is governed by HA's exposure; there is no "read only" and no roles. Background jobs may only read, as before.
 
-## Labels und Sprache
+## Labels and language
 
-Labels haben in HA eine feste `label_id` (beim Anlegen einmal aus dem Namen gebildet) und einen änderbaren Namen. Entitäten speichern nur die ID.
+In HA, labels have a fixed `label_id` (derived once from the name on creation) and a changeable name. Entities store only the ID.
 
-- Mira erkennt ihre Labels **nur an der ID**: `mira` (Aufgaben) und `mira_confirm` (nachfragen).
-- Die Integration legt sie beim Start an, falls sie fehlen, und gibt ihnen Namen und Beschreibung in HAs Sprache:
-  - `mira`: „Mira“ – „Aufgaben von Mira“ / „Mira's tasks“
-  - `mira_confirm`: „Mira: nachfragen“ / „Mira: confirm first“ – „Mira schaltet das erst, nachdem du es bestätigt hast.“ / „Mira only switches this after you confirmed.“
-- Umbenennen durch den Nutzer stört nicht. Ein Sprachwechsel ändert vorhandene Namen nicht.
+- Mira recognizes her labels **only by ID**: `mira` (tasks) and `mira_confirm` (ask first).
+- The integration creates them on startup if they are missing, and gives them a name and description in HA's language:
+  - `mira`: "Mira" – "Aufgaben von Mira" / "Mira's tasks"
+  - `mira_confirm`: "Mira: nachfragen" / "Mira: confirm first" – "Mira schaltet das erst, nachdem du es bestätigt hast." / "Mira only switches this after you confirmed."
+- Renaming by the user does no harm. A language change does not change existing names.

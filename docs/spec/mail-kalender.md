@@ -1,122 +1,122 @@
-# Mail-Kalender – Spezifikation
+# Mail calendar – spec
 
-Stand 2026-10-20. Beschlossen, gebaut (0.6.57). Erste Anwendung: [Pakete](pakete.md).
+Status 2026-10-20: decided, built (0.6.57). First application: [Pakete](pakete.md).
 
-## Ziel
+## Target
 
-Viele Mails kündigen etwas mit einer Zeit an: ein Paket kommt morgen zwischen 10 und 12, der Zahnarzt bestätigt
-Dienstag 9:30, die Bahn meldet einen Gleiswechsel, die Apotheke hat das Medikament bereit. Mira liest solche Mails,
-zieht heraus, was und wann, und trägt es in einen **Kalender** ein. Dort sieht man es in der normalen Kalenderansicht,
-Mira beantwortet Fragen daraus, und das Briefing liest es mit. Neuere Mails ändern den Eintrag, eine Absage löscht
-ihn, Erledigtes räumt Mira weg.
+Many mails announce something with a time: a parcel arrives tomorrow between 10 and 12, the dentist confirms
+Tuesday 9:30, the railway reports a platform change, the pharmacy has the medication ready. Mira reads such mails,
+pulls out what and when, and puts it into a **calendar**. There one sees it in the normal calendar view,
+Mira answers questions from it, and the briefing reads it too. Newer mails change the entry, a cancellation deletes
+it, Mira clears away what is done.
 
-Der **Kern** ist allgemein: Mail rein, isoliert auswerten, Eintrag pflegen. **Was** aus einer Mail zu holen ist und
-wie man Fragen dazu beantwortet, sagt ein **Skill** je Anwendung (`pakete`, später etwa `termine`, `reisen`).
+The **core** is general: mail in, read it in isolation, maintain the entry. **What** to get from a mail and
+how to answer questions about it is said by one **skill** per application (`pakete`, later e.g. `termine`, `reisen`).
 
-## Grundsatz
+## Principle
 
-- **Nichts nachbauen, was HA anbietet:** Mails kommen über die IMAP-Integration von Home Assistant.
-- **Konvention vor Einstellung:** Der Name des IMAP-Geräts bestimmt Anwendung, Kalender und Besitzer.
-- **Mails sind fremder Text:** Ausgewertet wird isoliert; heraus kommen nur geprüfte Daten, nie Anweisungen.
+- **Do not rebuild what HA offers:** Mails come in through Home Assistant's IMAP integration.
+- **Convention before setting:** The name of the IMAP device determines application, calendar and owner.
+- **Mails are foreign text:** Reading happens in isolation; only checked data comes out, never instructions.
 
-## 1. Der IMAP-Eintrag und der Name seines Geräts
+## 1. The IMAP entry and the name of its device
 
-- Der Nutzer richtet in HA die **IMAP-Integration** ein. Ein Eintrag hat einen Ordner (Vorgabe: Posteingang) und eine
-  **Suche** in IMAP-Syntax (etwa `OR FROM dhl.de FROM hermesworld.com`); beides lässt sich kombinieren. Mira setzt auf
-  die Suche; ein eigener Ordner per Regel im Mailprogramm ist möglich, wenn die Suche nicht reicht.
-- Je Anwendung ein Eintrag, denn jede Anwendung hat ihre eigenen Absender. Man kann mehrere Einträge auf dasselbe
-  Postfach anlegen.
-- **Der Name des Geräts**, das HA zu jedem IMAP-Eintrag anlegt (Vorgabe „IMAP (Mail-Adresse)“), folgt der
-  Konvention **`<Anwendung>`** oder **`<Anwendung> <Login>`**. Es gilt nur der Gerätename, nicht der Name des
-  Eintrags: Das Gerät zeigt HA nach dem Einrichten als Erstes, und es ist das, was man umbenennt. Zwei Namen, die
-  beide gelten, wären eine Falle (Eintrag und Gerät sehen in HA fast gleich aus).
-  - Beispiele:
-  - „Pakete“: Anwendung `pakete`, gehört dem **Haus**.
-  - „Pakete stefan“: Anwendung `pakete`, gehört der Person mit dem Login-Namen `stefan` (oder die so heißt, wie beim
-    [Kalender](kalender.md)).
-  - Die Anwendung ist der Name eines Mail-Skills (Groß- und Kleinschreibung egal). Einträge, deren Gerätename zu
-    keinem Mail-Skill passt, liest Mira nicht.
-- **Der Kalender heißt wie das Gerät:** „Pakete“, „Pakete stefan“. Fehlt er, legt die Integration einen lokalen
-  Kalender dieses Namens an und gibt ihn für Assist frei.
-- Abweichende Namen per Einstellung: später, wenn jemand sie braucht.
+- The user sets up the **IMAP integration** in HA. An entry has a folder (default: inbox) and a
+  **search** in IMAP syntax (e.g. `OR FROM dhl.de FROM hermesworld.com`); both can be combined. Mira relies on
+  the search; a separate folder via a rule in the mail program is possible if the search is not enough.
+- One entry per application, because each application has its own senders. One can create several entries on the same
+  mailbox.
+- **The name of the device** that HA creates for each IMAP entry (default "IMAP (mail address)") follows the
+  convention **`<application>`** or **`<application> <login>`**. Only the device name counts, not the name of the
+  entry: HA shows the device first after setup, and it is what one renames. Two names that
+  both count would be a trap (entry and device look almost the same in HA).
+  - Examples:
+  - "Pakete": application `pakete`, belongs to the **house**.
+  - "Pakete stefan": application `pakete`, belongs to the person with the login name `stefan` (or who is called that, as with the
+    [calendar](kalender.md)).
+  - The application is the name of a mail skill (case does not matter). Entries whose device name matches
+    no mail skill, Mira does not read.
+- **The calendar is named like the device:** "Pakete", "Pakete stefan". If it is missing, the integration creates a local
+  calendar of this name and exposes it to Assist.
+- Different names via a setting: later, when someone needs them.
 
-## 2. Der Weg einer Mail
+## 2. The path of a mail
 
 ```
-IMAP-Eintrag mit Gerät „Pakete“ (Suche)
-  → HA: Ereignis imap_content (neue Mail)
-  → Mira-Integration: Gerätename passt zu einem Mail-Skill? vollen Text holen (imap.fetch)
-  → Agent POST /v1/mail: Gerätename, Absender, Betreff, Datum, Text
-  → Agent: Auswertung isoliert (Anleitung des Skills, festes Schema), Felder prüfen
-  → Agent: Eintrag im Kalender anlegen, ändern oder löschen, wenn die Mail neuer ist
+IMAP entry with device "Pakete" (search)
+  → HA: event imap_content (new mail)
+  → Mira integration: device name matches a mail skill? fetch full text (imap.fetch)
+  → agent POST /v1/mail: device name, sender, subject, date, text
+  → agent: isolated reading (skill instructions, fixed schema), check fields
+  → agent: create, change or delete the entry in the calendar if the mail is newer
 ```
 
-- Miras eigener HA-Benutzer darf `imap_content` nicht abonnieren (nur Admins); die **Integration** hört es. Welche
-  Anwendungen es gibt, meldet der Agent in `/v1/status` (`mail_apps`); andere Einträge leitet die Integration nicht
-  weiter.
-- Ereignisse beim Löschen einer Mail (`initial: false`) ignoriert sie.
-- Der Agent bearbeitet die Mails eines Kalenders nacheinander.
-- HTML-Mails macht der Agent vor der Auswertung zu Text.
-- **Verpasste Mails** (kommen bei Abfrage statt Push zwei Mails auf einmal, meldet HA vermutlich nur die letzte):
-  zunächst nicht nachgeholt; im Test beobachten.
+- Mira's own HA user may not subscribe to `imap_content` (admins only); the **integration** listens to it. Which
+  applications exist, the agent reports in `/v1/status` (`mail_apps`); other entries the integration does not
+  pass on.
+- Events on deleting a mail (`initial: false`) it ignores.
+- The agent processes the mails of one calendar one after the other.
+- The agent turns HTML mails into text before the reading.
+- **Missed mails** (if two mails arrive at once with polling instead of push, HA probably reports only the last one):
+  not fetched afterwards for now; observe in testing.
 
-## 3. Auswertung: isoliert, festes Schema
+## 3. Reading: isolated, fixed schema
 
-- Ein **isolierter** Modellaufruf: kein Haus, keine Werkzeuge, kein Gedächtnis, kein Verlauf. Er bekommt die
-  **Mail-Anleitung des Skills** und die Mail, als Daten gekennzeichnet.
-- **Modell:** Rolle `mail` unter `routing`; ohne Angabe das Modell für Hintergrundaufgaben. Ein Aufruf, der
-  scheitert oder nach 60 s keine Antwort hat, wird einmal wiederholt (ein Cloud-Modell bleibt ab und zu ohne Antwort). Ein Cloud-Modell sieht
-  die Mails (Namen, Adressen, Bestellungen, bei Terminen auch Gesundheitsdaten); der Guide rät zu einem lokalen.
+- An **isolated** model call: no house, no tools, no memory, no history. It gets the
+  **mail instructions of the skill** and the mail, marked as data.
+- **Model:** role `mail` under `routing`; without it, the model for background tasks. A call that
+  fails or has no answer after 60 s is repeated once (a cloud model stays without an answer now and then). A cloud model sees
+  the mails (names, addresses, orders, for appointments also health data); the guide recommends a local one.
 - **Schema** (JSON):
 
-  | Feld | Bedeutung |
+  | Field | Meaning |
   |---|---|
-  | `relevant` | ob die Mail etwas für diesen Kalender ankündigt; sonst wird sie verworfen |
-  | `title` | Titel des Eintrags, kurz („Paket von Amazon: Druckerpatronen“) |
-  | `keys` | alle Kennungen der Sache (Sendungs-, Bestell-, Buchungsnummer); leer, wenn keine |
-  | `status` | `scheduled` (angekündigt, bestätigt, geändert), `cancelled` (abgesagt), `done` (erledigt, zugestellt) |
-  | `day` | Tag (YYYY-MM-DD); leer, wenn die Mail keinen nennt |
-  | `start`, `end` | Uhrzeit oder Zeitfenster (HH:MM), leer für ganztägig |
-  | `location` | Ort, kurz |
-  | `details` | Einzelheiten, je Zeile „Bezeichnung: Wert“; nie Codes, PINs oder Passwörter |
+  | `relevant` | whether the mail announces something for this calendar; otherwise it is discarded |
+  | `title` | title of the entry, short ("Paket von Amazon: Druckerpatronen") |
+  | `keys` | all keys of the matter (tracking, order, booking number); empty if none |
+  | `status` | `scheduled` (announced, confirmed, changed), `cancelled` (cancelled), `done` (done, delivered) |
+  | `day` | day (YYYY-MM-DD); empty if the mail names none |
+  | `start`, `end` | time or time window (HH:MM), empty for all-day |
+  | `location` | place, short |
+  | `details` | details, one "label: value" per line; never codes, PINs or passwords |
 
-- **Prüfung im Code**, bevor etwas übernommen wird: `day` gültig und höchstens 7 Tage vor, höchstens ein Jahr nach dem
-  Datum der Mail; Uhrzeiten gültig, `end` nach `start` (sonst ohne `end`); jeder Schlüssel nur Buchstaben, Ziffern
-  und Bindestrich (höchstens 40), höchstens 8; Titel (80) und Ort (100) gekürzt, Einzelheiten höchstens 6 Zeilen zu
-  100 Zeichen. Was nicht passt, fällt weg.
-- **Ohne Titel oder Tag gibt es keinen Eintrag**, bis eine Mail den Tag nennt (eine Versandmail ohne Zustelltag
-  trägt nichts ein). Eine Absage braucht keinen Tag: Sie löscht den Eintrag, den sie über einen Schlüssel findet.
+- **Check in code** before anything is taken over: `day` valid and at most 7 days before, at most one year after the
+  date of the mail; times valid, `end` after `start` (otherwise without `end`); each key only letters, digits
+  and hyphen (at most 40), at most 8; title (80) and location (100) shortened, details at most 6 lines of
+  100 characters. What does not fit is dropped.
+- **Without title or day there is no entry**, until a mail names the day (a shipping mail without a delivery day
+  enters nothing). A cancellation needs no day: It deletes the entry it finds via a key.
 
-## 4. Der Kalendereintrag
+## 4. The calendar entry
 
-- Mit `start` (und `end`): Termin; sonst ganztägig am `day`. Ohne `end` dauert ein Termin eine Stunde.
-- **Beschreibung:** die Einzelheiten, darunter feste Zeilen, die Mira liest:
-  - `mira-mail: <key>, <key>` (die Kennungen; ohne Schlüssel `mira-mail: -`),
-  - `Stand: <Datum der Mail>` und `Status: <status>`.
-- **Kennungen:** Verschiedene Mails zur selben Sache nennen oft verschiedene Nummern (der Shop die Bestellnummer, der
-  Paketdienst die Sendungsnummer). Vor dem Anlegen sucht Mira in den Einträgen des Kalenders von 30 Tagen vor bis ein
-  Jahr nach heute einen, der **einen** Schlüssel mit der Mail teilt (Groß- und Kleinschreibung egal). Gefunden:
-  ändern, und die Schlüssel beider kommen zusammen. Die interne Kennung des Kalenders hilft nicht, die vergibt der
-  Kalender.
-- **Ohne Schlüssel:** Ein zweiter isolierter Aufruf bekommt die offenen Einträge (Titel, Tag) und sagt, ob die Mail
-  denselben betrifft (Nummer) oder einen neuen. Im Zweifel neu.
-- **Was die neue Mail nicht nennt, bleibt:** die Einzelheiten, deren Bezeichnung sie nicht nennt; der Ort, wenn sie
-  keinen nennt; das Zeitfenster, wenn sie denselben Tag ohne Zeit nennt; der Titel, wenn der neue nur sein Anfang ist
-  („Paket von Amazon“ lässt „Paket von Amazon: Druckerpatronen“ stehen).
-- **Die neueste Mail gewinnt:** Ist das Datum der Mail älter als der `Stand` des gefundenen Eintrags, wird sie
-  verworfen. So ist es gleich, in welcher Reihenfolge Mails ankommen; doppelte Verarbeitung ändert nichts.
-- **Status:** `cancelled` löscht den Eintrag; `done` lässt ihn bis zum Ende seines Tages stehen.
-- **Zeichen für erledigt:** Nennt der Skill eins (`mail.done`, bei Pakete „●“), setzt der Kern es vor den Titel,
-  sobald ein Eintrag `done` ist („● Paket von Amazon: Ladekabel“), und nimmt es wieder weg, wenn er wieder offen
-  ist. Ein Zeichen statt eines Worts, weil Kalenderansichten oft nur den Anfang des Titels zeigen; die
-  Sprachausgabe überspringt es. Es muss in der Schrift der Anzeige vorkommen (die Go-Schrift der TECHO5-Geräte hat
-  kein Häkchen, aber ●).
-- **Aufräumen** (stündlich): Einträge mit Status `done`, deren Tag vorbei ist, und alle Einträge, deren Tag mehr als
-  eine Woche vorbei ist, löscht Mira. Nur in Mail-Kalendern und nur Einträge mit `mira-mail:`.
+- With `start` (and `end`): appointment; otherwise all-day on `day`. Without `end` an appointment lasts one hour.
+- **Description:** the details, below them fixed lines that Mira reads:
+  - `mira-mail: <key>, <key>` (the keys; without keys `mira-mail: -`),
+  - `Stand: <date of the mail>` and `Status: <status>`.
+- **Keys:** Different mails about the same matter often name different numbers (the shop the order number, the
+  carrier the tracking number). Before creating, Mira searches the entries of the calendar from 30 days before to one
+  year after today for one that shares **one** key with the mail (case does not matter). Found:
+  change it, and the keys of both are merged. The internal ID of the calendar does not help, the
+  calendar assigns it.
+- **Without keys:** A second isolated call gets the open entries (title, day) and says whether the mail
+  concerns the same one (number) or a new one. When in doubt, new.
+- **What the new mail does not name stays:** the details whose label it does not name; the location if it
+  names none; the time window if it names the same day without a time; the title if the new one is only its beginning
+  ("Paket von Amazon" leaves "Paket von Amazon: Druckerpatronen" standing).
+- **The newest mail wins:** If the date of the mail is older than the as-of date (`Stand`) of the entry found, it is
+  discarded. So it does not matter in which order mails arrive; processing twice changes nothing.
+- **Status:** `cancelled` deletes the entry; `done` leaves it standing until the end of its day.
+- **Sign for done:** If the skill names one (`mail.done`, for Pakete "●"), the core puts it in front of the title
+  as soon as an entry is `done` ("● Paket von Amazon: Ladekabel"), and removes it again when it is open
+  again. A sign instead of a word, because calendar views often show only the beginning of the title; the
+  speech output skips it. It must exist in the font of the display (the Go font of the TECHO5 devices has
+  no check mark, but ●).
+- **Cleanup** (hourly): Entries with status `done` whose day is past, and all entries whose day is more than
+  a week past, Mira deletes. Only in mail calendars and only entries with `mira-mail:`.
 
-## 5. Mail-Skills
+## 5. Mail skills
 
-Ein Skill wird zur Mail-Anwendung durch einen Abschnitt `mail` im Kopf:
+A skill becomes a mail application through a section `mail` in the header:
 
 ```yaml
 metadata:
@@ -126,23 +126,23 @@ metadata:
         Anleitung für die Auswertung: was eine relevante Mail ist, wie Titel und Kennung zu bilden sind …
 ```
 
-- `extract` geht als Anleitung an den isolierten Aufruf. Das Schema und die Prüfung legt der Kern fest, nicht der
-  Skill.
-- `done` (optional): das Zeichen für erledigte Einträge, siehe Abschnitt 4.
-- Der Text des Skills ist, wie bei jedem Skill, die Anleitung für Fragen („Wann kommt mein Paket?“).
-- Mail-Skills ohne Pflichteinstellungen schalten sich ein, wenn ihr Ordner da ist, wie die eingebauten Ziele: Der
-  Gerätename des IMAP-Eintrags ist der Schalter.
+- `extract` goes as instructions to the isolated call. The schema and the check are set by the core, not the
+  skill.
+- `done` (optional): the sign for done entries, see section 4.
+- The text of the skill is, as with every skill, the instructions for questions ("Wann kommt mein Paket?").
+- Mail skills without required settings switch themselves on when their folder is there, like the built-in targets: The
+  device name of the IMAP entry is the switch.
 
-## 6. Mitlesen im Briefing
+## 6. Reading along in the briefing
 
-Das persönliche Briefing bekommt `{{person_login}}` und liest den Kalender „Pakete {{person_login}}“ mit, wenn es ihn
-gibt; das Haus-Briefing „Pakete“, wenn er in seiner Einstellung `kalender` steht.
+The personal briefing gets `{{person_login}}` and reads the calendar "Pakete {{person_login}}" too, if it
+exists; the house briefing reads "Pakete" if it is in its setting `kalender`.
 
 ## 7. Test
 
-- Die Test-HA bekommt einen IMAP-Server im Container (GreenMail) und einen IMAP-Eintrag mit Gerät „Pakete“;
-  `go run ./cmd/testha mail` stellt die Beispielmails zu (testenv/README.md).
-- Beispielmails: selbst geschriebene nach den Mustern von DHL, GLS, Hermes und eBay (im Repo, ohne echte Daten);
-  echte Mails nur lokal (`testenv/mails/`, nicht im Git).
-- Geprüft wird: Eintrag angelegt; neuere Mail ändert ihn; ältere wird verworfen; Absage löscht; Abholcode erscheint
-  nicht; Werbemail wird verworfen.
+- The test HA gets an IMAP server in the container (GreenMail) and an IMAP entry with device "Pakete";
+  `go run ./cmd/testha mail` delivers the sample mails (testenv/README.md).
+- Sample mails: self-written ones following the patterns of DHL, GLS, Hermes and eBay (in the repo, without real data);
+  real mails only locally (`testenv/mails/`, not in Git).
+- Checked: entry created; newer mail changes it; older one is discarded; cancellation deletes; pickup code does not
+  appear; advertising mail is discarded.

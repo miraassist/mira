@@ -1,71 +1,71 @@
-# Aufgaben (Tasks): Spezifikation
+# Tasks: spec
 
-Stand 2026-10-15. Spezifiziert, noch nicht gebaut. Das Benutzer-Konzept
-steht in [benutzer.md](benutzer.md).
+Status 2026-10-15: specified, not built yet. The user concept
+is in [benutzer.md](benutzer.md).
 
-## Warum
+## Why
 
-Bisher gab es zwei Konzepte für dasselbe Anliegen „sag Bescheid, wenn …“:
+Until now there were two concepts for the same concern "sag Bescheid, wenn …":
 
-- **Watcher:** konfigurierte Entitäten. Jede Zustandsänderung geht an das Modell.
-- **Aufträge:** im Gespräch angelegt. Das Modell plant einmal Regeln. Mira prüft sie selbst (Zustand, Grenzwert, Zeitfenster, Normalwert) und reicht nur Kandidaten an das Modell.
+- **Watcher:** configured entities. Every state change goes to the model.
+- **Assignments:** created in the conversation. The model plans rules once. Mira checks them itself (state, threshold, time window, normal value) and passes only candidates to the model.
 
-Für Anwender war nicht klar, wann was gilt. Beide Konzepte bauen außerdem
-kleine Teile des Trigger- und Bedingungssystems von Home Assistant nach, nur
-um sie in Mira auszuführen.
+For users it was not clear which applies when. Both concepts also rebuild
+small parts of Home Assistant's trigger and condition system, only
+to run them in Mira.
 
-## Grundsatz
+## Principle
 
-Eine **Aufgabe** ist eine gewöhnliche Home-Assistant-Automation mit dem
-Label **„Mira“**.
+A **task** is an ordinary Home Assistant automation with the
+label **"Mira"**.
 
-- **HA** entscheidet *wann*: Trigger, Bedingungen und Templates, im vollen Umfang. HA ist die Quelle der Wahrheit. Bearbeitet wird im Automations-Editor von HA, mit Traces.
-- **Mira** liefert, was HA nicht kann, als **Aktionen** für Automationen:
-  - Urteilen mit dem Modell;
-  - Daten aus HA verdichten, damit das Urteil billig bleibt;
-  - Zustellen mit Mira-Semantik: Ansage, Anzeige, „Übrigens“, Kanäle der Person, Ruhezeit, Eskalation.
-- Mira hält nur einen **Verweis** (Automations-ID) und ihr Protokoll.
+- **HA** decides *when*: triggers, conditions and templates, to their full extent. HA is the source of truth. Editing happens in HA's automation editor, with traces.
+- **Mira** provides what HA cannot, as **actions** for automations:
+  - judging with the model;
+  - condensing data from HA so the judgment stays cheap;
+  - delivering with Mira semantics: announcement, display, "Übrigens", the person's channels, quiet hours, escalation.
+- Mira only keeps a **reference** (automation ID) and its log.
 
-Watcher und die Regel-Engine der Aufträge entfallen. Die Testdaten werden ohne Migration gelöscht.
+Watchers and the rule engine of assignments are dropped. The test data is deleted without migration.
 
-Aufteilung: **HA sind die Sinne, Mira ist Verstand und Stimme.**
+Division: **HA is the senses, Mira is mind and voice.**
 
-## Aktionen
+## Actions
 
-Alle Aktionen stellt die Mira-Integration bereit. Sie rufen den Agenten über seine API auf.
+All actions are provided by the Mira integration. They call the agent via its API.
 
-### `mira.assess`: urteilen und gegebenenfalls melden
+### `mira.assess`: judge and report if needed
 
-| Parameter | Pflicht | Bedeutung |
+| Parameter | Required | Meaning |
 |---|---|---|
-| `goal` | ja | Das Ziel in den Worten des Nutzers, z. B. „Achte auf den Wasserverbrauch.“ |
-| `observation` | nein | Was passiert ist, als Text mit Templates. |
-| `data` | nein | Liste `{entity_id, view}`: Was Mira selbst nachschlägt und verdichtet (siehe „Ansichten“). |
-| `memory` | nein | `relevant` (Standard), `profile` oder `none` (siehe „Kontext“). |
-| `cooldown` | nein | Zum Beispiel `6h`. Innerhalb dieser Zeit meldet dieselbe Automation nur, wenn die Wichtigkeit steigt. |
-| `notify` | nein | Standard `true`. Bei `false` gibt es nur das Urteil, keine Nachricht (Probelauf). |
-| `audience`, `confidentiality`, `dedupe_key`, `expires_in` | nein | Wie bei `send_message`. |
+| `goal` | yes | The target in the user's words, e.g. "Achte auf den Wasserverbrauch." |
+| `observation` | no | What happened, as text with templates. |
+| `data` | no | List `{entity_id, view}`: what Mira looks up and condenses itself (see "Views"). |
+| `memory` | no | `relevant` (default), `profile` or `none` (see "Context"). |
+| `cooldown` | no | For example `6h`. Within this time the same automation only reports if the importance rises. |
+| `notify` | no | Default `true`. With `false` there is only the judgment, no message (dry run). |
+| `audience`, `confidentiality`, `dedupe_key`, `expires_in` | no | As with `send_message`. |
 
-**Ablauf**
-1. Mira baut einen **isolierten** Aufruf, also ohne Haus-Prompt. Er enthält:
-   - Ziel, Beobachtung und die verdichteten Daten;
-   - den Kontext (Gedächtnis, Anwesenheit, Tag und Uhrzeit);
-   - die letzten Urteile dieser Automation.
-2. Das Modell antwortet mit `{importance 0–3, spoken, details}`.
-3. Bei Wichtigkeit > 0 und `notify` (und außerhalb der Sperrzeit) entsteht eine Nachricht. Quelle ist `task`, der Verweis zeigt auf die Automation.
+**Flow**
+1. Mira builds an **isolated** call, that is, without the house prompt. It contains:
+   - target, observation and the condensed data;
+   - the context (memory, presence, day and time);
+   - the last judgments of this automation.
+2. The model answers with `{importance 0–3, spoken, details}`.
+3. With importance > 0 and `notify` (and outside the cooldown), a message is created. The source is `task`, the reference points to the automation.
 
-**Antwort** (für `response_variable`): `{importance, spoken, details, message_id | null}`.
+**Response** (for `response_variable`): `{importance, spoken, details, message_id | null}`.
 
-### `mira.decide`: Urteil als Bedingung
+### `mira.decide`: judgment as a condition
 
-| Parameter | Pflicht | Bedeutung |
+| Parameter | Required | Meaning |
 |---|---|---|
-| `question` | ja | Eine Ja/Nein-Frage, z. B. „Läuft hier gerade unnötig Wasser?“ |
-| `observation`, `data`, `memory` | nein | wie bei `assess` |
+| `question` | yes | A yes/no question, e.g. "Läuft hier gerade unnötig Wasser?" |
+| `observation`, `data`, `memory` | no | as with `assess` |
 
-**Antwort:** `{answer: true|false, reason}`. Es entsteht keine Nachricht.
+**Response:** `{answer: true|false, reason}`. No message is created.
 
-Eine native Bedingung (`condition: mira`) ist nicht möglich: HA prüft Bedingungen synchron, das Modell braucht Sekunden. Stattdessen nutzt die Automation die Aktion mit Antwort und danach eine Bedingung:
+A native condition (`condition: mira`) is not possible: HA checks conditions synchronously, the model needs seconds. Instead the automation uses the action with a response and then a condition:
 
 ```yaml
 - action: mira.decide
@@ -77,111 +77,111 @@ Eine native Bedingung (`condition: mira`) ist nicht möglich: HA prüft Bedingun
   value_template: "{{ d.answer }}"
 ```
 
-### `mira.send_message`: melden ohne Urteil (gibt es schon)
+### `mira.send_message`: report without judgment (already exists)
 
-`text`, `importance`, `details`, `audience`, `confidentiality`, `dedupe_key`, `expires_in` → Nachricht. Für Fälle, in denen das Urteil feststeht, etwa einen Wassermelder.
+`text`, `importance`, `details`, `audience`, `confidentiality`, `dedupe_key`, `expires_in` → message. For cases in which the judgment is fixed, such as a water leak sensor.
 
-## Ansichten (`data[].view`)
+## Views (`data[].view`)
 
-Mira bereitet Daten so auf, dass das Modell wenige, passende Zahlen sieht statt Rohdaten. Das ist ihr Beitrag gegen den Token-Verbrauch. Zu jeder Entität gehen Name, Bereich und Einheit mit.
+Mira prepares data so that the model sees a few fitting numbers instead of raw data. That is its contribution against token consumption. Name, area and unit go along with every entity.
 
-| `view` | Inhalt |
+| `view` | Content |
 |---|---|
-| `state` | aktueller Zustand, seit wann |
-| `same_hour` | letzte volle Stunde (Verbrauch bei Zählern, Mittel bei Messwerten) neben derselben Stunde der letzten 14 Tage: Median, Bandbreite, Maximum. Quelle: `recorder/statistics_during_period` |
-| `day` | heute bis jetzt neben denselben Wochentagen der Vorwochen |
-| `upcoming` | nur Kalender: die Termine von jetzt bis Ende morgen, in der Darstellung der Zeitachse ([Kontext](kontext.md), Abschnitt 2) |
+| `state` | current state, since when |
+| `same_hour` | last full hour (consumption for meters, mean for measurements) next to the same hour of the last 14 days: median, range, maximum. Source: `recorder/statistics_during_period` |
+| `day` | today until now next to the same weekdays of previous weeks |
+| `upcoming` | calendar only: the appointments from now until the end of tomorrow, in the timeline representation ([Context](kontext.md), section 2) |
 
-Geplant, mit derselben Darstellung: `history` (Verlauf), `list` (Listen-Attribute); dazu `collected` (Gesammeltes, siehe „Später“).
+Planned, with the same representation: `history` (history), `list` (list attributes); plus `collected` (collected data, see "Later").
 
-## Kontext jedes Urteils
+## Context of every judgment
 
-- **Gedächtnis** (`memory`):
-  - `relevant`: das Haushaltsprofil plus höchstens 5 Fakten, die über die Volltextsuche zu Ziel, Frage oder Beobachtung passen.
-  - `profile`: nur das Profil.
-  - `none`: nichts.
-  - Nur lesen, Urteile schreiben nichts ins Gedächtnis.
-  - Welches Gedächtnis mitgeht, bestimmt der Besitzer der Aufgabe (`owner`, siehe [benutzer.md](benutzer.md)): immer das Hausgedächtnis, bei persönlichen Aufgaben dazu das der Person.
-- **Anwesenheit:** wer zu Hause ist, aus den Personen-Entitäten.
-- **Tag:** Wochentag, Uhrzeit, ob Ruhezeit ist.
-- **Gedächtnis der Aufgabe:** die letzten Urteile derselben Automation (wann, Wichtigkeit, gesagt). So nervt das Modell nicht mit Wiederholungen und kann auf Verläufe hinweisen.
+- **Memory** (`memory`):
+  - `relevant`: the household profile plus at most 5 facts that match target, question or observation via full-text search.
+  - `profile`: only the profile.
+  - `none`: nothing.
+  - Read only, judgments write nothing into memory.
+  - Which memory goes along is determined by the owner of the task (`owner`, see [benutzer.md](benutzer.md)): always the house memory, for personal tasks also that of the person.
+- **Presence:** who is at home, from the person entities.
+- **Day:** weekday, time, whether it is quiet hours.
+- **Memory of the task:** the last judgments of the same automation (when, importance, said). This way the model does not annoy with repetitions and can point out trends.
 
-Größe eines Aufrufs: etwa 500 bis 1.500 Tokens. Stündliche Bewertung einer Aufgabe kostet mit Gemini Flash grob 0,5 Cent pro Tag.
+Size of a call: about 500 to 1,500 tokens. Hourly evaluation of a task costs roughly 0.5 cents per day with Gemini Flash.
 
-## Anlegen im Gespräch
+## Creating in the conversation
 
-Seit Agent 0.4.0 ist das Anlegen ein [Vorgang](vorgaenge.md) mit dem Ziel
-`aufgabe` (Skill `skills/aufgabe`): Felder watch, when, measure, reaction;
-fehlt ein Maßstab, fragt Mira nach; der Vorschlag gehört zum Vorgang, das
-Ja ist `thread_confirm`. Der Ablauf unten ist der ursprüngliche Entwurf.
+Since agent 0.4.0, creating is a [thread](vorgaenge.md) with the target
+`aufgabe` (skill `skills/aufgabe`): fields watch, when, measure, reaction;
+if a measure is missing, Mira asks; the proposal belongs to the thread, the
+yes is `thread_confirm`. The flow below is the original draft.
 
-1. „Achte auf den Wasserverbrauch.“ → `task_create(goal)`. Mira antwortet sofort: „Ich plane das und melde mich mit einem Vorschlag.“
-2. Im Hintergrund entwirft das Modell die Automation (`alias`, `description` = Ziel, `triggers`, `conditions`, `actions`). Es bekommt den Katalog der Entitäten und diese Spezifikation der Aktionen.
-3. Die Integration lässt HA den Entwurf prüfen (`mira/automation/validate`). Bei Fehlern gibt es einen zweiten Entwurf mit dem Fehlertext.
-4. Mira stellt den Vorschlag zu, im selben Raum oder Chat: kurz, was beobachtet wird und wann sie sich meldet, und „Soll ich so vorgehen?“.
-5. Bei Ja speichert die Integration die Automation (`mira/automation/save`), mit Label „Mira“. Mira merkt sich die ID.
+1. "Achte auf den Wasserverbrauch." → `task_create(goal)`. Mira answers immediately: "Ich plane das und melde mich mit einem Vorschlag."
+2. In the background the model drafts the automation (`alias`, `description` = target, `triggers`, `conditions`, `actions`). It gets the catalog of entities and this spec of the actions.
+3. The integration has HA check the draft (`mira/automation/validate`). On errors there is a second draft with the error text.
+4. Mira delivers the proposal, in the same room or chat: briefly, what is observed and when she will report, and "Soll ich so vorgehen?".
+5. On yes, the integration saves the automation (`mira/automation/save`), with the label "Mira". Mira remembers the ID.
 
-**Wo und von wem** (seit 0.6.17): Der Entwurf erfährt, an welchem Satelliten der Auftrag kam (Bereich, Satellit) und wer gesprochen hat, wenn Mira es weiß (Telegram, HA-App, allein zu Hause). So lösen sich „hier“ und „ich“ auf, und das Gedächtnis dieser Person geht mit. Die Person wird **Besitzer** der Aufgabe: Der Code trägt sie als `owner` in jedes `mira.assess` und `mira.decide` ein, und jedes Urteil sieht dann auch ihr Gedächtnis.
+**Where and by whom** (since 0.6.17): The draft learns at which satellite the request came in (area, satellite) and who spoke, if Mira knows it (Telegram, HA app, alone at home). This resolves "hier" and "ich", and the memory of this person goes along. The person becomes the **owner** of the task: the code enters them as `owner` in every `mira.assess` and `mira.decide`, and every judgment then also sees their memory.
 
-Weitere Werkzeuge:
-- `task_list`: Mira-Automationen aus HA, plus offene Vorschläge.
+Further tools:
+- `task_list`: Mira automations from HA, plus open proposals.
 - `task_delete`.
-- An/aus über `automation.turn_on/off`.
-- Probelauf: die Aktionen der Automation mit `notify: false` ausführen und das Urteil vorlesen.
+- On/off via `automation.turn_on/off`.
+- Dry run: run the automation's actions with `notify: false` and read the judgment aloud.
 
 ## Integration
 
-- **Websocket-Befehle**, nur für Miras HA-Benutzer (die Integration erfährt die ID über `/v1/health`) oder Admins:
+- **Websocket commands**, only for Mira's HA user (the integration learns the ID via `/v1/health`) or admins:
   - `mira/automation/validate`;
-  - `mira/automation/save` (über den Weg des Editors: Eintrag in `automations.yaml` ersetzen, eine Automation neu laden, Label setzen);
+  - `mira/automation/save` (via the editor's path: replace the entry in `automations.yaml`, reload one automation, set the label);
   - `mira/automation/delete`;
   - `mira/automation/list`.
-- **Sicherheitsregel** (2026-10-15 gelockert):
-  - Eine Aufgabe darf auch schalten und benachrichtigen, etwa Radio, Licht oder eine Push-Nachricht mit `notify.*`. Das ist die Entscheidung des Nutzers. Er muss dabei wissen, dass ein Modell entscheidet und nicht deterministisch urteilt.
-  - Der Vorschlag nennt diese Aktionen ausdrücklich, vom Code erzeugt und nicht dem Modell überlassen („Dabei schaltet sie außerdem: …“). Das Ja gilt genau dafür.
-  - Gesperrt bleibt, was Mira auch im Gespräch nur nach ausdrücklichem Ja schaltet (`security.confirm_domains` und `confirm_entities`, z. B. Schlösser, Alarm, Garagentor). Bei solchen Domains gilt das auch für Ziele über Bereiche oder Geräte.
-  - Ebenfalls gesperrt ist alles, was beliebigen Code ausführt oder HA selbst verändert: Skripte, Shell-Befehle, Neustarts, Updates.
-  - Wer das trotzdem will, trägt es im Editor von HA selbst ein. Dort greift die Regel nicht.
-  - Grund: Am Satelliten kann jeder sprechen, und eine Aufgabe wirkt dauerhaft und unbeaufsichtigt. Außerdem liefen Automationen sonst mit Admin-Rechten, die Mira bewusst nicht hat.
-- Voraussetzung: `configuration.yaml` bindet `automations.yaml` ein (Standard).
-- Risiko: Für das Speichern von Automationen gibt es keine stabile Schnittstelle für Integrationen. Der Editor-Weg kann bei HA-Updates Nacharbeit brauchen.
+- **Security rule** (relaxed 2026-10-15):
+  - A task may also switch and notify, for example radio, light or a push message with `notify.*`. That is the user's decision. They must know that a model decides and does not judge deterministically.
+  - The proposal names these actions explicitly, generated by the code and not left to the model ("Dabei schaltet sie außerdem: …"). The yes applies exactly to that.
+  - Still blocked is what Mira only switches after an explicit yes in the conversation too (`security.confirm_domains` and `confirm_entities`, e.g. locks, alarm, garage door). For such domains this also applies to targets via areas or devices.
+  - Also blocked is everything that runs arbitrary code or changes HA itself: scripts, shell commands, restarts, updates.
+  - Whoever wants that anyway enters it in HA's editor themselves. The rule does not apply there.
+  - Reason: anyone can speak at the satellite, and a task acts permanently and unsupervised. Besides, automations would otherwise run with admin rights, which Mira deliberately does not have.
+- Prerequisite: `configuration.yaml` includes `automations.yaml` (default).
+- Risk: there is no stable interface for integrations to save automations. The editor path may need rework with HA updates.
 
-## Mira-UI
+## Mira UI
 
-Reiter „Aufgaben“:
-- Mira-Automationen mit an/aus und „zuletzt ausgelöst“, Link in den HA-Editor, Probelauf, löschen.
-- Offene Vorschläge.
-- Pro Aufgabe das **Protokoll** der Urteile: Zeit, Daten in Kurzform, Wichtigkeit, gesagt, Nachricht. Das ergänzt die Traces von HA, die nur zeigen, *dass* `assess` lief.
+"Tasks" tab:
+- Mira automations with on/off and "last triggered", link into the HA editor, dry run, delete.
+- Open proposals.
+- Per task the **log** of judgments: time, data in short form, importance, said, message. This complements HA's traces, which only show *that* `assess` ran.
 
-## Entfällt
+## Dropped
 
-- Watcher (Paket, Config, UI-Reiter, Unter-Einträge der Integration für Watcher und Feeds).
-- Die Regel-Engine der Aufträge (usage/level/state/threshold, Fünf-Minuten-Schleife).
+- Watchers (package, config, UI tab, sub-entries of the integration for watchers and feeds).
+- The rule engine of assignments (usage/level/state/threshold, five-minute loop).
 
-Die Statistik-Auswertung lebt als Ansicht `same_hour` weiter.
+The statistics evaluation lives on as the view `same_hour`.
 
-## Erster Bau
+## First build
 
-- `assess` mit `data` (`state`, `same_hour`, `day`), `memory`, `cooldown` und `notify`;
+- `assess` with `data` (`state`, `same_hour`, `day`), `memory`, `cooldown` and `notify`;
 - `decide`;
 - `send_message`;
-- Kontext und Gedächtnis der Aufgabe;
-- Protokoll;
-- Anlegen im Gespräch;
-- Aufgabenliste mit Probelauf;
-- Watcher und Aufträge entfernen.
+- context and memory of the task;
+- log;
+- creating in the conversation;
+- task list with dry run;
+- remove watchers and assignments.
 
-Getestet wird an der Test-HA.
+Testing happens on the test HA.
 
-## Später
+## Later
 
-- **Sammeln:** `mira.collect(bucket, observation)` speichert ohne Modell. `assess` mit `view: collected` bewertet das Gesammelte gebündelt, z. B. täglich, und leert den Eimer. Für Feeds (`feedreader`), Kalender und laute Sensoren. Kommt mit den Skills.
-- **Skills:** nutzen HA als Datenquelle, wo HA die Daten nativ führt (Kalender, Feeds), und verdichten clever. Wo HA die Daten nicht oder schlecht modelliert, arbeiten sie wie bisher selbst. Ihren proaktiven Teil bringen sie als HA-Blueprint mit.
-- **Handeln mit Bestätigung:** Ein Urteil schlägt eine Handlung vor („Soll ich das Ventil schließen?“). Auf Ja führt Mira sie über ihren normalen Weg aus, mit Schutz und Bestätigung.
+- **Collect:** `mira.collect(bucket, observation)` stores without a model. `assess` with `view: collected` evaluates what was collected in a bundle, e.g. daily, and empties the bucket. For feeds (`feedreader`), calendars and noisy sensors. Comes with the skills.
+- **Skills:** use HA as a data source where HA keeps the data natively (calendar, feeds), and condense cleverly. Where HA does not model the data, or models it poorly, they work on their own as before. They bring their proactive part as an HA blueprint.
+- **Acting with confirmation:** A judgment proposes an action ("Soll ich das Ventil schließen?"). On yes, Mira carries it out via her normal path, with protection and confirmation.
 
-## Offen
+## Open
 
-- **Benutzer-Konzept:** geklärt in [benutzer.md](benutzer.md). Aufgaben haben einen Besitzer (Haus oder Person). `assess` und `decide` bekommen `owner`. Persönliches Gedächtnis geht nur bei persönlichen Aufgaben mit.
-- **Besprechungsliste:**
-  - Bestätigen per festem Ja im Code (sprachabhängige Phrasen);
-  - Bearbeiten von Aufgaben im Gespräch („nimm den Sensor raus“). Mit HA als Editor heißt das: Mira ändert die Automation per `save`.
+- **User concept:** settled in [benutzer.md](benutzer.md). Tasks have an owner (house or person). `assess` and `decide` get `owner`. Personal memory only goes along with personal tasks.
+- **Discussion list:**
+  - confirming via a fixed yes in the code (language-dependent phrases);
+  - editing tasks in the conversation ("nimm den Sensor raus"). With HA as the editor this means: Mira changes the automation via `save`.

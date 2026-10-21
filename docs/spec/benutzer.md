@@ -1,101 +1,101 @@
-# Benutzer: Haus und Personen – Spezifikation
+# Users: house and persons – spec
 
-Stand 2026-10-16. Gilt auch für die [Aufgaben](aufgaben.md).
+Status 2026-10-16. Also applies to the [tasks](aufgaben.md).
 
-Gebaut (Agent 0.5.0, Integration 0.4.0): Identität, Regel „allein zu Hause“,
-Gedächtnis und Profil pro Besitzer mit Urheber. Gebaut (0.5.7): Personen
-kommen aus Home Assistant. Offen: Aufgaben, Meldungen, Erinnerungen und
-Verläufe pro Besitzer, Nachrichten an andere.
+Built (agent 0.5.0, integration 0.4.0): identity, "alone at home" rule,
+memory and profile per owner with author. Built (0.5.7): persons
+come from Home Assistant. Open: tasks, notices, reminders and
+histories per owner, messages to others.
 
-## Grundsatz
+## Principle
 
-Ein Mira, zwei Arten von Bereichen:
+One Mira, two kinds of scopes:
 
-- der **Haus-Bereich**, gemeinsam für alle;
-- je ein **persönlicher Bereich** pro Person.
+- the **house scope**, shared by everyone;
+- one **personal scope** per person.
 
-Gedächtnis, Aufgaben, Meldungen, Erinnerungen und Gesprächsverläufe haben einen **Besitzer**: `house` oder eine Person.
+Memory, tasks, notices, reminders and conversation histories have an **owner**: `house` or a person.
 
-Es gibt keine getrennten Agenten. Das Hauswissen (Struktur, Geräte) bleibt eines.
+There are no separate agents. The house knowledge (structure, devices) stays one.
 
-| | Haus | Person |
+| | House | Person |
 |---|---|---|
-| Gedächtnis (Fakten, Profil) | Haushaltsfakten | eigene Fakten, eigenes Profil |
-| Aufgaben | „Achte auf den Wasserverbrauch“ | „Sag **mir** Bescheid, wenn …“ |
-| Meldungen | Ansage im Raum, Anzeige, „Übrigens“ | privat über die Kanäle der Person, am Satelliten nur nach der Regel „allein zu Hause“ |
-| Erinnerungen | im Raum | auf den privaten Kanal |
-| spricht von sich aus im Haus | ja | nur nach der Regel „allein zu Hause“ |
+| Memory (facts, profile) | household facts | own facts, own profile |
+| Tasks | "Achte auf den Wasserverbrauch" | "Sag **mir** Bescheid, wenn …" |
+| Notices | announcement in the room, indicator, "Übrigens" | privately via the person's channels, at the satellite only under the "alone at home" rule |
+| Reminders | in the room | on the private channel |
+| speaks on its own in the house | yes | only under the "alone at home" rule |
 
-Rollen (etwa Kinder ohne Schlösser) und Freigaben per Handy gibt es vorerst nicht.
+Roles (for instance children without locks) and approvals via phone do not exist for now.
 
-## Personen kommen aus Home Assistant
+## Persons come from Home Assistant
 
-Mit Home Assistant ist **jede HA-Person automatisch eine Person bei Mira**. Mira legt keine eigenen Personen an und hält nichts synchron.
+With Home Assistant, **every HA person is automatically a person for Mira**. Mira creates no persons of her own and keeps nothing in sync.
 
-- **Anker ist die HA-Person, nicht der HA-Benutzer.** Die Person ist das Haushaltsmitglied mit Anwesenheit (home/away), Name und Bild; der Benutzer ist nur ein Login. Es gibt Personen ohne Login (Kinder, Oma am Satelliten) und Logins ohne Person (Miras eigener HA-Benutzer, Service-Konten). HA verknüpft beides selbst über das Attribut `user_id` der Person, und legt beim Anlegen eines Benutzers standardmäßig eine Person an.
-- **Schlüssel** ist die interne ID der HA-Person (`attributes.id` der `person.*`-Entität, z. B. `anna_schmidt`). Sie bleibt, wenn die Entität umbenannt wird. Gedächtnis, Meldungen, Erinnerungen und Sitzungen hängen an diesem Schlüssel.
-- **Mira liest die Personen aus den Zuständen** (`person.*`, mit `id`, `user_id`, Name, Anwesenheit). Dafür braucht ihr HA-Benutzer keine Admin-Rechte. Neue Personen sieht sie beim nächsten Abgleich (jede Minute) oder sofort, wenn ein unbekannter HA-Benutzer auftaucht.
-- **Datensätze entstehen bei Bedarf:** Gedächtnis, Profil und Co. einer Person gibt es, sobald es etwas zu speichern gibt. Es gibt nichts anzulegen.
-- **Was nur Mira braucht, sind optionale Einstellungen an der Person:** Telegram-ID, Push-Dienst (Companion-App), „Allein zu Hause sind die Satelliten ich“. In der Integration heißt das „Mira-Einstellungen für eine Person“: man wählt eine HA-Person und setzt, was man braucht. Wer nichts davon braucht, stellt nichts ein.
-- **Ein HA-Benutzer ohne Person** (selten) ist für Mira niemand Bestimmtes: Im Panel sieht er das Haus-Gedächtnis und einen Hinweis, im App-Chat gilt er als anonym.
-- **In `mira.yaml`** unter `persons:` stehen höchstens Einstellungen pro HA-Person (Schlüssel = Personen-ID; ein älterer Eintrag mit `entity:` wird über die Entität zugeordnet). Personen selbst kommen immer aus Home Assistant; Mira läuft nur mit HA.
+- **The anchor is the HA person, not the HA user.** The person is the household member with presence (home/away), name and picture; the user is only a login. There are persons without a login (children, grandma at the satellite) and logins without a person (Mira's own HA user, service accounts). HA links the two itself via the person's `user_id` attribute, and by default creates a person when a user is created.
+- **The key** is the internal ID of the HA person (`attributes.id` of the `person.*` entity, e.g. `anna_schmidt`). It stays when the entity is renamed. Memory, notices, reminders and sessions hang on this key.
+- **Mira reads the persons from the states** (`person.*`, with `id`, `user_id`, name, presence). For this her HA user needs no admin rights. She sees new persons at the next sync (every minute) or immediately when an unknown HA user shows up.
+- **Records are created on demand:** a person's memory, profile and so on exist as soon as there is something to store. There is nothing to create.
+- **What only Mira needs are optional settings on the person:** Telegram ID, push service (companion app), "Alone at home, the satellites are me". In the integration this is called "Mira settings for a person": you pick an HA person and set what you need. Whoever needs none of it sets nothing.
+- **An HA user without a person** (rare) is no one in particular for Mira: in the panel they see the house memory and a hint, in the app chat they count as anonymous.
+- **In `mira.yaml`** under `persons:` there are at most settings per HA person (key = person ID; an older entry with `entity:` is matched via the entity). Persons themselves always come from Home Assistant; Mira only runs with HA.
 
-## Identität: wer spricht
+## Identity: who is speaking
 
-Die Identität kommt vom Kanal:
+The identity comes from the channel:
 
-| Kanal | Identität |
+| Channel | Identity |
 |---|---|
-| Telegram | Person über die Telegram-ID (wie heute) |
-| HA-App, Assist-Chat, Mira im HA-Seitenmenü | Person über den angemeldeten HA-Benutzer. Die Integration reicht die Benutzer-ID weiter, Mira ordnet sie über das Attribut `user_id` der HA-Person zu. |
-| Satellit | anonym, also Haus-Bereich. Ausnahme: die Regel „allein zu Hause“ |
+| Telegram | person via the Telegram ID (as today) |
+| HA app, Assist chat, Mira in the HA sidebar | person via the logged-in HA user. The integration passes on the user ID, Mira maps it via the HA person's `user_id` attribute. |
+| Satellite | anonymous, i.e. house scope. Exception: the "alone at home" rule |
 
-Zu prüfen beim Bau: Satelliten-Gespräche kommen ohne Benutzer an.
+To check when building: satellite conversations arrive without a user.
 
-## Regel „allein zu Hause“ (pro Person schaltbar)
+## "Alone at home" rule (switchable per person)
 
-Ist der Schalter einer Person an und ist sie laut ihrer Personen-Entität als einzige Person zu Hause, **gelten die Satelliten als diese Person**:
-- Mira liest und schreibt dann ihr Gedächtnis;
-- liest ihre vertraulichen Meldungen vor und darf sie von sich aus ansprechen;
-- legt ihre persönlichen Aufgaben an.
+If a person's switch is on and, according to their person entity, they are the only person at home, **the satellites count as this person**:
+- Mira then reads and writes their memory;
+- reads out their confidential notices and may bring them up on her own;
+- creates their personal tasks.
 
-Ist niemand oder mehr als eine Person zu Hause, sind die Satelliten anonym.
+If no one or more than one person is at home, the satellites are anonymous.
 
-Grenze: Gäste ohne Personen-Entität zählen nicht. Ist Anna mit einem Gast zu Hause, gilt sie als allein. Das ist der Preis der Bequemlichkeit, deshalb ist der Schalter pro Person und standardmäßig aus.
+Limit: guests without a person entity do not count. If Anna is at home with a guest, she counts as alone. That is the price of convenience, which is why the switch is per person and off by default.
 
-Die bisherige globale Einstellung für vertrauliche Meldungen (`confidential_voice: when_alone`) geht in diesem Schalter auf.
+The previous global setting for confidential notices (`confidential_voice: when_alone`) is absorbed into this switch.
 
-## Gedächtnis
+## Memory
 
-- **Haus:** lesen alle Kanäle, auch der anonyme Satellit. Schreiben dürfen alle.
-- **Person X:** lesen und schreiben nur X. X muss dazu über ihren Kanal identifiziert sein, oder die Regel „allein zu Hause“ greift.
-- Niemand schreibt in das Gedächtnis eines anderen. „Merk dir für Ben …“ wird zur Nachricht an Ben (siehe unten). Ben entscheidet dann selbst, ob er es sich merken lässt.
-- Im Gespräch sieht das Modell das Hausgedächtnis und, bei bekannter Person, deren Gedächtnis. Die nächtliche Verdichtung läuft pro Besitzer.
-- Eine bekannte Person merkt sich immer für sich; ins Haus nur, wenn sie es ausdrücklich sagt.
-- Jeder Fakt hat einen **Urheber**: die Person, sonst der Bereich des Satelliten („jemand im Wohnzimmer“). Die Web-Oberfläche zeigt Urheber und Zeitpunkt.
-- Das Hausprofil steht in Schicht 5 (gemeinsamer Prompt-Anfang), das persönliche Profil in Schicht 7 des Turns, damit der Cache für alle gleich bleibt.
+- **House:** all channels read it, including the anonymous satellite. Everyone may write.
+- **Person X:** only X reads and writes. For this X must be identified via their channel, or the "alone at home" rule applies.
+- No one writes into someone else's memory. "Merk dir für Ben …" becomes a message to Ben (see below). Ben then decides himself whether to have it remembered.
+- In conversation the model sees the house memory and, for a known person, their memory. The nightly compaction runs per owner.
+- A known person always remembers for themselves; into the house only if they say so explicitly.
+- Every fact has an **author**: the person, otherwise the satellite's area ("jemand im Wohnzimmer"). The web UI shows author and time.
+- The house profile is in layer 5 (shared prompt start), the personal profile in layer 7 of the turn, so that the cache stays the same for everyone.
 
-## Nachrichten an andere
+## Messages to others
 
-Eigene Spezifikation: [Nachrichten](nachrichten.md). Kurz: Aus den Meldungen werden Nachrichten mit Absender und Empfänger (eine Person oder das Haus); jede Person stellt ein, von wem sie Nachrichten annimmt. Niemand schreibt in das Gedächtnis eines anderen: „Merk dir für Ben …“ wird zur Nachricht an Ben.
+Own spec: [Messages](nachrichten.md). In short: the notices become messages with sender and receiver (a person or the house); each person sets from whom they accept messages. No one writes into someone else's memory: "Merk dir für Ben …" becomes a message to Ben.
 
-## Aufgaben
+## Tasks
 
-- Eine Aufgabe hat einen Besitzer (`owner: house | <person>`).
-  - Im eigenen Kanal angelegt („sag **mir** Bescheid“) gehört sie standardmäßig der Person.
-  - Am anonymen Satelliten angelegt gehört sie dem Haus.
-- `mira.assess` und `mira.decide` bekommen `owner` (Standard `house`):
-  - Er bestimmt, welches Gedächtnis mitgeht (Haus, bei Personen dazu ihr eigenes).
-  - Er bestimmt, wie zugestellt wird (Haus: Raum; Person: privat oder nach der Regel „allein zu Hause“).
-- `audience` bleibt für Haus-Aufgaben, die nur eine Person erreichen sollen.
+- A task has an owner (`owner: house | <person>`).
+  - Created in one's own channel ("sag **mir** Bescheid") it belongs to the person by default.
+  - Created at the anonymous satellite it belongs to the house.
+- `mira.assess` and `mira.decide` get `owner` (default `house`):
+  - It determines which memory goes along (house, for persons also their own).
+  - It determines how delivery happens (house: room; person: privately or under the "alone at home" rule).
+- `audience` stays for house tasks that should reach only one person.
 
-## Rechte
+## Permissions
 
-Mira schaltet weiter mit ihrem eigenen HA-Benutzer. Ob ein Befehl erlaubt ist, entscheidet ihr Schutz, wie heute. Eine Unterscheidung nach Person gibt es vorerst nicht.
+Mira keeps switching with her own HA user. Whether a command is allowed is decided by her protection, as today. A distinction by person does not exist for now.
 
-## Datenmodell (Skizze)
+## Data model (sketch)
 
-- `owner` (house oder Personen-ID aus HA) an: Fakten, Profil (eins pro Besitzer), Aufgaben, Erinnerungen, Sitzungen.
-- Meldungen: `owner`/`audience` wie bisher, dazu `sender`.
-- Personen: die HA-Person (ID, Entität, Name, Benutzer) plus Miras Einstellungen `telegram_user_id`, `notify`, `alone_is_me` und später `accept_messages` (all, persons, none).
-- Bisher ist alles Test: Daten werden nicht migriert. Alte Schlüssel (etwa `anna` statt `anna_schmidt`) bleiben einfach liegen.
+- `owner` (house or person ID from HA) on: facts, profile (one per owner), tasks, reminders, sessions.
+- Notices: `owner`/`audience` as before, plus `sender`.
+- Persons: the HA person (ID, entity, name, user) plus Mira's settings `telegram_user_id`, `notify`, `alone_is_me` and later `accept_messages` (all, persons, none).
+- So far everything is test: data is not migrated. Old keys (for instance `anna` instead of `anna_schmidt`) are simply left behind.

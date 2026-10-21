@@ -1,258 +1,255 @@
-# Agenten – Spezifikation
+# Agents – Spec
 
-Stand 2026-10-21, beschlossen. Nichts davon ist gebaut.
+Status 2026-10-21: decided. None of it is built.
 
-Die prüfbaren Regeln stehen als nummerierte Szenarien in [agenten.feature](agenten.feature); jeder Go-Test dazu trägt
-die Nummer im Namen (`TestAG07_…`).
+The testable rules are numbered scenarios in [agenten.feature](agenten.feature); each Go test for one carries the
+number in its name (`TestAG07_…`).
 
-## Ziel
+## Goal
 
-Mira ruft ihre Modelle heute an acht Stellen auf, jede auf ihre Art: das Gespräch, die Zeitpläne der Skills, das
-Delegieren, das Beurteilen und Planen von Aufgaben, das Lesen von Mails, das Verdichten des Profils, das Formulieren
-von Ansagen. Jede davon ist in Wahrheit ein eigener **Agent**: ein Modell mit einem bestimmten Kontext, bestimmten
-Werkzeugen, eigenen Regeln und einer eigenen Form der Antwort. Davon steht nur das Modell in der Konfiguration
-(`routing`); alles andere steckt verteilt im Code (Bestand am Ende).
+Today Mira calls her models in eight places, each in its own way: the conversation, the skills' schedules,
+delegating, assessing and planning tasks, reading mails, compacting the profile, wording announcements. Each of them
+is really an **agent** of its own: a model with a particular context, particular tools, its own rules and its own
+form of answer. Of that, only the model is in the configuration (`routing`); everything else is spread over the code
+(inventory at the end).
 
-Der **Agent** wird ein Baustein im Code. Die acht bestehenden werden **interne Agenten**, im Code beschrieben, ohne
-dass sich ihr Verhalten ändert. Ein Agent ist **aufrufbar wie ein Werkzeug**: Er hat eine Beschreibung, ein
-Eingabe-Schema und eine Antwort. So kann ihn ein anderer Agent als Werkzeug rufen, Home Assistant als Aktion, und
-der Code direkt. Zuletzt, optional, beschreibt eine **Factory** Agenten ohne Code, in YAML.
+The **agent** becomes a building block in the code. The eight existing ones become **internal agents**, described in
+code, without their behavior changing. An agent is **callable like a tool**: it has a description, an input schema
+and a response. So another agent can call it as a tool, Home Assistant as an action, and the code directly. Last,
+optionally, a **factory** describes agents without code, in YAML.
 
-Zwei Dinge werden dabei getrennt: was zu einem Agenten **fest** gehört (seine Beschreibung), und was mit **jedem
-Aufruf** mitkommt und an aufgerufene Agenten weitergereicht wird (der Aufruf-Kontext).
+Two things are kept apart: what belongs to an agent **for good** (its description), and what comes with **each call**
+and is passed on to the agents it calls (the call context).
 
-## Die statische Beschreibung
+## The static description
 
-Was zu einem Agenten gehört, gleich bei jedem Aufruf:
+What belongs to an agent, the same on every call:
 
-| Teil | Bedeutung | Beispiele |
+| Part | Meaning | Examples |
 |---|---|---|
-| **Name** | wie er im Log, in `routing` und als Werkzeug heißt | `conversation.voice`, `mail.read`, `tasks.plan` |
-| **Beschreibung** | wann man ihn ruft; für das aufrufende Modell, wie bei einem Werkzeug | „Liest eine Versandmail und gibt Titel, Tag und Kennungen zurück.“ |
-| **Eingabe** | Schema dessen, was er beim Aufruf bekommt | `{text}`, `{mail: {sender, subject, date, text}}` |
-| **Ausgabe** | Form der Antwort | Text, oder JSON nach einem Schema |
-| **Modell** | die Rolle in `routing` | `routing.mail`; ohne Eintrag `main` |
-| **Kontext** | was das Modell sieht, als Profil | *Gespräch* (Schichten 1–7, Verlauf), *Hintergrund* (fester Anfang mit Haus, ohne Verlauf), *isoliert* (nur eine eigene Systemnachricht und die Eingabe) |
-| **Werkzeuge** | welche Werkzeuge und welche anderen Agenten er rufen kann | *keine*, *nur lesend*, *alle*, oder eine Liste |
-| **Rechte** | was der Agent höchstens braucht (siehe Rechte) | `mail.read`: keine; `conversation.voice`: alle |
-| **Grenzen** | Vorgaben für Werkzeugrunden, Zeit je Versuch, Wiederholung | höchstens 3 Runden; 60 s, einmal wiederholen |
+| **Name** | what it is called in the log, in `routing` and as a tool | `conversation.voice`, `mail.read`, `tasks.plan` |
+| **Description** | when to call it; for the calling model, as with a tool | "Reads a shipping mail and returns title, day and keys." |
+| **Input** | schema of what it gets on a call | `{text}`, `{mail: {sender, subject, date, text}}` |
+| **Output** | form of the answer | text, or JSON following a schema |
+| **Model** | the role in `routing` | `routing.mail`; without an entry `main` |
+| **Context** | what the model sees, as a profile | *conversation* (layers 1–7, history), *background* (fixed prefix with the house, no history), *isolated* (only a system message of its own and the input) |
+| **Tools** | which tools and which other agents it can call | *none*, *read only*, *all*, or a list |
+| **Rights** | the most the agent needs (see Rights) | `mail.read`: none; `conversation.voice`: all |
+| **Limits** | defaults for tool rounds, time per attempt, retry | at most 3 rounds; 60 s, retry once |
 
-## Der Aufruf-Kontext
+## The call context
 
-Was mit jedem Aufruf mitkommt. Ruft ein Agent einen anderen, reicht er seinen Aufruf-Kontext weiter, enger, nie
-weiter.
+What comes with each call. When an agent calls another, it passes its call context on, narrower, never wider.
 
-| Teil | Bedeutung |
+| Part | Meaning |
 |---|---|
-| **Aufruf-ID** | eindeutig je Aufruf; dazu die ID des aufrufenden Aufrufs, falls es einen gibt |
-| **Herkunft** | wer ruft: Home Assistant (Automation, Assist, Telegram, IMAP), Miras Zeitgeber, die Mira-Seite, ein anderer Agent |
-| **Person, Ort, Sprache** | für wen und wo, soweit bekannt |
-| **Rechte** | was dieser Aufruf darf (siehe Rechte) |
-| **Tiefe** | wie viele Agenten über diesem stehen; 0 bei einem äußeren Aufruf |
-| **Fremder Text** | ob im Aufruf schon fremder Text im Spiel ist (Web-Inhalt, ein fremder Plan) |
-| **Modus** | synchron mit Timeout, oder asynchron mit Zustellweg (siehe Synchron und asynchron) |
+| **Call ID** | unique per call; plus the ID of the calling call, if there is one |
+| **Origin** | who calls: Home Assistant (automation, Assist, Telegram, IMAP), Mira's timers, the Mira page, another agent |
+| **Person, place, language** | for whom and where, as far as known |
+| **Rights** | what this call may do (see Rights) |
+| **Depth** | how many agents are above this one; 0 for an outside call |
+| **Third-party text** | whether third-party text is already involved in the call (web content, a foreign plan) |
+| **Mode** | synchronous with a timeout, or asynchronous with a delivery route (see Synchronous and asynchronous) |
 
-## Rechte
+## Rights
 
-Ein kleines Rechtemodell, nur was Mira heute schon unterscheidet:
+A small rights model, only what Mira already tells apart today:
 
-| Recht | erlaubt |
+| Right | allows |
 |---|---|
-| **Haus lesen** | Zustände, Kalender, Listen lesen |
-| **Haus schalten** | Aktionen in Home Assistant, die etwas ändern |
-| **Merken** | ins Gedächtnis schreiben |
-| **Nachrichten** | Nachrichten an Personen oder das Haus senden |
-| **Netz** | Websuche und Webseiten lesen |
+| **Read the house** | read states, calendars, lists |
+| **Act on the house** | Home Assistant actions that change something |
+| **Remember** | write to memory |
+| **Messages** | send messages to persons or the house |
+| **Web** | web search and reading web pages |
 
-- Ein Lauf darf, was **beide** erlauben: die Rechte im Aufruf-Kontext und die Rechte in der Beschreibung des
-  Agenten.
-- Ruft ein Agent einen anderen, gibt er im Aufruf-Kontext höchstens seine eigenen wirksamen Rechte weiter. Ein
-  Agent, der nicht schalten darf, kann auch über einen anderen nicht schalten.
-- Die Rechte kommen zu den bestehenden Regeln dazu, sie ersetzen sie nicht: Der Wächter fragt bei kritischen
-  Aktionen weiter nach, nach Web-Inhalt sperrt er sie, und nach fremdem Text fragt Mira vor dem Behalten und
-  Weitergeben.
-- Hat ein aufgerufener Agent fremden Text gelesen, steht das im Ergebnis; für den Aufrufer gilt es dann, als hätte
-  er ihn selbst gelesen.
+- A run may do what **both** allow: the rights in the call context and the rights in the agent's description.
+- When an agent calls another, it passes on in the call context at most its own effective rights. An agent that may
+  not act on the house cannot do so through another one either.
+- The rights add to the existing rules, they do not replace them: the guard still asks before critical actions,
+  locks them after web content, and after third-party text Mira asks before keeping or passing anything on.
+- If a called agent read third-party text, the result says so; for the caller it then counts as if it had read it
+  itself.
 
-## Aufrufen
+## Calling
 
-Alle Wege gehen durch dieselbe Schnittstelle: Agent, Eingabe, Aufruf-Kontext; zurück kommt die Antwort, oder bei
-asynchronen Aufrufen die Aufruf-ID.
+All ways go through the same interface: agent, input, call context; back comes the answer, or for asynchronous calls
+the call ID.
 
-- **Als Werkzeug eines anderen Agenten:** Steht ein Agent in der Werkzeugliste eines anderen, sieht dessen Modell
-  ihn als Werkzeug: Name, Beschreibung, Eingabe-Schema. Der Aufruf-Kontext kommt vom aufrufenden Lauf. So
-  funktioniert `delegate` heute schon, nur fest eingebaut.
-- **Aus Home Assistant:** eine Aktion, etwa am Ende einer Automation, mit Agent, Eingabe und Modus; synchron mit
-  Antwort für die Automation (`response_variable`), so wie `mira.assess` heute. Name: `mira.agent`.
-  Aus Home Assistant aufrufbar sind alle Agenten.
-- **Aus dem Code:** direkt, so wie heute der Notifier `notify.compose` ruft.
+- **As a tool of another agent:** if an agent is in another one's tool list, that one's model sees it as a tool:
+  name, description, input schema. The call context comes from the calling run. `delegate` works like this already,
+  only built in.
+- **From Home Assistant:** an action, for instance at the end of an automation, with agent, input and mode;
+  synchronously with an answer for the automation (`response_variable`), as `mira.assess` does today. Name:
+  `mira.agent`. All agents can be called from Home Assistant.
+- **From the code:** directly, as the notifier calls `notify.compose` today.
 
-## Synchron und asynchron
+## Synchronous and asynchronous
 
-Der **Aufrufer** entscheidet, im Modus des Aufruf-Kontexts.
+The **caller** decides, in the mode of the call context.
 
-- **Synchron mit Timeout:** Der Aufrufer wartet auf die Antwort, höchstens bis zum Timeout. Was beim Timeout
-  geschieht, sagt der Aufrufer: abbrechen, oder weiterlaufen lassen und das Ergebnis asynchron zustellen. Das
-  Gespräch am Satelliten macht es so (wie heute die Vorgänge: kurz warten, sonst „ich melde mich“).
-- **Asynchron:** Der Aufruf gibt sofort die Aufruf-ID zurück, der Agent läuft im Hintergrund.
+- **Synchronous with a timeout:** the caller waits for the answer, at most until the timeout. What happens at the
+  timeout, the caller says: cancel, or let it run on and deliver the result asynchronously. The conversation at a
+  satellite does it that way (as threads do today: wait briefly, else "ich melde mich").
+- **Asynchronous:** the call returns the call ID at once, the agent runs in the background.
 
-### Der Lauf-Datensatz
+### The run record
 
-Jeder asynchrone Lauf (und jeder synchrone, der nach dem Timeout weiterläuft) bekommt einen Datensatz:
-- Aufruf-ID, Agent, ID des aufrufenden Aufrufs;
-- Status: läuft, fertig, fehlgeschlagen, abgelaufen;
-- die Ausgabe nach dem Schema des Agenten, oder der Fehler;
-- Beginn und Ende.
+Every asynchronous run (and every synchronous one that runs on after the timeout) gets a record:
+- call ID, agent, ID of the calling call;
+- status: running, done, failed, expired;
+- the output following the agent's schema, or the error;
+- start and end.
 
-60 Minuten nach dem Ende wird er gelöscht. Bis dahin lässt er sich über die Aufruf-ID abfragen, auch aus Home
-Assistant (`mira.agent_result`).
+It is deleted 60 minutes after its end. Until then it can be queried by its call ID, also from Home Assistant
+(`mira.agent_result`).
 
-### Zustellen
+### Delivery
 
-Ist der Lauf fertig, wird der Aufrufer benachrichtigt, auf dem Weg, den er im Aufruf-Kontext angegeben hat:
-1. **Home-Assistant-Ereignis** mit Aufruf-ID, Agent, Status und Ausgabe; eine Automation kann daran weitermachen
+When the run is done, the caller is notified, on the route it gave in the call context:
+1. **Home Assistant event** with call ID, agent, status and output; an automation can go on from there
    (`mira_agent_done`).
-2. **Nachricht** an eine Person oder das Haus. Das Gespräch formuliert sie daraus („So hab ich mir das gedacht“);
-   das ist der Weg für Menschen.
-3. **Fortsetzung** des aufrufenden Agenten oder Vorgangs mit dem Ergebnis. Dieser Weg kommt zuletzt.
+2. **Message** to a person or the house. The conversation words it from the result ("So hab ich mir das gedacht");
+   this is the route for people.
+3. **Continuation** of the calling agent or thread with the result. This route comes last.
 
-Den Kern davon gibt es schon: Der Aufgaben-Planer läuft asynchron, sein Entwurf liegt als JSON im Vorgang (die
-Vorgangs-ID ist die Aufruf-ID), und daraus wird eine Ansage.
+The core of it exists already: the task planner runs asynchronously, its draft lies as JSON in the thread (the
+thread ID is the call ID), and an announcement is made from it.
 
-## Tiefe
+## Depth
 
-Ein Agent kann einen anderen rufen, der wieder einen ruft. Die Tiefe ist begrenzt, mit der Einstellung
-`agents.max_depth`, Vorgabe 3. Wird sie überschritten, scheitert der Aufruf mit diesem Grund.
+An agent can call another, which calls another again. The depth is limited, by the setting `agents.max_depth`,
+default 3. If it is exceeded, the call fails with that reason.
 
-## Protokoll
+## Log
 
-Jeder Lauf schreibt einheitlich eine Zeile `agent done`: Agent, Aufruf-ID, ID des aufrufenden Aufrufs, Tiefe,
-Herkunft, Modus, Status, Modell, Dauer, Modellaufrufe, Tokens. Über die Aufruf-IDs lässt sich ein ganzer Baum von
-Aufrufen nachverfolgen. Zeilen, die sagen, was ein Lauf fachlich bewirkt hat (etwa `mail read`), bleiben dazu.
+Every run writes one uniform line `agent done`: agent, call ID, ID of the calling call, depth, origin, mode, status,
+model, duration, model calls, tokens. Through the call IDs a whole tree of calls can be followed. Lines that say what
+a run achieved (such as `mail read`) stay in addition.
 
-## Der Baustein im Code
+## The building block in the code
 
-Ein Paket `internal/agent`:
-- **`agent.Spec`:** die statische Beschreibung, im Code als Werte geschrieben.
-- **`agent.CallContext`:** der Aufruf-Kontext.
-- **`agent.Call(ctx, spec, input, callContext)`:** führt einen Lauf aus. Stellt den Kontext nach dem Profil
-  zusammen, ruft das Modell, führt erlaubte Werkzeuge mit dem Wächter und den wirksamen Rechten aus, prüft die
-  Ausgabe gegen das Schema, wiederholt nach den Grenzen, schreibt den Lauf-Datensatz (bei asynchron) und die
-  Protokollzeile, und stellt zu.
-- Eine **Liste der Agenten**, über die sie als Werkzeug und aus Home Assistant gefunden werden.
+A package `internal/agent`:
+- **`agent.Spec`:** the static description, written as values in the code.
+- **`agent.CallContext`:** the call context.
+- **`agent.Call(ctx, spec, input, callContext)`:** runs one run. Builds the context following the profile, calls the
+  model, runs allowed tools with the guard and the effective rights, checks the output against the schema, retries
+  following the limits, writes the run record (if asynchronous) and the log line, and delivers.
+- A **list of the agents**, through which they are found as tools and from Home Assistant.
 
-Das Gespräch behält seinen eigenen Ablauf (Verlauf, Kürzung, Vorgang, Bestätigungen); es bekommt eine `agent.Spec`
-und einen Aufruf-Kontext, und dieselbe Protokollzeile.
+The conversation keeps its own flow (history, compaction, thread, confirmations); it gets an `agent.Spec` and a call
+context, and the same log line.
 
-## Umstellung in Schritten
+## Switching over in steps
 
-Die Schritte 1 bis 5 ändern kein Verhalten (außer `delegate`, Schritt 4); die vorhandenen Tests müssen unverändert grün bleiben, dazu kommen Tests
-je Agent.
+Steps 1 to 5 change no behavior (except `delegate`, step 4); the existing tests must stay green unchanged, and tests
+per agent come in addition.
 
-1. **Baustein:** `Spec`, `CallContext`, Rechte, synchroner `Call`, Tiefe, Protokollzeile. Noch kein Nutzer.
-2. **Isolierte Agenten:** `mail.read`, `mail.match`, `tasks.plan`, `tasks.assess`, `tasks.decide`,
-   `profile.compact`. Die Wiederholung des Mail-Kalenders wandert in die Grenzen von `mail.*`.
-3. **Hintergrund ohne Werkzeuge:** `notify.compose`.
-4. **Hintergrund mit Werkzeugen:** `skill.task`, `delegate`. `delegate` wird ein gewöhnlicher Agent als Werkzeug.
-   Die einzige Änderung im Verhalten: Ohne `routing.delegate` gibt es ihn trotzdem, mit `main` (siehe Entschieden, 13).
-5. **Gespräch:** `conversation.voice`, `conversation.telegram`.
-6. **Asynchron:** Lauf-Datensatz, Abfrage, Zustellen als HA-Ereignis und als Nachricht; die HA-Aktion.
-7. **Fortsetzung** als Zustellweg.
-8. **Factory:** Agenten in YAML.
+1. **Building block:** `Spec`, `CallContext`, rights, synchronous `Call`, depth, log line. No user yet.
+2. **Isolated agents:** `mail.read`, `mail.match`, `tasks.plan`, `tasks.assess`, `tasks.decide`, `profile.compact`.
+   The mail calendar's retry moves into the limits of `mail.*`.
+3. **Background without tools:** `notify.compose`.
+4. **Background with tools:** `skill.task`, `delegate`. `delegate` becomes an ordinary agent as a tool. The only
+   change in behavior: without `routing.delegate` it exists anyway, with `main` (see Decided, 13).
+5. **Conversation:** `conversation.voice`, `conversation.telegram`.
+6. **Asynchronous:** run record, query, delivery as a Home Assistant event and as a message; the Home Assistant
+   action.
+7. **Continuation** as a delivery route.
+8. **Factory:** agents in YAML.
 
-## Modellwahl
+## Model choice
 
-`routing` bleibt; die Schlüssel sind die Rollen der Agenten (`voice`, `telegram`, `background`, `delegate`, `tasks`,
-`mail`). Ohne Eintrag für seine Rolle nimmt jeder Agent `main`. Neue Rollen kommen nur, wenn jemand sie braucht.
-Ob es statt fester Rollen beliebig viele benannte Modelle geben soll, ist ein eigenes, späteres Thema.
+`routing` stays; its keys are the agents' roles (`voice`, `telegram`, `background`, `delegate`, `tasks`, `mail`).
+Without an entry for its role, every agent takes `main`. New roles come only when someone needs them. Whether there
+should be any number of named models instead of fixed roles is a separate, later topic.
 
-## Factory: Agenten in YAML (optional, zuletzt)
+## Factory: agents in YAML (optional, last)
 
-Ein Agent ohne Code, mit derselben statischen Beschreibung, in der `mira.yaml` und in Skills (beides):
+An agent without code, with the same static description, in `mira.yaml` and in skills (both):
 
 ```yaml
 agents:
   rezept:
-    description: Macht aus einer Rezeptseite eine Liste von Schritten.
-    model: smart            # Modell (Name unter models, oder main)
+    description: Turns a recipe page into a list of steps.
+    model: smart            # model (name under models, or main)
     context: isolated       # isolated | background
-    tools: read_only        # none | read_only | eine Liste von Werkzeugen und Agenten
-    input:                  # Schema der Eingabe
+    tools: read_only        # none | read_only | a list of tools and agents
+    input:                  # schema of the input
       type: object
       properties: { url: { type: string } }
     instructions: >-
-      Du bekommst eine Rezeptseite und gibst die Schritte als Liste zurück …
-    output:                 # optional: JSON-Schema der Antwort
+      You get a recipe page and return the steps as a list …
+    output:                 # optional: JSON schema of the answer
       type: object
       properties: { steps: { type: array, items: { type: string } } }
 ```
 
-Aufgerufen wird er wie jeder Agent: als Werkzeug eines anderen Agenten, aus Home Assistant oder aus dem Code.
+It is called like every agent: as a tool of another agent, from Home Assistant or from the code.
 
-## Bestand
+## Inventory
 
-### Die acht internen Agenten
+### The eight internal agents
 
-| Agent | heute im Code | Modell | Kontext | Werkzeuge | Ausgabe |
+| Agent | in the code today | Model | Context | Tools | Output |
 |---|---|---|---|---|---|
-| `conversation.voice`, `conversation.telegram` | `Engine.turn` | `routing.voice` / `telegram`, sonst `main` | Gespräch | alle, mit Wächter | Text |
-| `skill.task` (Zeitpläne, Briefing) | `Engine.RunTask` → `toolLoop` | `background` | Hintergrund | nur lesend | JSON-Nachricht |
-| `delegate` | `Engine.Delegate` → `toolLoop` | `routing.delegate`; ohne Angabe gibt es ihn nicht | Hintergrund | nur lesend | Text |
-| `tasks.assess`, `tasks.decide` | `tasks` über `isolatedModel` | `background` | isoliert | keine | JSON |
-| `tasks.plan` | `tasks` über `isolatedModel` | `routing.tasks`, sonst Hintergrund | isoliert | keine | JSON |
-| `mail.read`, `mail.match` | `mailcal` über `isolatedModel` | `routing.mail`, sonst Hintergrund | isoliert | keine | JSON, im Code geprüft; 60 s je Versuch, einmal wiederholen |
-| `profile.compact` | `profile` über `AssessIsolated` | `background` | isoliert | keine | JSON |
-| `notify.compose` (Ansagen) | `notifier` über `Engine.Assess` | `background` | Hintergrund ohne Werkzeuge | keine | JSON |
+| `conversation.voice`, `conversation.telegram` | `Engine.turn` | `routing.voice` / `telegram`, else `main` | conversation | all, with the guard | text |
+| `skill.task` (schedules, briefing) | `Engine.RunTask` → `toolLoop` | `background` | background | read only | JSON message |
+| `delegate` | `Engine.Delegate` → `toolLoop` | `routing.delegate`; without it there is none | background | read only | text |
+| `tasks.assess`, `tasks.decide` | `tasks` through `isolatedModel` | `background` | isolated | none | JSON |
+| `tasks.plan` | `tasks` through `isolatedModel` | `routing.tasks`, else background | isolated | none | JSON |
+| `mail.read`, `mail.match` | `mailcal` through `isolatedModel` | `routing.mail`, else background | isolated | none | JSON, checked in code; 60 s per attempt, retry once |
+| `profile.compact` | `profile` through `AssessIsolated` | `background` | isolated | none | JSON |
+| `notify.compose` (announcements) | `notifier` through `Engine.Assess` | `background` | background without tools | none | JSON |
 
-Dabei fällt auf:
-- Die Rückfallregel ist uneinheitlich: Gespräche fallen auf `main`, alles andere auf `background`, `delegate` gibt es
-  ohne Angabe gar nicht.
-- Protokolliert werden Zeit und Tokens an drei Stellen verschieden (`model round` im Gespräch, `task done` /
-  `delegate done` im Werkzeuglauf, `mail read` beim Mail-Kalender), bei Profil, Aufgaben und Ansagen gar nicht.
-- Die Wiederholung bei hängendem Modell gibt es nur beim Mail-Kalender.
+Things that stand out:
+- The fallback rule is uneven: conversations fall back to `main`, everything else to `background`, and `delegate`
+  does not exist without an entry.
+- Time and tokens are logged in three different ways (`model round` in the conversation, `task done` /
+  `delegate done` in the tool loop, `mail read` in the mail calendar), and not at all for the profile, tasks and
+  announcements.
+- Retrying a hanging model call exists only in the mail calendar.
 
-### Aufruf und Austausch heute
+### Calls and exchange today
 
-| Agent | ausgelöst von | Weg | Ergebnis geht an |
+| Agent | triggered by | route | the result goes to |
 |---|---|---|---|
-| `conversation.voice` | HA: Assist-Pipeline eines Satelliten | Integration → `POST /v1/conversation` | zurück an HA (gesprochen); Gedächtnis, Vorgänge, Nachrichten |
-| `conversation.telegram` | HA: Ereignis von HAs Telegram-Integration | Integration (`telegram.py`) → `POST /v1/conversation` | zurück an HA (Telegram) |
-| `skill.task` | Mira selbst: Zeitplan eines Skills | interner Zeitgeber → `RunTask` | Nachricht in die Warteschlange → Notifier |
-| `delegate` | ein anderer Agent: das Gespräch ruft das Werkzeug `delegate` | direkter Aufruf, wartet auf die Antwort | als Werkzeug-Ergebnis zurück an das Gespräch |
-| `tasks.assess`, `tasks.decide` | HA: eine Automation mit Label „Mira“ ruft `mira.assess` / `mira.decide` | Integration → `POST /v1/assess` / `/v1/decide` | zurück an die Automation (Antwort der Aktion); `assess` legt auf Wunsch eine Nachricht an |
-| `tasks.plan` | ein Vorgang „aufgabe“, den das Gespräch eröffnet und gefüllt hat | Abschluss des Vorgangs, im Hintergrund | in den Vorgang (Datenbank) → als Nachricht angesagt → das Ja kommt in einem späteren Gespräch |
-| `mail.read`, `mail.match` | HA: Ereignis `imap_content` | Integration (`mail.py`) → `POST /v1/mail` | in einen Kalender in HA; gelesen von Gespräch und Briefing |
-| `profile.compact` | Mira selbst: Zeitplan (`memory.profile_schedule`); oder die Mira-Seite | interner Zeitgeber / `POST /v1/ui/memory/compact` | ins Profil (Datenbank); gelesen von den Gesprächen als Kontext |
-| `notify.compose` | der Notifier, wenn mehrere Nachrichten zugleich anzusagen sind | direkter Aufruf | Text zurück an den Notifier → Ansage über HA |
+| `conversation.voice` | HA: a satellite's Assist pipeline | integration → `POST /v1/conversation` | back to HA (spoken); memory, threads, messages |
+| `conversation.telegram` | HA: an event of HA's Telegram integration | integration (`telegram.py`) → `POST /v1/conversation` | back to HA (Telegram) |
+| `skill.task` | Mira herself: a skill's schedule | internal timer → `RunTask` | a message in the queue → notifier |
+| `delegate` | another agent: the conversation calls the tool `delegate` | direct call, waits for the answer | as a tool result back to the conversation |
+| `tasks.assess`, `tasks.decide` | HA: an automation labelled "Mira" calls `mira.assess` / `mira.decide` | integration → `POST /v1/assess` / `/v1/decide` | back to the automation (the action's response); `assess` adds a message if wanted |
+| `tasks.plan` | a thread "aufgabe" that the conversation opened and filled | the thread's finish, in the background | into the thread (database) → announced as a message → the yes comes in a later conversation |
+| `mail.read`, `mail.match` | HA: event `imap_content` | integration (`mail.py`) → `POST /v1/mail` | into a calendar in HA; read by conversation and briefing |
+| `profile.compact` | Mira herself: schedule (`memory.profile_schedule`); or the Mira page | internal timer / `POST /v1/ui/memory/compact` | into the profile (database); read by the conversations as context |
+| `notify.compose` | the notifier, when several messages are due at once | direct call | text back to the notifier → announcement through HA |
 
-Daraus:
-- **Äußere Auslöser** kommen alle über Home Assistant (Assist, Telegram, IMAP, Automationen mit `mira.*`) und die
-  Integration als HTTP-Aufruf an den Agenten; dazu die Mira-Seite.
-- **Innere Auslöser** sind Miras eigene Zeitgeber (Skills, Profil) und der Notifier.
-- **Ein Agent ruft einen anderen direkt** an zwei Stellen: das Gespräch den `delegate` (als Werkzeug) und der
-  Notifier `notify.compose`. Beide warten auf die Antwort.
-- **Sonst tauschen Agenten nichts direkt aus, sondern über gemeinsamen Zustand:** die Warteschlange der
-  Nachrichten, die Vorgänge, das Gedächtnis und Profil (alle in Miras Datenbank) und Kalender in Home Assistant.
-- **Kein Agent ruft heute einen anderen über einen HA-Service auf.** Die Services `mira.assess`, `mira.decide` und
-  `mira.send_message` gibt es, sie werden aber nur von Automationen benutzt.
+From that:
+- **Outside triggers** all come through Home Assistant (Assist, Telegram, IMAP, automations with `mira.*`) and the
+  integration, as HTTP calls to the agent; plus the Mira page.
+- **Inside triggers** are Mira's own timers (skills, profile) and the notifier.
+- **One agent calls another directly** in two places: the conversation calls `delegate` (as a tool) and the notifier
+  calls `notify.compose`. Both wait for the answer.
+- **Otherwise agents exchange nothing directly, but through shared state:** the message queue, the threads, memory
+  and profile (all in Mira's database) and calendars in Home Assistant.
+- **No agent calls another through an HA service today.** The services `mira.assess`, `mira.decide` and
+  `mira.send_message` exist, but only automations use them.
 
-## Entschieden
+## Decided
 
-1. **Gespräch:** zwei Agenten, `conversation.voice` und `conversation.telegram`; die Kanäle sind zu verschieden.
-2. **YAML-Agenten** stehen in der `mira.yaml` und in Skills, beides.
-3. **Modell:** ohne Eintrag für die Rolle nimmt jeder Agent `main`.
-4. **Ein Agent ist aufrufbar wie ein Werkzeug** (Beschreibung, Eingabe-Schema, Antwort): als Werkzeug eines anderen
-   Agenten, aus Home Assistant, aus dem Code.
-5. **Statische Beschreibung und Aufruf-Kontext sind getrennt.** Rechte gehören in den Aufruf-Kontext; ein kleines
-   Rechtemodell mit nur dem, was gebraucht wird.
-6. **Die Tiefe ist begrenzt**, mit einer Einstellung.
-7. **Das Protokoll ist einheitlich**, durch den Baustein.
-8. **Synchron oder asynchron entscheidet der Aufrufer**, synchron mit Timeout.
-9. **Asynchrone Ergebnisse** liegen als Lauf-Datensatz mit Aufruf-ID und Ausgabe nach Schema; der Aufrufer wird
-   benachrichtigt. Eine Nachricht ist einer der Wege, nicht der einzige.
-10. **Namen:** `mira.agent`, `mira.agent_result`, `mira_agent_done`, `agents.max_depth`.
-11. **Vorgaben:** Tiefe höchstens 3; ein Lauf-Datensatz bleibt 60 Minuten nach seinem Ende.
-12. **Aus Home Assistant aufrufbar** sind alle Agenten.
-13. **`delegate` ohne Eintrag:** Die Regel „ohne Eintrag `main`“ gilt auch für ihn; das Werkzeug `delegate` gibt es
-    damit immer, auch ohne `routing.delegate` (heute gibt es es dann nicht).
-
+1. **Conversation:** two agents, `conversation.voice` and `conversation.telegram`; the channels are too different.
+2. **YAML agents** live in `mira.yaml` and in skills, both.
+3. **Model:** without an entry for its role, every agent takes `main`.
+4. **An agent is callable like a tool** (description, input schema, response): as a tool of another agent, from Home
+   Assistant, from the code.
+5. **Static description and call context are separate.** Rights belong in the call context; a small rights model with
+   only what is needed.
+6. **The depth is limited**, by a setting.
+7. **The log is uniform**, through the building block.
+8. **Synchronous or asynchronous is the caller's choice**, synchronous with a timeout.
+9. **Asynchronous results** lie in a run record with call ID and output following the schema; the caller is
+   notified. A message is one of the routes, not the only one.
+10. **Names:** `mira.agent`, `mira.agent_result`, `mira_agent_done`, `agents.max_depth`.
+11. **Defaults:** depth at most 3; a run record stays 60 minutes after its end.
+12. **Callable from Home Assistant** are all agents.
+13. **`delegate` without an entry:** the rule "without an entry `main`" holds for it too; the tool `delegate` thus
+    always exists, also without `routing.delegate` (today it does not then).
