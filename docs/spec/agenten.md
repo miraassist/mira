@@ -194,6 +194,15 @@ a run achieved (such as `mail read`) stay in addition.
   addresses); a local model serves 1 request at a time, a cloud model 4. Fixed for now; this will become more
   flexible and gets specified later.
 
+### Jobs: code as a run
+
+Some background work is code with model calls in between, no model loop: the task planner drafts, has Home
+Assistant check the draft, and drafts again with the reason. It runs as a **job** of the runtime, named after the
+thread's finish (`tasks.automation`), with the thread's ID as its call ID. It gets what every run gets: the agents
+it calls (`tasks.plan`) hang under its call ID, one `agent done` line adds up their model calls and tokens, it takes
+one of the 10 places, it has the time limit of 60 minutes, and ending the thread cancels it. A job is not stored;
+after a restart the thread starts its work anew (it changes nothing before the user's yes).
+
 ### Several conversations at once
 
 Several persons talk to Mira at the same time in different rooms (or on Telegram). Each turn is a run of

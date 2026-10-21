@@ -265,3 +265,40 @@ func placeOf(sess store.Session) string {
 	}
 	return sess.Key
 }
+
+// The background work runs through Run, named after the finish with the
+// thread's id; cancelling the thread cancels the work.
+func TestWorkRunsAsAJobAndEndsWithTheThread(t *testing.T) {
+	e := setup(t)
+	e.fin.delay = 300 * time.Millisecond
+	var mu sync.Mutex
+	var ran, cancelled []string
+	e.m.opts.Run = func(ctx context.Context, id, name string, work func(context.Context) error) error {
+		mu.Lock()
+		ran = append(ran, id+" "+name)
+		mu.Unlock()
+		return work(ctx)
+	}
+	e.m.opts.Cancel = func(id string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		cancelled = append(cancelled, id)
+		return true
+	}
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	e.m.Start(ctx, inv, "aufgabe", "Licht melden")
+	e.m.Fill(ctx, inv, map[string]string{"watch": "licht im flur", "measure": "nachts"})
+	th, err := e.m.current(ctx, inv)
+	if err != nil || th.State != store.ThreadWorking {
+		t.Fatalf("thread %+v, %v", th, err)
+	}
+	if _, err := e.m.Cancel(ctx, inv); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(ran) != 1 || ran[0] != th.ID+" fake" || len(cancelled) != 1 || cancelled[0] != th.ID {
+		t.Errorf("ran %v, cancelled %v", ran, cancelled)
+	}
+}

@@ -548,3 +548,49 @@ func TestAG101_AfterARestartARunKnowsAgainWhatItHadRead(t *testing.T) {
 		})
 	}
 }
+
+// A job runs code like a run: the agents it calls hang under its call ID,
+// its log line adds up their model calls, it takes one of the places, and
+// it can be cancelled by its call ID.
+func TestJobRunsLikeARun(t *testing.T) {
+	e := setup(t)
+	e.main.steps = []step{{text: "Entwurf"}}
+	spec := Spec{Name: "tasks.automation", Profile: Isolated, Rights: AllRights}
+	err := e.rt.Job(context.Background(), spec, CallContext{CallID: "th1", Rights: AllRights}, func(ctx context.Context) error {
+		if n := len(e.rt.async); n != 1 {
+			t.Errorf("%d places taken, want 1", n)
+		}
+		_, err := e.rt.Call(ctx, Spec{Name: "tasks.plan", Profile: Isolated, Instructions: "Plane."}, "x", CallContext{})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var job, plan string
+	for _, l := range e.logLines(t, "agent done") {
+		switch {
+		case strings.Contains(l, "agent=tasks.automation"):
+			job = l
+		case strings.Contains(l, "agent=tasks.plan"):
+			plan = l
+		}
+	}
+	if !strings.Contains(plan, "parent_id=th1") || !strings.Contains(job, "call_id=th1") ||
+		!strings.Contains(job, "status=done") || !strings.Contains(job, "model_calls=1") || !strings.Contains(job, "prompt_tokens=100") {
+		t.Errorf("job %q\nplan %q", job, plan)
+	}
+
+	started := make(chan struct{})
+	go func() {
+		<-started
+		e.rt.Cancel("th2")
+	}()
+	err = e.rt.Job(context.Background(), spec, CallContext{CallID: "th2"}, func(ctx context.Context) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	if !errors.Is(err, ErrCancelled) || len(e.rt.async) != 0 {
+		t.Errorf("cancel: %v, %d places taken", err, len(e.rt.async))
+	}
+}

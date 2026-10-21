@@ -77,8 +77,15 @@ type Options struct {
 	// says "I'll come back to you"; default 5s, within Home Assistant's
 	// 15 seconds for a voice turn.
 	InlineWait time.Duration
-	Clock      func() time.Time
-	Logger     *slog.Logger
+	// Run runs a thread's background work as a run of the agent runtime
+	// (a job named after the finish, with the thread's id as its call id):
+	// logged, limited and cancellable like every run. Without it the work
+	// runs directly.
+	Run func(ctx context.Context, id, name string, work func(ctx context.Context) error) error
+	// Cancel ends the background work of a thread that ended meanwhile.
+	Cancel func(id string) bool
+	Clock  func() time.Time
+	Logger *slog.Logger
 }
 
 type Manager struct {
@@ -309,9 +316,19 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 		inTime    = make(chan Result, 1)
 	)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
-		defer cancel()
-		res, err := fin.Work(ctx, th)
+		ctx := context.WithoutCancel(ctx)
+		var res Result
+		work := func(ctx context.Context) error {
+			var err error
+			res, err = fin.Work(ctx, th)
+			return err
+		}
+		var err error
+		if m.opts.Run != nil {
+			err = m.opts.Run(ctx, th.ID, m.targets[th.Target].Target.Finish.Name, work)
+		} else {
+			err = work(ctx)
+		}
 		if err != nil {
 			m.log.Error("thread work failed", "thread", th.ID, "error", err)
 			res = Result{Cancel: fmt.Sprintf(t.workFailed, th.Request)}
@@ -480,6 +497,10 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 
 // end closes a thread and withdraws its open messages.
 func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
+	// Its background work, if any, is no longer wanted.
+	if th.State == store.ThreadWorking && m.opts.Cancel != nil {
+		m.opts.Cancel(th.ID)
+	}
 	if _, err := m.change(ctx, th.ID, func(now *store.Thread) error {
 		now.State = state
 		return nil

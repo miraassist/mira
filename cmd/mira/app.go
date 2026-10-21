@@ -353,6 +353,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 			return nf.Tell(ctx, n, area)
 		},
+		// Bound late: the runtime is built after the threads.
+		Run: func(ctx context.Context, id, name string, work func(context.Context) error) error {
+			return a.agents.Job(ctx, agent.Spec{Name: name, Profile: agent.Isolated, Rights: agent.AllRights},
+				agent.CallContext{CallID: id, Origin: agent.FromCode, Rights: agent.AllRights}, work)
+		},
+		Cancel: func(id string) bool { return a.agents.Cancel(id) },
 	})
 	for _, sk := range targets {
 		a.log.Info("target enabled", "target", sk.Name, "finish", sk.Target.Finish)

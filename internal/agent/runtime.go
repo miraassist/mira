@@ -174,6 +174,8 @@ type run struct {
 	ts      *tools.TurnState
 	// subs are the agents offered as tools, by tool name.
 	subs map[string]Spec
+	// usage adds up the model calls of the runs called inside a job.
+	usage *usage
 }
 
 type runKey struct{}
@@ -207,6 +209,9 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 		// Third-party text read by this run counts for its caller.
 		if res.Foreign && parent != nil {
 			parent.ts.ForeignContext = true
+		}
+		if parent != nil {
+			parent.usage.add(res)
 		}
 		r.logRun(spec, cc, res, time.Since(began), err)
 		return res, err
