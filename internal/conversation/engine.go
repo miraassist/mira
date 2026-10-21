@@ -80,6 +80,10 @@ type Response struct {
 	Model            string
 	MorePromptTokens int
 	CompletionTokens int
+	// ModelCalls and ModelTime are the turn's calls to the model and the
+	// time they took, for the agent's log line.
+	ModelCalls int
+	ModelTime  time.Duration
 	// Trace is what happened in the turn, in eval mode only.
 	Trace []mtrace.Event
 }
@@ -115,10 +119,11 @@ type Options struct {
 	// sentence, marking them heard, or "" when none wait.
 	Afterword func(ctx context.Context, area string) string
 	// Thread links the turn to its thread ("Vorgang", package threads) and
-	// renders it for layer 7. followedUp are the messages this turn answers.
-	Thread func(ctx context.Context, sess store.Session, followedUp []string) (text string, foreign bool)
+	// renders it for layer 7. place is where the turn's threads live;
+	// followedUp are the messages this turn answers.
+	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool)
 	// Identify says who is speaking: a person key, or "" for anonymous.
-	Identify func(ctx context.Context, req Request, sess store.Session) string
+	Identify func(ctx context.Context, req Request) string
 	// Languages says which language applies (docs/spec/sprache.md); tests
 	// without it get the default language.
 	Languages Languages
@@ -143,8 +148,8 @@ type Engine struct {
 	assist      func() string
 	deviceHints func(device string) string
 	afterword   func(ctx context.Context, area string) string
-	thread      func(ctx context.Context, sess store.Session, followedUp []string) (string, bool)
-	identify    func(ctx context.Context, req Request, sess store.Session) string
+	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool)
+	identify    func(ctx context.Context, req Request) string
 	persona     func() string
 	languages   Languages
 	tel         *telemetry.Provider
@@ -152,10 +157,10 @@ type Engine struct {
 	clock       func() time.Time
 	loc         *time.Location
 
-	// One turn per channel at a time: each channel owns one llama.cpp slot,
-	// and interleaving two sessions on a slot would evict each other's cache
-	// mid-turn.
-	locks map[config.Channel]*sync.Mutex
+	// One turn per session at a time, so its history stays in order; turns
+	// of different sessions run at once, limited only by the access to the
+	// model (docs/spec/agenten.md, Several conversations at once).
+	sessions sessionLocks
 	// webSeen notes the conversations that read web content, and when: what
 	// Mira writes down in a later turn of one (a plan) counts as foreign.
 	webMu   sync.Mutex
@@ -204,7 +209,7 @@ func New(opts Options) *Engine {
 		log:         opts.Logger.With("component", "conversation"),
 		clock:       opts.Clock,
 		loc:         opts.Location,
-		locks:       map[config.Channel]*sync.Mutex{},
+		sessions:    sessionLocks{held: map[string]*sessionLock{}},
 		webSeen:     map[string]time.Time{},
 		lastPrefix:  map[config.Channel]string{},
 		warm:        make(chan string, 1),
@@ -212,8 +217,17 @@ func New(opts Options) *Engine {
 	for name, m := range opts.Models {
 		e.models[name] = m
 	}
-	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
-		e.locks[ch] = &sync.Mutex{}
+	if e.agents == nil {
+		// Without the app's runtime (tests, tools of their own) the engine
+		// runs its agents in one of its own.
+		e.agents = agent.New(agent.Options{
+			Config: func() config.Config { return e.cfg },
+			Models: func(name string) (agent.Chatter, config.LLM, bool) {
+				c, m, got := e.modelFor(name)
+				return c, m, got == name || name == ""
+			},
+			Tools: e.tools, Guard: e.guard, Background: e.BackgroundContext, Logger: opts.Logger,
+		})
 	}
 	return e
 }
@@ -223,22 +237,29 @@ func SessionKey(ch config.Channel, conversationID string) string {
 	return string(ch) + ":" + conversationID
 }
 
-// Handle runs one turn.
+// Handle runs one turn: a run of the agent conversation.voice or
+// conversation.telegram.
 func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if strings.TrimSpace(req.Text) == "" {
 		return Response{}, errors.New("empty message")
 	}
-	lock, ok := e.locks[req.Channel]
-	if !ok {
+	if req.Channel != config.ChannelVoice && req.Channel != config.ChannelTelegram {
 		return Response{}, fmt.Errorf("unknown channel %q", req.Channel)
 	}
-	lock.Lock()
-	defer lock.Unlock()
-
 	if req.ConversationID == "" {
 		req.ConversationID = ulid.Make().String()
 	}
-	key := SessionKey(req.Channel, req.ConversationID)
+	person := ""
+	if e.identify != nil {
+		person = e.identify(ctx, req)
+	}
+	snap := e.structure()
+	area := ""
+	if req.DeviceID != "" {
+		area = snap.DeviceArea[req.DeviceID]
+	}
+	key, place := belongsTo(req.Channel, req.ConversationID, person, area, snap.Private[area])
+	defer e.sessions.lock(key)()
 
 	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent mira", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
@@ -252,7 +273,15 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if e.cfg.Server.Eval {
 		ctx, rec = mtrace.With(ctx)
 	}
-	resp, err := e.turn(ctx, key, req)
+	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area,
+		DeviceID: req.DeviceID, Place: place}
+	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: "conversation." + string(req.Channel), Role: string(req.Channel),
+		Profile: agent.Conversation, Rights: agent.AllRights},
+		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
+			Rights: agent.AllRights}, ts)
+	resp, err := e.turn(ctx, ts, req, snap)
+	done(agent.Result{Model: resp.Model, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
+		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}, err)
 	resp.Trace = rec.Events()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -268,17 +297,46 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 
 // threadContext is the turn's thread for layer 7, if any, and whether it
 // carries third-party text.
-func (e *Engine) threadContext(ctx context.Context, sess store.Session, followedUp []string) (string, bool) {
+func (e *Engine) threadContext(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool) {
 	if e.thread == nil {
 		return "", false
 	}
-	return e.thread(ctx, sess, followedUp)
+	return e.thread(ctx, sess, place, followedUp)
 }
 
-func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, error) {
+// belongsTo says what a turn belongs to (docs/spec/agenten.md, What a turn
+// belongs to): the session key of its conversation and the place of its
+// threads and plans. A known person's turn belongs to the person, at every
+// satellite; otherwise it stays in its room, as does everything in a
+// private area.
+func belongsTo(ch config.Channel, conversationID, person, area string, private bool) (key, place string) {
+	key = SessionKey(ch, conversationID)
+	switch {
+	case area != "" && private:
+		return key, "area:" + area
+	case person != "":
+		if ch == config.ChannelVoice {
+			key = SessionKey(ch, "person:"+person)
+		}
+		return key, "person:" + person
+	case ch == config.ChannelVoice && area != "":
+		return key, "area:" + area
+	}
+	return key, key
+}
+
+// originOf is who calls the conversation agent.
+func originOf(req Request) agent.Origin {
+	if req.Channel == config.ChannelTelegram {
+		return agent.FromTelegram
+	}
+	return agent.FromAssist
+}
+
+func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, snap structure.Snapshot) (Response, error) {
 	turnBegan := time.Now()
 	now := e.clock()
-	snap := e.structure()
+	key := ts.SessionKey
 	if !snap.ExposureKnown {
 		// What Assist may see comes from the integration (docs/spec/ha-anbindung.md).
 		// Until it has sent that, no tool runs: Home Assistant's MCP server would
@@ -291,7 +349,7 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).waitingForHA}, nil
 	}
 
-	sess, err := e.openSession(ctx, key, req, snap)
+	sess, err := e.openSession(ctx, key, req, ts.Area)
 	if err != nil {
 		return Response{}, err
 	}
@@ -301,16 +359,12 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 		return Response{}, err
 	}
 
-	person := ""
-	if e.identify != nil {
-		person = e.identify(ctx, req, sess)
-	}
+	person := ts.Person
 	if e.languages != nil {
 		ctx = i18n.WithLang(ctx, e.languages.Turn(ctx, req.Language, sess.AreaID, person))
 	}
-	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: sess.AreaID, DeviceID: sess.DeviceID}
 	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
-	threadText, foreign := e.threadContext(ctx, sess, followedUp)
+	threadText, foreign := e.threadContext(ctx, sess, ts.Place, followedUp)
 	ts.ForeignContext = foreign
 	turn := prompt.Turn{
 		Lang:           e.lang(ctx),
@@ -359,12 +413,14 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 			force = false
 		}
 		began := time.Now()
-		out, err := client.Chat(ctx, chatReq)
+		out, err := e.chat(ctx, client, modelName, model, chatReq)
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
 				"ms", time.Since(began).Milliseconds(), "error", err)
 			return Response{}, err
 		}
+		resp.ModelCalls++
+		resp.ModelTime += time.Since(began)
 		e.logRound(key, round, modelName, time.Since(began), out, len(chatReq.Messages), messagesSize(chatReq.Messages), toolCount, toolChars)
 		mtrace.AddRound(ctx, modelName, time.Since(began), out.Usage.PromptTokens+out.Usage.CompletionTokens)
 		resp.CompletionTokens += out.Usage.CompletionTokens
@@ -464,6 +520,16 @@ func (e *Engine) turn(ctx context.Context, key string, req Request) (Response, e
 
 // logRound is one call to the model: how long it took and what it cost. With
 // the tool times it shows where the time of a turn went.
+// chat is one model call within the runtime's limit for that model.
+func (e *Engine) chat(ctx context.Context, client Chatter, name string, model config.LLM, req llm.ChatRequest) (*llm.ChatResponse, error) {
+	release, err := e.agents.Acquire(ctx, name, model)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return client.Chat(ctx, req)
+}
+
 func (e *Engine) logRound(key string, round int, model string, took time.Duration, out *llm.ChatResponse, messages, messageChars, tools, toolChars int) {
 	e.log.Info("model round", "session", key, "round", round, "model", model, "ms", took.Milliseconds(),
 		"messages", messages, "message_chars", messageChars, "tools", tools, "tool_chars", toolChars,
@@ -556,7 +622,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	began := time.Now()
 	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
-		DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
+		Place: ts.Place, DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
 	})
 	e.guard.Observe(ts, spec)
 	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
@@ -583,7 +649,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	return text
 }
 
-func (e *Engine) openSession(ctx context.Context, key string, req Request, snap structure.Snapshot) (store.Session, error) {
+func (e *Engine) openSession(ctx context.Context, key string, req Request, areaID string) (store.Session, error) {
 	existing, err := e.store.GetSession(ctx, key)
 	switch {
 	case err == nil && existing.ExpiresAt.Before(e.clock()):
@@ -595,10 +661,6 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, snap 
 		e.log.Info("session expired, starting fresh", "session", key)
 	case err != nil && !errors.Is(err, store.ErrNotFound):
 		return store.Session{}, err
-	}
-	areaID := ""
-	if req.DeviceID != "" {
-		areaID = snap.DeviceArea[req.DeviceID]
 	}
 	return e.store.UpsertSession(ctx, store.Session{
 		Key: key, Channel: string(req.Channel), ConversationID: req.ConversationID,
@@ -638,13 +700,41 @@ func stripThinking(s string) string {
 
 // ResetSession drops a session so the next message starts a new one.
 func (e *Engine) ResetSession(ctx context.Context, ch config.Channel, conversationID string) error {
-	lock, ok := e.locks[ch]
+	key := SessionKey(ch, conversationID)
+	defer e.sessions.lock(key)()
+	return e.store.DeleteSession(ctx, key)
+}
+
+// sessionLocks hold one lock per session while a turn of it runs.
+type sessionLocks struct {
+	mu   sync.Mutex
+	held map[string]*sessionLock
+}
+
+type sessionLock struct {
+	sync.Mutex
+	users int
+}
+
+// lock waits until no other turn of the session runs; unlock frees it.
+func (s *sessionLocks) lock(key string) (unlock func()) {
+	s.mu.Lock()
+	l, ok := s.held[key]
 	if !ok {
-		return fmt.Errorf("unknown channel %q", ch)
+		l = &sessionLock{}
+		s.held[key] = l
 	}
-	lock.Lock()
-	defer lock.Unlock()
-	return e.store.DeleteSession(ctx, SessionKey(ch, conversationID))
+	l.users++
+	s.mu.Unlock()
+	l.Lock()
+	return func() {
+		l.Unlock()
+		s.mu.Lock()
+		if l.users--; l.users == 0 {
+			delete(s.held, key)
+		}
+		s.mu.Unlock()
+	}
 }
 
 // webMemory is how long a conversation's web content counts; longer than

@@ -43,6 +43,10 @@ type Invocation struct {
 	Person string
 	// Area is the satellite's area of a voice turn.
 	Area string
+	// Place is where the turn's threads and plans live: "person:<key>",
+	// "area:<id>" or the session key (docs/spec/agenten.md, What a turn
+	// belongs to). Empty for calls that are no conversation turn.
+	Place string
 	// DeviceID is the satellite's device id of a voice turn. Home Assistant's
 	// tools get it, so they act as for its own conversation agents.
 	DeviceID string

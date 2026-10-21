@@ -491,6 +491,7 @@ Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter 
 
 - **Persönlichkeit** (unter **Allgemein**): wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
+- **Privater Bereich**: Weiß Mira, wer spricht (du bist allein zu Hause, schreibst über Telegram oder die HA-App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
 
 Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
 

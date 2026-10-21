@@ -56,6 +56,7 @@ type Area struct {
 	Aliases []string `json:"aliases"`
 	FloorID string   `json:"floor_id"`
 	Icon    string   `json:"icon"`
+	Labels  []string `json:"labels"`
 }
 
 // Device is one row of the device registry.

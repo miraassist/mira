@@ -6,7 +6,6 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
-	"github.com/miraassist/mira/internal/store"
 )
 
 // identify says who is speaking in a turn: a person key, or "" for someone
@@ -16,7 +15,7 @@ import (
 //     the signed-in HA user.
 //   - A satellite: nobody, unless the "alone at home" rule makes it the one
 //     person at home who switched it on.
-func (a *app) identify(ctx context.Context, req conversation.Request, _ store.Session) string {
+func (a *app) identify(ctx context.Context, req conversation.Request) string {
 	persons := a.persons()
 	switch req.Channel {
 	case config.ChannelTelegram:

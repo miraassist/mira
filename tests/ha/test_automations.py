@@ -130,7 +130,7 @@ async def test_labels_by_id_in_home_assistants_language(hass):
     may be renamed without breaking anything."""
     from homeassistant.helpers import label_registry as lr
 
-    from custom_components.mira.labels import LABEL_CONFIRM, LABEL_TASKS, ensure_labels
+    from custom_components.mira.labels import LABEL_CONFIRM, LABEL_PRIVATE, LABEL_TASKS, ensure_labels
 
     hass.config.language = "de"
     ensure_labels(hass)
@@ -140,7 +140,8 @@ async def test_labels_by_id_in_home_assistants_language(hass):
     labels.async_update(LABEL_CONFIRM, name="Vorsicht")
     ensure_labels(hass)
     assert labels.async_get_label(LABEL_CONFIRM).name == "Vorsicht"
-    assert len(labels.labels) == 3  # Mira, Mira: nachfragen, Mira: einmalig
+    assert labels.async_get_label(LABEL_PRIVATE).name == "Mira: privater Bereich"
+    assert len(labels.labels) == 4  # Mira, Mira: nachfragen, Mira: einmalig, Mira: privater Bereich
 
 
 async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):

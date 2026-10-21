@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -16,12 +15,13 @@ const maxLog = 12
 // layer 7. A turn that answers one of a thread's messages (followedUp, the
 // messages announced on this satellite moments ago) joins that thread: the
 // link is the code's, not the model's. Otherwise a thread waiting at the
-// turn's place is shown, and the model decides whether the user continues
+// turn's place (what the conversation said the turn belongs to) is shown,
+// and the model decides whether the user continues
 // it, cancels it or talks about something else.
 //
 // foreign reports a thread that carries third-party text (a plan made from
 // a web page): the turn then asks before it keeps or passes anything on.
-func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []string) (text string, foreign bool) {
+func (m *Manager) Context(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool) {
 	if !m.HasTargets() {
 		return "", false
 	}
@@ -42,10 +42,6 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, followedUp []
 		if th, err := m.opts.Store.GetThread(ctx, sess.ThreadID); err == nil && store.ThreadOpen(th.State) {
 			return t.headerCurrent + "\n" + m.describe(th), m.isPlan(th) && planOf(th).Foreign
 		}
-	}
-	place := sess.Key
-	if sess.Channel == string(config.ChannelVoice) && sess.AreaID != "" {
-		place = "area:" + sess.AreaID
 	}
 	open, err := m.opts.Store.OpenThreads(ctx, place)
 	if err != nil || len(open) == 0 {

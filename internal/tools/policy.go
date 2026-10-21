@@ -104,6 +104,8 @@ type TurnState struct {
 	Person, Area string
 	// DeviceID is the satellite's device id of a voice turn.
 	DeviceID string
+	// Place is where the turn's threads and plans live (Invocation.Place).
+	Place string
 	// UserText is the user's message of this turn. Only it can approve a
 	// pending confirmation; tool results never reach this field.
 	UserText string

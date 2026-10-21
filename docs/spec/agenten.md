@@ -214,7 +214,8 @@ Which conversation, thread and plan a turn belongs to follows from its call cont
   conversations in two rooms do not get in each other's way and see nothing of each other.
 - **Private area:** an area in Home Assistant with the label "Mira: privater Bereich" is a hard border, like the label
   "Mira: nachfragen" on devices. What starts in it stays there, even for a known person, and nothing from outside
-  comes in. This covers conversations, threads and plans.
+  comes in. This covers conversations, threads and plans. The integration creates the label (id `mira_private`,
+  named in Home Assistant's language); the agent reads it from the area registry.
 - If Mira later recognizes persons better (by their voice, say), the conversation follows the right person without the
   rule changing.
 

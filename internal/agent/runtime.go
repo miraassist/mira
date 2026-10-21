@@ -94,15 +94,55 @@ func (r *Runtime) Register(spec Spec) {
 	r.agents[spec.Name] = spec
 }
 
-// InRun reports whether ctx belongs to an agent's run.
-func InRun(ctx context.Context) bool { return current(ctx) != nil }
+// Caller is the agent whose run ctx belongs to, and its profile; ok is false
+// outside a run.
+func Caller(ctx context.Context) (name string, profile Profile, ok bool) {
+	p := current(ctx)
+	if p == nil {
+		return "", 0, false
+	}
+	return p.agent, p.profile, true
+}
+
+// Enter starts a run its caller drives itself: a conversation turn, which
+// stays in package conversation (docs/spec/agenten.md, Context profiles). The
+// calls made inside it inherit from it as from any run; ts is the turn's
+// guard state. done logs the run as every run is logged; the caller fills
+// in the result.
+func (r *Runtime) Enter(ctx context.Context, spec Spec, cc CallContext, ts *tools.TurnState) (context.Context, func(Result, error)) {
+	began := time.Now()
+	if parent := current(ctx); parent != nil {
+		cc = inherit(parent, cc)
+	}
+	if cc.CallID == "" {
+		cc.CallID = strings.ToLower(ulid.Make().String())
+	}
+	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights), ts: ts}
+	return context.WithValue(ctx, runKey{}, me), func(res Result, err error) {
+		res.CallID = cc.CallID
+		if res.Status == "" {
+			res.Status = Done
+			if err != nil {
+				res.Status = Failed
+			}
+		}
+		r.logRun(spec, cc, res, time.Since(began), err)
+	}
+}
+
+// Acquire waits for a free request slot of a model, for a caller that talks
+// to the model itself (a conversation turn); release frees it.
+func (r *Runtime) Acquire(ctx context.Context, name string, model config.LLM) (release func(), err error) {
+	return r.acquire(ctx, name, isLocal(model.BaseURL))
+}
 
 // run is a running call, as the calls made inside it find it in ctx.
 type run struct {
-	agent  string
-	cc     CallContext
-	rights Rights
-	ts     *tools.TurnState
+	agent   string
+	profile Profile
+	cc      CallContext
+	rights  Rights
+	ts      *tools.TurnState
 	// subs are the agents offered as tools, by tool name.
 	subs map[string]Spec
 }
@@ -156,7 +196,7 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 		ctx, cancel = context.WithTimeout(ctx, cc.Mode.Timeout)
 		defer cancel()
 	}
-	me := &run{agent: spec.Name, cc: cc, rights: cc.Rights.And(spec.Rights),
+	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
 			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
 	ctx = context.WithValue(ctx, runKey{}, me)

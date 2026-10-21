@@ -55,10 +55,7 @@ func (e *Engine) WarmupAll(ctx context.Context, reason string) {
 		if ctx.Err() != nil {
 			return
 		}
-		e.locks[ch].Lock()
-		err := e.warmup(ctx, ch)
-		e.locks[ch].Unlock()
-		if err != nil {
+		if err := e.warmup(ctx, ch); err != nil {
 			e.log.Warn("warmup failed", "channel", ch, "reason", reason, "error", err)
 		}
 	}
@@ -72,7 +69,12 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 	built := prompt.WarmupRequest(prefix)
 	req := e.chatRequest(ch, built.Messages, built)
 	started := time.Now()
-	client, _, _ := e.modelFor(config.MainModel)
+	client, model, name := e.modelFor(config.MainModel)
+	release, err := e.agents.Acquire(ctx, name, model)
+	if err != nil {
+		return err
+	}
+	defer release()
 	if err := client.Warmup(ctx, req); err != nil {
 		return err
 	}

@@ -15,10 +15,11 @@ import (
 //
 // It gets a fresh context: the background prefix (rules, house, tools) and
 // the task, no history. It may look things up but never change anything.
-// Only a conversation delegates; until the conversations are agents too
-// (step 5), a call from inside an agent's run is refused.
+// Only a conversation delegates, as before the agents: a call from inside
+// another agent's run is refused. Called by a conversation, it takes its
+// call context from it (person, place, third-party text, one deeper).
 func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
-	if agent.InRun(ctx) {
+	if _, profile, ok := agent.Caller(ctx); ok && profile != agent.Conversation {
 		return "", errors.New("delegate cannot be called from an agent's run")
 	}
 	if strings.TrimSpace(task) == "" {
@@ -27,7 +28,7 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 	res, err := e.agents.Call(ctx, agent.Spec{Name: "delegate", Role: "delegate", Profile: agent.Background,
 		Instructions: e.texts(ctx).delegated, Tools: agent.Tools{Kind: agent.AllTools},
 		Rights: agent.ReadHouse | agent.Web},
-		task, agent.CallContext{Origin: agent.FromAgent, Depth: 1, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
+		task, agent.CallContext{Origin: agent.FromCode, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
 	return res.Text, err
 }
 

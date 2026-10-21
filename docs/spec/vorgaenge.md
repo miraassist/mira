@@ -25,7 +25,8 @@ the light got lost along the way: "Licht zu ungewöhnlicher Zeit" became
   its own history. In the code it is still called `session`.
 - **Thread** (in the code `thread`): a concern that runs across several turns. It has
   - a **target** (from a target definition),
-  - a **place** (room for voice, chat for Telegram),
+  - a **place**: the person when Mira knows who speaks, otherwise the room for voice and the chat for Telegram; an
+    area labelled "Mira: privater Bereich" keeps its threads (see [Agents](agenten.md), What a turn belongs to),
   - a **state**,
   - **fields** that the target needs,
   - a short **log** (what was asked, answered, proposed),
@@ -232,7 +233,8 @@ thread. There are no fixed phrases.
 3. **All ticked:** The thread stays open for another **30 minutes**, so that one can refer to it ("halt,
    doch nicht fertig": `uncheck`). Then it is done.
 4. **Cancel** with `thread_cancel`, **expire** without activity within the deadline. With the end, the plan is gone.
-5. A plan applies at its place (room for voice), not across rooms.
+5. A plan applies at its place: with a known person at every satellite, otherwise in its room; a private area keeps
+   its plans, and none come in from outside.
 
 What should become permanent during the process ("merk dir, weniger Salz") goes into memory as before, not into the plan.
 

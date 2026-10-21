@@ -16,7 +16,7 @@ import (
 // switch-over that is built: every scenario tagged with that step or an
 // earlier one must have its Go test.
 var builtSteps = map[string]int{
-	"AG": 4, // docs/spec/agenten.md, Switching over in steps
+	"AG": 5, // docs/spec/agenten.md, Switching over in steps
 }
 
 var (

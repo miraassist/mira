@@ -54,6 +54,10 @@ type Snapshot struct {
 	// Confirm are the entities labelled "Mira: nachfragen" (LabelConfirm):
 	// Mira switches them only after the user confirmed.
 	Confirm map[string]bool
+	// Private are the areas labelled "Mira: privater Bereich"
+	// (LabelPrivate): what starts in one stays there (docs/spec/agenten.md,
+	// What a turn belongs to).
+	Private map[string]bool
 	// ExposureKnown is false when Home Assistant could not tell us which
 	// entities are exposed and the build fell back to including everything.
 	ExposureKnown bool
@@ -77,6 +81,9 @@ type entityRow struct {
 // integration creates; the label's name may be anything.
 const LabelConfirm = "mira_confirm"
 
+// LabelPrivate is the id of the label "Mira: privater Bereich" on areas.
+const LabelPrivate = "mira_private"
+
 // Build renders the structure block. It is a pure function of its input:
 // no clock, no randomness, no map iteration order.
 func Build(reg Registry) Snapshot {
@@ -90,6 +97,7 @@ func Build(reg Registry) Snapshot {
 		EntityLabel:     map[string]string{},
 		AreaKeys:        map[string]string{},
 		Confirm:         map[string]bool{},
+		Private:         map[string]bool{},
 		ExposureKnown:   reg.Exposed != nil,
 	}
 	for _, e := range reg.Entities {
@@ -107,6 +115,9 @@ func Build(reg Registry) Snapshot {
 	for _, a := range reg.Areas {
 		areaByID[a.AreaID] = a
 		snap.AreaNames[a.AreaID] = a.Name
+		if slices.Contains(a.Labels, LabelPrivate) {
+			snap.Private[a.AreaID] = true
+		}
 		for _, key := range append([]string{a.AreaID, a.Name}, a.Aliases...) {
 			if key = normalizeName(key); key != "" {
 				snap.AreaKeys[key] = a.AreaID

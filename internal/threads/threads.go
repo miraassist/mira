@@ -112,9 +112,16 @@ func (m *Manager) HasTargets() bool { return len(m.targets) > 0 }
 
 func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
-// place is where a turn happens: the satellite's area for voice, the
+// place is where a turn's threads live: what the conversation said it
+// belongs to (inv.Place); without that, the satellite's area for voice, the
 // conversation (a Telegram chat) otherwise. A thread lives at one place.
 func (m *Manager) place(ctx context.Context, inv tools.Invocation) (place, area string) {
+	if inv.Place != "" {
+		if a, ok := strings.CutPrefix(inv.Place, "area:"); ok {
+			return inv.Place, a
+		}
+		return inv.Place, ""
+	}
 	if inv.Channel == config.ChannelVoice {
 		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil && sess.AreaID != "" {
 			return "area:" + sess.AreaID, sess.AreaID
@@ -365,6 +372,8 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 	receiver := store.ReceiverHouse
 	if a, ok := strings.CutPrefix(th.Place, "area:"); ok {
 		area = a
+	} else if p, ok := strings.CutPrefix(th.Place, "person:"); ok {
+		receiver = p
 	} else {
 		var persons map[string]config.Person
 		if m.opts.Persons != nil {

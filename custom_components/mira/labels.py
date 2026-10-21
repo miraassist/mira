@@ -19,6 +19,10 @@ LABEL_CONFIRM = "mira_confirm"
 # "Mira: einmalig": an automation that runs once and is then removed by the
 # integration (once.py). Not a task, so it is not in the task list.
 LABEL_ONCE = "mira_once"
+# "Mira: privater Bereich": an area whose conversations, threads and plans
+# stay there, even for a known person. The agent reads it from the area
+# registry itself.
+LABEL_PRIVATE = "mira_private"
 
 # id: (seed name, icon, color, {language: (name, description)})
 _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
@@ -44,6 +48,15 @@ _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
         {
             "de": ("Mira: einmalig", "Läuft einmal und räumt sich dann auf (Schlaf-Timer)."),
             "en": ("Mira: once", "Runs once and then removes itself (sleep timer)."),
+        },
+    ),
+    LABEL_PRIVATE: (
+        "mira_private",
+        "mdi:door-closed-lock",
+        "purple",
+        {
+            "de": ("Mira: privater Bereich", "Gespräche und Pläne aus diesem Bereich bleiben hier."),
+            "en": ("Mira: private area", "Conversations and plans from this area stay here."),
         },
     ),
 }

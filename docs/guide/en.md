@@ -467,6 +467,7 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 
 - **Personality** (under **General**): how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it.
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
+- **Private area**: when Mira knows who is speaking (you are alone at home, or write on Telegram or in the HA app), a conversation goes with you from room to room, plans included. Put the label **"Mira: private area"** on an area, such as the guest room, and what starts there stays in that room, and nothing from outside comes in.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
 

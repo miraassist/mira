@@ -63,7 +63,7 @@ func TestPlanAcrossConversations(t *testing.T) {
 	// 40 minutes later, a new conversation in the same room.
 	e.now = e.now.Add(40 * time.Minute)
 	_, sess := e.turn(t, "voice:b")
-	text, foreign := e.m.Context(ctx, sess, nil)
+	text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil)
 	if !foreign || !strings.Contains(text, "1 von 3") || !strings.Contains(text, "Jetzt (Schritt 2): Mineralwasser") ||
 		!strings.Contains(text, "Ablauf mit Plan") || !strings.Contains(text, "Mach aus dem Rezept einen Plan.") {
 		t.Errorf("context: %v %q", foreign, text)
@@ -72,7 +72,7 @@ func TestPlanAcrossConversations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text, _ := e.m.Context(ctx, other, nil); text != "" {
+	if text, _ := e.m.Context(ctx, other, placeOf(other), nil); text != "" {
 		t.Errorf("another room sees the plan: %q", text)
 	}
 
@@ -168,7 +168,7 @@ func TestPlanWithoutSteps(t *testing.T) {
 		t.Errorf("reference: %q", out)
 	}
 	sess, _ = e.st.GetSession(ctx, sess.Key)
-	if text, foreign := e.m.Context(ctx, sess, nil); foreign || !strings.Contains(text, "ohne Schritte") {
+	if text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil); foreign || !strings.Contains(text, "ohne Schritte") {
 		t.Errorf("context: %v %q", foreign, text)
 	}
 	var names []string
