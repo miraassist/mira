@@ -333,6 +333,33 @@ Was Mira dabei selbst regelt: Jede neue Mail liest ein eigener Modellaufruf ohne
 
 **Hinweis:** Mails können private Daten enthalten. Für das Auswerten von Mails nimmst du deshalb besser ein lokales Modell; welches Modell die Mails liest, steht in der `mira.yaml` unter `routing` als `mail`.
 
+### Eigene Agenten
+
+Ein Agent ist ein Helfer für genau eine Aufgabe: Er bekommt eine Eingabe, arbeitet sie mit einem Modell ab und gibt ein Ergebnis zurück. Du beschreibst ihn in der `mira.yaml` unter `agents` oder in einem Skill unter `metadata.mira.agents`, ganz ohne Code. Aufrufen kannst du ihn aus einer Automation mit **Mira: Agent** (`mira.agent`), und andere Agenten können ihn als Werkzeug nutzen.
+
+**Beispiel: Rezept zerlegen.** In der `mira.yaml`:
+
+```yaml
+agents:
+  rezept:
+    description: Macht aus einer Rezeptseite eine Liste von Schritten.
+    context: background        # isolated (ohne Haus und Werkzeuge) oder background
+    tools: [web_page]          # none, read_only oder eine Liste von Werkzeugen und Agenten
+    rights: [read_house, web]  # ohne Angabe darf er nur das Haus lesen
+    input:
+      type: object
+      properties: { url: { type: string } }
+    instructions: >-
+      Du bekommst die Adresse einer Rezeptseite. Lies sie und gib die Schritte als Liste zurück.
+    output:
+      type: object
+      properties: { steps: { type: array, items: { type: string } } }
+```
+
+Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `models`. In einem Skill füllt Mira die Einstellungen des Skills in `{{…}}` ein, wie überall.
+
+Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, startet nur dieser Agent nicht. In Home Assistant steht dann unter **Reparaturen**, was zu ändern ist.
+
 ## Kochen und Backen
 
 Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.

@@ -224,3 +224,39 @@ func TestDeviceContextByDefaultOnlyForHomeAssistant(t *testing.T) {
 		}
 	}
 }
+
+// Under agents, max_depth sits beside the agents described in YAML; an agent
+// with a mistake does not stop the config from loading (it is checked on its
+// own later), and the default depth stays when max_depth is not given.
+func TestAgentsBesideMaxDepth(t *testing.T) {
+	env := fakeEnv(map[string]string{"HA_TOKEN": "x", "TELEGRAM_TOKEN": "y"})
+	cfg, err := Parse([]byte(minimalYAML+`
+agents:
+  max_depth: 2
+  rezept:
+    description: Zerlegt Rezepte.
+    instructions: Zerlege.
+    tools: [web_page]
+  kaputt:
+    descripton: Tippfehler
+`), env)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Agents.MaxDepth != 2 || len(cfg.Agents.Defined) != 2 {
+		t.Fatalf("agents %+v", cfg.Agents)
+	}
+	node := cfg.Agents.Defined["rezept"]
+	d, err := DecodeAgent(&node)
+	if err != nil || d.Description != "Zerlegt Rezepte." || len(d.Tools.Names) != 1 {
+		t.Errorf("rezept %+v, %v", d, err)
+	}
+	broken := cfg.Agents.Defined["kaputt"]
+	if _, err := DecodeAgent(&broken); err == nil {
+		t.Error("a misspelt field was taken")
+	}
+	cfg, _ = Parse([]byte(minimalYAML+"agents:\n  rezept: { description: x }\n"), env)
+	if cfg.Agents.MaxDepth != 3 {
+		t.Errorf("max_depth = %d, want the default 3", cfg.Agents.MaxDepth)
+	}
+}

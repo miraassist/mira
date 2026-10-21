@@ -235,7 +235,7 @@ Feature: AG Agents
 
   @step6
   Scenario: AG-65 All agents can be called from Home Assistant
-    Given any agent, internal or from YAML
+    Given any agent with a fixed description, internal or from YAML
     When an automation calls mira.agent with its name and a fitting input
     Then the agent runs
 

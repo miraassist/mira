@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/schedule"
 )
 
@@ -45,6 +46,10 @@ type Skill struct {
 	// entry named like the skill go into a calendar of that name
 	// (docs/spec/mail-kalender.md).
 	Mail *Mail
+	// Agents are the agents the skill describes (metadata.mira.agents), by
+	// name, with the settings filled into description and instructions
+	// (docs/spec/agenten.md, Factory).
+	Agents map[string]config.AgentDef
 }
 
 // Mail is a skill's part in the mail calendar: how to read its mails. The
@@ -171,10 +176,11 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 	Metadata    struct {
 		Mira struct {
-			Settings  map[string]Setting `yaml:"settings"`
-			Schedules []Schedule         `yaml:"schedules"`
-			Target    *Target            `yaml:"target"`
-			Mail      *Mail              `yaml:"mail"`
+			Settings  map[string]Setting   `yaml:"settings"`
+			Schedules []Schedule           `yaml:"schedules"`
+			Target    *Target              `yaml:"target"`
+			Mail      *Mail                `yaml:"mail"`
+			Agents    map[string]yaml.Node `yaml:"agents"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -309,6 +315,24 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		mail.Extract = fill(strings.TrimSpace(mail.Extract), vals, m.Settings)
 		mail.Done = strings.TrimSpace(mail.Done)
 		s.Mail = &mail
+	}
+	names := make([]string, 0, len(m.Agents))
+	for name := range m.Agents {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		node := m.Agents[name]
+		d, err := config.DecodeAgent(&node)
+		if err != nil {
+			return Skill{}, problem("agent", name, err)
+		}
+		d.Description = fill(strings.TrimSpace(d.Description), vals, m.Settings)
+		d.Instructions = fill(strings.TrimSpace(d.Instructions), vals, m.Settings)
+		if s.Agents == nil {
+			s.Agents = map[string]config.AgentDef{}
+		}
+		s.Agents[name] = d
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	return s, nil

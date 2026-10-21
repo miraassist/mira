@@ -54,16 +54,17 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return status
 
     def _show_problems(self, problems: list[dict[str, Any]]) -> None:
-        """What did not start at the agent (a skill with a wrong setting) is
-        a repair in Home Assistant, in the words the agent logged. A problem
-        that is gone is taken away again."""
+        """What did not start at the agent (a skill with a wrong setting, an
+        agent described in YAML that does not fit) is a repair in Home
+        Assistant, in the words the agent logged. A problem that is gone is
+        taken away again."""
         wanted: dict[str, dict[str, Any]] = {}
         for problem in problems:
             if isinstance(problem, dict) and problem.get("name"):
                 wanted[f"{problem.get('source', 'skill')}_{problem['name']}"] = problem
         registry = ir.async_get(self.hass)
         for domain, issue_id in list(registry.issues):
-            if domain == DOMAIN and issue_id.startswith("skill_") and issue_id not in wanted:
+            if domain == DOMAIN and issue_id.startswith(("skill_", "agent_")) and issue_id not in wanted:
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
         for issue_id, problem in wanted.items():
             ir.async_create_issue(
@@ -72,7 +73,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="skill_problem",
+                translation_key="agent_problem" if problem.get("source") == "agent" else "skill_problem",
                 translation_placeholders={"name": str(problem["name"]), "text": str(problem.get("text", ""))},
             )
 

@@ -329,6 +329,33 @@ What Mira handles herself: every new mail is read by a model call of its own, wi
 
 **Note:** Mails can contain private data. For reading mails, a local model is therefore the better choice; which model reads the mails goes under `routing` as `mail` in `mira.yaml`.
 
+### Your own agents
+
+An agent is a helper for exactly one job: it gets an input, works it through with a model and returns a result. You describe it in `mira.yaml` under `agents` or in a skill under `metadata.mira.agents`, without any code. You call it from an automation with **Mira: Agent** (`mira.agent`), and other agents can use it as a tool.
+
+**Example: taking a recipe apart.** In `mira.yaml`:
+
+```yaml
+agents:
+  recipe:
+    description: Turns a recipe page into a list of steps.
+    context: background        # isolated (no house, no tools) or background
+    tools: [web_page]          # none, read_only or a list of tools and agents
+    rights: [read_house, web]  # without it, it may only read the house
+    input:
+      type: object
+      properties: { url: { type: string } }
+    instructions: >-
+      You get the address of a recipe page. Read it and return the steps as a list.
+    output:
+      type: object
+      properties: { steps: { type: array, items: { type: string } } }
+```
+
+Without `model` the agent takes the main model; with `model: smart` one from `models`. In a skill, Mira fills the skill's settings into `{{…}}`, as everywhere.
+
+If something in the description does not fit, a misspelt field for example, only this agent does not start. Home Assistant then shows under **Repairs** what to change.
+
 ## Cooking and baking
 
 Mira cooks with you, step by step, even when a step takes half an hour.

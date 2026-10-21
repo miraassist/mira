@@ -62,6 +62,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"targettimeout":  "Das Zeitlimit „%s“ ist keine Dauer wie 15m.",
 		"unknownfinish":  "Der Abschluss „%s“ ist Mira nicht bekannt. Bekannt sind: %s. Oder rufe stattdessen eine Home-Assistant-Aktion auf (finish: action).",
 		"mailextract":    "Der Abschnitt mail braucht eine Anleitung (extract): wie Mira die Mails liest.",
+		"agent":          "Der Agent „%s“ unter agents ist so nicht lesbar (%s).",
 	},
 	i18n.EN: {
 		"nofolder":       "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or remove \"%[1]s\" from skills.enabled in mira.yaml.",
@@ -83,5 +84,6 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"targettimeout":  "The timeout \"%s\" is not a duration like 15m.",
 		"unknownfinish":  "Mira does not know the finish \"%s\". Known: %s. Or call a Home Assistant action instead (finish: action).",
 		"mailextract":    "The mail section needs instructions (extract): how Mira reads the mails.",
+		"agent":          "The agent \"%s\" under agents cannot be read like this (%s).",
 	},
 }

@@ -184,6 +184,18 @@ telemetry:
   capture_content: false            # prompts are private household data
   log_level: info
 
+# Agents: how deep agents may call each other, and agents described in YAML
+# (docs/spec/agenten.md, Factory). Call them from automations with mira.agent.
+agents:
+  max_depth: 3
+  # recipe:
+  #   description: Turns a recipe page into a list of steps.
+  #   context: background          # isolated (the default) or background
+  #   tools: [web_page]            # none (the default), read_only or a list
+  #   rights: [read_house, web]    # the default is read_house
+  #   input: { type: object, properties: { url: { type: string } } }
+  #   instructions: You get the address of a recipe page; return the steps as a list.
+
 # Skills: folders with a SKILL.md (Agent Skills format) in skills.dirs.
 # Only enabled skills are used. A skill costs one line in the prompt until
 # Mira opens it; secret settings never reach a model.

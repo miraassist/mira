@@ -110,7 +110,7 @@ the call ID.
   only built in.
 - **From Home Assistant:** an action, for instance at the end of an automation, with agent, input and mode;
   synchronously with an answer for the automation (`response_variable`), as `mira.assess` does today. Name:
-  `mira.agent`. All agents can be called from Home Assistant.
+  `mira.agent`. All agents with a fixed description can be called from Home Assistant (Decided 12).
 - **From the code:** directly, as the notifier calls `notify.compose` today.
 
 **Rights of a call from outside:** a call from Home Assistant (`mira.agent`) gets the rights the agent itself
@@ -388,7 +388,9 @@ From that:
    notified. A message is one of the routes, not the only one.
 10. **Names:** `mira.agent`, `mira.agent_result`, `mira.agent_cancel`, `mira_agent_done`, `agents.max_depth`.
 11. **Defaults:** depth at most 3; a run record stays 60 minutes after its end.
-12. **Callable from Home Assistant** are all agents.
+12. **Callable from Home Assistant** are all agents with a fixed description: `delegate`, `skill.task`,
+    `notify.compose` and the YAML agents. The agents whose instructions the code builds at each call (`mail.*`,
+    `tasks.*`, `profile.compact`) are left out.
 13. **`delegate` without an entry:** the rule "without an entry `main`" holds for it too; the tool `delegate` thus
     always exists, also without `routing.delegate` (today it does not then).
 14. **The event `mira_agent_done` is fired by the integration:** Mira's own Home Assistant user may not fire events

@@ -31,3 +31,20 @@ async def test_skill_problem_is_a_repair_until_it_is_gone(hass, aioclient_mock, 
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
     await entry.runtime_data.coordinator.async_refresh()
     assert registry.async_get_issue(DOMAIN, "skill_abfall") is None
+
+
+async def test_agent_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry):
+    """A YAML agent that does not fit says so as an agent, and goes away like a skill's."""
+    problem = {"source": "agent", "name": "plauder", "text": "Der Kontext „conversation“ geht hier nicht."}
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "agent_plauder")
+    assert issue is not None and issue.translation_key == "agent_problem"
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    assert registry.async_get_issue(DOMAIN, "agent_plauder") is None

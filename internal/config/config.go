@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -55,11 +56,82 @@ type Config struct {
 	Telemetry  Telemetry         `yaml:"telemetry"`
 }
 
-// Agents are the settings of Mira's agents (docs/spec/agenten.md).
+// Agents are the settings of Mira's agents (docs/spec/agenten.md): next to
+// max_depth, every other key is an agent described in YAML (Factory).
 type Agents struct {
 	// MaxDepth is how deep agents may call each other; an outside call has
 	// depth 0. Default 3.
 	MaxDepth int `yaml:"max_depth"`
+	// Defined are the YAML agents by name, as written: each is read and
+	// checked on its own when Mira starts, so a mistake in one leaves it out
+	// instead of stopping the agent.
+	Defined map[string]yaml.Node `yaml:"-"`
+}
+
+// UnmarshalYAML reads max_depth and the agents beside it.
+func (a *Agents) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("line %d: agents must be a mapping", n.Line)
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, val := n.Content[i].Value, n.Content[i+1]
+		if key == "max_depth" {
+			if err := val.Decode(&a.MaxDepth); err != nil {
+				return fmt.Errorf("agents.max_depth: %w", err)
+			}
+			continue
+		}
+		if a.Defined == nil {
+			a.Defined = map[string]yaml.Node{}
+		}
+		a.Defined[key] = *val
+	}
+	return nil
+}
+
+// AgentDef is an agent described in YAML, in mira.yaml under agents or in a
+// skill under metadata.mira.agents (docs/spec/agenten.md, Factory).
+type AgentDef struct {
+	Description string `yaml:"description"`
+	// Model is a model name (under models, or main); empty is main.
+	Model string `yaml:"model"`
+	// Context is isolated (the default) or background.
+	Context string `yaml:"context"`
+	// Tools is none (the default), read_only, or a list of tools and agents.
+	Tools        AgentTools     `yaml:"tools"`
+	Rights       []string       `yaml:"rights"`
+	Input        map[string]any `yaml:"input"`
+	Instructions string         `yaml:"instructions"`
+	Output       map[string]any `yaml:"output"`
+}
+
+// DecodeAgent reads one agent's description strictly: an unknown field is a
+// mistake to report, not to skip.
+func DecodeAgent(n *yaml.Node) (AgentDef, error) {
+	raw, err := yaml.Marshal(n)
+	if err != nil {
+		return AgentDef{}, err
+	}
+	var d AgentDef
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&d); err != nil {
+		return AgentDef{}, err
+	}
+	return d, nil
+}
+
+// AgentTools is a word (none, read_only) or a list of names.
+type AgentTools struct {
+	Word  string
+	Names []string
+}
+
+func (t *AgentTools) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.SequenceNode {
+		return n.Decode(&t.Names)
+	}
+	return n.Decode(&t.Word)
 }
 
 type Server struct {

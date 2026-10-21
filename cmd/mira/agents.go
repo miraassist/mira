@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/i18n"
@@ -41,12 +43,49 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 }
 
 // registerAgents makes the agents callable by name, from Home Assistant
-// (mira.agent) and when a stored run is taken up after a restart.
+// (mira.agent) and when a stored run is taken up after a restart: Mira's
+// own with a fixed description, then those described in YAML, in mira.yaml
+// and in the skills (docs/spec/agenten.md, Factory). A YAML agent that does
+// not fit is left out and shown as a problem.
 func (a *app) registerAgents() {
 	for _, spec := range a.engine.Agents() {
 		a.agents.Register(spec)
 	}
 	a.agents.Register(notifyComposeSpec(nil))
+
+	defs := agent.FromConfig(a.cfg.Agents.Defined)
+	if a.skills != nil {
+		for _, sk := range a.skills.Skills {
+			for _, name := range sortedNames(sk.Agents) {
+				defs = append(defs, agent.Defined{Name: name, Skill: sk.Name, Def: sk.Agents[name]})
+			}
+		}
+	}
+	problems := a.agents.RegisterDefined(defs, func(model string) bool {
+		_, ok := a.cfg.Model(model)
+		return ok
+	})
+	failed := map[string]bool{}
+	for _, p := range problems {
+		text := p.Text(a.lang)
+		failed[p.Skill+"/"+p.Agent] = true
+		a.log.Warn("agent not started", "agent", p.Agent, "skill", p.Skill, "problem", text)
+		a.problems = append(a.problems, haconv.Problem{Source: "agent", Name: p.Agent, Text: text})
+	}
+	for _, d := range defs {
+		if !failed[d.Skill+"/"+d.Name] {
+			a.log.Info("agent enabled", "agent", d.Name, "skill", d.Skill)
+		}
+	}
+}
+
+func sortedNames[V any](m map[string]V) []string {
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // deliverRun hands a finished asynchronous run to its route

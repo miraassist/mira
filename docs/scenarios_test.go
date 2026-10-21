@@ -6,17 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 )
 
-// builtSteps is, per feature (its scenario prefix), the last step of its
-// switch-over that is built: every scenario tagged with that step or an
-// earlier one must have its Go test.
-var builtSteps = map[string]int{
-	"AG": 6, // docs/spec/agenten.md, Switching over in steps
+// builtSteps are, per feature (its scenario prefix), the steps of its
+// switch-over that are built: every scenario tagged with one of them must
+// have its Go test.
+var builtSteps = map[string][]int{
+	"AG": {1, 2, 3, 4, 5, 6, 8}, // docs/spec/agenten.md, Switching over in steps; 7 is not specified yet
 }
 
 var (
@@ -39,8 +40,7 @@ func TestScenariosHaveTests(t *testing.T) {
 	scenarios := readScenarios(t)
 	tests := readTests(t)
 	for id, sc := range scenarios {
-		built, ok := builtSteps[prefixOf(id)]
-		if ok && sc.step <= built {
+		if slices.Contains(builtSteps[prefixOf(id)], sc.step) {
 			if _, ok := tests[id]; !ok {
 				t.Errorf("%s (%s, step %d) has no test Test%s_…", id, sc.file, sc.step, id)
 			}
