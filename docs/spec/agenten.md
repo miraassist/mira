@@ -246,6 +246,8 @@ Asynchronous runs survive a restart of the agent and are continued.
 - **On shutdown** the runtime starts no new round and stops. **On start** it loads every run with the status
   "running" and continues it from the last stored point. This works after a crash or a hard kill too, not only after
   an orderly shutdown.
+- **What the run learned counts again:** besides its call context, a run stores what its guard learns while it runs
+  (web content read, third-party text through a sub-agent) whenever that changes; continued, it knows it again.
 - **Continuing:**
   - a model call that was running is simply made again (it has no effect outside);
   - a tool that was started but has no result: a read-only one is run again; for one that changes something the

@@ -134,6 +134,10 @@ func (t *TurnState) ConfirmationRequested() bool { return t.confirmationRequeste
 // WebContentSeen reports whether the turn has read untrusted web content.
 func (t *TurnState) WebContentSeen() bool { return t.webContentSeen }
 
+// RestoreWebContentSeen sets what a run had read before it was stopped,
+// when it is continued after a restart: what held before holds again.
+func (t *TurnState) RestoreWebContentSeen() { t.webContentSeen = true }
+
 // Foreign reports whether the turn has third-party text before it: web
 // content it read, or a foreign plan in its context. What Mira writes down
 // now (a plan) counts as foreign then.

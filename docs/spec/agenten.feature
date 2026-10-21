@@ -387,6 +387,13 @@ Feature: AG Agents
     Then it starts after the first one has ended
 
   @step6
+  Scenario: AG-101 After a restart a run knows again what it had read
+    Given an asynchronous run that read third-party text, itself or through a sub-agent, before the agent stopped
+    When the agent starts again and the run goes on
+    Then it counts as having read third-party text, as before the restart
+    And what keeps or passes something on is refused, as it would have been
+
+  @step6
   Scenario: AG-97 Conversations do not count towards the 10 runs
     Given 10 asynchronous runs are running
     When a person talks to Mira

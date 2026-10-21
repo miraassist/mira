@@ -10,6 +10,7 @@ import (
 
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // worker is a background agent that may read and act.
@@ -497,5 +498,53 @@ func TestAG67_ACallFromHomeAssistantGetsTheAgentsOwnRights(t *testing.T) {
 	lines := e.logLines(t, "tool refused")
 	if len(lines) != 1 || !strings.Contains(lines[0], "rights=read_house,messages") || e.count("radio_play") != 0 {
 		t.Errorf("log %v, ran %v", lines, e.ran)
+	}
+}
+
+// AG-101 After a restart a run knows again what it had read
+func TestAG101_AfterARestartARunKnowsAgainWhatItHadRead(t *testing.T) {
+	for _, via := range []string{"web_page", "ask_helper"} {
+		t.Run(via, func(t *testing.T) {
+			e := setup(t)
+			stop := func() {
+				go e.rt.Close(context.Background())
+				<-e.rt.base.Done()
+			}
+			// Given an asynchronous run that read third-party text, itself or
+			// through a sub-agent, before the agent stopped
+			e.helper = func(ctx context.Context) (Result, error) {
+				res, err := e.rt.Call(ctx, background("reader", ReadHouse|Web), "y", CallContext{})
+				stop()
+				return res, err
+			}
+			e.onTool = func(name string) {
+				if name == via {
+					stop()
+				}
+			}
+			e.main.steps = []step{{calls: []llm.ToolCall{call(via, "{}")}}}
+			if via == "ask_helper" {
+				e.main.steps = append(e.main.steps, step{calls: []llm.ToolCall{call("web_page", "{}")}}, step{text: "gelesen"})
+			}
+			res, _ := e.rt.Call(context.Background(), background("worker", AllRights), "x", async)
+			e.rt.wg.Wait()
+			if rec, _ := e.st.GetAgentRun(context.Background(), res.CallID); rec.Status != string(Running) {
+				t.Fatalf("the run did not stop before the restart: %+v", rec)
+			}
+			// When the agent starts again and the run goes on
+			e.onTool = nil
+			e.restart(t)
+			e.rt.Register(background("worker", AllRights))
+			e.main.steps = []step{{calls: []llm.ToolCall{call(tools.ToolMemorySave, `{"text":"x"}`)}}, {text: "ok"}}
+			e.rt.Resume(context.Background())
+			rec := e.waitDelivered(t)
+			// Then it counts as having read third-party text, as before the restart
+			// And what keeps or passes something on is refused, as it would have been
+			got := toolResults(e.main)
+			if rec.CallID != res.CallID || rec.Status != string(Done) || e.count(tools.ToolMemorySave) != 0 ||
+				len(got) == 0 || !strings.HasPrefix(got[len(got)-1], tools.ToolMemorySave+": ") {
+				t.Errorf("record %+v, ran %v, results %v", rec, e.ran, got)
+			}
+		})
 	}
 }

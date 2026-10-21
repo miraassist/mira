@@ -241,8 +241,10 @@ type execution struct {
 	// round is the next model call's round; maxRounds bounds the tool rounds.
 	round, maxRounds int
 	t                texts
-	// saved stores what each round adds; nil for a synchronous run.
+	// saved stores what each round adds; nil for a synchronous run. state
+	// is the guard state it stored last.
 	saved *saver
+	state runState
 }
 
 // prepare sets a run up: model, guard state, what the model sees, tools.
@@ -369,6 +371,11 @@ func (ex *execution) addResult(ctx context.Context, call llm.ToolCall, text stri
 	m := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name, Content: text}
 	ex.msgs = append(ex.msgs, m)
 	ex.saved.add(ctx, stepResult, m)
+	// A tool (or a sub-agent) may have brought third-party text in.
+	if now := (runState{Web: ex.me.ts.WebContentSeen(), Foreign: ex.me.ts.ForeignContext}); now != ex.state {
+		ex.state = now
+		ex.saved.add(ctx, stepState, now)
+	}
 }
 
 // inherit is the call context of a call made inside the run p.

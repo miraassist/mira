@@ -62,7 +62,17 @@ const (
 	stepAnswer  = "answer"  // the model's answer with tool calls
 	stepStarted = "started" // a tool about to run
 	stepResult  = "result"  // a tool's result
+	stepState   = "state"   // what the run's guard knows now (runState)
 )
+
+// runState is what a run learns while it runs and its guard needs: web
+// content read, third-party text in its context (also through a
+// sub-agent). It is stored when it changes, so a run continued after a
+// restart knows it again.
+type runState struct {
+	Web     bool `json:"web,omitempty"`
+	Foreign bool `json:"foreign,omitempty"`
+}
 
 // saver stores what a run's rounds add.
 type saver struct {
@@ -70,11 +80,11 @@ type saver struct {
 	callID string
 }
 
-func (s *saver) add(ctx context.Context, kind string, m llm.Message) {
+func (s *saver) add(ctx context.Context, kind string, v any) {
 	if s == nil {
 		return
 	}
-	body, _ := json.Marshal(m)
+	body, _ := json.Marshal(v)
 	// Stored even when the run is being stopped: what happened must be
 	// there when it continues.
 	if err := s.r.o.Runs.AddAgentStep(context.WithoutCancel(ctx), s.callID, kind, body); err != nil {
@@ -198,6 +208,17 @@ func (r *Runtime) takeUp(ctx context.Context, ex *execution, steps []store.Agent
 	started, have := map[string]bool{}, map[string]bool{}
 	last := -1
 	for _, st := range steps {
+		if st.Kind == stepState {
+			var s runState
+			if json.Unmarshal(st.Body, &s) == nil {
+				if s.Web {
+					ex.me.ts.RestoreWebContentSeen()
+				}
+				ex.me.ts.ForeignContext = ex.me.ts.ForeignContext || s.Foreign
+				ex.state = s
+			}
+			continue
+		}
 		var m llm.Message
 		if err := json.Unmarshal(st.Body, &m); err != nil {
 			continue
