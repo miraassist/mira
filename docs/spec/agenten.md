@@ -186,6 +186,23 @@ independent of each other:
 - Today the engine locks per channel, so all voice turns run one after the other, even with a cloud model. This
   changes with step 5.
 
+### What a turn belongs to
+
+Which conversation, thread and plan a turn belongs to follows from its call context, without a setting:
+- **Person known** (Telegram, the Home Assistant app, or "alone at home is me"): conversation, threads and plans
+  belong to the person and follow them to every satellite. Alone at home, one can simply go on talking in another
+  room.
+- **Person unknown** (several people at home, nobody recognized): everything stays in the room, as today. Two
+  conversations in two rooms do not get in each other's way and see nothing of each other.
+- **Private area:** an area in Home Assistant with the label "Mira: privater Bereich" is a hard border, like the label
+  "Mira: nachfragen" on devices. What starts in it stays there, even for a known person, and nothing from outside
+  comes in. This covers conversations, threads and plans.
+- If Mira later recognizes persons better (by their voice, say), the conversation follows the right person without the
+  rule changing.
+
+This rule belongs to the conversation agents and comes with step 5; it changes behavior (alone at home, the
+conversation follows from room to room).
+
 ### Shared state
 
 Memory, plans, threads and messages live in Mira's SQLite database (one connection, WAL), so a single write is safe
@@ -382,10 +399,13 @@ From that:
     `metadata.mira.agents`; profiles `isolated` and `background`.
 29. **The factory is built** after step 6, independent of the continuation.
 
+30. **How the agent tells the integration that a run is done:** a WebSocket command of the integration that only
+    Mira's user may send (`mira/agent/done`); no visible Home Assistant action, so other users and automations
+    cannot forge `mira_agent_done`.
+31. **What a turn belongs to:** to the person when known, otherwise to the room; an area labelled "Mira: privater
+    Bereich" is a hard border. Part of step 5.
+
 ## Open questions
 
-1. **How the agent tells the integration that a run is done** (for `mira_agent_done`): a WebSocket command of the
-   integration that only Mira's user may send (proposal: hidden, cannot be forged by other users or automations),
-   or a visible Home Assistant action that checks the caller is Mira's user.
-2. **Continuation** (step 7): the calling run waits (stored, status "waiting") and is woken with the result; what a
+1. **Continuation** (step 7): the calling run waits (stored, status "waiting") and is woken with the result; what a
    thread does with a result. To be specified once step 6 is built.

@@ -4,7 +4,7 @@
 #
 # Groups: AG-0x rights · AG-1x depth · AG-2x synchronous · AG-3x asynchronous and run record ·
 #         AG-4x delivery · AG-5x log · AG-6x calls from Home Assistant and as a tool · AG-7x model ·
-#         AG-8x/9x runtime · AG-Ax YAML agents
+#         AG-8x/9x runtime · AG-Ax YAML agents · AG-Bx what a turn belongs to
 
 Feature: AG Agents
 
@@ -433,3 +433,31 @@ Feature: AG Agents
     Given a YAML agent with context conversation
     When Mira loads it
     Then it is not started, and the problem names the profile
+
+  @step5
+  Scenario: AG-B1 A known person's conversation follows them to another satellite
+    Given a person known to Mira (alone at home) talking at the satellite in the kitchen
+    When the same person goes on at the satellite in the living room
+    Then the turn belongs to the same conversation, with its threads and plans
+
+  @step5
+  Scenario: AG-B2 Without a known person the conversation stays in its room
+    Given several persons at home and nobody recognized
+    And a conversation at the satellite in the kitchen
+    When someone talks at the satellite in the living room
+    Then that turn belongs to a conversation of its own
+    And it sees nothing of the kitchen's conversation, threads or plans
+
+  @step5
+  Scenario: AG-B3 A private area is a hard border
+    Given the area "Gästezimmer" has the label "Mira: privater Bereich"
+    And a known person starts a plan there
+    When the same person talks at a satellite in another room
+    Then the plan of the private area is not there
+
+  @step5
+  Scenario: AG-B4 Nothing comes into a private area from outside
+    Given a known person with a running plan from the kitchen
+    And the area "Gästezimmer" has the label "Mira: privater Bereich"
+    When the person talks at the satellite in the Gästezimmer
+    Then the kitchen's plan is not there
