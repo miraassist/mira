@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -58,18 +59,34 @@ type Options struct {
 	// Background builds the background profile; without it, agents of that
 	// profile cannot run.
 	Background BackgroundContext
-	Logger     *slog.Logger
+	// Runs stores the asynchronous runs; without it, none can be started.
+	Runs RunStore
+	// Deliver hands a finished asynchronous run to its route.
+	Deliver Deliverer
+	// Clock is the time for run records; tests set it.
+	Clock  func() time.Time
+	Logger *slog.Logger
 }
 
-// Runtime runs agents: synchronously in the caller's goroutine for now
-// (docs/spec/agenten.md, Runtime). It limits the access to each model.
+// Runtime runs agents (docs/spec/agenten.md, Runtime): synchronous ones in
+// the caller's goroutine, asynchronous ones in goroutines of their own
+// (async.go). It limits the access to each model.
 type Runtime struct {
 	o   Options
 	log *slog.Logger
 
-	mu     sync.Mutex
-	slots  map[string]chan struct{}
-	agents map[string]Spec
+	mu      sync.Mutex
+	slots   map[string]chan struct{}
+	agents  map[string]Spec
+	cancels map[string]context.CancelCauseFunc
+
+	// async holds a place per asynchronous run; base ends them all on
+	// shutdown.
+	async    chan struct{}
+	base     context.Context
+	stop     context.CancelFunc
+	stopping atomic.Bool
+	wg       sync.WaitGroup
 }
 
 // Requests at the same time per model (docs/spec/agenten.md, Decided 26).
@@ -82,8 +99,10 @@ func New(o Options) *Runtime {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
+	base, stop := context.WithCancel(context.Background())
 	return &Runtime{o: o, log: o.Logger.With("component", "agent"), slots: map[string]chan struct{}{},
-		agents: map[string]Spec{}}
+		agents: map[string]Spec{}, cancels: map[string]context.CancelCauseFunc{},
+		async: make(chan struct{}, maxAsync), base: base, stop: stop}
 }
 
 // Register makes an agent known by its name: an agent that names it in its
@@ -102,6 +121,16 @@ func Caller(ctx context.Context) (name string, profile Profile, ok bool) {
 		return "", 0, false
 	}
 	return p.agent, p.profile, true
+}
+
+// Current is the call context of the run ctx belongs to; ok is false
+// outside a run.
+func Current(ctx context.Context) (cc CallContext, ok bool) {
+	p := current(ctx)
+	if p == nil {
+		return CallContext{}, false
+	}
+	return p.cc, true
 }
 
 // Enter starts a run its caller drives itself: a conversation turn, which
@@ -154,12 +183,14 @@ func current(ctx context.Context) *run {
 	return r
 }
 
-// Call runs an agent synchronously. A call made inside a run (an agent as a
-// tool of another) takes its call context from that run: one deeper, the
-// parent's call ID, at most the parent's effective rights.
+// Call runs an agent. A call made inside a run (an agent as a tool of
+// another) takes its call context from that run: one deeper, the parent's
+// call ID, at most the parent's effective rights. The mode of the call
+// context says how the caller waits: synchronously (in the caller's
+// goroutine), asynchronously (the call ID comes back at once, status
+// Running), or synchronously with run-on (the answer if it comes in time,
+// else the call ID and status Running; the result is delivered later).
 func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallContext) (Result, error) {
-	began := time.Now()
-	cfg := r.o.Config()
 	parent := current(ctx)
 	if parent != nil {
 		cc = inherit(parent, cc)
@@ -167,14 +198,11 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 	if cc.CallID == "" {
 		cc.CallID = strings.ToLower(ulid.Make().String())
 	}
-	res := Result{CallID: cc.CallID}
-	t := i18n.Pick(catalog, lang(cc))
-	res.Model = spec.Model
-	if res.Model == "" {
-		res.Model = cfg.RoleModel(spec.Role)
+	if cc.Mode.Async || (cc.Mode.OnTimeout == RunOn && cc.Mode.Timeout > 0) {
+		return r.start(ctx, parent, spec, input, cc)
 	}
-
-	finish := func(status Status, err error) (Result, error) {
+	began := time.Now()
+	finish := func(res Result, status Status, err error) (Result, error) {
 		res.Status = status
 		// Third-party text read by this run counts for its caller.
 		if res.Foreign && parent != nil {
@@ -183,108 +211,164 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 		r.logRun(spec, cc, res, time.Since(began), err)
 		return res, err
 	}
-	if cc.Depth > cfg.Agents.MaxDepth {
-		return finish(Failed, ErrDepth)
-	}
-	client, model, ok := r.o.Models(res.Model)
-	if !ok {
-		return finish(Failed, fmt.Errorf("no model %q", res.Model))
-	}
-
-	if !cc.Mode.Async && cc.Mode.Timeout > 0 {
+	if cc.Mode.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, cc.Mode.Timeout)
 		defer cancel()
 	}
-	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
+	ex, ctx, err := r.prepare(ctx, spec, input, cc)
+	if err != nil {
+		return finish(ex.res, Failed, err)
+	}
+	status, err := r.loop(ctx, ex)
+	if status == Cancelled && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		err = ErrTimeout
+	}
+	return finish(ex.res, status, err)
+}
+
+// execution is a run as the loop drives it.
+type execution struct {
+	spec    Spec
+	me      *run
+	res     Result
+	client  Chatter
+	model   config.LLM
+	local   bool
+	b       Built
+	offered []llm.Tool
+	msgs    []llm.Message
+	// round is the next model call's round; maxRounds bounds the tool rounds.
+	round, maxRounds int
+	t                texts
+	// saved stores what each round adds; nil for a synchronous run.
+	saved *saver
+}
+
+// prepare sets a run up: model, guard state, what the model sees, tools.
+func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallContext) (*execution, context.Context, error) {
+	cfg := r.o.Config()
+	ex := &execution{spec: spec, res: Result{CallID: cc.CallID}, t: i18n.Pick(catalog, lang(cc))}
+	ex.res.Model = spec.Model
+	if ex.res.Model == "" {
+		ex.res.Model = cfg.RoleModel(spec.Role)
+	}
+	if cc.Depth > cfg.Agents.MaxDepth {
+		return ex, ctx, ErrDepth
+	}
+	client, model, ok := r.o.Models(ex.res.Model)
+	if !ok {
+		return ex, ctx, fmt.Errorf("no model %q", ex.res.Model)
+	}
+	ex.client, ex.model, ex.local = client, model, isLocal(model.BaseURL)
+	ex.me = &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
 			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
-	ctx = context.WithValue(ctx, runKey{}, me)
+	ctx = context.WithValue(ctx, runKey{}, ex.me)
 
 	b, offered, err := r.build(ctx, spec, input, cc)
 	if err != nil {
-		return finish(Failed, err)
+		return ex, ctx, err
 	}
 	if spec.Profile != Isolated {
-		me.subs = r.subAgents(spec.Tools)
-		for _, name := range slices.Sorted(maps.Keys(me.subs)) {
-			offered = append(offered, me.subs[name].asTool())
+		ex.me.subs = r.subAgents(spec.Tools)
+		for _, name := range slices.Sorted(maps.Keys(ex.me.subs)) {
+			offered = append(offered, ex.me.subs[name].asTool())
 		}
 	}
-	msgs := b.Messages
-	maxRounds := spec.Limits.MaxRounds
-	if maxRounds == 0 {
-		maxRounds = model.MaxToolRounds
+	ex.b, ex.offered, ex.msgs = b, offered, b.Messages
+	ex.maxRounds = spec.Limits.MaxRounds
+	if ex.maxRounds == 0 {
+		ex.maxRounds = model.MaxToolRounds
 	}
-	if maxRounds == 0 {
-		maxRounds = 3
+	if ex.maxRounds == 0 {
+		ex.maxRounds = 3
 	}
-	local := isLocal(model.BaseURL)
+	return ex, ctx, nil
+}
 
-	for round := 0; ; round++ {
-		req := llm.ChatRequest{Messages: msgs, Temperature: model.Temperature, MaxTokens: model.MaxTokens,
+// loop runs the model rounds until the answer. It returns Done, Failed, or
+// Cancelled when ctx ended; the caller tells why ctx ended.
+func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
+	spec, model := ex.spec, ex.model
+	for ; ; ex.round++ {
+		// No new round once the run is to stop (cancelled, expired, shutdown).
+		if ctx.Err() != nil {
+			return Cancelled, ctx.Err()
+		}
+		req := llm.ChatRequest{Messages: ex.msgs, Temperature: model.Temperature, MaxTokens: model.MaxTokens,
 			ReasoningEffort: model.ReasoningEffort, Channel: string(config.ChannelBackground),
-			PrefixHash: b.PrefixHash, IDSlot: b.IDSlot}
+			PrefixHash: ex.b.PrefixHash, IDSlot: ex.b.IDSlot}
 		if spec.Profile == Background && model.CachePrompt {
 			req.CachePrompt = llm.BoolPtr(true)
 		}
-		if len(offered) > 0 {
-			req.Tools = offered
-			if round >= maxRounds {
+		if len(ex.offered) > 0 {
+			req.Tools = ex.offered
+			if ex.round >= ex.maxRounds {
 				req.ToolChoice = "none"
 			}
 		} else {
-			if len(b.Tools) > 0 {
-				req.Tools, req.ToolChoice = b.Tools, "none"
+			if len(ex.b.Tools) > 0 {
+				req.Tools, req.ToolChoice = ex.b.Tools, "none"
 			}
 			if len(spec.Output) > 0 {
 				req.ResponseFormat = map[string]any{"type": "json_schema",
 					"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
 			}
 		}
-		out, err := r.chat(ctx, client, res.Model, local, req, spec.Limits, &res)
-		res.Foreign = me.ts.Foreign()
+		out, err := r.chat(ctx, ex.client, ex.res.Model, ex.local, req, spec.Limits, &ex.res)
+		ex.res.Foreign = ex.me.ts.Foreign()
 		if err != nil {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return finish(Cancelled, ErrTimeout)
-			}
 			if ctx.Err() != nil {
-				return finish(Cancelled, ctx.Err())
+				return Cancelled, ctx.Err()
 			}
-			return finish(Failed, err)
+			return Failed, err
 		}
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
 		msg.Content = stripThinking(msg.Content)
-		if len(msg.ToolCalls) == 0 || round >= maxRounds {
+		if len(msg.ToolCalls) == 0 || ex.round >= ex.maxRounds {
 			text := strings.TrimSpace(msg.Content)
 			if text == "" {
-				return finish(Failed, ErrNoAnswer)
+				return Failed, ErrNoAnswer
 			}
 			if len(spec.Output) > 0 {
 				text = extractJSON(text)
 				if err := checkSchema(spec.Output, json.RawMessage(text)); err != nil {
-					res.Text = text
-					return finish(Failed, fmt.Errorf("%w: %v", ErrOutput, err))
+					ex.res.Text = text
+					return Failed, fmt.Errorf("%w: %v", ErrOutput, err)
 				}
 			}
-			res.Text = text
-			return finish(Done, nil)
+			ex.res.Text = text
+			return Done, nil
 		}
 		for i := range msg.ToolCalls {
 			if msg.ToolCalls[i].ID == "" {
-				msg.ToolCalls[i].ID = fmt.Sprintf("call_%d_%d", round, i)
+				msg.ToolCalls[i].ID = fmt.Sprintf("call_%d_%d", ex.round, i)
 			}
 			if msg.ToolCalls[i].Type == "" {
 				msg.ToolCalls[i].Type = "function"
 			}
 		}
-		msgs = append(msgs, msg)
+		ex.msgs = append(ex.msgs, msg)
+		ex.saved.add(ctx, stepAnswer, msg)
 		for _, call := range msg.ToolCalls {
-			msgs = append(msgs, llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name,
-				Content: r.runTool(ctx, me, call, t)})
+			ex.runTool(ctx, r, call)
 		}
 	}
+}
+
+// runTool runs one tool call of the run and adds its result; an
+// asynchronous run stores that it started and what came back.
+func (ex *execution) runTool(ctx context.Context, r *Runtime, call llm.ToolCall) {
+	ex.saved.add(ctx, stepStarted, llm.Message{ToolCallID: call.ID, Name: call.Function.Name})
+	ex.addResult(ctx, call, r.runTool(ctx, ex.me, call, ex.t))
+}
+
+func (ex *execution) addResult(ctx context.Context, call llm.ToolCall, text string) {
+	m := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name, Content: text}
+	ex.msgs = append(ex.msgs, m)
+	ex.saved.add(ctx, stepResult, m)
 }
 
 // inherit is the call context of a call made inside the run p.
@@ -418,16 +502,8 @@ func (r *Runtime) callSub(ctx context.Context, sub Spec, args string, t texts) s
 	if len(raw) == 0 || !json.Valid(raw) {
 		return t.badArgs
 	}
-	input := args
-	if len(sub.Input) == 0 {
-		var in struct {
-			Input string `json:"input"`
-		}
-		if err := json.Unmarshal(raw, &in); err != nil || strings.TrimSpace(in.Input) == "" {
-			return t.badArgs
-		}
-		input = in.Input
-	} else if err := checkSchema(sub.Input, raw); err != nil {
+	input, err := inputFor(sub, raw)
+	if err != nil {
 		return t.errorPrefix + err.Error()
 	}
 	res, err := r.Call(ctx, sub, input, CallContext{})

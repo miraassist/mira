@@ -26,6 +26,12 @@ func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Se
 
 func twoModelsRouted(t *testing.T, routing config.Routing) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
+	return twoModelsDelivering(t, routing, nil)
+}
+
+// twoModelsDelivering hands the finished asynchronous runs to deliver.
+func twoModelsDelivering(t *testing.T, routing config.Routing, deliver agent.Deliverer) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
+	t.Helper()
 	main, smart := fakellm.New(), fakellm.New()
 	t.Cleanup(main.Close)
 	t.Cleanup(smart.Close)
@@ -65,7 +71,7 @@ func twoModelsRouted(t *testing.T, routing config.Routing) (*conversation.Engine
 			}
 			return nil, config.LLM{}, false
 		},
-		Tools: registry, Guard: guard,
+		Tools: registry, Guard: guard, Runs: st, Deliver: deliver,
 		Background: func(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
 			return engine.BackgroundContext(ctx, cc, instructions, input)
 		},
@@ -219,5 +225,40 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 	}
 	if n := len(model.Requests()); n != 0 {
 		t.Errorf("the model was asked %d times", n)
+	}
+}
+
+// AG-99 An agent as a tool at a satellite answers late
+func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
+	defer conversation.SetDelegateWait(100 * time.Millisecond)()
+	type delivery struct {
+		rec store.AgentRun
+		cc  agent.CallContext
+	}
+	delivered := make(chan delivery, 1)
+	// Given a voice conversation that calls an agent as a tool
+	e, main, smart := twoModelsDelivering(t, config.Routing{Telegram: "smart", Delegate: "smart"},
+		func(_ context.Context, rec store.AgentRun, cc agent.CallContext) { delivered <- delivery{rec, cc} })
+	main.Push(
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Plane die Woche."}`)}},
+		fakellm.Step{Content: "Ich melde mich, sobald der Plan steht."},
+	)
+	// When the agent is not done after 5 seconds
+	smart.Push(fakellm.Step{Content: "Montag Suppe, Dienstag Nudeln.", Delay: 400 * time.Millisecond})
+	r := handle(t, e, config.ChannelVoice, "Plan mir die Woche.")
+	// Then Mira tells the user she will come back
+	back := main.Last().Request.Messages
+	if got := back[len(back)-1]; got.Role != llm.RoleTool || !strings.Contains(got.Content, "Nachricht") || r.Text != "Ich melde mich, sobald der Plan steht." {
+		t.Fatalf("tool result %+v, answer %q", got, r.Text)
+	}
+	// And the run goes on and its result comes as a message to the room or the person
+	select {
+	case d := <-delivered:
+		if d.rec.Status != "done" || d.rec.Output != "Montag Suppe, Dienstag Nudeln." || d.cc.Mode.Delivery.Route != agent.ToMessage ||
+			d.cc.Mode.Delivery.Receiver != store.ReceiverHouse {
+			t.Errorf("delivered %+v, %+v", d.rec, d.cc.Mode.Delivery)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the run was not delivered")
 	}
 }

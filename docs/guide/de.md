@@ -74,6 +74,8 @@ Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistan
 
 Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Nachricht senden** (`mira.send_message`). Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
 
+Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer Automation, etwa `delegate` mit der Eingabe `{"input": "Plane ein Menü für Samstag."}`. Ohne weitere Angaben wartet die Automation bis zu 60 Sekunden auf die Antwort; mit `response_variable` liest du sie. Mit dem Modus **async** geht es sofort weiter: Das Ergebnis kommt dann als Ereignis `mira_agent_done`, auf das eine Automation warten kann, oder mit **Zustellung: message** als Nachricht von Mira. **Mira: Agent-Ergebnis** liest einen Lauf über seine Aufruf-ID, **Mira: Agent abbrechen** beendet ihn.
+
 ## Mira meldet sich von selbst
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.

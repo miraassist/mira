@@ -94,7 +94,7 @@ func TestCutKeepsTheRunningThread(t *testing.T) {
 	threadStart := h.clock.now
 	h.say(t, config.ChannelTelegram, "7", "zwei")
 	ctx := context.Background()
-	if err := h.store.PutThread(ctx, store.Thread{ID: "th1", Target: "aufgabe", Place: "telegram:7",
+	if err := h.store.PutThread(ctx, &store.Thread{ID: "th1", Target: "aufgabe", Place: "telegram:7",
 		State: store.ThreadCollecting, CreatedAt: threadStart, UpdatedAt: threadStart, ExpiresAt: threadStart.Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}

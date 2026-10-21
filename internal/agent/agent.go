@@ -118,12 +118,33 @@ const (
 	RunOn
 )
 
-// Mode is how the caller waits.
+// Mode is how the caller waits, and where an asynchronous result goes.
 type Mode struct {
 	Async bool
 	// Timeout bounds a synchronous call; zero means none.
 	Timeout   time.Duration
 	OnTimeout OnTimeout
+	Delivery  Delivery
+}
+
+// Route is how a finished asynchronous run reaches its caller
+// (docs/spec/agenten.md, Delivery).
+type Route string
+
+const (
+	// ToEvent: Home Assistant fires mira_agent_done.
+	ToEvent Route = "event"
+	// ToMessage: a message to a person or the house, worded by
+	// notify.compose.
+	ToMessage Route = "message"
+)
+
+// Delivery is the route; for a message also its receiver (a person's key or
+// "house") and the room it is for, if any.
+type Delivery struct {
+	Route    Route
+	Receiver string
+	Area     string
 }
 
 func (m Mode) String() string {

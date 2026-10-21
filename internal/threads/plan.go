@@ -119,39 +119,49 @@ func (m *Manager) Plan(ctx context.Context, inv tools.Invocation, action, text s
 	if err != nil || !m.isPlan(th) {
 		return "", errors.New(t.noPlanThread)
 	}
-	c := planOf(th)
 	switch action {
-	case "write":
-		text = strings.TrimSpace(text)
-		if text == "" {
-			return "", errors.New(t.planEmpty)
-		}
-		if n := len([]rune(text)); n > maxPlan {
-			return "", fmt.Errorf(t.planTooLong, n, maxPlan)
-		}
-		c.Plan = text
-		c.Foreign = c.Foreign || inv.Foreign
-		m.logEntry(&th, "mira", fmt.Sprintf(t.planWritten, len(boxes(text))))
-	case "check", "uncheck":
-		if c.Plan == "" {
-			return "", errors.New(t.planNone)
-		}
-		plan, err := tick(c.Plan, step, action == "check")
-		if err != nil {
-			return "", err
-		}
-		c.Plan = plan
 	case "read":
+		c := planOf(th)
 		if c.Plan == "" {
 			return "", errors.New(t.planNone)
 		}
 		return m.planBlock(c, c.Plan), nil
+	case "write", "check", "uncheck":
 	default:
 		return "", fmt.Errorf("unknown action %q", action)
 	}
-	m.finished(&c)
-	setPlan(&th, c)
-	if err := m.save(ctx, &th); err != nil {
+	// Applied to the plan as it is now: another run may have ticked a step
+	// meanwhile (docs/spec/agenten.md, Shared state).
+	th, err = m.change(ctx, th.ID, func(th *store.Thread) error {
+		c := planOf(*th)
+		switch action {
+		case "write":
+			text = strings.TrimSpace(text)
+			if text == "" {
+				return errors.New(t.planEmpty)
+			}
+			if n := len([]rune(text)); n > maxPlan {
+				return fmt.Errorf(t.planTooLong, n, maxPlan)
+			}
+			c.Plan = text
+			c.Foreign = c.Foreign || inv.Foreign
+			m.logEntry(th, "mira", fmt.Sprintf(t.planWritten, len(boxes(text))))
+		case "check", "uncheck":
+			if c.Plan == "" {
+				return errors.New(t.planNone)
+			}
+			plan, err := tick(c.Plan, step, action == "check")
+			if err != nil {
+				return err
+			}
+			c.Plan = plan
+		}
+		m.finished(&c)
+		setPlan(th, c)
+		m.extend(th)
+		return nil
+	})
+	if err != nil {
 		return "", err
 	}
 	return m.planStatus(th), nil

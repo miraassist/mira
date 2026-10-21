@@ -292,6 +292,36 @@ CREATE INDEX idx_messages_scheduled ON messages(state, deliver_at);
 ALTER TABLE messages ADD COLUMN origin_area TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// A thread is changed only if nobody changed it since it was read
+		// (docs/spec/agenten.md, Shared state). Agents' asynchronous runs
+		// are stored, with what each round added, so they survive a restart.
+		name: "0016_agent_runs",
+		stmt: `
+ALTER TABLE threads ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE agent_runs (
+	call_id     TEXT PRIMARY KEY,
+	parent_id   TEXT NOT NULL DEFAULT '',
+	agent       TEXT NOT NULL,
+	status      TEXT NOT NULL,
+	call        TEXT NOT NULL DEFAULT '{}',
+	input       TEXT NOT NULL DEFAULT '',
+	output      TEXT NOT NULL DEFAULT '',
+	error       TEXT NOT NULL DEFAULT '',
+	started_at  TEXT NOT NULL,
+	deadline    TEXT NOT NULL,
+	ended_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX agent_runs_status ON agent_runs(status, ended_at);
+CREATE TABLE agent_run_steps (
+	call_id  TEXT NOT NULL,
+	seq      INTEGER NOT NULL,
+	kind     TEXT NOT NULL,
+	body     TEXT NOT NULL,
+	PRIMARY KEY (call_id, seq)
+);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

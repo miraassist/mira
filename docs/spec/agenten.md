@@ -147,7 +147,7 @@ The **caller** decides, in the mode of the call context.
 
 Every asynchronous run (and every synchronous one that runs on after the timeout) gets a record:
 - call ID, agent, ID of the calling call;
-- status: running, done, failed, expired;
+- status: running, done, failed, expired (beyond its time limit of 60 minutes from the start), cancelled;
 - the output following the agent's schema, or the error;
 - start and end.
 
@@ -253,7 +253,8 @@ Asynchronous runs survive a restart of the agent and are continued.
 - **Synchronous calls are not continued:** their caller (Home Assistant or a conversation) has no connection any
   more after the restart and got an error. Only what runs asynchronously, or ran on after its timeout, is continued;
   its result goes out on its delivery route.
-- Only asynchronous runs store anything; synchronous runs write nothing extra.
+- Only asynchronous runs store anything; synchronous runs write nothing extra. A synchronous call with run-on is
+  stored from its start, as it may become asynchronous at its timeout.
 - **The agent changed in the meantime** (an update, an edited YAML description): the run goes on with the new
   description. If the agent no longer exists, the run fails, with that reason.
 - **Stored content** can hold private data (mails, web pages). It goes with the run record, 60 minutes after the
@@ -427,6 +428,8 @@ From that:
     cannot block itself, and `delegate` does not wait for skill jobs.
 33. **In the background the rights decide** what an agent may change, not the background channel's rule; what needs
     a yes (critical actions, keeping or passing on after third-party text) is refused there, as nobody can confirm.
+34. **Time limit of an asynchronous run:** 60 minutes from its start, fixed, without a setting; beyond it the run is
+    "expired". `timeout` of `mira.agent` applies to synchronous calls only.
 
 ## Open questions
 

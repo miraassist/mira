@@ -388,6 +388,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return n.Afterword(ctx, area)
 		},
 	})
+	a.registerAgents()
 	if cfg.LLM.WarmupOnPrefixChange {
 		a.warmup = a.engine.RequestWarmup
 	}
@@ -472,6 +473,13 @@ func (a *app) goRun(ctx context.Context, name string, fn func(context.Context) e
 // close waits for the background loops (ctx must be cancelled first) and
 // flushes telemetry.
 func (a *app) close() {
+	if a.agents != nil {
+		// The asynchronous runs stop between rounds and go on after the
+		// next start.
+		stopCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		a.agents.Close(stopCtx)
+		stop()
+	}
 	if a.mcp != nil {
 		a.mcp.Close()
 	}
@@ -553,6 +561,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	// does that, and an eval must not speak on a real device.
 	if !cfg.Server.Eval {
 		a.startProactive(ctx)
+	}
+	// Asynchronous runs that were running when the agent stopped go on.
+	if err := a.agents.Resume(ctx); err != nil {
+		a.log.Error("could not take up the asynchronous runs", "error", err)
 	}
 
 	errs := make(chan error, 2)
@@ -867,7 +879,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: cfg.LLM.Timeout.Duration(), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
-		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash,
+		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash, Agents: a.agents,
 	}
 	if a.mail != nil {
 		opts.Mail = a.mail

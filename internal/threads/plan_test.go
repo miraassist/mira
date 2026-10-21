@@ -3,6 +3,7 @@ package threads
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,5 +178,37 @@ func TestPlanWithoutSteps(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(names, " "), ToolPlan) {
 		t.Errorf("tools: %v", names)
+	}
+}
+
+// AG-83 Two runs change the same plan at the same time
+func TestAG83_TwoRunsChangeTheSamePlanAtTheSameTime(t *testing.T) {
+	e := planEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	if _, err := e.m.Start(ctx, inv, "kochen", "Pfannkuchen backen"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 20; i++ {
+		// Given a plan with the steps 1 and 2 open
+		if _, err := e.m.Plan(ctx, inv, "write", recipe, 0); err != nil {
+			t.Fatal(err)
+		}
+		// When one run ticks off step 1 and another step 2 at the same time
+		var wg sync.WaitGroup
+		for _, step := range []int{1, 2} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := e.m.Plan(ctx, inv, "check", "", step); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		wg.Wait()
+		// Then both steps are ticked off
+		if out, _ := e.m.Plan(ctx, inv, "read", "", 0); strings.Count(out, "[x]") != 2 {
+			t.Fatalf("round %d: %q", i, out)
+		}
 	}
 }

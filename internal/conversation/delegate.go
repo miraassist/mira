@@ -4,8 +4,17 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/store"
+)
+
+// How long a conversation waits for the delegate before it runs on and its
+// result comes as a message (docs/spec/agenten.md, Decided 27).
+var (
+	delegateWaitVoice    = 5 * time.Second
+	delegateWaitTelegram = 30 * time.Second
 )
 
 // Delegate runs the agent delegate (docs/spec/agenten.md): a task handed on
@@ -17,30 +26,64 @@ import (
 // the task, no history. It may look things up but never change anything.
 // Only a conversation delegates, as before the agents: a call from inside
 // another agent's run is refused. Called by a conversation, it takes its
-// call context from it (person, place, third-party text, one deeper).
+// call context from it (person, place, third-party text, one deeper). The
+// conversation waits 5 seconds at a satellite, 30 on Telegram; then the run
+// goes on and its result comes as a message to the person or the room.
 func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
-	if _, profile, ok := agent.Caller(ctx); ok && profile != agent.Conversation {
+	caller, profile, ok := agent.Caller(ctx)
+	if ok && profile != agent.Conversation {
 		return "", errors.New("delegate cannot be called from an agent's run")
 	}
 	if strings.TrimSpace(task) == "" {
 		return "", errors.New("empty task")
 	}
-	res, err := e.agents.Call(ctx, agent.Spec{Name: "delegate", Role: "delegate", Profile: agent.Background,
-		Instructions: e.texts(ctx).delegated, Tools: agent.Tools{Kind: agent.AllTools},
-		Rights: agent.ReadHouse | agent.Web},
-		task, agent.CallContext{Origin: agent.FromCode, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
+	cc := agent.CallContext{Origin: agent.FromCode, Rights: agent.AllRights, Lang: string(e.lang(ctx))}
+	if conv, ok := agent.Current(ctx); ok {
+		wait := delegateWaitVoice
+		if caller == "conversation.telegram" {
+			wait = delegateWaitTelegram
+		}
+		receiver := conv.Person
+		if receiver == "" {
+			receiver = store.ReceiverHouse
+		}
+		cc.Mode = agent.Mode{Timeout: wait, OnTimeout: agent.RunOn,
+			Delivery: agent.Delivery{Route: agent.ToMessage, Receiver: receiver, Area: conv.Place}}
+	}
+	res, err := e.agents.Call(ctx, e.delegateSpec(ctx), task, cc)
+	if err == nil && res.Status == agent.Running {
+		return e.texts(ctx).delegateLater, nil
+	}
 	return res.Text, err
+}
+
+func (e *Engine) delegateSpec(ctx context.Context) agent.Spec {
+	return agent.Spec{Name: "delegate", Description: "Hands a harder task to a stronger model and returns its answer.",
+		Role: "delegate", Profile: agent.Background, Instructions: e.texts(ctx).delegated,
+		Tools: agent.Tools{Kind: agent.AllTools}, Rights: agent.ReadHouse | agent.Web}
 }
 
 // RunTask runs the agent skill.task: a scheduled job of a skill, a
 // background run that may look things up and ends with a JSON object, which
 // it returns.
 func (e *Engine) RunTask(ctx context.Context, instruction string) (string, error) {
-	res, err := e.agents.Call(ctx, agent.Spec{Name: "skill.task", Role: "background", Profile: agent.Background,
-		Tools: agent.Tools{Kind: agent.AllTools}, Rights: agent.ReadHouse | agent.Web},
-		instruction, agent.CallContext{Origin: agent.FromSchedule, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
+	res, err := e.agents.Call(ctx, taskSpec(), instruction,
+		agent.CallContext{Origin: agent.FromSchedule, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
 	if err != nil {
 		return "", err
 	}
 	return ExtractJSON(res.Text), nil
+}
+
+func taskSpec() agent.Spec {
+	return agent.Spec{Name: "skill.task", Description: "Runs a skill's job in the background and answers in JSON.",
+		Role: "background", Profile: agent.Background, Tools: agent.Tools{Kind: agent.AllTools},
+		Rights: agent.ReadHouse | agent.Web}
+}
+
+// Agents are the engine's agents as they are called by name (Home
+// Assistant's mira.agent, a run taken up after a restart), in the language
+// of now.
+func (e *Engine) Agents() []agent.Spec {
+	return []agent.Spec{e.delegateSpec(context.Background()), taskSpec()}
 }

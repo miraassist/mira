@@ -334,6 +334,60 @@
           "description": "Die ID der Automation ({{ this.attributes.id }})."
         }
       }
+    },
+    "agent": {
+      "name": "Agent",
+      "description": "Startet einen von Miras Agenten. Wartet auf seine Antwort (mit response_variable) oder gibt mit Modus async sofort eine Aufruf-ID zurück; das Ergebnis kommt dann als Ereignis mira_agent_done oder als Nachricht.",
+      "fields": {
+        "agent": {
+          "name": "Agent",
+          "description": "Der Name des Agenten, etwa delegate."
+        },
+        "input": {
+          "name": "Eingabe",
+          "description": "Was der Agent bekommt, als Objekt; für einen Agenten, der Text nimmt, das Feld input mit dem Text."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "sync wartet auf die Antwort, async kehrt sofort zurück."
+        },
+        "timeout": {
+          "name": "Zeitlimit",
+          "description": "Wie lange sync wartet, in Sekunden."
+        },
+        "on_timeout": {
+          "name": "Beim Zeitlimit",
+          "description": "cancel bricht ab, run_on lässt den Agenten fertig werden und liefert das Ergebnis später."
+        },
+        "delivery": {
+          "name": "Zustellung",
+          "description": "event löst mira_agent_done aus, message sagt es dem Empfänger."
+        },
+        "receiver": {
+          "name": "Empfänger",
+          "description": "Für message: eine Person oder house."
+        }
+      }
+    },
+    "agent_result": {
+      "name": "Agent-Ergebnis",
+      "description": "Liest einen Lauf über seine Aufruf-ID: Status und Ergebnis. Ein Lauf bleibt 60 Minuten nach seinem Ende erhalten.",
+      "fields": {
+        "call_id": {
+          "name": "Aufruf-ID",
+          "description": "Die Aufruf-ID, die mira.agent zurückgab."
+        }
+      }
+    },
+    "agent_cancel": {
+      "name": "Agent abbrechen",
+      "description": "Beendet einen laufenden Lauf.",
+      "fields": {
+        "call_id": {
+          "name": "Aufruf-ID",
+          "description": "Die Aufruf-ID, die mira.agent zurückgab."
+        }
+      }
     }
   },
   "selector": {

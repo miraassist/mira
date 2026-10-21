@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -88,25 +89,95 @@ func (confirmations) PutConfirmation(context.Context, store.Confirmation, time.D
 // of tools and a log to read.
 type env struct {
 	rt     *Runtime
+	opts   Options
 	main   *model
 	smart  *model
 	cfg    config.Config
-	logs   *bytes.Buffer
+	logs   *syncBuffer
 	ran    map[string]int
 	mu     sync.Mutex
 	helper func(ctx context.Context) (Result, error)
+	// onTool runs inside every tool of the env, when set.
+	onTool func(name string)
+	// st keeps the asynchronous runs; delivered gets each finished one.
+	st        *store.Store
+	now       time.Time
+	delivered chan store.AgentRun
+}
+
+// syncBuffer is a log the runs' goroutines write to at once.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func (e *env) clock() time.Time {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.now
+}
+
+func (e *env) advance(d time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.now = e.now.Add(d)
+}
+
+// restart is a new runtime on the same store, as after the agent started
+// again; the agents are registered anew by the caller.
+func (e *env) restart(t *testing.T) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	e.rt.Close(ctx)
+	e.rt = New(e.opts)
+}
+
+// waitDelivered is the next finished asynchronous run.
+func (e *env) waitDelivered(t *testing.T) store.AgentRun {
+	t.Helper()
+	select {
+	case rec := <-e.delivered:
+		return rec
+	case <-time.After(5 * time.Second):
+		t.Fatal("no run was delivered")
+	}
+	return store.AgentRun{}
 }
 
 func setup(t *testing.T) *env {
 	t.Helper()
-	e := &env{main: &model{}, smart: &model{}, cfg: config.Default(), logs: &bytes.Buffer{}, ran: map[string]int{}}
+	e := &env{main: &model{}, smart: &model{}, cfg: config.Default(), logs: &syncBuffer{}, ran: map[string]int{},
+		now: time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC), delivered: make(chan store.AgentRun, 20)}
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db"), Clock: e.clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	e.st = st
 	tool := func(name string, readOnly, web, askAfterWeb bool) tools.InternalTool {
 		return tools.InternalTool{Name: name, Description: name, Schema: `{"type":"object","properties":{}}`,
 			ReadOnly: readOnly, WebContent: web, AskAfterWeb: askAfterWeb,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
 				e.mu.Lock()
 				e.ran[name]++
+				hook := e.onTool
 				e.mu.Unlock()
+				if hook != nil {
+					hook(name)
+				}
 				return name + " ok", nil
 			}}
 	}
@@ -129,7 +200,7 @@ func setup(t *testing.T) *env {
 	guard := tools.NewGuard(i18n.DE, sec, confirmations{}, func() structure.Snapshot { return structure.Snapshot{} })
 	e.cfg.Models = map[string]config.LLM{"smart": {BaseURL: "https://api.example.com/v1"}}
 	e.cfg.LLM.BaseURL = "http://localhost:1234/v1"
-	e.rt = New(Options{
+	e.opts = Options{
 		Config: func() config.Config { return e.cfg },
 		Models: func(name string) (Chatter, config.LLM, bool) {
 			switch name {
@@ -146,7 +217,16 @@ func setup(t *testing.T) *env {
 			return Built{Messages: []llm.Message{{Role: llm.RoleSystem, Content: "Hintergrund"},
 				{Role: llm.RoleUser, Content: instructions + "\n" + input}}, Tools: lt}, err
 		},
-		Logger: slog.New(slog.NewTextHandler(e.logs, nil)),
+		Runs:    st,
+		Deliver: func(_ context.Context, rec store.AgentRun, _ CallContext) { e.delivered <- rec },
+		Clock:   e.clock,
+		Logger:  slog.New(slog.NewTextHandler(e.logs, nil)),
+	}
+	e.rt = New(e.opts)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		e.rt.Close(ctx)
 	})
 	return e
 }

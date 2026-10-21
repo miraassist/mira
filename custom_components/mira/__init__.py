@@ -34,6 +34,7 @@ from .const import (
     VERSION,
 )
 from .coordinator import MiraCoordinator
+from .agents import async_register_agent_services
 from .labels import ensure_labels
 from .mail import async_setup_mail
 from .managed import async_config, import_settings
@@ -110,8 +111,8 @@ type MiraConfigEntry = ConfigEntry[MiraData]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register Mira's actions for automations (mira.send_message,
-    mira.assess, mira.decide) and the commands the agent manages its
-    automations with."""
+    mira.assess, mira.decide, mira.agent and its result and cancel) and the
+    commands the agent manages its automations with."""
 
     def loaded() -> MiraConfigEntry:
         entries = [
@@ -158,6 +159,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN, SERVICE_DECIDE, decide, schema=DECIDE_SCHEMA, supports_response=SupportsResponse.ONLY
     )
+    async_register_agent_services(hass, loaded)
     async_register_commands(hass)
     async_register_once_commands(hass)
     async_register_views(hass)

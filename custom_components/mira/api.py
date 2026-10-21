@@ -77,7 +77,15 @@ class MiraClient:
                     body = await resp.json(content_type=None) or {}
                     raise MiraInvalidConfig(str(body.get("error", "invalid config")), str(body.get("reason", "")))
                 if resp.status >= 400:
-                    raise MiraError(f"{method} {path}: HTTP {resp.status}")
+                    # The agent says why; the user reads it in the automation's trace.
+                    reason = ""
+                    try:
+                        body = await resp.json(content_type=None)
+                        if isinstance(body, dict) and body.get("error"):
+                            reason = f": {body['error']}"
+                    except (ValueError, aiohttp.ContentTypeError):
+                        pass
+                    raise MiraError(f"{method} {path}: HTTP {resp.status}{reason}")
                 return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MiraError(f"{method} {path}: {err!r}") from err
@@ -188,6 +196,20 @@ class MiraClient:
     async def decide(self, request: dict[str, Any]) -> dict[str, Any]:
         """Ask the agent a yes/no question about the house; no message."""
         return await self._request("POST", "/v1/decide", 60, json=request)
+
+    async def agent(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Call an agent: synchronously the request waits for the run, up to
+        its timeout; asynchronously it returns the call id at once."""
+        wait = 10 if request.get("mode") == "async" else float(request.get("timeout", 60)) + 15
+        return await self._request("POST", "/v1/agent", wait, json=request)
+
+    async def agent_result(self, call_id: str) -> dict[str, Any]:
+        """A run's record by its call id."""
+        return await self._request("POST", "/v1/agent/result", 10, json={"call_id": call_id})
+
+    async def agent_cancel(self, call_id: str) -> dict[str, Any]:
+        """Cancel a running run."""
+        return await self._request("POST", "/v1/agent/cancel", 10, json={"call_id": call_id})
 
     async def mail(self, mail: dict[str, Any]) -> dict[str, Any]:
         """Hand over one mail of a mail calendar; waits while the model reads it."""

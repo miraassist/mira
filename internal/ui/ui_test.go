@@ -323,7 +323,7 @@ func TestTasksAPI(t *testing.T) {
 	}
 	ft := &fakeTasks{enabled: map[string]bool{}, items: []tasks.Item{{ID: "mira_a", Title: "Licht", State: "on", EditURL: "http://ha/x"}}}
 	fth := &fakeThreads{}
-	st.PutThread(context.Background(), store.Thread{ID: "p1", Target: "aufgabe", Place: "area:bad", State: store.ThreadProposed,
+	st.PutThread(context.Background(), &store.Thread{ID: "p1", Target: "aufgabe", Place: "area:bad", State: store.ThreadProposed,
 		Request: "Achte auf das Wasser", Log: []store.ThreadEntry{{Who: "mira", Text: "Vorschlag …"}}, ExpiresAt: time.Now().Add(time.Hour)})
 	h := New(Options{Token: "secret", Store: st, Tasks: ft, Threads: fth, Config: &fakeConfig{sections: map[string]json.RawMessage{}, over: map[string]bool{}}})
 	srv = httptest.NewServer(h)

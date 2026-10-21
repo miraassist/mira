@@ -3,11 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
+
+	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -30,7 +36,88 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 		Background: func(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
 			return a.engine.BackgroundContext(ctx, cc, instructions, input)
 		},
+		Runs: a.store, Deliver: a.deliverRun,
 	})
+}
+
+// registerAgents makes the agents callable by name, from Home Assistant
+// (mira.agent) and when a stored run is taken up after a restart.
+func (a *app) registerAgents() {
+	for _, spec := range a.engine.Agents() {
+		a.agents.Register(spec)
+	}
+	a.agents.Register(notifyComposeSpec(nil))
+}
+
+// deliverRun hands a finished asynchronous run to its route
+// (docs/spec/agenten.md, Delivery): Home Assistant fires mira_agent_done, or
+// a person or the house gets a message about it.
+func (a *app) deliverRun(ctx context.Context, rec store.AgentRun, cc agent.CallContext) {
+	switch cc.Mode.Delivery.Route {
+	case agent.ToEvent:
+		// The integration fires the event: Mira's user may not (Decided 14, 30).
+		if _, err := a.ha.Call(ctx, map[string]any{"type": "mira/agent/done", "call_id": rec.CallID,
+			"agent": rec.Agent, "status": rec.Status, "output": rec.Output, "error": rec.Error}); err != nil {
+			a.log.Error("could not tell home assistant that a run is done", "call_id", rec.CallID, "error", err)
+		}
+	case agent.ToMessage:
+		if err := a.resultMessage(ctx, rec, cc.Mode.Delivery); err != nil {
+			a.log.Error("could not deliver a run's result as a message", "call_id", rec.CallID, "error", err)
+		}
+	}
+}
+
+// resultMessage tells a person or the house a run's result: notify.compose
+// words it (Decided 25), the output goes into the details. When the model
+// cannot word it, a fixed sentence says that the result is there.
+func (a *app) resultMessage(ctx context.Context, rec store.AgentRun, d agent.Delivery) error {
+	t := i18n.Pick(resultCatalog, a.lang)
+	receiver := d.Receiver
+	if _, ok := a.persons()[receiver]; !ok {
+		receiver = store.ReceiverHouse
+	}
+	about := rec.Output
+	if rec.Status != string(agent.Done) {
+		about = fmt.Sprintf(t.failed, rec.Error)
+	}
+	spoken := fmt.Sprintf(t.fixed, rec.Agent)
+	text, err := a.notifyCompose(ctx, fmt.Sprintf(t.task, rec.Agent, about), resultSchema)
+	var out struct {
+		Text string `json:"text"`
+	}
+	if err == nil && json.Unmarshal([]byte(text), &out) == nil && strings.TrimSpace(out.Text) != "" {
+		spoken = strings.TrimSpace(out.Text)
+	} else {
+		a.log.Warn("model could not word a run's result, using the fixed form", "call_id", rec.CallID, "error", err)
+	}
+	a.proactiveMu.Lock()
+	nf := a.notifier
+	a.proactiveMu.Unlock()
+	if nf == nil {
+		return fmt.Errorf("no notifier is running")
+	}
+	return nf.Tell(ctx, store.Message{ID: ulid.Make().String(), Source: store.SourceTask,
+		DedupeKey: "agent:" + rec.CallID, Importance: 2, Receiver: receiver, Spoken: spoken,
+		Details: about}, d.Area)
+}
+
+var resultSchema = json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)
+
+type resultTexts struct{ task, failed, fixed string }
+
+var resultCatalog = map[i18n.Lang]resultTexts{
+	i18n.DE: {
+		task: "Ein Auftrag, den Mira im Hintergrund erledigt hat (%s), ist fertig. Sag in ein, zwei kurzen Sätzen, " +
+			"was dabei herauskam, so wie Mira es jemandem im Haus sagen würde. Antworte als JSON mit \"text\".\n\nErgebnis:\n%s",
+		failed: "Es hat nicht geklappt: %s",
+		fixed:  "Das Ergebnis von %s ist da; es steht in den Details.",
+	},
+	i18n.EN: {
+		task: "A job Mira did in the background (%s) is finished. Say in one or two short sentences what came " +
+			"of it, as Mira would tell someone in the house. Answer as JSON with \"text\".\n\nResult:\n%s",
+		failed: "It did not work: %s",
+		fixed:  "The result of %s is there; it is in the details.",
+	},
 }
 
 // isolatedAgent is an internal agent of the isolated profile, used where a
@@ -92,10 +179,15 @@ func (a *app) profileCompact() isolatedAgent {
 	return isolatedAgent{a: a, name: "profile.compact", role: "background", origin: agent.FromSchedule}
 }
 
-// notifyCompose words several messages as one announcement: background
-// without tools, so the background slot's cache stays warm.
+// notifyCompose words announcements: several messages as one, or a run's
+// result. Background without tools, so the background slot's cache stays
+// warm.
 func (a *app) notifyCompose(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
-	res, err := a.agents.Call(ctx, agent.Spec{Name: "notify.compose", Role: "background", Profile: agent.Background,
-		Output: schema}, instruction, agent.CallContext{Origin: agent.FromCode})
+	res, err := a.agents.Call(ctx, notifyComposeSpec(schema), instruction, agent.CallContext{Origin: agent.FromCode})
 	return res.Text, err
+}
+
+func notifyComposeSpec(schema json.RawMessage) agent.Spec {
+	return agent.Spec{Name: "notify.compose", Description: "Words announcements and results for the house.",
+		Role: "background", Profile: agent.Background, Output: schema}
 }

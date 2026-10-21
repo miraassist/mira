@@ -226,7 +226,7 @@ func New(opts Options) *Engine {
 				c, m, got := e.modelFor(name)
 				return c, m, got == name || name == ""
 			},
-			Tools: e.tools, Guard: e.guard, Background: e.BackgroundContext, Logger: opts.Logger,
+			Tools: e.tools, Guard: e.guard, Background: e.BackgroundContext, Runs: e.store, Logger: opts.Logger,
 		})
 	}
 	return e

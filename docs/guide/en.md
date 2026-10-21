@@ -72,6 +72,8 @@ Under the hood every task is an ordinary **automation in Home Assistant** labell
 
 Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Send message** (`mira.send_message`). For now tasks belong to the whole house and use the house's memory when judging.
 
+With **Mira: Agent** (`mira.agent`) an automation starts one of Mira's agents, for example `delegate` with the input `{"input": "Plan a menu for Saturday."}`. Without further settings the automation waits up to 60 seconds for the answer; read it with `response_variable`. With the mode **async** it goes on at once: the result then comes as the event `mira_agent_done`, which an automation can wait for, or with **Delivery: message** as a message from Mira. **Mira: Agent result** reads a run by its call id, **Mira: Cancel agent** ends it.
+
 ## Mira speaks up on her own
 
 Mira speaks up when something happens: a leak sensor goes off, the washing machine is done, the bins are collected tomorrow, a task finds something unusual. How she tells you depends on the room and the importance.

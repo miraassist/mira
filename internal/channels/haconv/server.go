@@ -68,6 +68,9 @@ type Options struct {
 	// Mail is the mail calendar (docs/spec/mail-kalender.md); nil turns
 	// POST /v1/mail off.
 	Mail Mail
+	// Agents runs the agents Home Assistant calls (mira.agent); nil turns
+	// /v1/agent off.
+	Agents Agents
 }
 
 // Mail takes the mails the integration passes on.
@@ -113,6 +116,11 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("POST /v1/assess", s.assess)
 	s.mux.HandleFunc("POST /v1/decide", s.decide)
 	s.mux.HandleFunc("POST /v1/mail", s.mail)
+	if s.opts.Agents != nil {
+		s.mux.HandleFunc("POST /v1/agent", s.callAgent)
+		s.mux.HandleFunc("POST /v1/agent/result", s.agentResult)
+		s.mux.HandleFunc("POST /v1/agent/cancel", s.cancelAgent)
+	}
 	if s.opts.Eval {
 		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
 	}

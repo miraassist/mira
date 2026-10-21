@@ -23,7 +23,10 @@ type texts struct {
 	unknownTool     string // %s = tool name
 	invalidJSONArgs string
 	delegated       string
-	waitingForHA    string
+	// delegateLater is the delegate tool's result when the task takes
+	// longer than the conversation waits.
+	delegateLater string
+	waitingForHA  string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -40,6 +43,7 @@ var catalog = map[i18n.Lang]texts{
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
 		delegated:       "Abgegebene Aufgabe: Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
+		delegateLater:   "Die Aufgabe braucht länger und läuft im Hintergrund weiter; das Ergebnis kommt als Nachricht. Sag kurz, dass du dich meldest, sobald es da ist.",
 		waitingForHA:    "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
 	},
 	i18n.EN: {
@@ -55,6 +59,7 @@ var catalog = map[i18n.Lang]texts{
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",
 		delegated:       "Delegated task: Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
+		delegateLater:   "The task takes longer and goes on in the background; its result comes as a message. Say briefly that you will get back as soon as it is there.",
 		waitingForHA:    "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
 	},
 }

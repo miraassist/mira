@@ -334,6 +334,60 @@
           "description": "The automation's id ({{ this.attributes.id }})."
         }
       }
+    },
+    "agent": {
+      "name": "Agent",
+      "description": "Runs one of Mira's agents. Waits for its answer (use response_variable), or with mode async returns a call id at once; the result then comes as the event mira_agent_done or as a message.",
+      "fields": {
+        "agent": {
+          "name": "Agent",
+          "description": "The agent's name, such as delegate."
+        },
+        "input": {
+          "name": "Input",
+          "description": "What the agent gets, as an object; for an agent that takes text, the field input with the text."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "sync waits for the answer, async returns at once."
+        },
+        "timeout": {
+          "name": "Timeout",
+          "description": "How long sync waits, in seconds."
+        },
+        "on_timeout": {
+          "name": "At the timeout",
+          "description": "cancel ends the run, run_on lets it finish and delivers the result later."
+        },
+        "delivery": {
+          "name": "Delivery",
+          "description": "event fires mira_agent_done, message tells the receiver."
+        },
+        "receiver": {
+          "name": "Receiver",
+          "description": "For message: a person or house."
+        }
+      }
+    },
+    "agent_result": {
+      "name": "Agent result",
+      "description": "Reads a run by its call id: status and output. A run is kept 60 minutes after its end.",
+      "fields": {
+        "call_id": {
+          "name": "Call id",
+          "description": "The call id mira.agent returned."
+        }
+      }
+    },
+    "agent_cancel": {
+      "name": "Cancel agent",
+      "description": "Ends a running run.",
+      "fields": {
+        "call_id": {
+          "name": "Call id",
+          "description": "The call id mira.agent returned."
+        }
+      }
     }
   },
   "selector": {

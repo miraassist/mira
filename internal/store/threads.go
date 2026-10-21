@@ -56,9 +56,18 @@ type Thread struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	ExpiresAt time.Time
+	// Version counts the changes; PutThread writes only over the version it
+	// was read with.
+	Version int
 }
 
-func (s *Store) PutThread(ctx context.Context, t Thread) error {
+// ErrConflict: the thread changed since it was read.
+var ErrConflict = errors.New("changed in the meantime")
+
+// PutThread writes a thread, new or changed. A change applies only if the
+// thread is still at the version it was read with, else ErrConflict; on
+// success t carries the new version.
+func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 	if t.ID == "" || t.Target == "" || t.Place == "" || t.State == "" {
 		return errors.New("thread needs id, target, place and state")
 	}
@@ -79,23 +88,39 @@ func (s *Store) PutThread(ctx context.Context, t Thread) error {
 	if len(content) == 0 {
 		content = json.RawMessage("{}")
 	}
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	res, err := s.db.ExecContext(ctx, `
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET state = excluded.state, request = excluded.request, fields = excluded.fields,
-	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
+	version = threads.version + 1
+WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt))
-	return err
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrConflict
+	}
+	// A new thread keeps its version, a changed one is one further.
+	var version int
+	if err := s.db.QueryRowContext(ctx, `SELECT version FROM threads WHERE id = ?`, t.ID).Scan(&version); err != nil {
+		return err
+	}
+	t.Version = version
+	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
 	var fields, log, content, created, updated, expires string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires); err != nil {
+		&created, &updated, &expires, &t.Version); err != nil {
 		return Thread{}, err
 	}
 	_ = json.Unmarshal([]byte(fields), &t.Fields)

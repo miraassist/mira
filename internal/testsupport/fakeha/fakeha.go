@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,8 @@ type Server struct {
 	states   []haws.State
 
 	calls []ServiceCall
+	// commands are the integration's commands ("mira/…") the agent sent.
+	commands []map[string]any
 	// conns holds live connections so events can be pushed and so a test can
 	// drop the connection to exercise reconnect handling.
 	conns map[*connState]bool
@@ -69,6 +72,13 @@ func New() *Server {
 	mux.HandleFunc("/api/websocket", s.handle)
 	s.Server = httptest.NewServer(mux)
 	return s
+}
+
+// Commands are the integration's commands ("mira/…") received so far.
+func (s *Server) Commands() []map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]map[string]any(nil), s.commands...)
 }
 
 // SetRegistry installs the registry data the fake answers with.
@@ -357,6 +367,15 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		cs.mu.Unlock()
 		reply(nil)
 	default:
+		if strings.HasPrefix(cmdType, "mira/") {
+			// Mira's integration answers its own commands; the fake takes
+			// them and records them.
+			s.mu.Lock()
+			s.commands = append(s.commands, cmd)
+			s.mu.Unlock()
+			reply(map[string]any{})
+			return
+		}
 		fail("unknown_command", "fakeha does not implement "+cmdType)
 	}
 }

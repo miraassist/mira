@@ -151,6 +151,12 @@ func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thre
 }
 
 func (m *Manager) save(ctx context.Context, th *store.Thread) error {
+	m.extend(th)
+	return m.opts.Store.PutThread(ctx, th)
+}
+
+// extend sets when a thread expires after being worked on now.
+func (m *Manager) extend(th *store.Thread) {
 	sk := m.targets[th.Target]
 	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
 	if sk.Target.Plan {
@@ -158,8 +164,28 @@ func (m *Manager) save(ctx context.Context, th *store.Thread) error {
 			th.ExpiresAt = c.DoneAt.Add(planGrace)
 		}
 	}
-	return m.opts.Store.PutThread(ctx, *th)
 }
+
+// change applies fn to the thread as it is now and writes it; when another
+// run changed it in between, it reads it again and applies fn once more.
+func (m *Manager) change(ctx context.Context, id string, fn func(*store.Thread) error) (store.Thread, error) {
+	for try := 0; ; try++ {
+		th, err := m.opts.Store.GetThread(ctx, id)
+		if err != nil {
+			return store.Thread{}, err
+		}
+		if err := fn(&th); err != nil {
+			return store.Thread{}, err
+		}
+		err = m.opts.Store.PutThread(ctx, &th)
+		if !errors.Is(err, store.ErrConflict) || try == maxChangeTries-1 {
+			return th, err
+		}
+	}
+}
+
+// maxChangeTries bounds the retries of a change that keeps meeting others.
+const maxChangeTries = 5
 
 func (m *Manager) logEntry(th *store.Thread, who, text string) {
 	th.Log = append(th.Log, store.ThreadEntry{At: m.opts.Clock(), Who: who, Text: text})
@@ -454,8 +480,10 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 
 // end closes a thread and withdraws its open messages.
 func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
-	th.State = state
-	if err := m.opts.Store.PutThread(ctx, th); err != nil {
+	if _, err := m.change(ctx, th.ID, func(now *store.Thread) error {
+		now.State = state
+		return nil
+	}); err != nil {
 		m.log.Error("could not end a thread", "thread", th.ID, "error", err)
 	}
 	if n, err := m.opts.Store.WithdrawThreadMessages(ctx, th.ID); err == nil && n > 0 {
