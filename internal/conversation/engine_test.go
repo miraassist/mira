@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/ha/structure"
@@ -578,15 +579,27 @@ func TestFollowUpWindowExpires(t *testing.T) {
 	}
 }
 
-func TestAssessUsesTheBackgroundSlotWithoutTools(t *testing.T) {
+// An agent of the background profile without tools (notify.compose) runs on
+// the background slot with the background prefix and its tools, answering
+// only in JSON.
+func TestBackgroundAgentUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Klar:\n```json\n{\"importance\":2}\n```"})
-	out, err := h.engine.Assess(context.Background(), "Bewerte das.", json.RawMessage(`{"type":"object"}`))
-	if err != nil || out != `{"importance":2}` {
-		t.Fatalf("Assess = %q, %v", out, err)
+	client := llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"})
+	rt := agent.New(agent.Options{
+		Config:     config.Default,
+		Models:     func(string) (agent.Chatter, config.LLM, bool) { return client, config.Default().LLM, true },
+		Background: h.engine.BackgroundContext,
+		Logger:     quietLogger(),
+	})
+	res, err := rt.Call(context.Background(), agent.Spec{Name: "notify.compose", Role: "background",
+		Profile: agent.Background, Output: json.RawMessage(`{"type":"object"}`)}, "Bewerte das.", agent.CallContext{})
+	if err != nil || res.Text != `{"importance":2}` {
+		t.Fatalf("Call = %q, %v", res.Text, err)
 	}
 	rec := h.llm.Last()
-	if rec.Slot != 2 || rec.Request.ToolChoice != "none" || rec.Request.ResponseFormat == nil {
-		t.Fatalf("request: slot %d, tool_choice %v, response_format %v", rec.Slot, rec.Request.ToolChoice, rec.Request.ResponseFormat)
+	if rec.Slot != 2 || rec.Request.ToolChoice != "none" || rec.Request.ResponseFormat == nil || len(rec.Request.Tools) == 0 {
+		t.Fatalf("request: slot %d, tool_choice %v, response_format %v, %d tools", rec.Slot, rec.Request.ToolChoice,
+			rec.Request.ResponseFormat, len(rec.Request.Tools))
 	}
 	if !anyContains(rec.Request.Messages, "Kanalstil: Hintergrundjob") {
 		t.Error("background prefix not used")

@@ -645,7 +645,7 @@ func (a *app) startProactive(parent context.Context) {
 
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-		Composer: engineAssessor{a}.Assess, Screens: a.screens(ctx, cfg), Languages: a.langs,
+		Composer: a.notifyCompose, Screens: a.screens(ctx, cfg), Languages: a.langs,
 	})
 	a.notifier = n
 	// A new message shows on the room's indicator at once, not at the
@@ -679,14 +679,6 @@ func builtinTargets() []string {
 	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen"}
 }
 
-// persons are the configured persons from the live config.
-// engineAssessor lets the task manager use the engine before it exists.
-type engineAssessor struct{ a *app }
-
-func (e engineAssessor) Assess(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
-	return e.a.engine.Assess(ctx, instruction, schema)
-}
-
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
 // for the satellite's room, on Telegram what waits for that person.
 func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -695,7 +687,7 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 	if n == nil {
 		// Not running (the chat command): reading out needs no loop.
 		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-			Composer: engineAssessor{a}.Assess, Languages: a.langs})
+			Composer: a.notifyCompose, Languages: a.langs})
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()

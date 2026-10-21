@@ -27,6 +27,9 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 			return c, m, ok && known
 		},
 		Tools: registry, Guard: guard, Logger: a.log,
+		Background: func(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {
+			return a.engine.BackgroundContext(ctx, cc, instructions, input)
+		},
 	})
 }
 
@@ -87,4 +90,12 @@ func (a *app) tasksPlan() isolatedAgent {
 
 func (a *app) profileCompact() isolatedAgent {
 	return isolatedAgent{a: a, name: "profile.compact", role: "background", origin: agent.FromSchedule}
+}
+
+// notifyCompose words several messages as one announcement: background
+// without tools, so the background slot's cache stays warm.
+func (a *app) notifyCompose(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
+	res, err := a.agents.Call(ctx, agent.Spec{Name: "notify.compose", Role: "background", Profile: agent.Background,
+		Output: schema}, instruction, agent.CallContext{Origin: agent.FromCode})
+	return res.Text, err
 }

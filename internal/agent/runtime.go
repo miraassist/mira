@@ -29,9 +29,23 @@ type Chatter interface {
 
 // BackgroundContext builds what the model sees in the background profile:
 // the background prefix (rules, house, tools) and, as the turn, the
-// instructions and the input. readOnly limits the tools to those that only
-// read.
-type BackgroundContext func(ctx context.Context, cc CallContext, instructions, input string, readOnly bool) ([]llm.Message, []llm.Tool, error)
+// instructions and the input.
+type BackgroundContext func(ctx context.Context, cc CallContext, instructions, input string) (Built, error)
+
+// Built is a profile's context as its builder gives it to the runtime.
+type Built struct {
+	Messages []llm.Message
+	// Tools are all the tools of the prefix. An agent without tools gets
+	// them too, with tool_choice none: they are part of the prompt the
+	// model has cached.
+	Tools []llm.Tool
+	// PrefixHash and IDSlot go into the request as in a conversation turn.
+	PrefixHash string
+	IDSlot     *int
+	// Release frees what the builder holds until the run ends (the
+	// background channel); nil when it holds nothing.
+	Release func()
+}
 
 type Options struct {
 	// Config is read at each call (routing, models, agents.max_depth).
@@ -133,10 +147,14 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign}}
 	ctx = context.WithValue(ctx, runKey{}, me)
 
-	msgs, offered, err := r.build(ctx, spec, input, cc)
+	b, offered, err := r.build(ctx, spec, input, cc)
 	if err != nil {
 		return finish(Failed, err)
 	}
+	if b.Release != nil {
+		defer b.Release()
+	}
+	msgs := b.Messages
 	maxRounds := spec.Limits.MaxRounds
 	if maxRounds == 0 {
 		maxRounds = model.MaxToolRounds
@@ -148,15 +166,24 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 
 	for round := 0; ; round++ {
 		req := llm.ChatRequest{Messages: msgs, Temperature: model.Temperature, MaxTokens: model.MaxTokens,
-			ReasoningEffort: model.ReasoningEffort, Channel: string(config.ChannelBackground)}
+			ReasoningEffort: model.ReasoningEffort, Channel: string(config.ChannelBackground),
+			PrefixHash: b.PrefixHash, IDSlot: b.IDSlot}
+		if spec.Profile == Background && model.CachePrompt {
+			req.CachePrompt = llm.BoolPtr(true)
+		}
 		if len(offered) > 0 {
 			req.Tools = offered
 			if round >= maxRounds {
 				req.ToolChoice = "none"
 			}
-		} else if len(spec.Output) > 0 {
-			req.ResponseFormat = map[string]any{"type": "json_schema",
-				"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
+		} else {
+			if len(b.Tools) > 0 {
+				req.Tools, req.ToolChoice = b.Tools, "none"
+			}
+			if len(spec.Output) > 0 {
+				req.ResponseFormat = map[string]any{"type": "json_schema",
+					"json_schema": map[string]any{"name": "result", "schema": spec.Output}}
+			}
 		}
 		out, err := r.chat(ctx, client, res.Model, local, req, spec.Limits, &res)
 		res.Foreign = me.ts.Foreign()
@@ -244,24 +271,24 @@ func lang(cc CallContext) i18n.Lang {
 
 // build is what the model sees, after the profile, and the tools it is
 // offered.
-func (r *Runtime) build(ctx context.Context, spec Spec, input string, cc CallContext) ([]llm.Message, []llm.Tool, error) {
+func (r *Runtime) build(ctx context.Context, spec Spec, input string, cc CallContext) (Built, []llm.Tool, error) {
 	switch spec.Profile {
 	case Isolated:
-		return []llm.Message{
+		return Built{Messages: []llm.Message{
 			{Role: llm.RoleSystem, Content: spec.Instructions},
 			{Role: llm.RoleUser, Content: input},
-		}, nil, nil
+		}}, nil, nil
 	case Background:
 		if r.o.Background == nil {
-			return nil, nil, fmt.Errorf("%w: no background context", ErrProfile)
+			return Built{}, nil, fmt.Errorf("%w: no background context", ErrProfile)
 		}
-		msgs, all, err := r.o.Background(ctx, cc, spec.Instructions, input, spec.Tools.Kind == ReadOnlyTools)
+		b, err := r.o.Background(ctx, cc, spec.Instructions, input)
 		if err != nil {
-			return nil, nil, err
+			return Built{}, nil, err
 		}
-		return msgs, r.offer(spec.Tools, all), nil
+		return b, r.offer(spec.Tools, b.Tools), nil
 	}
-	return nil, nil, ErrProfile
+	return Built{}, nil, ErrProfile
 }
 
 // offer narrows the tools to what the agent's description names.
@@ -269,6 +296,14 @@ func (r *Runtime) offer(want Tools, all []llm.Tool) []llm.Tool {
 	switch want.Kind {
 	case NoTools:
 		return nil
+	case ReadOnlyTools:
+		var out []llm.Tool
+		for _, t := range all {
+			if s, ok := r.o.Tools.Lookup(t.Function.Name); ok && s.ReadOnly {
+				out = append(out, t)
+			}
+		}
+		return out
 	case ListedTools:
 		var out []llm.Tool
 		for _, t := range all {

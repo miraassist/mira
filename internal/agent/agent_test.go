@@ -141,9 +141,10 @@ func setup(t *testing.T) *env {
 			return nil, config.LLM{}, false
 		},
 		Tools: reg, Guard: guard,
-		Background: func(ctx context.Context, cc CallContext, instructions, input string, readOnly bool) ([]llm.Message, []llm.Tool, error) {
-			lt, err := BuildTools(reg.Defs(readOnly))
-			return []llm.Message{{Role: llm.RoleSystem, Content: "Hintergrund"}, {Role: llm.RoleUser, Content: instructions + "\n" + input}}, lt, err
+		Background: func(ctx context.Context, cc CallContext, instructions, input string) (Built, error) {
+			lt, err := BuildTools(reg.Defs(false))
+			return Built{Messages: []llm.Message{{Role: llm.RoleSystem, Content: "Hintergrund"},
+				{Role: llm.RoleUser, Content: instructions + "\n" + input}}, Tools: lt}, err
 		},
 		Logger: slog.New(slog.NewTextHandler(e.logs, nil)),
 	})
@@ -597,5 +598,27 @@ func TestRightForTools(t *testing.T) {
 		if got := RightFor(c.spec); got != c.want {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
 		}
+	}
+}
+
+// An agent of read-only tools is offered only those; an agent without tools
+// still gets the prefix's tools, with tool_choice none (the model's cache).
+func TestToolsOffered(t *testing.T) {
+	e := setup(t)
+	spec := background("a", AllRights)
+	spec.Tools = Tools{Kind: ReadOnlyTools}
+	e.rt.Call(context.Background(), spec, "x", CallContext{Rights: AllRights})
+	var names []string
+	for _, tl := range e.main.reqs[0].Tools {
+		names = append(names, tl.Function.Name)
+	}
+	if got := strings.Join(names, ","); got != "ask_helper,look,web_page" {
+		t.Errorf("read-only tools offered: %s", got)
+	}
+
+	spec.Tools = Tools{Kind: NoTools}
+	e.rt.Call(context.Background(), spec, "x", CallContext{Rights: AllRights})
+	if req := e.main.reqs[1]; len(req.Tools) != 6 || req.ToolChoice != "none" {
+		t.Errorf("no tools: %d tools sent, tool_choice %q", len(req.Tools), req.ToolChoice)
 	}
 }
