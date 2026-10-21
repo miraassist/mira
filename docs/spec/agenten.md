@@ -37,6 +37,17 @@ What belongs to an agent, the same on every call:
 | **Rights** | the most the agent needs (see Rights) | `mail.read`: none; `conversation.voice`: all |
 | **Limits** | defaults for tool rounds, time per attempt, retry | at most 3 rounds; 60 s, retry once |
 
+## Context profiles
+
+How each profile builds what the model sees, and how it is kept short. The parts are those of
+[Context](kontext.md), section 1.
+
+| Profile | What the model sees | History and compaction |
+|---|---|---|
+| **conversation** | all parts 1–6 of the composition: system message (rules, house structure, house profile), tools, example conversation, channel style, the session's history, the current turn | the session's history, compacted as in [Context](kontext.md), section 5 (`max_turns`, the context limit, `keep_turns`, more kept for a running thread) |
+| **background** | the background prefix as today (system message with rules, house structure and house profile; tools as the rights allow; the background channel style), then as the current turn: time, language, the agent's instructions and the input | no session history; within a run its own rounds (the model's tool calls and their results) pile up, bounded by the limit on tool rounds; no compaction |
+| **isolated** | only a system message of its own (the agent's instructions) and the input as the user message; no house, no tools, no memory | none; one request, answer as text or following the output schema |
+
 ## The call context
 
 What comes with each call. When an agent calls another, it passes its call context on, narrower, never wider.
@@ -88,6 +99,14 @@ the call ID.
 names in its description; whoever set up the automation decided to call it. `mira.agent` can be called by whoever can
 call Home Assistant actions, like `mira.assess` today. A conversation gets its rights as today.
 
+**Fields of `mira.agent`:** `agent`, `input` (an object), `mode` (`sync` / `async`), `timeout` (default 60 s),
+`on_timeout` (`cancel` / `run_on`, default `cancel`), `delivery` (`event` / `message`, default `event`; for `message`
+also `receiver`). `mira.agent_result` and `mira.agent_cancel` take only the call ID.
+
+**An agent as a tool in a conversation:** at a satellite the conversation waits up to 5 seconds for the agent, as
+threads do today; then the run goes on (`run_on`) and its result comes as a message to the room or the person, and
+Mira says she will come back. On Telegram it waits up to 30 seconds.
+
 **Cancelling:** the HA action `mira.agent_cancel` with the call ID cancels a running run; in a conversation "vergiss
 es" ends it through the thread, as today.
 
@@ -122,8 +141,9 @@ It is deleted 60 minutes after its end. Until then it can be queried by its call
 When the run is done, the caller is notified, on the route it gave in the call context:
 1. **Home Assistant event** with call ID, agent, status and output; an automation can go on from there
    (`mira_agent_done`).
-2. **Message** to a person or the house. The conversation words it from the result ("So hab ich mir das gedacht");
-   this is the route for people.
+2. **Message** to a person or the house. The announcement agent (`notify.compose`) words it from the run's
+   output ("So hab ich mir das gedacht"); the output itself goes into the message's details. This is the route for
+   people.
 3. **Continuation** of the calling agent or thread with the result. This route comes last.
 
 The core of it exists already: the task planner runs asynchronously, its draft lies as JSON in the thread (the
@@ -150,7 +170,21 @@ a run achieved (such as `mail read`) stay in addition.
 - **Access to the models** is limited per model, not per channel as today: a local model serves one request at a
   time, a cloud model several. The runtime starts with fixed defaults for this.
 - **At most 10 runs at the same time** in the runtime, a fixed default without a setting; another one waits until
-  one ends.
+  one ends. Conversations do not count towards them.
+- **Local or cloud:** a model counts as local when its address is in the own network (localhost, private
+  addresses); a local model serves 1 request at a time, a cloud model 4. Fixed for now; this will become more
+  flexible and gets specified later.
+
+### Several conversations at once
+
+Several persons talk to Mira at the same time in different rooms (or on Telegram). Each turn is a run of
+`conversation.voice` or `conversation.telegram` with its own call context (person, room, session), so the runs are
+independent of each other:
+- **Within one session** the turns run one after the other, so the history stays in order.
+- **Between sessions** only the access to the model limits them: on a local model the second waits for the first,
+  on a cloud model both run at once.
+- Today the engine locks per channel, so all voice turns run one after the other, even with a cloud model. This
+  changes with step 5.
 
 ### Shared state
 
@@ -210,15 +244,17 @@ per agent come in addition.
 1. **Building block:** `Spec`, `CallContext`, rights, synchronous `Call`, depth, log line, access to the models
    limited per model. A run's history is a structure of its own, so it can be stored later. No user yet.
 2. **Isolated agents:** `mail.read`, `mail.match`, `tasks.plan`, `tasks.assess`, `tasks.decide`, `profile.compact`.
-   The mail calendar's retry moves into the limits of `mail.*`.
+   The mail calendar's retry moves into the limits of `mail.*`. Known consequence of "without an entry `main`":
+   `mail.*` and `tasks.plan` fall back to `main` instead of `background` as today; where they should keep the
+   background model, `routing.mail` / `routing.tasks` must be set (live: `mail: smart`) before this step goes live.
 3. **Background without tools:** `notify.compose`.
 4. **Background with tools:** `skill.task`, `delegate`. `delegate` becomes an ordinary agent as a tool. The only
    change in behavior: without `routing.delegate` it exists anyway, with `main` (see Decided, 13).
 5. **Conversation:** `conversation.voice`, `conversation.telegram`.
 6. **Asynchronous:** the runtime with storing and continuing, run record, query, delivery as a Home Assistant event
    and as a message; the Home Assistant action; the version check for plans and threads.
-7. **Continuation** as a delivery route.
-8. **Factory:** agents in YAML.
+7. **Continuation** as a delivery route. Still to be specified; it waits until step 6 is built.
+8. **Factory:** agents in YAML. Independent of step 7; can be built after step 6.
 
 ## Model choice
 
@@ -228,15 +264,17 @@ should be any number of named models instead of fixed roles is a separate, later
 
 ## Factory: agents in YAML (optional, last)
 
-An agent without code, with the same static description, in `mira.yaml` and in skills (both):
+An agent without code, with the same static description, in `mira.yaml` under `agents:` and in a skill under
+`metadata.mira.agents` (same fields; placeholders from the skill's settings as everywhere):
 
 ```yaml
 agents:
   rezept:
     description: Turns a recipe page into a list of steps.
-    model: smart            # model (name under models, or main)
-    context: isolated       # isolated | background
+    model: smart            # model name (under models, or main); without it main
+    context: isolated       # isolated | background (conversation stays with the two conversation agents)
     tools: read_only        # none | read_only | a list of tools and agents
+    rights: [read_house, web]  # without it only read_house
     input:                  # schema of the input
       type: object
       properties: { url: { type: string } }
@@ -331,3 +369,23 @@ From that:
 19. **A new version during a run:** the run goes on with the new description; without the agent it fails.
 20. **At most 10 runs at the same time**, a fixed default.
 21. **No deduplication key:** Home Assistant's run modes (`single`, waiting for the result) cover duplicate calls.
+22. **Model fallback consequence:** `mail.*` and `tasks.plan` take `main` without their own entry; live gets
+    `routing.mail: smart` before step 2 goes live.
+23. **Several conversations at once:** in order within a session, otherwise limited only by the model; conversations
+    do not count towards the 10 runs.
+24. **`mira.agent` fields** as described under Calling; result and cancel take only the call ID.
+25. **A message as delivery** is worded by `notify.compose`; the output goes into the details.
+26. **Local or cloud** by the model's address, 1 and 4 at a time; fixed for now, to be made flexible later.
+27. **An agent as a tool in a conversation:** wait 5 s at a satellite, 30 s on Telegram, then run on and deliver as a
+    message.
+28. **YAML agents:** a model name (without it `main`); `rights` (without it only "read the house"); in skills under
+    `metadata.mira.agents`; profiles `isolated` and `background`.
+29. **The factory is built** after step 6, independent of the continuation.
+
+## Open questions
+
+1. **How the agent tells the integration that a run is done** (for `mira_agent_done`): a WebSocket command of the
+   integration that only Mira's user may send (proposal: hidden, cannot be forged by other users or automations),
+   or a visible Home Assistant action that checks the caller is Mira's user.
+2. **Continuation** (step 7): the calling run waits (stored, status "waiting") and is woken with the result; what a
+   thread does with a result. To be specified once step 6 is built.
