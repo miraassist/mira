@@ -107,6 +107,22 @@ func TestNothingPlaysWhenItCannotBeSure(t *testing.T) {
 	}
 }
 
+// The question back names the speakers as Home Assistant does, with the
+// entity to call; the answer says which one plays.
+func TestSpeakersByName(t *testing.T) {
+	two := map[string][]Player{"bad": {
+		{Entity: "media_player.show", Name: "Show", Names: []string{"show"}},
+		{Entity: "media_player.show_bad_speaker", Name: "Show Bad Speaker", Names: []string{"show bad speaker", "show bad"}}}}
+	tool, got := env(swr3, two, nil)
+	if out := call(t, tool, "bad", `{"station":"SWR3"}`); !strings.Contains(out, "Show (media_player.show), Show Bad Speaker (media_player.show_bad_speaker)") {
+		t.Errorf("question: %q", out)
+	}
+	out := call(t, tool, "bad", `{"station":"SWR3","player":"media_player.show_bad_speaker"}`)
+	if len(*got) != 1 || (*got)[0].entity != "media_player.show_bad_speaker" || !strings.Contains(out, "auf Show Bad Speaker im Raum") {
+		t.Errorf("played %+v: %q", *got, out)
+	}
+}
+
 func TestSeveralSpeakersChosenByName(t *testing.T) {
 	two := map[string][]Player{"wohnzimmer": {{Entity: "media_player.a", Names: []string{"küchenradio"}}, {Entity: "media_player.b", Names: []string{"show"}}}}
 	tool, got := env(swr3, two, nil)

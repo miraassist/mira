@@ -28,6 +28,9 @@ type Station struct {
 // Player is a media player Mira may use in a room.
 type Player struct {
 	Entity string
+	// Name is what Home Assistant calls it, for the user ("Show Bad
+	// Speaker"); empty means the entity id.
+	Name string
 	// Names are the lower-cased names the model might use for it.
 	Names []string
 }
@@ -61,11 +64,11 @@ var catalog = map[i18n.Lang]texts{
 		playerDesc:      "Name des Lautsprechers, nur nötig, wenn der Raum mehrere hat.",
 		noRoom:          "Ich weiß nicht, in welchem Raum das Radio laufen soll. Frag den Nutzer danach.",
 		noPlayer:        "Im Raum %s ist kein Lautsprecher für Mira freigegeben. Sag das dem Nutzer.",
-		severalPlayers:  "Im Raum %s gibt es mehrere Lautsprecher: %s. Frag den Nutzer, welcher es sein soll, und ruf dann radio_play mit player auf.",
+		severalPlayers:  "Im Raum %s gibt es mehrere Lautsprecher: %s. Frag den Nutzer mit diesen Namen, welcher es sein soll, und ruf dann radio_play mit player (der Entität) auf.",
 		noStation:       "Zu „%s“ habe ich keinen Sender gefunden. Sag das dem Nutzer ehrlich.",
 		severalStations: "Zu „%s“ gibt es mehrere Sender: %s. Frag den Nutzer, welcher es sein soll.",
 		unavailable:     "Die Radiosuche ist gerade nicht möglich (ist die Integration „Radio Browser“ in Home Assistant eingerichtet?). Sag das dem Nutzer ehrlich.",
-		playing:         "Läuft: %s im Raum %s.",
+		playing:         "Läuft: %s auf %s im Raum %s. Sag dem Nutzer, auf welchem Lautsprecher.",
 	},
 	i18n.EN: {
 		desc:            "Starts a radio station on a room's speaker (without a room: the room the user is speaking in). Only for real radio stations: \"play SWR3\", \"turn on the radio\", \"I want to listen to the radio\". Nature sounds, music and routines such as \"sleep with rain\" are not stations; if one of the user's scripts or scenes fits, use that. Stopping, quieter, louder work with the normal media tools.",
@@ -74,11 +77,11 @@ var catalog = map[i18n.Lang]texts{
 		playerDesc:      "Name of the speaker, only needed if the room has several.",
 		noRoom:          "I do not know which room the radio should play in. Ask the user.",
 		noPlayer:        "No speaker in %s is released for Mira. Tell the user.",
-		severalPlayers:  "%s has several speakers: %s. Ask the user which one, then call radio_play with player.",
+		severalPlayers:  "%s has several speakers: %s. Ask the user which one, by these names, then call radio_play with player (the entity).",
 		noStation:       "I found no station for \"%s\". Tell the user honestly.",
 		severalStations: "There are several stations for \"%s\": %s. Ask the user which one.",
 		unavailable:     "Searching for radio stations is not possible right now (is the \"Radio Browser\" integration set up in Home Assistant?). Tell the user honestly.",
-		playing:         "Playing: %s in %s.",
+		playing:         "Playing: %s on %s in %s. Tell the user on which speaker.",
 	},
 }
 
@@ -116,7 +119,7 @@ func Tool(o Options) tools.InternalTool {
 			case len(players) > 1:
 				var ids []string
 				for _, p := range players {
-					ids = append(ids, p.Entity)
+					ids = append(ids, p.label())
 				}
 				return fmt.Sprintf(t.severalPlayers, room, strings.Join(ids, ", ")), nil
 			}
@@ -134,7 +137,7 @@ func Tool(o Options) tools.InternalTool {
 			if err := o.Play(ctx, players[0].Entity, *st); err != nil {
 				return "", err
 			}
-			return fmt.Sprintf(t.playing, st.Title, room), nil
+			return fmt.Sprintf(t.playing, st.Title, players[0].display(), room), nil
 		},
 	}
 }
@@ -170,4 +173,21 @@ func norm(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// label is a player for a question back: its name and, to call it, its
+// entity.
+func (p Player) label() string {
+	if p.Name == "" || p.Name == p.Entity {
+		return p.Entity
+	}
+	return fmt.Sprintf("%s (%s)", p.Name, p.Entity)
+}
+
+// display is the player's name for the user.
+func (p Player) display() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Entity
 }

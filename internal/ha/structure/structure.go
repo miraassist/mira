@@ -46,6 +46,9 @@ type Snapshot struct {
 	// use for it: entity id, display name, aliases and device name. The
 	// security policy resolves tool arguments through it.
 	EntityNames map[string][]string
+	// EntityLabel is the name an entity goes by, as Home Assistant shows
+	// it, for telling the user which one Mira means.
+	EntityLabel map[string]string
 	// AreaKeys maps a lower-cased area id, name or alias to the area id.
 	AreaKeys map[string]string
 	// Confirm are the entities labelled "Mira: nachfragen" (LabelConfirm):
@@ -84,6 +87,7 @@ func Build(reg Registry) Snapshot {
 		EntityArea:      make(map[string]string, len(reg.Entities)),
 		ExposedEntities: map[string]bool{},
 		EntityNames:     map[string][]string{},
+		EntityLabel:     map[string]string{},
 		AreaKeys:        map[string]string{},
 		Confirm:         map[string]bool{},
 		ExposureKnown:   reg.Exposed != nil,
@@ -149,6 +153,7 @@ func Build(reg Registry) Snapshot {
 		}
 		byArea[area] = append(byArea[area], row)
 		snap.EntityNames[e.EntityID] = nameKeys(e.EntityID, name, device.DisplayName(), e.Aliases)
+		snap.EntityLabel[e.EntityID] = name
 	}
 
 	areaIDs := make([]string, 0, len(byArea))

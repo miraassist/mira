@@ -11,7 +11,8 @@ Stand 2026-10-18, beschlossen und gebaut in 0.6.37.
 **`radio_play(station, room?, player?)`**
 
 - **Raum:** ohne Angabe der Raum des Satelliten, an dem gesprochen wird; sonst der genannte Raum. Kennt Mira keinen Raum (etwa bei Telegram ohne Angabe), sagt sie das und fragt.
-- **Player:** der für Assist freigegebene `media_player` im Bereich. Gibt es keinen, sagt Mira das ehrlich. Gibt es mehrere, fragt sie, welcher (`player`).
+- **Player:** der für Assist freigegebene `media_player` im Bereich. Gibt es keinen, sagt Mira das ehrlich. Gibt es mehrere, fragt sie, welcher (`player`); das Werkzeug nennt sie dafür mit ihrem Namen in Home Assistant und der Entität („Show Bad Speaker (media_player.show_bad_speaker)“), damit Mira nicht nach der Kennung rät.
+- **Bestätigung** nennt den Lautsprecher, nicht nur den Raum („Läuft: SWR3 auf Show Bad Speaker im Raum Bad“): Mira sagt, wo es wirklich läuft, und eine Verwechslung fällt sofort auf.
 - **Suche:** WebSocket `media_source/search_media` auf `media-source://radio_browser`, die beliebtesten zuerst. Nur abspielbare Treffer der Radio-Browser-Quelle zählen.
 - **Auswahl:** Gleicht ein Treffer dem Namen (Groß- und Kleinschreibung, Leerzeichen und Satzzeichen egal, „SWR 3“ = „SWR3“), läuft er. Ist es genau ein Treffer, läuft er. Sonst nennt Mira bis zu fünf Namen und fragt nach.
 - **Abspielen:** `media_player.play_media` mit der Adresse und dem Typ des Treffers. Home Assistant holt den Stream und wandelt ihn um.

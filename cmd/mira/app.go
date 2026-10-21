@@ -288,7 +288,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			var out []radio.Player
 			for id := range snap.ExposedEntities {
 				if strings.HasPrefix(id, "media_player.") && snap.EntityArea[id] == area {
-					out = append(out, radio.Player{Entity: id, Names: snap.EntityNames[id]})
+					out = append(out, radio.Player{Entity: id, Name: snap.EntityLabel[id], Names: snap.EntityNames[id]})
 				}
 			}
 			sort.Slice(out, func(i, j int) bool { return out[i].Entity < out[j].Entity })
