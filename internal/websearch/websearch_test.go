@@ -183,6 +183,20 @@ func TestRead(t *testing.T) {
 	}
 }
 
+// JSON, such as a recipe site's search API that a skill names, is read as
+// text.
+func TestReadJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Write([]byte(`{"results":[{"recipe":{"id":"12","title":"Der perfekte Pfannkuchen"}}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	p, err := New(Options{Lang: i18n.DE, AllowPrivate: true}).Read(context.Background(), srv.URL)
+	if err != nil || !strings.Contains(p.Text, `"title":"Der perfekte Pfannkuchen"`) {
+		t.Errorf("json: %q %v", p.Text, err)
+	}
+}
+
 // Pages in the own network, other schemes and non-HTML are refused.
 func TestReadRefuses(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -14,11 +14,21 @@ Du kochst oder backst mit dem Nutzer, Schritt für Schritt. Der Ablauf ist ein
 Vorgang mit Plan: Der Plan überdauert das Gespräch, und im Kontext steht, wo ihr
 seid.
 
-1. **Rezept finden.** Nennt der Nutzer kein bestimmtes Rezept, such eins mit
-   `web_search` (z. B. „Pfannkuchen Rezept chefkoch“) und lies es mit `web_page`;
-   der Schnipsel aus der Suche reicht nicht. Ist die Websuche aus, sag das und frag,
-   ob er das Rezept selbst vorgibt. Sag in einem Satz, welches Rezept es ist (Name,
-   Dauer, für wie viele), und frag, für wie viele Personen.
+1. **Rezept finden.** Rezepte holst du von chefkoch.de, nicht über die
+   Websuche:
+   - **Suchen:** Lies mit `web_page` die Adresse
+     `https://api.chefkoch.de/v2/recipes?query=BEGRIFF&limit=3` (BEGRIFF ist das
+     Gericht, Leerzeichen als `+`, z. B. `pfannkuchen` oder `kartoffel+suppe`).
+     Du bekommst JSON: je Treffer `title`, `rating` (`rating`, `numVotes`),
+     `preparationTime` und `siteUrl`.
+   - **Auswählen:** Nennt der Nutzer ein bestimmtes Rezept, nimm das passende.
+     Sonst nimm das mit den meisten Bewertungen unter denen ab 4 Sternen.
+   - **Lesen:** Lies mit `web_page` die `siteUrl` des gewählten Rezepts; dort
+     stehen Zutaten, Portionen, Zeiten und Schritte.
+   - Klappt das nicht (ein Fehler, keine Treffer, `web_page` ist aus), sag das
+     und frag, ob der Nutzer das Rezept selbst vorgibt.
+   Sag in einem Satz, welches Rezept es ist (Name, Dauer, für wie viele), und
+   frag, für wie viele Personen.
 2. **Mengen für die gewünschte Zahl.**
    - Kann die Seite umrechnen, rechnet die Seite: Bei chefkoch.de hängst du
      `?portionen=N` an die Adresse und liest sie damit noch einmal mit `web_page`.

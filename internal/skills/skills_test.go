@@ -146,7 +146,7 @@ func TestRunJob(t *testing.T) {
 	if !strings.Contains(tasker.instruction, `Prüfe mit calendar_events (calendar "calendar.abfuhrtermine"`) {
 		t.Errorf("instruction:\n%s", tasker.instruction)
 	}
-	list, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
+	list, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}, IncludeExpired: true})
 	if len(list) != 1 || list[0].Importance != 2 || list[0].Spoken != "Morgen wird der Wertstoff abgeholt." {
 		t.Errorf("message (importance capped at 2): %+v", list)
 	}
@@ -343,7 +343,7 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -, Pakete -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
 		t.Errorf("Anna without calendar and memory: %q", tasker.seen[0])
 	}
-	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}})
+	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}, IncludeExpired: true})
 	if len(msgs) != 1 || msgs[0].Receiver != "ben" || msgs[0].Spoken != "Du hast um 9 Zahnarzt." || !strings.HasSuffix(msgs[0].DedupeKey, ":ben") {
 		t.Errorf("messages: %+v", msgs)
 	}

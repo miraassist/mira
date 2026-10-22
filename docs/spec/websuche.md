@@ -25,7 +25,7 @@ From now on Mira brings search herself. It is **on**, without setup and without 
   - If neither works, the tool explicitly tells the model that it could not look it up and should not guess from memory.
 - **Deliberately without a browser:** Bing or Brave via a remote-controlled browser (as in the previous MCP server) are slow, make the image hundreds of MB larger and break with every change to the pages.
 - **Page text:**
-  - Mira loads the page (at most 2 MB, only HTML or text) and leaves out scripts, navigation, headers and footers, forms and the like.
+  - Mira loads the page (at most 2 MB, only HTML, text or JSON; JSON, such as a site's search API that a skill names, is read as text) and leaves out scripts, navigation, headers and footers, forms and the like.
   - If there is an `<article>` or `<main>` with enough text, she takes that, otherwise the whole content.
 - **Limits:**
   - Search and page have 10 seconds each.

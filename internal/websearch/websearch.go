@@ -219,7 +219,7 @@ func (s *Search) Read(ctx context.Context, raw string) (Page, error) {
 		return Page{}, err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,application/json;q=0.8")
 	req.Header.Set("Accept-Language", acceptLanguage(s.opts.Lang))
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -233,7 +233,8 @@ func (s *Search) Read(ctx context.Context, raw string) (Page, error) {
 		return Page{}, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	ctype := resp.Header.Get("Content-Type")
-	plain := strings.HasPrefix(ctype, "text/plain")
+	// JSON (a site's own search API, which a skill names) is read as text.
+	plain := strings.HasPrefix(ctype, "text/plain") || strings.Contains(strings.Split(ctype, ";")[0], "json")
 	if !plain && ctype != "" && !strings.Contains(ctype, "html") {
 		return Page{}, fmt.Errorf("not a web page but %s", strings.Split(ctype, ";")[0])
 	}
