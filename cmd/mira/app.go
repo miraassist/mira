@@ -65,6 +65,9 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
+	// targetSkills are the skills with a target (they run as threads, not
+	// in skills); their agents count as every skill's.
+	targetSkills []skills.Skill
 	// problems are the skills that did not start, as the user can read them.
 	problems []haconv.Problem
 	// satellites are the voice satellites' device ids last seen in the structure.
@@ -342,6 +345,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		known = append(known, name)
 	}
 	sort.Strings(known)
+	a.targetSkills = targets
 	agentNames := a.agentNames()
 	var startable []skills.Skill
 	for _, sk := range targets {
@@ -356,6 +360,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		startable = append(startable, sk)
 	}
 	targets = startable
+	a.targetSkills = targets
 	a.setProblems(problems)
 	a.threads = threads.New(threads.Options{
 		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers, Actions: haActions{a},

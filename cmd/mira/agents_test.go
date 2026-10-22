@@ -161,6 +161,12 @@ func TestAG49_AnUnknownAgentInATargetIsAProblemOfTheSkill(t *testing.T) {
 	if unknownAgent(&skills.Target{Plan: true, Agent: "delegate"}, known) != "" {
 		t.Error("Mira's own agent is unknown")
 	}
+	// A skill with a target may name an agent it describes itself.
+	a.targetSkills = []skills.Skill{{Name: "kochen", Target: &skills.Target{Plan: true, Agent: "kochen.rezept"},
+		Agents: map[string]config.AgentDef{"kochen.rezept": {}}}}
+	if name := unknownAgent(a.targetSkills[0].Target, a.agentNames()); name != "" {
+		t.Errorf("the target skill's own agent is unknown: %q", name)
+	}
 }
 
 // An agent a thread starts runs in the runtime, and its result reaches the

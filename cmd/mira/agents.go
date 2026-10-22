@@ -55,11 +55,9 @@ func (a *app) registerAgents() {
 	a.agents.Register(notifyComposeSpec(nil))
 
 	defs := agent.FromConfig(a.cfg.Agents.Defined)
-	if a.skills != nil {
-		for _, sk := range a.skills.Skills {
-			for _, name := range sortedNames(sk.Agents) {
-				defs = append(defs, agent.Defined{Name: name, Skill: sk.Name, Def: sk.Agents[name]})
-			}
+	for _, sk := range a.skillsWithAgents() {
+		for _, name := range sortedNames(sk.Agents) {
+			defs = append(defs, agent.Defined{Name: name, Skill: sk.Name, Def: sk.Agents[name]})
 		}
 	}
 	problems := a.agents.RegisterDefined(defs, a.cfg.Model)
@@ -246,14 +244,22 @@ func (a *app) agentNames() map[string]bool {
 	for n := range a.cfg.Agents.Defined {
 		names[n] = true
 	}
-	if a.skills != nil {
-		for _, sk := range a.skills.Skills {
-			for n := range sk.Agents {
-				names[n] = true
-			}
+	for _, sk := range a.skillsWithAgents() {
+		for n := range sk.Agents {
+			names[n] = true
 		}
 	}
 	return names
+}
+
+// skillsWithAgents are the started skills that may describe agents: those in
+// the skill set and those with a target.
+func (a *app) skillsWithAgents() []skills.Skill {
+	var out []skills.Skill
+	if a.skills != nil {
+		out = append(out, a.skills.Skills...)
+	}
+	return append(out, a.targetSkills...)
 }
 
 // unknownAgent is the first agent a target names that does not exist.
