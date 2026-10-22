@@ -16,6 +16,7 @@ import (
 	"github.com/miraassist/mira/internal/agent"
 	"log/slog"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -411,6 +412,9 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	nudged, forced, force := false, false, false
 	for round := 0; ; round++ {
 		chatReq := e.chatRequestOn(modelName, req.Channel, msgs, built)
+		// The tools of the skills this conversation opened, also one opened
+		// in the round before (docs/spec/skill-mcp.md).
+		chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)
 		switch {
 		case round >= maxRounds:
 			// Out of rounds: the model has to answer with what it has.
@@ -436,6 +440,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			resp.Model = modelName
 			choice := chatReq.ToolChoice
 			chatReq = e.chatRequestOn(modelName, req.Channel, msgs, built)
+			chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)
 			chatReq.ToolChoice = choice
 			out, err = e.chat(ctx, client, modelName, model, chatReq)
 		}
@@ -562,6 +567,21 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 		"completion_tokens", out.Usage.CompletionTokens)
 }
 
+// skillTools are the tools of the skills with an MCP server a conversation
+// opened; none before it opened one.
+func (e *Engine) skillTools(ctx context.Context, key string) []llm.Tool {
+	open, err := e.store.SessionSkills(ctx, key)
+	if err != nil || len(open) == 0 {
+		return nil
+	}
+	out, err := prompt.BuildTools(e.tools.SkillDefs(open...))
+	if err != nil {
+		e.log.Warn("could not build the tools of the opened skills", "session", key, "error", err)
+		return nil
+	}
+	return out
+}
+
 // chatRequest is a request of a channel's conversation on its model.
 func (e *Engine) chatRequest(ch config.Channel, msgs []llm.Message, built prompt.Request) llm.ChatRequest {
 	return e.chatRequestOn(e.cfg.ModelFor(config.ChannelAgent(ch)), ch, msgs, built)
@@ -625,6 +645,12 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	record := func(outcome string) { e.tel.RecordToolCall(ctx, server, name, outcome) }
 
 	spec, ok := e.tools.Lookup(name)
+	if ok && spec.Skill != "" {
+		// A skill's tool exists for the conversation only once it opened
+		// the skill.
+		open, _ := e.store.SessionSkills(ctx, ts.SessionKey)
+		ok = slices.Contains(open, spec.Skill)
+	}
 	if !ok {
 		record("unknown")
 		return e.texts(ctx).errorPrefix + fmt.Sprintf(e.texts(ctx).unknownTool, name)

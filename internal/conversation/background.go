@@ -37,7 +37,17 @@ func (e *Engine) BackgroundContext(ctx context.Context, cc agent.CallContext, in
 		Text:           strings.Join(text, "\n\n"),
 	}
 	built := prompt.Build(prefix, nil, turn)
-	return agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash}, nil
+	b := agent.Built{Messages: built.Messages, Tools: built.Tools, PrefixHash: built.PrefixHash}
+	// A run for a skill gets the tools of its MCP server, after the shared
+	// ones (docs/spec/skill-mcp.md).
+	if cc.Skill != "" {
+		more, err := prompt.BuildTools(e.tools.SkillDefs(cc.Skill))
+		if err != nil {
+			return agent.Built{}, err
+		}
+		b.Tools = append(b.Tools, more...)
+	}
+	return b, nil
 }
 
 // ExtractJSON returns the outermost JSON object in s. Models that ignore the

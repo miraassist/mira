@@ -123,7 +123,7 @@ type fakeTasker struct {
 	instruction string
 }
 
-func (f *fakeTasker) RunTask(_ context.Context, instruction string) (string, error) {
+func (f *fakeTasker) RunTask(_ context.Context, _, instruction string) (string, error) {
 	f.instruction = instruction
 	return f.answer, nil
 }
@@ -360,7 +360,7 @@ type perPersonTasker struct {
 	seen    []string
 }
 
-func (f *perPersonTasker) RunTask(_ context.Context, instruction string) (string, error) {
+func (f *perPersonTasker) RunTask(_ context.Context, _, instruction string) (string, error) {
 	f.seen = append(f.seen, instruction)
 	for name, a := range f.answers {
 		if strings.Contains(instruction, "Termine von "+name) {
@@ -368,4 +368,53 @@ func (f *perPersonTasker) RunTask(_ context.Context, instruction string) (string
 		}
 	}
 	return `{"importance":0}`, nil
+}
+
+// SM-01 A skill's server is connected with the skill's settings (the
+// settings part: url and the secret token are filled into the server, not
+// into the instructions).
+func TestSM01_ASkillsServerTakesTheSkillsSettings(t *testing.T) {
+	// Given a skill with an mcp section whose url and token come from its settings, the token secret
+	// And mira.yaml sets them under skills.enabled
+	loaded, problems := Load([]string{"../../skills"}, map[string]map[string]any{
+		"paperless": {"url": "http://paperless-mcp:3000/mcp", "token": "geheim"}})
+	if len(problems) != 0 || len(loaded) != 1 {
+		t.Fatalf("problems %+v", problems)
+	}
+	// When Mira starts
+	// Then she connects to the server with that url and token
+	// And the token is in no prompt
+	sk := loaded[0]
+	if sk.MCP == nil || sk.MCP.Name != "paperless" || sk.MCP.Skill != "paperless" || sk.MCP.URL != "http://paperless-mcp:3000/mcp" ||
+		sk.MCP.Token != "geheim" || !sk.MCP.WebContent || len(sk.MCP.Tools) != 2 {
+		t.Errorf("server %+v", sk.MCP)
+	}
+	if strings.Contains(sk.Body, "geheim") || strings.Contains(sk.Description, "geheim") {
+		t.Error("the secret token reached the skill's text")
+	}
+}
+
+// SM-11 A broken mcp section is a problem of the skill
+func TestSM11_ABrokenMCPSectionIsAProblemOfTheSkill(t *testing.T) {
+	dir := t.TempDir()
+	write := func(mcp string) {
+		os.MkdirAll(filepath.Join(dir, "akten"), 0o755)
+		text := "---\nname: akten\ndescription: Akten.\nmetadata:\n  mira:\n    mcp:\n" + mcp + "---\nText.\n"
+		if err := os.WriteFile(filepath.Join(dir, "akten", "SKILL.md"), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Given a skill whose mcp section has no url
+	write("      tools: [suche]\n")
+	// When Mira loads it
+	_, problems := Load([]string{dir}, map[string]map[string]any{"akten": nil})
+	// Then the skill does not start, and the problem says what is missing
+	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "Adresse (url)") {
+		t.Errorf("problems %+v", problems)
+	}
+	write("      transport: ftp\n      url: x\n")
+	if _, problems := Load([]string{dir}, map[string]map[string]any{"akten": nil}); len(problems) != 1 ||
+		!strings.Contains(problems[0].Text(i18n.DE), "„ftp“") {
+		t.Errorf("unknown transport: %+v", problems)
+	}
 }

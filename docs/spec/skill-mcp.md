@@ -1,6 +1,6 @@
 # MCP servers in skills
 
-Status: specified, not built. Scenarios: [skill-mcp.feature](skill-mcp.feature).
+Status: built. Scenarios: [skill-mcp.feature](skill-mcp.feature).
 
 ## Goal
 

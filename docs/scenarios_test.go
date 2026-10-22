@@ -19,6 +19,7 @@ import (
 var builtSteps = map[string][]int{
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9}, // docs/spec/agenten.md, Switching over in steps
 	"MO": {1, 2, 3, 4, 5},             // docs/spec/modelle.md, Steps
+	"SM": {1},                         // docs/spec/skill-mcp.md
 }
 
 var (

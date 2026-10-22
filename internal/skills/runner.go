@@ -18,7 +18,7 @@ import (
 // Tasker runs one scheduled job and returns its JSON answer. The
 // conversation engine implements it (RunTask).
 type Tasker interface {
-	RunTask(ctx context.Context, instruction string) (string, error)
+	RunTask(ctx context.Context, skill, instruction string) (string, error)
 }
 
 // maxTaskImportance caps what a scheduled job may report. Its input is
@@ -154,7 +154,7 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 		task += "\n\n" + fmt.Sprintf(t.personContext, p.Name) + "\n" + profile
 	}
 	instruction := fmt.Sprintf(t.taskIntro, sk.Name) + sk.Body + "\n\n---\n\n" + task + t.taskRules
-	raw, err := r.Tasker.RunTask(ctx, instruction)
+	raw, err := r.Tasker.RunTask(ctx, sk.Name, instruction)
 	if err != nil {
 		return false, err
 	}

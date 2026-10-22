@@ -53,5 +53,18 @@ services:
       - "3993:3993"
     restart: "no"
 
+  # Paperless-ngx's MCP server for the skill paperless (docs/spec/skill-mcp.md).
+  # It talks to the Paperless instance in testenv/.env (PAPERLESS_URL); the
+  # test agent reaches it on port 3399 and passes the token with each call.
+  paperless-mcp:
+    container_name: mira-test-paperless-mcp
+    image: ghcr.io/baruchiro/paperless-mcp:latest
+    command: ["--http", "--port", "3000"]
+    environment:
+      PAPERLESS_URL: ${PAPERLESS_URL:-}
+    ports:
+      - "3399:3000"
+    restart: "no"
+
 volumes:
   mosquitto-data:

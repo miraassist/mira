@@ -95,6 +95,11 @@ telemetry:
 skills:
   dirs: [skills]
   enabled:
+    # Paperless through the MCP container of compose.yaml; without a token in
+    # testenv/.env the skill does not start.
+    paperless:
+      url: http://localhost:3399/mcp
+      token: ${PAPERLESS_API_TOKEN:-}
     abfall:
       calendar: calendar.abfuhrtermine
       types: [Restabfall, Wertstoff, Bioabfall, Altpapier]

@@ -444,6 +444,9 @@ func inherit(p *run, cc CallContext) CallContext {
 	if cc.DeviceID == "" {
 		cc.DeviceID = p.cc.DeviceID
 	}
+	if cc.Skill == "" {
+		cc.Skill = p.cc.Skill
+	}
 	return cc
 }
 
@@ -576,7 +579,8 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 		return r.callSub(ctx, sub, call.Function.Arguments, t)
 	}
 	spec, ok := r.o.Tools.Lookup(name)
-	if !ok {
+	if !ok || (spec.Skill != "" && spec.Skill != me.cc.Skill) {
+		// A skill's tool only for a run of that skill.
 		return fmt.Sprintf(t.unknownTool, name)
 	}
 	if need := RightFor(spec); !me.rights.Has(need) {

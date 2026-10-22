@@ -146,8 +146,30 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	a.llm = a.models[config.MainModel]
 
+	// The goals Mira works towards in threads come as skills too and are
+	// always on when their folder is there (builtinTargets).
+	enabled := map[string]map[string]any{}
+	for name, settings := range cfg.Skills.Enabled {
+		enabled[name] = settings
+	}
+	for _, name := range append(builtinTargets(), builtinMail()...) {
+		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
+			enabled[name] = nil
+		}
+	}
+	// A skill that cannot start is left out and reported (log, and the
+	// integration shows it as a repair); the agent starts all the same.
+	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
+	// A skill may bring its MCP server (docs/spec/skill-mcp.md): it is
+	// connected as the others, its tools come only with the skill.
+	servers := append([]config.MCPServer(nil), cfg.MCPServers...)
+	for _, sk := range all {
+		if sk.MCP != nil {
+			servers = append(servers, *sk.MCP)
+		}
+	}
 	a.mcp = mcp.New(mcp.Options{
-		Servers: cfg.MCPServers, Logger: a.log, Version: version,
+		Servers: servers, Logger: a.log, Version: version,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
 		// Home Assistant's tools as each voice satellite would get them
 		// (the timers exist only for those that have them).
@@ -217,20 +239,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	})...)
-	// The goals Mira works towards in threads come as skills too and are
-	// always on when their folder is there (builtinTargets).
-	enabled := map[string]map[string]any{}
-	for name, settings := range cfg.Skills.Enabled {
-		enabled[name] = settings
-	}
-	for _, name := range append(builtinTargets(), builtinMail()...) {
-		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
-			enabled[name] = nil
-		}
-	}
-	// A skill that cannot start is left out and reported (log, and the
-	// integration shows it as a repair); the agent starts all the same.
-	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
 	var loaded, targets []skills.Skill
 	for _, sk := range all {
 		// A skill that must run locally does not start on a cloud model
@@ -245,7 +253,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
-	a.skills = &skills.Set{Lang: a.lang, Skills: loaded}
+	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill}
 	internal = append(internal, a.skills.Tools()...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
@@ -898,7 +906,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: longestTimeout(cfg), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
-		Problems: func() []haconv.Problem { return a.problems }, ExposedHash: a.exposedHash, Agents: a.agents,
+		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents,
 	}
 	if a.mail != nil {
 		opts.Mail = a.mail
@@ -1155,4 +1163,31 @@ func longestTimeout(cfg config.Config) time.Duration {
 		longest = max(longest, m.Timeout.Duration())
 	}
 	return longest
+}
+
+// allProblems are what did not start, and what of the skills' MCP servers
+// does not work right now (docs/spec/skill-mcp.md): one that cannot be
+// reached, tools a skill names that its server lacks. These come and go
+// with the server.
+func (a *app) allProblems() []haconv.Problem {
+	out := append([]haconv.Problem(nil), a.problems...)
+	if a.mcp == nil {
+		return out
+	}
+	for _, st := range a.mcp.Status() {
+		if st.Skill == "" {
+			continue
+		}
+		var p skills.Problem
+		switch {
+		case !st.Connected:
+			p = skills.NewProblem(st.Skill, skills.KindMCPDown, st.Error)
+		case len(st.Missing) > 0:
+			p = skills.NewProblem(st.Skill, skills.KindMCPTools, strings.Join(st.Missing, ", "))
+		default:
+			continue
+		}
+		out = append(out, haconv.Problem{Source: "skill", Name: st.Skill, Text: p.Text(a.lang)})
+	}
+	return out
 }

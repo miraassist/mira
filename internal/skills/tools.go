@@ -21,6 +21,9 @@ type Set struct {
 	Skills   []Skill
 	Clock    func() time.Time
 	Location *time.Location
+	// OnOpen notes that a conversation opened a skill with an MCP server:
+	// its tools stay with that conversation (docs/spec/skill-mcp.md).
+	OnOpen func(ctx context.Context, sessionKey, skill string) error
 }
 
 func (s *Set) clock() time.Time {
@@ -73,6 +76,11 @@ func (s *Set) Tools() []tools.InternalTool {
 			sk, ok := s.Get(strings.TrimSpace(a.Name))
 			if !ok {
 				return "", fmt.Errorf(t.noSkill, a.Name)
+			}
+			if sk.MCP != nil && s.OnOpen != nil && inv.SessionKey != "" {
+				if err := s.OnOpen(ctx, inv.SessionKey, sk.Name); err != nil {
+					return "", err
+				}
 			}
 			return sk.Body, nil
 		},

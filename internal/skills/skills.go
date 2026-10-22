@@ -53,6 +53,9 @@ type Skill struct {
 	// Privacy local makes every agent the skill uses run on a local model
 	// (docs/spec/modelle.md, Privacy as a rule).
 	Privacy string
+	// MCP is the skill's MCP server, named after the skill, with its
+	// settings filled in (docs/spec/skill-mcp.md); nil for none.
+	MCP *config.MCPServer
 }
 
 // Mail is a skill's part in the mail calendar: how to read its mails. The
@@ -202,6 +205,7 @@ type frontmatter struct {
 			Mail      *Mail                `yaml:"mail"`
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
+			MCP       *config.MCPServer    `yaml:"mcp"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -361,6 +365,13 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		s.Agents[name] = d
 	}
+	if m.MCP != nil {
+		srv, p := mcpServer(meta.Name, *m.MCP, vals)
+		if p != nil {
+			return Skill{}, p
+		}
+		s.MCP = &srv
+	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	return s, nil
 }
@@ -417,6 +428,40 @@ func fill(body string, vals map[string]string, decl map[string]Setting) string {
 		}
 		return vals[key]
 	})
+}
+
+// mcpServer is a skill's mcp section as a server of its own: named after the
+// skill, with every setting filled in, secret ones too (they go to the
+// connection, never into a prompt).
+func mcpServer(name string, srv config.MCPServer, vals map[string]string) (config.MCPServer, *Problem) {
+	all := func(s string) string {
+		return placeholder.ReplaceAllStringFunc(s, func(m string) string {
+			return vals[placeholder.FindStringSubmatch(m)[1]]
+		})
+	}
+	srv.Name, srv.Skill = name, name
+	srv.URL, srv.Token, srv.Command = all(srv.URL), all(srv.Token), all(srv.Command)
+	for i := range srv.Args {
+		srv.Args[i] = all(srv.Args[i])
+	}
+	for i := range srv.Env {
+		srv.Env[i] = all(srv.Env[i])
+	}
+	if srv.Transport == "" {
+		srv.Transport = config.TransportHTTP
+		if srv.Command != "" {
+			srv.Transport = config.TransportStdio
+		}
+	}
+	switch {
+	case srv.Transport == config.TransportHTTP && strings.TrimSpace(srv.URL) == "":
+		return srv, problem("mcpurl")
+	case srv.Transport == config.TransportStdio && strings.TrimSpace(srv.Command) == "":
+		return srv, problem("mcpcommand")
+	case srv.Transport != config.TransportHTTP && srv.Transport != config.TransportStdio:
+		return srv, problem("mcptransport", srv.Transport)
+	}
+	return srv, nil
 }
 
 // Exists reports whether a skill folder of that name is in dirs.

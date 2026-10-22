@@ -65,10 +65,10 @@ func (e *Engine) delegateSpec(ctx context.Context) agent.Spec {
 
 // RunTask runs the agent skill.task: a scheduled job of a skill, a
 // background run that may look things up and ends with a JSON object, which
-// it returns.
-func (e *Engine) RunTask(ctx context.Context, instruction string) (string, error) {
+// it returns. It gets the tools of the skill's MCP server, if it has one.
+func (e *Engine) RunTask(ctx context.Context, skill, instruction string) (string, error) {
 	res, err := e.agents.Call(ctx, taskSpec(), instruction,
-		agent.CallContext{Origin: agent.FromSchedule, Rights: agent.AllRights, Lang: string(e.lang(ctx))})
+		agent.CallContext{Origin: agent.FromSchedule, Rights: agent.AllRights, Lang: string(e.lang(ctx)), Skill: skill})
 	if err != nil {
 		return "", err
 	}

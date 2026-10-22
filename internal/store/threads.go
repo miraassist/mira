@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -192,6 +193,34 @@ func (s *Store) RecentThreads(ctx context.Context, place string, since time.Time
 }
 
 // SetSessionThread links a turn (session) to a thread.
+// AddSessionSkill notes that a conversation opened a skill with an MCP
+// server; its tools stay with the session until it expires.
+func (s *Store) AddSessionSkill(ctx context.Context, sessionKey, skill string) error {
+	open, err := s.SessionSkills(ctx, sessionKey)
+	if err != nil || slices.Contains(open, skill) {
+		return err
+	}
+	raw, _ := json.Marshal(append(open, skill))
+	_, err = s.db.ExecContext(ctx, `UPDATE sessions SET skills = ? WHERE key = ?`, string(raw), sessionKey)
+	return err
+}
+
+// SessionSkills are the skills a conversation opened (AddSessionSkill);
+// none for a session that does not exist.
+func (s *Store) SessionSkills(ctx context.Context, sessionKey string) ([]string, error) {
+	var raw string
+	err := s.db.QueryRowContext(ctx, `SELECT skills FROM sessions WHERE key = ?`, sessionKey).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	_ = json.Unmarshal([]byte(raw), &out)
+	return out, nil
+}
+
 func (s *Store) SetSessionThread(ctx context.Context, sessionKey, threadID string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET thread_id = ? WHERE key = ?`, threadID, sessionKey)
 	return err

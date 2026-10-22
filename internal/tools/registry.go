@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"unicode/utf8"
 
@@ -30,6 +31,9 @@ type Spec struct {
 	// messages to others, ending a thread). After web content in the same
 	// turn it runs only after the user's yes.
 	AskAfterWeb bool
+	// Skill is the skill whose MCP server offers the tool: it is in no list
+	// until that skill is opened (docs/spec/skill-mcp.md).
+	Skill string
 }
 
 // Invocation is a call as the conversation loop hands it over.
@@ -123,7 +127,8 @@ func (r *Registry) Specs(readOnly bool) []Spec {
 	}
 	if r.mcp != nil {
 		for _, t := range r.mcp.Tools() {
-			if readOnly && !t.ReadOnly {
+			// A skill's tools come only with the skill (SkillDefs).
+			if (readOnly && !t.ReadOnly) || t.Skill != "" {
 				continue
 			}
 			out = append(out, Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent})
@@ -158,6 +163,21 @@ func internalSpec(t InternalTool) Spec {
 	}
 }
 
+// SkillDefs are the tools of the skills' MCP servers, in a fixed order: what
+// a conversation that opened these skills gets besides the shared tools.
+func (r *Registry) SkillDefs(skills ...string) []prompt.ToolDef {
+	if r.mcp == nil || len(skills) == 0 {
+		return nil
+	}
+	var out []prompt.ToolDef
+	for _, t := range r.mcp.Tools() {
+		if t.Skill != "" && slices.Contains(skills, t.Skill) {
+			out = append(out, t.ToolDef)
+		}
+	}
+	return out
+}
+
 // Lookup finds a tool by the name the model used.
 func (r *Registry) Lookup(name string) (Spec, bool) {
 	if t, ok := r.internal[name]; ok && t.on() {
@@ -165,7 +185,7 @@ func (r *Registry) Lookup(name string) (Spec, bool) {
 	}
 	if r.mcp != nil {
 		if t, ok := r.mcp.Lookup(name); ok {
-			return Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent}, true
+			return Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent, Skill: t.Skill}, true
 		}
 	}
 	return Spec{}, false

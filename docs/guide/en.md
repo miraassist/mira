@@ -292,6 +292,42 @@ Mira does the rest by herself:
 
 The bundled skill `kochen` is a detailed example.
 
+### A skill with its own MCP server
+
+A skill can bring an MCP server. Its tools are in no conversation until Mira opens the skill; then they stay for the rest of that conversation, and only those the skill names. That way a server's 44 tools do not fill every prompt. Address and token come from the skill's settings; a secret token never reaches the model.
+
+**Example: Paperless.** The shipped skill `paperless` searches your documents in Paperless-ngx ("Search my documents for the chimney sweep's invoice and tell me the amount"). It uses the MCP server [baruchiro/paperless-mcp](https://github.com/baruchiro/paperless-mcp), which runs as a container of its own:
+
+```sh
+docker run -d --name paperless-mcp --restart unless-stopped -p 3000:3000 \
+  -e PAPERLESS_URL=http://paperless:8000 ghcr.io/baruchiro/paperless-mcp --http --port 3000
+```
+
+In `mira.yaml`:
+
+```yaml
+skills:
+  enabled:
+    paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+```
+
+The skill has the section `mcp` for it (the fields of `mcp_servers`, plus `tools`):
+
+```yaml
+metadata:
+  mira:
+    settings:
+      url:   { description: Address of the MCP server, required: true }
+      token: { description: API token, required: true, secret: true }
+    mcp:
+      url: "{{ url }}"
+      token: "{{ token }}"
+      web_content: true                              # what it returns is third-party text
+      tools: [query_documents, get_document_content]  # only these, and only for reading
+```
+
+`tools` is the control: whoever writes the skill decides what Mira may do with the server. If the server cannot be reached, Mira starts all the same; the skill is there, only without its tools, and Home Assistant shows it under **Repairs**. With a local model, the first turn after opening the skill computes the prompt anew because tools come in; that one turn takes longer.
+
 ### Reading mails
 
 A skill with `mail` reads mails that announce something with a date and puts them into a calendar, the way `pakete` does with shipping mails. The skill only says what to take from a mail; what may come out, and how entries are created, changed and cleaned up, Mira handles herself.
@@ -523,7 +559,7 @@ mcp_servers:
     disabled: true                 # switched off for now
 ```
 
-Two switches decide how careful Mira is with a server:
+With `tools: [name, …]` Mira takes only these tools of a server; that keeps the prompt small. Two switches decide how careful Mira is with a server:
 
 - **`read_only: true`**: the server only reads and changes nothing. Only such tools are also available to background work (judging tasks, delegated hard questions). Without the switch the tools exist only in conversation.
 - **`web_content: true`**: what the server returns is third-party text, from web pages for example, and may hide instructions. Once Mira has used such a tool, critical actions are locked for the rest of the request: everything listed under `security` as needing confirmation, such as locks, alarm, garage.

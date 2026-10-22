@@ -342,6 +342,14 @@ ALTER TABLE agent_runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE agent_runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0;
 `,
 	},
+	{
+		// The skills a conversation opened that bring an MCP server: their
+		// tools stay with the conversation (docs/spec/skill-mcp.md).
+		name: "0019_session_skills",
+		stmt: `
+ALTER TABLE sessions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

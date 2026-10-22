@@ -15,11 +15,13 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 	"gopkg.in/yaml.v3"
@@ -226,4 +228,43 @@ agents:
 	if name, _, _ := notLocal(cfg, arzt); name != "" {
 		t.Error("a skill without privacy local was checked")
 	}
+}
+
+// SM-09 A server that cannot be reached does not stop Mira
+// SM-10 A tool the server does not have is a problem
+func TestSM09_ASkillsServerThatCannotBeReachedIsAProblem(t *testing.T) {
+	up := fakemcp.New("akten")
+	defer up.Close()
+	up.AddTool("suche", "Suche", `{"type":"object","properties":{}}`, true, func(map[string]any) (string, bool) { return "", false })
+	// Given a skill whose server cannot be reached
+	// And a skill whose tools list names a tool the server does not have
+	a := &app{lang: i18n.DE, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	a.mcp = mcp.New(mcp.Options{Servers: []config.MCPServer{
+		{Name: "paperless", Skill: "paperless", Transport: config.TransportHTTP, URL: "http://127.0.0.1:1/mcp"},
+		{Name: "akten", Skill: "akten", Transport: config.TransportHTTP, URL: up.Endpoint(), Tools: []string{"suche", "lesen"}},
+	}, Logger: a.log})
+	// When Mira starts
+	a.mcp.Start(context.Background())
+	defer a.mcp.Close()
+	// Then she starts, the skill is there without its tools, and the problem is shown
+	// Then the problem names the tool, and the other tools are offered
+	problems := a.allProblems()
+	if len(problems) != 2 {
+		t.Fatalf("problems %+v", problems)
+	}
+	byName := map[string]string{}
+	for _, p := range problems {
+		byName[p.Name] = p.Text
+	}
+	if !strings.Contains(byName["paperless"], "nicht erreichbar") || !strings.Contains(byName["akten"], "lesen") {
+		t.Errorf("problems %+v", byName)
+	}
+	if _, ok := a.mcp.Lookup("akten__suche"); !ok {
+		t.Error("the tool the server has is not there")
+	}
+}
+
+// SM-10 A tool the server does not have is a problem (see SM-09's test).
+func TestSM10_AToolTheServerDoesNotHaveIsAProblem(t *testing.T) {
+	TestSM09_ASkillsServerThatCannotBeReachedIsAProblem(t)
 }

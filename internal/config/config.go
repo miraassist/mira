@@ -334,6 +334,12 @@ type MCPServer struct {
 	// conversation agents (the timers, for one). On by default for Home
 	// Assistant's Assist server; other servers do not know the field.
 	DeviceContext *bool `yaml:"device_context"`
+	// Tools names the tools Mira takes from the server; without it, all.
+	Tools []string `yaml:"tools"`
+	// Skill is the skill whose server this is (docs/spec/skill-mcp.md): its
+	// tools are in no conversation until the skill is opened. Empty for the
+	// servers under mcp_servers.
+	Skill string `yaml:"-"`
 }
 
 // WantsDevice reports whether the device id of the satellite goes to this

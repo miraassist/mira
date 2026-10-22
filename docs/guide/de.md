@@ -297,6 +297,42 @@ Den Rest macht Mira von selbst:
 
 Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel.
 
+### Ein Skill mit eigenem MCP-Server
+
+Ein Skill kann einen MCP-Server mitbringen. Dessen Werkzeuge stehen in keinem Gespräch, bis Mira den Skill öffnet; dann bleiben sie für den Rest dieses Gesprächs da, und nur die, die der Skill nennt. So füllen 44 Werkzeuge eines Servers nicht jeden Prompt. Adresse und Token kommen aus den Einstellungen des Skills; ein geheimer Token erreicht nie das Modell.
+
+**Beispiel: Paperless.** Der mitgelieferte Skill `paperless` sucht in deinen Dokumenten aus Paperless-ngx („Such in meinen Dokumenten nach der Rechnung vom Schornsteinfeger und nenn mir den Betrag“). Er nutzt den MCP-Server [baruchiro/paperless-mcp](https://github.com/baruchiro/paperless-mcp), der als eigener Container läuft:
+
+```sh
+docker run -d --name paperless-mcp --restart unless-stopped -p 3000:3000 \
+  -e PAPERLESS_URL=http://paperless:8000 ghcr.io/baruchiro/paperless-mcp --http --port 3000
+```
+
+In `mira.yaml`:
+
+```yaml
+skills:
+  enabled:
+    paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+```
+
+Im Skill steht dazu der Abschnitt `mcp` (dieselben Felder wie unter `mcp_servers`, dazu `tools`):
+
+```yaml
+metadata:
+  mira:
+    settings:
+      url:   { description: Adresse des MCP-Servers, required: true }
+      token: { description: API-Token, required: true, secret: true }
+    mcp:
+      url: "{{ url }}"
+      token: "{{ token }}"
+      web_content: true                              # was er liefert, ist fremder Text
+      tools: [query_documents, get_document_content]  # nur diese, und nur zum Lesen
+```
+
+`tools` ist die Kontrolle: Wer den Skill schreibt, entscheidet, was Mira mit dem Server darf. Ist der Server nicht erreichbar, startet Mira trotzdem; der Skill ist da, nur ohne seine Werkzeuge, und Home Assistant zeigt es unter **Reparaturen**. Mit einem lokalen Modell rechnet der erste Zug nach dem Öffnen des Skills den Prompt neu, weil Werkzeuge dazukommen; das dauert dann einmal länger.
+
 ### Mails auswerten
 
 Ein Skill mit `mail` wertet Mails aus, die etwas mit einem Termin ankündigen, und trägt sie in einen Kalender ein, so wie `pakete` die Versandmails. Der Skill sagt nur, was aus einer Mail zu holen ist; was ins Ergebnis darf und wie Einträge angelegt, geändert und aufgeräumt werden, regelt Mira selbst.
@@ -547,7 +583,7 @@ mcp_servers:
     disabled: true                 # vorübergehend aus
 ```
 
-Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
+Mit `tools: [name, …]` nimmt Mira nur diese Werkzeuge eines Servers; das hält den Prompt klein. Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
 
 - **`read_only: true`**: Der Server liest nur und ändert nichts. Nur solche Werkzeuge stehen auch Hintergrundarbeiten (Beurteilen von Aufgaben, abgegebene schwierige Fragen) zur Verfügung. Ohne den Schalter gibt es die Werkzeuge nur im Gespräch.
 - **`web_content: true`**: Was der Server liefert, ist fremder Text, zum Beispiel aus Webseiten, und könnte versteckte Anweisungen enthalten. Sobald Mira ein solches Werkzeug benutzt hat, sind für den Rest der Anfrage kritische Aktionen gesperrt: alles, was unter `security` als bestätigungspflichtig eingetragen ist, etwa Schlösser, Alarmanlage, Garage.

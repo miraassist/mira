@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +46,9 @@ type Tool struct {
 	ReadOnly bool
 	// WebContent is true when the result is untrusted third-party text.
 	WebContent bool
+	// Skill is the skill whose server offers the tool; its tools are offered
+	// only once the skill is opened (docs/spec/skill-mcp.md).
+	Skill string
 }
 
 // Result is the outcome of a tool call, flattened to what the model reads.
@@ -111,6 +115,9 @@ type server struct {
 	session *sdk.ClientSession
 	tools   []Tool // last known, kept while disconnected
 	lastErr error
+	// missing are the tools the configuration names that the server does
+	// not have.
+	missing []string
 }
 
 // Host owns the server connections.
@@ -290,7 +297,7 @@ func (h *Host) connectServer(ctx context.Context, s *server) error {
 	}
 	s.mu.Lock()
 	s.session = session
-	s.tools = tools
+	s.tools, s.missing = tools, missingTools(s.cfg, tools)
 	s.lastErr = nil
 	s.mu.Unlock()
 	h.log.Info("mcp server connected", "server", s.cfg.Name, "tools", len(tools))
@@ -359,9 +366,25 @@ func (h *Host) refresh(ctx context.Context, s *server) {
 		return
 	}
 	s.mu.Lock()
-	s.tools = tools
+	s.tools, s.missing = tools, missingTools(s.cfg, tools)
 	s.mu.Unlock()
 	h.rebuild()
+}
+
+// missingTools are the tools a server's configuration names that it does
+// not offer.
+func missingTools(cfg config.MCPServer, tools []Tool) []string {
+	have := map[string]bool{}
+	for _, t := range tools {
+		have[t.Name] = true
+	}
+	var out []string
+	for _, name := range cfg.Tools {
+		if !have[name] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // Refresh lists again the tools of the servers that depend on the satellite
@@ -413,6 +436,9 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		if err != nil {
 			return nil, fmt.Errorf("list tools: %w", err)
 		}
+		if len(cfg.Tools) > 0 && !slices.Contains(cfg.Tools, t.Name) {
+			continue // not among the tools Mira takes from this server
+		}
 		schema, err := json.Marshal(t.InputSchema)
 		if err != nil || string(schema) == "null" {
 			schema = []byte(`{"type":"object","properties":{}}`)
@@ -420,7 +446,7 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		def := prompt.ToolDef{Server: cfg.Name, Name: t.Name, Description: t.Description, Schema: schema}
 		readOnly := cfg.ReadOnly || h.readOnly[def.QualifiedName()] ||
 			(t.Annotations != nil && t.Annotations.ReadOnlyHint)
-		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent})
+		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill})
 	}
 	return out, nil
 }
@@ -633,13 +659,18 @@ type Status struct {
 	Connected bool
 	Tools     int
 	Error     string
+	// Skill is the skill whose server it is; Missing are the tools it was
+	// asked for and does not have.
+	Skill   string
+	Missing []string
 }
 
 func (h *Host) Status() []Status {
 	out := make([]Status, 0, len(h.servers))
 	for _, s := range h.servers {
 		s.mu.Lock()
-		st := Status{Name: s.cfg.Name, Connected: s.session != nil, Tools: len(s.tools)}
+		st := Status{Name: s.cfg.Name, Connected: s.session != nil, Tools: len(s.tools), Skill: s.cfg.Skill,
+			Missing: append([]string(nil), s.missing...)}
 		if s.lastErr != nil {
 			st.Error = s.lastErr.Error()
 		}

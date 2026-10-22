@@ -176,6 +176,9 @@ type CallContext struct {
 	// Foreign: third-party text is already involved in the call.
 	Foreign bool
 	Mode    Mode
+	// Skill is the skill the call runs for (a skill's schedule): the tools
+	// of its MCP server come along (docs/spec/skill-mcp.md).
+	Skill string
 }
 
 // Status is how a run ended.
