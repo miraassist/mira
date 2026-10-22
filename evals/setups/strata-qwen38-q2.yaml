@@ -1,0 +1,10 @@
+# Everything on Qwen3.8-Flash-Next (ISTA-DASLab GSQ-RCO Q2_0) served by Strata (an MoE engine, OpenAI-compatible
+# server) on this host.
+models:
+  main:
+    endpoint: "http://localhost:8099/v1"
+    model: "qwen3.8-flash-next-q2_0"
+    privacy: local
+    reasoning_effort: none
+    temperature: 0.3
+    timeout: 5m
