@@ -76,6 +76,20 @@ func (f actionFinish) Commit(ctx context.Context, th store.Thread) (string, erro
 	if err := json.Unmarshal(th.Content, &d); err != nil || d.Action == "" {
 		return "", errors.New("the thread holds no action")
 	}
+	// The yes said at a satellite acts there: a person's thread goes with
+	// them, and so does the satellite its action names.
+	if areaOf(ctx) != "" {
+		r, err := f.render(ctx, th)
+		if err != nil {
+			return "", err
+		}
+		if ok, err := f.m.opts.Actions.Has(ctx, r.Action); err != nil {
+			return "", err
+		} else if !ok {
+			return "", fmt.Errorf(f.m.texts().noAction, r.Action)
+		}
+		d = r
+	}
 	if err := f.call(ctx, th, d); err != nil {
 		return "", err
 	}
@@ -98,7 +112,13 @@ func (f actionFinish) render(ctx context.Context, th store.Thread) (done, error)
 			vars[k] = v
 		}
 	}
-	if area, ok := strings.CutPrefix(th.Place, "area:"); ok {
+	// The satellite is the one of the turn that acts; without a turn (the web
+	// UI's yes), the room the thread lives in.
+	area := areaOf(ctx)
+	if area == "" {
+		area, _ = strings.CutPrefix(th.Place, "area:")
+	}
+	if area != "" {
 		for k, v := range f.m.opts.Actions.Place(ctx, area) {
 			vars[k] = v
 		}

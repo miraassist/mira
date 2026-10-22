@@ -120,3 +120,35 @@ func TestActionFinishWhereItCannot(t *testing.T) {
 		t.Errorf("called %v", ha.calls)
 	}
 }
+
+// A known person's thread lives with them, not in the room (agenten.md, What a
+// turn belongs to): the satellite an action names is the one of the turn that
+// acts. "Weck mich" in the bedroom sets the Show's alarm; a yes said in the
+// living room acts there, where the Echo has no alarms.
+func TestActionFinishForAKnownPerson(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	ctx := context.Background()
+	bed := voiceIn(t, st, "voice:person:anna", "schlafzimmer")
+	bed.Person, bed.Place, bed.Area = "anna", "person:anna", "schlafzimmer"
+	m.Start(ctx, bed, "wecker", "Weck mich morgen um 6")
+	out, err := m.Fill(ctx, bed, map[string]string{"time": "06:00"})
+	if err != nil || !strings.HasPrefix(out, "Erledigt: esphome.show_alarm_set") {
+		t.Fatalf("bedroom: %q %v, calls %v", out, err, ha.calls)
+	}
+
+	sk := wecker()
+	sk.Target.Confirm = true
+	m.targets["wecker"] = sk
+	m.Start(ctx, bed, "wecker", "Weck mich übermorgen um 7")
+	if out, _ := m.Fill(ctx, bed, map[string]string{"time": "07:00"}); !strings.Contains(out, "07:00") {
+		t.Fatalf("proposal: %q", out)
+	}
+	living := bed
+	living.Area = "wohnzimmer"
+	if _, err := m.Confirm(ctx, living); err == nil || !strings.Contains(err.Error(), "esphome.wohnzimmer_alarm_set") {
+		t.Errorf("yes in the living room: %v", err)
+	}
+	if len(ha.calls) != 1 {
+		t.Errorf("called %v", ha.calls)
+	}
+}

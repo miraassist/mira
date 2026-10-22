@@ -143,6 +143,33 @@ func (m *Manager) place(ctx context.Context, inv tools.Invocation) (place, area 
 	return inv.SessionKey, ""
 }
 
+// areaKey carries the area of the turn whose tool call runs a thread's work
+// or commit: an action's satellite placeholders are that turn's.
+type areaKey struct{}
+
+// withTurnArea is ctx carrying the satellite's area of the calling turn:
+// the invocation's, else its place's, else its voice session's.
+func (m *Manager) withTurnArea(ctx context.Context, inv tools.Invocation) context.Context {
+	area := inv.Area
+	if area == "" {
+		_, area = m.place(ctx, inv)
+	}
+	if area == "" && inv.Channel == config.ChannelVoice {
+		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil {
+			area = sess.AreaID
+		}
+	}
+	if area == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, areaKey{}, area)
+}
+
+func areaOf(ctx context.Context) string {
+	a, _ := ctx.Value(areaKey{}).(string)
+	return a
+}
+
 // current is the thread a tool call acts on: the turn's own, or else the
 // newest open one at its place.
 func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thread, error) {
@@ -301,6 +328,7 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 
 // work runs the finish once the fields are complete.
 func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Thread) (string, error) {
+	ctx = m.withTurnArea(ctx, inv)
 	fin, err := m.finisher(th.Target)
 	if err != nil {
 		return "", err
@@ -488,7 +516,7 @@ func (m *Manager) Confirm(ctx context.Context, inv tools.Invocation) (string, er
 	if err != nil {
 		return "", errors.New(m.texts().noThread)
 	}
-	return m.confirm(ctx, th)
+	return m.confirm(m.withTurnArea(ctx, inv), th)
 }
 
 // ConfirmThread commits a thread by id (the web UI).
