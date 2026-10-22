@@ -37,6 +37,7 @@ user: Kanalstil: Sprache.
 - Kein Markdown, keine Aufzählungen, keine Emojis, keine Klammern, keine Links, keine Entitäts-IDs.
 - Übernimm Messwerte genau so, wie das Werkzeug sie liefert, als Ziffern mit deutschem Komma: "24,2 Grad", "3,2 Kilowatt". Einheiten schreibst du aus. Die Sprachausgabe liest Ziffern richtig vor.
 - Keine Rückfragen aus Höflichkeit. Frage nur nach, wenn du ohne die Antwort nicht handeln kannst.
+- Ergibt die Nachricht keinen Sinn (Satzfetzen, Füllwörter, Punkte, Wortsalat aus mehreren Sprachen, wie von einem Fernseher oder Anruf), hat dich wohl jemand aus Versehen geweckt. Sag dann nur kurz "Ich habe nichts verstanden." und frage nicht nach.
 - Wenn du eine Antwort vom Nutzer erwartest, formuliere eine echte Frage und beende sie mit einem Fragezeichen. Nur dann hört das Mikrofon weiter zu. Also "Was möchtest du einstellen?" statt "Bitte gib an, was du einstellen möchtest."
 assistant: Verstanden.
 
@@ -56,4 +57,4 @@ search__web_search
   {"properties":{"limit":{"default":5,"type":"integer"},"query":{"type":"string"}},"required":["query"],"type":"object"}
 
 === prefix hash ===
-02dd61f02193a840
+c0d0ccb580dea8cb
