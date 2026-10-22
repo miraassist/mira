@@ -163,6 +163,37 @@ Den Kalender „Pakete“ (oder „Pakete stefan“) legt Mira selbst an; dort s
 
 Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `agents` bei `mail.read` und `mail.match` (`{ model: main }`). Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
 
+**Paperless**: Mira sucht in deinen Dokumenten aus [Paperless-ngx](https://docs.paperless-ngx.com/) und liest dir daraus vor, was du wissen willst.
+
+- „Such in meinen Dokumenten nach der Rechnung vom Schornsteinfeger und nenn mir den Betrag.“
+- „Such in Paperless nach dem Bescheid vom Finanzamt. Bis wann muss ich zahlen?“
+- „Wann ist die nächste Feuerstättenschau?“ – findet Mira den Bescheid, nennt sie die Antwort mit Absender und Datum des Dokuments.
+
+Passen mehrere Dokumente (etwa Rechnungen aus mehreren Jahren), nimmt Mira das neueste und sagt, welches; nennst du ein Jahr, nimmt sie das. Sie liest nur das Gefragte vor, keine ganzen Seiten.
+
+So richtest du es ein:
+
+1. Den MCP-Server für Paperless als Container starten, neben Mira:
+   ```sh
+   docker run -d --name paperless-mcp --restart unless-stopped -p 3000:3000 \
+     -e PAPERLESS_URL=http://paperless:8000 ghcr.io/baruchiro/paperless-mcp --http --port 3000
+   ```
+   `PAPERLESS_URL` ist die Adresse deines Paperless.
+2. In Paperless unter **Profil** einen **API-Token** erzeugen. Mira sieht genau die Dokumente, die dieser Benutzer sieht.
+3. In `mira.yaml` den Skill einschalten:
+   ```yaml
+   skills:
+     enabled:
+       paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+   ```
+   Den Token setzt du als Umgebungsvariable `PAPERLESS_TOKEN` für Mira. Danach Mira neu starten.
+
+Gut zu wissen:
+- Mira kann in Paperless nur **suchen und lesen**, nichts ändern oder löschen.
+- Was in den Dokumenten steht, gilt als **fremder Text**, wie eine Webseite: Mira folgt keinen Anweisungen darin und fragt nach, bevor sie etwas davon merkt oder weitergibt.
+- Der Text der Dokumente geht an das Modell des Gesprächs. Mit einem lokalen Modell bleibt er im Haus (siehe „Mehrere Modelle“).
+- Mira sucht am besten mit einem kennzeichnenden Wort (der Absender, die Sache). Der Text ist aus Scans erkannt; ist ein Betrag unklar erkannt, sagt Mira das.
+
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
 ## Eigenen Skill erstellen

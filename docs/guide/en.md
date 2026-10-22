@@ -159,6 +159,37 @@ Mira creates the calendar "Pakete" (or "Pakete stefan") herself; you see the par
 
 Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `agents` for `mail.read` and `mail.match` (`{ model: main }`). Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
 
+**Paperless**: Mira searches your documents in [Paperless-ngx](https://docs.paperless-ngx.com/) and reads out what you want to know.
+
+- "Search my documents for the chimney sweep's invoice and tell me the amount."
+- "Search Paperless for the tax office's notice. By when do I have to pay?"
+- "When is the next chimney inspection?" – if Mira finds the notice, she answers with the document's sender and date.
+
+If several documents fit (invoices from several years, say), Mira takes the newest and says which; if you name a year, she takes that one. She reads out only what was asked, never whole pages.
+
+How to set it up:
+
+1. Start the MCP server for Paperless as a container next to Mira:
+   ```sh
+   docker run -d --name paperless-mcp --restart unless-stopped -p 3000:3000 \
+     -e PAPERLESS_URL=http://paperless:8000 ghcr.io/baruchiro/paperless-mcp --http --port 3000
+   ```
+   `PAPERLESS_URL` is the address of your Paperless.
+2. In Paperless, create an **API token** under **Profile**. Mira sees exactly the documents this user sees.
+3. Switch the skill on in `mira.yaml`:
+   ```yaml
+   skills:
+     enabled:
+       paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+   ```
+   Set the token as the environment variable `PAPERLESS_TOKEN` for Mira. Then restart Mira.
+
+Good to know:
+- Mira can only **search and read** in Paperless, never change or delete anything.
+- What the documents say counts as **third-party text**, like a web page: Mira follows no instructions in it and asks before she keeps or passes on anything from it.
+- The documents' text goes to the conversation's model. A local model keeps it in the house (see "Several models").
+- Mira searches best with one distinctive word (the sender, the matter). The text is recognized from scans; if an amount is unclear, Mira says so.
+
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
 ## Creating your own skill
