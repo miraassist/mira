@@ -30,6 +30,7 @@ import (
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/profile"
 	"github.com/miraassist/mira/internal/radio"
+	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
@@ -318,6 +319,19 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	}))
+	// Sounds and cards on the satellite of the turn (docs/spec/satellit.md).
+	internal = append(internal, satellite.Tools(satellite.Options{
+		Lang: a.lang, Speaker: a.speakerOf, CardAction: a.cardActionOf, BaseURL: a.haAddress,
+		Play: func(ctx context.Context, entity, url string) error {
+			return a.ha.CallService(ctx, "media_player", "play_media", map[string]any{
+				"media_content_id": url, "media_content_type": "music", "announce": true,
+			}, &haws.Target{EntityID: []string{entity}})
+		},
+		Show: func(ctx context.Context, action string, c satellite.Card) error {
+			domain, service, _ := strings.Cut(action, ".")
+			return a.ha.CallService(ctx, domain, service, satellite.CardData(c), nil)
+		},
+	})...)
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
 	a.tasks = tasks.New(tasks.Options{

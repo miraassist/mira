@@ -1,6 +1,6 @@
 ---
 name: kochen
-description: "Kochen und Backen nach Rezept, Schritt für Schritt vorgelesen („Lass uns Pfannkuchen backen“, „Ich will Lasagne kochen“); danach geht es mit „weiter“, „nochmal“, „zurück“. Vor dem Start suchst du zwei Rezepte zur Auswahl: web_page auf https://api.chefkoch.de/v2/recipes?query=GERICHT&limit=2 (JSON: title, rating, preparationTime, siteUrl), nennst beide mit Sternen und Dauer und startest erst nach der Wahl, mit Name und siteUrl in request."
+description: "Kochen und Backen nach Rezept, Schritt für Schritt vorgelesen („Lass uns Pfannkuchen backen“, „Ich will Lasagne kochen“); danach geht es mit „weiter“, „nochmal“, „zurück“. Vor dem Start suchst du zwei Rezepte zur Auswahl: web_page auf https://api.chefkoch.de/v2/recipes?query=GERICHT&limit=2 (JSON: title, rating, preparationTime, siteUrl, previewImageUrlTemplate), nennst beide mit Sternen und Dauer und startest erst nach der Wahl, mit Name, siteUrl und Bild in request."
 license: MIT
 metadata:
   mira:
@@ -46,18 +46,21 @@ Rezept aus und gehst danach den Plan mit ihm durch.
    `https://api.chefkoch.de/v2/recipes?query=BEGRIFF&limit=2` (BEGRIFF ist das
    Gericht, Leerzeichen als `+`, z. B. `pfannkuchen` oder `kartoffel+suppe`). Du
    bekommst JSON: je Treffer `title`, `rating` (`rating`, `numVotes`),
-   `preparationTime` (Minuten) und `siteUrl`. Nenn beide kurz, mit Namen, Sternen
+   `preparationTime` (Minuten), `siteUrl` und `previewImageUrlTemplate` (das Bild;
+   ersetze darin `<format>` durch `crop-960x540`). Nenn beide kurz, mit Namen, Sternen
    und Dauer, und frag, welches es sein soll. Nennt der Nutzer schon ein
    bestimmtes Rezept oder eine Adresse, brauchst du keine Auswahl. Klappt die
    Suche nicht (ein Fehler, keine Treffer, `web_page` ist aus), sag das und frag,
    ob der Nutzer das Rezept selbst vorgibt.
 2. **Vorgang starten.** Hat der Nutzer gewählt, starte den Vorgang mit
-   `thread_start`. Schreib in `request` den Namen und die `siteUrl` des Rezepts
-   und, wenn der Nutzer sie genannt hat, die Zahl der Portionen („Der perfekte
-   Pfannkuchen, https://www.chefkoch.de/rezepte/…, für 2 Portionen“). Sag in einem
-   Satz, dass du den Plan schreibst und dich gleich meldest.
-3. **Der Plan ist da.** Steht der Plan im Kontext, sag in einem Satz, was es wird
-   (Name, Dauer). Hat der Nutzer keine Portionen genannt, frag, für wie viele, und
+   `thread_start`. Schreib in `request` den Namen und die `siteUrl` des Rezepts,
+   das Bild und, wenn der Nutzer sie genannt hat, die Zahl der Portionen („Der
+   perfekte Pfannkuchen, https://www.chefkoch.de/rezepte/…, Bild:
+   https://img.chefkoch-cdn.de/…/crop-960x540/….jpg, für 2 Portionen“). Meist ist
+   das Rezept schon geladen, wenn `thread_start` antwortet: dann geht es gleich mit
+   Schritt 3 weiter. Sonst sag nur: „Ich lade das Rezept, dann geht's los.“
+3. **Das Rezept ist da.** Steht der Plan im Kontext, sag in einem Satz, was es wird
+   („Rezept geladen: Kakao, fünf Minuten.“); sprich vom Rezept, nicht vom Plan. Hat der Nutzer keine Portionen genannt, frag, für wie viele, und
    lies erst danach den ersten Schritt vor; sonst lies ihn gleich vor.
 4. **Andere Zahl der Portionen.** Will der Nutzer für eine andere Zahl kochen (am
    Anfang oder mittendrin), rechne von der Zahl im Plan aus neu, nie von einer
@@ -73,9 +76,20 @@ Rezept aus und gehst danach den Plan mit ihm durch.
    - „zurück“: den zuletzt erledigten wieder öffnen (`uncheck`) und vorlesen.
    - Fragen („Wie viel Mehl?“, „Wie heiß?“) beantwortest du aus dem Plan; reicht
      der Kontext nicht, lies ihn mit `read`.
+   - **Karte:** Jedes Mal, wenn du einen Schritt vorliest (auch bei „nochmal“ und
+     „zurück“), zeig ihn vorher mit `display_card`: `title` „Schritt 2 von 5 ·
+     Name“ (der Schritt vorn, ein langer Name wird hinten abgeschnitten), `line` der Schritt als Stichwort, höchstens 50 Zeichen („Teig glatt
+     rühren · 10 Min. quellen“), `picture` das Bild aus dem Anliegen, `seconds` 0.
+     Steht kein Bild im Anliegen, keine Karten.
+   - **Weiter ohne Aufwachwort:** Ist der Schritt ein kurzer Handgriff (Salz dazu,
+     umrühren, in die Tasse füllen), ruf mit der Karte auch `keep_listening` auf;
+     dann kann der Nutzer gleich „weiter“ sagen. Frag dafür nicht nach. Bei einem
+     Schritt mit Wartezeit nicht.
 6. **Wartezeit:** Liest du einen Schritt mit Wartezeit vor (ruhen, backen,
    köcheln), biete im selben Satz einen Timer an („Soll ich einen Timer auf 30
    Minuten stellen?“) und stell ihn auf Ja mit dem Timer-Werkzeug von Home Assistant.
 7. **Zutaten auf die Einkaufsliste** nur, wenn der Nutzer das möchte.
-8. **Ende:** Ist der letzte Schritt abgehakt, wünsch guten Appetit. Will der Nutzer
-   nicht mehr kochen, beende den Vorgang mit `thread_cancel`.
+8. **Ende:** Ist der letzte Schritt abgehakt, zeig eine letzte Karte (`line`
+   „Guten Appetit!“, `seconds` 60) und wünsch guten Appetit. Will der Nutzer nicht
+   mehr kochen, zeig eine Karte mit `line` „Kochen beendet“ und `seconds` 10 und
+   beende den Vorgang mit `thread_cancel`.

@@ -279,6 +279,21 @@ func TestGuideFilesInRanges(t *testing.T) {
 	}
 }
 
+// The sounds go to satellites without a token; an unknown one is 404.
+func TestSA05_SoundFilesWithoutToken(t *testing.T) {
+	srv, _, _ := setup(t)
+	for path, want := range map[string]int{"/ui/sounds/fanfare.mp3": 200, "/ui/sounds/trommel.mp3": 404, "/ui/sounds/fanfare": 404} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want || (want == 200 && resp.Header.Get("Content-Type") != "audio/mpeg") {
+			t.Errorf("%s: %d %q", path, resp.StatusCode, resp.Header.Get("Content-Type"))
+		}
+	}
+}
+
 // fakeTasks plays the task manager: one automation.
 type fakeTasks struct {
 	items   []tasks.Item

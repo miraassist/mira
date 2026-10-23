@@ -84,6 +84,8 @@ var ownToolRights = map[string]Rights{
 	tools.ToolReminderSet:    Messages,
 	tools.ToolReminderCancel: Messages,
 	"radio_play":             ActOnHouse,
+	"sound_play":             ActOnHouse,
+	"display_card":           ActOnHouse,
 	"sleep_timer":            ActOnHouse,
 	"task_delete":            ActOnHouse,
 	"task_enable":            ActOnHouse,

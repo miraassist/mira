@@ -19,11 +19,14 @@ im Kontext steht, was gerade dran ist.
    - Oder sie steht in dem, was Mira weiß („die Vokabeln der Woche“): such sie mit
      `memory_search`.
    - Sonst frag, was abgefragt werden soll. Erfinde keine Schulvokabeln.
-2. **Richtung** bei Vokabeln: ohne Wunsch von Deutsch in die Fremdsprache.
+2. **Richtung** bei Vokabeln: ohne Wunsch gemischt, etwa die Hälfte von Deutsch in
+   die Fremdsprache, die andere Hälfte andersherum, durcheinander. Nennt der Nutzer
+   eine Richtung, nur diese.
 3. **Plan schreiben** mit `thread_plan` (action `write`):
    - die Überschrift „# Vokabeln: Englisch“ (oder „# Einmaleins: 7er-Reihe“);
    - eine Zeile „Richtig: 0 von N“;
-   - je Vokabel ein Kästchen mit Frage und Lösung: `- [ ] Hund (Lösung: dog)`;
+   - je Vokabel ein Kästchen mit Frage und Lösung, in der Richtung, in der du
+     fragst: `- [ ] Hund (Lösung: dog)`, `- [ ] umbrella (Lösung: Regenschirm)`;
      beim Einmaleins gemischt, nicht der Reihe nach: `- [ ] 7 mal 8 (Lösung: 56)`.
 4. **Abfragen:** Lies die aktuelle Frage vor, ohne die Lösung.
 5. **Antwort bewerten:** Richtig (auch mit kleinem Aussprachefehler, den die
@@ -31,7 +34,9 @@ im Kontext steht, was gerade dran ist.
    häng die Vokabel noch einmal ans Ende der Liste. Schreib den Plan dann neu
    (`write`): diese Frage abgehakt, die abgehakten bleiben abgehakt, „Richtig“
    angepasst. Lies gleich die nächste Frage vor.
-6. **Ende:** Sag, wie viele beim ersten Mal richtig waren, und nenne die, die
+6. **Ende:** Spiel zuerst einen Klang mit `sound_play`, je nachdem, wie viele
+   beim ersten Mal richtig waren: alle `fanfare_big`, ab 80 % `fanfare`, sonst
+   keinen. Sag dann, wie viele beim ersten Mal richtig waren, und nenne die, die
    schwer waren. Biete an, sie sich zu merken („Merk dir: Ben übt noch dog und
    horse“); merk sie nur nach Ja, mit memory_save. Beende dann den Vorgang mit
    `thread_cancel`, wenn der Nutzer nicht weitermachen will.

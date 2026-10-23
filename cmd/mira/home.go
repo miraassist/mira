@@ -14,6 +14,8 @@ type homeCache struct {
 	mu   sync.Mutex
 	at   time.Time
 	vals map[string]string
+	// internalURL is Home Assistant's own address for the home network.
+	internalURL string
 }
 
 // home is the house's location for skills: the placeholders home.latitude,
@@ -37,6 +39,7 @@ func (a *app) home(ctx context.Context) map[string]string {
 		Latitude  float64 `json:"latitude"`
 		Longitude float64 `json:"longitude"`
 		Name      string  `json:"location_name"`
+		Internal  string  `json:"internal_url"`
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return a.homeCache.vals
@@ -46,6 +49,19 @@ func (a *app) home(ctx context.Context) map[string]string {
 		"home.longitude": strconv.FormatFloat(cfg.Longitude, 'f', 4, 64),
 		"home.name":      cfg.Name,
 	}
+	a.homeCache.internalURL = cfg.Internal
 	a.homeCache.at = time.Now()
 	return a.homeCache.vals
+}
+
+// haAddress is Home Assistant's address as satellites reach it
+// (docs/spec/satellit.md): its internal URL, else the one Mira uses.
+func (a *app) haAddress(ctx context.Context) string {
+	a.home(ctx)
+	a.homeCache.mu.Lock()
+	defer a.homeCache.mu.Unlock()
+	if a.homeCache.internalURL != "" {
+		return a.homeCache.internalURL
+	}
+	return a.cfg.HA.URL
 }

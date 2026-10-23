@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/docs"
+	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -114,6 +115,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
 	h.mux.HandleFunc("GET /ui/guide/img/{name}", h.guideFile)
 	h.mux.HandleFunc("GET /ui/js/{name}", h.script)
+	h.mux.HandleFunc("GET /ui/sounds/{name}", h.sound)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -182,6 +184,20 @@ func (h *Handler) guideFile(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "max-age=3600")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
+}
+
+// sound serves Mira's sounds to the satellites (docs/spec/satellit.md),
+// through the integration's open page; like the page they need no token.
+func (h *Handler) sound(w http.ResponseWriter, r *http.Request) {
+	name, ok := strings.CutSuffix(r.PathValue("name"), ".mp3")
+	data, found := satellite.File(name)
+	if !ok || !found {
+		writeError(w, http.StatusNotFound, "no such sound")
+		return
+	}
+	w.Header().Set("Content-Type", "audio/mpeg")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	http.ServeContent(w, r, name+".mp3", time.Time{}, bytes.NewReader(data))
 }
 
 func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {

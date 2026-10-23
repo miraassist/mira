@@ -82,6 +82,7 @@ flowchart LR
 | `internal/mcp` | MCP host: HA Assist tools, further MCP servers |
 | `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/websuche.md)) |
 | `internal/radio` | `radio_play`: search for a station in HA's Radio Browser and start it on the speaker of the room ([Radio](spec/radio.md)) |
+| `internal/satellite` | `sound_play`, `display_card` and `keep_listening`: Mira's own sounds (embedded, CC0) on the speaker of the turn's satellite, a picture card on its screen (TECHO5 `notify_picture`), listening again without a question ([Sounds and cards](spec/satellit.md)) |
 | `internal/timer` | `sleep_timer` (set, list, extend, cancel): creates one-off automations in HA via the integration ([Scheduled actions](spec/geplante-aktionen.md)). The countdown timers are HA's own tools, which the MCP host fetches with the satellite's device id |
 | `internal/ha/ws` | WebSocket client to HA: states, registries, statistics, services, subscriptions |
 | `internal/ha/structure` | House structure (areas, entities) as prompt layer 4 |

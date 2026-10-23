@@ -539,6 +539,22 @@ func TestVoiceConfirmationRequestKeepsListening(t *testing.T) {
 	}
 }
 
+// SA-08 keep_listening makes the satellite listen again without a question.
+func TestSA08_KeepListeningWithoutAQuestion(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", tools.ToolKeepListening, `{}`)}},
+		fakellm.Step{Content: "Gib eine Prise Salz dazu."},
+	)
+	resp := h.say(t, config.ChannelVoice, "v1", "weiter")
+	if !resp.ContinueConversation {
+		t.Fatalf("satellite would stop listening: %+v", resp)
+	}
+	h.llm.Push(fakellm.Step{Content: "Gib eine Prise Salz dazu."})
+	if resp := h.say(t, config.ChannelVoice, "v1", "weiter"); resp.ContinueConversation {
+		t.Errorf("listens again without being asked: %+v", resp)
+	}
+}
+
 // Plan acceptance, in fakes: "Was genau?" after an announcement gets the
 // message's details, and answering acknowledges it.
 func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {

@@ -514,7 +514,8 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	// Not after a question, which the next turn completes, and not when the
 	// user just asked for the messages.
 	if req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
-		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) {
+		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) &&
+		!calledTool(added, tools.ToolKeepListening) {
 		if extra := e.afterword(ctx, sess.AreaID); extra != "" {
 			final.Content = strings.TrimSpace(final.Content) + " " + extra
 		}
@@ -534,12 +535,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 
 	resp.Text = strings.TrimSpace(final.Content)
 	// A satellite keeps listening after a question, and always after a
-	// confirmation request: the user's "yes" must reach this session.
+	// confirmation request: the user's "yes" must reach this session. The
+	// model may also ask for it with keep_listening, when it expects a quick
+	// word without asking ("weiter" after a short step).
 	if ts.WebContentSeen() {
 		e.noteWeb(key)
 	}
 	resp.ContinueConversation = req.Channel == config.ChannelVoice &&
-		(expectsReply(resp.Text) || ts.ConfirmationRequested())
+		(expectsReply(resp.Text) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,

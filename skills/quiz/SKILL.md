@@ -31,6 +31,9 @@ welche Frage gerade dran ist.
    bleiben abgehakt. Lies danach gleich die nächste Frage vor.
    - „weiter“ oder „weiß ich nicht“: Antwort sagen, keinen Punkt, nächste Frage.
    - „Wie steht es?“: die Punkte aus dem Plan.
-5. **Ende:** Nach der letzten Frage die Punkte, bei mehreren wer gewonnen hat, und
+5. **Ende:** Nach der letzten Frage spielst du zuerst einen Klang mit
+   `sound_play`, je nach dem Anteil richtiger Antworten (bei mehreren alle
+   zusammen): alle richtig `fanfare_big`, ab 80 % `fanfare`, unter 50 % `too_bad`,
+   dazwischen keinen. Danach die Punkte, bei mehreren wer gewonnen hat, und
    ob noch eine Runde gewünscht ist (dann neuer Plan mit neuen Fragen). Will
    niemand mehr spielen, beende den Vorgang mit `thread_cancel`.
