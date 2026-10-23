@@ -91,45 +91,68 @@ func (r *Runtime) RegisterDefined(defs []Defined, models func(name string) (conf
 	var problems []Problem
 	seen := map[string]bool{}
 	for _, d := range defs {
-		fail := func(kind string, args ...any) {
-			problems = append(problems, Problem{Agent: d.Name, Skill: d.Skill, kind: kind, args: args})
-		}
 		_, registered := r.lookup(d.Name)
-		switch {
-		case d.Err != nil:
-			fail("yaml", d.Err)
-			continue
-		case slices.Contains(codeAgents, d.Name) && d.Skill == "":
-			// One of Mira's own agents: mira.yaml names only its model and
-			// privacy (docs/spec/modelle.md).
-			model, known := models(d.Def.Model)
-			switch {
-			case ownExtra(d.Def) != "":
-				fail("ownfields", ownExtra(d.Def))
-			case d.Def.Model != "" && !known:
-				fail("ownmodel", d.Def.Model)
-			case d.Def.Privacy != "" && d.Def.Privacy != config.PrivacyLocal:
-				fail("privacyword", d.Def.Privacy)
-			case d.Def.Privacy == config.PrivacyLocal && model.Privacy != config.PrivacyLocal:
-				fail("ownprivacy", modelName(d.Def.Model), model.Privacy)
+		if !Own(d.Name) || d.Skill != "" {
+			if seen[d.Name] || registered {
+				problems = append(problems, Problem{Agent: d.Name, Skill: d.Skill, kind: "taken", args: []any{d.Name}})
+				continue
 			}
-			continue
-		case !agentName.MatchString(d.Name):
-			fail("name", d.Name)
-			continue
-		case slices.Contains(codeAgents, d.Name) || seen[d.Name] || registered:
-			fail("taken", d.Name)
+		}
+		spec, p := check(d, models)
+		if p != nil {
+			problems = append(problems, *p)
 			continue
 		}
-		spec, kind, args := specOf(d, models)
-		if kind != "" {
-			fail(kind, args...)
+		if spec == nil {
 			continue
 		}
 		seen[d.Name] = true
-		r.Register(spec)
+		r.Register(*spec)
 	}
 	return problems
+}
+
+// Check is what Mira says about a YAML agent when she starts, without
+// registering it: nil when it fits (Mira's page checks before it writes).
+func Check(d Defined, models func(name string) (config.LLM, bool)) *Problem {
+	_, p := check(d, models)
+	return p
+}
+
+// check reads one YAML agent: its spec, nil for an entry of one of Mira's
+// own agents, or what does not fit.
+func check(d Defined, models func(name string) (config.LLM, bool)) (*Spec, *Problem) {
+	fail := func(kind string, args ...any) (*Spec, *Problem) {
+		return nil, &Problem{Agent: d.Name, Skill: d.Skill, kind: kind, args: args}
+	}
+	switch {
+	case d.Err != nil:
+		return fail("yaml", d.Err)
+	case slices.Contains(codeAgents, d.Name) && d.Skill == "":
+		// One of Mira's own agents: mira.yaml names only its model and
+		// privacy (docs/spec/modelle.md).
+		model, known := models(d.Def.Model)
+		switch {
+		case ownExtra(d.Def) != "":
+			return fail("ownfields", ownExtra(d.Def))
+		case d.Def.Model != "" && !known:
+			return fail("ownmodel", d.Def.Model)
+		case d.Def.Privacy != "" && d.Def.Privacy != config.PrivacyLocal:
+			return fail("privacyword", d.Def.Privacy)
+		case d.Def.Privacy == config.PrivacyLocal && model.Privacy != config.PrivacyLocal:
+			return fail("ownprivacy", modelName(d.Def.Model), model.Privacy)
+		}
+		return nil, nil
+	case !agentName.MatchString(d.Name):
+		return fail("name", d.Name)
+	case slices.Contains(codeAgents, d.Name):
+		return fail("taken", d.Name)
+	}
+	spec, kind, args := specOf(d, models)
+	if kind != "" {
+		return fail(kind, args...)
+	}
+	return &spec, nil
 }
 
 // modelName is a model's name as an agent's entry gives it; empty is main.

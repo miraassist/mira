@@ -33,6 +33,9 @@ type prepared struct {
 	hasModel bool
 	// code: a pairing code from mira pair, while it holds.
 	code string
+	// path is the mira.yaml Mira read and the page writes
+	// (docs/spec/bearbeiten.md).
+	path string
 }
 
 func prepare(ctx context.Context, path string) (prepared, error) {
@@ -40,7 +43,7 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 	if err != nil {
 		return prepared{}, err
 	}
-	p := prepared{pairing: cfg.Server.Token == ""}
+	p := prepared{pairing: cfg.Server.Token == "", path: config.ConfigPath(path)}
 	st, err := store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
 		return prepared{}, err

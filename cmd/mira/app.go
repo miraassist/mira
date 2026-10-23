@@ -45,11 +45,15 @@ import (
 
 // app is the wired agent. Fields are nil for disabled parts.
 type app struct {
-	cfg   config.Config
-	log   *slog.Logger
-	tel   *telemetry.Provider
-	store *store.Store
-	llm   *llm.Client
+	cfg config.Config
+	// configPath is the mira.yaml the page edits (edit.go); empty for the
+	// commands that do not serve the page.
+	configPath string
+	edit       *editor
+	log        *slog.Logger
+	tel        *telemetry.Provider
+	store      *store.Store
+	llm        *llm.Client
 	// langs says which language applies when; lang is the one at the start,
 	// for what only the model reads.
 	langs *language.Resolver
@@ -113,6 +117,8 @@ type app struct {
 type buildOptions struct {
 	// pairing lets Home Assistant pair with a code; prepared by prepare.
 	pairing bool
+	// configPath is the mira.yaml the page edits; empty: no editing.
+	configPath string
 }
 
 // build wires everything that both run and chat need, and connects to Home
@@ -127,7 +133,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		return nil, err
 	}
 	slog.SetDefault(tel.Logger)
-	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing}
+	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath}
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
@@ -540,7 +546,7 @@ func (a *app) close() {
 func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing})
+	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing, configPath: p.path})
 	if err != nil {
 		return err
 	}
@@ -957,7 +963,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			return out
 		},
 		AreaName: func(id string) string { return a.structure.Snapshot().AreaNames[id] },
-		Tasks:    a.tasks, Threads: a.threads, Catalog: a.catalog, CheckModel: a.checkModel,
+		Tasks:    a.tasks, Threads: a.threads, Catalog: a.catalog, CheckModel: a.checkModel, Editor: a.editor(),
 		Plans: func(ctx context.Context) ([]ui.Plan, error) {
 			list, err := a.threads.Plans(ctx)
 			out := make([]ui.Plan, 0, len(list))

@@ -595,6 +595,13 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 
 ![Fähigkeiten → Modelle: welche Modelle Mira nutzt und ob sie antworten](img/mira-modelle-de.png)
 
+**Ändern auf der Seite** (nur Admins): Unter **Fähigkeiten** hat jedes Modell, jeder Agent und jeder Skill einen Knopf **Bearbeiten**, dazu **Neues Modell** und **Neuer Agent**.
+- Die Seite schreibt direkt in die `mira.yaml` und ändert dort nur den betroffenen Eintrag; Kommentare bleiben. Was in der Datei steht, gilt, egal ob von Hand oder von der Seite geschrieben.
+- Schlüssel (Tokens) landen nicht in der `mira.yaml`, sondern in einer eigenen Datei im Datenordner, die nur Mira lesen kann; in der `mira.yaml` steht nur ein Verweis wie `${MIRA_MODEL_SMART_TOKEN}`. Setzt du `MIRA_SECRET_KEY` (etwa im Compose-File), verschlüsselt Mira diese Datei.
+- Ein Modell, das noch ein Agent nimmt, und einen Agenten, den noch jemand ruft, kann man nicht löschen; `main` lässt sich weder umbenennen noch löschen.
+- Bei Skills: einschalten, ausschalten und einstellen, bei einem Skill mit MCP-Server mit **Verbindung testen**. Bei eigenen Skills auch die Anleitung, die Agenten, den Vorgang und den MCP-Server; mitgelieferte Skills ersetzt ein Update, darum dort nur die Einstellungen.
+- Änderungen gelten nach einem Neustart; die Seite bietet dafür **Mira neu starten** an.
+
 Wer kein Admin ist, sieht nur **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
 
 ![Benachrichtigung: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)

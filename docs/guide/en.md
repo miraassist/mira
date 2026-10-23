@@ -571,6 +571,13 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 ![Capabilities → Models: which models Mira uses and whether they answer](img/mira-modelle-en.png)
 
+**Changing things on the page** (admins only): under **Capabilities** every model, agent and skill has an **Edit** button, and there are **New model** and **New agent**.
+- The page writes straight into `mira.yaml` and changes only the entry in question; comments stay. What is in the file holds, whether written by hand or by the page.
+- Keys (tokens) do not go into `mira.yaml` but into a file of their own in the data folder that only Mira can read; `mira.yaml` has only a reference such as `${MIRA_MODEL_SMART_TOKEN}`. If you set `MIRA_SECRET_KEY` (in the compose file, say), Mira encrypts that file.
+- A model an agent still takes and an agent someone still calls cannot be deleted; `main` can be neither renamed nor deleted.
+- Skills: switch on, switch off and set them up, with **Test connection** for a skill with an MCP server. For your own skills also the instructions, agents, thread and MCP server; an update replaces the bundled skills, so for those only the settings.
+- Changes hold after a restart; the page offers **Restart Mira** for it.
+
 Someone who is no admin sees only **Plans**, **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
 
 ![Notifications: quiet hours, pauses, escalation](img/benachrichtigung-en.png)

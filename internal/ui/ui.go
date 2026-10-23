@@ -91,6 +91,9 @@ type Options struct {
 	Catalog CatalogSource
 	// CheckModel asks a model whether it answers.
 	CheckModel ModelCheck
+	// Editor changes models, agents and skills (docs/spec/bearbeiten.md);
+	// without it the pages only read.
+	Editor Editor
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
@@ -144,6 +147,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/ha", h.auth(h.getHA))
 	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
 	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
+	h.editRoutes()
 	return h
 }
 

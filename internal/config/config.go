@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -611,15 +612,24 @@ func Load(path string) (Config, error) {
 // apply, and the integration sets the rest up. hasLLM says whether the file
 // names the language models.
 func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
-	raw, err := os.ReadFile(path)
+	// The page's secrets (docs/spec/bearbeiten.md) come before the
+	// environment; a file Mira cannot read is told, and the rest goes on.
+	lookup := OSLookup
+	secrets := DefaultSecrets()
+	if _, err := secrets.Load(); err != nil {
+		slog.Warn("secrets not read", "file", secrets.Path, "error", err)
+	} else {
+		lookup = secrets.Lookup(OSLookup)
+	}
+	raw, err := os.ReadFile(ConfigPath(path))
 	if errors.Is(err, os.ErrNotExist) {
-		cfg, err = Parse(nil, OSLookup)
+		cfg, err = Parse(nil, lookup)
 		return cfg, false, err
 	}
 	if err != nil {
 		return Config{}, false, fmt.Errorf("read config: %w", err)
 	}
-	cfg, err = Parse(raw, OSLookup)
+	cfg, err = Parse(raw, lookup)
 	if err != nil {
 		return Config{}, false, err
 	}

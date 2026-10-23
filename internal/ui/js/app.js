@@ -137,23 +137,82 @@ function cronWords(cron) {
   return `${T.cat_daily} ${times.join(", ")}`;
 }
 
-class MiraSkills extends Light {
-  static properties = { data: { state: true }, error: { state: true } };
+// ---- Editing --------------------------------------------------------------
+// Models, agents and skills can be changed (docs/spec/bearbeiten.md): the
+// page writes mira.yaml and the user's own SKILL.md files; what it saves
+// holds after a restart. One dialog serves all three.
+let editLoad = null;
+const edits = (fresh = false) => {
+  if (fresh || !editLoad) editLoad = api("GET", "/v1/ui/edit").catch(() => null);
+  return editLoad;
+};
+// edited tells the pages to read again after a change.
+const edited = () => { catalog(true); edits(true); window.dispatchEvent(new Event("mira-edited")); };
+
+// EditPage is a page that offers editing: it knows the edit state and shows
+// the restart bar.
+class EditPage extends Light {
+  static properties = { data: { state: true }, error: { state: true }, ed: { state: true } };
   connectedCallback() {
     super.connectedCallback();
-    catalog(true).then(d => { this.data = d; }, e => { this.error = e.message; });
+    this.reload = () => this.load(true);
+    window.addEventListener("mira-edited", this.reload);
+    this.load(true);
   }
+  disconnectedCallback() { super.disconnectedCallback(); window.removeEventListener("mira-edited", this.reload); }
+  load(fresh) {
+    catalog(fresh).then(d => { this.data = d; }, e => { this.error = e.message; });
+    edits(fresh).then(s => { this.ed = s; });
+  }
+  // canEdit: editing is there and the file can be written.
+  get canEdit() { return !!(this.ed && !this.ed.read_only); }
+  bar() {
+    const s = this.ed;
+    if (!s) return nothing;
+    return html`
+      ${s.read_only ? html`<p class="msg warn-box">${T.ed_read_only(s.read_only)}</p>` : nothing}
+      ${s.restart_needed ? html`<div class="restart-bar"><span>${T.ed_restart_needed}</span>
+        <button class="primary" @click=${() => restartMira()}>${T.ed_restart}</button></div>` : nothing}`;
+  }
+  editButton(kind, name, label = T.ed_edit) {
+    return this.canEdit ? html`<button class="secondary" @click=${() => openEditor(kind, name)}>${label}</button>` : nothing;
+  }
+  // pending are the entries saved since the start, which Mira loads only
+  // at the restart: shown so they can be opened again.
+  pending(kind, loaded) {
+    if (!this.ed) return nothing;
+    const names = Object.keys(this.ed[kind] || {}).filter(n => !loaded.includes(n) && !(this.ed[kind][n] || {}).own);
+    return names.map(n => html`<div class="item pending"><span class="lead"><h3>${n}</h3></span>
+      ${badge(T.ed_pending, true)} ${this.editButton(kind === "models" ? "model" : "agent", n)}</div>`);
+  }
+}
+
+// restartMira asks Mira to start anew and waits until she answers again.
+async function restartMira() {
+  const view = document.querySelector("#view");
+  try { await api("POST", "/v1/ui/restart"); } catch (e) { /* she may be gone already */ }
+  if (view) view.insertAdjacentHTML("afterbegin", `<section class="card"><div class="check-wait"><span class="spinner"></span><span>${T.ed_restarting}</span></div></section>`);
+  await new Promise(r => setTimeout(r, 2500));
+  for (let i = 0; i < 40; i++) {
+    try { await api("GET", "/v1/ui/edit"); break; } catch (e) { await new Promise(r => setTimeout(r, 1500)); }
+  }
+  location.reload();
+}
+
+class MiraSkills extends EditPage {
   render() {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
     const of = s => this.data.skills.filter(x => x.state === s);
-    return html`
+    return html`${this.bar()}
       <section class="card"><h2>${T.cat_active}</h2><p class="hint">${T.cat_skills_hint}</p>
         ${of("active").map(s => this.skill(s))}</section>
       ${of("problem").length ? html`<section class="card"><h2>${T.cat_problem}</h2>
-        ${of("problem").map(s => html`<div class="item"><h3>${s.name}</h3><p class="msg err">${s.problem}</p></div>`)}</section>` : nothing}
+        ${of("problem").map(s => html`<div class="item"><h3>${s.name}</h3><p class="msg err">${s.problem}</p>
+          <div class="actions">${this.editButton("skill", s.name)}</div></div>`)}</section>` : nothing}
       ${of("available").length ? html`<section class="card"><h2>${T.cat_available}</h2><p class="hint">${T.cat_available_hint}</p>
-        <table>${of("available").map(s => html`<tr><th><code>${s.name}</code></th><td>${s.description}</td></tr>`)}</table></section>` : nothing}`;
+        <table>${of("available").map(s => html`<tr><th><code>${s.name}</code></th><td>${s.description}</td>
+          <td class="nowrap">${this.editButton("skill", s.name, T.ed_switch_on)}</td></tr>`)}</table></section>` : nothing}`;
   }
   skill(s) {
     const t = s.target, m = s.mcp;
@@ -185,6 +244,7 @@ class MiraSkills extends Light {
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}
+      <div class="actions">${this.editButton("skill", s.name)}</div>
     </details>`;
   }
 }
@@ -192,19 +252,17 @@ customElements.define("mira-skills", MiraSkills);
 
 // ---- Agents ---------------------------------------------------------------
 // The agents' descriptions, above the runs in the tab "Agenten".
-class MiraAgentDefs extends Light {
-  static properties = { data: { state: true }, error: { state: true } };
-  connectedCallback() {
-    super.connectedCallback();
-    catalog().then(d => { this.data = d; }, e => { this.error = e.message; });
-  }
+class MiraAgentDefs extends EditPage {
   render() {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
     const of = o => this.data.agents.filter(a => a.origin === o);
-    return html`<section class="card"><h2>${T.cat_agents_title}</h2><p class="hint">${T.cat_agents_hint}</p>
+    return html`${this.bar()}<section class="card"><h2>${T.cat_agents_title}
+        ${this.canEdit ? html`<button class="secondary" @click=${() => openEditor("agent", "")}>${T.ed_new_agent}</button>` : nothing}</h2>
+      <p class="hint">${T.cat_agents_hint}</p>
       ${["own", "config", "skill"].filter(o => of(o).length).map(o => html`
-        <h3 class="subhead">${T["origin_" + o]}</h3>${of(o).map(a => this.agent(a))}`)}</section>`;
+        <h3 class="subhead">${T["origin_" + o]}</h3>${of(o).map(a => this.agent(a))}`)}
+      ${this.pending("agents", this.data.agents.map(a => a.name))}</section>`;
   }
   agent(a) {
     const own = a.origin === "own";
@@ -233,6 +291,7 @@ class MiraAgentDefs extends Light {
         ${row(T.cat_rounds, a.max_rounds ? String(a.max_rounds) : "")}
         ${row(T.cat_called, called.length ? html`${called.map(c => html`<div>${c}</div>`)}` : "")}
       </table>
+      <div class="actions">${a.origin === "skill" ? html`<span class="hint">${T.ed_skill_agent}</span>` : this.editButton("agent", a.name)}</div>
     </details>`;
   }
 }
@@ -245,12 +304,8 @@ customElements.define("mira-agent-defs", MiraAgentDefs);
 // after 30 seconds and says so.
 const checkWait = 35;
 
-class MiraModels extends Light {
-  static properties = { data: { state: true }, error: { state: true }, checking: { state: true } };
-  connectedCallback() {
-    super.connectedCallback();
-    catalog(true).then(d => { this.data = d; }, e => { this.error = e.message; });
-  }
+class MiraModels extends EditPage {
+  static properties = { ...EditPage.properties, checking: { state: true } };
   disconnectedCallback() { super.disconnectedCallback(); clearInterval(this.ticker); }
   // check opens the dialog, sends the model a short request and shows how
   // it went; a check that takes too long ends with a timeout.
@@ -306,8 +361,11 @@ class MiraModels extends Light {
   render() {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
-    return html`<section class="card"><h2>${T.models_title}</h2><p class="hint">${T.models_hint}</p>
-      ${(this.data.models || []).map(m => this.model(m))}</section>${this.dialog()}`;
+    return html`${this.bar()}<section class="card"><h2>${T.models_title}
+        ${this.canEdit ? html`<button class="secondary" @click=${() => openEditor("model", "")}>${T.ed_new_model}</button>` : nothing}</h2>
+      <p class="hint">${T.models_hint}</p>
+      ${(this.data.models || []).map(m => this.model(m))}
+      ${this.pending("models", (this.data.models || []).map(m => m.name))}</section>${this.dialog()}`;
   }
   state(m) {
     if (m.last_failed && (!m.last_ok || m.last_failed > m.last_ok)) return badge(T.mod_failed, true);
@@ -348,8 +406,214 @@ class MiraModels extends Light {
       </table>
       <div class="actions">
         <button class="secondary" @click=${() => this.check(m.name)}>${T.mod_check}</button>
+        ${this.editButton("model", m.name)}
       </div>
     </details>`;
   }
 }
 customElements.define("mira-models", MiraModels);
+
+const opts = (list, current) => list.map(([v, label]) => html`<option value=${v} ?selected=${v === (current ?? "")}>${label}</option>`);
+const RIGHTS = ["read_house", "act_on_house", "remember", "messages", "web"];
+
+class MiraEditor extends Light {
+  static properties = { e: { state: true } };
+  open(kind, name) {
+    edits().then(s => {
+      if (!s) return;
+      const isNew = !name;
+      let form;
+      if (kind === "model") form = { name: name || "", ...(name ? s.models[name] : { privacy: "cloud" }) };
+      if (kind === "agent") {
+        const a = name ? s.agents[name] : {};
+        form = { name: name || "", ...a, tools_text: (a.tools || []).join(", "),
+          tools_kind: (a.tools || []).length ? "list" : (a.tools_word || "none"), rights: a.rights || [] };
+      }
+      if (kind === "skill") {
+        const sk = s.skills[name] || {};
+        form = { ...sk, settings: { ...(sk.settings || {}) }, enabled: name && !sk.enabled ? true : sk.enabled };
+        this.original = { description: sk.description || "", guide: sk.guide || "", agents: sk.agents || "", target: sk.target || "", mcp: sk.mcp || "" };
+      }
+      this.e = { kind, name, isNew, form, state: s, error: "", saving: false, mcp: null };
+      this.updateComplete.then(() => { const d = this.querySelector("dialog"); if (d && !d.open) d.showModal(); });
+    });
+  }
+  close() { const d = this.querySelector("dialog"); if (d && d.open) d.close(); this.e = null; }
+  set(key, value) { this.e = { ...this.e, form: { ...this.e.form, [key]: value } }; }
+  setSetting(key, value) { this.set("settings", { ...this.e.form.settings, [key]: value }); }
+  async save() {
+    const { kind, name, form } = this.e;
+    let path, body;
+    if (kind === "model") {
+      const target = name || form.name.trim();
+      path = "/v1/ui/edit/models/" + encodeURIComponent(target);
+      body = { name: form.name.trim(), endpoint: form.endpoint || "", model: form.model || "", privacy: form.privacy || "",
+        parallel: +form.parallel || 0, fallback: form.fallback || "", context_tokens: +form.context_tokens || 0,
+        reasoning_effort: form.reasoning_effort || "", max_tool_rounds: +form.max_tool_rounds || 0, timeout: form.timeout || "",
+        token: form.token || "", token_clear: !!form.token_clear };
+      if (String(form.temperature ?? "").trim() !== "") body.temperature = parseFloat(String(form.temperature).replace(",", "."));
+    }
+    if (kind === "agent") {
+      path = "/v1/ui/edit/agents/" + encodeURIComponent(name || form.name.trim());
+      body = { model: form.model || "", privacy: form.privacy || "" };
+      if (!form.own) Object.assign(body, { description: form.description || "", context: form.context || "",
+        tools: form.tools_kind === "list" ? form.tools_text.split(",").map(x => x.trim()).filter(Boolean) : [],
+        tools_word: form.tools_kind === "read_only" ? "read_only" : "", rights: form.rights || [],
+        conversation: !!form.conversation, max_rounds: +form.max_rounds || 0, instructions: form.instructions || "",
+        input: form.input || "", output: form.output || "" });
+    }
+    if (kind === "skill") {
+      path = "/v1/ui/edit/skills/" + encodeURIComponent(name);
+      const parts = form.own ? Object.keys(this.original).filter(k => (form[k] || "") !== this.original[k]) : [];
+      body = { enabled: !!form.enabled, settings: form.settings || {}, parts,
+        description: form.description || "", guide: form.guide || "", agents: form.agents || "", target: form.target || "", mcp: form.mcp || "" };
+    }
+    this.e = { ...this.e, saving: true, error: "" };
+    try {
+      await api("PUT", path, body);
+      this.close();
+      edited();
+    } catch (err) { this.e = { ...this.e, saving: false, error: err.message }; }
+  }
+  async remove() {
+    const { kind, name } = this.e;
+    if (!confirm(T.ed_delete_confirm(name))) return;
+    try {
+      await api("DELETE", `/v1/ui/edit/${kind}s/` + encodeURIComponent(name));
+      this.close();
+      edited();
+    } catch (err) { this.e = { ...this.e, error: err.message }; }
+  }
+  async checkMCP() {
+    this.e = { ...this.e, mcp: { wait: true } };
+    try {
+      const r = await api("POST", `/v1/ui/edit/skills/${encodeURIComponent(this.e.name)}/mcp-check`, { settings: this.e.form.settings });
+      this.e = { ...this.e, mcp: r };
+    } catch (err) { this.e = { ...this.e, mcp: { ok: false, error: err.message } }; }
+  }
+  field(label, key, attrs = {}) {
+    const f = this.e.form;
+    return html`<label>${label}</label>
+      <input type=${attrs.type || "text"} .value=${f[key] ?? ""} placeholder=${attrs.placeholder || ""}
+        ?disabled=${!!attrs.disabled} @input=${ev => this.set(key, ev.target.value)}>`;
+  }
+  area(label, key, rows = 4, hint = "") {
+    return html`<label class="wide-label">${label}${hint ? html` <span class="hint">${hint}</span>` : nothing}</label>
+      <textarea class="wide code" rows=${rows} .value=${this.e.form[key] || ""} @input=${ev => this.set(key, ev.target.value)}></textarea>`;
+  }
+  modelForm() {
+    const { form: f, state: s, name } = this.e;
+    const locked = f.from_ha;
+    const others = Object.keys(s.models).filter(n => n !== (name || f.name));
+    return html`
+      ${locked ? html`<p class="hint">${T.ed_main_ha}</p>` : nothing}
+      <div class="grid">
+        ${name === "main" ? nothing : this.field(T.ed_name, "name", { placeholder: "smart" })}
+        ${this.field(T.mod_endpoint, "endpoint", { placeholder: "https://…/v1", disabled: locked })}
+        ${this.field(T.mod_model, "model", { disabled: locked })}
+        <label>${T.mod_privacy}</label><select ?disabled=${locked} @change=${ev => this.set("privacy", ev.target.value)}>
+          ${opts([["local", T.privacy_local], ["cloud", T.privacy_cloud]], f.privacy)}</select>
+        <label>${T.mod_token}</label><input type="password" autocomplete="new-password" ?disabled=${locked} .value=${f.token || ""}
+          placeholder=${f.token_set ? T.ed_token_keep : ""} @input=${ev => this.set("token", ev.target.value)}>
+        ${f.token_set && !locked ? html`<span></span><label class="checkline"><input type="checkbox" .checked=${!!f.token_clear}
+          @change=${ev => this.set("token_clear", ev.target.checked)}> ${T.ed_token_clear}</label>` : nothing}
+        ${this.field(T.mod_parallel, "parallel", { type: "number", disabled: locked })}
+        <label>${T.mod_fallback}</label><select ?disabled=${locked} @change=${ev => this.set("fallback", ev.target.value)}>
+          ${opts([["", "–"], ...others.map(n => [n, n])], f.fallback)}</select>
+        ${this.field(T.ed_context_tokens, "context_tokens", { type: "number", disabled: locked })}
+        <label>${T.mod_reasoning}</label><select ?disabled=${locked} @change=${ev => this.set("reasoning_effort", ev.target.value)}>
+          ${opts([["", "–"], ["none", "none"], ["low", "low"], ["medium", "medium"], ["high", "high"]], f.reasoning_effort)}</select>
+        ${this.field(T.mod_temperature, "temperature", { disabled: locked, placeholder: "0.7" })}
+        ${this.field(T.ed_tool_rounds, "max_tool_rounds", { type: "number", disabled: locked })}
+        ${this.field(T.mod_timeout, "timeout", { disabled: locked, placeholder: "60s" })}
+      </div>
+      <p class="hint">${s.encrypted ? T.ed_secrets_encrypted : T.ed_secrets_plain}</p>`;
+  }
+  agentForm() {
+    const { form: f, state: s, isNew } = this.e;
+    const models = [["", T.ed_model_default], ...Object.keys(s.models).map(n => [n, n])];
+    const common = html`
+      <label>${T.cat_model}</label><select @change=${ev => this.set("model", ev.target.value)}>${opts(models, f.model)}</select>
+      <label>${T.ed_privacy}</label><select @change=${ev => this.set("privacy", ev.target.value)}>
+        ${opts([["", T.ed_privacy_any], ["local", T.ed_privacy_local]], f.privacy)}</select>`;
+    if (f.own) return html`<p class="hint">${T.ed_own_agent}</p><div class="grid">${common}</div>`;
+    return html`<div class="grid">
+        ${isNew ? this.field(T.ed_name, "name", { placeholder: "recherche" }) : nothing}
+        ${this.field(T.cat_description, "description")}
+        ${common}
+        <label>${T.cat_context}</label><select @change=${ev => this.set("context", ev.target.value)}>
+          ${opts([["", T.context_isolated || "isolated"], ["background", T.context_background || "background"]], f.context)}</select>
+        <label>${T.cat_tools}</label><select @change=${ev => this.set("tools_kind", ev.target.value)}>
+          ${opts([["none", T.tools_none || "none"], ["read_only", T.tools_read_only || "read_only"], ["list", T.ed_tools_list]], f.tools_kind)}</select>
+        ${f.tools_kind === "list" ? html`<span></span><input .value=${f.tools_text || ""} placeholder="web_page, web_search"
+          @input=${ev => this.set("tools_text", ev.target.value)}>` : nothing}
+        <label>${T.cat_rights}</label><div>${RIGHTS.map(r => html`<label class="checkline"><input type="checkbox"
+          .checked=${(f.rights || []).includes(r)} @change=${ev => this.set("rights", ev.target.checked ? [...(f.rights || []), r] : (f.rights || []).filter(x => x !== r))}>
+          ${T["right_" + r] || r}</label> `)}</div>
+        <label>${T.ed_conversation}</label><input type="checkbox" .checked=${!!f.conversation} @change=${ev => this.set("conversation", ev.target.checked)}>
+        ${this.field(T.cat_rounds, "max_rounds", { type: "number", placeholder: "8" })}
+      </div>
+      ${this.area(T.ed_instructions, "instructions", 6)}
+      ${this.area(T.ed_input, "input", 3, T.ed_yaml)}
+      ${this.area(T.ed_output, "output", 3, T.ed_yaml)}
+      ${(f.used_by || []).length ? html`<p class="hint">${T.ed_used_by}: ${f.used_by.join(", ")}</p>` : nothing}`;
+  }
+  skillForm() {
+    const { form: f, name } = this.e;
+    const cat = ((catalogData || {}).skills || []).find(x => x.name === name) || {};
+    return html`
+      <label class="checkline"><input type="checkbox" .checked=${!!f.enabled} @change=${ev => this.set("enabled", ev.target.checked)}> ${T.ed_enabled}</label>
+      ${!f.enabled ? html`<p class="hint">${T.ed_disable_hint}</p>` : nothing}
+      ${(f.setting_defs || []).length ? html`<h4>${T.cat_settings}</h4><div class="grid">${f.setting_defs.map(d => html`
+        <label title=${d.description || ""}>${d.name}${d.required ? " *" : ""}</label>
+        <div>${d.secret ? html`<input type="password" autocomplete="new-password" .value=${f.settings[d.name] || ""}
+            placeholder=${d.secret_set ? T.ed_token_keep : ""} @input=${ev => this.setSetting(d.name, ev.target.value)}>`
+          : html`<input .value=${f.settings[d.name] || ""} @input=${ev => this.setSetting(d.name, ev.target.value)}>`}
+          ${d.description ? html`<div class="hint">${d.description}</div>` : nothing}</div>`)}</div>` : nothing}
+      ${cat.mcp || f.mcp ? html`<div class="actions left"><button class="secondary" @click=${e => { e.preventDefault(); this.checkMCP(); }}>${T.ed_mcp_check}</button>
+        ${this.mcpResult()}</div>` : nothing}
+      ${f.own ? html`
+        <h4>${T.ed_skill_file}</h4>
+        ${f.read_only ? html`<p class="msg warn-box">${f.read_only}</p>` : html`
+          <div class="grid">${this.field(T.cat_description, "description")}</div>
+          ${this.area(T.cat_guide, "guide", 10)}
+          ${this.area(T.cat_agents, "agents", 5, T.ed_yaml)}
+          ${this.area(T.cat_target, "target", 5, T.ed_yaml)}
+          ${this.area(T.cat_mcp, "mcp", 4, T.ed_yaml)}`}`
+        : html`<p class="hint">${T.ed_bundled}</p>`}
+      <p class="hint">${this.e.state.encrypted ? T.ed_secrets_encrypted : T.ed_secrets_plain}</p>`;
+  }
+  mcpResult() {
+    const m = this.e.mcp;
+    if (!m) return nothing;
+    if (m.wait) return html`<span class="check-wait"><span class="spinner"></span></span>`;
+    return m.ok ? html`<span class="ok">${T.ed_mcp_ok(m.tools, m.ms)}${(m.missing || []).length ? html` <span class="warn">${T.cat_missing}: ${m.missing.join(", ")}</span>` : nothing}</span>`
+      : html`<span class="warn">${m.error}</span>`;
+  }
+  render() {
+    const e = this.e;
+    const title = !e ? "" : e.isNew ? T["ed_new_" + e.kind] : T.ed_title(e.name);
+    const canDelete = e && !e.isNew && ((e.kind === "model" && e.name !== "main" && e.form.in_file) || (e.kind === "agent" && !e.form.own));
+    return html`<dialog class="mira-dialog wide" @close=${() => { this.e = null; }}>
+      <form method="dialog" @submit=${ev => { ev.preventDefault(); this.save(); }}>
+        ${e ? html`<h3>${title}</h3>
+          ${e.kind === "model" ? this.modelForm() : e.kind === "agent" ? this.agentForm() : this.skillForm()}
+          ${e.error ? html`<p class="msg err">${e.error}</p>` : nothing}
+          <div class="actions">
+            ${canDelete ? html`<button class="danger" @click=${ev => { ev.preventDefault(); this.remove(); }}>${T.ed_delete}</button>` : nothing}
+            <span class="spacer"></span>
+            <button class="secondary" @click=${ev => { ev.preventDefault(); this.close(); }}>${T.ed_cancel}</button>
+            <button class="primary" type="submit" ?disabled=${e.saving || (e.kind === "model" && e.form.from_ha)}>${T.ed_save}</button>
+          </div>` : nothing}
+      </form>
+    </dialog>`;
+  }
+}
+customElements.define("mira-editor", MiraEditor);
+// One editor for the page, opened by the pages' buttons.
+let catalogData = null;
+const editorEl = document.createElement("mira-editor");
+document.body.appendChild(editorEl);
+function openEditor(kind, name) {
+  catalog().then(d => { catalogData = d; editorEl.open(kind, name); });
+}

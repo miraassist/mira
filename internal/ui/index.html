@@ -176,6 +176,19 @@ td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 dialog.mira-dialog { width: min(520px, calc(100vw - 32px)); }
+:is(dialog#dlg, dialog.mira-dialog).wide { width: min(780px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+dialog.mira-dialog h4 { margin: 18px 0 8px; }
+dialog.mira-dialog .wide-label { display: block; color: var(--muted); margin: 12px 0 4px; }
+dialog.mira-dialog textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.actions .spacer { flex: 1; }
+.actions.left { justify-content: flex-start; align-items: center; }
+.restart-bar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 14px; border-radius: 16px; background: var(--rose-tint); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.warn-box { background: var(--rose-tint); }
+td.nowrap { white-space: nowrap; text-align: right; }
+.item.pending { display: flex; gap: 10px; align-items: center; padding: 10px 14px; }
+.item.pending .lead { flex: 1; }
+.grid > input[type=checkbox] { justify-self: start; }
+h2 > button.secondary { float: right; }
 dialog.mira-dialog h3 { margin: 0 0 4px; }
 .check-wait { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
 .spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
@@ -415,6 +428,37 @@ const I18N = {
   "mod_check_full": "Ganze Meldung",
   "mod_check_timeout": s => `Keine Antwort nach ${s} s.`,
   "mod_check_close": "Schließen",
+  "ed_edit": "Bearbeiten", "ed_save": "Speichern", "ed_cancel": "Abbrechen", "ed_delete": "Löschen",
+  "ed_title": n => `„${n}“ bearbeiten`,
+  "ed_new_model": "Neues Modell", "ed_new_agent": "Neuer Agent", "ed_new_skill": "Skill",
+  "ed_switch_on": "Einschalten",
+  "ed_pending": "neu, gilt nach dem Neustart",
+  "ed_delete_confirm": n => `„${n}“ wirklich löschen?`,
+  "ed_name": "Name",
+  "ed_read_only": why => `Bearbeiten geht hier nicht: ${why}`,
+  "ed_restart_needed": "Gespeichert. Die Änderungen gelten nach einem Neustart von Mira.",
+  "ed_restart": "Mira neu starten",
+  "ed_restarting": "Mira startet neu …",
+  "ed_main_ha": "main kommt aus der Einrichtung in Home Assistant. Ändern geht dort: Einstellungen → Geräte & Dienste → Mira → Konfigurieren.",
+  "ed_token_keep": "gesetzt – leer lassen, um ihn zu behalten",
+  "ed_token_clear": "Token entfernen",
+  "ed_context_tokens": "Kontext (Token)", "ed_tool_rounds": "Werkzeug-Runden",
+  "ed_secrets_plain": "Schlüssel speichert Mira getrennt von der mira.yaml in einer eigenen Datei im Datenordner, die nur sie lesen kann. Verschlüsselt wird sie, wenn MIRA_SECRET_KEY gesetzt ist.",
+  "ed_secrets_encrypted": "Schlüssel speichert Mira getrennt von der mira.yaml, verschlüsselt mit MIRA_SECRET_KEY.",
+  "ed_model_default": "main (Standard)",
+  "ed_privacy": "Datenschutz", "ed_privacy_any": "egal", "ed_privacy_local": "nur lokal",
+  "ed_own_agent": "Einer von Miras eigenen Agenten: Hier lassen sich Modell und Datenschutz ändern, der Rest gehört zu Mira.",
+  "ed_tools_list": "diese Werkzeuge und Agenten",
+  "ed_conversation": "Im Gespräch aufrufbar",
+  "ed_instructions": "Anleitung", "ed_input": "Eingabe (Schema)", "ed_output": "Ausgabe (Schema)",
+  "ed_yaml": "als YAML", "ed_used_by": "Genutzt von",
+  "ed_skill_agent": "Die Agenten eines Skills bearbeitest du beim Skill.",
+  "ed_enabled": "Eingeschaltet",
+  "ed_disable_hint": "Ausgeschaltet verschwinden auch die Einstellungen des Skills aus der mira.yaml.",
+  "ed_mcp_check": "Verbindung testen",
+  "ed_mcp_ok": (n, ms) => `Verbunden: ${n} Werkzeuge, nach ${(ms / 1000).toFixed(1).replace(".", ",")} s.`,
+  "ed_skill_file": "Der Skill selbst (SKILL.md)",
+  "ed_bundled": "Ein mitgelieferter Skill: Hier lassen sich nur Einschalten und Einstellungen ändern, denn ein Update von Mira ersetzt seine Dateien.",
   "group_daily": "Aktuell",
   "group_setup": "Einrichtung",
   "group_abilities": "Fähigkeiten",
@@ -765,6 +809,37 @@ const I18N = {
   "mod_check_full": "Whole message",
   "mod_check_timeout": s => `No answer after ${s} s.`,
   "mod_check_close": "Close",
+  "ed_edit": "Edit", "ed_save": "Save", "ed_cancel": "Cancel", "ed_delete": "Delete",
+  "ed_title": n => `Edit "${n}"`,
+  "ed_new_model": "New model", "ed_new_agent": "New agent", "ed_new_skill": "Skill",
+  "ed_switch_on": "Switch on",
+  "ed_pending": "new, holds after the restart",
+  "ed_delete_confirm": n => `Really delete "${n}"?`,
+  "ed_name": "Name",
+  "ed_read_only": why => `Editing is not possible here: ${why}`,
+  "ed_restart_needed": "Saved. The changes hold after Mira restarts.",
+  "ed_restart": "Restart Mira",
+  "ed_restarting": "Mira is restarting …",
+  "ed_main_ha": "main comes from the setup in Home Assistant. Change it there: Settings → Devices & services → Mira → Configure.",
+  "ed_token_keep": "set – leave empty to keep it",
+  "ed_token_clear": "Remove token",
+  "ed_context_tokens": "Context (tokens)", "ed_tool_rounds": "Tool rounds",
+  "ed_secrets_plain": "Mira keeps keys apart from mira.yaml, in a file of their own in the data folder that only she can read. It is encrypted when MIRA_SECRET_KEY is set.",
+  "ed_secrets_encrypted": "Mira keeps keys apart from mira.yaml, encrypted with MIRA_SECRET_KEY.",
+  "ed_model_default": "main (default)",
+  "ed_privacy": "Privacy", "ed_privacy_any": "any", "ed_privacy_local": "local only",
+  "ed_own_agent": "One of Mira's own agents: model and privacy can be changed here, the rest belongs to Mira.",
+  "ed_tools_list": "these tools and agents",
+  "ed_conversation": "Can be called in the conversation",
+  "ed_instructions": "Instructions", "ed_input": "Input (schema)", "ed_output": "Output (schema)",
+  "ed_yaml": "as YAML", "ed_used_by": "Used by",
+  "ed_skill_agent": "A skill's agents are edited with the skill.",
+  "ed_enabled": "Switched on",
+  "ed_disable_hint": "Switched off, the skill's settings go out of mira.yaml too.",
+  "ed_mcp_check": "Test connection",
+  "ed_mcp_ok": (n, ms) => `Connected: ${n} tools, after ${(ms / 1000).toFixed(1)} s.`,
+  "ed_skill_file": "The skill itself (SKILL.md)",
+  "ed_bundled": "A bundled skill: only switching it on and its settings can be changed here, since an update of Mira replaces its files.",
   "group_daily": "Day to day",
   "group_setup": "Setup",
   "group_abilities": "Capabilities",
