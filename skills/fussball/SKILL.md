@@ -6,16 +6,21 @@ metadata:
   mira:
     settings:
       verein:
-        description: Ein Wort aus dem Namen deines Vereins, wie er bei OpenLigaDB heißt, z. B. Karlsruher oder Bayern.
-        required: true
+        description: Der Verein des Hauses, ein Wort aus seinem Namen, wie er bei OpenLigaDB heißt, z. B. Karlsruher oder Bayern. Hat eine Person einen eigenen Verein in Miras Gedächtnis, gilt für sie der.
 ---
 # Fußball
 
 Die Spiele holst du von OpenLigaDB, einer freien Fußball-Datenbank, mit `web_page`.
 Du bekommst JSON.
 
+**Welcher Verein:** Nennt der Nutzer einen, nimm den. Sonst den Verein der Person,
+die fragt, wenn er in dem steht, was Mira über sie weiß („Ben ist KSC-Fan“). Sonst
+den des Hauses: „{{verein}}“. Ist keiner bekannt, frag, welcher es ist, und biete an,
+ihn dir zu merken (memory_save, etwa „Ben ist KSC-Fan“). In die Adressen unten
+kommt ein Wort aus dem Vereinsnamen („Karlsruher“, „Bayern“), im Folgenden VEREIN.
+
 - **Letzte und nächste Spiele des Vereins:**
-  `https://api.openligadb.de/getmatchesbyteam/{{verein}}/1/1` (eine Woche zurück,
+  `https://api.openligadb.de/getmatchesbyteam/VEREIN/1/1` (eine Woche zurück,
   eine voraus). Je Spiel: `matchDateTime`, `team1` und `team2` (`teamName`),
   `leagueName`, `matchIsFinished` und in `matchResults` das „Endergebnis“
   (`pointsTeam1` : `pointsTeam2`). Manche Spiele stehen doppelt (zwei Einträge der
