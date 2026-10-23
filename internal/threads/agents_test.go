@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
@@ -59,6 +60,7 @@ func setupAgents(t *testing.T) *agentEnv {
 		e.cancelled = append(e.cancelled, id)
 		return true
 	}
+	opts.AgentWait = 20 * time.Millisecond
 	e.m = New(opts)
 	return e
 }
@@ -260,5 +262,61 @@ func TestAG48_WhileAnAgentWorksTheModelDoesNotAskForItsField(t *testing.T) {
 	}
 	if !strings.Contains(status, "Fehlt noch: gaeste, datum") {
 		t.Errorf("the fields for the user are not asked for:\n%s", status)
+	}
+}
+
+// AG-105 At a satellite a quick agent's result comes in the same answer
+func TestAG105_AtASatelliteAQuickAgentsResultComesInTheSameAnswer(t *testing.T) {
+	e := setupAgents(t)
+	opts := e.m.opts
+	opts.AgentWait = 2 * time.Second
+	dispatch := opts.Dispatch
+	// Given a voice turn that starts a plan target
+	opts.Dispatch = func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error {
+		if err := dispatch(ctx, th, into, agent, callID, input); err != nil {
+			return err
+		}
+		// When its agent is done within the wait
+		go e.m.AgentResult(context.Background(), th.ID, into, store.AgentRun{CallID: callID, Agent: agent,
+			Status: "done", Output: "# Kakao\n- [ ] Milch erhitzen\n- [ ] Einrühren"})
+		return nil
+	}
+	e.m = New(opts)
+	inv, _ := e.turn(t, "voice:a")
+	inv.Person = "anna"
+	out, err := e.m.Start(context.Background(), inv, "kochplan", "https://example.com/kakao")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Then thread_start answers with the plan there and what to tell the user
+	if !strings.Contains(out, "Milch erhitzen") || !strings.Contains(out, "„Kakao“ ist bereit: 2 Schritte.") {
+		t.Errorf("answer:\n%s", out)
+	}
+	// And no message is sent
+	select {
+	case n := <-e.sent:
+		t.Errorf("message %+v", n)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// AG-106 A person's thread speaks where it began
+func TestAG106_APersonsThreadSpeaksWhereItBegan(t *testing.T) {
+	e := setupAgents(t)
+	// Given a person's thread started at the satellite in the living room
+	inv, _ := e.turn(t, "voice:a")
+	inv.Person, inv.Place = "anna", "person:anna"
+	if _, err := e.m.Start(context.Background(), inv, "kochplan", "https://example.com/kakao"); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := e.startedFor(PlanField)
+	if s.th.Area != "wohnzimmer" {
+		t.Fatalf("area %q", s.th.Area)
+	}
+	// When its agent is done after the turn
+	e.done(s, "# Kakao\n- [ ] Milch erhitzen")
+	// Then the message is spoken in the living room (setup's Deliver checks the area)
+	if n := e.next(t); n.Receiver != "anna" || !strings.Contains(n.Spoken, "„Kakao“ ist bereit") {
+		t.Errorf("message %+v", n)
 	}
 }

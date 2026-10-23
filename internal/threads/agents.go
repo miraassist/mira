@@ -157,7 +157,7 @@ func (m *Manager) AgentResult(ctx context.Context, id, into string, rec store.Ag
 			m.finished(&c)
 			setPlan(th, c)
 			m.logEntry(th, "mira", fmt.Sprintf(t.planWritten, len(boxes(value))))
-			say = fmt.Sprintf(t.agentPlanReady, th.Request, len(boxes(value)))
+			say = fmt.Sprintf(t.agentPlanReady, planTitle(value, th.Request), len(boxes(value)))
 			return nil
 		}
 		f, _ := field(sk.Target, into)
@@ -193,7 +193,7 @@ func (m *Manager) AgentResult(ctx context.Context, id, into string, rec store.Ag
 	}
 	m.log.Info("agent result in thread", "thread", id, "agent", rec.Agent, "into", into, "status", rec.Status)
 	m.start(ctx, th, launches)
-	if say != "" {
+	if !m.handOver(id, say) && say != "" {
 		m.tell(ctx, th, say)
 	}
 	if complete {
@@ -228,4 +228,14 @@ func (m *Manager) cancelAgents(th store.Thread) {
 	for _, id := range th.Calls {
 		m.opts.Cancel(id)
 	}
+}
+
+// planTitle is a plan's heading ("# Kakao"), else what was asked for.
+func planTitle(plan, request string) string {
+	for _, line := range strings.Split(plan, "\n") {
+		if h, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok && strings.TrimSpace(h) != "" {
+			return strings.TrimSpace(h)
+		}
+	}
+	return request
 }

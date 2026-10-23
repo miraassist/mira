@@ -237,6 +237,19 @@ Feature: AG Agents
     When Mira starts
     Then the skill is left out, and the problem names the agent
 
+  @step7
+  Scenario: AG-105 At a satellite a quick agent's result comes in the same answer
+    Given a voice turn that starts a plan target
+    When its agent is done within 10 seconds
+    Then thread_start answers with the plan there and what to tell the user
+    And no message is sent
+
+  @step7
+  Scenario: AG-106 A person's thread speaks where it began
+    Given a person's thread started at the satellite in the living room
+    When its agent is done after the turn
+    Then the message is spoken in the living room
+
   # --- Log (agenten.md: Log) -------------------------------------------------------------------------
 
   @step1

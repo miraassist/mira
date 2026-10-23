@@ -350,6 +350,15 @@ ALTER TABLE agent_runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE sessions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
 `,
 	},
+	{
+		// The satellite's area a thread began at: its messages are spoken
+		// there, where the user is, even when it belongs to a person
+		// (docs/spec/vorgaenge.md).
+		name: "0020_thread_area",
+		stmt: `
+ALTER TABLE threads ADD COLUMN area TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

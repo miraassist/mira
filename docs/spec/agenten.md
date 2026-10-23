@@ -96,7 +96,7 @@ Derived from what a tool declares (`internal/agent/rights.go`, `RightFor`):
 | any other Home Assistant or MCP tool | act on the house |
 | `memory_save`, `memory_forget` | remember |
 | `message_send`, `message_ack`, `reminder_set`, `reminder_cancel` | messages |
-| `radio_play`, `sleep_timer`, `task_delete`, `task_enable` | act on the house |
+| `radio_play`, `sound_play`, `display_card`, `sleep_timer`, `task_delete`, `task_enable` | act on the house |
 | `thread_fill`, `thread_confirm`, `thread_undo` (filling or confirming may run the thread's finish, an action or a fact; taking back runs an action) | act on the house |
 | every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `thread_start`, `thread_cancel`, `thread_plan`, `delegate`, `calculate`) | read the house |
 
@@ -216,6 +216,11 @@ fields, as the user does**.
   gets a message that it is there. Third-party text the agent read counts for the thread (a foreign plan).
 - **An agent fails:** the log says so, and the thread asks the user for that field, as a message of the thread. The
   thread goes on; the user can cancel it as always.
+- **At a satellite the turn waits:** a voice turn that starts a thread waits up to 10 seconds for the agents it
+  starts; a result in that time comes in the same answer, not as a message (cooking: "Rezept geladen, für wie
+  viele?" instead of "I'll come back to you").
+- **Messages of a thread** are spoken at the satellite whose turn started it, even when the thread belongs to a
+  person: where they asked is where they are. Without a satellite (Telegram) they go to the person privately.
 - **The thread ends** (cancelled, expired): its agents still running are cancelled.
 - **While an agent works** the thread shows the model that this field is being filled, so it does not ask the user
   for it.
@@ -541,6 +546,9 @@ From that:
     names, as the skill's schedules do.
 39. **Tool rounds per agent:** a YAML agent may set `max_rounds` (1 to 50) in its description; a research agent needs
     more rounds than a conversation. Without it the model's `max_tool_rounds` applies.
+40. **Answer where asked:** a voice turn waits up to 10 seconds for a thread's agents, so a quick result comes in
+    the same answer; a later one is spoken at the satellite the thread began at, also for a person's thread
+    (2026-10-24, after a recipe's plan went to Telegram while the user stood at the Show).
 
 ## Open questions
 

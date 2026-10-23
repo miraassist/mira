@@ -48,7 +48,10 @@ type Thread struct {
 	Target string
 	Place  string
 	// Person is who started it, when known; its results are theirs.
-	Person    string
+	Person string
+	// Area is the satellite's area it began at, for a voice turn: its
+	// messages are spoken there.
+	Area      string
 	State     string
 	Request   string
 	Fields    map[string]string
@@ -97,14 +100,14 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 		calls = []byte("{}")
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET state = excluded.state, request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
 	calls = excluded.calls, version = threads.version + 1
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls))
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area)
 	if err != nil {
 		return err
 	}
@@ -122,13 +125,13 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
 	var fields, log, content, created, updated, expires, calls string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version, &calls); err != nil {
+		&created, &updated, &expires, &t.Version, &calls, &t.Area); err != nil {
 		return Thread{}, err
 	}
 	_ = json.Unmarshal([]byte(fields), &t.Fields)

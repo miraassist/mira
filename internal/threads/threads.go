@@ -77,6 +77,10 @@ type Options struct {
 	// says "I'll come back to you"; default 5s, within Home Assistant's
 	// 15 seconds for a voice turn.
 	InlineWait time.Duration
+	// AgentWait is how long a voice turn that starts a thread waits for the
+	// agents it starts, so their result comes in the same answer; default
+	// 10s. A slower one comes as a message of the thread.
+	AgentWait time.Duration
 	// Run runs a thread's background work as a run of the agent runtime
 	// (a job named after the finish, with the thread's id as its call id):
 	// logged, limited and cancellable like every run. Without it the work
@@ -98,6 +102,10 @@ type Manager struct {
 	opts    Options
 	log     *slog.Logger
 	targets map[string]skills.Skill
+	// waiting are the turns waiting for a thread's agents, by thread id:
+	// a result that comes in time goes to them instead of a message.
+	waitMu  sync.Mutex
+	waiting map[string]chan string
 }
 
 func New(opts Options) *Manager {
@@ -110,7 +118,11 @@ func New(opts Options) *Manager {
 	if opts.InlineWait == 0 {
 		opts.InlineWait = 5 * time.Second
 	}
-	m := &Manager{opts: opts, log: opts.Logger.With("component", "threads"), targets: map[string]skills.Skill{}}
+	if opts.AgentWait == 0 {
+		opts.AgentWait = 10 * time.Second
+	}
+	m := &Manager{opts: opts, log: opts.Logger.With("component", "threads"), targets: map[string]skills.Skill{},
+		waiting: map[string]chan string{}}
 	for _, sk := range opts.Targets {
 		if sk.Target != nil {
 			m.targets[sk.Name] = sk
@@ -254,11 +266,18 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 		}
 	}
 	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
-		State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{}}
+		State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{},
+		Area: areaOf(m.withTurnArea(ctx, inv))}
 	m.logEntry(&th, "user", th.Request)
 	launches := m.dispatch(&th)
 	if err := m.save(ctx, &th); err != nil {
 		return "", err
+	}
+	// At a satellite the user waits for the answer: a quick agent's result
+	// comes in it rather than as a message afterwards.
+	var result chan string
+	if len(launches) > 0 && inv.Channel == config.ChannelVoice {
+		result = m.await(th.ID)
 	}
 	m.start(ctx, th, launches)
 	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
@@ -266,7 +285,63 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	}
 	m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
 	trace.Add(ctx, trace.Thread, target, "started")
-	return m.texts().started + "\n\n" + sk.Body + "\n\n" + m.status(th), nil
+	var said string
+	if result != nil {
+		said = m.waitFor(ctx, th.ID, result)
+		if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil {
+			th = cur
+		}
+	}
+	out := m.texts().started + "\n\n" + sk.Body + "\n\n" + m.status(th)
+	if said != "" {
+		out += "\n\n" + said
+	}
+	return out, nil
+}
+
+// await registers a turn waiting for th's agents.
+func (m *Manager) await(id string) chan string {
+	ch := make(chan string, 1)
+	m.waitMu.Lock()
+	m.waiting[id] = ch
+	m.waitMu.Unlock()
+	return ch
+}
+
+// waitFor waits up to AgentWait for an agent's result for thread id; what
+// it would have said comes back. Past that the result comes as a message.
+func (m *Manager) waitFor(ctx context.Context, id string, ch chan string) string {
+	timer := time.NewTimer(m.opts.AgentWait)
+	defer timer.Stop()
+	select {
+	case said := <-ch:
+		return said
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	m.waitMu.Lock()
+	delete(m.waiting, id)
+	m.waitMu.Unlock()
+	// A result that came just now is taken still.
+	select {
+	case said := <-ch:
+		return said
+	default:
+		return ""
+	}
+}
+
+// handOver gives an agent's result to the turn waiting for it; false when
+// none waits.
+func (m *Manager) handOver(id, said string) bool {
+	m.waitMu.Lock()
+	ch, ok := m.waiting[id]
+	delete(m.waiting, id)
+	m.waitMu.Unlock()
+	if ok {
+		ch <- said
+	}
+	return ok
 }
 
 // Fill takes field values from the model, checks them and, once all are
@@ -489,7 +564,9 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 	if m.opts.Deliver == nil {
 		return
 	}
-	area := ""
+	// Spoken where the thread began, even when it belongs to a person:
+	// that is where they are.
+	area := th.Area
 	receiver := store.ReceiverHouse
 	if a, ok := strings.CutPrefix(th.Place, "area:"); ok {
 		area = a
