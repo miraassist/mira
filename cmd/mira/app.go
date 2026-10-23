@@ -941,7 +941,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			return out
 		},
 		AreaName: func(id string) string { return a.structure.Snapshot().AreaNames[id] },
-		Tasks:    a.tasks, Threads: a.threads,
+		Tasks:    a.tasks, Threads: a.threads, Catalog: a.catalog,
 		Plans: func(ctx context.Context) ([]ui.Plan, error) {
 			list, err := a.threads.Plans(ctx)
 			out := make([]ui.Plan, 0, len(list))

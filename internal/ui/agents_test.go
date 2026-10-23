@@ -102,7 +102,7 @@ func TestAGC3_OnlyAdminsSeeTheTab(t *testing.T) {
 		}
 	}
 	_, page := call(t, srv, "GET", "/ui", "", "")
-	if !strings.Contains(page, `if (!isAdmin) TABS = ["plans", "memory", "guide"];`) || !strings.Contains(page, `"agents"`) {
+	if !strings.Contains(page, `if (!isAdmin) TABS = ["home", "plans", "memory", "guide"];`) || !strings.Contains(page, `"agents"`) {
 		t.Error("the page does not keep the tab Agenten for admins")
 	}
 }

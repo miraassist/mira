@@ -48,6 +48,25 @@ nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: 0; padding: 6px 11px; border-radius: 999px; color: var(--muted); cursor: pointer; font: inherit; font-weight: 600; transition: background .15s, color .15s; }
 nav button:hover { color: var(--text); background: var(--badge); }
 nav button.active { color: var(--text); background: linear-gradient(120deg, color-mix(in srgb, var(--rose) 28%, transparent), color-mix(in srgb, var(--mint) 34%, transparent)); }
+mira-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+mira-nav button.back { border: 0; background: none; color: var(--muted); font-weight: 600; padding: 6px 8px; }
+mira-nav .group-title { font-weight: 700; margin: 0 8px 0 2px; }
+/* The start page: a card per group, as Home Assistant's settings page. */
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); grid-auto-rows: 1fr; gap: 20px; }
+.home-card { cursor: pointer; margin: 0; padding: 22px 24px; min-height: 190px; display: flex; flex-direction: column; transition: box-shadow .15s, transform .15s; }
+.home-card h2 { font-size: 21px; }
+.home-teaser { margin: 6px 0 4px; }
+.home-pages { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 6px; }
+.home-pages a { color: var(--accent); font-weight: 700; font-size: 16px; text-decoration: none; }
+.home-pages a:hover, .home-pages a:focus-visible { text-decoration: underline; }
+.home-facts { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+.home-card:hover, .home-card:focus-visible { transform: translateY(-1px); box-shadow: 0 2px 4px rgb(80 40 70 / 8%), 0 10px 28px rgb(160 70 130 / 12%); }
+.home-card h2 { margin-bottom: 2px; }
+.home-line { margin: 6px 0 0; }
+.warn { color: var(--warn); }
+h3.subhead { margin: 18px 0 6px; color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+table.facts th { width: 11em; }
+@media (max-width: 600px) { table.facts th { width: auto; } }
 main { max-width: 940px; margin: 0 auto; padding: 20px 16px 48px; }
 section.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 18px; box-shadow: var(--shadow); }
 h2 { font-size: 17px; font-weight: 750; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -112,9 +131,9 @@ label.checkline input { width: auto; }
 .plan .step.current { font-weight: 700; }
 .plan h4 { margin: 12px 0 4px; }
 .plan p { margin: 4px 0; }
-details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+details.item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1.4em var(--lead, 7.5em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
 details.item > summary::-webkit-details-marker { display: none; }
-details.item > summary::before { content: "▸"; color: var(--magenta); transition: transform .15s; }
+details.item > summary::before { content: "▸"; color: var(--magenta); font-size: 1.5em; line-height: 1; transition: transform .15s; }
 details.item[open] > summary::before { content: "▾"; }
 details.item > summary .lead { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 details.item > summary .short { min-width: 0; color: var(--muted); }
@@ -122,7 +141,7 @@ details.item > summary .short.clip { color: var(--text); white-space: nowrap; ov
 details.item > summary h3 { margin: 0; overflow-wrap: anywhere; }
 details.item.task > summary { --lead: 13em; }
 @media (max-width: 600px) {
-  details.item > summary { grid-template-columns: 1em minmax(0, 1fr) auto; }
+  details.item > summary { grid-template-columns: 1.4em minmax(0, 1fr) auto; }
   details.item > summary .short { grid-column: 2 / 4; }
 }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
@@ -352,6 +371,115 @@ const I18N = {
   "plans_hint": "Was du gerade mit Mira Schritt für Schritt machst, etwa ein Rezept. Hier siehst du, wo ihr steht; weiter geht es im Gespräch (\"weiter\", \"nochmal\", \"zurück\").",
   "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
   "tab_agents": "Agenten",
+  "tab_home": "Übersicht",
+  "teaser_daily": "Was gerade ansteht: Nachrichten von Mira, Aufgaben, laufende Pläne und was sie sich gemerkt hat.",
+  "teaser_setup": "Wo Mira spricht, wen sie kennt und wann sie sich meldet.",
+  "teaser_abilities": "Was Mira kann: ihre Skills und Agenten, und was sie im Hintergrund tut.",
+  "teaser_help": "Alles über Mira, mit Beispielen zum Ausprobieren: wie du mit ihr sprichst, worauf sie im Haus achtet, was Skills können und wie du einen eigenen schreibst.",
+  // The start page links three chapters of the guide: a short name, and how
+  // the chapter's heading begins.
+  "home_chapters": [["Gespräche", "Ein Gespräch"], ["Aufgaben", "Mira passt aufs Haus auf"], ["Skills", "Skills:"]],
+  "home_satellites": n => n === 1 ? "1 Satellit" : `${n} Satelliten`,
+  "home_persons": n => n === 1 ? "1 Person" : `${n} Personen`,
+  "home_quiet": (a, b) => `Ruhezeit ${a}–${b}`,
+  "tab_skills": "Skills",
+  "group_daily": "Alltag",
+  "group_setup": "Einrichtung",
+  "group_abilities": "Fähigkeiten",
+  "group_help": "Anleitung",
+  "runs_title": "Läufe",
+  "home_messages": n => n === 1 ? "1 Nachricht wartet" : `${n} Nachrichten warten`,
+  "home_no_messages": "Keine Nachricht wartet",
+  "home_plans": n => n === 1 ? "1 Plan läuft" : `${n} Pläne laufen`,
+  "home_no_plans": "Kein Plan läuft",
+  "home_tasks": n => n === 1 ? "1 Aufgabe" : `${n} Aufgaben`,
+  "home_skills": (s, a) => `${s} Skills aktiv, ${a} Agenten`,
+  "home_problems": n => n === 1 ? "1 Skill nicht gestartet" : `${n} Skills nicht gestartet`,
+  "home_available": n => n === 1 ? "1 weiterer verfügbar" : `${n} weitere verfügbar`,
+  "cat_active": "Aktive Skills",
+  "cat_skills_hint": "Was Mira beim Start geladen hat. Ändern geht in der mira.yaml (Einstellungen) und im Ordner des Skills.",
+  "cat_problem": "Nicht gestartet",
+  "cat_available": "Verfügbar",
+  "cat_available_hint": "Diese Skills liegen im Skill-Ordner, sind aber nicht eingeschaltet. Einschalten: in der mira.yaml unter skills.enabled.",
+  "kind_plan": "Plan", "kind_thread": "Vorgang", "kind_schedules": "Zeitplan", "kind_mail": "Mail",
+  "kind_mcp": "MCP-Server", "kind_agents": "Agenten", "kind_guide": "Anleitung",
+  "cat_mcp_down": "nicht verbunden",
+  "cat_description": "Beschreibung",
+  "cat_settings": "Einstellungen",
+  "cat_secret_set": "geheim, gesetzt",
+  "cat_secret_unset": "geheim, nicht gesetzt",
+  "cat_unset": "nicht gesetzt",
+  "cat_schedules": "Zeitpläne",
+  "cat_daily": "täglich",
+  "cat_per_person": "je Person",
+  "cat_next": "nächster Lauf",
+  "cat_target": "Vorgang",
+  "cat_plan": "Plan",
+  "cat_written_by": "geschrieben von",
+  "cat_optional": "optional",
+  "cat_check": "geprüft mit",
+  "cat_filled_by": "gefüllt von",
+  "cat_finish": "Abschluss",
+  "cat_confirm": "mit Rückfrage",
+  "cat_timeout": "endet ohne Antwort nach",
+  "cat_mcp": "MCP-Server",
+  "cat_connected": "verbunden",
+  "cat_tools": "Werkzeuge",
+  "cat_all_tools": "alle Werkzeuge des Servers",
+  "cat_missing": "fehlen auf dem Server",
+  "cat_mcp_conversation": "im Gespräch, sobald der Skill geöffnet ist",
+  "cat_mcp_agents_only": "nur für die Agenten und Zeitpläne des Skills",
+  "cat_web_content": "liefert fremden Text",
+  "cat_agents": "Agenten",
+  "cat_guide": "Anleitung des Skills",
+  "cat_agents_title": "Agenten",
+  "cat_agents_hint": "Alle Agenten, die Mira aufrufen kann, und von wo.",
+  "origin_own": "Miras eigene", "origin_config": "Aus der mira.yaml", "origin_skill": "Aus Skills",
+  "own_agents": {
+    "conversation.voice": "Das Gespräch an einem Satelliten.",
+    "conversation.telegram": "Das Gespräch auf Telegram und in der HA-App.",
+    "delegate": "Nimmt schwierige Fragen aus dem Gespräch an und schlägt nach.",
+    "skill.task": "Führt die Zeitpläne der Skills aus, etwa das Briefing.",
+    "notify.compose": "Formuliert Ansagen und Nachrichten.",
+    "mail.read": "Liest neue Mails und holt die Angaben heraus.",
+    "mail.match": "Ordnet eine Mail einem Kalendereintrag zu.",
+    "tasks.assess": "Beurteilt bei einer Aufgabe, ob sich Melden lohnt.",
+    "tasks.decide": "Entscheidet bei einer Aufgabe, was zu tun ist.",
+    "tasks.plan": "Entwirft die Automation für eine Aufgabe.",
+    "profile.compact": "Fasst nachts das Gedächtnis zu einem Profil zusammen."
+  },
+  "own_called": {
+    "conversation.voice": "von Home Assistant (Sprache)",
+    "conversation.telegram": "von Home Assistant (Telegram, App)",
+    "delegate": "aus dem Gespräch",
+    "skill.task": "von den Zeitplänen der Skills",
+    "notify.compose": "von Mira, wenn sie etwas ansagt",
+    "mail.read": "von der Mail-Integration",
+    "mail.match": "von der Mail-Integration",
+    "tasks.assess": "von den Aufgaben (Automationen)",
+    "tasks.decide": "von den Aufgaben (Automationen)",
+    "tasks.plan": "vom Vorgang „aufgabe“",
+    "profile.compact": "nachts von Mira"
+  },
+  "cat_called_conversation": "aus jedem Gespräch",
+  "cat_called_conversation_skill": s => `aus dem Gespräch, sobald „${s}“ geöffnet ist`,
+  "cat_called_thread": t => `vom Vorgang „${t}“`,
+  "cat_called_agent": n => `vom Agenten „${n}“`,
+  "cat_called_ha": "aus Home Assistant (mira.agent)",
+  "privacy_local": "lokal", "privacy_cloud": "Cloud",
+  "cat_not_started": "nicht gestartet",
+  "cat_skill": "Skill",
+  "cat_model": "Modell",
+  "cat_fallback": "Ersatz",
+  "cat_must_be_local": "muss lokal laufen",
+  "cat_context": "Kontext",
+  "context_isolated": "isoliert (ohne Haus und Werkzeuge)", "context_background": "Hintergrund (mit Haus)",
+  "tools_none": "keine", "tools_read_only": "alle, die nur lesen",
+  "cat_rights": "Rechte",
+  "right_read_house": "Haus lesen", "right_act_on_house": "im Haus schalten", "right_remember": "merken",
+  "right_messages": "Nachrichten", "right_web": "Internet und fremder Text",
+  "cat_rounds": "Runden höchstens",
+  "cat_called": "Aufgerufen",
   "agents_hint": "Zum Fehlersuchen: die Läufe, die Mira im Hintergrund speichert (asynchrone Aufrufe), bis 60 Minuten nach ihrem Ende. Gespräche und andere direkte Aufrufe stehen nur im Log.",
   "no_runs": "Gerade ist kein gespeicherter Lauf da.",
   "run_call": "Aufruf",
@@ -570,6 +698,113 @@ const I18N = {
   "plans_hint": "What you are doing with Mira step by step right now, such as a recipe. Here you see where you are; it goes on in conversation (\"next\", \"again\", \"back\").",
   "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
   "tab_agents": "Agents",
+  "tab_home": "Overview",
+  "teaser_daily": "What is going on: messages from Mira, tasks, running plans and what she remembered.",
+  "teaser_setup": "Where Mira speaks, whom she knows and when she speaks up.",
+  "teaser_abilities": "What Mira can do: her skills and agents, and what she does in the background.",
+  "teaser_help": "All about Mira, with examples to try: how to talk to her, what she looks after in the house, what skills can do and how to write one of your own.",
+  "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
+  "home_satellites": n => n === 1 ? "1 satellite" : `${n} satellites`,
+  "home_persons": n => n === 1 ? "1 person" : `${n} people`,
+  "home_quiet": (a, b) => `Quiet hours ${a}–${b}`,
+  "tab_skills": "Skills",
+  "group_daily": "Day to day",
+  "group_setup": "Setup",
+  "group_abilities": "Abilities",
+  "group_help": "Guide",
+  "runs_title": "Runs",
+  "home_messages": n => n === 1 ? "1 message waiting" : `${n} messages waiting`,
+  "home_no_messages": "No message waiting",
+  "home_plans": n => n === 1 ? "1 plan running" : `${n} plans running`,
+  "home_no_plans": "No plan running",
+  "home_tasks": n => n === 1 ? "1 task" : `${n} tasks`,
+  "home_skills": (s, a) => `${s} skills active, ${a} agents`,
+  "home_problems": n => n === 1 ? "1 skill not started" : `${n} skills not started`,
+  "home_available": n => n === 1 ? "1 more available" : `${n} more available`,
+  "cat_active": "Active skills",
+  "cat_skills_hint": "What Mira loaded at her start. Changes go into mira.yaml (settings) and the skill's folder.",
+  "cat_problem": "Not started",
+  "cat_available": "Available",
+  "cat_available_hint": "These skills are in the skill folder but not switched on. Switch one on in mira.yaml under skills.enabled.",
+  "kind_plan": "Plan", "kind_thread": "Thread", "kind_schedules": "Schedule", "kind_mail": "Mail",
+  "kind_mcp": "MCP server", "kind_agents": "Agents", "kind_guide": "Guide",
+  "cat_mcp_down": "not connected",
+  "cat_description": "Description",
+  "cat_settings": "Settings",
+  "cat_secret_set": "secret, set",
+  "cat_secret_unset": "secret, not set",
+  "cat_unset": "not set",
+  "cat_schedules": "Schedules",
+  "cat_daily": "daily",
+  "cat_per_person": "per person",
+  "cat_next": "next run",
+  "cat_target": "Thread",
+  "cat_plan": "Plan",
+  "cat_written_by": "written by",
+  "cat_optional": "optional",
+  "cat_check": "checked with",
+  "cat_filled_by": "filled by",
+  "cat_finish": "Finish",
+  "cat_confirm": "asks first",
+  "cat_timeout": "ends without an answer after",
+  "cat_mcp": "MCP server",
+  "cat_connected": "connected",
+  "cat_tools": "Tools",
+  "cat_all_tools": "all the server's tools",
+  "cat_missing": "missing on the server",
+  "cat_mcp_conversation": "in the conversation once the skill is opened",
+  "cat_mcp_agents_only": "only for the skill's agents and schedules",
+  "cat_web_content": "returns third-party text",
+  "cat_agents": "Agents",
+  "cat_guide": "The skill's guide",
+  "cat_agents_title": "Agents",
+  "cat_agents_hint": "Every agent Mira can call, and from where.",
+  "origin_own": "Mira's own", "origin_config": "From mira.yaml", "origin_skill": "From skills",
+  "own_agents": {
+    "conversation.voice": "The conversation at a satellite.",
+    "conversation.telegram": "The conversation on Telegram and in the HA app.",
+    "delegate": "Takes hard questions from the conversation and looks things up.",
+    "skill.task": "Runs the skills' schedules, the briefing for one.",
+    "notify.compose": "Words announcements and messages.",
+    "mail.read": "Reads new mails and takes out the details.",
+    "mail.match": "Matches a mail to a calendar entry.",
+    "tasks.assess": "Judges for a task whether it is worth a word.",
+    "tasks.decide": "Decides for a task what to do.",
+    "tasks.plan": "Drafts the automation for a task.",
+    "profile.compact": "Sums up the memory into a profile at night."
+  },
+  "own_called": {
+    "conversation.voice": "from Home Assistant (voice)",
+    "conversation.telegram": "from Home Assistant (Telegram, app)",
+    "delegate": "from the conversation",
+    "skill.task": "from the skills' schedules",
+    "notify.compose": "from Mira when she announces something",
+    "mail.read": "from the mail integration",
+    "mail.match": "from the mail integration",
+    "tasks.assess": "from the tasks (automations)",
+    "tasks.decide": "from the tasks (automations)",
+    "tasks.plan": "from the thread \"aufgabe\"",
+    "profile.compact": "at night from Mira"
+  },
+  "cat_called_conversation": "from every conversation",
+  "cat_called_conversation_skill": s => `from the conversation once "${s}" is opened`,
+  "cat_called_thread": t => `from the thread "${t}"`,
+  "cat_called_agent": n => `from the agent "${n}"`,
+  "cat_called_ha": "from Home Assistant (mira.agent)",
+  "privacy_local": "local", "privacy_cloud": "cloud",
+  "cat_not_started": "not started",
+  "cat_skill": "Skill",
+  "cat_model": "Model",
+  "cat_fallback": "fallback",
+  "cat_must_be_local": "must run locally",
+  "cat_context": "Context",
+  "context_isolated": "isolated (no house, no tools)", "context_background": "background (with the house)",
+  "tools_none": "none", "tools_read_only": "all that only read",
+  "cat_rights": "Rights",
+  "right_read_house": "read the house", "right_act_on_house": "act on the house", "right_remember": "remember",
+  "right_messages": "messages", "right_web": "internet and third-party text",
+  "cat_rounds": "At most rounds",
+  "cat_called": "Called",
   "agents_hint": "For debugging: the runs Mira stores in the background (asynchronous calls), until 60 minutes after their end. Conversations and other direct calls are only in the log.",
   "no_runs": "No stored run at the moment.",
   "run_call": "Call",
@@ -624,7 +859,15 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["messages", "tasks", "plans", "notifier", "rooms", "persons", "memory", "agents", "guide"];
+const ALL_TABS = ["home", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "guide"];
+// The start page shows a card per group; inside a group its tabs are on top
+// (docs/spec/uebersicht.md, Navigation).
+const GROUPS = [
+  { id: "daily", tabs: ["messages", "tasks", "plans", "memory"] },
+  { id: "setup", tabs: ["rooms", "persons", "notifier"] },
+  { id: "abilities", tabs: ["skills", "agents"] },
+  { id: "help", tabs: ["guide"] },
+];
 let TABS = ALL_TABS;
 let token = localStorage.getItem("mira.token") || "";
 
@@ -678,6 +921,7 @@ if (embedded) {
   haTheme();
   try { new MutationObserver(haTheme).observe(window.parent.document.documentElement, { attributes: true }); } catch (e) {}
   document.querySelectorAll('img[src="/ui/icon.png"]').forEach(img => { img.src = url("/ui/icon.png"); });
+  document.querySelector('link[rel="icon"]').href = url("/ui/icon.png");
   // A link into HA opens there, the way HA's own links do.
   document.addEventListener("click", e => {
     const a = e.target.closest("a[data-ha]");
@@ -703,8 +947,8 @@ let config = {};
 // Inside Home Assistant, someone who is no admin gets their memory and the
 // guide; the agent and the integration enforce that, the page follows.
 const isAdmin = !embedded || !!(hass() && hass().user && hass().user.is_admin);
-if (!isAdmin) TABS = ["plans", "memory", "guide"];
-const tabOf = h => (TABS.includes(h) ? h : TABS[0]);
+if (!isAdmin) TABS = ["home", "plans", "memory", "guide"];
+const tabOf = h => (TABS.includes(h) ? h : "home");
 let tab = tabOf(location.hash.slice(1));
 let entityNames = {};
 // Sections Home Assistant manages are edited there, as settings on HA's
@@ -817,15 +1061,20 @@ const num = (s, def) => (s === "" || s === undefined ? def : Number(s));
 const opt = (value, current, label) => `<option value="${esc(value)}"${String(value) === String(current ?? "") ? " selected" : ""}>${esc(label ?? value)}</option>`;
 
 function nav() {
-  $("#nav").innerHTML = TABS.map(id =>
-    `<button class="${id === tab ? "active" : ""}" onclick="go('${id}')">${T["tab_" + id]}</button>`).join("");
+  let el = $("#nav mira-nav");
+  if (!el) { $("#nav").innerHTML = "<mira-nav></mira-nav>"; el = $("#nav mira-nav"); }
+  el.tab = tab;
+  if (el.requestUpdate) el.requestUpdate();
   $("#lang").value = lang;
 }
 function go(id) { tab = id; location.hash = id; render(); }
 
 function render() {
+  // The tabs that follow themselves stop when another view opens; otherwise
+  // their next round would draw over it.
+  clearTimeout(planTimer); clearTimeout(runTimer);
   nav();
-  const views = { messages, tasks, plans, notifier, rooms, persons, memory, agents, guide };
+  const views = { home, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -835,6 +1084,10 @@ function render() {
     $("#view").insertAdjacentHTML("afterbegin", `<p class="msg ok">${T.managed_hint}</p>`);
   }
 }
+
+// ---- Start, Skills (built on Lit, js/app.js) --------------------------------
+function home() { $("#view").innerHTML = "<mira-home></mira-home>"; }
+function skills() { $("#view").innerHTML = "<mira-skills></mira-skills>"; }
 
 // ---- Nachrichten ----------------------------------------------------------
 let openOnly = false, messagePage = 0;
@@ -1189,8 +1442,9 @@ async function compact() {
 let runTimer = null;
 async function agents() {
   clearTimeout(runTimer);
+  if (tab !== "agents") return;
   if (!$("#runlist")) {
-    $("#view").innerHTML = `<section class="card"><h2>${T.tab_agents}</h2><p class="hint">${T.agents_hint}</p><div id="runlist">${T.loading}</div></section>`;
+    $("#view").innerHTML = `<mira-agent-defs></mira-agent-defs><section class="card"><h2>${T.runs_title}</h2><p class="hint">${T.agents_hint}</p><div id="runlist">${T.loading}</div></section>`;
   }
   if (!document.querySelector("#runlist details[open]")) {
     try {
@@ -1240,6 +1494,7 @@ async function runDetail(el, id) {
 let planTimer = null;
 async function plans() {
   clearTimeout(planTimer);
+  if (tab !== "plans") return;
   if (!$("#planlist")) {
     $("#view").innerHTML = `<section class="card"><h2>${T.tab_plans}</h2><p class="hint">${T.plans_hint}</p><div id="planlist">${T.loading}</div></section>`;
   }
@@ -1355,11 +1610,19 @@ async function deleteTask(id) {
 // ---- Anleitung ----------------------------------------------------------
 // The guide is Markdown from docs/guide/; this renders the little it uses:
 // headings, lists, tables, paragraphs, bold, code and links.
+// guideChapter is the chapter the guide opens at (a link on the start page).
+let guideChapter = null;
+function openChapter(n) { guideChapter = n; go("guide"); }
 async function guide() {
   $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
   try {
     const res = await fetch(url("/ui/guide/" + lang));
     $("#guide").innerHTML = markdown(await res.text());
+    if (guideChapter !== null) {
+      const h = document.getElementById("chapter-" + guideChapter);
+      guideChapter = null;
+      if (h) h.scrollIntoView({ block: "start" });
+    }
   } catch (e) { message(e.message, false); }
 }
 function inline(s) {
@@ -1371,6 +1634,7 @@ function inline(s) {
 }
 function markdown(md) {
   const out = [];
+  let chapter = 0;
   let list = null, table = null, para = [], code = null, quote = [];
   const flush = () => {
     if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
@@ -1401,7 +1665,12 @@ function markdown(md) {
     }
     if (line.startsWith("```")) { flush(); code = []; continue; }
     if (!line.trim()) { flush(); continue; }
-    if ((m = line.match(/^(#{1,3})\s+(.*)/))) { flush(); const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); continue; }
+    if ((m = line.match(/^(#{1,3})\s+(.*)/))) {
+      flush(); const n = m[1].length + 1;
+      // A chapter (##) gets an id by its order, for links from the start page.
+      const id = m[1] === "##" ? ` id="chapter-${chapter++}"` : "";
+      out.push(`<h${n}${id}>${inline(m[2])}</h${n}>`); continue;
+    }
     // A recording is "▶ [caption](https://….mp4#t=start,end)": a plain link on GitHub, a player here.
     if ((m = line.match(/^▶\s+\[([^\]]*)\]\((https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
     if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+|https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
@@ -1442,6 +1711,13 @@ async function load() {
   } catch (e) { render(); message(e.message, false); }
 }
 window.addEventListener("hashchange", () => { tab = tabOf(location.hash.slice(1)); render(); });
+// The parts built on Lit; their elements upgrade once the module is there.
+{
+  const s = document.createElement("script");
+  s.type = "module";
+  s.src = url("/ui/js/app.js");
+  document.head.appendChild(s);
+}
 load();
 </script>
 </body>

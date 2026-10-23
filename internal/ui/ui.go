@@ -86,6 +86,8 @@ type Options struct {
 	AreaName func(id string) string
 	// Location is the time zone times are shown in.
 	Location *time.Location
+	// Catalog lists the skills and agents (docs/spec/uebersicht.md).
+	Catalog CatalogSource
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
@@ -109,6 +111,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
 	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
 	h.mux.HandleFunc("GET /ui/guide/img/{name}", h.guideFile)
+	h.mux.HandleFunc("GET /ui/js/{name}", h.script)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -124,6 +127,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
 	// The stored agent runs, for debugging (agents.go).
+	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
 	h.mux.HandleFunc("GET /v1/ui/agents", h.auth(h.runs))
 	h.mux.HandleFunc("GET /v1/ui/agents/{id}", h.auth(h.run))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
@@ -144,7 +148,7 @@ func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	// Recordings of the guide come from their own server over https.
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' https:")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' https:")
 	w.Write(bytes.Replace(page, []byte("%%VERSION%%"), []byte(html.EscapeString(h.opts.Version)), 1))
 }
 

@@ -466,3 +466,48 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string) (confi
 
 // Exists reports whether a skill folder of that name is in dirs.
 func Exists(dirs []string, name string) bool { return find(dirs, name) != "" }
+
+// Info is a skill folder's name and description, read without loading it.
+type Info struct {
+	Name        string
+	Description string
+}
+
+// Available are the skills in dirs that are not enabled, by name: what a
+// user could switch on (the first folder of a name wins, as for Load).
+func Available(dirs []string, enabled map[string]map[string]any) []Info {
+	seen := map[string]bool{}
+	var out []Info
+	for _, d := range dirs {
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !e.IsDir() || seen[name] {
+				continue
+			}
+			raw, err := os.ReadFile(filepath.Join(d, name, "SKILL.md"))
+			if err != nil {
+				continue
+			}
+			seen[name] = true
+			if _, on := enabled[name]; on {
+				continue
+			}
+			info := Info{Name: name}
+			if front, _, p := split(raw); p == nil {
+				var fm struct {
+					Description string `yaml:"description"`
+				}
+				if yaml.Unmarshal(front, &fm) == nil {
+					info.Description = strings.TrimSpace(fm.Description)
+				}
+			}
+			out = append(out, info)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
