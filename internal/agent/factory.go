@@ -162,7 +162,7 @@ func ownExtra(d config.AgentDef) string {
 func specOf(d Defined, models func(string) (config.LLM, bool)) (Spec, string, []any) {
 	def := d.Def
 	spec := Spec{Name: d.Name, Description: strings.TrimSpace(def.Description),
-		Instructions: strings.TrimSpace(def.Instructions), Model: def.Model}
+		Instructions: strings.TrimSpace(def.Instructions), Model: def.Model, Skill: d.Skill}
 	if spec.Description == "" {
 		return spec, "nodesc", nil
 	}

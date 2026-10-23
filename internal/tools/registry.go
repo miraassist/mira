@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/miraassist/mira/internal/config"
@@ -34,6 +35,9 @@ type Spec struct {
 	// Skill is the skill whose MCP server offers the tool: it is in no list
 	// until that skill is opened (docs/spec/skill-mcp.md).
 	Skill string
+	// AgentsOnly: a skill's tool that only its agents and schedules get, never
+	// the conversation.
+	AgentsOnly bool
 }
 
 // Invocation is a call as the conversation loop hands it over.
@@ -84,7 +88,10 @@ type InternalTool struct {
 	// Enabled, when set, decides at each turn whether the tool is offered;
 	// a switched-off tool is unknown to the model.
 	Enabled func() bool
-	Run     func(ctx context.Context, inv Invocation) (string, error)
+	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
+	// for the conversation, docs/spec/agenten.md).
+	Skill string
+	Run   func(ctx context.Context, inv Invocation) (string, error)
 }
 
 func (t InternalTool) on() bool { return t.Enabled == nil || t.Enabled() }
@@ -104,6 +111,7 @@ const MaxResultChars = 8000
 // Registry is the complete tool set: MCP tools plus internal ones.
 type Registry struct {
 	mcp      MCPSource
+	mu       sync.RWMutex
 	internal map[string]InternalTool
 }
 
@@ -115,12 +123,42 @@ func NewRegistry(src MCPSource, internal ...InternalTool) *Registry {
 	return r
 }
 
+// Add adds internal tools after the start: the agents for the conversation,
+// known once the agents are registered.
+func (r *Registry) Add(tools ...InternalTool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range tools {
+		r.internal[t.Name] = t
+	}
+}
+
+// internalTool is an internal tool by name.
+func (r *Registry) internalTool(name string) (InternalTool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	t, ok := r.internal[name]
+	return t, ok
+}
+
+// internalTools are the internal tools.
+func (r *Registry) internalTools() []InternalTool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]InternalTool, 0, len(r.internal))
+	for _, t := range r.internal {
+		out = append(out, t)
+	}
+	return out
+}
+
 // Specs lists every tool, sorted by (server, name) with internal tools first.
 // With readOnly set, only tools safe for background jobs are listed.
 func (r *Registry) Specs(readOnly bool) []Spec {
 	var out []Spec
-	for _, t := range r.internal {
-		if (readOnly && !t.ReadOnly) || !t.on() {
+	for _, t := range r.internalTools() {
+		// A skill's tools come only with the skill.
+		if (readOnly && !t.ReadOnly) || !t.on() || t.Skill != "" {
 			continue
 		}
 		out = append(out, internalSpec(t))
@@ -160,6 +198,7 @@ func internalSpec(t InternalTool) Spec {
 		WebContent:  t.WebContent,
 		Internal:    true,
 		AskAfterWeb: t.AskAfterWeb,
+		Skill:       t.Skill,
 	}
 }
 
@@ -178,14 +217,43 @@ func (r *Registry) SkillDefs(skills ...string) []prompt.ToolDef {
 	return out
 }
 
+// ConversationSkillDefs are what a conversation that opened these skills gets
+// besides the shared tools: their agents for the conversation, by name, and
+// their MCP tools except those only for the skills' agents.
+func (r *Registry) ConversationSkillDefs(skills ...string) []prompt.ToolDef {
+	if len(skills) == 0 {
+		return nil
+	}
+	var out []prompt.ToolDef
+	var agents []InternalTool
+	for _, t := range r.internalTools() {
+		if t.Skill != "" && slices.Contains(skills, t.Skill) && t.on() {
+			agents = append(agents, t)
+		}
+	}
+	sort.Slice(agents, func(i, j int) bool { return agents[i].Name < agents[j].Name })
+	for _, t := range agents {
+		out = append(out, internalSpec(t).ToolDef)
+	}
+	if r.mcp != nil {
+		for _, t := range r.mcp.Tools() {
+			if t.Skill != "" && slices.Contains(skills, t.Skill) && !t.AgentsOnly {
+				out = append(out, t.ToolDef)
+			}
+		}
+	}
+	return out
+}
+
 // Lookup finds a tool by the name the model used.
 func (r *Registry) Lookup(name string) (Spec, bool) {
-	if t, ok := r.internal[name]; ok && t.on() {
+	if t, ok := r.internalTool(name); ok && t.on() {
 		return internalSpec(t), true
 	}
 	if r.mcp != nil {
 		if t, ok := r.mcp.Lookup(name); ok {
-			return Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent, Skill: t.Skill}, true
+			return Spec{ToolDef: t.ToolDef, ReadOnly: t.ReadOnly, WebContent: t.WebContent, Skill: t.Skill,
+				AgentsOnly: t.AgentsOnly}, true
 		}
 	}
 	return Spec{}, false
@@ -198,7 +266,7 @@ var ErrUnknownTool = errors.New("unknown tool")
 // Guard first. The returned text is what the model reads; isError marks a
 // failed call so the model does not claim success.
 func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, isError bool, err error) {
-	if t, ok := r.internal[inv.Name]; ok && t.on() {
+	if t, ok := r.internalTool(inv.Name); ok && t.on() {
 		out, err := t.Run(ctx, inv)
 		if err != nil {
 			return "Fehler: " + err.Error(), true, nil

@@ -359,6 +359,9 @@ func (r *Runtime) cleanup(ctx context.Context) {
 	}
 }
 
+// Lookup is a registered agent by its name.
+func (r *Runtime) Lookup(name string) (Spec, bool) { return r.lookup(name) }
+
 // lookup is a registered agent by its name.
 func (r *Runtime) lookup(name string) (Spec, bool) {
 	r.mu.Lock()

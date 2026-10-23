@@ -48,7 +48,7 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 // own with a fixed description, then those described in YAML, in mira.yaml
 // and in the skills (docs/spec/agenten.md, Factory). A YAML agent that does
 // not fit is left out and shown as a problem.
-func (a *app) registerAgents() {
+func (a *app) registerAgents(registry *tools.Registry) {
 	for _, spec := range a.engine.Agents() {
 		a.agents.Register(spec)
 	}
@@ -72,10 +72,54 @@ func (a *app) registerAgents() {
 		if d.Skill == "" && agent.Own(d.Name) {
 			continue
 		}
-		if !failed[d.Skill+"/"+d.Name] {
-			a.log.Info("agent enabled", "agent", d.Name, "skill", d.Skill)
+		if failed[d.Skill+"/"+d.Name] {
+			continue
+		}
+		a.log.Info("agent enabled", "agent", d.Name, "skill", d.Skill)
+		if d.Def.Conversation && registry != nil {
+			if t, ok := a.conversationTool(d); ok {
+				registry.Add(t)
+			}
 		}
 	}
+}
+
+// conversationTool is a YAML agent with conversation true as a tool of the
+// conversation (docs/spec/agenten.md, An agent as a tool in a conversation):
+// a skill's comes with the skill, one of mira.yaml is always there. The
+// conversation waits for it as for delegate.
+func (a *app) conversationTool(d agent.Defined) (tools.InternalTool, bool) {
+	spec, ok := a.agents.Lookup(d.Name)
+	if !ok {
+		return tools.InternalTool{}, false
+	}
+	schema := string(spec.Input)
+	if schema == "" {
+		what := "Was der Agent tun soll"
+		if a.lang == i18n.EN {
+			what = "What the agent should do"
+		}
+		schema = fmt.Sprintf(`{"type":"object","properties":{"input":{"type":"string","description":%q}},"required":["input"]}`, what)
+	}
+	webContent := spec.Rights.Has(agent.Web)
+	for _, sk := range a.skillsWithAgents() {
+		if sk.Name == d.Skill && sk.MCP != nil && sk.MCP.WebContent {
+			webContent = true
+		}
+	}
+	return tools.InternalTool{
+		Name:        strings.ReplaceAll(spec.Name, ".", "_"),
+		Description: spec.Description,
+		Schema:      schema,
+		// It changes nothing when the agent may only read.
+		ReadOnly:   !spec.Rights.Has(agent.ActOnHouse) && !spec.Rights.Has(agent.Remember) && !spec.Rights.Has(agent.Messages),
+		WebContent: webContent,
+		Skill:      d.Skill,
+		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+			res, err := a.agents.CallByName(ctx, spec.Name, inv.Args, a.engine.AgentCall(ctx))
+			return a.engine.AgentAnswer(ctx, res, err)
+		},
+	}, true
 }
 
 func sortedNames[V any](m map[string]V) []string {

@@ -1,6 +1,6 @@
 # Agents – Spec
 
-Status 2026-10-21: decided. None of it is built.
+Status 2026-10-23: built, steps 1 to 10.
 
 The testable rules are numbered scenarios in [agenten.feature](agenten.feature); each Go test for one carries the
 number in its name (`TestAG07_…`).
@@ -125,6 +125,15 @@ also `receiver`). `mira.agent_result` and `mira.agent_cancel` take only the call
 **An agent as a tool in a conversation:** at a satellite the conversation waits up to 5 seconds for the agent, as
 threads do today; then the run goes on (`run_on`) and its result comes as a message to the room or the person, and
 Mira says she will come back. On Telegram it waits up to 30 seconds.
+
+- **Which agents:** `delegate`, built in, and every YAML agent whose description says `conversation: true`. The
+  default is off: an agent is for Home Assistant, other agents and threads until its description switches it on.
+  An agent of `mira.yaml` is then in every conversation; an agent of a skill only once the conversation opened the
+  skill (`skill_open`), as the skill's MCP tools, and not in other conversations.
+- **As a tool** it has the agent's name with `_` for `.` (`paperless.recherche` → `paperless_recherche`), its
+  description and its input schema; without one `{ input: text }`.
+- **The call** takes its call context from the conversation (person, place, one deeper); the agent works with its
+  own rights. Third-party text the agent read counts for the turn, as for every tool that reads it.
 
 **Cancelling:** the HA action `mira.agent_cancel` with the call ID cancels a running run; in a conversation "vergiss
 es" ends it through the thread, as today.
@@ -367,6 +376,8 @@ per agent come in addition.
 7. **Continuation:** agents fill a thread's fields (see Continuation: agents fill a thread).
 8. **Factory:** agents in YAML. Independent of step 7; can be built after step 6.
 9. **Run view:** the stored runs on Mira's page (see Run view).
+10. **Agents in the conversation:** the switch `conversation` for YAML agents; a skill's agents with the tools of
+    its MCP server.
 
 ## Model choice
 
@@ -395,9 +406,16 @@ agents:
     output:                 # optional: JSON schema of the answer
       type: object
       properties: { steps: { type: array, items: { type: string } } }
+    conversation: false     # true: the conversation may call it as a tool (a skill's: once the skill is opened)
 ```
 
-It is called like every agent: as a tool of another agent, from Home Assistant or from the code.
+It is called like every agent: as a tool of another agent, from Home Assistant or from the code, and with
+`conversation: true` from the conversation (see Calling).
+
+**A skill's agents work in the skill:** a run of an agent that a skill describes runs for that skill, as the skill's
+schedules do. The tools of the skill's MCP server are there for it, as far as its `tools` list names them
+(`[paperless__query_documents, paperless__get_document_content]`); an agent of another skill or of `mira.yaml` does
+not get them (skill-mcp.md).
 
 ## Inventory
 
@@ -514,6 +532,12 @@ From that:
     a thread's fields (or its plan) as the user does. The skill's target names the agents (the model sending agents
     itself stays an idea). A result goes into fields or the plan only. A failed agent makes the thread ask the user
     for that field.
+
+37. **Agents in the conversation:** besides `delegate`, a YAML agent is a tool of the conversation only when its
+    description says `conversation: true` (default off). One of `mira.yaml` is in every conversation, a skill's only
+    once the skill is opened.
+38. **A skill's agents work in the skill:** they get the tools of the skill's MCP server that their `tools` list
+    names, as the skill's schedules do.
 
 ## Open questions
 

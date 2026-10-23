@@ -2,10 +2,12 @@ package conversation_test
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
@@ -24,6 +26,12 @@ type paperlessEnv struct {
 
 func newPaperless(t *testing.T, script ...fakellm.Step) *paperlessEnv {
 	t.Helper()
+	return newPaperlessWith(t, nil, script...)
+}
+
+// newPaperlessWith is newPaperless with a change to the skill's mcp section.
+func newPaperlessWith(t *testing.T, change func(*config.MCPServer), script ...fakellm.Step) *paperlessEnv {
+	t.Helper()
 	p := &paperlessEnv{server: fakemcp.New("paperless")}
 	t.Cleanup(p.server.Close)
 	p.server.Token = "geheim"
@@ -39,6 +47,9 @@ func newPaperless(t *testing.T, script ...fakellm.Step) *paperlessEnv {
 	srv := config.MCPServer{Name: "paperless", Skill: "paperless", Transport: config.TransportHTTP,
 		URL: p.server.Endpoint(), Token: "geheim", WebContent: true, ReadOnly: true,
 		Tools: []string{"query_documents", "get_document_content"}}
+	if change != nil {
+		change(&srv)
+	}
 	set := &skills.Set{Lang: i18n.DE, Skills: []skills.Skill{{Name: "paperless", Description: "Dokumente durchsuchen",
 		Body: "Such mit paperless__query_documents.", MCP: &srv}}}
 	set.OnOpen = func(ctx context.Context, key, skill string) error { return p.store.AddSessionSkill(ctx, key, skill) }
@@ -192,5 +203,78 @@ func TestSM08_TheSkillsSchedulesGetItsTools(t *testing.T) {
 	p.engine.RunTask(context.Background(), "abfall", "Prüf den Kalender.")
 	if got := offered(p.llm.Last().Request); len(got) != 0 {
 		t.Errorf("another skill got %v", got)
+	}
+}
+
+// recherche registers the skill's research agent, and one of mira.yaml that
+// names the same tools.
+func (p *paperlessEnv) recherche(t *testing.T) {
+	t.Helper()
+	main := func(string) (config.LLM, bool) { return config.Default().Main(), true }
+	def := config.AgentDef{Description: "Durchsucht die Dokumente.", Instructions: "Such.", Context: "background",
+		Rights: []string{"read_house", "web"},
+		Tools:  config.AgentTools{Names: []string{"paperless__query_documents", "paperless__get_document_content"}}}
+	if probs := p.engine.AgentsForTest().RegisterDefined([]agent.Defined{
+		{Name: "paperless.recherche", Skill: "paperless", Def: def},
+		{Name: "fremd", Def: def}}, main); len(probs) != 0 {
+		t.Fatal(probs)
+	}
+}
+
+// SM-12 A skill's agent works with the skill's tools
+func TestSM12_ASkillsAgentWorksWithTheSkillsTools(t *testing.T) {
+	// Given a skill with an mcp section and an agent whose tools list names two of its tools
+	p := newPaperless(t,
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("q", "paperless__query_documents", `{"query":"Wipfler"}`)}},
+		fakellm.Step{Content: "Drei Rechnungen."}, fakellm.Step{Content: "Kenne ich nicht."})
+	p.recherche(t)
+	// When the agent runs
+	res, err := p.engine.AgentsForTest().CallByName(context.Background(), "paperless.recherche",
+		json.RawMessage(`{"input":"Rechnungen von Wipfler"}`), agent.CallContext{})
+	if err != nil || res.Text != "Drei Rechnungen." {
+		t.Fatalf("run: %q %v", res.Text, err)
+	}
+	// Then those tools are offered to it and it can call them
+	reqs := p.llm.Requests()
+	if got := offered(reqs[0].Request); len(got) != 2 || len(p.server.Calls()) != 1 {
+		t.Errorf("offered %v, server calls %+v", got, p.server.Calls())
+	}
+	// And an agent of mira.yaml naming the same tools does not get them
+	p.engine.AgentsForTest().CallByName(context.Background(), "fremd", json.RawMessage(`{"input":"x"}`), agent.CallContext{})
+	if got := offered(p.llm.Last().Request); len(got) != 0 {
+		t.Errorf("an agent of mira.yaml got %v", got)
+	}
+}
+
+// SM-13 With conversation false only the skill's agents and schedules get the tools
+func TestSM13_WithConversationFalseOnlyTheSkillsAgentsGetTheTools(t *testing.T) {
+	// Given a skill whose mcp section has conversation false
+	no := false
+	p := newPaperlessWith(t, func(s *config.MCPServer) { s.Conversation = &no },
+		openSkill("o1"), fakellm.Step{Content: "Offen."},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("q", "paperless__query_documents", `{"query":"x"}`)}},
+		fakellm.Step{Content: "?"},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("q", "paperless__query_documents", `{"query":"x"}`)}},
+		fakellm.Step{Content: "Gefunden."},
+		fakellm.Step{Content: `{"importance":0,"spoken":""}`})
+	// When a conversation opens the skill
+	p.say(t, config.ChannelTelegram, "1", "Such in meinen Dokumenten.")
+	// Then the server's tools are not offered to the conversation, nor can it call them
+	if got := offered(p.llm.Last().Request); len(got) != 0 {
+		t.Errorf("offered to the conversation: %v", got)
+	}
+	p.say(t, config.ChannelTelegram, "1", "Such trotzdem.")
+	if len(p.server.Calls()) != 0 {
+		t.Fatal("the conversation called a tool only for the skill's agents")
+	}
+	// But the skill's agent and its schedule get them
+	p.recherche(t)
+	if res, err := p.engine.AgentsForTest().CallByName(context.Background(), "paperless.recherche",
+		json.RawMessage(`{"input":"x"}`), agent.CallContext{}); err != nil || len(p.server.Calls()) != 1 {
+		t.Errorf("agent: %q %v, calls %+v", res.Text, err, p.server.Calls())
+	}
+	p.engine.RunTask(context.Background(), "paperless", "Prüf.")
+	if got := offered(p.llm.Last().Request); len(got) != 2 {
+		t.Errorf("schedule offered %v", got)
 	}
 }

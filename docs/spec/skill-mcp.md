@@ -42,6 +42,8 @@ skills:
 - **`tools`** names the tools the skill uses; only those are ever offered. Without it, all of the server's tools. The
   list is the control: whoever writes the skill decides what Mira may do with the server (a read-only token is not
   required).
+- **`conversation: false`** keeps the tools out of the conversation: only the skill's agents and its schedules get
+  them. The default is `true`. With a research agent (below) the documents never enter the conversation's history.
 
 ## When the tools are there
 
@@ -49,6 +51,24 @@ skills:
 - **Opening the skill** (`skill_open`) in a conversation makes its tools available **for the rest of that
   conversation**, until the session expires. Another conversation does not get them.
 - **The skill's schedules** (`skill.task` running for that skill) get its tools.
+- **The skill's agents** (`metadata.mira.agents`) get the tools their `tools` list names, whether the conversation,
+  a thread or Home Assistant calls them (agenten.md, Factory). Such an agent with `conversation: true` is a tool of
+  the conversation once the skill is opened:
+
+  ```yaml
+  # skills/paperless/SKILL.md
+  metadata:
+    mira:
+      mcp: { …, conversation: false, tools: [query_documents, get_document_content] }
+      agents:
+        paperless.recherche:
+          description: Durchsucht die Dokumente mit einem Ziel und antwortet mit dem Ergebnis und den Quellen.
+          context: background
+          tools: [paperless__query_documents, paperless__get_document_content]
+          rights: [read_house, web]    # web: its tools return third-party text (web_content)
+          conversation: true
+          instructions: …
+  ```
 - **The price on a local model:** tools stand at the front of the prompt; when they come in mid-conversation, the
   prompt cache no longer fits and the next turn computes the prompt anew (on LM Studio up to about 48 s cold). Only
   conversations that use the skill pay it; on a cloud model it does not matter. Accepted.
@@ -76,3 +96,5 @@ skills:
 3. The prompt cache miss on a local model when the tools come in is accepted (3A).
 4. The skill's schedules get its tools.
 5. The skill's `tools` list is the control; a read-only token is not required.
+6. The skill's agents get its tools (those their `tools` list names); with `conversation: false` the conversation
+   does not, only the skill's agents and schedules.

@@ -168,8 +168,9 @@ Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adres
 - „Such in meinen Dokumenten nach der Rechnung vom Schornsteinfeger und nenn mir den Betrag.“
 - „Such in Paperless nach dem Bescheid vom Finanzamt. Bis wann muss ich zahlen?“
 - „Wann ist die nächste Feuerstättenschau?“ – findet Mira den Bescheid, nennt sie die Antwort mit Absender und Datum des Dokuments.
+- „Wie viele Rechnungen hat mir Wipfler geschrieben, und was habe ich insgesamt gezahlt?“ – Mira sucht alle, liest sie und rechnet zusammen.
 
-Passen mehrere Dokumente (etwa Rechnungen aus mehreren Jahren), nimmt Mira das neueste und sagt, welches; nennst du ein Jahr, nimmt sie das. Sie liest nur das Gefragte vor, keine ganzen Seiten.
+Mira recherchiert dafür mit einem eigenen Helfer im Hintergrund: Er sucht, liest die Dokumente und gibt nur das Ergebnis mit den Quellen zurück. Dauert es länger als ein paar Sekunden, sagt Mira „ich melde mich“ und sagt das Ergebnis an, sobald es da ist. Sie liest nur das Gefragte vor, keine ganzen Seiten.
 
 So richtest du es ein:
 
@@ -191,7 +192,7 @@ So richtest du es ein:
 Gut zu wissen:
 - Mira kann in Paperless nur **suchen und lesen**, nichts ändern oder löschen.
 - Was in den Dokumenten steht, gilt als **fremder Text**, wie eine Webseite: Mira folgt keinen Anweisungen darin und fragt nach, bevor sie etwas davon merkt oder weitergibt.
-- Der Text der Dokumente geht an das Modell des Gesprächs. Mit einem lokalen Modell bleibt er im Haus (siehe „Mehrere Modelle“).
+- Der Text der Dokumente geht an das Modell des Helfers, das Hauptmodell; ins Gespräch kommt nur das Ergebnis. Mit einem lokalen Modell bleibt er im Haus (siehe „Mehrere Modelle“).
 - Mira sucht am besten mit einem kennzeichnenden Wort (der Absender, die Sache). Der Text ist aus Scans erkannt; ist ein Betrag unklar erkannt, sagt Mira das.
 
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
@@ -426,13 +427,17 @@ agents:
 
 Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `models`. Braucht ein Agent Werkzeuge und eine feste Antwortform (`output`) zugleich, nimm ein Modell, das beides gleichzeitig kann; Gemini kann das. In einem Skill füllt Mira die Einstellungen des Skills in `{{…}}` ein, wie überall.
 
+**Im Gespräch:** Mit `conversation: true` kann auch Mira selbst den Agenten im Gespräch rufen, als Werkzeug; ohne die Zeile nicht. Ein Agent aus der `mira.yaml` steht dann in jedem Gespräch bereit, einer aus einem Skill, sobald Mira den Skill geöffnet hat. Bei Sprache wartet Mira bis zu 5 Sekunden auf ihn, bei Telegram 30; braucht er länger, sagt sie „ich melde mich“ und sagt das Ergebnis später an.
+
+**In einem Skill** arbeitet ein Agent mit den Werkzeugen des MCP-Servers dieses Skills, wenn er sie unter `tools` nennt (etwa `paperless__query_documents`). Liefern sie fremden Text (`web_content`), braucht er das Recht `web`.
+
 Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, startet nur dieser Agent nicht. In Home Assistant steht dann unter **Reparaturen**, was zu ändern ist.
 
 ## Kochen und Backen
 
 Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.
 
-- „Lass uns Pfannkuchen backen.“ Mira sucht ein Rezept im Netz, sagt, welches es ist, und fragt, für wie viele. Dann liest sie den ersten Schritt vor.
+- „Lass uns Pfannkuchen backen.“ Mira sucht auf chefkoch.de und nennt dir zwei Rezepte zur Auswahl, mit Sternen und Dauer. Hast du gewählt, schreibt ein Helfer im Hintergrund den Plan, und Mira meldet sich, sobald er steht. Dann fragt sie, für wie viele, und liest den ersten Schritt vor.
 - „Weiter“, „nochmal“, „zurück“: auch Minuten später, in einem neuen Gespräch im selben Raum. Mira weiß, wo ihr seid.
 - „Wie viel Milch brauche ich?“ Mira antwortet aus dem Rezept.
 - Bei Wartezeiten bietet sie einen Timer an: „Soll ich einen Timer auf 30 Minuten stellen?“

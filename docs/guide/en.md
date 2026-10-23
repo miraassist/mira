@@ -164,8 +164,9 @@ Good to know: the model that reads the mails sees what is in them (names, addres
 - "Search my documents for the chimney sweep's invoice and tell me the amount."
 - "Search Paperless for the tax office's notice. By when do I have to pay?"
 - "When is the next chimney inspection?" – if Mira finds the notice, she answers with the document's sender and date.
+- "How many invoices has Wipfler sent me, and how much did I pay in total?" – Mira finds them all, reads them and adds up.
 
-If several documents fit (invoices from several years, say), Mira takes the newest and says which; if you name a year, she takes that one. She reads out only what was asked, never whole pages.
+For this Mira researches with a helper of her own in the background: it searches, reads the documents and returns only the result with its sources. If that takes more than a few seconds, Mira says she will come back and announces the result once it is there. She reads out only what was asked, never whole pages.
 
 How to set it up:
 
@@ -187,7 +188,7 @@ How to set it up:
 Good to know:
 - Mira can only **search and read** in Paperless, never change or delete anything.
 - What the documents say counts as **third-party text**, like a web page: Mira follows no instructions in it and asks before she keeps or passes on anything from it.
-- The documents' text goes to the conversation's model. A local model keeps it in the house (see "Several models").
+- The documents' text goes to the helper's model, the main model; only the result enters the conversation. A local model keeps it in the house (see "Several models").
 - Mira searches best with one distinctive word (the sender, the matter). The text is recognized from scans; if an amount is unclear, Mira says so.
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
@@ -422,13 +423,17 @@ agents:
 
 Without `model` the agent takes the main model; with `model: smart` one from `models`. If an agent needs tools and a fixed form of answer (`output`) at once, take a model that can do both together; Gemini can. In a skill, Mira fills the skill's settings into `{{…}}`, as everywhere.
 
+**In the conversation:** with `conversation: true` Mira herself can call the agent in a conversation, as a tool; without the line she cannot. An agent from `mira.yaml` is then there in every conversation, one from a skill once Mira has opened the skill. By voice Mira waits up to 5 seconds for it, on Telegram 30; if it takes longer, she says she will come back and announces the result later.
+
+**In a skill** an agent works with the tools of the skill's MCP server when it names them under `tools` (`paperless__query_documents`, say). If they return third-party text (`web_content`), it needs the right `web`.
+
 If something in the description does not fit, a misspelt field for example, only this agent does not start. Home Assistant then shows under **Repairs** what to change.
 
 ## Cooking and baking
 
 Mira cooks with you, step by step, even when a step takes half an hour.
 
-- "Let's make pancakes." Mira looks up a recipe on the web, tells you which one, and asks how many it is for. Then she reads out the first step.
+- "Let's make pancakes." Mira searches chefkoch.de and offers you two recipes to choose from, with stars and time. Once you have chosen, a helper writes the plan in the background, and Mira speaks up when it is ready. Then she asks how many it is for and reads out the first step.
 - "Next", "again", "back": also minutes later, in a new conversation in the same room. Mira knows where you are.
 - "How much milk do I need?" Mira answers from the recipe.
 - When something has to wait, she offers a timer: "Shall I set a timer for 30 minutes?"

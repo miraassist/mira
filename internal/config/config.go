@@ -116,6 +116,9 @@ type AgentDef struct {
 	Input        map[string]any `yaml:"input"`
 	Instructions string         `yaml:"instructions"`
 	Output       map[string]any `yaml:"output"`
+	// Conversation true makes the agent a tool of the conversation (a
+	// skill's once the skill is opened). Default off.
+	Conversation bool `yaml:"conversation"`
 }
 
 // DecodeAgent reads one agent's description strictly: an unknown field is a
@@ -336,11 +339,17 @@ type MCPServer struct {
 	DeviceContext *bool `yaml:"device_context"`
 	// Tools names the tools Mira takes from the server; without it, all.
 	Tools []string `yaml:"tools"`
+	// Conversation false keeps a skill's server out of the conversation:
+	// only the skill's agents and schedules get its tools. Default true.
+	Conversation *bool `yaml:"conversation"`
 	// Skill is the skill whose server this is (docs/spec/skill-mcp.md): its
 	// tools are in no conversation until the skill is opened. Empty for the
 	// servers under mcp_servers.
 	Skill string `yaml:"-"`
 }
+
+// ForConversation reports whether the conversation gets the server's tools.
+func (s MCPServer) ForConversation() bool { return s.Conversation == nil || *s.Conversation }
 
 // WantsDevice reports whether the device id of the satellite goes to this
 // server: set explicitly, else for Home Assistant's Assist MCP server.

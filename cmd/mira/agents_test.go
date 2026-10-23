@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -273,4 +275,88 @@ func TestSM09_ASkillsServerThatCannotBeReachedIsAProblem(t *testing.T) {
 // SM-10 A tool the server does not have is a problem (see SM-09's test).
 func TestSM10_AToolTheServerDoesNotHaveIsAProblem(t *testing.T) {
 	TestSM09_ASkillsServerThatCannotBeReachedIsAProblem(t)
+}
+
+// AG-102 An agent is a tool of the conversation only when its description says so
+func TestAG102_AnAgentIsAConversationToolOnlyWhenItSaysSo(t *testing.T) {
+	a, _, _ := deliveryApp(t)
+	// Given an agent in mira.yaml without the switch conversation and one with conversation true
+	var agents map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(`
+nur.ha: { description: Nur für Home Assistant., instructions: Antworte. }
+haus.helfer: { description: Hilft im Haus., instructions: Antworte., conversation: true }
+`), &agents); err != nil {
+		t.Fatal(err)
+	}
+	a.cfg.Agents.Defined = agents
+	registry := tools.NewRegistry(nil)
+	a.registerAgents(registry)
+	// When a conversation starts
+	var names []string
+	for _, s := range registry.Specs(false) {
+		names = append(names, s.Name)
+	}
+	// Then only the second is offered to the model as a tool, named with "_" for "."
+	if !slices.Contains(names, "haus_helfer") || slices.Contains(names, "nur_ha") || slices.Contains(names, "nur.ha") {
+		t.Errorf("tools %v", names)
+	}
+}
+
+// AG-103 A skill's agent for the conversation comes with the skill
+func TestAG103_ASkillsAgentForTheConversationComesWithTheSkill(t *testing.T) {
+	a, _, _ := deliveryApp(t)
+	// Given a skill whose agent has conversation true
+	a.skills = &skills.Set{Skills: []skills.Skill{{Name: "paperless", Agents: map[string]config.AgentDef{
+		"paperless.recherche": {Description: "Durchsucht die Dokumente.", Instructions: "Such.", Conversation: true}}}}}
+	registry := tools.NewRegistry(nil)
+	a.registerAgents(registry)
+	defs := func(open ...string) (names []string) {
+		for _, d := range registry.ConversationSkillDefs(open...) {
+			names = append(names, d.Name)
+		}
+		return names
+	}
+	// When a conversation opens the skill
+	// Then the agent is offered from then on in that conversation
+	if got := defs("paperless"); !slices.Contains(got, "paperless_recherche") {
+		t.Errorf("after opening: %v", got)
+	}
+	// And not before, and not in another conversation
+	for _, s := range registry.Specs(false) {
+		if s.Name == "paperless_recherche" {
+			t.Error("in every conversation")
+		}
+	}
+	if got := defs("abfall"); len(got) != 0 {
+		t.Errorf("with another skill: %v", got)
+	}
+}
+
+// AG-104 The conversation calls an agent and hears its answer
+func TestAG104_TheConversationCallsAnAgentAndHearsItsAnswer(t *testing.T) {
+	a, _, model := deliveryApp(t, fakellm.Step{Content: "Am Dienstag."})
+	// Given an agent for the conversation that reads third-party text
+	var agents map[string]yaml.Node
+	if err := yaml.Unmarshal([]byte(`
+recherche: { description: Recherchiert., instructions: Antworte., context: background, rights: [read_house, web], conversation: true }
+`), &agents); err != nil {
+		t.Fatal(err)
+	}
+	a.cfg.Agents.Defined = agents
+	registry := tools.NewRegistry(nil)
+	a.registerAgents(registry)
+	// When the model calls it with a question
+	out, isErr, err := registry.Execute(context.Background(), tools.Invocation{Name: "recherche",
+		Args: json.RawMessage(`{"input":"Wann ist der Markt?"}`)})
+	// Then the agent's answer is the tool's result
+	if err != nil || isErr || out != "Am Dienstag." {
+		t.Fatalf("result %q %v %v", out, isErr, err)
+	}
+	if last := model.Last().Request.Messages; !strings.Contains(last[len(last)-1].Content, "Wann ist der Markt?") {
+		t.Errorf("the agent did not get the question: %+v", last[len(last)-1])
+	}
+	// And the turn counts as having read third-party text
+	if spec, _ := registry.Lookup("recherche"); !spec.WebContent {
+		t.Error("the tool does not carry third-party text")
+	}
 }

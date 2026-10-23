@@ -49,6 +49,9 @@ type Tool struct {
 	// Skill is the skill whose server offers the tool; its tools are offered
 	// only once the skill is opened (docs/spec/skill-mcp.md).
 	Skill string
+	// AgentsOnly: the skill's server is not for the conversation; only the
+	// skill's agents and schedules get the tool.
+	AgentsOnly bool
 }
 
 // Result is the outcome of a tool call, flattened to what the model reads.
@@ -446,7 +449,8 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 		def := prompt.ToolDef{Server: cfg.Name, Name: t.Name, Description: t.Description, Schema: schema}
 		readOnly := cfg.ReadOnly || h.readOnly[def.QualifiedName()] ||
 			(t.Annotations != nil && t.Annotations.ReadOnlyHint)
-		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill})
+		out = append(out, Tool{ToolDef: def, ReadOnly: readOnly, WebContent: cfg.WebContent, Skill: cfg.Skill,
+			AgentsOnly: cfg.Skill != "" && !cfg.ForConversation()})
 	}
 	return out, nil
 }

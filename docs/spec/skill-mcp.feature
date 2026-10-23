@@ -1,5 +1,5 @@
 # Scenarios of docs/spec/skill-mcp.md. Every scenario has a number (SM-01, …); the Go test that checks it carries the
-# number in its name (TestSM01_…). @step1 is the whole feature.
+# number in its name (TestSM01_…). @step1 is the server in the skill, @step2 its agents.
 
 Feature: SM MCP servers in skills
 
@@ -70,3 +70,17 @@ Feature: SM MCP servers in skills
     Given a skill whose mcp section has no url
     When Mira loads it
     Then the skill does not start, and the problem says what is missing
+
+  @step2
+  Scenario: SM-12 A skill's agent works with the skill's tools
+    Given a skill with an mcp section and an agent whose tools list names two of its tools
+    When the agent runs
+    Then those tools are offered to it and it can call them
+    And an agent of mira.yaml naming the same tools does not get them
+
+  @step2
+  Scenario: SM-13 With conversation false only the skill's agents and schedules get the tools
+    Given a skill whose mcp section has conversation false
+    When a conversation opens the skill
+    Then the server's tools are not offered to the conversation, nor can it call them
+    But the skill's agent and its schedule get them

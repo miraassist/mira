@@ -90,6 +90,10 @@ type Spec struct {
 	// Rights are the most the agent needs.
 	Rights Rights
 	Limits Limits
+	// Skill is the skill that describes the agent: its runs run for that
+	// skill and get the tools of its MCP server (docs/spec/agenten.md, A
+	// skill's agents work in the skill).
+	Skill string
 }
 
 // Origin is who calls.

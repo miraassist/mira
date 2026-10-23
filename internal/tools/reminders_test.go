@@ -103,12 +103,12 @@ func TestReminderTextsComplete(t *testing.T) {
 // A message names its sender, goes to the house or a person, and follows the
 // receiver's setting whose messages they take (docs/spec/nachrichten.md).
 func TestMessageSend(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	persons := map[string]config.Person{
 		"anna": {Name: "Anna"},
 		"ben":  {Name: "Ben", AcceptFrom: config.AcceptPersons},

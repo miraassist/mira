@@ -567,14 +567,15 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 		"completion_tokens", out.Usage.CompletionTokens)
 }
 
-// skillTools are the tools of the skills with an MCP server a conversation
-// opened; none before it opened one.
+// skillTools are the tools of the skills a conversation opened (their MCP
+// tools for the conversation and their agents for it); none before it opened
+// one.
 func (e *Engine) skillTools(ctx context.Context, key string) []llm.Tool {
 	open, err := e.store.SessionSkills(ctx, key)
 	if err != nil || len(open) == 0 {
 		return nil
 	}
-	out, err := prompt.BuildTools(e.tools.SkillDefs(open...))
+	out, err := prompt.BuildTools(e.tools.ConversationSkillDefs(open...))
 	if err != nil {
 		e.log.Warn("could not build the tools of the opened skills", "session", key, "error", err)
 		return nil
@@ -647,9 +648,9 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	spec, ok := e.tools.Lookup(name)
 	if ok && spec.Skill != "" {
 		// A skill's tool exists for the conversation only once it opened
-		// the skill.
+		// the skill, and never one only for the skill's agents.
 		open, _ := e.store.SessionSkills(ctx, ts.SessionKey)
-		ok = slices.Contains(open, spec.Skill)
+		ok = slices.Contains(open, spec.Skill) && !spec.AgentsOnly
 	}
 	if !ok {
 		record("unknown")

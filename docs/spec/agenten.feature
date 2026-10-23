@@ -545,3 +545,23 @@ Feature: AG Agents
     And the area "Gästezimmer" has the label "Mira: privater Bereich"
     When the person talks at the satellite in the Gästezimmer
     Then the kitchen's plan is not there
+
+  @step10
+  Scenario: AG-102 An agent is a tool of the conversation only when its description says so
+    Given an agent in mira.yaml without the switch conversation and one with conversation true
+    When a conversation starts
+    Then only the second is offered to the model as a tool, named with "_" for "."
+
+  @step10
+  Scenario: AG-103 A skill's agent for the conversation comes with the skill
+    Given a skill whose agent has conversation true
+    When a conversation opens the skill
+    Then the agent is offered from then on in that conversation
+    And not before, and not in another conversation
+
+  @step10
+  Scenario: AG-104 The conversation calls an agent and hears its answer
+    Given an agent for the conversation that reads third-party text
+    When the model calls it with a question
+    Then the agent's answer is the tool's result
+    And the turn counts as having read third-party text

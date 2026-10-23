@@ -188,6 +188,10 @@ func (r *Runtime) Call(ctx context.Context, spec Spec, input string, cc CallCont
 	if parent != nil {
 		cc = inherit(parent, cc)
 	}
+	if spec.Skill != "" {
+		// A skill's agent always runs for its skill.
+		cc.Skill = spec.Skill
+	}
 	if cc.CallID == "" {
 		cc.CallID = strings.ToLower(ulid.Make().String())
 	}
