@@ -208,7 +208,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
   - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) and `{{person_calendar}}` (the calendar named like the login or the person; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house.
   - `target`: turns the skill into a concern over several turns, with questions back or as a run step by step (see below).
   - `mail`: turns the skill into a mail application (see below).
-- The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`.
+- The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`. Where the house is, Mira knows from Home Assistant (Settings → System → General): she puts in `{{ home.latitude }}`, `{{ home.longitude }}` and `{{ home.name }}` when the skill is used; no setting is needed for it.
 
 **3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels switch themselves on.
 

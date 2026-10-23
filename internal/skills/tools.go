@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,7 +25,32 @@ type Set struct {
 	// OnOpen notes that a conversation opened a skill with an MCP server:
 	// its tools stay with that conversation (docs/spec/skill-mcp.md).
 	OnOpen func(ctx context.Context, sessionKey, skill string) error
+	// Home gives where the house is, as Home Assistant knows it: the values of
+	// the placeholders home.latitude, home.longitude and home.name.
+	Home func(ctx context.Context) map[string]string
 }
+
+// withHome fills the placeholders of the house's location into a skill's
+// text when it is used (not when it is loaded: Home Assistant may not answer
+// yet then, and the location goes to a model only with a skill that needs
+// it). An unknown value becomes "-".
+func (s *Set) withHome(ctx context.Context, text string) string {
+	if !strings.Contains(text, "home.") {
+		return text
+	}
+	var home map[string]string
+	if s.Home != nil {
+		home = s.Home(ctx)
+	}
+	return homePlaceholder.ReplaceAllStringFunc(text, func(m string) string {
+		if v := home[homePlaceholder.FindStringSubmatch(m)[1]]; v != "" {
+			return v
+		}
+		return "-"
+	})
+}
+
+var homePlaceholder = regexp.MustCompile(`\{\{\s*(home\.[a-z]+)\s*\}\}`)
 
 func (s *Set) clock() time.Time {
 	if s.Clock != nil {
@@ -82,7 +108,7 @@ func (s *Set) Tools() []tools.InternalTool {
 					return "", err
 				}
 			}
-			return sk.Body, nil
+			return s.withHome(ctx, sk.Body), nil
 		},
 	}}
 	return out

@@ -153,7 +153,7 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 		}
 		task += "\n\n" + fmt.Sprintf(t.personContext, p.Name) + "\n" + profile
 	}
-	instruction := fmt.Sprintf(t.taskIntro, sk.Name) + sk.Body + "\n\n---\n\n" + task + t.taskRules
+	instruction := r.Set.withHome(ctx, fmt.Sprintf(t.taskIntro, sk.Name)+sk.Body+"\n\n---\n\n"+task+t.taskRules)
 	raw, err := r.Tasker.RunTask(ctx, sk.Name, instruction)
 	if err != nil {
 		return false, err

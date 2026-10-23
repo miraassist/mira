@@ -65,6 +65,8 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
+	// homeCache keeps the house's location for skills (home.go).
+	homeCache homeCache
 	// targetSkills are the skills with a target (they run as threads, not
 	// in skills); their agents count as every skill's.
 	targetSkills []skills.Skill
@@ -256,7 +258,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
-	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill}
+	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home}
 	internal = append(internal, a.skills.Tools()...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))

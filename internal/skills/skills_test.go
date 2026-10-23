@@ -418,3 +418,20 @@ func TestSM11_ABrokenMCPSectionIsAProblemOfTheSkill(t *testing.T) {
 		t.Errorf("unknown transport: %+v", problems)
 	}
 }
+
+// Where the house is comes from Home Assistant when a skill is used: the
+// placeholders home.latitude, home.longitude and home.name, "-" when unknown.
+func TestHomePlaceholders(t *testing.T) {
+	sk := Skill{Name: "pollen", Description: "Pollen", Body: "Lies {{ home.latitude }},{{home.longitude}} in {{ home.name }}; {{ andere }}."}
+	set := &Set{Lang: i18n.DE, Skills: []Skill{sk}, Home: func(context.Context) map[string]string {
+		return map[string]string{"home.latitude": "49.0100", "home.longitude": "8.4000", "home.name": "Zuhause"}
+	}}
+	out, err := set.Tools()[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"pollen"}`)})
+	if err != nil || out != "Lies 49.0100,8.4000 in Zuhause; {{ andere }}." {
+		t.Errorf("open: %q %v", out, err)
+	}
+	set.Home = nil
+	if out, _ := set.Tools()[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"pollen"}`)}); out != "Lies -,- in -; {{ andere }}." {
+		t.Errorf("without Home Assistant: %q", out)
+	}
+}
