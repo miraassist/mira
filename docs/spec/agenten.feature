@@ -565,3 +565,10 @@ Feature: AG Agents
     When the model calls it with a question
     Then the agent's answer is the tool's result
     And the turn counts as having read third-party text
+
+  @step10
+  Scenario: AG-A6 A YAML agent may bound its tool rounds
+    Given a YAML agent with max_rounds 2, and one with 99
+    When it runs and its model keeps calling tools
+    Then it stops after two rounds of tools
+    And 99 is a problem of that agent

@@ -119,6 +119,9 @@ type AgentDef struct {
 	// Conversation true makes the agent a tool of the conversation (a
 	// skill's once the skill is opened). Default off.
 	Conversation bool `yaml:"conversation"`
+	// MaxRounds bounds the agent's tool rounds (1 to 50); without it the
+	// model's max_tool_rounds.
+	MaxRounds int `yaml:"max_rounds"`
 }
 
 // DecodeAgent reads one agent's description strictly: an unknown field is a

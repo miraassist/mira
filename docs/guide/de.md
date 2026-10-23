@@ -429,6 +429,8 @@ Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `mode
 
 **Im Gespräch:** Mit `conversation: true` kann auch Mira selbst den Agenten im Gespräch rufen, als Werkzeug; ohne die Zeile nicht. Ein Agent aus der `mira.yaml` steht dann in jedem Gespräch bereit, einer aus einem Skill, sobald Mira den Skill geöffnet hat. Bei Sprache wartet Mira bis zu 5 Sekunden auf ihn, bei Telegram 30; braucht er länger, sagt sie „ich melde mich“ und sagt das Ergebnis später an.
 
+**Wie lange er suchen darf:** `max_rounds: 20` erlaubt dem Agenten 20 Runden mit Werkzeugen (1 bis 50). Ohne die Zeile gilt `max_tool_rounds` seines Modells, meist 8; für einen Agenten, der viel nachschlägt, ist das oft zu wenig.
+
 **In einem Skill** arbeitet ein Agent mit den Werkzeugen des MCP-Servers dieses Skills, wenn er sie unter `tools` nennt (etwa `paperless__query_documents`). Liefern sie fremden Text (`web_content`), braucht er das Recht `web`.
 
 Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, startet nur dieser Agent nicht. In Home Assistant steht dann unter **Reparaturen**, was zu ändern ist.

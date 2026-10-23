@@ -425,6 +425,8 @@ Without `model` the agent takes the main model; with `model: smart` one from `mo
 
 **In the conversation:** with `conversation: true` Mira herself can call the agent in a conversation, as a tool; without the line she cannot. An agent from `mira.yaml` is then there in every conversation, one from a skill once Mira has opened the skill. By voice Mira waits up to 5 seconds for it, on Telegram 30; if it takes longer, she says she will come back and announces the result later.
 
+**How long it may search:** `max_rounds: 20` allows the agent 20 rounds with tools (1 to 50). Without the line the `max_tool_rounds` of its model applies, usually 8; for an agent that looks up a lot that is often too few.
+
 **In a skill** an agent works with the tools of the skill's MCP server when it names them under `tools` (`paperless__query_documents`, say). If they return third-party text (`web_content`), it needs the right `web`.
 
 If something in the description does not fit, a misspelt field for example, only this agent does not start. Home Assistant then shows under **Repairs** what to change.

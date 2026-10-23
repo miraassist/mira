@@ -377,7 +377,7 @@ per agent come in addition.
 8. **Factory:** agents in YAML. Independent of step 7; can be built after step 6.
 9. **Run view:** the stored runs on Mira's page (see Run view).
 10. **Agents in the conversation:** the switch `conversation` for YAML agents; a skill's agents with the tools of
-    its MCP server.
+    its MCP server; `max_rounds` per YAML agent.
 
 ## Model choice
 
@@ -407,6 +407,7 @@ agents:
       type: object
       properties: { steps: { type: array, items: { type: string } } }
     conversation: false     # true: the conversation may call it as a tool (a skill's: once the skill is opened)
+    max_rounds: 20          # tool rounds, 1 to 50; without it the model's max_tool_rounds
 ```
 
 It is called like every agent: as a tool of another agent, from Home Assistant or from the code, and with
@@ -538,6 +539,8 @@ From that:
     once the skill is opened.
 38. **A skill's agents work in the skill:** they get the tools of the skill's MCP server that their `tools` list
     names, as the skill's schedules do.
+39. **Tool rounds per agent:** a YAML agent may set `max_rounds` (1 to 50) in its description; a research agent needs
+    more rounds than a conversation. Without it the model's `max_tool_rounds` applies.
 
 ## Open questions
 

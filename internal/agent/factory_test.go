@@ -290,3 +290,36 @@ agents:
 		t.Error("the agent was started")
 	}
 }
+
+// AG-A6 A YAML agent may bound its tool rounds
+func TestAGA6_AYAMLAgentMayBoundItsToolRounds(t *testing.T) {
+	e := setup(t)
+	// Given a YAML agent with max_rounds 2, and one with 99
+	probs := e.fromYAML(t, `
+agents:
+  sucher:
+    description: Sucht.
+    context: background
+    tools: [look]
+    max_rounds: 2
+    instructions: Such.
+  gierig:
+    description: Sucht ewig.
+    context: background
+    tools: [look]
+    max_rounds: 99
+    instructions: Such.
+`)
+	// When it runs and its model keeps calling tools
+	e.main.steps = []step{{calls: []llm.ToolCall{call("look", "{}")}}, {calls: []llm.ToolCall{call("look", "{}")}},
+		{calls: []llm.ToolCall{call("look", "{}")}}, {calls: []llm.ToolCall{call("look", "{}")}}}
+	e.rt.CallByName(context.Background(), "sucher", json.RawMessage(`{"input":"x"}`), CallContext{})
+	// Then it stops after two rounds of tools
+	if e.count("look") != 2 {
+		t.Errorf("tool rounds %d", e.count("look"))
+	}
+	// And 99 is a problem of that agent
+	if len(probs) != 1 || probs[0].Agent != "gierig" || !strings.Contains(probs[0].Text(i18n.DE), "1 bis 50") {
+		t.Errorf("problems %+v", probs)
+	}
+}

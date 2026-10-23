@@ -159,6 +159,9 @@ func ownExtra(d config.AgentDef) string {
 }
 
 // specOf turns a YAML description into a Spec, or says what does not fit.
+// maxRounds is the most tool rounds a YAML agent may ask for.
+const maxRounds = 50
+
 func specOf(d Defined, models func(string) (config.LLM, bool)) (Spec, string, []any) {
 	def := d.Def
 	spec := Spec{Name: d.Name, Description: strings.TrimSpace(def.Description),
@@ -207,6 +210,10 @@ func specOf(d Defined, models func(string) (config.LLM, bool)) (Spec, string, []
 	if spec.Profile == Isolated && spec.Tools.Kind != NoTools {
 		return spec, "isolatedtools", nil
 	}
+	if def.MaxRounds < 0 || def.MaxRounds > maxRounds {
+		return spec, "maxrounds", []any{def.MaxRounds, maxRounds}
+	}
+	spec.Limits.MaxRounds = def.MaxRounds
 	spec.Rights = ReadHouse
 	if len(def.Rights) > 0 {
 		rights, unknown := ParseRights(def.Rights)
@@ -244,6 +251,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"model":          "Das Modell „%s“ gibt es nicht. Trag es unter models ein, oder lass model weg, dann nimmt der Agent main.",
 		"tools":          "tools ist „%s“; möglich sind none, read_only oder eine Liste von Werkzeugen und Agenten.",
 		"isolatedtools":  "Ein Agent mit context isolated hat keine Werkzeuge. Lass tools weg, oder nimm context background.",
+		"maxrounds":      "max_rounds %d geht nicht: erlaubt sind 1 bis %d.",
 		"rights":         "Diese Rechte gibt es nicht: %s. Möglich sind read_house, act_on_house, remember, messages, web.",
 		"schema":         "input oder output ist kein gültiges Schema (%s).",
 		"ownfields":      "Für Miras eigene Agenten gehen hier nur model und privacy, nicht %s.",
@@ -262,6 +270,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"model":          "There is no model \"%s\". Add it under models, or leave model out and the agent takes main.",
 		"tools":          "tools is \"%s\"; possible are none, read_only or a list of tools and agents.",
 		"isolatedtools":  "An agent with context isolated has no tools. Leave tools out, or take context background.",
+		"maxrounds":      "max_rounds %d does not work: 1 to %d are allowed.",
 		"rights":         "These rights do not exist: %s. Possible are read_house, act_on_house, remember, messages, web.",
 		"schema":         "input or output is not a valid schema (%s).",
 		"ownfields":      "For Mira's own agents only model and privacy go here, not %s.",
