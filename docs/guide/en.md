@@ -193,6 +193,21 @@ Good to know:
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
+**More bundled skills.** They run once you list them in `mira.yaml` under `skills.enabled`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
+
+| Skill | What you ask | Setting |
+|---|---|---|
+| `nachrichten` | "What's going on in the world today?" – "What's new in sport?" Headlines from tagesschau.de and sportschau.de, summed up briefly. | none |
+| `fussball` | "How did KSC play?" – "When does KSC play?" – "Where are they in the table?" If someone has their own club in memory ("Remember, I'm a Bayern fan"), theirs counts for them. | `verein` (optional) |
+| `ferien` | "When are the next school holidays?" – "Is Monday a public holiday?" | `bundesland`, such as `BW` |
+| `pollen` | "Is there pollen today?" – "How about birch tomorrow?" If Mira knows what you are allergic to, she names that first. | none |
+| `warnungen` | "Are there any warnings?" – "Is a storm coming?" Official warnings from NINA for your district. Mira checks every hour and speaks up by herself for severe warnings, at once for extreme ones, at night too. She finds the district herself. | none |
+| `geschichte` | "Tell me a bedtime story with a dragon." Made up, fitting child and age when Mira knows both. | none |
+| `quiz` | "Let's play a quiz." Ten questions, alone or taking turns, with points. At the end there is a fanfare if it went well. | none |
+| `vokabeln` | "Test me on ten English words." – "Practise the seven times table with me." Unless you ask for one direction, Mira asks both ways; what was wrong comes again at the end. | none |
+
+The quiz and vocabulary run like cooking, step by step: you simply answer, and Mira knows which question is next.
+
 ## Creating your own skill
 
 A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules. A skill runs no program code; it only tells Mira what to do, when and with what, using the tools she already has (reading calendars, messages, controlling the house and so on).
@@ -284,7 +299,7 @@ in one sentence that the coffee is on its way.
 - **Fields** (`fields`): `name`, `description` (Mira asks along it), optionally `optional: true`, `enum` (only these values) and `check`, a built-in check: `entities` (devices in the house), `calendar_writable`, `calendar_event`, `todo_list`.
 - **Finish** (`finish`): a Home Assistant action with `data`. In `{{ … }}` Mira puts the fields, and the place: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (the satellite's ESPHome name) and `{{ person }}` when known. Empty values stay; with `omit_empty: true` they are left out. Instead of an action, a built-in finish works too: `memory.save`, `tasks.automation`, `calendar.delete`.
 - `confirm: true` makes Mira ask before the action. `undo` names a second action that takes back what was done when you correct it ("No, mild"). `timeout` is how long Mira waits for an answer (15 minutes by default).
-- An **agent** can fill a field too (see "Your own agents"): `agent: weather` and `input: { day: "{{ date }}" }`. Mira starts it as soon as the fields its input names are there (`{{ request }}` is what you asked for) and does not ask you for it. Several agents run at the same time; once all fields are there it goes on as usual. If an agent does not manage, Mira asks you for the field.
+- An **agent** can fill a field too (see "Your own agents"): `agent: weather` and `input: { day: "{{ date }}" }`. Mira starts it as soon as the fields its input names are there (`{{ request }}` is what you asked for) and does not ask you for it. Several agents run at the same time; once all fields are there it goes on as usual. If an agent does not manage, Mira asks you for the field. At a satellite Mira waits up to 10 seconds for an agent she starts at the beginning; if it is quicker, it goes on in the same answer. Otherwise she comes back with the result at the satellite where you asked.
 - What Home Assistant switches only with a yes (locks, alarm, the label "Mira: confirm first") asks here too.
 
 The bundled skills `wecker`, `termin` and `todo` are further examples.
@@ -322,7 +337,17 @@ Mira does the rest by herself:
 - If the plan comes from the web (a recipe, say), Mira asks before she remembers or passes anything on while it runs.
 - A plan without checkboxes works too (a menu, say); Mira then only sees that there is one and reads it when needed.
 
-The bundled skill `kochen` is a detailed example.
+The bundled skill `kochen` is a detailed example; `quiz` and `vokabeln` are shorter ones.
+
+### Sounds, cards and listening on
+
+At a satellite a skill can do more than speak. Mira has three tools for it; the skill's instructions say when she uses them:
+
+- **`sound_play`** plays one of Mira's sounds on the speaker of the satellite being spoken at: `fanfare_big` (a big success), `fanfare` (a success) and `too_bad` (it did not work out). Mira speaks on only when the sound is over. The quiz uses it at the end.
+- **`display_card`** puts a card on the satellite's screen: a picture over the whole screen, with a title and one line over it. This works on an Echo Show with TECHO5. Mira still says what is on the card.
+- **`keep_listening`** has the satellite listen again after Mira's answer, without the wake word, even when the answer is no question. Good when a short word comes next, such as "next".
+
+At a satellite without a speaker or a screen, and on Telegram, nothing happens.
 
 ### A skill with its own MCP server
 
@@ -435,8 +460,9 @@ If something in the description does not fit, a misspelt field for example, only
 
 Mira cooks with you, step by step, even when a step takes half an hour.
 
-- "Let's make pancakes." Mira searches chefkoch.de and offers you two recipes to choose from, with stars and time. Once you have chosen, a helper writes the plan in the background, and Mira speaks up when it is ready. Then she asks how many it is for and reads out the first step.
-- "Next", "again", "back": also minutes later, in a new conversation in the same room. Mira knows where you are.
+- "Let's make pancakes." Mira searches chefkoch.de and offers you two recipes to choose from, with stars and time. Once you have chosen, she loads the recipe; that takes a few seconds. Then she asks how many it is for and reads out the first step.
+- "Next", "again", "back": also minutes later, in a new conversation in the same room. Mira knows where you are. After a quick step ("add a pinch of salt") the satellite listens a little longer, so "next" needs no wake word.
+- **On the screen** of an Echo Show with TECHO5 each step comes as a card with the recipe's picture, "Schritt 2 von 8" and the step in a few words. A tap closes it.
 - "How much milk do I need?" Mira answers from the recipe.
 - When something has to wait, she offers a timer: "Shall I set a timer for 30 minutes?"
 - The **Plans** tab of the Mira page shows the recipe with all its steps; the ones done are ticked off.
@@ -530,14 +556,22 @@ For scenes the name is enough. Important actions (locks, alarm system, garage do
 
 Mira is in Home Assistant's sidebar. You are signed in there already, she looks like your HA theme (light or dark) and speaks your HA language; this works from away in the app too.
 
-- **Messages**: see open and delivered messages and mark them done.
-- **Tasks**: what Mira keeps an eye on for you; on/off, dry run, log, delete, "Edit in Home Assistant".
-- **Notifications**: quiet hours, pauses, escalation, confidential and urgent messages.
-- **Satellites** and **People**: all of them from Home Assistant, with what Mira needs on top; as an admin you set it right here (see below).
-- **Memory**: the house's and your own; edit and forget.
-- **Guide**: this page.
+The **Overview** shows four cards. Each says briefly what is going on and leads to its pages:
 
-Someone who is no admin sees only **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
+- **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit and forget).
+- **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below) and **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages).
+- **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers).
+- **Guide**: this page, with jumps to the main chapters.
+
+![The overview: Day to day, Setup, Capabilities and Guide](img/mira-uebersicht-en.png)
+
+![Capabilities → Skills: each skill with its settings and schedules](img/mira-skills-en.png)
+
+![Capabilities → Agents: model, rounds and who calls the agent](img/mira-agenten-en.png)
+
+![Capabilities → Models: which models Mira uses and whether they answer](img/mira-modelle-en.png)
+
+Someone who is no admin sees only **Plans**, **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
 
 ![Notifications: quiet hours, pauses, escalation](img/benachrichtigung-en.png)
 

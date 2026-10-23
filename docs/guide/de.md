@@ -197,6 +197,21 @@ Gut zu wissen:
 
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
+**Weitere mitgelieferte Skills.** Sie laufen, sobald du sie in der `mira.yaml` unter `skills.enabled` einträgst; die meisten brauchen keine Einstellung, weil Mira aus Home Assistant weiß, wo das Haus liegt.
+
+| Skill | Was du fragst | Einstellung |
+|---|---|---|
+| `nachrichten` | „Was ist heute in der Welt los?“ – „Was gibt's Neues im Sport?“ Schlagzeilen von tagesschau.de und sportschau.de, kurz zusammengefasst. | keine |
+| `fussball` | „Wie hat der KSC gespielt?“ – „Wann spielt der KSC?“ – „Wo steht er in der Tabelle?“ Hat jemand seinen eigenen Verein im Gedächtnis („Merk dir, ich bin Bayern-Fan“), gilt für ihn der. | `verein` (optional) |
+| `ferien` | „Wann sind die nächsten Ferien?“ – „Ist Montag ein Feiertag?“ | `bundesland`, etwa `BW` |
+| `pollen` | „Fliegen heute Pollen?“ – „Wie sieht es morgen mit Birke aus?“ Weiß Mira, wogegen du allergisch bist, nennt sie das zuerst. | keine |
+| `warnungen` | „Gibt es Warnungen?“ – „Kommt ein Unwetter?“ Amtliche Warnungen aus NINA für deinen Landkreis. Mira schaut jede Stunde nach und meldet sich bei schweren Warnungen von selbst, bei extremen sofort, auch nachts. Den Landkreis findet sie selbst. | keine |
+| `geschichte` | „Erzähl mir eine Gute-Nacht-Geschichte mit einem Drachen.“ Selbst ausgedacht, passend zu Kind und Alter, wenn Mira beides kennt. | keine |
+| `quiz` | „Lass uns ein Quiz spielen.“ Zehn Fragen, allein oder reihum mit mehreren, mit Punkten. Am Ende gibt es einen Tusch, wenn es gut lief. | keine |
+| `vokabeln` | „Frag mich zehn Englisch-Vokabeln ab.“ – „Übe mit mir das Siebener-Einmaleins.“ Ohne Wunsch fragt Mira in beide Richtungen; was falsch war, kommt am Ende noch einmal. | keine |
+
+Quiz und Vokabeln laufen wie das Kochen als Ablauf: Du antwortest einfach, Mira weiß, welche Frage dran ist.
+
 ## Eigenen Skill erstellen
 
 Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung für Mira, auf Wunsch mit Einstellungen und Zeitplänen. Ein Skill führt keinen Programmcode aus; er sagt Mira nur, was sie wann und womit tun soll, mit den Werkzeugen, die sie ohnehin hat (Kalender lesen, Nachrichten, Haussteuerung und so weiter).
@@ -288,7 +303,7 @@ in einem Satz, dass der Kaffee läuft.
 - **Felder** (`fields`): `name`, `description` (danach richtet sich Mira beim Fragen), auf Wunsch `optional: true`, `enum` (nur diese Werte) und `check`, eine eingebaute Prüfung: `entities` (Geräte im Haus), `calendar_writable`, `calendar_event`, `todo_list`.
 - **Abschluss** (`finish`): eine Aktion von Home Assistant mit `data`. In `{{ … }}` setzt Mira die Felder ein, dazu den Ort: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (der ESPHome-Name des Satelliten) und `{{ person }}`, falls bekannt. Leere Werte bleiben stehen; mit `omit_empty: true` fallen sie weg. Statt einer Aktion geht auch ein eingebauter Abschluss: `memory.save`, `tasks.automation`, `calendar.delete`.
 - `confirm: true` lässt Mira vor der Aktion fragen. `undo` nennt eine zweite Aktion, die das Ausgeführte zurücknimmt, wenn du korrigierst („Nein, mild“). `timeout` ist, wie lange Mira auf eine Antwort wartet (Vorgabe 15 Minuten).
-- Ein Feld kann auch ein **Agent** füllen (siehe „Eigene Agenten“): `agent: wetter` und `input: { tag: "{{ datum }}" }`. Mira startet ihn, sobald die Felder da sind, die seine Eingabe nennt (`{{ request }}` ist dein Anliegen), und fragt dich nicht danach. Mehrere Agenten laufen gleichzeitig; sind alle Felder da, geht es weiter wie sonst. Klappt es bei einem Agenten nicht, fragt Mira dich nach dem Feld.
+- Ein Feld kann auch ein **Agent** füllen (siehe „Eigene Agenten“): `agent: wetter` und `input: { tag: "{{ datum }}" }`. Mira startet ihn, sobald die Felder da sind, die seine Eingabe nennt (`{{ request }}` ist dein Anliegen), und fragt dich nicht danach. Mehrere Agenten laufen gleichzeitig; sind alle Felder da, geht es weiter wie sonst. Klappt es bei einem Agenten nicht, fragt Mira dich nach dem Feld. Am Satelliten wartet Mira bis zu 10 Sekunden auf einen Agenten, den sie zu Beginn startet; ist er schneller, geht es in derselben Antwort weiter. Sonst meldet sie sich mit dem Ergebnis an dem Satelliten, an dem du gefragt hast.
 - Was in Home Assistant nur mit Ja geschaltet wird (Schlösser, Alarm, das Label „Mira: nachfragen“), fragt auch hier nach.
 
 Die mitgelieferten Skills `wecker`, `termin` und `todo` sind weitere Beispiele.
@@ -327,7 +342,17 @@ Den Rest macht Mira von selbst:
 - Stammt der Plan aus dem Netz (etwa ein Rezept), fragt Mira, solange er läuft, nach, bevor sie sich etwas merkt oder etwas weitergibt.
 - Ein Plan ohne Kästchen geht auch (etwa ein Menü); dann sieht Mira nur, dass es ihn gibt, und liest ihn bei Bedarf.
 
-Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel.
+Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel; `quiz` und `vokabeln` sind kürzere.
+
+### Klänge, Karten und Weiterhören
+
+Am Satelliten kann ein Skill mehr als sprechen. Drei Werkzeuge stehen Mira dafür zur Verfügung; die Anleitung des Skills sagt, wann sie sie nimmt:
+
+- **`sound_play`** spielt einen von Miras Klängen auf dem Lautsprecher des Satelliten, an dem gesprochen wird: `fanfare_big` (großer Erfolg), `fanfare` (Erfolg) und `too_bad` (hat nicht geklappt). Mira spricht erst weiter, wenn der Klang vorbei ist. Das Quiz nutzt das am Ende.
+- **`display_card`** zeigt eine Karte auf dem Bildschirm des Satelliten: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Das geht an einem Echo Show mit TECHO5. Was auf der Karte steht, sagt Mira trotzdem.
+- **`keep_listening`** lässt den Satelliten nach Miras Antwort noch einmal zuhören, ohne Aktivierungswort, auch wenn die Antwort keine Frage ist. Gut, wenn gleich ein kurzes Wort kommt, etwa „weiter“.
+
+An einem Satelliten ohne Lautsprecher oder Bildschirm und bei Telegram passiert dabei einfach nichts.
 
 ### Ein Skill mit eigenem MCP-Server
 
@@ -439,8 +464,9 @@ Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, start
 
 Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.
 
-- „Lass uns Pfannkuchen backen.“ Mira sucht auf chefkoch.de und nennt dir zwei Rezepte zur Auswahl, mit Sternen und Dauer. Hast du gewählt, schreibt ein Helfer im Hintergrund den Plan, und Mira meldet sich, sobald er steht. Dann fragt sie, für wie viele, und liest den ersten Schritt vor.
-- „Weiter“, „nochmal“, „zurück“: auch Minuten später, in einem neuen Gespräch im selben Raum. Mira weiß, wo ihr seid.
+- „Lass uns Pfannkuchen backen.“ Mira sucht auf chefkoch.de und nennt dir zwei Rezepte zur Auswahl, mit Sternen und Dauer. Hast du gewählt, lädt sie das Rezept; das dauert ein paar Sekunden. Dann fragt sie, für wie viele, und liest den ersten Schritt vor.
+- „Weiter“, „nochmal“, „zurück“: auch Minuten später, in einem neuen Gespräch im selben Raum. Mira weiß, wo ihr seid. Nach einem kurzen Handgriff („eine Prise Salz dazu“) hört der Satellit noch kurz weiter, sodass ein „weiter“ ohne Aktivierungswort reicht.
+- **Auf dem Bildschirm** eines Echo Show mit TECHO5 steht zu jedem Schritt eine Karte mit dem Bild des Rezepts, „Schritt 2 von 8“ und dem Schritt in Stichworten. Antippen schließt sie.
 - „Wie viel Milch brauche ich?“ Mira antwortet aus dem Rezept.
 - Bei Wartezeiten bietet sie einen Timer an: „Soll ich einen Timer auf 30 Minuten stellen?“
 - Im Reiter **Pläne** der Mira-Seite siehst du das Rezept mit allen Schritten; die erledigten sind abgehakt.
@@ -554,14 +580,22 @@ Bei Szenen reicht der Name. Wichtige Aktionen (Schlösser, Alarmanlage, Garagent
 
 Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der App.
 
-- **Nachrichten**: offene und zugestellte Nachrichten ansehen und quittieren.
-- **Aufgaben**: was Mira für dich im Blick behält; an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“.
-- **Benachrichtigung**: Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten.
-- **Satelliten** und **Personen**: alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; als Admin stellst du es hier direkt ein (siehe unten).
-- **Gedächtnis**: das des Hauses und dein eigenes; bearbeiten und vergessen.
-- **Anleitung**: diese Seite.
+Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und führt zu ihren Seiten:
 
-Wer kein Admin ist, sieht nur **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
+- **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten und vergessen).
+- **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten) und **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten).
+- **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
+- **Anleitung**: diese Seite, mit Sprüngen zu den wichtigsten Kapiteln.
+
+![Die Übersicht: Aktuell, Einrichtung, Fähigkeiten und Anleitung](img/mira-uebersicht-de.png)
+
+![Fähigkeiten → Skills: jeder Skill mit Einstellungen und Zeitplänen](img/mira-skills-de.png)
+
+![Fähigkeiten → Agenten: Modell, Runden und wer den Agenten aufruft](img/mira-agenten-de.png)
+
+![Fähigkeiten → Modelle: welche Modelle Mira nutzt und ob sie antworten](img/mira-modelle-de.png)
+
+Wer kein Admin ist, sieht nur **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
 
 ![Benachrichtigung: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)
 
