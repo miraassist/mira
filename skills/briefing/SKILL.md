@@ -1,6 +1,6 @@
 ---
 name: briefing
-description: "Morgen- und Abendbriefing – was heute (oder morgen) ansteht: Wetter, Termine, Müllabfuhr, auf Wunsch Nachrichten. Auch auf Nachfrage („Was steht heute an?“, „Gib mir mein Briefing“)."
+description: "Morgen- und Abendbriefing – was heute (oder morgen) im Haus ansteht: Wetter, Termine, Müllabfuhr, Pakete; Nachrichten nur als zwei Schlagzeilen am Ende. Auch auf Nachfrage („Was steht heute an?“, „Gib mir mein Briefing“). Für mehr Nachrichten ist der Skill nachrichten da."
 license: MIT
 metadata:
   mira:
