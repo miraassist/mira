@@ -24,7 +24,7 @@ metadata:
       paperless.recherche:
         description: Durchsucht die Dokumente in Paperless mit einem Ziel (ein Dokument finden, einen Betrag oder eine Frist heraussuchen, mehrere Dokumente zählen und zusammenrechnen) und antwortet mit dem Ergebnis und den Dokumenten, aus denen es stammt.
         context: background
-        tools: [paperless__query_documents, paperless__get_document_content]
+        tools: [paperless__query_documents, paperless__get_document_content, calculate]
         rights: [read_house, web]
         conversation: true
         max_rounds: 20
@@ -48,12 +48,18 @@ metadata:
             oder offen ist, ob es überhaupt passt.
           - Der Text ist aus einem Scan erkannt und kann Fehler haben. Ist ein Betrag
             unklar erkannt, sag das.
-          - Rechne selbst nach, wenn du zusammenzählst, und zähl nichts doppelt
-            (Rechnung und Mahnung zur selben Rechnung sind eine).
+          - Zählen und Zusammenrechnen, in dieser Reihenfolge: Schreib zuerst die
+            Liste der Dokumente, die zählen, nummeriert, je eine Zeile mit Datum und
+            Betrag. Zähl nichts doppelt (zwei Scans derselben Rechnung, Rechnung und
+            Mahnung dazu sind eine) und lass weg, was nicht gezahlt wurde (Storno).
+            Die Zahl der Rechnungen ist die letzte Nummer der Liste. Die Summe
+            rechnest du nicht selbst, sondern mit calculate, alle Beträge der Liste
+            in einem Ausdruck (307.93 + 276.77 + …). Nenne keine Zahl, die nicht aus
+            der Liste oder von calculate kommt.
 
-          Antworte knapp: zuerst das Ergebnis in einem, zwei Sätzen, dann die
-          Dokumente, auf die es sich stützt, je mit Titel, Absender, Datum und Betrag
-          oder Fundstelle. Findest du nichts Passendes, sag, wonach du gesucht hast.
+          Antworte knapp: zuerst die nummerierte Liste, dann als letzte Zeile das
+          Ergebnis (Anzahl und Summe von calculate). Bei einem einzelnen Dokument:
+          Titel, Absender, Datum und Betrag oder Fundstelle. Findest du nichts Passendes, sag, wonach du gesucht hast.
 ---
 # Paperless
 
@@ -63,6 +69,8 @@ Paperless. Du liest sie nicht selbst: Jede Frage zu den Dokumenten gibst du an
 („Finde die neueste Rechnung vom Schornsteinfeger und nenne den Betrag“, „Zähle die
 Rechnungen von Wipfler und rechne zusammen, was zu zahlen war“).
 
+- Bei mehreren Dokumenten steht das Ergebnis in der letzten Zeile der Antwort,
+  darüber die Liste.
 - Sag die Antwort kurz weiter, mit Absender und Datum des Dokuments: „Die Rechnung
   vom Schornsteinfeger Müller vom 12. März 2025 beträgt 86,40 Euro.“ Bei mehreren
   Dokumenten das Ergebnis und auf Nachfrage die einzelnen.

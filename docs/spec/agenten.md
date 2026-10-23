@@ -98,7 +98,7 @@ Derived from what a tool declares (`internal/agent/rights.go`, `RightFor`):
 | `message_send`, `message_ack`, `reminder_set`, `reminder_cancel` | messages |
 | `radio_play`, `sleep_timer`, `task_delete`, `task_enable` | act on the house |
 | `thread_fill`, `thread_confirm`, `thread_undo` (filling or confirming may run the thread's finish, an action or a fact; taking back runs an action) | act on the house |
-| every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `thread_start`, `thread_cancel`, `thread_plan`, `delegate`) | read the house |
+| every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `thread_start`, `thread_cancel`, `thread_plan`, `delegate`, `calculate`) | read the house |
 
 ## Calling
 

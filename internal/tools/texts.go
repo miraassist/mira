@@ -15,6 +15,7 @@ type texts struct {
 	refusedNone, refusedPersons, fromPerson, fromPersonHouse, fromArea, fromAreaHouse, remindFrom string
 	textMissing, invalidArgs                                                                      string
 	delegateDesc, delegateTask                                                                    string
+	calculateDesc, calculateExpr, calculateBad                                                    string
 	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor                     string
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                                  string // reminderSaved: time, id
 	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled          string
@@ -65,6 +66,9 @@ var catalog = map[i18n.Lang]texts{
 		invalidArgs:        "ungültige Argumente: %w",
 		delegateDesc:       "Gibt eine Frage oder Aufgabe an ein stärkeres Modell ab, wenn sie viel Wissen, gründliches Nachdenken oder mehrere Rechercheschritte braucht, z.B. Erklärungen, Planungen, Vergleiche, Rezepte. Nicht für Schaltbefehle, Zustandsabfragen oder Smalltalk. Das stärkere Modell kann nachschlagen, aber nichts verändern. Fasse sein Ergebnis für den Nutzer im Stil des Kanals zusammen.",
 		delegateTask:       "Die vollständige Aufgabe mit allem nötigen Kontext aus dem Gespräch; das andere Modell kennt das Gespräch nicht.",
+		calculateDesc:      "Rechnet einen Ausdruck exakt aus. Nimm das immer, wenn du mehr als zwei Zahlen zusammenrechnest, Mengen umrechnest oder Prozente ausrechnest, statt im Kopf zu rechnen.",
+		calculateExpr:      "Der Ausdruck mit Zahlen (Dezimalpunkt, kein Tausenderpunkt), + - * / und Klammern, z. B. 307.93 + 276.77 + 54.86 oder 400 * 2 / 4.",
+		calculateBad:       "Das lässt sich nicht ausrechnen: %v",
 		reminderSetDesc:    "Stellt eine Erinnerung mit Text: Zur Zeit sagt Mira den Text im Raum an, in dem gefragt wurde, oder schickt ihn aufs Handy. Gib entweder at oder in_minutes an. Ein reiner Timer zum Herunterzählen („Timer auf 10 Minuten“) ist HassStartTimer von Home Assistant, nicht dies.",
 		reminderText:       "Woran erinnert werden soll, kurz, z.B. \"Müll rausbringen\".",
 		reminderAt:         "Datum und Uhrzeit in Ortszeit als YYYY-MM-DD HH:MM, z.B. 2026-10-16 19:00. Rechne es aus der aktuellen Zeit aus.",
@@ -127,6 +131,9 @@ var catalog = map[i18n.Lang]texts{
 		invalidArgs:        "invalid arguments: %w",
 		delegateDesc:       "Hands a question or task to a stronger model when it needs a lot of knowledge, careful thought or several research steps, e.g. explanations, planning, comparisons, recipes. Not for switching, state lookups or small talk. The stronger model can look things up but change nothing. Summarize its result for the user in the channel's style.",
 		delegateTask:       "The complete task with all needed context from the conversation; the other model does not know the conversation.",
+		calculateDesc:      "Computes an expression exactly. Use it whenever you add up more than two numbers, scale quantities or work out percentages, instead of calculating in your head.",
+		calculateExpr:      "The expression with numbers (decimal point, no thousands separator), + - * / and brackets, e.g. 307.93 + 276.77 + 54.86 or 400 * 2 / 4.",
+		calculateBad:       "That cannot be computed: %v",
 		reminderSetDesc:    "Sets a reminder with a text: at the time Mira speaks the text in the room it was asked in, or sends it to the phone. Give either at or in_minutes. A plain countdown timer (\"timer for 10 minutes\") is HassStartTimer of Home Assistant, not this.",
 		reminderText:       "What to remind of, short, e.g. \"take out the trash\".",
 		reminderAt:         "Local date and time as YYYY-MM-DD HH:MM, e.g. 2026-10-16 19:00. Work it out from the current time.",

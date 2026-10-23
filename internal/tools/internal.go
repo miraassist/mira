@@ -165,6 +165,7 @@ func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 			},
 		},
 	}
+	list = append(list, calculateTool(t, decode))
 	if delegate != nil {
 		list = append(list, InternalTool{
 			Name:        ToolDelegate,

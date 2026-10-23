@@ -78,7 +78,7 @@ flowchart LR
 | `internal/conversation` | The conversation engine: build the prompt, ask the model, run tools, protection against unsupported answers, "Übrigens", handover to stronger models, isolated calls |
 | `internal/prompt` | Prompt layers, example conversation, texts per language |
 | `internal/llm` | OpenAI-compatible client (LM Studio, llama.cpp, Gemini) |
-| `internal/tools` | Tool registry, guard for critical actions, internal tools (memory, reminders, messages) |
+| `internal/tools` | Tool registry, guard for critical actions, internal tools (memory, reminders, messages, `calculate`: an arithmetic expression computed exactly, since models add badly) |
 | `internal/mcp` | MCP host: HA Assist tools, further MCP servers |
 | `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/websuche.md)) |
 | `internal/radio` | `radio_play`: search for a station in HA's Radio Browser and start it on the speaker of the room ([Radio](spec/radio.md)) |
