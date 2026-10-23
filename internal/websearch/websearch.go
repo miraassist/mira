@@ -28,10 +28,11 @@ const (
 	ToolSearch = "web_search"
 	ToolPage   = "web_page"
 
-	defaultSearchURL = "https://html.duckduckgo.com/html/"
-	// fallbackURL: Bing's results page, asked when DuckDuckGo shows a bot
-	// check (it does after a few searches in a row from one address).
-	fallbackURL = "https://www.bing.com/search"
+	// bingURL: Bing's results page, asked first: DuckDuckGo shows a bot check
+	// after a few searches in a row from one address, by now almost always.
+	bingURL = "https://www.bing.com/search"
+	// duckDuckGoURL: DuckDuckGo's results page, asked when Bing does not answer.
+	duckDuckGoURL = "https://html.duckduckgo.com/html/"
 	// userAgent: DuckDuckGo's HTML page answers a plain browser string.
 	userAgent    = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 	maxResults   = 5
@@ -51,13 +52,13 @@ type Options struct {
 	Lang i18n.Lang
 	// Enabled says whether the tools are offered; nil means always.
 	Enabled func() bool
-	// HTTP and SearchURL are for tests; AllowPrivate lets tests read
-	// pages on the loopback interface.
-	HTTP         *http.Client
-	SearchURL    string
-	FallbackURL  string
-	AllowPrivate bool
-	Logger       *slog.Logger
+	// HTTP, BingURL and DuckDuckGoURL are for tests; AllowPrivate lets tests
+	// read pages on the loopback interface.
+	HTTP          *http.Client
+	BingURL       string
+	DuckDuckGoURL string
+	AllowPrivate  bool
+	Logger        *slog.Logger
 }
 
 type Search struct {
@@ -67,11 +68,11 @@ type Search struct {
 }
 
 func New(opts Options) *Search {
-	if opts.SearchURL == "" {
-		opts.SearchURL = defaultSearchURL
+	if opts.BingURL == "" {
+		opts.BingURL = bingURL
 	}
-	if opts.FallbackURL == "" {
-		opts.FallbackURL = fallbackURL
+	if opts.DuckDuckGoURL == "" {
+		opts.DuckDuckGoURL = duckDuckGoURL
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -117,25 +118,25 @@ type Result struct {
 	Title, URL, Snippet string
 }
 
-// Query asks DuckDuckGo and, when that is blocked or fails, Bing; it
-// returns up to five hits.
+// Query asks Bing and, when that fails, DuckDuckGo; it returns up to five
+// hits.
 func (s *Search) Query(ctx context.Context, query string) ([]Result, error) {
-	results, err := s.duckDuckGo(ctx, query)
+	results, err := s.bing(ctx, query)
 	if err == nil {
 		return results, nil
 	}
-	s.log.Warn("web search: DuckDuckGo did not answer, asking Bing", "error", err)
-	fallback, ferr := s.bing(ctx, query)
-	if ferr != nil {
-		s.log.Warn("web search: Bing did not answer either", "error", ferr)
-		return nil, err
+	s.log.Warn("web search: Bing did not answer, asking DuckDuckGo", "error", err)
+	other, oerr := s.duckDuckGo(ctx, query)
+	if oerr != nil {
+		s.log.Warn("web search: DuckDuckGo did not answer either", "error", oerr)
+		return nil, oerr
 	}
-	return fallback, nil
+	return other, nil
 }
 
 func (s *Search) duckDuckGo(ctx context.Context, query string) ([]Result, error) {
 	form := url.Values{"q": {query}, "kl": {region(s.opts.Lang)}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.opts.SearchURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.opts.DuckDuckGoURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +171,7 @@ func (s *Search) duckDuckGo(ctx context.Context, query string) ([]Result, error)
 
 func (s *Search) bing(ctx context.Context, query string) ([]Result, error) {
 	q := url.Values{"q": {query}, "setlang": {string(s.opts.Lang)}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.opts.FallbackURL+"?"+q.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.opts.BingURL+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}

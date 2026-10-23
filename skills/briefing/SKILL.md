@@ -18,7 +18,14 @@ metadata:
           meldet; die Termine von heute aus diesen Kalendern: {{kalender}} (leer heißt
           alle); was heute an Müll abgeholt wird, falls es einen Abfallkalender gibt;
           und, nur wenn hier Themen stehen, zwei kurze Schlagzeilen von heute zu:
-          {{themen}}. Fang mit „Guten Morgen“ nicht an, das sagt Mira selbst.
+          {{themen}}. Schlagzeilen zu allgemeinen Themen liest du mit web_page von
+          festen Seiten: Nachrichten allgemein https://www.tagesschau.de/,
+          Deutschland https://www.tagesschau.de/inland, Welt
+          https://www.tagesschau.de/ausland, Wirtschaft
+          https://www.tagesschau.de/wirtschaft, Wissen https://www.tagesschau.de/wissen,
+          Sport und Fußball https://www.sportschau.de/; nur ein Thema ohne feste Seite
+          (ein Verein, eine Person) suchst du mit web_search. Fang mit „Guten Morgen“
+          nicht an, das sagt Mira selbst.
           Erwähne nur, was es gibt: keine Termine heißt, Termine kommen gar nicht vor
           (kein „keine Termine“), ebenso Müll. Die Schlagzeilen gehören in den
           gesprochenen Text, als ein Satz am Ende. importance 1, spoken höchstens vier
@@ -33,7 +40,12 @@ metadata:
           heute kommen, aus dem Kalender „Pakete {{person_login}}“ (nur wenn es ihn
           gibt; „Pakete -“ heißt: keiner), mit Zeitfenster und Shop; und zwei kurze
           Schlagzeilen von heute zu Themen, für die sich {{person}} laut dem, was du
-          über sie weißt (unten), interessiert, über die Internetsuche. Kein Wetter,
+          über sie weißt (unten), interessiert: zu allgemeinen Themen mit web_page von
+          den festen Seiten (Deutschland https://www.tagesschau.de/inland, Welt
+          https://www.tagesschau.de/ausland, Wirtschaft
+          https://www.tagesschau.de/wirtschaft, Wissen https://www.tagesschau.de/wissen,
+          Sport https://www.sportschau.de/), zu einem Thema ohne feste Seite (ein
+          Verein, eine Person) mit web_search. Kein Wetter,
           kein Müll, keine Themen des Hauses: die kommen im Briefing fürs Haus. Gibt
           es weder Termine noch Pakete noch eigene Themen: importance 0 und spoken leer. Sonst
           importance 1, spoken höchstens drei kurze Sätze an {{person}} gerichtet
@@ -72,8 +84,21 @@ los?“) stellst du es jetzt zusammen, für heute oder für den Tag, nach dem ge
    - Ist niemand erkannt, nur die Kalender fürs Haus.
 3. Müll: was an dem Tag abgeholt wird, falls es einen Abfallkalender gibt.
 4. Nachrichten: nur wenn hier Themen stehen ({{themen}}) und der Nutzer nach dem
-   Morgen-Briefing fragt; zwei kurze Schlagzeilen über die Internetsuche.
+   Morgen-Briefing fragt; zwei kurze Schlagzeilen. Zu allgemeinen Themen liest du
+   sie mit `web_page` von festen Seiten:
+   - Nachrichten allgemein: `https://www.tagesschau.de/`
+   - Deutschland: `https://www.tagesschau.de/inland`
+   - Welt: `https://www.tagesschau.de/ausland`
+   - Wirtschaft: `https://www.tagesschau.de/wirtschaft`
+   - Wissen: `https://www.tagesschau.de/wissen`
+   - Sport und Fußball: `https://www.sportschau.de/`
+
+   Nur ein Thema ohne feste Seite (ein Verein, eine Person) suchst du mit
+   `web_search`.
 
 Lass weg, was es nicht gibt, und sag nicht, dass es nichts gibt, außer es gibt gar
-nichts. Nenne Uhrzeiten wie „um halb zehn“. Fragt jemand nach Einzelheiten zu einem
+nichts. Also nicht „Termine stehen heute nicht an“ oder „Die Müllabfuhr kommt heute
+nicht“: Gibt es keine Termine und keinen Müll, kommen beide im Briefing gar nicht vor,
+und es bleibt beim Wetter und den Nachrichten. Nur wenn es überhaupt nichts gibt,
+sag das in einem Satz. Nenne Uhrzeiten wie „um halb zehn“. Fragt jemand nach Einzelheiten zu einem
 Termin, antworte aus dem Kalender.

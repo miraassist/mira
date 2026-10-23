@@ -34,7 +34,7 @@ func TestQuery(t *testing.T) {
 		w.Write(page)
 	}))
 	t.Cleanup(srv.Close)
-	s := New(Options{Lang: i18n.DE, SearchURL: srv.URL, HTTP: srv.Client()})
+	s := New(Options{Lang: i18n.DE, BingURL: noBing(t), DuckDuckGoURL: srv.URL, HTTP: srv.Client()})
 	results, err := s.Query(context.Background(), "Baumarkt Sonntag")
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +59,26 @@ func TestQuery(t *testing.T) {
 
 type sent struct{ q, kl string }
 
-// DuckDuckGo's bot check (here as HTTP 202, as it sends it) makes the
-// search ask Bing, whose links are unpacked; when both fail, the tool says
-// plainly that it could not look it up, so the model does not guess.
+// noBing is a Bing that does not answer, so the search reads DuckDuckGo.
+func noBing(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// Bing is asked first, its links unpacked; DuckDuckGo is not asked then. When
+// Bing does not answer, DuckDuckGo is; when DuckDuckGo shows its bot check too
+// (here as HTTP 202, as it sends it), the tool says plainly that it could not
+// look it up, so the model does not guess.
 func TestFallback(t *testing.T) {
 	blocked := fixture(t, "blocked.html")
 	bing := fixture(t, "bing.html")
+	ddgAsked := 0
 	ddg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ddgAsked++
 		w.WriteHeader(http.StatusAccepted)
 		w.Write(blocked)
 	}))
@@ -76,7 +89,7 @@ func TestFallback(t *testing.T) {
 		w.Write(bing)
 	}))
 	t.Cleanup(fb.Close)
-	s := New(Options{Lang: i18n.DE, SearchURL: ddg.URL, FallbackURL: fb.URL, HTTP: ddg.Client()})
+	s := New(Options{Lang: i18n.DE, DuckDuckGoURL: ddg.URL, BingURL: fb.URL, HTTP: ddg.Client()})
 	results, err := s.Query(context.Background(), "Baumarkt Sonntag")
 	if err != nil {
 		t.Fatal(err)
@@ -88,14 +101,14 @@ func TestFallback(t *testing.T) {
 	if len(results) != len(want) || results[0] != want[0] || results[1] != want[1] {
 		t.Errorf("results: %+v", results)
 	}
-	if asked != "Baumarkt Sonntag|de" {
-		t.Errorf("Bing was asked %q", asked)
+	if asked != "Baumarkt Sonntag|de" || ddgAsked != 0 {
+		t.Errorf("Bing was asked %q, DuckDuckGo %d times", asked, ddgAsked)
 	}
 
 	fb.Close()
-	en := New(Options{Lang: i18n.EN, SearchURL: ddg.URL, FallbackURL: fb.URL, HTTP: ddg.Client()})
-	if _, err := en.Query(context.Background(), "x"); err != ErrBlocked {
-		t.Fatalf("both failed, got %v", err)
+	en := New(Options{Lang: i18n.EN, DuckDuckGoURL: ddg.URL, BingURL: fb.URL, HTTP: ddg.Client()})
+	if _, err := en.Query(context.Background(), "x"); err != ErrBlocked || ddgAsked != 1 {
+		t.Fatalf("both failed, got %v, DuckDuckGo asked %d times", err, ddgAsked)
 	}
 	for _, tool := range en.Tools() {
 		if tool.Name != ToolSearch {
@@ -135,7 +148,7 @@ func TestSearchExcerpt(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(b.String())) }))
 		t.Cleanup(srv.Close)
 		// The search page and the site are both on the loopback interface.
-		return run(t, New(Options{Lang: i18n.DE, SearchURL: srv.URL, HTTP: http.DefaultClient, AllowPrivate: true}), ToolSearch, `{"query":"x"}`)
+		return run(t, New(Options{Lang: i18n.DE, BingURL: noBing(t), DuckDuckGoURL: srv.URL, HTTP: http.DefaultClient, AllowPrivate: true}), ToolSearch, `{"query":"x"}`)
 	}
 
 	out := search("/gone", "/page")

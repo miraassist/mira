@@ -17,10 +17,10 @@ From now on Mira brings search herself. It is **on**, without setup and without 
 
 ## How searching works
 
-- **Source:** DuckDuckGo's HTML results page (`html.duckduckgo.com`), a simple HTTP fetch.
+- **Source:** Bing's results page (`bing.com/search`), a simple HTTP fetch; Bing's wrapped links are unwrapped.
   - No key and no account needed.
-  - Region by Mira's language (`de-de`, `us-en`).
-- **Fallback:** If DuckDuckGo shows a bot check (it sends it as HTTP 202, already after a few searches in a row from one address) or does not answer, Mira asks Bing via its results page (`bing.com/search`, also without a key). Bing's wrapped links are unwrapped.
+  - Language by Mira's language (`setlang`).
+- **Fallback:** If Bing does not answer, Mira asks DuckDuckGo's HTML results page (`html.duckduckgo.com`, region `de-de` / `us-en`, also without a key). DuckDuckGo came first until 2026-10-23; it shows a bot check (HTTP 202) already after a few searches in a row from one address, by now almost always, so Bing goes first.
   - Mojeek and Brave Search were tried: both block simple fetches (captcha, HTTP 429).
   - If neither works, the tool explicitly tells the model that it could not look it up and should not guess from memory.
 - **Deliberately without a browser:** Bing or Brave via a remote-controlled browser (as in the previous MCP server) are slow, make the image hundreds of MB larger and break with every change to the pages.
