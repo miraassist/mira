@@ -189,7 +189,11 @@ type Schedule struct {
 	// none) filled in and what Mira knows about them added; the message goes
 	// to that person, not to the house.
 	PerPerson bool `yaml:"per_person"`
-	cron      schedule.Cron
+	// Urgent lets the job report importance 3, which goes out at once, in
+	// quiet hours too (an official warning of extreme weather); without it
+	// a job reports at most 2.
+	Urgent bool `yaml:"urgent"`
+	cron   schedule.Cron
 }
 
 func (s Schedule) Parsed() schedule.Cron { return s.cron }

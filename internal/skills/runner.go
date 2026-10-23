@@ -22,8 +22,13 @@ type Tasker interface {
 }
 
 // maxTaskImportance caps what a scheduled job may report. Its input is
-// calendars and other outside data; that must never wake anyone at night.
-const maxTaskImportance = 2
+// calendars and other outside data; that must never wake anyone at night,
+// unless the skill says so for that schedule (urgent: true), up to
+// urgentTaskImportance.
+const (
+	maxTaskImportance    = 2
+	urgentTaskImportance = 3
+)
 
 type Runner struct {
 	Set    *Set
@@ -153,7 +158,11 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 		}
 		task += "\n\n" + fmt.Sprintf(t.personContext, p.Name) + "\n" + profile
 	}
-	instruction := r.Set.withHome(ctx, fmt.Sprintf(t.taskIntro, sk.Name)+sk.Body+"\n\n---\n\n"+task+t.taskRules)
+	limit, rules := maxTaskImportance, t.taskRules
+	if sk.Schedules[index].Urgent {
+		limit, rules = urgentTaskImportance, t.taskRulesUrgent
+	}
+	instruction := r.Set.withHome(ctx, fmt.Sprintf(t.taskIntro, sk.Name)+sk.Body+"\n\n---\n\n"+task+rules)
 	raw, err := r.Tasker.RunTask(ctx, sk.Name, instruction)
 	if err != nil {
 		return false, err
@@ -166,8 +175,8 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 	if res.Importance <= 0 || res.Spoken == "" {
 		return false, nil
 	}
-	if res.Importance > maxTaskImportance {
-		res.Importance = maxTaskImportance
+	if res.Importance > limit {
+		res.Importance = limit
 	}
 	if res.ExpiresInHours <= 0 || res.ExpiresInHours > 72 {
 		res.ExpiresInHours = 12

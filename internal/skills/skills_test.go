@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -433,5 +434,37 @@ func TestHomePlaceholders(t *testing.T) {
 	set.Home = nil
 	if out, _ := set.Tools()[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"pollen"}`)}); out != "Lies -,- in -; {{ andere }}." {
 		t.Errorf("without Home Assistant: %q", out)
+	}
+}
+
+// A schedule with urgent may report importance 3 (sent at once, at night too);
+// without it a job's message stays at 2.
+func TestUrgentSchedule(t *testing.T) {
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	sk := Skill{Name: "warnungen", Body: "Warnungen.", Schedules: []Schedule{
+		{Task: "Prüf die Warnungen.", Urgent: true}, {Task: "Prüf die Warnungen."}}}
+	tasker := &fakeTasker{answer: `{"importance":3,"spoken":"Extremes Unwetter.","expires_in_hours":6}`}
+	r := &Runner{Set: berlinSet(t, sk), Tasker: tasker, Store: st}
+	for i, want := range []int{3, 2} {
+		if _, err := r.RunJob(context.Background(), sk, i); err != nil {
+			t.Fatal(err)
+		}
+		list, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}, IncludeExpired: true})
+		var got int
+		for _, m := range list {
+			if strings.HasSuffix(m.DedupeKey, fmt.Sprintf(":%d:2026-10-21", i)) {
+				got = m.Importance
+			}
+		}
+		if got != want {
+			t.Errorf("schedule %d: importance %d, want %d (%+v)", i, got, want, list)
+		}
+	}
+	if !strings.Contains(tasker.instruction, "2 = wichtig") || strings.Contains(tasker.instruction, "3 = dringend") {
+		t.Errorf("the last, not urgent, schedule was told about 3:\n%s", tasker.instruction)
 	}
 }

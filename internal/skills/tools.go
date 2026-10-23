@@ -122,6 +122,7 @@ func mustJSON(v any) string {
 type texts struct {
 	openDesc, openName, noSkill string
 	taskIntro, taskRules        string
+	taskRulesUrgent             string
 	personContext, noProfile    string
 }
 
@@ -140,6 +141,13 @@ Antworte am Ende nur mit einem JSON-Objekt:
 - spoken: ein bis zwei kurze Sätze zum Vorlesen, ohne Markdown; leer bei importance 0
 - details: optional die Langfassung
 - expires_in_hours: wie lange die Nachricht relevant bleibt`,
+		taskRulesUrgent: `
+
+Antworte am Ende nur mit einem JSON-Objekt:
+- importance: 0 = nichts zu melden, 1 = nebenbei erwähnen, 2 = wichtig, 3 = dringend: geht sofort an alle, auch nachts; nur wenn die Anleitung es für diesen Fall sagt
+- spoken: ein bis zwei kurze Sätze zum Vorlesen, ohne Markdown; leer bei importance 0
+- details: optional die Langfassung
+- expires_in_hours: wie lange die Nachricht relevant bleibt`,
 	},
 	i18n.EN: {
 		openDesc:      "Opens a skill: returns its instructions, which you then follow. Open the matching skill before answering a question in its area. Available skills:",
@@ -152,6 +160,13 @@ Antworte am Ende nur mit einem JSON-Objekt:
 
 At the end, answer only with a JSON object:
 - importance: 0 = nothing to report, 1 = mention in passing, 2 = important
+- spoken: one or two short sentences to be read aloud, no Markdown; empty when importance is 0
+- details: optionally the long form
+- expires_in_hours: how long the message stays relevant`,
+		taskRulesUrgent: `
+
+At the end, answer only with a JSON object:
+- importance: 0 = nothing to report, 1 = mention in passing, 2 = important, 3 = urgent: goes to everyone at once, at night too; only when the instructions say so for this case
 - spoken: one or two short sentences to be read aloud, no Markdown; empty when importance is 0
 - details: optionally the long form
 - expires_in_hours: how long the message stays relevant`,
