@@ -13,7 +13,22 @@ import (
 // the placeholders of a satellite's area.
 type haActions struct{ a *app }
 
+// core is a building block of the core a skill's action may name where Home
+// Assistant has no action (docs/spec/skill-aktionen.md): the undo of termin.
+func (h haActions) core(action string) func(context.Context, map[string]any) error {
+	switch action {
+	case "calendar.delete_created":
+		if h.a.calendar != nil {
+			return h.a.calendar.DeleteCreated
+		}
+	}
+	return nil
+}
+
 func (h haActions) Has(ctx context.Context, action string) (bool, error) {
+	if h.core(action) != nil {
+		return true, nil
+	}
 	domain, service, ok := strings.Cut(action, ".")
 	if !ok {
 		return false, nil
@@ -27,6 +42,10 @@ func (h haActions) Has(ctx context.Context, action string) (bool, error) {
 }
 
 func (h haActions) Call(ctx context.Context, action string, data map[string]any) error {
+	if f := h.core(action); f != nil {
+		trace.Add(ctx, trace.Action, action, "")
+		return f(ctx, data)
+	}
 	domain, service, ok := strings.Cut(action, ".")
 	if !ok {
 		return fmt.Errorf("%q is no action", action)

@@ -69,6 +69,8 @@ If Mira misunderstood, one corrects in the conversation: "Nein, halb sieben." Mi
 
 The tool for this is called `thread_undo`: It takes back the newest executed action of a thread at the same place from the last 15 minutes; after that Mira restarts the thread with the right thing. Tried on the Show: `alarm_delete` only deletes with an empty label, with a label nothing.
 
+Where Home Assistant has no action to take something back, `undo` may name a building block of the core instead. The first is `calendar.delete_created` for the skill `termin`: it finds the event just added by calendar, title and start and deletes it (kalender.md).
+
 ## Scenarios
 
 - "Weck mich morgen zur üblichen Zeit" at the satellite in the bedroom, person known, in memory "steht werktags um 6 auf": Mira sets 6:00 on the Show in the bedroom and says so.

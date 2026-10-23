@@ -470,3 +470,72 @@ var catalog = map[i18n.Lang]texts{
 		deleted:          "Cancelled: %s. Tell the user briefly.",
 	},
 }
+
+// DeleteCreated is the building block "calendar.delete_created", the undo
+// of the skill termin (docs/spec/kalender.md): Home Assistant returns no ID
+// for an event it added, so it finds the event in the calendar (entity_id)
+// by its title (summary) and start (start_date_time "2006-01-02 15:04", or
+// start_date for a whole day) and deletes it. Exactly one match is deleted;
+// with none or several nothing is.
+func (c *Calendar) DeleteCreated(ctx context.Context, data map[string]any) error {
+	str := func(k string) string { s, _ := data[k].(string); return strings.TrimSpace(s) }
+	entity, summary := str("entity_id"), str("summary")
+	if entity == "" || summary == "" {
+		return errors.New("calendar.delete_created needs entity_id and summary")
+	}
+	var start time.Time
+	allDay := false
+	if s := str("start_date_time"); s != "" {
+		t, err := parseLocal(s, c.opts.Location)
+		if err != nil {
+			return fmt.Errorf("start_date_time %q: %w", s, err)
+		}
+		start = t
+	} else if s := str("start_date"); s != "" {
+		t, err := time.ParseInLocation("2006-01-02", s, c.opts.Location)
+		if err != nil {
+			return fmt.Errorf("start_date %q: %w", s, err)
+		}
+		start, allDay = t, true
+	} else {
+		return errors.New("calendar.delete_created needs start_date_time or start_date")
+	}
+	events, err := c.Events(ctx, entity, start.Add(-time.Minute), start.Add(24*time.Hour))
+	if err != nil {
+		return err
+	}
+	var match []Event
+	for _, ev := range events {
+		if !strings.EqualFold(strings.TrimSpace(ev.Summary), summary) || ev.AllDay != allDay {
+			continue
+		}
+		same := ev.Start.Equal(start)
+		if allDay {
+			same = ev.Start.In(c.opts.Location).Format("2006-01-02") == start.Format("2006-01-02")
+		}
+		if same {
+			match = append(match, ev)
+		}
+	}
+	if len(match) != 1 {
+		return fmt.Errorf("found %d events %q at %s in %s, so nothing was taken back", len(match), summary,
+			start.Format("2006-01-02 15:04"), entity)
+	}
+	if err := c.opts.Delete(ctx, entity, match[0].UID, match[0].RecurrenceID); err != nil {
+		return err
+	}
+	c.log.Info("added event taken back", "calendar", entity)
+	return nil
+}
+
+// parseLocal reads "2006-01-02 15:04" (with or without seconds, or with a T)
+// in the given time zone.
+func parseLocal(s string, loc *time.Location) (time.Time, error) {
+	s = strings.Replace(s, "T", " ", 1)
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02 15:04"} {
+		if t, err := time.ParseInLocation(layout, s, loc); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, errors.New("not a time like 2026-10-25 16:00")
+}

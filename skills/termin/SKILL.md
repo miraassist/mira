@@ -38,6 +38,14 @@ metadata:
           start_date: "{{ day }}"
           end_date: "{{ day_after }}"
           location: "{{ location }}"
+      undo:
+        action: calendar.delete_created
+        omit_empty: true
+        data:
+          entity_id: "{{ calendar }}"
+          summary: "{{ title }}"
+          start_date_time: "{{ start }}"
+          start_date: "{{ day }}"
 ---
 # Termin eintragen
 
@@ -46,4 +54,4 @@ metadata:
 - Fehlt die Uhrzeit und ist es kein ganztägiger Termin (Geburtstag, Urlaub), frag kurz: „Um wie viel Uhr?“
 - Kalender: Hat der Nutzer einen genannt, nimm ihn. Sonst den Standard aus dem Gedächtnis, sonst "standard". Fragt die Prüfung zurück, welcher Kalender, frag den Nutzer; nach seiner Antwort biete an, dir das als Standard zu merken (memory_save, z. B. „Annas Standard-Kalender ist Familie.“).
 - Nicht nachfragen, ob es passt: eintragen und danach genau sagen, was eingetragen ist: Titel, Tag, Uhrzeit, Kalender.
-- Korrigiert der Nutzer gleich danach („Nein, um 16 Uhr“), such den Termin mit calendar_events, sag ihn mit dem Ziel termin-absagen ab und trag ihn neu ein.
+- Korrigiert der Nutzer gleich danach („Nein, um 16 Uhr“), nimm den Termin mit thread_undo zurück und trag ihn mit dem Richtigen neu ein, ohne Rückfrage. Klappt das Zurücknehmen nicht, sag das, statt einen zweiten Termin einzutragen.

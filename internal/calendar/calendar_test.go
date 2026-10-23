@@ -129,3 +129,30 @@ func TestDeleteAsksAndKeepsTheSeries(t *testing.T) {
 		}
 	}
 }
+
+// The undo of the skill termin finds the event just added by calendar, title
+// and start, and deletes exactly that one; with no match it deletes nothing.
+func TestDeleteCreated(t *testing.T) {
+	c, deleted := setup(t)
+	ctx := context.Background()
+	if err := c.DeleteCreated(ctx, map[string]any{"entity_id": "calendar.familie", "summary": "arzt dr. berger",
+		"start_date_time": "2026-10-20 10:00"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(*deleted) != 1 || (*deleted)[0] != "calendar.familie/u1/" {
+		t.Fatalf("deleted %v", *deleted)
+	}
+	for _, data := range []map[string]any{
+		{"entity_id": "calendar.familie", "summary": "Arzt Dr. Berger", "start_date_time": "2026-10-20 11:00"},
+		{"entity_id": "calendar.familie", "summary": "Zahnarzt", "start_date_time": "2026-10-20 10:00"},
+		{"entity_id": "calendar.familie", "start_date_time": "2026-10-20 10:00"},
+	} {
+		if err := c.DeleteCreated(ctx, data); err == nil {
+			t.Errorf("%v: deleted", data)
+		}
+	}
+	if err := c.DeleteCreated(ctx, map[string]any{"entity_id": "calendar.feiertage", "summary": "Reformationstag",
+		"start_date": "2026-10-31"}); err != nil || len(*deleted) != 2 || (*deleted)[1] != "calendar.feiertage/f1/" {
+		t.Errorf("a whole day: %v %v", err, *deleted)
+	}
+}

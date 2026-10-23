@@ -49,7 +49,10 @@ This is the main use case: "Trag mir Freitag um 15 Uhr Zahnarzt ein." It is a sk
   - calendar.
 - **Finish:** `calendar.create_event`.
 - **No question back** whether it fits. Mira says what she added: title, day, time, calendar.
-- **Correction** ("Nein, 16 Uhr"): Mira cancels the event she just added, as below, and adds it again. HA returns no event ID when adding; Mira finds it again via `calendar_events`.
+- **Correction** ("Nein, 16 Uhr"): Mira takes the event back with `thread_undo` and adds it again, as the alarm does; no thread `termin-absagen`, no question back (the user just asked for the event). The skill's `undo` is the core building block `calendar.delete_created` (2026-10-23).
+  - HA returns no event ID when adding. The building block finds the event again in the same calendar by its title and start (`entity_id`, `summary`, `start_date_time` or `start_date`) and deletes it with `calendar/event/delete`, as `calendar.delete` does; deleting works with calendars that cannot change events (Google), unlike `calendar/event/update`.
+  - Exactly one match is deleted. With none or several it deletes nothing and says so; the model then tells the user.
+  - As every `undo`, within 15 minutes of adding.
 
 ## Personal calendars: convention instead of setting
 
