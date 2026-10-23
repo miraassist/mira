@@ -86,8 +86,10 @@ type Options struct {
 	AreaName func(id string) string
 	// Location is the time zone times are shown in.
 	Location *time.Location
-	// Catalog lists the skills and agents (docs/spec/uebersicht.md).
+	// Catalog lists the skills, agents and models (docs/spec/uebersicht.md).
 	Catalog CatalogSource
+	// CheckModel asks a model whether it answers.
+	CheckModel ModelCheck
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
@@ -128,6 +130,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
+	h.mux.HandleFunc("POST /v1/ui/models/{name}/check", h.auth(h.checkModel))
 	h.mux.HandleFunc("GET /v1/ui/agents", h.auth(h.runs))
 	h.mux.HandleFunc("GET /v1/ui/agents/{id}", h.auth(h.run))
 	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))

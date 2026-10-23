@@ -78,6 +78,8 @@ class MiraHome extends Light {
         if (f.catalog) {
           const by = s => f.catalog.skills.filter(x => x.state === s).length;
           out.push(T.home_skills(by("active"), f.catalog.agents.length));
+          const failed = (f.catalog.models || []).filter(m => m.last_failed && (!m.last_ok || m.last_failed > m.last_ok)).length;
+          out.push(failed ? html`<span class="warn">${T.home_models(f.catalog.models.length, failed)}</span>` : T.home_models((f.catalog.models || []).length, 0));
           if (by("problem")) out.push(html`<span class="warn">${T.home_problems(by("problem"))}</span>`);
           if (by("available")) out.push(T.home_available(by("available")));
         }
@@ -224,7 +226,7 @@ class MiraAgentDefs extends Light {
       <table class="facts">
         ${row(T.cat_description, desc)}
         ${row(T.cat_skill, a.skill)}
-        ${row(T.cat_model, a.model ? html`<code>${a.model}</code>${a.model_privacy ? ` (${T["privacy_" + a.model_privacy] || a.model_privacy})` : ""}${a.fallback ? html` · ${T.cat_fallback} <code>${a.fallback}</code>` : nothing}${a.privacy === "local" ? html` · ${T.cat_must_be_local}` : nothing}` : "")}
+        ${row(T.cat_model, a.model ? html`<a href="#models" @click=${e => { e.preventDefault(); go("models"); }}><code>${a.model}</code></a>${a.model_privacy ? ` (${T["privacy_" + a.model_privacy] || a.model_privacy})` : ""}${a.fallback ? html` · ${T.cat_fallback} <code>${a.fallback}</code>` : nothing}${a.privacy === "local" ? html` · ${T.cat_must_be_local}` : nothing}` : "")}
         ${row(T.cat_context, a.context ? (T["context_" + a.context] || a.context) : "")}
         ${row(T.cat_tools, a.tools ? (a.tools === "list" ? code(a.tool_names) : (T["tools_" + a.tools] || a.tools)) : "")}
         ${row(T.cat_rights, (a.rights || []).filter(r => r !== "none").map(r => T["right_" + r] || r).join(", "))}
@@ -235,3 +237,119 @@ class MiraAgentDefs extends Light {
   }
 }
 customElements.define("mira-agent-defs", MiraAgentDefs);
+
+// ---- Models ---------------------------------------------------------------
+// The language models: how they are set, who takes them, how their calls
+// went; "check now" asks one.
+// checkWait is how long the page waits for a check; the agent gives up
+// after 30 seconds and says so.
+const checkWait = 35;
+
+class MiraModels extends Light {
+  static properties = { data: { state: true }, error: { state: true }, checking: { state: true } };
+  connectedCallback() {
+    super.connectedCallback();
+    catalog(true).then(d => { this.data = d; }, e => { this.error = e.message; });
+  }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this.ticker); }
+  // check opens the dialog, sends the model a short request and shows how
+  // it went; a check that takes too long ends with a timeout.
+  async check(name) {
+    clearInterval(this.ticker);
+    const began = Date.now();
+    this.checking = { name, state: "wait", seconds: 0 };
+    await this.updateComplete;
+    const dlg = this.querySelector("dialog.mira-dialog");
+    if (!dlg.open) dlg.showModal();
+    this.ticker = setInterval(() => {
+      if (this.checking && this.checking.state === "wait") this.checking = { ...this.checking, seconds: Math.round((Date.now() - began) / 1000) };
+    }, 1000);
+    const timeout = new Promise(resolve => setTimeout(() => resolve({ timeout: true }), checkWait * 1000));
+    let r;
+    try {
+      r = await Promise.race([api("POST", "/v1/ui/models/" + encodeURIComponent(name) + "/check"), timeout]);
+    } catch (e) { r = { ok: false, error: e.message }; }
+    clearInterval(this.ticker);
+    if (!this.checking || this.checking.name !== name) return;
+    if (r.timeout) r = { ok: false, error: T.mod_check_timeout(checkWait) };
+    this.checking = { name, state: r.ok ? "ok" : "error", result: r };
+    // The model's last answer or error changed with the check.
+    catalog(true).then(d => { this.data = d; }, () => {});
+  }
+  closeCheck() {
+    clearInterval(this.ticker);
+    this.checking = null;
+    const dlg = this.querySelector("dialog.mira-dialog");
+    if (dlg && dlg.open) dlg.close();
+  }
+  dialog() {
+    const c = this.checking;
+    const r = c && c.result;
+    const short = s => (s.length > 300 ? s.slice(0, 300) + " …" : s);
+    return html`<dialog class="mira-dialog" @close=${() => { this.checking = null; clearInterval(this.ticker); }}>
+      <form method="dialog">
+        ${c ? html`
+          <h3>${T.mod_check_title(c.name)}</h3>
+          ${c.state === "wait" ? html`<div class="check-wait"><span class="spinner"></span><span>${T.mod_check_wait(c.seconds)}</span></div>` : nothing}
+          ${c.state === "ok" ? html`<div class="check-result">
+            <div class="big ok">${T.mod_check_success}</div>
+            <p class="hint">${T.mod_check_after(r.ms)}</p>
+            ${r.answer ? html`<p>${T.mod_check_said}: „${short(r.answer)}“</p>` : nothing}</div>` : nothing}
+          ${c.state === "error" ? html`<div class="check-result">
+            <div class="big err">${T.mod_check_error}</div>
+            <pre class="runpre">${short(r.error || "")}</pre>
+            ${(r.error || "").length > 300 ? html`<details class="profile"><summary>${T.mod_check_full}</summary><pre class="runpre">${r.error}</pre></details>` : nothing}</div>` : nothing}
+          <div class="actions"><button class="primary" value="close" @click=${e => { e.preventDefault(); this.closeCheck(); }}>${T.mod_check_close}</button></div>` : nothing}
+      </form>
+    </dialog>`;
+  }
+  render() {
+    if (this.error) return html`<p class="msg err">${this.error}</p>`;
+    if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
+    return html`<section class="card"><h2>${T.models_title}</h2><p class="hint">${T.models_hint}</p>
+      ${(this.data.models || []).map(m => this.model(m))}</section>${this.dialog()}`;
+  }
+  state(m) {
+    if (m.last_failed && (!m.last_ok || m.last_failed > m.last_ok)) return badge(T.mod_failed, true);
+    return m.last_ok ? badge(T.mod_ok) : badge(T.mod_unknown);
+  }
+  model(m) {
+    const settings = [
+      m.context_tokens ? `${T.mod_context} ${m.context_tokens} ${T.mod_tokens}` : "",
+      m.reasoning_effort ? `${T.mod_reasoning} ${m.reasoning_effort}` : "",
+      m.temperature != null ? `${T.mod_temperature} ${m.temperature}` : "",
+      m.max_tool_rounds ? `${m.max_tool_rounds} ${T.mod_rounds}` : "",
+      m.timeout ? `${T.mod_timeout} ${m.timeout}` : "",
+      m.cache_prompt ? T.mod_cache : "",
+      m.warmup ? T.mod_warmup : "",
+    ].filter(Boolean).join(" · ");
+    const agentLink = n => html`<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${n}</code></a>`;
+    return html`<details class="item">
+      <summary>
+        <span class="lead"><h3>${m.name}</h3></span>
+        <span class="short clip">${m.model}</span>
+        <span>${badge(T["privacy_" + m.privacy] || m.privacy)}${this.state(m)}</span>
+      </summary>
+      <table class="facts">
+        ${row(T.mod_endpoint, html`<code>${m.endpoint}</code>${m.from_ha ? html` <span class="hint">(${T.mod_from_ha})</span>` : nothing}`)}
+        ${row(T.mod_model, html`<code>${m.model}</code>`)}
+        ${row(T.mod_token, m.token_set ? T.mod_token_set : T.mod_token_unset)}
+        ${row(T.mod_privacy, T["privacy_" + m.privacy] || m.privacy)}
+        ${row(T.mod_parallel, String(m.parallel || ""))}
+        ${row(T.mod_fallback, m.fallback ? html`<code>${m.fallback}</code>` : "")}
+        ${row(T.mod_settings, settings)}
+        ${row(T.mod_used_by, (m.used_by || []).length ? html`${m.used_by.map((n, i) => html`${i ? ", " : ""}${agentLink(n)}`)}` : html`<span class="hint">${T.mod_nobody}</span>`)}
+        ${row(T.mod_fallback_for, (m.fallback_for || []).length ? code(m.fallback_for) : "")}
+        ${row(T.mod_state, html`
+          ${m.last_ok ? html`<div>${T.mod_last_ok} ${m.last_ok}</div>` : nothing}
+          ${m.last_failed ? html`<div class="warn">${T.mod_last_failed} ${m.last_failed}: ${m.problem}</div>` : nothing}
+          ${!m.last_ok && !m.last_failed ? html`<div class="hint">${T.mod_unknown}</div>` : nothing}
+          ${m.runs ? html`<div class="hint">${T.mod_runs(m.runs, m.tokens)}</div>` : nothing}`)}
+      </table>
+      <div class="actions">
+        <button class="secondary" @click=${() => this.check(m.name)}>${T.mod_check}</button>
+      </div>
+    </details>`;
+  }
+}
+customElements.define("mira-models", MiraModels);

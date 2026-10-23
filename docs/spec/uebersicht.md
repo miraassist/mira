@@ -56,6 +56,20 @@ Per agent:
 | Runs | a link to its runs in the tab "Agenten" (filtered to this agent) |
 | Not started | the problem's text, for a YAML agent that did not start |
 
+### Models
+
+One entry per model, `main` first:
+
+| Part | Shown |
+|---|---|
+| Where | the address, the model's name at the provider, whether a token is set (never the token); for `main` whether it comes from the setup in Home Assistant |
+| How | privacy, requests at once (`parallel`), fallback, and the settings: context, reasoning, temperature, tool rounds, timeout, prompt cache, warming up |
+| Who | the agents that take it (Mira's own and YAML agents), the models it is the fallback for |
+| How its calls went | when it last answered, when it last failed and with which error (from the running Mira, no extra requests); what the stored agent runs of the last hour used (runs, tokens) |
+| Check now | a button that asks the model once, as `mira check` does |
+
+An agent's model is a link to the tab "Modelle". There is no count of tokens per model beyond the stored runs.
+
 ## Navigation
 
 Mira's page had a tab per view in one row; with the skills it would be ten. Instead, as Home Assistant's own settings
@@ -69,10 +83,10 @@ page does it:
 
   | Group | Pages |
   |---|---|
-  | Alltag (day to day) | Nachrichten, Aufgaben, Pläne, Gedächtnis |
+  | Aktuell (day to day) | Nachrichten, Aufgaben, Pläne, Gedächtnis |
   | Einrichtung (setup) | Satelliten, Personen, Benachrichtigung |
-  | Fähigkeiten (abilities) | Skills, Agenten |
-  | Anleitung (guide) | Anleitung |
+  | Fähigkeiten (capabilities) | Skills, Agenten, Modelle |
+  | Anleitung (guide) | three chapters of the guide by a short name, each a link into it |
 
 - Someone who is no admin sees the start page with the pages they may open (Pläne, Gedächtnis, Anleitung).
 - Nothing on the left: inside Home Assistant the left is HA's sidebar.
@@ -100,6 +114,9 @@ page does it:
 3. The guide text (`SKILL.md` body) is shown, folded.
 4. The navigation: a start page with a card per group, inside a group its tabs on top.
 5. The page's new parts are built on Lit; the older views move over one by one.
+6. Models are a third tab in "Fähigkeiten": read only, with the last answer and the last error from the running Mira
+   and a button "check now"; no new count of tokens.
+7. The groups are called "Aktuell" (not "Alltag") and in English "Capabilities" (not "Abilities").
 
 ## Open questions
 

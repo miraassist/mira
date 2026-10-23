@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/llm"
+	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/ui"
 )
@@ -71,7 +74,92 @@ func (a *app) catalog(ctx context.Context) ui.Catalog {
 		}
 		c.Agents = append(c.Agents, a.agentInfo(d, defs, active, agentProblems[d.Name]))
 	}
+	c.Models = a.modelInfos(ctx, c.Agents)
 	return c
+}
+
+// modelInfos are the models, main first: their settings, who takes them, how
+// their calls went and what the stored runs of the last hour used.
+func (a *app) modelInfos(ctx context.Context, agents []ui.AgentInfo) []ui.ModelInfo {
+	names := sortedNames(a.cfg.Models)
+	if i := slices.Index(names, config.MainModel); i > 0 {
+		names = append([]string{config.MainModel}, slices.Delete(names, i, i+1)...)
+	}
+	fromHA := false
+	if s, err := setup.Load(ctx, a.store); err == nil && s.LLM != nil {
+		fromHA = true
+	}
+	type usage struct{ runs, tokens int }
+	used := map[string]usage{}
+	if runs, err := a.store.RecentAgentRuns(ctx, time.Now().Add(-time.Hour)); err == nil {
+		for _, r := range runs {
+			u := used[r.Usage.Model]
+			u.runs++
+			u.tokens += r.Usage.PromptTokens + r.Usage.CompletionTokens
+			used[r.Usage.Model] = u
+		}
+	}
+	stamp := func(t time.Time) string {
+		if t.IsZero() {
+			return ""
+		}
+		return t.In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	out := []ui.ModelInfo{}
+	for _, name := range names {
+		m, _ := a.cfg.Model(name)
+		info := ui.ModelInfo{Name: name, Endpoint: m.BaseURL, Model: m.Model, TokenSet: m.APIKey != "", Privacy: m.Privacy,
+			Parallel: m.Parallel, Fallback: m.Fallback, FromHA: fromHA && name == config.MainModel,
+			ContextTokens: m.ContextTokens, ReasoningEffort: m.ReasoningEffort, Temperature: m.Temperature,
+			MaxToolRounds: m.MaxToolRounds, CachePrompt: m.CachePrompt, Warmup: m.WarmupOnStart || m.WarmupOnPrefixChange,
+			Runs: used[name].runs, Tokens: used[name].tokens}
+		if m.Timeout > 0 {
+			info.Timeout = m.Timeout.Duration().String()
+		}
+		for _, ag := range agents {
+			if ag.Model == name {
+				info.UsedBy = append(info.UsedBy, ag.Name)
+			}
+		}
+		for _, other := range names {
+			if o, _ := a.cfg.Model(other); o.Fallback == name {
+				info.FallbackFor = append(info.FallbackFor, other)
+			}
+		}
+		if c := a.models[name]; c != nil {
+			last := c.Last()
+			info.LastOK, info.LastFailed, info.Problem = stamp(last.OK), stamp(last.Failed), last.Problem
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+// checkModel sends a model a short request with its own settings (address,
+// model, token), the way Mira calls it: a server that is up but does not know
+// the model, or refuses the token, fails here, not only one that is down.
+func (a *app) checkModel(ctx context.Context, name string) ui.CheckResult {
+	c := a.models[name]
+	m, ok := a.cfg.Model(name)
+	if c == nil || !ok {
+		return ui.CheckResult{Error: fmt.Sprintf("no model %q", name)}
+	}
+	began := time.Now()
+	resp, err := c.Chat(ctx, llm.ChatRequest{MaxTokens: 64, ReasoningEffort: m.ReasoningEffort,
+		Messages: []llm.Message{{Role: "user", Content: "Antworte nur mit OK."}}})
+	res := ui.CheckResult{MS: time.Since(began).Milliseconds()}
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		res.Error = fmt.Sprintf("no answer within %s", time.Since(began).Round(time.Second))
+	case err != nil:
+		res.Error = err.Error()
+	default:
+		res.OK = true
+		if len(resp.Choices) > 0 {
+			res.Answer = strings.TrimSpace(resp.Choices[0].Message.Content)
+		}
+	}
+	return res
 }
 
 func stateOrder(s string) int {

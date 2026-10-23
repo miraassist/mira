@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -27,4 +29,28 @@ func TestCatalogIsForAdminsAndTheScriptsAreServed(t *testing.T) {
 	if resp, _ := http.Get(srv.URL + "/ui/js/nothing.js"); resp.StatusCode != 404 {
 		t.Errorf("unknown script: %d", resp.StatusCode)
 	}
+}
+
+// "Check now" asks a model and says whether it answered; for admins only.
+func TestCheckModel(t *testing.T) {
+	srv, _, st := setup(t)
+	_ = st
+	h := New(Options{Token: "secret", Store: st, CheckModel: func(_ context.Context, name string) CheckResult {
+		if name == "main" {
+			return CheckResult{OK: true, MS: 800, Answer: "OK"}
+		}
+		return CheckResult{MS: 3, Error: "llm server returned 401: API key not valid"}
+	}})
+	s2 := httptest.NewServer(h)
+	t.Cleanup(s2.Close)
+	if code, body := asHA(t, s2, "POST", "/v1/ui/models/main/check", "u-admin", true, ""); code != 200 || !strings.Contains(body, `"ok":true`) || !strings.Contains(body, `"answer":"OK"`) {
+		t.Errorf("main: %d %s", code, body)
+	}
+	if code, body := asHA(t, s2, "POST", "/v1/ui/models/lokal/check", "u-admin", true, ""); code != 200 || !strings.Contains(body, "401: API key not valid") {
+		t.Errorf("lokal: %d %s", code, body)
+	}
+	if code, _ := asHA(t, s2, "POST", "/v1/ui/models/main/check", "u-anna", false, ""); code != http.StatusForbidden {
+		t.Errorf("not an admin: %d", code)
+	}
+	_ = srv
 }

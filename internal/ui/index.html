@@ -6,7 +6,6 @@
 <!-- Recordings of the guide come from their own server: it does not learn where they are watched. -->
 <meta name="referrer" content="no-referrer">
 <title>Mira</title>
-<link rel="icon" type="image/png" href="/ui/icon.png">
 <style>
 /* Mira's palette, taken from the logo: rose, magenta, teal, mint on a soft ink. */
 :root {
@@ -163,20 +162,29 @@ td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
 
 /* Mira's own dialog instead of the browser's confirm/prompt. */
-dialog#dlg { border: 0; padding: 0; border-radius: 22px; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgb(60 20 50 / 25%); }
-dialog#dlg::backdrop { background: color-mix(in srgb, var(--ink) 35%, transparent); backdrop-filter: blur(3px); }
-dialog#dlg[open] { animation: pop .18s ease-out; }
-dialog#dlg[open]::backdrop { animation: fade .18s ease-out; }
-dialog#dlg form { padding: 22px 22px 18px; position: relative; }
-dialog#dlg form::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--grad); }
+:is(dialog#dlg, dialog.mira-dialog) { border: 0; padding: 0; border-radius: 22px; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgb(60 20 50 / 25%); }
+:is(dialog#dlg, dialog.mira-dialog)::backdrop { background: color-mix(in srgb, var(--ink) 35%, transparent); backdrop-filter: blur(3px); }
+:is(dialog#dlg, dialog.mira-dialog)[open] { animation: pop .18s ease-out; }
+:is(dialog#dlg, dialog.mira-dialog)[open]::backdrop { animation: fade .18s ease-out; }
+:is(dialog#dlg, dialog.mira-dialog) form { padding: 22px 22px 18px; position: relative; }
+:is(dialog#dlg, dialog.mira-dialog) form::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--grad); }
 .dlg-head { display: flex; gap: 14px; align-items: flex-start; }
 .dlg-head img { width: 44px; height: 44px; flex: none; filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--magenta) 35%, transparent)); }
 #dlg-text { margin: 4px 0 0; font-size: 16px; line-height: 1.45; }
 #dlg-input { margin-top: 14px; }
-dialog#dlg .actions { justify-content: flex-end; margin-top: 20px; }
+:is(dialog#dlg, dialog.mira-dialog) .actions { justify-content: flex-end; margin-top: 20px; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { dialog#dlg[open], dialog#dlg[open]::backdrop { animation: none; } }
+dialog.mira-dialog { width: min(520px, calc(100vw - 32px)); }
+dialog.mira-dialog h3 { margin: 0 0 4px; }
+.check-wait { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.check-result { margin-top: 10px; }
+.check-result .big { font-size: 18px; font-weight: 700; }
+.check-result .big.ok { color: var(--accent); }
+.check-result .big.err { color: var(--warn); }
+@media (prefers-reduced-motion: reduce) { :is(dialog#dlg, dialog.mira-dialog)[open], :is(dialog#dlg, dialog.mira-dialog)[open]::backdrop, .spinner { animation: none; } }
 /* Inside Home Assistant: HA's theme (set from its variables, see haTheme),
    HA's toolbar instead of Mira's header, Mira's colors only as accents. */
 html.ha body { font-family: var(--font); font-size: 14px; background: var(--bg); }
@@ -189,7 +197,7 @@ html.ha section.card { border: var(--card-border, 1px solid var(--line)); }
 </head>
 <body>
 <header>
-  <h1><img src="/ui/icon.png" alt="">Mira <small class="version">%%VERSION%%</small></h1>
+  <h1><img data-icon alt="">Mira <small class="version">%%VERSION%%</small></h1>
   <nav id="nav"></nav>
   <select id="lang" aria-label="Language" onchange="setLang(this.value)"><option value="de">Deutsch</option><option value="en">English</option></select>
 </header>
@@ -197,7 +205,7 @@ html.ha section.card { border: var(--card-border, 1px solid var(--line)); }
 <datalist id="entities"></datalist>
 <dialog id="dlg">
   <form method="dialog">
-    <div class="dlg-head"><img src="/ui/icon.png" alt=""><p id="dlg-text"></p></div>
+    <div class="dlg-head"><img data-icon alt=""><p id="dlg-text"></p></div>
     <input id="dlg-input" autocomplete="off" hidden>
     <div class="actions"><button class="secondary" value="cancel" id="dlg-cancel"></button><button value="ok" id="dlg-ok"></button></div>
   </form>
@@ -374,7 +382,7 @@ const I18N = {
   "tab_home": "Übersicht",
   "teaser_daily": "Was gerade ansteht: Nachrichten von Mira, Aufgaben, laufende Pläne und was sie sich gemerkt hat.",
   "teaser_setup": "Wo Mira spricht, wen sie kennt und wann sie sich meldet.",
-  "teaser_abilities": "Was Mira kann: ihre Skills und Agenten, und was sie im Hintergrund tut.",
+  "teaser_abilities": "Was Mira kann: ihre Skills und Agenten, die Modelle dahinter und was sie im Hintergrund tut.",
   "teaser_help": "Alles über Mira, mit Beispielen zum Ausprobieren: wie du mit ihr sprichst, worauf sie im Haus achtet, was Skills können und wie du einen eigenen schreibst.",
   // The start page links three chapters of the guide: a short name, and how
   // the chapter's heading begins.
@@ -383,7 +391,31 @@ const I18N = {
   "home_persons": n => n === 1 ? "1 Person" : `${n} Personen`,
   "home_quiet": (a, b) => `Ruhezeit ${a}–${b}`,
   "tab_skills": "Skills",
-  "group_daily": "Alltag",
+  "tab_models": "Modelle",
+  "models_title": "Modelle",
+  "models_hint": "Die Sprachmodelle, die Mira nutzt, wie sie eingestellt sind und wer sie nimmt. Ändern geht in der mira.yaml unter models; das Hauptmodell kann auch aus der Einrichtung in Home Assistant kommen.",
+  "mod_endpoint": "Adresse", "mod_model": "Modell beim Anbieter", "mod_token": "Token",
+  "mod_token_set": "gesetzt", "mod_token_unset": "keiner",
+  "mod_privacy": "Datenschutz", "mod_parallel": "Anfragen gleichzeitig", "mod_fallback": "Ersatz bei Fehlern",
+  "mod_from_ha": "aus der Einrichtung in Home Assistant",
+  "mod_settings": "Einstellungen", "mod_context": "Kontext", "mod_tokens": "Token", "mod_reasoning": "Nachdenken",
+  "mod_temperature": "Temperatur", "mod_rounds": "Runden", "mod_timeout": "Timeout",
+  "mod_cache": "Prompt-Cache", "mod_warmup": "wird vorgewärmt",
+  "mod_used_by": "Genutzt von", "mod_fallback_for": "Ersatz für", "mod_nobody": "von keinem Agenten",
+  "mod_state": "Zuletzt", "mod_ok": "antwortet", "mod_failed": "Fehler", "mod_unknown": "noch nicht genutzt",
+  "mod_last_ok": "geantwortet", "mod_last_failed": "Fehler",
+  "mod_runs": (r, t) => `${r} gespeicherte ${r === 1 ? "Lauf" : "Läufe"} in der letzten Stunde, ${t} Token`,
+  "mod_check": "Jetzt prüfen",
+  "mod_check_title": n => `Modell „${n}“ prüfen`,
+  "mod_check_wait": s => `Mira fragt das Modell … ${s} s`,
+  "mod_check_success": "Erfolg",
+  "mod_check_after": ms => `Antwort nach ${(ms / 1000).toFixed(1).replace(".", ",")} s`,
+  "mod_check_said": "Das Modell sagte",
+  "mod_check_error": "Fehler",
+  "mod_check_full": "Ganze Meldung",
+  "mod_check_timeout": s => `Keine Antwort nach ${s} s.`,
+  "mod_check_close": "Schließen",
+  "group_daily": "Aktuell",
   "group_setup": "Einrichtung",
   "group_abilities": "Fähigkeiten",
   "group_help": "Anleitung",
@@ -394,6 +426,7 @@ const I18N = {
   "home_no_plans": "Kein Plan läuft",
   "home_tasks": n => n === 1 ? "1 Aufgabe" : `${n} Aufgaben`,
   "home_skills": (s, a) => `${s} Skills aktiv, ${a} Agenten`,
+  "home_models": (n, bad) => (n === 1 ? "1 Modell" : `${n} Modelle`) + (bad ? `, ${bad} zuletzt mit Fehler` : ""),
   "home_problems": n => n === 1 ? "1 Skill nicht gestartet" : `${n} Skills nicht gestartet`,
   "home_available": n => n === 1 ? "1 weiterer verfügbar" : `${n} weitere verfügbar`,
   "cat_active": "Aktive Skills",
@@ -701,16 +734,40 @@ const I18N = {
   "tab_home": "Overview",
   "teaser_daily": "What is going on: messages from Mira, tasks, running plans and what she remembered.",
   "teaser_setup": "Where Mira speaks, whom she knows and when she speaks up.",
-  "teaser_abilities": "What Mira can do: her skills and agents, and what she does in the background.",
+  "teaser_abilities": "What Mira can do: her skills and agents, the models behind them and what she does in the background.",
   "teaser_help": "All about Mira, with examples to try: how to talk to her, what she looks after in the house, what skills can do and how to write one of your own.",
   "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
   "home_satellites": n => n === 1 ? "1 satellite" : `${n} satellites`,
   "home_persons": n => n === 1 ? "1 person" : `${n} people`,
   "home_quiet": (a, b) => `Quiet hours ${a}–${b}`,
   "tab_skills": "Skills",
+  "tab_models": "Models",
+  "models_title": "Models",
+  "models_hint": "The language models Mira uses, how they are set and who takes them. Change them in mira.yaml under models; the main model can also come from the setup in Home Assistant.",
+  "mod_endpoint": "Address", "mod_model": "Model at the provider", "mod_token": "Token",
+  "mod_token_set": "set", "mod_token_unset": "none",
+  "mod_privacy": "Privacy", "mod_parallel": "Requests at once", "mod_fallback": "Fallback on errors",
+  "mod_from_ha": "from the setup in Home Assistant",
+  "mod_settings": "Settings", "mod_context": "context", "mod_tokens": "tokens", "mod_reasoning": "reasoning",
+  "mod_temperature": "temperature", "mod_rounds": "rounds", "mod_timeout": "timeout",
+  "mod_cache": "prompt cache", "mod_warmup": "warmed up",
+  "mod_used_by": "Used by", "mod_fallback_for": "Fallback for", "mod_nobody": "no agent",
+  "mod_state": "Last", "mod_ok": "answers", "mod_failed": "error", "mod_unknown": "not used yet",
+  "mod_last_ok": "answered", "mod_last_failed": "error",
+  "mod_runs": (r, t) => `${r} stored ${r === 1 ? "run" : "runs"} in the last hour, ${t} tokens`,
+  "mod_check": "Check now",
+  "mod_check_title": n => `Check model "${n}"`,
+  "mod_check_wait": s => `Mira is asking the model … ${s} s`,
+  "mod_check_success": "Success",
+  "mod_check_after": ms => `Answer after ${(ms / 1000).toFixed(1)} s`,
+  "mod_check_said": "The model said",
+  "mod_check_error": "Error",
+  "mod_check_full": "Whole message",
+  "mod_check_timeout": s => `No answer after ${s} s.`,
+  "mod_check_close": "Close",
   "group_daily": "Day to day",
   "group_setup": "Setup",
-  "group_abilities": "Abilities",
+  "group_abilities": "Capabilities",
   "group_help": "Guide",
   "runs_title": "Runs",
   "home_messages": n => n === 1 ? "1 message waiting" : `${n} messages waiting`,
@@ -719,6 +776,7 @@ const I18N = {
   "home_no_plans": "No plan running",
   "home_tasks": n => n === 1 ? "1 task" : `${n} tasks`,
   "home_skills": (s, a) => `${s} skills active, ${a} agents`,
+  "home_models": (n, bad) => (n === 1 ? "1 model" : `${n} models`) + (bad ? `, ${bad} failed last` : ""),
   "home_problems": n => n === 1 ? "1 skill not started" : `${n} skills not started`,
   "home_available": n => n === 1 ? "1 more available" : `${n} more available`,
   "cat_active": "Active skills",
@@ -859,13 +917,13 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["home", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "guide"];
+const ALL_TABS = ["home", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "models", "guide"];
 // The start page shows a card per group; inside a group its tabs are on top
 // (docs/spec/uebersicht.md, Navigation).
 const GROUPS = [
   { id: "daily", tabs: ["messages", "tasks", "plans", "memory"] },
   { id: "setup", tabs: ["rooms", "persons", "notifier"] },
-  { id: "abilities", tabs: ["skills", "agents"] },
+  { id: "abilities", tabs: ["skills", "agents", "models"] },
   { id: "help", tabs: ["guide"] },
 ];
 let TABS = ALL_TABS;
@@ -913,6 +971,9 @@ function haTheme() {
   const dark = !!(hass() && hass().themes && hass().themes.darkMode);
   st.colorScheme = dark ? "dark" : "light";
 }
+// Mira's icon: the images carry no address in the page, so nothing is asked
+// for at a wrong one before the page knows whether it is inside HA.
+document.querySelectorAll("img[data-icon]").forEach(img => { img.src = url("/ui/icon.png"); });
 // haLink turns a link into Home Assistant into one that opens in HA itself.
 const haLink = u => { if (!embedded) return u; try { const x = new URL(u); return x.pathname + x.search + x.hash; } catch (e) { return u; } };
 const haTarget = embedded ? "_top" : "_blank";
@@ -920,8 +981,6 @@ if (embedded) {
   document.documentElement.classList.add("ha");
   haTheme();
   try { new MutationObserver(haTheme).observe(window.parent.document.documentElement, { attributes: true }); } catch (e) {}
-  document.querySelectorAll('img[src="/ui/icon.png"]').forEach(img => { img.src = url("/ui/icon.png"); });
-  document.querySelector('link[rel="icon"]').href = url("/ui/icon.png");
   // A link into HA opens there, the way HA's own links do.
   document.addEventListener("click", e => {
     const a = e.target.closest("a[data-ha]");
@@ -1074,7 +1133,7 @@ function render() {
   // their next round would draw over it.
   clearTimeout(planTimer); clearTimeout(runTimer);
   nav();
-  const views = { home, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, guide };
+  const views = { home, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
   const owner = { rooms: "satellites", persons: "persons" }[tab];
@@ -1088,6 +1147,7 @@ function render() {
 // ---- Start, Skills (built on Lit, js/app.js) --------------------------------
 function home() { $("#view").innerHTML = "<mira-home></mira-home>"; }
 function skills() { $("#view").innerHTML = "<mira-skills></mira-skills>"; }
+function models() { $("#view").innerHTML = "<mira-models></mira-models>"; }
 
 // ---- Nachrichten ----------------------------------------------------------
 let openOnly = false, messagePage = 0;

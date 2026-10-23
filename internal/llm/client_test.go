@@ -269,3 +269,26 @@ func TestToolCallKeepsExtraContent(t *testing.T) {
 		t.Errorf("empty extra_content sent: %s", plain)
 	}
 }
+
+// The client keeps when its model last answered and last failed, for Mira's
+// page; a call the caller cancelled is no failure of the model.
+func TestLastCall(t *testing.T) {
+	dead := llm.New(llm.Options{BaseURL: "http://127.0.0.1:1/v1", Model: "test", MaxRetries: 0,
+		HTTPClient: &http.Client{Timeout: 200 * time.Millisecond}})
+	dead.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "x"}}})
+	if l := dead.Last(); l.Failed.IsZero() || l.Problem == "" || !l.OK.IsZero() {
+		t.Errorf("after a failure: %+v", l)
+	}
+	srv := fakellm.New(fakellm.Step{Content: "ja"})
+	defer srv.Close()
+	c := llm.New(llm.Options{BaseURL: srv.BaseURL(), Model: "test"})
+	if _, err := c.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "x"}}}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Chat(ctx, llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "x"}}})
+	if l := c.Last(); l.OK.IsZero() || !l.Failed.IsZero() {
+		t.Errorf("after an answer and a cancelled call: %+v", l)
+	}
+}

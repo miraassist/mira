@@ -5,6 +5,7 @@ import (
 	"embed"
 	"net/http"
 	"path"
+	"time"
 )
 
 // The skills and agents at a glance (docs/spec/uebersicht.md): what Mira
@@ -14,6 +15,52 @@ import (
 type Catalog struct {
 	Skills []SkillInfo `json:"skills"`
 	Agents []AgentInfo `json:"agents"`
+	Models []ModelInfo `json:"models"`
+}
+
+// ModelInfo is one model: where it is, how it is set, who takes it and how
+// its calls went. The token is never shown, only whether there is one.
+type ModelInfo struct {
+	Name     string `json:"name"`
+	Endpoint string `json:"endpoint"`
+	Model    string `json:"model"`
+	TokenSet bool   `json:"token_set"`
+	Privacy  string `json:"privacy"`
+	Parallel int    `json:"parallel"`
+	Fallback string `json:"fallback,omitempty"`
+	// FromHA: main as the integration's setup sets it, not from mira.yaml.
+	FromHA          bool     `json:"from_ha,omitempty"`
+	ContextTokens   int      `json:"context_tokens,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	Temperature     *float64 `json:"temperature,omitempty"`
+	MaxToolRounds   int      `json:"max_tool_rounds,omitempty"`
+	Timeout         string   `json:"timeout,omitempty"`
+	CachePrompt     bool     `json:"cache_prompt,omitempty"`
+	Warmup          bool     `json:"warmup,omitempty"`
+	// UsedBy are the agents that take it; FallbackFor the models it stands in
+	// for.
+	UsedBy      []string `json:"used_by,omitempty"`
+	FallbackFor []string `json:"fallback_for,omitempty"`
+	// LastOK and LastFailed are when it last answered and last failed
+	// ("2006-01-02 15:04:05"), Problem the last error.
+	LastOK     string `json:"last_ok,omitempty"`
+	LastFailed string `json:"last_failed,omitempty"`
+	Problem    string `json:"problem,omitempty"`
+	// Runs and Tokens are what the stored agent runs of the last hour used.
+	Runs   int `json:"runs,omitempty"`
+	Tokens int `json:"tokens,omitempty"`
+}
+
+// ModelCheck sends a model a short request, the way Mira calls it.
+type ModelCheck func(ctx context.Context, name string) CheckResult
+
+// CheckResult is how a check went: the time it took, and the model's answer
+// or the error.
+type CheckResult struct {
+	OK     bool   `json:"ok"`
+	MS     int64  `json:"ms"`
+	Answer string `json:"answer,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 // CatalogSource builds the catalog from what Mira loaded.
@@ -109,11 +156,25 @@ type AgentInfo struct {
 }
 
 func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
-	c := Catalog{Skills: []SkillInfo{}, Agents: []AgentInfo{}}
+	c := Catalog{Skills: []SkillInfo{}, Agents: []AgentInfo{}, Models: []ModelInfo{}}
 	if h.opts.Catalog != nil {
 		c = h.opts.Catalog(r.Context())
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+// checkTimeout bounds a check; the page waits a little longer.
+const checkTimeout = 30 * time.Second
+
+// checkModel sends a model a short request now and says how it went.
+func (h *Handler) checkModel(w http.ResponseWriter, r *http.Request) {
+	if h.opts.CheckModel == nil {
+		writeError(w, http.StatusNotFound, "no models")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), checkTimeout)
+	defer cancel()
+	writeJSON(w, http.StatusOK, h.opts.CheckModel(ctx, r.PathValue("name")))
 }
 
 //go:embed js/*.js

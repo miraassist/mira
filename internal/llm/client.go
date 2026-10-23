@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -54,6 +55,39 @@ type Client struct {
 	http    *http.Client
 	retries int
 	tel     *telemetry.Provider
+
+	// last is how the model's calls went, for Mira's page.
+	mu   sync.Mutex
+	last LastCall
+}
+
+// LastCall is when the model last answered and when it last failed, with
+// the error.
+type LastCall struct {
+	OK      time.Time
+	Failed  time.Time
+	Problem string
+}
+
+// Last is how the model's calls went last.
+func (c *Client) Last() LastCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.last
+}
+
+func (c *Client) note(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err == nil {
+		c.last.OK = time.Now()
+		return
+	}
+	// A call the caller cancelled says nothing about the model.
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	c.last.Failed, c.last.Problem = time.Now(), err.Error()
 }
 
 func New(opts Options) *Client {
@@ -113,6 +147,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, erro
 
 	started := time.Now()
 	resp, err := c.do(ctx, req)
+	c.note(err)
 	latency := time.Since(started)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())

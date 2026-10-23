@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/ui"
 )
 
@@ -83,5 +86,26 @@ Sag das Wetter für {{ort}}.
 	}
 	if h := origins["wetter.helfer"]; h.Origin != "skill" || h.Skill != "wetter" || !h.Conversation || h.Model != "main" || h.Context != "isolated" {
 		t.Errorf("skill agent: %+v", h)
+	}
+	// The models: main first, who takes it; the token only as set, never itself.
+	if len(c.Models) == 0 || c.Models[0].Name != "main" || !slices.Contains(c.Models[0].UsedBy, "conversation.voice") ||
+		!slices.Contains(c.Models[0].UsedBy, "wetter.helfer") {
+		t.Errorf("models: %+v", c.Models)
+	}
+	raw, _ := json.Marshal(c)
+	if m, _ := a.cfg.Model("main"); m.APIKey != "" && strings.Contains(string(raw), m.APIKey) {
+		t.Error("a model's token is in the catalog")
+	}
+}
+
+// "Check now" sends the model a short request the way Mira calls it.
+func TestCheckModelSendsARealRequest(t *testing.T) {
+	a, _, model := deliveryApp(t, fakellm.Step{Content: "OK"})
+	res := a.checkModel(context.Background(), "main")
+	if !res.OK || res.Answer != "OK" || len(model.Requests()) != 1 {
+		t.Errorf("main: %+v, requests %d", res, len(model.Requests()))
+	}
+	if res := a.checkModel(context.Background(), "gibtsnicht"); res.OK || res.Error == "" {
+		t.Errorf("unknown model: %+v", res)
 	}
 }
