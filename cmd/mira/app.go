@@ -566,6 +566,23 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.log.Warn("llm server is not answering yet", "error", err)
 	}
 	a.goRun(ctx, "warmup", a.engine.RunWarmups)
+	// The phone book once soon after the start, so Mira's page shows whether
+	// the access works before the first call (docs/spec/telefon.md).
+	if a.phonebook.On() {
+		a.goRun(ctx, "phonebook", func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(5 * time.Second):
+			}
+			if _, err := a.phonebook.Contacts(ctx, false); err != nil {
+				a.log.Warn("phone book not read", "error", err)
+			} else {
+				a.log.Info("phone book read", "books", a.phonebook.Status().Books)
+			}
+			return nil
+		})
+	}
 	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnStart }) {
 		a.engine.RequestWarmup(conversation.WarmupStartup)
 	}

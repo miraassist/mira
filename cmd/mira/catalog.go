@@ -253,6 +253,9 @@ func skillKinds(sk skills.Skill) []string {
 	if len(sk.Agents) > 0 {
 		out = append(out, "agents")
 	}
+	if sk.Name == phoneSkill {
+		out = append(out, "phonebook")
+	}
 	if len(out) == 0 {
 		out = append(out, "guide")
 	}
