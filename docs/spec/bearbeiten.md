@@ -1,6 +1,6 @@
 # Editing models, agents and skills on Mira's page
 
-Status 2026-10-24: built (not released). Scenarios: [bearbeiten.feature](bearbeiten.feature).
+Status 2026-10-24: built, released in 0.7.0. Scenarios: [bearbeiten.feature](bearbeiten.feature).
 
 ## Goal
 
@@ -95,12 +95,9 @@ nothing of this.
    `enabled` it is on, `enabled: false` switches it off and keeps its settings. Mira's own skills are on without an
    entry and can be switched off, for a replacement of one's own. The old `skills.enabled` is refused with a hint,
    as `llm` and `routing` were (no users to migrate yet).
+8. **A further model beside the integration's main** (2026-10-24): mira.yaml may name models without `main` when
+   the integration sets `main` up (MO-02 relaxed); without either, the page refuses and Mira waits for the setup.
 
 ## Open
 
 - Move the overlay of satellites, persons and notifier onto the same principle.
-- **A further model beside the integration's main:** mira.yaml with a `models` section must name main (MO-02,
-  modelle.md). When main comes from the integration and the file has no `models` yet, the page cannot add a model
-  without writing main into the file, which would make two places for main. Options: (A) MO-02 allows models without
-  main when the integration sets main up; (B) the page writes main into the file once, read only there afterwards;
-  (C) leave it: a further model needs main in the file, by hand. Until decided the page says so and writes nothing.

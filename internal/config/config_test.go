@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -188,14 +189,20 @@ models:
 	}
 }
 
-// MO-02 Without main Mira does not load
-func TestMO02_WithoutMainMiraDoesNotLoad(t *testing.T) {
+// MO-02 Without main in the file, main comes from the integration
+func TestMO02_WithoutMainInTheFileMainComesFromTheIntegration(t *testing.T) {
 	// Given mira.yaml has models but none called main
 	// When Mira loads it
-	_, err := parseModels(t, "models:\n  smart: { endpoint: http://x, model: y, privacy: cloud }\n")
-	// Then loading fails, and the error says that main is needed
-	if err == nil || !strings.Contains(err.Error(), "models needs main") {
-		t.Errorf("err = %v", err)
+	cfg, err := parseModels(t, "models:\n  smart: { endpoint: http://x, model: y, privacy: cloud }\n")
+	// Then it loads with smart, and says that main has to come from the setup
+	if err != nil || !cfg.LacksMain() || cfg.Models["smart"].Model != "y" {
+		t.Errorf("err = %v, lacks main %v, models %v", err, cfg.LacksMain(), cfg.Models)
+	}
+	// And the file does not count as naming the model main
+	path := filepath.Join(t.TempDir(), "mira.yaml")
+	os.WriteFile(path, []byte("models:\n  smart: { endpoint: http://x, model: y, privacy: cloud }\n"), 0o644)
+	if _, hasMain, err := LoadOptional(path); err != nil || hasMain {
+		t.Errorf("has main %v, err %v", hasMain, err)
 	}
 }
 

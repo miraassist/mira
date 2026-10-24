@@ -53,6 +53,9 @@ type Config struct {
 	WebSearch  WebSearch         `yaml:"web_search"`
 	Agents     Agents            `yaml:"agents"`
 	Telemetry  Telemetry         `yaml:"telemetry"`
+
+	// mainMissing: the file has models but not main (LacksMain).
+	mainMissing bool
 }
 
 // Agents are the settings of Mira's agents (docs/spec/agenten.md): next to
@@ -690,11 +693,26 @@ func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
 	if err != nil {
 		return Config{}, false, err
 	}
-	var top map[string]any
-	_ = yaml.Unmarshal(raw, &top)
-	_, hasLLM = top["models"]
-	return cfg, hasLLM, nil
+	_, hasMain := fileModels(raw)
+	return cfg, hasMain, nil
 }
+
+// fileModels says whether a config file has models, and whether main is
+// among them.
+func fileModels(raw []byte) (hasModels, hasMain bool) {
+	var top struct {
+		Models map[string]any `yaml:"models"`
+	}
+	if yaml.Unmarshal(raw, &top) != nil || top.Models == nil {
+		return false, false
+	}
+	_, hasMain = top.Models[MainModel]
+	return true, hasMain
+}
+
+// LacksMain says that the file names models but not main: main has to come
+// from the integration's setup (docs/spec/modelle.md, MO-02).
+func (c Config) LacksMain() bool { return c.mainMissing }
 
 func envOr(name, fallback string) string {
 	if v := os.Getenv(name); v != "" {
@@ -722,12 +740,15 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 		return Config{}, err
 	}
 	cfg := Default()
-	// The file's models replace the default main, not add to it.
-	var top map[string]any
-	if yaml.Unmarshal(expanded, &top) == nil {
-		if _, ok := top["models"]; ok {
-			cfg.Models = nil
-		}
+	// The file's models replace the default main, not add to it. Models
+	// without main keep it as a stand-in: main then comes from the
+	// integration's setup (docs/spec/modelle.md, MO-02), and without that
+	// Mira waits for the setup.
+	switch hasModels, hasMain := fileModels(expanded); {
+	case hasMain:
+		cfg.Models = nil
+	case hasModels:
+		cfg.mainMissing = true
 	}
 	dec := yaml.NewDecoder(strings.NewReader(string(expanded)))
 	dec.KnownFields(true)

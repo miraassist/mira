@@ -58,6 +58,11 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 		return prepared{}, err
 	}
 	p.ready = setup.Ready(p.cfg, hasLLM, s)
+	if cfg.LacksMain() && s.LLM == nil {
+		// MO-02: main comes from the integration; until it is set up, Mira
+		// waits for the setup and says why.
+		slog.Warn("mira.yaml has models but not main, and the integration has set no model yet: Mira waits for the setup in Home Assistant (or add models.main to mira.yaml)")
+	}
 	p.hasModel = hasLLM || s.LLM != nil
 	if p.pairing {
 		p.open = s.Open

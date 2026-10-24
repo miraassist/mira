@@ -10,7 +10,7 @@ place, from the setup form's kind in another, and from "main is the local one" i
 
 - **A model is a named entry** with an endpoint, a model, a token and a **privacy** qualifier (`local` or `cloud`).
   How many requests it takes at once is its own setting.
-- **`main` always exists.** An agent without a model takes `main`.
+- **`main` always exists.** An agent without a model takes `main`. It is in mira.yaml or comes from the integration's setup; a file with other models but no `main` takes it from the setup, and without that Mira waits for the setup (MO-02, changed 2026-10-24 for the page's editing).
 - **Every agent names its model**, Mira's own ones too; `routing` goes.
 - **A fallback** is configured by name, never implied.
 - **Privacy is a rule:** an agent or a skill can require a local model.
@@ -130,7 +130,7 @@ names its model, fallback, and a section "Commands" with Mira's command line (`r
 
 ## Decided
 
-1. A model has a name, an endpoint, a token (from the environment) and a privacy qualifier; `main` must exist.
+1. A model has a name, an endpoint, a token (from the environment) and a privacy qualifier; `main` must exist, in the file or from the integration's setup.
 2. An agent without a model takes `main`; a fallback is configured by name.
 3. `routing` goes; every agent names its model, Mira's own under `agents` in `mira.yaml`.
 4. `llm:` is a hard switch: an old config is refused with what to write instead.

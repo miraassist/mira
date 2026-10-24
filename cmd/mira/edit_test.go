@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/ui"
 )
 
@@ -223,5 +224,26 @@ func TestBE09_MirasOwnSkillCanBeSwitchedOff(t *testing.T) {
 	}
 	if strings.Contains(read(t, path), "kochen") {
 		t.Error("an own skill that is on needs no line")
+	}
+}
+
+// MO-02 on the page: a further model beside the integration's main, with
+// no main in the file.
+func TestBE11_AModelBesideTheIntegrationsMain(t *testing.T) {
+	a, e, path := editApp(t)
+	ctx := context.Background()
+	os.WriteFile(path, []byte("# only agents here\nagents:\n  delegate: { model: main }\n"), 0o644)
+	// without the integration's model there is no main anywhere
+	if err := e.SaveModel(ctx, "smart", ui.ModelEdit{Endpoint: "https://e/v1", Model: "f", Privacy: "cloud"}); err == nil {
+		t.Error("a model was added with no main anywhere")
+	}
+	if err := setup.Save(ctx, a.store, "http://ha", "token", &setup.LLM{BaseURL: "https://api/v1", Model: "m", Kind: setup.KindCloud}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.SaveModel(ctx, "smart", ui.ModelEdit{Endpoint: "https://e/v1", Model: "f", Privacy: "cloud"}); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); !strings.Contains(out, "smart:") || strings.Contains(out, "main:") {
+		t.Errorf("file:\n%s", out)
 	}
 }

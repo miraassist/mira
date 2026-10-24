@@ -14,10 +14,11 @@ Feature: MO Models
     Then both models exist under their names, the token taken from the environment
 
   @step1
-  Scenario: MO-02 Without main Mira does not load
+  Scenario: MO-02 Without main in the file, main comes from the integration
     Given mira.yaml has models but none called main
     When Mira loads it
-    Then loading fails, and the error says that main is needed
+    Then the other models load, and main has to come from the integration's setup
+    And without that Mira waits for the setup and says main is missing
 
   @step1
   Scenario: MO-03 A model needs its privacy

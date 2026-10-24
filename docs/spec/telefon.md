@@ -1,6 +1,6 @@
 # Phone calls
 
-Status 2026-10-24: built (not released). Scenarios: [telefon.feature](telefon.feature).
+Status 2026-10-24: built, released in 0.7.0. Scenarios: [telefon.feature](telefon.feature).
 
 ## Goal
 

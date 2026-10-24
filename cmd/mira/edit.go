@@ -218,11 +218,10 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 		secret = map[string]string{tokenVar: m.Token}
 	}
 	return e.change(secret, func(top *yaml.Node) error {
-		models := config.MapGet(top, "models")
-		if models == nil && newName != config.MainModel {
-			return errors.New("In der mira.yaml steht noch kein Abschnitt models mit main. Ein weiteres Modell braucht main in der Datei (das ist noch offen, siehe docs/spec/bearbeiten.md).")
+		if newName != config.MainModel && config.MapGet(config.MapGet(top, "models"), config.MainModel) == nil && !e.fromHA(ctx) {
+			return errors.New("main fehlt: Es steht weder in der mira.yaml noch kommt es aus der Einrichtung in Home Assistant. Richte zuerst main ein.")
 		}
-		models = config.MapChild(top, "models")
+		models := config.MapChild(top, "models")
 		if newName != name {
 			if config.MapGet(models, newName) != nil {
 				return fmt.Errorf("Ein Modell „%s“ gibt es schon.", newName)
