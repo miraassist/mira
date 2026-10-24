@@ -115,5 +115,6 @@ places the call from the satellite being spoken at, and one phone book for the w
 
 ## Open
 
-- Firmware: an optional `name` for `phone_call`, shown on the call page and in the call's events (the user considers
-  a pull request).
+- Firmware: the call page should show the name. The user opened a pull request for an action `phone_call_named`
+  (2026-10-24; its fields to be checked once merged). Once it is upstream: Mira checks whether the satellite has
+  `esphome.<device>_phone_call_named` and then uses it with the contact's name, else `phone_call` as now.
