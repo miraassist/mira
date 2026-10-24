@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-// Book is the house's phone book, read from the FRITZ!Box and kept for an
-// hour; a name not found reads it once more.
+// Book is the house's phone book, read from the FRITZ!Box before every
+// call, so a changed number counts at once; the contacts read last stand in
+// while the box does not answer.
 type Book struct {
 	// Source is the skill telefon's access; false while the skill is off.
 	Source func() (Fritz, bool)
@@ -15,18 +16,10 @@ type Book struct {
 
 	mu       sync.Mutex
 	readAt   time.Time
-	tried    time.Time
 	books    []string
 	contacts []Contact
 	err      error
 }
-
-const (
-	keepFor = time.Hour
-	// retryAfter keeps a box that failed, or a name not found, from being
-	// asked again at once.
-	retryAfter = time.Minute
-)
 
 // Status is what Mira's page shows of the phone book: never the contacts.
 type Status struct {
@@ -53,29 +46,25 @@ func (b *Book) On() bool {
 	return on
 }
 
-// Contacts are the contacts, read when they are older than an hour; fresh
-// reads again (a name not found), at most once a minute.
-func (b *Book) Contacts(ctx context.Context, fresh bool) ([]Contact, error) {
+// Contacts reads the phone book afresh. When the box does not answer, the
+// contacts read last stand in, if there are any; the error is kept for the
+// page.
+func (b *Book) Contacts(ctx context.Context) ([]Contact, error) {
 	f, on := b.Source()
 	if !on {
 		return nil, nil
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	now := b.now()
-	stale := b.readAt.IsZero() || now.Sub(b.readAt) > keepFor || fresh
-	if stale && now.Sub(b.tried) >= retryAfter {
-		b.tried = now
-		books, contacts, err := f.Read(ctx)
-		if err != nil {
-			b.err = err
-		} else {
-			b.books, b.contacts, b.err, b.readAt = books, contacts, nil, now
+	books, contacts, err := f.Read(ctx)
+	if err != nil {
+		b.err = err
+		if b.contacts != nil {
+			return b.contacts, nil
 		}
+		return nil, err
 	}
-	if b.contacts == nil && b.err != nil {
-		return nil, b.err
-	}
+	b.books, b.contacts, b.err, b.readAt = books, contacts, nil, b.now()
 	return b.contacts, nil
 }
 

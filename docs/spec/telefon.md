@@ -50,7 +50,7 @@ places the call from the satellite being spoken at, and one phone book for the w
   e.g. `Telefonbuch, Google …` for the synced one as well. A name in two books is one contact when the numbers match.
 - **Which numbers:** fax numbers (`fax_…`) are never dialed; `intern` numbers (`**610`) are, they reach the box's
   own phones.
-- **Kept for an hour**; a name that is not found reads the book once more (a contact just added).
+- **Read before every call** (about 0.4 s), so a contact just added or a number just changed counts at once (changed 2026-10-24: kept for an hour, a changed number of a known name was missed). When the box does not answer, the contacts read last stand in, and the page says why. Mira also reads it once soon after her start, for the page.
 - **What the model sees:** only the entries that match what it asked for, by name and the kind of number (Handy,
   privat, geschäftlich); never the numbers and never the whole book. The tool dials, not the model.
 - The skill's instructions say when to call and how to ask back; they are short, the tool does the work.

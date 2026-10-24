@@ -575,7 +575,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 				return nil
 			case <-time.After(5 * time.Second):
 			}
-			if _, err := a.phonebook.Contacts(ctx, false); err != nil {
+			if _, err := a.phonebook.Contacts(ctx); err != nil {
 				a.log.Warn("phone book not read", "error", err)
 			} else {
 				a.log.Info("phone book read", "books", a.phonebook.Status().Books)

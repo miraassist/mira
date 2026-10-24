@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
@@ -100,14 +99,13 @@ type env struct {
 	calls []call
 	line  Line
 	book  *Book
-	now   time.Time
 }
 
 func setup(t *testing.T, bookOn bool) *env {
 	t.Helper()
 	srv, _ := fritzbox(t, "mira", "geheim")
-	e := &env{line: Line{Node: "show", Phone: true, Intercom: true, State: Ready}, now: time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)}
-	e.book = &Book{Clock: func() time.Time { return e.now }, Source: func() (Fritz, bool) {
+	e := &env{line: Line{Node: "show", Phone: true, Intercom: true, State: Ready}}
+	e.book = &Book{Source: func() (Fritz, bool) {
 		return Fritz{User: "mira", Password: "geheim", base: srv.URL}, bookOn
 	}}
 	e.tool = Tool(Options{Lang: i18n.DE, Book: e.book,
@@ -233,30 +231,33 @@ func TestTE09_WithoutTheSkillNoNames(t *testing.T) {
 	}
 }
 
-func TestTE10_ThePhoneBookIsKeptForAnHour(t *testing.T) {
+func TestTE10_ThePhoneBookIsReadBeforeEveryCall(t *testing.T) {
 	srv, reads := fritzbox(t, "mira", "geheim")
-	now := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
-	b := &Book{Clock: func() time.Time { return now }, Source: func() (Fritz, bool) {
-		return Fritz{User: "mira", Password: "geheim", base: srv.URL}, true
+	password := "geheim"
+	b := &Book{Source: func() (Fritz, bool) {
+		return Fritz{User: "mira", Password: password, base: srv.URL}, true
 	}}
 	ctx := context.Background()
-	b.Contacts(ctx, false)
-	now = now.Add(30 * time.Minute)
-	b.Contacts(ctx, false)
-	if reads.Load() != 1 {
-		t.Errorf("reads %d", reads.Load())
-	}
-	now = now.Add(2 * time.Minute)
-	b.Contacts(ctx, true) // a name not found
+	b.Contacts(ctx)
+	b.Contacts(ctx)
+	// read each time, so a changed number counts at once
 	if reads.Load() != 2 {
-		t.Errorf("reads after a miss %d", reads.Load())
+		t.Errorf("reads %d", reads.Load())
 	}
 	if st := b.Status(); !st.On || len(st.Books) != 1 || st.Books[0] != "Telefonbuch" || st.Error != "" {
 		t.Errorf("status %+v", st)
 	}
-	// a wrong password says so
+	// a box that does not answer: the contacts read last stand in, the page says why
+	password = "falsch"
+	if cs, err := b.Contacts(ctx); err != nil || len(cs) == 0 {
+		t.Errorf("contacts %d, err %v", len(cs), err)
+	}
+	if st := b.Status(); !strings.Contains(st.Error, "refused") {
+		t.Errorf("status %+v", st)
+	}
+	// never read and no answer: the error
 	bad := &Book{Source: func() (Fritz, bool) { return Fritz{User: "mira", Password: "falsch", base: srv.URL}, true }}
-	if _, err := bad.Contacts(ctx, false); err == nil || !strings.Contains(err.Error(), "refused") {
+	if _, err := bad.Contacts(ctx); err == nil || !strings.Contains(err.Error(), "refused") {
 		t.Errorf("err %v", err)
 	}
 }

@@ -61,11 +61,11 @@ Feature: TE Phone calls
     Then the name is not found (the phone book is off), the room and the number are called
 
   @step1
-  Scenario: TE-10 The phone book comes from the FRITZ!Box and is kept for an hour
+  Scenario: TE-10 The phone book is read from the FRITZ!Box before every call
     Given a FRITZ!Box that answers TR-064 with digest authentication
-    When the phone book is needed twice within the hour
-    Then it is read once
-    And a name not found reads it once more
+    When the phone book is needed twice
+    Then it is read twice, so a changed number counts at once
+    And when the box does not answer, the contacts read last stand in, and the page says why
 
   @step1
   Scenario: TE-11 Test connection reads the phone book

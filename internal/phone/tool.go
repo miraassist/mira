@@ -155,16 +155,11 @@ func Tool(o Options) tools.InternalTool {
 			if !o.Book.On() {
 				return fmt.Sprintf(t.bookOff, target), nil
 			}
-			contacts, err := o.Book.Contacts(ctx, false)
+			contacts, err := o.Book.Contacts(ctx)
 			if err != nil {
 				return fmt.Sprintf(t.bookError, err), nil
 			}
 			found := match(contacts, target)
-			if len(found) == 0 {
-				if contacts, err = o.Book.Contacts(ctx, true); err == nil {
-					found = match(contacts, target)
-				}
-			}
 			switch {
 			case len(found) == 0:
 				return fmt.Sprintf(t.notFound, target), nil
