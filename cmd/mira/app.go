@@ -28,6 +28,7 @@ import (
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
+	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/profile"
 	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/satellite"
@@ -50,10 +51,12 @@ type app struct {
 	// commands that do not serve the page.
 	configPath string
 	edit       *editor
-	log        *slog.Logger
-	tel        *telemetry.Provider
-	store      *store.Store
-	llm        *llm.Client
+	// phonebook is the FRITZ!Box's, while the skill telefon is on.
+	phonebook *phone.Book
+	log       *slog.Logger
+	tel       *telemetry.Provider
+	store     *store.Store
+	llm       *llm.Client
 	// langs says which language applies when; lang is the one at the start,
 	// for what only the model reads.
 	langs *language.Resolver
@@ -326,6 +329,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	}))
+	// Phone calls from the satellite of the turn (docs/spec/telefon.md).
+	a.phonebook = &phone.Book{Source: a.phoneBookSource}
+	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
+		Line: a.phoneLine, Device: a.intercomDevice, Call: a.callESPHome}))
 	// Sounds and cards on the satellite of the turn (docs/spec/satellit.md).
 	internal = append(internal, satellite.Tools(satellite.Options{
 		Lang: a.lang, Speaker: a.speakerOf, CardAction: a.cardActionOf, BaseURL: a.haAddress,

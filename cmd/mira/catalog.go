@@ -219,6 +219,16 @@ func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
 	}
 	info.Agents = sortedNames(sk.Agents)
 	info.Kinds = skillKinds(sk)
+	// The phone book: that it is on, its books and the box, never a contact
+	// (docs/spec/telefon.md).
+	if sk.Name == phoneSkill && a.phonebook != nil {
+		st := a.phonebook.Status()
+		pb := &ui.PhonebookInfo{Link: st.Link, Books: st.Books, Error: st.Error}
+		if !st.ReadAt.IsZero() {
+			pb.ReadAt = st.ReadAt.In(time.Local).Format("2006-01-02 15:04")
+		}
+		info.Phonebook = pb
+	}
 	return info
 }
 

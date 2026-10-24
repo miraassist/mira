@@ -241,6 +241,10 @@ class MiraSkills extends EditPage {
           ${(m.tools || []).length ? html`<div>${T.cat_tools}: ${code(m.tools)}</div>` : html`<div>${T.cat_all_tools}</div>`}
           ${(m.missing || []).length ? html`<div class="warn">${T.cat_missing}: ${code(m.missing)}</div>` : nothing}
           <div class="hint">${m.conversation ? T.cat_mcp_conversation : T.cat_mcp_agents_only}${m.web_content ? html` · ${T.cat_web_content}` : nothing}</div>`) : nothing}
+        ${s.phonebook ? row(T.cat_phonebook, html`
+          <div>${(s.phonebook.books || []).length ? s.phonebook.books.join(", ") : T.cat_phonebook_unread}${s.phonebook.read_at ? html` · ${T.cat_phonebook_read} ${s.phonebook.read_at}` : nothing}</div>
+          ${s.phonebook.error ? html`<div class="warn">${s.phonebook.error}</div>` : nothing}
+          <div><a href=${s.phonebook.link} target="_blank" rel="noopener">${T.cat_phonebook_open}</a> <span class="hint">${T.cat_phonebook_hint}</span></div>`) : nothing}
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}
@@ -570,7 +574,7 @@ class MiraEditor extends Light {
             placeholder=${d.secret_set ? T.ed_token_keep : ""} @input=${ev => this.setSetting(d.name, ev.target.value)}>`
           : html`<input .value=${f.settings[d.name] || ""} @input=${ev => this.setSetting(d.name, ev.target.value)}>`}
           ${d.description ? html`<div class="hint">${d.description}</div>` : nothing}</div>`)}</div>` : nothing}
-      ${cat.mcp || f.mcp ? html`<div class="actions left"><button class="secondary" @click=${e => { e.preventDefault(); this.checkMCP(); }}>${T.ed_mcp_check}</button>
+      ${cat.mcp || f.mcp || cat.phonebook || name === "telefon" ? html`<div class="actions left"><button class="secondary" @click=${e => { e.preventDefault(); this.checkMCP(); }}>${T.ed_mcp_check}</button>
         ${this.mcpResult()}</div>` : nothing}
       ${f.own ? html`
         <h4>${T.ed_skill_file}</h4>
@@ -587,6 +591,7 @@ class MiraEditor extends Light {
     const m = this.e.mcp;
     if (!m) return nothing;
     if (m.wait) return html`<span class="check-wait"><span class="spinner"></span></span>`;
+    if (m.ok && m.books) return html`<span class="ok">${T.ed_book_ok(m.contacts, m.books, m.ms)}</span>`;
     return m.ok ? html`<span class="ok">${T.ed_mcp_ok(m.tools, m.ms)}${(m.missing || []).length ? html` <span class="warn">${T.cat_missing}: ${m.missing.join(", ")}</span>` : nothing}</span>`
       : html`<span class="warn">${m.error}</span>`;
   }

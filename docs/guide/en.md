@@ -480,6 +480,30 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 
 "Play SWR3." – "Turn on the radio in the living room." Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. Louder, quieter and pause work like on any media player.
 
+## Phone calls
+
+"Call Grandma." – "Call Ben on his mobile." – "Call the kitchen." – "Call 0721 123456." Mira calls from the satellite you are speaking at. This works on an Echo Show or Echo with TECHO5 signed in as an IP phone at your FRITZ!Box (see TECHO5's guide, "A SIP server at home").
+
+- **Names** Mira finds in the FRITZ!Box's phone book, where your DECT phones look too. "Oma" finds "Oma Erika"; if several fit, Mira asks. If a contact has several numbers, she takes the main one, or the one you name ("on the mobile"). She never dials fax numbers.
+- **Devices in the house** ("call the kitchen") Mira calls over the TECHO5 devices' intercom, without any phone line.
+- Mira dials at once when it is clear whom you mean, and says whom she calls, never the number. Hang up on the device as usual.
+- If the satellite's phone is not signed in at the FRITZ!Box, Mira does not dial and says why (no login yet, wrong password, FRITZ!Box not reachable).
+- Calls go only by voice at a satellite, never from Telegram, tasks or schedules.
+- The contacts stay in the FRITZ!Box; none end up on the devices.
+
+**Setting it up:** in the FRITZ!Box under System → FRITZ!Box Users, add a user of its own for Mira with only the right **Telephony**. Then switch on the skill `telefon`, most easily on Mira's page under Capabilities → Skills → telefon → **Switch on**, with user and password; **Test connection** shows how many contacts Mira reads. Or in `mira.yaml`:
+
+```yaml
+skills:
+  telefon:
+    user: mira
+    password: ${MIRA_SKILL_TELEFON_PASSWORD}
+    fritzbox: 192.168.178.1        # only if the FRITZ!Box has another address
+    telefonbuch: Telefonbuch       # only for another book or several, comma-separated
+```
+
+Without the skill Mira still calls devices in the house and numbers, she just does not know names. The Skills page shows with the skill which phone book Mira reads and when she last did, with a link to the FRITZ!Box; it never shows the contacts.
+
 ## Looking things up and hard questions
 
 Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.

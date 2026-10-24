@@ -81,6 +81,17 @@ type SkillInfo struct {
 	MCP       *MCPInfo       `json:"mcp,omitempty"`
 	Agents    []string       `json:"agents,omitempty"`
 	Guide     string         `json:"guide,omitempty"`
+	// Phonebook is the skill telefon's phone book.
+	Phonebook *PhonebookInfo `json:"phonebook,omitempty"`
+}
+
+// PhonebookInfo is what the page shows of the phone book: the box to open,
+// the books read and when, never a contact.
+type PhonebookInfo struct {
+	Link   string   `json:"link"`
+	Books  []string `json:"books,omitempty"`
+	ReadAt string   `json:"read_at,omitempty"`
+	Error  string   `json:"error,omitempty"`
 }
 
 // SettingInfo is a skill's setting; a secret one shows only whether it is set.

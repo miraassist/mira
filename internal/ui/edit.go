@@ -127,6 +127,10 @@ type MCPCheckResult struct {
 	Tools   int      `json:"tools"`
 	Missing []string `json:"missing,omitempty"`
 	Error   string   `json:"error,omitempty"`
+	// Contacts and Books are a phone book's (the skill telefon), instead of
+	// a server's tools.
+	Contacts int      `json:"contacts,omitempty"`
+	Books    []string `json:"books,omitempty"`
 }
 
 func (h *Handler) editRoutes() {

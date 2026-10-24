@@ -492,6 +492,30 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 
 ▶ [Das Lieblingsradio: Mira fragt nach dem Sender, merkt ihn sich und spielt ihn](https://mira-assist.com/videos/mira-chat-de.mp4#t=717)
 
+## Telefonieren
+
+„Ruf Oma an.“ – „Ruf Ben auf dem Handy an.“ – „Ruf die Küche an.“ – „Ruf 0721 123456 an.“ Mira ruft vom Satelliten aus an, an dem du sprichst. Das geht an einem Echo Show oder Echo mit TECHO5, der als IP-Telefon an deiner FRITZ!Box angemeldet ist (siehe die Anleitung von TECHO5, „A SIP server at home“).
+
+- **Namen** findet Mira im Telefonbuch der FRITZ!Box, also da, wo auch deine DECT-Telefone nachschauen. „Oma“ findet „Oma Erika“; passen mehrere, fragt Mira nach. Hat ein Kontakt mehrere Nummern, nimmt sie die Hauptnummer, oder die, die du nennst („auf dem Handy“). Faxnummern wählt sie nie.
+- **Geräte im Haus** („Ruf die Küche an“) ruft Mira über die Gegensprechanlage der TECHO5-Geräte an, ganz ohne Telefonleitung.
+- Mira wählt sofort, wenn klar ist, wen du meinst, und sagt, wen sie anruft, nie die Nummer. Auflegen geht am Gerät wie gewohnt.
+- Ist das Telefon des Satelliten gerade nicht an der FRITZ!Box angemeldet, wählt Mira nicht und sagt, woran es liegt (noch keine Anmeldung, Passwort falsch, FRITZ!Box nicht erreichbar).
+- Anrufen geht nur per Sprache am Satelliten, nie per Telegram, aus Aufgaben oder Zeitplänen.
+- Die Kontakte bleiben in der FRITZ!Box; auf den Geräten landen keine.
+
+**Einrichten:** In der FRITZ!Box unter System → FRITZ!Box-Benutzer einen eigenen Benutzer für Mira anlegen, nur mit dem Recht **Telefonie**. Dann den Skill `telefon` einschalten, am einfachsten auf Miras Seite unter Fähigkeiten → Skills → telefon → **Einschalten**, mit Benutzer und Passwort; **Verbindung testen** zeigt, wie viele Kontakte Mira liest. Oder in der `mira.yaml`:
+
+```yaml
+skills:
+  telefon:
+    user: mira
+    password: ${MIRA_SKILL_TELEFON_PASSWORD}
+    fritzbox: 192.168.178.1        # nur nötig, wenn die FRITZ!Box eine andere Adresse hat
+    telefonbuch: Telefonbuch       # nur nötig für ein anderes oder mehrere Bücher, mit Komma
+```
+
+Ohne den Skill ruft Mira weiter Geräte im Haus und Nummern an, nur Namen kennt sie dann nicht. Auf der Skills-Seite steht beim Skill, welches Telefonbuch Mira liest und wann zuletzt, mit einem Link zur FRITZ!Box; die Kontakte selbst zeigt sie nicht.
+
 ## Im Internet nachschauen und schwierige Fragen
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.

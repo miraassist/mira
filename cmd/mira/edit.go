@@ -616,6 +616,9 @@ func (e *editor) CheckMCP(ctx context.Context, name string, c ui.MCPCheckRequest
 	if err != nil {
 		return ui.MCPCheckResult{Error: err.Error()}
 	}
+	if name == phoneSkill {
+		return e.checkPhonebook(ctx, c)
+	}
 	settings := e.checkSettings(name, f, ui.SkillEdit{Settings: c.Settings})
 	loaded, problems := skills.Load([]string{filepath.Dir(dir)}, map[string]map[string]any{name: settings})
 	if len(problems) > 0 {
@@ -633,6 +636,33 @@ func (e *editor) CheckMCP(ctx context.Context, name string, c ui.MCPCheckRequest
 	for _, st := range host.Status() {
 		res.OK, res.Tools, res.Missing, res.Error = st.Connected, st.Tools, st.Missing, st.Error
 	}
+	return res
+}
+
+// checkPhonebook reads the FRITZ!Box's phone book with the form's settings,
+// else what Mira loaded: how many contacts, never which.
+func (e *editor) checkPhonebook(ctx context.Context, c ui.MCPCheckRequest) ui.MCPCheckResult {
+	settings := map[string]any{}
+	for k, v := range e.a.cfg.Skills.Enabled[phoneSkill] {
+		settings[k] = v
+	}
+	for k, v := range c.Settings {
+		if strings.TrimSpace(v) != "" {
+			settings[k] = v
+		}
+	}
+	f := fritzOf(settings)
+	if f.User == "" || f.Password == "" {
+		return ui.MCPCheckResult{Error: "Es fehlen Benutzer und Passwort der FRITZ!Box."}
+	}
+	began := time.Now()
+	books, contacts, err := f.Read(ctx)
+	res := ui.MCPCheckResult{MS: time.Since(began).Milliseconds()}
+	if err != nil {
+		res.Error = err.Error()
+		return res
+	}
+	res.OK, res.Contacts, res.Books = true, len(contacts), books
 	return res
 }
 
