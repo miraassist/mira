@@ -187,10 +187,41 @@ Sag das Wetter für {{ort}}.
 	if err := e.SaveSkill(ctx, "wetter", ui.SkillEdit{Enabled: true, Parts: []string{"description"}}); err == nil {
 		t.Error("an empty description was written")
 	}
+	// switching off keeps the settings; switching on again brings them back
 	if err := e.SaveSkill(ctx, "wetter", ui.SkillEdit{Enabled: false}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(read(t, path), "wetter") {
-		t.Error("still switched on")
+	if out := read(t, path); !strings.Contains(out, "enabled: false") || !strings.Contains(out, "ort: Karlsruhe") {
+		t.Errorf("file:\n%s", out)
+	}
+	if s := e.State(ctx).Skills["wetter"]; s.Enabled || s.Settings["ort"] != "Karlsruhe" {
+		t.Errorf("state %+v", s)
+	}
+	if err := e.SaveSkill(ctx, "wetter", ui.SkillEdit{Enabled: true, Settings: map[string]string{"ort": "Karlsruhe"}}); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); strings.Contains(out, "enabled") || !strings.Contains(out, "${MIRA_SKILL_WETTER_KEY}") {
+		t.Errorf("file:\n%s", out)
+	}
+}
+
+func TestBE09_MirasOwnSkillCanBeSwitchedOff(t *testing.T) {
+	a, e, path := editApp(t)
+	a.cfg.Skills.Dirs = []string{"../../skills"}
+	ctx := context.Background()
+	if err := e.SaveSkill(ctx, "kochen", ui.SkillEdit{Enabled: false}); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); !strings.Contains(out, "kochen:") || !strings.Contains(out, "enabled: false") {
+		t.Errorf("file:\n%s", out)
+	}
+	if e.State(ctx).Skills["kochen"].Enabled {
+		t.Error("still on")
+	}
+	if err := e.SaveSkill(ctx, "kochen", ui.SkillEdit{Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(read(t, path), "kochen") {
+		t.Error("an own skill that is on needs no line")
 	}
 }

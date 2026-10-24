@@ -298,7 +298,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	}
 	for k, decl := range m.Settings {
 		if decl.Required && vals[k] == "" {
-			return Skill{}, problem("required", k, decl.Description)
+			return Skill{}, problem("required", k, decl.Description, meta.Name)
 		}
 	}
 	for i, sc := range m.Schedules {

@@ -18,7 +18,7 @@ now change what is there and add new ones, without opening a file on the server.
   be written (the container: `/etc/mira`), Mira uses `mira.yaml` in the data folder (`MIRA_DATA`), reads it from
   there at start and creates it at the first save. A file that exists but cannot be written: the page says so, and
   editing goes by hand only.
-- **Skills:** a skill's settings and whether it is on are in mira.yaml (`skills.enabled`); a skill's instructions,
+- **Skills:** a skill's settings and whether it is on are in mira.yaml (its entry under `skills`, off with `enabled: false`); a skill's instructions,
   agents and thread (target) are in its `SKILL.md`, and the page writes that file, for the user's own skills only.
 - The old overlay of the sections satellites, persons and notifier in Mira's database stays for now (open point).
 
@@ -59,7 +59,7 @@ now change what is there and add new ones, without opening a file on the server.
 
 ## Skills
 
-- **Switch on and off** (`skills.enabled`), and its **settings**: one field per setting, with its description; a
+- **Switch on and off** (`enabled: false` in its entry; switching off keeps the settings, and Mira's own skills can be switched off too, for a replacement), and its **settings**: one field per setting, with its description; a
   secret one goes into the secrets file.
 - **The user's own skills** (in a skill folder other than the bundled one): the instructions (the text of
   `SKILL.md`), the description, the agents, the thread (`target`) and the MCP server (`mcp`), the last three as
@@ -91,6 +91,10 @@ nothing of this.
 4. Bundled skills: only on/off and settings.
 5. Nested parts (thread, MCP, input/output schemas) as YAML text with a check, not as forms.
 6. main is changed in Home Assistant when the integration set it up.
+7. **Skills as entries** (2026-10-24): under `skills`, beside `dirs`, each key is a skill with its settings; without
+   `enabled` it is on, `enabled: false` switches it off and keeps its settings. Mira's own skills are on without an
+   entry and can be switched off, for a replacement of one's own. The old `skills.enabled` is refused with a hint,
+   as `llm` and `routing` were (no users to migrate yet).
 
 ## Open
 

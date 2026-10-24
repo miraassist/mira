@@ -30,8 +30,7 @@ metadata:
 ```yaml
 # mira.yaml: only the skill's settings, as for every skill
 skills:
-  enabled:
-    paperless: { url: http://paperless-mcp:3000/mcp, token: ${PAPERLESS_TOKEN} }
+  paperless: { url: http://paperless-mcp:3000/mcp, token: ${PAPERLESS_TOKEN} }
 ```
 
 - **The fields** are those of an entry under `mcp_servers` (`transport`, `url`, `token`, `command`, `args`, `env`,

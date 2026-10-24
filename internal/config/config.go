@@ -205,13 +205,70 @@ type LLM struct {
 	ReasoningEffort string `yaml:"reasoning_effort"`
 }
 
-// Skills are folders with a SKILL.md (the Agent Skills format). Only the
-// skills under enabled are used, each with its settings.
+// Skills are folders with a SKILL.md (the Agent Skills format). Beside
+// dirs, every key under skills is a skill with its settings; it is on
+// unless it says enabled: false (docs/spec/bearbeiten.md).
 type Skills struct {
 	// Dirs are searched for skill folders, in order; the first match wins.
 	Dirs []string `yaml:"dirs"`
-	// Enabled maps a skill name to its settings, e.g. a calendar URL.
-	Enabled map[string]map[string]any `yaml:"enabled"`
+	// Enabled maps a skill that is on to its settings, e.g. a calendar URL.
+	Enabled map[string]map[string]any `yaml:"-"`
+	// Off are the skills the file switches off (enabled: false), also
+	// Mira's own ones that are otherwise always on.
+	Off map[string]bool `yaml:"-"`
+}
+
+// SkillOn is the key that switches a skill on and off; no setting may be
+// called so.
+const SkillOn = "enabled"
+
+// UnmarshalYAML reads dirs and the skills beside it.
+func (s *Skills) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("line %d: skills must be a mapping", n.Line)
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		key, val := n.Content[i].Value, n.Content[i+1]
+		switch {
+		case key == "dirs":
+			if err := val.Decode(&s.Dirs); err != nil {
+				return fmt.Errorf("skills.dirs: %w", err)
+			}
+			continue
+		case key == SkillOn:
+			return errors.New("skills.enabled is gone: write each skill straight under skills, with its settings, e.g. skills: { abfall: { calendar: … } }; enabled: false switches one off")
+		}
+		settings := map[string]any{}
+		if val.Kind != yaml.ScalarNode || val.Tag != "!!null" {
+			if err := val.Decode(&settings); err != nil {
+				return fmt.Errorf("skills.%s: a skill takes its settings as a mapping: %w", key, err)
+			}
+		}
+		on := true
+		if v, ok := settings[SkillOn]; ok {
+			b, isBool := v.(bool)
+			if !isBool {
+				return fmt.Errorf("skills.%s.enabled must be true or false", key)
+			}
+			on = b
+			delete(settings, SkillOn)
+		}
+		if !on {
+			if s.Off == nil {
+				s.Off = map[string]bool{}
+			}
+			s.Off[key] = true
+			continue
+		}
+		if s.Enabled == nil {
+			s.Enabled = map[string]map[string]any{}
+		}
+		if len(settings) == 0 {
+			settings = nil
+		}
+		s.Enabled[key] = settings
+	}
+	return nil
 }
 
 // MainModel is the model every config has; an agent without a model takes

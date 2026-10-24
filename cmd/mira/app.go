@@ -159,13 +159,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.llm = a.models[config.MainModel]
 
 	// The goals Mira works towards in threads come as skills too and are
-	// always on when their folder is there (builtinTargets).
+	// on when their folder is there (builtinTargets), unless mira.yaml
+	// switches one off (enabled: false), for a replacement of one's own.
 	enabled := map[string]map[string]any{}
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
 	}
 	for _, name := range append(builtinTargets(), builtinMail()...) {
-		if _, ok := enabled[name]; !ok && skills.Exists(cfg.Skills.Dirs, name) {
+		if _, ok := enabled[name]; !ok && !cfg.Skills.Off[name] && skills.Exists(cfg.Skills.Dirs, name) {
 			enabled[name] = nil
 		}
 	}
@@ -1084,7 +1085,7 @@ func runSkill(parent context.Context, cfg config.Config, name string, index int)
 	defer cancel()
 	sk, ok := a.skills.Get(name)
 	if !ok {
-		return fmt.Errorf("skill %s is not enabled (skills.enabled)", name)
+		return fmt.Errorf("skill %s is not on (skills.%s in mira.yaml)", name, name)
 	}
 	// Home Assistant's persons, as the running agent has them, for
 	// schedules that run per person.

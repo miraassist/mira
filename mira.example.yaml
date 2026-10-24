@@ -202,14 +202,15 @@ agents:
   #   instructions: You get the address of a recipe page; return the steps as a list.
 
 # Skills: folders with a SKILL.md (Agent Skills format) in skills.dirs.
-# Only enabled skills are used. A skill costs one line in the prompt until
-# Mira opens it; secret settings never reach a model.
+# Beside dirs, each key is a skill with its settings; it is on unless it says
+# enabled: false (Mira's own skills, such as kochen, are on without a line).
+# A skill costs one line in the prompt until Mira opens it; secret settings
+# never reach a model.
 skills:
   dirs: [skills]
-  enabled:
-    abfall:
-      calendar: calendar.abfuhrtermine   # the waste calendar in Home Assistant, exposed to Assist
-      types: [Restabfall, Wertstoff]
-    briefing:                            # morning and evening briefing, also on request
-      kalender: Familie                  # the house's calendars; empty = all exposed, personal ones too
-      themen: Deutschland                # news topics for the morning; empty = no news
+  abfall:
+    calendar: calendar.abfuhrtermine   # the waste calendar in Home Assistant, exposed to Assist
+    types: [Restabfall, Wertstoff]
+  briefing:                            # morning and evening briefing, also on request
+    kalender: Familie                  # the house's calendars; empty = all exposed, personal ones too
+    themen: Deutschland                # news topics for the morning; empty = no news

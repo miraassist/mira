@@ -135,8 +135,8 @@ docs/spec/aufgaben.md and docs/system.md.
 
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
 (frontmatter `name`, `description`; Mira's settings, calendars and schedules
-under `metadata.mira`). Enable them under `skills.enabled` with their
-settings. A skill that cannot start (a missing setting, a typo) is left out
+under `metadata.mira`). Enable them under `skills` with their
+settings (`enabled: false` switches one off). A skill that cannot start (a missing setting, a typo) is left out
 and the agent starts anyway: the log says in plain words what is wrong, and
 Home Assistant shows it under Repairs. The guide has a section on writing your own. The prompt lists them in one line each; Mira opens a skill with
 `skill_open` when a question needs it. Skills run no code: they use the

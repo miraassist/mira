@@ -146,14 +146,16 @@ func (e *editor) agentsState(top *yaml.Node, st *ui.EditState) {
 }
 
 func (e *editor) skillsState(top *yaml.Node, st *ui.EditState) {
-	enabled := config.MapGet(config.MapGet(top, "skills"), "enabled")
+	entries := config.MapGet(top, "skills")
 	secrets, _ := e.file.Secrets.Load()
 	names := map[string]bool{}
 	for _, info := range skills.Available(e.a.cfg.Skills.Dirs, nil) {
 		names[info.Name] = true
 	}
-	for _, n := range config.Keys(enabled) {
-		names[n] = true
+	for _, n := range config.Keys(entries) {
+		if n != "dirs" {
+			names[n] = true
+		}
 	}
 	for name := range names {
 		dir := skills.Find(e.a.cfg.Skills.Dirs, name)
@@ -165,9 +167,8 @@ func (e *editor) skillsState(top *yaml.Node, st *ui.EditState) {
 			st.Skills[name] = ui.SkillEdit{ReadOnly: err.Error()}
 			continue
 		}
-		s := ui.SkillEdit{Enabled: config.MapGet(enabled, name) != nil || slices.Contains(alwaysOn(), name),
-			Settings: map[string]string{}, Own: !bundled(dir)}
-		values := config.MapGet(enabled, name)
+		values := config.MapGet(entries, name)
+		s := ui.SkillEdit{Enabled: skillOn(values, name), Settings: map[string]string{}, Own: !bundled(dir)}
 		for _, d := range f.SettingDecls() {
 			def := ui.SettingDef{Name: d.Name, Description: d.Description, Required: d.Required, Secret: d.Secret}
 			v := config.MapGet(values, d.Name)
@@ -489,9 +490,6 @@ func (e *editor) SaveSkill(ctx context.Context, name string, s ui.SkillEdit) err
 	if err != nil {
 		return err
 	}
-	if !s.Enabled && slices.Contains(alwaysOn(), name) {
-		return fmt.Errorf("Der Skill „%s“ gehört zu Mira und ist immer an.", name)
-	}
 	decls := f.SettingDecls()
 	secrets := map[string]string{}
 	for _, d := range decls {
@@ -517,16 +515,21 @@ func (e *editor) SaveSkill(ctx context.Context, name string, s ui.SkillEdit) err
 		writeSkill = true
 	}
 	err = e.change(secrets, func(top *yaml.Node) error {
-		enabled := config.MapChild(config.MapChild(top, "skills"), "enabled")
-		if !s.Enabled {
-			config.MapDelete(enabled, name)
-			return nil
-		}
-		values := config.MapGet(enabled, name)
+		entries := config.MapChild(top, "skills")
+		values := config.MapGet(entries, name)
 		if values == nil || values.Kind != yaml.MappingNode {
 			values = &yaml.Node{Kind: yaml.MappingNode}
 		}
+		// Off keeps the settings; on is the default, so it is no line.
+		if s.Enabled {
+			config.MapDelete(values, config.SkillOn)
+		} else {
+			config.MapSet(values, config.SkillOn, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"})
+		}
 		for _, d := range decls {
+			if !s.Enabled && s.Settings == nil {
+				break // switching off alone leaves the settings as they are
+			}
 			v := strings.TrimSpace(s.Settings[d.Name])
 			switch {
 			case d.Secret && v != "":
@@ -542,10 +545,14 @@ func (e *editor) SaveSkill(ctx context.Context, name string, s ui.SkillEdit) err
 				config.MapSet(values, d.Name, config.Scalar(v))
 			}
 		}
-		if len(values.Content) == 0 {
-			config.MapSet(enabled, name, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"})
-		} else {
-			config.MapSet(enabled, name, values)
+		switch {
+		case len(values.Content) > 0:
+			config.MapSet(entries, name, values)
+		case slices.Contains(alwaysOn(), name):
+			// Mira's own skills are on without a line.
+			config.MapDelete(entries, name)
+		default:
+			config.MapSet(entries, name, &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle})
 		}
 		return nil
 	})
@@ -671,6 +678,16 @@ func (e *editor) change(secrets map[string]string, fn func(top *yaml.Node) error
 
 // alwaysOn are the skills that are on without an entry.
 func alwaysOn() []string { return append(builtinTargets(), builtinMail()...) }
+
+// skillOn says whether a skill is on, by its entry under skills: there and
+// not enabled: false, or one of Mira's own without an entry.
+func skillOn(entry *yaml.Node, name string) bool {
+	if entry == nil {
+		return slices.Contains(alwaysOn(), name)
+	}
+	on := config.MapGet(entry, config.SkillOn)
+	return on == nil || on.Value != "false"
+}
 
 // bundled says whether a skill's folder is in Mira's own skills folder,
 // which an update replaces.

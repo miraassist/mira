@@ -93,3 +93,35 @@ func TestBE03_SecretsStayOutOfTheFileAndAreEncryptedWithAKey(t *testing.T) {
 		t.Errorf("name %s", n)
 	}
 }
+
+func TestBE10_SkillsAreEntriesThatAreOnUnlessTheySayOff(t *testing.T) {
+	cfg, err := Parse([]byte(`
+models:
+  main: { endpoint: http://x/v1, model: m, privacy: local }
+skills:
+  dirs: [skills, /mine]
+  abfall: { calendar: calendar.abfall, types: [Restabfall] }
+  nachrichten:
+  paperless: { enabled: false, url: http://p/mcp }
+  kochen: { enabled: false }
+  pollen: { enabled: true }
+`), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.Skills
+	if len(s.Dirs) != 2 || s.Enabled["abfall"]["calendar"] != "calendar.abfall" || s.Enabled["pollen"] != nil {
+		t.Errorf("skills %+v", s)
+	}
+	if _, ok := s.Enabled["nachrichten"]; !ok {
+		t.Error("a skill without settings is not on")
+	}
+	if _, ok := s.Enabled["paperless"]; ok || !s.Off["paperless"] || !s.Off["kochen"] {
+		t.Errorf("off %v, enabled %v", s.Off, s.Enabled)
+	}
+	_, err = Parse([]byte("models:\n  main: { endpoint: http://x/v1, model: m, privacy: local }\nskills:\n  enabled:\n    abfall: {}\n"),
+		func(string) (string, bool) { return "", false })
+	if err == nil || !strings.Contains(err.Error(), "skills.enabled is gone") {
+		t.Errorf("old form: %v", err)
+	}
+}

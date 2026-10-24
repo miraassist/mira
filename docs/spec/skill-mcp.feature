@@ -6,7 +6,7 @@ Feature: SM MCP servers in skills
   @step1
   Scenario: SM-01 A skill's server is connected with the skill's settings
     Given a skill with an mcp section whose url and token come from its settings, the token secret
-    And mira.yaml sets them under skills.enabled
+    And mira.yaml sets them in the skill's entry under skills
     When Mira starts
     Then she connects to the server with that url and token
     And the token is in no prompt

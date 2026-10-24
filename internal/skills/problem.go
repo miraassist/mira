@@ -49,7 +49,7 @@ type problemTable map[string]string
 
 var problemTexts = map[i18n.Lang]problemTable{
 	i18n.DE: {
-		"nofolder":       "Es gibt keinen Ordner „%[1]s“ mit einer Datei SKILL.md in %[2]s. Lege ihn dort an, oder nimm „%[1]s“ aus skills.enabled in der mira.yaml.",
+		"nofolder":       "Es gibt keinen Ordner „%[1]s“ mit einer Datei SKILL.md in %[2]s. Lege ihn dort an, oder nimm „%[1]s“ unter skills in der mira.yaml heraus (oder schreib dort enabled: false).",
 		"unreadable":     "Die Datei SKILL.md lässt sich nicht lesen (%s).",
 		"nofront":        "Die Datei SKILL.md muss oben mit einer Zeile --- beginnen; dahinter steht der Kopfbereich mit Name und Beschreibung.",
 		"frontopen":      "Der Kopfbereich in SKILL.md ist nicht geschlossen: nach den Angaben fehlt eine Zeile mit ---.",
@@ -58,7 +58,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"nodesc":         "Im Kopfbereich fehlt die Beschreibung (description).",
 		"nosettings":     "Die Einstellung „%s“ in der mira.yaml gibt es nicht: Dieser Skill hat keine Einstellungen.",
 		"unknownsetting": "Die Einstellung „%s“ in der mira.yaml gibt es bei diesem Skill nicht. Möglich sind: %s.",
-		"required":       "Die Einstellung „%s“ fehlt in der mira.yaml unter skills.enabled. Sie wird gebraucht: %s",
+		"required":       "Die Einstellung „%[1]s“ fehlt in der mira.yaml unter skills.%[3]s. Sie wird gebraucht: %[2]s",
 		"cron":           "Zeitplan %d: Die Zeitangabe (cron) ist ungültig (%s).",
 		"notask":         "Zeitplan %d hat keine Aufgabe (task).",
 		"targetneeds":    "Das Gespräch (target) braucht mindestens ein Feld (fields) und einen Abschluss (finish).",
@@ -79,7 +79,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"notlocal":       "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
 	},
 	i18n.EN: {
-		"nofolder":       "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or remove \"%[1]s\" from skills.enabled in mira.yaml.",
+		"nofolder":       "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or take \"%[1]s\" out from under skills in mira.yaml (or write enabled: false there).",
 		"unreadable":     "The SKILL.md file cannot be read (%s).",
 		"nofront":        "SKILL.md must begin with a line of ---; the header with name and description follows.",
 		"frontopen":      "The header in SKILL.md is not closed: a line with --- is missing after it.",
@@ -88,7 +88,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"nodesc":         "The header has no description.",
 		"nosettings":     "The setting \"%s\" in mira.yaml does not exist: this skill has no settings.",
 		"unknownsetting": "The setting \"%s\" in mira.yaml does not exist for this skill. Possible: %s.",
-		"required":       "The setting \"%s\" is missing in mira.yaml under skills.enabled. It is needed: %s",
+		"required":       "The setting \"%[1]s\" is missing in mira.yaml under skills.%[3]s. It is needed: %[2]s",
 		"cron":           "Schedule %d: the time (cron) is invalid (%s).",
 		"notask":         "Schedule %d has no task.",
 		"targetneeds":    "The conversation (target) needs at least one field (fields) and a finish.",

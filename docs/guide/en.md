@@ -180,8 +180,7 @@ How to set it up:
 3. Switch the skill on in `mira.yaml`:
    ```yaml
    skills:
-     enabled:
-       paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+     paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
    ```
    Set the token as the environment variable `PAPERLESS_TOKEN` for Mira. Then restart Mira.
 
@@ -193,7 +192,7 @@ Good to know:
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
-**More bundled skills.** They run once you list them in `mira.yaml` under `skills.enabled`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
+**More bundled skills.** They run once you list them in `mira.yaml` under `skills`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
 
 | Skill | What you ask | Setting |
 |---|---|---|
@@ -225,7 +224,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
   - `mail`: turns the skill into a mail application (see below).
 - The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`. Where the house is, Mira knows from Home Assistant (Settings → System → General): she puts in `{{ home.latitude }}`, `{{ home.longitude }}` and `{{ home.name }}` when the skill is used; no setting is needed for it.
 
-**3. Switch it on.** A skill runs only when it is listed under `skills.enabled` in `mira.yaml`, with its settings below. If it has none, the name with a colon is enough. Only the bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels switch themselves on.
+**3. Switch it on.** A skill runs only when it is listed under `skills` in `mira.yaml`, with its settings below. If it has none, the name followed by `{}` is enough. `enabled: false` switches it off without losing its settings. The bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels are on without an entry; `enabled: false` switches them off too, say for a replacement of your own.
 
 **Example: watering plants.** The folder `skills/plants` holds the file `SKILL.md`:
 
@@ -258,14 +257,13 @@ In `mira.yaml` you switch it on:
 
 ```yaml
 skills:
-  enabled:
-    plants:
-      plants: "fern every Sunday, cactus on the first Sunday of the month"
+  plants:
+    plants: "fern every Sunday, cactus on the first Sunday of the month"
 ```
 
 Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with `mira skill plants`.
 
-**When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.enabled". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
+**When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.blumen". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
 
 ### A concern with questions back
 
@@ -364,8 +362,7 @@ In `mira.yaml`:
 
 ```yaml
 skills:
-  enabled:
-    paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+  paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
 ```
 
 The skill has the section `mcp` for it (the fields of `mcp_servers`, plus `tools`):
@@ -413,7 +410,7 @@ from today on.
 ```
 
 To get it running:
-1. Switch the skill on under `skills.enabled` (`doctor:`).
+1. Switch the skill on under `skills` (`doctor: {}`).
 2. In Home Assistant, add the IMAP integration with a **search** for the senders, such as `FROM doctolib.de`.
 3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). Mira creates the calendar of the same name.
 

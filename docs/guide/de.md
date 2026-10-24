@@ -184,8 +184,7 @@ So richtest du es ein:
 3. In `mira.yaml` den Skill einschalten:
    ```yaml
    skills:
-     enabled:
-       paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+     paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
    ```
    Den Token setzt du als Umgebungsvariable `PAPERLESS_TOKEN` für Mira. Danach Mira neu starten.
 
@@ -197,7 +196,7 @@ Gut zu wissen:
 
 ▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
-**Weitere mitgelieferte Skills.** Sie laufen, sobald du sie in der `mira.yaml` unter `skills.enabled` einträgst; die meisten brauchen keine Einstellung, weil Mira aus Home Assistant weiß, wo das Haus liegt.
+**Weitere mitgelieferte Skills.** Sie laufen, sobald du sie in der `mira.yaml` unter `skills` einträgst; die meisten brauchen keine Einstellung, weil Mira aus Home Assistant weiß, wo das Haus liegt.
 
 | Skill | Was du fragst | Einstellung |
 |---|---|---|
@@ -229,7 +228,7 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
   - `mail`: macht aus dem Skill eine Mail-Anwendung (siehe unten).
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein. Wo das Haus liegt, weiß Mira aus Home Assistant (Einstellungen → System → Allgemein): `{{ home.latitude }}`, `{{ home.longitude }}` und `{{ home.name }}` setzt sie ein, wenn der Skill gebraucht wird; eine Einstellung dafür ist nicht nötig.
 
-**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills.enabled` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit einem Doppelpunkt. Nur die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete schalten sich selbst ein.
+**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
 
 **Beispiel: Blumen gießen.** Der Ordner `skills/blumen` enthält die Datei `SKILL.md`:
 
@@ -262,14 +261,13 @@ In der `mira.yaml` wird der Skill eingeschaltet:
 
 ```yaml
 skills:
-  enabled:
-    blumen:
-      pflanzen: "Farn jeden Sonntag, Kaktus am ersten Sonntag im Monat"
+  blumen:
+    pflanzen: "Farn jeden Sonntag, Kaktus am ersten Sonntag im Monat"
 ```
 
 Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet sie aus der Liste, und sonntags um 10 Uhr meldet sie sich von selbst. Den Zeitplan probierst du mit `mira skill blumen` sofort aus.
 
-**Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.enabled“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
+**Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.blumen“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
 
 ### Ein Anliegen mit Rückfragen
 
@@ -369,8 +367,7 @@ In `mira.yaml`:
 
 ```yaml
 skills:
-  enabled:
-    paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
+  paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN} }
 ```
 
 Im Skill steht dazu der Abschnitt `mcp` (dieselben Felder wie unter `mcp_servers`, dazu `tools`):
@@ -417,7 +414,7 @@ Fragt jemand nach Arztterminen, lies sie mit calendar_events von heute an.
 ```
 
 So kommt es zum Laufen:
-1. Den Skill unter `skills.enabled` einschalten (`arzt:`).
+1. Den Skill unter `skills` einschalten (`arzt: {}`).
 2. In Home Assistant die IMAP-Integration hinzufügen, mit einer **Suche** nach den Absendern, etwa `FROM doctolib.de`.
 3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legt Mira an.
 
