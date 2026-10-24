@@ -218,7 +218,7 @@ func TestCancelAndRemember(t *testing.T) {
 	e.m.opts.Finishers["memory.save"] = MemorySave(e.st, i18n.DE)
 	e.m.Start(ctx, inv, "merken", "Merk dir mal was")
 	out, err := e.m.Fill(ctx, inv, map[string]string{"fact": "Ungewöhnlich ist Licht zwischen 0 und 6 Uhr."})
-	if err != nil || !strings.Contains(out, "Gemerkt") {
+	if err != nil || !strings.Contains(out, "gemerkt") {
 		t.Fatalf("remember: %q %v", out, err)
 	}
 	facts, _ := e.st.AllFacts(ctx)

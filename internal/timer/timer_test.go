@@ -161,7 +161,7 @@ func TestSleepTimerSaysWhatIsMissing(t *testing.T) {
 		t.Errorf("saved anyway: %v", ha.saved)
 	}
 	ha.fail = errors.New("too many timers")
-	if out := run(t, by[ToolSleep], anna, `{"minutes":5}`); !strings.Contains(out, "konnte nicht angelegt werden: too many timers") {
+	if out := run(t, by[ToolSleep], anna, `{"minutes":5}`); !strings.Contains(out, "Anlegen fehlgeschlagen: too many timers") {
 		t.Errorf("failure: %q", out)
 	}
 }

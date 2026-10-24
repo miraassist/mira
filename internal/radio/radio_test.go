@@ -93,7 +93,7 @@ func TestNothingPlaysWhenItCannotBeSure(t *testing.T) {
 		"unknown room":     {swr3, one, "wohnzimmer", `{"station":"SWR3","room":"Keller"}`, nil, "welchem Raum"},
 		"no speaker":       {swr3, one, "kueche", `{"station":"SWR3"}`, nil, "kein Lautsprecher"},
 		"several speakers": {swr3, two, "wohnzimmer", `{"station":"SWR3"}`, nil, "mehrere Lautsprecher"},
-		"no station":       {nil, one, "wohnzimmer", `{"station":"Nix"}`, nil, "keinen Sender"},
+		"no station":       {nil, one, "wohnzimmer", `{"station":"Nix"}`, nil, "Kein Sender"},
 		"several stations": {several, one, "wohnzimmer", `{"station":"Rock"}`, nil, "Rock Antenne; Rock FM"},
 		"search broken":    {nil, one, "wohnzimmer", `{"station":"SWR3"}`, errors.New("boom"), "Radio Browser"},
 	} {

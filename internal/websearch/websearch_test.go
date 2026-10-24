@@ -115,7 +115,7 @@ func TestFallback(t *testing.T) {
 			continue
 		}
 		_, err := tool.Run(context.Background(), tools.Invocation{Name: ToolSearch, Args: json.RawMessage(`{"query":"x"}`)})
-		if err == nil || !strings.Contains(err.Error(), "do not guess") {
+		if err == nil || !strings.Contains(err.Error(), "Do not guess") {
 			t.Errorf("tool error %v", err)
 		}
 	}

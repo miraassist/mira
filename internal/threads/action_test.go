@@ -83,7 +83,7 @@ func TestActionFinishSetsAndUndoes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(out, "Erledigt: esphome.show_alarm_set") || len(ha.calls) != 1 {
+	if !strings.HasPrefix(out, "Ergebnis: erledigt: esphome.show_alarm_set") || len(ha.calls) != 1 {
 		t.Fatalf("out = %q, calls = %v", out, ha.calls)
 	}
 	if d := ha.data[0]; d["time"] != "06:00" || d["label"] != "Mira" || d["days"] != "" {
@@ -132,7 +132,7 @@ func TestActionFinishForAKnownPerson(t *testing.T) {
 	bed.Person, bed.Place, bed.Area = "anna", "person:anna", "schlafzimmer"
 	m.Start(ctx, bed, "wecker", "Weck mich morgen um 6")
 	out, err := m.Fill(ctx, bed, map[string]string{"time": "06:00"})
-	if err != nil || !strings.HasPrefix(out, "Erledigt: esphome.show_alarm_set") {
+	if err != nil || !strings.HasPrefix(out, "Ergebnis: erledigt: esphome.show_alarm_set") {
 		t.Fatalf("bedroom: %q %v, calls %v", out, err, ha.calls)
 	}
 

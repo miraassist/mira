@@ -39,7 +39,7 @@ var catalog = map[i18n.Lang]texts{
 		memorySearchQuery: "Suchbegriffe.",
 		// Said this bluntly on purpose: with a plain "nothing found", local
 		// models fill the gap with a plausible guess.
-		memoryNothing:      "Nichts gefunden. Dazu ist nichts gespeichert, du weißt es also nicht. Sag dem Nutzer genau das und rate nicht.",
+		memoryNothing:      "Ergebnis: nichts gespeichert. Mira weiß dazu nichts; nicht raten.",
 		memoryForgetDesc:   "Löscht eine gespeicherte Tatsache anhand ihrer id (aus memory_search).",
 		memoryForgotten:    "Gelöscht.",
 		noSuchFact:         "keine Tatsache mit dieser id",
@@ -104,7 +104,7 @@ var catalog = map[i18n.Lang]texts{
 		memorySaved:        "Saved in the house's memory (id %s).",
 		memorySearchDesc:   "Searches the saved facts about the household and the user.",
 		memorySearchQuery:  "Search terms.",
-		memoryNothing:      "Nothing found. Nothing about this is saved, so you do not know it. Tell the user exactly that and do not guess.",
+		memoryNothing:      "Result: nothing saved. Mira knows nothing about it; do not guess.",
 		memoryForgetDesc:   "Deletes a saved fact by its id (from memory_search).",
 		memoryForgotten:    "Deleted.",
 		noSuchFact:         "no fact with this id",
