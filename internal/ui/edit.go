@@ -23,6 +23,8 @@ type Editor interface {
 	SaveSkill(ctx context.Context, name string, s SkillEdit) error
 	// CheckMCP connects to a skill's MCP server with what the form says.
 	CheckMCP(ctx context.Context, skill string, c MCPCheckRequest) MCPCheckResult
+	// ModelContext asks a model's server how much context the model has.
+	ModelContext(ctx context.Context, c ModelContextRequest) ModelContextResult
 	// Restart starts Mira anew, after the answer went out.
 	Restart()
 }
@@ -120,6 +122,22 @@ type MCPCheckRequest struct {
 	Settings map[string]string `json:"settings,omitempty"`
 }
 
+// ModelContextRequest is a model as the form has it; an empty token takes
+// the one the model named Name has.
+type ModelContextRequest struct {
+	Name     string `json:"name,omitempty"`
+	Endpoint string `json:"endpoint"`
+	Model    string `json:"model"`
+	Token    string `json:"token,omitempty"`
+}
+
+// ModelContextResult is the context the server said, and where it said it;
+// Tokens 0 when it did not.
+type ModelContextResult struct {
+	Tokens int    `json:"tokens"`
+	From   string `json:"from,omitempty"`
+}
+
 // MCPCheckResult is how the connection went.
 type MCPCheckResult struct {
 	OK      bool     `json:"ok"`
@@ -163,6 +181,7 @@ func (h *Handler) editRoutes() {
 		return e.SaveSkill(ctx, name, s)
 	})))
 	h.mux.HandleFunc("POST /v1/ui/edit/skills/{name}/mcp-check", h.auth(h.mcpCheck))
+	h.mux.HandleFunc("POST /v1/ui/edit/model-context", h.auth(h.modelContext))
 	h.mux.HandleFunc("POST /v1/ui/restart", h.auth(h.restart))
 }
 
@@ -217,6 +236,21 @@ func (h *Handler) mcpCheck(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
 	defer cancel()
 	writeJSON(w, http.StatusOK, h.opts.Editor.CheckMCP(ctx, r.PathValue("name"), c))
+}
+
+func (h *Handler) modelContext(w http.ResponseWriter, r *http.Request) {
+	if h.opts.Editor == nil {
+		writeError(w, http.StatusNotFound, "editing is not available")
+		return
+	}
+	var c ModelContextRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&c); err != nil || c.Endpoint == "" || c.Model == "" {
+		writeError(w, http.StatusBadRequest, "endpoint and model are needed")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
+	defer cancel()
+	writeJSON(w, http.StatusOK, h.opts.Editor.ModelContext(ctx, c))
 }
 
 func (h *Handler) restart(w http.ResponseWriter, r *http.Request) {

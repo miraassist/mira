@@ -16,6 +16,7 @@ PROVIDERS = {
     "gemini": ("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai"),
     "openrouter": ("OpenRouter", "https://openrouter.ai/api/v1"),
     "mistral": ("Mistral", "https://api.mistral.ai/v1"),
+    "anthropic": ("Anthropic", "https://api.anthropic.com/v1"),
 }
 CUSTOM = "custom"
 HA_PREFIX = "ha:"
@@ -30,6 +31,7 @@ _HA_SOURCES = {
     "openai_conversation": ("openai", "chat_model"),
     "google_generative_ai_conversation": ("gemini", "chat_model"),
     "open_router": ("openrouter", "model"),
+    "anthropic": ("anthropic", "chat_model"),
     "ollama": (None, "model"),
 }
 

@@ -265,9 +265,7 @@ func (c *Client) Health(ctx context.Context) error {
 		if err != nil {
 			continue
 		}
-		if c.apiKey != "" {
-			req.Header.Set("Authorization", "Bearer "+c.apiKey)
-		}
+		SetAuth(req, c.apiKey)
 		resp, err := c.http.Do(req)
 		if err != nil {
 			continue

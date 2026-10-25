@@ -759,10 +759,10 @@ docker run -d --name mira --restart unless-stopped --network host \
 **3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**. Der Dialog zeigt eine Übersicht: was schon gewählt ist und was noch fehlt. Von dort aus wählst du, und jeder Schritt führt zurück zur Übersicht:
 - **KI-Modell (LLM)**, mit dem Mira denkt:
   - **Aus Home Assistant**: eine KI-Integration, die du schon hast; nichts weiter einzugeben.
-  - **OpenAI, Google Gemini, OpenRouter, Mistral**: dein API-Schlüssel vom Anbieter.
+  - **OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic**: dein API-Schlüssel vom Anbieter.
   - **Eigener Server**: seine Adresse aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
 
-  Dann das Modell aus der Liste. Mira probiert es gleich aus.
+  Dann das Modell aus der Liste. Mira probiert es gleich aus und fragt den Anbieter, wie viel Kontext das Modell hat; das steht danach auf ihrer Seite unter Modelle. Sagt der Anbieter es nicht (OpenAI), trägst du es dort ein.
 - **Mira verwenden in**: die Assistenten, in denen Mira antwortet; der bevorzugte ist schon angehakt.
 - **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt. Fertig.
 

@@ -52,6 +52,9 @@ type LLM struct {
 	BaseURL string `json:"base_url"`
 	Model   string `json:"model"`
 	APIKey  string `json:"api_key,omitempty"`
+	// ContextTokens is the context the server said the model has, asked
+	// once at setup; 0 when it did not say.
+	ContextTokens int `json:"context_tokens,omitempty"`
 }
 
 // Settings is what setup keeps.
@@ -133,6 +136,9 @@ func Apply(cfg config.Config, s Settings) config.Config {
 			main.Privacy, main.Parallel = config.PrivacyLocal, 1
 		}
 		main.PinSlots = nil
+		if l.ContextTokens > 0 {
+			main.ContextTokens = l.ContextTokens
+		}
 		main.CachePrompt = local
 		main.WarmupOnStart, main.WarmupOnPrefixChange = local, local
 		models := make(map[string]config.LLM, len(cfg.Models))

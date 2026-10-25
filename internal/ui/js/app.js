@@ -490,6 +490,17 @@ class MiraEditor extends Light {
       edited();
     } catch (err) { this.e = { ...this.e, error: err.message }; }
   }
+  // findContext asks the model's server how much context the model has and
+  // puts it into the field, where it can still be changed.
+  async findContext() {
+    const f = this.e.form;
+    if (!f.endpoint || !f.model) return;
+    this.e = { ...this.e, context: { wait: true } };
+    try {
+      const r = await api("POST", "/v1/ui/edit/model-context", { name: this.e.name || "", endpoint: f.endpoint, model: f.model, token: f.token || "" });
+      this.e = { ...this.e, context: r, form: r.tokens ? { ...this.e.form, context_tokens: r.tokens } : this.e.form };
+    } catch (err) { this.e = { ...this.e, context: { tokens: 0 } }; }
+  }
   async checkMCP() {
     this.e = { ...this.e, mcp: { wait: true } };
     try {
@@ -516,7 +527,9 @@ class MiraEditor extends Light {
       <div class="grid">
         ${name === "main" ? nothing : this.field(T.ed_name, "name", { placeholder: "smart" })}
         ${this.field(T.mod_endpoint, "endpoint", { placeholder: "https://…/v1", disabled: locked })}
-        ${this.field(T.mod_model, "model", { disabled: locked })}
+        <label>${T.mod_model}</label>
+        <input .value=${f.model ?? ""} ?disabled=${locked} @input=${ev => this.set("model", ev.target.value)}
+          @change=${() => { if (!this.e.form.context_tokens) this.findContext(); }}>
         <label>${T.mod_privacy}</label><select ?disabled=${locked} @change=${ev => this.set("privacy", ev.target.value)}>
           ${opts([["local", T.privacy_local], ["cloud", T.privacy_cloud]], f.privacy)}</select>
         <label>${T.mod_token}</label><input type="password" autocomplete="new-password" ?disabled=${locked} .value=${f.token || ""}
@@ -526,7 +539,12 @@ class MiraEditor extends Light {
         ${this.field(T.mod_parallel, "parallel", { type: "number", disabled: locked })}
         <label>${T.mod_fallback}</label><select ?disabled=${locked} @change=${ev => this.set("fallback", ev.target.value)}>
           ${opts([["", "–"], ...others.map(n => [n, n])], f.fallback)}</select>
-        ${this.field(T.ed_context_tokens, "context_tokens", { type: "number", disabled: locked })}
+        <label>${T.ed_context_tokens}</label>
+        <div><div class="row"><input type="number" .value=${f.context_tokens ?? ""} ?disabled=${locked}
+            @input=${ev => this.set("context_tokens", ev.target.value)}>
+          ${locked ? nothing : html`<button class="secondary" @click=${ev => { ev.preventDefault(); this.findContext(); }}>${T.ed_context_find}</button>`}</div>
+          ${this.e.context ? html`<div class="hint">${this.e.context.wait ? T.loading : this.e.context.tokens
+            ? T.ed_context_found(this.e.context.from) : html`<span class="warn">${T.ed_context_unknown}</span>`}</div>` : nothing}</div>
         <label>${T.mod_reasoning}</label><select ?disabled=${locked} @change=${ev => this.set("reasoning_effort", ev.target.value)}>
           ${opts([["", "–"], ["none", "none"], ["low", "low"], ["medium", "medium"], ["high", "high"]], f.reasoning_effort)}</select>
         ${this.field(T.mod_temperature, "temperature", { disabled: locked, placeholder: "0.7" })}

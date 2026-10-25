@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -209,6 +210,7 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "Mira has no model yet; choose one"})
 		return
 	}
+	h.contextOf(r.Context(), req.LLM)
 	token, err := Pair(r.Context(), h.Store, req.Code, h.now(), req.HAURL, req.HAToken, req.LLM)
 	if errors.Is(err, ErrBadCode) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
@@ -282,6 +284,7 @@ func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	h.contextOf(r.Context(), req.LLM)
 	if err := Save(r.Context(), h.Store, req.HAURL, req.HAToken, req.LLM); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -352,9 +355,9 @@ func (h *Handler) call(ctx context.Context, method, baseURL, path, apiKey string
 		return nil, &ModelError{Reason: "unreachable", Detail: err.Error()}
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
+	// Bearer for the OpenAI-compatible API; Anthropic's /models also wants
+	// its own header (llm.SetAuth).
+	llm.SetAuth(req, apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, &ModelError{Reason: "unreachable", Detail: err.Error()}
@@ -461,6 +464,18 @@ func (h *Handler) probe(ctx context.Context, l LLM) error {
 func mentionsModel(s string) bool {
 	s = strings.ToLower(s)
 	return strings.Contains(s, "model")
+}
+
+// contextOf asks the model's server once, at setup, how much context the
+// model has, and keeps it with the model (docs/spec/modelle.md, Context
+// size); a server that does not say leaves it to the default.
+func (h *Handler) contextOf(ctx context.Context, l *LLM) {
+	if l == nil {
+		return
+	}
+	n, from := llm.ContextSize(ctx, h.HTTP, l.BaseURL, l.APIKey, l.Model)
+	l.ContextTokens = n
+	h.Log.Info("context size of the model", "model", l.Model, "tokens", n, "from", from)
 }
 
 // list asks an OpenAI-compatible server for its models.

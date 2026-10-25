@@ -17,6 +17,7 @@ import (
 
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
@@ -663,6 +664,18 @@ func (e *editor) checkPhonebook(ctx context.Context, c ui.MCPCheckRequest) ui.MC
 	}
 	res.OK, res.Contacts, res.Books = true, len(contacts), books
 	return res
+}
+
+// ModelContext asks the model's server how much context it has
+// (docs/spec/modelle.md, Context size), with the form's token or the one
+// the model has.
+func (e *editor) ModelContext(ctx context.Context, c ui.ModelContextRequest) ui.ModelContextResult {
+	key := c.Token
+	if key == "" {
+		key = e.a.cfg.Models[c.Name].APIKey
+	}
+	n, from := llm.ContextSize(ctx, nil, c.Endpoint, key, c.Model)
+	return ui.ModelContextResult{Tokens: n, From: from}
 }
 
 // --- restart and writing ---------------------------------------------------
