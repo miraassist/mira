@@ -45,11 +45,19 @@ class MiraHome extends Light {
     const tries = [
       ["plans", async () => (await api("GET", "/v1/ui/plans")).plans || []],
       // Who looks: their own card "Ich", with how much of their voice is enrolled.
+      // Who looks: their own card, with their voice, their settings and how
+      // much Mira keeps for them.
       ["me", async () => {
         const m = await api("GET", "/v1/ui/me");
-        if (m.person && m.voice) {
-          try { m.samples = (await api("GET", `/v1/ui/voice/${encodeURIComponent(m.person)}`)).samples; } catch (e) { /* without */ }
-        }
+        if (!m.person) return m;
+        const tries = [];
+        if (m.voice) tries.push(api("GET", `/v1/ui/voice/${encodeURIComponent(m.person)}`).then(v => { m.samples = v.samples || 0; }));
+        if (embedded) tries.push(haApi("GET", `${HA_BASE}/settings/me`).then(d => { m.settings = d.settings || {}; }));
+        tries.push(api("GET", "/v1/ui/memory").then(d => {
+          const mine = (d.memories || []).find(x => x.owner === m.person);
+          m.memories = mine ? (mine.facts || []).length : 0;
+        }));
+        await Promise.allSettled(tries);
         return m;
       }],
     ];
@@ -102,12 +110,17 @@ class MiraHome extends Light {
   me() {
     const m = this.facts.me;
     if (!m || !m.person) return nothing;
+    const s = m.settings || {}, lines = [];
+    if (m.voice && m.samples !== undefined)
+      lines.push(m.samples ? T.home_voice_on(m.samples) : html`<span class="warn">${T.home_voice_off}</span>`);
+    if (s.alone_is_me) lines.push(T.home_alone);
+    if (s.accept_from === "persons") lines.push(T.home_accept_persons);
+    if (s.accept_from === "none") lines.push(T.home_accept_none);
+    if (m.memories !== undefined) lines.push(this.link(T.home_memories(m.memories), () => go("memory")));
     return html`<section class="card home-card" role="button" tabindex="0"
       @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter") go("me"); }}>
-      <h2>${T.me_title}</h2>
-      <p class="home-pages">${this.link(m.name || m.person, () => go("me"))}</p>
-      <p class="home-teaser">${T.me_teaser}</p>
-      ${m.voice ? html`<div class="home-facts"><p class="home-line">${m.samples ? T.voice_samples(m.samples) : T.voice_none_self.split(":")[0] + "."}</p></div>` : nothing}
+      <h2>${m.name || m.person}</h2>
+      ${lines.length ? html`<div class="home-facts">${lines.map(l => html`<p class="home-line">${l}</p>`)}</div>` : nothing}
     </section>`;
   }
   render() {

@@ -246,11 +246,16 @@ const I18N = {
   "tab_me": "Ich",
   "tab_person": "Person",
   "me_title": "Ich",
-  "me_teaser": "Deine Einstellungen und deine Stimme.",
   "me_no_person": "Mit deinem Login ist in Home Assistant keine Person verknüpft. Ein Admin kann das unter Einstellungen → Personen nachholen.",
   "card_settings": "Einstellungen",
-  "alone_is_me_long": "Bin ich allein zu Hause, gelten die Satelliten als ich",
-  "alone_is_me_other": "Ist diese Person allein zu Hause, gelten die Satelliten als sie",
+  "alone_is_me_long": "Bist du allein zu Hause, weiß Mira, dass du es bist",
+  "alone_is_me_other": name => `Ist ${name} allein zu Hause, weiß Mira, dass es ${name} ist`,
+  "home_voice_on": n => n === 1 ? "Mira erkennt deine Stimme (1 Satz)." : `Mira erkennt deine Stimme (${n} Sätze).`,
+  "home_voice_off": "Deine Stimme ist noch nicht angelernt.",
+  "home_alone": "Bist du allein zu Hause, weiß Mira, dass du es bist.",
+  "home_accept_persons": "Du nimmst nur Nachrichten von Personen an.",
+  "home_accept_none": "Du nimmst keine Nachrichten an.",
+  "home_memories": n => n === 1 ? "1 persönliche Erinnerung" : `${n} persönliche Erinnerungen`,
   "voice_threshold": "Schwelle für die Stimme",
   "voice_threshold_hint": "Leer: die allgemeine (0,7). Niedriger, wenn diese Stimme oft nicht erkannt wird; höher, wenn sie mit einer anderen verwechselt wird.",
   "voice_title": "Stimme",
@@ -677,11 +682,16 @@ const I18N = {
   "tab_me": "Me",
   "tab_person": "Person",
   "me_title": "Me",
-  "me_teaser": "Your settings and your voice.",
   "me_no_person": "No person in Home Assistant is linked to your login. An admin can do that under Settings → People.",
   "card_settings": "Settings",
-  "alone_is_me_long": "When I am alone at home, the satellites count as me",
-  "alone_is_me_other": "When this person is alone at home, the satellites count as them",
+  "alone_is_me_long": "When you are alone at home, Mira knows it is you",
+  "alone_is_me_other": name => `When ${name} is alone at home, Mira knows it is ${name}`,
+  "home_voice_on": n => n === 1 ? "Mira recognizes your voice (1 sentence)." : `Mira recognizes your voice (${n} sentences).`,
+  "home_voice_off": "Your voice is not enrolled yet.",
+  "home_alone": "When you are alone at home, Mira knows it is you.",
+  "home_accept_persons": "You take messages only from persons.",
+  "home_accept_none": "You take no messages.",
+  "home_memories": n => n === 1 ? "1 personal memory" : `${n} personal memories`,
   "voice_threshold": "Voice threshold",
   "voice_threshold_hint": "Empty: the general one (0.7). Lower when this voice is often not recognized; higher when it is mistaken for another.",
   "voice_title": "Voice",
@@ -1560,7 +1570,7 @@ async function personCard(key, name, self) {
     <h3>${T.card_settings}</h3>
     <div class="grid">
       <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
-      <label title="${self ? T.alone_hint_self : T.alone_hint}">${self ? T.alone_is_me_long : T.alone_is_me_other}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
+      <label title="${self ? T.alone_hint_self : T.alone_hint}">${self ? T.alone_is_me_long : T.alone_is_me_other(esc(name))}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
       ${admin ? `<label>${T.channels}</label><input data-f="channels" list="card-notify" value="${esc(csv(s.channels))}" placeholder="notify.…">
       <label>${T.voice_threshold}</label><input type="number" data-f="voice_threshold" min="0.3" max="0.99" step="0.01" value="${esc(s.voice_threshold || "")}" placeholder="0.7">` : ""}
     </div>
