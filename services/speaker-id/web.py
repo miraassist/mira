@@ -3,6 +3,7 @@
 GET  /             the page: recent utterances, assign each to a speaker
 GET  /api/state    speakers, threshold and recent utterances
 GET  /api/last     the latest utterance
+GET  /api/match    ?text=...&within=10: who said this text just now (docs/spec/sprecher.md)
 POST /api/assign   {"id": "...", "name": "..."}
 POST /api/delete   {"name": "..."}
 """
@@ -29,7 +30,7 @@ button{font:inherit;padding:2px 8px;border:1px solid var(--line);border-radius:4
 <div class="mut" id="meta"></div>
 <h2>Enrolled</h2><div id="speakers"></div>
 <h2>Recent utterances</h2>
-<p class="mut">Only voice prints are kept, no audio. Assign an utterance to a name to enroll it; several per person work best.</p>
+<p class="mut">Only voice prints are kept, no audio. Assign an utterance to a person to enroll it, by the id of the person in Home Assistant (person.<b>anna</b> → anna); several per person work best.</p>
 <table><thead><tr><th>Time</th><th>Said</th><th>Result</th><th>Enroll as</th></tr></thead><tbody id="recent"></tbody></table>
 <script>
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -46,7 +47,7 @@ async function load(force){
     const res=u.decision==="unavailable"?`<span class="unavailable">too short (${u.seconds}s)</span>`:
       `<span class="${u.decision}">${esc(u.decision)}</span> ${esc(u.speaker??"")} ${u.speaker?u.score:""}${u.second?` <span class="mut">(2nd ${esc(u.second)} ${u.second_score})</span>`:""}<br><span class="mut">${u.seconds}s · ${u.elapsed_ms} ms</span>`;
     const enroll=u.decision==="unavailable"?"":(u.assigned?`✓ ${esc(u.assigned)}`:
-      `<input list="names" id="n-${u.id}" onfocus="editing=true" onblur="editing=false" placeholder="name"> <button onclick="post('api/assign',{id:'${u.id}',name:document.getElementById('n-${u.id}').value})">Save</button>`);
+      `<input list="names" id="n-${u.id}" onfocus="editing=true" onblur="editing=false" placeholder="person id"> <button onclick="post('api/assign',{id:'${u.id}',name:document.getElementById('n-${u.id}').value})">Save</button>`);
     return `<tr><td>${t}</td><td>${esc(u.transcript)}</td><td>${res}</td><td>${enroll}</td></tr>`}).join("")
     +`<datalist id="names">${names.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>`;
 }
@@ -66,6 +67,14 @@ def make_app(store: SpeakerStore) -> web.Application:
         recent = store.snapshot()["recent"]
         return web.json_response(recent[0] if recent else None)
 
+    async def match(request):
+        text = request.query.get("text", "")
+        try:
+            within = min(float(request.query.get("within", "10")), 60.0)
+        except ValueError:
+            within = 10.0
+        return web.json_response(store.match(text, within))
+
     async def assign(request):
         body = await request.json()
         ok = store.assign(str(body.get("id", "")), str(body.get("name", "")))
@@ -80,6 +89,7 @@ def make_app(store: SpeakerStore) -> web.Application:
     app.router.add_get("/", page)
     app.router.add_get("/api/state", state)
     app.router.add_get("/api/last", last)
+    app.router.add_get("/api/match", match)
     app.router.add_post("/api/assign", assign)
     app.router.add_post("/api/delete", delete)
     return app

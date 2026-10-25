@@ -41,3 +41,15 @@ Feature: SP Speaker recognition at the satellite
     Given the service has an accepted utterance of a person id Home Assistant does not have
     When a turn at a satellite asks who is speaking
     Then the voice counts for nothing
+
+  @step3
+  Scenario: SP-07 Two satellites heard the same person
+    Given the service has two accepted utterances of anna with the turn's text
+    When a turn at a satellite asks who is speaking
+    Then it is anna
+
+  @step3
+  Scenario: SP-08 Two satellites disagree
+    Given the service has an accepted utterance of anna and one of ben with the turn's text
+    When a turn at a satellite asks who is speaking
+    Then nobody is, unless the "alone at home" rule names someone

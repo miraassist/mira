@@ -34,6 +34,7 @@ import (
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/speakerid"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
 	"github.com/miraassist/mira/internal/telemetry"
@@ -87,6 +88,9 @@ type app struct {
 	threads *threads.Manager
 	// people are Home Assistant's persons (people.go).
 	people people
+	// speaker asks who said a satellite turn's text; nil without
+	// speaker_id (docs/spec/sprecher.md).
+	speaker *speakerid.Client
 	// runCtx is run's context, for restarts from background work.
 	runCtx context.Context
 	// haUserID is the agent's Home Assistant user, read once (haUser).
@@ -136,7 +140,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		return nil, err
 	}
 	slog.SetDefault(tel.Logger)
-	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath}
+	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath,
+		speaker: speakerid.New(cfg.SpeakerID.URL)}
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {

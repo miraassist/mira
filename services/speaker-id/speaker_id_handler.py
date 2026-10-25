@@ -16,6 +16,9 @@ from speaker_store import SpeakerStore
 
 _LOGGER = logging.getLogger(__name__)
 
+# How long a transcript may wait for its recognition before it goes to Home Assistant without it.
+RECOGNITION_WAIT = 1.0
+
 
 class SpeakerIdEventHandler(AsyncEventHandler):
     """One Home Assistant connection. The transcript is the upstream's, unchanged and not delayed."""
@@ -78,32 +81,37 @@ class SpeakerIdEventHandler(AsyncEventHandler):
             loop = asyncio.get_running_loop()
             recognition = loop.run_in_executor(None, self._recognize, bytes(self.audio))
 
-            # Everything the upstream says goes back as it comes, up to and including the transcript.
-            transcript = ""
+            # Everything the upstream says goes back as it comes, up to the transcript. The transcript
+            # waits for the recognition, which is nearly always done by then (it is ten times faster
+            # than the STT): the conversation agent looks the speaker up by this text the moment Home
+            # Assistant has it, so the utterance has to carry it first (docs/spec/sprecher.md).
+            transcript_event, transcript = Transcript(text="").event(), ""
             while True:
                 reply = await client.read_event()
                 if reply is None:
                     _LOGGER.warning("Upstream closed before a transcript")
-                    await self.write_event(Transcript(text="").event())
+                    break
+                if Transcript.is_type(reply.type):
+                    transcript_event, transcript = reply, Transcript.from_event(reply).text
                     break
                 await self.write_event(reply)
-                if Transcript.is_type(reply.type):
-                    transcript = Transcript.from_event(reply).text
-                    break
             stt_ms = (time.perf_counter() - started) * 1000
             await self._close_upstream()
 
+            u = None
             try:
-                u = await recognition
+                u = await asyncio.wait_for(recognition, timeout=RECOGNITION_WAIT)
+                u.transcript = transcript
             except Exception as err:  # noqa: BLE001 - recognition never breaks the transcript
-                _LOGGER.error("Recognition failed: %s", err, exc_info=True)
-                return True
-            u.transcript = transcript
-            _LOGGER.info(
-                "speaker=%s decision=%s score=%.3f second=%s/%.3f seconds=%.1f embed_ms=%.0f stt_ms=%.0f text=%r",
-                u.speaker, u.decision, u.score, u.second, u.second_score, u.seconds,
-                u.elapsed_ms, stt_ms, transcript,
-            )
+                _LOGGER.error("Recognition failed or late: %r", err)
+            await self.write_event(transcript_event)
+
+            if u is not None:
+                _LOGGER.info(
+                    "speaker=%s decision=%s score=%.3f second=%s/%.3f seconds=%.1f embed_ms=%.0f stt_ms=%.0f text=%r",
+                    u.speaker, u.decision, u.score, u.second, u.second_score, u.seconds,
+                    u.elapsed_ms, stt_ms, transcript,
+                )
             return True
 
         # Anything else (a client asking for streaming, say) is the upstream's business.

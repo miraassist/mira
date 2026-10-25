@@ -48,6 +48,7 @@ type Config struct {
 	Memory     Memory            `yaml:"memory"`
 	Skills     Skills            `yaml:"skills"`
 	WebSearch  WebSearch         `yaml:"web_search"`
+	SpeakerID  SpeakerID         `yaml:"speaker_id"`
 	Agents     Agents            `yaml:"agents"`
 	Telemetry  Telemetry         `yaml:"telemetry"`
 
@@ -591,6 +592,13 @@ type Telemetry struct {
 // integration switches it in its options.
 type WebSearch struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+// SpeakerID is the speaker-id service that recognizes who speaks at a
+// satellite (docs/spec/sprecher.md); without a URL the satellites stay as
+// they are.
+type SpeakerID struct {
+	URL string `yaml:"url"`
 }
 
 // mainDefaults are what main takes for the settings mira.yaml leaves out;

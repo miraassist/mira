@@ -42,7 +42,7 @@ satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio
 - **Decision per utterance:** `accepted` (a profile scored at least the threshold and clearly above the second),
   `uncertain` (two profiles too close), `unknown` (no profile at the threshold) or `unavailable` (under one second
   of speech). **One threshold** for everyone (0.5 to start with), not one per person.
-- **Profiles** are kept per **HA person**, by the person's id (the key of [users](benutzer.md)): several samples
+- **Profiles** are kept per **HA person**, by the person's id (the key of [users](benutzer.md), e.g. `anna`): several samples
   each, the profile is their mean. They are in a JSON file in the service's data directory, outside the repository
   and outside Mira.
 - **No audio is kept.** The service remembers the voice prints and transcripts of the last 30 utterances in memory,
@@ -62,8 +62,11 @@ the utterance with **the turn's text** among the last few seconds:
 - `GET /api/match?text=<the turn's text>&within=10` answers with the person, score and decision of the latest
   utterance with that text no older than 10 seconds, or with nothing.
 - Texts are compared after trimming, folding case and collapsing whitespace.
-- Two utterances with the same text in that window (two satellites hearing the same request) answer nothing: the
-  turn stays anonymous.
+- Several utterances with the same text in that window are several satellites hearing the same request. With
+  TECHO5's "Nearest device answers" (on by default, with a house word) only the nearest device sends its audio, so
+  this is rare; it happens when that fails, with satellites without TECHO5, or with a wake word Home Assistant
+  heard itself. They are the same person heard twice: if all of them are `accepted` for the same person, that
+  person counts; if they disagree or one is not `accepted`, the turn stays anonymous.
 - A turn that did not come through the service (typed in the app, Telegram, a pipeline with another STT) finds
   nothing, which is the same as `unknown`.
 
@@ -93,9 +96,11 @@ timeout (300 ms) and never holds up the turn.
 ## Steps
 
 1. **The service** as a proxy with its own enrollment page: built.
-2. **Matching by text and persons as keys:** `/api/match`, profiles by HA person id, the page offers Home
-   Assistant's persons instead of free names.
-3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-06.
+2. **Matching by text and persons as keys:** `/api/match`; profiles are named by the HA person's id. The service
+   gets no access to Home Assistant for this: the page takes the id as typed, and Mira ignores an id Home
+   Assistant does not have (SP-06). Choosing from Home Assistant's persons comes with enrolling in Mira's page
+   (step 4).
+3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-08.
 4. **Enrolling in Mira's page:** "that was me" for a signed-in person, persons without a login (children) by an
    admin; the service's own page goes, the API gets a token.
 5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.

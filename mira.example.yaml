@@ -91,6 +91,13 @@ mcp_servers:
 web_search:
   enabled: true
 
+# Who speaks at a satellite, by the voice (docs/spec/sprecher.md): the
+# speaker-id service (services/speaker-id) in front of the STT. Without a
+# URL the satellites are anonymous unless the "alone at home" rule names
+# someone.
+# speaker_id:
+#   url: http://192.168.x.y:10311
+
 # Telegram runs through Home Assistant's own Telegram integration
 # (telegram_bot); Mira has no bot of her own (docs/spec/kanaele.md).
 

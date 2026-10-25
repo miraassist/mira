@@ -26,6 +26,11 @@ MIN_SECONDS = 1.0
 MARGIN = 0.05
 
 
+def normalize(text: str) -> str:
+    """A transcript as compared: trimmed, case folded, whitespace collapsed."""
+    return " ".join(text.split()).casefold()
+
+
 @dataclass
 class Utterance:
     id: str
@@ -180,6 +185,32 @@ class SpeakerStore:
                     u.assigned = None
             self._save()
             return True
+
+    def match(self, text: str, within: float) -> dict | None:
+        """The result for the utterance with this transcript in the last `within` seconds.
+
+        Several are several satellites that heard the same request: the person counts only if all of
+        them were accepted for that person; otherwise the result is "uncertain". None when there is none.
+        """
+        want = normalize(text)
+        if not want:
+            return None
+        since = time.time() - within
+        with self.lock:
+            found = [u for u in self.recent if u.at >= since and normalize(u.transcript) == want]
+        if not found:
+            return None
+        best = found[0]  # the latest
+        people = {u.speaker for u in found}
+        if len(found) > 1 and (len(people) > 1 or any(u.decision != "accepted" for u in found)):
+            return {"person": None, "score": best.score, "decision": "uncertain", "count": len(found)}
+        accepted = best.decision == "accepted"
+        return {
+            "person": best.speaker if accepted else None,
+            "score": round(best.score, 3),
+            "decision": best.decision,
+            "count": len(found),
+        }
 
     def snapshot(self) -> dict:
         with self.lock:

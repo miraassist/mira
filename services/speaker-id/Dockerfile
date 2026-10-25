@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir \
 
 RUN mkdir -p /data/models
 
-COPY speaker_id_wrapper.py speaker_id_handler.py speaker_store.py web.py entrypoint.sh /app/
+COPY speaker_id_wrapper.py speaker_id_handler.py speaker_store.py web.py test_match.py entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
 
 # Wyoming STT proxy, and the enrollment page

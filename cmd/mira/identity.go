@@ -13,8 +13,9 @@ import (
 //   - Telegram: the person with that Telegram id.
 //   - The HA app and its chat: the person whose HA person entity belongs to
 //     the signed-in HA user.
-//   - A satellite: nobody, unless the "alone at home" rule makes it the one
-//     person at home who switched it on.
+//   - A satellite: the person the voice was recognized as (speaker-id, see
+//     docs/spec/sprecher.md), else the one person at home who switched on
+//     the "alone at home" rule, else nobody.
 func (a *app) identify(ctx context.Context, req conversation.Request) string {
 	persons := a.persons()
 	switch req.Channel {
@@ -28,17 +29,44 @@ func (a *app) identify(ctx context.Context, req conversation.Request) string {
 		if req.HAUser != "" {
 			return a.personOfHAUser(ctx, req.HAUser)
 		}
-		if !anyAloneIsMe(persons) {
-			return ""
-		}
-		states, err := a.ha.States(ctx)
-		if err != nil {
-			a.log.Warn("could not read person states", "error", err)
-			return ""
-		}
-		return aloneAtHome(persons, states)
+		return atSatellite(persons, a.voiceOf(ctx, req.Text), func() string {
+			if !anyAloneIsMe(persons) {
+				return ""
+			}
+			states, err := a.ha.States(ctx)
+			if err != nil {
+				a.log.Warn("could not read person states", "error", err)
+				return ""
+			}
+			return aloneAtHome(persons, states)
+		})
 	}
 	return ""
+}
+
+// atSatellite is who speaks at a satellite: the person the voice was
+// recognized as, if Home Assistant has that person, else what the "alone at
+// home" rule says.
+func atSatellite(persons map[string]config.Person, voice string, alone func() string) string {
+	if _, ok := persons[voice]; ok && voice != "" {
+		return voice
+	}
+	return alone()
+}
+
+// voiceOf is the person the speaker-id service recognized as having said
+// text, or "" (no service, nobody for sure, no answer in time).
+func (a *app) voiceOf(ctx context.Context, text string) string {
+	if a.speaker == nil {
+		return ""
+	}
+	person, score, err := a.speaker.Person(ctx, text)
+	if err != nil {
+		a.log.Warn("speaker-id did not answer", "error", err)
+		return ""
+	}
+	a.log.Debug("speaker-id", "person", person, "score", score)
+	return person
 }
 
 func anyAloneIsMe(persons map[string]config.Person) bool {
