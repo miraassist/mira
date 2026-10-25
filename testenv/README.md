@@ -36,6 +36,13 @@ pytest tests/ui
 
 Without the test HA or Playwright they are skipped.
 
+A walk through Mira's page as a video with Mira's voice (English, about
+three minutes) is recorded by `testenv/walkthrough.py`: Playwright clicks
+through the page, Gemini TTS speaks the lines (`GEMINI_API_TOKEN` in
+`testenv/.env`), ffmpeg crops HA's sidebar away and lays the voice under it.
+It writes `walkthrough.mp4`, `.srt` and `.txt` into `docs/demo/` (not in git);
+the lines are in `scenes()` in the script.
+
 The container uses a bridge network on purpose: in the host network HA
 discovers the real devices of the house and sets some of them up by itself.
 The seed also disables any integration that came from network discovery.
