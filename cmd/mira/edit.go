@@ -33,6 +33,8 @@ type editor struct {
 	// mu keeps one change at a time; changed says one was saved.
 	mu      sync.Mutex
 	changed bool
+	// probe tries a model (setup.Probe; tests set their own).
+	probe func(context.Context, setup.LLM) error
 }
 
 // editor is the page's editor, nil (no editing) without a config path.
@@ -41,7 +43,7 @@ func (a *app) editor() ui.Editor {
 		return nil
 	}
 	if a.edit == nil {
-		a.edit = &editor{a: a, file: config.File{Path: a.configPath, Secrets: config.DefaultSecrets()}}
+		a.edit = &editor{a: a, file: config.File{Path: a.configPath, Secrets: config.DefaultSecrets()}, probe: setup.Probe}
 	}
 	return a.edit
 }
@@ -213,6 +215,13 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 		return errors.New("main kommt aus der Einrichtung in Home Assistant: Ändern geht dort unter Einstellungen → Geräte & Dienste → Mira → Konfigurieren.")
 	case !modelNamePattern.MatchString(newName):
 		return fmt.Errorf("Der Name „%s“ geht nicht: kleine Buchstaben und Ziffern, verbunden mit - oder _.", newName)
+	}
+	// A new server, model or key is tried first: what does not answer is
+	// not saved (docs/spec/bearbeiten.md).
+	if old, ok := e.State(ctx).Models[name]; !ok || old.Endpoint != m.Endpoint || old.Model != m.Model || m.Token != "" {
+		if res := e.check(ctx, ui.ModelRequest{Name: name, Endpoint: m.Endpoint, Model: m.Model, Token: m.Token, Privacy: m.Privacy}, false); !res.OK {
+			return fmt.Errorf("%s (%s)", probeProblems[res.Reason], res.Error)
+		}
 	}
 	var secret map[string]string
 	tokenVar := config.SecretName("MODEL", newName, "TOKEN")
@@ -667,25 +676,63 @@ func (e *editor) checkPhonebook(ctx context.Context, c ui.MCPCheckRequest) ui.MC
 	return res
 }
 
-// ModelContext asks the model's server how much context it has
-// (docs/spec/modelle.md, Context size), with the form's token or the one
-// the model has.
-func (e *editor) ModelContext(ctx context.Context, c ui.ModelContextRequest) ui.ModelContextResult {
-	key := c.Token
-	if key == "" {
-		key = e.a.cfg.Models[c.Name].APIKey
+// probeProblems say in a sentence why a model did not answer, by the
+// setup's reason.
+var probeProblems = map[string]string{
+	"unreachable":  "Mira erreicht diese Adresse nicht.",
+	"bad_key":      "Der Anbieter hat den Schlüssel abgelehnt.",
+	"no_model":     "Der Server kennt dieses Modell nicht, oder es ist nicht geladen.",
+	"no_tools":     "Das Modell antwortet, benutzt aber keine Werkzeuge; die braucht Mira.",
+	"server_error": "Der Server hat mit einem Fehler geantwortet.",
+}
+
+// ModelCheck tries the model as the form has it and, when it answers, asks
+// its server how much context it has (docs/spec/modelle.md, Context size).
+func (e *editor) ModelCheck(ctx context.Context, c ui.ModelRequest) ui.ModelCheckResult {
+	return e.check(ctx, c, true)
+}
+
+func (e *editor) check(ctx context.Context, c ui.ModelRequest, withContext bool) ui.ModelCheckResult {
+	key := e.modelKey(c.Name, c.Token)
+	kind := setup.KindCustom
+	if c.Privacy == "cloud" {
+		kind = setup.KindCloud
 	}
-	n, from := llm.ContextSize(ctx, nil, c.Endpoint, key, c.Model)
-	return ui.ModelContextResult{Tokens: n, From: from}
+	if err := e.probe(ctx, setup.LLM{Kind: kind, BaseURL: c.Endpoint, Model: c.Model, APIKey: key}); err != nil {
+		var me *setup.ModelError
+		if !errors.As(err, &me) {
+			me = &setup.ModelError{Reason: "server_error", Detail: err.Error()}
+		}
+		return ui.ModelCheckResult{Reason: me.Reason, Error: me.Detail}
+	}
+	res := ui.ModelCheckResult{OK: true}
+	if withContext {
+		res.ContextTokens, _ = llm.ContextSize(ctx, nil, c.Endpoint, key, c.Model)
+		if res.ContextTokens == 0 {
+			res.ContextTokens = e.a.cfg.Models[config.MainModel].ContextTokens
+		}
+	}
+	return res
+}
+
+// modelKey is the key a check uses: the form's, else the one the model has
+// in the secrets file or got at start.
+func (e *editor) modelKey(name, token string) string {
+	if token != "" {
+		return token
+	}
+	if all, err := e.file.Secrets.Load(); err == nil {
+		if v := all[config.SecretName("MODEL", name, "TOKEN")]; v != "" {
+			return v
+		}
+	}
+	return e.a.cfg.Models[name].APIKey
 }
 
 // ModelList asks the model's server which models it offers, with the
 // form's token or the one the model has.
-func (e *editor) ModelList(ctx context.Context, c ui.ModelContextRequest) ui.ModelListResult {
-	key := c.Token
-	if key == "" {
-		key = e.a.cfg.Models[c.Name].APIKey
-	}
+func (e *editor) ModelList(ctx context.Context, c ui.ModelRequest) ui.ModelListResult {
+	key := e.modelKey(c.Name, c.Token)
 	models, err := llm.ListModels(ctx, nil, c.Endpoint, key)
 	if err != nil {
 		return ui.ModelListResult{Error: err.Error()}

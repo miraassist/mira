@@ -13,9 +13,9 @@ import (
 // "models/" prefixes allowed), else from LM Studio's own list as loaded;
 // a server that says nothing gives 0, for the user to fill in.
 func TestContextSize(t *testing.T) {
-	var auth, xkey string
+	var auth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth, xkey = r.Header.Get("Authorization"), r.Header.Get("x-api-key")
+		auth = r.Header.Get("Authorization")
 		switch r.URL.Path {
 		case "/a/v1/models":
 			io.WriteString(w, `{"data":[{"id":"x"},{"id":"claude","max_input_tokens":200000}]}`)
@@ -48,8 +48,8 @@ func TestContextSize(t *testing.T) {
 			t.Errorf("%s %s: %d %q", c.base, c.model, n, from)
 		}
 	}
-	if auth != "Bearer k" || xkey != "k" {
-		t.Errorf("auth %q, x-api-key %q", auth, xkey)
+	if auth != "Bearer k" {
+		t.Errorf("auth %q", auth)
 	}
 }
 
@@ -75,6 +75,17 @@ func TestListModels(t *testing.T) {
 	}
 	if _, err := ListModels(ctx, nil, srv.URL+"/c/v1", ""); err == nil || !strings.Contains(err.Error(), "401") {
 		t.Errorf("refused: %v", err)
+	}
+}
+
+func TestSetAuthAnthropicHeadersOnlyForAnthropic(t *testing.T) {
+	for u, want := range map[string]string{"https://api.anthropic.com/v1/models": "k", "https://openrouter.ai/api/v1/models": ""} {
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		SetAuth(req, "k")
+		if req.Header.Get("Authorization") != "Bearer k" || req.Header.Get("x-api-key") != want ||
+			(req.Header.Get("anthropic-version") != "") != (want != "") {
+			t.Errorf("%s: %v", u, req.Header)
+		}
 	}
 }
 

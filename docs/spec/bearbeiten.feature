@@ -56,8 +56,15 @@ Feature: BE Editing models, agents and skills on Mira's page
     And an empty description is refused, and switching off takes the skill out of mira.yaml
 
   @step1
-  Scenario: BE-09 The model form offers the providers and the server's models
+  Scenario: BE-12 The model form offers the providers and the server's models
     Given the page's form for a model
     When it starts and the server is known
     Then it offers Mira's providers and, last, an own server
     And the models are the ones the server's /models names, else a text field
+
+  @step1
+  Scenario: BE-13 A model is tried before it is saved
+    Given the page's form for a model with a new server, model or token
+    When it is saved or its model is chosen
+    Then Mira tries it with a real request, and a refused key or unknown model is not saved
+    And when it answers, the context field gets what the server says, else the size that holds without an entry

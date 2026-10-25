@@ -25,10 +25,11 @@ type Editor interface {
 	SaveSkill(ctx context.Context, name string, s SkillEdit) error
 	// CheckMCP connects to a skill's MCP server with what the form says.
 	CheckMCP(ctx context.Context, skill string, c MCPCheckRequest) MCPCheckResult
-	// ModelContext asks a model's server how much context the model has.
-	ModelContext(ctx context.Context, c ModelContextRequest) ModelContextResult
+	// ModelCheck tries a model with a real request and, when it answers,
+	// asks its server how much context it has.
+	ModelCheck(ctx context.Context, c ModelRequest) ModelCheckResult
 	// ModelList asks a model's server which models it offers.
-	ModelList(ctx context.Context, c ModelContextRequest) ModelListResult
+	ModelList(ctx context.Context, c ModelRequest) ModelListResult
 	// Restart starts Mira anew, after the answer went out.
 	Restart()
 }
@@ -128,20 +129,25 @@ type MCPCheckRequest struct {
 	Settings map[string]string `json:"settings,omitempty"`
 }
 
-// ModelContextRequest is a model as the form has it; an empty token takes
-// the one the model named Name has.
-type ModelContextRequest struct {
+// ModelRequest is a model as the form has it; an empty token takes the one
+// the model named Name has.
+type ModelRequest struct {
 	Name     string `json:"name,omitempty"`
 	Endpoint string `json:"endpoint"`
-	Model    string `json:"model"`
+	Model    string `json:"model,omitempty"`
 	Token    string `json:"token,omitempty"`
+	Privacy  string `json:"privacy,omitempty"`
 }
 
-// ModelContextResult is the context the server said, and where it said it;
-// Tokens 0 when it did not.
-type ModelContextResult struct {
-	Tokens int    `json:"tokens"`
-	From   string `json:"from,omitempty"`
+// ModelCheckResult says whether the model answered; when it did,
+// ContextTokens is what its server says, else the size that holds without
+// an entry. Reason is the setup's: unreachable, bad_key, no_model,
+// no_tools, server_error.
+type ModelCheckResult struct {
+	OK            bool   `json:"ok"`
+	Reason        string `json:"reason,omitempty"`
+	Error         string `json:"error,omitempty"`
+	ContextTokens int    `json:"context_tokens,omitempty"`
 }
 
 // ModelListResult is what the server offers, or why it did not say.
@@ -193,7 +199,7 @@ func (h *Handler) editRoutes() {
 		return e.SaveSkill(ctx, name, s)
 	})))
 	h.mux.HandleFunc("POST /v1/ui/edit/skills/{name}/mcp-check", h.auth(h.mcpCheck))
-	h.mux.HandleFunc("POST /v1/ui/edit/model-context", h.auth(h.modelContext))
+	h.mux.HandleFunc("POST /v1/ui/edit/model-check", h.auth(h.modelCheck))
 	h.mux.HandleFunc("POST /v1/ui/edit/model-list", h.auth(h.modelList))
 	h.mux.HandleFunc("POST /v1/ui/restart", h.auth(h.restart))
 }
@@ -251,19 +257,17 @@ func (h *Handler) mcpCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.opts.Editor.CheckMCP(ctx, r.PathValue("name"), c))
 }
 
-func (h *Handler) modelContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) modelCheck(w http.ResponseWriter, r *http.Request) {
 	if h.opts.Editor == nil {
 		writeError(w, http.StatusNotFound, "editing is not available")
 		return
 	}
-	var c ModelContextRequest
+	var c ModelRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&c); err != nil || c.Endpoint == "" || c.Model == "" {
 		writeError(w, http.StatusBadRequest, "endpoint and model are needed")
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
-	defer cancel()
-	writeJSON(w, http.StatusOK, h.opts.Editor.ModelContext(ctx, c))
+	writeJSON(w, http.StatusOK, h.opts.Editor.ModelCheck(r.Context(), c))
 }
 
 func (h *Handler) modelList(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +275,7 @@ func (h *Handler) modelList(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "editing is not available")
 		return
 	}
-	var c ModelContextRequest
+	var c ModelRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&c); err != nil || c.Endpoint == "" {
 		writeError(w, http.StatusBadRequest, "the endpoint is needed")
 		return

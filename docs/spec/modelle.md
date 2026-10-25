@@ -61,16 +61,18 @@ How much context a model has depends on the model and, for a local server, on ho
 list of models; she asks the model's server once, when the model is set up, and the answer is written where one sees
 it (decided 2026-10-25):
 
-- **When:** at setup in Home Assistant (the integration's model, kept for `main`), and on Mira's page when a model is
-  added or its address or model changes (the field "Context (tokens)" is filled, with a button to ask again). Never on
-  her own afterwards: what is written holds, and can be changed.
-- **How:** `GET <endpoint>/models` with the key as `Authorization: Bearer` and as `x-api-key` (Anthropic wants the
-  latter there; the others ignore it), and the model's entry read for `context_length` (OpenRouter),
-  `max_context_length` (Mistral), `max_input_tokens` (Anthropic) or `max_model_len` (vLLM). Two servers say it
-  elsewhere: Google Gemini on its own model endpoint (`inputTokenLimit`, same key), LM Studio on `/api/v0/models`
-  (`loaded_context_length`, the size the model was loaded with, which is what holds).
-- **When nothing says it** (OpenAI): the page says "could not be found out, please enter it", and 16384 holds until
-  then.
+- **When:** at setup in Home Assistant (the integration's model, kept for `main`), and on Mira's page as soon as a
+  model is chosen and has answered a trial request (the check of server, model and key). The field "Context (tokens)"
+  then gets the size; there is no button and no hint. Never on her own afterwards: what is written holds, and can be
+  changed.
+- **How:** `GET <endpoint>/models` with the key as `Authorization: Bearer`; only Anthropic's own server also gets
+  `x-api-key` and `anthropic-version` (OpenRouter, given `anthropic-version`, answers in Anthropic's form: a page of
+  20 models). The model's entry is read for `context_length` (OpenRouter), `max_context_length` (Mistral),
+  `max_input_tokens` (Anthropic) or `max_model_len` (vLLM). Two servers say it elsewhere: Google Gemini on its own
+  model endpoint (`inputTokenLimit`, same key), LM Studio on `/api/v0/models` (`loaded_context_length`, the size the
+  model was loaded with, which is what holds).
+- **The value as said:** compaction already starts at 0.9 of it (`compact_at_fraction`), so no margin is taken off.
+- **When nothing says it** (OpenAI): the field gets the size that holds without an entry (main's).
 - Tried 2026-10-25: Gemini 1 048 576, Anthropic 1 000 000, OpenRouter's Gemini 1 048 576, a model loaded in LM Studio
   with 8192; OpenAI nothing.
 

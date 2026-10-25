@@ -505,7 +505,7 @@ class MiraEditor extends Light {
     const p = (this.e.state.providers || []).find(p => p.key === key);
     const f = this.e.form;
     const endpoint = p ? p.base_url : providerOf(this.e.state.providers, f.endpoint) ? "" : f.endpoint;
-    this.e = { ...this.e, models: null, form: { ...f, provider: key, endpoint, privacy: p ? "cloud" : "local" } };
+    this.e = { ...this.e, models: null, check: null, form: { ...f, provider: key, endpoint, privacy: p ? "cloud" : "local" } };
     this.loadModels();
   }
   // loadModels asks the model's server which models it offers; without an
@@ -521,18 +521,18 @@ class MiraEditor extends Light {
   }
   pickModel(value) {
     this.set("model", value);
-    if (!this.e.form.context_tokens) this.findContext();
+    this.checkModel();
   }
-  // findContext asks the model's server how much context the model has and
-  // puts it into the field, where it can still be changed.
-  async findContext() {
+  // checkModel tries the model as the form has it; when it answers, the
+  // context field gets what its server says (or the size that holds).
+  async checkModel() {
     const f = this.e.form;
-    if (!f.endpoint || !f.model) return;
-    this.e = { ...this.e, context: { wait: true } };
+    if (!f.endpoint || !f.model) { this.e = { ...this.e, check: null }; return; }
+    this.e = { ...this.e, check: { wait: true } };
     try {
-      const r = await api("POST", "/v1/ui/edit/model-context", { name: this.e.name || "", endpoint: f.endpoint, model: f.model, token: f.token || "" });
-      this.e = { ...this.e, context: r, form: r.tokens ? { ...this.e.form, context_tokens: r.tokens } : this.e.form };
-    } catch (err) { this.e = { ...this.e, context: { tokens: 0 } }; }
+      const r = await api("POST", "/v1/ui/edit/model-check", { name: this.e.name || "", endpoint: f.endpoint, model: f.model, token: f.token || "", privacy: f.privacy || "" });
+      this.e = { ...this.e, check: r, form: r.ok ? { ...this.e.form, context_tokens: r.context_tokens } : this.e.form };
+    } catch (err) { this.e = { ...this.e, check: { ok: false, error: err.message } }; }
   }
   async checkMCP() {
     this.e = { ...this.e, mcp: { wait: true } };
@@ -563,9 +563,10 @@ class MiraEditor extends Light {
           ${opts([...(s.providers || []).map(p => [p.key, p.name]), ["", T.ed_provider_custom]], f.provider)}</select>
         ${f.provider ? nothing : html`<label>${T.mod_endpoint}</label>
           <input .value=${f.endpoint ?? ""} placeholder="http://…/v1" ?disabled=${locked}
-            @input=${ev => this.set("endpoint", ev.target.value)} @change=${() => this.loadModels()}>`}
+            @input=${ev => this.set("endpoint", ev.target.value)} @change=${() => { this.loadModels(); this.checkModel(); }}>`}
         <label>${T.mod_token}</label><input type="password" autocomplete="new-password" ?disabled=${locked} .value=${f.token || ""}
-          placeholder=${f.token_set ? T.ed_token_keep : ""} @input=${ev => this.set("token", ev.target.value)} @change=${() => this.loadModels()}>
+          placeholder=${f.token_set ? T.ed_token_keep : ""} @input=${ev => this.set("token", ev.target.value)}
+          @change=${() => { this.loadModels(); this.checkModel(); }}>
         ${f.token_set && !locked ? html`<span></span><label class="checkline"><input type="checkbox" .checked=${!!f.token_clear}
           @change=${ev => this.set("token_clear", ev.target.checked)}> ${T.ed_token_clear}</label>` : nothing}
         <label>${T.mod_model}</label>${this.modelPicker(locked)}
@@ -574,12 +575,7 @@ class MiraEditor extends Light {
         ${this.field(T.mod_parallel, "parallel", { type: "number", disabled: locked })}
         <label>${T.mod_fallback}</label><select ?disabled=${locked} @change=${ev => this.set("fallback", ev.target.value)}>
           ${opts([["", "–"], ...others.map(n => [n, n])], f.fallback)}</select>
-        <label>${T.ed_context_tokens}</label>
-        <div><div class="row"><input type="number" .value=${f.context_tokens ?? ""} ?disabled=${locked}
-            @input=${ev => this.set("context_tokens", ev.target.value)}>
-          ${locked ? nothing : html`<button class="secondary" @click=${ev => { ev.preventDefault(); this.findContext(); }}>${T.ed_context_find}</button>`}</div>
-          ${this.e.context ? html`<div class="hint">${this.e.context.wait ? T.loading : this.e.context.tokens
-            ? T.ed_context_found(this.e.context.from) : html`<span class="warn">${T.ed_context_unknown}</span>`}</div>` : nothing}</div>
+        ${this.field(T.ed_context_tokens, "context_tokens", { type: "number", disabled: locked })}
         <label>${T.mod_reasoning}</label><select ?disabled=${locked} @change=${ev => this.set("reasoning_effort", ev.target.value)}>
           ${opts([["", "–"], ["none", "none"], ["low", "low"], ["medium", "medium"], ["high", "high"]], f.reasoning_effort)}</select>
         ${this.field(T.mod_temperature, "temperature", { disabled: locked, placeholder: "0.7" })}
@@ -595,12 +591,20 @@ class MiraEditor extends Light {
     const list = m && m.models && m.models.length ? m.models : null;
     if (!list || locked) {
       return html`<div><input .value=${f.model ?? ""} ?disabled=${locked} @input=${ev => this.set("model", ev.target.value)}
-          @change=${() => { if (!this.e.form.context_tokens) this.findContext(); }}>
-        ${m && m.wait ? html`<div class="hint">${T.loading}</div>` : m && !list && !locked ? html`<div class="hint warn">${T.ed_models_none}</div>` : nothing}</div>`;
+          @change=${() => this.checkModel()}>
+        ${m && m.wait ? html`<div class="hint">${T.loading}</div>` : m && !list && !locked ? html`<div class="hint warn">${T.ed_models_none}</div>` : nothing}
+        ${this.checkHint()}</div>`;
     }
     const all = f.model && !list.includes(f.model) ? [f.model, ...list] : list;
-    return html`<select @change=${ev => this.pickModel(ev.target.value)}>
-      ${opts([["", "–"], ...all.map(n => [n, n])], f.model)}</select>`;
+    return html`<div><select @change=${ev => this.pickModel(ev.target.value)}>
+      ${opts([["", "–"], ...all.map(n => [n, n])], f.model)}</select>${this.checkHint()}</div>`;
+  }
+  // checkHint says under the model why it did not answer; nothing when it did.
+  checkHint() {
+    const c = this.e.check;
+    if (!c || c.ok) return nothing;
+    if (c.wait) return html`<div class="hint">${T.ed_checking}</div>`;
+    return html`<div class="hint warn">${T["ed_check_" + c.reason] || c.error}</div>`;
   }
   agentForm() {
     const { form: f, state: s, isNew } = this.e;

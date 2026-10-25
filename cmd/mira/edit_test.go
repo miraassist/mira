@@ -45,7 +45,9 @@ func editApp(t *testing.T) (*app, *editor, string) {
 		t.Fatal(err)
 	}
 	a.configPath = path
-	return a, a.editor().(*editor), path
+	e := a.editor().(*editor)
+	e.probe = func(context.Context, setup.LLM) error { return nil }
+	return a, e, path
 }
 
 func read(t *testing.T, path string) string {
@@ -251,7 +253,7 @@ func TestBE11_AModelBesideTheIntegrationsMain(t *testing.T) {
 	}
 }
 
-func TestBE09_TheModelFormOffersProvidersAndTheServersModels(t *testing.T) {
+func TestBE12_TheModelFormOffersProvidersAndTheServersModels(t *testing.T) {
 	_, e, _ := editApp(t)
 	ctx := context.Background()
 	st := e.State(ctx)
@@ -264,11 +266,54 @@ func TestBE09_TheModelFormOffersProvidersAndTheServersModels(t *testing.T) {
 		io.WriteString(w, `{"data":[{"id":"qwen3"},{"id":"gemma3"}]}`)
 	}))
 	defer srv.Close()
-	r := e.ModelList(ctx, ui.ModelContextRequest{Endpoint: srv.URL + "/v1", Token: "t"})
+	r := e.ModelList(ctx, ui.ModelRequest{Endpoint: srv.URL + "/v1", Token: "t"})
 	if strings.Join(r.Models, ",") != "gemma3,qwen3" || r.Error != "" || key != "Bearer t" {
 		t.Errorf("list %+v, key %q", r, key)
 	}
-	if r := e.ModelList(ctx, ui.ModelContextRequest{Endpoint: "http://127.0.0.1:1/v1"}); r.Error == "" {
+	if r := e.ModelList(ctx, ui.ModelRequest{Endpoint: "http://127.0.0.1:1/v1"}); r.Error == "" {
 		t.Error("an unreachable server gave no error")
+	}
+}
+
+func TestBE13_AModelIsTriedBeforeItIsSaved(t *testing.T) {
+	_, e, path := editApp(t)
+	ctx := context.Background()
+	tried := 0
+	e.probe = func(_ context.Context, l setup.LLM) error {
+		tried++
+		if l.APIKey != "gut" {
+			return &setup.ModelError{Reason: "bad_key", Detail: "401 Unauthorized"}
+		}
+		return nil
+	}
+	m := ui.ModelEdit{Endpoint: "https://openrouter.ai/api/v1", Model: "a/b", Privacy: "cloud", Token: "falsch"}
+	if err := e.SaveModel(ctx, "smart", m); err == nil || !strings.Contains(err.Error(), "Schlüssel abgelehnt") {
+		t.Errorf("a wrong key was saved: %v", err)
+	}
+	if strings.Contains(read(t, path), "smart:") {
+		t.Error("the file has the model")
+	}
+	m.Token = "gut"
+	if err := e.SaveModel(ctx, "smart", m); err != nil {
+		t.Fatal(err)
+	}
+	tried = 0
+	m.Token, m.Parallel = "", 2
+	if err := e.SaveModel(ctx, "smart", m); err != nil || tried != 0 {
+		t.Errorf("a change of parallel alone was tried (%d): %v", tried, err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"data":[{"id":"a/b","context_length":131072},{"id":"a/c"}]}`)
+	}))
+	defer srv.Close()
+	if r := e.ModelCheck(ctx, ui.ModelRequest{Endpoint: srv.URL + "/v1", Model: "a/b", Token: "gut"}); !r.OK || r.ContextTokens != 131072 {
+		t.Errorf("found: %+v", r)
+	}
+	if r := e.ModelCheck(ctx, ui.ModelRequest{Endpoint: srv.URL + "/v1", Model: "a/c", Token: "gut"}); !r.OK || r.ContextTokens != e.a.cfg.Models["main"].ContextTokens || r.ContextTokens == 0 {
+		t.Errorf("default: %+v", r)
+	}
+	if r := e.ModelCheck(ctx, ui.ModelRequest{Endpoint: srv.URL + "/v1", Model: "a/b", Token: "falsch"}); r.OK || r.Reason != "bad_key" || r.ContextTokens != 0 {
+		t.Errorf("wrong key: %+v", r)
 	}
 }

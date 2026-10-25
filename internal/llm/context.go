@@ -14,15 +14,18 @@ import (
 )
 
 // SetAuth puts an API key on a request the way OpenAI-compatible servers
-// take it (Authorization: Bearer) and the way Anthropic's /models wants it
-// (x-api-key with a version); servers ignore the headers they do not use.
+// take it (Authorization: Bearer); Anthropic's own server also gets the
+// headers its /models wants. Only there: OpenRouter, given
+// anthropic-version, answers /models in Anthropic's form, a page of 20.
 func SetAuth(req *http.Request, key string) {
 	if key == "" {
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("x-api-key", key)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	if req.URL.Host == "api.anthropic.com" {
+		req.Header.Set("x-api-key", key)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	}
 }
 
 // Where a context size came from (docs/spec/modelle.md, Context size).

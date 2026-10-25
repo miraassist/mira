@@ -46,6 +46,11 @@ now change what is there and add new ones, without opening a file on the server.
   model finds its provider by the address. The list is the agent's one list (docs/spec/modelle.md, Providers).
 - **Model:** once the server is known (and the token, where one is needed), the page asks its `/models` and offers
   what it names as a list. When the server names nothing, the model stays a text field with a hint.
+- **Check:** when a model is chosen, Mira tries it with a real request, as the setup in Home Assistant does. A refused
+  key, an unknown model or one without tools is said below the field. When it answers, the context field gets the
+  server's size (docs/spec/modelle.md, Context size). Saving tries again when server, model or token changed; what
+  does not answer is not saved. Some servers list their models without a key (OpenRouter), so only this request
+  shows a wrong key.
 - **New model:** a name and the same form.
 - **Rename:** another name in the form; the agents and fallbacks that name the model are changed with it.
 - **main** can neither be renamed nor deleted. When the integration in Home Assistant sets main up, main is read only

@@ -426,6 +426,11 @@ const probeTimeout = 3 * time.Minute
 
 // probe is a real, small request: the model must answer and call a tool,
 // since Mira does everything through tools. It warms a local model too.
+// Probe tries a model with a real request, as the setup does; what fails
+// is a *ModelError with its reason. Mira's page checks a model with it
+// before it saves it.
+func Probe(ctx context.Context, l LLM) error { return (&Handler{}).probe(ctx, l) }
+
 func (h *Handler) probe(ctx context.Context, l LLM) error {
 	req := map[string]any{
 		"model": l.Model,
