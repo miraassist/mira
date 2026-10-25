@@ -102,6 +102,8 @@ type TurnState struct {
 	Channel    config.Channel
 	// Person is who speaks, when known; Area is the satellite's area.
 	Person, Area string
+	// PersonBy is how Person is known (prompt.Turn.PersonBy).
+	PersonBy string
 	// DeviceID is the satellite's device id of a voice turn.
 	DeviceID string
 	// Place is where the turn's threads and plans live (Invocation.Place).

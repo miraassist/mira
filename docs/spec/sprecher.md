@@ -103,6 +103,22 @@ timeout (300 ms) and never holds up the turn.
 
 - **Log:** one line per turn at debug level with person and score, nothing stored.
 
+## Naming the person
+
+What Mira does for a person she only recognized can go to the wrong one, and nobody would notice. So the turn
+tells the model how she knows the person, and to name them when it does something personal for them:
+
+- **Recognized** (by the voice or by "alone at home"): "Es spricht: Ben (an der Stimme erkannt)", or "(allein zu
+  Hause)", then what is the person's alone (remembering something, reminders, tasks, messages for them, "ich",
+  "mir", "mein"), and: name them briefly when doing something personal like that, so a mix-up is noticed;
+  otherwise not, and not in every answer. "Licht an" gets no name, "Merk dir …" does ("Hab ich mir für dich
+  gemerkt, Ben").
+- **Told** (signed in to the app, or writing from their messenger): the same line without the source and without
+  naming.
+- **No score and no "not quite sure":** what reaches the model has passed the threshold already, and a vague doubt
+  would leave the model nothing to do with it. Asking back on a narrow score would be a rule of its own in the
+  code, not the model's judgment.
+
 ## Steps
 
 1. **The service** as a proxy with its own enrollment page: built.
@@ -110,7 +126,7 @@ timeout (300 ms) and never holds up the turn.
    gets no access to Home Assistant for this: the page takes the id as typed, and Mira ignores an id Home
    Assistant does not have (SP-06). Choosing from Home Assistant's persons comes with enrolling in Mira's page
    (step 4).
-3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-09.
+3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-10.
 4. **Enrolling in Mira's page:** "that was me" for a signed-in person, persons without a login (children) by an
    admin; the service's own page goes, the API gets a token.
 5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.

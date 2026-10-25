@@ -155,11 +155,11 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 		Location:  time.UTC,
 		Languages: harnessLanguages,
 		// Telegram chat 42 is Anna; everyone else is unknown.
-		Identify: func(_ context.Context, req conversation.Request) string {
+		Identify: func(_ context.Context, req conversation.Request) (string, string) {
 			if req.Channel == config.ChannelTelegram && req.ConversationID == "42" {
-				return "anna"
+				return "anna", ""
 			}
-			return ""
+			return "", ""
 		},
 	})
 	return h

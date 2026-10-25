@@ -59,3 +59,10 @@ Feature: SP Speaker recognition at the satellite
     Given ben's voice scores 0.62
     When the threshold is 0.7, or 0.6, or 0.8 with voice_threshold 0.6 for ben
     Then he is nobody, ben, ben
+
+  @step3
+  Scenario: SP-10 A recognized person is named when it is personal
+    Given a turn at a satellite by a person Mira recognized by the voice or the "alone at home" rule
+    When the turn is put to the model
+    Then the model is told how she knows them, and to name them when it does something personal for them, not in every answer
+    And for a person who signed in, it is told neither

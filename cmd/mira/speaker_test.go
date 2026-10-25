@@ -6,11 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/speakerid"
 )
 
@@ -47,7 +50,8 @@ const (
 // voiceTurn is who the satellite turn is, with alone as the "alone at home"
 // rule's answer.
 func voiceTurn(a *app, alone string) string {
-	return atSatellite(a.persons(), a.voiceOf(context.Background(), "Erinner mich an den Müll", a.persons()), func() string { return alone })
+	person, _ := atSatellite(a.persons(), a.voiceOf(context.Background(), "Erinner mich an den Müll", a.persons()), func() string { return alone })
+	return person
 }
 
 func TestSP01_RecognizedVoiceIsThePerson(t *testing.T) {
@@ -77,8 +81,8 @@ func TestSP03_VoiceComesBeforeAloneAtHome(t *testing.T) {
 func TestSP04_SignedInUserComesBeforeVoice(t *testing.T) {
 	a := speakerApp(t, annaSaidIt, 0)
 	req := conversation.Request{Channel: config.ChannelVoice, HAUser: "u-ben", Text: "Erinner mich an den Müll"}
-	if got := a.identify(context.Background(), req); got != "ben" {
-		t.Errorf("got %q, want ben", got)
+	if got, by := a.identify(context.Background(), req); got != "ben" || by != "" {
+		t.Errorf("got %q by %q, want ben, signed in", got, by)
 	}
 }
 
@@ -132,5 +136,37 @@ func TestSP09_ThresholdIsMirasPerPersonToo(t *testing.T) {
 	a.cfg.Persons["ben"] = ben
 	if got := voiceTurn(a, nobody); got != "ben" {
 		t.Errorf("with ben's own 0.6 under a general 0.8: got %q, want ben", got)
+	}
+}
+
+// A person Mira recognized (by the voice, or alone at home) is named when
+// she does something personal for them; one who signed in is not.
+func TestSP10_RecognizedPersonIsNamedWhenPersonal(t *testing.T) {
+	a := speakerApp(t, annaSaidIt, 0)
+	persons := a.persons()
+	voice := a.voiceOf(context.Background(), "Merk dir, dass ich gern Tee trinke", persons)
+	for _, c := range []struct {
+		name, voice, alone, wantBy, wantLine string
+	}{
+		{"by the voice", voice, "", prompt.ByVoice, "Es spricht: anna (an der Stimme erkannt)."},
+		{"alone at home", "", "ben", prompt.ByAlone, "Es spricht: ben (allein zu Hause)."},
+	} {
+		person, by := atSatellite(persons, c.voice, func() string { return c.alone })
+		if by != c.wantBy {
+			t.Errorf("%s: by %q, want %q", c.name, by, c.wantBy)
+		}
+		line := prompt.Turn{Lang: i18n.DE, Person: person, PersonBy: by}.Render()
+		if !strings.Contains(line, c.wantLine) || !strings.Contains(line, "nenn sie kurz beim Namen") ||
+			!strings.Contains(line, "nicht in jeder Antwort") {
+			t.Errorf("%s: %s", c.name, line)
+		}
+	}
+	signedIn := prompt.Turn{Lang: i18n.DE, Person: "ben"}.Render()
+	if !strings.Contains(signedIn, "Es spricht: ben. ") || strings.Contains(signedIn, "beim Namen") {
+		t.Errorf("signed in: %s", signedIn)
+	}
+	en := prompt.Turn{Lang: i18n.EN, Person: "anna", PersonBy: prompt.ByVoice}.Render()
+	if !strings.Contains(en, "Speaking: anna (recognized by their voice).") || !strings.Contains(en, "say their name briefly") {
+		t.Errorf("english: %s", en)
 	}
 }

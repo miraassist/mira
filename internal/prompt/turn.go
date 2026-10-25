@@ -8,6 +8,13 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 )
 
+// How a turn's person is known, when Mira recognized them rather than being
+// told (Turn.PersonBy).
+const (
+	ByVoice = "voice" // the speaker-id service heard their voice
+	ByAlone = "alone" // the "alone at home" rule
+)
+
 // Turn is layer 7: everything that is new about this request. Every volatile
 // value in the whole prompt belongs here and nowhere else.
 type Turn struct {
@@ -26,6 +33,11 @@ type Turn struct {
 	// Person is who is speaking, when known; PersonProfile is their
 	// compacted personal memory (the house's is layer 5).
 	Person, PersonProfile string
+	// PersonBy is how Mira knows the person: "" when they signed in or wrote
+	// from their messenger, ByVoice or ByAlone when she recognized them
+	// (docs/spec/sprecher.md). Then the model names them when it does
+	// something personal for them, so a mix-up is noticed.
+	PersonBy string
 	// Memories are facts retrieved for this turn. The compacted profile lives
 	// in layer 5; these are the situational hits.
 	Memories []string
@@ -67,7 +79,14 @@ func (t Turn) Render() string {
 	}
 	if t.Person != "" {
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf(l.speaker, t.Person))
+		switch t.PersonBy {
+		case ByVoice:
+			b.WriteString(fmt.Sprintf(l.speakerRecognized, t.Person, l.byVoice))
+		case ByAlone:
+			b.WriteString(fmt.Sprintf(l.speakerRecognized, t.Person, l.byAlone))
+		default:
+			b.WriteString(fmt.Sprintf(l.speaker, t.Person))
+		}
 		if s := strings.TrimSpace(t.PersonProfile); s != "" {
 			b.WriteString("\n" + fmt.Sprintf(l.personProfile, t.Person) + "\n")
 			b.WriteString(s)

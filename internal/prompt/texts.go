@@ -19,6 +19,8 @@ type texts struct {
 	// Layer 7.
 	timeLabel, remember, messageContext, pendingConfirmation, pendingRule, extraContext string
 	speaker, personProfile                                                              string // %s = person
+	speakerRecognized                                                                   string // %s = person, how
+	byVoice, byAlone                                                                    string
 	deviceHints                                                                         string
 
 	// The sample exchange, see Examples.
@@ -74,7 +76,11 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 		timeLabel:           "Zeit: ",
 		remember:            "Du erinnerst dich:",
 		deviceHints:         "Hinweise von Home Assistant für dieses Gerät:",
-		speaker:             "Es spricht: %s. Was du dir auf Wunsch dieser Person merkst, gilt nur für sie.",
+		speaker:             "Es spricht: %s. Was diese Person für sich möchte – sich etwas merken, Erinnerungen, Aufgaben, Nachrichten an sie, „ich“, „mir“, „mein“ – gilt nur für sie.",
+		speakerRecognized: "Es spricht: %s (%s). Was diese Person für sich möchte – sich etwas merken, Erinnerungen, Aufgaben, Nachrichten an sie, „ich“, „mir“, „mein“ – gilt nur für sie. " +
+			"Wenn du so etwas Persönliches für sie tust, nenn sie kurz beim Namen, damit eine Verwechslung auffällt. Sonst nicht, und nicht in jeder Antwort.",
+		byVoice: "an der Stimme erkannt",
+		byAlone: "allein zu Hause",
 		personProfile:       "Persönliches Profil von %s:",
 		messageContext:      "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
@@ -138,7 +144,11 @@ Answer in the language you are addressed in.`,
 		timeLabel:           "Time: ",
 		remember:            "You remember:",
 		deviceHints:         "Notes from Home Assistant for this device:",
-		speaker:             "Speaking: %s. What you remember at their request applies to them alone.",
+		speaker:             "Speaking: %s. What this person wants for themselves – remembering something, reminders, tasks, messages for them, \"I\", \"me\", \"my\" – applies to them alone.",
+		speakerRecognized: "Speaking: %s (%s). What this person wants for themselves – remembering something, reminders, tasks, messages for them, \"I\", \"me\", \"my\" – applies to them alone. " +
+			"When you do something personal like that for them, say their name briefly, so a mix-up is noticed. Otherwise don't, and not in every answer.",
+		byVoice: "recognized by their voice",
+		byAlone: "alone at home",
 		personProfile:       "Personal profile of %s:",
 		messageContext:      "You have just announced (details, in case of follow-up questions):",
 		pendingConfirmation: "You are waiting for a confirmation of: ",

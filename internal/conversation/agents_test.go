@@ -105,7 +105,7 @@ func newHouse(t *testing.T, privacy string, delay time.Duration) *house {
 	}
 	h.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: h.model, Store: st, Tools: tools.NewRegistry(nil), Structure: snapshot,
-		Identify: func(context.Context, conversation.Request) string { return h.person },
+		Identify: func(context.Context, conversation.Request) (string, string) { return h.person, "" },
 		Thread: func(_ context.Context, _ store.Session, place string, _ []string) (string, bool) {
 			h.mu.Lock()
 			defer h.mu.Unlock()

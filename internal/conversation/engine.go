@@ -125,8 +125,9 @@ type Options struct {
 	// renders it for layer 7. place is where the turn's threads live;
 	// followedUp are the messages this turn answers.
 	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool)
-	// Identify says who is speaking: a person key, or "" for anonymous.
-	Identify func(ctx context.Context, req Request) string
+	// Identify says who is speaking: a person key, or "" for anonymous, and
+	// how Mira knows (prompt.ByVoice, prompt.ByAlone, or "" when told).
+	Identify func(ctx context.Context, req Request) (person, by string)
 	// Languages says which language applies (docs/spec/sprache.md); tests
 	// without it get the default language.
 	Languages Languages
@@ -152,7 +153,7 @@ type Engine struct {
 	deviceHints func(device string) string
 	afterword   func(ctx context.Context, area string) string
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool)
-	identify    func(ctx context.Context, req Request) string
+	identify    func(ctx context.Context, req Request) (person, by string)
 	persona     func() string
 	languages   Languages
 	tel         *telemetry.Provider
@@ -252,9 +253,9 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if req.ConversationID == "" {
 		req.ConversationID = ulid.Make().String()
 	}
-	person := ""
+	person, personBy := "", ""
 	if e.identify != nil {
-		person = e.identify(ctx, req)
+		person, personBy = e.identify(ctx, req)
 	}
 	snap := e.structure()
 	area := ""
@@ -277,7 +278,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 		ctx, rec = mtrace.With(ctx)
 	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area,
-		DeviceID: req.DeviceID, Place: place}
+		DeviceID: req.DeviceID, Place: place, PersonBy: personBy}
 	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: config.ChannelAgent(req.Channel),
 		Profile: agent.Conversation, Rights: agent.AllRights},
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
@@ -375,6 +376,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		ChannelContext: e.channelContext(ctx, req, sess, snap),
 		DeviceHints:    e.deviceHintsFor(req.DeviceID),
 		Person:         person,
+		PersonBy:       ts.PersonBy,
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),
 		MessageContext: messageText,

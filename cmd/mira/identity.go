@@ -6,29 +6,31 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/speakerid"
 )
 
 // identify says who is speaking in a turn: a person key, or "" for someone
-// anonymous at a satellite.
+// anonymous at a satellite, and how Mira knows (prompt.ByVoice,
+// prompt.ByAlone, or "" when the channel told her).
 //   - Telegram: the person with that Telegram id.
 //   - The HA app and its chat: the person whose HA person entity belongs to
 //     the signed-in HA user.
 //   - A satellite: the person the voice was recognized as (speaker-id, see
 //     docs/spec/sprecher.md), else the one person at home who switched on
 //     the "alone at home" rule, else nobody.
-func (a *app) identify(ctx context.Context, req conversation.Request) string {
+func (a *app) identify(ctx context.Context, req conversation.Request) (person, by string) {
 	persons := a.persons()
 	switch req.Channel {
 	case config.ChannelTelegram:
 		// Home Assistant's Telegram integration names the person: the
 		// integration matched the chat to a person's channels.
 		if _, ok := persons[req.Person]; ok {
-			return req.Person
+			return req.Person, ""
 		}
 	case config.ChannelVoice:
 		if req.HAUser != "" {
-			return a.personOfHAUser(ctx, req.HAUser)
+			return a.personOfHAUser(ctx, req.HAUser), ""
 		}
 		return atSatellite(persons, a.voiceOf(ctx, req.Text, persons), func() string {
 			if !anyAloneIsMe(persons) {
@@ -42,17 +44,20 @@ func (a *app) identify(ctx context.Context, req conversation.Request) string {
 			return aloneAtHome(persons, states)
 		})
 	}
-	return ""
+	return "", ""
 }
 
-// atSatellite is who speaks at a satellite: the person the voice was
-// recognized as, if Home Assistant has that person, else what the "alone at
-// home" rule says.
-func atSatellite(persons map[string]config.Person, voice string, alone func() string) string {
+// atSatellite is who speaks at a satellite and how Mira knows: the person
+// the voice was recognized as, if Home Assistant has that person, else what
+// the "alone at home" rule says.
+func atSatellite(persons map[string]config.Person, voice string, alone func() string) (person, by string) {
 	if _, ok := persons[voice]; ok && voice != "" {
-		return voice
+		return voice, prompt.ByVoice
 	}
-	return alone()
+	if p := alone(); p != "" {
+		return p, prompt.ByAlone
+	}
+	return "", ""
 }
 
 // voiceOf is the person the speaker-id service heard say text, by the
