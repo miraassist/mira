@@ -125,6 +125,9 @@ type Options struct {
 	// renders it for layer 7. place is where the turn's threads live;
 	// followedUp are the messages this turn answers.
 	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool)
+	// PersonName names a person key for the model (Home Assistant's name);
+	// without it, or when it returns "", the model sees the key.
+	PersonName func(person string) string
 	// Identify says who is speaking: a person key, or "" for anonymous, and
 	// how Mira knows (prompt.ByVoice, prompt.ByAlone, or "" when told).
 	Identify func(ctx context.Context, req Request) (person, by string)
@@ -154,6 +157,7 @@ type Engine struct {
 	afterword   func(ctx context.Context, area string) string
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
+	personName  func(person string) string
 	persona     func() string
 	languages   Languages
 	tel         *telemetry.Provider
@@ -207,6 +211,7 @@ func New(opts Options) *Engine {
 		afterword:   opts.Afterword,
 		thread:      opts.Thread,
 		identify:    opts.Identify,
+		personName:  opts.PersonName,
 		persona:     opts.Persona,
 		languages:   opts.Languages,
 		tel:         opts.Telemetry,
@@ -377,6 +382,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		DeviceHints:    e.deviceHintsFor(req.DeviceID),
 		Person:         person,
 		PersonBy:       ts.PersonBy,
+		PersonName:     e.nameOf(person),
 		PersonProfile:  e.personProfile(ctx, person),
 		Memories:       e.memories(ctx, req.Text, person),
 		MessageContext: messageText,
@@ -823,4 +829,12 @@ func (e *Engine) sawWeb(key string) bool {
 	defer e.webMu.Unlock()
 	at, ok := e.webSeen[key]
 	return ok && time.Since(at) <= webMemory
+}
+
+// nameOf is how the model calls a person: Home Assistant's name, else the key.
+func (e *Engine) nameOf(person string) string {
+	if person == "" || e.personName == nil {
+		return ""
+	}
+	return e.personName(person)
 }

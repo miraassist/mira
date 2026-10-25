@@ -420,3 +420,17 @@ func TestTurnCarriesTheDeviceHints(t *testing.T) {
 		t.Error("english label missing")
 	}
 }
+
+// The model is told the person's name, not their key: it says it.
+func TestTurnNamesThePerson(t *testing.T) {
+	turn := Turn{Lang: i18n.DE, Person: "oma_1", PersonName: "Oma", PersonBy: ByVoice, PersonProfile: "mag Kreuzworträtsel"}
+	got := turn.Render()
+	if !strings.Contains(got, "Es spricht: Oma (an der Stimme erkannt).") || !strings.Contains(got, "Persönliches Profil von Oma:") ||
+		strings.Contains(got, "oma_1") {
+		t.Errorf("%s", got)
+	}
+	turn.PersonName = ""
+	if !strings.Contains(turn.Render(), "Es spricht: oma_1 (") {
+		t.Error("without a name the key")
+	}
+}

@@ -435,7 +435,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: assistText, DeviceHints: deviceHints, Telemetry: tel, Logger: a.log,
-		Thread: a.threads.Context, Identify: a.identify,
+		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
 		Languages: a.langs,
 		Afterword: func(ctx context.Context, area string) string {

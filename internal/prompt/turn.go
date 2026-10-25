@@ -33,6 +33,9 @@ type Turn struct {
 	// Person is who is speaking, when known; PersonProfile is their
 	// compacted personal memory (the house's is layer 5).
 	Person, PersonProfile string
+	// PersonName is how the person is called (Home Assistant's name); the
+	// model says it, so the key alone (oma_1) would not do. Empty: the key.
+	PersonName string
 	// PersonBy is how Mira knows the person: "" when they signed in or wrote
 	// from their messenger, ByVoice or ByAlone when she recognized them
 	// (docs/spec/sprecher.md). Then the model names them when it does
@@ -78,17 +81,21 @@ func (t Turn) Render() string {
 		b.WriteString(s)
 	}
 	if t.Person != "" {
+		name := t.PersonName
+		if name == "" {
+			name = t.Person
+		}
 		b.WriteString("\n")
 		switch t.PersonBy {
 		case ByVoice:
-			b.WriteString(fmt.Sprintf(l.speakerRecognized, t.Person, l.byVoice))
+			b.WriteString(fmt.Sprintf(l.speakerRecognized, name, l.byVoice))
 		case ByAlone:
-			b.WriteString(fmt.Sprintf(l.speakerRecognized, t.Person, l.byAlone))
+			b.WriteString(fmt.Sprintf(l.speakerRecognized, name, l.byAlone))
 		default:
-			b.WriteString(fmt.Sprintf(l.speaker, t.Person))
+			b.WriteString(fmt.Sprintf(l.speaker, name))
 		}
 		if s := strings.TrimSpace(t.PersonProfile); s != "" {
-			b.WriteString("\n" + fmt.Sprintf(l.personProfile, t.Person) + "\n")
+			b.WriteString("\n" + fmt.Sprintf(l.personProfile, name) + "\n")
 			b.WriteString(s)
 		}
 	}
