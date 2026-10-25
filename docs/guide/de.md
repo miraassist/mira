@@ -66,7 +66,7 @@ Beim Beurteilen vergleicht Mira zum Beispiel den Verbrauch der letzten Stunde mi
 - „Welche Aufgaben hast du?“ – „Pausier die Gas-Aufgabe.“ – „Lösch die Aufgabe mit dem Strom.“ – „Mach einen Probelauf der Gas-Aufgabe.“
 - In Home Assistant unter Mira → **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile, dazu Vorschläge, die noch auf dein Ja warten.
 
-![Mira im Seitenmenü von Home Assistant: eine pausierte und zwei laufende Aufgaben](img/aufgaben-liste-de.png)
+![Mira im Seitenmenü von Home Assistant: eine pausierte und mehrere laufende Aufgaben](img/aufgaben-liste-de.png)
 
 Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert. „In Home Assistant bearbeiten“ öffnet sie im Editor; dort kannst du sie auch selbst ändern.
 
@@ -126,9 +126,9 @@ Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
 - Dein persönliches Gedächtnis sieht nur Mira im Gespräch mit dir. Das Haus-Gedächtnis gilt für alle.
 - In fremde Gedächtnisse schreibt niemand.
 
-Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Assistant siehst du unter Mira → **Gedächtnis** das des Hauses und dein eigenes, mit wer es wann gesagt hat, und kannst Fakten bearbeiten oder vergessen. Die Gedächtnisse der anderen sieht dort niemand, auch kein Admin.
+Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Assistant siehst du unter Mira → **Gedächtnis** das des Hauses und auf deiner Karte (oben auf der Übersicht, mit deinem Namen) dein eigenes, jeweils mit wer es wann gesagt hat, und kannst Fakten bearbeiten oder vergessen. Die Gedächtnisse der anderen sieht dort niemand, auch kein Admin.
 
-![Annas Sicht: das Gedächtnis des Hauses und ihr eigenes](img/gedaechtnis-de.png)
+![Annas Sicht: das Gedächtnis des Hauses](img/gedaechtnis-de.png)
 
 **Als Datei bearbeiten.** Unter **Gedächtnis** lädt **Exportieren** alles, was du dort siehst, als Datei `mira-gedaechtnis.md` herunter: eine Überschrift je Gedächtnis (`# Haus`, `# Anna`), darunter ein Fakt je Zeile, Stichwörter als `#wort` am Ende. Du änderst sie in einem Texteditor und lädst sie mit **Importieren** wieder hoch. Mira zeigt vorher, was sich ändert („Haus: 3 neu, 1 entfallen, 26 bleiben“), und übernimmt es erst nach deinem OK. Wie beim Laden einer Datei in einen Editor ersetzt jeder Abschnitt das Gedächtnis ganz; Gedächtnisse ohne Abschnitt bleiben, wie sie sind. So füllst du auch ein neues Haus auf einmal mit dem, was Mira wissen soll:
 

@@ -64,7 +64,7 @@ When judging, Mira compares, for example, the last hour's usage with the same ho
 - "Which tasks do you have?" – "Pause the gas task." – "Delete the electricity task." – "Do a dry run of the gas task."
 - In Home Assistant under Mira → **Tasks** you see all tasks with on/off, dry run and the log of their judgements, plus proposals still waiting for your yes.
 
-![Mira in Home Assistant's sidebar: a paused and two running tasks](img/aufgaben-liste-en.png)
+![Mira in Home Assistant's sidebar: a paused and several running tasks](img/aufgaben-liste-en.png)
 
 Under the hood every task is an ordinary **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you. "Edit in Home Assistant" opens it in the editor; you can change it there yourself too.
 
@@ -122,9 +122,9 @@ There is one memory for the **house** and one for **each person**:
 - Your personal memory is only seen by Mira when talking to you. The house's memory is for everyone.
 - Nobody writes into someone else's memory.
 
-At night Mira condenses each memory into a short profile. In Home Assistant, under Mira → **Memory**, you see the house's memory and your own, with who said it and when, and can edit or forget facts. Nobody sees the others' memories there, not even an admin.
+At night Mira condenses each memory into a short profile. In Home Assistant you see the house's memory under Mira → **Memory** and your own on your card (at the top of the overview, with your name), each with who said it and when, and can edit or forget facts. Nobody sees the others' memories there, not even an admin.
 
-![Anna's view: the house's memory and her own](img/gedaechtnis-en.png)
+![Anna's view: the house's memory](img/gedaechtnis-en.png)
 
 **Editing as a file.** Under **Memory**, **Export** downloads everything you see there as the file `mira-gedaechtnis.md`: a heading per memory (`# House`, `# Anna`), below it one fact per line, tags as `#word` at the end. Change it in a text editor and upload it with **Import**. Mira first shows what changes ("House: 3 new, 1 removed, 26 kept") and applies it only after your OK. As when loading a file into an editor, each section replaces that memory completely; memories without a section stay as they are. This is also how you fill a new house at once with what Mira should know:
 
