@@ -10,14 +10,10 @@ from dataclasses import dataclass
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
-# Cloud providers with an OpenAI-compatible API; only a key is asked for.
-PROVIDERS = {
-    "openai": ("OpenAI", "https://api.openai.com/v1"),
-    "gemini": ("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai"),
-    "openrouter": ("OpenRouter", "https://openrouter.ai/api/v1"),
-    "mistral": ("Mistral", "https://api.mistral.ai/v1"),
-    "anthropic": ("Anthropic", "https://api.anthropic.com/v1"),
-}
+# The cloud providers (key → name, address) come from the agent, which
+# keeps the one list of them (GET /v1/setup/providers).
+Providers = dict[str, tuple[str, str]]
+
 CUSTOM = "custom"
 HA_PREFIX = "ha:"
 
@@ -47,8 +43,9 @@ class ModelSource:
     model: str = ""
 
 
-def ha_sources(hass: HomeAssistant) -> dict[str, ModelSource]:
-    """The AI integrations set up in Home Assistant, by "ha:<entry id>"."""
+def ha_sources(hass: HomeAssistant, providers: Providers) -> dict[str, ModelSource]:
+    """The AI integrations set up in Home Assistant, by "ha:<entry id>";
+    one whose provider the agent does not know is left out."""
     out: dict[str, ModelSource] = {}
     for domain, (provider, model_key) in _HA_SOURCES.items():
         for entry in hass.config_entries.async_entries(domain):
@@ -60,7 +57,9 @@ def ha_sources(hass: HomeAssistant) -> dict[str, ModelSource]:
                     model = str(sub.data[model_key]).removeprefix("models/")
                     break
             if provider:
-                name, base_url = PROVIDERS[provider]
+                if provider not in providers:
+                    continue
+                name, base_url = providers[provider]
                 key, kind = str(entry.data.get("api_key", "")), KIND_CLOUD
                 if not key:
                     continue

@@ -266,6 +266,18 @@ func TestPairEndpoint(t *testing.T) {
 		return resp.StatusCode, out
 	}
 	llm := LLM{Kind: KindCustom, BaseURL: models.URL, Model: "qwen3"}
+	if resp, err := http.Get(srv.URL + "/v1/setup/providers"); err != nil || resp.StatusCode != 200 {
+		t.Errorf("providers before pairing: %v %v", resp, err)
+	} else {
+		var out struct {
+			Providers []struct{ Key, Name, BaseURL string }
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		resp.Body.Close()
+		if len(out.Providers) == 0 || out.Providers[0].Key != "openai" {
+			t.Errorf("providers: %+v", out)
+		}
+	}
 	if code, _ := post("/v1/setup/models", map[string]any{"base_url": models.URL}); code != 200 {
 		t.Errorf("models before pairing: %d", code)
 	}

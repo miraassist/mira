@@ -55,7 +55,8 @@ func (e *editor) State(ctx context.Context) ui.EditState {
 	changed := e.changed
 	e.mu.Unlock()
 	st := ui.EditState{File: e.file.Path, Encrypted: e.file.Secrets.Encrypted(), RestartNeeded: changed,
-		Models: map[string]ui.ModelEdit{}, Agents: map[string]ui.AgentEdit{}, Skills: map[string]ui.SkillEdit{}}
+		Models: map[string]ui.ModelEdit{}, Agents: map[string]ui.AgentEdit{}, Skills: map[string]ui.SkillEdit{},
+		Providers: llm.Providers}
 	if err := e.file.Writable(); err != nil {
 		st.ReadOnly = err.Error()
 	}
@@ -676,6 +677,20 @@ func (e *editor) ModelContext(ctx context.Context, c ui.ModelContextRequest) ui.
 	}
 	n, from := llm.ContextSize(ctx, nil, c.Endpoint, key, c.Model)
 	return ui.ModelContextResult{Tokens: n, From: from}
+}
+
+// ModelList asks the model's server which models it offers, with the
+// form's token or the one the model has.
+func (e *editor) ModelList(ctx context.Context, c ui.ModelContextRequest) ui.ModelListResult {
+	key := c.Token
+	if key == "" {
+		key = e.a.cfg.Models[c.Name].APIKey
+	}
+	models, err := llm.ListModels(ctx, nil, c.Endpoint, key)
+	if err != nil {
+		return ui.ModelListResult{Error: err.Error()}
+	}
+	return ui.ModelListResult{Models: models}
 }
 
 // --- restart and writing ---------------------------------------------------

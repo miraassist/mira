@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -49,5 +50,44 @@ func TestContextSize(t *testing.T) {
 	}
 	if auth != "Bearer k" || xkey != "k" {
 		t.Errorf("auth %q, x-api-key %q", auth, xkey)
+	}
+}
+
+func TestListModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a/v1/models":
+			io.WriteString(w, `{"data":[{"id":"models/pro"},{"id":"models/flash"}]}`)
+		case "/b/v1/models":
+			io.WriteString(w, `{"data":[]}`)
+		default:
+			http.Error(w, "no key", http.StatusUnauthorized)
+		}
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+	got, err := ListModels(ctx, nil, srv.URL+"/a/v1/", "k")
+	if err != nil || strings.Join(got, ",") != "flash,pro" {
+		t.Errorf("list: %v %v", got, err)
+	}
+	if _, err := ListModels(ctx, nil, srv.URL+"/b/v1", "k"); err == nil {
+		t.Error("an empty list is no list")
+	}
+	if _, err := ListModels(ctx, nil, srv.URL+"/c/v1", ""); err == nil || !strings.Contains(err.Error(), "401") {
+		t.Errorf("refused: %v", err)
+	}
+}
+
+func TestProviderOf(t *testing.T) {
+	cases := map[string]string{
+		"https://api.openai.com/v1":     "openai",
+		"https://api.anthropic.com/v1/": "anthropic",
+		"http://192.0.2.1:1234/v1":      "",
+		"":                              "",
+	}
+	for in, want := range cases {
+		if got := ProviderOf(in); got != want {
+			t.Errorf("ProviderOf(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

@@ -593,6 +593,7 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 ![Capabilities → Models: which models Mira uses and whether they answer](img/mira-modelle-en.png)
 
 **Changing things on the page** (admins only): under **Capabilities** every model, agent and skill has an **Edit** button, and there are **New model** and **New agent**.
+- For a model you pick the **Provider** (OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic); Mira knows the address. For a local model or another server, pick **Own server** and enter the address. With the token Mira fetches the list of models and you pick one.
 - The page writes straight into `mira.yaml` and changes only the entry in question; comments stay. What is in the file holds, whether written by hand or by the page.
 - Keys (tokens) do not go into `mira.yaml` but into a file of their own in the data folder that only Mira can read; `mira.yaml` has only a reference such as `${MIRA_MODEL_SMART_TOKEN}`. If you set `MIRA_SECRET_KEY` (in the compose file, say), Mira encrypts that file.
 - A model an agent still takes and an agent someone still calls cannot be deleted; `main` can be neither renamed nor deleted.

@@ -43,7 +43,7 @@ from .const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
-from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, PROVIDERS, ModelSource, ha_sources
+from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers, ha_sources
 from .managed import (
     ACCEPT,
     all_persons,
@@ -126,6 +126,7 @@ class ModelSteps:
 
     _source: ModelSource | None = None
     _models: list[str] = []
+    _providers: Providers | None = None
 
     def _model_client(self) -> MiraClient:
         raise NotImplementedError
@@ -142,15 +143,23 @@ class ModelSteps:
         """Where the model comes from; what Home Assistant has comes first."""
         if user_input is None and (back := await self._reopened("model_source")):
             return back
-        from_ha = ha_sources(self.hass)
+        if self._providers is None:
+            try:
+                self._providers = await self._model_client().providers()
+            except MiraError as err:
+                errors: dict[str, str] = {}
+                placeholders = {"error": ""}
+                _model_error(err, errors, placeholders)
+                return self._source_form(errors, placeholders)
+        from_ha = ha_sources(self.hass, self._providers)
         words = _words(self.hass)
         if user_input is not None:
             choice = user_input["source"]
             if choice in from_ha:
                 self._source = from_ha[choice]
                 return await self._list_models("model_source")
-            if choice in PROVIDERS:
-                name, base_url = PROVIDERS[choice]
+            if choice in self._providers:
+                name, base_url = self._providers[choice]
                 self._source = ModelSource(name, base_url, "", KIND_CLOUD)
                 return await self.async_step_model_key()
             self._source = ModelSource(words["custom"], "", "", KIND_CUSTOM)
@@ -158,10 +167,11 @@ class ModelSteps:
         return self._source_form(None, {"error": ""})
 
     def _source_form(self, errors: dict[str, str] | None, placeholders: dict[str, str]) -> ConfigFlowResult:
-        from_ha = ha_sources(self.hass)
+        providers = self._providers or {}
+        from_ha = ha_sources(self.hass, providers)
         words = _words(self.hass)
         options = [selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()]
-        options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in PROVIDERS.items()]
+        options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in providers.items()]
         options.append(selector.SelectOptionDict(value=CUSTOM, label=words["custom"]))
         return self.async_show_form(
             step_id="model_source",

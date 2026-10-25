@@ -54,3 +54,10 @@ Feature: BE Editing models, agents and skills on Mira's page
     When the page saves its settings and instructions
     Then the setting is in mira.yaml, the secret only as a reference, and the SKILL.md has the new instructions
     And an empty description is refused, and switching off takes the skill out of mira.yaml
+
+  @step1
+  Scenario: BE-09 The model form offers the providers and the server's models
+    Given the page's form for a model
+    When it starts and the server is known
+    Then it offers Mira's providers and, last, an own server
+    And the models are the ones the server's /models names, else a text field

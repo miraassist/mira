@@ -111,6 +111,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/pair", h.pair)
 	mux.HandleFunc("POST /v1/unpair", h.auth(h.unpair))
 	mux.HandleFunc("POST /v1/setup", h.auth(h.setup))
+	mux.HandleFunc("GET /v1/setup/providers", h.authOrOpen(h.providers))
 	mux.HandleFunc("POST /v1/setup/models", h.authOrOpen(h.models))
 	mux.HandleFunc("POST /v1/setup/probe", h.authOrOpen(h.probeOnly))
 	if h.SetupMode {
@@ -294,6 +295,11 @@ func (h *Handler) setup(w http.ResponseWriter, r *http.Request) {
 	if h.Restart != nil {
 		time.AfterFunc(300*time.Millisecond, h.Restart)
 	}
+}
+
+// providers are the cloud providers the setup offers.
+func (h *Handler) providers(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"providers": llm.Providers})
 }
 
 func (h *Handler) models(w http.ResponseWriter, r *http.Request) {

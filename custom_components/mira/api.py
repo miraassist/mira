@@ -109,6 +109,11 @@ class MiraClient:
         may have to load first, hence the long wait)."""
         await self._request("POST", "/v1/setup/probe", 200, json={"llm": llm})
 
+    async def providers(self) -> dict[str, tuple[str, str]]:
+        """The cloud providers the agent knows: key → (name, address)."""
+        body = await self._request("GET", "/v1/setup/providers", 10)
+        return {str(p["key"]): (str(p["name"]), str(p["base_url"])) for p in body.get("providers") or []}
+
     async def models(self, base_url: str, api_key: str) -> list[str]:
         """The models a model server offers, asked through the agent."""
         body = await self._request("POST", "/v1/setup/models", 20, json={"base_url": base_url, "api_key": api_key})

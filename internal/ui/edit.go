@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"time"
+
+	"github.com/miraassist/mira/internal/llm"
 )
 
 // Editing models, agents and skills (docs/spec/bearbeiten.md): the page
@@ -25,6 +27,8 @@ type Editor interface {
 	CheckMCP(ctx context.Context, skill string, c MCPCheckRequest) MCPCheckResult
 	// ModelContext asks a model's server how much context the model has.
 	ModelContext(ctx context.Context, c ModelContextRequest) ModelContextResult
+	// ModelList asks a model's server which models it offers.
+	ModelList(ctx context.Context, c ModelContextRequest) ModelListResult
 	// Restart starts Mira anew, after the answer went out.
 	Restart()
 }
@@ -41,6 +45,8 @@ type EditState struct {
 	Models        map[string]ModelEdit `json:"models"`
 	Agents        map[string]AgentEdit `json:"agents"`
 	Skills        map[string]SkillEdit `json:"skills"`
+	// Providers are the cloud providers the model form offers.
+	Providers []llm.Provider `json:"providers"`
 }
 
 // ModelEdit is a model's form. Token is write only: empty keeps it,
@@ -138,6 +144,12 @@ type ModelContextResult struct {
 	From   string `json:"from,omitempty"`
 }
 
+// ModelListResult is what the server offers, or why it did not say.
+type ModelListResult struct {
+	Models []string `json:"models"`
+	Error  string   `json:"error,omitempty"`
+}
+
 // MCPCheckResult is how the connection went.
 type MCPCheckResult struct {
 	OK      bool     `json:"ok"`
@@ -182,6 +194,7 @@ func (h *Handler) editRoutes() {
 	})))
 	h.mux.HandleFunc("POST /v1/ui/edit/skills/{name}/mcp-check", h.auth(h.mcpCheck))
 	h.mux.HandleFunc("POST /v1/ui/edit/model-context", h.auth(h.modelContext))
+	h.mux.HandleFunc("POST /v1/ui/edit/model-list", h.auth(h.modelList))
 	h.mux.HandleFunc("POST /v1/ui/restart", h.auth(h.restart))
 }
 
@@ -251,6 +264,21 @@ func (h *Handler) modelContext(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
 	defer cancel()
 	writeJSON(w, http.StatusOK, h.opts.Editor.ModelContext(ctx, c))
+}
+
+func (h *Handler) modelList(w http.ResponseWriter, r *http.Request) {
+	if h.opts.Editor == nil {
+		writeError(w, http.StatusNotFound, "editing is not available")
+		return
+	}
+	var c ModelContextRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&c); err != nil || c.Endpoint == "" {
+		writeError(w, http.StatusBadRequest, "the endpoint is needed")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), mcpTimeout)
+	defer cancel()
+	writeJSON(w, http.StatusOK, h.opts.Editor.ModelList(ctx, c))
 }
 
 func (h *Handler) restart(w http.ResponseWriter, r *http.Request) {

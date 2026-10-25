@@ -65,10 +65,18 @@ async def test_same_agent_only_once(hass, aioclient_mock, entry):
     assert result["reason"] == "already_configured"
 
 
+# What the agent answers on GET /v1/setup/providers (internal/llm/providers.go).
+PROVIDERS = [
+    {"key": "openai", "name": "OpenAI", "base_url": "https://api.openai.com/v1"},
+    {"key": "gemini", "name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"},
+]
+
+
 def _new_agent(aioclient_mock, models=("qwen3", "gemma3"), model=""):
     aioclient_mock.get(
         f"{AGENT_URL}/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True, "setup_mode": True, "model": model}
     )
+    aioclient_mock.get(f"{AGENT_URL}/v1/setup/providers", json={"providers": PROVIDERS})
     aioclient_mock.post(f"{AGENT_URL}/v1/setup/models", json={"models": list(models)})
     aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID})
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})

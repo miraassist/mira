@@ -419,6 +419,10 @@ class MiraModels extends EditPage {
 }
 customElements.define("mira-models", MiraModels);
 
+// providerOf names the provider whose address an endpoint is; "" for a
+// server of one's own.
+const providerOf = (providers, endpoint) =>
+  ((providers || []).find(p => p.base_url === String(endpoint || "").replace(/\/+$/, "")) || {}).key || "";
 const opts = (list, current) => list.map(([v, label]) => html`<option value=${v} ?selected=${v === (current ?? "")}>${label}</option>`);
 const RIGHTS = ["read_house", "act_on_house", "remember", "messages", "web"];
 
@@ -429,7 +433,11 @@ class MiraEditor extends Light {
       if (!s) return;
       const isNew = !name;
       let form;
-      if (kind === "model") form = { name: name || "", ...(name ? s.models[name] : { privacy: "cloud" }) };
+      if (kind === "model") {
+        const first = (s.providers || [])[0];
+        form = { name: name || "", ...(name ? s.models[name] : first ? { endpoint: first.base_url, privacy: "cloud" } : { privacy: "local" }) };
+        form.provider = providerOf(s.providers, form.endpoint);
+      }
       if (kind === "agent") {
         const a = name ? s.agents[name] : {};
         form = { name: name || "", ...a, tools_text: (a.tools || []).join(", "),
@@ -442,6 +450,7 @@ class MiraEditor extends Light {
       }
       this.e = { kind, name, isNew, form, state: s, error: "", saving: false, mcp: null };
       this.updateComplete.then(() => { const d = this.querySelector("dialog"); if (d && !d.open) d.showModal(); });
+      if (kind === "model" && name && !form.from_ha) this.loadModels();
     });
   }
   close() { const d = this.querySelector("dialog"); if (d && d.open) d.close(); this.e = null; }
@@ -490,6 +499,30 @@ class MiraEditor extends Light {
       edited();
     } catch (err) { this.e = { ...this.e, error: err.message }; }
   }
+  // setProvider takes a provider's address and privacy; a server of one's
+  // own gets the address field and counts as local.
+  setProvider(key) {
+    const p = (this.e.state.providers || []).find(p => p.key === key);
+    const f = this.e.form;
+    const endpoint = p ? p.base_url : providerOf(this.e.state.providers, f.endpoint) ? "" : f.endpoint;
+    this.e = { ...this.e, models: null, form: { ...f, provider: key, endpoint, privacy: p ? "cloud" : "local" } };
+    this.loadModels();
+  }
+  // loadModels asks the model's server which models it offers; without an
+  // answer the model stays a text field.
+  async loadModels() {
+    const f = this.e.form;
+    if (!f.endpoint) { this.e = { ...this.e, models: null }; return; }
+    this.e = { ...this.e, models: { wait: true } };
+    try {
+      const r = await api("POST", "/v1/ui/edit/model-list", { name: this.e.name || "", endpoint: f.endpoint, token: f.token || "" });
+      this.e = { ...this.e, models: r };
+    } catch (err) { this.e = { ...this.e, models: { error: err.message } }; }
+  }
+  pickModel(value) {
+    this.set("model", value);
+    if (!this.e.form.context_tokens) this.findContext();
+  }
   // findContext asks the model's server how much context the model has and
   // puts it into the field, where it can still be changed.
   async findContext() {
@@ -526,16 +559,18 @@ class MiraEditor extends Light {
       ${locked ? html`<p class="hint">${T.ed_main_ha}</p>` : nothing}
       <div class="grid">
         ${name === "main" ? nothing : this.field(T.ed_name, "name", { placeholder: "smart" })}
-        ${this.field(T.mod_endpoint, "endpoint", { placeholder: "https://…/v1", disabled: locked })}
-        <label>${T.mod_model}</label>
-        <input .value=${f.model ?? ""} ?disabled=${locked} @input=${ev => this.set("model", ev.target.value)}
-          @change=${() => { if (!this.e.form.context_tokens) this.findContext(); }}>
-        <label>${T.mod_privacy}</label><select ?disabled=${locked} @change=${ev => this.set("privacy", ev.target.value)}>
-          ${opts([["local", T.privacy_local], ["cloud", T.privacy_cloud]], f.privacy)}</select>
+        <label>${T.mod_provider}</label><select ?disabled=${locked} @change=${ev => this.setProvider(ev.target.value)}>
+          ${opts([...(s.providers || []).map(p => [p.key, p.name]), ["", T.ed_provider_custom]], f.provider)}</select>
+        ${f.provider ? nothing : html`<label>${T.mod_endpoint}</label>
+          <input .value=${f.endpoint ?? ""} placeholder="http://…/v1" ?disabled=${locked}
+            @input=${ev => this.set("endpoint", ev.target.value)} @change=${() => this.loadModels()}>`}
         <label>${T.mod_token}</label><input type="password" autocomplete="new-password" ?disabled=${locked} .value=${f.token || ""}
-          placeholder=${f.token_set ? T.ed_token_keep : ""} @input=${ev => this.set("token", ev.target.value)}>
+          placeholder=${f.token_set ? T.ed_token_keep : ""} @input=${ev => this.set("token", ev.target.value)} @change=${() => this.loadModels()}>
         ${f.token_set && !locked ? html`<span></span><label class="checkline"><input type="checkbox" .checked=${!!f.token_clear}
           @change=${ev => this.set("token_clear", ev.target.checked)}> ${T.ed_token_clear}</label>` : nothing}
+        <label>${T.mod_model}</label>${this.modelPicker(locked)}
+        <label>${T.mod_privacy}</label><select ?disabled=${locked} @change=${ev => this.set("privacy", ev.target.value)}>
+          ${opts([["local", T.privacy_local], ["cloud", T.privacy_cloud]], f.privacy)}</select>
         ${this.field(T.mod_parallel, "parallel", { type: "number", disabled: locked })}
         <label>${T.mod_fallback}</label><select ?disabled=${locked} @change=${ev => this.set("fallback", ev.target.value)}>
           ${opts([["", "–"], ...others.map(n => [n, n])], f.fallback)}</select>
@@ -552,6 +587,20 @@ class MiraEditor extends Light {
         ${this.field(T.mod_timeout, "timeout", { disabled: locked, placeholder: "60s" })}
       </div>
       <p class="hint">${s.encrypted ? T.ed_secrets_encrypted : T.ed_secrets_plain}</p>`;
+  }
+  // modelPicker is a list of what the server offers; while there is no
+  // list, a text field.
+  modelPicker(locked) {
+    const f = this.e.form, m = this.e.models;
+    const list = m && m.models && m.models.length ? m.models : null;
+    if (!list || locked) {
+      return html`<div><input .value=${f.model ?? ""} ?disabled=${locked} @input=${ev => this.set("model", ev.target.value)}
+          @change=${() => { if (!this.e.form.context_tokens) this.findContext(); }}>
+        ${m && m.wait ? html`<div class="hint">${T.loading}</div>` : m && !list && !locked ? html`<div class="hint warn">${T.ed_models_none}</div>` : nothing}</div>`;
+    }
+    const all = f.model && !list.includes(f.model) ? [f.model, ...list] : list;
+    return html`<select @change=${ev => this.pickModel(ev.target.value)}>
+      ${opts([["", "–"], ...all.map(n => [n, n])], f.model)}</select>`;
   }
   agentForm() {
     const { form: f, state: s, isNew } = this.e;

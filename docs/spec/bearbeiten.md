@@ -38,8 +38,14 @@ now change what is there and add new ones, without opening a file on the server.
 
 ## Models
 
-- Shown as before; **Edit** opens a form: address, model, privacy, parallel, fallback, context size, reasoning
-  effort, temperature, tool rounds, timeout, token (write only: empty keeps it, "remove" clears it).
+- Shown as before; **Edit** opens a form: provider, token (write only: empty keeps it, "remove" clears it), model,
+  privacy, parallel, fallback, context size, reasoning effort, temperature, tool rounds, timeout.
+- **Provider instead of address:** a list of the common cloud providers (OpenAI, Google Gemini, OpenRouter, Mistral,
+  Anthropic) and, last, "Own server". A provider sets the address; only "Own server" shows the address field, also for
+  local models. Privacy follows the choice (provider → cloud, own server → local) and can still be changed. Editing a
+  model finds its provider by the address. The list is the agent's one list (docs/spec/modelle.md, Providers).
+- **Model:** once the server is known (and the token, where one is needed), the page asks its `/models` and offers
+  what it names as a list. When the server names nothing, the model stays a text field with a hint.
 - **New model:** a name and the same form.
 - **Rename:** another name in the form; the agents and fallbacks that name the model are changed with it.
 - **main** can neither be renamed nor deleted. When the integration in Home Assistant sets main up, main is read only

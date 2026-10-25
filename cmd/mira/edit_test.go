@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,5 +248,27 @@ func TestBE11_AModelBesideTheIntegrationsMain(t *testing.T) {
 	}
 	if out := read(t, path); !strings.Contains(out, "smart:") || strings.Contains(out, "main:") {
 		t.Errorf("file:\n%s", out)
+	}
+}
+
+func TestBE09_TheModelFormOffersProvidersAndTheServersModels(t *testing.T) {
+	_, e, _ := editApp(t)
+	ctx := context.Background()
+	st := e.State(ctx)
+	if len(st.Providers) == 0 || st.Providers[len(st.Providers)-1].Key != "anthropic" {
+		t.Errorf("providers %+v", st.Providers)
+	}
+	var key string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key = r.Header.Get("Authorization")
+		io.WriteString(w, `{"data":[{"id":"qwen3"},{"id":"gemma3"}]}`)
+	}))
+	defer srv.Close()
+	r := e.ModelList(ctx, ui.ModelContextRequest{Endpoint: srv.URL + "/v1", Token: "t"})
+	if strings.Join(r.Models, ",") != "gemma3,qwen3" || r.Error != "" || key != "Bearer t" {
+		t.Errorf("list %+v, key %q", r, key)
+	}
+	if r := e.ModelList(ctx, ui.ModelContextRequest{Endpoint: "http://127.0.0.1:1/v1"}); r.Error == "" {
+		t.Error("an unreachable server gave no error")
 	}
 }
