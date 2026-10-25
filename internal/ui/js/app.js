@@ -171,7 +171,7 @@ class MiraHome extends Light {
         <div class="mira-brand-name"><img src=${url("/ui/icon.png")} alt="Mira">
           <div><div class="mira-eyebrow">${T.home_eyebrow}</div><h1>Mira Assist<span>.</span></h1></div></div>
       </div>
-      <div class="mira-welcome"><h2>${name ? T.home_hello(name) : T.home_welcome}</h2><p>${T.home_tagline}</p></div>
+      <div class="mira-welcome"><h2>${this.greeting(name)}</h2><p>${this.today()}</p></div>
       ${this.me()}
       <div class="mira-label"><span>${T.home_label}</span><span>${T.home_label_side}</span></div>
       <div class="home-grid">${GROUPS.filter(g => tabsOf(g).length).map(g => html`
@@ -185,6 +185,25 @@ class MiraHome extends Light {
           <div class="home-facts">${g.id === "help" ? html`<p class="home-line">${T.home_help_line}</p>` : this.lines(g.id).map(l => html`<p class="home-line">${l}</p>`)}</div>
         </section>`)}</div>
       <footer class="mira-footer"><span>${T.home_footer}</span><a href="https://mira-assist.com" target="_blank" rel="noopener">Mira Assist</a></footer>`;
+  }
+  // greeting greets by the time of day.
+  greeting(name) {
+    const h = new Date().getHours();
+    const part = h >= 5 && h < 11 ? "morning" : h >= 11 && h < 17 ? "day" : h >= 17 && h < 22 ? "evening" : "night";
+    return T["greet_" + part](name);
+  }
+  // today says in a line what is there for whoever looks: messages to them,
+  // running plans, or that all is quiet; nothing until the facts are read.
+  today() {
+    const f = this.facts;
+    if (!Object.keys(f).length) return "";
+    const out = [], plans = (f.plans || []).filter(p => !p.finished);
+    if (f.me && f.me.messages) out.push(T.greet_messages(f.me.messages));
+    if (plans.length === 1) {
+      const r = (plans[0].request || "").trim();
+      out.push(T.greet_plan(r.length > 50 ? r.slice(0, 49) + "…" : r));
+    } else if (plans.length) out.push(T.greet_plans(plans.length));
+    return out.length ? out.join(" ") : T.greet_quiet;
   }
   // link opens a page of the card, not the card's first one.
   link(text, open) {

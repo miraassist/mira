@@ -287,7 +287,7 @@ table.facts { display:table; } td.fact-actions { min-width:160px; }
 .mira-eyebrow { font-size:9px; font-weight:650; color:var(--muted); margin-bottom:3px; }
 .mira-welcome { margin-bottom:23px; }
 .mira-welcome h2 { font-size:24px; margin-bottom:5px; }
-.mira-welcome p { color:var(--muted); margin:0; font-size:13px; }
+.mira-welcome p { color:var(--muted); margin:0; font-size:14px; min-height:1lh; }
 .mira-label { display:flex; justify-content:space-between; gap:15px; margin:24px 0 12px; font-size:10px; color:var(--muted); }
 .home-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; grid-auto-rows:auto; }
 section.card.home-card,html.ha section.card.home-card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:22px 24px 18px; min-height:250px; margin:0; }
@@ -566,7 +566,11 @@ const I18N = {
   "subtitle_daily": "Was gerade ansteht", "subtitle_setup": "Mira in deinem Zuhause",
   "subtitle_abilities": "Was Mira für dich tun kann", "subtitle_help": "Mira besser kennenlernen",
   "home_eyebrow": "DEIN CONVERSATIONAL AGENT",
-  "home_hello": name => `Hallo, ${name}`, "home_welcome": "Willkommen bei Mira", "home_tagline": "Alles im Blick. Und Mira an deiner Seite.",
+  "greet_morning": name => name ? `Guten Morgen, ${name}` : "Guten Morgen", "greet_day": name => name ? `Hallo, ${name}` : "Hallo",
+  "greet_evening": name => name ? `Guten Abend, ${name}` : "Guten Abend", "greet_night": name => name ? `Noch wach, ${name}?` : "Noch wach?",
+  "greet_messages": n => n === 1 ? "Eine Nachricht wartet auf dich." : `${n} Nachrichten warten auf dich.`,
+  "greet_plan": r => r ? `Ein Plan läuft gerade: „${r}“.` : "Ein Plan läuft gerade.", "greet_plans": n => `${n} Pläne laufen gerade.`,
+  "greet_quiet": "Nichts Neues, alles ruhig im Haus.",
   "home_label": "DEINE MIRA", "home_label_side": "Ein Zuhause. Viele Möglichkeiten.",
   "home_help_line": "Gespräche, Aufgaben und eigene Skills.", "home_footer": "Persönlich für dein Zuhause.",
   // The start page links three chapters of the guide: a short name, and how
@@ -1010,7 +1014,11 @@ const I18N = {
   "subtitle_daily": "What is happening now", "subtitle_setup": "Mira in your home",
   "subtitle_abilities": "What Mira can do for you", "subtitle_help": "Get to know Mira",
   "home_eyebrow": "YOUR CONVERSATIONAL AGENT",
-  "home_hello": name => `Hello, ${name}`, "home_welcome": "Welcome to Mira", "home_tagline": "Everything in view. And Mira by your side.",
+  "greet_morning": name => name ? `Good morning, ${name}` : "Good morning", "greet_day": name => name ? `Hello, ${name}` : "Hello",
+  "greet_evening": name => name ? `Good evening, ${name}` : "Good evening", "greet_night": name => name ? `Still up, ${name}?` : "Still up?",
+  "greet_messages": n => n === 1 ? "A message is waiting for you." : `${n} messages are waiting for you.`,
+  "greet_plan": r => r ? `A plan is running: “${r}”.` : "A plan is running.", "greet_plans": n => `${n} plans are running.`,
+  "greet_quiet": "Nothing new, all quiet at home.",
   "home_label": "YOUR MIRA", "home_label_side": "One home. Many possibilities.",
   "home_help_line": "Conversations, tasks and your own skills.", "home_footer": "Personal to your home.",
   "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
