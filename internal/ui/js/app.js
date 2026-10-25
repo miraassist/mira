@@ -20,7 +20,9 @@ const tabsOf = g => g.tabs.filter(id => TABS.includes(id));
 class MiraNav extends Light {
   static properties = { tab: {} };
   render() {
-    if (!this.tab || this.tab === "home") return nothing;
+    // The start page names itself where a group names itself, so the row
+    // keeps its place and height from page to page.
+    if (!this.tab || this.tab === "home") return html`<span class="group-title">${T.tab_home}</span>`;
     const group = groupOf(this.tab);
     const tabs = group ? tabsOf(group) : [];
     return html`

@@ -47,7 +47,7 @@ nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: 0; padding: 6px 11px; border-radius: 999px; color: var(--muted); cursor: pointer; font: inherit; font-weight: 600; transition: background .15s, color .15s; }
 nav button:hover { color: var(--text); background: var(--badge); }
 nav button.active { color: var(--text); background: linear-gradient(120deg, color-mix(in srgb, var(--rose) 28%, transparent), color-mix(in srgb, var(--mint) 34%, transparent)); }
-mira-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+mira-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; min-height: calc(1lh + 12px); }
 mira-nav button.back { border: 0; background: none; color: var(--muted); font-weight: 600; padding: 6px 8px; }
 mira-nav .group-title { font-weight: 700; margin: 0 8px 0 2px; }
 /* The start page: a card per group, as Home Assistant's settings page. */
@@ -160,6 +160,14 @@ details.profile pre { background: var(--badge); padding: 10px 12px; border-radiu
 td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @media (max-width: 600px) { td.fact-actions { white-space: normal; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
+/* Narrow: the navigation always has a row of its own below the logo and the
+   language, one line that scrolls sideways, so the page below does not move
+   from page to page. */
+@media (max-width: 600px) {
+  #nav { order: 3; flex-basis: 100%; min-width: 0; }
+  mira-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  mira-nav > * { flex-shrink: 0; }
+}
 
 /* Mira's own dialog instead of the browser's confirm/prompt. */
 :is(dialog#dlg, dialog.mira-dialog) { border: 0; padding: 0; border-radius: 22px; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgb(60 20 50 / 25%); }
