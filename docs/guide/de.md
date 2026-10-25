@@ -664,7 +664,7 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 - Bei Skills: einschalten, ausschalten und einstellen, bei einem Skill mit MCP-Server mit **Verbindung testen**. Bei eigenen Skills auch die Anleitung, die Agenten, den Vorgang und den MCP-Server; mitgelieferte Skills ersetzt ein Update, darum dort nur die Einstellungen.
 - Änderungen gelten nach einem Neustart; die Seite bietet dafür **Mira neu starten** an.
 
-![Ein Modell bearbeiten: der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
+![Ein Modell bearbeiten: Anbieter und Modell zur Auswahl, der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
 
 Wer kein Admin ist, sieht nur **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
 

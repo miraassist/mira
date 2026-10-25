@@ -1,6 +1,6 @@
 # Editing models, agents and skills on Mira's page
 
-Status 2026-10-24: built, released in 0.7.0. Scenarios: [bearbeiten.feature](bearbeiten.feature).
+Status 2026-10-25: built, released in 0.7.0; provider list and model check in 0.8.0. Scenarios: [bearbeiten.feature](bearbeiten.feature).
 
 ## Goal
 

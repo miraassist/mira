@@ -640,7 +640,7 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 - Skills: switch on, switch off and set them up, with **Test connection** for a skill with an MCP server. For your own skills also the instructions, agents, thread and MCP server; an update replaces the bundled skills, so for those only the settings.
 - Changes hold after a restart; the page offers **Restart Mira** for it.
 
-![Editing a model: the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
+![Editing a model: provider and model to choose from, the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
 
 Someone who is no admin sees only **Plans**, **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
 
