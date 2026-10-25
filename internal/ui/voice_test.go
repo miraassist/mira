@@ -151,7 +151,7 @@ func TestAdminDeletesAVoice(t *testing.T) {
 // the list has no voices, and a person's voice is not there.
 func TestWithoutSpeakerRecognition(t *testing.T) {
 	h := New(Options{Token: "secret",
-		People: func() []PersonInfo { return []PersonInfo{{Key: "anna", Name: "Anna", Entity: "person.anna"}} },
+		People:         func() []PersonInfo { return []PersonInfo{{Key: "anna", Name: "Anna", Entity: "person.anna"}} },
 		PersonOfHAUser: func(context.Context, string) string { return "anna" }})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
