@@ -40,14 +40,14 @@ func speakerApp(t *testing.T, body string, delay time.Duration) *app {
 }
 
 const (
-	annaSaidIt = `{"person": "anna", "score": 0.71, "decision": "accepted", "count": 1}`
+	annaSaidIt = `[{"person": "anna", "score": 0.81, "second": "ben", "second_score": 0.3}]`
 	nobody     = ""
 )
 
 // voiceTurn is who the satellite turn is, with alone as the "alone at home"
 // rule's answer.
 func voiceTurn(a *app, alone string) string {
-	return atSatellite(a.persons(), a.voiceOf(context.Background(), "Erinner mich an den Müll"), func() string { return alone })
+	return atSatellite(a.persons(), a.voiceOf(context.Background(), "Erinner mich an den Müll", a.persons()), func() string { return alone })
 }
 
 func TestSP01_RecognizedVoiceIsThePerson(t *testing.T) {
@@ -58,7 +58,7 @@ func TestSP01_RecognizedVoiceIsThePerson(t *testing.T) {
 }
 
 func TestSP02_UncertainVoiceStaysAnonymous(t *testing.T) {
-	a := speakerApp(t, `{"person": null, "score": 0.55, "decision": "uncertain", "count": 1}`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.8, "second": "ben", "second_score": 0.78}]`, 0)
 	if got := voiceTurn(a, nobody); got != "" {
 		t.Errorf("got %q, want nobody", got)
 	}
@@ -95,24 +95,42 @@ func TestSP05_SlowServiceHoldsNothingUp(t *testing.T) {
 }
 
 func TestSP06_VoiceOfNobodyHomeAssistantKnows(t *testing.T) {
-	a := speakerApp(t, `{"person": "zoe", "score": 0.8, "decision": "accepted", "count": 1}`, 0)
+	a := speakerApp(t, `[{"person": "zoe", "score": 0.9}]`, 0)
 	if got := voiceTurn(a, nobody); got != "" {
 		t.Errorf("got %q, want nobody", got)
 	}
 }
 
-// The service merges what several satellites heard (services/speaker-id,
-// match); Mira takes its answer as it is.
 func TestSP07_TwoSatellitesHeardTheSamePerson(t *testing.T) {
-	a := speakerApp(t, `{"person": "anna", "score": 0.7, "decision": "accepted", "count": 2}`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "anna", "score": 0.74}]`, 0)
 	if got := voiceTurn(a, nobody); got != "anna" {
 		t.Errorf("got %q, want anna", got)
 	}
 }
 
 func TestSP08_TwoSatellitesDisagree(t *testing.T) {
-	a := speakerApp(t, `{"person": null, "score": 0.7, "decision": "uncertain", "count": 2}`, 0)
+	a := speakerApp(t, `[{"person": "anna", "score": 0.81}, {"person": "ben", "score": 0.9}]`, 0)
 	if got := voiceTurn(a, "ben"); got != "ben" {
 		t.Errorf("got %q, want the alone-at-home answer ben", got)
+	}
+}
+
+// The score a voice needs is Mira's to set: speaker_id.threshold for
+// everyone, voice_threshold for a person whose voice scores lower.
+func TestSP09_ThresholdIsMirasPerPersonToo(t *testing.T) {
+	a := speakerApp(t, `[{"person": "ben", "score": 0.62}]`, 0)
+	if got := voiceTurn(a, nobody); got != "" {
+		t.Errorf("at the default threshold: got %q, want nobody", got)
+	}
+	a.cfg.SpeakerID.Threshold = 0.6
+	if got := voiceTurn(a, nobody); got != "ben" {
+		t.Errorf("at speaker_id.threshold 0.6: got %q, want ben", got)
+	}
+	a.cfg.SpeakerID.Threshold = 0.8
+	ben := a.cfg.Persons["ben"]
+	ben.VoiceThreshold = 0.6
+	a.cfg.Persons["ben"] = ben
+	if got := voiceTurn(a, nobody); got != "ben" {
+		t.Errorf("with ben's own 0.6 under a general 0.8: got %q, want ben", got)
 	}
 }

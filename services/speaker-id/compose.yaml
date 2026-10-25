@@ -18,7 +18,7 @@ services:
       # wespeaker_en_voxceleb_resnet34_LM.onnx, 3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx,
       # nemo_en_titanet_small.onnx, ... (sherpa-onnx release "speaker-recongition-models")
       - SPEAKER_MODEL=${SPEAKER_MODEL:-wespeaker_en_voxceleb_resnet34_LM.onnx}
-      - SPEAKER_THRESHOLD=${SPEAKER_THRESHOLD:-0.5}
+      - SPEAKER_THRESHOLD=${SPEAKER_THRESHOLD:-0.7}
       - SPEAKER_DEBUG=${SPEAKER_DEBUG:-false}
     ports:
       - "10310:10310"

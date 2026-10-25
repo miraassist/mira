@@ -53,3 +53,9 @@ Feature: SP Speaker recognition at the satellite
     Given the service has an accepted utterance of anna and one of ben with the turn's text
     When a turn at a satellite asks who is speaking
     Then nobody is, unless the "alone at home" rule names someone
+
+  @step3
+  Scenario: SP-09 The threshold is Mira's, per person too
+    Given ben's voice scores 0.62
+    When the threshold is 0.7, or 0.6, or 0.8 with voice_threshold 0.6 for ben
+    Then he is nobody, ben, ben

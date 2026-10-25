@@ -39,9 +39,9 @@ satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio
   runs while the STT works (about a second).
 - **Model:** a speaker embedding model through sherpa-onnx (WeSpeaker ResNet34 to start with, about 25 MB; others
   of sherpa-onnx's speaker models by setting).
-- **Decision per utterance:** `accepted` (a profile scored at least the threshold and clearly above the second),
-  `uncertain` (two profiles too close), `unknown` (no profile at the threshold) or `unavailable` (under one second
-  of speech). **One threshold** for everyone (0.5 to start with), not one per person.
+- **Per utterance** it finds the best and the second-best profile with their scores (cosine, 0 to 1), and
+  nothing under one second of speech. **Who that is, is Mira's decision** (below), with her thresholds; the
+  service's page shows a decision of its own only to help enrolling.
 - **Profiles** are kept per **HA person**, by the person's id (the key of [users](benutzer.md), e.g. `anna`): several samples
   each, the profile is their mean. They are in a JSON file in the service's data directory, outside the repository
   and outside Mira.
@@ -59,14 +59,14 @@ The service does not know which satellite spoke: Home Assistant does not tell a 
 have to. Home Assistant hands the transcript on to the conversation agent unchanged, so Mira asks the service for
 the utterance with **the turn's text** among the last few seconds:
 
-- `GET /api/match?text=<the turn's text>&within=10` answers with the person, score and decision of the latest
-  utterance with that text no older than 10 seconds, or with nothing.
+- `GET /api/match?text=<the turn's text>&within=10` answers with every utterance of that text no older than 10
+  seconds, latest first, each with its best and second-best person and their scores; an empty list when there is
+  none.
 - Texts are compared after trimming, folding case and collapsing whitespace.
 - Several utterances with the same text in that window are several satellites hearing the same request. With
   TECHO5's "Nearest device answers" (on by default, with a house word) only the nearest device sends its audio, so
   this is rare; it happens when that fails, with satellites without TECHO5, or with a wake word Home Assistant
-  heard itself. They are the same person heard twice: if all of them are `accepted` for the same person, that
-  person counts; if they disagree or one is not `accepted`, the turn stays anonymous.
+  heard itself. They are the same person heard twice: the person counts only if every one of them does (below).
 - A turn that did not come through the service (typed in the app, Telegram, a pipeline with another STT) finds
   nothing, which is the same as `unknown`.
 
@@ -75,11 +75,13 @@ the utterance with **the turn's text** among the last few seconds:
 `identify` (who speaks in a turn) gets one more source, in this order at a satellite:
 
 1. the signed-in HA user, if Home Assistant names one;
-2. **the voice**, if the service's decision is `accepted` and the person exists in Home Assistant;
+2. **the voice**, if every utterance of the turn's text names the same person, at or above the threshold and
+   at least 0.05 ahead of the second-best person, and the person exists in Home Assistant;
 3. the "alone at home" rule;
 4. otherwise anonymous.
 
-`uncertain`, `unknown`, no answer, a service that is down or slow: on to 3. The question to the service has a short
+Anything else (below the threshold, too close to the second, satellites that disagree, nothing found), no answer,
+a service that is down or slow: on to 3. The question to the service has a short
 timeout (300 ms) and never holds up the turn.
 
 - **Asked by the agent itself,** not by the HA integration: the agent has the turn's text and decides who speaks
@@ -89,7 +91,15 @@ timeout (300 ms) and never holds up the turn.
   ```yaml
   speaker_id:
     url: http://192.168.x.y:10311   # the service's API
+    threshold: 0.7                  # the score a voice needs; 0.7 if left out
+  persons:
+    ben:
+      voice_threshold: 0.65         # a voice that scores lower than most
   ```
+
+- **The threshold** is Mira's: one for everyone, and one for a person whose voice scores lower or higher than
+  most. 0.7 to start with: with the first model, enrolled persons reached about 0.8, while a voice that was not
+  enrolled (a synthetic one) still reached 0.55.
 
 - **Log:** one line per turn at debug level with person and score, nothing stored.
 
@@ -100,7 +110,7 @@ timeout (300 ms) and never holds up the turn.
    gets no access to Home Assistant for this: the page takes the id as typed, and Mira ignores an id Home
    Assistant does not have (SP-06). Choosing from Home Assistant's persons comes with enrolling in Mira's page
    (step 4).
-3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-08.
+3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-09.
 4. **Enrolling in Mira's page:** "that was me" for a signed-in person, persons without a login (children) by an
    admin; the service's own page goes, the API gets a token.
 5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.

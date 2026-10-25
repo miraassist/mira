@@ -22,7 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 RECENT = 30
 # Shorter than this and an embedding says little about who spoke.
 MIN_SECONDS = 1.0
-# The best speaker has to beat the second by this much, or the result is "uncertain".
+# The best speaker has to beat the second by this much, or the result is "uncertain". The page
+# shows this decision with the service's own threshold; Mira decides with hers (/api/match).
 MARGIN = 0.05
 
 
@@ -186,31 +187,30 @@ class SpeakerStore:
             self._save()
             return True
 
-    def match(self, text: str, within: float) -> dict | None:
-        """The result for the utterance with this transcript in the last `within` seconds.
+    def match(self, text: str, within: float) -> list[dict]:
+        """The utterances with this transcript in the last `within` seconds, latest first.
 
-        Several are several satellites that heard the same request: the person counts only if all of
-        them were accepted for that person; otherwise the result is "uncertain". None when there is none.
+        Several are several satellites that heard the same request. Each gives its best and second-best
+        speaker with their scores; whether that is somebody is the caller's decision (Mira's threshold,
+        docs/spec/sprecher.md), not this service's.
         """
         want = normalize(text)
         if not want:
-            return None
+            return []
         since = time.time() - within
         with self.lock:
             found = [u for u in self.recent if u.at >= since and normalize(u.transcript) == want]
-        if not found:
-            return None
-        best = found[0]  # the latest
-        people = {u.speaker for u in found}
-        if len(found) > 1 and (len(people) > 1 or any(u.decision != "accepted" for u in found)):
-            return {"person": None, "score": best.score, "decision": "uncertain", "count": len(found)}
-        accepted = best.decision == "accepted"
-        return {
-            "person": best.speaker if accepted else None,
-            "score": round(best.score, 3),
-            "decision": best.decision,
-            "count": len(found),
-        }
+        return [
+            {
+                "person": u.speaker,
+                "score": round(u.score, 3),
+                "second": u.second,
+                "second_score": round(u.second_score, 3),
+                "seconds": round(u.seconds, 2),
+            }
+            for u in found
+            if u.embedding is not None
+        ]
 
     def snapshot(self) -> dict:
         with self.lock:

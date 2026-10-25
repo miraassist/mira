@@ -30,49 +30,66 @@ func serve(t *testing.T, body string, delay time.Duration) (*Client, *string) {
 	return New(srv.URL + "/"), &asked
 }
 
-func TestPerson(t *testing.T) {
+func TestMatch(t *testing.T) {
+	client, asked := serve(t, `[{"person": "anna", "score": 0.81, "second": "ben", "second_score": 0.4, "seconds": 2.1}]`, 0)
+	found, err := client.Match(context.Background(), "Mach das Licht an")
+	if err != nil || len(found) != 1 || found[0] != (Utterance{"anna", 0.81, "ben", 0.4}) {
+		t.Fatalf("got %+v, %v", found, err)
+	}
+	if *asked != "Mach das Licht an" {
+		t.Errorf("asked for %q", *asked)
+	}
+}
+
+func TestDecide(t *testing.T) {
+	at := func(p string) float64 {
+		if p == "ben" {
+			return 0.6 // a voice of his own threshold
+		}
+		return Threshold
+	}
+	anna := Utterance{Person: "anna", Score: 0.8, Second: "ben", SecondScore: 0.3}
 	for _, c := range []struct {
-		name, body, want string
+		name  string
+		found []Utterance
+		want  string
 	}{
-		{"accepted", `{"person": "anna", "score": 0.71, "decision": "accepted", "count": 1}`, "anna"},
-		{"uncertain", `{"person": null, "score": 0.62, "decision": "uncertain", "count": 2}`, ""},
-		{"unknown", `{"person": null, "score": 0.2, "decision": "unknown", "count": 1}`, ""},
-		{"not found", `null`, ""},
+		{"one satellite", []Utterance{anna}, "anna"},
+		{"nothing heard", nil, ""},
+		{"below the threshold", []Utterance{{Person: "anna", Score: 0.65}}, ""},
+		{"a person's own threshold", []Utterance{{Person: "ben", Score: 0.65}}, "ben"},
+		{"too close to the second", []Utterance{{Person: "anna", Score: 0.8, Second: "ben", SecondScore: 0.77}}, ""},
+		{"two satellites, same person", []Utterance{anna, {Person: "anna", Score: 0.75}}, "anna"},
+		{"two satellites disagree", []Utterance{anna, {Person: "ben", Score: 0.9}}, ""},
+		{"one of two too low", []Utterance{anna, {Person: "anna", Score: 0.5}}, ""},
+		{"no profile at all", []Utterance{{Person: "", Score: 0}}, ""},
 	} {
-		t.Run(c.name, func(t *testing.T) {
-			client, asked := serve(t, c.body, 0)
-			got, _, err := client.Person(context.Background(), "Mach das Licht an")
-			if err != nil || got != c.want {
-				t.Fatalf("got %q, %v; want %q", got, err, c.want)
-			}
-			if *asked != "Mach das Licht an" {
-				t.Errorf("asked for %q", *asked)
-			}
-		})
+		if got := Decide(c.found, at); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 
 // A service that does not answer in time costs the turn the timeout and no
 // more.
-func TestPersonTimesOut(t *testing.T) {
-	client, _ := serve(t, `{"person": "anna", "decision": "accepted"}`, 2*time.Second)
+func TestMatchTimesOut(t *testing.T) {
+	client, _ := serve(t, `[]`, 2*time.Second)
 	start := time.Now()
-	got, _, err := client.Person(context.Background(), "Hallo")
-	if err == nil || got != "" {
-		t.Fatalf("got %q, %v; want an error and nobody", got, err)
+	if _, err := client.Match(context.Background(), "Hallo"); err == nil {
+		t.Fatal("no error")
 	}
 	if took := time.Since(start); took > Timeout+200*time.Millisecond {
 		t.Errorf("took %v", took)
 	}
 }
 
-// Without a URL there is no client, and asking it is nobody.
+// Without a URL there is no client, and asking it finds nothing.
 func TestNoService(t *testing.T) {
-	var c *Client = New("  ")
+	c := New("  ")
 	if c != nil {
 		t.Fatal("a client without a URL")
 	}
-	if got, _, err := c.Person(context.Background(), "Hallo"); got != "" || err != nil {
-		t.Errorf("got %q, %v", got, err)
+	if found, err := c.Match(context.Background(), "Hallo"); found != nil || err != nil {
+		t.Errorf("got %v, %v", found, err)
 	}
 }

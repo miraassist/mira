@@ -6,6 +6,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/speakerid"
 )
 
 // identify says who is speaking in a turn: a person key, or "" for someone
@@ -29,7 +30,7 @@ func (a *app) identify(ctx context.Context, req conversation.Request) string {
 		if req.HAUser != "" {
 			return a.personOfHAUser(ctx, req.HAUser)
 		}
-		return atSatellite(persons, a.voiceOf(ctx, req.Text), func() string {
+		return atSatellite(persons, a.voiceOf(ctx, req.Text, persons), func() string {
 			if !anyAloneIsMe(persons) {
 				return ""
 			}
@@ -54,18 +55,32 @@ func atSatellite(persons map[string]config.Person, voice string, alone func() st
 	return alone()
 }
 
-// voiceOf is the person the speaker-id service recognized as having said
-// text, or "" (no service, nobody for sure, no answer in time).
-func (a *app) voiceOf(ctx context.Context, text string) string {
+// voiceOf is the person the speaker-id service heard say text, by the
+// thresholds of mira.yaml, or "" (no service, nobody for sure, no answer in
+// time).
+func (a *app) voiceOf(ctx context.Context, text string, persons map[string]config.Person) string {
 	if a.speaker == nil {
 		return ""
 	}
-	person, score, err := a.speaker.Person(ctx, text)
+	found, err := a.speaker.Match(ctx, text)
 	if err != nil {
 		a.log.Warn("speaker-id did not answer", "error", err)
 		return ""
 	}
-	a.log.Debug("speaker-id", "person", person, "score", score)
+	cfg := a.liveConfig().SpeakerID
+	if cfg.URL == "" {
+		cfg = a.cfg.SpeakerID // the chat command has no live config
+	}
+	person := speakerid.Decide(found, func(p string) float64 {
+		switch {
+		case persons[p].VoiceThreshold > 0:
+			return persons[p].VoiceThreshold
+		case cfg.Threshold > 0:
+			return cfg.Threshold
+		}
+		return speakerid.Threshold
+	})
+	a.log.Debug("speaker-id", "person", person, "heard", found)
 	return person
 }
 

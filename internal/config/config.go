@@ -461,6 +461,9 @@ type Person struct {
 	// AloneIsMe: when this person is the only one at home (by Entity), the
 	// satellites count as them: their memory, their personal tasks.
 	AloneIsMe bool `yaml:"alone_is_me,omitempty"`
+	// VoiceThreshold is this person's own speaker_id threshold, for a voice
+	// that scores lower or higher than most (docs/spec/sprecher.md).
+	VoiceThreshold float64 `yaml:"voice_threshold,omitempty"`
 }
 
 // Whose messages a person takes (Person.AcceptFrom).
@@ -599,6 +602,9 @@ type WebSearch struct {
 // they are.
 type SpeakerID struct {
 	URL string `yaml:"url"`
+	// Threshold is the score a voice needs to count as a person (0 to 1);
+	// 0 takes speakerid.Threshold. A person's voice_threshold wins.
+	Threshold float64 `yaml:"threshold,omitempty"`
 }
 
 // mainDefaults are what main takes for the settings mira.yaml leaves out;
