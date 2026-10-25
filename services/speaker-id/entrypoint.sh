@@ -18,6 +18,7 @@ ARGS=(
     --store /data/speakers.json
     --web-port 10311
     --threshold "${SPEAKER_THRESHOLD:-0.7}"
+    --token "${SPEAKER_TOKEN:-}"
 )
 if [ "${SPEAKER_DEBUG:-false}" = "true" ]; then
     ARGS+=(--debug)

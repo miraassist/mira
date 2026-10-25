@@ -38,7 +38,7 @@ func speakerApp(t *testing.T, body string, delay time.Duration) *app {
 			"ben":  {Name: "Ben", UserID: "u-ben"},
 		}},
 		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-		speaker: speakerid.New(srv.URL),
+		speaker: speakerid.New(srv.URL, ""),
 	}
 }
 

@@ -141,7 +141,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	slog.SetDefault(tel.Logger)
 	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath,
-		speaker: speakerid.New(cfg.SpeakerID.URL)}
+		speaker: speakerid.New(cfg.SpeakerID.URL, cfg.SpeakerID.Token)}
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
@@ -1005,6 +1005,10 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			return out, err
 		},
 	}
+	if a.speaker != nil { // a nil *Client would be a non-nil Voices
+		uiOpts.Voices = a.speaker
+	}
+
 	page := ui.New(uiOpts)
 	mux := http.NewServeMux()
 	mux.Handle("/ui", page)

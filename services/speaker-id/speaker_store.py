@@ -212,10 +212,18 @@ class SpeakerStore:
             if u.embedding is not None
         ]
 
-    def snapshot(self) -> dict:
+    def heard_since(self, since: float) -> list[dict]:
+        """The utterances since `since` (unix seconds), oldest first, for enrolling: each with its id,
+        transcript, length and to whom it was assigned. Only those with a voice print."""
         with self.lock:
-            return {
-                "threshold": self.threshold,
-                "speakers": {n: len(e) for n, e in self.speakers.items()},
-                "recent": [u.public() for u in self.recent],
-            }
+            found = [u for u in self.recent if u.at >= since and u.embedding is not None]
+        return [
+            {"id": u.id, "at": u.at, "seconds": round(u.seconds, 2), "transcript": u.transcript,
+             "assigned": u.assigned}
+            for u in reversed(found)
+        ]
+
+    def profiles(self) -> dict[str, int]:
+        """The enrolled persons and how many samples each has."""
+        with self.lock:
+            return {n: len(e) for n, e in self.speakers.items()}

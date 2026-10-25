@@ -1,6 +1,7 @@
 # Speaker ID: a Wyoming STT proxy in front of the real STT that recognizes who spoke (CPU, sherpa-onnx).
-# Home Assistant uses it as its STT (port 10310); the transcript is the upstream's, unchanged. Enrollment
-# page and API on port 10311. Keeps voice prints only, no audio (docs/spec/sprecher.md).
+# Home Assistant uses it as its STT (port 10310); the transcript is the upstream's, unchanged. Its API for
+# Mira is on port 10311, behind SPEAKER_TOKEN (set it in .env next to this file; Mira's speaker_id.token is
+# the same). Enrolling happens in Mira's page. Keeps voice prints only, no audio (docs/spec/sprecher.md).
 #
 #   docker compose -f services/speaker-id/compose.yaml up -d --build
 #
@@ -20,6 +21,7 @@ services:
       - SPEAKER_MODEL=${SPEAKER_MODEL:-wespeaker_en_voxceleb_resnet34_LM.onnx}
       - SPEAKER_THRESHOLD=${SPEAKER_THRESHOLD:-0.7}
       - SPEAKER_DEBUG=${SPEAKER_DEBUG:-false}
+      - SPEAKER_TOKEN=${SPEAKER_TOKEN:-}
     ports:
       - "10310:10310"
       - "10311:10311"

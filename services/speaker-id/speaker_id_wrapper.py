@@ -48,7 +48,8 @@ async def main() -> None:
     parser.add_argument("--model", required=True, help="sherpa-onnx speaker embedding model")
     parser.add_argument("--store", required=True, help="JSON file with the enrolled speakers")
     parser.add_argument("--web-port", type=int, default=10311)
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--threshold", type=float, default=0.7)
+    parser.add_argument("--token", default="", help="the API's bearer token; empty: open")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -88,10 +89,10 @@ async def main() -> None:
         ],
     )
 
-    runner = web.AppRunner(make_app(store))
+    runner = web.AppRunner(make_app(store, args.token))
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", args.web_port).start()
-    _LOGGER.info("Enrollment page on port %d", args.web_port)
+    _LOGGER.info("API on port %d%s", args.web_port, "" if args.token else ", without a token")
 
     server = AsyncServer.from_uri(args.uri)
     _LOGGER.info("Wyoming proxy on %s", args.uri)

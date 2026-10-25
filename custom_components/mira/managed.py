@@ -32,7 +32,9 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from .const import DOMAIN
 
 # Mira's settings on a person and on a satellite, the fields of options["mira"].
-PERSON_FIELDS = ("channels", "accept_from", "alone_is_me")
+PERSON_FIELDS = ("channels", "accept_from", "alone_is_me", "voice_threshold")
+# What a person may set for themselves on the panel's card "Me"; the rest is an admin's.
+PERSON_OWN_FIELDS = ("accept_from", "alone_is_me")
 ACCEPT = ("all", "persons", "none")
 SATELLITE_FIELDS = ("presence", "morning", "indicator")
 SATELLITE_DOMAINS = ("assist_satellite", "media_player")
@@ -98,6 +100,8 @@ def person_to_agent(data: dict[str, Any]) -> dict[str, Any]:
         out["accept_from"] = data["accept_from"]
     if data.get("alone_is_me"):
         out["alone_is_me"] = True
+    if data.get("voice_threshold"):
+        out["voice_threshold"] = data["voice_threshold"]
     return out
 
 
@@ -106,6 +110,7 @@ def person_from_agent(person: dict[str, Any]) -> dict[str, Any]:
         "channels": list(person.get("channels") or []),
         "accept_from": person.get("accept_from") or "",
         "alone_is_me": bool(person.get("alone_is_me")),
+        "voice_threshold": person.get("voice_threshold") or None,
     }
 
 
@@ -257,6 +262,17 @@ def normalize_person(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"accept_from must be all, persons or none, not {accept!r}")
     out["accept_from"] = "" if accept == "all" else accept
     out["alone_is_me"] = bool(out.get("alone_is_me"))
+    threshold = out.get("voice_threshold")
+    if threshold in (None, "", 0):
+        out["voice_threshold"] = None
+    else:
+        try:
+            threshold = float(threshold)
+        except (TypeError, ValueError):
+            raise ValueError(f"voice_threshold must be a number, not {threshold!r}") from None
+        if not 0 < threshold < 1:
+            raise ValueError(f"voice_threshold must be between 0 and 1, not {threshold}")
+        out["voice_threshold"] = threshold
     return out
 
 
@@ -280,8 +296,13 @@ async def save_settings(
 ) -> None:
     """Check the settings with the agent, then store them on the persons and
     satellites. Raises ValueError or the client's errors; nothing is stored
-    then."""
-    persons = {e: normalize_person(d) for e, d in (persons or {}).items()}
+    then. A person's voice threshold that is left out stays as it was: the
+    integration's own form does not have it."""
+    current = person_settings(hass)
+    persons = {
+        e: normalize_person({"voice_threshold": current.get(e, {}).get("voice_threshold"), **d})
+        for e, d in (persons or {}).items()
+    }
     own = own_notify(hass)
     for data in persons.values():
         for c in data["channels"]:

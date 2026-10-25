@@ -43,5 +43,19 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(store_with(u).match("Ja", 10), [])
 
 
+class HeardTest(unittest.TestCase):
+    def test_since_oldest_first_with_voice_prints_only(self):
+        short = said("Ja", None, decision="unavailable", ago=1.0)
+        short.embedding = None
+        s = store_with(said("Neu", "anna", ago=2.0), said("Älter", "anna", ago=5.0), short, said("Alt", "anna", ago=60.0))
+        got = [u["transcript"] for u in s.heard_since(time.time() - 10)]
+        self.assertEqual(got, ["Älter", "Neu"])
+
+    def test_profiles(self):
+        s = store_with()
+        s.speakers = {"anna": [[1.0], [0.5]]}
+        self.assertEqual(s.profiles(), {"anna": 2})
+
+
 if __name__ == "__main__":
     unittest.main()

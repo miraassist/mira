@@ -380,3 +380,47 @@ async def test_exposed_entities_reach_the_agent(hass, aioclient_mock, entry):
     async_expose_entity(hass, "conversation", "calendar.geheim", True)
     await hass.async_block_till_done()
     assert "calendar.geheim" in _puts(aioclient_mock)[-1]["exposed"]
+
+
+async def test_a_person_sets_their_own_settings(hass, aioclient_mock, entry, hass_client, hass_admin_user):
+    """The card "Me": whoever is signed in reads and sets their own person's
+    settings, only the fields that are theirs; the admin's stay as they are."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    anna = _person(hass, "anna", "Anna")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_client()
+    assert (await client.get("/api/mira/settings/me")).status == 404  # no person for this login yet
+    hass.states.async_set(anna, "home", {"id": "anna", "friendly_name": "Anna", "user_id": hass_admin_user.id})
+    resp = await client.put(
+        "/api/mira/settings/persons", json={anna: {"channels": ["notify.anna_phone"], "voice_threshold": 0.65}}
+    )
+    assert resp.status == 200
+    hass_admin_user.groups = []  # from here on not an admin
+    body = await (await client.get("/api/mira/settings/me")).json()
+    assert body["entity"] == anna and body["settings"]["voice_threshold"] == 0.65
+    resp = await client.put("/api/mira/settings/me", json={"alone_is_me": True, "accept_from": "persons"})
+    assert resp.status == 200
+    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {
+        "channels": ["notify.anna_phone"], "accept_from": "persons", "alone_is_me": True, "voice_threshold": 0.65
+    }
+    assert _puts(aioclient_mock)[-1]["persons"]["anna"]["voice_threshold"] == 0.65
+    resp = await client.put("/api/mira/settings/me", json={"voice_threshold": 0.3})
+    assert resp.status == 422 and "not yours" in (await resp.json())["error"]
+    resp = await client.put("/api/mira/settings/me", json={"channels": ["notify.x"]})
+    assert resp.status == 422
+
+
+async def test_the_voice_threshold_is_checked_and_kept(hass, aioclient_mock, entry, hass_client, hass_admin_user):
+    """A voice threshold between 0 and 1; the integration's own form, which
+    does not have it, leaves it as it is."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    anna = _person(hass, "anna", "Anna")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_client()
+    for bad in (1.5, "much"):
+        resp = await client.put("/api/mira/settings/persons", json={anna: {"voice_threshold": bad}})
+        assert resp.status == 422
+    assert (await client.put("/api/mira/settings/persons", json={anna: {"voice_threshold": 0.6}})).status == 200
+    result = await _form(hass, entry, "persons")
+    await hass.config_entries.options.async_configure(result["flow_id"], {"Anna": _fields({"alone_is_me": True})})
+    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"alone_is_me": True, "voice_threshold": 0.6}

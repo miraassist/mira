@@ -13,6 +13,7 @@ import (
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
+	"io"
 	"errors"
 	"fmt"
 	"html"
@@ -81,6 +82,9 @@ type Options struct {
 	Persons func() []string
 	// People are Home Assistant's persons, each a person for Mira.
 	People func() []PersonInfo
+	// Voices is the speaker-id service, for enrolling a voice on the page;
+	// nil without speaker_id (docs/spec/sprecher.md).
+	Voices Voices
 	// PersonOfHAUser maps a Home Assistant user to a person key ("" for
 	// none), for the page inside Home Assistant.
 	PersonOfHAUser func(ctx context.Context, user string) string
@@ -101,9 +105,10 @@ type Options struct {
 }
 
 type Handler struct {
-	opts Options
-	log  *slog.Logger
-	mux  *http.ServeMux
+	opts   Options
+	log    *slog.Logger
+	mux    *http.ServeMux
+	enroll enrolling
 }
 
 func New(opts Options) *Handler {
@@ -136,6 +141,14 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/memory/export", h.authAnyone(h.exportMemory))
 	h.mux.HandleFunc("POST /v1/ui/memory/import", h.authAnyone(h.importMemory))
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
+	h.mux.HandleFunc("GET /v1/ui/me", h.authAnyone(h.me))
+	h.mux.HandleFunc("GET /v1/ui/voice", h.auth(h.voices))
+	h.mux.HandleFunc("GET /v1/ui/voice/{person}", h.authAnyone(h.voice))
+	h.mux.HandleFunc("DELETE /v1/ui/voice/{person}", h.authAnyone(h.forgetVoice))
+	h.mux.HandleFunc("POST /v1/ui/voice/{person}/enroll", h.authAnyone(h.enrollStart))
+	h.mux.HandleFunc("DELETE /v1/ui/voice/{person}/enroll", h.authAnyone(h.enrollStop))
+	h.mux.HandleFunc("GET /v1/ui/voice/{person}/heard", h.authAnyone(h.heard))
+	h.mux.HandleFunc("POST /v1/ui/voice/{person}/assign", h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
 	h.mux.HandleFunc("POST /v1/ui/models/{name}/check", h.auth(h.checkModel))
@@ -790,4 +803,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// readJSON decodes a request body of at most 64 KB into v.
+func readJSON(r *http.Request, v any) error {
+	return json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(v)
 }

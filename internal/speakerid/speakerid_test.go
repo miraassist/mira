@@ -27,7 +27,7 @@ func serve(t *testing.T, body string, delay time.Duration) (*Client, *string) {
 		w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	return New(srv.URL + "/"), &asked
+	return New(srv.URL+"/", ""), &asked
 }
 
 func TestMatch(t *testing.T) {
@@ -85,7 +85,7 @@ func TestMatchTimesOut(t *testing.T) {
 
 // Without a URL there is no client, and asking it finds nothing.
 func TestNoService(t *testing.T) {
-	c := New("  ")
+	c := New("  ", "")
 	if c != nil {
 		t.Fatal("a client without a URL")
 	}

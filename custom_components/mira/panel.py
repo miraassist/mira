@@ -33,6 +33,7 @@ from homeassistant.helpers.http import KEY_HASS
 from .api import MiraError, MiraInvalidConfig
 from .const import DOMAIN
 from .managed import (
+    PERSON_OWN_FIELDS,
     SATELLITE_DOMAINS,
     all_persons,
     all_satellites,
@@ -84,6 +85,7 @@ def async_register_views(hass: HomeAssistant) -> None:
     hass.http.register_view(MiraPanelView())
     hass.http.register_view(MiraProxyView())
     hass.http.register_view(MiraSettingsView())
+    hass.http.register_view(MiraMySettingsView())
 
 
 @callback
@@ -268,6 +270,58 @@ class MiraSettingsView(HomeAssistantView):
         except MiraError as err:
             return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
         return web.json_response({"saved": True})
+
+
+class MiraMySettingsView(HomeAssistantView):
+    """A person's own settings, for the panel's card "Me": whoever is signed in
+    reads and sets them on the HA person linked to their login, but only the
+    fields that are theirs to set (PERSON_OWN_FIELDS). Not an admin's form:
+    an admin has the persons' form above."""
+
+    url = "/api/mira/settings/me"
+    name = "api:mira:settings:me"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        hass = request.app[KEY_HASS]
+        entity = person_of_user(hass, request["hass_user"].id)
+        if not entity:
+            return web.json_response({"error": "no person is linked to this login"}, status=404)
+        return web.json_response(
+            {"entity": entity, "name": entity_name(hass, entity), "settings": person_settings(hass).get(entity, {})}
+        )
+
+    async def put(self, request: web.Request) -> web.Response:
+        hass = request.app[KEY_HASS]
+        entity = person_of_user(hass, request["hass_user"].id)
+        if not entity:
+            return web.json_response({"error": "no person is linked to this login"}, status=404)
+        entry = _loaded(hass)
+        if entry is None:
+            return web.json_response({"error": "Mira is not set up"}, status=503)
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise ValueError("body must be {field: value}")
+            if other := set(body) - set(PERSON_OWN_FIELDS):
+                raise ValueError(f"not yours to set: {', '.join(sorted(other))}")
+            # The other fields stay as the admin set them.
+            mine = {**person_settings(hass).get(entity, {}), **body}
+            await save_settings(hass, entry, persons={entity: mine})
+        except (ValueError, MiraInvalidConfig) as err:
+            return web.json_response({"error": str(err)}, status=422)
+        except MiraError as err:
+            return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+        return web.json_response({"saved": True})
+
+
+def person_of_user(hass: HomeAssistant, user_id: str) -> str:
+    """The HA person linked to a login, by entity id; "" for none."""
+    for entity in all_persons(hass):
+        state = hass.states.get(entity)
+        if state and state.attributes.get("user_id") == user_id:
+            return entity
+    return ""
 
 
 def _choices(hass: HomeAssistant, domain: str) -> list[dict[str, str]]:

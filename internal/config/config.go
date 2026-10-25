@@ -602,6 +602,8 @@ type WebSearch struct {
 // they are.
 type SpeakerID struct {
 	URL string `yaml:"url"`
+	// Token is the service's SPEAKER_TOKEN; ${SPEAKER_ID_TOKEN} in mira.yaml.
+	Token string `yaml:"token,omitempty"`
 	// Threshold is the score a voice needs to count as a person (0 to 1);
 	// 0 takes speakerid.Threshold. A person's voice_threshold wins.
 	Threshold float64 `yaml:"threshold,omitempty"`
