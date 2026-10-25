@@ -181,6 +181,8 @@ td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 :is(dialog#dlg, dialog.mira-dialog) form::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--grad); }
 .dlg-head { display: flex; gap: 14px; align-items: flex-start; }
 .dlg-head img { width: 44px; height: 44px; flex: none; filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--magenta) 35%, transparent)); }
+/* A jump to a part of a page stops below the bar, not under it. */
+.card, #me-memory { scroll-margin-top: 80px; }
 #dlg-text { margin: 4px 0 0; font-size: 16px; line-height: 1.45; white-space: pre-line; max-height: 60vh; overflow: auto; }
 #dlg-input { margin-top: 14px; }
 :is(dialog#dlg, dialog.mira-dialog) .actions { justify-content: flex-end; margin-top: 20px; }
@@ -1554,6 +1556,7 @@ const personEntityOf = key => (peopleList().find(p => p.key === key) || {}).enti
 async function mine() {
   $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
   const m = await whoAmI();
+  nav(); // the bar names the card once it is known whose
   if (!m.person) {
     $("#view").innerHTML = `<section class="card"><h2>${T.me_title}</h2><p class="hint">${T.me_no_person}</p></section>`;
     return;

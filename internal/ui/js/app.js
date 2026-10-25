@@ -17,12 +17,22 @@ const tabsOf = g => g.tabs.filter(id => TABS.includes(id));
 
 // ---- Navigation -----------------------------------------------------------
 // On the start page nothing; in a group the way back and the group's tabs.
+// mePartsOf are the parts of the card "Ich", as its links and its tabs.
+const mePartsOf = () => [["me-settings", T.card_settings], ["voice", T.voice_title], ["me-messages", T.me_messages], ["me-memory", T.me_memory]];
+
 class MiraNav extends Light {
   static properties = { tab: {} };
   render() {
     // The start page names itself where a group names itself, so the row
     // keeps its place and height from page to page.
     if (!this.tab || this.tab === "home") return html`<span class="group-title">${T.tab_home}</span>`;
+    // The card "Ich" is a group of its own: the person's name and its parts,
+    // which jump to their place on the card.
+    if (this.tab === "me") return html`
+      <button class="secondary back" @click=${() => go("home")}>← ${T.tab_home}</button>
+      <span class="group-title">${(me && (me.name || me.person)) || T.me_title}</span>
+      ${mePartsOf().map(([id, label]) => html`
+        <button @click=${() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: "start" }); }}>${label}</button>`)}`;
     const group = groupOf(this.tab);
     const tabs = group ? tabsOf(group) : [];
     return html`
@@ -44,7 +54,6 @@ class MiraHome extends Light {
     const facts = {};
     const tries = [
       ["plans", async () => (await api("GET", "/v1/ui/plans")).plans || []],
-      // Who looks: their own card "Ich", with how much of their voice is enrolled.
       // Who looks: their own card, with their voice, their settings and how
       // much Mira keeps for them.
       ["me", async () => {
@@ -120,7 +129,7 @@ class MiraHome extends Light {
     if (s.accept_from === "persons") lines.push(T.home_accept_persons);
     if (s.accept_from === "none") lines.push(T.home_accept_none);
     // Its parts as links, as the other cards name their pages.
-    const parts = [["me-settings", T.card_settings], ["voice", T.voice_title], ["me-messages", T.me_messages], ["me-memory", T.me_memory]];
+    const parts = mePartsOf();
     return html`<section class="card home-card" role="button" tabindex="0"
       @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter") go("me"); }}>
       <h2>${m.name || m.person}</h2>
