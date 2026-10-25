@@ -107,7 +107,7 @@ class MiraHome extends Light {
       <h2>${T.me_title}</h2>
       <p class="home-pages">${this.link(m.name || m.person, () => go("me"))}</p>
       <p class="home-teaser">${T.me_teaser}</p>
-      ${m.voice ? html`<div class="home-facts"><p class="home-line">${m.samples ? T.voice_samples(m.samples) : T.voice_none.split(":")[0] + "."}</p></div>` : nothing}
+      ${m.voice ? html`<div class="home-facts"><p class="home-line">${m.samples ? T.voice_samples(m.samples) : T.voice_none_self.split(":")[0] + "."}</p></div>` : nothing}
     </section>`;
   }
   render() {

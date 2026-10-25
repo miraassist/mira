@@ -164,7 +164,7 @@ func (h *Handler) heard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	since, open := h.enroll.since(person)
+	since, left, open := h.enroll.window(person)
 	if !open {
 		writeError(w, http.StatusConflict, "not enrolling")
 		return
@@ -177,7 +177,8 @@ func (h *Handler) heard(w http.ResponseWriter, r *http.Request) {
 	if heard == nil {
 		heard = []speakerid.Heard{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"heard": heard})
+	// left: how much longer, so the page follows Mira's window and not a clock of its own.
+	writeJSON(w, http.StatusOK, map[string]any{"heard": heard, "left": int(left.Seconds())})
 }
 
 // assign enrolls one of the utterances heard while enrolling for the person.
