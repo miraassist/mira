@@ -1,6 +1,6 @@
 module github.com/miraassist/mira
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/coder/websocket v1.8.15
@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 )

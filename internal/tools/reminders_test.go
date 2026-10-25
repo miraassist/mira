@@ -49,7 +49,7 @@ func TestReminderSet(t *testing.T) {
 	if _, err := run(t, set, Invocation{Channel: config.ChannelTelegram, SessionKey: "telegram:42", Person: "ben"}, `{"text":"Müll","at":"2026-10-16 19:00"}`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := run(t, set, voice, `{"text":"Arzt","at":"2026-10-17T08:30","for":"anna"}`); err != nil {
+	if _, err := run(t, set, voice, `{"text":"Arzt","at":"2026-10-17T08:30","for":"Anna"}`); err != nil {
 		t.Fatal(err)
 	}
 	list, _ := st.ScheduledMessages(context.Background(), time.Time{})
@@ -72,6 +72,8 @@ func TestReminderSet(t *testing.T) {
 		`{"text":"x","at":"morgen"}`:                          "Zeit nicht verstanden",
 		`{"text":"x"}`:                                        "Zeit nicht verstanden",
 		`{"text":"x","at":"2026-10-16 08:00","in_minutes":5}`: "either",
+		// a person nobody knows: refused, not sent to the asker or the house
+		`{"text":"x","at":"2026-10-16 08:00","for":"Bernd"}`: "niemanden namens Bernd",
 	} {
 		if _, err := run(t, set, voice, args); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: %v", args, err)

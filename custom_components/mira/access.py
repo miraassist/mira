@@ -31,8 +31,16 @@ async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -
     token id, access token)."""
     user = await hass.auth.async_get_user(user_id) if user_id else None
     if user is None:
+        # An earlier Mira user, after the integration was set up anew; never
+        # one that belongs to a person in the house, who may be called Mira.
+        people = _person_users(hass)
         for candidate in await hass.auth.async_get_users():
-            if candidate.name == USER_NAME and not candidate.system_generated and not candidate.is_admin:
+            if (
+                candidate.name == USER_NAME
+                and not candidate.system_generated
+                and not candidate.is_admin
+                and candidate.id not in people
+            ):
                 user = candidate
                 break
     if user is None:
@@ -49,6 +57,11 @@ async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -
         user, client_name=TOKEN_NAME, token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, access_token_expiration=TOKEN_LIFETIME
     )
     return user.id, refresh.id, hass.auth.async_create_access_token(refresh)
+
+
+def _person_users(hass: HomeAssistant) -> set[str]:
+    """The users linked to a person in Home Assistant: people's own accounts."""
+    return {uid for state in hass.states.async_all("person") if (uid := state.attributes.get("user_id"))}
 
 
 def revoke_agent_token(hass: HomeAssistant, refresh_token_id: str | None) -> None:
@@ -73,11 +86,14 @@ async def ensure_mcp_server(hass: HomeAssistant) -> None:
 
 
 def ha_url(hass: HomeAssistant) -> str:
-    """The address the agent reaches Home Assistant at: the internal one."""
+    """The address the agent reaches Home Assistant at: the internal one.
+    Never the external one: the agent's token would go out to it."""
     try:
         return get_url(hass, allow_external=False, allow_cloud=False, prefer_external=False)
-    except NoURLAvailableError:
-        return get_url(hass, allow_cloud=False)
+    except NoURLAvailableError as err:
+        raise RuntimeError(
+            "Home Assistant has no internal address; set one under Settings → System → Network (Home Assistant URL, Local network)"
+        ) from err
 
 
 def assistants(hass: HomeAssistant) -> dict[str, tuple[str, bool]]:

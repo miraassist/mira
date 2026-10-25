@@ -236,10 +236,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.goRun(ctx, "assist-prompt", a.assist.Run)
 	}
 
-	if cfg.Telegram != nil {
-		a.log.Warn("the telegram section in mira.yaml is no longer used: Telegram runs through Home Assistant's telegram_bot integration")
-	}
-
 	snapshot := a.structure.Snapshot
 	// The delegate tool is bound late: the engine it calls is built from the
 	// registry.
@@ -656,6 +652,9 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		Addr:              cfg.Server.Listen,
 		Handler:           a.httpHandler(ctx),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       serverRead,
+		WriteTimeout:      serverWrite,
+		IdleTimeout:       serverIdle,
 	}
 	if cfg.Server.Token == "" {
 		a.log.Warn("server.token is empty: the HTTP API accepts unauthenticated requests")
@@ -1209,6 +1208,16 @@ func anyModel(cfg config.Config, has func(config.LLM) bool) bool {
 
 // longestTimeout bounds a conversation request: the longest a model may
 // take, whichever the conversation agents name.
+// The HTTP server's limits: a request's body is small and read at once; an
+// answer may wait for a whole turn with several model rounds (or an agent run
+// from Home Assistant), so writing gets a generous bound that still ends a
+// connection that hangs; an idle keep-alive connection is closed.
+const (
+	serverRead  = time.Minute
+	serverWrite = 10 * time.Minute
+	serverIdle  = 2 * time.Minute
+)
+
 func longestTimeout(cfg config.Config) time.Duration {
 	var longest time.Duration
 	for _, m := range cfg.Models {

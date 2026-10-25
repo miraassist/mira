@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -428,5 +429,24 @@ func TestResetForEval(t *testing.T) {
 	s.SaveFact(ctx, Fact{ID: "b", Text: "Ben mag Kaffee.", Owner: "ben"})
 	if found, err := s.SearchFacts(ctx, "Kaffee", []string{"ben"}, 5); err != nil || len(found) != 1 {
 		t.Errorf("search after reset: %v %v", found, err)
+	}
+}
+
+// The database and its journal are readable only by Mira.
+func TestDatabaseIsOwnerOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mira.db")
+	s, err := Open(context.Background(), Options{Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, p := range []string{path, path + "-wal"} {
+		st, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if st.Mode().Perm() != 0o600 {
+			t.Errorf("%s: %v", filepath.Base(p), st.Mode().Perm())
+		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -80,7 +81,21 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if opts.Path != ":memory:" {
+		ownerOnly(opts.Path)
+	}
 	return s, nil
+}
+
+// ownerOnly makes the database and its journal files readable only by Mira:
+// they hold conversations, memory and messages. SQLite creates them with the
+// process's umask, usually 0644; the journal files take the database's mode.
+func ownerOnly(path string) {
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		if st, err := os.Stat(p); err == nil && st.Mode().Perm()&0o077 != 0 {
+			_ = os.Chmod(p, 0o600)
+		}
+	}
 }
 
 func (s *Store) Close() error { return s.db.Close() }

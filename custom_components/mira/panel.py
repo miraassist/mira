@@ -58,9 +58,10 @@ NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$)[\w-]+")
 # Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
 HEADER_USER = "X-Mira-HA-User"
 HEADER_ADMIN = "X-Mira-HA-Admin"
-# Headers passed on, both ways: videos come in ranges (Safari asks so).
+# Headers passed on, both ways: videos come in ranges (Safari asks so); the
+# page's Content-Security-Policy holds inside Home Assistant too.
 REQUEST_PASSED = ("Range", "If-Range")
-PASSED = ("Content-Type", "Cache-Control", "Accept-Ranges", "Content-Range")
+PASSED = ("Content-Type", "Cache-Control", "Accept-Ranges", "Content-Range", "Content-Security-Policy")
 TIMEOUT = aiohttp.ClientTimeout(total=60)
 # How often and how long to wait for an agent that is restarting.
 CONNECT_TRIES = 4

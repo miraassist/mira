@@ -12,7 +12,7 @@
 
 # The build stage runs on the build machine and cross-compiles for the
 # target platform, so a multi-arch build needs no emulation.
-FROM --platform=$BUILDPLATFORM golang:1.27.2 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3 AS build
 ARG TARGETOS TARGETARCH
 # VERSION overrides the version in the code (the release sets it from the tag).
 ARG VERSION=

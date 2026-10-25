@@ -35,14 +35,11 @@ type Config struct {
 	Server Server `yaml:"server"`
 	// Models are the language models by name (docs/spec/modelle.md); main
 	// must exist. An agent without a model takes main.
-	Models     map[string]LLM `yaml:"models"`
-	Store      Store          `yaml:"store"`
-	Prompt     Prompt         `yaml:"prompt"`
-	HA         HA             `yaml:"ha"`
-	MCPServers []MCPServer    `yaml:"mcp_servers"`
-	// Telegram is no longer used: Telegram runs through Home Assistant's
-	// integration (docs/spec/kanaele.md). An old section is ignored.
-	Telegram   any               `yaml:"telegram,omitempty"`
+	Models     map[string]LLM    `yaml:"models"`
+	Store      Store             `yaml:"store"`
+	Prompt     Prompt            `yaml:"prompt"`
+	HA         HA                `yaml:"ha"`
+	MCPServers []MCPServer       `yaml:"mcp_servers"`
 	Sessions   Sessions          `yaml:"sessions"`
 	Satellites map[string]string `yaml:"satellites"`
 	Persons    map[string]Person `yaml:"persons"`
@@ -770,6 +767,9 @@ func oldModelKeys(raw []byte) error {
 	var errs []string
 	if _, ok := top["llm"]; ok {
 		errs = append(errs, "llm is now models.main: move the section under models as main, with endpoint (was base_url), token (was api_key) and privacy (local or cloud)")
+	}
+	if _, ok := top["telegram"]; ok {
+		errs = append(errs, "telegram is gone: Telegram runs through Home Assistant's telegram_bot integration; remove the section and set each person's channels in the integration")
 	}
 	if _, ok := top["routing"]; ok {
 		errs = append(errs, "routing is gone: give each agent its model under agents, e.g. agents: { conversation.telegram: { model: smart } }")

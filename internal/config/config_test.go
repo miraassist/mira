@@ -21,9 +21,6 @@ const minimalYAML = `
 ha:
   url: "http://ha.local:8123"
   token: ${HA_TOKEN}
-telegram:
-  token: ${TELEGRAM_TOKEN}
-  allowed_user_ids: [42]
 `
 
 func TestParseAppliesDefaults(t *testing.T) {
@@ -48,9 +45,9 @@ func TestParseAppliesDefaults(t *testing.T) {
 }
 
 func TestParseRejectsUnsetEnv(t *testing.T) {
-	_, err := Parse([]byte(minimalYAML), fakeEnv(map[string]string{"HA_TOKEN": "x"}))
-	if err == nil || !strings.Contains(err.Error(), "TELEGRAM_TOKEN") {
-		t.Fatalf("want error naming TELEGRAM_TOKEN, got %v", err)
+	_, err := Parse([]byte(minimalYAML), fakeEnv(map[string]string{}))
+	if err == nil || !strings.Contains(err.Error(), "HA_TOKEN") {
+		t.Fatalf("want error naming HA_TOKEN, got %v", err)
 	}
 }
 
@@ -339,5 +336,13 @@ agents:
 	cfg, _ = Parse([]byte(minimalYAML+"agents:\n  rezept: { description: x }\n"), env)
 	if cfg.Agents.MaxDepth != 3 {
 		t.Errorf("max_depth = %d, want the default 3", cfg.Agents.MaxDepth)
+	}
+}
+
+// An old telegram section is refused with a hint, not ignored with its token.
+func TestOldTelegramSectionIsRefused(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"telegram:\n  token: x\n"), fakeEnv(map[string]string{"HA_TOKEN": "x"}))
+	if err == nil || !strings.Contains(err.Error(), "telegram is gone") {
+		t.Errorf("err = %v", err)
 	}
 }

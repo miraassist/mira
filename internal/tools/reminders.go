@@ -152,10 +152,18 @@ func Reminders(o ReminderOptions) []InternalTool {
 					return "", errors.New(t.reminderTooFar)
 				}
 				// A reminder is a message with a delivery time
-				// (docs/spec/nachrichten.md).
+				// (docs/spec/nachrichten.md). One for a person named who
+				// is not known is refused, as for message_send: it must
+				// not go to the asker or the whole house instead.
+				receiver := ReceiverFor("", inv, o.Persons())
+				if strings.TrimSpace(a.For) != "" {
+					if receiver = resolveReceiver(a.For, o.Persons()); receiver == "" {
+						return "", fmt.Errorf(t.unknownReceiver, a.For)
+					}
+				}
 				m := store.Message{ID: ulid.Make().String(), Source: store.SourceReminder, Importance: 2,
 					Spoken: strings.TrimSpace(a.Text), DeliverAt: due, SessionKey: inv.SessionKey,
-					Receiver: ReceiverFor(a.For, inv, o.Persons())}
+					Receiver: receiver}
 				if m.Receiver != store.ReceiverHouse && m.Receiver != inv.Person {
 					// A reminder for someone else is a message from the
 					// speaker: their settings decide, and it says who.
@@ -244,7 +252,8 @@ func dueTime(now time.Time, at string, inMinutes int, loc *time.Location) (time.
 }
 
 // ReceiverFor is the person a request is for: the one named, else the
-// one who asked, else the house.
+// one who asked, else the house. A name the caller got from a user goes
+// through resolveReceiver instead, which refuses one it does not know.
 func ReceiverFor(named string, inv Invocation, persons map[string]config.Person) string {
 	if _, ok := persons[named]; ok {
 		return named

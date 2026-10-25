@@ -131,7 +131,8 @@ func runSetupMode(ctx context.Context, p prepared) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout: serverRead, WriteTimeout: serverWrite, IdleTimeout: serverIdle}
 	go func() {
 		<-ctx.Done()
 		srv.Close()
