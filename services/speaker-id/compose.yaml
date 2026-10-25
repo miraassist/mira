@@ -1,0 +1,32 @@
+# Speaker ID: a Wyoming STT proxy in front of the real STT that recognizes who spoke (CPU, sherpa-onnx).
+# Home Assistant uses it as its STT (port 10310); the transcript is the upstream's, unchanged. Enrollment
+# page and API on port 10311. Keeps voice prints only, no audio (docs/spec/sprecher.md).
+#
+#   docker compose -f services/speaker-id/compose.yaml up -d --build
+#
+# The voice prints live outside the repository (SPEAKER_ID_DATA), so a worktree or checkout can go
+# without taking them along.
+services:
+  speaker-id:
+    build: .
+    container_name: speaker-id
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SPEAKER_UPSTREAM=${SPEAKER_UPSTREAM:-tcp://host.docker.internal:10300}
+      # wespeaker_en_voxceleb_resnet34_LM.onnx, 3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx,
+      # nemo_en_titanet_small.onnx, ... (sherpa-onnx release "speaker-recongition-models")
+      - SPEAKER_MODEL=${SPEAKER_MODEL:-wespeaker_en_voxceleb_resnet34_LM.onnx}
+      - SPEAKER_THRESHOLD=${SPEAKER_THRESHOLD:-0.5}
+      - SPEAKER_DEBUG=${SPEAKER_DEBUG:-false}
+    ports:
+      - "10310:10310"
+      - "10311:10311"
+    volumes:
+      - ${SPEAKER_ID_DATA:-${HOME}/.local/share/speaker-id}:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.connect(('localhost',10310)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

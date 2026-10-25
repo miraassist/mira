@@ -1,0 +1,101 @@
+# Speaker recognition at the satellite
+
+Status 2026-10-25: planned. Step 1 (the service) is built and runs on the test installation. Scenarios:
+[sprecher.feature](sprecher.feature).
+
+## Goal
+
+At a satellite Mira is talking to someone anonymous, unless the "alone at home" rule says who it is
+([users](benutzer.md)). With speaker recognition she knows who spoke from the voice: "Erinner mich morgen an den
+Müll" at the kitchen Show becomes a reminder for the person who said it, even with the whole family at home.
+
+A recognized voice counts exactly as the "alone at home" rule does: the person's memory, their personal tasks,
+reminders and notices. Nothing more. A voice is a probability, not a login.
+
+## Not part of it
+
+- **Authentication.** A recognized voice opens nothing that "alone at home" does not open. It never stands in for
+  the HA user, and Mira does not pass it on as one.
+- **Listening between requests.** Only what is said to the satellite after the wake word is looked at, the same
+  audio that goes to speech recognition.
+- **Mira's database.** Voice prints are biometric data and stay in the service, in one place where they can be
+  seen and deleted. Mira only gets the result of a turn and keeps nothing of it, not even a history.
+- **The TECHO5 firmware.** Its maintainer decided against speaker recognition on the device (TECHO5 issue #200):
+  it belongs to Home Assistant's side, as a proxy for speech recognition.
+
+## The service: `services/speaker-id`
+
+A Wyoming speech-to-text server that Home Assistant uses like any other, in front of the real one:
+
+```
+satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio──→ STT (faster-whisper :10300)
+                                                     │                               │
+                                                     │ beside it: voice print,       │ transcript, unchanged
+                                                     │ compared with the profiles    │
+                                                     └──────────── HA ←──────────────┘
+```
+
+- **The transcript is the upstream's,** unchanged and not delayed: the voice print takes 50 to 100 ms on the CPU and
+  runs while the STT works (about a second).
+- **Model:** a speaker embedding model through sherpa-onnx (WeSpeaker ResNet34 to start with, about 25 MB; others
+  of sherpa-onnx's speaker models by setting).
+- **Decision per utterance:** `accepted` (a profile scored at least the threshold and clearly above the second),
+  `uncertain` (two profiles too close), `unknown` (no profile at the threshold) or `unavailable` (under one second
+  of speech). **One threshold** for everyone (0.5 to start with), not one per person.
+- **Profiles** are kept per **HA person**, by the person's id (the key of [users](benutzer.md)): several samples
+  each, the profile is their mean. They are in a JSON file in the service's data directory, outside the repository
+  and outside Mira.
+- **No audio is kept.** The service remembers the voice prints and transcripts of the last 30 utterances in memory,
+  so that they can be assigned to a person, and nothing else.
+- **Enrolling:** for now the service's own page (port 10311) lists the recent utterances; each can be assigned to a
+  person, three to five per person, a few seconds each, said at the satellite itself, so the profile is made
+  through the same microphone and echo cancellation it will be recognized through. The page is open in the local
+  network for now; before it is used beyond testing it gets a token, and enrolling moves into Mira's page (step 4).
+- **Deployment:** its own `compose.yaml`; the data directory is a setting (`SPEAKER_ID_DATA`).
+
+## Which utterance is the turn's
+
+The service does not know which satellite spoke: Home Assistant does not tell a speech-to-text server. It does not
+have to. Home Assistant hands the transcript on to the conversation agent unchanged, so Mira asks the service for
+the utterance with **the turn's text** among the last few seconds:
+
+- `GET /api/match?text=<the turn's text>&within=10` answers with the person, score and decision of the latest
+  utterance with that text no older than 10 seconds, or with nothing.
+- Texts are compared after trimming, folding case and collapsing whitespace.
+- Two utterances with the same text in that window (two satellites hearing the same request) answer nothing: the
+  turn stays anonymous.
+- A turn that did not come through the service (typed in the app, Telegram, a pipeline with another STT) finds
+  nothing, which is the same as `unknown`.
+
+## Who is speaking, in Mira
+
+`identify` (who speaks in a turn) gets one more source, in this order at a satellite:
+
+1. the signed-in HA user, if Home Assistant names one;
+2. **the voice**, if the service's decision is `accepted` and the person exists in Home Assistant;
+3. the "alone at home" rule;
+4. otherwise anonymous.
+
+`uncertain`, `unknown`, no answer, a service that is down or slow: on to 3. The question to the service has a short
+timeout (300 ms) and never holds up the turn.
+
+- **Asked by the agent itself,** not by the HA integration: the agent has the turn's text and decides who speaks
+  already, so the integration and `converse` stay as they are.
+- **Setting** in `mira.yaml`, without which nothing changes:
+
+  ```yaml
+  speaker_id:
+    url: http://192.168.x.y:10311   # the service's API
+  ```
+
+- **Log:** one line per turn at debug level with person and score, nothing stored.
+
+## Steps
+
+1. **The service** as a proxy with its own enrollment page: built.
+2. **Matching by text and persons as keys:** `/api/match`, profiles by HA person id, the page offers Home
+   Assistant's persons instead of free names.
+3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-06.
+4. **Enrolling in Mira's page:** "that was me" for a signed-in person, persons without a login (children) by an
+   admin; the service's own page goes, the API gets a token.
+5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.
