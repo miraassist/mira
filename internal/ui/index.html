@@ -40,8 +40,8 @@ header {
   background: color-mix(in srgb, var(--panel) 85%, transparent); backdrop-filter: blur(10px);
   border-bottom: 3px solid; border-image: var(--grad) 1;
 }
-header h1 { font-size: 22px; font-weight: 800; letter-spacing: .2px; margin: 0; display: flex; align-items: center; gap: 10px; }
-header h1 img { width: 36px; height: 36px; }
+header > h1 { font-size: 22px; font-weight: 800; letter-spacing: .2px; margin: 0; display: flex; align-items: center; gap: 10px; }
+header > h1 img { width: 36px; height: 36px; }
 #lang { margin-left: auto; width: auto; border-radius: 999px; padding: 4px 10px; }
 nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: 0; padding: 6px 11px; border-radius: 999px; color: var(--muted); cursor: pointer; font: inherit; font-weight: 600; transition: background .15s, color .15s; }
@@ -54,7 +54,6 @@ mira-nav .group-title { font-weight: 700; margin: 0 8px 0 2px; }
 .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); grid-auto-rows: 1fr; gap: 20px; }
 .home-card { cursor: pointer; margin: 0; padding: 22px 24px; min-height: 190px; display: flex; flex-direction: column; transition: box-shadow .15s, transform .15s; }
 .home-card h2 { font-size: 21px; }
-.home-teaser { margin: 6px 0 4px; }
 .home-pages { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 6px; }
 .home-pages a { color: var(--accent); font-weight: 700; font-size: 16px; text-decoration: none; }
 .home-pages a:hover, .home-pages a:focus-visible { text-decoration: underline; }
@@ -163,14 +162,6 @@ details.profile pre { background: var(--badge); padding: 10px 12px; border-radiu
 td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 @media (max-width: 600px) { td.fact-actions { white-space: normal; } }
 @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } header { padding: 10px 16px; } }
-/* Narrow: the navigation always has a row of its own below the logo and the
-   language, one line that scrolls sideways, so the page below does not move
-   from page to page. */
-@media (max-width: 600px) {
-  #nav { order: 3; flex-basis: 100%; min-width: 0; }
-  mira-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  mira-nav > * { flex-shrink: 0; }
-}
 
 /* Mira's own dialog instead of the browser's confirm/prompt. */
 :is(dialog#dlg, dialog.mira-dialog) { border: 0; padding: 0; border-radius: 22px; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgb(60 20 50 / 25%); }
@@ -215,10 +206,123 @@ dialog.mira-dialog h3 { margin: 0 0 4px; }
    HA's toolbar instead of Mira's header, Mira's colors only as accents. */
 html.ha body { font-family: var(--font); font-size: 14px; background: var(--bg); }
 html.ha header { padding: 6px 16px; background: var(--bg); backdrop-filter: none; border-bottom: 1px solid var(--line); border-image: none; }
-html.ha header h1, html.ha #lang { display: none; }
+html.ha header > h1, html.ha #lang { display: none; }
 html.ha nav button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 html.ha main { max-width: 1040px; padding-top: 16px; }
 html.ha section.card { border: var(--card-border, 1px solid var(--line)); }
+
+/* New Mira interface. All colors are semantic tokens; HA supplies surface and text colors. */
+:root {
+ --rose:oklch(.61 .105 1); --magenta:oklch(.61 .105 1); --teal:oklch(.46 .068 175); --mint:oklch(.79 .085 169); --ink:oklch(.29 .018 173);
+ --bg:oklch(.976 .004 175); --panel:oklch(1 0 0); --text:var(--ink); --muted:oklch(.56 .013 174); --line:oklch(.914 .007 173);
+ --accent:var(--teal); --accent-2:var(--teal); --accent-text:oklch(1 0 0); --warn:var(--rose); --badge:oklch(.95 .005 173);
+ --lilac:oklch(.59 .068 299); --warm:oklch(.64 .098 67); --radius:8px; --shadow:none;
+ --mint-soft:color-mix(in oklch,var(--mint) 24%,var(--panel)); --rose-tint:color-mix(in oklch,var(--rose) 9%,var(--panel)); --ok-tint:var(--mint-soft);
+ --font:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+@media(prefers-color-scheme:dark){:root { --bg:oklch(.19 .008 175); --panel:oklch(.235 .009 175); --text:oklch(.92 .009 175); --muted:oklch(.7 .013 174); --line:oklch(.33 .01 173); --accent:oklch(.77 .09 170); --accent-2:var(--accent); --accent-text:oklch(.2 .02 173); --badge:oklch(.27 .01 173); --rose:oklch(.78 .09 1); --lilac:oklch(.78 .06 299); --warm:oklch(.8 .08 67); }}
+body,html.ha body { background:var(--bg); font-family:var(--font); font-size:14px; letter-spacing:0; }
+/* The pages behind the start page, in its look: a head with the group's icon,
+   title and tone, the group's pages as a switch, white panels with quiet rows.
+   --tone is the group's color (render sets data-group); links, the open tab,
+   markers and badges take it, the buttons stay in Home Assistant's color. */
+:root { --tone:var(--accent); }
+html[data-group=daily] { --tone:var(--rose); }
+html[data-group=abilities] { --tone:var(--lilac); }
+html[data-group=help] { --tone:var(--warm); }
+header,html.ha header { position:static; max-width:1100px; margin:0 auto; padding:24px 36px 0; background:transparent; border:0; border-image:none; backdrop-filter:none; }
+html.mira-home-page.ha header { display:none; }
+html.mira-home-page header > h1 { display:none; }
+header > h1 { font-size:20px; } header > h1 img { width:32px; height:32px; }
+header > h1 small.version { display:none; }
+#nav { order:3; flex-basis:100%; min-width:0; }
+mira-nav,mira-nav button.back { display:block; }
+mira-nav button.back { padding:0; margin:0 0 18px; font-size:13px; font-weight:500; color:var(--muted); background:none; border:0; cursor:pointer; }
+mira-nav button.back:hover { color:var(--text); background:none; }
+html.mira-home-page mira-nav { display:none; }
+.page-head { display:flex; align-items:center; gap:16px; }
+.page-head .category-icon { display:grid; place-items:center; width:48px; height:48px; border-radius:9px; flex:none; background:color-mix(in oklch,var(--tone) 12%,var(--panel)); color:var(--tone); }
+.page-head .category-icon .mira-icon { width:24px; height:24px; }
+.page-head h1 { margin:0; font-size:28px; font-weight:750; line-height:1.2; }
+.page-head p { margin:3px 0 0; color:var(--muted); font-size:14px; }
+mira-nav .tabs { display:flex; width:fit-content; max-width:100%; gap:2px; margin-top:22px; padding:3px; border:1px solid var(--line); border-radius:9px; background:var(--panel); overflow-x:auto; scrollbar-width:none; }
+mira-nav .tabs button,html.ha mira-nav .tabs button { flex:none; padding:7px 15px; border-radius:6px; font-size:13px; font-weight:600; color:var(--muted); background:none; }
+mira-nav .tabs button:hover { color:var(--text); background:var(--badge); }
+mira-nav .tabs button.active,html.ha mira-nav .tabs button.active { color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+button.primary,button.secondary,button.danger,a.button { border-radius:8px; box-shadow:none; background-image:none; }
+button.primary { background:var(--accent); } button.primary:hover { box-shadow:none; }
+button.secondary:hover,a.button:hover { background:var(--panel); border-color:color-mix(in oklch,var(--tone) 45%,var(--line)); }
+main,html.ha main { max-width:1100px; padding:24px 36px 36px; }
+section.card,html.ha section.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:22px 24px; margin-bottom:16px; box-shadow:none; }
+section.card>h2::before { display:none; }
+h2 { font-size:19px; } h3 { color:var(--text); } p.hint { line-height:1.6; }
+h3.subhead { font-size:11px; font-weight:650; letter-spacing:.05em; }
+#view a:not(.button) { color:var(--tone); }
+input,select,textarea { border-radius:8px; background:var(--panel); padding:8px 10px; }
+input:focus,select:focus,textarea:focus { border-color:var(--tone); box-shadow:0 0 0 3px color-mix(in oklch,var(--tone) 18%,transparent); }
+input[type=checkbox] { width:16px; height:16px; accent-color:var(--tone); flex:none; }
+.item { border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; padding:14px 0; margin-bottom:0; }
+.item:last-of-type { border-bottom:0; }
+.item:hover { border-color:var(--line); } details.item[open] { box-shadow:none; }
+details.item>summary::before,details.item[open]>summary::before { content:"›"; color:var(--tone); font-size:1.5em; justify-self:center; }
+details.item[open]>summary::before { transform:rotate(90deg); }
+details.item>summary h3 { color:var(--text); }
+.badge { font-size:11px; padding:3px 8px; border-radius:6px; }
+.badge.ui { color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+.chip { background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+td,th { padding:12px 7px; } table { display:block; overflow-x:auto; }
+table.facts { display:table; } td.fact-actions { min-width:160px; }
+.grid { grid-template-columns:minmax(150px,230px) minmax(0,1fr); gap:12px 20px; }
+.guide aside.note { border-radius:8px; border-left-color:var(--tone); background:color-mix(in oklch,var(--tone) 8%,var(--panel)); }
+.guide figure img,.guide figure video { border-radius:8px; box-shadow:none; }
+.guide h3 { font-size:17px; }
+.msg { border-radius:8px; } :is(dialog#dlg,dialog.mira-dialog) { border-radius:12px; }
+:is(dialog#dlg,dialog.mira-dialog) form::before { display:none; }
+.restart-bar { border-radius:10px; }
+.mira-brand { display:flex; justify-content:space-between; align-items:center; gap:20px; margin:3px 0 25px; }
+.mira-brand-name { display:flex; align-items:center; gap:12px; }
+.mira-brand-name img { width:53px; height:53px; object-fit:contain; }
+.mira-brand h1 { margin:0; font-size:34px; font-weight:750; line-height:1.2; }
+.mira-brand h1 span { color:var(--rose); }
+.mira-eyebrow { font-size:9px; font-weight:650; color:var(--muted); margin-bottom:3px; }
+.mira-welcome { margin-bottom:23px; }
+.mira-welcome h2 { font-size:24px; margin-bottom:5px; }
+.mira-welcome p { color:var(--muted); margin:0; font-size:13px; }
+.mira-label { display:flex; justify-content:space-between; gap:15px; margin:24px 0 12px; font-size:10px; color:var(--muted); }
+.home-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; grid-auto-rows:auto; }
+section.card.home-card,html.ha section.card.home-card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:22px 24px 18px; min-height:250px; margin:0; }
+/* Each group its tone; html.ha above must not set it, or it would win over these. */
+section.card.home-card { --tone:var(--accent); }
+section.card.home-card:hover,section.card.home-card:focus-visible { box-shadow:none; border-color:color-mix(in oklch,var(--tone) 40%,var(--line)); transform:translateY(-2px); }
+section.card.home-card[data-group=daily] { --tone:var(--rose); }
+section.card.home-card[data-group=abilities] { --tone:var(--lilac); }
+section.card.home-card[data-group=help] { --tone:var(--warm); }
+.home-card .home-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.home-card .category-icon { display:grid; place-items:center; width:42px; height:42px; border-radius:7px; background:color-mix(in oklch,var(--tone) 11%,var(--panel)); color:var(--tone); }
+.mira-icon { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.home-card .home-arrow { color:var(--muted); font-size:21px; line-height:1; text-decoration:none; }
+.home-card h2 { font-size:21px; margin-bottom:4px; }
+.home-card .home-subtitle { font-size:14px; color:var(--muted); margin:0; }
+.home-pages { gap:9px 13px; margin:19px 0 20px; }
+.home-pages a { color:var(--tone,var(--accent)); font-size:15px; font-weight:600; }
+.home-pages a::after { content:"›"; margin-left:5px; font-weight:400; }
+.home-facts { font-size:14px; border-top:1px solid var(--line); padding-top:10px; }
+.home-facts .home-line { margin-top:6px; color:var(--muted); }
+section.card.home-person,html.ha section.card.home-person { background:var(--mint-soft); border:1px solid color-mix(in oklch,var(--accent) 12%,var(--line)); border-radius:7px; padding:17px 20px; margin:0; display:flex; gap:16px; align-items:center; cursor:pointer; }
+.home-person .personal-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:50%; background:var(--panel); color:var(--accent); flex:none; }
+.home-person .personal-icon img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+.home-person .personal-icon .initials { font-size:15px; font-weight:650; }
+.home-person h2 { font-size:15px; margin:0; }
+.home-person .home-pages { margin:6px 0 0; gap:8px 15px; }
+.home-person .home-pages a { font-size:14px; }
+.home-person .home-facts { margin-left:auto; border:0; padding:0; font-size:13px; text-align:right; }
+.home-person .home-line { margin:2px 0; }
+.mira-footer { display:flex; justify-content:space-between; gap:14px; margin:27px 0 0; padding-top:15px; border-top:1px solid var(--line); font-size:10px; color:var(--muted); }
+#view .mira-footer a { color:inherit; text-decoration:none; } #view .mira-footer a:hover { color:var(--text); text-decoration:underline; }
+@media(max-width:800px) { main,html.ha main { padding:24px; } header,html.ha header { padding:20px 24px 0; } .home-person .home-facts { max-width:40%; } section.card.home-card { padding:20px; } }
+@media(max-width:560px) { main,html.ha main { padding:20px 16px; } header,html.ha header { padding:16px 16px 0; } .page-head h1 { font-size:23px; } .page-head .category-icon { width:42px; height:42px; } section.card,html.ha section.card { padding:18px 16px; } .home-grid { grid-template-columns:1fr; gap:14px; } .mira-brand-name img { width:42px; height:42px; } .mira-brand h1 { font-size:30px; } .mira-eyebrow { font-size:8px; } .mira-welcome h2 { font-size:21px; } .mira-label span:last-child { display:none; } section.card.home-person { padding:15px 12px; gap:10px; } .home-person .home-facts { display:none; } .home-person .home-pages a { font-size:10px; } .mira-footer { flex-direction:column; } .grid { grid-template-columns:1fr; } table.facts { display:block; } section.card.home-card { min-height:235px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
+
 </style>
 </head>
 <body>
@@ -254,7 +358,6 @@ const I18N = {
   "alone_is_me_other": name => `Ist ${name} allein zu Hause, weiß Mira, dass es ${name} ist`,
   "home_voice_on": n => n === 1 ? "Mira erkennt deine Stimme (1 Satz)." : `Mira erkennt deine Stimme (${n} Sätze).`,
   "home_voice_off": "Deine Stimme ist noch nicht angelernt.",
-  "teaser_me": "Was dir gehört: deine Stimme, deine Einstellungen, was Mira sich für dich merkt und Nachrichten an dich.",
   "me_memory": "Gedächtnis", "me_messages": "Nachrichten", "me_messages_title": "Nachrichten an dich",
   "home_mine_messages": n => n === 0 ? "Keine Nachricht für dich" : n === 1 ? "1 Nachricht für dich" : `${n} Nachrichten für dich`,
   "messages_house": "Nachrichten an das Haus", "memory_house_only": "Das Gedächtnis des Hauses. Dein eigenes steht auf deiner Karte.",
@@ -459,10 +562,13 @@ const I18N = {
   "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
   "tab_agents": "Agenten",
   "tab_home": "Übersicht",
-  "teaser_daily": "Was gerade ansteht: Nachrichten von Mira, Aufgaben, laufende Pläne und was sie sich gemerkt hat.",
-  "teaser_setup": "Wo Mira spricht, wen sie kennt und wann sie sich meldet.",
-  "teaser_abilities": "Was Mira kann: ihre Skills und Agenten, die Modelle dahinter und was sie im Hintergrund tut.",
-  "teaser_help": "Alles über Mira, mit Beispielen zum Ausprobieren: wie du mit ihr sprichst, worauf sie im Haus achtet, was Skills können und wie du einen eigenen schreibst.",
+  "subtitle_me": "Ganz persönlich. Nur für dich.",
+  "subtitle_daily": "Was gerade ansteht", "subtitle_setup": "Mira in deinem Zuhause",
+  "subtitle_abilities": "Was Mira für dich tun kann", "subtitle_help": "Mira besser kennenlernen",
+  "home_eyebrow": "DEIN CONVERSATIONAL AGENT",
+  "home_hello": name => `Hallo, ${name}`, "home_welcome": "Willkommen bei Mira", "home_tagline": "Alles im Blick. Und Mira an deiner Seite.",
+  "home_label": "DEINE MIRA", "home_label_side": "Ein Zuhause. Viele Möglichkeiten.",
+  "home_help_line": "Gespräche, Aufgaben und eigene Skills.", "home_footer": "Persönlich für dein Zuhause.",
   // The start page links three chapters of the guide: a short name, and how
   // the chapter's heading begins.
   "home_chapters": [["Gespräche", "Ein Gespräch"], ["Aufgaben", "Mira passt aufs Haus auf"], ["Skills", "Skills:"]],
@@ -696,7 +802,6 @@ const I18N = {
   "alone_is_me_other": name => `When ${name} is alone at home, Mira knows it is ${name}`,
   "home_voice_on": n => n === 1 ? "Mira recognizes your voice (1 sentence)." : `Mira recognizes your voice (${n} sentences).`,
   "home_voice_off": "Your voice is not enrolled yet.",
-  "teaser_me": "What is yours: your voice, your settings, what Mira remembers for you and messages to you.",
   "me_memory": "Memory", "me_messages": "Messages", "me_messages_title": "Messages to you",
   "home_mine_messages": n => n === 0 ? "No message for you" : n === 1 ? "1 message for you" : `${n} messages for you`,
   "messages_house": "Messages to the house", "memory_house_only": "The house's memory. Your own is on your card.",
@@ -901,10 +1006,13 @@ const I18N = {
   "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
   "tab_agents": "Agents",
   "tab_home": "Overview",
-  "teaser_daily": "What is going on: messages from Mira, tasks, running plans and what she remembered.",
-  "teaser_setup": "Where Mira speaks, whom she knows and when she speaks up.",
-  "teaser_abilities": "What Mira can do: her skills and agents, the models behind them and what she does in the background.",
-  "teaser_help": "All about Mira, with examples to try: how to talk to her, what she looks after in the house, what skills can do and how to write one of your own.",
+  "subtitle_me": "Just for you.",
+  "subtitle_daily": "What is happening now", "subtitle_setup": "Mira in your home",
+  "subtitle_abilities": "What Mira can do for you", "subtitle_help": "Get to know Mira",
+  "home_eyebrow": "YOUR CONVERSATIONAL AGENT",
+  "home_hello": name => `Hello, ${name}`, "home_welcome": "Welcome to Mira", "home_tagline": "Everything in view. And Mira by your side.",
+  "home_label": "YOUR MIRA", "home_label_side": "One home. Many possibilities.",
+  "home_help_line": "Conversations, tasks and your own skills.", "home_footer": "Personal to your home.",
   "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
   "home_satellites": n => n === 1 ? "1 satellite" : `${n} satellites`,
   "home_persons": n => n === 1 ? "1 person" : `${n} people`,
@@ -1343,6 +1451,10 @@ function render() {
   // The tabs that follow themselves stop when another view opens; otherwise
   // their next round would draw over it.
   clearTimeout(planTimer); clearTimeout(runTimer); clearTimeout(enrollTimer);
+  document.documentElement.classList.toggle("mira-home-page", tab === "home");
+  // The group's tone colors the page (see data-group in the styles).
+  const group = GROUPS.find(g => g.tabs.includes(tab === "person" ? "persons" : tab));
+  document.documentElement.dataset.group = group ? group.id : "";
   nav();
   const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;

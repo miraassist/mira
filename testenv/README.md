@@ -25,6 +25,17 @@ go run ./cmd/testha reset     # delete all state
 
   From inside the container HA reaches it as `http://host.docker.internal:8788`.
 
+A few acceptance tests click through Mira's page in this HA (start page,
+every page of every group, the card "Ich", what someone who is no admin sees).
+They need the test Mira running and Playwright:
+
+```sh
+pip install pytest playwright && playwright install chromium
+pytest tests/ui
+```
+
+Without the test HA or Playwright they are skipped.
+
 The container uses a bridge network on purpose: in the host network HA
 discovers the real devices of the house and sets some of them up by itself.
 The seed also disables any integration that came from network discovery.

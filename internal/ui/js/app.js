@@ -4,7 +4,7 @@
 // over one by one. The components render into the page itself (no shadow
 // DOM), so the page's styles apply, and they use the page's helpers: T (the
 // texts), TABS, GROUPS, go, api, isAdmin, tab.
-import { LitElement, html, nothing } from "./lit-core.min.js";
+import { LitElement, html, svg, nothing } from "./lit-core.min.js";
 
 class Light extends LitElement {
   createRenderRoot() { return this; }
@@ -16,33 +16,60 @@ const groupOf = id => GROUPS.find(g => g.tabs.includes(id));
 const tabsOf = g => g.tabs.filter(id => TABS.includes(id));
 
 // ---- Navigation -----------------------------------------------------------
-// On the start page nothing; in a group the way back and the group's tabs.
+// On the start page nothing; in a group the way back, the group's head and
+// its tabs.
 // mePartsOf are the parts of the card "Ich", as its links and its tabs.
 const mePartsOf = () => [["me-settings", T.card_settings], ["voice", T.voice_title], ["me-messages", T.me_messages], ["me-memory", T.me_memory]];
 
 class MiraNav extends Light {
   static properties = { tab: {} };
   render() {
-    // The start page names itself where a group names itself, so the row
-    // keeps its place and height from page to page.
+    // The start page has its own head (MiraHome); the bar is hidden there.
     if (!this.tab || this.tab === "home") return html`<span class="group-title">${T.tab_home}</span>`;
     // The card "Ich" is a group of its own: the person's name and its parts,
     // which jump to their place on the card.
-    if (this.tab === "me") return html`
-      <button class="secondary back" @click=${() => go("home")}>← ${T.tab_home}</button>
-      <span class="group-title">${(me && (me.name || me.person)) || T.me_title}</span>
-      ${mePartsOf().map(([id, label]) => html`
-        <button @click=${() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: "start" }); }}>${label}</button>`)}`;
-    const group = groupOf(this.tab);
-    const tabs = group ? tabsOf(group) : [];
+    if (this.tab === "me") return this.head("person", (me && (me.name || me.person)) || T.me_title, T.subtitle_me,
+      mePartsOf().map(([id, label]) => html`
+        <button @click=${() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: "start" }); }}>${label}</button>`));
+    // A person's card belongs to the people.
+    const group = groupOf(this.tab === "person" ? "persons" : this.tab);
+    if (!group) return this.head("person", T.tab_home, "", []);
+    const tabs = tabsOf(group);
+    return this.head(group.id, T["group_" + group.id], T["subtitle_" + group.id], tabs.length > 1 ? tabs.map(id => html`
+      <button class=${id === this.tab || (id === "persons" && this.tab === "person") ? "active" : ""} @click=${() => go(id)}>${T["tab_" + id]}</button>`) : []);
+  }
+  // head is the way back, the group's icon, name and subtitle, and its pages
+  // as a switch.
+  head(icon, title, subtitle, buttons) {
     return html`
-      <button class="secondary back" @click=${() => go("home")}>← ${T.tab_home}</button>
-      ${group ? html`<span class="group-title">${T["group_" + group.id]}</span>` : nothing}
-      ${tabs.length > 1 ? tabs.map(id => html`
-        <button class=${id === this.tab ? "active" : ""} @click=${() => go(id)}>${T["tab_" + id]}</button>`) : nothing}`;
+      <button class="back" @click=${() => go("home")}>← ${T.tab_home}</button>
+      <div class="page-head"><span class="category-icon">${homeIcon(icon)}</span>
+        <div><h1>${title}</h1>${subtitle ? html`<p>${subtitle}</p>` : nothing}</div></div>
+      ${buttons.length ? html`<div class="tabs">${buttons}</div>` : nothing}`;
   }
 }
 customElements.define("mira-nav", MiraNav);
+
+// homeIcon is the line icon of a group card, or of the card "Ich".
+const homeIcon = kind => svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true">${
+  kind === "daily" ? svg`<path d="m3 10 9-7 9 7v10H3Z"/><path d="M9 20v-7h6v7"/>` :
+  kind === "setup" ? svg`<path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>` :
+  kind === "abilities" ? svg`<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>` :
+  kind === "person" ? svg`<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>` :
+  svg`<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1ZM12 5v15"/>`
+}</svg>`;
+
+// avatar is the picture of whoever is logged in, as Home Assistant's sidebar
+// shows it: their person's entity_picture (Home Assistant serves it itself),
+// else their initials.
+function avatar(name) {
+  const h = hass(), id = h && h.user && h.user.id;
+  const person = id ? Object.values(h.states || {}).find(s => s.entity_id.startsWith("person.") && s.attributes.user_id === id) : null;
+  const picture = person && person.attributes.entity_picture;
+  if (picture) return html`<img src=${picture} alt="">`;
+  const initials = String(name || "").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
+  return html`<span class="initials">${initials}</span>`;
+}
 
 // ---- Start page -----------------------------------------------------------
 // A card per group with a short state; a click opens the group's first tab.
@@ -75,7 +102,7 @@ class MiraHome extends Light {
     tries.push(["messages", async () => (await api("GET", "/v1/ui/messages?open=1")).items || []]);
     if (isAdmin) {
       tries.push(
-        ["tasks", async () => (await api("GET", "/v1/ui/tasks")).tasks || []],
+        ["tasks", async () => { const r = await api("GET", "/v1/ui/tasks"); return r.items || r.tasks || []; }],
         ["catalog", async () => await api("GET", "/v1/ui/catalog")]);
     }
     // The guide's chapters, a few of them as a teaser; the guide is for everyone.
@@ -117,38 +144,47 @@ class MiraHome extends Light {
     return out;
   }
   // me is the card of whoever looks, when Home Assistant links a person to
-  // their login: a click opens it.
+  // their login, as a bar above the groups: a click opens it.
   me() {
     const m = this.facts.me;
     if (!m || !m.person) return nothing;
-    const s = m.settings || {}, lines = [];
-    if (m.messages !== undefined) lines.push(T.home_mine_messages(m.messages));
-    if (m.memories !== undefined) lines.push(T.home_memories(m.memories));
-    if (m.voice && m.samples !== undefined) lines.push(m.samples ? T.home_voice_on(m.samples) : T.home_voice_off);
-    if (s.alone_is_me) lines.push(T.home_alone);
-    if (s.accept_from === "persons") lines.push(T.home_accept_persons);
-    if (s.accept_from === "none") lines.push(T.home_accept_none);
-    // Its parts as links, as the other cards name their pages.
     const parts = mePartsOf();
-    return html`<section class="card home-card" role="button" tabindex="0"
-      @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter") go("me"); }}>
-      <h2>${m.name || m.person}</h2>
-      <p class="home-pages">${parts.map(([id, label]) => this.link(label, () => goMe(id)))}</p>
-      <p class="home-teaser">${T.teaser_me}</p>
-      ${lines.length ? html`<div class="home-facts">${lines.map(l => html`<p class="home-line">${l}</p>`)}</div>` : nothing}
+    return html`<section class="card home-person" role="button" tabindex="0"
+      @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go("me"); } }}>
+      <span class="personal-icon">${avatar(m.name || m.person)}</span>
+      <div><h2>${m.name || m.person}</h2><p class="home-pages">${parts.map(([id, label]) => this.link(label, () => goMe(id)))}</p></div>
+      <div class="home-facts">
+        ${m.memories !== undefined ? html`<p class="home-line">${T.home_memories(m.memories)}</p>` : nothing}
+        ${m.messages !== undefined ? html`<p class="home-line">${T.home_mine_messages(m.messages)}</p>` : nothing}
+        ${m.voice && m.samples !== undefined ? html`<p class="home-line">${m.samples ? T.home_voice_on(m.samples) : T.home_voice_off}</p>` : nothing}
+      </div>
     </section>`;
   }
+  // render is the page's head (logo, greeting), the card "Ich" as a bar, the
+  // group cards with an icon each and a foot.
   render() {
-    return html`<div class="home-grid">${this.me()}${GROUPS.filter(g => tabsOf(g).length).map(g => html`
-      <section class="card home-card" role="button" tabindex="0"
-        @click=${() => go(tabsOf(g)[0])} @keydown=${e => { if (e.key === "Enter") go(tabsOf(g)[0]); }}>
-        <h2>${T["group_" + g.id]}</h2>
-        ${g.id === "help" ? this.chapters() : html`
-          <p class="home-pages">${tabsOf(g).map(id => this.link(T["tab_" + id], () => go(id)))}</p>
-          <p class="home-teaser">${T["teaser_" + g.id]}</p>`}
-        ${g.id === "help" ? html`<div class="home-facts"><p class="home-line">${T.teaser_help}</p></div>`
-          : this.lines(g.id).length ? html`<div class="home-facts">${this.lines(g.id).map(l => html`<p class="home-line">${l}</p>`)}</div>` : nothing}
-      </section>`)}</div>`;
+    const m = this.facts.me;
+    const name = m && m.person ? (m.name || m.person) : "";
+    const open = g => go(tabsOf(g)[0]);
+    return html`
+      <div class="mira-brand">
+        <div class="mira-brand-name"><img src=${url("/ui/icon.png")} alt="Mira">
+          <div><div class="mira-eyebrow">${T.home_eyebrow}</div><h1>Mira Assist<span>.</span></h1></div></div>
+      </div>
+      <div class="mira-welcome"><h2>${name ? T.home_hello(name) : T.home_welcome}</h2><p>${T.home_tagline}</p></div>
+      ${this.me()}
+      <div class="mira-label"><span>${T.home_label}</span><span>${T.home_label_side}</span></div>
+      <div class="home-grid">${GROUPS.filter(g => tabsOf(g).length).map(g => html`
+        <section class="card home-card" data-group=${g.id} role="button" tabindex="0"
+          @click=${() => open(g)} @keydown=${e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(g); } }}>
+          <div class="home-card-top"><span class="category-icon">${homeIcon(g.id)}</span>
+            <a href=${"#" + tabsOf(g)[0]} class="home-arrow" aria-label=${T["group_" + g.id]}
+              @click=${e => { e.preventDefault(); e.stopPropagation(); open(g); }} @keydown=${e => e.stopPropagation()}>↗</a></div>
+          <h2>${T["group_" + g.id]}</h2><p class="home-subtitle">${T["subtitle_" + g.id]}</p>
+          ${g.id === "help" ? this.chapters() : html`<p class="home-pages">${tabsOf(g).map(id => this.link(T["tab_" + id], () => go(id)))}</p>`}
+          <div class="home-facts">${g.id === "help" ? html`<p class="home-line">${T.home_help_line}</p>` : this.lines(g.id).map(l => html`<p class="home-line">${l}</p>`)}</div>
+        </section>`)}</div>
+      <footer class="mira-footer"><span>${T.home_footer}</span><a href="https://mira-assist.com" target="_blank" rel="noopener">Mira Assist</a></footer>`;
   }
   // link opens a page of the card, not the card's first one.
   link(text, open) {
