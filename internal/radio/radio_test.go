@@ -123,6 +123,36 @@ func TestSpeakersByName(t *testing.T) {
 	}
 }
 
+// Several speakers in the satellite's room: its own plays without a
+// question; in another room, or when none is its own, Mira asks.
+func TestTheSatellitesOwnSpeakerPlays(t *testing.T) {
+	two := map[string][]Player{"wohnzimmer": {
+		{Entity: "media_player.show", Name: "Show", Names: []string{"show"}, Device: "ma"},
+		{Entity: "media_player.show_speaker", Name: "Show Lautsprecher", Names: []string{"show lautsprecher"}, Device: "sat"}}}
+	tool, got := env(swr3, two, nil)
+	run := func(device, area, args string) string {
+		out, err := tool.Run(context.Background(), tools.Invocation{Area: area, DeviceID: device, Args: json.RawMessage(args)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	run("sat", "wohnzimmer", `{"station":"SWR3"}`)
+	if len(*got) != 1 || (*got)[0].entity != "media_player.show_speaker" {
+		t.Errorf("played %+v", *got)
+	}
+	if out := run("other", "wohnzimmer", `{"station":"SWR3"}`); !strings.Contains(out, "mehrere Lautsprecher") {
+		t.Errorf("not the satellite's room's speaker: %q", out)
+	}
+	if out := run("sat", "kueche", `{"station":"SWR3","room":"Wohnzimmer"}`); !strings.Contains(out, "mehrere Lautsprecher") {
+		t.Errorf("another room: %q", out)
+	}
+	run("sat", "wohnzimmer", `{"station":"SWR3","player":"Show"}`)
+	if len(*got) != 2 || (*got)[1].entity != "media_player.show" {
+		t.Errorf("named one: %+v", *got)
+	}
+}
+
 func TestSeveralSpeakersChosenByName(t *testing.T) {
 	two := map[string][]Player{"wohnzimmer": {{Entity: "media_player.a", Names: []string{"küchenradio"}}, {Entity: "media_player.b", Names: []string{"show"}}}}
 	tool, got := env(swr3, two, nil)

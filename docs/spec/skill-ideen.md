@@ -21,24 +21,25 @@ about house and persons, and reporting on its own.
 | Vocabulary and times tables | skill `vokabeln` |
 | Mira's own sounds and cards | `sound_play`, `display_card`, [Sounds and cards](satellit.md) |
 | Age of persons | memory; without it Mira assumes an adult |
+| Audiobooks | Home Assistant's media tools with Music Assistant; see below |
 
 ## Open
 
-### Continue listening to an audiobook (must have)
+### Continue listening to an audiobook
 
-"Lies mein Hörbuch weiter." – "Welches Kapitel war ich?" – "Fang das Buch von vorn an." – "Spiel Kapitel 5."
+Decided 2026-10-25: **nothing to build for now.** Tried in the test HA with Music Assistant, its player in the room:
+Home Assistant's own tools (search media, play media, pause, unpause) are enough. "Spiel mein Hörbuch Robinson Crusoe"
+found the library audiobook among the results and played it; "Stopp" paused, "Setze mein Hörbuch fort" went on; after
+radio in between, "Spiel mein Hörbuch weiter" started the book again and Music Assistant went on where it had stopped.
+The position is kept by Music Assistant; Mira needs no state of her own for it.
 
-- **Via Music Assistant.** It knows audiobooks (folders with chapters, m4b/m4a or many MP3s in CD1, CD2 …), keeps the
-  queue and remembers the position itself. Whoever wants the feature installs Music Assistant; without it there is
-  no skill. The show in Home Assistant cannot jump to a position and cannot keep a queue, so plain direct playback
-  is not enough.
-- **Mira is the voice in front of it:** she understands the request, chooses book and player (room), starts the
-  audiobook and knows which book belongs to whom ("Annas Buch"). She says honestly when Music Assistant is missing or
-  the book is not found.
-- **To clarify before building:** Can Music Assistant in the household play audiobooks with position (test in the
-  live HA)? Which tools does it offer Mira, or is a separate tool needed as with `radio_play`? Does the skill need
-  state of its own per person, or is the position in Music Assistant enough (see below)?
-- Goes with the sleep timer, which is built.
+Open, built only if it bothers in daily use:
+
+- In a new conversation Mira does not know which book "mein Hörbuch" is; the user names the title.
+- Home Assistant's search shows streaming hits (artists, tracks) before the library's audiobook; a frequent title may
+  push it out of the results.
+- The Music Assistant player needs an area (or its name in the request), else the search asks a player that finds
+  nothing.
 
 ### House handbook
 
@@ -76,5 +77,5 @@ A skill has no storage of its own and runs no code. What it has:
 3. **The system that already keeps the state:** for audiobooks Music Assistant (position, queue). Mira only has to
    remember which book is meant.
 
-A store of named values per skill and person stays open; it is decided with the audiobook, the first skill that may
-need it.
+A store of named values per skill and person is not needed so far: the audiobook's position stays in Music
+Assistant.

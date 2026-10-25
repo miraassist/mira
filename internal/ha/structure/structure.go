@@ -40,6 +40,8 @@ type Snapshot struct {
 	DeviceArea map[string]string
 	// EntityArea maps entity id to area id.
 	EntityArea map[string]string
+	// EntityDevice maps an exposed entity id to its device id, if it has one.
+	EntityDevice map[string]string
 	// ExposedEntities is the set the model was told about.
 	ExposedEntities map[string]bool
 	// EntityNames maps entity id to every lower-cased name the model might
@@ -92,6 +94,7 @@ func Build(reg Registry) Snapshot {
 		AreaNames:       make(map[string]string, len(reg.Areas)),
 		DeviceArea:      make(map[string]string, len(reg.Devices)),
 		EntityArea:      make(map[string]string, len(reg.Entities)),
+		EntityDevice:    map[string]string{},
 		ExposedEntities: map[string]bool{},
 		EntityNames:     map[string][]string{},
 		EntityLabel:     map[string]string{},
@@ -150,6 +153,9 @@ func Build(reg Registry) Snapshot {
 			area = device.AreaID
 		}
 		snap.EntityArea[e.EntityID] = area
+		if e.DeviceID != "" {
+			snap.EntityDevice[e.EntityID] = e.DeviceID
+		}
 		snap.ExposedEntities[e.EntityID] = true
 
 		name := e.DisplayName()

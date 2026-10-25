@@ -33,6 +33,8 @@ type Player struct {
 	Name string
 	// Names are the lower-cased names the model might use for it.
 	Names []string
+	// Device is its device id in Home Assistant, if it has one.
+	Device string
 }
 
 type Options struct {
@@ -112,6 +114,14 @@ func Tool(o Options) tools.InternalTool {
 				players = slices.DeleteFunc(slices.Clone(players), func(pl Player) bool {
 					return !slices.Contains(pl.Names, p) && strings.ToLower(pl.Entity) != p
 				})
+			}
+			// Several speakers and none named: in the satellite's own room the
+			// satellite's speaker plays (docs/spec/radio.md).
+			if len(players) > 1 && args.Player == "" && area == inv.Area && inv.DeviceID != "" {
+				own := slices.DeleteFunc(slices.Clone(players), func(pl Player) bool { return pl.Device != inv.DeviceID })
+				if len(own) == 1 {
+					players = own
+				}
 			}
 			switch {
 			case len(players) == 0:
