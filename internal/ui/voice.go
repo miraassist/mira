@@ -50,14 +50,20 @@ func (e *enrolling) start(person string, since float64) {
 
 // since is where the person's enrolling began, if it is still open.
 func (e *enrolling) since(person string) (float64, bool) {
+	since, _, ok := e.window(person)
+	return since, ok
+}
+
+// window is where the person's enrolling began and how long it stays open.
+func (e *enrolling) window(person string) (float64, time.Duration, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	w, ok := e.open[person]
 	if !ok || time.Now().After(w.until) {
 		delete(e.open, person)
-		return 0, false
+		return 0, 0, false
 	}
-	return w.since, true
+	return w.since, time.Until(w.until), true
 }
 
 func (e *enrolling) stop(person string) {
@@ -123,8 +129,8 @@ func (h *Handler) voice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	_, open := h.enroll.since(person)
-	writeJSON(w, http.StatusOK, map[string]any{"samples": profiles[person], "enrolling": open})
+	_, left, open := h.enroll.window(person)
+	writeJSON(w, http.StatusOK, map[string]any{"samples": profiles[person], "enrolling": open, "left": int(left.Seconds())})
 }
 
 // enrollStart starts enrolling: from now on the page shows what the

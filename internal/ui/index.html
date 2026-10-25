@@ -144,6 +144,8 @@ details.item.task > summary { --lead: 13em; }
   details.item > summary .short { grid-column: 2 / 4; }
 }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--badge); }
 .msg { padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; white-space: pre-wrap; border: 1px solid transparent; }
 .msg.err { background: var(--rose-tint); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
 .msg.ok { background: var(--ok-tint); color: var(--accent); border-color: color-mix(in srgb, var(--accent-2) 25%, transparent); }
@@ -240,6 +242,32 @@ const I18N = {
   "tab_notifier": "Benachrichtigung",
   "tab_rooms": "Satelliten",
   "tab_persons": "Personen",
+  "tab_me": "Ich",
+  "tab_person": "Person",
+  "me_title": "Ich",
+  "me_teaser": "Deine Einstellungen und deine Stimme.",
+  "me_no_person": "Mit deinem Login ist in Home Assistant keine Person verknüpft. Ein Admin kann das unter Einstellungen → Personen nachholen.",
+  "card_settings": "Einstellungen",
+  "alone_is_me_long": "Bin ich allein zu Hause, gelten die Satelliten als ich",
+  "voice_threshold": "Schwelle für die Stimme",
+  "voice_threshold_hint": "Leer: die allgemeine (0,7). Niedriger, wenn diese Stimme oft nicht erkannt wird; höher, wenn sie mit einer anderen verwechselt wird.",
+  "voice_title": "Stimme",
+  "voice_none": "Noch nicht angelernt: an den Satelliten bleibt diese Person unerkannt, außer allein zu Hause.",
+  "voice_samples": n => n === 1 ? "Angelernt mit 1 Satz." : `Angelernt mit ${n} Sätzen.`,
+  "voice_hint": "Mira erkennt an der Stimme, wer an einem Satelliten spricht, und merkt sich Persönliches dann für diese Person. Gespeichert wird kein Ton, nur ein Stimmabdruck.",
+  "voice_unavailable": "Keine Stimmerkennung eingerichtet (speaker_id in mira.yaml).",
+  "voice_enroll": "Stimme anlernen",
+  "voice_enroll_more": "Weitere Sätze anlernen",
+  "voice_enroll_stop": "Fertig",
+  "voice_forget": "Stimme löschen",
+  "voice_forget_confirm": name => `Die Stimme von ${name} löschen? An den Satelliten wird ${name} dann nicht mehr erkannt.`,
+  "voice_enrolling": s => `Sprich jetzt drei bis fünf Sätze an einem Satelliten, mit dem Aktivierungswort, jeweils ein paar Sekunden lang. Was die Satelliten hören, erscheint hier, noch ${s} Sekunden lang; nur was ab jetzt gesagt wird.`,
+  "voice_heard_none": "Noch nichts gehört.",
+  "voice_was_me": "Das war ich",
+  "voice_was": name => `Das war ${name}`,
+  "voice_enrolled": "angelernt",
+  "voice_col": "Stimme",
+  "persons_list_hint": "Jede Person aus Home Assistant ist auch für Mira eine Person. Ein Klick öffnet ihre Karte, dieselbe, die sie selbst als „Ich“ sieht.",
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
   "unreachable": "Ich bin gerade nicht erreichbar, vielleicht starte ich gerade neu. Ich versuche es gleich noch mal …",
@@ -637,6 +665,32 @@ const I18N = {
   "tab_notifier": "Notifications",
   "tab_rooms": "Satellites",
   "tab_persons": "People",
+  "tab_me": "Me",
+  "tab_person": "Person",
+  "me_title": "Me",
+  "me_teaser": "Your settings and your voice.",
+  "me_no_person": "No person in Home Assistant is linked to your login. An admin can do that under Settings → People.",
+  "card_settings": "Settings",
+  "alone_is_me_long": "When I am alone at home, the satellites count as me",
+  "voice_threshold": "Voice threshold",
+  "voice_threshold_hint": "Empty: the general one (0.7). Lower when this voice is often not recognized; higher when it is mistaken for another.",
+  "voice_title": "Voice",
+  "voice_none": "Not enrolled yet: at the satellites this person stays unrecognized, except alone at home.",
+  "voice_samples": n => n === 1 ? "Enrolled with 1 sentence." : `Enrolled with ${n} sentences.`,
+  "voice_hint": "Mira recognizes by the voice who speaks at a satellite, and keeps what is personal for that person. No audio is kept, only a voice print.",
+  "voice_unavailable": "No speaker recognition set up (speaker_id in mira.yaml).",
+  "voice_enroll": "Enroll the voice",
+  "voice_enroll_more": "Enroll more sentences",
+  "voice_enroll_stop": "Done",
+  "voice_forget": "Delete the voice",
+  "voice_forget_confirm": name => `Delete ${name}'s voice? ${name} will no longer be recognized at the satellites.`,
+  "voice_enrolling": s => `Now say three to five sentences at a satellite, with the wake word, a few seconds each. What the satellites hear shows here for another ${s} seconds; only what is said from now on.`,
+  "voice_heard_none": "Nothing heard yet.",
+  "voice_was_me": "That was me",
+  "voice_was": name => `That was ${name}`,
+  "voice_enrolled": "enrolled",
+  "voice_col": "Voice",
+  "persons_list_hint": "Every person in Home Assistant is a person for Mira too. A click opens their card, the same one they see themselves as \"Me\".",
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
   "unreachable": "I can't be reached right now, maybe I'm restarting. Trying again in a moment …",
@@ -1028,7 +1082,7 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["home", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "models", "guide"];
+const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "models", "guide"];
 // The start page shows a card per group; inside a group its tabs are on top
 // (docs/spec/uebersicht.md, Navigation).
 const GROUPS = [
@@ -1117,8 +1171,13 @@ let config = {};
 // Inside Home Assistant, someone who is no admin gets their memory and the
 // guide; the agent and the integration enforce that, the page follows.
 const isAdmin = !embedded || !!(hass() && hass().user && hass().user.is_admin);
-if (!isAdmin) TABS = ["home", "plans", "memory", "guide"];
-const tabOf = h => (TABS.includes(h) ? h : "home");
+if (!isAdmin) TABS = ["home", "me", "plans", "memory", "guide"];
+// "person:<key>" is a person's card, for admins (cardPerson says whose).
+let cardPerson = "";
+const tabOf = h => {
+  if (isAdmin && h.startsWith("person:")) { cardPerson = decodeURIComponent(h.slice(7)); return "person"; }
+  return TABS.includes(h) ? h : "home";
+};
 let tab = tabOf(location.hash.slice(1));
 let entityNames = {};
 // Sections Home Assistant manages are edited there, as settings on HA's
@@ -1237,17 +1296,17 @@ function nav() {
   if (el.requestUpdate) el.requestUpdate();
   $("#lang").value = lang;
 }
-function go(id) { tab = id; location.hash = id; render(); }
+function go(id) { tab = tabOf(id); location.hash = id; render(); }
 
 function render() {
   // The tabs that follow themselves stop when another view opens; otherwise
   // their next round would draw over it.
-  clearTimeout(planTimer); clearTimeout(runTimer);
+  clearTimeout(planTimer); clearTimeout(runTimer); clearTimeout(enrollTimer);
   nav();
-  const views = { home, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, guide };
+  const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
   views[tab]();
-  const owner = { rooms: "satellites", persons: "persons" }[tab];
+  const owner = { rooms: "satellites", persons: "persons", person: "persons" }[tab];
   if (owner && managed(owner) && !embedded) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
     $("#view").querySelectorAll(".actions").forEach(el => { el.hidden = true; });
@@ -1408,7 +1467,7 @@ function saveRooms() {
 function persons() {
   const p = val("persons") || {};
   const people = (config.persons || {}).people || [];
-  if (managed("persons") && embedded && isAdmin) return haSettings("persons");
+  if (managed("persons") && embedded && isAdmin) return personList();
   if (people.length) return haPersons(people, p);
   $("#view").innerHTML = `
   <section class="card">
@@ -1436,6 +1495,177 @@ function personRow(key, p, i) {
     <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${p.alone_is_me ? " checked" : ""}></td>
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
+// ---- Ich, eine Person -----------------------------------------------------
+// A person's card: their settings and their voice (docs/spec/sprecher.md).
+// Everyone has their own as "Ich"; an admin opens anyone's from the list of
+// persons, a child's without a login too. What is whose to set: their own
+// accept_from and alone_is_me; channels and the voice threshold an admin's.
+let me = null, enrollTimer = null;
+async function whoAmI() {
+  if (!me) { try { me = await api("GET", "/v1/ui/me"); } catch (e) { me = { admin: isAdmin }; } }
+  return me;
+}
+const peopleList = () => (config.persons || {}).people || [];
+const personNameOf = key => (peopleList().find(p => p.key === key) || {}).name || key;
+const personEntityOf = key => (peopleList().find(p => p.key === key) || {}).entity || "";
+async function mine() {
+  $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
+  const m = await whoAmI();
+  if (!m.person) {
+    $("#view").innerHTML = `<section class="card"><h2>${T.me_title}</h2><p class="hint">${T.me_no_person}</p></section>`;
+    return;
+  }
+  personCard(m.person, m.name || m.person, true);
+}
+function personTab() { personCard(cardPerson, personNameOf(cardPerson), false); }
+
+// The person's settings, from Home Assistant's integration when it keeps
+// them (an admin's form there, the person's own otherwise), else from
+// Mira's persons section.
+async function cardSettings(key) {
+  if (embedded && !isAdmin) return (await haApi("GET", `${HA_BASE}/settings/me`)).settings || {};
+  if (embedded && managed("persons")) {
+    const d = await haApi("GET", `${HA_BASE}/settings/persons`);
+    cardNotify = d.notify || [];
+    return ((d.items || []).find(i => i.entity === personEntityOf(key)) || {}).settings || {};
+  }
+  return (val("persons") || {})[key] || {};
+}
+let cardNotify = [];
+async function personCard(key, name, self) {
+  $("#view").innerHTML = `<section class="card"><h2>${esc(name)}</h2><p>${T.loading}</p></section>`;
+  let s;
+  try { s = await cardSettings(key); } catch (e) { message(e.message, false); s = {}; }
+  const admin = isAdmin;
+  $("#view").innerHTML = `
+  <section class="card" data-person="${esc(key)}">
+    <h2>${esc(name)}</h2>${self ? "" : `<p class="hint">${esc(personEntityOf(key))}</p>`}
+    <h3>${T.card_settings}</h3>
+    <div class="grid">
+      <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
+      <label title="${T.alone_hint}">${T.alone_is_me_long}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
+      ${admin ? `<label>${T.channels}</label><input data-f="channels" list="card-notify" value="${esc(csv(s.channels))}" placeholder="notify.…">
+      <label>${T.voice_threshold}</label><input type="number" data-f="voice_threshold" min="0.3" max="0.99" step="0.01" value="${esc(s.voice_threshold || "")}" placeholder="0.7">` : ""}
+    </div>
+    <p class="hint">${T.alone_hint}${admin ? " " + T.voice_threshold_hint : ""}</p>
+    <datalist id="card-notify">${cardNotify.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>
+    <div class="actions"><button class="primary" onclick="saveCard('${esc(key)}')">${T.save}</button></div>
+  </section>
+  <section class="card" id="voice"><h2>${T.voice_title}</h2><p>${T.loading}</p></section>`;
+  voiceCard(key, name, self);
+}
+async function saveCard(key) {
+  const v = {};
+  document.querySelectorAll(`#view [data-person] [data-f]`).forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
+  try {
+    if (embedded && !isAdmin) {
+      await haApi("PUT", `${HA_BASE}/settings/me`, { accept_from: v.accept_from, alone_is_me: v.alone_is_me });
+    } else if (embedded && managed("persons")) {
+      v.channels = fromCsv(v.channels || "");
+      v.voice_threshold = v.voice_threshold === "" ? null : Number(v.voice_threshold);
+      await haApi("PUT", `${HA_BASE}/settings/persons`, { [personEntityOf(key)]: v });
+      config = await api("GET", "/v1/ui/config");
+    } else {
+      const p = structuredClone(val("persons") || {});
+      const cur = p[key] || { entity: personEntityOf(key) };
+      cur.accept_from = v.accept_from === "all" ? undefined : v.accept_from;
+      cur.alone_is_me = v.alone_is_me || undefined;
+      cur.channels = fromCsv(v.channels || "");
+      cur.voice_threshold = v.voice_threshold === "" ? undefined : Number(v.voice_threshold);
+      p[key] = cur;
+      await save({ persons: p });
+      return;
+    }
+    message(T.saved, true);
+  } catch (e) { message(e.message, false); }
+}
+
+// The voice: how many sentences are enrolled, enrolling more, deleting it.
+// While enrolling, what the satellites hear from that moment on shows here
+// and can be taken as this person's.
+async function voiceCard(key, name, self) {
+  const box = $("#voice");
+  if (!box) return;
+  if (!(await whoAmI()).voice) { box.innerHTML = `<h2>${T.voice_title}</h2><p class="hint">${T.voice_unavailable}</p>`; return; }
+  let v;
+  try { v = await api("GET", `/v1/ui/voice/${encodeURIComponent(key)}`); } catch (e) { box.innerHTML = `<h2>${T.voice_title}</h2><p class="msg err">${esc(e.message)}</p>`; return; }
+  const k = esc(key), n = esc(name);
+  box.innerHTML = `
+    <h2>${T.voice_title}</h2>
+    <p>${v.samples ? T.voice_samples(v.samples) : T.voice_none}</p>
+    <p class="hint">${T.voice_hint}</p>
+    ${v.enrolling ? `<div id="enroll"><p class="hint" id="enroll-left"></p><table class="facts" id="heard"></table></div>
+      <div class="actions"><button class="primary" onclick="enrollStop('${k}', '${n}', ${self})">${T.voice_enroll_stop}</button></div>`
+    : `<div class="actions">
+      <button class="primary" onclick="enrollStart('${k}', '${n}', ${self})">${v.samples ? T.voice_enroll_more : T.voice_enroll}</button>
+      ${v.samples ? `<button class="danger" onclick="forgetVoice('${k}', '${n}', ${self})">${T.voice_forget}</button>` : ""}</div>`}`;
+  if (v.enrolling) { enrollUntil = Date.now() + (v.left || 0) * 1000; heard(key, name, self); }
+}
+async function enrollStart(key, name, self) {
+  try {
+    const r = await api("POST", `/v1/ui/voice/${encodeURIComponent(key)}/enroll`);
+    enrollUntil = Date.now() + (r.seconds || 180) * 1000;
+  } catch (e) { message(e.message, false); return; }
+  voiceCard(key, name, self);
+}
+let enrollUntil = 0;
+async function heard(key, name, self) {
+  clearTimeout(enrollTimer);
+  const left = Math.max(0, Math.round((enrollUntil - Date.now()) / 1000));
+  let r;
+  try { r = await api("GET", `/v1/ui/voice/${encodeURIComponent(key)}/heard`); } catch (e) { voiceCard(key, name, self); return; }
+  const t = $("#heard"), l = $("#enroll-left");
+  if (!t) return;
+  l.textContent = T.voice_enrolling(left);
+  const items = r.heard || [];
+  t.innerHTML = items.length ? items.map(u => `<tr><td>${esc(u.transcript) || "…"}<p class="hint">${u.seconds.toLocaleString(lang)} s</p></td>
+    <td class="nowrap">${u.assigned ? `✓ ${u.assigned === key ? T.voice_enrolled : esc(personNameOf(u.assigned))}`
+      : `<button class="secondary" onclick="assignVoice('${esc(key)}', '${esc(u.id)}', '${esc(name)}', ${self})">${self ? T.voice_was_me : T.voice_was(esc(name))}</button>`}</td></tr>`).join("")
+    : `<tr><td class="hint">${T.voice_heard_none}</td></tr>`;
+  if (left > 0) enrollTimer = setTimeout(() => heard(key, name, self), 2000);
+  else enrollStop(key, name, self);
+}
+async function assignVoice(key, id, name, self) {
+  try { await api("POST", `/v1/ui/voice/${encodeURIComponent(key)}/assign`, { id }); } catch (e) { message(e.message, false); }
+  heard(key, name, self);
+}
+async function enrollStop(key, name, self) {
+  clearTimeout(enrollTimer);
+  try { await api("DELETE", `/v1/ui/voice/${encodeURIComponent(key)}/enroll`); } catch (e) { /* it ends by itself */ }
+  voiceCard(key, name, self);
+}
+async function forgetVoice(key, name, self) {
+  if (!await ask({ text: T.voice_forget_confirm(name), ok: T.voice_forget, danger: true })) return;
+  try { await api("DELETE", `/v1/ui/voice/${encodeURIComponent(key)}`); message(T.saved, true); } catch (e) { message(e.message, false); }
+  voiceCard(key, name, self);
+}
+
+// The admins' list of persons: a line each with what is set, a click opens
+// the person's card.
+async function personList() {
+  $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
+  let settings = {}, samples = {}, voice = false;
+  try {
+    const d = await haApi("GET", `${HA_BASE}/settings/persons`);
+    (d.items || []).forEach(i => { settings[i.entity] = i.settings || {}; });
+  } catch (e) { message(e.message, false); }
+  try { const v = await api("GET", "/v1/ui/voice"); voice = v.available; samples = v.samples || {}; } catch (e) { /* no voices then */ }
+  $("#view").innerHTML = `
+  <section class="card">
+    <h2>${T.tab_persons} ${source("persons")}</h2>
+    <p class="hint">${T.persons_list_hint}</p>
+    <table class="facts"><tr><th>${T.person}</th>${voice ? `<th>${T.voice_col}</th>` : ""}<th>${T.alone_is_me}</th><th>${T.accept_from}</th><th>${T.channels.split(" (")[0]}</th></tr>
+      ${peopleList().map(p => {
+        const s = settings[p.entity] || {};
+        return `<tr class="clickable" onclick="go('person:${esc(encodeURIComponent(p.key))}')">
+          <td><a href="#person:${esc(encodeURIComponent(p.key))}">${esc(p.name)}</a><p class="hint">${esc(p.entity)}</p></td>
+          ${voice ? `<td>${samples[p.key] ? T.voice_samples(samples[p.key]).replace(/\.$/, "") : "–"}</td>` : ""}
+          <td>${s.alone_is_me ? T.yes : "–"}</td><td>${T["accept_" + (s.accept_from || "all")]}</td><td>${list(s.channels).length || "–"}</td></tr>`;
+      }).join("")}
+    </table>
+  </section>`;
+}
+
 // Inside Home Assistant an admin edits Mira's settings on HA's persons and
 // satellites right here; the integration checks them with the agent and
 // stores them on the person or satellite (/api/mira/settings/…).

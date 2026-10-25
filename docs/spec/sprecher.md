@@ -47,10 +47,8 @@ satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio
   and outside Mira.
 - **No audio is kept.** The service remembers the voice prints and transcripts of the last 30 utterances in memory,
   so that they can be assigned to a person, and nothing else.
-- **Enrolling:** for now the service's own page (port 10311) lists the recent utterances; each can be assigned to a
-  person, three to five per person, a few seconds each, said at the satellite itself, so the profile is made
-  through the same microphone and echo cancellation it will be recognized through. The page is open in the local
-  network for now; before it is used beyond testing it gets a token, and enrolling moves into Mira's page (step 4).
+- **Enrolling** happens in Mira's page (below); the service has no page of its own. Its API is behind a token
+  (`SPEAKER_TOKEN`), which only Mira has.
 - **Deployment:** its own `compose.yaml`; the data directory is a setting (`SPEAKER_ID_DATA`).
 
 ## Which utterance is the turn's
@@ -119,6 +117,23 @@ tells the model how she knows the person, and to name them when it does somethin
   would leave the model nothing to do with it. Asking back on a narrow score would be a rule of its own in the
   code, not the model's judgment.
 
+## Enrolling in Mira's page: the card "Ich"
+
+Every person has a card: on the start page as **"Ich"** for whoever is signed in (if Home Assistant links a person
+to their login), and for admins from the list of persons, which shows a line per person with their voice and
+settings and opens the same card.
+
+- **Settings:** a person sets their own "alone at home, the satellites are me" and whose messages they take; the
+  channels and the voice threshold are an admin's. Inside Home Assistant the integration keeps them on the HA
+  person, as before; a person's own go through `/api/mira/settings/me`, which takes only those two fields.
+- **Voice:** how many sentences are enrolled; "Stimme anlernen" and "Stimme löschen". Enrolling opens a window
+  of three minutes: the card shows what the satellites hear **from that moment on**, nothing said before, and
+  each line can be taken as this person's ("Das war ich"). Only those lines can be enrolled. Three to five
+  sentences of a few seconds, said at a satellite with the wake word, so the profile is made through the same
+  microphone and echo cancellation it is recognized through.
+- **Rights:** everyone their own voice; an admin anyone's, a child's without a login too. Mira's API checks
+  this (`/v1/ui/voice/{person}`), not only the page.
+
 ## Steps
 
 1. **The service** as a proxy with its own enrollment page: built.
@@ -127,6 +142,6 @@ tells the model how she knows the person, and to name them when it does somethin
    Assistant does not have (SP-06). Choosing from Home Assistant's persons comes with enrolling in Mira's page
    (step 4).
 3. **Mira:** the setting and the source in `identify`; scenarios SP-01 to SP-10.
-4. **Enrolling in Mira's page:** "that was me" for a signed-in person, persons without a login (children) by an
-   admin; the service's own page goes, the API gets a token.
+4. **Enrolling in Mira's page:** the card "Ich" and the admins' list of persons (above); the service's own page
+   goes, the API gets a token.
 5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.

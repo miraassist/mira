@@ -44,6 +44,14 @@ class MiraHome extends Light {
     const facts = {};
     const tries = [
       ["plans", async () => (await api("GET", "/v1/ui/plans")).plans || []],
+      // Who looks: their own card "Ich", with how much of their voice is enrolled.
+      ["me", async () => {
+        const m = await api("GET", "/v1/ui/me");
+        if (m.person && m.voice) {
+          try { m.samples = (await api("GET", `/v1/ui/voice/${encodeURIComponent(m.person)}`)).samples; } catch (e) { /* without */ }
+        }
+        return m;
+      }],
     ];
     if (isAdmin) {
       tries.push(
@@ -89,8 +97,21 @@ class MiraHome extends Light {
     }
     return out;
   }
+  // me is the card of whoever looks, when Home Assistant links a person to
+  // their login: a click opens it.
+  me() {
+    const m = this.facts.me;
+    if (!m || !m.person) return nothing;
+    return html`<section class="card home-card" role="button" tabindex="0"
+      @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter") go("me"); }}>
+      <h2>${T.me_title}</h2>
+      <p class="home-pages">${this.link(m.name || m.person, () => go("me"))}</p>
+      <p class="home-teaser">${T.me_teaser}</p>
+      ${m.voice ? html`<div class="home-facts"><p class="home-line">${m.samples ? T.voice_samples(m.samples) : T.voice_none.split(":")[0] + "."}</p></div>` : nothing}
+    </section>`;
+  }
   render() {
-    return html`<div class="home-grid">${GROUPS.filter(g => tabsOf(g).length).map(g => html`
+    return html`<div class="home-grid">${this.me()}${GROUPS.filter(g => tabsOf(g).length).map(g => html`
       <section class="card home-card" role="button" tabindex="0"
         @click=${() => go(tabsOf(g)[0])} @keydown=${e => { if (e.key === "Enter") go(tabsOf(g)[0]); }}>
         <h2>${T["group_" + g.id]}</h2>
