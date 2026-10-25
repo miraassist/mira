@@ -208,8 +208,36 @@ Gut zu wissen:
 | `geschichte` | „Erzähl mir eine Gute-Nacht-Geschichte mit einem Drachen.“ Selbst ausgedacht, passend zu Kind und Alter, wenn Mira beides kennt. | keine |
 | `quiz` | „Lass uns ein Quiz spielen.“ Zehn Fragen, allein oder reihum mit mehreren, mit Punkten. Am Ende gibt es einen Tusch, wenn es gut lief. | keine |
 | `vokabeln` | „Frag mich zehn Englisch-Vokabeln ab.“ – „Übe mit mir das Siebener-Einmaleins.“ Ohne Wunsch fragt Mira in beide Richtungen; was falsch war, kommt am Ende noch einmal. | keine |
+| `fahrplan` | „Wann fährt die nächste Bahn?“ – „Wann geht der nächste Zug nach Stuttgart?“ Abfahrten mit Verspätung und Ausfällen, für Straßenbahn und Bus mit dem Kürzel deines Verkehrsverbunds. | `haltestelle`, `verbund` (optional, etwa `KVV`) |
+| `apotheke` | „Welche Apotheke hat heute Notdienst?“ Die nächste mit Adresse, Entfernung und bis wann, von aponet.de. | keine |
+| `sprit` | „Wo ist Diesel gerade günstig?“ Braucht in Home Assistant die Integration Tankerkönig, ihre Sensoren für Assist freigegeben. | keine |
+| `routine` | „Lern die Routine Gute Nacht: Licht aus, Rollläden runter.“ – danach einfach „Gute Nacht“. Mira merkt sich die Schritte und führt sie der Reihe nach aus. | keine |
+| `kamera` | „Zeig mir die Haustür.“ Die Kamera erscheint eine Minute auf dem Echo Show. Mit einem Skript (siehe unten) auch „Wer steht vor der Tür?“. Die Kamera muss für Assist freigegeben sein. | `skript` (optional) |
+| `tuerklingel` | „Sag Bescheid, wenn es klingelt, und zeig die Haustür.“ Mira legt dafür eine Automation an: Ansage an allen Satelliten, Kamerabild auf den Echo Show. | `bildschirme` (optional, ESPHome-Namen der Echo Show) |
+| `urlaub` | „Tu so, als wäre jemand da, wenn wir weg sind.“ Mira legt eine Automation an, die abends Lichter wechselnd schaltet, solange niemand zu Hause ist. | keine |
 
 Quiz und Vokabeln laufen wie das Kochen als Ablauf: Du antwortest einfach, Mira weiß, welche Frage dran ist.
+
+**Kamera fragen.** Für „Wer steht vor der Tür?“ schaut ein Skript in Home Assistant ins Bild. Leg es an (Einstellungen → Automationen & Szenen → Skripte → neues Skript → YAML bearbeiten), gib es für Assist frei und trag seinen Namen beim Skill `kamera` als `skript` ein. Es braucht in Home Assistant eine KI-Aufgabe (`ai_task`), etwa über Google Gemini oder OpenAI; das Bild geht an deren Modell.
+
+```yaml
+alias: Kamera fragen
+description: Schaut sich das Bild einer Kamera an und beantwortet eine Frage dazu.
+fields:
+  kamera: { description: Die Kamera, z. B. camera.haustuer, required: true, selector: { entity: { domain: camera } } }
+  frage: { description: Was wissen will, z. B. Wer steht vor der Tür?, required: true, selector: { text: {} } }
+sequence:
+  - action: ai_task.generate_data
+    data:
+      task_name: Kamera fragen
+      instructions: "Beantworte kurz auf Deutsch: {{ frage }}"
+      attachments:
+        - media_content_id: "media-source://camera/{{ kamera }}"
+          media_content_type: image/jpeg
+    response_variable: antwort
+  - stop: fertig
+    response_variable: antwort
+```
 
 ## Eigenen Skill erstellen
 

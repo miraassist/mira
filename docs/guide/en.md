@@ -204,8 +204,36 @@ Good to know:
 | `geschichte` | "Tell me a bedtime story with a dragon." Made up, fitting child and age when Mira knows both. | none |
 | `quiz` | "Let's play a quiz." Ten questions, alone or taking turns, with points. At the end there is a fanfare if it went well. | none |
 | `vokabeln` | "Test me on ten English words." – "Practise the seven times table with me." Unless you ask for one direction, Mira asks both ways; what was wrong comes again at the end. | none |
+| `fahrplan` | "When is the next train?" – "When does the next train to Stuttgart leave?" Departures with delays and cancellations; for trams and buses with the code of your transport association. | `haltestelle`, `verbund` (optional, e.g. `KVV`) |
+| `apotheke` | "Which pharmacy is on emergency duty today?" The nearest with address, distance and until when, from aponet.de. | none |
+| `sprit` | "Where is diesel cheap right now?" Needs Home Assistant's Tankerkönig integration, its sensors exposed to Assist. | none |
+| `routine` | "Learn the routine good night: lights off, blinds down." – then just "good night". Mira remembers the steps and runs them in order. | none |
+| `kamera` | "Show me the front door." The camera appears on the Echo Show for a minute. With a script (see below) also "Who is at the door?". The camera must be exposed to Assist. | `skript` (optional) |
+| `tuerklingel` | "Tell me when the doorbell rings and show the front door." Mira sets up an automation for it: an announcement on all satellites, the camera picture on the Echo Shows. | `bildschirme` (optional, ESPHome names of the Echo Shows) |
+| `urlaub` | "Pretend someone is home while we are away." Mira sets up an automation that switches lights in turn in the evening while nobody is home. | none |
 
 The quiz and vocabulary run like cooking, step by step: you simply answer, and Mira knows which question is next.
+
+**Asking a camera.** For "Who is at the door?" a script in Home Assistant looks at the picture. Create it (Settings → Automations & scenes → Scripts → new script → edit in YAML), expose it to Assist and enter its name as `skript` for the skill `kamera`. It needs an AI task (`ai_task`) in Home Assistant, for instance via Google Gemini or OpenAI; the picture goes to their model.
+
+```yaml
+alias: Kamera fragen
+description: Looks at a camera's picture and answers a question about it.
+fields:
+  kamera: { description: The camera, e.g. camera.front_door, required: true, selector: { entity: { domain: camera } } }
+  frage: { description: What to find out, e.g. Who is at the door?, required: true, selector: { text: {} } }
+sequence:
+  - action: ai_task.generate_data
+    data:
+      task_name: Kamera fragen
+      instructions: "Answer briefly: {{ frage }}"
+      attachments:
+        - media_content_id: "media-source://camera/{{ kamera }}"
+          media_content_type: image/jpeg
+    response_variable: antwort
+  - stop: done
+    response_variable: antwort
+```
 
 ## Creating your own skill
 

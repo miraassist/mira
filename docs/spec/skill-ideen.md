@@ -22,6 +22,13 @@ about house and persons, and reporting on its own.
 | Mira's own sounds and cards | `sound_play`, `display_card`, [Sounds and cards](satellit.md) |
 | Age of persons | memory; without it Mira assumes an adult |
 | Audiobooks | Home Assistant's media tools with Music Assistant; see below |
+| Timetable | skill `fahrplan` (departures from dbf.finalrewind.org, DB and transport associations) |
+| Camera on the screen, asking a camera | skill `kamera`; asking needs an HA script with `ai_task` (guide) |
+| Doorbell | skill `tuerklingel`, an automation: announcement and camera on the Echo Shows |
+| Own routines | skill `routine`, kept in the house's memory |
+| Fuel prices | skill `sprit`, from HA's Tankerkönig integration |
+| Pretending someone is home | skill `urlaub`, an automation |
+| Pharmacy on duty | skill `apotheke` (aponet.de) |
 
 ## Open
 
@@ -46,11 +53,6 @@ Open, built only if it bothers in daily use:
 "Wo ist der Sicherungskasten?" – "Wie entkalke ich die Kaffeemaschine?" – "Wann kommt der Schornsteinfeger?"
 Answer from the house knowledge in memory. Mira says honestly when something is not in there. Needs memory import
 (house knowledge as a file maintained by hand).
-
-### Timetable
-
-"Wann fährt der nächste Bus?" Via sensors that an HA integration provides for the stop. The skill has a setting for
-the sensor and answers briefly with the departure.
 
 ### Smaller open points of built skills
 
