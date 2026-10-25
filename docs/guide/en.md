@@ -254,6 +254,18 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 
 **3. Switch it on.** A skill runs only when it is listed under `skills` in `mira.yaml`, with its settings below. If it has none, the name followed by `{}` is enough. `enabled: false` switches it off without losing its settings. The bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels are on without an entry; `enabled: false` switches them off too, say for a replacement of your own.
 
+**Adapting a skill that comes with Mira.** The bundled skills sit in the container under `/app/skills` and are replaced by every update. To change one, copy it into your own skills folder:
+
+1. Copy it, for example `kochen`: `docker cp mira:/app/skills/kochen ./my-skills/` (with your container's name instead of `mira`).
+2. Mount the folder into the container, say `-v ./my-skills:/etc/mira/my-skills` (under `volumes` in Compose), and put it **before** the bundled ones in `mira.yaml`. Of skills with the same name, Mira takes the one from the first folder:
+   ```yaml
+   skills:
+     dirs: [/etc/mira/my-skills, skills]
+   ```
+3. Restart Mira. Your version holds now, and you can also edit it on Mira's page under **Skills**.
+
+Your copy stays as it is through updates; improvements to the bundled version no longer reach you. Delete the copy, and after a restart the bundled one holds again.
+
 **Example: watering plants.** The folder `skills/plants` holds the file `SKILL.md`:
 
 ```markdown

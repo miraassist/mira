@@ -258,6 +258,18 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 
 **3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
 
+**Einen mitgelieferten Skill anpassen.** Die mitgelieferten Skills stecken im Container unter `/app/skills` und werden bei jedem Update ersetzt. Willst du einen ändern, kopierst du ihn in deinen eigenen Skill-Ordner:
+
+1. Kopieren, zum Beispiel `kochen`: `docker cp mira:/app/skills/kochen ./meine-skills/` (statt `mira` der Name deines Containers).
+2. Den Ordner als Volume in den Container einbinden, etwa `-v ./meine-skills:/etc/mira/meine-skills` (in Compose unter `volumes`), und in der `mira.yaml` **vor** die mitgelieferten setzen. Mira nimmt von gleichnamigen Skills den aus dem ersten Ordner:
+   ```yaml
+   skills:
+     dirs: [/etc/mira/meine-skills, skills]
+   ```
+3. Mira neu starten. Jetzt gilt deine Fassung, und du kannst sie auch auf Miras Seite unter **Skills** bearbeiten.
+
+Deine Kopie bleibt bei Updates, wie sie ist; Verbesserungen an der mitgelieferten Fassung bekommst du dann nicht mehr. Löschst du die Kopie, gilt nach einem Neustart wieder die mitgelieferte.
+
 **Beispiel: Blumen gießen.** Der Ordner `skills/blumen` enthält die Datei `SKILL.md`:
 
 ```markdown
