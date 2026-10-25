@@ -249,8 +249,8 @@ func TestMemoryInsideHomeAssistant(t *testing.T) {
 	if code, _ := asHA(t, srv, "DELETE", "/v1/ui/memory/h1", "u-anna", false, ""); code != 200 {
 		t.Errorf("forget a house fact: %d", code)
 	}
-	// The rest of the page is for admins.
-	for _, path := range []string{"/v1/ui/config", "/v1/ui/messages", "/v1/ui/tasks"} {
+	// The rest of the page is for admins (messages: TestMessagesByViewer).
+	for _, path := range []string{"/v1/ui/config", "/v1/ui/tasks"} {
 		if code, _ := asHA(t, srv, "GET", path, "u-anna", false, ""); code != 403 {
 			t.Errorf("%s for a non-admin: %d", path, code)
 		}
@@ -453,5 +453,37 @@ func TestMemoryFile(t *testing.T) {
 	if code, body := call(t, srv, "POST", "/v1/ui/memory/import", "secret", `{"text":"# Oma\n- x"}`); code != 200 ||
 		!strings.Contains(body, `"kind":"unknown","heading":"Oma"`) {
 		t.Errorf("unknown heading: %d %s", code, body)
+	}
+}
+
+// Messages are apart like memories: someone who is no admin sees the
+// house's on the page and their own on their card, and marks only their own
+// done; an admin sees all.
+func TestMessagesByViewer(t *testing.T) {
+	srv, _, st := setup(t)
+	ctx := context.Background()
+	later := time.Now().Add(time.Hour)
+	st.PutMessage(ctx, store.Message{ID: "m-house", Source: store.SourceExternal, Importance: 1, Spoken: "Post ist da", ExpiresAt: later})
+	st.PutMessage(ctx, store.Message{ID: "m-anna", Source: store.SourceExternal, Importance: 1, Receiver: "anna", Spoken: "Anna: Zahnarzt", ExpiresAt: later})
+	st.PutMessage(ctx, store.Message{ID: "m-ben", Source: store.SourceExternal, Importance: 1, Receiver: "ben", Spoken: "Ben: Chorprobe", ExpiresAt: later})
+
+	_, body := asHA(t, srv, "GET", "/v1/ui/messages", "u-anna", false, "")
+	if !strings.Contains(body, "Post ist da") || strings.Contains(body, "Zahnarzt") || strings.Contains(body, "Chorprobe") {
+		t.Errorf("Anna's page: %s", body)
+	}
+	_, body = asHA(t, srv, "GET", "/v1/ui/messages?mine=1", "u-anna", false, "")
+	if !strings.Contains(body, "Zahnarzt") || strings.Contains(body, "Post ist da") || strings.Contains(body, "Chorprobe") {
+		t.Errorf("Anna's card: %s", body)
+	}
+	if _, body = asHA(t, srv, "GET", "/v1/ui/messages?mine=1", "u-other", false, ""); strings.Contains(body, "spoken") {
+		t.Errorf("no person, no own messages: %s", body)
+	}
+	if _, body = asHA(t, srv, "GET", "/v1/ui/messages", "u-anna", true, ""); !strings.Contains(body, "Chorprobe") {
+		t.Errorf("an admin sees all: %s", body)
+	}
+	for id, want := range map[string]int{"m-ben": 404, "m-house": 404, "m-anna": 200} {
+		if code, _ := asHA(t, srv, "POST", "/v1/ui/messages/"+id+"/ack", "u-anna", false, ""); code != want {
+			t.Errorf("Anna marks %s done: %d, want %d", id, code, want)
+		}
 	}
 }

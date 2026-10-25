@@ -57,13 +57,15 @@ class MiraHome extends Light {
           const mine = (d.memories || []).find(x => x.owner === m.person);
           m.memories = mine ? (mine.facts || []).length : 0;
         }));
+        tries.push(api("GET", "/v1/ui/messages?open=1&mine=1").then(d => { m.messages = (d.items || []).length; }));
         await Promise.allSettled(tries);
         return m;
       }],
     ];
+    // The house's messages for everyone, all of them for admins.
+    tries.push(["messages", async () => (await api("GET", "/v1/ui/messages?open=1")).items || []]);
     if (isAdmin) {
       tries.push(
-        ["messages", async () => (await api("GET", "/v1/ui/messages?open=1")).items || []],
         ["tasks", async () => (await api("GET", "/v1/ui/tasks")).tasks || []],
         ["catalog", async () => await api("GET", "/v1/ui/catalog")]);
     }
@@ -111,15 +113,19 @@ class MiraHome extends Light {
     const m = this.facts.me;
     if (!m || !m.person) return nothing;
     const s = m.settings || {}, lines = [];
-    if (m.voice && m.samples !== undefined)
-      lines.push(m.samples ? T.home_voice_on(m.samples) : html`<span class="warn">${T.home_voice_off}</span>`);
+    if (m.messages !== undefined) lines.push(T.home_mine_messages(m.messages));
+    if (m.memories !== undefined) lines.push(T.home_memories(m.memories));
+    if (m.voice && m.samples !== undefined) lines.push(m.samples ? T.home_voice_on(m.samples) : T.home_voice_off);
     if (s.alone_is_me) lines.push(T.home_alone);
     if (s.accept_from === "persons") lines.push(T.home_accept_persons);
     if (s.accept_from === "none") lines.push(T.home_accept_none);
-    if (m.memories !== undefined) lines.push(this.link(T.home_memories(m.memories), () => go("memory")));
+    // Its parts as links, as the other cards name their pages.
+    const parts = [["me-settings", T.card_settings], ["voice", T.voice_title], ["me-messages", T.me_messages], ["me-memory", T.me_memory]];
     return html`<section class="card home-card" role="button" tabindex="0"
       @click=${() => go("me")} @keydown=${e => { if (e.key === "Enter") go("me"); }}>
       <h2>${m.name || m.person}</h2>
+      <p class="home-pages">${parts.map(([id, label]) => this.link(label, () => goMe(id)))}</p>
+      <p class="home-teaser">${T.teaser_me}</p>
       ${lines.length ? html`<div class="home-facts">${lines.map(l => html`<p class="home-line">${l}</p>`)}</div>` : nothing}
     </section>`;
   }

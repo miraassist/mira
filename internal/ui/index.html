@@ -252,6 +252,10 @@ const I18N = {
   "alone_is_me_other": name => `Ist ${name} allein zu Hause, weiß Mira, dass es ${name} ist`,
   "home_voice_on": n => n === 1 ? "Mira erkennt deine Stimme (1 Satz)." : `Mira erkennt deine Stimme (${n} Sätze).`,
   "home_voice_off": "Deine Stimme ist noch nicht angelernt.",
+  "teaser_me": "Was dir gehört: deine Stimme, deine Einstellungen, was Mira sich für dich merkt und Nachrichten an dich.",
+  "me_memory": "Gedächtnis", "me_messages": "Nachrichten", "me_messages_title": "Nachrichten an dich",
+  "home_mine_messages": n => n === 0 ? "Keine Nachricht für dich" : n === 1 ? "1 Nachricht für dich" : `${n} Nachrichten für dich`,
+  "messages_house": "Nachrichten an das Haus", "memory_house_only": "Das Gedächtnis des Hauses. Dein eigenes steht auf deiner Karte.",
   "home_alone": "Bist du allein zu Hause, weiß Mira, dass du es bist.",
   "home_accept_persons": "Du nimmst nur Nachrichten von Personen an.",
   "home_accept_none": "Du nimmst keine Nachrichten an.",
@@ -690,6 +694,10 @@ const I18N = {
   "alone_is_me_other": name => `When ${name} is alone at home, Mira knows it is ${name}`,
   "home_voice_on": n => n === 1 ? "Mira recognizes your voice (1 sentence)." : `Mira recognizes your voice (${n} sentences).`,
   "home_voice_off": "Your voice is not enrolled yet.",
+  "teaser_me": "What is yours: your voice, your settings, what Mira remembers for you and messages to you.",
+  "me_memory": "Memory", "me_messages": "Messages", "me_messages_title": "Messages to you",
+  "home_mine_messages": n => n === 0 ? "No message for you" : n === 1 ? "1 message for you" : `${n} messages for you`,
+  "messages_house": "Messages to the house", "memory_house_only": "The house's memory. Your own is on your card.",
   "home_alone": "When you are alone at home, Mira knows it is you.",
   "home_accept_persons": "You take messages only from persons.",
   "home_accept_none": "You take no messages.",
@@ -1202,7 +1210,7 @@ let config = {};
 // Inside Home Assistant, someone who is no admin gets their memory and the
 // guide; the agent and the integration enforce that, the page follows.
 const isAdmin = !embedded || !!(hass() && hass().user && hass().user.is_admin);
-if (!isAdmin) TABS = ["home", "me", "plans", "memory", "guide"];
+if (!isAdmin) TABS = ["home", "me", "messages", "plans", "memory", "guide"];
 // "person:<key>" is a person's card, for admins (cardPerson says whose).
 let cardPerson = "";
 const tabOf = h => {
@@ -1354,29 +1362,33 @@ function models() { $("#view").innerHTML = "<mira-models></mira-models>"; }
 let openOnly = false, messagePage = 0;
 async function messages() {
   const view = $("#view");
-  view.innerHTML = `<section class="card"><h2>${T.messages_title}</h2>
+  view.innerHTML = `<section class="card"><h2>${isAdmin ? T.messages_title : T.messages_house}</h2>
     <label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; messagePage = 0; messages()"> ${T.open_only}</label>
     <div id="list">${T.loading}</div></section>`;
   try {
     const r = await api("GET", `/v1/ui/messages?page=${messagePage}${openOnly ? "&open=1" : ""}`);
-    const items = r.items || [];
     const pager = r.page > 0 || r.more ? `<div class="actions">
         ${r.page > 0 ? `<button class="secondary" onclick="messagePage--; messages()">${T.newer}</button>` : ""}
         <span class="hint">${T.page} ${r.page + 1}</span>
         ${r.more ? `<button class="secondary" onclick="messagePage++; messages()">${T.older}</button>` : ""}
       </div>` : "";
-    $("#list").innerHTML = items.length === 0 ? `<p class="hint">${T.no_messages}</p>` : items.map(n => `
+    const you = (await whoAmI()).person;
+    $("#list").innerHTML = messageItems(r.items || [], n => isAdmin || (!!you && n.receiver === you)) + pager;
+  } catch (e) { message(e.message, false); }
+}
+// messageItems lists messages; done can be marked where may(n) says so.
+function messageItems(items, may) {
+  return items.length === 0 ? `<p class="hint">${T.no_messages}</p>` : items.map(n => `
       <details class="item">
         <summary>
           <span class="lead"><span class="hint">${esc(n.created_at.slice(5))}</span>
             <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + shownState(n.state)]}${n.state === "scheduled" && n.deliver_at ? " " + esc(n.deliver_at.slice(5)) : ""}</span></span>
           <span class="short clip">${esc(n.spoken)}</span>
-          ${n.state === "pending" ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : "<span></span>"}
+          ${n.state === "pending" && may(n) ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : "<span></span>"}
         </summary>
         ${n.details ? `<p>${esc(n.details)}</p>` : ""}
         <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}</p>
-      </details>`).join("") + pager;
-  } catch (e) { message(e.message, false); }
+      </details>`).join("");
 }
 // shownState folds delivered and done into one: for the user both mean
 // "heard"; Mira keeps them apart for repeats and follow-up questions.
@@ -1384,7 +1396,7 @@ function shownState(state) {
   return state === "acked" || state === "delivered" ? "delivered" : state;
 }
 async function ack(id) {
-  try { await api("POST", `/v1/ui/messages/${encodeURIComponent(id)}/ack`); messages(); } catch (e) { message(e.message, false); }
+  try { await api("POST", `/v1/ui/messages/${encodeURIComponent(id)}/ack`); render(); } catch (e) { message(e.message, false); }
 }
 
 // ---- Benachrichtigung ---------------------------------------------------
@@ -1569,7 +1581,7 @@ async function personCard(key, name, self) {
   try { s = await cardSettings(key); } catch (e) { message(e.message, false); s = {}; }
   const admin = isAdmin, voice = !!(await whoAmI()).voice;
   $("#view").innerHTML = `
-  <section class="card" data-person="${esc(key)}">
+  <section class="card" data-person="${esc(key)}" id="me-settings">
     <h2>${esc(name)}</h2>${self ? "" : `<p class="hint">${esc(personEntityOf(key))}</p>`}
     <h3>${T.card_settings}</h3>
     <div class="grid">
@@ -1582,9 +1594,32 @@ async function personCard(key, name, self) {
     <datalist id="card-notify">${cardNotify.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>
     <div class="actions"><button class="primary" onclick="saveCard('${esc(key)}')">${T.save}</button></div>
   </section>
-  <section class="card" id="voice"><h2>${T.voice_title}</h2><p>${T.loading}</p></section>`;
-  voiceCard(key, name, self);
+  <section class="card" id="voice"><h2>${T.voice_title}</h2><p>${T.loading}</p></section>
+  ${self ? `<section class="card" id="me-messages"><h2>${T.me_messages_title}</h2><p>${T.loading}</p></section>
+  <div id="me-memory"><section class="card"><h2>${T.memory_yours}</h2><p>${T.loading}</p></section></div>` : ""}`;
+  const parts = [voiceCard(key, name, self)];
+  if (self) {
+    parts.push(api("GET", "/v1/ui/messages?mine=1").then(r => {
+      const box = $("#me-messages");
+      if (box) box.innerHTML = `<h2>${T.me_messages_title}</h2>` + messageItems(r.items || [], () => true);
+    }).catch(e => message(e.message, false)));
+    parts.push(api("GET", "/v1/ui/memory").then(r => {
+      const own = (r.memories || []).find(m => m.owner === r.you);
+      const box = $("#me-memory");
+      if (box && own) box.innerHTML = memoryCard(own, r);
+    }).catch(e => message(e.message, false)));
+  }
+  // A link of the start page's card "Ich" opens the card at its part, once
+  // the parts above it are there.
+  if (meAnchor) {
+    const part = meAnchor;
+    meAnchor = "";
+    Promise.allSettled(parts).then(() => { const el = document.getElementById(part); if (el) el.scrollIntoView({ block: "start" }); });
+  }
 }
+// meAnchor is the part of the card "Ich" a link opens it at.
+let meAnchor = "";
+function goMe(part) { meAnchor = part; go("me"); }
 async function saveCard(key) {
   const v = {};
   document.querySelectorAll(`#view [data-person] [data-f]`).forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
@@ -1829,27 +1864,32 @@ async function memory() {
   $("#view").innerHTML = `<div id="memories">${T.loading}</div>`;
   try {
     const r = await api("GET", "/v1/ui/memory");
-    $("#memories").innerHTML = (r.unknown_person ? `<section class="card"><p class="hint">${T.unknown_person}</p></section>` : "") + r.memories.map(m => {
-      const house = m.owner === "house", yours = !!r.you && m.owner === r.you;
-      const title = house ? T.memory_house : yours ? T.memory_yours : T.memory_of.replace("{name}", m.name || m.owner);
-      const name = esc(m.name || m.owner);
-      const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : yours ? T.empty_yours : T.empty_person.replaceAll("{name}", name)}</p>
-        <p class="hint">${house ? T.empty_house_how : yours ? T.empty_yours_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
-        <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
-          <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
-          <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
-          <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
-      return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
-        ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : yours ? T.memory_yours_hint : T.memory_person_hint}</p>` : ""}
-        ${m.facts.length || m.profile ? `<details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
-          ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
-        ${facts}</section>`;
-    }).join("") + `<section class="card"><p class="hint">${T.profile_hint}</p>
+    // One's own memory is on one's card; this page is the house's.
+    const shown = r.memories.filter(m => !r.you || m.owner !== r.you);
+    $("#memories").innerHTML = (r.unknown_person ? `<section class="card"><p class="hint">${T.unknown_person}</p></section>` : "")
+      + (r.you ? `<section class="card"><p class="hint">${T.memory_house_only}</p></section>` : "") + shown.map(m => memoryCard(m, r)).join("") + `<section class="card"><p class="hint">${T.profile_hint}</p>
       ${r.can_compact ? `<div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>` : ""}</section>
       <section class="card"><p class="hint">${T.mem_file_hint}</p>
       <div class="actions"><button class="secondary" onclick="exportMemory()">${T.mem_export}</button>
       <button class="secondary" onclick="importMemory()">${T.mem_import}</button></div></section>`;
   } catch (e) { message(e.message, false); }
+}
+// memoryCard is one memory: title, profile, facts with edit and forget.
+function memoryCard(m, r) {
+  const house = m.owner === "house", yours = !!r.you && m.owner === r.you;
+  const title = house ? T.memory_house : yours ? T.memory_yours : T.memory_of.replace("{name}", m.name || m.owner);
+  const name = esc(m.name || m.owner);
+  const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : yours ? T.empty_yours : T.empty_person.replaceAll("{name}", name)}</p>
+    <p class="hint">${house ? T.empty_house_how : yours ? T.empty_yours_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
+    <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
+      <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
+      <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
+      <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
+  return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
+    ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : yours ? T.memory_yours_hint : T.memory_person_hint}</p>` : ""}
+    ${m.facts.length || m.profile ? `<details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
+      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
+    ${facts}</section>`;
 }
 // editFact turns the row into a text field; Enter saves, Escape cancels.
 function editFact(id) {
@@ -1860,21 +1900,21 @@ function editFact(id) {
   const area = cell.querySelector("textarea"), [save, cancel] = row.querySelectorAll("td.fact-actions button");
   const store = async () => {
     const t = area.value.trim();
-    if (!t || t === text) { memory(); return; }
-    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); memory(); } catch (e) { message(e.message, false); }
+    if (!t || t === text) { render(); return; }
+    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); render(); } catch (e) { message(e.message, false); }
   };
   save.onclick = store;
-  cancel.onclick = () => memory();
+  cancel.onclick = () => render();
   area.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); store(); }
-    if (e.key === "Escape") memory();
+    if (e.key === "Escape") render();
   });
   area.focus();
   area.setSelectionRange(area.value.length, area.value.length);
 }
 async function forget(id) {
   if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
-  try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); memory(); } catch (e) { message(e.message, false); }
+  try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); render(); } catch (e) { message(e.message, false); }
 }
 // The memory as a file (docs/spec/gedaechtnis-datei.md): export downloads
 // what this page shows; import shows what a file changes and asks first.

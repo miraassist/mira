@@ -6,8 +6,8 @@ agent serves them without a token as well); its API calls come through
 an authenticated view that adds the agent's token and says who is signed
 in. So the page works over HA's HTTPS and from away, with HA's login.
 
-Everyone sees the house's memory and their own; the rest of the page
-(messages, tasks, settings) is for admins. The view enforces that, and the
+Everyone sees the house's memory and messages and their own; the rest of
+the page (tasks, settings) is for admins. The view enforces that, and the
 agent once more from the user it is told.
 """
 
@@ -51,13 +51,18 @@ PAGE = "/api/mira/panel/ui"
 # The agent's page and its files; nothing else goes through the open view.
 PAGE_FILES = re.compile(r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/guide/(de|en)|ui/guide/img/[\w.-]+")
 API = "v1/ui/"
-# What a user who is no admin may call: their memory, changing a fact,
-# following the running plans, who they are, and their own voice (the card
-# "Ich"; the agent lets them have only their own, docs/spec/sprecher.md).
+# What a user who is no admin may call: their memory, changing a fact, the
+# memory as a file, the house's messages and their own (marking their own
+# done), following the running plans, who they are, and their own voice (the
+# card "Ich"). The agent lets them have only their own and the house's.
 NON_ADMIN_LIST = "v1/ui/memory"
 NON_ADMIN_PLANS = "v1/ui/plans"
 NON_ADMIN_ME = "v1/ui/me"
-NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$)[\w-]+")
+NON_ADMIN_MESSAGES = "v1/ui/messages"
+NON_ADMIN_EXPORT = "v1/ui/memory/export"
+NON_ADMIN_IMPORT = "v1/ui/memory/import"
+NON_ADMIN_ACK = re.compile(r"v1/ui/messages/[\w-]+/ack")
+NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$|export$|import$)[\w-]+")
 NON_ADMIN_VOICE = re.compile(r"v1/ui/voice/[\w-]+(/enroll|/heard|/assign)?")
 # Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
 HEADER_USER = "X-Mira-HA-User"
@@ -170,7 +175,9 @@ def _allowed(method: str, path: str) -> bool:
     if NON_ADMIN_VOICE.fullmatch(path):
         return method in ("GET", "POST", "DELETE")
     if method == "GET":
-        return path in (NON_ADMIN_LIST, NON_ADMIN_PLANS, NON_ADMIN_ME)
+        return path in (NON_ADMIN_LIST, NON_ADMIN_PLANS, NON_ADMIN_ME, NON_ADMIN_MESSAGES, NON_ADMIN_EXPORT)
+    if method == "POST":
+        return path == NON_ADMIN_IMPORT or NON_ADMIN_ACK.fullmatch(path) is not None
     return method in ("PUT", "DELETE") and NON_ADMIN_FACT.fullmatch(path) is not None
 
 

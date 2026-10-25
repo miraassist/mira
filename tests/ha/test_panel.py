@@ -109,11 +109,22 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
     assert (await client.get("/api/mira/proxy/v1/ui/voice/anna")).status == 200
     assert (await client.post("/api/mira/proxy/v1/ui/voice/anna/enroll")).status == 200
     assert (await client.post("/api/mira/proxy/v1/ui/voice/anna/assign", json={"id": "x"})).status == 200
+    # The house's messages and their own, the memory as a file; the agent
+    # filters by the user.
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/messages", json={"items": []})
+    aioclient_mock.post(f"{AGENT_URL}/v1/ui/messages/m1/ack", json={"acked": True})
+    aioclient_mock.get(f"{AGENT_URL}/v1/ui/memory/export", json={"text": ""})
+    aioclient_mock.post(f"{AGENT_URL}/v1/ui/memory/import", json={"changes": []})
+    assert (await client.get("/api/mira/proxy/v1/ui/messages?mine=1")).status == 200
+    assert (await client.post("/api/mira/proxy/v1/ui/messages/m1/ack")).status == 200
+    assert (await client.get("/api/mira/proxy/v1/ui/memory/export")).status == 200
+    assert (await client.post("/api/mira/proxy/v1/ui/memory/import", json={"text": ""})).status == 200
     for method, path in [
         ("GET", "/api/mira/proxy/v1/ui/voice"),  # everyone's voices: the admins' list
+        ("PUT", "/api/mira/proxy/v1/ui/memory/export"),
         ("PUT", "/api/mira/proxy/v1/ui/voice/anna"),
         ("GET", "/api/mira/proxy/v1/ui/config"),
-        ("GET", "/api/mira/proxy/v1/ui/messages"),
+        ("GET", "/api/mira/proxy/v1/ui/tasks"),
         ("POST", "/api/mira/proxy/v1/ui/memory/compact"),
         ("PUT", "/api/mira/proxy/v1/ui/config"),
     ]:

@@ -88,7 +88,11 @@ page does it:
   | Fähigkeiten (capabilities) | Skills, Agenten, Modelle |
   | Anleitung (guide) | three chapters of the guide by a short name, each a link into it |
 
-- Someone who is no admin sees the start page with the pages they may open (Pläne, Gedächtnis, Anleitung).
+- Someone who is no admin sees the start page with the pages they may open (Nachrichten, Pläne, Gedächtnis, Anleitung).
+- **The house apart from the person** (decided 2026-10-25): what is a person's own is on their card "Ich" (settings,
+  voice, messages to them, their memory), linked from the card on the start page like the other cards' pages; what
+  is the house's is under Aktuell (messages to the house, the house's memory). Admins see all messages there; someone
+  who is no admin sees the house's and marks only their own done (`/v1/ui/messages?mine=1` for the card).
 - Nothing on the left: inside Home Assistant the left is HA's sidebar.
 
 ## How the page is built

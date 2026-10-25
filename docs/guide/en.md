@@ -680,9 +680,9 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 ![Editing a model: provider and model to choose from, the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
 
-**Your card.** First on the overview is a card with your name: whether Mira knows your voice, whether she knows it is you when you are alone at home, whose messages you take and how many personal memories she keeps. A click opens it: there you set this yourself and enroll your voice (see "Who is speaking"). Under Settings → **People** admins see all persons in a list; a click opens the same card, with the channels and the voice threshold besides.
+**Your card.** First on the overview is a card with your name, for everything that is yours: **Settings**, **Voice**, **Messages** to you and your **Memory**. Below it stands how many messages wait for you, how many memories Mira keeps for you and whether she knows your voice. On the card you set yourself whose messages you take and whether it is you when you are alone at home, and you enroll your voice (see "Who is speaking"). What belongs to the house is under **Day to day**: the messages to the house and the house's memory. Under Settings → **People** admins see all persons in a list; a click opens the same card, with the channels and the voice threshold besides.
 
-Someone who is no admin sees only their card, **Plans**, **Memory** and **Guide**. For Mira to know which card and memory are yours, your person must be linked to your HA user (in Home Assistant under Settings → People).
+Someone who is no admin sees only their card, **Messages** (to the house), **Plans**, **Memory** (the house's) and **Guide**; they can mark done only messages to themselves. For Mira to know which card and memory are yours, your person must be linked to your HA user (in Home Assistant under Settings → People).
 
 ![Notifications: quiet hours, pauses, escalation](img/benachrichtigung-en.png)
 

@@ -704,9 +704,9 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 
 ![Ein Modell bearbeiten: Anbieter und Modell zur Auswahl, der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
 
-**Deine Karte.** Ganz vorn auf der Übersicht steht eine Karte mit deinem Namen: ob Mira deine Stimme kennt, ob sie allein zu Hause weiß, dass du es bist, von wem du Nachrichten annimmst und wie viele persönliche Erinnerungen sie hat. Ein Klick öffnet sie: Dort stellst du das selbst ein und lernst deine Stimme an (siehe „Wer spricht“). Unter Einstellungen → **Personen** sehen Admins alle Personen in einer Liste; ein Klick öffnet dieselbe Karte, mit dazu den Kanälen und der Schwelle für die Stimme.
+**Deine Karte.** Ganz vorn auf der Übersicht steht eine Karte mit deinem Namen, für alles, was dir gehört: **Einstellungen**, **Stimme**, **Nachrichten** an dich und dein **Gedächtnis**. Darunter steht, wie viele Nachrichten für dich warten, wie viele Erinnerungen Mira für dich hat und ob sie deine Stimme kennt. Auf der Karte stellst du selbst ein, von wem du Nachrichten annimmst und ob du es allein zu Hause bist, und lernst deine Stimme an (siehe „Wer spricht“). Was dem Haus gehört, steht unter **Aktuell**: die Nachrichten an das Haus und das Gedächtnis des Hauses. Unter Einstellungen → **Personen** sehen Admins alle Personen in einer Liste; ein Klick öffnet dieselbe Karte, mit dazu den Kanälen und der Schwelle für die Stimme.
 
-Wer kein Admin ist, sieht nur seine Karte, **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Karte und Gedächtnis deins sind, muss deine Person mit deinem HA-Benutzer verknüpft sein (in Home Assistant unter Einstellungen → Personen).
+Wer kein Admin ist, sieht nur seine Karte, **Nachrichten** (an das Haus), **Pläne**, **Gedächtnis** (des Hauses) und **Anleitung**; als erledigt markieren kann er nur Nachrichten an sich selbst. Damit Mira weiß, wessen Karte und Gedächtnis deins sind, muss deine Person mit deinem HA-Benutzer verknüpft sein (in Home Assistant unter Einstellungen → Personen).
 
 ![Benachrichtigung: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)
 

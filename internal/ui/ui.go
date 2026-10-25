@@ -130,8 +130,10 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
 	h.mux.HandleFunc("DELETE /v1/ui/config/{section}", h.auth(h.resetSection))
 	h.mux.HandleFunc("GET /v1/ui/entities", h.auth(h.entities))
-	h.mux.HandleFunc("GET /v1/ui/messages", h.auth(h.messages))
-	h.mux.HandleFunc("POST /v1/ui/messages/{id}/ack", h.auth(h.ackMessage))
+	// Everyone sees the house's messages and, with mine=1, their own;
+	// admins see all.
+	h.mux.HandleFunc("GET /v1/ui/messages", h.authAnyone(h.messages))
+	h.mux.HandleFunc("POST /v1/ui/messages/{id}/ack", h.authAnyone(h.ackMessage))
 	// Everyone in Home Assistant may see and change their own memory;
 	// the rest is for admins (and the operator with the token).
 	h.mux.HandleFunc("GET /v1/ui/memory", h.authAnyone(h.memory))
@@ -410,6 +412,20 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	page = max(page, 0)
 	f := store.MessageFilter{IncludeExpired: true, NewestFirst: true, Limit: messagePage + 1, Offset: page * messagePage}
+	// The house's and a person's own are apart, as their memories are:
+	// mine=1 is the viewer's own, for their card; without it someone who is
+	// no admin sees the house's.
+	v := h.viewer(r)
+	switch {
+	case r.URL.Query().Get("mine") == "1":
+		if v.person == "" {
+			writeJSON(w, http.StatusOK, map[string]any{"items": []messageJSON{}, "page": page, "more": false})
+			return
+		}
+		f.Receiver = v.person
+	case v.limited && !v.admin:
+		f.Receiver = store.ReceiverHouse
+	}
 	if r.URL.Query().Get("open") == "1" {
 		// Open is what nobody has heard yet.
 		f.States, f.IncludeExpired = []string{store.MessagePending}, false
@@ -444,6 +460,18 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 const messagePage = 20
 
 func (h *Handler) ackMessage(w http.ResponseWriter, r *http.Request) {
+	// Someone who is no admin marks only their own messages done.
+	if v := h.viewer(r); v.limited && !v.admin {
+		n, err := h.opts.Store.GetMessage(r.Context(), r.PathValue("id"))
+		if errors.Is(err, store.ErrNotFound) || (err == nil && (v.person == "" || n.Receiver != v.person)) {
+			writeError(w, http.StatusNotFound, "no such message")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	err := h.opts.Store.SetMessageState(r.Context(), r.PathValue("id"), store.MessageAcked)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "no such message")
