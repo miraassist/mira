@@ -1,7 +1,8 @@
 # Skills to build – list of ideas
 
-Status 2026-10-18. None of this is built or decided; the list collects what is worthwhile and
-says what each one needs. The order is a suggestion. How skills are structured:
+Status 2026-10-25. The list collects what is worthwhile and says what each one needs; each entry says whether
+it is built. Built so far: sleep timer, scenes (Home Assistant's), briefing, cooking, stories (told by Mira), quiz,
+vocabulary, and the sounds and cards they use. Open: audiobook, house handbook, timetable. The order is a suggestion. How skills are structured:
 [Guide, "Eigenen Skill erstellen"](../guide/de.md); what Assist can already do and what Mira builds beyond that:
 [Plan: further tools and skills](skills-plan.md).
 
@@ -42,14 +43,13 @@ Built in 0.6.45, see [Scheduled actions](geplante-aktionen.md).
 
 ## Prerequisites that several skills need
 
-- **Play an address.** A tool that starts a sound or stream on the speaker of a room,
-  like `radio_play`, but for arbitrary addresses (sounds, news as audio). Needed by: scenes, falling asleep,
-  news.
-- **Age of persons (optional).** Whoever is a child gets different stories, quiz questions and tasks.
-  The age is voluntary; without it Mira assumes an adult. Needed by: story, quiz, learning.
+- **Play an address.** Built for Mira's own sounds: `sound_play` plays them on the satellite of the turn
+  ([Sounds and cards](satellit.md)); radio has `radio_play`. Arbitrary addresses (news as audio) are still open.
+- **Age of persons (optional).** Covered by memory: when Mira knows how old someone is, story and quiz fit it;
+  without it she assumes an adult. A fixed field per person was not needed.
 - **State for skills.** A skill should be able to remember something that is not in the conversation: which audiobook, which
-  stories were already heard, quiz points, what has stuck when learning. Today a skill can only use memory (facts as text),
-  without targeted changes; see the section "How a skill remembers something" below.
+  stories were already heard, quiz points, what has stuck when learning. Quiz and vocabulary keep theirs in a plan
+  ([Threads](vorgaenge.md)); whether the audiobook needs more is decided with it. See "How a skill remembers something".
 - **Import and export memory.** House knowledge as a file that one maintains by hand. Needed by: handbook.
 
 ## 1. Scenes: "Gute Nacht", "Guten Morgen", "Heimkino geht los"
@@ -57,8 +57,9 @@ Built in 0.6.45, see [Scheduled actions](geplante-aktionen.md).
 At Alexa they are called scenes or routines: one sentence triggers several actions (light off, shutters down,
 alarm system armed, alarm, sounds for falling asleep).
 
-- **Home Assistant knows scenes and scripts** as entities that can be exposed to Assist. Whether
-  Mira already activates them that way via "Schalte die Szene Gute Nacht ein" is to be checked.
+- **Built through Home Assistant:** Mira starts the scenes and scripts exposed to Assist ("Gute Nacht",
+  "Schalte die Szene Heimkino ein"); the guide says how to name them and describe scripts (chapter "Szenen und
+  Skripte aus Home Assistant").
 - **What Mira can contribute:** Creating a scene in the conversation ("Lern die Szene Gute Nacht: …"), checked
   and created after a yes, just as tasks are created as automations. It then lives in Home Assistant and
   is changed there.
@@ -76,11 +77,17 @@ news items of the day. This is the flash briefing classic, only personal.
 
 ## 3. Cooking with dialog
 
+Built as skill `kochen`: two recipes from chefkoch.de to choose from, a helper writes the plan, step by step with
+"weiter", "nochmal", "zurück", a timer offered for waiting times, a card with the recipe's picture on a TECHO5 Show,
+and listening on after short steps.
+
 Search a recipe, read it aloud step by step, set timers, put ingredients on the shopping list. Allergies and
 preferences come from memory ("Maria isst keine Nüsse"). Mira answers "Was kommt als Nächstes?" and
 "Wie lange noch?" instead of following a fixed sequence.
 
 ## 4. Reading aloud: stories for children
+
+Built as skill `geschichte` for the stories Mira tells herself; the collection below is not built (rights unclear).
 
 Mira reads a story aloud, matching the age, the length and the occasion. There are two sources that
 complement each other:
@@ -112,10 +119,15 @@ complement each other:
 
 ## 5. Quiz
 
+Built as skill `quiz`: ten questions, alone or taking turns, points in a plan, a fanfare at the end when it went well.
+
 Questions by topic and difficulty, score across several players, whom Mira recognizes by their names.
 Age-appropriate if the age is known.
 
 ## 6. Learning and vocabulary (school)
+
+Built as skill `vokabeln`: vocabulary (both directions unless asked for one) and times tables, what was wrong comes
+again at the end, a fanfare for a good first try; what was hard can be remembered on a yes.
 
 Quizzing and practicing: vocabulary, times tables, questions on a school topic. Mira remembers what someone
 already knows and what not yet, and quizzes weaker items more often. The material can come from a list in memory
