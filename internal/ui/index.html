@@ -145,6 +145,7 @@ details.item.task > summary { --lead: 13em; }
 }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
 tr.clickable { cursor: pointer; }
+p.say { font-size: 1.15em; font-weight: 600; margin: 8px 0; }
 tr.clickable:hover td { background: var(--badge); }
 .msg { padding: 10px 14px; border-radius: 12px; margin-bottom: 12px; white-space: pre-wrap; border: 1px solid transparent; }
 .msg.err { background: var(--rose-tint); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
@@ -265,7 +266,11 @@ const I18N = {
   "voice_enroll_stop": "Fertig",
   "voice_forget": "Stimme löschen",
   "voice_forget_confirm": name => `Die Stimme von ${name} löschen? An den Satelliten wird ${name} dann nicht mehr erkannt.`,
-  "voice_enrolling": s => `Sprich jetzt drei bis fünf Sätze an einem Satelliten, mit dem Aktivierungswort, jeweils ein paar Sekunden lang. Was die Satelliten hören, erscheint hier, noch ${s} Sekunden lang; nur was ab jetzt gesagt wird.`,
+  "voice_say": name => `Sag an einem Satelliten dein Aktivierungswort und dann: „Ich bin ${name}, lern jetzt meine Stimme.“`,
+  "voice_say_other": name => `Lass ${name} an einem Satelliten das Aktivierungswort sagen und dann: „Ich bin ${name}, lern jetzt meine Stimme.“`,
+  "voice_say_more": "Noch zwei-, dreimal mit anderen Sätzen. Jeder Satz erscheint hier: tipp auf „Das war ich“.",
+  "voice_say_more_other": name => `Noch zwei-, dreimal mit anderen Sätzen. Jeder Satz erscheint hier: tipp auf „Das war ${name}“.`,
+  "voice_left": s => `noch ${s} s`,
   "voice_heard_none": "Noch nichts gehört.",
   "voice_was_me": "Das war ich",
   "voice_was": name => `Das war ${name}`,
@@ -692,7 +697,11 @@ const I18N = {
   "voice_enroll_stop": "Done",
   "voice_forget": "Delete the voice",
   "voice_forget_confirm": name => `Delete ${name}'s voice? ${name} will no longer be recognized at the satellites.`,
-  "voice_enrolling": s => `Now say three to five sentences at a satellite, with the wake word, a few seconds each. What the satellites hear shows here for another ${s} seconds; only what is said from now on.`,
+  "voice_say": name => `At a satellite, say your wake word and then: "I am ${name}, learn my voice now."`,
+  "voice_say_other": name => `Have ${name} say the wake word at a satellite and then: "I am ${name}, learn my voice now."`,
+  "voice_say_more": "Two or three more times with other sentences. Each one shows here: tap \"That was me\".",
+  "voice_say_more_other": name => `Two or three more times with other sentences. Each one shows here: tap "That was ${name}".`,
+  "voice_left": s => `${s} s left`,
   "voice_heard_none": "Nothing heard yet.",
   "voice_was_me": "That was me",
   "voice_was": name => `That was ${name}`,
@@ -1600,11 +1609,14 @@ async function voiceCard(key, name, self) {
   const k = esc(key), n = esc(name);
   box.innerHTML = `
     <h2>${T.voice_title}</h2>
-    <p>${v.samples ? T.voice_samples(v.samples) : self ? T.voice_none_self : T.voice_none}</p>
-    <p class="hint">${self ? T.voice_hint_self : T.voice_hint}</p>
-    ${v.enrolling ? `<div id="enroll"><p class="hint" id="enroll-left"></p><table class="facts" id="heard"></table></div>
+    ${v.enrolling ? `<div id="enroll">
+        <p class="say">${self ? T.voice_say(n) : T.voice_say_other(n)}</p>
+        <p>${self ? T.voice_say_more : T.voice_say_more_other(n)} <span class="hint" id="enroll-left"></span></p>
+        <table class="facts" id="heard"></table></div>
       <div class="actions"><button class="primary" onclick="enrollStop('${k}', '${n}', ${self})">${T.voice_enroll_stop}</button></div>`
-    : `<div class="actions">
+    : `<p>${v.samples ? T.voice_samples(v.samples) : self ? T.voice_none_self : T.voice_none}</p>
+    <p class="hint">${self ? T.voice_hint_self : T.voice_hint}</p>
+    <div class="actions">
       <button class="primary" onclick="enrollStart('${k}', '${n}', ${self})">${v.samples ? T.voice_enroll_more : T.voice_enroll}</button>
       ${v.samples ? `<button class="danger" onclick="forgetVoice('${k}', '${n}', ${self})">${T.voice_forget}</button>` : ""}</div>`}`;
   if (v.enrolling) heard(key, name, self);
@@ -1630,7 +1642,7 @@ async function heard(key, name, self, round = ++polling) {
   }
   const t = $("#heard"), l = $("#enroll-left");
   if (round !== polling || !t) return;
-  l.textContent = T.voice_enrolling(r.left || 0);
+  l.textContent = "(" + T.voice_left(r.left || 0) + ")";
   const items = r.heard || [];
   t.innerHTML = items.length ? items.map(u => `<tr><td>${esc(u.transcript) || "…"}<p class="hint">${Number(u.seconds).toLocaleString(lang)} s</p></td>
     <td class="nowrap">${u.assigned ? `✓ ${u.assigned === key ? T.voice_enrolled : esc(personNameOf(u.assigned))}`
