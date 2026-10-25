@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // OwnerHouse owns the household's memory; every other owner is a person key.
@@ -221,7 +222,11 @@ func splitTags(s string) []string {
 
 // ftsQuery turns free user text into a safe FTS5 MATCH expression. FTS5 syntax
 // characters in user input would otherwise be parse errors, so every word is
-// quoted and the words are ORed.
+// quoted and the words are ORed. The index is by trigrams, so a word matches
+// as part of a longer one; a German ending is taken off first, so an
+// inflected form finds its base ("Kalenders" finds "Kalender", "Pilze"
+// "Pilz"). Words shorter than three letters cannot match trigrams and are
+// left out.
 func ftsQuery(q string) string {
 	fields := strings.FieldsFunc(q, func(r rune) bool {
 		return !(r == '_' || r == '-' || r >= '0' && r <= '9' ||
@@ -229,10 +234,27 @@ func ftsQuery(q string) string {
 	})
 	terms := make([]string, 0, len(fields))
 	for _, f := range fields {
-		if len(f) < 2 {
+		f = stem(strings.ToLower(f))
+		if utf8.RuneCountInString(f) < 3 {
 			continue
 		}
 		terms = append(terms, `"`+strings.ReplaceAll(f, `"`, `""`)+`"`)
 	}
 	return strings.Join(terms, " OR ")
+}
+
+// germanEndings are the endings stem takes off, longest first.
+var germanEndings = []string{"ern", "en", "er", "es", "e", "n", "s"}
+
+// stem takes one German ending off a word that keeps at least four letters
+// without it. It is no real stemmer: with the trigram index a shorter word
+// only has to be part of the stored one.
+func stem(w string) string {
+	n := utf8.RuneCountInString(w)
+	for _, e := range germanEndings {
+		if strings.HasSuffix(w, e) && n-len(e) >= 4 {
+			return strings.TrimSuffix(w, e)
+		}
+	}
+	return w
 }

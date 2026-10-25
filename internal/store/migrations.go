@@ -359,6 +359,21 @@ ALTER TABLE sessions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
 ALTER TABLE threads ADD COLUMN area TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// Memory search by parts of words (docs/todo C6): the trigram
+		// tokenizer finds "Kalender" in "Standardkalender" and, with the
+		// endings taken off the query (ftsQuery), "Kalenders" in "Kalender".
+		// The triggers name the table and keep working; the index is
+		// rebuilt from the facts.
+		name: "0021_memory_trigram",
+		stmt: `
+DROP TABLE memory_facts_fts;
+CREATE VIRTUAL TABLE memory_facts_fts USING fts5(
+    text, tags, content='memory_facts', content_rowid='rowid', tokenize='trigram remove_diacritics 1'
+);
+INSERT INTO memory_facts_fts(memory_facts_fts) VALUES ('rebuild');
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {
