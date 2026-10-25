@@ -147,6 +147,22 @@ func TestTE01_AContactIsCalledFromTheSatellite(t *testing.T) {
 	}
 }
 
+// TE-15 A satellite that can show the name gets it with the call
+func TestTE15_TheNameGoesWithTheCallWhereTheDeviceShowsIt(t *testing.T) {
+	e := setup(t, true)
+	e.line.Named = true
+	e.run(t, config.ChannelVoice, `{"target":"Oma Erika"}`)
+	if len(e.calls) != 1 || e.calls[0].service != "show_phone_call_named" || e.calls[0].data["name"] != "Oma Erika" ||
+		e.calls[0].data["number"] != "01721111111" {
+		t.Fatalf("calls %+v", e.calls)
+	}
+	// a number has no name: the plain call
+	e.run(t, config.ChannelVoice, `{"target":"0721 123456"}`)
+	if len(e.calls) != 2 || e.calls[1].service != "show_phone_call" {
+		t.Errorf("calls %+v", e.calls)
+	}
+}
+
 func TestTE02_SeveralContactsFit(t *testing.T) {
 	e := setup(t, true)
 	out := e.run(t, config.ChannelVoice, `{"target":"Oma"}`)

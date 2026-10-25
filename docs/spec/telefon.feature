@@ -91,3 +91,10 @@ Feature: TE Phone calls
     Given the skill telefon is on and read its book
     When the Skills page shows it
     Then it says which books it reads, when, and links to the FRITZ!Box, without any contact
+
+  @step1
+  Scenario: TE-15 The name goes with the call where the device shows it
+    Given a satellite with phone_call_named
+    When the model calls phone_call with a contact
+    Then Home Assistant calls phone_call_named with the number and the contact's name
+    And a number without a contact goes with phone_call as before

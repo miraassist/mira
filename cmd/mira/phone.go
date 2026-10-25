@@ -58,6 +58,7 @@ func (a *app) phoneLine(ctx context.Context, deviceID string) phone.Line {
 	}
 	if services, err := a.ha.Services(ctx); err == nil {
 		_, line.Phone = services["esphome"][line.Node+"_phone_call"]
+		_, line.Named = services["esphome"][line.Node+"_phone_call_named"]
 		_, line.Intercom = services["esphome"][line.Node+"_intercom_call"]
 	}
 	if !line.Phone {

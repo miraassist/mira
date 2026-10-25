@@ -98,8 +98,9 @@ places the call from the satellite being spoken at, and one phone book for the w
   - Without the skill (off or not set up) names cannot be found; rooms and numbers still work, and the tool says
     that the phone book is off.
 - **Rights:** act on the house.
-- **The call page** shows the number while dialing, not the name: the firmware's `phone_call` takes no name. A
-  firmware change (an optional `name` for `phone_call`) would show "Oma (0172 …)"; Mira would send it once it exists.
+- **The call page** shows whom the call is to: where the satellite has `phone_call_named` (TECHO5 from 1.6.5), a
+  contact is called with it and its name (at most 40 characters), and the page shows "Oma Erika (0172 …)". Elsewhere,
+  and for a number, `phone_call` as before, and the page shows the number.
 
 ## Decided
 
@@ -109,12 +110,10 @@ places the call from the satellite being spoken at, and one phone book for the w
 2. Dial at once when the target is clear; ask only when several contacts or numbers fit.
 3. Rooms and devices in the house are called over the intercom (`intercom_call`) by the same tool.
 4. No contacts on the devices: neither for the call page's name nor for a list of recent calls.
-5. While dialing, the call page shows the number; the name waits for the firmware (open).
+5. The call page shows the contact's name where the satellite has `phone_call_named` (TECHO5 1.6.5, 2026-10-25); elsewhere the number.
 6. Fax numbers are never dialed; the box's internal numbers are.
 7. Mira's page shows that the phone book is on, its books and a link to the FRITZ!Box, never the contacts.
 
 ## Open
 
-- Firmware: the call page should show the name. The user opened a pull request for an action `phone_call_named`
-  (2026-10-24; its fields to be checked once merged). Once it is upstream: Mira checks whether the satellite has
-  `esphome.<device>_phone_call_named` and then uses it with the contact's name, else `phone_call` as now.
+- Nothing at the moment.

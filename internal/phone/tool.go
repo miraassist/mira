@@ -22,8 +22,14 @@ const ToolCall = "phone_call"
 type Line struct {
 	Node            string
 	Phone, Intercom bool
-	State           string
+	// Named: the device has phone_call_named (TECHO5 from 1.6.5), which
+	// shows whom a call is to on the call page.
+	Named bool
+	State string
 }
+
+// maxName is the longest name phone_call_named takes, in characters.
+const maxName = 40
 
 // Ready is the phone's state when it is signed in at the registrar.
 const Ready = "Ready"
@@ -149,7 +155,7 @@ func Tool(o Options) tools.InternalTool {
 			}
 			// 2. A number as it is.
 			if isNumber(target) {
-				return dial(ctx, o, t, line, target, target)
+				return dial(ctx, o, t, line, target, "", target)
 			}
 			// 3. A contact of the phone book.
 			if !o.Book.On() {
@@ -187,13 +193,14 @@ func Tool(o Options) tools.InternalTool {
 			if k := kindName(t, n.Type); k != "" {
 				label += " (" + k + ")"
 			}
-			return dial(ctx, o, t, line, n.Number, label)
+			return dial(ctx, o, t, line, n.Number, c.Name, label)
 		},
 	}
 }
 
-// dial calls a number once the satellite's phone is signed in.
-func dial(ctx context.Context, o Options, t texts, line Line, number, label string) (string, error) {
+// dial calls a number once the satellite's phone is signed in, with the
+// contact's name on the call page where the device can show it.
+func dial(ctx context.Context, o Options, t texts, line Line, number, name, label string) (string, error) {
 	if !line.Phone {
 		return t.noPhone, nil
 	}
@@ -214,7 +221,14 @@ func dial(ctx context.Context, o Options, t texts, line Line, number, label stri
 	default:
 		return fmt.Sprintf(t.unknownState, line.State), nil
 	}
-	if err := o.Call(ctx, line.Node+"_phone_call", map[string]any{"number": dialable(number)}); err != nil {
+	service, data := line.Node+"_phone_call", map[string]any{"number": dialable(number)}
+	if line.Named && name != "" {
+		if r := []rune(name); len(r) > maxName {
+			name = string(r[:maxName])
+		}
+		service, data["name"] = line.Node+"_phone_call_named", name
+	}
+	if err := o.Call(ctx, service, data); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf(t.called, label), nil
