@@ -126,6 +126,15 @@ At night Mira condenses each memory into a short profile. In Home Assistant, und
 
 ![Anna's view: the house's memory and her own](img/gedaechtnis-en.png)
 
+**Editing as a file.** Under **Memory**, **Export** downloads everything you see there as the file `mira-gedaechtnis.md`: a heading per memory (`# House`, `# Anna`), below it one fact per line, tags as `#word` at the end. Change it in a text editor and upload it with **Import**. Mira first shows what changes ("House: 3 new, 1 removed, 26 kept") and applies it only after your OK. As when loading a file into an editor, each section replaces that memory completely; memories without a section stay as they are. This is also how you fill a new house at once with what Mira should know:
+
+```markdown
+# House
+
+- The fuse box is in the cellar, left of the door. #technik
+- The chimney sweep comes every November.
+```
+
 ## Skills: the waste collection, for example
 
 Skills are extra abilities the setup switches on. Mira opens a skill only when a question needs it.
@@ -619,7 +628,7 @@ Mira is in Home Assistant's sidebar. You are signed in there already, she looks 
 
 The **Overview** shows four cards. Each says briefly what is going on and leads to its pages:
 
-- **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit and forget).
+- **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit, forget, export and import as a file).
 - **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below) and **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages).
 - **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers).
 - **Guide**: this page, with jumps to the main chapters.
@@ -755,6 +764,7 @@ The `mira` program has a few commands. In the container you call them with `dock
 | `mira skill NAME` | runs a skill's schedule right away and shows what Mira would say; with several, a number after it picks one (from 0) |
 | `mira chat "…"` | one conversation turn in the terminal, without Home Assistant as the interface; `-channel voice` or `telegram`, `-session` for another turn in the same conversation |
 | `mira profile` | rebuilds the memory profile from the remembered facts |
+| `mira memory export [-o FILE]`, `mira memory import FILE [-yes]` | the memory as a file, as on the page; the command line sees every memory |
 
 ## Setup
 

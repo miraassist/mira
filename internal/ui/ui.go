@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/docs"
+	"github.com/miraassist/mira/internal/memfile"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -132,6 +133,8 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.authAnyone(h.forget))
 	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.authAnyone(h.editFact))
 	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
+	h.mux.HandleFunc("GET /v1/ui/memory/export", h.authAnyone(h.exportMemory))
+	h.mux.HandleFunc("POST /v1/ui/memory/import", h.authAnyone(h.importMemory))
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
@@ -500,24 +503,10 @@ func (h *Handler) mayChange(w http.ResponseWriter, r *http.Request) bool {
 func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	v := h.viewer(r)
-	owners, err := h.opts.Store.FactOwners(ctx)
+	owners, err := h.memoryOwners(ctx, v)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-	if !slices.Contains(owners, store.OwnerHouse) {
-		owners = append([]string{store.OwnerHouse}, owners...)
-	}
-	if v.limited {
-		owners = v.owners()
-	} else if h.opts.Persons != nil {
-		persons := h.opts.Persons()
-		slices.Sort(persons)
-		for _, p := range persons {
-			if !slices.Contains(owners, p) {
-				owners = append(owners, p)
-			}
-		}
 	}
 	type fact struct {
 		ID      string `json:"id"`
@@ -572,6 +561,149 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 			m.Facts = append(m.Facts, item)
 		}
 		out.Memories = append(out.Memories, m)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// memoryOwners are the memories the viewer sees on the page: the house
+// first, then each person with facts or configured.
+func (h *Handler) memoryOwners(ctx context.Context, v viewer) ([]string, error) {
+	if v.limited {
+		return v.owners(), nil
+	}
+	owners, err := h.opts.Store.FactOwners(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Contains(owners, store.OwnerHouse) {
+		owners = append([]string{store.OwnerHouse}, owners...)
+	}
+	if h.opts.Persons != nil {
+		persons := h.opts.Persons()
+		slices.Sort(persons)
+		for _, p := range persons {
+			if !slices.Contains(owners, p) {
+				owners = append(owners, p)
+			}
+		}
+	}
+	return owners, nil
+}
+
+// fileOwners names owners for the memory file.
+func (h *Handler) fileOwners(keys []string) []memfile.Owner {
+	out := make([]memfile.Owner, 0, len(keys))
+	for _, k := range keys {
+		o := memfile.Owner{Key: k}
+		if k != store.OwnerHouse {
+			o.Name = h.personName(k)
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+// exportMemory is the memories the viewer sees, as a file
+// (docs/spec/gedaechtnis-datei.md).
+func (h *Handler) exportMemory(w http.ResponseWriter, r *http.Request) {
+	owners, err := h.memoryOwners(r.Context(), h.viewer(r))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	text, err := memfile.Write(r.Context(), h.opts.Store, h.fileOwners(owners))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"text": text, "file": "mira-gedaechtnis.md"})
+}
+
+// importMemory says what a file would change and, with apply, changes it:
+// each owner with a section then has exactly its facts. A file that cannot
+// be imported comes back as a problem the page puts into words.
+func (h *Handler) importMemory(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Text  string `json:"text"`
+		Apply bool   `json:"apply"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, `body must be {"text": "...", "apply": false}`)
+		return
+	}
+	ctx := r.Context()
+	v := h.viewer(r)
+	allowed, err := h.memoryOwners(ctx, v)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	known := []string{store.OwnerHouse}
+	for _, p := range h.people() {
+		known = append(known, p.Key)
+	}
+	if more, err := h.memoryOwners(ctx, viewer{admin: true}); err == nil {
+		for _, k := range more {
+			if !slices.Contains(known, k) {
+				known = append(known, k)
+			}
+		}
+	}
+	if !v.limited {
+		allowed = known
+	}
+	type problem struct {
+		Kind    string `json:"kind"` // line, unknown, not_allowed
+		Heading string `json:"heading,omitempty"`
+		Line    int    `json:"line,omitempty"`
+	}
+	sections, err := memfile.Parse(req.Text)
+	var le memfile.LineError
+	if errors.As(err, &le) {
+		writeJSON(w, http.StatusOK, map[string]any{"problem": problem{Kind: "line", Line: le.Line}})
+		return
+	}
+	changes, err := memfile.Plan(ctx, h.opts.Store, sections, h.fileOwners(known), h.fileOwners(allowed))
+	var he memfile.HeadingError
+	if errors.As(err, &he) {
+		kind := "not_allowed"
+		if he.Unknown {
+			kind = "unknown"
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"problem": problem{Kind: kind, Heading: he.Heading}})
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type change struct {
+		Owner  string   `json:"owner"`
+		Name   string   `json:"name,omitempty"`
+		Add    []string `json:"add"`
+		Remove []string `json:"remove"`
+		Keep   int      `json:"keep"`
+	}
+	out := struct {
+		Changes []change `json:"changes"`
+		Applied bool     `json:"applied"`
+	}{Changes: []change{}}
+	for _, c := range changes {
+		ch := change{Owner: c.Owner.Key, Name: c.Owner.Name, Add: []string{}, Remove: []string{}, Keep: len(c.Keep)}
+		for _, l := range c.Add {
+			ch.Add = append(ch.Add, l.Text)
+		}
+		for _, f := range c.Remove {
+			ch.Remove = append(ch.Remove, f.Text)
+		}
+		out.Changes = append(out.Changes, ch)
+	}
+	if req.Apply {
+		if err := memfile.Apply(ctx, h.opts.Store, changes, v.person); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out.Applied = true
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -178,7 +178,7 @@ td.fact-actions { white-space: nowrap; text-align: right; width: 1%; }
 :is(dialog#dlg, dialog.mira-dialog) form::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: var(--grad); }
 .dlg-head { display: flex; gap: 14px; align-items: flex-start; }
 .dlg-head img { width: 44px; height: 44px; flex: none; filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--magenta) 35%, transparent)); }
-#dlg-text { margin: 4px 0 0; font-size: 16px; line-height: 1.45; }
+#dlg-text { margin: 4px 0 0; font-size: 16px; line-height: 1.45; white-space: pre-line; max-height: 60vh; overflow: auto; }
 #dlg-input { margin-top: 14px; }
 :is(dialog#dlg, dialog.mira-dialog) .actions { justify-content: flex-end; margin-top: 20px; }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -385,6 +385,14 @@ const I18N = {
   "alone_is_me": "Allein = ich",
   "alone_hint": "Ist diese Person als Einzige zu Hause, gelten die Satelliten als sie: ihr Gedächtnis, ihre privaten Nachrichten.",
   "compact_now": "Jetzt verdichten",
+  "mem_export": "Exportieren", "mem_import": "Importieren",
+  "mem_file_hint": "Als Datei bearbeiten: exportieren, im Editor ändern, wieder importieren. Jeder Abschnitt der Datei (# Haus, # Name) ersetzt dieses Gedächtnis ganz.",
+  "import_house": "Haus",
+  "import_summary": (name, add, remove, keep) => `${name}: ${add} neu, ${remove} entfallen, ${keep} bleiben`,
+  "import_apply": "Übernehmen", "import_done": "Gedächtnis übernommen.", "import_nothing": "Die Datei ändert nichts.",
+  "import_line": n => `Zeile ${n}: Ein Fakt steht vor der ersten Überschrift (# Haus oder # Name).`,
+  "import_unknown": h => `„${h}“ ist weder das Haus noch eine Person in Home Assistant. Nichts wurde geändert.`,
+  "import_not_allowed": h => `Den Abschnitt „${h}“ darfst du nicht importieren. Nichts wurde geändert.`,
   "forget": "Vergessen",
   "fact_edit": "Bearbeiten",
   "forget_confirm": "Diesen Fakt vergessen?",
@@ -774,6 +782,14 @@ const I18N = {
   "alone_is_me": "Alone = me",
   "alone_hint": "When this person is the only one at home, the satellites count as them: their memory, their private messages.",
   "compact_now": "Compact now",
+  "mem_export": "Export", "mem_import": "Import",
+  "mem_file_hint": "Edit as a file: export, change it in an editor, import it again. Each section of the file (# House, # Name) replaces that memory completely.",
+  "import_house": "House",
+  "import_summary": (name, add, remove, keep) => `${name}: ${add} new, ${remove} removed, ${keep} kept`,
+  "import_apply": "Apply", "import_done": "Memory imported.", "import_nothing": "The file changes nothing.",
+  "import_line": n => `Line ${n}: a fact comes before the first heading (# House or # Name).`,
+  "import_unknown": h => `"${h}" is neither the house nor a person in Home Assistant. Nothing was changed.`,
+  "import_not_allowed": h => `You may not import the section "${h}". Nothing was changed.`,
   "forget": "Forget",
   "fact_edit": "Edit",
   "forget_confirm": "Forget this fact?",
@@ -1553,7 +1569,10 @@ async function memory() {
           ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
         ${facts}</section>`;
     }).join("") + `<section class="card"><p class="hint">${T.profile_hint}</p>
-      ${r.can_compact ? `<div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>` : ""}</section>`;
+      ${r.can_compact ? `<div class="actions"><button class="secondary" id="compact" onclick="compact()">${T.compact_now}</button></div>` : ""}</section>
+      <section class="card"><p class="hint">${T.mem_file_hint}</p>
+      <div class="actions"><button class="secondary" onclick="exportMemory()">${T.mem_export}</button>
+      <button class="secondary" onclick="importMemory()">${T.mem_import}</button></div></section>`;
   } catch (e) { message(e.message, false); }
 }
 // editFact turns the row into a text field; Enter saves, Escape cancels.
@@ -1580,6 +1599,48 @@ function editFact(id) {
 async function forget(id) {
   if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
   try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); memory(); } catch (e) { message(e.message, false); }
+}
+// The memory as a file (docs/spec/gedaechtnis-datei.md): export downloads
+// what this page shows; import shows what a file changes and asks first.
+async function exportMemory() {
+  try {
+    const r = await api("GET", "/v1/ui/memory/export");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([r.text], { type: "text/markdown" }));
+    a.download = r.file;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch (e) { message(e.message, false); }
+}
+function importMemory() {
+  const pick = document.createElement("input");
+  pick.type = "file";
+  pick.accept = ".md,.txt,text/markdown,text/plain";
+  pick.onchange = async () => {
+    const file = pick.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      const r = await api("POST", "/v1/ui/memory/import", { text });
+      if (r.problem) {
+        const p = r.problem;
+        message(p.kind === "line" ? T.import_line(p.line) : p.kind === "unknown" ? T.import_unknown(p.heading) : T.import_not_allowed(p.heading), false);
+        return;
+      }
+      const changes = r.changes.filter(c => c.add.length || c.remove.length);
+      if (!changes.length) { message(T.import_nothing, true); return; }
+      const list = (sign, items) => items.slice(0, 8).map(t => `${sign} ${t}`).join("\n") + (items.length > 8 ? "\n…" : "");
+      const summary = changes.map(c => [T.import_summary(c.owner === "house" ? T.import_house : (c.name || c.owner), c.add.length, c.remove.length, c.keep),
+        list("+", c.add), list("−", c.remove)].filter(Boolean).join("\n")).join("\n\n");
+      if (!await ask({ text: summary, ok: T.import_apply, danger: changes.some(c => c.remove.length) })) return;
+      await api("POST", "/v1/ui/memory/import", { text, apply: true });
+      await memory();
+      message(T.import_done, true);
+    } catch (e) { message(e.message, false); }
+  };
+  pick.click();
 }
 async function compact() {
   $("#compact").disabled = true;

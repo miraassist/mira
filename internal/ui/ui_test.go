@@ -407,3 +407,51 @@ func TestMessagesArePaged(t *testing.T) {
 		t.Errorf("open page 1: %d items", len(r.Items))
 	}
 }
+
+// The memory as a file (docs/spec/gedaechtnis-datei.md): export what the
+// viewer sees; an import shows what it changes and replaces on apply.
+func TestMemoryFile(t *testing.T) {
+	srv, _, st := setup(t)
+	ctx := context.Background()
+	st.SaveFact(ctx, store.Fact{ID: "h1", Text: "Die Tonne steht hinter der Garage."})
+	st.SaveFact(ctx, store.Fact{ID: "h2", Text: "Der Kamin zieht schlecht."})
+	st.SaveFact(ctx, store.Fact{ID: "b1", Owner: "ben", Text: "Ben hat Chorprobe."})
+
+	code, body := call(t, srv, "GET", "/v1/ui/memory/export", "secret", "")
+	if code != 200 || !strings.Contains(body, `# Haus\n\n- Die Tonne steht hinter der Garage.`) || !strings.Contains(body, "Chorprobe") {
+		t.Fatalf("export: %d %s", code, body)
+	}
+	file := `{"text":"# Haus\n- Die Tonne steht hinter der Garage.\n- Der Keller ist feucht.\n"}`
+	code, body = call(t, srv, "POST", "/v1/ui/memory/import", "secret", file)
+	if code != 200 || !strings.Contains(body, `"add":["Der Keller ist feucht."],"remove":["Der Kamin zieht schlecht."],"keep":1`) ||
+		!strings.Contains(body, `"applied":false`) {
+		t.Fatalf("plan: %d %s", code, body)
+	}
+	if facts, _ := st.AllFacts(ctx, store.OwnerHouse); len(facts) != 2 || facts[1].Text != "Der Kamin zieht schlecht." {
+		t.Fatalf("the plan changed something: %+v", facts)
+	}
+	file = `{"text":"# Haus\n- Die Tonne steht hinter der Garage.\n- Der Keller ist feucht.\n","apply":true}`
+	if code, body = call(t, srv, "POST", "/v1/ui/memory/import", "secret", file); code != 200 || !strings.Contains(body, `"applied":true`) {
+		t.Fatalf("apply: %d %s", code, body)
+	}
+	if facts, _ := st.AllFacts(ctx, store.OwnerHouse); len(facts) != 2 || facts[1].Text != "Der Keller ist feucht." {
+		t.Errorf("after the import: %+v", facts)
+	}
+	if facts, _ := st.AllFacts(ctx, "ben"); len(facts) != 1 {
+		t.Errorf("Ben had no section: %+v", facts)
+	}
+
+	// Inside Home Assistant Anna exports the house and herself, and may not
+	// import Ben's memory; an unknown heading is named.
+	if _, body := asHA(t, srv, "GET", "/v1/ui/memory/export", "u-anna", true, ""); strings.Contains(body, "Chorprobe") {
+		t.Errorf("Anna's export has Ben's facts: %s", body)
+	}
+	if code, body := asHA(t, srv, "POST", "/v1/ui/memory/import", "u-anna", false, `{"text":"# ben\n- x","apply":true}`); code != 200 ||
+		!strings.Contains(body, `"kind":"not_allowed","heading":"ben"`) {
+		t.Errorf("Ben's section: %d %s", code, body)
+	}
+	if code, body := call(t, srv, "POST", "/v1/ui/memory/import", "secret", `{"text":"# Oma\n- x"}`); code != 200 ||
+		!strings.Contains(body, `"kind":"unknown","heading":"Oma"`) {
+		t.Errorf("unknown heading: %d %s", code, body)
+	}
+}

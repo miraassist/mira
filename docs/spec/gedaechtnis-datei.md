@@ -1,6 +1,6 @@
 # Memory as a file: export and import – spec
 
-Status 2026-10-25: decided, not built.
+Status 2026-10-25: built (`internal/memfile`, page Gedächtnis, `mira memory`).
 
 ## Why
 
@@ -17,8 +17,9 @@ knowledge brought in as a file.
 - **Import replaces, like loading a file into an editor.** Each owner whose section is in the file then has exactly the
   facts of that section; an owner without a section in the file stays as it is. Whoever wants to merge does it in a
   text editor before importing (decided 2026-10-25).
-- **Who may export and import what** follows the page as it is ([benutzer.md](benutzer.md), Memory): the house's
-  memory and one's own; an admin also the persons' memories that the page shows them.
+- **Who may export and import what** follows the page as it is ([benutzer.md](benutzer.md), Memory): inside Home
+  Assistant everyone, admins too, the house's memory and their own; the page on its own (agent token) and the command
+  line every memory.
 - **The profiles** (the nightly summary per owner) are not part of the file: they are made from the facts.
 
 ## The file
@@ -52,7 +53,7 @@ knowledge brought in as a file.
 2. Per owner with a section: compare the section with the owner's facts now (text compared without case, spaces and
    final full stop).
    - A line that is already there stays as it is, with its author and time; changed tags are taken.
-   - A line that is not there becomes a new fact, author: whoever imports ("Import von Stefan"), source `import`.
+   - A line that is not there becomes a new fact, author: whoever imports (their person, none from the command line), source `import`.
    - A fact that is not in the section is deleted.
    An empty section (`# Anna` without lines) empties that owner's memory.
 3. Show before writing, per owner: "Haus: 3 neu, 1 entfällt, 26 bleiben", the new and the deleted ones listed.
@@ -73,8 +74,8 @@ knowledge brought in as a file.
 - Exported, edited by hand (two lines added, one changed, one deleted), imported again: three new facts, two
   deleted (the old wording and the deleted line), all others stay with their author and time.
 - A file with only `# Anna`: the house's memory and Ben's stay untouched.
-- Anna (no admin) imports a file with `# Haus` and `# Anna`: both are taken. With `# Ben` in it: nothing is written,
-  "Den Abschnitt „Ben“ darfst du nicht importieren."
+- Anna imports in Home Assistant a file with `# Haus` and `# Anna`: both are taken. With `# Ben` in it: nothing is
+  written, "Den Abschnitt „Ben“ darfst du nicht importieren."
 - A file with a heading `# Oma` that is no person in Home Assistant: nothing is written, the message names "Oma".
 
 ## Not part of it

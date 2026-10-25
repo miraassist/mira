@@ -130,6 +130,15 @@ Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Ass
 
 ![Annas Sicht: das Gedächtnis des Hauses und ihr eigenes](img/gedaechtnis-de.png)
 
+**Als Datei bearbeiten.** Unter **Gedächtnis** lädt **Exportieren** alles, was du dort siehst, als Datei `mira-gedaechtnis.md` herunter: eine Überschrift je Gedächtnis (`# Haus`, `# Anna`), darunter ein Fakt je Zeile, Stichwörter als `#wort` am Ende. Du änderst sie in einem Texteditor und lädst sie mit **Importieren** wieder hoch. Mira zeigt vorher, was sich ändert („Haus: 3 neu, 1 entfallen, 26 bleiben“), und übernimmt es erst nach deinem OK. Wie beim Laden einer Datei in einen Editor ersetzt jeder Abschnitt das Gedächtnis ganz; Gedächtnisse ohne Abschnitt bleiben, wie sie sind. So füllst du auch ein neues Haus auf einmal mit dem, was Mira wissen soll:
+
+```markdown
+# Haus
+
+- Der Sicherungskasten ist im Keller links neben der Tür. #technik
+- Der Schornsteinfeger kommt jedes Jahr im November.
+```
+
 ## Skills: zum Beispiel die Müllabfuhr
 
 Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet einen Skill nur, wenn eine Frage ihn braucht.
@@ -643,7 +652,7 @@ Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie 
 
 Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und führt zu ihren Seiten:
 
-- **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten und vergessen).
+- **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten, vergessen, als Datei exportieren und importieren).
 - **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten) und **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten).
 - **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
 - **Anleitung**: diese Seite, mit Sprüngen zu den wichtigsten Kapiteln.
@@ -779,6 +788,7 @@ Das Programm `mira` hat ein paar Befehle. Im Container rufst du sie mit `docker 
 | `mira skill NAME` | führt den Zeitplan eines Skills sofort aus und zeigt, was Mira sagen würde; hat er mehrere, wählt eine Zahl dahinter einen (ab 0) |
 | `mira chat "…"` | ein Gesprächszug im Terminal, ohne Home Assistant als Oberfläche; `-channel voice` oder `telegram`, `-session` für einen weiteren Zug im selben Gespräch |
 | `mira profile` | baut das Gedächtnis-Profil neu aus den gemerkten Fakten |
+| `mira memory export [-o DATEI]`, `mira memory import DATEI [-yes]` | das Gedächtnis als Datei, wie auf der Seite; die Kommandozeile sieht alle Gedächtnisse |
 
 ## Einrichtung
 

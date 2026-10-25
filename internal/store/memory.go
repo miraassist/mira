@@ -258,3 +258,33 @@ func stem(w string) string {
 	}
 	return w
 }
+
+// ReplaceFacts adds, updates and deletes facts in one transaction: an
+// import from a file changes all or nothing (docs/spec/gedaechtnis-datei.md).
+// Updated facts keep their author and creation time.
+func (s *Store) ReplaceFacts(ctx context.Context, add, update []Fact, remove []string) error {
+	now := formatTime(s.now())
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		for _, id := range remove {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM memory_facts WHERE id = ?`, id); err != nil {
+				return fmt.Errorf("delete fact: %w", err)
+			}
+		}
+		for _, f := range update {
+			if _, err := tx.ExecContext(ctx, `UPDATE memory_facts SET tags = ? WHERE id = ?`, joinTags(f.Tags), f.ID); err != nil {
+				return fmt.Errorf("update fact: %w", err)
+			}
+		}
+		for _, f := range add {
+			if f.ID == "" || strings.TrimSpace(f.Text) == "" {
+				return fmt.Errorf("fact needs an id and text")
+			}
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO memory_facts(id, text, tags, owner, author, source, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, f.ID, f.Text, joinTags(f.Tags), f.Owner, f.Author, f.Source, now, now); err != nil {
+				return fmt.Errorf("add fact: %w", err)
+			}
+		}
+		return nil
+	})
+}
