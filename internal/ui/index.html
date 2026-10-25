@@ -259,13 +259,15 @@ const I18N = {
   "voice_threshold": "Schwelle für die Stimme",
   "voice_threshold_hint": "Leer: die allgemeine (0,7). Niedriger, wenn diese Stimme oft nicht erkannt wird; höher, wenn sie mit einer anderen verwechselt wird.",
   "voice_title": "Stimme",
+  "guide_voice_chapter": "Wer spricht: Mira erkennt Stimmen",
   "voice_none": "Noch nicht angelernt: an den Satelliten bleibt diese Person unerkannt, außer allein zu Hause.",
   "voice_none_self": "Noch nicht angelernt: an den Satelliten erkennt Mira dich nicht, außer wenn du allein zu Hause bist.",
   "alone_hint_self": "Bist du als Einzige oder Einziger zu Hause, gelten die Satelliten als du: dein Gedächtnis, deine privaten Nachrichten.",
   "voice_hint_self": "Mira erkennt an der Stimme, wer an einem Satelliten spricht, und merkt sich Persönliches dann für dich. Gespeichert wird kein Ton, nur ein Stimmabdruck.",
   "voice_samples": n => n === 1 ? "Angelernt mit 1 Satz." : `Angelernt mit ${n} Sätzen.`,
   "voice_hint": "Mira erkennt an der Stimme, wer an einem Satelliten spricht, und merkt sich Persönliches dann für diese Person. Gespeichert wird kein Ton, nur ein Stimmabdruck.",
-  "voice_unavailable": "Keine Stimmerkennung eingerichtet (speaker_id in mira.yaml).",
+  "voice_unavailable": "Die Stimmerkennung ist nicht eingerichtet. Sie ist freiwillig; wie du sie einrichtest, steht in der Anleitung.",
+  "voice_unavailable_link": "Zur Anleitung: Wer spricht",
   "voice_enroll": "Stimme anlernen",
   "voice_enroll_more": "Weitere Sätze anlernen",
   "voice_enroll_stop": "Fertig",
@@ -695,13 +697,15 @@ const I18N = {
   "voice_threshold": "Voice threshold",
   "voice_threshold_hint": "Empty: the general one (0.7). Lower when this voice is often not recognized; higher when it is mistaken for another.",
   "voice_title": "Voice",
+  "guide_voice_chapter": "Who is speaking: Mira recognizes voices",
   "voice_none": "Not enrolled yet: at the satellites this person stays unrecognized, except alone at home.",
   "voice_none_self": "Not enrolled yet: at the satellites Mira does not recognize you, except when you are alone at home.",
   "alone_hint_self": "When you are the only one at home, the satellites count as you: your memory, your private messages.",
   "voice_hint_self": "Mira recognizes by the voice who speaks at a satellite, and keeps what is personal for you. No audio is kept, only a voice print.",
   "voice_samples": n => n === 1 ? "Enrolled with 1 sentence." : `Enrolled with ${n} sentences.`,
   "voice_hint": "Mira recognizes by the voice who speaks at a satellite, and keeps what is personal for that person. No audio is kept, only a voice print.",
-  "voice_unavailable": "No speaker recognition set up (speaker_id in mira.yaml).",
+  "voice_unavailable": "Speaker recognition is not set up. It is optional; the guide says how to set it up.",
+  "voice_unavailable_link": "To the guide: Who is speaking",
   "voice_enroll": "Enroll the voice",
   "voice_enroll_more": "Enroll more sentences",
   "voice_enroll_stop": "Done",
@@ -1563,7 +1567,7 @@ async function personCard(key, name, self) {
   $("#view").innerHTML = `<section class="card"><h2>${esc(name)}</h2><p>${T.loading}</p></section>`;
   let s;
   try { s = await cardSettings(key); } catch (e) { message(e.message, false); s = {}; }
-  const admin = isAdmin;
+  const admin = isAdmin, voice = !!(await whoAmI()).voice;
   $("#view").innerHTML = `
   <section class="card" data-person="${esc(key)}">
     <h2>${esc(name)}</h2>${self ? "" : `<p class="hint">${esc(personEntityOf(key))}</p>`}
@@ -1572,9 +1576,9 @@ async function personCard(key, name, self) {
       <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
       <label title="${self ? T.alone_hint_self : T.alone_hint}">${self ? T.alone_is_me_long : T.alone_is_me_other(esc(name))}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
       ${admin ? `<label>${T.channels}</label><input data-f="channels" list="card-notify" value="${esc(csv(s.channels))}" placeholder="notify.…">
-      <label>${T.voice_threshold}</label><input type="number" data-f="voice_threshold" min="0.3" max="0.99" step="0.01" value="${esc(s.voice_threshold || "")}" placeholder="0.7">` : ""}
+      ${voice ? `<label>${T.voice_threshold}</label><input type="number" data-f="voice_threshold" min="0.3" max="0.99" step="0.01" value="${esc(s.voice_threshold || "")}" placeholder="0.7">` : ""}` : ""}
     </div>
-    <p class="hint">${self ? T.alone_hint_self : T.alone_hint}${admin ? " " + T.voice_threshold_hint : ""}</p>
+    <p class="hint">${self ? T.alone_hint_self : T.alone_hint}${admin && voice ? " " + T.voice_threshold_hint : ""}</p>
     <datalist id="card-notify">${cardNotify.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>
     <div class="actions"><button class="primary" onclick="saveCard('${esc(key)}')">${T.save}</button></div>
   </section>
@@ -1589,7 +1593,7 @@ async function saveCard(key) {
       await haApi("PUT", `${HA_BASE}/settings/me`, { accept_from: v.accept_from, alone_is_me: v.alone_is_me });
     } else if (embedded && managed("persons")) {
       v.channels = fromCsv(v.channels || "");
-      v.voice_threshold = v.voice_threshold === "" ? null : Number(v.voice_threshold);
+      if ("voice_threshold" in v) v.voice_threshold = v.voice_threshold === "" ? null : Number(v.voice_threshold);
       await haApi("PUT", `${HA_BASE}/settings/persons`, { [personEntityOf(key)]: v });
       config = await api("GET", "/v1/ui/config");
     } else {
@@ -1598,7 +1602,7 @@ async function saveCard(key) {
       cur.accept_from = v.accept_from === "all" ? undefined : v.accept_from;
       cur.alone_is_me = v.alone_is_me || undefined;
       cur.channels = fromCsv(v.channels || "");
-      cur.voice_threshold = v.voice_threshold === "" ? undefined : Number(v.voice_threshold);
+      if ("voice_threshold" in v) cur.voice_threshold = v.voice_threshold === "" ? undefined : Number(v.voice_threshold);
       p[key] = cur;
       await save({ persons: p });
       return;
@@ -1613,7 +1617,13 @@ async function saveCard(key) {
 async function voiceCard(key, name, self) {
   const box = $("#voice");
   if (!box) return;
-  if (!(await whoAmI()).voice) { box.innerHTML = `<h2>${T.voice_title}</h2><p class="hint">${T.voice_unavailable}</p>`; return; }
+  if (!(await whoAmI()).voice) {
+    // Optional: without it the card says so and where it is explained.
+    box.innerHTML = `<h2>${T.voice_title}</h2>
+      <div class="actions"><button class="primary" disabled title="${T.voice_unavailable}">${T.voice_enroll}</button></div>
+      <p class="hint">${T.voice_unavailable} <a href="#guide" onclick="event.preventDefault(); openGuideAbout('## ${T.guide_voice_chapter}')">${T.voice_unavailable_link}</a></p>`;
+    return;
+  }
   let v;
   try { v = await api("GET", `/v1/ui/voice/${encodeURIComponent(key)}`); } catch (e) { box.innerHTML = `<h2>${T.voice_title}</h2><p class="msg err">${esc(e.message)}</p>`; return; }
   const k = esc(key), n = esc(name);
@@ -2095,6 +2105,15 @@ async function deleteTask(id) {
 // guideChapter is the chapter the guide opens at (a link on the start page).
 let guideChapter = null;
 function openChapter(n) { guideChapter = n; go("guide"); }
+// openGuideAbout opens the guide at the chapter with this heading ("## …").
+async function openGuideAbout(heading) {
+  try {
+    const md = await (await fetch(url("/ui/guide/" + lang))).text();
+    const n = md.split("\n").filter(l => l.startsWith("## ")).findIndex(l => l.trim() === heading);
+    if (n >= 0) return openChapter(n);
+  } catch (e) { /* the guide's start then */ }
+  go("guide");
+}
 async function guide() {
   $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
   try {

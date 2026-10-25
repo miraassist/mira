@@ -118,7 +118,7 @@ What Mira knows she also uses when keeping watch: tell her "Remember, the bedsid
 There is one memory for the **house** and one for **each person**:
 
 - When Mira knows who is speaking, she remembers it for that person. It goes into the house's memory only when you say so ("remember for the house …").
-- Mira knows who is speaking on Telegram, in the HA app's chat (through your HA user), and at a satellite only when you are alone at home and switched that on for your person ("Alone at home, the satellites are me"). Otherwise a satellite is the house.
+- Mira knows who is speaking on Telegram, in the HA app's chat (through your HA user), and at a satellite by your voice when speaker recognition is set up (see below), or when you are alone at home and switched that on on your card ("When you are alone at home, Mira knows it is you"). Otherwise a satellite is the house.
 - Your personal memory is only seen by Mira when talking to you. The house's memory is for everyone.
 - Nobody writes into someone else's memory.
 
@@ -134,6 +134,35 @@ At night Mira condenses each memory into a short profile. In Home Assistant, und
 - The fuse box is in the cellar, left of the door. #technik
 - The chimney sweep comes every November.
 ```
+
+## Who is speaking: Mira recognizes voices
+
+At a satellite Mira otherwise does not know who is talking to her. With **speaker recognition** she knows by the voice: "Remind me to take out the bins tomorrow" becomes a reminder for whoever said it, even with the whole family at home. When Mira does something personal for you, she says your name ("Noted that for you, Anna"): if she mixes you up, you notice right away. For "lights on" she says no name.
+
+Speaker recognition is **optional**. Without it Mira works as before; **Enroll the voice** on your card is greyed out then.
+
+- **No audio is kept**, only a voice print: a few hundred numbers per sentence, from which the voice cannot be recovered. The voice prints are kept by the recognition service, not in Mira's database, and everyone can delete theirs.
+- Only what is said to a satellite after the wake word is looked at, the same that goes to speech recognition anyway.
+- A recognized voice counts like "alone at home": your memory, your reminders, tasks and messages. **It is no login**: it opens no locks, alarm or purchases.
+- When Mira is not sure (an unknown voice, two voices too alike, a very short sentence), the satellite stays the house.
+
+**Enrolling your voice.** On the overview everyone has a card with their name. There, **Enroll the voice**, then at a satellite the wake word and: "I am Anna, learn my voice now." Two or three more times with other sentences. Each sentence shows on the card; tap **That was me** for each, then **Done**. For three minutes the card shows only what is said from the click on, nothing before. If your voice is often not recognized later, just enroll a few more sentences.
+
+**For children and others without a login** an admin enrolls the voice: Settings → **People** → the person → **Enroll the voice**; the person speaks, the admin taps **That was Ben**. There an admin also sets a person's **voice threshold**: lower when their voice is often not recognized, higher when it is mistaken for another. Without one, 0.7 applies.
+
+**Setting it up** (for whoever runs Mira). Speaker recognition is a small service of its own, `services/speaker-id` in Mira's repository. It sits in front of your speech recognition (faster-whisper, say), passes the audio on unchanged and recognizes the voice beside it; it needs no graphics card.
+
+1. In the repository create `services/speaker-id/.env` with a long random token (`SPEAKER_TOKEN=…`), and if needed `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, the address of your speech recognition so far. Then `docker compose -f services/speaker-id/compose.yaml up -d --build`. The voice prints are then kept in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` changes that).
+2. In Home Assistant: Settings → Devices & services → add **Wyoming Protocol**, the service's address, port **10310**. Then under Settings → Voice assistants, in the assistant with Mira, choose the new entry **speaker-id** as **Speech-to-text**. The text stays the same as before.
+3. In Mira's `mira.yaml`:
+
+   ```yaml
+   speaker_id:
+     url: http://<service>:10311
+     token: ${SPEAKER_ID_TOKEN}   # the same token as in the service's .env
+   ```
+
+   and restart Mira. The voice can now be enrolled on the cards.
 
 ## Skills: the waste collection, for example
 
@@ -651,7 +680,9 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 ![Editing a model: provider and model to choose from, the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
 
-Someone who is no admin sees only **Plans**, **Memory** and **Guide**. For Mira to know whose memory is yours, your person must be linked to your HA user (Settings → People).
+**Your card.** First on the overview is a card with your name: whether Mira knows your voice, whether she knows it is you when you are alone at home, whose messages you take and how many personal memories she keeps. A click opens it: there you set this yourself and enroll your voice (see "Who is speaking"). Under Settings → **People** admins see all persons in a list; a click opens the same card, with the channels and the voice threshold besides.
+
+Someone who is no admin sees only their card, **Plans**, **Memory** and **Guide**. For Mira to know which card and memory are yours, your person must be linked to your HA user (in Home Assistant under Settings → People).
 
 ![Notifications: quiet hours, pauses, escalation](img/benachrichtigung-en.png)
 
@@ -685,7 +716,7 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 
 - **Personality** (under **General**): how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it.
 - **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
-- **Private area**: when Mira knows who is speaking (you are alone at home, or write on Telegram or in the HA app), a conversation goes with you from room to room, plans included. Put the label **"Mira: private area"** on an area, such as the guest room, and what starts there stays in that room, and nothing from outside comes in.
+- **Private area**: when Mira knows who is speaking (she recognizes your voice, you are alone at home, or write on Telegram or in the HA app), a conversation goes with you from room to room, plans included. Put the label **"Mira: private area"** on an area, such as the guest room, and what starts there stays in that room, and nothing from outside comes in.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
 

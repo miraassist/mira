@@ -96,7 +96,9 @@ flowchart LR
 | `internal/feeds` | Read feeds (RSS/Atom) |
 | `internal/store` | SQLite: sessions, histories, messages, memory, reminders, task proposals, log of assessments |
 | `internal/profile` | Nightly condensation of the facts into the household profile |
-| `internal/ui` | Web UI and its API (`/v1/ui/*`) |
+| `internal/ui` | Web UI and its API (`/v1/ui/*`), with each person's card ("Ich": settings, enrolling the voice) and the admins' list of persons |
+| `internal/speakerid` | Client of the speaker-id service: who said a satellite turn's text (`/api/match`, 300 ms at most; Mira decides with `speaker_id.threshold` or a person's `voice_threshold`), and enrolling for the page ([Speaker recognition](spec/sprecher.md)) |
+| `services/speaker-id` | Optional, a container of its own: a Wyoming STT proxy in front of the real STT that passes the audio on and compares a speaker embedding (sherpa-onnx, CPU) with the enrolled persons. No audio is kept; voice prints in its data directory. API on port 10311 behind `SPEAKER_TOKEN` ([Speaker recognition](spec/sprecher.md)) |
 | `internal/announce` | mDNS advertisement (`_mira._tcp`) so that HA finds Mira. Only IPv4 addresses: IPv6 addresses are mostly temporary and expire; in addition, the integration keeps an address that answers and never adopts an IPv6 address |
 | `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Configuration (with the page's edits of mira.yaml and the secrets file, [Editing](spec/bearbeiten.md)), languages, cron, OpenTelemetry |
 
@@ -118,10 +120,11 @@ sequenceDiagram
 
     U->>S: "Wie warm ist es im Wohnzimmer?"
     S->>HA: Audio
-    HA->>HA: Speech recognition
+    HA->>HA: Speech recognition (optionally through speaker-id, which notes the voice)
     HA->>I: Text, device_id, conversation_id
     I->>A: POST /v1/conversation
     A->>E: Turn (channel voice, area from device_id)
+    E->>E: Who speaks: HA user, else the voice (speaker-id, by the text), else "alone at home"
     E->>E: Prompt from layers 1–7
     E->>M: Request with tools
     M-->>E: Tool call GetLiveContext
@@ -442,6 +445,7 @@ Between Home Assistant and the agent there are two directions, on separate paths
 | Integration → agent | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The agent creates the token on first start; the integration fetches it on first adding without a code, later only with a pairing code from `mira pair` (6 digits, 15 minutes, 5 attempts). Removing the integration releases the agent (`/v1/unpair`, new token). If `server.token` is set in `mira.yaml`, that one applies, without pairing |
 | Agent → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token of a dedicated HA user without admin rights |
 | Agent → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`) | only Mira's HA user or an admin (the integration knows the ID from `/v1/health`) |
+| Agent → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |
 
 - **Panel:** browser → HA (with HA's login) → integration → agent, with the token and the headers `X-Mira-HA-User` and `X-Mira-HA-Admin`. The agent trusts these headers as soon as the token is correct. So whoever has the token can pose as any HA user: the token is the key to everything.
 - **Rights of the HA user:** No admin means it manages nothing in HA (no users, integrations, exposure list). It can, however, call services on any entity, because HA has no per-entity rights for normal users. The limits are set by Mira's guards and the exposure to Assist, which HA's MCP tools respect. The agent's HA token is thus almost as powerful as a normal account.

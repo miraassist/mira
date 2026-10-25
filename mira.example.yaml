@@ -97,6 +97,7 @@ web_search:
 # someone.
 # speaker_id:
 #   url: http://192.168.x.y:10311
+#   token: ${SPEAKER_ID_TOKEN}  # the service's SPEAKER_TOKEN
 #   threshold: 0.7          # the score a voice needs; a person's
 #                           # voice_threshold (under persons) wins
 

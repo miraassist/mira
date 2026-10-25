@@ -122,7 +122,7 @@ Was Mira weiß, nutzt sie auch beim Aufpassen: Sag ihr „Merk dir, die Nachttis
 Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
 
 - Weiß Mira, wer spricht, merkt sie sich es für diese Person. Ins Haus-Gedächtnis kommt es nur, wenn du es ausdrücklich sagst („merk dir fürs Haus …“).
-- Mira weiß, wer spricht: über Telegram, im Chat der HA-App (über deinen HA-Benutzer) und am Satelliten nur, wenn du allein zu Hause bist und das bei deiner Person eingeschaltet hast („Allein zu Hause sind die Satelliten ich“). Sonst ist es am Satelliten das Haus.
+- Mira weiß, wer spricht: über Telegram, im Chat der HA-App (über deinen HA-Benutzer) und am Satelliten an deiner Stimme, wenn die Stimmerkennung eingerichtet ist (siehe unten), oder wenn du allein zu Hause bist und das auf deiner Karte eingeschaltet hast („Bist du allein zu Hause, weiß Mira, dass du es bist“). Sonst ist es am Satelliten das Haus.
 - Dein persönliches Gedächtnis sieht nur Mira im Gespräch mit dir. Das Haus-Gedächtnis gilt für alle.
 - In fremde Gedächtnisse schreibt niemand.
 
@@ -138,6 +138,35 @@ Nachts fasst Mira jedes Gedächtnis zu einem kurzen Profil zusammen. In Home Ass
 - Der Sicherungskasten ist im Keller links neben der Tür. #technik
 - Der Schornsteinfeger kommt jedes Jahr im November.
 ```
+
+## Wer spricht: Mira erkennt Stimmen
+
+Am Satelliten weiß Mira sonst nicht, wer mit ihr spricht. Mit der **Stimmerkennung** erkennt sie es an der Stimme: „Erinner mich morgen an den Müll“ wird eine Erinnerung für den, der es gesagt hat, auch wenn die ganze Familie zu Hause ist. Tut Mira dabei etwas Persönliches für dich, nennt sie dich beim Namen („Hab ich mir für dich gemerkt, Anna“): Verwechselt sie dich, merkst du es sofort. Bei „Licht an“ nennt sie keinen Namen.
+
+Die Stimmerkennung ist **freiwillig**. Ohne sie läuft Mira wie bisher; auf deiner Karte ist **Stimme anlernen** dann ausgegraut.
+
+- **Kein Ton wird gespeichert**, nur ein Stimmabdruck: ein paar hundert Zahlen je Satz, aus denen sich die Stimme nicht zurückgewinnen lässt. Die Stimmabdrücke liegen beim Erkennungsdienst, nicht in Miras Datenbank, und jeder kann seinen löschen.
+- Erkannt wird nur, was nach dem Aktivierungswort an einen Satelliten gesagt wird, also dasselbe, was ohnehin zur Spracherkennung geht.
+- Eine erkannte Stimme gilt wie „allein zu Hause“: dein Gedächtnis, deine Erinnerungen, Aufgaben und Nachrichten. **Sie ist kein Login**: Schlösser, Alarmanlage oder Käufe öffnet sie nicht.
+- Ist Mira sich nicht sicher (eine unbekannte Stimme, zwei Stimmen zu ähnlich, ein sehr kurzer Satz), bleibt der Satellit beim Haus.
+
+**Deine Stimme anlernen.** Auf der Übersicht hat jeder eine Karte mit seinem Namen. Dort **Stimme anlernen**, dann an einem Satelliten das Aktivierungswort und: „Ich bin Anna, lern jetzt meine Stimme.“ Noch zwei-, dreimal mit anderen Sätzen. Jeder Satz erscheint auf der Karte; tipp jeweils auf **Das war ich**, am Ende auf **Fertig**. Die Karte zeigt drei Minuten lang nur, was ab dem Klick gesagt wird, nichts davor. Wird deine Stimme später oft nicht erkannt, lerne einfach ein paar Sätze mehr an.
+
+**Für Kinder und andere ohne Login** lernt ein Admin die Stimme an: Einstellungen → **Personen** → die Person → **Stimme anlernen**; die Person spricht, der Admin tippt **Das war Ben**. Dort setzt ein Admin auch die **Schwelle für die Stimme** einer Person: niedriger, wenn ihre Stimme oft nicht erkannt wird, höher, wenn sie mit einer anderen verwechselt wird. Ohne Angabe gilt 0,7.
+
+**Einrichten** (für den, der Mira betreibt). Die Stimmerkennung ist ein eigener kleiner Dienst, `services/speaker-id` im Mira-Repository. Er sitzt vor deiner Spracherkennung (etwa faster-whisper), reicht das Audio unverändert weiter und erkennt nebenbei die Stimme; er braucht keine Grafikkarte.
+
+1. Im Repository `services/speaker-id/.env` mit einem langen, zufälligen Token anlegen (`SPEAKER_TOKEN=…`), dazu bei Bedarf `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, die Adresse deiner bisherigen Spracherkennung. Dann `docker compose -f services/speaker-id/compose.yaml up -d --build`. Die Stimmabdrücke liegen danach in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` ändert das).
+2. In Home Assistant: Einstellungen → Geräte & Dienste → **Wyoming Protocol** hinzufügen, Adresse des Dienstes, Port **10310**. Dann unter Einstellungen → Sprachassistenten im Assistenten mit Mira als **Spracherkennung** den neuen Eintrag **speaker-id** wählen. Der Text bleibt derselbe wie vorher.
+3. In Miras `mira.yaml`:
+
+   ```yaml
+   speaker_id:
+     url: http://<dienst>:10311
+     token: ${SPEAKER_ID_TOKEN}   # derselbe Token wie in der .env des Dienstes
+   ```
+
+   und Mira neu starten. Auf den Karten lässt sich die Stimme jetzt anlernen.
 
 ## Skills: zum Beispiel die Müllabfuhr
 
@@ -675,7 +704,9 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 
 ![Ein Modell bearbeiten: Anbieter und Modell zur Auswahl, der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
 
-Wer kein Admin ist, sieht nur **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Gedächtnis du bist, muss deine Person mit deinem HA-Benutzer verknüpft sein (Einstellungen → Personen).
+**Deine Karte.** Ganz vorn auf der Übersicht steht eine Karte mit deinem Namen: ob Mira deine Stimme kennt, ob sie allein zu Hause weiß, dass du es bist, von wem du Nachrichten annimmst und wie viele persönliche Erinnerungen sie hat. Ein Klick öffnet sie: Dort stellst du das selbst ein und lernst deine Stimme an (siehe „Wer spricht“). Unter Einstellungen → **Personen** sehen Admins alle Personen in einer Liste; ein Klick öffnet dieselbe Karte, mit dazu den Kanälen und der Schwelle für die Stimme.
+
+Wer kein Admin ist, sieht nur seine Karte, **Pläne**, **Gedächtnis** und **Anleitung**. Damit Mira weiß, wessen Karte und Gedächtnis deins sind, muss deine Person mit deinem HA-Benutzer verknüpft sein (in Home Assistant unter Einstellungen → Personen).
 
 ![Benachrichtigung: Ruhezeit, Pausen, Eskalation](img/benachrichtigung-de.png)
 
@@ -709,7 +740,7 @@ Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter 
 
 - **Persönlichkeit** (unter **Allgemein**): wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
-- **Privater Bereich**: Weiß Mira, wer spricht (du bist allein zu Hause, schreibst über Telegram oder die HA-App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
+- **Privater Bereich**: Weiß Mira, wer spricht (sie erkennt deine Stimme, du bist allein zu Hause, schreibst über Telegram oder die HA-App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
 
 Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
 

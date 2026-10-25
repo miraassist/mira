@@ -1,7 +1,8 @@
 # Speaker recognition at the satellite
 
-Status 2026-10-25: planned. Step 1 (the service) is built and runs on the test installation. Scenarios:
-[sprecher.feature](sprecher.feature).
+Status 2026-10-25: steps 1 to 4 built (the service, matching, Mira's identify, enrolling on the card "Ich");
+optional: without `speaker_id` in `mira.yaml` everything works as before and the card says how to set it up.
+Scenarios: [sprecher.feature](sprecher.feature). User guide: "Wer spricht: Mira erkennt Stimmen".
 
 ## Goal
 

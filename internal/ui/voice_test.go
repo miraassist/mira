@@ -146,3 +146,27 @@ func TestAdminDeletesAVoice(t *testing.T) {
 		t.Errorf("admin: %d %v", code, fv.samples)
 	}
 }
+
+// Speaker recognition is optional: without the service the page says so,
+// the list has no voices, and a person's voice is not there.
+func TestWithoutSpeakerRecognition(t *testing.T) {
+	h := New(Options{Token: "secret",
+		People: func() []PersonInfo { return []PersonInfo{{Key: "anna", Name: "Anna", Entity: "person.anna"}} },
+		PersonOfHAUser: func(context.Context, string) string { return "anna" }})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	if code, body := asHA(t, srv, "GET", "/v1/ui/me", "u-anna", false, ""); code != 200 || !strings.Contains(body, `"voice":false`) {
+		t.Errorf("me: %d %s", code, body)
+	}
+	if code, body := asHA(t, srv, "GET", "/v1/ui/voice", "u-admin", true, ""); code != 200 || !strings.Contains(body, `"available":false`) {
+		t.Errorf("list: %d %s", code, body)
+	}
+	for _, m := range []string{"GET", "DELETE"} {
+		if code, _ := asHA(t, srv, m, "/v1/ui/voice/anna", "u-anna", false, ""); code != 404 {
+			t.Errorf("%s voice: %d", m, code)
+		}
+	}
+	if code, _ := asHA(t, srv, "POST", "/v1/ui/voice/anna/enroll", "u-anna", false, ""); code != 404 {
+		t.Errorf("enroll: %d", code)
+	}
+}
