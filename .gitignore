@@ -28,8 +28,8 @@ __pycache__/
 # Private demo scripts, not for the repo
 /docs/demo/
 
-# Private to-do list, not for the repo
-/docs/todo.local.md
+# Private notes (to-do list, security review), not for the repo
+*.local.md
 
 # Example mails with personal data, not for the repo (cleaned copies go elsewhere)
 /testenv/mails/
