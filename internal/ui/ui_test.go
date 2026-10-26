@@ -183,7 +183,7 @@ func TestPageAllowsRecordingsFromTheirServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "media-src 'self' https:") {
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "media-src 'self' https:") || !strings.Contains(csp, "img-src 'self' https:") {
 		t.Errorf("CSP = %q", csp)
 	}
 	body, _ := io.ReadAll(resp.Body)

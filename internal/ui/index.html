@@ -123,6 +123,9 @@ pre.code { background: var(--badge); padding: 10px; border-radius: 10px; overflo
 a.button { display: inline-block; text-decoration: none; }
 label.checkline { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 label.checkline input { width: auto; }
+.plan-head { display: flex; gap: 14px; align-items: center; margin-bottom: 4px; }
+.plan-head h3 { margin: 0 0 2px; }
+.plan-pic { width: 96px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; }
 .plan .step { display: flex; gap: 8px; align-items: baseline; margin: 4px 0; }
 .plan .step input { width: auto; }
 .plan .step.done { color: var(--muted); text-decoration: line-through; }
@@ -755,7 +758,7 @@ const I18N = {
   "run_calls": "Aufrufe",
   "run_tokens": "Tokens",
   "plan_steps": "Schritte erledigt",
-  "plan_since": "seit",
+  "plan_since": "seit", "plan_recipe": "Rezept",
   "plan_finished": "fertig",
   "tab_tasks": "Aufgaben",
   "tasks_hint": "Aufgaben gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie entwirft eine Home-Assistant-Automation mit dem Label „Mira“, du bestätigst sie. Home Assistant entscheidet, wann etwas passiert, Mira beurteilt und meldet. Bearbeiten kannst du sie im Automations-Editor von Home Assistant.",
@@ -1201,7 +1204,7 @@ const I18N = {
   "run_calls": "calls",
   "run_tokens": "tokens",
   "plan_steps": "steps done",
-  "plan_since": "since",
+  "plan_since": "since", "plan_recipe": "Recipe",
   "plan_finished": "done",
   "tab_tasks": "Tasks",
   "tasks_hint": "You give Mira tasks in conversation, e.g. \"Keep an eye on the water usage\". She drafts a Home Assistant automation labelled \"Mira\", you confirm it. Home Assistant decides when something happens, Mira judges and reports. You edit them in Home Assistant's automation editor.",
@@ -2146,24 +2149,43 @@ async function runDetail(el, id) {
 
 // ---- Pläne ----------------------------------------------------------------
 // The running plans, read-only; the tab follows them by itself.
-let planTimer = null;
+let planTimer = null, planShown = "";
+// plans follows the running plans every two seconds, so a step Mira ticks off
+// shows while she says it; the list is replaced only when it changed.
 async function plans() {
   clearTimeout(planTimer);
   if (tab !== "plans") return;
   if (!$("#planlist")) {
     $("#view").innerHTML = `<section class="card"><h2>${T.tab_plans}</h2><p class="hint">${T.plans_hint}</p><div id="planlist">${T.loading}</div></section>`;
+    planShown = "";
   }
   try {
     const r = await api("GET", "/v1/ui/plans");
     const list = r.plans || [];
-    $("#planlist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_plans}</p>` : list.map(p => `
+    const html = list.length === 0 ? `<p class="hint">${T.no_plans}</p>` : list.map(p => {
+      const a = planAsk(p.request || p.target);
+      return `
       <div class="item plan">
-        <h3>${esc(p.request || p.target)}</h3>
+        <div class="plan-head">${a.picture ? `<img class="plan-pic" src="${esc(a.picture)}" alt="">` : ""}
+          <div><h3>${esc(a.title)}</h3>${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${T.plan_recipe}</a>` : ""}</div></div>
         <p class="hint">${p.place ? `<span class="badge">${esc(p.place)}</span> ` : ""}${p.steps ? `${p.done}/${p.steps} ${T.plan_steps} · ` : ""}${T.plan_since} ${esc(p.started)}${p.finished ? ` · <span class="badge ui">${T.plan_finished}</span>` : ""}</p>
         ${planHtml(p.plan)}
-      </div>`).join("");
+      </div>`;
+    }).join("");
+    if (html !== planShown) { $("#planlist").innerHTML = html; planShown = html; }
   } catch (e) { message(e.message, false); }
-  if (tab === "plans") planTimer = setTimeout(plans, 10000);
+  if (tab === "plans") planTimer = setTimeout(plans, 2000);
+}
+// planAsk splits what a plan was asked for: a picture (the cooking skill puts
+// the recipe's "Bild: https://….jpg" there), a link (the recipe's page) and
+// the words around them as the title.
+function planAsk(text) {
+  const urls = String(text || "").match(/https?:\/\/[^\s,;]+/g) || [];
+  const picture = urls.find(u => /\.(jpe?g|png|webp|gif)(\?|$)/i.test(u)) || "";
+  const link = urls.find(u => u !== picture) || "";
+  const title = String(text || "").replace(/(Bild|Image|Picture|Foto|URL|Link|Rezept|Recipe)\s*:\s*/gi, "").replace(/https?:\/\/[^\s,;]+/g, "")
+    .replace(/\s*[,;]\s*(?=[,;]|$)/g, "").replace(/^[\s,;]+|[\s,;]+$/g, "").replace(/\s{2,}/g, " ");
+  return { picture, link, title: title || String(text || "") };
 }
 // planHtml shows a plan's Markdown: checkboxes as steps (the first open one
 // is the current), headings, the rest as lines.

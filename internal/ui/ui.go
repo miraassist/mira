@@ -174,8 +174,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) { h.mux.Serv
 func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	// Recordings of the guide come from their own server over https.
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' https:")
+	// Recordings of the guide come from their own server over https, and a
+	// plan from a recipe shows the recipe's picture from its site.
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' https:; img-src 'self' https:")
 	w.Write(bytes.Replace(page, []byte("%%VERSION%%"), []byte(html.EscapeString(h.opts.Version)), 1))
 }
 
