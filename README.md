@@ -2,9 +2,14 @@
 
 **Website: [mira-assist.com](https://mira-assist.com)**
 
-[![Mira Voice Assistant: Chats in deutsch (video on YouTube)](https://img.youtube.com/vi/N-RfuKgBsEs/sddefault.jpg)](https://youtu.be/N-RfuKgBsEs)
+**See what Mira can do:** ▶ [the videos on YouTube](https://www.youtube.com/playlist?list=PLEC8MZZ0-sKU)
 
-▶ [Mira Voice Assistant: Chats in deutsch](https://youtu.be/N-RfuKgBsEs) (YouTube)
+<table>
+<tr><td align="center"><a href="https://www.youtube.com/watch?v=Fpv9fui4S7E&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/Fpv9fui4S7E/mqdefault.jpg" width="260" alt="Making a call"></a><br>Making a call</td><td align="center"><a href="https://www.youtube.com/watch?v=NbZAb3cOgk8&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/NbZAb3cOgk8/mqdefault.jpg" width="260" alt="Walkthrough the admin UI"></a><br>Walkthrough the admin UI</td><td align="center"><a href="https://www.youtube.com/watch?v=qiTTKerOOWs&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/qiTTKerOOWs/mqdefault.jpg" width="260" alt="Learns your voice"></a><br>Learns your voice</td></tr>
+<tr><td align="center"><a href="https://www.youtube.com/watch?v=JRhG-fnupO0&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/JRhG-fnupO0/mqdefault.jpg" width="260" alt="Cooking together"></a><br>Cooking together</td><td align="center"><a href="https://www.youtube.com/watch?v=JiR1YV6XYMQ&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/JiR1YV6XYMQ/mqdefault.jpg" width="260" alt="Plays a quiz"></a><br>Plays a quiz</td><td align="center"><a href="https://www.youtube.com/watch?v=rbEEmeoojKM&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/rbEEmeoojKM/mqdefault.jpg" width="260" alt="A vocabulary test"></a><br>A vocabulary test</td></tr>
+</table>
+
+Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
 
 [![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration)
 
