@@ -92,6 +92,13 @@ func TestShippedSkillsLoad(t *testing.T) {
 		if _, _, err := split(raw); err != nil {
 			t.Errorf("%s: %v", e.Name(), err)
 		}
+		// Every translation beside it reads, and brings a description.
+		for _, l := range i18n.All {
+			tr, ok, p := readTranslation(filepath.Join("../../skills", e.Name()), l, nil, nil)
+			if p != nil || (ok && tr.Description == "") {
+				t.Errorf("%s: translation %s: %v", e.Name(), l, p)
+			}
+		}
 	}
 }
 
@@ -116,6 +123,58 @@ func TestTools(t *testing.T) {
 	}
 	if len((&Set{}).Tools()) != 0 {
 		t.Error("tools without skills")
+	}
+}
+
+// A translation beside the skill gives its texts in that language, filled
+// like the skill's own; other languages keep the skill's.
+func TestTranslation(t *testing.T) {
+	sk := loadAbfall(t, abfallCalendar)
+	if sk.Lang != i18n.DE {
+		t.Errorf("own language %q", sk.Lang)
+	}
+	if got := sk.DescriptionIn(i18n.EN); !strings.HasPrefix(got, "Waste collection dates") {
+		t.Errorf("english description: %q", got)
+	}
+	if got := sk.BodyIn(i18n.EN); !strings.Contains(got, "# Waste") || !strings.Contains(got, "calendar.abfuhrtermine") {
+		t.Errorf("english guide not filled: %q", got)
+	}
+	if sk.DescriptionIn(i18n.DE) != sk.Description || sk.BodyIn(i18n.DE) != sk.Body {
+		t.Error("german is not the skill's own")
+	}
+	set := berlinSet(t, sk)
+	open := set.Tools()[0]
+	if d := open.DescribeIn(i18n.EN); !strings.Contains(d, "- abfall: Waste collection dates") {
+		t.Errorf("english skill list: %s", d)
+	}
+	body, err := open.Run(i18n.WithLang(context.Background(), i18n.EN), tools.Invocation{Args: json.RawMessage(`{"name":"abfall"}`)})
+	if err != nil || !strings.Contains(body, "# Waste") {
+		t.Errorf("english open: %q %v", body, err)
+	}
+	body, _ = open.Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"name":"abfall"}`)})
+	if !strings.Contains(body, "# Abfall") {
+		t.Errorf("open without a turn language: %q", body)
+	}
+}
+
+// A skill written in English says so; a language Mira does not speak is a problem.
+func TestOwnLanguage(t *testing.T) {
+	for lang, want := range map[string]string{"en": "", "fr": "language"} {
+		dir := filepath.Join(t.TempDir(), "only")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		skill := "---\nname: only\ndescription: An English skill.\nmetadata:\n  mira:\n    language: " + lang + "\n---\n# Only\n"
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		sk, p := load(dir, nil)
+		switch {
+		case want == "" && (p != nil || sk.Lang != i18n.EN || sk.DescriptionIn(i18n.DE) != "An English skill."):
+			t.Errorf("%s: %+v %v", lang, sk, p)
+		case want != "" && (p == nil || p.kind != want):
+			t.Errorf("%s: problem %v", lang, p)
+		}
 	}
 }
 

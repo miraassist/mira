@@ -137,6 +137,15 @@ func (m *Manager) HasTargets() bool { return len(m.targets) > 0 }
 
 func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
+// lang is the turn's language, for the skill's texts (docs/spec/skill-sprachen.md);
+// without a turn the language at the start.
+func (m *Manager) lang(ctx context.Context) i18n.Lang {
+	if l, ok := i18n.FromContext(ctx); ok {
+		return l
+	}
+	return m.opts.Lang
+}
+
 // place is where a turn's threads live: what the conversation said it
 // belongs to (inv.Place); without that, the satellite's area for voice, the
 // conversation (a Telegram chat) otherwise. A thread lives at one place.
@@ -292,7 +301,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 			th = cur
 		}
 	}
-	out := m.texts().started + "\n\n" + sk.Body + "\n\n" + m.status(th)
+	out := m.texts().started + "\n\n" + sk.BodyIn(m.lang(ctx)) + "\n\n" + m.status(th)
 	if said != "" {
 		out += "\n\n" + said
 	}

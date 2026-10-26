@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/i18n"
 	"strings"
 
 	"github.com/miraassist/mira/internal/tools"
@@ -19,25 +20,21 @@ const (
 )
 
 // Tools are the thread tools; none without a target. The list of targets
-// sits in thread_start's description, fixed for the run, so the cached
-// prompt prefix does not change.
+// sits in thread_start's description, the same for every turn of a language,
+// so the cached prompt prefix does not change.
 func (m *Manager) Tools() []tools.InternalTool {
 	if !m.HasTargets() {
 		return nil
 	}
 	t := m.texts()
-	var list strings.Builder
 	names := make([]string, 0, len(m.targets))
 	for name := range m.targets {
 		names = append(names, name)
 	}
-	for _, name := range sortedNames(names) {
-		fmt.Fprintf(&list, "\n- %s: %s", name, m.targets[name].Description)
-	}
 	empty := `{"type":"object","properties":{}}`
 	out := []tools.InternalTool{
 		{
-			Name: ToolStart, Description: t.startDesc + list.String(),
+			Name: ToolStart, Description: m.describeTargets(m.opts.Lang), DescribeIn: m.describeTargets,
 			Schema: fmt.Sprintf(`{"type":"object","properties":{"target":{"type":"string","enum":%s},"request":{"type":"string","description":%q}},"required":["target","request"]}`,
 				mustJSON(sortedNames(names)), t.requestDesc),
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -134,4 +131,18 @@ func sortedNames(names []string) []string {
 func mustJSON(v any) string {
 	raw, _ := json.Marshal(v)
 	return string(raw)
+}
+
+// describeTargets is thread_start's description in l: what it does and the
+// targets with their skills' descriptions in that language.
+func (m *Manager) describeTargets(l i18n.Lang) string {
+	names := make([]string, 0, len(m.targets))
+	for name := range m.targets {
+		names = append(names, name)
+	}
+	var list strings.Builder
+	for _, name := range sortedNames(names) {
+		fmt.Fprintf(&list, "\n- %s: %s", name, m.targets[name].DescriptionIn(l))
+	}
+	return i18n.Pick(catalog, l).startDesc + list.String()
 }

@@ -76,6 +76,16 @@ func (s *Set) Get(name string) (Skill, bool) {
 	return Skill{}, false
 }
 
+// describe is skill_open's description in l: what it does and the skills
+// with their descriptions in that language.
+func (s *Set) describe(l i18n.Lang) string {
+	var list strings.Builder
+	for _, sk := range s.Skills {
+		fmt.Fprintf(&list, "\n- %s: %s", sk.Name, sk.DescriptionIn(l))
+	}
+	return i18n.Pick(catalog, l).openDesc + list.String()
+}
+
 // Tools returns skill_open, which only reads. With no skill enabled there
 // is none, and the prompt stays as it was.
 func (s *Set) Tools() []tools.InternalTool {
@@ -83,13 +93,10 @@ func (s *Set) Tools() []tools.InternalTool {
 		return nil
 	}
 	t := i18n.Pick(catalog, s.Lang)
-	var list strings.Builder
-	for _, sk := range s.Skills {
-		fmt.Fprintf(&list, "\n- %s: %s", sk.Name, sk.Description)
-	}
 	out := []tools.InternalTool{{
 		Name:        ToolSkillOpen,
-		Description: t.openDesc + list.String(),
+		Description: s.describe(s.Lang),
+		DescribeIn:  s.describe,
 		Schema:      fmt.Sprintf(`{"type":"object","properties":{"name":{"type":"string","description":%q}},"required":["name"]}`, t.openName),
 		ReadOnly:    true,
 		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -108,7 +115,11 @@ func (s *Set) Tools() []tools.InternalTool {
 					return "", err
 				}
 			}
-			return s.withHome(ctx, sk.Body), nil
+			l, ok := i18n.FromContext(ctx)
+			if !ok {
+				l = s.Lang
+			}
+			return s.withHome(ctx, sk.BodyIn(l)), nil
 		},
 	}}
 	return out

@@ -18,7 +18,8 @@ import (
 // tools, so the start of the prompt is shared; that background jobs only
 // read is enforced by the guard, not by hiding tools.
 func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, error) {
-	defs := e.tools.Defs(false)
+	// Skills' texts follow the turn's language (docs/spec/skill-sprachen.md).
+	defs := e.tools.Defs(e.lang(ctx), false)
 	toolList, err := prompt.BuildTools(defs)
 	if err != nil {
 		return prompt.Prefix{}, err

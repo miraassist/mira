@@ -1,6 +1,8 @@
 # Skills in several languages
 
-Status 2026-10-23: draft, not decided, not built. See also [Language](sprache.md) (which language Mira speaks when)
+Status 2026-10-26: first step built: a translation's description and guide, in `skill_open`, `thread_start` and a
+thread's context; question 1 decided (A). Settings, fields, schedules and agents in a translation, the skills view,
+`languages` and questions 2–4 are open. First translation: `quiz`. See also [Language](sprache.md) (which language Mira speaks when)
 and the guide, "Eigenen Skill erstellen".
 
 ## Goal
@@ -83,10 +85,22 @@ make them fit elsewhere; their settings and interfaces would be different.
 **The rule:** only the text differs, even if it names another source (a recipe site in English for `kochen`) → a
 translation. Settings, schedules, actions or interfaces differ → a skill of its own.
 
+## Built (first step, 2026-10-26)
+
+- **The skill's own language** is `metadata.mira.language` (decided: A), German if not said; a language Mira does
+  not speak is a problem of the skill. A skill written only in English says `language: en`; a German translation of
+  it would be `SKILL.de.md`.
+- A translation `SKILL.<lang>.md` carries for now its `description` and the guide (its body); other keys are not read
+  yet. Placeholders are filled as in the skill. A translation that cannot be read is a problem of the skill (stricter
+  than "starts with its own language" above, for now).
+- The texts follow the turn's language where the model meets them: the skill list in `skill_open`, the target list
+  in `thread_start` (both built per turn's language now, not once at the start; the prefix differs per language
+  anyway), the guide on `skill_open`, at a thread's start and in every later turn of a plan's thread.
+- Not yet: schedules (they run with the skill's own texts), the skills view, `languages`.
+
 ## Open questions
 
-1. **The skill's own language:** A: `metadata.mira.language` (default German); B: always German, translations for
-   everything else.
+1. ~~**The skill's own language**~~: decided A, see above.
 2. **Schedules by order:** A: by their order in `SKILL.md` (simple, but moving one breaks the translation); B: an
    optional `id` per schedule that the translation names.
 3. **Which skills first:** the ones that fit everywhere (termin, termin-absagen, wecker, todo, merken, aufgabe,

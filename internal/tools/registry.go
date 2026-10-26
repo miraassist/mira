@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/prompt"
 )
@@ -91,7 +92,12 @@ type InternalTool struct {
 	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
 	// for the conversation, docs/spec/agenten.md).
 	Skill string
-	Run   func(ctx context.Context, inv Invocation) (string, error)
+	// DescribeIn, when set, gives the description in a turn's language: for
+	// tools that list skills, whose texts may come in several languages
+	// (docs/spec/skill-sprachen.md). Description is then the one in the
+	// language at the start.
+	DescribeIn func(l i18n.Lang) string
+	Run        func(ctx context.Context, inv Invocation) (string, error)
 }
 
 func (t InternalTool) on() bool { return t.Enabled == nil || t.Enabled() }
@@ -181,12 +187,25 @@ func (r *Registry) Specs(readOnly bool) []Spec {
 	return out
 }
 
-// Defs is Specs reduced to what the prompt builder needs.
-func (r *Registry) Defs(readOnly bool) []prompt.ToolDef {
+// Defs is Specs reduced to what the prompt builder needs, with the
+// descriptions in lang where a tool has them per language; lang "" keeps the
+// ones from the start.
+func (r *Registry) Defs(lang i18n.Lang, readOnly bool) []prompt.ToolDef {
 	specs := r.Specs(readOnly)
+	per := map[string]func(i18n.Lang) string{}
+	if lang != "" {
+		for _, t := range r.internalTools() {
+			if t.DescribeIn != nil {
+				per[t.Name] = t.DescribeIn
+			}
+		}
+	}
 	out := make([]prompt.ToolDef, len(specs))
 	for i, s := range specs {
 		out[i] = s.ToolDef
+		if f, ok := per[s.Name]; ok && s.Internal {
+			out[i].Description = f(lang)
+		}
 	}
 	return out
 }

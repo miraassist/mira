@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/schedule"
 )
 
@@ -35,10 +36,16 @@ type Skill struct {
 	Description string
 	// Body is the Markdown after the frontmatter, with {{setting}}
 	// placeholders filled in (secret settings never are).
-	Body      string
-	Dir       string
-	Settings  map[string]Setting
-	Schedules []Schedule
+	Body string
+	// Lang is the language SKILL.md is written in (metadata.mira.language,
+	// German if not said); translations are SKILL.<lang>.md beside it, with
+	// only texts (docs/spec/skill-sprachen.md). DescriptionIn and BodyIn give
+	// the texts for a turn's language.
+	Lang         i18n.Lang
+	translations map[i18n.Lang]translation
+	Dir          string
+	Settings     map[string]Setting
+	Schedules    []Schedule
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
 	Target *Target
@@ -210,6 +217,7 @@ type frontmatter struct {
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
+			Language  string               `yaml:"language"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -377,7 +385,76 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		s.MCP = &srv
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
+	if s.Lang, err = i18n.Parse(m.Language); err != nil {
+		return Skill{}, problem("language", m.Language)
+	}
+	for _, l := range i18n.All {
+		if l == s.Lang {
+			continue
+		}
+		t, ok, p := readTranslation(dir, l, vals, m.Settings)
+		if p != nil {
+			return Skill{}, p
+		}
+		if ok {
+			if s.translations == nil {
+				s.translations = map[i18n.Lang]translation{}
+			}
+			s.translations[l] = t
+		}
+	}
 	return s, nil
+}
+
+// translation is a skill's texts in another language than its own. A text it
+// leaves out keeps the skill's own.
+type translation struct {
+	Description, Body string
+}
+
+// readTranslation reads SKILL.<lang>.md: frontmatter with the translated
+// texts by key (the first step: the description), the translated guide as
+// its body, filled like the skill's own.
+func readTranslation(dir string, l i18n.Lang, vals map[string]string, decl map[string]Setting) (translation, bool, *Problem) {
+	name := "SKILL." + string(l) + ".md"
+	raw, err := os.ReadFile(filepath.Join(dir, name))
+	if os.IsNotExist(err) {
+		return translation{}, false, nil
+	}
+	if err != nil {
+		return translation{}, false, problem("translation", name, err)
+	}
+	fm, body, p := split(raw)
+	if p != nil {
+		return translation{}, false, problem("translation", name, p.kind)
+	}
+	var meta struct {
+		Description string `yaml:"description"`
+	}
+	if err := yaml.Unmarshal(fm, &meta); err != nil {
+		return translation{}, false, problem("translation", name, err)
+	}
+	return translation{
+		Description: strings.TrimSpace(meta.Description),
+		Body:        fill(strings.TrimSpace(string(body)), vals, decl),
+	}, true, nil
+}
+
+// DescriptionIn is the skill's description in l: its translation's, else
+// its own.
+func (s Skill) DescriptionIn(l i18n.Lang) string {
+	if t, ok := s.translations[l]; ok && t.Description != "" {
+		return t.Description
+	}
+	return s.Description
+}
+
+// BodyIn is the skill's guide in l: its translation's, else its own.
+func (s Skill) BodyIn(l i18n.Lang) string {
+	if t, ok := s.translations[l]; ok && t.Body != "" {
+		return t.Body
+	}
+	return s.Body
 }
 
 // split separates the YAML frontmatter from the Markdown body.

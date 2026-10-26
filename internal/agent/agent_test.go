@@ -218,7 +218,7 @@ func setup(t *testing.T) *env {
 		},
 		Tools: reg, Guard: guard,
 		Background: func(ctx context.Context, cc CallContext, instructions, input string) (Built, error) {
-			lt, err := BuildTools(reg.Defs(false))
+			lt, err := BuildTools(reg.Defs("", false))
 			return Built{Messages: []llm.Message{{Role: llm.RoleSystem, Content: "Hintergrund"},
 				{Role: llm.RoleUser, Content: instructions + "\n" + input}}, Tools: lt}, err
 		},

@@ -3,6 +3,7 @@ package threads
 import (
 	"context"
 	"fmt"
+	"github.com/miraassist/mira/internal/i18n"
 	"strings"
 
 	"github.com/miraassist/mira/internal/store"
@@ -40,23 +41,23 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, place string,
 	}
 	if sess.ThreadID != "" {
 		if th, err := m.opts.Store.GetThread(ctx, sess.ThreadID); err == nil && store.ThreadOpen(th.State) {
-			return t.headerCurrent + "\n" + m.describe(th), m.isPlan(th) && planOf(th).Foreign
+			return t.headerCurrent + "\n" + m.describe(th, m.lang(ctx)), m.isPlan(th) && planOf(th).Foreign
 		}
 	}
 	open, err := m.opts.Store.OpenThreads(ctx, place)
 	if err != nil || len(open) == 0 {
 		return "", false
 	}
-	return t.headerWaiting + "\n" + m.describe(open[0]), m.isPlan(open[0]) && planOf(open[0]).Foreign
+	return t.headerWaiting + "\n" + m.describe(open[0], m.lang(ctx)), m.isPlan(open[0]) && planOf(open[0]).Foreign
 }
 
 // describe renders a thread for the model: target, request, fields, log
-// and what it waits for.
-func (m *Manager) describe(th store.Thread) string {
+// and what it waits for; the skill's texts in l.
+func (m *Manager) describe(th store.Thread, l i18n.Lang) string {
 	t := m.texts()
 	sk := m.targets[th.Target]
 	var b strings.Builder
-	fmt.Fprintf(&b, t.lineTarget, th.Target, sk.Description)
+	fmt.Fprintf(&b, t.lineTarget, th.Target, sk.DescriptionIn(l))
 	fmt.Fprintf(&b, t.lineRequest, th.Request)
 	b.WriteString(m.status(th))
 	log := th.Log
@@ -76,7 +77,7 @@ func (m *Manager) describe(th store.Thread) string {
 	if m.isPlan(th) {
 		// A plan outlives the conversation that started it: its
 		// instructions go with it into every later one.
-		b.WriteString("\n" + t.planHint + "\n" + t.lineInstructions + "\n" + sk.Body)
+		b.WriteString("\n" + t.planHint + "\n" + t.lineInstructions + "\n" + sk.BodyIn(l))
 	} else {
 		b.WriteString("\n" + t.stateHint[th.State])
 	}
