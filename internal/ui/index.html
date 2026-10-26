@@ -137,7 +137,7 @@ details.item > summary .lead { display: flex; flex-direction: column; align-item
 details.item > summary .short { min-width: 0; color: var(--muted); }
 details.item > summary .short.clip { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 details.item > summary h3 { margin: 0; overflow-wrap: anywhere; }
-details.item.task > summary { --lead: 13em; }
+details.item.task > summary, details.item.agent > summary { --lead: 13em; }
 @media (max-width: 600px) {
   details.item > summary { grid-template-columns: 1.4em minmax(0, 1fr) auto; }
   details.item > summary .short { grid-column: 2 / 4; }

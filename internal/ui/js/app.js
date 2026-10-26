@@ -384,7 +384,7 @@ class MiraAgentDefs extends EditPage {
       ...(a.called_by || []).map(n => T.cat_called_agent(n)),
       own ? "" : T.cat_called_ha,
     ].filter(Boolean);
-    return html`<details class="item">
+    return html`<details class="item agent">
       <summary>
         <span class="lead"><h3>${a.name}</h3></span>
         <span class="short clip">${desc}</span>
