@@ -102,6 +102,53 @@ timeout (300 ms) and never holds up the turn.
 
 - **Log:** one line per turn at debug level with person and score, nothing stored.
 
+## The speaker stays in a running conversation
+
+Status 2026-10-26: built (in the agent, after `identify`; scenarios SP-11 to SP-13 as tests).
+
+**What goes wrong today.** In a running conversation Mira often keeps listening after her answer (a question back,
+the next word of a vocabulary test); the next request comes without a wake word. Such an answer is short ("Dog",
+"Ja") or carries noise or a long pause, and its score falls below the threshold more often than a whole request
+does. `identify` then goes on to the "alone at home" rule or to anonymous: the turn gets another person's session or
+the house's, without the conversation's history and without its thread. A plan in the middle of its work (a quiz, a
+vocabulary test) is gone for that turn, and the model, seeing a bare "Book" with no context, answers "I did not
+understand anything". It happened twice on 2026-10-26: a score of 0.565 for a 9.8-second answer, then the "alone at
+home" rule named the admin.
+
+**The rule.** A turn that continues a conversation at a satellite keeps the conversation's person, unless the voice
+names somebody else.
+
+- **Continues:** Home Assistant sends the same `conversation_id` that Mira's previous answer at this satellite
+  carried, and Mira ended that answer with `continue_conversation` (she asked back or keeps listening). Home
+  Assistant does exactly that for the follow-up turns of a satellite (seen 2026-10-26: one id over seven turns of a
+  vocabulary test, `continue_conversation` true each time). No time window to guess: a new request with the wake
+  word gets a new id and starts over.
+- **Unless the voice names somebody else:** a voice that passes the threshold and the margin (step 2 below) and
+  names another person wins; two people may take turns in one conversation (a quiz with Anna and Ben). Only a voice
+  that names nobody (below the threshold, too close to the second, nothing found, the service down) keeps the
+  conversation's person.
+
+The order in `identify` at a satellite becomes:
+
+1. the signed-in HA user, if Home Assistant names one;
+2. the voice, if it names a person (as above);
+3. **the conversation's person,** if the turn continues a conversation whose person was known;
+4. the "alone at home" rule;
+5. otherwise anonymous.
+
+- **Naming:** a person kept this way counts as recognized: the turn says how Mira knows them ("Es spricht: Anna (im
+  laufenden Gespräch)") and the naming rule below applies.
+- **Why not a lower threshold for follow-ups:** it would hand a stranger's short answer to whoever scores highest;
+  keeping the conversation's person needs no score at all and does not move anyone into a conversation they were
+  not in.
+- **What it costs:** somebody else who answers in Anna's conversation without being recognized speaks as Anna for
+  that turn. That is what the conversation was until a moment ago, at the same satellite, and the "alone at home"
+  rule takes the same risk for longer; what is personal is named, so a mix-up is noticed.
+- **Where:** in the agent, which keeps the session and its `conversation_id` already; the integration and the
+  service stay as they are. The engine remembers, per conversation id, whose conversation Mira's last answer left
+  listening at which satellite (for at most a voice session's time) and applies the rule after `identify`: a
+  signed-in user and a recognized voice keep what `identify` said; "alone at home" and nobody give way.
+
 ## Naming the person
 
 What Mira does for a person she only recognized can go to the wrong one, and nobody would notice. So the turn
@@ -146,3 +193,4 @@ settings and opens the same card.
 4. **Enrolling in Mira's page:** the card "Ich" and the admins' list of persons (above); the service's own page
    goes, the API gets a token.
 5. **A better model,** if short requests (one to two seconds, the usual case) turn out too uncertain.
+6. **The speaker stays in a running conversation** (above): scenarios SP-11 to SP-13. Built.

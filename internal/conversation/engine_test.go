@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/prompt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -52,6 +53,8 @@ type harness struct {
 	clock  *clock
 	// logs holds the engine's log at info level.
 	logs *syncBuffer
+	// identify, when set, says who speaks instead of the default below.
+	identify func(context.Context, conversation.Request) (string, string)
 }
 
 // syncBuffer is a log sink safe for the engine's goroutines.
@@ -155,7 +158,10 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 		Location:  time.UTC,
 		Languages: harnessLanguages,
 		// Telegram chat 42 is Anna; everyone else is unknown.
-		Identify: func(_ context.Context, req conversation.Request) (string, string) {
+		Identify: func(ctx context.Context, req conversation.Request) (string, string) {
+			if h.identify != nil {
+				return h.identify(ctx, req)
+			}
 			if req.Channel == config.ChannelTelegram && req.ConversationID == "42" {
 				return "anna", ""
 			}
@@ -536,6 +542,55 @@ func TestVoiceConfirmationRequestKeepsListening(t *testing.T) {
 	resp := h.say(t, config.ChannelVoice, "v1", "Schließ die Haustür ab")
 	if !resp.ContinueConversation {
 		t.Fatalf("satellite would stop listening: %+v", resp)
+	}
+}
+
+// The voice names whoever said "voice:<person>", nobody otherwise.
+func byVoiceInText(_ context.Context, req conversation.Request) (string, string) {
+	if p, ok := strings.CutPrefix(req.Text, "voice:"); ok {
+		return strings.Fields(p)[0], prompt.ByVoice
+	}
+	return "", ""
+}
+
+// SP-11 a follow-up the voice does not name keeps the conversation's person.
+func TestSP11_FollowUpKeepsTheConversationsPerson(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Wie viele Wörter?"}, fakellm.Step{Content: "Was heißt Hund?"})
+	h.identify = byVoiceInText
+	if resp := h.say(t, config.ChannelVoice, "v1", "voice:anna Vokabeln bitte"); !resp.ContinueConversation {
+		t.Fatalf("the first answer must keep listening: %+v", resp)
+	}
+	h.say(t, config.ChannelVoice, "v1", "Fünf")
+	turn := h.llm.Last().Request.Messages[len(h.llm.Last().Request.Messages)-1].Content
+	if !strings.Contains(turn, "anna (im laufenden Gespräch)") {
+		t.Errorf("the follow-up is not anna's:\n%s", turn)
+	}
+	if !strings.Contains(h.logs.String(), "session=voice:person:anna") || strings.Count(h.logs.String(), "session=voice:person:anna model") != 2 {
+		t.Errorf("both turns belong to anna's session:\n%s", h.logs.String())
+	}
+}
+
+// SP-12 another recognized voice takes over the conversation.
+func TestSP12_AnotherVoiceTakesOver(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Wer spielt mit?"}, fakellm.Step{Content: "Gut, Ben."})
+	h.identify = byVoiceInText
+	h.say(t, config.ChannelVoice, "v1", "voice:anna Quiz bitte")
+	h.say(t, config.ChannelVoice, "v1", "voice:ben Ich")
+	turn := h.llm.Last().Request.Messages[len(h.llm.Last().Request.Messages)-1].Content
+	if !strings.Contains(turn, "ben (an der Stimme erkannt)") {
+		t.Errorf("ben's voice did not win:\n%s", turn)
+	}
+}
+
+// SP-13 a new conversation id starts over: nobody, as before.
+func TestSP13_ANewRequestStartsOver(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Wie viele Wörter?"}, fakellm.Step{Content: "Es ist 9 Uhr."})
+	h.identify = byVoiceInText
+	h.say(t, config.ChannelVoice, "v1", "voice:anna Vokabeln bitte")
+	h.say(t, config.ChannelVoice, "v2", "Wie spät ist es")
+	turn := h.llm.Last().Request.Messages[len(h.llm.Last().Request.Messages)-1].Content
+	if strings.Contains(turn, "anna") {
+		t.Errorf("a new request kept anna:\n%s", turn)
 	}
 }
 

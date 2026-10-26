@@ -11,8 +11,9 @@ import (
 // How a turn's person is known, when Mira recognized them rather than being
 // told (Turn.PersonBy).
 const (
-	ByVoice = "voice" // the speaker-id service heard their voice
-	ByAlone = "alone" // the "alone at home" rule
+	ByVoice        = "voice"        // the speaker-id service heard their voice
+	ByAlone        = "alone"        // the "alone at home" rule
+	ByConversation = "conversation" // they started the conversation this turn continues
 )
 
 // Turn is layer 7: everything that is new about this request. Every volatile
@@ -37,7 +38,7 @@ type Turn struct {
 	// model says it, so the key alone (oma_1) would not do. Empty: the key.
 	PersonName string
 	// PersonBy is how Mira knows the person: "" when they signed in or wrote
-	// from their messenger, ByVoice or ByAlone when she recognized them
+	// from their messenger, ByVoice, ByAlone or ByConversation when she recognized them
 	// (docs/spec/sprecher.md). Then the model names them when it does
 	// something personal for them, so a mix-up is noticed.
 	PersonBy string
@@ -99,6 +100,8 @@ func (t Turn) Render() string {
 			b.WriteString(fmt.Sprintf(l.speakerRecognized, name, l.byVoice))
 		case ByAlone:
 			b.WriteString(fmt.Sprintf(l.speakerRecognized, name, l.byAlone))
+		case ByConversation:
+			b.WriteString(fmt.Sprintf(l.speakerRecognized, name, l.byConversation))
 		default:
 			b.WriteString(fmt.Sprintf(l.speaker, name))
 		}

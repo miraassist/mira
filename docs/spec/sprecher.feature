@@ -66,3 +66,23 @@ Feature: SP Speaker recognition at the satellite
     When the turn is put to the model
     Then the model is told how she knows them, and to name them when it does something personal for them, not in every answer
     And for a person who signed in, it is told neither
+
+  @step6
+  Scenario: SP-11 A follow-up keeps the conversation's person
+    Given anna's voice started a conversation at a satellite and Mira ended her answer with continue_conversation
+    And the next turn comes with the same conversation_id
+    When its voice scores below the threshold, or the service finds nothing
+    Then it is anna, recognized "im laufenden Gespräch", in her session with her thread
+    And what the "alone at home" rule says does not count
+
+  @step6
+  Scenario: SP-12 Another recognized voice takes over
+    Given a conversation of anna at a satellite, continued with the same conversation_id
+    When the next turn's voice names ben above the threshold and the margin
+    Then it is ben
+
+  @step6
+  Scenario: SP-13 A new request starts over
+    Given a conversation of anna at a satellite
+    When the next turn comes with a new conversation_id (a new wake word) and the voice names nobody
+    Then the order goes on as before: the "alone at home" rule, otherwise anonymous

@@ -23,6 +23,7 @@ type texts struct {
 	speaker, personProfile string // %s = person
 	speakerRecognized      string // %s = person, how
 	byVoice, byAlone       string
+	byConversation         string
 	deviceHints            string
 
 	// The sample exchange, see Examples.
@@ -83,6 +84,7 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 			"Wenn du so etwas Persönliches für sie tust, nenn sie kurz beim Namen, damit eine Verwechslung auffällt. Sonst nicht, und nicht in jeder Antwort.",
 		byVoice:             "an der Stimme erkannt",
 		byAlone:             "allein zu Hause",
+		byConversation:      "im laufenden Gespräch",
 		personProfile:       "Persönliches Profil von %s:",
 		messageContext:      "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
@@ -152,6 +154,7 @@ Answer in the language you are addressed in.`,
 			"When you do something personal like that for them, say their name briefly, so a mix-up is noticed. Otherwise don't, and not in every answer.",
 		byVoice:             "recognized by their voice",
 		byAlone:             "alone at home",
+		byConversation:      "in the running conversation",
 		personProfile:       "Personal profile of %s:",
 		messageContext:      "You have just announced (details, in case of follow-up questions):",
 		pendingConfirmation: "You are waiting for a confirmation of: ",

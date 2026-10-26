@@ -129,7 +129,9 @@ type Options struct {
 	// without it, or when it returns "", the model sees the key.
 	PersonName func(person string) string
 	// Identify says who is speaking: a person key, or "" for anonymous, and
-	// how Mira knows (prompt.ByVoice, prompt.ByAlone, or "" when told).
+	// how Mira knows (prompt.ByVoice, prompt.ByAlone, or "" when told). A
+	// turn that continues a conversation may keep its person after that
+	// (continued, prompt.ByConversation).
 	Identify func(ctx context.Context, req Request) (person, by string)
 	// Languages says which language applies (docs/spec/sprache.md); tests
 	// without it get the default language.
@@ -157,13 +159,17 @@ type Engine struct {
 	afterword   func(ctx context.Context, area string) string
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
-	personName  func(person string) string
-	persona     func() string
-	languages   Languages
-	tel         *telemetry.Provider
-	log         *slog.Logger
-	clock       func() time.Time
-	loc         *time.Location
+	// follow are the voice conversations Mira's last answer left listening,
+	// by conversation id: whose they are, at which satellite, since when.
+	followMu   sync.Mutex
+	follow     map[string]followUp
+	personName func(person string) string
+	persona    func() string
+	languages  Languages
+	tel        *telemetry.Provider
+	log        *slog.Logger
+	clock      func() time.Time
+	loc        *time.Location
 
 	// One turn per session at a time, so its history stays in order; turns
 	// of different sessions run at once, limited only by the access to the
@@ -262,6 +268,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if e.identify != nil {
 		person, personBy = e.identify(ctx, req)
 	}
+	person, personBy = e.continued(req, person, personBy)
 	snap := e.structure()
 	area := ""
 	if req.DeviceID != "" {
@@ -289,6 +296,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
 			Rights: agent.AllRights}, ts)
 	resp, err := e.turn(ctx, ts, req, snap)
+	e.noteFollowUp(req, person, err == nil && resp.ContinueConversation)
 	done(agent.Result{Model: resp.Model, FallbackFrom: resp.FallbackFrom, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
 		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}, err)
 	resp.Trace = rec.Events()
@@ -845,4 +853,54 @@ func (e *Engine) nameOf(person string) string {
 func sentLang(s string) bool {
 	_, err := i18n.Parse(s)
 	return s != "" && err == nil
+}
+
+// followUp is a voice conversation Mira's answer left listening.
+type followUp struct {
+	person, device string
+	at             time.Time
+}
+
+// continued is who speaks in a turn that continues a conversation at a
+// satellite (docs/spec/sprecher.md, "The speaker stays in a running
+// conversation"): Home Assistant sends the conversation id Mira's answer
+// carried, at the same satellite, and that answer kept listening. Then the
+// conversation's person stays, unless identify knew better: a signed-in
+// user or a recognized voice wins; only the "alone at home" rule and
+// nobody give way.
+func (e *Engine) continued(req Request, person, by string) (string, string) {
+	if req.Channel != config.ChannelVoice || by == prompt.ByVoice || (person != "" && by == "") {
+		return person, by
+	}
+	e.followMu.Lock()
+	f, ok := e.follow[req.ConversationID]
+	e.followMu.Unlock()
+	if !ok || f.device != req.DeviceID || e.clock().Sub(f.at) > e.cfg.SessionTTL(config.ChannelVoice).Duration() {
+		return person, by
+	}
+	return f.person, prompt.ByConversation
+}
+
+// noteFollowUp remembers whose a voice conversation is when Mira's answer
+// keeps listening, and forgets it when it does not.
+func (e *Engine) noteFollowUp(req Request, person string, listening bool) {
+	if req.Channel != config.ChannelVoice {
+		return
+	}
+	e.followMu.Lock()
+	defer e.followMu.Unlock()
+	if !listening || person == "" {
+		delete(e.follow, req.ConversationID)
+		return
+	}
+	if e.follow == nil {
+		e.follow = map[string]followUp{}
+	}
+	now := e.clock()
+	for id, f := range e.follow { // what nobody continued
+		if now.Sub(f.at) > e.cfg.SessionTTL(config.ChannelVoice).Duration() {
+			delete(e.follow, id)
+		}
+	}
+	e.follow[req.ConversationID] = followUp{person: person, device: req.DeviceID, at: now}
 }
