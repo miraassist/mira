@@ -8,14 +8,16 @@ server:
   announce: false
 
 models:
+  # Gemini for now, also for delegate and the skills' agents (the local model
+  # is too slow here). Local was: http://localhost:1234/v1 (LM Studio),
+  # qwen/qwen3-30b-a3b-2507, privacy local.
   main:
-    endpoint: "http://localhost:1234/v1"   # LM Studio on this host
-    model: "qwen/qwen3-30b-a3b-2507"
-    privacy: local
-    cache_prompt: true
-    temperature: 0.3
-    timeout: 2m
-    context_tokens: 16384
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-latest"
+    privacy: cloud
+    reasoning_effort: low
+    context_tokens: 24000
   # Testing the flows on Gemini Flash (the local model is too slow or not loaded).
   smart:
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -81,6 +83,12 @@ persons:
   anna: { entity: person.anna }
   ben: { entity: person.ben }
 
+# The speaker-id service on this machine (services/speaker-id); its token is
+# SPEAKER_ID_TOKEN in testenv/.env. Off for now (2026-10-26): "alone at home" only.
+# speaker_id:
+#   url: http://localhost:10311
+#   token: ${SPEAKER_ID_TOKEN}
+
 notifier:
   quiet_hours: { from: "23:30", to: "06:30" }
 
@@ -105,3 +113,25 @@ skills:
   briefing:
     kalender: Familie
     themen: Deutschland
+  # Every other shipped skill too, so the test house knows them all; Berlin
+  # where a skill needs a place.
+  apotheke: {}
+  fahrplan:
+    haltestelle: Berlin Hauptbahnhof
+  ferien:
+    bundesland: Berlin
+  fussball: {}
+  geschichte: {}
+  kamera: {}
+  nachrichten: {}
+  pollen: {}
+  quiz: {}
+  routine: {}
+  sprit: {}
+  telefon:
+    user: ${FRITZBOX_USER:-}
+    password: ${FRITZBOX_PASSWORD:-}
+  tuerklingel: {}
+  urlaub: {}
+  vokabeln: {}
+  warnungen: {}
