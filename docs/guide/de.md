@@ -824,17 +824,19 @@ Das Programm `mira` hat ein paar Befehle. Im Container rufst du sie mit `docker 
 ## Einrichtung
 
 Du brauchst zwei Dinge:
-- **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS nimmst du vorerst einen anderen Rechner; ein Add-on kommt später.
+- **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS brauchst du keinen: Mira kommt dann als App (Schritt 2).
 - **Ein KI-Modell (LLM)**, mit dem Mira denkt. Am einfachsten ist ein Cloud-Anbieter wie Google Gemini oder OpenAI. Hast du in Home Assistant schon eine KI-Integration eingerichtet, übernimmt Mira sie samt Schlüssel. Ein eigener Server (LM Studio, Ollama, llama.cpp) geht auch, braucht aber eine starke Grafikkarte.
 
 Eine Config-Datei brauchst du nicht. Drei Schritte:
 
 **1. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
 
-**2. Mira starten.** Auf dem Docker-Rechner, eine Zeile:
+**2. Mira starten.** Mit Home Assistant OS als App: Einstellungen → Apps → App-Store → Repositories → `https://github.com/miraassist/mira` hinzufügen, dann **Mira** installieren und starten. In Schritt 3 steht Mira dann nicht unter **Entdeckt**: **Integration hinzufügen** → **Mira**, als Adresse `http://localhost:8787`.
+
+Sonst auf dem Docker-Rechner, eine Zeile:
 
 ```sh
-docker run -d --name mira --restart unless-stopped --network host \
+docker run -d --name mira --restart unless-stopped --network host --user nonroot \
   -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
 ```
 

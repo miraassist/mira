@@ -1,0 +1,6 @@
+# Home Assistant app repository: add https://github.com/miraassist/mira under
+# Settings → Apps → App store → Repositories. The app is in app/
+# (docs/spec/app.md); the integration comes through HACS.
+name: Mira
+url: https://github.com/miraassist/mira
+maintainer: Mira <https://github.com/miraassist/mira>

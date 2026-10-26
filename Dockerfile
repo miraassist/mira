@@ -1,9 +1,13 @@
 # Mira agent. Two stages: build a static binary with the Go image, then run it
 # on distroless/static, which holds only CA certificates (for HTTPS to model
-# APIs, Telegram, calendars), time zone data and a non-root user.
+# APIs, Telegram, calendars), time zone data and the users root and nonroot.
+#
+# The image runs as root, as a Home Assistant app must: Home Assistant gives
+# the app root-owned folders (docs/spec/app.md). As a container of your own,
+# run it as nonroot (the data folder belongs to nonroot):
 #
 #   docker build -t mira .
-#   docker run -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira \
+#   docker run --user nonroot -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira \
 #     -p 8787:8787 -e TZ=Europe/Berlin mira
 #
 # The config sets store.path: /var/lib/mira/mira.db (as in mira.example.yaml).
@@ -23,7 +27,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w ${VERSION:+-X main.version=${VERSION}}" -o /out/mira ./cmd/mira
 RUN mkdir -p /out/data
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 COPY --from=build /out/mira /app/mira
 COPY skills /app/skills

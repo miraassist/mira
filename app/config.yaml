@@ -1,0 +1,25 @@
+# The Mira service as a Home Assistant app (docs/spec/app.md). The image is the
+# one for containers, ghcr.io/miraassist/mira. "version" is set by the release
+# workflow once the image of that version is on ghcr.io; do not raise it by hand.
+name: Mira
+version: "0.9.0"
+slug: mira
+description: The household voice agent behind the Mira integration.
+url: https://github.com/miraassist/mira
+arch:
+  - amd64
+  - aarch64
+image: ghcr.io/miraassist/mira
+init: false
+startup: application
+boot: auto
+ports:
+  8787/tcp: 8787
+ports_description:
+  8787/tcp: Mira's API; the integration connects here
+map:
+  - addon_config:rw
+environment:
+  MIRA_CONFIG: /config/mira.yaml
+  MIRA_DATA: /data
+  MIRA_LISTEN: 0.0.0.0:8787

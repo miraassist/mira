@@ -2,7 +2,10 @@ name: Release
 
 # Agent and integration share one version. A tag vX.Y.Z releases both: HACS
 # picks the tag up for the integration, the agent binaries are attached and
-# the image goes to ghcr.io/<owner>/mira (amd64, arm64).
+# the image goes to ghcr.io/<owner>/mira (amd64, arm64). Once the image is
+# there, the Home Assistant app (app/config.yaml) gets the version, so Home
+# Assistant never offers an update whose image does not exist yet
+# (docs/spec/app.md).
 on:
   push:
     tags: ["v*"]
@@ -74,3 +77,24 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  app:
+    name: App version
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+      - name: Give the app the tag's version, now that its image exists
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version: .*/version: \"$version\"/" app/config.yaml
+          if git diff --quiet; then
+            echo "app/config.yaml is at $version already"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "App: version $version"
+          git push origin main

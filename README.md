@@ -43,9 +43,12 @@ No config file, three steps (details and troubleshooting in the guide:
 1. **Install the integration** with the HACS button above, restart Home Assistant.
 2. **Start the agent** on a machine with Docker in your home network:
    ```sh
-   docker run -d --name mira --restart unless-stopped --network host \
+   docker run -d --name mira --restart unless-stopped --network host --user nonroot \
      -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
    ```
+   With Home Assistant OS, install it as an app instead: Settings → Apps → App store → Repositories →
+   `https://github.com/miraassist/mira`, then **Mira**. In step 3 add the integration by hand with the address
+   `http://localhost:8787`.
 3. Settings → Devices & services: **Mira** is under **Discovered** → **Add**. The dialog asks for
    An overview shows what is chosen and what is missing: the AI model (LLM: an AI integration
    Home Assistant already has, OpenAI, Gemini, OpenRouter or Mistral with your key, or a server of
@@ -72,11 +75,14 @@ Or in Docker (the `Dockerfile` builds a static binary on distroless, about
 
 ```sh
 docker build -t mira .
-docker run -d --name mira --network host -e TZ=Europe/Berlin --env-file .env \
+docker run -d --name mira --network host --user nonroot -e TZ=Europe/Berlin --env-file .env \
   -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira mira
 ```
 
-The database goes to `/var/lib/mira/mira.db` in the image (`MIRA_DATA`),
+The image runs as root, as a Home Assistant app needs; as a container of your own run it as
+`nonroot` (`--user nonroot`, in Compose `user: nonroot`), who owns the data folder. With a folder
+of your own instead of a volume, give it the user you run as. The database goes to
+`/var/lib/mira/mira.db` in the image (`MIRA_DATA`),
 `mira.db` in the working directory otherwise; `store.path` changes it. The
 built-in skills are in the image. `--network host` lets the integration find
 the agent by mDNS; without it, publish the port (`-p 8787:8787`) and enter
