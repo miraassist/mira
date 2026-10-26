@@ -2018,29 +2018,40 @@ function memoryCard(m, r) {
     ${facts}</section>`;
 }
 // editFact turns the row into a text field; Enter saves, Escape cancels.
+// editFact and forget change the one row in place: the page stays where it
+// is (a fact may be far down, on the card "Ich").
 function editFact(id) {
   const row = document.querySelector(`tr[data-fact="${CSS.escape(id)}"]`);
+  const before = row.innerHTML;
   const cell = row.querySelector("td.fact"), text = row.querySelector(".text").textContent;
   cell.innerHTML = `<textarea rows="2">${esc(text)}</textarea>`;
   row.querySelector("td.fact-actions").innerHTML = `<button class="primary">${T.save}</button> <button class="secondary">${T.dlg_cancel}</button>`;
   const area = cell.querySelector("textarea"), [save, cancel] = row.querySelectorAll("td.fact-actions button");
+  const back = (t = text) => { row.innerHTML = before; row.querySelector(".text").textContent = t; };
   const store = async () => {
     const t = area.value.trim();
-    if (!t || t === text) { render(); return; }
-    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); render(); } catch (e) { message(e.message, false); }
+    if (!t || t === text) { back(); return; }
+    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); back(t); } catch (e) { message(e.message, false); }
   };
   save.onclick = store;
-  cancel.onclick = () => render();
+  cancel.onclick = () => back();
   area.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); store(); }
-    if (e.key === "Escape") render();
+    if (e.key === "Escape") back();
   });
   area.focus();
   area.setSelectionRange(area.value.length, area.value.length);
 }
 async function forget(id) {
   if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
-  try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); render(); } catch (e) { message(e.message, false); }
+  try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); } catch (e) { message(e.message, false); return; }
+  const row = document.querySelector(`tr[data-fact="${CSS.escape(id)}"]`), card = row && row.closest("section.card");
+  if (!row) { render(); return; }
+  row.remove();
+  const left = card.querySelectorAll("tr[data-fact]").length;
+  if (left === 0) { render(); return; } // the card says how to fill it again
+  const badge = card.querySelector("h2 .badge");
+  if (badge) badge.textContent = left;
 }
 // The memory as a file (docs/spec/gedaechtnis-datei.md): export downloads
 // what this page shows; import shows what a file changes and asks first.
