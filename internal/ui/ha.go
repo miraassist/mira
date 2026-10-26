@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/config"
 	"net/http"
 	"sort"
 )
@@ -147,10 +148,15 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "body must be {persons, rooms}: "+err.Error())
 		return
 	}
-	sections, err := h.haSections(in)
+	sections, unknown, err := h.haSections(in)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
+	}
+	if len(unknown) > 0 {
+		// A newer integration than this Mira: what she does not know waits
+		// for her update (docs/spec/versionen.md).
+		h.log.Info("fields from Home Assistant this Mira does not know, left out", "fields", unknown)
 	}
 	if err := h.opts.Config.SetSections(r.Context(), sections); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
@@ -177,9 +183,13 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 }
 
 // haSections turns what the integration sends into config sections.
-func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
+func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string, error) {
 	if len(in.Persons) == 0 || string(in.Persons) == "null" {
 		in.Persons = json.RawMessage("{}")
+	}
+	persons, unknown, err := knownPersonFields(in.Persons)
+	if err != nil {
+		return nil, nil, err
 	}
 	sats := map[string]string{}
 	mt := morningTrigger{Areas: []string{}, Presence: map[string]entityList{}}
@@ -187,10 +197,10 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 	seen := map[string]bool{}
 	for _, room := range in.Rooms {
 		if room.Area == "" {
-			return nil, fmt.Errorf("a room has no area")
+			return nil, nil, fmt.Errorf("a room has no area")
 		}
 		if seen[room.Area] {
-			return nil, fmt.Errorf("area %s is configured twice", room.Area)
+			return nil, nil, fmt.Errorf("area %s is configured twice", room.Area)
 		}
 		seen[room.Area] = true
 		if room.Satellite != "" {
@@ -213,23 +223,53 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, error) {
 	// from the rooms.
 	raw, _, err := h.opts.Config.Section("notifier")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var notifier map[string]any
 	if err := json.Unmarshal(raw, &notifier); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	notifier["morning_trigger"] = mt
 	notifier["room_mode"] = modes
 	notifier["indicators"] = indicators
 	notifierJSON, err := json.Marshal(notifier)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	satsJSON, _ := json.Marshal(sats)
 	return map[string]json.RawMessage{
-		"persons": in.Persons, "satellites": satsJSON, "notifier": notifierJSON,
-	}, nil
+		"persons": persons, "satellites": satsJSON, "notifier": notifierJSON,
+	}, unknown, nil
+}
+
+// knownPersonFields keeps of each person what mira.yaml has a key for, and
+// says which other fields it left out. Persons become part of mira.yaml,
+// which is read strictly; a field a newer integration sends must not stop
+// this Mira (docs/spec/versionen.md).
+func knownPersonFields(raw json.RawMessage) (json.RawMessage, []string, error) {
+	var persons map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &persons); err != nil {
+		return nil, nil, fmt.Errorf("persons: %w", err)
+	}
+	known, seen := config.PersonFields(), map[string]bool{}
+	for _, p := range persons {
+		for k := range p {
+			if !known[k] {
+				delete(p, k)
+				seen[k] = true
+			}
+		}
+	}
+	out, err := json.Marshal(persons)
+	if err != nil {
+		return nil, nil, err
+	}
+	unknown := make([]string, 0, len(seen))
+	for k := range seen {
+		unknown = append(unknown, k)
+	}
+	sort.Strings(unknown)
+	return out, unknown, nil
 }
 
 // deleteHA hands the sections back to the web UI. Their values stay.

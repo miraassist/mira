@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -464,6 +465,21 @@ type Person struct {
 	// VoiceThreshold is this person's own speaker_id threshold, for a voice
 	// that scores lower or higher than most (docs/spec/sprecher.md).
 	VoiceThreshold float64 `yaml:"voice_threshold,omitempty"`
+}
+
+// PersonFields are the keys a person has in mira.yaml, from Person's yaml
+// tags: what Mira takes of a person Home Assistant sends
+// (docs/spec/versionen.md).
+func PersonFields() map[string]bool {
+	out := map[string]bool{}
+	t := reflect.TypeOf(Person{})
+	for i := range t.NumField() {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("yaml"), ",")
+		if name != "" && name != "-" {
+			out[name] = true
+		}
+	}
+	return out
 }
 
 // Whose messages a person takes (Person.AcceptFrom).

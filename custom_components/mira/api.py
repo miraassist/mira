@@ -31,6 +31,11 @@ class MiraBadCode(MiraError):
     """The pairing code is wrong, used up or expired."""
 
 
+class MiraNotFound(MiraError):
+    """The agent does not have that path: an older agent than this
+    integration (docs/spec/versionen.md)."""
+
+
 class MiraInvalidConfig(MiraError):
     """The agent refused a config change; the message says why. For the
     model, reason is one of unreachable, bad_key, no_model, no_tools,
@@ -85,7 +90,8 @@ class MiraClient:
                             reason = f": {body['error']}"
                     except (ValueError, aiohttp.ContentTypeError):
                         pass
-                    raise MiraError(f"{method} {path}: HTTP {resp.status}{reason}")
+                    error = MiraNotFound if resp.status == 404 else MiraError
+                    raise error(f"{method} {path}: HTTP {resp.status}{reason}")
                 return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MiraError(f"{method} {path}: {err!r}") from err
@@ -110,8 +116,13 @@ class MiraClient:
         await self._request("POST", "/v1/setup/probe", 200, json={"llm": llm})
 
     async def providers(self) -> dict[str, tuple[str, str]]:
-        """The cloud providers the agent knows: key → (name, address)."""
-        body = await self._request("GET", "/v1/setup/providers", 10)
+        """The cloud providers the agent knows: key → (name, address). An
+        agent older than the list (before 0.8.0) knows none: then only a
+        model of one's own can be set up."""
+        try:
+            body = await self._request("GET", "/v1/setup/providers", 10)
+        except MiraNotFound:
+            return {}
         return {str(p["key"]): (str(p["name"]), str(p["base_url"])) for p in body.get("providers") or []}
 
     async def models(self, base_url: str, api_key: str) -> list[str]:

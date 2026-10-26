@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,12 +13,23 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MiraClient, MiraError, MiraInvalidConfig
-from .const import CONF_IMPORTED, DOMAIN
+from .const import CONF_IMPORTED, DOMAIN, VERSION
 from .mail import ensure_calendars
 from .managed import async_config, exposed_entities, exposed_hash
 from .once import sweep
 
 _LOGGER = logging.getLogger(__name__)
+
+# The repair when the agent and this integration are not the same version
+# (major.minor; a patch apart is fine): docs/spec/versionen.md.
+ISSUE_VERSION = "version_mismatch"
+
+
+def _minor(version: Any) -> tuple[int, int] | None:
+    """major.minor of a version like 0.9.0 or v0.9.0; None for anything else."""
+    if m := re.match(r"v?(\d+)\.(\d+)", str(version or "")):
+        return int(m[1]), int(m[2])
+    return None
 
 
 class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -28,12 +40,16 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     or restarted with an empty database gets them on the next poll.
     """
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, client: MiraClient) -> None:
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, client: MiraClient, agent_version: str | None = None
+    ) -> None:
         super().__init__(
             hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=60)
         )
         self.client = client
         self._synced = False
+        # From /v1/health at setup; a newer agent says it in /v1/status too.
+        self.agent_version = agent_version
 
     async def _async_update_data(self) -> dict[str, Any]:
         # Finished one-time timers go, whether or not the agent answers.
@@ -51,7 +67,25 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception:  # noqa: BLE001 - a missing calendar must not stop the status
             _LOGGER.exception("Creating the calendars of the mail entries failed")
         self._show_problems(status.get("problems") or [])
+        self._show_version(status.get("version") or self.agent_version)
         return status
+
+    def _show_version(self, agent: Any) -> None:
+        """A repair while the agent and this integration are not the same
+        version, saying which of the two to update; gone once they match."""
+        ours, theirs = _minor(VERSION), _minor(agent)
+        if ours is None or theirs is None or ours == theirs:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_VERSION)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            ISSUE_VERSION,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="version_agent_older" if theirs < ours else "version_agent_newer",
+            translation_placeholders={"integration": VERSION, "agent": str(agent).lstrip("v")},
+        )
 
     def _show_problems(self, problems: list[dict[str, Any]]) -> None:
         """What did not start at the agent (a skill with a wrong setting, an

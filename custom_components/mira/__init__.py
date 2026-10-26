@@ -182,7 +182,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
         entry_type=dr.DeviceEntryType.SERVICE,
         sw_version=f"Integration {VERSION} · Agent {health.get('version', '?')}",
     )
-    coordinator = MiraCoordinator(hass, entry, client)
+    coordinator = MiraCoordinator(hass, entry, client, agent_version=health.get("version"))
     # Not first_refresh: an agent that is down at boot must not take the
     # conversation entity with it. That entity speaks an error instead of
     # leaving the satellite silent; the sensor and switch go unavailable.

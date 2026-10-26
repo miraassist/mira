@@ -351,7 +351,9 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Problems != nil {
 		problems = append(problems, s.opts.Problems()...)
 	}
-	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems}
+	// version lets the integration say when it and the agent do not match
+	// (docs/spec/versionen.md).
+	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems, "version": s.opts.Version}
 	if s.opts.ExposedHash != nil {
 		status["exposed_hash"] = s.opts.ExposedHash(r.Context())
 	}

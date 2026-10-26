@@ -81,3 +81,18 @@ func TestHomeAssistantSendsTheLogins(t *testing.T) {
 		t.Errorf("logins set without any: %v", cfg.logins)
 	}
 }
+
+// A newer integration may send a person field this Mira does not know: the
+// sync goes through, the field is left out (docs/spec/versionen.md, VE-01).
+func TestHomeAssistantFieldsFromANewerIntegration(t *testing.T) {
+	srv, cfg, _ := setup(t)
+	code, body := call(t, srv, "PUT", "/v1/ui/ha", "secret",
+		`{"persons":{"anna":{"entity":"person.anna","alone_is_me":true,"from_the_future":7}},"rooms":[],"later":{"x":1}}`)
+	if code != 200 {
+		t.Fatalf("put: %d %s", code, body)
+	}
+	got := string(cfg.sections["persons"])
+	if !strings.Contains(got, `"alone_is_me":true`) || !strings.Contains(got, `"entity":"person.anna"`) || strings.Contains(got, "from_the_future") {
+		t.Errorf("persons = %s", got)
+	}
+}
