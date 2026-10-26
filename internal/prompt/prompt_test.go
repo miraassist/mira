@@ -421,6 +421,24 @@ func TestTurnCarriesTheDeviceHints(t *testing.T) {
 	}
 }
 
+// A language that came with the request is named right before the message;
+// without one (Telegram) nothing is, so a person can switch by writing.
+func TestTurnNamesTheReplyLanguage(t *testing.T) {
+	turn := Turn{Lang: i18n.EN, Now: time.Date(2026, 10, 26, 9, 0, 0, 0, time.UTC), Text: "let's play a quiz"}
+	if strings.Contains(turn.Render(), "Reply in English.") {
+		t.Fatal("named without a language from the request")
+	}
+	turn.ReplyInLang = true
+	got := turn.Render()
+	if !strings.HasSuffix(got, "Reply in English.\n\n## Message\nlet's play a quiz") {
+		t.Errorf("not named right before the message:\n%s", got)
+	}
+	turn.Lang = i18n.DE
+	if !strings.Contains(turn.Render(), "Antworte auf Deutsch.\n\n## Nachricht") {
+		t.Error("german line missing")
+	}
+}
+
 // The model is told the person's name, not their key: it says it.
 func TestTurnNamesThePerson(t *testing.T) {
 	turn := Turn{Lang: i18n.DE, Person: "oma_1", PersonName: "Oma", PersonBy: ByVoice, PersonProfile: "mag Kreuzworträtsel"}

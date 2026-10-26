@@ -18,10 +18,12 @@ type texts struct {
 
 	// Layer 7.
 	timeLabel, remember, messageContext, pendingConfirmation, pendingRule, extraContext string
-	speaker, personProfile                                                              string // %s = person
-	speakerRecognized                                                                   string // %s = person, how
-	byVoice, byAlone                                                                    string
-	deviceHints                                                                         string
+	// replyIn names the answer's language, last before the message (Turn.ReplyInLang).
+	replyIn                string
+	speaker, personProfile string // %s = person
+	speakerRecognized      string // %s = person, how
+	byVoice, byAlone       string
+	deviceHints            string
 
 	// The sample exchange, see Examples.
 	exampleChannel, exampleArea, exampleLight                      string
@@ -86,6 +88,7 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
 		pendingRule:         "Wenn der Nutzer jetzt zustimmt, führe genau diese Aktion aus. Wenn er ablehnt oder etwas anderes sagt, führe sie nicht aus.",
 		extraContext:        "Zusätzlicher Kontext:",
+		replyIn:             "Antworte auf Deutsch.",
 
 		exampleChannel:    "Kanal: Beispiel.",
 		exampleArea:       "Hobbyraum",
@@ -154,6 +157,7 @@ Answer in the language you are addressed in.`,
 		pendingConfirmation: "You are waiting for a confirmation of: ",
 		pendingRule:         "If the user agrees now, perform exactly this action. If they decline or say something else, do not perform it.",
 		extraContext:        "Additional context:",
+		replyIn:             "Reply in English.",
 
 		exampleChannel:    "Channel: example.",
 		exampleArea:       "Hobby room",

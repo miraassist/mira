@@ -388,6 +388,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		MessageContext: messageText,
 		Thread:         threadText,
 		Extra:          req.Extra,
+		ReplyInLang:    sentLang(req.Language),
 		Text:           req.Text,
 	}
 	if c, err := e.store.TakeConfirmation(ctx, key); err == nil {
@@ -837,4 +838,11 @@ func (e *Engine) nameOf(person string) string {
 		return ""
 	}
 	return e.personName(person)
+}
+
+// sentLang tells whether a request brought a language Mira can read, the
+// Assist pipeline's (docs/spec/sprache.md).
+func sentLang(s string) bool {
+	_, err := i18n.Parse(s)
+	return s != "" && err == nil
 }

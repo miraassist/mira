@@ -56,6 +56,14 @@ type Turn struct {
 	// Extra carries anything an adapter passes through, such as HA's
 	// extra_system_prompt. It is deliberately confined to this layer.
 	Extra string
+	// ReplyInLang says Lang came with the request (the Assist pipeline's):
+	// then the answer's language is named right before the message. The
+	// rule to answer in the language one is addressed in sits early, before
+	// the persona, the house and the skills, which may all be in another
+	// language; a short request at the end is not enough against that.
+	// Without it (Telegram: the person's last language) nothing is named, so
+	// a person can switch language by writing in another one.
+	ReplyInLang bool
 	// Text is what the user said.
 	Text string
 }
@@ -124,6 +132,9 @@ func (t Turn) Render() string {
 	if s := strings.TrimSpace(t.Extra); s != "" {
 		b.WriteString("\n\n" + l.extraContext + "\n")
 		b.WriteString(s)
+	}
+	if t.ReplyInLang {
+		b.WriteString("\n\n" + l.replyIn)
 	}
 	b.WriteString("\n\n" + l.headerMessage + "\n")
 	b.WriteString(t.Text)

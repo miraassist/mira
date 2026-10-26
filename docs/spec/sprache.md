@@ -6,7 +6,7 @@ Status 2026-10-16: built in 0.6.14. Applies to all channels. See also [Context](
 
 Mira speaks the language that is spoken. In the house, it is not "the house" that has a language, but each conversation. There is no separate setting for the language.
 
-The language determines Mira's own texts: her rules and the channel style in the prompt, fixed sentences ("Übrigens: …", hints), announcements and what she writes on her own. That she answers in the language in which she is addressed is governed, as before, by a line in her rules.
+The language determines Mira's own texts: her rules and the channel style in the prompt, fixed sentences ("Übrigens: …", hints), announcements and what she writes on her own. That she answers in the language in which she is addressed is governed, as before, by a line in her rules. When the language came with the request (the Assist pipeline's), the turn also names it right before the message ("Reply in English."): the rule sits early, before the persona, the house, the skills and the memories, which may all be in the house's other language, and with only the short request at the end the model kept to that language (2026-10-26, an English quiz in a German house). Without a language from the request (Telegram) nothing is named, so a person can switch by writing in another language.
 
 ## Which language when
 
