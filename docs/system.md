@@ -98,7 +98,7 @@ flowchart LR
 | `internal/profile` | Nightly condensation of the facts into the household profile |
 | `internal/ui` | Web UI and its API (`/v1/ui/*`), with each person's card ("Ich": settings, enrolling the voice) and the admins' list of persons |
 | `internal/speakerid` | Client of the speaker-id service: who said a satellite turn's text (`/api/match`, 300 ms at most; Mira decides with `speaker_id.threshold` or a person's `voice_threshold`), and enrolling for the page ([Speaker recognition](spec/sprecher.md)) |
-| `services/speaker-id` | Optional, a container of its own: a Wyoming STT proxy in front of the real STT that passes the audio on and compares a speaker embedding (sherpa-onnx, CPU) with the enrolled persons. No audio is kept; voice prints in its data directory. API on port 10311 behind `SPEAKER_TOKEN` ([Speaker recognition](spec/sprecher.md)) |
+| `services/speaker-id` | Optional, a container of its own: a Wyoming STT proxy in front of the real STT that passes the audio on and compares a speaker embedding (sherpa-onnx, CPU) with the enrolled persons. No audio is kept; voice prints in its data directory. API on port 10311 behind `SPEAKER_TOKEN`. Released on its own (tag `speaker-id-vX.Y.Z`, image `ghcr.io/miraassist/speaker-id`) ([Speaker recognition](spec/sprecher.md)) |
 | `internal/announce` | mDNS advertisement (`_mira._tcp`) so that HA finds Mira. Only IPv4 addresses: IPv6 addresses are mostly temporary and expire; in addition, the integration keeps an address that answers and never adopts an IPv6 address |
 | `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Configuration (with the page's edits of mira.yaml and the secrets file, [Editing](spec/bearbeiten.md)), languages, cron, OpenTelemetry |
 

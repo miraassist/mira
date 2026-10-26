@@ -1,0 +1,54 @@
+name: Speaker ID
+
+# The speaker-id service (services/speaker-id) changes far less often than
+# Mira, so it has releases of its own: a tag speaker-id-vX.Y.Z builds its
+# image to ghcr.io/<owner>/speaker-id (amd64, arm64). The model is not in the
+# image; the service downloads it on its first start (docs/spec/sprecher.md).
+on:
+  push:
+    tags: ["speaker-id-v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - id: version
+        name: compose.yaml names the tag's version
+        run: |
+          want="${GITHUB_REF_NAME#speaker-id-v}"
+          if ! grep -q "image: ghcr.io/miraassist/speaker-id:$want\$" services/speaker-id/compose.yaml; then
+            echo "services/speaker-id/compose.yaml does not name $want" >&2
+            exit 1
+          fi
+          echo "version=$want" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/speaker-id
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Mira speaker ID
+            org.opencontainers.image.description=Wyoming STT proxy that recognizes who spoke, for Mira
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: services/speaker-id
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=speaker-id
+          cache-to: type=gha,scope=speaker-id,mode=max

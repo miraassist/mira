@@ -51,6 +51,14 @@ satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio
 - **Enrolling** happens in Mira's page (below); the service has no page of its own. Its API is behind a token
   (`SPEAKER_TOKEN`), which only Mira has.
 - **Deployment:** its own `compose.yaml`; the data directory is a setting (`SPEAKER_ID_DATA`).
+- **Releases of its own:** the service changes far less often than Mira, so it is not built with every Mira
+  release. A tag `speaker-id-vX.Y.Z` builds `ghcr.io/miraassist/speaker-id` (amd64, arm64) through
+  `.github/workflows/speaker-id.yml`; `compose.yaml` names that version (the workflow refuses a tag it does not
+  name). The first release took Mira's version then, 0.10.0. The model is not in the image: the service downloads
+  it on its first start into the data directory and keeps it there across updates.
+- **Mira and the service in different versions:** the two are updated separately, so the rule of
+  [Versions](versionen.md) applies between them too: a new field is optional both ways, the receiver ignores what
+  it does not know and copes with what is missing.
 
 ## Which utterance is the turn's
 

@@ -154,9 +154,9 @@ Die Stimmerkennung ist **freiwillig**. Ohne sie läuft Mira wie bisher; auf dein
 
 **Für Kinder und andere ohne Login** lernt ein Admin die Stimme an: Einstellungen → **Personen** → die Person → **Stimme anlernen**; die Person spricht, der Admin tippt **Das war Ben**. Dort setzt ein Admin auch die **Schwelle für die Stimme** einer Person: niedriger, wenn ihre Stimme oft nicht erkannt wird, höher, wenn sie mit einer anderen verwechselt wird. Ohne Angabe gilt 0,7.
 
-**Einrichten** (für den, der Mira betreibt). Die Stimmerkennung ist ein eigener kleiner Dienst, `services/speaker-id` im Mira-Repository. Er sitzt vor deiner Spracherkennung (etwa faster-whisper), reicht das Audio unverändert weiter und erkennt nebenbei die Stimme; er braucht keine Grafikkarte.
+**Einrichten** (für den, der Mira betreibt). Die Stimmerkennung ist ein eigener kleiner Dienst, ein Container (`ghcr.io/miraassist/speaker-id`). Er sitzt vor deiner Spracherkennung (etwa faster-whisper), reicht das Audio unverändert weiter und erkennt nebenbei die Stimme; er braucht keine Grafikkarte.
 
-1. Im Repository `services/speaker-id/.env` mit einem langen, zufälligen Token anlegen (`SPEAKER_TOKEN=…`), dazu bei Bedarf `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, die Adresse deiner bisherigen Spracherkennung. Dann `docker compose -f services/speaker-id/compose.yaml up -d --build`. Die Stimmabdrücke liegen danach in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` ändert das).
+1. In einem leeren Ordner die [compose.yaml](https://raw.githubusercontent.com/miraassist/mira/main/services/speaker-id/compose.yaml) speichern und daneben eine `.env` mit einem langen, zufälligen Token anlegen (`SPEAKER_TOKEN=…`), dazu bei Bedarf `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, die Adresse deiner bisherigen Spracherkennung. Dann `docker compose up -d`. Beim ersten Start lädt der Dienst sein Modell (etwa 25 MB). Die Stimmabdrücke liegen danach in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` ändert das).
 2. In Home Assistant: Einstellungen → Geräte & Dienste → **Wyoming Protocol** hinzufügen, Adresse des Dienstes, Port **10310**. Dann unter Einstellungen → Sprachassistenten im Assistenten mit Mira als **Spracherkennung** den neuen Eintrag **speaker-id** wählen. Der Text bleibt derselbe wie vorher.
 3. In Miras `mira.yaml`:
 

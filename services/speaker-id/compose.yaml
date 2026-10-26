@@ -3,12 +3,17 @@
 # Mira is on port 10311, behind SPEAKER_TOKEN (set it in .env next to this file; Mira's speaker_id.token is
 # the same). Enrolling happens in Mira's page. Keeps voice prints only, no audio (docs/spec/sprecher.md).
 #
-#   docker compose -f services/speaker-id/compose.yaml up -d --build
+#   docker compose -f compose.yaml up -d
+#
+# That pulls the released image; --build builds it from this folder instead. The service has releases
+# of its own (tag speaker-id-vX.Y.Z, .github/workflows/speaker-id.yml), which raises the version below.
+# The model is downloaded on the first start, into the data directory.
 #
 # The voice prints live outside the repository (SPEAKER_ID_DATA), so a worktree or checkout can go
 # without taking them along.
 services:
   speaker-id:
+    image: ghcr.io/miraassist/speaker-id:0.10.0
     build: .
     container_name: speaker-id
     restart: unless-stopped

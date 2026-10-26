@@ -150,9 +150,9 @@ Speaker recognition is **optional**. Without it Mira works as before; **Enroll t
 
 **For children and others without a login** an admin enrolls the voice: Settings → **People** → the person → **Enroll the voice**; the person speaks, the admin taps **That was Ben**. There an admin also sets a person's **voice threshold**: lower when their voice is often not recognized, higher when it is mistaken for another. Without one, 0.7 applies.
 
-**Setting it up** (for whoever runs Mira). Speaker recognition is a small service of its own, `services/speaker-id` in Mira's repository. It sits in front of your speech recognition (faster-whisper, say), passes the audio on unchanged and recognizes the voice beside it; it needs no graphics card.
+**Setting it up** (for whoever runs Mira). Speaker recognition is a small service of its own, a container (`ghcr.io/miraassist/speaker-id`). It sits in front of your speech recognition (faster-whisper, say), passes the audio on unchanged and recognizes the voice beside it; it needs no graphics card.
 
-1. In the repository create `services/speaker-id/.env` with a long random token (`SPEAKER_TOKEN=…`), and if needed `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, the address of your speech recognition so far. Then `docker compose -f services/speaker-id/compose.yaml up -d --build`. The voice prints are then kept in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` changes that).
+1. In an empty folder save the [compose.yaml](https://raw.githubusercontent.com/miraassist/mira/main/services/speaker-id/compose.yaml) and next to it create a `.env` with a long random token (`SPEAKER_TOKEN=…`), and if needed `SPEAKER_UPSTREAM=tcp://<whisper>:10300`, the address of your speech recognition so far. Then `docker compose up -d`. On its first start the service downloads its model (about 25 MB). The voice prints are then kept in `~/.local/share/speaker-id` (`SPEAKER_ID_DATA` changes that).
 2. In Home Assistant: Settings → Devices & services → add **Wyoming Protocol**, the service's address, port **10310**. Then under Settings → Voice assistants, in the assistant with Mira, choose the new entry **speaker-id** as **Speech-to-text**. The text stays the same as before.
 3. In Mira's `mira.yaml`:
 
