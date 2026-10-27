@@ -65,6 +65,12 @@ def proof(token: str, nonce: str) -> str:
     return hmac.new(token.encode(), f"mira-prove:{nonce}".encode(), hashlib.sha256).hexdigest()
 
 
+def rejoin_key(token: str) -> str:
+    """What the Home Assistant that let go of an agent shows to pair again
+    without a code, as internal/setup.RejoinKey computes it."""
+    return hmac.new(token.encode(), b"mira-rejoin", hashlib.sha256).hexdigest()
+
+
 class MiraClient:
     """Talks to the agent's /v1 API. The integration never does more than this."""
 
@@ -115,13 +121,17 @@ class MiraClient:
         body = await self._request("POST", "/v1/prove", 10, json={"nonce": nonce})
         return str(body["proof"])
 
-    async def pair(self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None) -> str:
+    async def pair(
+        self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None, rejoin: str = ""
+    ) -> str:
         """Pair and set up in one step: the agent keeps Home Assistant's
         access and the model, hands out its token and starts anew. The
-        first time, while the agent was never paired, without a code."""
-        body = await self._request(
-            "POST", "/v1/pair", 30, json={"code": code, "ha_url": ha_url, "ha_token": ha_token, "llm": llm}
-        )
+        first time, while the agent was never paired, without a code; the
+        Home Assistant that let go of it with the rejoin key instead."""
+        payload: dict[str, Any] = {"code": code, "ha_url": ha_url, "ha_token": ha_token, "llm": llm}
+        if rejoin:
+            payload["rejoin"] = rejoin
+        body = await self._request("POST", "/v1/pair", 30, json=payload)
         return str(body["token"])
 
     async def probe(self, llm: dict[str, Any]) -> None:

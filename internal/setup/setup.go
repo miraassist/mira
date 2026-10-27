@@ -7,16 +7,16 @@ package setup
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
@@ -26,12 +26,12 @@ const (
 	keyToken      = "setup.token"
 	keyPaired     = "setup.paired"
 	keyCode       = "setup.code"
-	keyCodeUntil  = "setup.code_until"
 	keyCodeTries  = "setup.code_tries"
 	keyHAURL      = "setup.ha_url"
 	keyHAToken    = "setup.ha_token"
+	keyRejoin     = "setup.rejoin"
 	keyLLM        = "setup.llm"
-	codeLifetime  = 15 * time.Minute
+	codeLength    = 12
 	codeMaxTries  = 5
 	tokenBytes    = 32
 	haMCPServer   = "ha"
@@ -63,9 +63,11 @@ type Settings struct {
 	// the first start.
 	Token string
 	// Paired: Home Assistant has the token. Open: it never had, so the
-	// first pairing needs no code.
+	// first pairing needs no code. Rejoin: the Home Assistant that let go
+	// may pair again without a code (Unpair).
 	Paired  bool
 	Open    bool
+	Rejoin  bool
 	HAURL   string
 	HAToken string
 	LLM     *LLM
@@ -92,6 +94,11 @@ func Load(ctx context.Context, st *store.Store) (Settings, error) {
 	}
 	s.Paired = paired == "1"
 	s.Open = paired == ""
+	rejoin, err := get(ctx, st, keyRejoin)
+	if err != nil {
+		return s, err
+	}
+	s.Rejoin = rejoin != ""
 	if s.HAURL, err = get(ctx, st, keyHAURL); err != nil {
 		return s, err
 	}
@@ -188,17 +195,23 @@ func Save(ctx context.Context, st *store.Store, haURL, haToken string, l *LLM) e
 	return nil
 }
 
-// NewCode starts pairing anew (mira pair): a code of six digits that holds
-// 15 minutes and five tries. The old pairing stays until the code is used.
-func NewCode(ctx context.Context, st *store.Store, now time.Time) (string, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
-	if err != nil {
-		return "", err
+// codeAlphabet leaves out what reads alike (0/O, 1/I/L).
+const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+// newCode is a pairing code for another Home Assistant, made when one lets
+// go (Unpair): twelve characters, about 59 bits, shown as XXXX-XXXX-XXXX.
+// It holds until it is used; five wrong tries spend it.
+func newCode(ctx context.Context, st *store.Store) (string, error) {
+	b := make([]byte, codeLength)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = codeAlphabet[n.Int64()]
 	}
-	code := fmt.Sprintf("%06d", n.Int64())
-	for k, v := range map[string]string{
-		keyCode: code, keyCodeUntil: now.Add(codeLifetime).UTC().Format(time.RFC3339), keyCodeTries: "0",
-	} {
+	code := string(b)
+	for k, v := range map[string]string{keyCode: code, keyCodeTries: "0"} {
 		if err := st.SetKV(ctx, k, v); err != nil {
 			return "", err
 		}
@@ -206,25 +219,22 @@ func NewCode(ctx context.Context, st *store.Store, now time.Time) (string, error
 	return code, nil
 }
 
-// PendingCode is the code waiting to be used, if any.
-func PendingCode(ctx context.Context, st *store.Store, now time.Time) (string, error) {
-	code, err := get(ctx, st, keyCode)
-	if err != nil || code == "" {
-		return "", err
+// ShowCode writes a code as it is read out: XXXX-XXXX-XXXX.
+func ShowCode(code string) string {
+	var parts []string
+	for len(code) > 4 {
+		parts, code = append(parts, code[:4]), code[4:]
 	}
-	until, err := get(ctx, st, keyCodeUntil)
-	if err != nil {
-		return "", err
-	}
-	t, err := time.Parse(time.RFC3339, until)
-	if err != nil || now.After(t) {
-		return "", nil
-	}
-	return code, nil
+	return strings.Join(append(parts, code), "-")
 }
 
-// ErrBadCode is a wrong, used up or expired code.
-var ErrBadCode = errors.New("wrong or expired code")
+// PendingCode is the code waiting to be used, if any.
+func PendingCode(ctx context.Context, st *store.Store) (string, error) {
+	return get(ctx, st, keyCode)
+}
+
+// ErrBadCode is a wrong or used up code.
+var ErrBadCode = errors.New("wrong or used up code")
 
 // Pair pairs and sets up in one step: Home Assistant's access and maybe a
 // model are kept, and the token is handed out, or nothing happens at all.
@@ -232,19 +242,29 @@ var ErrBadCode = errors.New("wrong or expired code")
 //
 // An agent that was never paired needs no code: whoever pairs first wins,
 // and the owner notices, because their own pairing then asks for a code.
-// Later a code from mira pair is needed; a wrong one counts, five spend it.
-func Pair(ctx context.Context, st *store.Store, code string, now time.Time, haURL, haToken string, l *LLM) (string, error) {
+// Later the code Unpair wrote into the log is needed; a wrong one counts,
+// five spend it. The Home Assistant that let go needs none: it shows the
+// rejoin key (RejoinKey of the token it had) instead.
+func Pair(ctx context.Context, st *store.Store, code, rejoin string, haURL, haToken string, l *LLM) (string, error) {
 	if haURL == "" || haToken == "" {
 		return "", errors.New("pairing needs Home Assistant's address and token")
 	}
-	if err := checkCode(ctx, st, code, now); err != nil {
+	ok, err := rejoins(ctx, st, rejoin)
+	if err != nil {
 		return "", err
+	}
+	if !ok {
+		if err := checkCode(ctx, st, code); err != nil {
+			return "", err
+		}
 	}
 	if err := Save(ctx, st, haURL, haToken, l); err != nil {
 		return "", err
 	}
-	if err := st.DeleteKV(ctx, keyCode); err != nil {
-		return "", err
+	for _, k := range []string{keyCode, keyRejoin} {
+		if err := st.DeleteKV(ctx, k); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return "", err
+		}
 	}
 	if err := st.SetKV(ctx, keyPaired, "1"); err != nil {
 		return "", err
@@ -254,16 +274,16 @@ func Pair(ctx context.Context, st *store.Store, code string, now time.Time, haUR
 
 // checkCode lets a pairing through: without a code while the agent was
 // never paired, else with the pending code.
-func checkCode(ctx context.Context, st *store.Store, code string, now time.Time) error {
+func checkCode(ctx context.Context, st *store.Store, code string) error {
 	paired, err := get(ctx, st, keyPaired)
 	if err != nil {
 		return err
 	}
-	code = strings.ReplaceAll(strings.TrimSpace(code), " ", "")
+	code = strings.ToUpper(strings.NewReplacer(" ", "", "-", "").Replace(code))
 	if paired == "" && code == "" {
 		return nil
 	}
-	want, err := PendingCode(ctx, st, now)
+	want, err := PendingCode(ctx, st)
 	if err != nil {
 		return err
 	}
@@ -288,24 +308,55 @@ func checkCode(ctx context.Context, st *store.Store, code string, now time.Time)
 	return nil
 }
 
+// rejoins: the rejoin key shown matches the one Unpair kept.
+func rejoins(ctx context.Context, st *store.Store, rejoin string) (bool, error) {
+	if rejoin == "" {
+		return false, nil
+	}
+	want, err := get(ctx, st, keyRejoin)
+	if err != nil || want == "" {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare([]byte(rejoin), []byte(want)) == 1, nil
+}
+
+// RejoinKey is what the Home Assistant that let go shows to pair again
+// without a code: an HMAC under the token it had, which it keeps.
+func RejoinKey(token string) string {
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write([]byte("mira-rejoin"))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 // Unpair is for when Home Assistant lets go of the agent (the integration
-// is removed): a new token, so the old one is worth nothing, Home
-// Assistant's access forgotten, and the next pairing again without a code.
-// The model stays.
-func Unpair(ctx context.Context, st *store.Store) error {
+// is removed): a new token, so the old one is worth nothing, and Home
+// Assistant's access forgotten. The agent stays paired: the household's
+// memory is still in it. The same Home Assistant pairs again without a
+// code, with the rejoin key; any other needs the code returned here, which
+// the agent writes into its log. The model stays.
+func Unpair(ctx context.Context, st *store.Store) (string, error) {
+	old, err := get(ctx, st, keyToken)
+	if err != nil {
+		return "", err
+	}
 	token, err := randomHex(tokenBytes)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if err := st.SetKV(ctx, keyToken, token); err != nil {
-		return err
-	}
-	for _, k := range []string{keyPaired, keyCode, keyHAURL, keyHAToken} {
-		if err := st.DeleteKV(ctx, k); err != nil && !errors.Is(err, store.ErrNotFound) {
-			return err
+	if old != "" {
+		if err := st.SetKV(ctx, keyRejoin, RejoinKey(old)); err != nil {
+			return "", err
 		}
 	}
-	return nil
+	if err := st.SetKV(ctx, keyToken, token); err != nil {
+		return "", err
+	}
+	for _, k := range []string{keyHAURL, keyHAToken} {
+		if err := st.DeleteKV(ctx, k); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return "", err
+		}
+	}
+	return newCode(ctx, st)
 }
 
 func get(ctx context.Context, st *store.Store, key string) (string, error) {

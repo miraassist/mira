@@ -43,7 +43,7 @@ func run() error {
 	session := flag.String("session", "cli", "chat: conversation id; reuse it to continue a conversation")
 	device := flag.String("device", "", "chat: satellite device id, for -channel voice")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile | skill NAME [N] | memory export|import | pair]\n\nflags:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: mira [flags] [run | chat TEXT | check | profile | skill NAME [N] | memory export|import | reset]\n\nflags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -70,8 +70,8 @@ func run() error {
 			return runSetupMode(ctx, p)
 		}
 		return runAgent(ctx, cfg, p)
-	case "pair":
-		return runPair(ctx, p)
+	case "reset":
+		return runReset(p)
 	}
 	if !p.ready {
 		return errNotSetUp

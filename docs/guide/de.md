@@ -815,7 +815,7 @@ Das Programm `mira` hat ein paar Befehle. Im Container rufst du sie mit `docker 
 |---|---|
 | `mira run` | startet Mira (das läuft im Container ohnehin) |
 | `mira check` | prüft die Einstellungen und ob die Modelle, Home Assistant und die MCP-Server erreichbar sind |
-| `mira pair` | gibt einen Kopplungscode für die Integration aus |
+| `mira reset` | löscht beim nächsten Start Miras Daten (Gedächtnis, Nachrichten, Einstellungen aus Home Assistant, das KI-Modell); die `mira.yaml` bleibt. Danach koppelt Mira wie neu, ohne Code |
 | `mira skill NAME` | führt den Zeitplan eines Skills sofort aus und zeigt, was Mira sagen würde; hat er mehrere, wählt eine Zahl dahinter einen (ab 0) |
 | `mira chat "…"` | ein Gesprächszug im Terminal, ohne Home Assistant als Oberfläche; `-channel voice` oder `telegram`, `-session` für einen weiteren Zug im selben Gespräch |
 | `mira profile` | baut das Gedächtnis-Profil neu aus den gemerkten Fakten |
@@ -875,10 +875,12 @@ Der Dialog sagt, was nicht stimmt, und du kannst es gleich dort korrigieren:
 
 Und sonst:
 - **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (siehe Schritt 3).
-- **Der Dialog fragt nach einem Kopplungscode?** Diese Mira ist schon mit einem Home Assistant gekoppelt. Entfernst du dort die Integration, gibt sie Mira frei, und es geht wieder ohne Code. Sonst bekommst du einen Code mit `docker exec mira /app/mira pair`.
+- **Der Dialog fragt nach einem Kopplungscode?** Diese Mira war schon mit einem anderen Home Assistant gekoppelt. Den Code schreibt Mira in ihr Protokoll, sobald dort die Integration entfernt wird: `docker logs mira`, bei der Home-Assistant-App unter **Einstellungen → Apps → Mira → Protokoll**. Er sieht so aus: `ABCD-EFGH-JKMN`.
+  - Entfernst du die Integration und fügst sie im selben Home Assistant wieder hinzu, brauchst du keinen Code.
+  - Gibt es keinen Code, weil das alte Home Assistant nicht mehr existiert: Setze Miras Daten zurück, mit `docker exec mira /app/mira reset` und einem Neustart (`docker restart mira`), bei der Home-Assistant-App mit der Option **Daten zurücksetzen** im Tab **Konfiguration** und einem Neustart der App. Gedächtnis und Nachrichten sind dann weg, die `mira.yaml` bleibt.
 - **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **KI-Modell (LLM)**.
 
-**Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der das Koppeln abschließt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code.
+**Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der das Koppeln abschließt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code. Setze Miras Daten dann zurück (siehe oben) und richte sie neu ein.
 
 Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
 

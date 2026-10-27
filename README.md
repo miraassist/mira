@@ -187,11 +187,14 @@ summary's "Pair". That creates the HA user and token, switches on HA's MCP
 server and pairs and sets up the agent in one call (`POST /v1/pair` with HA's
 address, the token and the model), which keeps everything in its database,
 hands out its access token and starts anew. An agent that was never paired
-needs no code; after that a code from `mira pair` (15 minutes, five tries). It makes Mira the conversation agent of the
+needs no code. It makes Mira the conversation agent of the
 assistants ticked in the form. Removing the integration revokes the token,
 gives the assistants their previous agent back and lets the agent go
-(`POST /v1/unpair`: a new token, paired again without a code); the HA user
-stays, Mira's automations refer to it.
+(`POST /v1/unpair`: a new token; the same HA pairs again without a code,
+another one with the code the agent writes into its log); the HA user
+stays, Mira's automations refer to it. `mira reset` (or the app's option
+"Reset data") deletes the agent's data, keeps `mira.yaml`, and it pairs like
+a new one.
 
 Mira's web UI is in Home Assistant's sidebar: the integration passes the
 page through Home Assistant (open, it holds no data) and its API calls

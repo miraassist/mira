@@ -17,6 +17,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.config_flow import FIELD_NAMES
+from custom_components.mira.access import rejoin_token
 from custom_components.mira.api import proof
 from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 from custom_components.mira.managed import notify_targets
@@ -393,8 +394,21 @@ async def test_removing_the_entry_hands_config_back(hass, aioclient_mock, entry)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.config_entries.async_remove(entry.entry_id)
     assert any(c[0] == "DELETE" and str(c[1]).endswith("/v1/ui/ha") for c in aioclient_mock.mock_calls)
-    # The agent lets go, so it pairs again without a code.
+    # The agent lets go; this Home Assistant keeps the old token, so it
+    # alone pairs again without a code.
     assert any(c[0] == "POST" and str(c[1]).endswith("/v1/unpair") for c in aioclient_mock.mock_calls)
+    assert await rejoin_token(hass, AGENT_ID) == "secret"
+
+
+async def test_an_agent_that_did_not_let_go_leaves_its_token(hass, aioclient_mock, entry):
+    """The agent was away: it never let go, so the token it had still holds
+    and is kept for adding Mira again."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    aioclient_mock.delete(f"{AGENT_URL}/v1/ui/ha", json={"managed": False})
+    aioclient_mock.post(f"{AGENT_URL}/v1/unpair", exc=aiohttp.ClientConnectionError())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.config_entries.async_remove(entry.entry_id)
+    assert await rejoin_token(hass, AGENT_ID) == "secret"
 
 
 async def test_compact_button(hass, aioclient_mock, entry):

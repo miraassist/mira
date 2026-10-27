@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -27,9 +26,10 @@ import (
 //
 //	GET  /v1/pair          open: the agent's id, whether it pairs without a
 //	                       code (never paired) or a code waits, its model
-//	POST /v1/pair          open: {code, ha_url, ha_token, llm} -> {token};
-//	                       pairs and sets up in one step, then restarts;
-//	                       the first time code is ""
+//	POST /v1/pair          open: {code, rejoin, ha_url, ha_token, llm} ->
+//	                       {token}; pairs and sets up in one step, then
+//	                       restarts; the first time code is "", after an
+//	                       unpair the same Home Assistant sends rejoin
 //	POST /v1/unpair        token: Home Assistant lets go; the agent restarts
 //	POST /v1/setup         token: {ha_url, ha_token, llm}; a trial request
 //	                       to the model first, then the agent restarts
@@ -163,7 +163,7 @@ func (h *Handler) pending(ctx context.Context) bool {
 	if !h.Pairing {
 		return false
 	}
-	code, err := PendingCode(ctx, h.Store, h.now())
+	code, err := PendingCode(ctx, h.Store)
 	return err == nil && code != ""
 }
 
@@ -176,10 +176,20 @@ func (h *Handler) open(ctx context.Context) bool {
 	return err == nil && s.Open
 }
 
+// rejoin: the Home Assistant that let go may pair again without a code.
+func (h *Handler) rejoin(ctx context.Context) bool {
+	if !h.Pairing {
+		return false
+	}
+	s, err := Load(ctx, h.Store)
+	return err == nil && s.Rejoin
+}
+
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": h.ID, "version": h.Version, "pairs": h.Pairing, "open": h.open(r.Context()),
 		"pairing": h.pending(r.Context()), "setup_mode": h.SetupMode, "model": h.Model,
+		"rejoin": h.rejoin(r.Context()),
 	})
 }
 
@@ -198,6 +208,7 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Code    string `json:"code"`
+		Rejoin  string `json:"rejoin"`
 		HAURL   string `json:"ha_url"`
 		HAToken string `json:"ha_token"`
 		LLM     *LLM   `json:"llm"`
@@ -219,7 +230,7 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.contextOf(r.Context(), req.LLM)
-	token, err := Pair(r.Context(), h.Store, req.Code, h.now(), req.HAURL, req.HAToken, req.LLM)
+	token, err := Pair(r.Context(), h.Store, req.Code, req.Rejoin, req.HAURL, req.HAToken, req.LLM)
 	if errors.Is(err, ErrBadCode) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
@@ -282,11 +293,12 @@ func (h *Handler) unpair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "this agent's token is set in mira.yaml"})
 		return
 	}
-	if err := Unpair(r.Context(), h.Store); err != nil {
+	code, err := Unpair(r.Context(), h.Store)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	h.Log.Info("Home Assistant let go of Mira; waiting to be paired again")
+	h.Log.Info("Home Assistant let go of Mira; waiting to be paired again. The same Home Assistant pairs without a code; another one needs this pairing code", "code", ShowCode(code))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restarting"})
 	if h.Restart != nil {
 		time.AfterFunc(300*time.Millisecond, h.Restart)
@@ -544,24 +556,22 @@ func (h *Handler) list(ctx context.Context, baseURL, apiKey string) ([]string, e
 
 // page shows, while nothing is set up, what to do and the code.
 func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
-	code, _ := PendingCode(r.Context(), h.Store, h.now())
-	if !h.Pairing {
-		code = ""
-	}
+	// The code itself is only in the log: whoever can read that may pair.
 	shown := ""
-	if len(code) == 6 {
-		shown = fmt.Sprintf(codeBlock, html.EscapeString(code[:3]+" "+code[3:]))
+	if h.pending(r.Context()) {
+		shown = codeHint
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	fmt.Fprintf(w, setupPage, shown)
 }
 
-const codeBlock = `<p>Kopplungscode / pairing code:</p><div class="code">%s</div>`
+const codeHint = `<p>Diese Mira war schon mit einem Home Assistant gekoppelt. Ein anderes Home Assistant braucht den <b>Kopplungscode</b>: Er steht im Protokoll von Mira (<code>docker logs mira</code>, oder in Home Assistant im Protokoll der Mira-App).</p>
+<p><small>This Mira was paired before. Another Home Assistant needs the pairing code from Mira's log.</small></p>`
 
 const setupPage = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mira – Einrichtung</title>
 <style>body{font-family:system-ui,sans-serif;max-width:34rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:#222}
-.code{font-size:2.6rem;font-weight:700;letter-spacing:.15em;margin:.4rem 0 1rem}ol{padding-left:1.2rem}small{color:#666}
+ol{padding-left:1.2rem}small{color:#666}
 @media (prefers-color-scheme:dark){body{background:#111;color:#eee}small{color:#aaa}}</style></head><body>
 <h1>Mira wartet auf die Einrichtung</h1>
 %s

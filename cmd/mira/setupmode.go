@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -31,7 +32,8 @@ type prepared struct {
 	// waits to be set up.
 	ready    bool
 	hasModel bool
-	// code: a pairing code from mira pair, while it holds.
+	// code: the pairing code for another Home Assistant, made when one
+	// let go.
 	code string
 	// path is the mira.yaml Mira read and the page writes
 	// (docs/spec/bearbeiten.md).
@@ -44,6 +46,16 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 		return prepared{}, err
 	}
 	p := prepared{pairing: cfg.Server.Token == "", path: config.ConfigPath(path)}
+	// The Home Assistant app keeps its options next to the data.
+	options := ""
+	if dir := os.Getenv("MIRA_DATA"); dir != "" {
+		options = filepath.Join(dir, "options.json")
+	}
+	if reset, err := setup.ResetIfAsked(cfg.Store.Path, options); err != nil {
+		return prepared{}, fmt.Errorf("reset: %w", err)
+	} else if reset {
+		slog.Warn("Mira's data were deleted as asked (reset); mira.yaml stays. Mira waits to be set up, like a new install")
+	}
 	st, err := store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
 		return prepared{}, err
@@ -66,7 +78,7 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 	p.hasModel = hasLLM || s.LLM != nil
 	if p.pairing {
 		p.open = s.Open
-		if p.code, err = setup.PendingCode(ctx, st, time.Now()); err != nil {
+		if p.code, err = setup.PendingCode(ctx, st); err != nil {
 			return prepared{}, err
 		}
 	}
@@ -102,8 +114,8 @@ func (p prepared) model() string {
 func logPairing(log *slog.Logger, p prepared) {
 	switch {
 	case p.code != "":
-		log.Info(fmt.Sprintf("pairing code: %s %s (Home Assistant: Settings → Devices & services → Mira; valid 15 minutes)",
-			p.code[:3], p.code[3:]))
+		log.Info("paired before: the same Home Assistant pairs again without a code; another one needs this pairing code (Settings → Devices & services → Mira)",
+			"code", setup.ShowCode(p.code))
 	case p.open:
 		log.Info("not paired yet: add Mira in Home Assistant under Settings → Devices & services (Discovered)")
 	}
@@ -151,21 +163,12 @@ func runSetupMode(ctx context.Context, p prepared) error {
 	return nil
 }
 
-// runPair makes a pairing code, for pairing Home Assistant anew with an
-// agent that was paired before.
-func runPair(ctx context.Context, p prepared) error {
-	if !p.pairing {
-		return errors.New("this agent's token is set in mira.yaml: enter that token in Home Assistant instead of a code")
-	}
-	st, err := store.Open(ctx, store.Options{Path: p.cfg.Store.Path})
-	if err != nil {
+// runReset asks for a reset: at the next start Mira deletes its data,
+// keeps mira.yaml and pairs again without a code, like a new install.
+func runReset(p prepared) error {
+	if err := setup.AskReset(p.cfg.Store.Path); err != nil {
 		return err
 	}
-	defer st.Close()
-	code, err := setup.NewCode(ctx, st, time.Now())
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Pairing code: %s %s (valid 15 minutes; enter it in Home Assistant when adding Mira)\n", code[:3], code[3:])
+	fmt.Println("Mira deletes its data (memory, messages, settings from Home Assistant, the model) at the next start; mira.yaml stays. Restart Mira now, e.g. docker restart mira.")
 	return nil
 }

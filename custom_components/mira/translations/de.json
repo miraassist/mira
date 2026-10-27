@@ -15,7 +15,7 @@
       },
       "pair": {
         "title": "Kopplungscode",
-        "description": "Diese Mira war schon mit einem Home Assistant gekoppelt. Zum erneuten Koppeln brauchst du einen **Kopplungscode**. Auf dem Rechner, auf dem Mira läuft:\n\n`docker exec mira /app/mira pair`\n\nDer Code steht dann dort und auf Miras Seite {url}. Er gilt 15 Minuten und wird beim Koppeln verwendet.",
+        "description": "Diese Mira war schon mit einem anderen Home Assistant gekoppelt. Zum Koppeln brauchst du den **Kopplungscode**. Er steht im Protokoll von Mira:\n\n- Mira als Home-Assistant-App: **Einstellungen → Apps → Mira → Protokoll**\n- Mira als Docker-Container: `docker logs mira`\n\nDer Code sieht so aus: `ABCD-EFGH-JKMN`.",
         "data": {
           "code": "Kopplungscode"
         },
@@ -78,7 +78,7 @@
     "error": {
       "cannot_connect": "Mira ist unter dieser Adresse nicht erreichbar.",
       "invalid_auth": "Mira hat den Token abgelehnt.",
-      "bad_code": "Der Code stimmt nicht oder ist abgelaufen. Einen neuen gibt es mit `docker exec mira /app/mira pair`.",
+      "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira. Nach fünf falschen Versuchen gilt er nicht mehr; dann hilft nur noch, Miras Daten zurückzusetzen (siehe Anleitung).",
       "setup_failed": "Das Einrichten hat nicht geklappt: {error}",
       "model_unreachable": "Mira erreicht diese Adresse nicht. Prüfe sie aus Sicht von Mira; ein Server auf einem anderen Rechner muss Verbindungen aus dem Netz annehmen.{error}",
       "model_bad_key": "Der Anbieter hat den Schlüssel abgelehnt. Prüfe ihn und gib ihn noch einmal ein.{error}",

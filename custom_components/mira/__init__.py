@@ -18,7 +18,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
-from .access import hand_back, revoke_agent_token, use_mira_in
+from .access import hand_back, keep_rejoin, revoke_agent_token, use_mira_in
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
 from .once import async_register_commands as async_register_once_commands
@@ -277,8 +277,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> Non
     """Hand persons and rooms back to the agent's web UI, the assistants
     back to Home Assistant's own agent, and withdraw the token the
     integration made for the agent (its user stays: Mira's tasks hang on
-    it). An agent that was paired lets go as well and waits to be paired
-    again, the next time without a code."""
+    it). An agent that was paired lets go as well. This Home Assistant
+    keeps the token, to pair again without a code: as proof after the
+    agent let go, or as it is if the agent was away and never did."""
     revoke_agent_token(hass, entry.data.get(CONF_AGENT_TOKEN))
     await hand_back(hass, entry.data.get(CONF_PIPELINE_AGENT), entry.data.get(CONF_PIPELINES_BEFORE) or {})
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
@@ -289,8 +290,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> Non
     try:
         await client.unpair()
     except MiraError as err:
-        # An agent with its token in mira.yaml, or one that is down.
+        # An agent with its token in mira.yaml, or one that is down: the
+        # token kept below still holds then.
         _LOGGER.debug("The agent did not let go: %s", err)
+    if entry.unique_id:
+        await keep_rejoin(hass, entry.unique_id, entry.data[CONF_TOKEN])
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool:

@@ -791,7 +791,7 @@ The `mira` program has a few commands. In the container you call them with `dock
 |---|---|
 | `mira run` | starts Mira (that runs in the container anyway) |
 | `mira check` | checks the settings and whether the models, Home Assistant and the MCP servers can be reached |
-| `mira pair` | prints a pairing code for the integration |
+| `mira reset` | deletes Mira's data (memory, messages, settings from Home Assistant, the AI model) at the next start; `mira.yaml` stays. Then Mira pairs like a new one, without a code |
 | `mira skill NAME` | runs a skill's schedule right away and shows what Mira would say; with several, a number after it picks one (from 0) |
 | `mira chat "…"` | one conversation turn in the terminal, without Home Assistant as the interface; `-channel voice` or `telegram`, `-session` for another turn in the same conversation |
 | `mira profile` | rebuilds the memory profile from the remembered facts |
@@ -851,10 +851,12 @@ The dialog says what is wrong, and you can correct it right there:
 
 Otherwise:
 - **Mira not under "Discovered"?** Usually `--network host` is missing, or Mira is in another network. Then enter the address by hand (see step 3).
-- **The dialog asks for a pairing code?** This Mira is already paired with a Home Assistant. Removing the integration there lets Mira go, and it works without a code again. Otherwise get a code with `docker exec mira /app/mira pair`.
+- **The dialog asks for a pairing code?** This Mira was paired with another Home Assistant. Mira writes the code into its log as soon as the integration is removed there: `docker logs mira`, for the Home Assistant app under **Settings → Apps → Mira → Log**. It looks like this: `ABCD-EFGH-JKMN`.
+  - Removing the integration and adding it again in the same Home Assistant needs no code.
+  - No code, because the old Home Assistant is gone: reset Mira's data, with `docker exec mira /app/mira reset` and a restart (`docker restart mira`); for the Home Assistant app with the option **Reset data** on the **Configuration** tab and a restart of the app. Memory and messages are gone then, `mira.yaml` stays.
 - **Another model?** Settings → Devices & services → Mira → **Configure** → **AI model (LLM)**.
 
-**Security while setting up:** A new Mira pairs with the first Home Assistant that completes pairing, without a code. So set it up in your own home network, not in a guest or shared network. Had someone beaten you to it, you would notice at once: your dialog would ask for a code.
+**Security while setting up:** A new Mira pairs with the first Home Assistant that completes pairing, without a code. So set it up in your own home network, not in a guest or shared network. Had someone beaten you to it, you would notice at once: your dialog would ask for a code. Reset Mira's data then (see above) and set it up anew.
 
 For advanced setups (several models, more MCP servers, skills with settings) there is the file `mira.yaml`; see [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). What you set in the integration wins over the file.
 

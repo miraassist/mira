@@ -15,7 +15,7 @@
       },
       "pair": {
         "title": "Pairing code",
-        "description": "This Mira was paired with a Home Assistant before. To pair again you need a **pairing code**. On the machine Mira runs on:\n\n`docker exec mira /app/mira pair`\n\nThe code appears there and on Mira's page {url}. It is valid for 15 minutes and used when pairing.",
+        "description": "This Mira was paired with another Home Assistant. To pair you need the **pairing code**. It is in Mira's log:\n\n- Mira as a Home Assistant app: **Settings → Apps → Mira → Log**\n- Mira as a Docker container: `docker logs mira`\n\nThe code looks like this: `ABCD-EFGH-JKMN`.",
         "data": {
           "code": "Pairing code"
         },
@@ -78,7 +78,7 @@
     "error": {
       "cannot_connect": "Could not reach Mira at this address.",
       "invalid_auth": "Mira rejected the token.",
-      "bad_code": "The code is wrong or expired. Make a new one with `docker exec mira /app/mira pair`.",
+      "bad_code": "The pairing code is wrong or used up. It is in Mira's log. After five wrong tries it no longer works; then only resetting Mira's data helps (see the guide).",
       "setup_failed": "Setting up did not work: {error}",
       "model_unreachable": "Mira cannot reach this address. Check it as Mira sees it; a server on another machine must accept connections from the network.{error}",
       "model_bad_key": "The provider refused the key. Check it and enter it again.{error}",

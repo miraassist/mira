@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -28,9 +29,10 @@ func newStore(t *testing.T) *store.Store {
 }
 
 // Pairing sets up in the same step, or does nothing. The first pairing
-// needs no code, the next ones do: the right code works once; a wrong one
-// counts, five spend the code, and it expires after 15 minutes. Unpairing
-// makes a new token and opens again.
+// needs no code. Unpairing makes a new token; the agent stays paired: the
+// Home Assistant that let go comes back with the key of its old token,
+// another one with the code Unpair made. A code works once, five wrong
+// tries spend it.
 func TestPairing(t *testing.T) {
 	ctx := context.Background()
 	st := newStore(t)
@@ -38,55 +40,143 @@ func TestPairing(t *testing.T) {
 	if err != nil || len(s.Token) != 64 || !s.Open {
 		t.Fatalf("token made at the first start, open: %+v %v", s, err)
 	}
-	now := time.Now()
 	llm := &LLM{Kind: KindCloud, BaseURL: "u", Model: "m"}
-	pair := func(code string, at time.Time) (string, error) {
-		return Pair(ctx, st, code, at, "http://ha", "ha-token", llm)
+	pair := func(code string) (string, error) {
+		return Pair(ctx, st, code, "", "http://ha", "ha-token", llm)
 	}
-	if _, err := Pair(ctx, st, "", now, "", "", llm); err == nil {
+	rejoin := func(key string) (string, error) {
+		return Pair(ctx, st, "", key, "http://ha", "ha-token", llm)
+	}
+	if _, err := Pair(ctx, st, "", "", "", "", llm); err == nil {
 		t.Fatal("paired without Home Assistant's access")
 	}
 	if s, _ := Load(ctx, st); !s.Open || s.HAURL != "" {
 		t.Fatal("a refused pairing left something behind")
 	}
-	token, err := pair("", now)
+	token, err := pair("")
 	if err != nil || token != s.Token {
 		t.Fatalf("first pairing without a code: %q %v", token, err)
 	}
 	if s, _ := Load(ctx, st); s.Open || !s.Paired || s.HAToken != "ha-token" || s.LLM == nil {
 		t.Fatalf("paired and set up at once: %+v", s)
 	}
-	if _, err := pair("", now); err != ErrBadCode {
+	if _, err := pair(""); err != ErrBadCode {
 		t.Fatal("a second pairing without a code worked")
 	}
-	code, _ := NewCode(ctx, st, now)
-	if _, err := pair("000000x", now); err != ErrBadCode {
-		t.Errorf("wrong code: %v", err)
-	}
-	if got, err := pair(code[:3]+" "+code[3:], now); err != nil || got != token {
-		t.Fatalf("right code: %q %v", got, err)
-	}
-	if _, err := pair(code, now); err != ErrBadCode {
-		t.Error("a code works only once")
-	}
-	code, _ = NewCode(ctx, st, now)
-	for i := 0; i < 5; i++ {
-		pair("bad", now)
-	}
-	if _, err := pair(code, now); err != ErrBadCode {
-		t.Error("five wrong tries must spend the code")
-	}
-	code, _ = NewCode(ctx, st, now)
-	if _, err := pair(code, now.Add(16*time.Minute)); err != ErrBadCode {
-		t.Error("an expired code worked")
-	}
 
-	if err := Unpair(ctx, st); err != nil {
-		t.Fatal(err)
+	code, err := Unpair(ctx, st)
+	if err != nil || len(code) != codeLength || strings.ContainsAny(code, "01ILO") {
+		t.Fatalf("unpair makes a code: %q %v", code, err)
 	}
 	after, _ := Load(ctx, st)
-	if !after.Open || after.Token == token || after.HAToken != "" || after.LLM == nil {
-		t.Errorf("after unpairing: open, new token, no HA, model kept: %+v", after)
+	if after.Open || !after.Rejoin || after.Token == token || after.HAToken != "" || after.LLM == nil {
+		t.Errorf("after unpairing: not open, rejoin, new token, no HA, model kept: %+v", after)
+	}
+	if pending, _ := PendingCode(ctx, st); pending != code {
+		t.Errorf("pending code %q, want %q", pending, code)
+	}
+	// Someone else in the network gets nothing without a code or the key.
+	if _, err := pair(""); err != ErrBadCode {
+		t.Error("paired without a code after an unpair")
+	}
+	if _, err := rejoin(RejoinKey("guessed")); err != ErrBadCode {
+		t.Error("a wrong rejoin key worked")
+	}
+	if _, err := pair("AAAA-AAAA-AAAA"); err != ErrBadCode {
+		t.Error("a wrong code worked")
+	}
+	// The Home Assistant that let go, with the key of its old token, once.
+	if got, err := rejoin(RejoinKey(token)); err != nil || got != after.Token {
+		t.Fatalf("rejoin: %q %v", got, err)
+	}
+	if s, _ := Load(ctx, st); s.Rejoin || !s.Paired {
+		t.Errorf("the rejoin key is used up: %+v", s)
+	}
+	if _, err := rejoin(RejoinKey(token)); err != ErrBadCode {
+		t.Error("a rejoin key works only once")
+	}
+	if _, err := pair(code); err != ErrBadCode {
+		t.Error("the code outlived the pairing")
+	}
+
+	// Another Home Assistant, with the code from the log, typed as read.
+	token = after.Token
+	code, _ = Unpair(ctx, st)
+	after, _ = Load(ctx, st)
+	if got, err := pair(strings.ToLower(ShowCode(code))); err != nil || got != after.Token {
+		t.Fatalf("right code: %q %v", got, err)
+	}
+	if _, err := rejoin(RejoinKey(token)); err != ErrBadCode {
+		t.Error("the rejoin key outlived the pairing")
+	}
+	code, _ = Unpair(ctx, st)
+	for i := 0; i < codeMaxTries; i++ {
+		pair("bad")
+	}
+	if _, err := pair(code); err != ErrBadCode {
+		t.Error("five wrong tries must spend the code")
+	}
+	// The integration computes the same in Python (tests/ha/test_config_flow.py).
+	if got, want := RejoinKey("tok"), "76b92092ff58480858952b129a074924c5e3b7d9be99e6b7ad207fa29c3cd774"; got != want {
+		t.Errorf("rejoin key %s, the integration expects %s", got, want)
+	}
+	if got := ShowCode("ABCDEFGHJKMN"); got != "ABCD-EFGH-JKMN" {
+		t.Errorf("shown as %q", got)
+	}
+}
+
+// A reset deletes the database and nothing else, when asked by mira reset
+// or by the app's option; the option resets once while it stays on.
+func TestReset(t *testing.T) {
+	dir := t.TempDir()
+	db := filepath.Join(dir, "mira.db")
+	options := filepath.Join(dir, "options.json")
+	files := func() {
+		for _, f := range []string{db, db + "-wal", "mira.yaml", "secrets.json"} {
+			os.WriteFile(filepath.Join(dir, filepath.Base(f)), []byte("x"), 0o600)
+		}
+	}
+	gone := func() bool {
+		_, err := os.Stat(db)
+		return err != nil
+	}
+	kept := func() bool {
+		for _, f := range []string{"mira.yaml", "secrets.json"} {
+			if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+				return false
+			}
+		}
+		return true
+	}
+	files()
+	if reset, err := ResetIfAsked(db, options); reset || err != nil || gone() {
+		t.Fatalf("reset without being asked: %v %v", reset, err)
+	}
+	// mira reset: once, at the next start.
+	if err := AskReset(db); err != nil {
+		t.Fatal(err)
+	}
+	if reset, err := ResetIfAsked(db, ""); !reset || err != nil || !gone() || !kept() {
+		t.Fatalf("mira reset: %v %v", reset, err)
+	}
+	files()
+	if reset, _ := ResetIfAsked(db, ""); reset || gone() {
+		t.Error("the mark was not spent")
+	}
+	// The app's option: once while on, again after off and on.
+	os.WriteFile(options, []byte(`{"reset_data": true}`), 0o600)
+	if reset, _ := ResetIfAsked(db, options); !reset || !gone() || !kept() {
+		t.Fatal("the option did not reset")
+	}
+	files()
+	if reset, _ := ResetIfAsked(db, options); reset || gone() {
+		t.Error("the option reset at every start")
+	}
+	os.WriteFile(options, []byte(`{"reset_data": false}`), 0o600)
+	ResetIfAsked(db, options)
+	os.WriteFile(options, []byte(`{"reset_data": true}`), 0o600)
+	if reset, _ := ResetIfAsked(db, options); !reset || !gone() {
+		t.Error("off and on again did not reset")
 	}
 }
 

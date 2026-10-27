@@ -23,3 +23,9 @@ environment:
   MIRA_CONFIG: /config/mira.yaml
   MIRA_DATA: /data
   MIRA_LISTEN: 0.0.0.0:8787
+# Reset (docs/spec/einrichtung.md): on at the next start, Mira deletes its
+# data and keeps mira.yaml; once, until turned off and on again.
+options:
+  reset_data: false
+schema:
+  reset_data: bool

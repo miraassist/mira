@@ -14,6 +14,7 @@ from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
 from homeassistant.config_entries import SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.storage import Store
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ MCP_DOMAIN = "mcp_server"
 TOKEN_LIFETIME = timedelta(days=3650)
 # Home Assistant's own conversation agent.
 HA_AGENT = "conversation.home_assistant"
+# The tokens of agents this Home Assistant removed, by agent id: it pairs
+# with them again without a code (docs/spec/einrichtung.md), by the key of
+# the token after the agent let go, or with the token itself if the agent
+# was away and never did. The store outlives the entry, which removing
+# deletes.
+REJOIN_STORE = "mira.rejoin"
 
 
 async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -> tuple[str, str, str]:
@@ -138,3 +145,27 @@ async def hand_back(hass: HomeAssistant, entity_id: str | None, before: dict[str
             agent = HA_AGENT
         await async_update_pipeline(hass, pipeline, conversation_engine=agent)
         _LOGGER.info("The assistant %s uses %s again", pipeline.name, agent)
+
+
+def _rejoin_store(hass: HomeAssistant) -> Store[dict[str, str]]:
+    return Store(hass, 1, REJOIN_STORE, private=True)
+
+
+async def keep_rejoin(hass: HomeAssistant, agent_id: str, token: str) -> None:
+    """The entry is removed: its token proves later that this Home
+    Assistant is the one the agent was paired with."""
+    store = _rejoin_store(hass)
+    tokens = await store.async_load() or {}
+    await store.async_save({**tokens, agent_id: token})
+
+
+async def rejoin_token(hass: HomeAssistant, agent_id: str) -> str | None:
+    """The old token of an agent this Home Assistant let go, if any."""
+    return (await _rejoin_store(hass).async_load() or {}).get(agent_id)
+
+
+async def forget_rejoin(hass: HomeAssistant, agent_id: str) -> None:
+    store = _rejoin_store(hass)
+    tokens = await store.async_load() or {}
+    if tokens.pop(agent_id, None) is not None:
+        await store.async_save(tokens)

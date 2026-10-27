@@ -1,0 +1,7 @@
+configuration:
+  reset_data:
+    name: Daten zurücksetzen
+    description: >-
+      Beim nächsten Start löscht Mira ihre Daten (Gedächtnis, Nachrichten, Einstellungen aus Home Assistant, das
+      KI-Modell) und behält die mira.yaml. Danach Mira in Home Assistant neu hinzufügen, ohne Code. Danach wieder
+      ausschalten.

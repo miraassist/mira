@@ -17,6 +17,9 @@ from custom_components.mira.const import (
     DOMAIN,
 )
 
+from custom_components.mira.access import keep_rejoin, rejoin_token
+from custom_components.mira.api import rejoin_key
+
 from .conftest import AGENT_ID, AGENT_URL
 
 
@@ -220,6 +223,80 @@ async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock,
     assert result["description_placeholders"]["error"]
     user = next(u for u in await hass.auth.async_get_users() if u.name == "Mira")
     assert not [t for t in user.refresh_tokens.values() if t.client_name == "Mira agent"]
+
+
+def _paired_agent(aioclient_mock, rejoin=True):
+    """An agent paired before, that keeps its model; after an unpair it
+    says the Home Assistant that let go may come back without a code."""
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/pair",
+        json={"id": AGENT_ID, "pairs": True, "open": False, "rejoin": rejoin, "model": "qwen3"},
+    )
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID})
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
+    aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
+
+
+async def test_the_home_assistant_that_let_go_pairs_again_without_a_code(hass, aioclient_mock, hass_owner_user):
+    """Removed and added again: this Home Assistant kept the old token and
+    shows its key instead of a code. The token itself is not sent."""
+    await keep_rejoin(hass, AGENT_ID, "old-token")
+    _paired_agent(aioclient_mock)
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    assert result["step_id"] == "summary"
+    assert "pair" not in result["menu_options"] and "finish" in result["menu_options"]
+    # The agent lists models only to its token: its model stays.
+    assert "model_source" not in result["menu_options"]
+    result, _ = await _finish(hass, result)
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result
+    (pair,) = _calls(aioclient_mock, "/v1/pair")
+    assert pair["code"] == "" and pair["rejoin"] == rejoin_key("old-token")
+    assert "old-token" not in str(pair)
+    assert await rejoin_token(hass, AGENT_ID) is None
+
+
+async def test_another_home_assistant_needs_the_code_after_an_unpair(hass, aioclient_mock, hass_owner_user):
+    """The agent let go of some Home Assistant, not of this one."""
+    _paired_agent(aioclient_mock)
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    assert "pair" in result["menu_options"] and "finish" not in result["menu_options"]
+
+
+async def test_a_rejoin_the_agent_refuses_asks_for_a_code(hass, aioclient_mock, hass_owner_user):
+    """The agent was paired anew elsewhere meanwhile: the kept token is
+    worth nothing, and the summary asks for a code."""
+    await keep_rejoin(hass, AGENT_ID, "old-token")
+    _paired_agent(aioclient_mock)
+    aioclient_mock.post(f"{AGENT_URL}/v1/pair", status=403)
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    result, _ = await _finish(hass, result)
+    assert result["step_id"] == "summary" and "pair" in result["menu_options"]
+    assert "finish" not in result["menu_options"]
+
+
+async def test_a_token_kept_from_an_agent_that_never_let_go_is_used(hass, aioclient_mock, hass_owner_user):
+    """Removed while the agent was away: it is still paired with the token
+    this Home Assistant kept, which is used as it is, without a code."""
+    await keep_rejoin(hass, AGENT_ID, "secret")
+    _paired_agent(aioclient_mock, rejoin=False)
+    aioclient_mock.post(f"{AGENT_URL}/v1/setup", json={"status": "restarting"})
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    assert "pair" not in result["menu_options"] and "finish" in result["menu_options"]
+    result, _ = await _finish(hass, result)
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result
+    assert result["data"][CONF_TOKEN] == "secret"
+    assert not _calls(aioclient_mock, "/v1/pair") and _calls(aioclient_mock, "/v1/setup")
+    assert await rejoin_token(hass, AGENT_ID) is None
+
+
+def test_the_rejoin_key_matches_the_agent():
+    """The vector from internal/setup TestPairing: both sides compute alike."""
+    assert rejoin_key("tok") == "76b92092ff58480858952b129a074924c5e3b7d9be99e6b7ad207fa29c3cd774"
 
 
 async def test_options_set_timeout(hass, entry):

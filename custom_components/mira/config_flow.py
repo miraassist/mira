@@ -30,8 +30,16 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
-from .access import assistants, ensure_agent_access, ensure_mcp_server, ha_url, revoke_agent_token
-from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof
+from .access import (
+    assistants,
+    ensure_agent_access,
+    ensure_mcp_server,
+    forget_rejoin,
+    ha_url,
+    rejoin_token,
+    revoke_agent_token,
+)
+from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof, rejoin_key
 from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
@@ -81,7 +89,7 @@ WORDS = {
         "model": "KI-Modell",
         "answers": "Mira verwenden in",
         "missing": "fehlt noch",
-        "bad_code": "Der Kopplungscode stimmt nicht oder ist abgelaufen. Gib ihn neu ein; einen neuen gibt es mit `docker exec mira /app/mira pair`.",
+        "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira; gib ihn neu ein.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
     },
     "en": {
@@ -93,7 +101,7 @@ WORDS = {
         "model": "AI model",
         "answers": "Use Mira in",
         "missing": "still missing",
-        "bad_code": "The pairing code is wrong or expired. Enter it again; get a new one with `docker exec mira /app/mira pair`.",
+        "bad_code": "The pairing code is wrong or used up. It is in Mira's log; enter it again.",
         "failed": "Pairing did not work: {error}",
     },
 }
@@ -313,6 +321,8 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     _token: str = ""
     # A pairing code, for an agent that was paired before.
     _code: str | None = None
+    # Instead of a code: the agent let go of this Home Assistant before.
+    _rejoin: str = ""
     # The model the agent has already, if any.
     _agent_model: str = ""
     _llm: dict[str, Any] | None = None
@@ -356,6 +366,13 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         except MiraError:
             return False
         return bool(token) and hmac.compare_digest(answer, proof(token, nonce))
+
+    async def _token_works(self, token: str) -> bool:
+        try:
+            await self._client(token).health()
+        except MiraError:
+            return False
+        return True
 
     def _client(self, token: str = "") -> MiraClient:
         return MiraClient(async_get_clientsession(self.hass), self._url, token or self._token)
@@ -442,7 +459,21 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         if not status or not status.get("pairs"):
             return await self.async_step_token()
         self._agent_model = str(status.get("model") or "")
-        if not status.get("open"):
+        agent_id = str(status.get("id") or "")
+        old = None if status.get("open") else await rejoin_token(self.hass, agent_id)
+        if old and status.get("rejoin"):
+            # This Home Assistant let go of the agent: it shows the key of
+            # the old token and needs no code.
+            self._rejoin = rejoin_key(old)
+            if discovered:
+                return await self.async_step_confirm()
+        elif old and await self._token_works(old):
+            # The agent was away when this Home Assistant removed it, so it
+            # never let go: the token it had still holds.
+            self._token = old
+            if discovered:
+                return await self.async_step_confirm()
+        elif not status.get("open"):
             self._code = ""
         elif discovered:
             return await self.async_step_confirm()
@@ -456,7 +487,8 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="confirm", description_placeholders={"url": self._url})
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The agent was paired before: a code from mira pair. It is used,
+        """The agent was paired with another Home Assistant: the code from
+        its log, written when that one let go. It is used,
         and checked, only when pairing at the end."""
         if user_input is None and (back := await self._reopened("pair")):
             return back
@@ -552,7 +584,9 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         chosen = ", ".join(names[p][0] for p in self._pipelines if p in names) or words["none"]
         lines.append(f"- **{words['answers']}:** {chosen}")
         # "Start using Mira" shows only once nothing is missing.
-        options = ["pair" if self._code is not None else "model_source"]
+        # A paired agent keeps its model (changed later under Configure):
+        # it lists models only to the token.
+        options = ["pair"] if self._code is not None else [] if self._rejoin else ["model_source"]
         if names:
             options.append("assistants")
         if not missing:
@@ -578,16 +612,24 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             if self._token:
                 await self._client().setup(ha_url(self.hass), ha_token, self._llm)
             else:
-                self._token = await self._client().pair(self._code or "", ha_url(self.hass), ha_token, self._llm)
+                self._token = await self._client().pair(
+                    self._code or "", ha_url(self.hass), ha_token, self._llm, self._rejoin
+                )
             await self._wait_ready()
         except MiraBadCode:
             self._error = words["bad_code"]
+            if self._rejoin:
+                # The agent does not know this Home Assistant any more:
+                # the code from its log, then.
+                self._rejoin, self._code = "", ""
         except (MiraError, RuntimeError, TimeoutError) as err:
             self._error = words["failed"].format(error=err)
         if self._error:
             if refresh_id:
                 revoke_agent_token(self.hass, refresh_id)
             return await self.async_step_summary()
+        if self.unique_id:
+            await forget_rejoin(self.hass, self.unique_id)
         self._data = {CONF_IMPORTED: True, CONF_AGENT_USER: user_id, CONF_AGENT_TOKEN: refresh_id}
         return self._create()
 
