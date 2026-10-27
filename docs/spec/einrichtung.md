@@ -41,6 +41,10 @@ After that, the agent's config contains nothing about HA anymore (`ha.url`, `ha.
   - A code in the mDNS entry deliberately does not exist: Any device in the network could read it.
 - **Removing releases:** If one removes the integration, it reports this to the agent (`POST /v1/unpair`). It makes a new token, forgets the HA access, keeps the model and waits for setup again, the next time again without a code; the summary then shows "AI model: stays …".
 - **Pairing again with a code:** If the agent is still paired (the integration could not reach it when removing, or another Home Assistant has it), a **pairing code** of six digits is needed: `mira pair` on the agent's machine (`docker exec mira /app/mira pair`). It then also appears on the agent's page. The code is valid for 15 minutes and 5 attempts. The overview shows it as missing, with the branch "Enter the pairing code"; it is used at "Start using Mira", and if it is wrong, the overview says so. The agent keeps the model; it can be changed afterwards under Configure.
+- **A new address:** An agent announces itself by mDNS with its id. If the entry's address no longer answers and the agent shows up at another, the integration follows it, without asking the user. Since the id is readable by anyone, the agent must first show it holds the entry's token (hardened 2026-10-27):
+  - The integration sends a random nonce to `POST /v1/prove` at the new address. The agent answers with HMAC-SHA256 under its token (`setup.Proof`); the integration computes the same and moves only on a match. The token itself never goes to the new address before that.
+  - An agent before 0.11.0 has no such route and is not followed: anyone could answer as it does. After updating the agent, it moves again by itself.
+  - The user id Mira's automations run under comes from the integration, which made the user at pairing. The agent's `/v1/health` only fills it for an entry that has none.
 - **As before:** If a token is in the config (`server.token`), that one applies, without pairing. So existing installations stay unchanged.
 
 ## 3. Agent without a config file

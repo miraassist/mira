@@ -3,7 +3,10 @@ package setup
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,6 +37,9 @@ import (
 //	                       {base_url, api_key} -> the models there
 //	POST /v1/setup/probe   token, or open while never paired: {llm}; the
 //	                       trial request alone
+//	POST /v1/prove         open: {nonce} -> {proof}; shows the agent has
+//	                       the token without sending it, before Home
+//	                       Assistant follows it to a new address
 //
 // Errors about the model carry a reason the integration shows: unreachable,
 // bad_key, no_model, no_tools, server_error.
@@ -109,6 +115,7 @@ func (h *Handler) now() time.Time {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/pair", h.status)
 	mux.HandleFunc("POST /v1/pair", h.pair)
+	mux.HandleFunc("POST /v1/prove", h.prove)
 	mux.HandleFunc("POST /v1/unpair", h.auth(h.unpair))
 	mux.HandleFunc("POST /v1/setup", h.auth(h.setup))
 	mux.HandleFunc("GET /v1/setup/providers", h.authOrOpen(h.providers))
@@ -226,6 +233,31 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 	if h.Restart != nil {
 		time.AfterFunc(300*time.Millisecond, h.Restart)
 	}
+}
+
+// prove answers a nonce with an HMAC under the token. Home Assistant
+// computes the same with the token it keeps; an agent that merely announces
+// the same id cannot.
+func (h *Handler) prove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil || len(req.Nonce) < 16 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": `body must be {"nonce"}, at least 16 characters`})
+		return
+	}
+	if h.Token == "" {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this agent has no token"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"proof": Proof(h.Token, req.Nonce)})
+}
+
+// Proof is the answer to a nonce: HMAC-SHA256 under the token, in hex.
+func Proof(token, nonce string) string {
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write([]byte("mira-prove:" + nonce))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // probeOnly is the trial request alone, for the setup form's model step.

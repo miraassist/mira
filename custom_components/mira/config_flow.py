@@ -10,6 +10,8 @@ satellite; see managed.py.
 from __future__ import annotations
 
 import asyncio
+import hmac
+import secrets
 from typing import Any
 
 import voluptuous as vol
@@ -29,7 +31,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .access import assistants, ensure_agent_access, ensure_mcp_server, ha_url, revoke_agent_token
-from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig
+from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof
 from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
@@ -344,6 +346,17 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             return False
         return True
 
+    async def _proves(self, url: str, token: str) -> bool:
+        """Whether the agent at this address holds the token, shown without
+        sending it. An agent before 0.11.0 cannot show it and stays where it
+        was; updating it lets it move."""
+        nonce = secrets.token_hex(16)
+        try:
+            answer = await MiraClient(async_get_clientsession(self.hass), url, "").prove(nonce)
+        except MiraError:
+            return False
+        return bool(token) and hmac.compare_digest(answer, proof(token, nonce))
+
     def _client(self, token: str = "") -> MiraClient:
         return MiraClient(async_get_clientsession(self.hass), self._url, token or self._token)
 
@@ -400,6 +413,10 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         known = next((e for e in self._async_current_entries(include_ignore=False) if e.unique_id == agent_id), None)
         if known is not None and (ipv6 or await self._answers(known.data[CONF_URL])):
             return self.async_abort(reason="already_configured")
+        # The id is announced openly: the agent at the new address must show
+        # it holds the entry's token before the token is sent there.
+        if known is not None and not await self._proves(url, known.data.get(CONF_TOKEN, "")):
+            return self.async_abort(reason="not_proven")
         self._abort_if_unique_id_configured(updates={CONF_URL: url})
         # An entry from before agents had ids: same address, same agent.
         for entry in self._async_current_entries(include_ignore=False):

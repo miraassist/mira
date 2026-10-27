@@ -17,6 +17,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.config_flow import FIELD_NAMES
+from custom_components.mira.api import proof
 from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 from custom_components.mira.managed import notify_targets
 
@@ -309,11 +310,51 @@ async def test_a_known_agent_keeps_the_address_that_answers(hass, aioclient_mock
     assert entry.data[CONF_URL] == AGENT_URL
 
 
+NONCE = "0123456789abcdef0123"
+
+
+def _proves(aioclient_mock, token="secret", url="http://10.0.0.5:8787"):
+    """The agent at the new address answers the nonce under this token."""
+    aioclient_mock.post(f"{url}/v1/prove", json={"proof": proof(token, NONCE)})
+
+
 async def test_a_known_agent_moves_when_its_address_does_not_answer(hass, aioclient_mock, entry):
+    """It follows the agent to the new address once the agent there shows
+    it holds the entry's token; the token itself is not sent."""
     aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
-    result = await _rediscover(hass, _discovery(host="10.0.0.5"))
+    _proves(aioclient_mock)
+    with patch("custom_components.mira.config_flow.secrets.token_hex", return_value=NONCE):
+        result = await _rediscover(hass, _discovery(host="10.0.0.5"))
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_URL] == "http://10.0.0.5:8787"
+    prove = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/prove"))
+    assert "secret" not in str(prove)
+
+
+async def test_an_agent_that_only_announces_the_id_is_not_followed(hass, aioclient_mock, entry):
+    """Another device announcing the same id, while the agent is away, does
+    not get the token: it cannot answer the nonce."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
+    _proves(aioclient_mock, token="guessed")
+    with patch("custom_components.mira.config_flow.secrets.token_hex", return_value=NONCE):
+        result = await _rediscover(hass, _discovery(host="10.0.0.5"))
+    assert result["reason"] == "not_proven"
+    assert entry.data[CONF_URL] == AGENT_URL
+
+
+async def test_an_agent_before_the_proof_is_not_followed(hass, aioclient_mock, entry):
+    """An agent before 0.11.0 has no proof route and answers 401 (or 404).
+    Anyone could answer so: it stays where it was."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/pair", exc=aiohttp.ClientConnectionError())
+    aioclient_mock.post("http://10.0.0.5:8787/v1/prove", status=401)
+    result = await _rediscover(hass, _discovery(host="10.0.0.5"))
+    assert result["reason"] == "not_proven"
+    assert entry.data[CONF_URL] == AGENT_URL
+
+
+def test_the_proof_matches_the_agent():
+    """The vector from internal/setup TestProve: both sides compute alike."""
+    assert proof("tok", NONCE) == "8d3326e40cf47d6e108e1d121286a33260f495bcf4d3ceab92a10e467a745b19"
 
 
 async def test_an_ipv6_address_is_never_taken_over(hass, aioclient_mock, entry):
@@ -332,7 +373,9 @@ async def test_ipv4_is_preferred_among_the_announced_addresses(hass, aioclient_m
         ip_addresses=[ip_address("fdf4:27c6:8ba:0:4298:2414:e338:b4cc"), ip_address("192.168.178.186")],
         hostname=info.hostname, name=info.name, port=info.port, type=info.type, properties=info.properties,
     )
-    await _rediscover(hass, info)
+    _proves(aioclient_mock, url="http://192.168.178.186:8787")
+    with patch("custom_components.mira.config_flow.secrets.token_hex", return_value=NONCE):
+        await _rediscover(hass, info)
     assert entry.data[CONF_URL] == "http://192.168.178.186:8787"
 
 
@@ -424,3 +467,19 @@ async def test_the_voice_threshold_is_checked_and_kept(hass, aioclient_mock, ent
     result = await _form(hass, entry, "persons")
     await hass.config_entries.options.async_configure(result["flow_id"], {"Anna": _fields({"alone_is_me": True})})
     assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"alone_is_me": True, "voice_threshold": 0.6}
+
+
+async def test_the_agent_cannot_change_who_may_manage_tasks(hass, aioclient_mock):
+    """The integration made Mira's user at pairing; an agent naming another
+    one later (a stranger at the agent's address) is not believed."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": "stranger"})
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
+    aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
+    entry = MockConfigEntry(
+        domain=DOMAIN, title="Mira", unique_id=AGENT_ID,
+        data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret", CONF_IMPORTED: True, CONF_AGENT_USER: "mira-user"},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_AGENT_USER] == "mira-user"

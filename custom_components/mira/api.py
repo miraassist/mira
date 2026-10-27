@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import hashlib
+import hmac
 import re
 
 import aiohttp
@@ -57,6 +59,12 @@ class AgentReply:
     html: list[str] | None = None
 
 
+def proof(token: str, nonce: str) -> str:
+    """What an agent with this token answers to the nonce, as
+    internal/setup.Proof computes it."""
+    return hmac.new(token.encode(), f"mira-prove:{nonce}".encode(), hashlib.sha256).hexdigest()
+
+
 class MiraClient:
     """Talks to the agent's /v1 API. The integration never does more than this."""
 
@@ -100,6 +108,12 @@ class MiraClient:
         """Open: the agent's id, and whether it waits for a code or a setup.
         An agent from before pairing has no such route (MiraError)."""
         return await self._request("GET", "/v1/pair", 10)
+
+    async def prove(self, nonce: str) -> str:
+        """Open: the agent's answer to a nonce, an HMAC under its token
+        (proof()). An agent before 0.11.0 has no such route."""
+        body = await self._request("POST", "/v1/prove", 10, json={"nonce": nonce})
+        return str(body["proof"])
 
     async def pair(self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None) -> str:
         """Pair and set up in one step: the agent keeps Home Assistant's

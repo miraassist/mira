@@ -365,3 +365,38 @@ func TestOpenRoutesAreHarmless(t *testing.T) {
 		t.Errorf("no limit on the open routes: %d", last)
 	}
 }
+
+// The proof shows the token without sending it: the same token and nonce
+// give the same answer, another token does not.
+func TestProve(t *testing.T) {
+	h := &Handler{Store: newStore(t), Token: "tok", ID: "id", Version: "t", Log: slog.Default()}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	prove := func(body string) (int, string) {
+		resp, err := http.Post(srv.URL+"/v1/prove", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out struct {
+			Proof string `json:"proof"`
+		}
+		json.NewDecoder(resp.Body).Decode(&out)
+		return resp.StatusCode, out.Proof
+	}
+	nonce := "0123456789abcdef0123"
+	code, proof := prove(`{"nonce":"` + nonce + `"}`)
+	if code != 200 || proof != Proof("tok", nonce) || proof == Proof("other", nonce) || strings.Contains(proof, "tok") {
+		t.Errorf("proof: %d %q", code, proof)
+	}
+	// The integration computes the same in Python; the vector is shared
+	// with tests/ha/test_config_flow.py.
+	if want := "8d3326e40cf47d6e108e1d121286a33260f495bcf4d3ceab92a10e467a745b19"; proof != want {
+		t.Errorf("proof %s, the integration expects %s", proof, want)
+	}
+	if code, _ := prove(`{"nonce":"short"}`); code != 400 {
+		t.Errorf("short nonce: %d", code)
+	}
+}

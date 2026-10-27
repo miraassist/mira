@@ -236,8 +236,10 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     agent_id = health.get("id")
     if entry.unique_id is None and agent_id and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id):
         hass.config_entries.async_update_entry(entry, unique_id=agent_id)
-    # The agent's own Home Assistant user may manage Mira's automations.
-    if (user := health.get("ha_user_id")) and entry.data.get(CONF_AGENT_USER) != user:
+    # The agent's own Home Assistant user may manage Mira's automations. The
+    # integration made it at pairing; only an entry from before that learns
+    # it from the agent, once, and the agent cannot change it later.
+    if (user := health.get("ha_user_id")) and not entry.data.get(CONF_AGENT_USER):
         hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_USER: user})
     # Persons and rooms were subentries once; their settings live on HA's
     # persons and satellites now.

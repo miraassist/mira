@@ -89,6 +89,7 @@
     "abort": {
       "already_configured": "This agent is already configured.",
       "no_id": "The agent did not announce an id; update it.",
+      "not_proven": "A Mira agent announced itself at a new address but could not show it is yours. The address stays as it is.",
       "setup_failed": "Setting up did not work: {error}"
     },
     "flow_title": "{name} ({host})",
