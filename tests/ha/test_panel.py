@@ -2,7 +2,7 @@
 
 from homeassistant.components import frontend
 
-from custom_components.mira.const import CONF_SIDEBAR
+from custom_components.mira.const import CONF_SIDEBAR, VERSION
 
 from .conftest import AGENT_URL
 
@@ -151,3 +151,12 @@ async def test_agent_restarting_is_waited_for(hass, aioclient_mock, entry, hass_
     resp = await (await hass_client_no_auth()).get("/api/mira/panel/ui")
     assert resp.status == 503
     assert "nicht erreichbar" in await resp.text()
+
+
+async def test_proxy_says_the_integrations_version(hass, aioclient_mock, entry, hass_client_no_auth):
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.get(f"{AGENT_URL}/ui", text="<html>Mira</html>", headers={"Content-Type": "text/html"})
+    client = await hass_client_no_auth()
+    await client.get("/api/mira/panel/ui")
+    _, _, _, headers = aioclient_mock.mock_calls[-1]
+    assert headers["X-Mira-Integration"] == VERSION

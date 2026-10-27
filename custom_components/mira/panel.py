@@ -31,7 +31,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.http import KEY_HASS
 
 from .api import MiraError, MiraInvalidConfig
-from .const import DOMAIN
+from .const import DOMAIN, VERSION
 from .managed import (
     PERSON_OWN_FIELDS,
     SATELLITE_DOMAINS,
@@ -67,6 +67,8 @@ NON_ADMIN_VOICE = re.compile(r"v1/ui/voice/[\w-]+(/enroll|/heard|/assign)?")
 # Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
 HEADER_USER = "X-Mira-HA-User"
 HEADER_ADMIN = "X-Mira-HA-Admin"
+# This integration's version, for the page's footer (internal/ui: HeaderIntegration).
+HEADER_INTEGRATION = "X-Mira-Integration"
 # Headers passed on, both ways: videos come in ranges (Safari asks so); the
 # page's Content-Security-Policy holds inside Home Assistant too.
 REQUEST_PASSED = ("Range", "If-Range")
@@ -135,6 +137,7 @@ async def _forward(
     base, token = agent
     headers = {"Content-Type": request.headers.get("Content-Type", "application/json")}
     headers.update({k: request.headers[k] for k in REQUEST_PASSED if k in request.headers})
+    headers[HEADER_INTEGRATION] = VERSION
     if with_token:
         headers["Authorization"] = f"Bearer {token}"
     headers.update(extra or {})

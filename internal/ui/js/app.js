@@ -184,7 +184,14 @@ class MiraHome extends Light {
           ${g.id === "help" ? this.chapters() : html`<p class="home-pages">${tabsOf(g).map(id => this.link(T["tab_" + id], () => go(id)))}</p>`}
           <div class="home-facts">${g.id === "help" ? html`<p class="home-line">${T.home_help_line}</p>` : this.lines(g.id).map(l => html`<p class="home-line">${l}</p>`)}</div>
         </section>`)}</div>
-      <footer class="mira-footer"><span>${T.home_footer}</span><a href="https://mira-assist.com" target="_blank" rel="noopener">Mira Assist</a></footer>`;
+      <footer class="mira-footer"><span>${T.home_footer}</span><span>${this.versions()}<a href="https://mira-assist.com" target="_blank" rel="noopener">Mira Assist</a></span></footer>`;
+  }
+  // versions are the service's and, inside Home Assistant, the integration's.
+  versions() {
+    const v = document.querySelector('meta[name="mira-versions"]').dataset;
+    const parts = [`${T.footer_service} ${v.service}`];
+    if (v.integration) parts.push(`${T.footer_integration} ${v.integration}`);
+    return parts.join(" · ") + " · ";
   }
   // greeting greets by the time of day.
   greeting(name) {

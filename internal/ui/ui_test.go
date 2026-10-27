@@ -487,3 +487,31 @@ func TestMessagesByViewer(t *testing.T) {
 		}
 	}
 }
+
+// VE-05: the integration's version reaches the page's footer; what does not
+// look like a version is left out, and without it only the service's shows.
+func TestPageShowsTheIntegrationsVersion(t *testing.T) {
+	srv, _, _ := setup(t)
+	page := func(integration string) string {
+		req, _ := http.NewRequest("GET", srv.URL+"/ui", nil)
+		if integration != "" {
+			req.Header.Set(HeaderIntegration, integration)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
+	}
+	if body := page("0.11.0"); !strings.Contains(body, `data-integration="0.11.0"`) {
+		t.Error("the integration's version is missing")
+	}
+	if body := page(`0.11.0"><script>`); !strings.Contains(body, `data-integration=""`) {
+		t.Error("something that is no version reached the page")
+	}
+	if body := page(""); !strings.Contains(body, `data-integration=""`) || strings.Contains(body, "%%") {
+		t.Error("without the integration the page keeps a placeholder")
+	}
+}

@@ -21,6 +21,7 @@ import (
 	"mime"
 	"net/http"
 	"path"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -174,14 +175,24 @@ func New(opts Options) *Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) { h.mux.ServeHTTP(w, r) }
 
-func (h *Handler) page(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) page(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	// Recordings of the guide come from their own server over https, and a
 	// plan from a recipe shows the recipe's picture from its site.
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; media-src 'self' https:; img-src 'self' https:")
-	w.Write(bytes.Replace(page, []byte("%%VERSION%%"), []byte(html.EscapeString(h.opts.Version)), 1))
+	// Inside Home Assistant the integration says its version, for the start
+	// page's footer; the page is open, so only a version's characters pass.
+	integration := r.Header.Get(HeaderIntegration)
+	if !versionText.MatchString(integration) {
+		integration = ""
+	}
+	w.Write(bytes.ReplaceAll(bytes.ReplaceAll(page, []byte("%%VERSION%%"), []byte(html.EscapeString(h.opts.Version))),
+		[]byte("%%INTEGRATION%%"), []byte(integration)))
 }
+
+// versionText is what a version may look like (0.11.0, 0.12.0b1).
+var versionText = regexp.MustCompile(`^[0-9A-Za-z.+-]{1,32}$`)
 
 // guide serves the user guide as Markdown. Like the page it holds no data,
 // so it needs no token.
@@ -495,6 +506,11 @@ const (
 	HeaderHAUser  = "X-Mira-HA-User"
 	HeaderHAAdmin = "X-Mira-HA-Admin"
 )
+
+// HeaderIntegration is the integration's version, on everything its proxy
+// passes on, the page too (docs/spec/versionen.md). Older integrations do
+// not send it.
+const HeaderIntegration = "X-Mira-Integration"
 
 // viewer is who looks at the page. Inside Home Assistant everyone, admins
 // too, sees the house's memory and their own only; with the agent's token

@@ -63,6 +63,9 @@ how to end it.
   (`test_older_agent_is_a_repair_until_updated`); the agent newer: "update the integration".
 - **VE-03** An agent without `version` in `/v1/status`: the version from `/v1/health` applies.
 - **VE-04** An agent without the provider list: no providers, no error.
+- **VE-05** The start page's footer shows the agent's version and, inside Home Assistant, the integration's: its
+  proxy sends `X-Mira-Integration` with everything it passes on, the page too; an older integration sends none,
+  then only the agent's shows (`TestPageShowsTheIntegrationsVersion`, `test_proxy_says_the_integrations_version`).
 
 ## Later
 

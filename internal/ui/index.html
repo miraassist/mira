@@ -6,6 +6,8 @@
 <!-- Recordings of the guide come from their own server: it does not learn where they are watched. -->
 <meta name="referrer" content="no-referrer">
 <title>Mira</title>
+<!-- The versions, for the start page's footer; the integration's only inside Home Assistant. -->
+<meta name="mira-versions" data-service="%%VERSION%%" data-integration="%%INTEGRATION%%">
 <style>
 /* Mira's palette, taken from the logo: rose, magenta, teal, mint on a soft ink. */
 :root {
@@ -575,7 +577,7 @@ const I18N = {
   "greet_plan": r => r ? `Ein Plan läuft gerade: „${r}“.` : "Ein Plan läuft gerade.", "greet_plans": n => `${n} Pläne laufen gerade.`,
   "greet_quiet": "Nichts Neues, alles ruhig im Haus.",
   "home_label": "DEINE MIRA", "home_label_side": "Ein Zuhause. Viele Möglichkeiten.",
-  "home_help_line": "Gespräche, Aufgaben und eigene Skills.", "home_footer": "Persönlich für dein Zuhause.",
+  "home_help_line": "Gespräche, Aufgaben und eigene Skills.", "home_footer": "Persönlich für dein Zuhause.", "footer_service": "Mira-Service", "footer_integration": "Integration",
   // The start page links three chapters of the guide: a short name, and how
   // the chapter's heading begins.
   "home_chapters": [["Gespräche", "Ein Gespräch"], ["Aufgaben", "Mira passt aufs Haus auf"], ["Skills", "Skills:"]],
@@ -1023,7 +1025,7 @@ const I18N = {
   "greet_plan": r => r ? `A plan is running: “${r}”.` : "A plan is running.", "greet_plans": n => `${n} plans are running.`,
   "greet_quiet": "Nothing new, all quiet at home.",
   "home_label": "YOUR MIRA", "home_label_side": "One home. Many possibilities.",
-  "home_help_line": "Conversations, tasks and your own skills.", "home_footer": "Personal to your home.",
+  "home_help_line": "Conversations, tasks and your own skills.", "home_footer": "Personal to your home.", "footer_service": "Mira service", "footer_integration": "Integration",
   "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
   "home_satellites": n => n === 1 ? "1 satellite" : `${n} satellites`,
   "home_persons": n => n === 1 ? "1 person" : `${n} people`,
