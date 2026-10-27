@@ -125,6 +125,10 @@ type Heard struct {
 	Seconds    float64 `json:"seconds"`
 	Transcript string  `json:"transcript"`
 	Assigned   string  `json:"assigned,omitempty"`
+	// Person is who the service thinks it is, with the score; empty from
+	// a service before 0.11.0.
+	Person string  `json:"person,omitempty"`
+	Score  float64 `json:"score,omitempty"`
 }
 
 // HeardSince is what the service heard since since (unix seconds; it looks

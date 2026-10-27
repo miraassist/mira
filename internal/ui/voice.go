@@ -3,10 +3,13 @@ package ui
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/miraassist/mira/internal/speakerid"
 )
@@ -21,49 +24,129 @@ type Voices interface {
 	Delete(ctx context.Context, person string) error
 }
 
-// enrollFor is how long enrolling shows what the satellites hear: long
-// enough for a few sentences, short enough that nobody reads along with the
-// house for long.
+// enrollFor is how long enrolling shows what the satellites hear of the
+// sentences it asks for: long enough to say them all.
 const enrollFor = 3 * time.Minute
 
+// enrollSentences are what enrolling asks to say, after the wake word:
+// harmless requests Mira answers in a moment. Only utterances that are one
+// of them show on the page, so enrolling cannot be used to read along with
+// what the house says (docs/spec/sprecher.md).
+var enrollSentences = map[string][]string{
+	"de": {
+		"Wie spät ist es gerade?",
+		"Welcher Wochentag ist heute?",
+		"Wie wird das Wetter morgen?",
+		"Wie warm ist es draußen?",
+		"Wann geht heute die Sonne unter?",
+		"Wie viele Tage hat der Februar?",
+		"Erzähl mir einen kurzen Witz.",
+		"Welches Datum haben wir heute?",
+	},
+	"en": {
+		"What time is it right now?",
+		"Which day of the week is it today?",
+		"What will the weather be like tomorrow?",
+		"How warm is it outside?",
+		"When does the sun set today?",
+		"How many days does February have?",
+		"Tell me a short joke.",
+		"What is the date today?",
+	},
+}
+
+// enrollSay is how many of them one enrolling asks for.
+const enrollSay = 4
+
 // enrolling is when each person's enrolling started, on the service's clock,
-// and when it ends on Mira's. What the satellites heard is shown only from
-// that start: what was said before is not the enroller's to read.
+// when it ends on Mira's, and the sentences it asked for. What the
+// satellites heard is shown only from that start, and only those sentences:
+// nothing else said in the house is the enroller's to read.
 type enrolling struct {
 	mu   sync.Mutex
 	open map[string]enrollWindow
 }
 
 type enrollWindow struct {
-	since float64
-	until time.Time
+	since     float64
+	until     time.Time
+	sentences []string
 }
 
-func (e *enrolling) start(person string, since float64) {
+func (e *enrolling) start(person string, since float64, sentences []string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.open == nil {
 		e.open = map[string]enrollWindow{}
 	}
-	e.open[person] = enrollWindow{since: since, until: time.Now().Add(enrollFor)}
+	e.open[person] = enrollWindow{since: since, until: time.Now().Add(enrollFor), sentences: sentences}
 }
 
-// since is where the person's enrolling began, if it is still open.
-func (e *enrolling) since(person string) (float64, bool) {
-	since, _, ok := e.window(person)
-	return since, ok
-}
-
-// window is where the person's enrolling began and how long it stays open.
-func (e *enrolling) window(person string) (float64, time.Duration, bool) {
+// window is the person's enrolling and how long it stays open.
+func (e *enrolling) window(person string) (enrollWindow, time.Duration, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	w, ok := e.open[person]
 	if !ok || time.Now().After(w.until) {
 		delete(e.open, person)
-		return 0, 0, false
+		return enrollWindow{}, 0, false
 	}
-	return w.since, time.Until(w.until), true
+	return w, time.Until(w.until), true
+}
+
+// pickSentences are enrollSay sentences of the language, in random order.
+func pickSentences(lang string) []string {
+	all, ok := enrollSentences[lang]
+	if !ok {
+		all = enrollSentences["en"]
+	}
+	picked := slices.Clone(all)
+	rand.Shuffle(len(picked), func(i, j int) { picked[i], picked[j] = picked[j], picked[i] })
+	return picked[:enrollSay]
+}
+
+// saysOneOf: the transcript is one of the sentences, as speech recognition
+// writes it. Most of the sentence's words are there, and hardly anything
+// else, so a sentence said inside a longer one does not show the rest.
+func saysOneOf(transcript string, sentences []string) bool {
+	heard := words(transcript)
+	for _, s := range sentences {
+		want := words(s)
+		found := 0
+		for _, w := range want {
+			if slices.Contains(heard, w) {
+				found++
+			}
+		}
+		if len(want) > 0 && found*10 >= len(want)*7 && len(heard) <= len(want)+2 {
+			return true
+		}
+	}
+	return false
+}
+
+func words(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+}
+
+// enrollable is what the person may see and take while enrolling: what was
+// heard since the start that is one of the sentences asked for, and not
+// someone else's voice, as enrolled or as the service hears it.
+func (h *Handler) enrollable(heard []speakerid.Heard, person string, w enrollWindow) []speakerid.Heard {
+	out := []speakerid.Heard{}
+	for _, u := range heard {
+		if !saysOneOf(u.Transcript, w.sentences) {
+			continue
+		}
+		if u.Assigned != "" && u.Assigned != person {
+			continue
+		}
+		if u.Person != "" && u.Person != person && h.opts.VoiceThreshold != nil && u.Score >= h.opts.VoiceThreshold(u.Person) {
+			continue
+		}
+		out = append(out, u)
+	}
+	return out
 }
 
 func (e *enrolling) stop(person string) {
@@ -129,12 +212,13 @@ func (h *Handler) voice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	_, left, open := h.enroll.window(person)
-	writeJSON(w, http.StatusOK, map[string]any{"samples": profiles[person], "enrolling": open, "left": int(left.Seconds())})
+	win, left, open := h.enroll.window(person)
+	writeJSON(w, http.StatusOK, map[string]any{"samples": profiles[person], "enrolling": open, "left": int(left.Seconds()),
+		"sentences": nonNilStrings(win.sentences)})
 }
 
-// enrollStart starts enrolling: from now on the page shows what the
-// satellites hear, for enrollFor.
+// enrollStart starts enrolling: for enrollFor the page shows what the
+// satellites hear of the sentences it asks for (?lang=de|en).
 func (h *Handler) enrollStart(w http.ResponseWriter, r *http.Request) {
 	person, ok := h.voiceTarget(w, r)
 	if !ok {
@@ -145,8 +229,9 @@ func (h *Handler) enrollStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	h.enroll.start(person, now)
-	writeJSON(w, http.StatusOK, map[string]any{"seconds": int(enrollFor.Seconds())})
+	sentences := pickSentences(r.URL.Query().Get("lang"))
+	h.enroll.start(person, now, sentences)
+	writeJSON(w, http.StatusOK, map[string]any{"seconds": int(enrollFor.Seconds()), "sentences": sentences})
 }
 
 func (h *Handler) enrollStop(w http.ResponseWriter, r *http.Request) {
@@ -158,27 +243,25 @@ func (h *Handler) enrollStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// heard is what the satellites heard since enrolling started.
+// heard is what the satellites heard of the sentences since enrolling
+// started.
 func (h *Handler) heard(w http.ResponseWriter, r *http.Request) {
 	person, ok := h.voiceTarget(w, r)
 	if !ok {
 		return
 	}
-	since, left, open := h.enroll.window(person)
+	win, left, open := h.enroll.window(person)
 	if !open {
 		writeError(w, http.StatusConflict, "not enrolling")
 		return
 	}
-	heard, _, err := h.opts.Voices.HeardSince(r.Context(), since)
+	heard, _, err := h.opts.Voices.HeardSince(r.Context(), win.since)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	if heard == nil {
-		heard = []speakerid.Heard{}
-	}
 	// left: how much longer, so the page follows Mira's window and not a clock of its own.
-	writeJSON(w, http.StatusOK, map[string]any{"heard": heard, "left": int(left.Seconds())})
+	writeJSON(w, http.StatusOK, map[string]any{"heard": h.enrollable(heard, person, win), "left": int(left.Seconds())})
 }
 
 // assign enrolls one of the utterances heard while enrolling for the person.
@@ -194,18 +277,18 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "id missing")
 		return
 	}
-	since, open := h.enroll.since(person)
+	win, _, open := h.enroll.window(person)
 	if !open {
 		writeError(w, http.StatusConflict, "not enrolling")
 		return
 	}
-	// Only what was heard while enrolling: no other utterance's id gets in.
-	heard, _, err := h.opts.Voices.HeardSince(r.Context(), since)
+	// Only what the page may show: no other utterance's id gets in.
+	heard, _, err := h.opts.Voices.HeardSince(r.Context(), win.since)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	if !slices.ContainsFunc(heard, func(u speakerid.Heard) bool { return u.ID == body.ID }) {
+	if !slices.ContainsFunc(h.enrollable(heard, person, win), func(u speakerid.Heard) bool { return u.ID == body.ID }) {
 		writeError(w, http.StatusNotFound, "not heard while enrolling")
 		return
 	}
@@ -232,4 +315,11 @@ func (h *Handler) forgetVoice(w http.ResponseWriter, r *http.Request) {
 	}
 	h.enroll.stop(person)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

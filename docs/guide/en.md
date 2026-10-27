@@ -146,7 +146,7 @@ Speaker recognition is **optional**. Without it Mira works as before; **Enroll t
 - A recognized voice counts like "alone at home": your memory, your reminders, tasks and messages. **It is no login**: it opens no locks, alarm or purchases.
 - When Mira is not sure (an unknown voice, two voices too alike, a very short sentence), the satellite stays the house.
 
-**Enrolling your voice.** On the overview everyone has a card with their name. There, **Enroll the voice**, then at a satellite the wake word and: "I am Anna, learn my voice now." Two or three more times with other sentences. Each sentence shows on the card; tap **That was me** for each, then **Done**. For three minutes the card shows only what is said from the click on, nothing before. If your voice is often not recognized later, just enroll a few more sentences.
+**Enrolling your voice.** On the overview everyone has a card with their name. There, **Enroll the voice**: the card shows four sentences, such as "What time is it right now?". At a satellite say the wake word and one of them each time, best all of them. Each sentence shows on the card; tap **That was me** for each, then **Done**. For three minutes the card shows only these sentences, said from the click on, and not in someone else's voice. Nobody sees there what else is said in the house. If your voice is often not recognized later, just enroll a few more sentences.
 
 **For children and others without a login** an admin enrolls the voice: Settings → **People** → the person → **Enroll the voice**; the person speaks, the admin taps **That was Ben**. There an admin also sets a person's **voice threshold**: lower when their voice is often not recognized, higher when it is mistaken for another. Without one, 0.7 applies.
 

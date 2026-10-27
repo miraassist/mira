@@ -214,12 +214,13 @@ class SpeakerStore:
 
     def heard_since(self, since: float) -> list[dict]:
         """The utterances since `since` (unix seconds), oldest first, for enrolling: each with its id,
-        transcript, length and to whom it was assigned. Only those with a voice print."""
+        transcript, length, to whom it was assigned, and who it sounds like with the score (Mira hides
+        what sounds like someone else from the enroller). Only those with a voice print."""
         with self.lock:
             found = [u for u in self.recent if u.at >= since and u.embedding is not None]
         return [
             {"id": u.id, "at": u.at, "seconds": round(u.seconds, 2), "transcript": u.transcript,
-             "assigned": u.assigned}
+             "assigned": u.assigned, "person": u.speaker, "score": round(u.score, 3)}
             for u in reversed(found)
         ]
 

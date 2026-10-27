@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -63,7 +64,7 @@ func voiceServer(t *testing.T) (*httptest.Server, *fakeVoices) {
 		{ID: "old", At: 900, Transcript: "Said before"},
 		{ID: "new", At: 1000.5, Transcript: "Merk dir, ich mag Tee"},
 	}}
-	h := New(Options{Token: "secret", Voices: fv,
+	h := New(Options{Token: "secret", Voices: fv, VoiceThreshold: func(string) float64 { return 0.7 },
 		People: func() []PersonInfo {
 			return []PersonInfo{{Key: "anna", Name: "Anna", Entity: "person.anna"}, {Key: "ben", Name: "Ben", Entity: "person.ben"}}
 		},
@@ -111,29 +112,74 @@ func TestVoiceRights(t *testing.T) {
 	}
 }
 
-// Enrolling shows only what was said after it started, and only that can be
-// enrolled.
-func TestEnrollShowsOnlyWhatFollows(t *testing.T) {
+// Enrolling asks for sentences and shows only those, said after it started,
+// and not in someone else's voice; only that can be enrolled. Nothing else
+// the house says reaches the page.
+func TestEnrollShowsOnlyTheSentencesAskedFor(t *testing.T) {
 	srv, fv := voiceServer(t)
 	if code, _ := asHA(t, srv, "GET", "/v1/ui/voice/anna/heard", "u-anna", false, ""); code != http.StatusConflict {
 		t.Fatalf("heard before enrolling: %d", code)
 	}
-	if code, body := asHA(t, srv, "POST", "/v1/ui/voice/anna/enroll", "u-anna", false, ""); code != 200 {
+	code, body := asHA(t, srv, "POST", "/v1/ui/voice/anna/enroll?lang=de", "u-anna", false, "")
+	var started struct {
+		Sentences []string `json:"sentences"`
+	}
+	json.Unmarshal([]byte(body), &started)
+	if code != 200 || len(started.Sentences) != enrollSay || !slices.Contains(enrollSentences["de"], started.Sentences[0]) {
 		t.Fatalf("enroll: %d %s", code, body)
 	}
-	_, body := asHA(t, srv, "GET", "/v1/ui/voice/anna/heard", "u-anna", false, "")
-	if strings.Contains(body, "Said before") || !strings.Contains(body, "Merk dir") || fv.since != 1000 {
-		t.Errorf("heard: %s (since %v)", body, fv.since)
+	said := started.Sentences[0]
+	fv.mu.Lock()
+	fv.heard = []speakerid.Heard{
+		{ID: "old", At: 900, Transcript: said},                                                     // before enrolling
+		{ID: "mine", At: 1000.5, Transcript: strings.ToLower(strings.TrimRight(said, "?.")) + "?"}, // as speech recognition writes it
+		{ID: "private", At: 1001, Transcript: "Merk dir, ich mag Tee"},                             // not a sentence asked for
+		{ID: "longer", At: 1002, Transcript: said + " und erinnere mich an den Arzttermin bei Doktor Weber"},
+		{ID: "ben", At: 1003, Transcript: said, Person: "ben", Score: 0.82},   // sounds like ben
+		{ID: "bens", At: 1004, Transcript: said, Assigned: "ben"},             // enrolled for ben
+		{ID: "unsure", At: 1005, Transcript: said, Person: "ben", Score: 0.4}, // nobody for sure
 	}
-	if code, _ := asHA(t, srv, "POST", "/v1/ui/voice/anna/assign", "u-anna", false, `{"id": "old"}`); code != http.StatusNotFound {
-		t.Errorf("assigning what was said before: %d", code)
+	fv.mu.Unlock()
+	_, body = asHA(t, srv, "GET", "/v1/ui/voice/anna/heard", "u-anna", false, "")
+	var got struct {
+		Heard []speakerid.Heard `json:"heard"`
 	}
-	if code, _ := asHA(t, srv, "POST", "/v1/ui/voice/anna/assign", "u-anna", false, `{"id": "new"}`); code != 200 || fv.samples["anna"] != 1 {
+	json.Unmarshal([]byte(body), &got)
+	var ids []string
+	for _, u := range got.Heard {
+		ids = append(ids, u.ID)
+	}
+	if strings.Join(ids, ",") != "mine,unsure" || strings.Contains(body, "Tee") || strings.Contains(body, "Arzt") {
+		t.Errorf("heard: %v %s", ids, body)
+	}
+	for _, id := range []string{"old", "private", "ben", "bens"} {
+		if code, _ := asHA(t, srv, "POST", "/v1/ui/voice/anna/assign", "u-anna", false, `{"id": "`+id+`"}`); code != http.StatusNotFound {
+			t.Errorf("assigning %s: %d", id, code)
+		}
+	}
+	if code, _ := asHA(t, srv, "POST", "/v1/ui/voice/anna/assign", "u-anna", false, `{"id": "mine"}`); code != 200 || fv.samples["anna"] != 1 {
 		t.Errorf("assign: %d, samples %v", code, fv.samples)
+	}
+	if _, body := asHA(t, srv, "GET", "/v1/ui/voice/anna", "u-anna", false, ""); !strings.Contains(body, said) {
+		t.Errorf("the card does not show the sentences again: %s", body)
 	}
 	asHA(t, srv, "DELETE", "/v1/ui/voice/anna/enroll", "u-anna", false, "")
 	if code, _ := asHA(t, srv, "GET", "/v1/ui/voice/anna/heard", "u-anna", false, ""); code != http.StatusConflict {
 		t.Errorf("heard after stopping: %d", code)
+	}
+}
+
+// Every sentence, as said, passes its own check, in both languages.
+func TestEverySentenceIsRecognized(t *testing.T) {
+	for lang, all := range enrollSentences {
+		if len(all) < enrollSay {
+			t.Errorf("%s: only %d sentences", lang, len(all))
+		}
+		for _, s := range all {
+			if !saysOneOf(s, []string{s}) || saysOneOf("Mach das Licht im Flur an", []string{s}) {
+				t.Errorf("%s: %q", lang, s)
+			}
+		}
 	}
 }
 

@@ -85,6 +85,9 @@ type Options struct {
 	// Voices is the speaker-id service, for enrolling a voice on the page;
 	// nil without speaker_id (docs/spec/sprecher.md).
 	Voices Voices
+	// VoiceThreshold is the score a person's voice needs to count as
+	// theirs: enrolling hides what sounds like someone else.
+	VoiceThreshold func(person string) float64
 	// PersonOfHAUser maps a Home Assistant user to a person key ("" for
 	// none), for the page inside Home Assistant.
 	PersonOfHAUser func(ctx context.Context, user string) string

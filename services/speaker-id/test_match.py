@@ -51,6 +51,12 @@ class HeardTest(unittest.TestCase):
         got = [u["transcript"] for u in s.heard_since(time.time() - 10)]
         self.assertEqual(got, ["Älter", "Neu"])
 
+    def test_says_who_it_sounds_like(self):
+        s = store_with(said("Wie spät ist es?", "anna", ago=1.0))
+        (u,) = s.heard_since(time.time() - 10)
+        self.assertEqual(u["person"], "anna")
+        self.assertIsInstance(u["score"], float)
+
     def test_profiles(self):
         s = store_with()
         s.speakers = {"anna": [[1.0], [0.5]]}

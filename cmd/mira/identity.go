@@ -72,21 +72,25 @@ func (a *app) voiceOf(ctx context.Context, text string, persons map[string]confi
 		a.log.Warn("speaker-id did not answer", "error", err)
 		return ""
 	}
+	person := speakerid.Decide(found, func(p string) float64 { return a.voiceThreshold(persons, p) })
+	a.log.Debug("speaker-id", "person", person, "heard", found)
+	return person
+}
+
+// voiceThreshold is the score person's voice needs: their own, else the one
+// of mira.yaml, else speakerid.Threshold.
+func (a *app) voiceThreshold(persons map[string]config.Person, person string) float64 {
 	cfg := a.liveConfig().SpeakerID
 	if cfg.URL == "" {
 		cfg = a.cfg.SpeakerID // the chat command has no live config
 	}
-	person := speakerid.Decide(found, func(p string) float64 {
-		switch {
-		case persons[p].VoiceThreshold > 0:
-			return persons[p].VoiceThreshold
-		case cfg.Threshold > 0:
-			return cfg.Threshold
-		}
-		return speakerid.Threshold
-	})
-	a.log.Debug("speaker-id", "person", person, "heard", found)
-	return person
+	switch {
+	case persons[person].VoiceThreshold > 0:
+		return persons[person].VoiceThreshold
+	case cfg.Threshold > 0:
+		return cfg.Threshold
+	}
+	return speakerid.Threshold
 }
 
 func anyAloneIsMe(persons map[string]config.Person) bool {

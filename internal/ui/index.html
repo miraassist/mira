@@ -385,12 +385,12 @@ const I18N = {
   "voice_enroll_stop": "Fertig",
   "voice_forget": "Stimme löschen",
   "voice_forget_confirm": name => `Die Stimme von ${name} löschen? An den Satelliten wird ${name} dann nicht mehr erkannt.`,
-  "voice_say": name => `Sag an einem Satelliten dein Aktivierungswort und dann: „Ich bin ${name}, lern jetzt meine Stimme.“`,
-  "voice_say_other": name => `Lass ${name} an einem Satelliten das Aktivierungswort sagen und dann: „Ich bin ${name}, lern jetzt meine Stimme.“`,
-  "voice_say_more": "Noch zwei-, dreimal mit anderen Sätzen. Jeder Satz erscheint hier: tipp auf „Das war ich“.",
-  "voice_say_more_other": name => `Noch zwei-, dreimal mit anderen Sätzen. Jeder Satz erscheint hier: tipp auf „Das war ${name}“.`,
+  "voice_say": name => `Sag an einem Satelliten dein Aktivierungswort und dann einen dieser Sätze:`,
+  "voice_say_other": name => `Lass ${name} an einem Satelliten das Aktivierungswort sagen und dann einen dieser Sätze:`,
+  "voice_say_more": "Am besten alle, jeden mit dem Aktivierungswort. Jeder Satz erscheint hier: tipp auf „Das war ich“. Nur diese Sätze erscheinen hier, sonst nichts.",
+  "voice_say_more_other": name => `Am besten alle, jeden mit dem Aktivierungswort. Jeder Satz erscheint hier: tipp auf „Das war ${name}“. Nur diese Sätze erscheinen hier, sonst nichts.`,
   "voice_left": s => `noch ${s} s`,
-  "voice_heard_none": "Noch nichts gehört.",
+  "voice_heard_none": "Noch keinen der Sätze gehört.",
   "voice_was_me": "Das war ich",
   "voice_was": name => `Das war ${name}`,
   "voice_enrolled": "angelernt",
@@ -833,12 +833,12 @@ const I18N = {
   "voice_enroll_stop": "Done",
   "voice_forget": "Delete the voice",
   "voice_forget_confirm": name => `Delete ${name}'s voice? ${name} will no longer be recognized at the satellites.`,
-  "voice_say": name => `At a satellite, say your wake word and then: "I am ${name}, learn my voice now."`,
-  "voice_say_other": name => `Have ${name} say the wake word at a satellite and then: "I am ${name}, learn my voice now."`,
-  "voice_say_more": "Two or three more times with other sentences. Each one shows here: tap \"That was me\".",
-  "voice_say_more_other": name => `Two or three more times with other sentences. Each one shows here: tap "That was ${name}".`,
+  "voice_say": name => `At a satellite, say your wake word and then one of these sentences:`,
+  "voice_say_other": name => `Have ${name} say the wake word at a satellite and then one of these sentences:`,
+  "voice_say_more": "Best all of them, each with the wake word. Each one shows here: tap \"That was me\". Only these sentences show here, nothing else.",
+  "voice_say_more_other": name => `Best all of them, each with the wake word. Each one shows here: tap "That was ${name}". Only these sentences show here, nothing else.`,
   "voice_left": s => `${s} s left`,
-  "voice_heard_none": "Nothing heard yet.",
+  "voice_heard_none": "None of the sentences heard yet.",
   "voice_was_me": "That was me",
   "voice_was": name => `That was ${name}`,
   "voice_enrolled": "enrolled",
@@ -1792,6 +1792,7 @@ async function voiceCard(key, name, self) {
     <h2>${T.voice_title}</h2>
     ${v.enrolling ? `<div id="enroll">
         <p class="say">${self ? T.voice_say(n) : T.voice_say_other(n)}</p>
+        <ul class="say">${(v.sentences || []).map(x => `<li>${lang === "de" ? `„${esc(x)}“` : `"${esc(x)}"`}</li>`).join("")}</ul>
         <p>${self ? T.voice_say_more : T.voice_say_more_other(n)} <span class="hint" id="enroll-left"></span></p>
         <table class="facts" id="heard"></table></div>
       <div class="actions"><button class="primary" onclick="enrollStop('${k}', '${n}', ${self})">${T.voice_enroll_stop}</button></div>`
@@ -1803,7 +1804,7 @@ async function voiceCard(key, name, self) {
   if (v.enrolling) heard(key, name, self);
 }
 async function enrollStart(key, name, self) {
-  try { await api("POST", `/v1/ui/voice/${encodeURIComponent(key)}/enroll`); } catch (e) { message(e.message, false); return; }
+  try { await api("POST", `/v1/ui/voice/${encodeURIComponent(key)}/enroll?lang=${lang}`); } catch (e) { message(e.message, false); return; }
   voiceCard(key, name, self);
 }
 // heard follows what the satellites hear, every two seconds, as long as

@@ -183,10 +183,16 @@ settings and opens the same card.
   channels and the voice threshold are an admin's. Inside Home Assistant the integration keeps them on the HA
   person, as before; a person's own go through `/api/mira/settings/me`, which takes only those two fields.
 - **Voice:** how many sentences are enrolled; "Stimme anlernen" and "Stimme löschen". Enrolling opens a window
-  of three minutes: the card shows what the satellites hear **from that moment on**, nothing said before, and
-  each line can be taken as this person's ("Das war ich"). Only those lines can be enrolled. Three to five
-  sentences of a few seconds, said at a satellite with the wake word, so the profile is made through the same
-  microphone and echo cancellation it is recognized through.
+  of three minutes and asks for four sentences, drawn from a fixed list of eight per language (German, English;
+  harmless requests such as "Wie spät ist es gerade?", `enrollSentences` in `internal/ui/voice.go`, no setting).
+  Said at a satellite with the wake word, so the profile is made through the same microphone and echo
+  cancellation it is recognized through. Each one can be taken as this person's ("Das war ich").
+- **What the card shows while enrolling** (hardened 2026-10-27): only what the satellites heard **from that
+  moment on** that **is one of the sentences asked for** (most of its words, at most two more), and not in
+  someone else's voice: neither enrolled for another person nor heard as another person with a score at their
+  threshold (the service gives `person` and `score` with every utterance since 0.11.0). Nothing else the house
+  says reaches the page, so enrolling, which every person may start for their own voice, cannot be used to read
+  along. Only what the card shows can be enrolled.
 - **Rights:** everyone their own voice; an admin anyone's, a child's without a login too. Mira's API checks
   this (`/v1/ui/voice/{person}`), not only the page.
 

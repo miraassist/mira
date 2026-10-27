@@ -1007,6 +1007,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	}
 	if a.speaker != nil { // a nil *Client would be a non-nil Voices
 		uiOpts.Voices = a.speaker
+		uiOpts.VoiceThreshold = func(person string) float64 { return a.voiceThreshold(a.persons(), person) }
 	}
 
 	page := ui.New(uiOpts)
