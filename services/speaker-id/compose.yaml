@@ -13,7 +13,7 @@
 # without taking them along.
 services:
   speaker-id:
-    image: ghcr.io/miraassist/speaker-id:0.10.0
+    image: ghcr.io/miraassist/speaker-id:0.11.0
     build: .
     container_name: speaker-id
     restart: unless-stopped
