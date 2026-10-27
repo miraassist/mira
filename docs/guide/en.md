@@ -70,6 +70,8 @@ Under the hood every task is an ordinary **automation in Home Assistant** labell
 
 ![The gas task in Home Assistant's automation editor: hourly trigger, action "Mira: Assess"](img/ha-automation-en.png)
 
+**What a task may switch:** lights, radio, blinds and the like, plus push messages. Before you say "yes", Mira names everything the task switches besides, scenes too. A task never switches locks, the alarm panel or what is labelled "Mira: confirm first", not through a scene or group that holds one either. A task starts a script only if it is exposed to Assist. Raw commands such as MQTT messages or REST commands Mira cannot check and does not call directly in tasks: create a script for them and expose it to Assist.
+
 Your own automations can use Mira the same way: the actions **Mira: Assess** (`mira.assess`), **Mira: Decide** (`mira.decide`, a yes/no answer for conditions) and **Mira: Send message** (`mira.send_message`). For now tasks belong to the whole house and use the house's memory when judging.
 
 With **Mira: Agent** (`mira.agent`) an automation starts one of Mira's agents, for example `delegate` with the input `{"input": "Plan a menu for Saturday."}`. Without further settings the automation waits up to 60 seconds for the answer; read it with `response_variable`. With the mode **async** it goes on at once: the result then comes as the event `mira_agent_done`, which an automation can wait for, or with **Delivery: message** as a message from Mira. **Mira: Agent result** reads a run by its call id, **Mira: Cancel agent** ends it.
@@ -715,7 +717,7 @@ What Mira needs beyond that is easiest to set in Mira's panel under **Satellites
 ![Settings for people under "Configure": one section per person](img/ha-person-en.png)
 
 - **Personality** (under **General**): how Mira sounds, as free text: tone, humour, how short she answers device commands, a few examples of her tone. She appends it to her fixed rules; it applies to voice, Telegram and her announcements. What holds per channel (short sentences at a satellite, lists on Telegram) and which language she handles herself; that does not belong in it.
-- **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. Locks and alarm panels are like that anyway.
+- **Confirm first**: put the label **"Mira: confirm first"** on an entity in Home Assistant, such as the garage door, and Mira switches it only after your "yes", and tasks never switch it. That holds also when you do not name it, as in "Open all blinds" or "Turn everything off downstairs". Locks and alarm panels are like that anyway.
 - **Private area**: when Mira knows who is speaking (she recognizes your voice, you are alone at home, or write on Telegram or in the HA app), a conversation goes with you from room to room, plans included. Put the label **"Mira: private area"** on an area, such as the guest room, and what starts there stays in that room, and nothing from outside comes in.
 
 In the HA app's Assist chat and in the sidebar Mira recognises you by your HA user, through the person Home Assistant links it to.
@@ -868,7 +870,8 @@ For advanced setups (several models, more MCP servers, skills with settings) the
   - Whoever knows the access token can do all that Mira can. Treat it like a password.
 - **What Mira may do in HA:** manage nothing (no users, no integrations), but switch devices. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.
 - **If Mira runs on the same machine as Home Assistant** (the usual case), everything stays on that machine.
-- **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network; a guest network or a shared network is not the place for it.
+- **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network, as with many other devices in Home Assistant. A guest network, a shared network or the way over the internet without HTTPS is not the place for it.
+- **If Mira gets a new address**, the integration follows her by itself, but only once Mira shows there that she knows the access token. Another device posing as Mira does not get it. So keep Mira and the integration at the same version.
 
 ## Good to know
 

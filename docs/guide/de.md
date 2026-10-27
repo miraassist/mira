@@ -72,6 +72,8 @@ Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistan
 
 ![Die Gas-Aufgabe im Automations-Editor von Home Assistant: stündlicher Auslöser, Aktion „Mira: Bewerten“](img/ha-automation-de.png)
 
+**Was eine Aufgabe schalten darf:** Licht, Radio, Rollos und Ähnliches, dazu Push-Nachrichten. Bevor du „Ja“ sagst, nennt Mira alles, was die Aufgabe außerdem schaltet, auch Szenen. Nie schaltet eine Aufgabe Schlösser, die Alarmanlage und was das Label „Mira: nachfragen“ trägt, auch nicht über eine Szene oder Gruppe, die so etwas enthält. Ein Skript startet eine Aufgabe nur, wenn es für Assist freigegeben ist. Rohe Befehle wie MQTT-Nachrichten oder REST-Befehle kann Mira nicht prüfen und ruft sie in Aufgaben nicht direkt auf: Leg dafür ein Skript an und gib es für Assist frei.
+
 Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Nachricht senden** (`mira.send_message`). Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
 
 Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer Automation, etwa `delegate` mit der Eingabe `{"input": "Plane ein Menü für Samstag."}`. Ohne weitere Angaben wartet die Automation bis zu 60 Sekunden auf die Antwort; mit `response_variable` liest du sie. Mit dem Modus **async** geht es sofort weiter: Das Ergebnis kommt dann als Ereignis `mira_agent_done`, auf das eine Automation warten kann, oder mit **Zustellung: message** als Nachricht von Mira. **Mira: Agent-Ergebnis** liest einen Lauf über seine Aufruf-ID, **Mira: Agent abbrechen** beendet ihn.
@@ -739,7 +741,7 @@ Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter 
 ![Einstellungen für Personen unter „Konfigurieren“: ein Abschnitt pro Person](img/ha-person-de.png)
 
 - **Persönlichkeit** (unter **Allgemein**): wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein.
-- **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Schlösser und Alarmanlagen sind das ohnehin.
+- **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Das gilt auch, wenn du sie nicht beim Namen nennst, etwa „Öffne alle Rollos“ oder „Mach im Erdgeschoss alles aus“. Schlösser und Alarmanlagen sind das ohnehin.
 - **Privater Bereich**: Weiß Mira, wer spricht (sie erkennt deine Stimme, du bist allein zu Hause, schreibst über Telegram oder die HA-App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
 
 Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
@@ -892,7 +894,8 @@ Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstell
   - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
 - **Was Mira in HA darf:** nichts verwalten (keine Benutzer, keine Integrationen), aber Geräte schalten. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
 - **Läuft Mira auf demselben Rechner wie Home Assistant** (der Normalfall), bleibt alles auf diesem Rechner.
-- **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: der Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, ein Gästenetz oder ein geteiltes Netz ist dafür nicht geeignet.
+- **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: der Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, wie bei vielen anderen Geräten in Home Assistant. Ein Gästenetz, ein geteiltes Netz oder der Weg übers Internet ohne HTTPS ist dafür nicht geeignet.
+- **Bekommt Mira eine neue Adresse**, folgt die Integration ihr von selbst, aber nur, wenn Mira dort nachweist, dass sie den Zugangs-Token kennt. Ein anderes Gerät, das sich als Mira ausgibt, bekommt ihn nicht. Halte Mira und die Integration deshalb auf derselben Version.
 
 ## Gut zu wissen
 
