@@ -397,3 +397,27 @@ func TestProposalNamesActionsInsideRepeat(t *testing.T) {
 		t.Errorf("otherActions = %v", got)
 	}
 }
+
+// The proposal also names scene steps, device actions and every place a
+// target can stand, as the integration's check reads them.
+func TestProposalNamesEveryFormOfSwitching(t *testing.T) {
+	actions := []any{
+		map[string]any{"action": "mira.assess", "data": map[string]any{"goal": "Fenster"}},
+		map[string]any{"scene": "scene.abend"},
+		map[string]any{"action": "light.turn_on", "entity_id": "light.flur"},
+		map[string]any{"action": "light.turn_off", "target": map[string]any{"floor_id": "og", "label_id": []any{"deko"}}},
+		map[string]any{"action": "switch.turn_on", "data_template": map[string]any{"entity_id": "switch.pumpe"}},
+		map[string]any{"domain": "cover", "device_id": "4f1c", "entity_id": "cover.rollo", "type": "close"},
+		map[string]any{"condition": "device", "domain": "cover", "device_id": "4f1c", "type": "is_open"},
+	}
+	want := []string{
+		"scene (scene.abend)",
+		"light.turn_on (light.flur)",
+		"light.turn_off (og, deko)",
+		"switch.turn_on (switch.pumpe)",
+		"cover close (cover.rollo)",
+	}
+	if got := otherActions(actions); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("otherActions = %v", got)
+	}
+}

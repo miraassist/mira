@@ -23,6 +23,14 @@ ACTIONS = [
 FORBIDDEN = {"domains": ["lock", "alarm_control_panel"], "entities": ["cover.garage_door"]}
 
 
+@pytest.fixture(autouse=True)
+async def actions_described(hass):
+    """The actions the timers use, described as Home Assistant does: the
+    check only lets through actions that name their entities."""
+    for domain in ("light", "media_player"):
+        assert await async_setup_component(hass, domain, {})
+
+
 def _timer(id_, owner="anna", area="wohnzimmer", ran=False, running=0):
     return {
         "id": id_, "entity_id": f"automation.{id_}", "title": "Schlaf-Timer", "due": "2099-01-01T22:35:00+01:00",

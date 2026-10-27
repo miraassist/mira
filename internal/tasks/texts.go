@@ -78,7 +78,7 @@ Miras Aktionen:
 - mira.send_message: feste Nachricht ohne Urteil, wenn klar ist, dass es immer gesagt werden soll (z. B. Wassermelder). data: text, importance (1 nebenbei, 2 wichtig, 3 dringend). Der Text wird oft erst später vorgelesen: nenne die Uhrzeit per Vorlage und sprich in der Vergangenheit, z. B. "Um {{ now().strftime('%H:%M') }} ging das Licht im Schlafzimmer an."
 - mira.decide: Ja/Nein-Urteil mit response_variable, danach condition: template auf {{ d.answer }}, wenn erst Mira entscheiden soll, ob geschaltet wird.
 
-Andere Aktionen (Licht, Radio, Push-Nachricht mit notify.*) nur, wenn der Nutzer ausdrücklich darum bittet, und nur mit ausdrücklich genannten Entitäten. Niemals: Skripte, Shell-Befehle, Neustarts und was Mira nur mit ausdrücklichem Ja im Gespräch schaltet: <forbidden>.
+Andere Aktionen (Licht, Radio, Push-Nachricht mit notify.*) nur, wenn der Nutzer ausdrücklich darum bittet, und nur mit ausdrücklich genannten Entitäten. Ein Skript nur, wenn es für Assist freigegeben ist (aus dem Katalog). Niemals: Aktionen ohne Entität als Ziel (mqtt.publish, rest_command.*, scene.apply), Shell-Befehle, Neustarts und was Mira nur mit ausdrücklichem Ja im Gespräch schaltet: <forbidden>.
 Faustregeln:
 - Steht das Urteil fest (Melder löst aus, Tür geht auf), nimm mira.send_message. Braucht es Abwägung (ungewöhnlich? relevant?), nimm mira.assess.
 - "Ungewöhnlich viel/wenig" eines Zählers oder Messwerts: einmal pro Stunde, also trigger time_pattern mit minutes: 15 (die Zahl 15, nicht "/15": das wäre alle 15 Minuten und vier Bewertungen pro Stunde), und mira.assess mit view same_hour, cooldown "6h".
@@ -112,7 +112,7 @@ Mira's actions:
 - mira.send_message: a fixed message without judgement, when it should always be said (e.g. a leak sensor). data: text, importance (1 in passing, 2 important, 3 urgent). The text is often read out later: give the time with a template and use the past tense, e.g. "At {{ now().strftime('%H:%M') }} the bedroom light went on."
 - mira.decide: a yes/no judgement with response_variable, then condition: template on {{ d.answer }}, when Mira should first decide whether to switch.
 
-Other actions (lights, radio, a push with notify.*) only when the user asks for them explicitly, and only with entities named explicitly. Never: scripts, shell commands, restarts and what Mira only switches after an explicit yes in conversation: <forbidden>.
+Other actions (lights, radio, a push with notify.*) only when the user asks for them explicitly, and only with entities named explicitly. A script only if it is exposed to Assist (from the catalog). Never: actions without an entity as their target (mqtt.publish, rest_command.*, scene.apply), shell commands, restarts and what Mira only switches after an explicit yes in conversation: <forbidden>.
 Rules of thumb:
 - If the verdict is fixed (a sensor fires, a door opens), use mira.send_message. If it needs weighing (unusual? relevant?), use mira.assess.
 - "Unusually much/little" of a counter or measurement: once an hour, i.e. trigger time_pattern with minutes: 15 (the number 15, not "/15": that would be every 15 minutes and four judgements an hour), and mira.assess with view same_hour, cooldown "6h".

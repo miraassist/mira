@@ -318,19 +318,43 @@ func otherActions(actions any) []string {
 		if name == "" {
 			name, _ = a["service"].(string)
 		}
+		// A scene step and a device action switch too, without "action";
+		// the integration lets them through, so they are named as well.
+		// Their target is on the step itself, as the integration reads it.
+		onStep := []string{"entity_id"}
+		if scene, ok := a["scene"].(string); ok && name == "" {
+			name = "scene (" + scene + ")"
+			onStep = nil
+		}
+		if _, ok := a["device_id"].(string); ok && name == "" && a["condition"] == nil {
+			domain, _ := a["domain"].(string)
+			kind, _ := a["type"].(string)
+			name = strings.TrimSpace(domain + " " + kind)
+			if a["entity_id"] == nil {
+				onStep = []string{"device_id"}
+			}
+		}
 		if name != "" && !strings.HasPrefix(name, "mira.") {
+			// The target as the integration gathers it: on the step itself
+			// and in target, data and data_template.
 			var targets []string
-			for _, holder := range []any{a["target"], a["data"]} {
-				h, _ := holder.(map[string]any)
-				for _, key := range []string{"entity_id", "area_id", "device_id"} {
-					switch v := h[key].(type) {
-					case string:
-						targets = append(targets, v)
-					case []any:
-						for _, x := range v {
-							targets = append(targets, fmt.Sprint(x))
-						}
+			add := func(v any) {
+				switch v := v.(type) {
+				case string:
+					targets = append(targets, v)
+				case []any:
+					for _, x := range v {
+						targets = append(targets, fmt.Sprint(x))
 					}
+				}
+			}
+			for _, key := range onStep {
+				add(a[key])
+			}
+			for _, holder := range []any{a["target"], a["data"], a["data_template"]} {
+				h, _ := holder.(map[string]any)
+				for _, key := range []string{"entity_id", "area_id", "device_id", "floor_id", "label_id"} {
+					add(h[key])
 				}
 			}
 			if len(targets) > 0 {

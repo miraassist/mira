@@ -26,7 +26,51 @@ TASK = {
 FORBIDDEN = {"domains": ["lock", "alarm_control_panel"], "entities": ["cover.garage"]}
 
 
-def test_what_a_task_may_call():
+async def house(hass):
+    """Home Assistant with the actions a task uses, described as HA does,
+    and a few things to reach: a scene, scripts, a group, an area, a device."""
+    from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
+    from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    for domain in ("light", "cover", "switch", "media_player", "lock", "alarm_control_panel"):
+        assert await async_setup_component(hass, domain, {})
+    assert await async_setup_component(
+        hass,
+        "scene",
+        {
+            "scene": [
+                {"name": "Abend", "entities": {"light.flur": "on"}},
+                {"name": "Nacht", "entities": {"light.flur": "off", "lock.haustuer": "locked"}},
+            ]
+        },
+    )
+    assert await async_setup_component(
+        hass,
+        "script",
+        {"script": {"kaffee": {"sequence": [{"delay": 1}]}, "geheim": {"sequence": [{"delay": 1}]}}},
+    )
+    async_expose_entity(hass, "conversation", "script.kaffee", True)
+    assert await async_setup_component(hass, "group", {"group": {"aussen": {"entities": ["cover.garage", "light.hof"]}}})
+    # Actions that name no entities: they could switch anything.
+    for domain, service in (("mqtt", "publish"), ("rest_command", "garage_auf"), ("conversation", "process")):
+        hass.services.async_register(domain, service, lambda call: None)
+    await hass.async_block_till_done()
+
+    config = MockConfigEntry(domain="test")
+    config.add_to_hass(hass)
+    garage = dr.async_get(hass).async_get_or_create(config_entry_id=config.entry_id, identifiers={("test", "garage")})
+    entities = er.async_get(hass)
+    door = entities.async_get_or_create("cover", "test", "door", suggested_object_id="garage", device_id=garage.id)
+    flur = ar.async_get(hass).async_create("Flur")
+    for domain in ("light", "lock"):
+        e = entities.async_get_or_create(domain, "test", f"flur_{domain}", suggested_object_id="flur")
+        entities.async_update_entity(e.entity_id, area_id=flur.id)
+    return {"garage": garage.id, "door": door.id, "flur": flur.id}
+
+
+async def test_what_a_task_may_call(hass):
+    ids = await house(hass)
     domains, entities = set(FORBIDDEN["domains"]), set(FORBIDDEN["entities"])
     allowed = [
         {"variables": {"x": 1}},
@@ -35,28 +79,38 @@ def test_what_a_task_may_call():
         {"action": "media_player.turn_on", "target": {"entity_id": "media_player.radio_bad"}},
         {"action": "notify.mobile_app_phone", "data": {"message": "Wasser läuft"}},
         {"action": "light.turn_on", "target": {"area_id": "bad"}},
+        # The hall has a lock, but light.turn_on switches lights only.
+        {"action": "light.turn_on", "target": {"area_id": ids["flur"]}},
         {"action": "cover.close_cover", "target": {"entity_id": "cover.rollo_wohnzimmer"}},
         {"if": [], "then": [{"action": "mira.assess", "data": {"goal": "g"}}], "else": [{"stop": "done"}]},
+        # A script exposed to Assist, by its name or through script.turn_on.
+        {"action": "script.kaffee"},
+        {"action": "script.turn_on", "target": {"entity_id": "script.kaffee"}},
+        {"scene": "scene.abend"},
+        {"action": "scene.turn_on", "target": {"entity_id": "scene.abend"}},
     ]
-    check_actions(allowed, domains, entities)
+    await check_actions(hass, allowed, domains, entities)
     for forbidden in (
         [{"action": "lock.unlock", "target": {"entity_id": "lock.haustuer"}}],
         [{"service": "alarm_control_panel.alarm_disarm"}],
         [{"action": "cover.open_cover", "target": {"entity_id": "cover.garage"}}],
         [{"action": "cover.open_cover", "target": {"area_id": "garage"}}],
-        [{"action": "script.turn_on", "target": {"entity_id": "script.x"}}],
+        # A script not exposed to Assist.
+        [{"action": "script.turn_on", "target": {"entity_id": "script.geheim"}}],
+        [{"action": "script.geheim"}],
         [{"action": "shell_command.wipe"}],
         [{"action": "homeassistant.restart"}],
         [{"choose": [{"sequence": [{"action": "lock.unlock"}]}]}],
         [{"device_id": "abc", "domain": "lock", "type": "unlock"}],
     ):
         with pytest.raises(NotAllowed):
-            check_actions(forbidden, domains, entities)
+            await check_actions(hass, forbidden, domains, entities)
 
 
-def test_the_check_cannot_be_walked_around():
+async def test_the_check_cannot_be_walked_around(hass):
     """A template, a nesting or a step the check does not know must not hide
     what it keeps out; and what is fine stays fine inside any nesting."""
+    ids = await house(hass)
     domains, entities = set(FORBIDDEN["domains"]), set(FORBIDDEN["entities"])
     for sneaky in (
         [{"repeat": {"count": 2, "sequence": [{"action": "shell_command.x"}]}}],
@@ -67,13 +121,35 @@ def test_the_check_cannot_be_walked_around():
         [{"event": "call_service", "event_data": {}}],
         [{"made_up_step": {"x": 1}}],
         [{"parallel": [{"sequence": [{"action": "lock.unlock"}]}]}],
-        [{"if": [], "then": [{"repeat": {"while": [], "sequence": [{"action": "script.turn_on"}]}}]}],
+        [{"if": [], "then": [{"repeat": {"while": [], "sequence": [{"action": "script.geheim"}]}}]}],
         [{"choose": ["not a dict"]}],
         "not a list of steps",
+        # A scene sets the lock, applied or stored.
+        [{"action": "scene.apply", "data": {"entities": {"lock.haustuer": "unlocked"}}}],
+        [{"action": "scene.create", "data": {"scene_id": "x", "entities": {"cover.garage": "open"}}}],
+        [{"action": "scene.turn_on", "target": {"entity_id": "scene.nacht"}}],
+        [{"scene": "scene.nacht"}],
+        # The target where Home Assistant takes it, not only under target.
+        [{"action": "cover.open_cover", "entity_id": "cover.garage"}],
+        [{"action": "cover.open_cover", "data_template": {"entity_id": "cover.garage"}}],
+        [{"action": "cover.open_cover", "target": "{{ {'entity_id': 'cover.garage'} }}"}],
+        [{"action": "cover.open_cover", "data": "{{ {'entity_id': 'cover.garage'} }}"}],
+        # A group holding the garage door.
+        [{"action": "cover.open_cover", "target": {"entity_id": "group.aussen"}}],
+        # The garage door's device, by its entity's registry id, or the device itself.
+        [{"device_id": ids["garage"], "domain": "cover", "entity_id": ids["door"], "type": "open"}],
+        [{"action": "cover.open_cover", "target": {"device_id": ids["garage"]}}],
+        # Actions that name no entities: anything could be behind them.
+        [{"action": "mqtt.publish", "data": {"topic": "zigbee2mqtt/garage/set", "payload": "OPEN"}}],
+        [{"action": "rest_command.garage_auf"}],
+        [{"action": "conversation.process", "data": {"text": "Garage auf"}}],
+        [{"action": "made_up.action"}],
+        [{"device_id": ids["garage"], "domain": "zwave_js", "type": "set_value"}],
     ):
         with pytest.raises(NotAllowed):
-            check_actions(sneaky, domains, {"switch.garage_tor", *entities})
-    check_actions(
+            await check_actions(hass, sneaky, domains, {"switch.garage_tor", *entities})
+    await check_actions(
+        hass,
         [
             {"repeat": {"count": 2, "sequence": [{"action": "light.toggle", "target": {"entity_id": "light.flur"}}]}},
             {"parallel": [{"sequence": [{"delay": "00:00:05"}, {"action": "notify.phone", "data": {"message": "{{ trigger.to_state.state }}"}}]}]},
@@ -88,6 +164,7 @@ def test_the_check_cannot_be_walked_around():
 
 async def test_validate_uses_home_assistant(hass):
     assert await async_setup_component(hass, "automation", {})
+    assert await async_setup_component(hass, "light", {})
     await validate(hass, TASK)
     with pytest.raises(HomeAssistantError):
         await validate(hass, TASK | {"triggers": [{"trigger": "no_such_trigger"}]})
@@ -150,6 +227,7 @@ async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):
     from custom_components.mira.labels import LABEL_CONFIRM, ensure_labels
 
     assert await async_setup_component(hass, "automation", {})
+    assert await async_setup_component(hass, "switch", {})
     ensure_labels(hass)
     registry = er.async_get(hass)
     pump = registry.async_get_or_create("switch", "test", "pump", suggested_object_id="pumpe")
