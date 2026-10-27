@@ -63,6 +63,10 @@ Mira switches an entity only after an explicit "Ja" if
 - it is in `security.confirm_entities` (YAML), **or**
 - it carries the label **"Mira: nachfragen"**.
 
+A call counts as switching such an entity also when it does not name it (hardened 2026-10-27):
+- an area, with or without a domain: the area's entities of that domain;
+- a floor, a device class or only a domain: Mira does not know floors and device classes, so every protected entity of the given domains (of all, without one) counts.
+
 It does not get finer than that: what Mira sees at all is governed by HA's exposure; there is no "read only" and no roles. Background jobs may only read, as before.
 
 ## Labels and language

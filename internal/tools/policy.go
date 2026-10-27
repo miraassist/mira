@@ -249,12 +249,54 @@ func (g *Guard) critical(spec Spec, raw json.RawMessage) (bool, []string) {
 		}
 		mark(ids...)
 	}
-	if len(stringList(args["name"])) == 0 && len(domains) == 0 && area != "" {
-		// "Turn everything in the garage off" reaches every entity there.
-		mark(snap.EntitiesInArea(area)...)
+	if len(stringList(args["name"])) == 0 {
+		floor := firstString(args["floor"])
+		classes := stringList(args["device_class"])
+		switch {
+		case area != "" && floor == "" && len(classes) == 0:
+			// "Turn everything in the garage off" reaches every entity
+			// there, of the given domains if any.
+			mark(inDomains(snap.EntitiesInArea(area), domains)...)
+		case area != "" || floor != "" || len(classes) > 0 || len(domains) > 0:
+			// A floor, a device class or only a domain: Home Assistant
+			// narrows by what the snapshot does not know, so every
+			// protected entity that could be meant counts.
+			var candidates []string
+			for id := range snap.EntityNames {
+				candidates = append(candidates, id)
+			}
+			for id := range g.entities {
+				candidates = append(candidates, id)
+			}
+			if area != "" {
+				candidates = snap.EntitiesInArea(area)
+			}
+			for _, id := range inDomains(candidates, domains) {
+				if g.isCriticalEntity(snap, id) {
+					mark(id)
+				}
+			}
+		}
 	}
 	sort.Strings(targets)
 	return critical, slices.Compact(targets)
+}
+
+// inDomains keeps the entities of the given domains, or all without any.
+func inDomains(ids, domains []string) []string {
+	if len(domains) == 0 {
+		return ids
+	}
+	var out []string
+	for _, id := range ids {
+		for _, d := range domains {
+			if structure.Domain(id) == strings.ToLower(d) {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // isCriticalEntity: by its domain, by the config, or by the label

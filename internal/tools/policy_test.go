@@ -70,7 +70,15 @@ func TestCriticalDetection(t *testing.T) {
 		{turnOn, `{"area":"Küche"}`, false},
 		{turnOff, `{"name":"Tor"}`, true}, // alias of a confirm entity
 		{turnOn, `{"entity_id":"lock.keller"}`, true},
-		{turnOn, `{"name":"Pumpe"}`, true}, // labelled "Mira: nachfragen" in Home Assistant
+		{turnOn, `{"name":"Pumpe"}`, true},                      // labelled "Mira: nachfragen" in Home Assistant
+		{turnOn, `{"area":"Garage","domain":["cover"]}`, true},  // the protected gate in the garage
+		{turnOn, `{"area":"Garage","domain":["light"]}`, false}, // no protected light there
+		{turnOn, `{"domain":["cover"]}`, true},                  // every cover, the gate among them
+		{turnOn, `{"domain":["light"]}`, false},                 // no protected light anywhere
+		{turnOn, `{"floor":"EG"}`, true},                        // a floor might hold the lock
+		{turnOn, `{"floor":"EG","domain":["light"]}`, false},    // but no protected light
+		{turnOn, `{"device_class":["garage"],"domain":["cover"]}`, true},
+		{turnOn, `{"device_class":["outlet"],"domain":["switch"]}`, true}, // the labelled pump might be one
 		{live, `{}`, false},
 		{turnOn, `not json`, false},
 	}
