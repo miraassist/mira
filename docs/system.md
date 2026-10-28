@@ -78,7 +78,8 @@ flowchart LR
 | `internal/conversation` | The conversation engine: build the prompt, ask the model, run tools, protection against unsupported answers, "Übrigens", handover to stronger models, isolated calls |
 | `internal/prompt` | Prompt layers, example conversation, texts per language |
 | `internal/llm` | OpenAI-compatible client (LM Studio, llama.cpp, Gemini) |
-| `internal/tools` | Tool registry, guard for critical actions, internal tools (memory, reminders, messages, `calculate`: an arithmetic expression computed exactly, since models add badly) |
+| `internal/tools` | Tool registry, the guard (the mechanism around the hooks: resolving a call's targets, the pending question and the user's yes), internal tools (memory, reminders, messages, `calculate`: an arithmetic expression computed exactly, since models add badly) |
+| `internal/hooks` | Hooks: small Starlark scripts that decide on every tool call (allow, confirm, deny), on three levels (system, default, the household's folder `hooks/`); what the guard decided before ([Hooks](spec/hooks.md)) |
 | `internal/mcp` | MCP host: HA Assist tools, further MCP servers |
 | `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/websuche.md)) |
 | `internal/radio` | `radio_play`: search for a station in HA's Radio Browser and start it on the speaker of the room ([Radio](spec/radio.md)) |
@@ -162,8 +163,10 @@ Important:
   reports something as done or states readings and states
   without having called a tool, it must catch up. Otherwise
   the code replaces the answer honestly ("habe ich nicht nachgesehen").
-- **Critical actions.** For locks, alarm and garage door the
-  guard requires an explicit yes in the next turn.
+- **Critical actions.** The hooks decide on every tool call
+  ([Hooks](spec/hooks.md)): for locks, the alarm and what carries the label
+  "Mira: nachfragen" an explicit yes in the next turn is required; after web
+  content they stay locked; a household can add hooks of its own.
 - **"Übrigens".** If the room has waiting messages, Mira appends them to the
   reply. They then count as heard. A message that someone left at a
   satellite only waits in exactly that room after

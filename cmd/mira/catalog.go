@@ -75,6 +75,11 @@ func (a *app) catalog(ctx context.Context) ui.Catalog {
 		c.Agents = append(c.Agents, a.agentInfo(d, defs, active, agentProblems[d.Name]))
 	}
 	c.Models = a.modelInfos(ctx, c.Agents)
+	c.Hooks = []ui.HookInfo{}
+	for _, h := range a.hooks.Infos() {
+		c.Hooks = append(c.Hooks, ui.HookInfo{Level: h.Level, Name: h.Name, Description: h.Description,
+			Source: h.Source, Replaced: h.Replaced, Problem: h.Problem})
+	}
 	return c
 }
 

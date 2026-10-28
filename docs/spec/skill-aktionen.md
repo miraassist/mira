@@ -47,7 +47,7 @@ Sag danach, was du gestellt hast: Uhrzeit, Tag, Raum.
 - **Placeholders** in `action` and `data`: the fields of the thread as well as the **place**, i.e. `area` (ID and name), `satellite` (entity), `satellite.device` (ESPHome device name), and `person`, if known.
 - **If the action does not exist** (e.g. an Echo with echolocal has no alarm), Mira says honestly that it does not work on this satellite. There is no fixed fallback. If the model finds a suitable way itself with its tools, it may propose it.
 - **The finish runs immediately in the conversation**, like `memory.save`, not in the background.
-- The block list (`security.confirm_domains`, `confirm_entities`, label "Mira: nachfragen") applies here too.
+- What needs a yes in the conversation applies here too: the action passes the hooks as a call of its own (`skill_action`); asking, it is proposed as with `confirm: true`; refused, the thread ends ([hooks.md](hooks.md), Skill actions; since 2026-10-28, before nothing checked it).
 
 ## Confirming: optional, as before
 

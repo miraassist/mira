@@ -311,7 +311,7 @@ func TestTextsComplete(t *testing.T) {
 
 func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 	e := setup(t)
-	e.m.opts.ConfirmDomains, e.m.opts.ConfirmEntities = []string{"lock"}, []string{"cover.garage"}
+	e.m.opts.Forbidden = func() ([]string, []string) { return []string{"lock"}, []string{"cover.garage"} }
 	e.st.SaveFact(context.Background(), store.Fact{ID: "f1", Text: "Ungewöhnlich ist Licht im Schlafzimmer zwischen 0 und 6 Uhr."})
 
 	// No trigger: refused; then the planner asks back.

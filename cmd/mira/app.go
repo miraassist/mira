@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/miraassist/mira/internal/ha/assistprompt"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/language"
 	"github.com/miraassist/mira/internal/llm"
@@ -30,6 +32,7 @@ import (
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/profile"
+	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/setup"
@@ -81,6 +84,10 @@ type app struct {
 	targetSkills []skills.Skill
 	// problems are the skills that did not start, as the user can read them.
 	problems []haconv.Problem
+	// hooks decide on the model's tool calls (docs/spec/hooks.md), the guard
+	// carries out their verdict.
+	hooks *hooks.Engine
+	guard *tools.Guard
 	// satellites are the voice satellites' device ids last seen in the structure.
 	satellites []string
 	tasks      *tasks.Manager
@@ -156,6 +163,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// turn, area or person (docs/spec/sprache.md).
 	a.langs = newLanguages(cfg, a.store, a.log)
 	a.lang = a.langs.Last(ctx)
+
+	// The hooks decide on the model's tool calls (docs/spec/hooks.md); the
+	// household's own are in hooks/ next to mira.yaml, read at the start.
+	a.hooks = hooks.Load(hooksDir(opts.configPath), a.lang, a.log)
+	if unread := cfg.Security.Unread(); len(unread) > 0 {
+		a.log.Warn("settings no longer read", "section", "security", "keys", strings.Join(unread, ","),
+			"instead", `default/critical.star, the label "Mira: nachfragen", or hooks/critical.star`)
+	}
 
 	a.models = map[string]*llm.Client{}
 	for name, m := range cfg.Models {
@@ -305,7 +320,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 		Forbidden: func() map[string]any {
-			return map[string]any{"domains": nonEmpty(cfg.Security.ConfirmDomains), "entities": nonEmpty(cfg.Security.ConfirmEntities)}
+			domains, entities := a.hooks.Forbidden(snapshot())
+			return map[string]any{"domains": nonEmpty(domains), "entities": nonEmpty(entities)}
 		},
 	})...)
 	// Radio on the room's speaker (docs/spec/radio.md).
@@ -356,7 +372,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Decider:    a.tasksDecide(),
 		Planner:    a.tasksPlan(),
 		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
-		ConfirmDomains: cfg.Security.ConfirmDomains, ConfirmEntities: cfg.Security.ConfirmEntities,
+		Forbidden:  func() ([]string, []string) { return a.hooks.Forbidden(snapshot()) },
 		Persons:    a.persons,
 		Satellites: func() map[string]string { return a.liveConfig().Satellites },
 		Upcoming: func(ctx context.Context, entity string, from, to time.Time) (string, error) {
@@ -396,7 +412,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.setProblems(problems)
 	a.threads = threads.New(threads.Options{
 		Lang: a.lang, Store: a.store, Targets: targets, Checks: checks, Finishers: finishers, Actions: haActions{a},
-		Persons: a.persons, Logger: a.log,
+		Hooks: a.actionDecision, Persons: a.persons, Logger: a.log,
 		Deliver: func(ctx context.Context, n store.Message, area string) error {
 			a.proactiveMu.Lock()
 			nf := a.notifier
@@ -429,7 +445,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		assistText = a.assist.Text
 		deviceHints = a.assist.Tail
 	}
-	guard := tools.NewGuard(a.lang, cfg.Security, a.store, snapshot)
+	guard := tools.NewGuard(a.lang, cfg.Security, a.store, snapshot, a.hooks,
+		tools.WithRightOf(func(s tools.Spec) string { return agent.RightFor(s).String() }))
+	a.guard = guard
 	a.agents = a.newAgents(registry, guard)
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
@@ -1200,6 +1218,44 @@ func exposedIn(snap structure.Snapshot, area, prefix string) []string {
 	return out
 }
 
+// actionDecision asks the hooks about a skill's action (docs/spec/hooks.md,
+// Skill actions): a call of its own named skill_action, with the action and
+// its data as arguments. In a turn it has the turn's facts; outside one (the
+// page's yes, a field an agent filled later) the thread's person and room.
+func (a *app) actionDecision(ctx context.Context, c threads.ActionCall) tools.Decision {
+	if a.guard == nil {
+		return tools.Decision{Outcome: tools.Allow}
+	}
+	ts := tools.TurnOf(ctx)
+	if ts == nil {
+		ts = &tools.TurnState{SessionKey: "thread", Person: c.Person, Area: c.Area}
+	}
+	args := map[string]any{}
+	for k, v := range c.Data {
+		args[k] = v
+	}
+	args["action"] = c.Action
+	_, hasEntity := args["entity_id"]
+	_, hasDomain := args["domain"]
+	if !hasEntity && !hasDomain {
+		// Without an entity the action's domain says what it reaches.
+		domain, _, _ := strings.Cut(c.Action, ".")
+		args["domain"] = domain
+	}
+	raw, _ := json.Marshal(args)
+	spec := tools.Spec{ToolDef: prompt.ToolDef{Name: threads.SkillAction}, Skill: c.Skill}
+	return a.guard.Decide(ctx, ts, spec, raw)
+}
+
+// hooksDir is the household's folder of hooks: hooks/ next to mira.yaml;
+// none without a file.
+func hooksDir(configPath string) string {
+	if configPath == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(configPath), "hooks")
+}
+
 func nonEmpty(s []string) []string {
 	if s == nil {
 		return []string{}
@@ -1243,6 +1299,9 @@ func longestTimeout(cfg config.Config) time.Duration {
 // with the server.
 func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
+	for _, p := range a.hooks.Problems() {
+		out = append(out, haconv.Problem{Source: "hook", Name: p.File, Text: p.Text})
+	}
 	if a.mcp == nil {
 		return out
 	}

@@ -646,7 +646,7 @@ Eine **Durchsage** („Sag allen, das Essen ist fertig“) ist etwas anderes: Si
 
 Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht nachsehen, sagt sie das ehrlich.
 
-**Wichtige Aktionen bestätigen**: Schlösser, Alarmanlage, Garagentor und Ähnliches führt Mira erst aus, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
+**Wichtige Aktionen bestätigen**: Schlösser, die Alarmanlage und alles, was in Home Assistant das Label „Mira: nachfragen“ trägt (etwa das Garagentor), schaltet Mira erst, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
 ## Timer
 
@@ -771,7 +771,7 @@ mcp_servers:
 Mit `tools: [name, …]` nimmt Mira nur diese Werkzeuge eines Servers; das hält den Prompt klein. Zwei Schalter entscheiden, wie vorsichtig Mira mit einem Server umgeht:
 
 - **`read_only: true`**: Der Server liest nur und ändert nichts. Nur solche Werkzeuge stehen auch Hintergrundarbeiten (Beurteilen von Aufgaben, abgegebene schwierige Fragen) zur Verfügung. Ohne den Schalter gibt es die Werkzeuge nur im Gespräch.
-- **`web_content: true`**: Was der Server liefert, ist fremder Text, zum Beispiel aus Webseiten, und könnte versteckte Anweisungen enthalten. Sobald Mira ein solches Werkzeug benutzt hat, sind für den Rest der Anfrage kritische Aktionen gesperrt: alles, was unter `security` als bestätigungspflichtig eingetragen ist, etwa Schlösser, Alarmanlage, Garage.
+- **`web_content: true`**: Was der Server liefert, ist fremder Text, zum Beispiel aus Webseiten, und könnte versteckte Anweisungen enthalten. Sobald Mira ein solches Werkzeug benutzt hat, sind für den Rest der Anfrage kritische Aktionen gesperrt: alles, wofür Mira sonst nach einem Ja fragt, etwa Schlösser, Alarmanlage und was das Label „Mira: nachfragen“ trägt.
 
 Ein Programm, das Mira selbst startet (stdio), bekommt nur das Nötigste aus ihrer Umgebung: Suchpfad, Heimatordner, Sprache und Proxy-Einstellungen. Ihre Zugangsdaten (Home-Assistant-Token, Modell-Schlüssel) bekommt es nicht. Was der Server braucht, trägst du unter `env` ein, zum Beispiel `env: ["API_KEY=${BRAVE_KEY}"]`.
 
@@ -808,6 +808,28 @@ agents:
 - **`privacy: local`** bei einem Teil heißt: Er läuft nur auf einem lokalen Modell, auch kein Fallback in die Cloud. Ein Skill kann das ebenso verlangen (`privacy: local` unter `metadata.mira`); dann prüft Mira beim Start alle Teile, die er nutzt. Passt etwas nicht, startet er nicht, und Home Assistant zeigt unter **Reparaturen**, was zu ändern ist.
 
 Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.
+
+## Eigene Regeln: Hooks
+
+Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Diese Regeln heißen Hooks. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Hooks**, samt ihrem Code.
+
+Eigene Hooks sind etwas für Technikfans: eine Datei mit der Endung `.star` im Ordner `hooks` neben der `mira.yaml`, geschrieben in Starlark, das wie Python aussieht. Sie gilt, sobald Mira neu gestartet ist. Ein Beispiel:
+
+```python
+DESCRIPTION = "Eine unbekannte Stimme schließt nichts auf."
+
+def pre_tool(call, verdict):
+    if call.who.person:
+        return None
+    for e in call.targets + call.candidates:
+        if e.domain == "lock" and call.tool.name == "HassTurnOff":
+            return deny("Aufschließen nur, wenn ich weiß, wer spricht.")
+```
+
+- Deine Hooks laufen zuerst, Miras danach, und es gilt immer das Strengste. Lockern kannst du nur Miras Standard-Hook `critical.star` (was nach einem Ja fragt), indem du eine eigene Datei mit diesem Namen anlegst. Die System-Hooks, die vor untergeschobenen Anweisungen schützen, bleiben immer.
+- Labels sieht ein Hook an ihrer **ID**, nicht an ihrem Namen: Das Label „Mira: nachfragen“ ist `mira_confirm`, egal in welcher Sprache es heißt oder ob du es umbenennst. Ein Hook, der den Namen vergleicht, geht beim nächsten Umbenennen kaputt.
+- Lädt eine Datei nicht, meldet Home Assistant das unter **Reparaturen**, und Mira arbeitet ohne sie weiter.
+- Was ein Hook alles sieht, steht in der [Spezifikation](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
 
 ## Befehle
 

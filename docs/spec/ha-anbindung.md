@@ -58,14 +58,17 @@ What Mira may see is determined by HA's "Expose to Assist". HA's own tools via M
 
 ## Asking before switching
 
-Mira switches an entity only after an explicit "Ja" if
-- its domain is in `security.confirm_domains` (default: locks, alarm panels), **or**
-- it is in `security.confirm_entities` (YAML), **or**
+Mira switches an entity only after an explicit "Ja" if the hook `critical.star` says so ([Hooks](hooks.md)); the
+default one asks if
+- its domain is a lock or an alarm panel, **or**
 - it carries the label **"Mira: nachfragen"**.
+
+A household can replace `critical.star` with its own (until 2026-10-28 this was `security.confirm_domains` and
+`confirm_entities`).
 
 A call counts as switching such an entity also when it does not name it (hardened 2026-10-27):
 - an area, with or without a domain: the area's entities of that domain;
-- a floor, a device class or only a domain: Mira does not know floors and device classes, so every protected entity of the given domains (of all, without one) counts.
+- a floor, a device class or only a domain: Mira does not know floors and device classes, so every entity of the given domains (of all, without one) counts as a candidate the hooks judge.
 
 It does not get finer than that: what Mira sees at all is governed by HA's exposure; there is no "read only" and no roles. Background jobs may only read, as before.
 

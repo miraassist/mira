@@ -10,6 +10,7 @@ import (
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
@@ -73,7 +74,7 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st, delegate)...)
 	mainClient := llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"})
 	smartClient := llm.New(llm.Options{BaseURL: smart.BaseURL(), Model: "cloud"})
-	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil)
+	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil))
 	agents := agent.New(agent.Options{
 		Config: func() config.Config { return cfg },
 		Models: func(name string) (agent.Chatter, config.LLM, bool) {
@@ -242,7 +243,7 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 	engine := conversation.New(conversation.Options{
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "local"}),
 		Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
-		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil),
+		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil)),
 		Logger: quietLogger(), Location: time.UTC,
 		// no Structure: the list has not arrived
 	})

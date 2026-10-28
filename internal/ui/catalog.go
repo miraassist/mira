@@ -16,6 +16,19 @@ type Catalog struct {
 	Skills []SkillInfo `json:"skills"`
 	Agents []AgentInfo `json:"agents"`
 	Models []ModelInfo `json:"models"`
+	Hooks  []HookInfo  `json:"hooks"`
+}
+
+// HookInfo is one hook (docs/spec/hooks.md): its level (system, default,
+// household), its description and its code; a default hook the household's
+// file of the same name replaces; a household file that did not load.
+type HookInfo struct {
+	Level       string `json:"level"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Source      string `json:"source"`
+	Replaced    bool   `json:"replaced,omitempty"`
+	Problem     string `json:"problem,omitempty"`
 }
 
 // ModelInfo is one model: where it is, how it is set, who takes it and how
@@ -167,7 +180,7 @@ type AgentInfo struct {
 }
 
 func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
-	c := Catalog{Skills: []SkillInfo{}, Agents: []AgentInfo{}, Models: []ModelInfo{}}
+	c := Catalog{Skills: []SkillInfo{}, Agents: []AgentInfo{}, Models: []ModelInfo{}, Hooks: []HookInfo{}}
 	if h.opts.Catalog != nil {
 		c = h.opts.Catalog(r.Context())
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // Actions is what an action finish needs of Home Assistant
@@ -24,6 +25,17 @@ type Actions interface {
 	// Place gives the placeholders of an area: area, area_name, satellite,
 	// satellite.device.
 	Place(ctx context.Context, area string) map[string]string
+}
+
+// SkillAction is the tool name a skill's action has for the hooks.
+const SkillAction = "skill_action"
+
+// ActionCall is a skill's action as the hooks get it: the action with its
+// data, and the thread's person and room for an action outside a turn.
+type ActionCall struct {
+	Skill, Action string
+	Data          map[string]any
+	Person, Area  string
 }
 
 // undoWindow is how long after an action a correction can take it back.
@@ -59,10 +71,16 @@ func (f actionFinish) Work(ctx context.Context, th store.Thread) (Result, error)
 	if !ok {
 		return Result{Cancel: fmt.Sprintf(t.noAction, d.Action)}, nil
 	}
+	// The hooks decide as for a tool call: refused, the thread ends; asking,
+	// it proposes the action as with confirm in the skill.
+	dec := f.m.check(ctx, th, f.sk.Name, d.Action, d.Data)
+	if dec.Outcome == tools.Deny {
+		return Result{Cancel: dec.Reason}, nil
+	}
 	// The thread keeps what was (or will be) called, with its undo, for a
 	// correction.
 	content, _ := json.Marshal(d)
-	if f.sk.Target.Confirm {
+	if f.sk.Target.Confirm || dec.Outcome == tools.NeedsConfirmation {
 		return Result{Proposal: fmt.Sprintf(t.actionProposal, th.Request, describeData(d.Data)), Content: content}, nil
 	}
 	if err := f.call(ctx, th, d); err != nil {
@@ -89,6 +107,11 @@ func (f actionFinish) Commit(ctx context.Context, th store.Thread) (string, erro
 			return "", fmt.Errorf(f.m.texts().noAction, r.Action)
 		}
 		d = r
+	}
+	// This is the yes; what the hooks refuse stays refused (after web
+	// content, for instance).
+	if dec := f.m.check(ctx, th, f.sk.Name, d.Action, d.Data); dec.Outcome == tools.Deny {
+		return "", errors.New(dec.Reason)
 	}
 	if err := f.call(ctx, th, d); err != nil {
 		return "", err
@@ -205,6 +228,11 @@ func (m *Manager) Undo(ctx context.Context, place string) (string, error) {
 		if json.Unmarshal(th.Content, &d) != nil || d.Undo == nil {
 			continue
 		}
+		// Taking back has no question of its own: what the hooks refuse or
+		// would ask for is not done.
+		if dec := m.check(ctx, th, th.Target, d.Undo.Action, d.Undo.Data); dec.Outcome != tools.Allow {
+			return fmt.Sprintf(t.undoRefused, dec.Reason), nil
+		}
 		if err := m.opts.Actions.Call(ctx, d.Undo.Action, d.Undo.Data); err != nil {
 			return "", err
 		}
@@ -218,4 +246,16 @@ func (m *Manager) Undo(ctx context.Context, place string) (string, error) {
 		return fmt.Sprintf(t.undone, th.Request), nil
 	}
 	return t.nothingToUndo, nil
+}
+
+// check asks the hooks about a skill's action.
+func (m *Manager) check(ctx context.Context, th store.Thread, skill, action string, data map[string]any) tools.Decision {
+	if m.opts.Hooks == nil {
+		return tools.Decision{Outcome: tools.Allow}
+	}
+	area := areaOf(ctx)
+	if area == "" {
+		area, _ = strings.CutPrefix(th.Place, "area:")
+	}
+	return m.opts.Hooks(ctx, ActionCall{Skill: skill, Action: action, Data: data, Person: th.Person, Area: area})
 }

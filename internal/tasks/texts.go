@@ -47,7 +47,8 @@ func (m *Manager) draftInstruction(goal string, cat []Entity, memory string) str
 		}
 		fmt.Fprintf(&b, "\n- %s | %s | %s | %s | %s | %s | %s", e.ID, e.Name, e.Area, e.DeviceClass, e.StateClass, e.Unit, e.State)
 	}
-	forbidden := strings.Join(append(append([]string{}, m.opts.ConfirmDomains...), m.opts.ConfirmEntities...), ", ")
+	domains, entities := m.blocked()
+	forbidden := strings.Join(append(append([]string{}, domains...), entities...), ", ")
 	if forbidden == "" {
 		forbidden = t.draftForbidden
 	}

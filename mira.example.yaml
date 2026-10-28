@@ -168,10 +168,12 @@ notifier:
   # indicators: { wohnzimmer: light.wohnzimmer_ring_led_ring }   # e.g. an Echo's LED ring (echolocal)
   # indicator: { rgb_color: [32, 201, 176], effect: Pulse, brightness: 160 }   # teal from the logo
 
+# What needs a yes is decided by hooks (docs/spec/hooks.md): the default
+# critical.star asks for locks, alarm panels and everything with the label
+# "Mira: nachfragen" in Home Assistant (e.g. the garage door). Hooks of your
+# own go into the folder hooks/ next to this file.
 security:
-  confirm_domains: [lock, alarm_control_panel]
-  confirm_entities: [cover.garage]
-  confirm_ttl: 5m
+  confirm_ttl: 5m          # how long a question waits for the yes
   # Tools that only read, for servers that do not annotate their tools.
   # Only read-only tools are offered to background jobs.
   read_only_tools: [ha__GetDateTime, ha__GetLiveContext, ha__HassGetWeather, ha__todo_get_items]

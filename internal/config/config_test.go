@@ -346,3 +346,24 @@ func TestOldTelegramSectionIsRefused(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// HK-62 The guard's old settings are no longer read
+func TestHK62_TheGuardsOldSettingsAreNoLongerRead(t *testing.T) {
+	cfg, err := Parse([]byte(minimalYAML+`
+security:
+  confirm_domains: [lock]
+  confirm_ttl: 2m
+`), fakeEnv(map[string]string{"HA_TOKEN": "x"}))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := cfg.Security.Unread(); len(got) != 1 || got[0] != "confirm_domains" {
+		t.Errorf("unread = %v", got)
+	}
+	if cfg.Security.ConfirmTTL.Duration() != 2*time.Minute {
+		t.Errorf("confirm_ttl = %v", cfg.Security.ConfirmTTL)
+	}
+	if len(Default().Security.Unread()) != 0 {
+		t.Error("the defaults set a key that is no longer read")
+	}
+}

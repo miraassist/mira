@@ -69,6 +69,10 @@ type Options struct {
 	// Actions lets a skill finish with a Home Assistant action; without it
 	// such targets cannot finish.
 	Actions Actions
+	// Hooks decide on a skill's action before it is called, as a call of
+	// its own (docs/spec/hooks.md, Skill actions); without them nothing is
+	// checked.
+	Hooks func(ctx context.Context, a ActionCall) tools.Decision
 	// Deliver brings a thread's question or proposal to whoever asked,
 	// like a reminder: spoken in the area, otherwise privately.
 	Deliver func(ctx context.Context, n store.Message, areaID string) error

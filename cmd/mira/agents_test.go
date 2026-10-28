@@ -15,6 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mcp"
@@ -73,7 +74,7 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 		llm: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "test"})}
 	a.models = map[string]*llm.Client{config.MainModel: a.llm}
 	registry := tools.NewRegistry(nil)
-	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil)
+	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil))
 	a.agents = a.newAgents(registry, guard)
 	a.engine = conversation.New(conversation.Options{Config: cfg, LLM: a.llm, Store: st, Tools: registry,
 		Guard: guard, Agents: a.agents, Logger: quiet})

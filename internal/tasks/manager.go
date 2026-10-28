@@ -57,12 +57,12 @@ type Options struct {
 	// HAURL is how Mira reaches Home Assistant. Links into its editor use
 	// the URL Home Assistant has configured for itself, this only without.
 	HAURL string
-	// ConfirmDomains and ConfirmEntities are what Mira only switches after
-	// an explicit yes (security config): a task never calls them.
-	ConfirmDomains, ConfirmEntities []string
-	Clock                           func() time.Time
-	Location                        *time.Location
-	Logger                          *slog.Logger
+	// Forbidden is what Mira only switches after an explicit yes, as the
+	// hook critical.star says (docs/spec/hooks.md): a task never calls it.
+	Forbidden func() (domains, entities []string)
+	Clock     func() time.Time
+	Location  *time.Location
+	Logger    *slog.Logger
 }
 
 type Manager struct {
@@ -293,7 +293,16 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
 
 // forbidden is what the integration refuses in a task's actions.
 func (m *Manager) forbidden() map[string]any {
-	return map[string]any{"domains": nonNil(m.opts.ConfirmDomains), "entities": nonNil(m.opts.ConfirmEntities)}
+	domains, entities := m.blocked()
+	return map[string]any{"domains": nonNil(domains), "entities": nonNil(entities)}
+}
+
+// blocked are the domains and entities a task may not switch.
+func (m *Manager) blocked() (domains, entities []string) {
+	if m.opts.Forbidden == nil {
+		return nil, nil
+	}
+	return m.opts.Forbidden()
 }
 
 func nonNil(s []string) []string {

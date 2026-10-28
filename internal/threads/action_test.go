@@ -152,3 +152,83 @@ func TestActionFinishForAKnownPerson(t *testing.T) {
 		t.Errorf("called %v", ha.calls)
 	}
 }
+
+// hooksSaying makes the hooks answer every action with outcome, and records
+// what they were asked.
+func hooksSaying(m *Manager, outcome tools.Outcome, asked *[]ActionCall) {
+	m.opts.Hooks = func(_ context.Context, a ActionCall) tools.Decision {
+		*asked = append(*asked, a)
+		return tools.Decision{Outcome: outcome, By: "household/test.star", Reason: "Grund"}
+	}
+}
+
+// HK-80 A skill's action that needs a yes is proposed first
+func TestHK80_ASkillsActionThatNeedsAYesIsProposedFirst(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	var asked []ActionCall
+	hooksSaying(m, tools.NeedsConfirmation, &asked)
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:c", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	out, err := m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	if err != nil || !strings.Contains(out, "06:00") || len(ha.calls) != 0 {
+		t.Fatalf("out %q, err %v, calls %v", out, err, ha.calls)
+	}
+	if len(asked) != 1 || asked[0].Skill != "wecker" || asked[0].Action != "esphome.show_alarm_set" || asked[0].Area != "schlafzimmer" {
+		t.Fatalf("asked %+v", asked)
+	}
+	// The yes: the hooks are asked again and no longer object.
+	hooksSaying(m, tools.Allow, &asked)
+	if _, err := m.Confirm(ctx, inv); err != nil || len(ha.calls) != 1 {
+		t.Fatalf("confirm: %v, calls %v", err, ha.calls)
+	}
+}
+
+// HK-81 A skill's action the hooks refuse is not called
+func TestHK81_ASkillsActionTheHooksRefuseIsNotCalled(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	var asked []ActionCall
+	hooksSaying(m, tools.Deny, &asked)
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:d", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	out, _ := m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	if !strings.Contains(out, "Grund") || len(ha.calls) != 0 {
+		t.Fatalf("out %q, calls %v", out, ha.calls)
+	}
+}
+
+// HK-82 The yes to a skill's action passes the hooks again
+func TestHK82_TheYesToASkillsActionPassesTheHooksAgain(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	sk := wecker()
+	sk.Target.Confirm = true
+	m.targets["wecker"] = sk
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:e", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	var asked []ActionCall
+	hooksSaying(m, tools.Deny, &asked)
+	if _, err := m.Confirm(ctx, inv); err == nil || !strings.Contains(err.Error(), "Grund") || len(ha.calls) != 0 {
+		t.Fatalf("err %v, calls %v", err, ha.calls)
+	}
+}
+
+// HK-83 Taking back what the hooks would ask for is not done
+func TestHK83_TakingBackWhatTheHooksWouldAskForIsNotDone(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:f", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	var asked []ActionCall
+	hooksSaying(m, tools.NeedsConfirmation, &asked)
+	out, err := m.Undo(ctx, "area:schlafzimmer")
+	if err != nil || !strings.HasPrefix(out, "Nicht zurückgenommen: Grund") || len(ha.calls) != 1 {
+		t.Fatalf("out %q, err %v, calls %v", out, err, ha.calls)
+	}
+	if len(asked) != 1 || asked[0].Action != "esphome.show_alarm_delete" {
+		t.Errorf("asked %+v", asked)
+	}
+}

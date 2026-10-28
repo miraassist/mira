@@ -622,7 +622,7 @@ A **broadcast** ("Tell everyone dinner is ready") is something else: it goes out
 
 Mira always fetches values fresh instead of guessing. If she cannot check something, she says so honestly.
 
-**Confirming important actions**: locks, the alarm system, the garage door and the like Mira only operates after you explicitly say "Yes" to her question.
+**Confirming important actions**: locks, the alarm system and everything that carries the label "Mira: confirm first" in Home Assistant (such as the garage door) Mira only operates after you explicitly say "Yes" to her question.
 
 ## Timer
 
@@ -747,7 +747,7 @@ mcp_servers:
 With `tools: [name, …]` Mira takes only these tools of a server; that keeps the prompt small. Two switches decide how careful Mira is with a server:
 
 - **`read_only: true`**: the server only reads and changes nothing. Only such tools are also available to background work (judging tasks, delegated hard questions). Without the switch the tools exist only in conversation.
-- **`web_content: true`**: what the server returns is third-party text, from web pages for example, and may hide instructions. Once Mira has used such a tool, critical actions are locked for the rest of the request: everything listed under `security` as needing confirmation, such as locks, alarm, garage.
+- **`web_content: true`**: what the server returns is third-party text, from web pages for example, and may hide instructions. Once Mira has used such a tool, critical actions are locked for the rest of the request: everything Mira otherwise asks a yes for, such as locks, the alarm and what carries the label "Mira: confirm first".
 
 A program Mira starts herself (stdio) gets only the bare minimum of her environment: search path, home folder, language and proxy settings. It does not get her credentials (Home Assistant token, model keys). What the server needs goes under `env`, for instance `env: ["API_KEY=${BRAVE_KEY}"]`.
 
@@ -784,6 +784,28 @@ agents:
 - **`privacy: local`** on a part means: it runs only on a local model, with no fallback to the cloud either. A skill can ask the same (`privacy: local` under `metadata.mira`); then Mira checks every part it uses when it starts. If something does not fit, it does not start, and Home Assistant shows under **Repairs** what to change.
 
 What the integration sets up as the model applies to `main` before what `mira.yaml` says.
+
+## Rules of your own: hooks
+
+Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. These rules are called hooks. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Hooks**, with their code.
+
+Hooks of your own are for the technically minded: a file ending in `.star` in the folder `hooks` next to `mira.yaml`, written in Starlark, which looks like Python. It applies once Mira has restarted. An example:
+
+```python
+DESCRIPTION = "An unknown voice unlocks nothing."
+
+def pre_tool(call, verdict):
+    if call.who.person:
+        return None
+    for e in call.targets + call.candidates:
+        if e.domain == "lock" and call.tool.name == "HassTurnOff":
+            return deny("Unlocking only when I know who is speaking.")
+```
+
+- Your hooks run first, Mira's after them, and the strictest always wins. The only one you can loosen is Mira's default hook `critical.star` (what asks for a yes), by creating a file of your own with that name. The system hooks, which guard against slipped-in instructions, always stay.
+- A hook sees labels by their **id**, not by their name: the label "Mira: confirm first" is `mira_confirm`, whatever language it is named in and even if you rename it. A hook that compares the name breaks with the next rename.
+- If a file does not load, Home Assistant reports it under **Repairs**, and Mira works on without it.
+- What a hook sees is in the [specification](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
 
 ## Commands
 

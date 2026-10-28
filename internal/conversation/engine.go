@@ -290,7 +290,7 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 		ctx, rec = mtrace.With(ctx)
 	}
 	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area,
-		DeviceID: req.DeviceID, Place: place, PersonBy: personBy}
+		DeviceID: req.DeviceID, Place: place, PersonBy: personBy, PersonName: e.nameOf(person)}
 	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: config.ChannelAgent(req.Channel),
 		Profile: agent.Conversation, Rights: agent.AllRights},
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
@@ -698,7 +698,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	}
 
 	began := time.Now()
-	text, isError, err := e.tools.Execute(ctx, tools.Invocation{
+	text, isError, err := e.tools.Execute(tools.WithTurn(ctx, ts), tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
 		Place: ts.Place, DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
 	})

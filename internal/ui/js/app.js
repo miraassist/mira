@@ -138,6 +138,8 @@ class MiraHome extends Light {
           out.push(failed ? html`<span class="warn">${T.home_models(f.catalog.models.length, failed)}</span>` : T.home_models((f.catalog.models || []).length, 0));
           if (by("problem")) out.push(html`<span class="warn">${T.home_problems(by("problem"))}</span>`);
           if (by("available")) out.push(T.home_available(by("available")));
+          const broken = (f.catalog.hooks || []).filter(h => h.problem).length;
+          if (broken) out.push(html`<span class="warn">${T.home_hook_problems(broken)}</span>`);
         }
         break;
     }
@@ -529,6 +531,37 @@ class MiraModels extends EditPage {
   }
 }
 customElements.define("mira-models", MiraModels);
+
+// ---- Hooks ----------------------------------------------------------------
+// The hooks that decide on every tool call (docs/spec/hooks.md): the
+// household's own, the default ones, the system's; read only.
+class MiraHooks extends EditPage {
+  render() {
+    if (this.error) return html`<p class="msg err">${this.error}</p>`;
+    if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
+    const of = level => (this.data.hooks || []).filter(h => h.level === level);
+    const own = of("household");
+    return html`${this.bar()}
+      <section class="card"><h2>${T.hooks_household}</h2><p class="hint">${T.hooks_intro}</p><p class="hint">${T.hooks_household_hint}</p>
+        ${own.length ? own.map(h => this.hook(h)) : html`<p class="hint">${T.hooks_none}</p>`}</section>
+      <section class="card"><h2>${T.hooks_default}</h2><p class="hint">${T.hooks_default_hint}</p>
+        ${of("default").map(h => this.hook(h))}</section>
+      <section class="card"><h2>${T.hooks_system}</h2><p class="hint">${T.hooks_system_hint}</p>
+        ${of("system").map(h => this.hook(h))}</section>`;
+  }
+  hook(h) {
+    return html`<details class="item hook">
+      <summary>
+        <span class="lead"><h3>${h.name}</h3></span>
+        <span class="short clip">${h.problem ? "" : h.description}</span>
+        <span>${h.problem ? badge(T.hooks_not_loaded, true) : nothing}${h.replaced ? badge(T.hooks_replaced, true) : nothing}</span>
+      </summary>
+      ${h.problem ? html`<p class="msg err">${h.problem}</p>` : nothing}
+      <pre class="code">${h.source}</pre>
+    </details>`;
+  }
+}
+customElements.define("mira-hooks", MiraHooks);
 
 // providerOf names the provider whose address an endpoint is; "" for a
 // server of one's own.

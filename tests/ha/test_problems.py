@@ -48,3 +48,20 @@ async def test_agent_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry)
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
     await entry.runtime_data.coordinator.async_refresh()
     assert registry.async_get_issue(DOMAIN, "agent_plauder") is None
+
+
+async def test_hook_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry):
+    """A household hook that does not load says so as a hook (docs/spec/hooks.md)."""
+    problem = {"source": "hook", "name": "tuer.star", "text": "Der Hook ist nicht aktiv: DESCRIPTION is missing"}
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "hook_tuer.star")
+    assert issue is not None and issue.translation_key == "hook_problem"
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    assert registry.async_get_issue(DOMAIN, "hook_tuer.star") is None

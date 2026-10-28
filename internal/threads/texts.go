@@ -11,7 +11,7 @@ type texts struct {
 	checkFailed, started, working, workFailed, askUser, proposeUser       string
 	cancelled, yesLogged, memorySaved                                     string
 	noAction, notHere, actionProposal, actionDone, undoDesc               string
-	undone, undoneLogged, nothingToUndo                                   string
+	undone, undoneLogged, nothingToUndo, undoRefused                      string
 	headerCurrent, headerWaiting, lineTarget, lineRequest, lineFields     string
 	lineLog, whoUser, whoMira, fieldMissing, stillMissing                 string
 	planDesc, planTextDesc, planStepDesc, noPlanThread, planEmpty         string
@@ -53,6 +53,7 @@ var catalog = map[i18n.Lang]texts{
 		undone:           "Zurückgenommen: %s. Starte jetzt den Vorgang mit dem Richtigen neu.",
 		undoneLogged:     "zurückgenommen",
 		nothingToUndo:    "Hier gibt es nichts zurückzunehmen.",
+		undoRefused:      "Nicht zurückgenommen: %s",
 		headerCurrent:    "## Laufender Vorgang (diese Unterhaltung gehört dazu)",
 		headerWaiting:    "## Hier wartet ein Vorgang auf den Nutzer\nGehört seine Nachricht dazu, führe ihn weiter (thread_fill, thread_confirm) oder brich ihn ab (thread_cancel); sonst lass ihn stehen.",
 		lineTarget:       "Ziel: %s – %s\n",
@@ -127,6 +128,7 @@ var catalog = map[i18n.Lang]texts{
 		undone:           "Taken back: %s. Now start the thread anew with the right values.",
 		undoneLogged:     "taken back",
 		nothingToUndo:    "There is nothing to take back here.",
+		undoRefused:      "Not taken back: %s",
 		headerCurrent:    "## Current thread (this conversation belongs to it)",
 		headerWaiting:    "## A thread waits for the user here\nIf the message belongs to it, continue it (thread_fill, thread_confirm) or cancel it (thread_cancel); otherwise leave it.",
 		lineTarget:       "Target: %s – %s\n",

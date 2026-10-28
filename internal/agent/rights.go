@@ -54,6 +54,18 @@ func (s Rights) String() string {
 	return strings.Join(out, ",")
 }
 
+// Names lists the rights by name, as the hooks see them
+// (docs/spec/hooks.md, origin.rights).
+func (s Rights) Names() []string {
+	out := []string{}
+	for _, n := range rightNames {
+		if s.Has(n.r) {
+			out = append(out, n.name)
+		}
+	}
+	return out
+}
+
 // ParseRights reads rights by name ("read_house", "web"); unknown names are
 // reported.
 func ParseRights(names []string) (Rights, []string) {

@@ -415,6 +415,10 @@
       "title": "Der Agent {name} läuft nicht",
       "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere seine Beschreibung unter agents in der mira.yaml oder in seinem Skill. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Agent läuft."
     },
+    "hook_problem": {
+      "title": "Der Hook {name} ist nicht aktiv",
+      "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Hook lädt."
+    },
     "version_agent_older": {
       "title": "Mira-Dienst aktualisieren",
       "description": "Die Mira-Integration hat die Version {integration}, der Mira-Dienst erst {agent}. Aktualisiere den Mira-Dienst auf {integration}: beim Container das Image auf {integration} stellen und neu starten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."

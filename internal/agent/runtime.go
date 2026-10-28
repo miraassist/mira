@@ -271,9 +271,10 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 		return ex, ctx, fmt.Errorf("%s %w; its model %s is %s", spec.Name, ErrPrivacy, ex.res.Model, model.Privacy)
 	}
 	ex.use(cfg, client, ex.res.Model, model)
-	ex.me = &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
+	rights := cc.Rights.And(spec.Rights)
+	ex.me = &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: rights,
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
-			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true}}
+			Area: cc.Place, DeviceID: cc.DeviceID, ForeignContext: cc.Foreign, ByRights: true, Rights: rights.Names()}}
 	ctx = context.WithValue(ctx, runKey{}, ex.me)
 
 	b, offered, err := r.build(ctx, spec, input, cc)
@@ -571,12 +572,15 @@ func (r *Runtime) callSub(ctx context.Context, sub Spec, args string, t texts) s
 	return res.Text
 }
 
+// rightsHook is the hook that holds a run to its rights (docs/spec/hooks.md).
+const rightsHook = "system/rights.star"
+
 // BuildTools turns tool definitions into what a model request takes, for a
 // BackgroundContext.
 func BuildTools(defs []prompt.ToolDef) ([]llm.Tool, error) { return prompt.BuildTools(defs) }
 
-// runTool runs one tool call of a run: the right it needs first, then the
-// guard, as for every tool.
+// runTool runs one tool call of a run through the guard, as every tool: the
+// hook system/rights.star holds it to the run's rights.
 func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t texts) string {
 	name := call.Function.Name
 	if sub, ok := me.subs[name]; ok {
@@ -587,10 +591,6 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 		// A skill's tool only for a run of that skill.
 		return fmt.Sprintf(t.unknownTool, name)
 	}
-	if need := RightFor(spec); !me.rights.Has(need) {
-		r.log.Info("tool refused", "agent", me.agent, "call_id", me.cc.CallID, "tool", name, "needs", need, "rights", me.rights)
-		return fmt.Sprintf(t.noRight, need)
-	}
 	args := json.RawMessage(call.Function.Arguments)
 	if len(args) == 0 {
 		args = json.RawMessage(`{}`)
@@ -600,11 +600,15 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 	}
 	if r.o.Guard != nil {
 		if v := r.o.Guard.Check(ctx, me.ts, spec, args); v.Outcome != tools.Allow {
-			r.log.Info("tool blocked", "call_id", me.cc.CallID, "tool", name, "reason", v.Reason)
+			if v.Reason == rightsHook {
+				r.log.Info("tool refused", "agent", me.agent, "call_id", me.cc.CallID, "tool", name, "needs", RightFor(spec), "rights", me.rights)
+			} else {
+				r.log.Info("tool blocked", "call_id", me.cc.CallID, "tool", name, "reason", v.Reason)
+			}
 			return v.Message
 		}
 	}
-	text, isError, err := r.o.Tools.Execute(ctx, tools.Invocation{Name: name, Args: args, SessionKey: me.ts.SessionKey,
+	text, isError, err := r.o.Tools.Execute(tools.WithTurn(ctx, me.ts), tools.Invocation{Name: name, Args: args, SessionKey: me.ts.SessionKey,
 		Channel: me.ts.Channel, Person: me.cc.Person, Area: me.cc.Place, DeviceID: me.cc.DeviceID, Foreign: me.ts.Foreign()})
 	if r.o.Guard != nil {
 		r.o.Guard.Observe(me.ts, spec)

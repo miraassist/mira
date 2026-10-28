@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
@@ -198,12 +200,20 @@ func setup(t *testing.T) *env {
 		tool("radio_play", false, false, false),        // acts on the house
 		tool("web_page", true, true, false),            // reads the web
 		tool(tools.ToolMemorySave, false, false, true), // remembers
-		tool("lock_open", false, false, false),         // critical (security.confirm_tools)
+		tool("lock_open", false, false, false),         // critical (a household hook)
 		helper,
 	)
-	sec := config.Default().Security
-	sec.ConfirmTools = []string{"lock_open"}
-	guard := tools.NewGuard(i18n.DE, sec, confirmations{}, func() structure.Snapshot { return structure.Snapshot{} })
+	// lock_open is critical: a household hook asks for it (docs/spec/hooks.md).
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "lock_open.star"), []byte(`DESCRIPTION = "lock_open nur mit Ja"
+def pre_tool(call, verdict):
+    if call.tool.name == "lock_open":
+        return confirm()
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	guard := tools.NewGuard(i18n.DE, config.Default().Security, confirmations{}, func() structure.Snapshot { return structure.Snapshot{} },
+		hooks.Load(dir, i18n.DE, nil), tools.WithRightOf(func(s tools.Spec) string { return RightFor(s).String() }))
 	e.cfg.Models["smart"] = config.LLM{BaseURL: "https://api.example.com/v1", Privacy: config.PrivacyCloud, Parallel: 4}
 	e.opts = Options{
 		Config: func() config.Config { return e.cfg },

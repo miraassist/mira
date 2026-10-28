@@ -77,7 +77,8 @@ A small rights model, only what Mira already tells apart today:
 - A run may do what **both** allow: the rights in the call context and the rights in the agent's description.
 - When an agent calls another, it passes on in the call context at most its own effective rights. An agent that may
   not act on the house cannot do so through another one either.
-- The rights add to the existing rules, they do not replace them: the guard still asks before critical actions,
+- The rights are held by the hook `system/rights.star` ([hooks.md](hooks.md)), and they add to the other hooks, they
+  do not replace them: the hooks still ask before critical actions,
   locks them after web content, and after third-party text Mira asks before keeping or passing anything on. In the
   background nobody can give that yes, so there these calls are refused.
 - In an agent's run the rights decide what may change, also in the background profile: the background channel's rule

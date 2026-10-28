@@ -41,9 +41,10 @@ func (r *Runtime) Job(ctx context.Context, spec Spec, cc CallContext, fn func(ct
 		r.mu.Unlock()
 	}()
 
-	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: cc.Rights.And(spec.Rights),
+	rights := cc.Rights.And(spec.Rights)
+	me := &run{agent: spec.Name, profile: spec.Profile, cc: cc, rights: rights,
 		ts: &tools.TurnState{SessionKey: sessionKey(cc), Channel: config.ChannelBackground, Person: cc.Person,
-			Area: cc.Place, ForeignContext: cc.Foreign, ByRights: true},
+			Area: cc.Place, ForeignContext: cc.Foreign, ByRights: true, Rights: rights.Names()},
 		usage: &usage{}}
 	var err error
 	select {

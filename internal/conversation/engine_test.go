@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/prompt"
 	"log/slog"
@@ -151,7 +152,7 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 		LLM:       llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),
 		Store:     h.store,
 		Tools:     registry,
-		Guard:     tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot),
+		Guard:     tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: houseSnapshot,
 		Logger:    slog.New(slog.NewTextHandler(h.logs, nil)),
 		Clock:     h.clock.Now,

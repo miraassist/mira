@@ -577,16 +577,33 @@ type Escalation struct {
 }
 
 type Security struct {
-	ConfirmDomains  []string `yaml:"confirm_domains"`
-	ConfirmEntities []string `yaml:"confirm_entities"`
-	// ConfirmTools names agent-level tools (after prefixing) that always need
-	// a confirmation, regardless of their arguments.
-	ConfirmTools []string `yaml:"confirm_tools"`
+	// ConfirmDomains, ConfirmEntities and ConfirmTools are no longer read:
+	// what needs a yes is the hook critical.star now (docs/spec/hooks.md).
+	// They are still accepted so that an older mira.yaml starts; Unread
+	// names them for the log.
+	ConfirmDomains  []string `yaml:"confirm_domains,omitempty"`
+	ConfirmEntities []string `yaml:"confirm_entities,omitempty"`
+	ConfirmTools    []string `yaml:"confirm_tools,omitempty"`
 	// ConfirmTTL is how long a pending confirmation stays answerable.
 	ConfirmTTL Duration `yaml:"confirm_ttl"`
 	// ReadOnlyTools are qualified tool names that only read, for servers that
 	// do not annotate their tools. Only read-only tools reach background jobs.
 	ReadOnlyTools []string `yaml:"read_only_tools"`
+}
+
+// Unread are the keys of the section that are set but no longer read.
+func (s Security) Unread() []string {
+	var out []string
+	if len(s.ConfirmDomains) > 0 {
+		out = append(out, "confirm_domains")
+	}
+	if len(s.ConfirmEntities) > 0 {
+		out = append(out, "confirm_entities")
+	}
+	if len(s.ConfirmTools) > 0 {
+		out = append(out, "confirm_tools")
+	}
+	return out
 }
 
 type Memory struct {
@@ -670,8 +687,7 @@ func Default() Config {
 			Indicator: IndicatorStyle{RGBColor: []int{32, 201, 176}, Effect: "Pulse", Brightness: 160},
 		},
 		Security: Security{
-			ConfirmDomains: []string{"lock", "alarm_control_panel"},
-			ConfirmTTL:     Duration(5 * 60e9),
+			ConfirmTTL: Duration(5 * 60e9),
 			ReadOnlyTools: []string{
 				"ha__GetDateTime", "ha__GetLiveContext", "ha__HassGetWeather", "ha__todo_get_items",
 				// Names as HA 2026.10 serves them on /api/mcp/assist.
@@ -847,12 +863,6 @@ func (c *Config) normalize() {
 				c.MCPServers[i].Transport = TransportHTTP
 			}
 		}
-	}
-	for i, d := range c.Security.ConfirmDomains {
-		c.Security.ConfirmDomains[i] = strings.ToLower(strings.TrimSpace(d))
-	}
-	for i, e := range c.Security.ConfirmEntities {
-		c.Security.ConfirmEntities[i] = strings.ToLower(strings.TrimSpace(e))
 	}
 	if c.Satellites == nil {
 		c.Satellites = map[string]string{}
