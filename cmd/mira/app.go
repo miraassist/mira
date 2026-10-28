@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -307,6 +308,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
+	// Rules Mira writes and manages on request, with the skill "regel"
+	// (docs/spec/hooks-schreiben.md).
+	internal = append(internal, a.hooks.Tools("regel", func() string { return a.houseForRules(snapshot()) })...)
 	// Sleep timer: one-time automations in Home Assistant (docs/spec/geplante-aktionen.md).
 	internal = append(internal, timer.Tools(timer.Options{
 		Lang: a.lang, HA: a.ha,
@@ -388,6 +392,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	checks["todo_list"] = a.checkTodoList
 	finishers["tasks.automation"] = a.tasks.Finisher()
 	finishers["calendar.delete"] = a.calendar.Delete()
+	checks["hook.check"] = func(_ context.Context, v string) (string, error) { return a.hooks.CheckRule(v) }
+	finishers["hook.save"] = a.hooks.SaveFinisher(func() *tools.Guard { return a.guard },
+		func(p string) string { return a.persons()[p].Name }, nil)
 	var known []string
 	for name := range finishers {
 		known = append(known, name)
@@ -586,6 +593,9 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.log.Warn("llm server is not answering yet", "error", err)
 	}
 	a.goRun(ctx, "warmup", a.engine.RunWarmups)
+	// A rule written, changed or deleted in hooks/ applies without a restart
+	// (docs/spec/hooks-schreiben.md, Reloading).
+	a.goRun(ctx, "hooks", func(ctx context.Context) error { a.hooks.Watch(ctx, 2*time.Second); return nil })
 	// The phone book once soon after the start, so Mira's page shows whether
 	// the access works before the first call (docs/spec/telefon.md).
 	if a.phonebook.On() {
@@ -787,7 +797,7 @@ func (a *app) haUser(ctx context.Context) string {
 
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
-	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen"}
+	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel"}
 }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
@@ -1245,6 +1255,34 @@ func (a *app) actionDecision(ctx context.Context, c threads.ActionCall) tools.De
 	raw, _ := json.Marshal(args)
 	spec := tools.Spec{ToolDef: prompt.ToolDef{Name: threads.SkillAction}, Skill: c.Skill}
 	return a.guard.Decide(ctx, ts, spec, raw)
+}
+
+// houseForRules is the house as the agent that writes a rule needs it: areas
+// and persons by their keys, the entities that rules are mostly about.
+func (a *app) houseForRules(snap structure.Snapshot) string {
+	var b strings.Builder
+	b.WriteString("## Areas (id: name)\n")
+	for _, id := range slices.Sorted(maps.Keys(snap.AreaNames)) {
+		fmt.Fprintf(&b, "- %s: %s\n", id, snap.AreaNames[id])
+	}
+	b.WriteString("\n## Persons (key: name)\n")
+	persons := a.persons()
+	for _, key := range slices.Sorted(maps.Keys(persons)) {
+		fmt.Fprintf(&b, "- %s: %s\n", key, persons[key].Name)
+	}
+	b.WriteString("\n## Entities (id: name, area)\n")
+	domains := []string{"lock", "alarm_control_panel", "cover", "light", "switch", "media_player", "climate", "fan", "valve"}
+	for _, id := range slices.Sorted(maps.Keys(snap.EntityNames)) {
+		if !slices.Contains(domains, structure.Domain(id)) {
+			continue
+		}
+		fmt.Fprintf(&b, "- %s: %s, %s", id, snap.EntityLabel[id], snap.EntityArea[id])
+		if snap.Confirm[id] {
+			b.WriteString(", label mira_confirm")
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // hooksDir is the household's folder of hooks: hooks/ next to mira.yaml;

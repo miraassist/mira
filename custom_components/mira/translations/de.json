@@ -416,8 +416,8 @@
       "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere seine Beschreibung unter agents in der mira.yaml oder in seinem Skill. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Agent läuft."
     },
     "hook_problem": {
-      "title": "Der Hook {name} ist nicht aktiv",
-      "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Hook lädt."
+      "title": "Die Regel {name} ist nicht aktiv",
+      "description": "Mira ist ohne sie gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald die Datei lädt."
     },
     "version_agent_older": {
       "title": "Mira-Dienst aktualisieren",

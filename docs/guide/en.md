@@ -785,13 +785,15 @@ agents:
 
 What the integration sets up as the model applies to `main` before what `mira.yaml` says.
 
-## Rules of your own: hooks
+## Rules of your own
 
-Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. These rules are called hooks. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Hooks**, with their code.
+Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Rules**, with their code.
 
-![The page "Hooks" under "Capabilities": a hook of your own opened, Mira's own below](img/mira-hooks-en.png)
+![The page "Rules" under "Capabilities": a rule of your own opened, Mira's own below](img/mira-hooks-en.png)
 
-Hooks of your own are for the technically minded: a file ending in `.star` in the folder `hooks` next to `mira.yaml`, written in Starlark, which looks like Python. It applies once Mira has restarted. An example:
+**A rule on request.** Just tell Mira what should hold: "Remember a rule: when you don't know who is speaking, you unlock nothing." A helper writes the rule, Mira tells you in one sentence what it does and asks whether to switch it on. After your yes it applies at once. Mira has not tested it, so try it once. Likewise "Which rules are there?", "Switch the music rule off for tonight" and on again, or "Delete the rule …". Anyone Mira knows can change rules, always with a yes, and never right after she read something from the web or a mail. Mira's own rules cannot be changed this way.
+
+**Rules as files** are for the technically minded: a file ending in `.star` in the folder `hooks` next to `mira.yaml`, written in Starlark, which looks like Python (technically such rules are called hooks). Mira keeps hers there too. A change applies at once, without a restart; with the line `ACTIVE = False` a rule is off without being deleted. An example:
 
 ```python
 DESCRIPTION = "An unknown voice unlocks nothing."
@@ -804,10 +806,10 @@ def pre_tool(call, verdict):
             return deny("Unlocking only when I know who is speaking.")
 ```
 
-- Your hooks run first, Mira's after them, and the strictest always wins. The only one you can loosen is Mira's default hook `critical.star` (what asks for a yes), by creating a file of your own with that name. The system hooks, which guard against slipped-in instructions, always stay.
-- A hook sees labels by their **id**, not by their name: the label "Mira: confirm first" is `mira_confirm`, whatever language it is named in and even if you rename it. A hook that compares the name breaks with the next rename.
+- Your rules run first, Mira's after them, and the strictest always wins. The only one you can loosen is Mira's default rule `critical.star` (what asks for a yes), by creating a file of your own with that name. The system rules, which guard against slipped-in instructions, always stay.
+- A rule sees labels by their **id**, not by their name: the label "Mira: confirm first" is `mira_confirm`, whatever language it is named in and even if you rename it. A rule that compares the name breaks with the next rename.
 - If a file does not load, Home Assistant reports it under **Repairs**, and Mira works on without it.
-- What a hook sees is in the [specification](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
+- What a rule sees is in the [specification](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
 
 ## Commands
 

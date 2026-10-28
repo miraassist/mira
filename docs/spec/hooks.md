@@ -26,6 +26,10 @@ plus the household's own hooks. What else was discussed is under "Later".
 
 ## Terms
 
+Users see hooks as **rules** ("Regeln" in German): on Mira's page (Capabilities → Rules), in the guide and in what
+Mira says. "Hook" is the technical word: in this spec, the code, the log and the folder `hooks/` (decided
+2026-10-28).
+
 | Term | Meaning |
 |---|---|
 | **Hook** | A Starlark file with a `pre_tool` function and a `DESCRIPTION`. |
@@ -48,8 +52,9 @@ plus the household's own hooks. What else was discussed is under "Later".
   nachfragen" in Home Assistant (e.g. a garage door: as a cover it cannot be told apart from a shutter, so it gets the
   label). A household that wants the garage door without a question at the garage's satellite replaces it with its
   own `critical.star`.
-- **Household hooks** are the household's own. They are read when Mira starts; a change takes effect when she starts
-  anew (as after a change on her page).
+- **Household hooks** are the household's own. Mira watches the folder: a file written, changed or deleted applies
+  at once, without a restart; a line `ACTIVE = False` switches one off without deleting it
+  ([hooks-schreiben.md](hooks-schreiben.md)). Mira also writes them on request (the skill `regel`).
 
 ## Order
 
@@ -57,7 +62,7 @@ The hierarchy runs from system to household: **the system has the last word.** T
 other way round:
 
 ```
-household (A→Z) → default (A→Z) → system (rights, background, web, ask) → the engine carries out the verdict
+household (A→Z) → default (A→Z) → system (rights, background, web, self, ask) → the engine carries out the verdict
 ```
 
 - **Within a level** the files run in the order of their names. A household that needs a certain order names its
@@ -234,6 +239,22 @@ def pre_tool(call, verdict):
 ```
 
 ```python
+# system/self.star (docs/spec/hooks-schreiben.md, Who may)
+TOOLS = ["hook_save", "hook_switch", "hook_delete"]
+PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star"]
+
+def pre_tool(call, verdict):
+    if call.tool.name not in TOOLS:
+        return None
+    if not call.who.person:
+        return deny(text("rules_unknown"))
+    if call.turn.foreign:
+        return deny(text("rules_foreign"))
+    ...  # a protected name is refused
+    return confirm(text("rules_confirm"))
+```
+
+```python
 # system/ask.star
 DESCRIPTION = "Ask only when someone can answer."
 
@@ -300,18 +321,20 @@ model; until 2026-10-28 nothing checked it. Now the action passes the hooks as a
 
 ## Where one sees the hooks
 
-- **Mira's page, group Fähigkeiten, the page "Hooks"** (admins only), read only: the hooks by level, each with its
+- **Mira's page, group Fähigkeiten, the page "Regeln" / "Rules"** (admins only), read only: the hooks by level, each with its
   description and its code (folded); a replaced default hook shows that the household's replaces it; a household file
   that does not load shows its problem.
 
 ## Steps
 
 1. **The small version** (built): the hook engine with Starlark, the call with its facts, the built-in hooks, the
-   household folder, problems, the page "Hooks". The guard keeps the mechanism and asks the hooks; the right check of
+   household folder, problems, the page "Regeln" / "Rules". The guard keeps the mechanism and asks the hooks; the right check of
    agent runs moved from the agent runtime into `rights.star`. The guard's tests run against the hooks.
    `security.confirm_*` are no longer read.
 
 2. **Skill actions** (built): a skill's action passes the hooks as a call of its own (see Skill actions).
+3. **Writing rules on request** (built): `ACTIVE`, reloading without a restart, `system/self.star`, the skill `regel`
+   ([hooks-schreiben.md](hooks-schreiben.md)).
 
 ## Later
 

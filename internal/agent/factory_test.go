@@ -323,3 +323,54 @@ agents:
 		t.Errorf("problems %+v", probs)
 	}
 }
+
+// A YAML agent with "model: delegate" takes the model mira.yaml names for
+// delegate, when it runs (docs/spec/hooks-schreiben.md, decision 4).
+func TestAYAMLAgentTakesTheModelOfOneOfMirasOwn(t *testing.T) {
+	e := setup(t)
+	var file struct {
+		Agents config.Agents `yaml:"agents"`
+	}
+	if err := yaml.Unmarshal([]byte(`
+agents:
+  delegate: { model: smart }
+  schreiber:
+    description: Schreibt.
+    instructions: Schreib.
+    model: delegate
+`), &file); err != nil {
+		t.Fatal(err)
+	}
+	e.cfg.Agents = file.Agents
+	if p := e.rt.RegisterDefined(FromConfig(file.Agents.Defined), e.cfg.Model); len(p) != 0 {
+		t.Fatalf("problems %+v", p)
+	}
+	res, _ := e.rt.CallByName(context.Background(), "schreiber", json.RawMessage(`{"input":"x"}`), CallContext{})
+	if res.Model != "smart" || e.smart.calls() != 1 || e.main.calls() != 0 {
+		t.Errorf("model %q, main %d, smart %d", res.Model, e.main.calls(), e.smart.calls())
+	}
+}
+
+// The agents of the shipped skills start: what a skill's agent describes fits
+// the rules of its context (tools only with background, …).
+func TestShippedSkillsAgentsStart(t *testing.T) {
+	e := setup(t)
+	entries, _ := os.ReadDir("../../skills")
+	enabled := map[string]map[string]any{}
+	for _, en := range entries {
+		enabled[en.Name()] = nil
+	}
+	loaded, _ := skills.Load([]string{"../../skills"}, enabled)
+	var defs []Defined
+	for _, sk := range loaded {
+		for name, d := range sk.Agents {
+			defs = append(defs, Defined{Name: name, Skill: sk.Name, Def: d})
+		}
+	}
+	if len(defs) == 0 {
+		t.Fatal("no agents in the shipped skills")
+	}
+	for _, p := range e.rt.RegisterDefined(defs, e.cfg.Model) {
+		t.Errorf("%s (%s): %s", p.Agent, p.Skill, p.Text(i18n.EN))
+	}
+}

@@ -554,7 +554,7 @@ class MiraHooks extends EditPage {
       <summary>
         <span class="lead"><h3>${h.name}</h3></span>
         <span class="short clip">${h.problem ? "" : h.description}</span>
-        <span>${h.problem ? badge(T.hooks_not_loaded, true) : nothing}${h.replaced ? badge(T.hooks_replaced, true) : nothing}</span>
+        <span>${h.problem ? badge(T.hooks_not_loaded, true) : nothing}${h.off ? badge(T.hooks_off, true) : nothing}${h.replaced ? badge(T.hooks_replaced, true) : nothing}</span>
       </summary>
       ${h.problem ? html`<p class="msg err">${h.problem}</p>` : nothing}
       <pre class="code">${h.source}</pre>

@@ -78,7 +78,7 @@ func (a *app) catalog(ctx context.Context) ui.Catalog {
 	c.Hooks = []ui.HookInfo{}
 	for _, h := range a.hooks.Infos() {
 		c.Hooks = append(c.Hooks, ui.HookInfo{Level: h.Level, Name: h.Name, Description: h.Description,
-			Source: h.Source, Replaced: h.Replaced, Problem: h.Problem})
+			Source: h.Source, Replaced: h.Replaced, Problem: h.Problem, Off: h.Off})
 	}
 	return c
 }
@@ -299,7 +299,11 @@ func (a *app) agentInfo(d agent.Defined, defs []agent.Defined, active []skills.S
 		}
 		info.Rights = strings.Split(spec.Rights.String(), ",")
 		info.MaxRounds = spec.Limits.MaxRounds
-		a.modelInfo(&info, spec.Model)
+		model := spec.Model
+		if model == "" && spec.ModelOf != "" {
+			model = a.liveConfig().ModelFor(spec.ModelOf)
+		}
+		a.modelInfo(&info, model)
 	}
 	for _, sk := range active {
 		t := sk.Target

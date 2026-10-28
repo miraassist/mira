@@ -256,6 +256,9 @@ func (r *Runtime) prepare(ctx context.Context, spec Spec, input string, cc CallC
 	cfg := r.o.Config()
 	ex := &execution{spec: spec, res: Result{CallID: cc.CallID}, t: i18n.Pick(catalog, lang(cc))}
 	ex.res.Model = spec.Model
+	if ex.res.Model == "" && spec.ModelOf != "" {
+		ex.res.Model = cfg.ModelFor(spec.ModelOf)
+	}
 	if ex.res.Model == "" {
 		ex.res.Model = cfg.ModelFor(spec.Name)
 	}

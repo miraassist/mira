@@ -367,11 +367,11 @@ func TestHK17_AnAgentActsOnlyWithItsRights(t *testing.T) {
 func TestHK01_TheHooksRunHouseholdThenDefaultThenSystem(t *testing.T) {
 	f := newFixture(t, map[string]string{"mine.star": logName("mine")})
 	var ids []string
-	for _, h := range f.e.chain {
+	for _, h := range f.e.cur.Load().chain {
 		ids = append(ids, h.id())
 	}
 	want := []string{"household/mine.star", "default/critical.star",
-		"system/rights.star", "system/background.star", "system/web.star", "system/ask.star"}
+		"system/rights.star", "system/background.star", "system/web.star", "system/self.star", "system/ask.star"}
 	if !slices.Equal(ids, want) {
 		t.Fatalf("chain %v, want %v", ids, want)
 	}

@@ -416,8 +416,8 @@
       "description": "Mira started without it. {text}\n\nChange its description under agents in mira.yaml or in its skill. The problem disappears here once Mira has been restarted and the agent starts."
     },
     "hook_problem": {
-      "title": "The hook {name} is not active",
-      "description": "Mira started without it. {text}\n\nChange the file in the folder hooks next to mira.yaml. The problem disappears here once Mira has been restarted and the hook loads."
+      "title": "The rule {name} is not active",
+      "description": "Mira started without it. {text}\n\nChange the file in the folder hooks next to mira.yaml. The problem disappears here once the file loads."
     },
     "version_agent_older": {
       "title": "Update the Mira service",

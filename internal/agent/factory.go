@@ -206,22 +206,36 @@ func specOf(d Defined, models func(string) (config.LLM, bool)) (Spec, string, []
 	default:
 		return spec, "context", []any{def.Context}
 	}
-	if spec.Model == "" {
-		spec.Model = config.MainModel
-	}
-	model, known := models(spec.Model)
-	if !known {
-		return spec, "model", []any{spec.Model}
-	}
-	switch def.Privacy {
-	case "":
-	case config.PrivacyLocal:
-		if model.Privacy != config.PrivacyLocal {
-			return spec, "privacy", []any{spec.Model, model.Privacy}
+	if slices.Contains(codeAgents, spec.Model) {
+		// The model of one of Mira's own agents (model: delegate): whatever
+		// mira.yaml names for it when the agent runs, without a setting of
+		// its own.
+		spec.ModelOf, spec.Model = spec.Model, ""
+		switch def.Privacy {
+		case "":
+		case config.PrivacyLocal:
+			spec.Privacy = config.PrivacyLocal
+		default:
+			return spec, "privacyword", []any{def.Privacy}
 		}
-		spec.Privacy = config.PrivacyLocal
-	default:
-		return spec, "privacyword", []any{def.Privacy}
+	} else {
+		if spec.Model == "" {
+			spec.Model = config.MainModel
+		}
+		model, known := models(spec.Model)
+		if !known {
+			return spec, "model", []any{spec.Model}
+		}
+		switch def.Privacy {
+		case "":
+		case config.PrivacyLocal:
+			if model.Privacy != config.PrivacyLocal {
+				return spec, "privacy", []any{spec.Model, model.Privacy}
+			}
+			spec.Privacy = config.PrivacyLocal
+		default:
+			return spec, "privacyword", []any{def.Privacy}
+		}
 	}
 	switch {
 	case len(def.Tools.Names) > 0:

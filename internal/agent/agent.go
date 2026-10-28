@@ -80,6 +80,9 @@ type Spec struct {
 	// model is what mira.yaml names for the agent under agents, else main
 	// (docs/spec/modelle.md).
 	Model string
+	// ModelOf names one of Mira's own agents whose model this one takes
+	// (model: delegate in a skill), when it runs; Model is empty then.
+	ModelOf string
 	// Privacy local makes the agent run only on a local model.
 	Privacy string
 	Profile Profile

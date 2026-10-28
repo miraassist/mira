@@ -29,6 +29,8 @@ type HookInfo struct {
 	Source      string `json:"source"`
 	Replaced    bool   `json:"replaced,omitempty"`
 	Problem     string `json:"problem,omitempty"`
+	// Off: a household rule with ACTIVE = False.
+	Off bool `json:"off,omitempty"`
 }
 
 // ModelInfo is one model: where it is, how it is set, who takes it and how

@@ -809,13 +809,15 @@ agents:
 
 Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.
 
-## Eigene Regeln: Hooks
+## Eigene Regeln
 
-Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Diese Regeln heißen Hooks. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Hooks**, samt ihrem Code.
+Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Regeln**, samt ihrem Code.
 
-![Die Seite „Hooks“ unter „Fähigkeiten“: ein eigener Hook aufgeklappt, darunter Miras eigene](img/mira-hooks-de.png)
+![Die Seite „Regeln“ unter „Fähigkeiten“: eine eigene Regel aufgeklappt, darunter Miras eigene](img/mira-hooks-de.png)
 
-Eigene Hooks sind etwas für Technikfans: eine Datei mit der Endung `.star` im Ordner `hooks` neben der `mira.yaml`, geschrieben in Starlark, das wie Python aussieht. Sie gilt, sobald Mira neu gestartet ist. Ein Beispiel:
+**Eine Regel per Zuruf.** Sag Mira einfach, was gelten soll: „Merk dir eine Regel: Wenn du nicht weißt, wer spricht, schließt du nichts auf.“ Ein Helfer schreibt die Regel, Mira sagt dir in einem Satz, was sie tut, und fragt, ob sie sie einschalten soll. Nach deinem Ja gilt sie sofort. Getestet hat Mira sie dabei nicht, probier sie also einmal aus. Ebenso geht „Welche Regeln gibt es?“, „Schalte die Regel mit der Musik heute Abend aus“ und wieder an, oder „Lösch die Regel …“. Regeln ändern kann jeder, den Mira kennt, immer mit Ja und nie, nachdem sie gerade etwas aus dem Web oder einer Mail gelesen hat. Miras eigene Regeln lassen sich so nicht ändern.
+
+**Regeln als Datei** sind etwas für Technikfans: eine Datei mit der Endung `.star` im Ordner `hooks` neben der `mira.yaml`, geschrieben in Starlark, das wie Python aussieht (technisch heißen solche Regeln Hooks). Mira legt ihre dort auch ab. Eine Änderung gilt sofort, ohne Neustart; mit der Zeile `ACTIVE = False` ist eine Regel aus, ohne gelöscht zu sein. Ein Beispiel:
 
 ```python
 DESCRIPTION = "Eine unbekannte Stimme schließt nichts auf."
@@ -828,10 +830,10 @@ def pre_tool(call, verdict):
             return deny("Aufschließen nur, wenn ich weiß, wer spricht.")
 ```
 
-- Deine Hooks laufen zuerst, Miras danach, und es gilt immer das Strengste. Lockern kannst du nur Miras Standard-Hook `critical.star` (was nach einem Ja fragt), indem du eine eigene Datei mit diesem Namen anlegst. Die System-Hooks, die vor untergeschobenen Anweisungen schützen, bleiben immer.
-- Labels sieht ein Hook an ihrer **ID**, nicht an ihrem Namen: Das Label „Mira: nachfragen“ ist `mira_confirm`, egal in welcher Sprache es heißt oder ob du es umbenennst. Ein Hook, der den Namen vergleicht, geht beim nächsten Umbenennen kaputt.
+- Deine Regeln laufen zuerst, Miras danach, und es gilt immer das Strengste. Lockern kannst du nur Miras Standard-Regel `critical.star` (was nach einem Ja fragt), indem du eine eigene Datei mit diesem Namen anlegst. Die System-Regeln, die vor untergeschobenen Anweisungen schützen, bleiben immer.
+- Labels sieht eine Regel an ihrer **ID**, nicht an ihrem Namen: Das Label „Mira: nachfragen“ ist `mira_confirm`, egal in welcher Sprache es heißt oder ob du es umbenennst. Eine Regel, die den Namen vergleicht, geht beim nächsten Umbenennen kaputt.
 - Lädt eine Datei nicht, meldet Home Assistant das unter **Reparaturen**, und Mira arbeitet ohne sie weiter.
-- Was ein Hook alles sieht, steht in der [Spezifikation](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
+- Was eine Regel alles sieht, steht in der [Spezifikation](https://github.com/miraassist/mira/blob/main/docs/spec/hooks.md).
 
 ## Befehle
 
