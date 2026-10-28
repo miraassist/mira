@@ -813,6 +813,8 @@ Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mir
 
 Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Diese Regeln heißen Hooks. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Hooks**, samt ihrem Code.
 
+![Die Seite „Hooks“ unter „Fähigkeiten“: ein eigener Hook aufgeklappt, darunter Miras eigene](img/mira-hooks-de.png)
+
 Eigene Hooks sind etwas für Technikfans: eine Datei mit der Endung `.star` im Ordner `hooks` neben der `mira.yaml`, geschrieben in Starlark, das wie Python aussieht. Sie gilt, sobald Mira neu gestartet ist. Ein Beispiel:
 
 ```python

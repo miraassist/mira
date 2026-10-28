@@ -93,6 +93,10 @@ def pictures(browser, lang: str, out: pathlib.Path, logins: dict[str, str]):
         s.go("skills", "mira-skills details.item"); s.shot(out, "mira-skills", 900)
         s.go("agents", "details.item.agent"); s.shot(out, "mira-agenten", 900)
         s.go("models", "mira-models details.item"); s.shot(out, "mira-modelle", 600)
+        # The hooks: the household's first one opened (testenv/hooks).
+        s.go("hooks", "mira-hooks details.item")
+        s.ui.locator("mira-hooks details.item summary").first.click()
+        s.shot(out, "mira-hooks", 900)
         s.go("notifier"); s.shot(out, "benachrichtigung", 800)
         # The model dialog: the second model's entry, its last button is "Edit".
         s.go("models", "mira-models details.item")

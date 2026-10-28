@@ -789,6 +789,8 @@ What the integration sets up as the model applies to `main` before what `mira.ya
 
 Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. These rules are called hooks. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Hooks**, with their code.
 
+![The page "Hooks" under "Capabilities": a hook of your own opened, Mira's own below](img/mira-hooks-en.png)
+
 Hooks of your own are for the technically minded: a file ending in `.star` in the folder `hooks` next to `mira.yaml`, written in Starlark, which looks like Python. It applies once Mira has restarted. An example:
 
 ```python
