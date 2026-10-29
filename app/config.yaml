@@ -2,7 +2,7 @@
 # one for containers, ghcr.io/miraassist/mira. "version" is set by the release
 # workflow once the image of that version is on ghcr.io; do not raise it by hand.
 name: Mira
-version: "0.12.0"
+version: "0.13.0"
 slug: mira
 description: The household voice agent behind the Mira integration.
 url: https://github.com/miraassist/mira

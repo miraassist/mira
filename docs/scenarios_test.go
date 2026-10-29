@@ -17,7 +17,7 @@ import (
 // switch-over that are built: every scenario tagged with one of them must
 // have its Go test.
 var builtSteps = map[string][]int{
-	"AB": {1, 2, 3, 4},                          // docs/spec/anrufbeantworter.md
+	"AB": {1, 2, 3, 4},                    // docs/spec/anrufbeantworter.md
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, // docs/spec/agenten.md, Switching over in steps
 	"HK": {1, 2},
 	"HW": {1, 2, 3},       // docs/spec/hooks.md, Steps
