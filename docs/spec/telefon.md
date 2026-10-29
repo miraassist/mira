@@ -116,4 +116,7 @@ places the call from the satellite being spoken at, and one phone book for the w
 
 ## Open
 
-- Nothing at the moment.
+- **The phone book moves** (decided 2026-10-29) into the integration Mira FRITZ!Box
+  ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz), its spec `docs/spec/fritz.md`), together with
+  the answering machine and missed calls. Mira then reads it with the action `mira_fritz.get_phonebook`; the skill's
+  settings for the FRITZ!Box go away.
