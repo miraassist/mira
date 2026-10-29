@@ -51,7 +51,7 @@ type texts struct {
 	desc, targetDesc, kindDesc                                string
 	notVoice, noPhone, noIntercom, self                       string
 	intercom, called, several, kinds, noKind, noNumber        string
-	notFound, bookOff, bookError                              string
+	notFound, bookOff, bookError, missing                     string
 	notSetUp, connecting, refused, cannot, busy, unavailable  string
 	unknownState                                              string
 	kindMobile, kindHome, kindWork, kindIntern, kindFixedline string
@@ -75,6 +75,7 @@ var catalog = map[i18n.Lang]texts{
 		notFound:      "Ergebnis: nicht gewählt. Gesucht: „%s“. Kein Kontakt im Telefonbuch, kein Gerät im Haus.",
 		bookOff:       "Ergebnis: nicht gewählt. Gesucht: „%s“. Grund: Das Telefonbuch ist aus (Skill telefon); anrufbar sind nur Geräte im Haus und Nummern.",
 		bookError:     "Ergebnis: nicht gewählt. Grund: Das Telefonbuch der FRITZ!Box ließ sich nicht lesen (%s).",
+		missing:       "Die Integration Mira FRITZ!Box fehlt. Installiere sie über HACS und richte sie ein; dann liest Mira das Telefonbuch dort.",
 		notSetUp:      "Ergebnis: nicht gewählt. Grund: Das Telefon dieses Satelliten hat keine Anmeldung.",
 		connecting:    "Ergebnis: nicht gewählt. Grund: Das Telefon dieses Satelliten ist noch nicht an der Telefonanlage angemeldet. Gleich noch einmal versuchen hilft oft; bleibt es so, ist die Telefonanlage vielleicht nicht erreichbar.",
 		refused:       "Ergebnis: nicht gewählt. Grund: Die Telefonanlage hat die Anmeldung dieses Satelliten abgelehnt (Benutzername oder Passwort des IP-Telefons falsch).",
@@ -105,6 +106,7 @@ var catalog = map[i18n.Lang]texts{
 		notFound:      "Result: not dialed. Looked for: \"%s\". No contact in the phone book, no device in the house.",
 		bookOff:       "Result: not dialed. Looked for: \"%s\". Reason: the phone book is off (skill telefon); only devices in the house and numbers can be called.",
 		bookError:     "Result: not dialed. Reason: the FRITZ!Box's phone book could not be read (%s).",
+		missing:       "The integration Mira FRITZ!Box is missing. Install it through HACS and set it up; Mira then reads the phone book there.",
 		notSetUp:      "Result: not dialed. Reason: this satellite's phone has no login.",
 		connecting:    "Result: not dialed. Reason: this satellite's phone is not signed in at the telephone box yet. Trying again in a moment often helps; if it stays so, the box may not be reachable.",
 		refused:       "Result: not dialed. Reason: the telephone box refused this satellite's login (the IP phone's user name or password is wrong).",
@@ -158,7 +160,7 @@ func Tool(o Options) tools.InternalTool {
 				return dial(ctx, o, t, line, target, "", target)
 			}
 			// 3. A contact of the phone book.
-			if !o.Book.On() {
+			if !o.Book.IsOn() {
 				return fmt.Sprintf(t.bookOff, target), nil
 			}
 			contacts, err := o.Book.Contacts(ctx)
@@ -421,3 +423,7 @@ func kindList(t texts, ns []Number) string {
 	}
 	return strings.Join(out, ", ")
 }
+
+// MissingText is the problem shown when the skill telefon is on but Home
+// Assistant has no Mira FRITZ!Box.
+func MissingText(l i18n.Lang) string { return i18n.Pick(catalog, l).missing }

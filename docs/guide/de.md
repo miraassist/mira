@@ -583,15 +583,11 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 - Anrufen geht nur per Sprache am Satelliten, nie per Telegram, aus Aufgaben oder Zeitplänen.
 - Die Kontakte bleiben in der FRITZ!Box; auf den Geräten landen keine.
 
-**Einrichten:** In der FRITZ!Box unter System → FRITZ!Box-Benutzer einen eigenen Benutzer für Mira anlegen, nur mit dem Recht **Telefonie**. Dann den Skill `telefon` einschalten, am einfachsten auf Miras Seite unter Fähigkeiten → Skills → telefon → **Einschalten**, mit Benutzer und Passwort; **Verbindung testen** zeigt, wie viele Kontakte Mira liest. Oder in der `mira.yaml`:
+**Einrichten:** Das Telefonbuch liest Mira über die Integration [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz). Installiere sie über HACS, füge sie unter Einstellungen → Geräte & Dienste hinzu und gib Benutzer und Passwort eines eigenen FRITZ!Box-Benutzers ein; was er an Rechten braucht, steht im Formular. Dann den Skill `telefon` einschalten, am einfachsten auf Miras Seite unter Fähigkeiten → Skills → telefon → **Einschalten**; **Verbindung testen** zeigt, wie viele Kontakte Mira liest. Welche Telefonbücher gelesen werden, stellst du in den Optionen der Integration ein. Oder in der `mira.yaml`:
 
 ```yaml
 skills:
-  telefon:
-    user: mira
-    password: ${MIRA_SKILL_TELEFON_PASSWORD}
-    fritzbox: 192.168.178.1        # nur nötig, wenn die FRITZ!Box eine andere Adresse hat
-    telefonbuch: Telefonbuch       # nur nötig für ein anderes oder mehrere Bücher, mit Komma
+  telefon: {}
 ```
 
 Ohne den Skill ruft Mira weiter Geräte im Haus und Nummern an, nur Namen kennt sie dann nicht. Auf der Skills-Seite steht beim Skill, welches Telefonbuch Mira liest und wann zuletzt, mit einem Link zur FRITZ!Box; die Kontakte selbst zeigt sie nicht.

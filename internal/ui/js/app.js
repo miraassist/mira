@@ -359,7 +359,7 @@ class MiraSkills extends EditPage {
         ${s.phonebook ? row(T.cat_phonebook, html`
           <div>${(s.phonebook.books || []).length ? s.phonebook.books.join(", ") : T.cat_phonebook_unread}${s.phonebook.read_at ? html` · ${T.cat_phonebook_read} ${s.phonebook.read_at}` : nothing}</div>
           ${s.phonebook.error ? html`<div class="warn">${s.phonebook.error}</div>` : nothing}
-          <div><a href=${s.phonebook.link} target="_blank" rel="noopener">${T.cat_phonebook_open}</a> <span class="hint">${T.cat_phonebook_hint}</span></div>`) : nothing}
+          ${s.phonebook.link ? html`<div><a href=${s.phonebook.link} target="_blank" rel="noopener">${T.cat_phonebook_open}</a> <span class="hint">${T.cat_phonebook_hint}</span></div>` : nothing}`) : nothing}
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
       ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}

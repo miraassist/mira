@@ -18,6 +18,10 @@ import (
 // is down and the caller did not want to wait.
 var ErrNotConnected = errors.New("home assistant websocket not connected")
 
+// ErrNotFound: Home Assistant does not know what was asked for, such as an
+// action of an integration that is not installed.
+var ErrNotFound = errors.New("not found")
+
 // EventHandler receives events of a subscription. It runs on the read loop,
 // so it must not block; anything slow belongs on its own goroutine.
 type EventHandler func(Event)
@@ -360,6 +364,9 @@ func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawM
 			return nil, ErrNotConnected // connection dropped while waiting
 		}
 		if msg.Success != nil && !*msg.Success {
+			if msg.Error != nil && msg.Error.Code == "not_found" {
+				return nil, fmt.Errorf("home assistant rejected %v: %w: %s", command["type"], ErrNotFound, errorText(msg.Error))
+			}
 			return nil, fmt.Errorf("home assistant rejected %v: %s", command["type"], errorText(msg.Error))
 		}
 		return msg.Result, nil
@@ -496,6 +503,26 @@ func (c *Client) CallService(ctx context.Context, domain, service string, data m
 	}
 	_, err := c.Call(ctx, cmd)
 	return err
+}
+
+// CallServiceResponse invokes a Home Assistant action that answers, and
+// returns its response.
+func (c *Client) CallServiceResponse(ctx context.Context, domain, service string, data map[string]any) (json.RawMessage, error) {
+	cmd := map[string]any{"type": CmdCallService, "domain": domain, "service": service, "return_response": true}
+	if len(data) > 0 {
+		cmd["service_data"] = data
+	}
+	raw, err := c.Call(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Response json.RawMessage `json:"response"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, fmt.Errorf("decode %s.%s: %w", domain, service, err)
+	}
+	return result.Response, nil
 }
 
 // Areas, Devices and Entities read the registries.

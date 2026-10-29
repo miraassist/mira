@@ -62,23 +62,16 @@ Feature: TE Phone calls
 
   @step1
   Scenario: TE-10 The phone book is read from the FRITZ!Box before every call
-    Given a FRITZ!Box that answers TR-064 with digest authentication
+    Given Mira FRITZ!Box answers get_phonebook
     When the phone book is needed twice
     Then it is read twice, so a changed number counts at once
     And when the box does not answer, the contacts read last stand in, and the page says why
 
   @step1
   Scenario: TE-11 Test connection reads the phone book
-    Given the skill telefon in the editor with its settings
+    Given the skill telefon in the editor
     When Test connection is pressed
     Then the page says how many contacts the phone book has, or why it could not be read
-
-  @step1
-  Scenario: TE-12 Defaults and settings
-    Given the skill telefon with only user and password
-    When the phone book is read
-    Then Mira asks 192.168.178.1 on port 49000 for the first phone book
-    And with fritzbox and telefonbuch set, that address and those books
 
   @step1
   Scenario: TE-13 Fax numbers are not dialed
@@ -98,3 +91,10 @@ Feature: TE Phone calls
     When the model calls phone_call with a contact
     Then Home Assistant calls phone_call_named with the number and the contact's name
     And a number without a contact goes with phone_call as before
+
+  @step1
+  Scenario: TE-16 Without Mira FRITZ!Box the skill is a problem
+    Given the skill telefon is on and Home Assistant has no Mira FRITZ!Box
+    When the phone book is needed
+    Then nothing is dialed, and the tool says the phone book could not be read
+    And the skill shows the problem that the integration is missing, until it is there

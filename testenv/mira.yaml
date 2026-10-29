@@ -128,9 +128,7 @@ skills:
   quiz: {}
   routine: {}
   sprit: {}
-  telefon:
-    user: ${FRITZBOX_USER:-}
-    password: ${FRITZBOX_PASSWORD:-}
+  telefon: {}
   tuerklingel: {}
   urlaub: {}
   vokabeln: {}

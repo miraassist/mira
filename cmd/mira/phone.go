@@ -2,42 +2,46 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
 
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/skills"
 )
 
 // The phone (docs/spec/telefon.md): a TECHO5 satellite's ESPHome actions
-// phone_call and intercom_call, and the FRITZ!Box's phone book when the
-// skill telefon is on.
+// phone_call and intercom_call, and the FRITZ!Box's phone book from Mira
+// FRITZ!Box when the skill telefon is on.
 
-// phoneSkill is the skill that switches the phone book on and holds its
-// access.
+// phoneSkill is the skill that switches the phone book on.
 const phoneSkill = "telefon"
 
-// phoneBookSource is the skill telefon's access, false while it is off or
-// did not start.
-func (a *app) phoneBookSource() (phone.Fritz, bool) {
-	settings, ok := a.cfg.Skills.Enabled[phoneSkill]
-	if !ok || a.skills == nil || !slices.ContainsFunc(a.skills.Skills, func(s skills.Skill) bool { return s.Name == phoneSkill }) {
-		return phone.Fritz{}, false
-	}
-	return fritzOf(settings), true
+// phoneBookOn says whether the skill telefon is on and started.
+func (a *app) phoneBookOn() bool {
+	_, ok := a.cfg.Skills.Enabled[phoneSkill]
+	return ok && a.skills != nil && slices.ContainsFunc(a.skills.Skills, func(s skills.Skill) bool { return s.Name == phoneSkill })
 }
 
-// fritzOf is the access as a skill's settings give it.
-func fritzOf(settings map[string]any) phone.Fritz {
-	s := func(k string) string { v, _ := settings[k].(string); return strings.TrimSpace(v) }
-	f := phone.Fritz{Address: s("fritzbox"), User: s("user"), Password: s("password")}
-	for _, b := range strings.Split(s("telefonbuch"), ",") {
-		if b = strings.TrimSpace(b); b != "" {
-			f.Books = append(f.Books, b)
-		}
+// readPhonebook asks Mira FRITZ!Box for the phone book (its action
+// get_phonebook).
+func (a *app) readPhonebook(ctx context.Context) (phone.Phonebook, error) {
+	raw, err := a.ha.CallServiceResponse(ctx, "mira_fritz", "get_phonebook", nil)
+	if errors.Is(err, haws.ErrNotFound) {
+		return phone.Phonebook{}, phone.ErrNoIntegration
 	}
-	return f
+	if err != nil {
+		return phone.Phonebook{}, err
+	}
+	var pb phone.Phonebook
+	if err := json.Unmarshal(raw, &pb); err != nil {
+		return phone.Phonebook{}, fmt.Errorf("the phone book of Mira FRITZ!Box: %w", err)
+	}
+	return pb, nil
 }
 
 // phoneLine is the phone of a satellite's device: its node, its call actions

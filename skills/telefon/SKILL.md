@@ -2,20 +2,6 @@
 name: telefon
 description: "Telefonieren mit dem Telefonbuch der FRITZ!Box: jemanden anrufen („Ruf Oma an“, „Ruf Ben auf dem Handy an“), auch ein Gerät im Haus („Ruf die Küche an“) oder eine Nummer."
 license: MIT
-metadata:
-  mira:
-    settings:
-      user:
-        description: Ein eigener Benutzer der FRITZ!Box für Mira, nur mit dem Recht „Telefonie“ (FRITZ!Box → System → FRITZ!Box-Benutzer).
-        required: true
-      password:
-        description: Das Passwort dieses Benutzers.
-        required: true
-        secret: true
-      fritzbox:
-        description: Die Adresse der FRITZ!Box, über die telefoniert wird. Ohne Angabe 192.168.178.1.
-      telefonbuch:
-        description: Welche Telefonbücher, mit Komma getrennt, z. B. „Telefonbuch, Google“. Ohne Angabe das erste.
 ---
 # Telefonieren
 

@@ -2,16 +2,9 @@ package phone
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"regexp"
+	"errors"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/miraassist/mira/internal/config"
@@ -25,69 +18,14 @@ func TestTextsComplete(t *testing.T) {
 	}
 }
 
-const testBook = `<?xml version="1.0" encoding="utf-8"?>
-<phonebooks><phonebook name="Telefonbuch">
-<contact><person><realName>Oma Erika</realName></person><telephony>
-  <number type="mobile" prio="1">0172 1111111</number></telephony></contact>
-<contact><person><realName>Oma Hilde</realName></person><telephony>
-  <number type="home" prio="1">0721 222222</number></telephony></contact>
-<contact><person><realName>Ben Müller</realName></person><telephony>
-  <number type="home" prio="">0721 333333</number>
-  <number type="mobile" prio="">0151 444444</number></telephony></contact>
-<contact><person><realName>Anna Weber</realName></person><telephony>
-  <number type="home" prio="">0721 555555</number>
-  <number type="mobile" prio="1">0160 666666</number></telephony></contact>
-<contact><person><realName>Praxis Faxmann</realName></person><telephony>
-  <number type="fax_work" prio="1">0721 777777</number></telephony></contact>
-</phonebook></phonebooks>`
-
-// fritzbox plays a FRITZ!Box's TR-064 with digest authentication; reads
-// counts the phone book's downloads.
-func fritzbox(t *testing.T, user, password string) (*httptest.Server, *atomic.Int32) {
-	t.Helper()
-	var reads atomic.Int32
-	const realm, nonce = "F!Box SOAP-Auth", "abc123"
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/book.xml" {
-			reads.Add(1)
-			io.WriteString(w, testBook)
-			return
-		}
-		auth := r.Header.Get("Authorization")
-		if auth == "" {
-			w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=MD5, qop="auth"`, realm, nonce))
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		get := func(k string) string {
-			m := regexp.MustCompile(k + `="?([^",]*)"?`).FindStringSubmatch(auth)
-			if m == nil {
-				return ""
-			}
-			return m[1]
-		}
-		h := func(s string) string { s2 := md5.Sum([]byte(s)); return hex.EncodeToString(s2[:]) }
-		want := h(h(user+":"+realm+":"+password) + ":" + nonce + ":" + get("nc") + ":" + get("cnonce") + ":auth:" + h("POST:"+r.URL.Path))
-		if get("username") != user || get("response") != want {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		body, _ := io.ReadAll(r.Body)
-		switch {
-		case strings.Contains(string(body), "GetPhonebookList"):
-			io.WriteString(w, `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:GetPhonebookListResponse xmlns:u="urn:dslforum-org:service:X_AVM-DE_OnTel:1"><NewPhonebookList>0,1</NewPhonebookList></u:GetPhonebookListResponse></s:Body></s:Envelope>`)
-		case strings.Contains(string(body), "GetPhonebook"):
-			name := "Telefonbuch"
-			if strings.Contains(string(body), "<NewPhonebookID>1<") {
-				name = "Google"
-			}
-			fmt.Fprintf(w, `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:GetPhonebookResponse xmlns:u="urn:dslforum-org:service:X_AVM-DE_OnTel:1"><NewPhonebookName>%s</NewPhonebookName><NewPhonebookURL>%s/book.xml?sid=1</NewPhonebookURL></u:GetPhonebookResponse></s:Body></s:Envelope>`, name, srv.URL)
-		}
-	}))
-	t.Cleanup(srv.Close)
-	return srv, &reads
-}
+// testBook is the phone book Mira FRITZ!Box answers in these tests.
+var testBook = Phonebook{Books: []string{"Telefonbuch"}, URL: "http://192.168.178.1", Contacts: []Contact{
+	{Name: "Oma Erika", Numbers: []Number{{Number: "0172 1111111", Type: "mobile", Main: true}}},
+	{Name: "Oma Hilde", Numbers: []Number{{Number: "0721 222222", Type: "home", Main: true}}},
+	{Name: "Ben Müller", Numbers: []Number{{Number: "0721 333333", Type: "home"}, {Number: "0151 444444", Type: "mobile"}}},
+	{Name: "Anna Weber", Numbers: []Number{{Number: "0721 555555", Type: "home"}, {Number: "0160 666666", Type: "mobile", Main: true}}},
+	{Name: "Praxis Faxmann", Numbers: []Number{{Number: "0721 777777", Type: "fax_work", Main: true}}},
+}}
 
 type call struct {
 	service string
@@ -103,11 +41,9 @@ type env struct {
 
 func setup(t *testing.T, bookOn bool) *env {
 	t.Helper()
-	srv, _ := fritzbox(t, "mira", "geheim")
 	e := &env{line: Line{Node: "show", Phone: true, Intercom: true, State: Ready}}
-	e.book = &Book{Source: func() (Fritz, bool) {
-		return Fritz{User: "mira", Password: "geheim", base: srv.URL}, bookOn
-	}}
+	e.book = &Book{On: func() bool { return bookOn },
+		Read: func(context.Context) (Phonebook, error) { return testBook, nil }}
 	e.tool = Tool(Options{Lang: i18n.DE, Book: e.book,
 		Line: func(context.Context, string) Line { return e.line },
 		Device: func(_ context.Context, target string) (string, string, bool) {
@@ -248,51 +184,51 @@ func TestTE09_WithoutTheSkillNoNames(t *testing.T) {
 }
 
 func TestTE10_ThePhoneBookIsReadBeforeEveryCall(t *testing.T) {
-	srv, reads := fritzbox(t, "mira", "geheim")
-	password := "geheim"
-	b := &Book{Source: func() (Fritz, bool) {
-		return Fritz{User: "mira", Password: password, base: srv.URL}, true
+	var reads int
+	var fail error
+	b := &Book{On: func() bool { return true }, Read: func(context.Context) (Phonebook, error) {
+		reads++
+		if fail != nil {
+			return Phonebook{}, fail
+		}
+		return testBook, nil
 	}}
 	ctx := context.Background()
 	b.Contacts(ctx)
 	b.Contacts(ctx)
 	// read each time, so a changed number counts at once
-	if reads.Load() != 2 {
-		t.Errorf("reads %d", reads.Load())
+	if reads != 2 {
+		t.Errorf("reads %d", reads)
 	}
-	if st := b.Status(); !st.On || len(st.Books) != 1 || st.Books[0] != "Telefonbuch" || st.Error != "" {
+	if st := b.Status(); !st.On || len(st.Books) != 1 || st.Books[0] != "Telefonbuch" || st.Link != "http://192.168.178.1" || st.Error != "" {
 		t.Errorf("status %+v", st)
 	}
 	// a box that does not answer: the contacts read last stand in, the page says why
-	password = "falsch"
+	fail = errors.New("the FRITZ!Box does not answer")
 	if cs, err := b.Contacts(ctx); err != nil || len(cs) == 0 {
 		t.Errorf("contacts %d, err %v", len(cs), err)
 	}
-	if st := b.Status(); !strings.Contains(st.Error, "refused") {
+	if st := b.Status(); !strings.Contains(st.Error, "does not answer") || st.Missing {
 		t.Errorf("status %+v", st)
 	}
 	// never read and no answer: the error
-	bad := &Book{Source: func() (Fritz, bool) { return Fritz{User: "mira", Password: "falsch", base: srv.URL}, true }}
-	if _, err := bad.Contacts(ctx); err == nil || !strings.Contains(err.Error(), "refused") {
-		t.Errorf("err %v", err)
+	bad := &Book{On: func() bool { return true }, Read: func(context.Context) (Phonebook, error) { return Phonebook{}, fail }}
+	if _, err := bad.Contacts(ctx); err == nil {
+		t.Error("no error")
 	}
 }
 
-func TestTE12_DefaultsAndSettings(t *testing.T) {
-	if l := (Fritz{}).Link(); l != "http://192.168.178.1" {
-		t.Errorf("link %s", l)
+func TestTE16_WithoutMiraFritzBoxTheSkillIsAProblem(t *testing.T) {
+	e := setup(t, true)
+	e.book.Read = func(context.Context) (Phonebook, error) { return Phonebook{}, ErrNoIntegration }
+	if out := e.run(t, config.ChannelVoice, `{"target":"Oma Erika"}`); len(e.calls) != 0 || !strings.Contains(out, "nicht lesen") {
+		t.Errorf("out %q", out)
 	}
-	if u := (Fritz{}).url(onTelPath); u != "http://192.168.178.1:49000/upnp/control/x_contact" {
-		t.Errorf("url %s", u)
+	if st := e.book.Status(); !st.Missing {
+		t.Errorf("status %+v", st)
 	}
-	srv, _ := fritzbox(t, "mira", "geheim")
-	books, _, err := Fritz{User: "mira", Password: "geheim", base: srv.URL, Books: []string{"Telefonbuch", "google"}}.Read(context.Background())
-	if err != nil || len(books) != 2 {
-		t.Errorf("books %v, err %v", books, err)
-	}
-	if _, _, err := (Fritz{User: "mira", Password: "geheim", base: srv.URL, Books: []string{"Privat"}}).Read(context.Background()); err == nil ||
-		!strings.Contains(err.Error(), "Telefonbuch, Google") {
-		t.Errorf("unknown book: %v", err)
+	if !strings.Contains(MissingText(i18n.DE), "Mira FRITZ!Box fehlt") {
+		t.Error(MissingText(i18n.DE))
 	}
 }
 

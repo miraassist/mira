@@ -571,15 +571,11 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 - Calls go only by voice at a satellite, never from Telegram, tasks or schedules.
 - The contacts stay in the FRITZ!Box; none end up on the devices.
 
-**Setting it up:** in the FRITZ!Box under System → FRITZ!Box Users, add a user of its own for Mira with only the right **Telephony**. Then switch on the skill `telefon`, most easily on Mira's page under Capabilities → Skills → telefon → **Switch on**, with user and password; **Test connection** shows how many contacts Mira reads. Or in `mira.yaml`:
+**Setting it up:** Mira reads the phone book through the integration [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz). Install it through HACS, add it under Settings → Devices & services and enter user and password of a FRITZ!Box user of its own; the form says which rights it needs. Then switch on the skill `telefon`, most easily on Mira's page under Capabilities → Skills → telefon → **Switch on**; **Test connection** shows how many contacts Mira reads. Which phone books are read is set in the integration's options. Or in `mira.yaml`:
 
 ```yaml
 skills:
-  telefon:
-    user: mira
-    password: ${MIRA_SKILL_TELEFON_PASSWORD}
-    fritzbox: 192.168.178.1        # only if the FRITZ!Box has another address
-    telefonbuch: Telefonbuch       # only for another book or several, comma-separated
+  telefon: {}
 ```
 
 Without the skill Mira still calls devices in the house and numbers, she just does not know names. The Skills page shows with the skill which phone book Mira reads and when she last did, with a link to the FRITZ!Box; it never shows the contacts.

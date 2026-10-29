@@ -352,7 +352,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 	}))
 	// Phone calls from the satellite of the turn (docs/spec/telefon.md).
-	a.phonebook = &phone.Book{Source: a.phoneBookSource}
+	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
 		Line: a.phoneLine, Device: a.intercomDevice, Call: a.callESPHome}))
 	// Sounds and cards on the satellite of the turn (docs/spec/satellit.md).
@@ -598,7 +598,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	a.goRun(ctx, "hooks", func(ctx context.Context) error { a.hooks.Watch(ctx, 2*time.Second); return nil })
 	// The phone book once soon after the start, so Mira's page shows whether
 	// the access works before the first call (docs/spec/telefon.md).
-	if a.phonebook.On() {
+	if a.phonebook.IsOn() {
 		a.goRun(ctx, "phonebook", func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
@@ -1339,6 +1339,10 @@ func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
 	for _, p := range a.hooks.Problems() {
 		out = append(out, haconv.Problem{Source: "hook", Name: p.File, Text: p.Text})
+	}
+	// The skill telefon without Mira FRITZ!Box: goes away once it is there.
+	if a.phonebook != nil && a.phonebook.IsOn() && a.phonebook.Status().Missing {
+		out = append(out, haconv.Problem{Source: "skill", Name: phoneSkill, Text: phone.MissingText(a.lang)})
 	}
 	if a.mcp == nil {
 		return out

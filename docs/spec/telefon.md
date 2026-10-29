@@ -1,6 +1,6 @@
 # Phone calls
 
-Status 2026-10-24: built, released in 0.7.0. Scenarios: [telefon.feature](telefon.feature).
+Status 2026-10-29: built, released in 0.7.0; the phone book comes from Mira FRITZ!Box since 2026-10-29 (not released yet). Scenarios: [telefon.feature](telefon.feature).
 
 ## Goal
 
@@ -21,33 +21,26 @@ places the call from the satellite being spoken at, and one phone book for the w
 
 ## The phone book: the skill `telefon`
 
-- Mira reads the FRITZ!Box's phone book over TR-064 (`X_AVM-DE_OnTel`: `GetPhonebookList`, `GetPhonebook`, then the
-  phone book's XML), with digest authentication. That is code in Mira, not a skill alone: `web_page` cannot speak
-  SOAP with digest.
-- The skill `telefon` switches it on and holds the access, like every skill (bearbeiten.md):
+- Since 2026-10-29 the phone book comes from the integration **Mira FRITZ!Box**
+  ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz), its spec `docs/spec/fritz.md`): Mira calls its
+  action `mira_fritz.get_phonebook` and gets the books read, the box's page and the contacts. The FRITZ!Box's
+  access (address, user, password, which books) is set up there, once; Mira keeps none. Until then Mira read the
+  box over TR-064 herself; that code is gone.
+- The skill `telefon` switches the phone book on and has no settings:
 
   ```yaml
   skills:
-    telefon:
-      user: mira
-      password: ${MIRA_SKILL_TELEFON_PASSWORD}
-      fritzbox: 192.168.178.1       # optional; the default
-      telefonbuch: Telefonbuch      # optional; without it the first phone book
+    telefon: {}
   ```
 
-  Convention over configuration: only `user` and `password` are needed. `fritzbox` is the box's address (some homes
-  phone over another box than their main router); without it `192.168.178.1`. Mira reaches TR-064 on its port 49000
-  there; nothing more to set.
-
-  `enabled: false` switches it off. The user is a FRITZ!Box user of its own with only the right **Telefonie**
-  (FRITZ!Box: System → FRITZ!Box-Benutzer); that is enough for TR-064's phone book (tried 2026-10-24).
-- **What the FRITZ!Box gives** (tried 2026-10-24 on the test house's box): `GetPhonebookList` names the books
-  (`0,1`: the box's own and one synced with Google, 16 and 470 contacts); `GetPhonebook` gives a book's name and an
-  address of its XML (with a session id, on the box's IPv6 address), read with a plain GET. Each number has a `type`
-  (`home`, `mobile`, `work`, `intern` for the box's own phones, `fax_work`, `memo`, `fixedline`, `label:…` from
-  Google, or none) and `prio="1"` on the main number; almost every contact has one main number.
-- **Which books:** without `telefonbuch` the first one (the box's own, `0`); with it those named (comma-separated),
-  e.g. `Telefonbuch, Google …` for the synced one as well. A name in two books is one contact when the numbers match.
+  Without Mira FRITZ!Box in Home Assistant the skill shows a problem ("Die Integration Mira FRITZ!Box fehlt"), which
+  goes away once the integration is there. An old `telefon` with `user` and `password` is refused as a skill with
+  unknown settings; the break was accepted (few users had it).
+- **What the FRITZ!Box gives** (tried 2026-10-24 on the test house's box): each number has a `type` (`home`,
+  `mobile`, `work`, `intern` for the box's own phones, `fax_work`, `memo`, `fixedline`, `label:…` from Google, or
+  none) and a main number (`prio="1"`); almost every contact has one.
+- **Which books:** those the integration's options name; without, the first one (the box's own). A name in two books
+  is one contact when the numbers match.
 - **Which numbers:** fax numbers (`fax_…`) are never dialed; `intern` numbers (`**610`) are, they reach the box's
   own phones.
 - **Read before every call** (about 0.4 s), so a contact just added or a number just changed counts at once (changed 2026-10-24: kept for an hour, a changed number of a known name was missed). When the box does not answer, the contacts read last stand in, and the page says why. Mira also reads it once soon after her start, for the page.
@@ -57,8 +50,8 @@ places the call from the satellite being spoken at, and one phone book for the w
 - **On Mira's page** (Skills, the skill `telefon`): that the phone book is on, which books it reads and when it last
   read them (or why it could not), with a link to the FRITZ!Box (`http://<fritzbox>`), where the contacts are kept.
   The contacts themselves are not shown.
-- **Connection test:** the editor's **Test connection** works for this skill too: it reads the phone book with the
-  form's settings and says how many contacts it has, or why it could not.
+- **Connection test:** the editor's **Test connection** works for this skill too: it reads the phone book from Mira
+  FRITZ!Box and says how many contacts it has, or why it could not.
 
 ## The tool `phone_call`
 
@@ -104,9 +97,8 @@ places the call from the satellite being spoken at, and one phone book for the w
 
 ## Decided
 
-1. The FRITZ!Box's phone book is the one phone book, read over TR-064, switched on and set up as the skill `telefon`
-   (2026-10-24). Only user and password are needed; the address (`192.168.178.1`) and the book (the first) have
-   defaults and can be set.
+1. The FRITZ!Box's phone book is the one phone book, switched on as the skill `telefon` (2026-10-24); since
+   2026-10-29 read from the integration Mira FRITZ!Box, which holds the box's access.
 2. Dial at once when the target is clear; ask only when several contacts or numbers fit.
 3. Rooms and devices in the house are called over the intercom (`intercom_call`) by the same tool.
 4. No contacts on the devices: neither for the call page's name nor for a list of recent calls.
@@ -116,7 +108,4 @@ places the call from the satellite being spoken at, and one phone book for the w
 
 ## Open
 
-- **The phone book moves** (decided 2026-10-29) into the integration Mira FRITZ!Box
-  ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz), its spec `docs/spec/fritz.md`), together with
-  the answering machine and missed calls. Mira then reads it with the action `mira_fritz.get_phonebook`; the skill's
-  settings for the FRITZ!Box go away.
+- Nothing at the moment.
