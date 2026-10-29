@@ -47,11 +47,12 @@ Almost everything that is a "room" today is a property of the satellite:
 |---|---|
 | `presence` | **list** of motion sensors; each of them triggers "someone comes in" (e.g. hallway PIR and living room PIR for the living room Echo) |
 | `morning` | **announce on entering**: when one of the motion sensors detects someone, Mira announces on her own what is waiting (after quiet hours with "Guten Morgen") |
-| `indicator` | the indicator, e.g. the LED ring of the Echo: lights up as long as something is waiting, independent of motion sensors. Satellites with a screen need no setting, Mira detects them on her own |
+| `indicator` | the indicator, e.g. the LED ring of the Echo: lights up as long as something is waiting, independent of motion sensors. Without a setting it is the satellite's own ring, found (2026-10-29): a light named "LED ring" on the satellite's device or on a device hanging off it (TECHO5: "Dot 2 ring"), not its segments. A room with a ring shows what waits there, not on a screen. Satellites with a screen need no setting, Mira detects them on her own |
 
 - The **area** is the satellite's area in HA (entity, otherwise its device). A satellite without an area cannot be configured.
 - Satellites are `assist_satellite.*`, for speakers without Assist also `media_player.*` (with `notifier.tts_entity`).
 - For now **one satellite per area**: a second one in the same area is rejected. Several per area would be a separate step (who speaks then?).
+- A satellite **switched off** in Home Assistant keeps its settings but has no room; the next one in its area speaks there. The integration sends the rooms again when the registries change (a satellite switched off, moved, a ring added), a burst of changes once.
 - The integration's "room" sub-entries are dropped. Areas themselves cannot be decorated in HA (the area registry has no options); that is another reason why the satellite is the anchor.
 - Without the integration everything stays in `mira.yaml` (`satellites`, `notifier.morning_trigger`, `indicators`); `presence` may be an entity or a list there.
 

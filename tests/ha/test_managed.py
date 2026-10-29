@@ -1,6 +1,7 @@
 """Discovery, the compact button, rooms as subentries and person settings
 on Home Assistant's persons."""
 
+from datetime import timedelta
 from ipaddress import ip_address
 
 from unittest.mock import AsyncMock, patch
@@ -14,8 +15,10 @@ from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import area_registry as ar, entity_registry as er
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
+from custom_components.mira import RESEND_COOLDOWN
 from custom_components.mira.config_flow import FIELD_NAMES
 from custom_components.mira.access import rejoin_token
 from custom_components.mira.api import proof
@@ -434,9 +437,18 @@ async def test_exposed_entities_reach_the_agent(hass, aioclient_mock, entry):
     await hass.async_block_till_done()
     exposed = _puts(aioclient_mock)[-1]["exposed"]
     assert "calendar.familie" in exposed and "calendar.geheim" not in exposed
+    # A burst of changes (the dialog exposes one entity after the other) is
+    # sent once, with all of them, after a moment.
+    sent = len(_puts(aioclient_mock))
+    hass.states.async_set("calendar.drei", "off", {"friendly_name": "Drei"})
     async_expose_entity(hass, "conversation", "calendar.geheim", True)
+    async_expose_entity(hass, "conversation", "calendar.drei", True)
     await hass.async_block_till_done()
-    assert "calendar.geheim" in _puts(aioclient_mock)[-1]["exposed"]
+    assert len(_puts(aioclient_mock)) == sent
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=RESEND_COOLDOWN + 1), fire_all=True)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(_puts(aioclient_mock)) == sent + 1
+    assert {"calendar.geheim", "calendar.drei"} <= set(_puts(aioclient_mock)[-1]["exposed"])
 
 
 async def test_a_person_sets_their_own_settings(hass, aioclient_mock, entry, hass_client, hass_admin_user):
@@ -497,3 +509,44 @@ async def test_the_agent_cannot_change_who_may_manage_tasks(hass, aioclient_mock
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.data[CONF_AGENT_USER] == "mira-user"
+
+
+def _device_satellite(hass, name, area_name, ring_names=()):
+    """A satellite on a device of its own, as ESPHome registers a TECHO5,
+    with its lights on a device that hangs off it ("Dot 2 ring")."""
+    from homeassistant.helpers import device_registry as dr
+
+    source = MockConfigEntry(domain="esphome")
+    source.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    area = ar.async_get(hass).async_get_or_create(area_name)
+    main = devices.async_get_or_create(config_entry_id=source.entry_id, identifiers={("esphome", name)}, name=name)
+    devices.async_update_device(main.id, area_id=area.id)
+    ring = devices.async_get_or_create(config_entry_id=source.entry_id, identifiers={("esphome", name + "-ring")},
+                                       name=name + " ring", via_device_id=main.id)
+    registry = er.async_get(hass)
+    sat = registry.async_get_or_create("assist_satellite", "esphome", name, device_id=main.id, suggested_object_id=name)
+    lights = [registry.async_get_or_create("light", "esphome", name + n, device_id=ring.id, original_name=n,
+                                           suggested_object_id=name + "_" + n.lower().replace(" ", "_")).entity_id
+              for n in ring_names]
+    return sat.entity_id, area.id, lights
+
+
+async def test_a_ring_is_found_and_a_switched_off_satellite_gives_its_area_up(hass, aioclient_mock, entry):
+    """A room's indicator is its satellite's own LED ring without a setting
+    (not one of its segments); a satellite switched off keeps its settings
+    but no room, so the next one in the area speaks there."""
+    from custom_components.mira.managed import build_config, set_satellite_settings
+
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    old, area, _ = _device_satellite(hass, "werkstatt", "Küche", ["LED ring"])
+    set_satellite_settings(hass, old, {"indicator": "light.werkstatt_led_ring"})
+    dot, _, lights = _device_satellite(hass, "dot", "Küche", ["LED ring segment 1", "LED ring"])
+    rooms = {r["area"]: r for r in build_config(hass, entry)["rooms"]}
+    assert rooms[area]["satellite"] == old  # its settings claim the area
+
+    er.async_get(hass).async_update_entity(old, disabled_by=er.RegistryEntryDisabler.USER)
+    rooms = {r["area"]: r for r in build_config(hass, entry)["rooms"]}
+    assert rooms[area]["satellite"] == dot
+    assert rooms[area]["indicator"] == lights[1]  # the ring, not a segment

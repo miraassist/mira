@@ -23,10 +23,11 @@ Feature: AB The answering machine at the satellite
     And the message is marked as heard
 
   @step1
-  Scenario: AB-03 The screen shows what plays
-    Given a voice conversation at the Show, which has an overlay
+  Scenario: AB-03 The player screen names what plays
+    Given a voice conversation at the Show, whose firmware titles its player (media_title)
     When a message from Oma plays
-    Then the overlay says "Nachricht von Oma" with day and time while it plays, and goes when the Show says it ended
+    Then the player screen shows "Nachricht von Oma", day and time, and the answering machine, not "Radio"
+    And at a satellite without that action it plays all the same, untitled
 
   @step1
   Scenario: AB-04 Playing only at a satellite

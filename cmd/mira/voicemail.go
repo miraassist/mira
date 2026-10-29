@@ -101,11 +101,10 @@ func (a *app) newVoicemail() *voicemail.Machine {
 			}
 		},
 		Played: a.playedThrough,
-		Show: func(ctx context.Context, action, text, icon string, d time.Duration) error {
+		Title: func(ctx context.Context, action, title, subtitle, source string) error {
 			domain, service, _ := strings.Cut(action, ".")
 			return a.ha.CallService(ctx, domain, service, map[string]any{
-				"title": "Mira", "message": text, "icon": icon, "chime": false, "speak": false,
-				"tag": "voicemail", "seconds": int(d.Seconds()),
+				"title": title, "subtitle": subtitle, "source": source,
 			}, nil)
 		},
 	})
@@ -133,8 +132,8 @@ func (a *app) phoneNews() func(ctx context.Context) (notifier.PhoneNews, error) 
 	}
 }
 
-// voicemailSatellite is the satellite of a device: its speaker, its screen's
-// overlay and its assist_satellite.
+// voicemailSatellite is the satellite of a device: its speaker, the action
+// that titles its player screen and its assist_satellite.
 func (a *app) voicemailSatellite(ctx context.Context, deviceID string) voicemail.Satellite {
 	sat := voicemail.Satellite{Speaker: a.speakerOf(ctx, deviceID)}
 	if entities, err := a.ha.Entities(ctx); err == nil {
@@ -154,8 +153,9 @@ func (a *app) voicemailSatellite(ctx context.Context, deviceID string) voicemail
 		}
 		node := slug(d.Name)
 		if services, err := a.ha.Services(ctx); err == nil && node != "" {
-			if fields, ok := services["esphome"][node+"_notify"]; ok && slices.Contains(fields, "message") && slices.Contains(fields, "seconds") {
-				sat.Overlay = "esphome." + node + "_notify"
+			if fields, ok := services["esphome"][node+"_media_title"]; ok && slices.Contains(fields, "title") &&
+				slices.Contains(fields, "subtitle") && slices.Contains(fields, "source") {
+				sat.TitleAction = "esphome." + node + "_media_title"
 			}
 		}
 	}

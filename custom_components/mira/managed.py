@@ -136,7 +136,27 @@ def notify_targets(hass: HomeAssistant) -> list[str]:
     return sorted(entities | services)
 
 
-def room_to_agent(area: str, satellite: str, data: dict[str, Any]) -> dict[str, Any]:
+def ring_of(hass: HomeAssistant, satellite: str) -> str:
+    """The LED ring of a satellite's device, "" without one: a light named
+    "LED ring" on the device or on a device of its own that hangs off it
+    (TECHO5: "Dot 2 ring"). Its segments are not the ring. Read by device,
+    not from the whole registry."""
+    entities = er.async_get(hass)
+    sat = entities.async_get(satellite)
+    if sat is None or not sat.device_id:
+        return ""
+    devices = dr.async_get(hass)
+    family = [sat.device_id] + sorted(d.id for d in devices.devices.values() if d.via_device_id == sat.device_id)
+    for device_id in family:
+        for e in er.async_entries_for_device(entities, device_id):
+            if e.domain == "light" and not e.disabled_by and (e.original_name or "").strip().lower().endswith("led ring"):
+                return e.entity_id
+    return ""
+
+
+def room_to_agent(area: str, satellite: str, data: dict[str, Any], ring: str = "") -> dict[str, Any]:
+    """A room as the agent has it. Without a setting its indicator is the
+    satellite's own ring, found (docs/spec/ha-anbindung.md)."""
     presence = data.get("presence") or []
     if isinstance(presence, str):
         presence = [presence]
@@ -145,7 +165,7 @@ def room_to_agent(area: str, satellite: str, data: dict[str, Any]) -> dict[str, 
         "satellite": satellite,
         "presence": list(presence),
         "morning": bool(data.get("morning")),
-        "indicator": data.get("indicator") or "",
+        "indicator": data.get("indicator") or ring,
     }
 
 
@@ -188,12 +208,16 @@ def build_config(
         if any(data.get(k) for k in PERSON_FIELDS):
             persons_out[person_key(hass, entity)] = person_to_agent(data | {"entity": entity})
     satellites_in = satellite_settings(hass) | (satellites or {})
+    registry = er.async_get(hass)
     rooms: dict[str, dict[str, Any]] = {}
     for entity, data in sorted(satellites_in.items()):
+        # A satellite switched off keeps its settings but no room.
+        if (entry := registry.async_get(entity)) is None or entry.disabled_by:
+            continue
         if any(data.get(k) for k in SATELLITE_FIELDS) and (area := satellite_area(hass, entity)):
             if area in rooms:
                 raise ValueError(f"{rooms[area]['satellite']} and {entity} are both set up for area {area}")
-            rooms[area] = room_to_agent(area, entity, data)
+            rooms[area] = room_to_agent(area, entity, data, ring_of(hass, entity))
     # Every Assist satellite with an area speaks for it; the settings only
     # add to that. A second one in an area that has one already is left out.
     for entry in sorted(er.async_get(hass).entities.values(), key=lambda e: e.entity_id):
@@ -201,7 +225,7 @@ def build_config(
         if entry.domain != "assist_satellite" or entry.disabled_by or entry.entity_id in taken:
             continue
         if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
-            rooms[area] = room_to_agent(area, entry.entity_id, {})
+            rooms[area] = room_to_agent(area, entry.entity_id, {}, ring_of(hass, entry.entity_id))
     return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)], "exposed": exposed_entities(hass)}
 
 

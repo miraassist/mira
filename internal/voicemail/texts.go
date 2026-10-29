@@ -5,13 +5,14 @@ import "github.com/miraassist/mira/internal/i18n"
 // texts are the tools' descriptions and results: facts for the model, which
 // words them itself.
 type texts struct {
-	listDesc, playDesc, deleteDesc, argID, argIDs, argNew  string
-	noMessages, messagesHead, isNew, heard, minutes        string
-	noMissed, missedHead, missedLine                       string
-	notVoice, noSpeaker, unknown, playing, screen, deleted string
-	playingMany, next, planHead                            string
-	today, yesterday                                       string
-	missing, boxFailed, newsLine, onlyNewest               string
+	listDesc, playDesc, deleteDesc, argID, argIDs, argNew string
+	noMessages, messagesHead, isNew, heard, minutes       string
+	noMissed, missedHead, missedLine                      string
+	notVoice, noSpeaker, unknown, playing, title, deleted string
+	source                                                string
+	playingMany, next, planHead                           string
+	today, yesterday                                      string
+	missing, boxFailed, newsLine, onlyNewest              string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -37,7 +38,8 @@ var catalog = map[i18n.Lang]texts{
 		playingMany:  "Ergebnis: %d Nachrichten spielen am Satelliten nacheinander, direkt nach deiner Antwort; vor jeder weiteren sagt der Satellit selbst, von wem sie ist. Die erste ist von %s (%s). Sag jetzt nur kurz, wie viele es sind und von wem und wann die erste ist, und sonst nichts, keine Frage.",
 		next:         "Nächste: von %s, %s.",
 		planHead:     "# Anrufbeantworter",
-		screen:       "Nachricht von %s · %s",
+		title:        "Nachricht von %s",
+		source:       "Anrufbeantworter",
 		deleted:      "Ergebnis: Die Nachricht ist gelöscht.",
 		today:        "heute %s",
 		yesterday:    "gestern %s",
@@ -68,7 +70,8 @@ var catalog = map[i18n.Lang]texts{
 		playingMany:  "Result: %d messages play at the satellite one after the other, right after your answer; before each further one the satellite says itself whom it is from. The first is from %s (%s). Now say only briefly how many there are and from whom and when the first is, nothing else, no question.",
 		next:         "Next: from %s, %s.",
 		planHead:     "# Answering machine",
-		screen:       "Message from %s · %s",
+		title:        "Message from %s",
+		source:       "Answering machine",
 		deleted:      "Result: the message is deleted.",
 		today:        "today %s",
 		yesterday:    "yesterday %s",

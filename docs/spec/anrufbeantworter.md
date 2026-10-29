@@ -58,8 +58,10 @@ Its tools (Mira's own, calling the integration's actions):
     stays new. As an announcement it would neither duck nor stop at the wake word (the device plays announcements
     in the foreground, outside a turn), and its microphone heard the recording. The box's minutes plus half a
     minute are a safety net, not the signal.
-  - **On the screen** the device shows its player for a recording it plays, today named "Radio"; a title of Mira's
-    needs a change of the firmware (the play command carries only the address).
+  - **On the screen** the device shows its player for a recording it plays. Before each recording Mira gives it a
+    title where the satellite can take one (TECHO5's `esphome.<node>_media_title`, 2026-10-29): "Nachricht von Oma",
+    "heute 14:12", and the answering machine's name. Tried at the Show: shown while it plays or is paused, gone when it
+    ends; the states above unchanged. Without the action (a Dot, older firmware) it plays untitled.
   - **"Nächste …"** only into a quiet satellite (idle), never into a recording or a listening.
   - **No listening after the answer**: a turn that plays something afterwards never keeps the satellite listening
     (a tool marked so, [satellit.md](satellit.md)); its microphone would hear the recording (heard 2026-10-29: Mira
@@ -87,7 +89,7 @@ Its tools (Mira's own, calling the integration's actions):
     own call, never by the speaker's state, so it ticks nothing it did not play. Stopping is `media_stop` (tried: the
     speaker goes "paused").
   - A plain announcement shows no turn screen on a TECHO5 (by design of its firmware); the player screen of the
-    recording follows at once. A title there is a firmware change (todo).
+    recording follows at once.
 - `voicemail_delete(id)`: deletes a message at the FRITZ!Box, only when the user asks for it.
 
 **Words**: Mira says "Anrufbeantworter", never "Mailbox" and never the box's name: "FRITZ!Box" trips the speech
@@ -95,10 +97,9 @@ synthesis on its "!" (heard 2026-10-29), so no text meant for speaking carries i
 
 Before playing, Mira says from whom and when, in her words ("Von Oma, heute um 14:12:"); the tool gives the facts.
 
-**On the screen while it plays**: a satellite with an overlay (TECHO5, the action the screen hints use) shows "Nachricht
-von Oma · 29.10. 14:12" with a voicemail icon while the recording plays, and takes it away when the satellite says
-it ended. Playing a recording shows nothing by itself (tried 2026-10-29: clear sound, empty screen); one must see what
-is speaking. Mira never fetches a recording herself: neither its length nor anything else is needed.
+**On the screen while it plays**: the satellite's own player screen, titled as above. Mira puts no card of her own
+over it (decided 2026-10-29: the player looks better). Mira never fetches a recording herself: neither its length nor
+anything else is needed.
 
 ## Showing what is new
 
@@ -110,7 +111,7 @@ ids end in `_new_messages` and `_missed_calls`. A change of either updates the i
   in the colour of what ranks first (4, 5).
 - **The screen** (a satellite with an overlay, TECHO5): a hint of its own beside Mira's messages, with the two counts
   ("2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"); taken away when nothing waits. While a satellite
-  plays messages it gets no new hint: each one heard lowers the count, and the hint would cover the card of what plays.
+  plays messages it gets no new hint: each one heard lowers the count, and the hint would cover its player.
   It gets the new count once the playing ends (decision 10, step 4).
 - **In every room**: the answering machine belongs to the house, like a message to the house. Quiet hours hold back
   nothing here: a light and a screen hint wake no one.
@@ -199,7 +200,7 @@ id ([Threads](vorgaenge.md), In the context), so "weiter" plays all the rest, no
 |---|---|---|---|
 | `voicemail_list` | reads messages and new missed calls, marks the calls seen, starts or finds the thread, writes the plan | 2 actions of Mira FRITZ!Box (each a TR-064 call to the box), 1 more when calls are new; database writes | yes, well under a second |
 | `voicemail_play` | checks the ids against the list, queues them | 1 action (`get_messages`) | yes, milliseconds |
-| per message, after the answer | screen card, play, wait for the speaker to play and go idle, `mark_heard`, tick, card away | 2 overlays, 1 `play_media`, 1 `mark_heard`; no download by Mira | no |
+| per message, after the answer | title the player (where the satellite can), play, wait for the speaker to play and go idle, `mark_heard`, tick | 1 `media_title` (if offered), 1 `play_media`, 1 `mark_heard`; no download by Mira | no |
 | per further message | wait for a quiet satellite, record the announcement, "Nächste …" as a plain announcement (the call returns as it ends) | 1 action; nothing listens after it | no |
 | watching | the speaker (started, played, stopped), the satellite (quiet) | a **state subscription** on the entity for each wait ([Watching states](ha-anbindung.md#principle)) | no |
 | an answer turn | the plan window in layer 7, the skill's 3 tools | about 300 characters and 3 tools more in that turn only | — |

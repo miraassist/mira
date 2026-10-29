@@ -63,9 +63,9 @@ type News struct{ Messages, Missed int }
 type Satellite struct {
 	// Speaker is its media player; empty: it plays nothing.
 	Speaker string
-	// Overlay is its screen's overlay action (esphome.<node>_notify); empty
-	// without a screen.
-	Overlay string
+	// TitleAction names what plays next on its player screen
+	// (esphome.<node>_media_title, TECHO5); empty when it has none.
+	TitleAction string
 	// Entity is its assist_satellite, watched to play after Mira's answer.
 	Entity string
 }
@@ -93,8 +93,10 @@ type Options struct {
 	// once it played to its end; false when it never started, was stopped,
 	// or limit (a safety net only) passed.
 	Played func(ctx context.Context, speaker string, limit time.Duration) bool
-	// Show shows a hint on a screen for d.
-	Show func(ctx context.Context, action, text, icon string, d time.Duration) error
+	// Title gives the next playback at a satellite its title, subtitle and
+	// source for its player screen (tried at the Show 2026-10-29: shown
+	// while it plays or is paused, gone when it ends).
+	Title func(ctx context.Context, action, title, subtitle, source string) error
 
 	// Listening is a thread with a plan (docs/spec/anrufbeantworter.md,
 	// step 4). Plan writes the plan of the turn's listening thread, starting
@@ -430,12 +432,14 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 					return
 				}
 			}
-			text := fmt.Sprintf(t.screen, p.who, p.when)
-			if sat.Overlay != "" {
-				// Seen while it plays: playing shows nothing by itself. It
-				// goes when the recording ends (below).
-				if err := m.o.Show(ctx, sat.Overlay, text, "mdi:voicemail", limit); err != nil {
-					_ = err // the recording plays all the same
+			if sat.TitleAction != "" && m.o.Title != nil {
+				// Its player screen names it, not "Radio"; it goes when it ends.
+				source := p.msg.Machine
+				if source == "" {
+					source = t.source
+				}
+				if err := m.o.Title(ctx, sat.TitleAction, fmt.Sprintf(t.title, p.who), p.when, source); err != nil {
+					_ = err // it plays all the same
 				}
 			}
 			m.setCurrent(this, p.msg.ID)
@@ -446,9 +450,6 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 			// does not play and what was not heard to the end stays new.
 			played := m.o.Played(ctx, sat.Speaker, limit)
 			m.setCurrent(this, "")
-			if sat.Overlay != "" {
-				_ = m.o.Show(ctx, sat.Overlay, text, "mdi:voicemail", time.Second)
-			}
 			if ctx.Err() != nil {
 				return
 			}

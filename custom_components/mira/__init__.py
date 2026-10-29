@@ -15,6 +15,7 @@ from homeassistant.core import CoreState, HomeAssistant, ServiceCall, ServiceRes
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
@@ -198,12 +199,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.async_on_unload(async_setup_telegram(hass, entry))
     # Mails of IMAP entries named like a mail application (mail.py).
     entry.async_on_unload(async_setup_mail(hass, entry))
-    # A change of what Assist sees reaches the agent at once.
-    entry.async_on_unload(async_listen_entity_updates(hass, "conversation", lambda: _send_exposed(hass, entry)))
+    # A change of what Assist sees reaches the agent at once, as does a
+    # satellite switched off or moved to another area, or a ring added: the
+    # rooms come from the registries. Changes in a burst (exposing many
+    # entities in one go) are sent once, with what is current then.
+    @callback
+    def _resend() -> None:  # a callback: it runs in the event loop, not in a thread
+        _send_exposed(hass, entry)
+
+    resend = Debouncer(hass, _LOGGER, cooldown=RESEND_COOLDOWN, immediate=False, function=_resend)
+    entry.async_on_unload(resend.async_shutdown)
+    entry.async_on_unload(async_listen_entity_updates(hass, "conversation", resend.async_schedule_call))
+
+    @callback
+    def _rooms_changed(event: Any) -> None:
+        entity = event.data.get("entity_id") or ""
+        if event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED or entity.split(".")[0] in ("assist_satellite", "light"):
+            resend.async_schedule_call()
+
+    entry.async_on_unload(hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _rooms_changed))
+    entry.async_on_unload(hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, _rooms_changed))
     if entry.options.get(CONF_SIDEBAR, True):
         async_register_panel(hass, "Mira")
         entry.async_on_unload(lambda: async_remove_panel(hass))
     return True
+
+
+# RESEND_COOLDOWN gathers a burst of registry changes into one send.
+RESEND_COOLDOWN = 1.0
 
 
 @callback

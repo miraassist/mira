@@ -29,7 +29,7 @@ type box struct {
 	missing  bool
 	done     []string // actions without a response, with their data
 	played   []string // speaker: media id
-	shown    []string // action: text, seconds
+	shown    []string // title action: title | subtitle | source
 	said     []string // what the satellite said between recordings
 	// stopAt is the recording someone speaks into (1-based); 0: none.
 	stopAt int
@@ -79,7 +79,7 @@ func (b *box) machine() *Machine {
 			return nil
 		},
 		Satellite: func(_ context.Context, device string) Satellite {
-			return Satellite{Speaker: "media_player.show_speaker", Overlay: "esphome.show_notify", Entity: "assist_satellite.show"}
+			return Satellite{Speaker: "media_player.show_speaker", TitleAction: "esphome.show_media_title", Entity: "assist_satellite.show"}
 		},
 		AfterAnswer: func(_ string, fn func(ctx context.Context)) { fn(context.Background()) },
 		Play: func(_ context.Context, speaker, id string) error {
@@ -134,10 +134,10 @@ func (b *box) machine() *Machine {
 			b.waited++
 			return b.waited != b.stopAt
 		},
-		Show: func(_ context.Context, action, text, _ string, d time.Duration) error {
+		Title: func(_ context.Context, action, title, subtitle, source string) error {
 			b.mu.Lock()
 			defer b.mu.Unlock()
-			b.shown = append(b.shown, action+": "+text+", "+d.String())
+			b.shown = append(b.shown, action+": "+title+" | "+subtitle+" | "+source)
 			return nil
 		},
 	})
@@ -194,11 +194,19 @@ func TestAB02_AMessagePlaysAtTheSatelliteOfTheTurnAndCountsAsHeard(t *testing.T)
 func TestAB03_TheScreenShowsWhatPlays(t *testing.T) {
 	b := &box{messages: []Message{oma()}}
 	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13"]}`)
-	// Shown while it plays (the box's minutes as a safety net), taken away
-	// when the satellite says it ended.
-	if len(b.shown) != 2 || b.shown[0] != "esphome.show_notify: Nachricht von Oma · heute 14:12, 1m30s" ||
-		b.shown[1] != "esphome.show_notify: Nachricht von Oma · heute 14:12, 1s" {
+	// Its player screen names it (the device takes it away when it ends).
+	if len(b.shown) != 1 || b.shown[0] != "esphome.show_media_title: Nachricht von Oma | heute 14:12 | Anrufbeantworter" {
 		t.Errorf("shown %v", b.shown)
+	}
+	// Without the action (a Dot, older firmware) nothing is titled, and
+	// it plays all the same.
+	b = &box{messages: []Message{oma()}}
+	m := b.machine()
+	sat := m.o.Satellite
+	m.o.Satellite = func(ctx context.Context, d string) Satellite { s := sat(ctx, d); s.TitleAction = ""; return s }
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13"]}`)
+	if len(b.shown) != 0 || len(b.played) != 1 {
+		t.Errorf("shown %v, played %v", b.shown, b.played)
 	}
 }
 
