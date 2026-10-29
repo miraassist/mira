@@ -172,3 +172,15 @@ Feature: AB The answering machine at the satellite
     Given the listening plan holds four messages, one heard
     When a turn sees the thread
     Then its context names all three open ones with their ids, not only the next
+
+  @step4
+  Scenario: AB-39 Ending the thread stops its recordings
+    Given four messages playing one after the other, the second playing
+    When the wake word and "abbrechen" make the model cancel the thread
+    Then the recording stops at once, nothing more plays, and the second stays new
+
+  @step4
+  Scenario: AB-40 Deleting the one that plays goes on with the next
+    Given two messages playing one after the other, the first playing
+    When the model deletes it
+    Then it stops, is deleted and ticked, and the second plays

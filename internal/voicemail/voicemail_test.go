@@ -40,6 +40,7 @@ type box struct {
 	ticked    []string
 	announced []string
 	held      []bool
+	stopped   []string // speakers told to stop
 }
 
 func (b *box) machine() *Machine {
@@ -115,6 +116,12 @@ func (b *box) machine() *Machine {
 			b.mu.Lock()
 			defer b.mu.Unlock()
 			b.announced = append(b.announced, device+" "+thread)
+		},
+		Stop: func(_ context.Context, speaker string) error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.stopped = append(b.stopped, speaker)
+			return nil
 		},
 		Hold: func(_ context.Context, _ string, hold bool) {
 			b.mu.Lock()
@@ -365,5 +372,109 @@ func TestAB34_ANewPlayEndsTheRunningOne(t *testing.T) {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// live is a machine whose recordings play until something ends or stops
+// them, in the background as after an answer: playing[n] closes when the
+// n-th recording starts.
+func (b *box) live() (*Machine, func(n int) <-chan struct{}) {
+	m := b.machine()
+	m.o.AfterAnswer = func(_ string, fn func(ctx context.Context)) { go fn(context.Background()) }
+	var mu sync.Mutex
+	starts := map[int]chan struct{}{}
+	at := func(n int) chan struct{} {
+		mu.Lock()
+		defer mu.Unlock()
+		if starts[n] == nil {
+			starts[n] = make(chan struct{})
+		}
+		return starts[n]
+	}
+	stops := make(chan struct{}, 8)
+	m.o.Stop = func(_ context.Context, speaker string) error {
+		b.mu.Lock()
+		b.stopped = append(b.stopped, speaker)
+		b.mu.Unlock()
+		stops <- struct{}{}
+		return nil
+	}
+	n := 0
+	m.o.Played = func(ctx context.Context, _ string, _ time.Duration) bool {
+		mu.Lock()
+		n++
+		k := n
+		mu.Unlock()
+		close(at(k))
+		select { // plays until its run ends or the speaker is stopped
+		case <-ctx.Done():
+			return false
+		case <-stops:
+			return false
+		}
+	}
+	return m, func(n int) <-chan struct{} { return at(n) }
+}
+
+func (b *box) settle(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("not settled")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// "Abbrechen": the thread ends, and its run with it: the recording stops,
+// nothing more plays, nothing is ticked (AB-39).
+func TestAB39_EndingTheThreadStopsItsRecordings(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	m, started := b.live()
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	<-started(1)
+	m.ThreadEnded(context.Background(), "th1")
+	b.settle(t, func() bool { b.mu.Lock(); defer b.mu.Unlock(); return len(b.stopped) == 1 })
+	time.Sleep(50 * time.Millisecond)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.played) != 1 || len(b.ticked) != 0 || b.stopped[0] != "media_player.show_speaker" {
+		t.Errorf("played %v, ticked %v, stopped %v", b.played, b.ticked, b.stopped)
+	}
+}
+
+// "Lösch die" while it plays: it stops, is deleted and ticked, and the run
+// goes on with the next (AB-40).
+func TestAB40_DeletingThePlayingOneGoesOnWithTheNext(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	m, started := b.live()
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	<-started(1)
+	run(t, m, ToolDelete, config.ChannelVoice, `{"id":"0:13"}`)
+	<-started(2) // Ben's plays
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.played) != 2 || !strings.HasSuffix(b.played[1], "e/0/12") || len(b.stopped) != 1 {
+		t.Errorf("played %v, stopped %v", b.played, b.stopped)
+	}
+	if len(b.ticked) != 1 || b.ticked[0] != "th1 (id 0:13)" {
+		t.Errorf("ticked %v", b.ticked)
+	}
+}
+
+// "Nächste" or "noch einmal" while one plays: the new call stops the
+// recording at once and ends the old run, which ticks nothing (AB-34).
+func TestAB34_ANewPlayStopsTheRecordingAtOnce(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	m, started := b.live()
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	<-started(1)
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`) // "noch einmal"
+	<-started(2)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.stopped) != 1 || len(b.ticked) != 0 || !strings.HasSuffix(b.played[1], "e/0/13") {
+		t.Errorf("played %v, stopped %v, ticked %v", b.played, b.stopped, b.ticked)
 	}
 }

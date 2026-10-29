@@ -70,12 +70,22 @@ Its tools (Mira's own, calling the integration's actions):
   next recording follows at once. **Nothing listens after it** (decided 2026-10-29): an answer is the wake word's, at
   any time, and a wake word lowers the recording. Listening after it ended the run on every answer and on every
   silence, and the model summed the messages up again. Each counts as heard once it has played to its end.
-  - "Stopp" (wake word, then "Stopp") pauses the recording through Home Assistant's own media tool; the rest does not
-    play, and what was not heard to the end stays new.
-  - "Weiter", "nächste" while one plays: the model calls `voicemail_play` with all open messages after the one
-    playing; the skipped one stays new.
-  - **A new `voicemail_play` ends the run at its satellite** before anything of it plays: a replaced recording keeps
-    the speaker "playing" (tried at the Show 2026-10-29), so the old run would tick a message it did not play.
+  - **The run belongs to the listening thread** (decided 2026-10-29): it is the thread's doing at its satellite, and
+    everything done in the thread acts on it at once. After the wake word (the recording ducks):
+
+    | The user says | The model | The run |
+    |---|---|---|
+    | "Abbrechen", "hör auf" | `thread_cancel` | ends with its thread; the recording stops |
+    | "Stopp" | Home Assistant's pause | ends (the speaker says "paused"); the thread stays |
+    | "Nächste", "weiter" | `voicemail_play` with the open ones after the one playing | ends at once, its recording stops; the new one plays after the answer; the skipped one stays new |
+    | "Noch einmal" | `voicemail_play` with the one playing (or just heard) and the open ones | as "nächste" |
+    | "Lösch die" while it plays | `voicemail_delete` | it stops and is deleted; the run goes on with the next |
+    | "Lösch die" after it played | `voicemail_delete` | it is deleted; the run goes on |
+    | the thread expires or is done | | ends |
+
+    A replaced recording keeps the speaker "playing" (tried at the Show 2026-10-29): the old run is ended by Mira's
+    own call, never by the speaker's state, so it ticks nothing it did not play. Stopping is `media_stop` (tried: the
+    speaker goes "paused").
   - A plain announcement shows no turn screen on a TECHO5 (by design of its firmware); the player screen of the
     recording follows at once. A title there is a firmware change (todo).
 - `voicemail_delete(id)`: deletes a message at the FRITZ!Box, only when the user asks for it.

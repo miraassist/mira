@@ -451,6 +451,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		Cancel:   func(id string) bool { return a.agents.Cancel(id) },
 		Dispatch: a.dispatchForThread,
+		// The answering machine's recordings stop with their thread.
+		Ended: func(ctx context.Context, th store.Thread) {
+			if a.voicemail != nil && th.Target == voicemail.Skill {
+				a.voicemail.ThreadEnded(ctx, th.ID)
+			}
+		},
 	})
 	for _, sk := range targets {
 		a.log.Info("target enabled", "target", sk.Name, "finish", sk.Target.Finish)

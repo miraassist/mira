@@ -87,6 +87,11 @@ func (a *app) newVoicemail() *voicemail.Machine {
 				a.log.Warn("could not record the announcement of the next message", "error", err)
 			}
 		},
+		Stop: func(ctx context.Context, speaker string) error {
+			// Tried at the Show 2026-10-29: the recording stops, the speaker
+			// goes "paused".
+			return a.ha.CallService(ctx, "media_player", "media_stop", nil, &haws.Target{EntityID: []string{speaker}})
+		},
 		Hold: func(ctx context.Context, deviceID string, hold bool) {
 			a.proactiveMu.Lock()
 			n := a.notifier

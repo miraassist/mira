@@ -301,3 +301,22 @@ func TestAB38_AShortPlanShowsEveryOpenStep(t *testing.T) {
 		}
 	}
 }
+
+// Ending a thread tells whoever acts on its behalf (AB-39).
+func TestAB39_EndingAThreadIsTold(t *testing.T) {
+	e := abEnv(t)
+	var ended []string
+	e.m.opts.Ended = func(_ context.Context, th store.Thread) { ended = append(ended, th.ID) }
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	id, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "x", "# AB\n- [ ] Oma (id 0:13)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.m.Cancel(ctx, inv); err != nil {
+		t.Fatal(err)
+	}
+	if len(ended) != 1 || ended[0] != id {
+		t.Errorf("ended %v", ended)
+	}
+}

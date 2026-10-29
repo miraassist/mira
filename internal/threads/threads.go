@@ -99,8 +99,12 @@ type Options struct {
 	// call id the thread chose (agents.go). Without it no agent fills a
 	// field.
 	Dispatch func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error
-	Clock    func() time.Time
-	Logger   *slog.Logger
+	// Ended is told when a thread ended (done, cancelled, expired), for what
+	// runs on its behalf outside it: the answering machine's recordings stop
+	// with their thread.
+	Ended  func(ctx context.Context, th store.Thread)
+	Clock  func() time.Time
+	Logger *slog.Logger
 }
 
 type Manager struct {
@@ -772,6 +776,9 @@ func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
 		m.log.Info("thread messages withdrawn", "thread", th.ID, "messages", n)
 	}
 	m.log.Info("thread ended", "thread", th.ID, "state", state)
+	if m.opts.Ended != nil {
+		m.opts.Ended(ctx, th)
+	}
 }
 
 // Run ends threads nobody answered in time, until ctx ends.

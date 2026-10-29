@@ -36,11 +36,14 @@ metadata:
   nächste“ (die zuletzt gehörte löschen, dann weiterspielen), ohne die
   Nachrichten neu aufzuzählen. „Stopp, das reicht“: `thread_cancel`.
 - **Während eine Nachricht spielt** sagt der Nutzer das Aktivierungswort, die
-  Nachricht wird leiser. „Weiter“ oder „nächste“: `voicemail_play` mit **allen**
-  offenen ids nach der gerade laufenden („Jetzt“), sie bleibt dann neu. „Stopp“
-  hält Home Assistant selbst an; spiel danach nichts weiter.
-- Abspielen geht nur an einem Satelliten. In Telegram oder der App nennst du
-  nur, was es gibt.
-- Sag „Anrufbeantworter“, nie „Mailbox“ und nie den Namen des Geräts.
-- Die Werkzeuge liefern Fakten. Antworte in deinen eigenen Worten, kurz; nenn
-  keine Telefonnummern.
+  Nachricht wird leiser. „Jetzt“ im Kontext ist die, die gerade spielt:
+  - „Abbrechen“, „hör auf“, „das reicht“: `thread_cancel`; das Abspielen endet.
+  - „Nächste“, „weiter“, „überspring die“: `voicemail_play` mit **allen**
+    offenen ids **nach** „Jetzt“; die übersprungene bleibt neu.
+  - „Noch einmal“: `voicemail_play` mit „Jetzt“ (oder der zuletzt gehörten)
+    und allen offenen danach.
+  - „Lösch die“: `voicemail_delete` mit „Jetzt“ (spielt sie noch) oder der
+    zuletzt gehörten; danach geht es von selbst weiter, ruf kein
+    `voicemail_play` auf.
+  - „Stopp“ hält Home Assistant selbst an; spiel danach nichts weiter.
+  Sag dazu nur ganz kurz, was du tust, ohne die Nachrichten aufzuzählen.

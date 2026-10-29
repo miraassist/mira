@@ -111,6 +111,8 @@ type Options struct {
 	// Hold keeps the answering machine's screen hint off the device while
 	// it plays, and shows the count when hold is false again.
 	Hold func(ctx context.Context, deviceID string, hold bool)
+	// Stop stops what a speaker plays (its state goes "paused").
+	Stop func(ctx context.Context, speaker string) error
 }
 
 // step is how a message appears in the plan, and how its step is found.
@@ -123,14 +125,23 @@ type Machine struct {
 
 	mu      sync.Mutex
 	missing bool
-	// playing is the run of recordings each device plays now; a new
-	// voicemail_play there ends it first (it would tick what it did not
-	// play: a replaced recording keeps the speaker "playing").
+	// playing is the run of recordings each device plays now: the
+	// listening thread's doing at that satellite. A new voicemail_play there
+	// ends it first, as does the end of its thread.
 	playing map[string]*playRun
+	// deleted are the messages deleted while a run may still hold them.
+	deleted map[string]bool
 }
 
-// playRun is one voicemail_play's recordings at a device.
-type playRun struct{ stop context.CancelFunc }
+// playRun is one voicemail_play's recordings at a device, on behalf of
+// its listening thread.
+type playRun struct {
+	stop    context.CancelFunc
+	thread  string
+	speaker string
+	// current is the message playing now, "" between recordings.
+	current string
+}
 
 func New(o Options) *Machine {
 	if o.Location == nil {
@@ -383,9 +394,9 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 		threadID = m.o.PlanThread(ctx, inv)
 	}
 	device := inv.DeviceID
-	// This run takes over the device: one still playing there ends now,
-	// before anything of this one plays, and ticks nothing more.
-	this := m.takeOver(device)
+	// This run takes over the device: one still playing there ends now and
+	// its recording stops, before anything of this one plays.
+	this := m.takeOver(ctx, device, threadID, sat.Speaker)
 	m.o.AfterAnswer(sat.Entity, func(ctx context.Context) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -402,6 +413,9 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 			}()
 		}
 		for i, p := range queue {
+			if m.isDeleted(p.msg.ID) {
+				continue // deleted while it waited its turn
+			}
 			// The box's minutes are rounded up: the recording is no longer.
 			// Only a safety net; the satellite's state says when it ends.
 			limit := time.Duration(max(p.msg.Minutes, 1))*time.Minute + 30*time.Second
@@ -424,16 +438,24 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 					_ = err // the recording plays all the same
 				}
 			}
+			m.setCurrent(this, p.msg.ID)
 			if err := m.o.Play(ctx, sat.Speaker, p.msg.MediaContentID); err != nil {
 				return
 			}
-			// Played to its end, by the satellite's state; someone speaking
-			// stops the rest, and what was not heard to the end stays new.
+			// Played to its end, by the speaker's state; stopped, the rest
+			// does not play and what was not heard to the end stays new.
 			played := m.o.Played(ctx, sat.Speaker, limit)
+			m.setCurrent(this, "")
 			if sat.Overlay != "" {
 				_ = m.o.Show(ctx, sat.Overlay, text, "mdi:voicemail", time.Second)
 			}
-			if !played || ctx.Err() != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if !played {
+				if m.isDeleted(p.msg.ID) {
+					continue // stopped because it was deleted: on to the next
+				}
 				return
 			}
 			_ = m.o.Do(ctx, "mark_heard", map[string]any{"message_ids": []string{p.msg.ID}})
@@ -447,20 +469,89 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 	return fmt.Sprintf(t.playingMany, len(queue), first.who, first.when), nil
 }
 
-// takeOver ends the run playing at the device, if any, and makes a new
-// one the device's.
-func (m *Machine) takeOver(device string) *playRun {
+// takeOver ends the run playing at the device, if any, stopping its
+// recording, and makes a new one the device's.
+func (m *Machine) takeOver(ctx context.Context, device, thread, speaker string) *playRun {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.playing == nil {
 		m.playing = map[string]*playRun{}
 	}
-	if old := m.playing[device]; old != nil && old.stop != nil {
-		old.stop()
-	}
-	r := &playRun{}
+	old := m.playing[device]
+	r := &playRun{thread: thread, speaker: speaker}
 	m.playing[device] = r
+	m.mu.Unlock()
+	m.end(ctx, old)
 	return r
+}
+
+// end ends a run: no more of it plays, and what it plays now stops.
+func (m *Machine) end(ctx context.Context, r *playRun) {
+	if r == nil {
+		return
+	}
+	m.mu.Lock()
+	stop, playing, speaker := r.stop, r.current != "", r.speaker
+	r.current = ""
+	m.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	if playing && m.o.Stop != nil {
+		if err := m.o.Stop(ctx, speaker); err != nil {
+			_ = err // the run is over all the same
+		}
+	}
+}
+
+// ThreadEnded ends the runs of a listening thread that ended: cancelled
+// ("Abbrechen"), expired or done. Its recordings stop with it.
+func (m *Machine) ThreadEnded(ctx context.Context, thread string) {
+	m.mu.Lock()
+	var ending []*playRun
+	for device, r := range m.playing {
+		if r.thread == thread && thread != "" {
+			ending = append(ending, r)
+			delete(m.playing, device)
+		}
+	}
+	m.mu.Unlock()
+	for _, r := range ending {
+		m.end(ctx, r)
+	}
+}
+
+func (m *Machine) setCurrent(r *playRun, id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r.current = id
+}
+
+func (m *Machine) isDeleted(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.deleted[id]
+}
+
+// deletedNow notes a deleted message and stops it where it plays now: its
+// run goes on with the next.
+func (m *Machine) deletedNow(ctx context.Context, id string) {
+	m.mu.Lock()
+	if m.deleted == nil {
+		m.deleted = map[string]bool{}
+	}
+	m.deleted[id] = true
+	var speakers []string
+	for _, r := range m.playing {
+		if r.current == id {
+			speakers = append(speakers, r.speaker)
+		}
+	}
+	m.mu.Unlock()
+	for _, sp := range speakers {
+		if m.o.Stop != nil {
+			_ = m.o.Stop(ctx, sp)
+		}
+	}
 }
 
 // adopt gives the device's run its stop, once it starts; false when a newer
@@ -499,6 +590,7 @@ func (m *Machine) delete(ctx context.Context, inv tools.Invocation) (string, err
 	if err := m.o.Do(ctx, "delete_messages", map[string]any{"message_ids": []string{args.ID}}); err != nil {
 		return m.failed(err), nil
 	}
+	m.deletedNow(ctx, args.ID)
 	if m.o.PlanThread != nil {
 		m.tick(ctx, m.o.PlanThread(ctx, inv), args.ID)
 	}
