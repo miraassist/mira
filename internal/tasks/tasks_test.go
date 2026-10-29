@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,16 @@ type fakeSource struct {
 	stats  map[string][]haws.StatRow
 }
 
-func (s *fakeSource) States(context.Context) ([]haws.State, error) { return s.states, nil }
+// GetStates filters as Home Assistant does: only the entities asked for.
+func (s *fakeSource) GetStates(_ context.Context, f haws.StateFilter) ([]haws.State, error) {
+	var out []haws.State
+	for _, st := range s.states {
+		if slices.Contains(f.EntityIDs, st.EntityID) {
+			out = append(out, st)
+		}
+	}
+	return out, nil
+}
 func (s *fakeSource) Statistics(_ context.Context, ids []string, _ time.Time, _ string) (map[string][]haws.StatRow, error) {
 	return s.stats, nil
 }

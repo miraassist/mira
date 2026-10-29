@@ -307,7 +307,10 @@ type Announcement struct {
 	AreaID     string
 	Channel    string
 	MessageIDs []string
-	CreatedAt  time.Time
+	// ThreadID is the thread the announcement belongs to, when it names one
+	// itself rather than through a message of the thread.
+	ThreadID  string
+	CreatedAt time.Time
 }
 
 func (s *Store) RecordAnnouncement(ctx context.Context, a Announcement) error {
@@ -315,9 +318,9 @@ func (s *Store) RecordAnnouncement(ctx context.Context, a Announcement) error {
 		a.CreatedAt = s.now()
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO announcements(id, device_id, area_id, channel, message_ids, created_at)
-VALUES (?, ?, ?, ?, ?, ?)`,
-		a.ID, a.DeviceID, a.AreaID, a.Channel, strings.Join(a.MessageIDs, ","), formatTime(a.CreatedAt))
+INSERT INTO announcements(id, device_id, area_id, channel, message_ids, thread_id, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.DeviceID, a.AreaID, a.Channel, strings.Join(a.MessageIDs, ","), a.ThreadID, formatTime(a.CreatedAt))
 	return err
 }
 
@@ -331,11 +334,11 @@ func (s *Store) RecentAnnouncement(ctx context.Context, deviceID string, window 
 	var a Announcement
 	var ids, created string
 	err := s.db.QueryRowContext(ctx, `
-SELECT id, device_id, area_id, channel, message_ids, created_at
+SELECT id, device_id, area_id, channel, message_ids, thread_id, created_at
 FROM announcements
 WHERE device_id = ? AND created_at >= ?
 ORDER BY created_at DESC LIMIT 1`, deviceID, cutoff).
-		Scan(&a.ID, &a.DeviceID, &a.AreaID, &a.Channel, &ids, &created)
+		Scan(&a.ID, &a.DeviceID, &a.AreaID, &a.Channel, &ids, &a.ThreadID, &created)
 	if err == sql.ErrNoRows {
 		return Announcement{}, ErrNotFound
 	}

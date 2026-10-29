@@ -51,11 +51,39 @@ func (n *Notifier) heldAt(nt store.Message, area string) bool {
 	return n.clock().Before(ref.Add(hold))
 }
 
+// What an indicator shows, by rank: Mira's own messages, then the
+// answering machine, then missed calls (docs/spec/anrufbeantworter.md).
+const (
+	indicatorMira      = "mira"
+	indicatorVoicemail = "voicemail"
+	indicatorMissed    = "missed"
+)
+
+// The answering machine's colours, fixed: amber for messages, red for
+// missed calls; Mira's own stay in the configured colour.
+var phoneColours = map[string][]int{indicatorVoicemail: {255, 160, 0}, indicatorMissed: {230, 40, 40}}
+
+// phoneNews is what is new at the FRITZ!Box; nothing when there is no
+// answering machine or it cannot be read.
+func (n *Notifier) phoneNews(ctx context.Context) PhoneNews {
+	if n.phone == nil {
+		return PhoneNews{}
+	}
+	news, err := n.phone(ctx)
+	if err != nil {
+		n.log.Debug("answering machine not read", "error", err)
+		return PhoneNews{}
+	}
+	return news
+}
+
 // syncIndicators turns each indicator light on while messages wait for its
-// area, and off when none do. A light is only switched when its wanted
-// state changes, so the ring is not reset every minute; after a restart
+// area or something is new on the answering machine, in the colour of what
+// ranks first, and off when nothing is. A light is only switched when what
+// it shows changes, so the ring is not reset every minute; after a restart
 // every light is set once. The caller holds n.mu.
 func (n *Notifier) syncIndicators(ctx context.Context) {
+	phone := n.phoneNews(ctx)
 	for area, light := range n.cfg.Indicators {
 		if n.speakingIn[area] {
 			continue // speaking restores it when the text ends
@@ -65,8 +93,16 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 			n.log.Error("could not check waiting messages", "area", area, "error", err)
 			return
 		}
-		want := len(list) > 0
-		if on, known := n.indicatorOn[area]; known && on == want {
+		want := ""
+		switch {
+		case len(list) > 0:
+			want = indicatorMira
+		case phone.Messages > 0:
+			want = indicatorVoicemail
+		case phone.Missed > 0:
+			want = indicatorMissed
+		}
+		if shown, known := n.indicatorOn[area]; known && shown == want {
 			continue
 		}
 		if err := n.setIndicator(ctx, light, want); err != nil {
@@ -74,26 +110,35 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 			continue
 		}
 		n.indicatorOn[area] = want
-		n.log.Info("indicator switched", "area", area, "light", light, "on", want, "waiting", len(list))
+		n.log.Info("indicator switched", "area", area, "light", light, "shows", want, "waiting", len(list))
 	}
 	n.syncScreens(ctx)
+	n.syncPhoneScreens(ctx, phone)
 }
 
-func (n *Notifier) setIndicator(ctx context.Context, light string, on bool) error {
-	if !on {
+func (n *Notifier) setIndicator(ctx context.Context, light, shows string) error {
+	if shows == "" {
 		return n.ha.CallService(ctx, "light", "turn_off", nil, &haws.Target{EntityID: []string{light}})
 	}
-	return n.lightUp(ctx, light, n.cfg.Indicator.Effect)
+	return n.lightUpIn(ctx, light, n.cfg.Indicator.Effect, phoneColours[shows])
 }
 
 // lightUp turns a light on in the indicator's colour with the given effect;
 // "None" is steady.
 func (n *Notifier) lightUp(ctx context.Context, light, effect string) error {
+	return n.lightUpIn(ctx, light, effect, nil)
+}
+
+// lightUpIn is lightUp in another colour; nil is the indicator's.
+func (n *Notifier) lightUpIn(ctx context.Context, light, effect string, colour []int) error {
 	target := &haws.Target{EntityID: []string{light}}
 	style := n.cfg.Indicator
 	data := map[string]any{}
 	if len(style.RGBColor) == 3 {
 		data["rgb_color"] = style.RGBColor
+	}
+	if colour != nil {
+		data["rgb_color"] = colour
 	}
 	if effect != "" {
 		data["effect"] = effect

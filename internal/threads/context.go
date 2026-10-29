@@ -14,27 +14,39 @@ const maxLog = 12
 
 // Context links a turn to its thread and renders the thread for prompt
 // layer 7. A turn that answers one of a thread's messages (followedUp, the
-// messages announced on this satellite moments ago) joins that thread: the
-// link is the code's, not the model's. Otherwise a thread waiting at the
-// turn's place (what the conversation said the turn belongs to) is shown,
-// and the model decides whether the user continues
+// messages announced on this satellite moments ago), or an announcement that
+// named its thread (announced), joins that thread: the link is the code's,
+// not the model's. Joining changes nothing about who speaks. Otherwise a
+// thread waiting at the turn's place (what the conversation said the turn
+// belongs to) is shown, and the model decides whether the user continues
 // it, cancels it or talks about something else.
 //
 // foreign reports a thread that carries third-party text (a plan made from
 // a web page): the turn then asks before it keeps or passes anything on.
-func (m *Manager) Context(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool) {
+func (m *Manager) Context(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (text string, foreign bool) {
 	if !m.HasTargets() {
 		return "", false
 	}
 	t := m.texts()
+	threadIDs := []string{announced}
 	for _, id := range followedUp {
-		n, err := m.opts.Store.GetMessage(ctx, id)
-		if err != nil || n.ThreadID == "" {
+		if n, err := m.opts.Store.GetMessage(ctx, id); err == nil {
+			threadIDs = append(threadIDs, n.ThreadID)
+		}
+	}
+	for _, id := range threadIDs {
+		if id == "" {
 			continue
 		}
-		if th, err := m.opts.Store.GetThread(ctx, n.ThreadID); err == nil && store.ThreadOpen(th.State) {
+		if th, err := m.opts.Store.GetThread(ctx, id); err == nil && store.ThreadOpen(th.State) {
+			// Another person's thread is not theirs to answer (Assignment 3a).
+			if owner, ok := strings.CutPrefix(th.Place, "person:"); ok {
+				if speaker, ok := strings.CutPrefix(place, "person:"); ok && speaker != owner {
+					continue
+				}
+			}
 			if sess.ThreadID != th.ID {
-				_ = m.opts.Store.SetSessionThread(ctx, sess.Key, th.ID)
+				m.link(ctx, sess.Key, th)
 				sess.ThreadID = th.ID
 			}
 		}
@@ -44,12 +56,23 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, place string,
 			return t.headerCurrent + "\n" + m.describe(th, m.lang(ctx)), m.isPlan(th) && planOf(th).Foreign
 		}
 	}
-	open, err := m.opts.Store.OpenThreads(ctx, place)
+	open, err := m.openAt(ctx, visible(place, sess.AreaID))
 	if err != nil || len(open) == 0 {
 		return "", false
 	}
-	return t.headerWaiting + "\n" + m.describe(open[0], m.lang(ctx)), m.isPlan(open[0]) && planOf(open[0]).Foreign
+	// At most three, newest first; each shown with its skill's tools there
+	// to go on with it.
+	var parts []string
+	for _, th := range open[:min(len(open), maxWaiting)] {
+		_ = m.opts.Store.AddSessionSkill(ctx, sess.Key, th.Target)
+		parts = append(parts, t.headerWaiting+"\n"+m.describe(th, m.lang(ctx)))
+		foreign = foreign || (m.isPlan(th) && planOf(th).Foreign)
+	}
+	return strings.Join(parts, "\n\n"), foreign
 }
+
+// maxWaiting is how many waiting threads a turn is shown.
+const maxWaiting = 3
 
 // describe renders a thread for the model: target, request, fields, log
 // and what it waits for; the skill's texts in l.

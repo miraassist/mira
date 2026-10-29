@@ -278,3 +278,33 @@ func TestSM13_WithConversationFalseOnlyTheSkillsAgentsGetTheTools(t *testing.T) 
 		t.Errorf("schedule offered %v", got)
 	}
 }
+
+// SM-14 Opening a skill brings Mira's own tools that come with it
+func TestSM14_OpeningASkillBringsMirasOwnToolsThatComeWithIt(t *testing.T) {
+	// Given a skill without an MCP server whose tool Mira brings herself
+	set := &skills.Set{Lang: i18n.DE, Skills: []skills.Skill{{Name: "anrufbeantworter", Description: "Anrufbeantworter",
+		Body: "Nimm voicemail_list."}}}
+	own := tools.InternalTool{Name: "voicemail_list", Description: "Nachrichten", Skill: "anrufbeantworter", ReadOnly: true,
+		Schema: `{"type":"object","properties":{}}`,
+		Run:    func(context.Context, tools.Invocation) (string, error) { return "keine", nil }}
+	var h *harness
+	set.OnOpen = func(ctx context.Context, key, skill string) error { return h.store.AddSessionSkill(ctx, key, skill) }
+	open := fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("o1", "skill_open", `{"name":"anrufbeantworter"}`)}}
+	h = newHarnessTools(t, nil, append(set.Tools(), own), open, fakellm.Step{Content: "Keine."}, fakellm.Step{Content: "Nein."})
+	// When a conversation opens the skill
+	h.say(t, config.ChannelTelegram, "1", "Habe ich Nachrichten?")
+	h.say(t, config.ChannelTelegram, "1", "Und jetzt?")
+	has := func(req llm.ChatRequest) bool {
+		for _, tl := range req.Tools {
+			if tl.Function.Name == "voicemail_list" {
+				return true
+			}
+		}
+		return false
+	}
+	// Then the tool is offered in the next round and the next turn, and not before
+	reqs := h.llm.Requests()
+	if has(reqs[0].Request) || !has(reqs[1].Request) || !has(h.llm.Last().Request) {
+		t.Errorf("offered: before %v, after %v, next turn %v", has(reqs[0].Request), has(reqs[1].Request), has(h.llm.Last().Request))
+	}
+}

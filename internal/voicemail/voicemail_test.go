@@ -1,0 +1,369 @@
+package voicemail
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/tools"
+)
+
+func TestTextsComplete(t *testing.T) {
+	if missing := i18n.Missing(catalog); len(missing) > 0 {
+		t.Errorf("texts missing: %v", missing)
+	}
+}
+
+// box plays Mira FRITZ!Box: what it answers and what it was told.
+type box struct {
+	mu       sync.Mutex
+	messages []Message
+	calls    []Call
+	missing  bool
+	done     []string // actions without a response, with their data
+	played   []string // speaker: media id
+	shown    []string // action: text, seconds
+	said     []string // what the satellite said between recordings
+	// stopAt is the recording someone speaks into (1-based); 0: none.
+	stopAt int
+	waited int
+	// The listening thread: its plan, ticked steps, announcements, holds.
+	plan      string
+	planText  string // the plan as the thread has it
+	ticked    []string
+	announced []string
+	held      []bool
+}
+
+func (b *box) machine() *Machine {
+	loc := time.FixedZone("CET", 3600)
+	return New(Options{
+		Lang: i18n.DE, Location: loc,
+		Clock: func() time.Time { return time.Date(2026, 10, 29, 18, 0, 0, 0, loc) },
+		Ask: func(_ context.Context, service string, data map[string]any) (json.RawMessage, error) {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if b.missing {
+				return nil, ErrNoIntegration
+			}
+			switch service {
+			case "get_messages":
+				out := b.messages
+				if data["new_only"] == true {
+					out = nil
+					for _, m := range b.messages {
+						if m.New {
+							out = append(out, m)
+						}
+					}
+				}
+				return json.Marshal(map[string]any{"messages": out})
+			case "get_calls":
+				return json.Marshal(map[string]any{"calls": b.calls})
+			}
+			return nil, nil
+		},
+		Do: func(_ context.Context, service string, data map[string]any) error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			raw, _ := json.Marshal(data)
+			b.done = append(b.done, service+" "+string(raw))
+			return nil
+		},
+		Satellite: func(_ context.Context, device string) Satellite {
+			return Satellite{Speaker: "media_player.show_speaker", Overlay: "esphome.show_notify", Entity: "assist_satellite.show"}
+		},
+		AfterAnswer: func(_ string, fn func(ctx context.Context)) { fn(context.Background()) },
+		Play: func(_ context.Context, speaker, id string) error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.played = append(b.played, speaker+": "+id)
+			return nil
+		},
+		Announce: func(_ context.Context, _, text string) bool {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.said = append(b.said, text)
+			return true
+		},
+		Plan: func(_ context.Context, _ tools.Invocation, text string) (string, error) {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.plan = text
+			return "th1", nil
+		},
+		PlanThread: func(context.Context, tools.Invocation) string { return "th1" },
+		PlanText: func(context.Context, tools.Invocation) string {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			return b.planText
+		},
+		Tick: func(_ context.Context, thread, match string) error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.ticked = append(b.ticked, thread+" "+match)
+			return nil
+		},
+		Announced: func(_ context.Context, device, thread string) {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.announced = append(b.announced, device+" "+thread)
+		},
+		Hold: func(_ context.Context, _ string, hold bool) {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.held = append(b.held, hold)
+		},
+		Played: func(context.Context, string, time.Duration) bool {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.waited++
+			return b.waited != b.stopAt
+		},
+		Show: func(_ context.Context, action, text, _ string, d time.Duration) error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			b.shown = append(b.shown, action+": "+text+", "+d.String())
+			return nil
+		},
+	})
+}
+
+func oma() Message {
+	return Message{ID: "0:13", Name: "Oma", Date: "2026-10-29T14:12:00+01:00", Minutes: 1, New: true,
+		MediaContentID: "media-source://mira_fritz/e/0/13"}
+}
+
+func run(t *testing.T, m *Machine, name string, channel config.Channel, args string) string {
+	t.Helper()
+	for _, tool := range m.Tools() {
+		if tool.Name == name {
+			out, err := tool.Run(context.Background(), tools.Invocation{Channel: channel, DeviceID: "dev-show", Args: json.RawMessage(args)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+	}
+	t.Fatalf("no tool %s", name)
+	return ""
+}
+
+func TestAB01_TheListNamesMessagesAndMissedCallsApart(t *testing.T) {
+	b := &box{messages: []Message{oma(), {ID: "0:14", Name: "Ben", Date: "2026-10-28T09:05:00+01:00", Minutes: 2, New: true}},
+		calls: []Call{{Kind: "missed", Name: "Ben", Date: "2026-10-29T16:40:00+01:00"}, {Kind: "missed", Name: "Ben", Date: "2026-10-29T15:00:00+01:00"}}}
+	out := run(t, b.machine(), ToolList, config.ChannelVoice, `{}`)
+	for _, want := range []string{"Nachrichten (2):", "id 0:13: Oma, heute 14:12, bis 1 Min., neu", "Ben, gestern 09:05, bis 2 Min.", "Ben, 2-mal, zuletzt heute 16:40"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if len(b.done) != 1 || !strings.HasPrefix(b.done[0], "mark_calls_seen") {
+		t.Errorf("seen: %v", b.done)
+	}
+}
+
+func TestAB02_AMessagePlaysAtTheSatelliteOfTheTurnAndCountsAsHeard(t *testing.T) {
+	b := &box{messages: []Message{oma()}}
+	out := run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13"]}`)
+	if !strings.Contains(out, "von Oma (heute 14:12)") || !strings.Contains(out, "keine Frage") {
+		t.Errorf("out %q", out)
+	}
+	if len(b.played) != 1 || b.played[0] != "media_player.show_speaker: media-source://mira_fritz/e/0/13" {
+		t.Errorf("played %v", b.played)
+	}
+	if len(b.done) != 1 || b.done[0] != `mark_heard {"message_ids":["0:13"]}` {
+		t.Errorf("heard %v", b.done)
+	}
+}
+
+func TestAB03_TheScreenShowsWhatPlays(t *testing.T) {
+	b := &box{messages: []Message{oma()}}
+	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13"]}`)
+	// Shown while it plays (the box's minutes as a safety net), taken away
+	// when the satellite says it ended.
+	if len(b.shown) != 2 || b.shown[0] != "esphome.show_notify: Nachricht von Oma · heute 14:12, 1m30s" ||
+		b.shown[1] != "esphome.show_notify: Nachricht von Oma · heute 14:12, 1s" {
+		t.Errorf("shown %v", b.shown)
+	}
+}
+
+func TestAB04_PlayingOnlyAtASatellite(t *testing.T) {
+	b := &box{messages: []Message{oma()}}
+	out := run(t, b.machine(), ToolPlay, config.ChannelTelegram, `{"ids":["0:13"]}`)
+	if len(b.played) != 0 || !strings.Contains(out, "nur an einem Satelliten") {
+		t.Errorf("out %q, played %v", out, b.played)
+	}
+}
+
+func TestAB05_WithoutMiraFritzBoxTheSkillIsAProblem(t *testing.T) {
+	b := &box{missing: true}
+	m := b.machine()
+	if m.Probe(context.Background()) == nil || !m.Missing() {
+		t.Fatal("not missing")
+	}
+	if !strings.Contains(m.MissingText(), "Mira FRITZ!Box fehlt") {
+		t.Error(m.MissingText())
+	}
+	b.missing = false
+	if m.Probe(context.Background()) != nil || m.Missing() {
+		t.Error("still missing once it is there")
+	}
+}
+
+func TestAB06_OfManyMessagesMiraNamesTheNewestThree(t *testing.T) {
+	b := &box{}
+	for i := 1; i <= 9; i++ {
+		b.messages = append(b.messages, Message{ID: fmt.Sprintf("1:%d", i), Name: "Ben", Date: "2026-10-29T14:12:00+01:00", Minutes: 1, New: true})
+	}
+	out := run(t, b.machine(), ToolList, config.ChannelVoice, `{}`)
+	if !strings.Contains(out, "nur die neuesten 3") || !strings.Contains(out, "dass es 6 weitere gibt") || !strings.Contains(out, "id 1:9:") {
+		t.Errorf("out:\n%s", out)
+	}
+}
+
+func TestAB07_WithSeveralAnsweringMachinesEachMessageNamesItsOwn(t *testing.T) {
+	privat, business := oma(), oma()
+	privat.Machine, business.Machine, business.ID = "Anrufbeantworter privat", "Anrufbeantworter business", "1:2"
+	b := &box{messages: []Message{privat, business}}
+	out := run(t, b.machine(), ToolList, config.ChannelVoice, `{}`)
+	if !strings.Contains(out, "neu, Anrufbeantworter privat") || !strings.Contains(out, "neu, Anrufbeantworter business") {
+		t.Errorf("out:\n%s", out)
+	}
+	b = &box{messages: []Message{privat}}
+	if out := run(t, b.machine(), ToolList, config.ChannelVoice, `{}`); strings.Contains(out, "privat") {
+		t.Errorf("one machine named:\n%s", out)
+	}
+}
+
+func ben() Message {
+	return Message{ID: "0:12", Name: "Ben", Date: "2026-10-28T09:05:00+01:00", Minutes: 1, New: true,
+		MediaContentID: "media-source://mira_fritz/e/0/12"}
+}
+
+func TestAB08_SeveralMessagesPlayOneAfterTheOther(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	out := run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	if !strings.Contains(out, "2 Nachrichten") || !strings.Contains(out, "von Oma (heute 14:12)") {
+		t.Errorf("out %q", out)
+	}
+	if len(b.played) != 2 || !strings.HasSuffix(b.played[1], "e/0/12") {
+		t.Errorf("played %v", b.played)
+	}
+	if len(b.said) != 1 || b.said[0] != "Nächste: von Ben, gestern 09:05." {
+		t.Errorf("said %v", b.said)
+	}
+	if len(b.done) != 2 {
+		t.Errorf("heard %v", b.done)
+	}
+}
+
+func TestAB09_SpeakingStopsTheRest(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}, stopAt: 1}
+	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	if len(b.played) != 1 || len(b.said) != 0 || len(b.done) != 0 {
+		t.Errorf("played %v, said %v, heard %v", b.played, b.said, b.done)
+	}
+}
+
+func papa() Message {
+	return Message{ID: "0:4", Name: "Papa", Date: "2026-01-19T16:33:00+01:00", Minutes: 1, New: false,
+		MediaContentID: "media-source://mira_fritz/e/0/4"}
+}
+
+func TestAB30_AskingForMessagesStartsTheThreadWithThemAsItsPlan(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben(), papa()}}
+	run(t, b.machine(), ToolList, config.ChannelVoice, `{}`)
+	want := "# Anrufbeantworter\n- [ ] Oma, heute 14:12 (id 0:13)\n- [ ] Ben, gestern 09:05 (id 0:12)"
+	if b.plan != want {
+		t.Errorf("plan:\n%s", b.plan)
+	}
+	// Asked again after Oma's was heard: hers stays, ticked; Papa's old one
+	// does not come in.
+	b.messages[0].New = false
+	b.planText = b.plan
+	run(t, b.machine(), ToolList, config.ChannelVoice, `{"new_only":true}`)
+	want = "# Anrufbeantworter\n- [x] Oma, heute 14:12 (id 0:13)\n- [ ] Ben, gestern 09:05 (id 0:12)"
+	if b.plan != want {
+		t.Errorf("plan asked again:\n%s", b.plan)
+	}
+}
+
+func TestAB32_WhatPlayedToItsEndIsTicked(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	if len(b.ticked) != 2 || b.ticked[0] != "th1 (id 0:13)" || b.ticked[1] != "th1 (id 0:12)" {
+		t.Errorf("ticked %v", b.ticked)
+	}
+	if len(b.held) != 2 || !b.held[0] || b.held[1] {
+		t.Errorf("held %v", b.held)
+	}
+	// Speaking into the first: it is not ticked.
+	b = &box{messages: []Message{oma(), ben()}, stopAt: 1}
+	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	if len(b.ticked) != 0 {
+		t.Errorf("ticked what was not heard to its end: %v", b.ticked)
+	}
+}
+
+func TestAB33_TheNextIsTheThreadsAnnouncement(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	run(t, b.machine(), ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	if len(b.announced) != 1 || b.announced[0] != "dev-show th1" {
+		t.Errorf("announced %v", b.announced)
+	}
+}
+
+func TestDeletingTicksTheStep(t *testing.T) {
+	b := &box{messages: []Message{oma()}}
+	run(t, b.machine(), ToolDelete, config.ChannelVoice, `{"id":"0:13"}`)
+	if len(b.ticked) != 1 || b.ticked[0] != "th1 (id 0:13)" {
+		t.Errorf("ticked %v", b.ticked)
+	}
+}
+
+// A new voicemail_play at the device ends the run playing there before it
+// plays anything: the replaced recording keeps the speaker "playing", and
+// the old run would tick what it did not play to its end (AB-34).
+func TestAB34_ANewPlayEndsTheRunningOne(t *testing.T) {
+	b := &box{messages: []Message{oma(), ben()}}
+	m := b.machine()
+	first := make(chan struct{})
+	m.o.AfterAnswer = func(_ string, fn func(ctx context.Context)) { go fn(context.Background()) }
+	calls := 0
+	m.o.Played = func(ctx context.Context, _ string, _ time.Duration) bool {
+		b.mu.Lock()
+		calls++
+		n := calls
+		b.mu.Unlock()
+		if n == 1 { // the first recording plays until it is replaced
+			close(first)
+			<-ctx.Done()
+			return false
+		}
+		return true
+	}
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:13","0:12"]}`)
+	<-first
+	run(t, m, ToolPlay, config.ChannelVoice, `{"ids":["0:12"]}`) // "weiter"
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		b.mu.Lock()
+		ticked := slices.Clone(b.ticked)
+		b.mu.Unlock()
+		if len(ticked) > 0 || time.Now().After(deadline) {
+			if len(ticked) != 1 || ticked[0] != "th1 (id 0:12)" {
+				t.Errorf("ticked %v: the replaced one must not be", ticked)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

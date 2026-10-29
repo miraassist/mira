@@ -592,3 +592,43 @@ Feature: AG Agents
     When it runs and its model keeps calling tools
     Then it stops after two rounds of tools
     And 99 is a problem of that agent
+
+  # --- Which thread a turn belongs to (docs/spec/vorgaenge.md, Assignment) -----------------------------------
+
+  @step10
+  Scenario: AG-110 A room's thread is the room's, whoever speaks
+    Given a target bound to the room, started in the living room by Anna, recognised
+    When the next turn there is not recognised, and the one after is Ben, recognised
+    Then both see the same thread, and no second one is started
+
+  @step10
+  Scenario: AG-111 A person's thread follows the person
+    Given a target bound to the person, started by Anna, recognised, in the kitchen
+    When Anna speaks in the living room, recognised
+    Then she sees her thread there
+    And Ben, recognised in the kitchen, does not see it
+
+  @step10
+  Scenario: AG-112 A turn sees its person's threads and its room's
+    Given Anna's thread and a thread of the living room
+    When Anna speaks in the living room, recognised
+    Then both are shown waiting, newest first, at most three
+
+  @step10
+  Scenario: AG-113 A person's thread started unrecognised becomes theirs when they go on
+    Given a thread bound to the person, started in the kitchen by someone not recognised
+    When Anna, recognised in the kitchen, continues it
+    Then it is Anna's from then on and follows her
+
+  @step10
+  Scenario: AG-114 The direct answer does not reach another person's thread
+    Given an announcement of Anna's thread at the Show
+    When the answer there is recognised as Ben
+    Then the turn does not join Anna's thread
+    And an answer nobody is recognised in joins it
+
+  @step10
+  Scenario: AG-115 A private area keeps its threads
+    Given a thread bound to the person, started by Anna in a private area
+    When Anna speaks in the living room, recognised
+    Then she does not see it there

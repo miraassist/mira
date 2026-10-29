@@ -538,10 +538,6 @@ func (c *Client) Entities(ctx context.Context) ([]Entity, error) {
 	return callList[Entity](ctx, c, CmdEntityRegistryList)
 }
 
-func (c *Client) States(ctx context.Context) ([]State, error) {
-	return callList[State](ctx, c, CmdGetStates)
-}
-
 // Services lists the actions Home Assistant offers: domain -> action ->
 // the names of its fields.
 func (c *Client) Services(ctx context.Context) (map[string]map[string][]string, error) {

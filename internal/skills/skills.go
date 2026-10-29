@@ -99,6 +99,24 @@ type Target struct {
 	// Every step of a plan starts it anew.
 	Timeout string `yaml:"timeout"`
 	timeout time.Duration
+	// Bound is what a thread of the target is bound to: "person" (the
+	// default) or "room" (docs/spec/vorgaenge.md, Assignment).
+	Bound string `yaml:"bound"`
+	// DoneAfter keeps a plan whose steps are all done open that long, for
+	// "wait, not done yet"; default 30m.
+	DoneAfter string `yaml:"done_after"`
+	doneAfter time.Duration
+}
+
+// Bound to the room, rather than the person.
+const BoundRoom = "room"
+
+// DoneAfterDuration is DoneAfter parsed, 30 minutes by default.
+func (t Target) DoneAfterDuration() time.Duration {
+	if t.doneAfter > 0 {
+		return t.doneAfter
+	}
+	return 30 * time.Minute
 }
 
 // TimeoutDuration is Timeout parsed, 15 minutes by default (1 hour for a
@@ -344,6 +362,16 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 				return Skill{}, problem("targettimeout", t.Timeout)
 			}
 			t.timeout = d
+		}
+		if t.Bound != "" && t.Bound != "person" && t.Bound != BoundRoom {
+			return Skill{}, problem("targetbound", t.Bound)
+		}
+		if t.DoneAfter != "" {
+			d, err := time.ParseDuration(t.DoneAfter)
+			if err != nil || d <= 0 {
+				return Skill{}, problem("targettimeout", t.DoneAfter)
+			}
+			t.doneAfter = d
 		}
 		s.Target = t
 	}

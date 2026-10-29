@@ -124,7 +124,11 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 // checkEntities looks up every entity the notifier relies on and
 // reports how each satellite would speak.
 func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
-	states, err := c.States(ctx)
+	sats := make([]string, 0, len(cfg.Satellites))
+	for _, sat := range cfg.Satellites {
+		sats = append(sats, sat)
+	}
+	states, err := c.GetStates(ctx, haws.StateFilter{EntityIDs: sats})
 	if err != nil {
 		fmt.Printf("  ! could not read states: %v\n", err)
 		return

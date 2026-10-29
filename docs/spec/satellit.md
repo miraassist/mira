@@ -63,6 +63,15 @@ They are files in the binary, each with a name that says what it means, not wher
   word: after a long step the wake word again is fine.
 - Not a rule "a plan is open, so listen": whether a quick word comes depends on the step, which only the model knows.
 - Without a satellite it does nothing and says so.
+- **Never after something that plays after the answer** (2026-10-29): a turn that called a tool marked "plays after"
+  (`voicemail_play`) does not keep the satellite listening, whatever the answer or `keep_listening` say. The
+  satellite would put the listening behind the recording, and its microphone would hear it.
+
+## Hints on the screen wait for a quiet satellite
+
+A hint on a screen (Mira's messages, the answering machine) never comes while its satellite is in a conversation
+(listening, thinking or speaking): it would cover the turn screen, and one would not see that Mira listens or speaks
+(heard 2026-10-29). It waits, watching the satellite's state (no polling), and comes once the satellite is idle.
 
 ## The skills that use them
 

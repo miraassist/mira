@@ -21,6 +21,24 @@ Reading and writing:
 - **Reading** labels is done directly by the agent: its HA user (no admin) may read the entity and label registries, and it gets notified of changes. Person and satellite settings are sent by the integration to the agent on every change, as before.
 - A deleted entity takes its options with it; nothing is left behind.
 
+**Watching states:** Mira reads states only as Home Assistant filters them, and watches instead of asking again:
+- **Watching** an entity or a domain is a subscription (`subscribe_entities` with `entity_ids` or `include.domains`;
+  triggers the same way, `SubscribeTrigger`; waiting for a state, `WaitState`): Home Assistant reports what changed,
+  nothing is polled. What Mira needs all the time is watched for as long as she runs: the persons (domain `person`).
+- **Reading once** (`GetStates`) names the entities or domains it needs; Home Assistant filters, Mira takes its first
+  answer and unsubscribes. `get_states` has no filter, so Mira never sends it: in the test house it is 722 states to
+  look at a handful.
+- Polling is the last resort, only where nothing reports a change, and then the spec says why.
+- **Signals, not timing.** A sequence (play, then speak, then listen) is coordinated by clear signals of state
+  transitions: a satellite's state, an event, a turn that arrives. Never by computed durations, estimated delays or
+  sleeps; a time is only a safety net, or the very last resort where no signal exists, and then the spec says why
+  (2026-10-29: the answering machine waited a recording's computed length from the play command, but the recording
+  started 7 seconds later; the satellite's "responding" while it plays was the signal).
+- Handlers of a subscription run on the connection's read loop and only pass the change on.
+
+(2026-10-29: five waits on a satellite asked for every state in the house every 300–500 ms, and 14 places read every
+state to look at a few, one of them in every voice turn; all replaced.)
+
 ## Rooms are satellites
 
 Almost everything that is a "room" today is a property of the satellite:

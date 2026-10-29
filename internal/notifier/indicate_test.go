@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ func indicateEnv(t *testing.T) *env {
 	})
 	e.now = at("08:00") // after quiet hours
 	// The fake satellite never speaks: the ring is restored at once.
-	e.n.idlePoll = 5 * time.Millisecond
 	e.n.speakingStart = 20 * time.Millisecond
 	return e
 }
@@ -266,5 +266,125 @@ func TestOwnMessageHoldOff(t *testing.T) {
 	e.tick()
 	if lights := e.lightCalls(); len(lights) != 1 {
 		t.Errorf("ring: %+v", lights)
+	}
+}
+
+// phoneEnv is indicateEnv with an answering machine saying news.
+func phoneEnv(t *testing.T, news *PhoneNews) *env {
+	e := indicateEnv(t)
+	e.n.phone = func(context.Context) (PhoneNews, error) { return *news, nil }
+	return e
+}
+
+func TestAB10_TheRingShowsTheAnsweringMachineInItsColour(t *testing.T) {
+	news := PhoneNews{Messages: 1}
+	e := phoneEnv(t, &news)
+	e.n.SyncIndicators(context.Background())
+	lights := e.lightCalls()
+	if len(lights) != 1 || lights[0].Service != "turn_on" || fmtColour(lights[0].Data["rgb_color"]) != "[255 160 0]" {
+		t.Fatalf("lights %+v", lights)
+	}
+	news = PhoneNews{}
+	e.n.SyncIndicators(context.Background())
+	if l := e.lightCalls(); len(l) != 2 || l[1].Service != "turn_off" {
+		t.Errorf("not off: %+v", l)
+	}
+}
+
+func TestAB11_MirasMessagesRankFirstOnTheRing(t *testing.T) {
+	news := PhoneNews{Missed: 1}
+	e := phoneEnv(t, &news)
+	e.n.SyncIndicators(context.Background())
+	e.message("n1", 1, nil)
+	e.n.SyncIndicators(context.Background())
+	lights := e.lightCalls()
+	if len(lights) != 2 || fmtColour(lights[0].Data["rgb_color"]) != "[230 40 40]" || fmtColour(lights[1].Data["rgb_color"]) != "[32 201 176]" {
+		t.Errorf("lights %+v", lights)
+	}
+}
+
+func TestAB12_TheScreenCountsBoth(t *testing.T) {
+	news := PhoneNews{Messages: 2, Missed: 1}
+	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
+	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
+	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.now = at("08:00")
+	e.n.SyncIndicators(context.Background())
+	e.n.SyncIndicators(context.Background()) // nothing new: no overlay again
+	var got []call
+	for _, c := range e.ha.calls {
+		if c.Domain == "esphome" {
+			got = append(got, c)
+		}
+	}
+	if len(got) != 1 || got[0].Data["tag"] != "phone" || got[0].Data["message"] != "2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf" {
+		t.Errorf("overlays %+v", got)
+	}
+}
+
+func fmtColour(v any) string { return fmt.Sprint(v) }
+
+func TestAB35_ThePlayingSatelliteGetsNoNewHintUntilItEnds(t *testing.T) {
+	news := PhoneNews{Messages: 2}
+	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
+	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
+	e.n.screens = map[string]string{"kueche": "esphome.show_notify", "bad": "esphome.bad_notify"}
+	e.now = at("08:00")
+	ctx := context.Background()
+	e.n.SyncIndicators(ctx)
+	shown := func(action string) []string {
+		var out []string
+		for _, c := range e.ha.calls {
+			if c.Domain+"."+c.Service == action {
+				out = append(out, c.Data["message"].(string))
+			}
+		}
+		return out
+	}
+	e.n.HoldPhoneScreen(ctx, "kueche", true)
+	news = PhoneNews{Messages: 1} // one heard
+	e.n.SyncIndicators(ctx)
+	if got := shown("esphome.show_notify"); len(got) != 1 {
+		t.Errorf("the playing screen got a new hint: %v", got)
+	}
+	if got := shown("esphome.bad_notify"); len(got) != 2 || got[1] != "1 Nachricht auf dem Anrufbeantworter" {
+		t.Errorf("the other screen: %v", got)
+	}
+	e.n.HoldPhoneScreen(ctx, "kueche", false)
+	if got := shown("esphome.show_notify"); len(got) != 2 || got[1] != "1 Nachricht auf dem Anrufbeantworter" {
+		t.Errorf("after the playing: %v", got)
+	}
+}
+
+func TestAB37_AHintWaitsWhileTheSatelliteIsInAConversation(t *testing.T) {
+	news := PhoneNews{Messages: 2}
+	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
+	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
+	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.now = at("08:00")
+	sat := e.n.sats["kueche"]
+	e.ha.set(sat, "listening", nil)
+	e.n.SyncIndicators(context.Background())
+	overlays := func() int {
+		e.ha.mu.Lock()
+		defer e.ha.mu.Unlock()
+		n := 0
+		for _, c := range e.ha.calls {
+			if c.Domain == "esphome" {
+				n++
+			}
+		}
+		return n
+	}
+	if n := overlays(); n != 0 {
+		t.Fatalf("a hint over the listening satellite: %d", n)
+	}
+	e.ha.set(sat, "idle", nil)
+	deadline := time.Now().Add(2 * time.Second)
+	for overlays() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := overlays(); n != 1 {
+		t.Errorf("hint once idle: %d", n)
 	}
 }

@@ -39,6 +39,10 @@ type Spec struct {
 	// AgentsOnly: a skill's tool that only its agents and schedules get, never
 	// the conversation.
 	AgentsOnly bool
+	// PlaysAfter: the tool plays something at the satellite after the
+	// answer (a recording); the turn never keeps the satellite listening,
+	// or its microphone would hear what plays (docs/spec/satellit.md).
+	PlaysAfter bool
 }
 
 // Invocation is a call as the conversation loop hands it over.
@@ -92,6 +96,8 @@ type InternalTool struct {
 	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
 	// for the conversation, docs/spec/agenten.md).
 	Skill string
+	// PlaysAfter: see Spec.
+	PlaysAfter bool
 	// DescribeIn, when set, gives the description in a turn's language: for
 	// tools that list skills, whose texts may come in several languages
 	// (docs/spec/skill-sprachen.md). Description is then the one in the
@@ -218,6 +224,7 @@ func internalSpec(t InternalTool) Spec {
 		Internal:    true,
 		AskAfterWeb: t.AskAfterWeb,
 		Skill:       t.Skill,
+		PlaysAfter:  t.PlaysAfter,
 	}
 }
 

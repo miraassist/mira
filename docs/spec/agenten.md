@@ -294,15 +294,15 @@ independent of each other:
 
 ### What a turn belongs to
 
-Which conversation, thread and plan a turn belongs to follows from its call context, without a setting:
-- **Person known** (Telegram, the Home Assistant app, or "alone at home is me"): conversation, threads and plans
-  belong to the person and follow them to every satellite. Alone at home, one can simply go on talking in another
-  room.
-- **Person unknown** (several people at home, nobody recognized): everything stays in the room, as today. Two
+Which conversation (its history) a turn belongs to follows from its call context, without a setting. Which
+**thread** it belongs to has its own rules: [Threads](vorgaenge.md), Assignment.
+- **Person known** (Telegram, the Home Assistant app, or "alone at home is me"): the conversation belongs to the
+  person and follows them to every satellite. Alone at home, one can simply go on talking in another room.
+- **Person unknown** (several people at home, nobody recognized): the conversation stays in the room. Two
   conversations in two rooms do not get in each other's way and see nothing of each other.
 - **Private area:** an area in Home Assistant with the label "Mira: privater Bereich" is a hard border, like the label
   "Mira: nachfragen" on devices. What starts in it stays there, even for a known person, and nothing from outside
-  comes in. This covers conversations, threads and plans. The integration creates the label (id `mira_private`,
+  comes in. This covers conversations and threads. The integration creates the label (id `mira_private`,
   named in Home Assistant's language); the agent reads it from the area registry.
 - If Mira later recognizes persons better (by their voice, say), the conversation follows the right person without the
   rule changing.

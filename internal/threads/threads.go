@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +169,78 @@ func (m *Manager) place(ctx context.Context, inv tools.Invocation) (place, area 
 	return inv.SessionKey, ""
 }
 
+// roomBound says whether a target's threads are bound to the room rather
+// than the person (docs/spec/vorgaenge.md, Assignment 1).
+func (m *Manager) roomBound(target string) bool {
+	sk, ok := m.targets[target]
+	return ok && sk.Target != nil && sk.Target.Bound == skills.BoundRoom
+}
+
+// startPlace is where a new thread of target is placed (Assignment 2): a
+// room's in the turn's room, a person's at the turn's place (the person
+// when known, else the room, a private area always).
+func (m *Manager) startPlace(ctx context.Context, inv tools.Invocation, target string) (place, area string) {
+	place, area = m.place(ctx, inv)
+	if m.roomBound(target) {
+		if a := areaOf(m.withTurnArea(ctx, inv)); a != "" {
+			return "area:" + a, a
+		}
+	}
+	return place, area
+}
+
+// visible are the places whose threads a turn sees (Assignment 3c): its own
+// place, and its room.
+func visible(place, area string) []string {
+	out := []string{place}
+	if area != "" && "area:"+area != place {
+		out = append(out, "area:"+area)
+	}
+	return out
+}
+
+// turnPlaces are the places a tool call's turn sees.
+func (m *Manager) turnPlaces(ctx context.Context, inv tools.Invocation) []string {
+	place, _ := m.place(ctx, inv)
+	return visible(place, areaOf(m.withTurnArea(ctx, inv)))
+}
+
+// openAt are the open threads at the places, newest first.
+func (m *Manager) openAt(ctx context.Context, places []string) ([]store.Thread, error) {
+	var all []store.Thread
+	for _, p := range places {
+		if p == "" {
+			continue // an empty place would be every place
+		}
+		open, err := m.opts.Store.OpenThreads(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, open...)
+	}
+	sort.SliceStable(all, func(i, j int) bool { return all[i].UpdatedAt.After(all[j].UpdatedAt) })
+	return all, nil
+}
+
+// adopt makes a person's thread that started with nobody recognised, and so
+// in the room, the person's who goes on with it: from then on it follows
+// them (Assignment 3).
+func (m *Manager) adopt(ctx context.Context, th store.Thread, turnPlace string) store.Thread {
+	person, ok := strings.CutPrefix(turnPlace, "person:")
+	if !ok || m.roomBound(th.Target) || !strings.HasPrefix(th.Place, "area:") {
+		return th
+	}
+	cur, err := m.change(ctx, th.ID, func(t *store.Thread) error {
+		t.Place, t.Person = turnPlace, person
+		return nil
+	})
+	if err != nil {
+		return th
+	}
+	m.log.Info("thread taken over by its person", "thread", th.ID, "place", turnPlace)
+	return cur
+}
+
 // areaKey carries the area of the turn whose tool call runs a thread's work
 // or commit: an action's satellite placeholders are that turn's.
 type areaKey struct{}
@@ -195,6 +268,14 @@ func areaOf(ctx context.Context) string {
 	return a
 }
 
+// link makes a turn belong to a thread: its thread, and its target skill
+// open, so the turn has the skill's tools (docs/spec/vorgaenge.md,
+// Assignment).
+func (m *Manager) link(ctx context.Context, sessionKey string, th store.Thread) {
+	_ = m.opts.Store.SetSessionThread(ctx, sessionKey, th.ID)
+	_ = m.opts.Store.AddSessionSkill(ctx, sessionKey, th.Target)
+}
+
 // current is the thread a tool call acts on: the turn's own, or else the
 // newest open one at its place.
 func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thread, error) {
@@ -203,16 +284,17 @@ func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thre
 			return th, nil
 		}
 	}
-	place, _ := m.place(ctx, inv)
-	open, err := m.opts.Store.OpenThreads(ctx, place)
+	open, err := m.openAt(ctx, m.turnPlaces(ctx, inv))
 	if err != nil {
 		return store.Thread{}, err
 	}
 	if len(open) == 0 {
 		return store.Thread{}, store.ErrNotFound
 	}
-	_ = m.opts.Store.SetSessionThread(ctx, inv.SessionKey, open[0].ID)
-	return open[0], nil
+	place, _ := m.place(ctx, inv)
+	th := m.adopt(ctx, open[0], place)
+	m.link(ctx, inv.SessionKey, th)
+	return th, nil
 }
 
 func (m *Manager) save(ctx context.Context, th *store.Thread) error {
@@ -226,7 +308,7 @@ func (m *Manager) extend(th *store.Thread) {
 	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
 	if sk.Target.Plan {
 		if c := planOf(*th); c.DoneAt != nil {
-			th.ExpiresAt = c.DoneAt.Add(planGrace)
+			th.ExpiresAt = c.DoneAt.Add(sk.Target.DoneAfterDuration())
 		}
 	}
 }
@@ -265,14 +347,14 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	if !ok {
 		return "", fmt.Errorf(m.texts().noTarget, target)
 	}
-	place, _ := m.place(ctx, inv)
-	if open, err := m.opts.Store.OpenThreads(ctx, place); err == nil {
+	place, _ := m.startPlace(ctx, inv, target)
+	if open, err := m.openAt(ctx, m.turnPlaces(ctx, inv)); err == nil {
 		for _, old := range open {
 			if old.Target != target {
 				continue
 			}
 			if sk.Target.Plan {
-				_ = m.opts.Store.SetSessionThread(ctx, inv.SessionKey, old.ID)
+				m.link(ctx, inv.SessionKey, old)
 				return fmt.Sprintf(m.texts().planRunning, old.Request, m.planStatus(old)), nil
 			}
 			m.end(ctx, old, store.ThreadCancelled)
@@ -296,6 +378,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
 		return "", err
 	}
+	_ = m.opts.Store.AddSessionSkill(ctx, inv.SessionKey, th.Target)
 	m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
 	trace.Add(ctx, trace.Thread, target, "started")
 	var said string

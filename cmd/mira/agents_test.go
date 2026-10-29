@@ -36,8 +36,13 @@ type quietHA struct{}
 func (quietHA) CallService(context.Context, string, string, map[string]any, *haws.Target) error {
 	return nil
 }
-func (quietHA) States(context.Context) ([]haws.State, error)    { return nil, nil }
+func (quietHA) GetStates(context.Context, haws.StateFilter) ([]haws.State, error) {
+	return nil, nil
+}
 func (quietHA) Entities(context.Context) ([]haws.Entity, error) { return nil, nil }
+func (quietHA) WaitState(context.Context, string, time.Duration, func(string) bool) bool {
+	return true
+}
 
 // deliveryApp is the part of the app that delivers runs: Home Assistant,
 // the agents with notify.compose on a scripted model, and the notifier.

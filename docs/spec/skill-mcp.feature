@@ -84,3 +84,9 @@ Feature: SM MCP servers in skills
     When a conversation opens the skill
     Then the server's tools are not offered to the conversation, nor can it call them
     But the skill's agent and its schedule get them
+
+  @step2
+  Scenario: SM-14 Opening a skill brings Mira's own tools that come with it
+    Given a skill without an MCP server whose tools Mira brings herself (anrufbeantworter, regel)
+    When a conversation opens the skill
+    Then those tools are offered in the next round and the next turns, and not before

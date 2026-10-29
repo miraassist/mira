@@ -35,7 +35,14 @@ func ensureDashboard(ctx context.Context, admin *haws.Client, extras []extra) er
 			return err
 		}
 	}
-	states, err := admin.States(ctx)
+	// The domains the dashboard's cards show, and the extras: Home Assistant
+	// filters, the dashboard asks only for what it may show.
+	filter := haws.StateFilter{Domains: []string{"alarm_control_panel", "assist_satellite", "binary_sensor", "button",
+		"calendar", "climate", "cover", "input_boolean", "light", "person", "select", "sensor", "switch", "todo"}}
+	for _, x := range extras {
+		filter.EntityIDs = append(filter.EntityIDs, x.entity)
+	}
+	states, err := admin.GetStates(ctx, filter)
 	if err != nil {
 		return err
 	}

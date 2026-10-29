@@ -144,14 +144,15 @@ func (e *Engine) personProfile(ctx context.Context, person string) string {
 // messageContext links a voice turn to messages announced on the same
 // satellite moments ago, so "Was genau?" can be answered from the details.
 // It also returns the ids of the messages that are still open, so the turn
-// can acknowledge them once it is answered.
-func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, []string) {
+// can acknowledge them once it is answered, and the thread the announcement
+// named itself, if any.
+func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, []string, string) {
 	if deviceID == "" {
-		return "", nil
+		return "", nil, ""
 	}
 	a, err := e.store.RecentAnnouncement(ctx, deviceID, e.cfg.Notifier.FollowUpWindow.Duration())
 	if err != nil {
-		return "", nil
+		return "", nil, ""
 	}
 	var b strings.Builder
 	var open []string
@@ -169,7 +170,7 @@ func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, [
 		}
 		b.WriteByte('\n')
 	}
-	return strings.TrimRight(b.String(), "\n"), open
+	return strings.TrimRight(b.String(), "\n"), open, a.ThreadID
 }
 
 // history loads layer 6.

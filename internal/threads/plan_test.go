@@ -64,7 +64,7 @@ func TestPlanAcrossConversations(t *testing.T) {
 	// 40 minutes later, a new conversation in the same room.
 	e.now = e.now.Add(40 * time.Minute)
 	_, sess := e.turn(t, "voice:b")
-	text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil)
+	text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil, "")
 	if !foreign || !strings.Contains(text, "1 von 3") || !strings.Contains(text, "Jetzt (Schritt 2): Mineralwasser") ||
 		!strings.Contains(text, "Ablauf mit Plan") || !strings.Contains(text, "Mach aus dem Rezept einen Plan.") {
 		t.Errorf("context: %v %q", foreign, text)
@@ -73,7 +73,7 @@ func TestPlanAcrossConversations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text, _ := e.m.Context(ctx, other, placeOf(other), nil); text != "" {
+	if text, _ := e.m.Context(ctx, other, placeOf(other), nil, ""); text != "" {
 		t.Errorf("another room sees the plan: %q", text)
 	}
 
@@ -169,7 +169,7 @@ func TestPlanWithoutSteps(t *testing.T) {
 		t.Errorf("reference: %q", out)
 	}
 	sess, _ = e.st.GetSession(ctx, sess.Key)
-	if text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil); foreign || !strings.Contains(text, "ohne Schritte") {
+	if text, foreign := e.m.Context(ctx, sess, placeOf(sess), nil, ""); foreign || !strings.Contains(text, "ohne Schritte") {
 		t.Errorf("context: %v %q", foreign, text)
 	}
 	var names []string
@@ -209,6 +209,95 @@ func TestAG83_TwoRunsChangeTheSamePlanAtTheSameTime(t *testing.T) {
 		// Then both steps are ticked off
 		if out, _ := e.m.Plan(ctx, inv, "read", "", 0); strings.Count(out, "[x]") != 2 {
 			t.Fatalf("round %d: %q", i, out)
+		}
+	}
+}
+
+// abEnv has the answering machine's plan target.
+func abEnv(t *testing.T) *env {
+	t.Helper()
+	e := setup(t)
+	ab := skills.Skill{Name: "anrufbeantworter", Description: "Anrufbeantworter", Body: "Abhören.",
+		Target: &skills.Target{Plan: true}}
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{ab}, Clock: func() time.Time { return e.now }})
+	return e
+}
+
+// Asking again rewrites the plan of the thread that runs; there is never a
+// second one.
+func TestAB31_AskingAgainKeepsTheOneThread(t *testing.T) {
+	e := abEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	id, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "Habe ich Nachrichten?", "# AB\n- [ ] Oma (id 0:13)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv2, _ := e.turn(t, "voice:b")
+	id2, err := e.m.SetPlan(ctx, inv2, "anrufbeantworter", "Habe ich Nachrichten?", "# AB\n- [ ] Ben (id 0:14)\n- [ ] Oma (id 0:13)")
+	if err != nil || id2 != id {
+		t.Fatalf("second thread %q (first %q): %v", id2, id, err)
+	}
+	open, _ := e.st.OpenThreads(ctx, "area:wohnzimmer")
+	if len(open) != 1 || !strings.Contains(planOf(open[0]).Plan, "Ben (id 0:14)") {
+		t.Errorf("open %+v", open)
+	}
+	if err := e.m.TickPlan(ctx, id, "(id 0:13)"); err != nil {
+		t.Fatal(err)
+	}
+	th, _ := e.st.GetThread(ctx, id)
+	if !strings.Contains(planOf(th).Plan, "- [x] Oma (id 0:13)") {
+		t.Errorf("not ticked: %q", planOf(th).Plan)
+	}
+}
+
+// The answer to an announcement that named its thread joins that thread:
+// it has the plan in its context and the skill open. Who speaks does not
+// change: the turn stays the turn it is.
+func TestAB33_TheAnswerJoinsTheThreadWithoutBecomingThePerson(t *testing.T) {
+	e := abEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:anna")
+	inv.Place = "person:anna"
+	id, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "Habe ich Nachrichten?", "# AB\n- [x] Oma (id 0:13)\n- [ ] Ben (id 0:12)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The answer: a new turn in the room, nobody recognised.
+	_, answer := e.turn(t, "voice:new")
+	text, _ := e.m.Context(ctx, answer, placeOf(answer), nil, id)
+	if !strings.Contains(text, "Zuletzt erledigt (Schritt 1): Oma (id 0:13)") || !strings.Contains(text, "Jetzt (Schritt 2): Ben (id 0:12)") {
+		t.Errorf("context %q", text)
+	}
+	sess, _ := e.st.GetSession(ctx, "voice:new")
+	if sess.ThreadID != id || sess.Key != "voice:new" {
+		t.Errorf("session %+v", sess)
+	}
+	if open, _ := e.st.SessionSkills(ctx, "voice:new"); len(open) != 1 || open[0] != "anrufbeantworter" {
+		t.Errorf("skills %v", open)
+	}
+	// Without the announcement the room does not see Anna's thread.
+	_, other := e.turn(t, "voice:other")
+	if text, _ := e.m.Context(ctx, other, placeOf(other), nil, ""); text != "" {
+		t.Errorf("another turn sees it: %q", text)
+	}
+}
+
+// A short plan shows every open step in the context, so "weiter" can take
+// all the rest; a long one keeps the window (AB-38).
+func TestAB38_AShortPlanShowsEveryOpenStep(t *testing.T) {
+	e := abEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	plan := "# AB\n- [x] Oma (id 0:13)\n- [ ] Ben (id 0:12)\n- [ ] Papa (id 0:11)\n- [ ] Mama (id 0:10)"
+	if _, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "x", plan); err != nil {
+		t.Fatal(err)
+	}
+	_, sess := e.turn(t, "voice:b")
+	text, _ := e.m.Context(ctx, sess, placeOf(sess), nil, "")
+	for _, want := range []string{"Jetzt (Schritt 2): Ben", "Danach (Schritt 3): Papa", "Danach (Schritt 4): Mama"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing %q in\n%s", want, text)
 		}
 	}
 }

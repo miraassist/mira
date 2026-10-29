@@ -24,7 +24,6 @@ const (
 	CmdAreaRegistryList   = "config/area_registry/list"
 	CmdDeviceRegistryList = "config/device_registry/list"
 	CmdEntityRegistryList = "config/entity_registry/list"
-	CmdGetStates          = "get_states"
 	CmdCallService        = "call_service"
 	CmdSubscribeEvents    = "subscribe_events"
 	CmdSubscribeEntities  = "subscribe_entities"
@@ -68,6 +67,8 @@ type Device struct {
 	Manufacturer string `json:"manufacturer"`
 	Model        string `json:"model"`
 	DisabledBy   string `json:"disabled_by"`
+	// ConfigurationURL is where the device's own web interface is.
+	ConfigurationURL string `json:"configuration_url"`
 }
 
 // DisplayName is the user's name for the device if they set one.
@@ -86,6 +87,7 @@ type Entity struct {
 	Name         string         `json:"name"`
 	OriginalName string         `json:"original_name"`
 	Platform     string         `json:"platform"`
+	UniqueID     string         `json:"unique_id"`
 	Aliases      []string       `json:"aliases"`
 	Labels       []string       `json:"labels"`
 	DisabledBy   string         `json:"disabled_by"`

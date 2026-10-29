@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -17,10 +16,10 @@ import (
 // creates nothing and keeps nothing in sync; the config only adds Mira's
 // settings per person (docs/spec/benutzer.md).
 type people struct {
-	mu      sync.Mutex
-	list    []haPerson
-	loaded  bool
-	checked time.Time
+	mu     sync.Mutex
+	list   []haPerson
+	states []haws.State
+	loaded bool
 }
 
 // haPerson is a person entity as Home Assistant has it.
@@ -28,12 +27,9 @@ type haPerson struct {
 	ID, Entity, Name, UserID string
 }
 
-// peopleRefresh is how often the directory is read again; an unknown HA
-// user asks sooner, but not more often than peopleRecheck.
-const (
-	peopleRefresh = time.Minute
-	peopleRecheck = 10 * time.Second
-)
+// personStates is what Mira reads of the persons: Home Assistant filters
+// to the domain person (docs/spec/ha-anbindung.md, Watching states).
+var personStates = haws.StateFilter{Domains: []string{"person"}}
 
 // haPersonsFrom reads the person entities from the states. The id is the
 // HA person's own (attributes.id), which stays when the entity is renamed.
@@ -83,19 +79,32 @@ func mergePersons(ha []haPerson, settings map[string]config.Person) map[string]c
 	return out
 }
 
-// refresh reads the persons again; changed says whether the set differs.
+// refresh reads the persons once, for a command that runs without
+// watching them; changed says whether the set differs.
 func (pp *people) refresh(ctx context.Context, ha *haws.Client) (changed bool, err error) {
-	states, err := ha.States(ctx)
+	states, err := ha.GetStates(ctx, personStates)
 	if err != nil {
 		return false, err
 	}
+	return pp.set(states), nil
+}
+
+// set takes the person states as Home Assistant has them now; changed says
+// whether the set of persons differs (a state alone does not change it).
+func (pp *people) set(states []haws.State) (changed bool) {
 	list := haPersonsFrom(states)
 	pp.mu.Lock()
 	defer pp.mu.Unlock()
-	pp.checked = time.Now()
 	changed = !pp.loaded || !slicesEqual(pp.list, list)
-	pp.list, pp.loaded = list, true
-	return changed, nil
+	pp.list, pp.states, pp.loaded = list, states, true
+	return changed
+}
+
+// personStates are the persons' states as last reported: home, away.
+func (pp *people) personStates() []haws.State {
+	pp.mu.Lock()
+	defer pp.mu.Unlock()
+	return pp.states
 }
 
 func (pp *people) snapshot() []haPerson {
@@ -105,13 +114,6 @@ func (pp *people) snapshot() []haPerson {
 		return nil
 	}
 	return append([]haPerson{}, pp.list...)
-}
-
-// due says whether a recheck for an unknown user is allowed now.
-func (pp *people) due() bool {
-	pp.mu.Lock()
-	defer pp.mu.Unlock()
-	return time.Since(pp.checked) > peopleRecheck
 }
 
 func slicesEqual(a, b []haPerson) bool {
@@ -140,41 +142,38 @@ func (a *app) persons() map[string]config.Person {
 	return mergePersons(a.people.snapshot(), settings)
 }
 
-// personOfHAUser maps a HA user to a person key; an unknown user makes the
-// directory read Home Assistant again, as a new person may just have come.
+// personOfHAUser maps a HA user to a person key.
 func (a *app) personOfHAUser(ctx context.Context, user string) string {
 	if user == "" {
 		return ""
 	}
-	if key := personOfUser(a.persons(), user); key != "" || !a.people.due() {
-		return key
-	}
-	if changed, err := a.people.refresh(ctx, a.ha); err != nil {
-		a.log.Warn("could not read the persons", "error", err)
-	} else if changed {
-		a.peopleChanged()
-	}
 	return personOfUser(a.persons(), user)
 }
 
-// watchPeople reads Home Assistant's persons now and every minute. A
-// change restarts the notifier, which holds the persons it delivers to.
+// watchPeople keeps Home Assistant's persons and their states current:
+// Home Assistant reports every change of a person (a new one, a renamed one,
+// home or away), nothing is read again and again. A change of the set
+// restarts the notifier, which holds the persons it delivers to.
 func (a *app) watchPeople(ctx context.Context) error {
-	t := time.NewTicker(peopleRefresh)
-	defer t.Stop()
-	for {
-		if a.ha.Connected() {
-			changed, err := a.people.refresh(ctx, a.ha)
-			if err != nil {
-				a.log.Warn("could not read the persons", "error", err)
-			} else if changed {
-				a.peopleChanged()
-			}
+	changed := make(chan struct{}, 1)
+	w, err := a.ha.WatchStates(ctx, personStates, func() {
+		select { // on the connection's read loop: only pass it on
+		case changed <- struct{}{}:
+		default:
 		}
+	})
+	if err != nil {
+		return err
+	}
+	defer w.Stop()
+	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-t.C:
+		case <-changed:
+			if a.people.set(w.States()) {
+				a.peopleChanged()
+			}
 		}
 	}
 }

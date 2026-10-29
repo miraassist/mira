@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oklog/ulid/v2"
+
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -23,9 +25,10 @@ import (
 const (
 	// maxPlan bounds a plan.
 	maxPlan = 8000
-	// planGrace keeps a plan whose steps are all done open a while, for
-	// "wait, not done yet".
-	planGrace = 30 * time.Minute
+	// shortPlan is how many steps a plan may have for the context to show
+	// all its open ones (the answering machine's messages); a longer one
+	// (a recipe) shows the step before, the current and the next.
+	shortPlan = 10
 	// maxStepLine bounds a step as the context shows it.
 	maxStepLine = 200
 )
@@ -36,8 +39,8 @@ type planContent struct {
 	// Foreign: written in a turn that had third-party text before it (a
 	// web page); it stays so.
 	Foreign bool `json:"foreign,omitempty"`
-	// DoneAt is when the last checkbox was ticked; the thread ends
-	// planGrace later.
+	// DoneAt is when the last checkbox was ticked; the thread ends the
+	// target's done_after later.
 	DoneAt *time.Time `json:"done_at,omitempty"`
 }
 
@@ -109,6 +112,96 @@ func (m *Manager) finished(c *planContent) {
 	case !all:
 		c.DoneAt = nil
 	}
+}
+
+// SetPlan writes a plan from Mira's own code rather than the model, where
+// the plan is facts already (the answering machine's messages,
+// docs/spec/anrufbeantworter.md): it takes the target's plan thread
+// running at the turn's place, or starts one, writes text as its plan and
+// links the turn to it. It returns the thread's id.
+func (m *Manager) SetPlan(ctx context.Context, inv tools.Invocation, target, request, text string) (string, error) {
+	sk, ok := m.targets[target]
+	if !ok || !sk.Target.Plan {
+		return "", fmt.Errorf(m.texts().noTarget, target)
+	}
+	place, _ := m.startPlace(ctx, inv, target)
+	var th store.Thread
+	if open, err := m.openAt(ctx, m.turnPlaces(ctx, inv)); err == nil {
+		for _, o := range open {
+			if o.Target == target {
+				th = o
+				break
+			}
+		}
+	}
+	if th.ID == "" {
+		th = store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
+			State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{},
+			Area: areaOf(m.withTurnArea(ctx, inv))}
+		m.logEntry(&th, "user", th.Request)
+		if err := m.save(ctx, &th); err != nil {
+			return "", err
+		}
+		m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
+	}
+	th, err := m.change(ctx, th.ID, func(th *store.Thread) error {
+		c := planOf(*th)
+		c.Plan = strings.TrimSpace(text)
+		m.finished(&c)
+		setPlan(th, c)
+		m.extend(th)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	m.link(ctx, inv.SessionKey, th)
+	return th.ID, nil
+}
+
+// PlanThread is the id of the target's plan thread the turn belongs to or
+// that runs at its place; "" without one.
+func (m *Manager) PlanThread(ctx context.Context, inv tools.Invocation, target string) string {
+	th, err := m.current(ctx, inv)
+	if err != nil || th.Target != target {
+		return ""
+	}
+	return th.ID
+}
+
+// PlanText is the plan of the target's thread the turn belongs to or that
+// runs at its places; "" without one.
+func (m *Manager) PlanText(ctx context.Context, inv tools.Invocation, target string) string {
+	th, err := m.current(ctx, inv)
+	if err != nil || th.Target != target {
+		return ""
+	}
+	return planOf(th).Plan
+}
+
+// TickPlan ticks, from Mira's own code, the first open step of a thread's
+// plan that contains match (a message's "(id 0:13)"); nothing when there is
+// none.
+func (m *Manager) TickPlan(ctx context.Context, threadID, match string) error {
+	_, err := m.change(ctx, threadID, func(th *store.Thread) error {
+		c := planOf(*th)
+		for i, b := range boxes(c.Plan) {
+			if b.done || !strings.Contains(b.text, match) {
+				continue
+			}
+			plan, err := tick(c.Plan, i+1, true)
+			if err != nil {
+				return err
+			}
+			c.Plan = plan
+			m.finished(&c)
+			setPlan(th, c)
+			m.extend(th)
+			return nil
+		}
+		return nil
+	})
+	return err
 }
 
 // Plan runs an action of the plan tool on the turn's plan thread: write,
@@ -218,9 +311,19 @@ func (m *Manager) planStatus(th store.Thread) string {
 	lines = append(lines, fmt.Sprintf(t.planProgress, done, len(bs)))
 	step(t.planPrevious, prev)
 	step(t.planCurrent, cur)
-	step(t.planNext, next)
+	if len(bs) <= shortPlan {
+		// A short plan shows every open step after the current one: the
+		// model plays or reads on without reading the plan first.
+		for i := cur + 1; cur >= 0 && i < len(bs); i++ {
+			if !bs[i].done {
+				step(t.planNext, i)
+			}
+		}
+	} else {
+		step(t.planNext, next)
+	}
 	if c.DoneAt != nil {
-		lines = append(lines, fmt.Sprintf(t.planAllDone, c.DoneAt.Add(planGrace).In(time.Local).Format("15:04")))
+		lines = append(lines, fmt.Sprintf(t.planAllDone, c.DoneAt.Add(m.targets[th.Target].Target.DoneAfterDuration()).In(time.Local).Format("15:04")))
 	}
 	text := strings.Join(lines, "\n")
 	if c.Foreign {

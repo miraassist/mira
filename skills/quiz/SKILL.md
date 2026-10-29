@@ -6,6 +6,7 @@ metadata:
   mira:
     target:
       plan: true
+      bound: room
       timeout: 1h
 ---
 # Quiz

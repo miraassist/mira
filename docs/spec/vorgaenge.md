@@ -25,8 +25,7 @@ the light got lost along the way: "Licht zu ungewöhnlicher Zeit" became
   its own history. In the code it is still called `session`.
 - **Thread** (in the code `thread`): a concern that runs across several turns. It has
   - a **target** (from a target definition),
-  - a **place**: the person when Mira knows who speaks, otherwise the room for voice and the chat for Telegram; an
-    area labelled "Mira: privater Bereich" keeps its threads (see [Agents](agenten.md), What a turn belongs to),
+  - a **place**: a person, a room or a chat, by its type's binding (see Assignment below),
   - a **state**,
   - **fields** that the target needs,
   - a short **log** (what was asked, answered, proposed),
@@ -74,20 +73,56 @@ opened ─► collecting ─► waiting for you ─┬─► collecting …     
 
 ## Assignment: which turn belongs to which thread?
 
-1. **Firmly linked (code).** An answer directly after an announcement belongs
-   to the thread of that notice. Further turns of the same HA conversation
-   belong to the same thread.
-2. **Waiting at the same place (model).** If a thread is waiting for you at this place,
-   the model sees it in the context and decides: continue
-   (`thread_fill`, `thread_confirm`), cancel (`thread_cancel`) or
-   another topic. These are not fixed phrases.
-3. **Otherwise** the turn belongs to no thread.
+Decided 2026-10-29, after the answering machine's listening split into two threads (one turn recognised as Anna, the
+next not). This section is the one place for these rules; [Agents](agenten.md) (What a turn belongs to) keeps only
+the conversation's history.
 
-There is no continuation across channels: a thread started at the satellite
-cannot be continued via Telegram.
+### 1. What a thread is bound to
 
-The context (layer 7, not in the cached part) contains, for the assigned
-or waiting thread:
+| Binding | Meaning | Who sees and continues it | Examples |
+|---|---|---|---|
+| **person** | the person's; follows them to every satellite and into Telegram | only that person, when Mira knows them | creating a task, an appointment, vocabulary |
+| **room** | the room's where it runs (a room is its satellite) | anyone in that room | listening to the answering machine, cooking, a quiz |
+| **chat** | a Telegram conversation | that chat | everything that starts in Telegram |
+
+The binding belongs to the **type** of thread, not to the situation: the target says it (`bound: person | room`,
+default `person`). A satellite is not a binding of its own; the device counts only for the direct answer to an
+announcement (3a).
+
+### 2. The first assignment, when a thread starts
+
+| Channel | Type `person` | Type `room` |
+|---|---|---|
+| satellite, person recognised | that person | the satellite's room |
+| satellite, nobody recognised | the satellite's room (the thread has no person) | the satellite's room |
+| Telegram, the Home Assistant app | the person, else the chat | the person, else the chat (there is no room) |
+| a private area | always that room, even for a known person | that room |
+
+The same holds whoever starts it: the model (`thread_start`) or Mira's code (`voicemail_list`). A thread of a type
+that runs at the place already is continued, never started twice.
+
+### 3. The turns that follow, in this order: the first that applies wins
+
+| # | Rule | How it is known | Applies to |
+|---|---|---|---|
+| a | **The direct answer to an announcement of the thread** (code) | a turn from the same device, within the follow-up window of an announcement of the thread: one of its messages, or an announcement naming the thread itself ("Nächste …") | every type; it never changes who speaks. For a thread of a person: not when the voice is recognised as **another** person |
+| b | **The same conversation** (code) | the turn's conversation is linked to the thread already | every type |
+| c | **Waiting here** (model) | the turn sees the threads of **its person** (when recognised) **and** of **its room**: at most 3, newest first. The model decides whether the user continues one (`thread_fill`, `thread_confirm`, `thread_plan`, the skill's tools), cancels it (`thread_cancel`) or talks about something else; no fixed phrases | every type |
+| d | **Otherwise** the turn belongs to no thread | | |
+
+- **A person's thread started unrecognised** belongs to the room. When the person is recognised there later, they
+  see it (3c), and continuing it makes it theirs: from then on it follows them.
+- **Borders that always hold:** no continuation across channels; a private area sees only its own threads, and
+  nothing from it goes out; a person's thread is never shown to anyone else.
+
+### Tools and context of a turn in a thread
+
+A turn that belongs to a thread, or is shown one waiting (3c), has the thread's target skill open, as if it had
+called `skill_open`: it gets the skill's tools. A skill with a target that Mira binds tools to can also be opened
+with `skill_open` before any thread runs: its tools start the thread themselves (`voicemail_list`). Targets without
+tools of their own (`kochen`) are not offered there.
+
+The context (layer 7, not in the cached part) contains, for the assigned or waiting thread:
 - the target and the request in your words,
 - the fields with their state,
 - the log,
@@ -102,6 +137,7 @@ metadata:
   mira:
     target:
       timeout: 15m                 # default 15m
+      bound: person                # person (default) or room: what the thread is bound to (Assignment)
       confirm: true                # a yes before the finish
       fields:                      # list, so the order is fixed
         - name: watch
@@ -191,7 +227,11 @@ metadata:
     target:
       plan: true          # thread with plan; fields and finish are dropped
       timeout: 1h         # default for plans 1h; every activity on the plan restarts the deadline
+      done_after: 30m     # default 30m: how long the plan stays open once all is ticked
 ```
+
+Mira's own code may write and tick a plan where the plan is facts already, without the model (the answering
+machine's messages, [anrufbeantworter.md](anrufbeantworter.md) step 4): the same storage as `thread_plan`.
 
 A plan target needs neither fields nor a finish. `thread_fill` and `thread_confirm` do not apply to a plan
 target.
@@ -214,7 +254,9 @@ goes through the core; this way it knows the state for context, end and display.
 If a plan thread is running at the place, it is in layer 7 like every thread, with its plan:
 
 - **If the plan has checkboxes**, a window: how many are done, the last step done (`previous`), the
-  first open one (`current`) and the second open one (`next`). This makes "weiter", "nochmal" and "einen zurück" possible without
+  first open one (`current`) and the second open one (`next`). A short plan (up to ten steps, such as the answering
+  machine's messages) shows every open step after the current one instead (2026-10-29: "weiter" played only the next
+  two of three). This makes "weiter", "nochmal" and "einen zurück" possible without
   reading up. With parallel strands this is an approximation; for everything else Mira reads up with `read`.
 - **Without checkboxes** only the reference: that a plan exists and how long it is; Mira reads it when needed.
 
@@ -230,11 +272,11 @@ thread. There are no fixed phrases.
 1. **Start:** `thread_start` with a plan target, then `thread_plan write`. If a thread of this target is already running at the place,
    `thread_start` says so; Mira asks whether to continue or start anew (anew: first `thread_cancel`).
 2. **Running:** Every activity on the plan restarts the deadline (default 1 hour, changeable in the skill).
-3. **All ticked:** The thread stays open for another **30 minutes**, so that one can refer to it ("halt,
+3. **All ticked:** The thread stays open for another **30 minutes** (`done_after`), so that one can refer to it ("halt,
    doch nicht fertig": `uncheck`). Then it is done.
 4. **Cancel** with `thread_cancel`, **expire** without activity within the deadline. With the end, the plan is gone.
-5. A plan applies at its place: with a known person at every satellite, otherwise in its room; a private area keeps
-   its plans, and none come in from outside.
+5. A plan applies at its place, by its type's binding (Assignment): a person's at every satellite, a room's in that
+   room for anyone there; a private area keeps its plans, and none come in from outside.
 
 What should become permanent during the process ("merk dir, weniger Salz") goes into memory as before, not into the plan.
 

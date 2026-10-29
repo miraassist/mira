@@ -8,6 +8,7 @@ import (
 
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/config"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/trace"
 )
@@ -21,7 +22,7 @@ const (
 
 func (a *app) calendarList(ctx context.Context) ([]calendar.Info, error) {
 	exposed := a.structure.Snapshot().ExposedEntities
-	states, err := a.ha.States(ctx)
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{Domains: []string{"calendar"}})
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,7 @@ func (a *app) deleteEvent(ctx context.Context, entity, uid, recurrenceID string)
 // id; "standard" is the only one, or asks which.
 func (a *app) checkTodoList(ctx context.Context, value string) (string, error) {
 	exposed := a.structure.Snapshot().ExposedEntities
-	states, err := a.ha.States(ctx)
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{Domains: []string{"todo"}})
 	if err != nil {
 		return "", err
 	}

@@ -99,7 +99,11 @@ class MiraHome extends Light {
       }],
     ];
     // The house's messages for everyone, all of them for admins.
-    tries.push(["messages", async () => (await api("GET", "/v1/ui/messages?open=1")).items || []]);
+    tries.push(["messages", async () => {
+      const r = await api("GET", "/v1/ui/messages?open=1");
+      facts.phone = r.phone; // what waits on the answering machine, if anything
+      return r.items || [];
+    }]);
     if (isAdmin) {
       tries.push(
         ["tasks", async () => { const r = await api("GET", "/v1/ui/tasks"); return r.items || r.tasks || []; }],
@@ -118,6 +122,9 @@ class MiraHome extends Light {
     switch (group) {
       case "daily":
         if (f.messages) out.push(f.messages.length ? T.home_messages(f.messages.length) : T.home_no_messages);
+        if (f.phone) out.push(f.phone.url
+          ? html`<a href=${f.phone.url} target="_blank" rel="noopener">${T.phone_line(f.phone.messages, f.phone.missed)}</a>`
+          : T.phone_line(f.phone.messages, f.phone.missed));
         if (f.plans) out.push(f.plans.length ? T.home_plans(f.plans.length) : T.home_no_plans);
         if (f.tasks) out.push(T.home_tasks(f.tasks.length));
         break;

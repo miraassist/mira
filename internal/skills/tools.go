@@ -22,8 +22,9 @@ type Set struct {
 	Skills   []Skill
 	Clock    func() time.Time
 	Location *time.Location
-	// OnOpen notes that a conversation opened a skill with an MCP server:
-	// its tools stay with that conversation (docs/spec/skill-mcp.md).
+	// OnOpen notes that a conversation opened a skill: its tools (an MCP
+	// server's, or Mira's own that come with it) stay with that conversation
+	// (docs/spec/skill-mcp.md).
 	OnOpen func(ctx context.Context, sessionKey, skill string) error
 	// Home gives where the house is, as Home Assistant knows it: the values of
 	// the placeholders home.latitude, home.longitude and home.name.
@@ -110,7 +111,7 @@ func (s *Set) Tools() []tools.InternalTool {
 			if !ok {
 				return "", fmt.Errorf(t.noSkill, a.Name)
 			}
-			if sk.MCP != nil && s.OnOpen != nil && inv.SessionKey != "" {
+			if s.OnOpen != nil && inv.SessionKey != "" {
 				if err := s.OnOpen(ctx, inv.SessionKey, sk.Name); err != nil {
 					return "", err
 				}

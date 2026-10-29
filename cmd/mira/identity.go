@@ -36,12 +36,7 @@ func (a *app) identify(ctx context.Context, req conversation.Request) (person, b
 			if !anyAloneIsMe(persons) {
 				return ""
 			}
-			states, err := a.ha.States(ctx)
-			if err != nil {
-				a.log.Warn("could not read person states", "error", err)
-				return ""
-			}
-			return aloneAtHome(persons, states)
+			return aloneAtHome(persons, a.people.personStates())
 		})
 	}
 	return "", ""

@@ -6,6 +6,7 @@ metadata:
   mira:
     target:
       plan: true
+      bound: room
       timeout: 1h
       agent: kochen.rezept
       input: { input: "{{ request }}" }

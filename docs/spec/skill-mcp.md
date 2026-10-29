@@ -49,6 +49,8 @@ skills:
 - **Not before the skill is opened.** The shared prefix holds no tool of a skill's server.
 - **Opening the skill** (`skill_open`) in a conversation makes its tools available **for the rest of that
   conversation**, until the session expires. Another conversation does not get them.
+  The same holds for the tools Mira brings herself for a skill without a server (`anrufbeantworter`, `regel`); until
+  2026-10-29 only a skill with a server was noted as opened, so those tools never reached the conversation (SM-14).
 - **The skill's schedules** (`skill.task` running for that skill) get its tools.
 - **The skill's agents** (`metadata.mira.agents`) get the tools their `tools` list names, whether the conversation,
   a thread or Home Assistant calls them (agenten.md, Factory). Such an agent with `conversation: true` is a tool of

@@ -146,7 +146,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 	// Turn 2, a new HA conversation answering the announcement: it joins
 	// the thread by the code, and the model sees it.
 	inv2, sess2 := e.turn(t, "voice:b")
-	ctxText, _ := e.m.Context(ctx, sess2, placeOf(sess2), []string{q.ID})
+	ctxText, _ := e.m.Context(ctx, sess2, placeOf(sess2), []string{q.ID}, "")
 	if !strings.Contains(ctxText, "Laufender Vorgang") || !strings.Contains(ctxText, "Ab wann ist es ungewöhnlich?") ||
 		!strings.Contains(ctxText, "zu ungewöhnlicher Zeit") {
 		t.Fatalf("context:\n%s", ctxText)
@@ -162,7 +162,7 @@ func TestThreadOverSeveralTurns(t *testing.T) {
 
 	// Turn 3 answers the proposal: yes.
 	inv3, sess3 := e.turn(t, "voice:c")
-	if text, _ := e.m.Context(ctx, sess3, placeOf(sess3), []string{p.ID}); !strings.Contains(text, "thread_confirm") {
+	if text, _ := e.m.Context(ctx, sess3, placeOf(sess3), []string{p.ID}, ""); !strings.Contains(text, "thread_confirm") {
 		t.Errorf("no confirm hint:\n%s", text)
 	}
 	out, err = e.m.Confirm(ctx, inv3)
@@ -187,18 +187,18 @@ func TestWaitingThreadShownAtItsPlaceAndExpires(t *testing.T) {
 	// A later turn in the same room, not answering an announcement: the
 	// model sees the waiting thread and may continue or leave it.
 	_, sess := e.turn(t, "voice:b")
-	if text, _ := e.m.Context(ctx, sess, placeOf(sess), nil); !strings.Contains(text, "Hier wartet ein Vorgang") {
+	if text, _ := e.m.Context(ctx, sess, placeOf(sess), nil, ""); !strings.Contains(text, "Hier wartet ein Vorgang") {
 		t.Errorf("waiting thread not shown:\n%s", text)
 	}
 	// Elsewhere it is not shown.
 	other, _ := e.st.UpsertSession(ctx, store.Session{Key: "voice:k", Channel: "voice", ConversationID: "k", AreaID: "kueche"}, time.Hour)
-	if text, _ := e.m.Context(ctx, other, placeOf(other), nil); text != "" {
+	if text, _ := e.m.Context(ctx, other, placeOf(other), nil, ""); text != "" {
 		t.Errorf("shown in another room:\n%s", text)
 	}
 
 	e.now = e.now.Add(16 * time.Minute)
 	e.m.expire(ctx)
-	if text, _ := e.m.Context(ctx, sess, placeOf(sess), nil); text != "" {
+	if text, _ := e.m.Context(ctx, sess, placeOf(sess), nil, ""); text != "" {
 		t.Errorf("expired thread still shown:\n%s", text)
 	}
 }

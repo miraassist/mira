@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -31,6 +32,8 @@ type fakeHA struct {
 	// private records what went to notify targets (a person's channels),
 	// apart from calls: those are what was spoken or switched.
 	private *fakePrivate
+	// changed is closed by the next set: what WaitState waits on.
+	changed chan struct{}
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
@@ -48,12 +51,16 @@ func (f *fakeHA) CallService(_ context.Context, domain, service string, data map
 	return f.callErr
 }
 
-func (f *fakeHA) States(context.Context) ([]haws.State, error) {
+// GetStates filters as Home Assistant does: only the entities asked for.
+func (f *fakeHA) GetStates(_ context.Context, filter haws.StateFilter) ([]haws.State, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []haws.State
 	for _, s := range f.states {
-		out = append(out, s)
+		domain, _, _ := strings.Cut(s.EntityID, ".")
+		if slices.Contains(filter.EntityIDs, s.EntityID) || slices.Contains(filter.Domains, domain) {
+			out = append(out, s)
+		}
 	}
 	return out, nil
 }
@@ -69,7 +76,35 @@ func (f *fakeHA) Entities(context.Context) ([]haws.Entity, error) {
 func (f *fakeHA) set(entity, state string, attrs map[string]any) {
 	f.mu.Lock()
 	f.states[entity] = haws.State{EntityID: entity, State: state, Attributes: attrs}
+	if f.changed != nil {
+		close(f.changed)
+		f.changed = nil
+	}
 	f.mu.Unlock()
+}
+
+// WaitState is Home Assistant's subscription, faked: every set wakes it.
+func (f *fakeHA) WaitState(ctx context.Context, entity string, limit time.Duration, ok func(string) bool) bool {
+	deadline := time.After(limit)
+	for {
+		f.mu.Lock()
+		state := f.states[entity].State
+		if f.changed == nil {
+			f.changed = make(chan struct{})
+		}
+		changed := f.changed
+		f.mu.Unlock()
+		if ok(state) {
+			return true
+		}
+		select {
+		case <-changed:
+		case <-deadline:
+			return false
+		case <-ctx.Done():
+			return false
+		}
+	}
 }
 
 func (f *fakeHA) servicesCalled() []string {

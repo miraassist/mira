@@ -12,6 +12,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -231,7 +232,13 @@ func (m *Manager) presence(ctx context.Context) (home, away []string) {
 	if len(persons) == 0 {
 		return nil, nil
 	}
-	states, err := m.opts.Source.States(ctx)
+	var entities []string
+	for _, p := range persons {
+		if p.Entity != "" {
+			entities = append(entities, p.Entity)
+		}
+	}
+	states, err := m.opts.Source.GetStates(ctx, haws.StateFilter{EntityIDs: entities})
 	if err != nil {
 		return nil, nil
 	}

@@ -71,7 +71,6 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 // that asked for it.
 func TestTellWaitsForIdleSatellite(t *testing.T) {
 	e := newEnv(t, nil)
-	e.n.idlePoll = 10 * time.Millisecond
 	sat := e.n.sats["kueche"]
 	e.ha.set(sat, "responding", nil)
 	go func() {
@@ -118,7 +117,6 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 // announcement waits for the speaker, then a breath.
 func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 	e := newEnv(t, nil)
-	e.n.idlePoll = 10 * time.Millisecond
 	e.n.speakPause = 50 * time.Millisecond
 	e.ha.set("media_player.kueche", "playing", nil)
 	done := make(chan time.Time, 1)

@@ -41,7 +41,11 @@ func (m *Manager) render(ctx context.Context, data []DataRequest) string {
 		return ""
 	}
 	t := m.texts()
-	states, err := m.opts.Source.States(ctx)
+	ids := make([]string, 0, len(data))
+	for _, d := range data {
+		ids = append(ids, d.EntityID)
+	}
+	states, err := m.opts.Source.GetStates(ctx, haws.StateFilter{EntityIDs: ids})
 	if err != nil {
 		return fmt.Sprintf(t.viewFailed, err)
 	}

@@ -84,10 +84,10 @@ persons:
   ben: { entity: person.ben }
 
 # The speaker-id service on this machine (services/speaker-id); its token is
-# SPEAKER_ID_TOKEN in testenv/.env. Off for now (2026-10-26): "alone at home" only.
-# speaker_id:
-#   url: http://localhost:10311
-#   token: ${SPEAKER_ID_TOKEN}
+# SPEAKER_ID_TOKEN in testenv/.env.
+speaker_id:
+  url: http://localhost:10311
+  token: ${SPEAKER_ID_TOKEN}
 
 notifier:
   quiet_hours: { from: "23:30", to: "06:30" }
@@ -129,6 +129,7 @@ skills:
   routine: {}
   sprit: {}
   telefon: {}
+  anrufbeantworter: {}
   tuerklingel: {}
   urlaub: {}
   vokabeln: {}

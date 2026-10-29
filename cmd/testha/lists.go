@@ -69,20 +69,12 @@ func ensureLists(ctx context.Context, admin *haws.Client, token string) error {
 	return fillExamples(ctx, token)
 }
 
+// waitFor waits until Home Assistant has the entity, watching it.
 func waitFor(ctx context.Context, admin *haws.Client, entity string) error {
-	for i := 0; i < 20; i++ {
-		states, err := admin.States(ctx)
-		if err != nil {
-			return err
-		}
-		for _, s := range states {
-			if s.EntityID == entity {
-				return nil
-			}
-		}
-		time.Sleep(500 * time.Millisecond)
+	if !admin.WaitState(ctx, entity, 10*time.Second, func(s string) bool { return s != "" }) {
+		return fmt.Errorf("%s did not appear", entity)
 	}
-	return fmt.Errorf("%s did not appear", entity)
+	return nil
 }
 
 func fillExamples(ctx context.Context, token string) error {

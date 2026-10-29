@@ -78,11 +78,12 @@ func (a *app) phoneLine(ctx context.Context, deviceID string) phone.Line {
 			sensor = e.EntityID
 		}
 	}
-	if states, err := a.ha.States(ctx); err == nil {
+	if sensor == "" {
+		return line
+	}
+	if states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{sensor}}); err == nil {
 		for _, s := range states {
-			if s.EntityID == sensor {
-				line.State = s.State
-			}
+			line.State = s.State
 		}
 	}
 	return line

@@ -124,7 +124,8 @@ type Options struct {
 	// Thread links the turn to its thread ("Vorgang", package threads) and
 	// renders it for layer 7. place is where the turn's threads live;
 	// followedUp are the messages this turn answers.
-	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string) (text string, foreign bool)
+	// announced is the thread an announcement on the satellite named itself.
+	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (text string, foreign bool)
 	// PersonName names a person key for the model (Home Assistant's name);
 	// without it, or when it returns "", the model sees the key.
 	PersonName func(person string) string
@@ -157,7 +158,7 @@ type Engine struct {
 	assist      func() string
 	deviceHints func(device string) string
 	afterword   func(ctx context.Context, area string) string
-	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool)
+	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
 	// follow are the voice conversations Mira's last answer left listening,
 	// by conversation id: whose they are, at which satellite, since when.
@@ -314,11 +315,11 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 
 // threadContext is the turn's thread for layer 7, if any, and whether it
 // carries third-party text.
-func (e *Engine) threadContext(ctx context.Context, sess store.Session, place string, followedUp []string) (string, bool) {
+func (e *Engine) threadContext(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool) {
 	if e.thread == nil {
 		return "", false
 	}
-	return e.thread(ctx, sess, place, followedUp)
+	return e.thread(ctx, sess, place, followedUp, announced)
 }
 
 // belongsTo says what a turn belongs to (docs/spec/agenten.md, What a turn
@@ -380,8 +381,8 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if e.languages != nil {
 		ctx = i18n.WithLang(ctx, e.languages.Turn(ctx, req.Language, sess.AreaID, person))
 	}
-	messageText, followedUp := e.messageContext(ctx, req.DeviceID)
-	threadText, foreign := e.threadContext(ctx, sess, ts.Place, followedUp)
+	messageText, followedUp, announced := e.messageContext(ctx, req.DeviceID)
+	threadText, foreign := e.threadContext(ctx, sess, ts.Place, followedUp, announced)
 	ts.ForeignContext = foreign
 	turn := prompt.Turn{
 		Lang:           e.lang(ctx),
@@ -558,7 +559,9 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if ts.WebContentSeen() {
 		e.noteWeb(key)
 	}
-	resp.ContinueConversation = req.Channel == config.ChannelVoice &&
+	// Never after a tool that plays something after the answer: the
+	// satellite's microphone would hear the recording.
+	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) &&
 		(expectsReply(resp.Text) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
@@ -747,6 +750,19 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, areaI
 }
 
 // calledTool reports whether a tool was called in these messages.
+// playsAfter says whether the turn called a tool that plays something at the
+// satellite after the answer.
+func (e *Engine) playsAfter(msgs []llm.Message) bool {
+	for _, m := range msgs {
+		for _, c := range m.ToolCalls {
+			if spec, ok := e.tools.Lookup(c.Function.Name); ok && spec.PlaysAfter {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func calledTool(msgs []llm.Message, name string) bool {
 	for _, m := range msgs {
 		for _, c := range m.ToolCalls {

@@ -515,3 +515,62 @@ func TestPageShowsTheIntegrationsVersion(t *testing.T) {
 		t.Error("without the integration the page keeps a placeholder")
 	}
 }
+
+// phoneServer serves the page with news waiting on the answering machine.
+func phoneServer(t *testing.T, news *PhoneNews) func(path string) *PhoneNews {
+	t.Helper()
+	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	h := New(Options{Token: "secret", Store: st, Phone: func(context.Context) (PhoneNews, error) { return *news, nil }})
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return func(path string) *PhoneNews {
+		t.Helper()
+		var r struct{ Phone *PhoneNews }
+		_, body := call(t, srv, "GET", path, "secret", "")
+		if err := json.Unmarshal([]byte(body), &r); err != nil {
+			t.Fatal(body)
+		}
+		return r.Phone
+	}
+}
+
+// What waits on the answering machine comes with the open messages the
+// start page reads, with the box's web interface as the link, and only a
+// web address as the link.
+func TestAB20_StartPageNamesTheAnsweringMachine(t *testing.T) {
+	news := PhoneNews{Messages: 2, Missed: 1, URL: "http://box"}
+	phone := phoneServer(t, &news)
+	if p := phone("/v1/ui/messages?open=1"); p == nil || *p != news {
+		t.Fatalf("got %+v", p)
+	}
+	news.URL = "javascript:alert(1)"
+	if p := phone("/v1/ui/messages?open=1"); p == nil || p.URL != "" {
+		t.Errorf("not a web address: %+v", p)
+	}
+}
+
+func TestAB21_NothingWaitsNothingShows(t *testing.T) {
+	news := PhoneNews{URL: "http://box"}
+	phone := phoneServer(t, &news)
+	for _, path := range []string{"/v1/ui/messages?open=1", "/v1/ui/messages"} {
+		if p := phone(path); p != nil {
+			t.Errorf("%s: %+v", path, p)
+		}
+	}
+}
+
+// The messages page gets it on its first page, above the house's messages.
+func TestAB22_MessagesPageTeasesIt(t *testing.T) {
+	news := PhoneNews{Messages: 1, URL: "http://box"}
+	phone := phoneServer(t, &news)
+	if p := phone("/v1/ui/messages"); p == nil || p.Messages != 1 {
+		t.Fatalf("got %+v", p)
+	}
+	if p := phone("/v1/ui/messages?page=1"); p != nil {
+		t.Errorf("only on the first page: %+v", p)
+	}
+}

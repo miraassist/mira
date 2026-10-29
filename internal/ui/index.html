@@ -666,6 +666,8 @@ const I18N = {
   "runs_title": "Läufe",
   "home_messages": n => n === 1 ? "1 Nachricht wartet" : `${n} Nachrichten warten`,
   "home_no_messages": "Keine Nachricht wartet",
+  "phone_line": (m, k) => [m ? (m === 1 ? "1 neue Nachricht" : `${m} neue Nachrichten`) + " auf dem Anrufbeantworter" : "",
+    k ? (k === 1 ? "1 verpasster Anruf" : `${k} verpasste Anrufe`) : ""].filter(Boolean).join(" · "),
   "home_plans": n => n === 1 ? "1 Plan läuft" : `${n} Pläne laufen`,
   "home_no_plans": "Kein Plan läuft",
   "home_tasks": n => n === 1 ? "1 Aufgabe" : `${n} Aufgaben`,
@@ -1125,6 +1127,8 @@ const I18N = {
   "runs_title": "Runs",
   "home_messages": n => n === 1 ? "1 message waiting" : `${n} messages waiting`,
   "home_no_messages": "No message waiting",
+  "phone_line": (m, k) => [m ? (m === 1 ? "1 new message" : `${m} new messages`) + " on the answering machine" : "",
+    k ? (k === 1 ? "1 missed call" : `${k} missed calls`) : ""].filter(Boolean).join(" · "),
   "home_plans": n => n === 1 ? "1 plan running" : `${n} plans running`,
   "home_no_plans": "No plan running",
   "home_tasks": n => n === 1 ? "1 task" : `${n} tasks`,
@@ -1527,7 +1531,10 @@ async function messages() {
         ${r.more ? `<button class="secondary" onclick="messagePage++; messages()">${T.older}</button>` : ""}
       </div>` : "";
     const you = (await whoAmI()).person;
-    $("#list").innerHTML = messageItems(r.items || [], n => isAdmin || (!!you && n.receiver === you)) + pager;
+    // The answering machine's as a teaser above the house's, linking to the box.
+    const p = r.phone, line = p ? esc(T.phone_line(p.messages, p.missed)) : "";
+    const phone = p ? `<p class="msg ok">${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${line}</a>` : line}</p>` : "";
+    $("#list").innerHTML = phone + messageItems(r.items || [], n => isAdmin || (!!you && n.receiver === you)) + pager;
   } catch (e) { message(e.message, false); }
 }
 // messageItems lists messages; done can be marked where may(n) says so.

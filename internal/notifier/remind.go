@@ -139,53 +139,14 @@ func (n *Notifier) speakers(ctx context.Context, sat string) []string {
 	return out
 }
 
-// waitWhile polls an entity while busy says so, for at most limit. An
+// waitWhile waits while busy says so of an entity, for at most limit. An
 // entity without a state is not busy.
 func (n *Notifier) waitWhile(ctx context.Context, entity string, limit time.Duration, busy func(state string) bool) {
-	deadline := time.Now().Add(limit)
-	for {
-		states, err := n.ha.States(ctx)
-		if err != nil {
-			return
-		}
-		waiting := false
-		for _, s := range states {
-			if s.EntityID == entity && busy(s.State) {
-				waiting = true
-			}
-		}
-		if !waiting || time.Now().After(deadline) {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(n.idlePoll):
-		}
-	}
+	n.ha.WaitState(ctx, entity, limit, func(s string) bool { return !busy(s) })
 }
 
-// waitFor polls the satellite's state until ok accepts it, for at most
-// limit; it reports whether ok did.
+// waitFor waits until ok accepts the satellite's state, for at most limit;
+// it reports whether ok did.
 func (n *Notifier) waitFor(ctx context.Context, sat string, limit time.Duration, ok func(state string) bool) bool {
-	deadline := time.Now().Add(limit)
-	for {
-		states, err := n.ha.States(ctx)
-		if err != nil {
-			return false
-		}
-		for _, s := range states {
-			if s.EntityID == sat && ok(s.State) {
-				return true
-			}
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		select {
-		case <-ctx.Done():
-			return false
-		case <-time.After(n.idlePoll):
-		}
-	}
+	return n.ha.WaitState(ctx, sat, limit, ok)
 }

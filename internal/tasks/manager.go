@@ -21,7 +21,8 @@ import (
 
 // Source is what the tasks read from Home Assistant.
 type Source interface {
-	States(ctx context.Context) ([]haws.State, error)
+	// GetStates reads the states Home Assistant filters for it.
+	GetStates(ctx context.Context, f haws.StateFilter) ([]haws.State, error)
 	Statistics(ctx context.Context, ids []string, start time.Time, period string) (map[string][]haws.StatRow, error)
 }
 
@@ -132,8 +133,22 @@ type Origin struct {
 	Area, Person string
 }
 
+// exposedStates are the states of what Mira may see, as Home Assistant
+// filters them: never every state in the house.
+func (m *Manager) exposedStates(ctx context.Context) ([]haws.State, error) {
+	exposed := m.opts.Snapshot().ExposedEntities
+	ids := make([]string, 0, len(exposed))
+	for id, ok := range exposed {
+		if ok {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	return m.opts.Source.GetStates(ctx, haws.StateFilter{EntityIDs: ids})
+}
+
 func (m *Manager) DraftAutomation(ctx context.Context, request string, fields map[string]string, from Origin) (Draft, error) {
-	states, err := m.opts.Source.States(ctx)
+	states, err := m.exposedStates(ctx)
 	if err != nil {
 		return Draft{}, err
 	}

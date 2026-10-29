@@ -417,7 +417,7 @@ func TestConcurrentCallsKeepIDsIncreasing(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := c.States(ctx); err != nil {
+			if _, err := c.Areas(ctx); err != nil {
 				errs <- err
 			}
 		}()
@@ -426,5 +426,88 @@ func TestConcurrentCallsKeepIDsIncreasing(t *testing.T) {
 	close(errs)
 	for err := range errs {
 		t.Fatal(err)
+	}
+}
+
+// WaitState watches one entity: it sees the state it has now, a later
+// change, and gives up after its limit; it never asks for all states.
+func TestWaitStateWatchesOneEntity(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "assist_satellite.show", State: "responding"}, {EntityID: "light.other", State: "on"}})
+	c, ctx := startClient(t, srv, "test-token")
+	if !c.WaitState(ctx, "assist_satellite.show", time.Second, func(s string) bool { return s == "responding" }) {
+		t.Fatal("the state it has now was not seen")
+	}
+	done := make(chan bool, 1)
+	go func() {
+		done <- c.WaitState(ctx, "assist_satellite.show", 3*time.Second, func(s string) bool { return s == "idle" })
+	}()
+	waitFor(t, func() bool { return srv.SubscriptionCount() == 1 })
+	srv.SetState("light.other", "off", nil)
+	srv.SetState("assist_satellite.show", "idle", nil)
+	if !<-done {
+		t.Fatal("the change was not seen")
+	}
+	if c.WaitState(ctx, "assist_satellite.show", 50*time.Millisecond, func(s string) bool { return s == "listening" }) {
+		t.Error("a state it never had")
+	}
+	if !c.WaitState(ctx, "assist_satellite.gone", time.Second, func(s string) bool { return s == "" }) {
+		t.Error("an unknown entity is not \"\"")
+	}
+}
+
+// GetStates reads only what Home Assistant filtered for it: the entities
+// and domains asked for, nothing else; an empty filter asks nothing.
+func TestGetStatesReadsOnlyTheFilter(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "person.anna", State: "home"}, {EntityID: "person.ben", State: "not_home"},
+		{EntityID: "light.kitchen", State: "on"}, {EntityID: "sensor.calls", State: "2"}})
+	c, ctx := startClient(t, srv, "test-token")
+	got, err := c.GetStates(ctx, haws.StateFilter{EntityIDs: []string{"sensor.calls"}, Domains: []string{"person"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for _, s := range got {
+		ids[s.EntityID] = s.State
+	}
+	if len(ids) != 3 || ids["person.anna"] != "home" || ids["sensor.calls"] != "2" {
+		t.Errorf("got %v", ids)
+	}
+	if got, _ := c.GetStates(ctx, haws.StateFilter{}); got != nil {
+		t.Errorf("empty filter read %v", got)
+	}
+	waitFor(t, func() bool { return srv.SubscriptionCount() == 0 })
+}
+
+// WatchStates keeps a domain's states current: changes and new entities
+// come in, other domains do not.
+func TestWatchStatesKeepsADomain(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	srv.SetStates([]haws.State{{EntityID: "person.anna", State: "home"}, {EntityID: "light.kitchen", State: "on"}})
+	c, ctx := startClient(t, srv, "test-token")
+	changed := make(chan struct{}, 8)
+	w, err := c.WatchStates(ctx, haws.StateFilter{Domains: []string{"person"}}, func() { changed <- struct{}{} })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Stop()
+	<-changed
+	if !w.Ready() || len(w.States()) != 1 {
+		t.Fatalf("ready %v, states %v", w.Ready(), w.States())
+	}
+	srv.SetState("person.anna", "not_home", nil)
+	srv.SetState("person.ben", "home", map[string]any{"friendly_name": "Ben"})
+	srv.SetState("light.kitchen", "off", nil)
+	waitFor(t, func() bool {
+		a, _ := w.State("person.anna")
+		b, _ := w.State("person.ben")
+		return a.State == "not_home" && b.State == "home"
+	})
+	if _, ok := w.State("light.kitchen"); ok {
+		t.Error("another domain came in")
 	}
 }

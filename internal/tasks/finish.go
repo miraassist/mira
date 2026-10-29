@@ -23,7 +23,7 @@ var entityPattern = regexp.MustCompile(`\b[a-z_]+\.[a-z0-9_]+\b`)
 // every id it names must exist. The value comes back with the ids of the
 // entities found, so the planner works with ids.
 func (m *Manager) CheckEntities(ctx context.Context, value string) (string, error) {
-	states, err := m.opts.Source.States(ctx)
+	states, err := m.exposedStates(ctx)
 	if err != nil {
 		return "", err
 	}

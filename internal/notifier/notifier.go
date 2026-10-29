@@ -33,8 +33,12 @@ import (
 // HA is the part of the Home Assistant client the notifier needs.
 type HA interface {
 	CallService(ctx context.Context, domain, service string, data map[string]any, target *haws.Target) error
-	States(ctx context.Context) ([]haws.State, error)
+	// GetStates reads the states Home Assistant filters for it.
+	GetStates(ctx context.Context, f haws.StateFilter) ([]haws.State, error)
 	Entities(ctx context.Context) ([]haws.Entity, error)
+	// WaitState waits until ok accepts an entity's state, for at most
+	// limit, watching that entity rather than asking again and again.
+	WaitState(ctx context.Context, entity string, limit time.Duration, ok func(state string) bool) bool
 }
 
 type Options struct {
@@ -53,7 +57,14 @@ type Options struct {
 	// Languages says which language an area or a person gets
 	// (docs/spec/sprache.md); tests without it get the default language.
 	Languages Languages
+	// Phone is what is new on the FRITZ!Box's answering machine
+	// (docs/spec/anrufbeantworter.md); nil without the skill anrufbeantworter.
+	Phone func(ctx context.Context) (PhoneNews, error)
 }
+
+// PhoneNews is what is new at the FRITZ!Box: messages not heard, missed
+// calls not seen.
+type PhoneNews struct{ Messages, Missed int }
 
 // Languages is package language as the notifier needs it.
 type Languages interface {
@@ -63,27 +74,36 @@ type Languages interface {
 }
 
 type Notifier struct {
-	// indicatorOn is the last state set per area; missing means unknown.
-	indicatorOn map[string]bool
-	langs       Languages
-	cfg         config.Notifier
-	sats        map[string]string
-	persons     map[string]config.Person
-	store       *store.Store
-	ha          HA
-	clock       func() time.Time
-	loc         *time.Location
-	log         *slog.Logger
-	tel         *telemetry.Provider
-	composer    Composer
-	screens     map[string]string
+	// indicatorOn is the last state set per area ("" off, else what it
+	// shows: indicatorMira, indicatorVoicemail, indicatorMissed); missing
+	// means unknown.
+	indicatorOn map[string]string
+	phone       func(ctx context.Context) (PhoneNews, error)
+	// phoneShown is what each screen's phone hint last showed.
+	phoneShown map[string]PhoneNews
+	// phoneHeld are the areas playing messages of the answering machine:
+	// their screen gets no new hint until it ends.
+	phoneHeld map[string]bool
+	// awaitingIdle are the areas whose satellite is in a conversation, with
+	// a hint waiting until it is idle again (screen.go).
+	awaitingIdle map[string]bool
+	langs        Languages
+	cfg          config.Notifier
+	sats         map[string]string
+	persons      map[string]config.Person
+	store        *store.Store
+	ha           HA
+	clock        func() time.Time
+	loc          *time.Location
+	log          *slog.Logger
+	tel          *telemetry.Provider
+	composer     Composer
+	screens      map[string]string
 	// screenCount is what each screen overlay last showed; screenShown when.
 	screenCount map[string]int
 	screenShown map[string]time.Time
 	areas       map[string]bool
 
-	// idlePoll is how often waitFor looks at a satellite.
-	idlePoll time.Duration
 	// speakingIn marks areas whose indicator glows for an announcement;
 	// speakingStart is how long the satellite may take to start speaking.
 	speakingIn    map[string]bool
@@ -113,7 +133,6 @@ func New(opts Options) *Notifier {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
 	n := &Notifier{
-		idlePoll:      500 * time.Millisecond,
 		speakingIn:    map[string]bool{},
 		speakingStart: 15 * time.Second,
 		speakPause:    1500 * time.Millisecond,
@@ -132,7 +151,11 @@ func New(opts Options) *Notifier {
 		screenCount:   map[string]int{},
 		screenShown:   map[string]time.Time{},
 		areas:         map[string]bool{},
-		indicatorOn:   map[string]bool{},
+		indicatorOn:   map[string]string{},
+		phone:         opts.Phone,
+		phoneShown:    map[string]PhoneNews{},
+		phoneHeld:     map[string]bool{},
+		awaitingIdle:  map[string]bool{},
 		deviceOf:      map[string]string{},
 	}
 	for _, a := range opts.Config.Notifier.MorningTrigger.Areas {
@@ -383,7 +406,13 @@ func (n *Notifier) whoIsHome(ctx context.Context) map[string]bool {
 	if len(n.persons) == 0 {
 		return home
 	}
-	states, err := n.ha.States(ctx)
+	var entities []string
+	for _, p := range n.persons {
+		if p.Entity != "" {
+			entities = append(entities, p.Entity)
+		}
+	}
+	states, err := n.ha.GetStates(ctx, haws.StateFilter{EntityIDs: entities})
 	if err != nil {
 		n.log.Warn("could not read person states", "error", err)
 		home["?"] = true
@@ -434,6 +463,9 @@ type texts struct {
 	prefixToday, prefixNight, prefixYesterday, prefixDate string
 	// The screen overlay (screen.go): one, several (%d), all heard.
 	screenOne, screenMany, screenHeard string
+	// The answering machine on the screen: one message, several (%d), one
+	// missed call, several (%d).
+	phoneMessage, phoneMessages, phoneMissed, phoneMisseds string
 }
 
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
@@ -455,9 +487,11 @@ Regeln:
 		importance:     "Wichtigkeit",
 		whenToday:      "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
 		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: ",
-		screenOne:   "1 Nachricht wartet – frag: „Hast du eine Benachrichtigung?“",
-		screenMany:  "%d Nachrichten warten – frag: „Hast du eine Benachrichtigung?“",
-		screenHeard: "Alles gehört"},
+		screenOne:    "1 Nachricht wartet – frag: „Hast du eine Benachrichtigung?“",
+		screenMany:   "%d Nachrichten warten – frag: „Hast du eine Benachrichtigung?“",
+		screenHeard:  "Alles gehört",
+		phoneMessage: "1 Nachricht auf dem Anrufbeantworter", phoneMessages: "%d Nachrichten auf dem Anrufbeantworter",
+		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe"},
 	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
 		counts: []string{"zero", "one", "two", "three", "four", "five"},
 		composeTask: `Word these waiting messages as ONE spoken announcement for the room. It is %s now.
@@ -474,9 +508,11 @@ Rules:
 		importance:     "importance",
 		whenToday:      "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
 		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: ",
-		screenOne:   "1 message waiting – ask: \"Do you have a notification?\"",
-		screenMany:  "%d messages waiting – ask: \"Do you have a notification?\"",
-		screenHeard: "All heard"},
+		screenOne:    "1 message waiting – ask: \"Do you have a notification?\"",
+		screenMany:   "%d messages waiting – ask: \"Do you have a notification?\"",
+		screenHeard:  "All heard",
+		phoneMessage: "1 message on the answering machine", phoneMessages: "%d messages on the answering machine",
+		phoneMissed: "1 missed call", phoneMisseds: "%d missed calls"},
 }
 
 func sentence(s string) string {
@@ -562,14 +598,11 @@ const (
 )
 
 func (n *Notifier) satelliteMethod(ctx context.Context, sat string) string {
-	states, err := n.ha.States(ctx)
+	states, err := n.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{sat}})
 	if err != nil {
 		return "announce"
 	}
 	for _, s := range states {
-		if s.EntityID != sat {
-			continue
-		}
 		if f, ok := s.Attributes["supported_features"].(float64); ok && int(f)&featureStartConversation != 0 {
 			return "start_conversation"
 		}
@@ -639,8 +672,10 @@ func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, e
 	if len(p.Channels) == 0 {
 		return "", errors.New("no private channel configured")
 	}
+	// A channel that is a notify entity is sent to as one; the others are
+	// legacy notify services.
 	entities := map[string]bool{}
-	if states, err := n.ha.States(ctx); err == nil {
+	if states, err := n.ha.GetStates(ctx, haws.StateFilter{EntityIDs: p.Channels}); err == nil {
 		for _, s := range states {
 			if strings.HasPrefix(s.EntityID, "notify.") {
 				entities[s.EntityID] = true

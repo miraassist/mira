@@ -374,6 +374,12 @@ CREATE VIRTUAL TABLE memory_facts_fts USING fts5(
 INSERT INTO memory_facts_fts(memory_facts_fts) VALUES ('rebuild');
 `,
 	},
+	{
+		// An announcement may name its thread directly (the answering
+		// machine's "Nächste …"), without a message of the thread.
+		name: "0022_announcement_thread",
+		stmt: `ALTER TABLE announcements ADD COLUMN thread_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

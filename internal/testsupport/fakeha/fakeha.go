@@ -58,9 +58,9 @@ type connState struct {
 	lastID int
 	// subs maps subscription id to the event type it wants ("" means all).
 	subs map[int]string
-	// entitySubs maps subscription id to the entities a subscribe_entities
-	// command asked for.
-	entitySubs map[int][]string
+	// entitySubs maps subscription id to what a subscribe_entities
+	// subscription watches: its entity ids and included domains.
+	entitySubs map[int]entityFilter
 }
 
 func New() *Server {
@@ -167,6 +167,15 @@ func (s *Server) PushEvent(eventType string, data any) int {
 // SetState changes one entity's state and sends the change to every
 // subscribe_entities subscription watching it, in Home Assistant's compressed
 // diff form. It returns how many subscriptions got it.
+// entityFilter is subscribe_entities' filter as Home Assistant applies it:
+// entity_ids, and include.domains.
+type entityFilter struct{ ids, domains []string }
+
+func (f entityFilter) match(entityID string) bool {
+	domain, _, _ := strings.Cut(entityID, ".")
+	return slices.Contains(f.ids, entityID) || slices.Contains(f.domains, domain)
+}
+
 func (s *Server) SetState(entityID, state string, attributes map[string]any) int {
 	s.mu.Lock()
 	// Copy on write: dispatch reads the old slice without the lock.
@@ -198,11 +207,14 @@ func (s *Server) SetState(entityID, state string, attributes map[string]any) int
 	for _, cs := range conns {
 		cs.mu.Lock()
 		for id, want := range cs.entitySubs {
-			if !slices.Contains(want, entityID) {
+			if !want.match(entityID) {
 				continue
 			}
-			frame := map[string]any{"id": id, "type": "event",
-				"event": map[string]any{"c": map[string]any{entityID: map[string]any{"+": plus}}}}
+			event := map[string]any{"c": map[string]any{entityID: map[string]any{"+": plus}}}
+			if !found { // a new entity comes whole, as in Home Assistant
+				event = map[string]any{"a": map[string]any{entityID: map[string]any{"s": state, "a": attributes, "lc": plus["lc"]}}}
+			}
+			frame := map[string]any{"id": id, "type": "event", "event": event}
 			if writeJSON(cs.conn, frame) == nil {
 				sent++
 			}
@@ -237,7 +249,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(32 << 20)
 	ctx := context.Background()
-	cs := &connState{conn: conn, subs: map[int]string{}, entitySubs: map[int][]string{}}
+	cs := &connState{conn: conn, subs: map[int]string{}, entitySubs: map[int]entityFilter{}}
 
 	writeJSON(conn, map[string]any{"type": "auth_required", "ha_version": "2026.10.0"})
 
@@ -299,7 +311,7 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 	cs.lastID = id
 
 	s.mu.Lock()
-	areas, devices, entities, states := s.areas, s.devices, s.entities, s.states
+	areas, devices, entities := s.areas, s.devices, s.entities
 	s.mu.Unlock()
 
 	switch cmdType {
@@ -311,8 +323,6 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		reply(devices)
 	case haws.CmdEntityRegistryList:
 		reply(entities)
-	case haws.CmdGetStates:
-		reply(states)
 	case haws.CmdPing:
 		writeJSON(cs.conn, map[string]any{"id": id, "type": "pong"})
 	case haws.CmdCallService:
@@ -335,12 +345,19 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		// Admin-only in Home Assistant; the agent runs as a restricted user.
 		fail("unauthorized", "Unauthorized")
 	case haws.CmdSubscribeEntities:
-		ids, _ := cmd["entity_ids"].([]any)
-		want := make([]string, 0, len(ids))
-		for _, x := range ids {
-			if s, ok := x.(string); ok {
-				want = append(want, s)
+		strs := func(v any) []string {
+			list, _ := v.([]any)
+			out := make([]string, 0, len(list))
+			for _, x := range list {
+				if s, ok := x.(string); ok {
+					out = append(out, s)
+				}
 			}
+			return out
+		}
+		want := entityFilter{ids: strs(cmd["entity_ids"])}
+		if include, ok := cmd["include"].(map[string]any); ok {
+			want.domains = strs(include["domains"])
 		}
 		// Registering, reading the states and sending them happen under the
 		// connection lock, which SetState holds while sending diffs: like in
@@ -354,7 +371,7 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		s.mu.Unlock()
 		add := map[string]any{}
 		for _, st := range states {
-			if slices.Contains(want, st.EntityID) {
+			if want.match(st.EntityID) {
 				add[st.EntityID] = map[string]any{"s": st.State, "a": st.Attributes, "lc": 1.0}
 			}
 		}

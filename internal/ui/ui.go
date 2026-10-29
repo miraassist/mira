@@ -103,6 +103,9 @@ type Options struct {
 	// Editor changes models, agents and skills (docs/spec/bearbeiten.md);
 	// without it the pages only read.
 	Editor Editor
+	// Phone is what waits on the answering machine, for the start page and
+	// the messages page (docs/spec/anrufbeantworter.md); nil without it.
+	Phone func(ctx context.Context) (PhoneNews, error)
 	// Version is the agent's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
@@ -468,7 +471,27 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	if more {
 		out = out[:messagePage]
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": out, "page": page, "more": more})
+	resp := map[string]any{"items": out, "page": page, "more": more}
+	// The answering machine's beside the house's, while something waits there.
+	if h.opts.Phone != nil && page == 0 {
+		if news, err := h.opts.Phone(r.Context()); err == nil && news.Messages+news.Missed > 0 {
+			// A link the page opens: only to a web interface.
+			if !strings.HasPrefix(news.URL, "http://") && !strings.HasPrefix(news.URL, "https://") {
+				news.URL = ""
+			}
+			resp["phone"] = news
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// PhoneNews is what waits on the answering machine and where to play it.
+type PhoneNews struct {
+	Messages int `json:"messages"`
+	Missed   int `json:"missed"`
+	// URL is the FRITZ!Box's web interface; empty when Home Assistant does
+	// not know it.
+	URL string `json:"url,omitempty"`
 }
 
 // messagePage is how many messages the UI shows per page.

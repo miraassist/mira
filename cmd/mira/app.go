@@ -46,6 +46,7 @@ import (
 	"github.com/miraassist/mira/internal/timer"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
+	"github.com/miraassist/mira/internal/voicemail"
 	"github.com/miraassist/mira/internal/websearch"
 )
 
@@ -58,6 +59,8 @@ type app struct {
 	edit       *editor
 	// phonebook is the FRITZ!Box's, while the skill telefon is on.
 	phonebook *phone.Book
+	// voicemail is the FRITZ!Box's answering machine (skill anrufbeantworter).
+	voicemail *voicemail.Machine
 	log       *slog.Logger
 	tel       *telemetry.Provider
 	store     *store.Store
@@ -272,6 +275,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	})...)
+	// The answering machine at the satellite (docs/spec/anrufbeantworter.md).
+	a.voicemail = a.newVoicemail()
+	internal = append(internal, a.voicemail.Tools()...)
+	// A skill Mira binds tools to can be opened even when it has a target:
+	// its tools come with skill_open (docs/spec/vorgaenge.md).
+	bound := map[string]bool{}
+	for _, t := range internal {
+		if t.Skill != "" {
+			bound[t.Skill] = true
+		}
+	}
 	var loaded, targets []skills.Skill
 	for _, sk := range all {
 		// A skill that must run locally does not start on a cloud model
@@ -282,7 +296,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		}
 		if sk.Target != nil {
 			targets = append(targets, sk)
-		} else {
+		}
+		if sk.Target == nil || bound[sk.Name] {
 			loaded = append(loaded, sk)
 		}
 	}
@@ -598,6 +613,16 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	a.goRun(ctx, "hooks", func(ctx context.Context) error { a.hooks.Watch(ctx, 2*time.Second); return nil })
 	// The phone book once soon after the start, so Mira's page shows whether
 	// the access works before the first call (docs/spec/telefon.md).
+	// Whether Mira FRITZ!Box is there for the answering machine, for the
+	// skill's problem.
+	if a.voicemailOn() {
+		a.goRun(ctx, "voicemail", func(ctx context.Context) error {
+			if err := a.voicemail.Probe(ctx); err != nil {
+				a.log.Warn("answering machine not read", "error", err)
+			}
+			return nil
+		})
+	}
 	if a.phonebook.IsOn() {
 		a.goRun(ctx, "phonebook", func(ctx context.Context) error {
 			select {
@@ -767,8 +792,12 @@ func (a *app) startProactive(parent context.Context) {
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
 		Composer: a.notifyCompose, Screens: a.screens(ctx, cfg), Languages: a.langs,
+		Phone: a.phoneNews(),
 	})
 	a.notifier = n
+	if a.voicemailOn() {
+		a.goProactive(ctx, "voicemail-watch", func(ctx context.Context) error { a.watchPhone(ctx, n); return nil })
+	}
 	// A new message shows on the room's indicator at once, not at the
 	// next minute.
 	a.store.OnMessage(func() {
@@ -820,7 +849,15 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 		}
 		area = sess.AreaID
 	}
-	return n.ReadOut(ctx, area, tools.ReceiverFor("", inv, a.persons()))
+	text, err := n.ReadOut(ctx, area, tools.ReceiverFor("", inv, a.persons()))
+	if err != nil || a.voicemail == nil || !a.voicemailOn() {
+		return text, err
+	}
+	// After Mira's own messages, the answering machine's news.
+	if line := a.voicemail.NewsLine(ctx); line != "" {
+		text = strings.TrimSpace(text + "\n" + line)
+	}
+	return text, nil
 }
 
 func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {
@@ -1004,7 +1041,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
-		SetExposed: a.setExposed, SetLogins: a.setLogins,
+		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage,
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))
 			for k := range a.persons() {
@@ -1339,6 +1376,10 @@ func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
 	for _, p := range a.hooks.Problems() {
 		out = append(out, haconv.Problem{Source: "hook", Name: p.File, Text: p.Text})
+	}
+	// The skill anrufbeantworter without Mira FRITZ!Box, likewise.
+	if a.voicemail != nil && a.voicemailOn() && a.voicemail.Missing() {
+		out = append(out, haconv.Problem{Source: "skill", Name: voicemail.Skill, Text: a.voicemail.MissingText()})
 	}
 	// The skill telefon without Mira FRITZ!Box: goes away once it is there.
 	if a.phonebook != nil && a.phonebook.IsOn() && a.phonebook.Status().Missing {

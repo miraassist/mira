@@ -102,7 +102,8 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 	res, err := s.db.ExecContext(ctx, `
 INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET state = excluded.state, request = excluded.request, fields = excluded.fields,
+ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, state = excluded.state,
+	request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
 	calls = excluded.calls, version = threads.version + 1
 WHERE threads.version = excluded.version`,

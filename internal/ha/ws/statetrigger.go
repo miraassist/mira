@@ -26,7 +26,7 @@ func (c *Client) SubscribeTrigger(ctx context.Context, trigger map[string]any, h
 	if err != nil {
 		return nil, err
 	}
-	w := &stateWatch{trigger: st, handler: handler, states: map[string]State{}}
+	w := &stateWatch{trigger: st, handler: handler}
 	return c.subscribeCommand(ctx,
 		map[string]any{"type": CmdSubscribeEntities, "entity_ids": st.entityIDs}, w.handle)
 }
@@ -95,13 +95,35 @@ func (t stateTrigger) matches(from, to string) bool {
 	return !slices.Contains(t.notFrom, from) && !slices.Contains(t.notTo, to)
 }
 
-// stateWatch keeps the last known state of each watched entity, because
-// subscribe_entities sends only what changed.
+// stateWatch fires the trigger on the state changes of its entities.
 type stateWatch struct {
 	trigger stateTrigger
 	handler EventHandler
-	mu      sync.Mutex
-	states  map[string]State
+	table   stateTable
+}
+
+func (w *stateWatch) handle(ev Event) {
+	for _, f := range w.table.apply(ev.Raw) {
+		if !w.trigger.matches(f[0].State, f[1].State) {
+			continue
+		}
+		var v TriggerVariables
+		v.Trigger.Platform = "state"
+		v.Trigger.EntityID = f[1].EntityID
+		v.Trigger.FromState, v.Trigger.ToState = &f[0], &f[1]
+		raw, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		w.handler(Event{Variables: raw})
+	}
+}
+
+// stateTable keeps the states a subscribe_entities subscription reported,
+// because it sends only what changed.
+type stateTable struct {
+	mu     sync.Mutex
+	states map[string]State
 }
 
 // compressedState is Home Assistant's compact state form in
@@ -113,7 +135,8 @@ type compressedState struct {
 }
 
 // entitiesEvent is one subscribe_entities message: a = full states (the
-// first message, and again after every resubscribe), c = diffs, r = removed.
+// first message, a new entity, and again after every resubscribe), c =
+// diffs, r = removed.
 type entitiesEvent struct {
 	Add    map[string]compressedState `json:"a"`
 	Change map[string]struct {
@@ -125,26 +148,32 @@ type entitiesEvent struct {
 	Remove []string `json:"r"`
 }
 
-func (w *stateWatch) handle(ev Event) {
+// apply merges one message and returns the state changes of entities it
+// knew before, as (before, after).
+func (t *stateTable) apply(raw json.RawMessage) [][2]State {
 	var msg entitiesEvent
-	if err := json.Unmarshal(ev.Raw, &msg); err != nil {
-		return
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return nil
 	}
-	var fire [][2]State
-	w.mu.Lock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.states == nil {
+		t.states = map[string]State{}
+	}
+	var changes [][2]State
 	for id, cs := range msg.Add {
 		next := State{EntityID: id, Attributes: cs.A}
 		if cs.S != nil {
 			next.State = *cs.S
 		}
 		next.LastChanged = lastChanged(cs.LC)
-		if prev, known := w.states[id]; known && w.trigger.matches(prev.State, next.State) {
-			fire = append(fire, [2]State{prev, next})
+		if prev, known := t.states[id]; known && prev.State != next.State {
+			changes = append(changes, [2]State{prev, next})
 		}
-		w.states[id] = next
+		t.states[id] = next
 	}
 	for id, diff := range msg.Change {
-		prev, known := w.states[id]
+		prev, known := t.states[id]
 		if !known {
 			continue
 		}
@@ -165,27 +194,34 @@ func (w *stateWatch) handle(ev Event) {
 		if diff.Plus.LC != nil {
 			next.LastChanged = lastChanged(diff.Plus.LC)
 		}
-		if w.trigger.matches(prev.State, next.State) {
-			fire = append(fire, [2]State{prev, next})
+		if prev.State != next.State {
+			changes = append(changes, [2]State{prev, next})
 		}
-		w.states[id] = next
+		t.states[id] = next
 	}
 	for _, id := range msg.Remove {
-		delete(w.states, id)
+		delete(t.states, id)
 	}
-	w.mu.Unlock()
+	return changes
+}
 
-	for _, f := range fire {
-		var v TriggerVariables
-		v.Trigger.Platform = "state"
-		v.Trigger.EntityID = f[1].EntityID
-		v.Trigger.FromState, v.Trigger.ToState = &f[0], &f[1]
-		raw, err := json.Marshal(v)
-		if err != nil {
-			continue
-		}
-		w.handler(Event{Variables: raw})
+// get is one entity's state; false when the subscription has none.
+func (t *stateTable) get(id string) (State, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	s, ok := t.states[id]
+	return s, ok
+}
+
+// all are the states it keeps.
+func (t *stateTable) all() []State {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]State, 0, len(t.states))
+	for _, s := range t.states {
+		out = append(out, s)
 	}
+	return out
 }
 
 func lastChanged(ts *float64) string {

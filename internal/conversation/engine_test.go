@@ -611,6 +611,21 @@ func TestSA08_KeepListeningWithoutAQuestion(t *testing.T) {
 	}
 }
 
+// A turn whose tool plays something after the answer never keeps the
+// satellite listening, even when the model asks for it or asks a question:
+// the microphone would hear the recording (docs/spec/satellit.md).
+func TestAB36_ATurnThatPlaysAfterTheAnswerDoesNotListen(t *testing.T) {
+	play := tools.InternalTool{Name: "play_after", Description: "plays", Schema: `{"type":"object"}`, PlaysAfter: true,
+		Run: func(context.Context, tools.Invocation) (string, error) { return "plays after your answer", nil }}
+	h := newHarnessTools(t, nil, []tools.InternalTool{play},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "play_after", `{}`), fakellm.ToolCall("c2", tools.ToolKeepListening, `{}`)}},
+		fakellm.Step{Content: "Von Oma, heute um 14:12. Soll ich weitermachen?"},
+	)
+	if resp := h.say(t, config.ChannelVoice, "v1", "Spiel sie ab"); resp.ContinueConversation {
+		t.Errorf("listens while the recording plays: %+v", resp)
+	}
+}
+
 // Plan acceptance, in fakes: "Was genau?" after an announcement gets the
 // message's details, and answering acknowledges it.
 func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
