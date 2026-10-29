@@ -3,6 +3,12 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.13.1
+
+- Fixes from a review: the reply to an announcement no longer waits, satellites' speakers and actions are looked
+  up without reading Home Assistant's registries each time, reminders no longer hold up other announcements, and
+  old finished messages, announcements and threads are cleaned up.
+
 ## 0.13.0
 
 - New skill `anrufbeantworter`: the FRITZ!Box's answering machine at the satellites (needs the integration
