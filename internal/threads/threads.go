@@ -533,23 +533,19 @@ func (m *Manager) Resume(ctx context.Context) {
 // It returns what the model should say for foreground work.
 func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell bool) string {
 	t := m.texts()
-	var say string
+	say := spoken(res)
 	if res.Content != nil {
 		th.Content = res.Content
 	}
 	switch {
 	case res.Question != "":
 		th.State = store.ThreadWaiting
-		say = res.Question
 	case res.Proposal != "":
 		th.State = store.ThreadProposed
-		say = res.Proposal
 	case res.Cancel != "":
 		th.State = store.ThreadCancelled
-		say = res.Cancel
 	default:
 		th.State = store.ThreadDone
-		say = res.Done
 	}
 	m.logEntry(&th, "mira", say)
 	if err := m.save(ctx, &th); err != nil {
@@ -569,6 +565,19 @@ func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell b
 		}
 	}
 	return say
+}
+
+// spoken is what a finish's result says to the user.
+func spoken(res Result) string {
+	switch {
+	case res.Question != "":
+		return res.Question
+	case res.Proposal != "":
+		return res.Proposal
+	case res.Cancel != "":
+		return res.Cancel
+	}
+	return res.Done
 }
 
 // tell delivers a thread's question or proposal as a message of the thread:

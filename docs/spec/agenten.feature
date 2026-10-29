@@ -245,6 +245,13 @@ Feature: AG Agents
     And no message is sent
 
   @step7
+  Scenario: AG-107 At a satellite the finish after a quick agent comes in the same answer
+    Given a voice turn that starts a thread whose last field an agent fills
+    When the agent is done within 10 seconds
+    Then thread_start answers with the finish's proposal and what to tell the user
+    And no message is sent
+
+  @step7
   Scenario: AG-106 A person's thread speaks where it began
     Given a person's thread started at the satellite in the living room
     When its agent is done after the turn

@@ -193,16 +193,19 @@ func (m *Manager) AgentResult(ctx context.Context, id, into string, rec store.Ag
 	}
 	m.log.Info("agent result in thread", "thread", id, "agent", rec.Agent, "into", into, "status", rec.Status)
 	m.start(ctx, th, launches)
+	if complete {
+		// A turn still waiting gets the finish's answer, not an empty one.
+		m.finishInBackground(ctx, th)
+		return
+	}
 	if !m.handOver(id, say) && say != "" {
 		m.tell(ctx, th, say)
 	}
-	if complete {
-		m.finishInBackground(ctx, th)
-	}
 }
 
-// finishInBackground runs the finish of a thread nobody waits for in a
-// conversation: its answer comes as a message of the thread.
+// finishInBackground runs the finish of a thread whose last field an agent
+// filled: its answer goes to the turn that still waits for it, else it comes
+// as a message of the thread.
 func (m *Manager) finishInBackground(ctx context.Context, th store.Thread) {
 	fin, err := m.finisher(th.Target)
 	if err != nil {
@@ -215,8 +218,14 @@ func (m *Manager) finishInBackground(ctx context.Context, th store.Thread) {
 		return
 	}
 	res := m.runWork(ctx, fin, th)
-	if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil && cur.State == store.ThreadWorking {
-		m.apply(ctx, cur, res, true)
+	cur, err := m.opts.Store.GetThread(ctx, th.ID)
+	if err != nil || cur.State != store.ThreadWorking {
+		return
+	}
+	if said := m.apply(ctx, cur, res, false); !m.handOver(th.ID, said) {
+		if say := spoken(res); say != "" {
+			m.tell(ctx, cur, say)
+		}
 	}
 }
 

@@ -300,6 +300,55 @@ func TestAG105_AtASatelliteAQuickAgentsResultComesInTheSameAnswer(t *testing.T) 
 	}
 }
 
+// proposeFinisher proposes the field "text" at once.
+type proposeFinisher struct{}
+
+func (proposeFinisher) Async() bool { return false }
+func (proposeFinisher) Work(_ context.Context, th store.Thread) (Result, error) {
+	return Result{Proposal: "Die neue Regel: " + th.Fields["text"] + " Soll ich sie einschalten?"}, nil
+}
+func (proposeFinisher) Commit(context.Context, store.Thread) (string, error) { return "", nil }
+
+// AG-107 At a satellite the finish after a quick agent comes in the same answer
+func TestAG107_AtASatelliteTheFinishAfterAQuickAgentComesInTheSameAnswer(t *testing.T) {
+	e := setupAgents(t)
+	opts := e.m.opts
+	opts.AgentWait = 2 * time.Second
+	// Given a voice turn that starts a thread whose last field an agent fills
+	opts.Targets = append(opts.Targets, skills.Skill{Name: "regel", Description: "Regeln", Body: "Regeln schreiben.",
+		Target: &skills.Target{Finish: skills.Finish{Name: "propose"}, Fields: []skills.TargetField{
+			{Name: "text", Description: "die Regel", Agent: "schreiber", Input: map[string]any{"input": "{{ request }}"}},
+		}}})
+	opts.Finishers["propose"] = proposeFinisher{}
+	dispatch := opts.Dispatch
+	opts.Dispatch = func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error {
+		if err := dispatch(ctx, th, into, agent, callID, input); err != nil {
+			return err
+		}
+		// When the agent is done within the wait
+		go e.m.AgentResult(context.Background(), th.ID, into, store.AgentRun{CallID: callID, Agent: agent,
+			Status: "done", Output: "Schlösser nur für Anna."})
+		return nil
+	}
+	e.m = New(opts)
+	inv, _ := e.turn(t, "voice:a")
+	inv.Person = "anna"
+	out, err := e.m.Start(context.Background(), inv, "regel", "Nur Anna darf aufschließen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Then thread_start answers with the finish's proposal and what to tell the user
+	if !strings.Contains(out, "Sag dem Nutzer den Vorschlag und frag, ob es so passt: Die neue Regel: Schlösser nur für Anna.") {
+		t.Errorf("answer:\n%s", out)
+	}
+	// And no message is sent
+	select {
+	case n := <-e.sent:
+		t.Errorf("message %+v", n)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 // AG-106 A person's thread speaks where it began
 func TestAG106_APersonsThreadSpeaksWhereItBegan(t *testing.T) {
 	e := setupAgents(t)

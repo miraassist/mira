@@ -219,7 +219,8 @@ fields, as the user does**.
   thread goes on; the user can cancel it as always.
 - **At a satellite the turn waits:** a voice turn that starts a thread waits up to 10 seconds for the agents it
   starts; a result in that time comes in the same answer, not as a message (cooking: "Rezept geladen, für wie
-  viele?" instead of "I'll come back to you").
+  viele?" instead of "I'll come back to you"). When that result completes the thread, the finish's answer comes in
+  it too (the rule's proposal); past the 10 seconds it comes as a message.
 - **Messages of a thread** are spoken at the satellite whose turn started it, even when the thread belongs to a
   person: where they asked is where they are. Without a satellite (Telegram) they go to the person privately.
 - **The thread ends** (cancelled, expired): its agents still running are cancelled.
