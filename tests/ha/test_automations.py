@@ -235,3 +235,106 @@ async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):
     task = TASK | {"actions": [{"action": "switch.turn_on", "target": {"entity_id": pump.entity_id}}]}
     with pytest.raises(NotAllowed):
         await validate(hass, task)
+
+
+# --- Changing the household's tasks (docs/spec/aufgaben-aendern.md) ---------------------------------------
+
+HOUSEHOLD = {
+    "id": "abendlicht",
+    "alias": "Abendlicht Wohnzimmer",
+    # Triggers without timers: the test framework stops at lingering ones.
+    "triggers": [{"trigger": "state", "entity_id": "sun.sun", "to": "below_horizon"}],
+    "actions": [
+        {"action": "light.turn_on", "target": {"entity_id": "light.wohnzimmer"}},
+        {"action": "lock.unlock", "target": {"entity_id": "lock.haustuer"}},
+    ],
+}
+
+
+async def editor_house(hass, tmp_path):
+    """Home Assistant whose configuration includes automations.yaml, with one
+    household task the editor saved, one of Mira's, and one from YAML."""
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util.yaml import dump
+
+    from custom_components.mira.automations import save
+    from custom_components.mira.labels import ensure_labels
+
+    hass.config.config_dir = str(tmp_path)
+    (tmp_path / "configuration.yaml").write_text(
+        "automation editor: !include automations.yaml\n"
+        "automation yaml:\n"
+        "  - alias: Aus YAML\n"
+        "    triggers: [{trigger: state, entity_id: sun.sun, to: above_horizon}]\n"
+        "    actions: [{action: light.turn_off, target: {entity_id: light.wohnzimmer}}]\n"
+    )
+    (tmp_path / "automations.yaml").write_text(dump([HOUSEHOLD]))
+    for domain in ("light", "lock"):
+        assert await async_setup_component(hass, domain, {})
+    ensure_labels(hass)
+    from homeassistant import config as conf_util
+
+    assert await async_setup_component(hass, "automation", await conf_util.async_hass_config_yaml(hass))
+    await hass.async_block_till_done()
+    entities = er.async_get(hass)
+    household = entities.async_get_entity_id("automation", "automation", "abendlicht")
+    entities.async_update_entity(household, labels={"licht"})
+    mira = await save(hass, TASK | {"triggers": HOUSEHOLD["triggers"]}, None, FORBIDDEN)
+    return household, mira["entity_id"]
+
+
+async def test_AE01_mira_reads_a_task_the_editor_saved(hass, tmp_path):
+    from custom_components.mira.automations import get_task
+
+    household, _ = await editor_house(hass, tmp_path)
+    got = await get_task(hass, household)
+    assert got["id"] == "abendlicht" and got["config"]["triggers"] == HOUSEHOLD["triggers"]
+    assert got["config"]["actions"] == HOUSEHOLD["actions"]
+
+
+async def test_AE02_a_task_from_yaml_is_not_editable(hass, tmp_path):
+    from custom_components.mira.automations import NotEditable, get_task
+
+    await editor_house(hass, tmp_path)
+    with pytest.raises(NotEditable):
+        await get_task(hass, "automation.aus_yaml")
+
+
+async def test_AE03_saving_a_household_task_keeps_its_labels(hass, tmp_path):
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.mira.automations import save
+    from custom_components.mira.labels import LABEL_TASKS
+
+    household, _ = await editor_house(hass, tmp_path)
+    changed = HOUSEHOLD | {"triggers": [HOUSEHOLD["triggers"][0] | {"for": "00:30:00"}]}
+    # The unlock was there before and stays unchanged: the admin's decision.
+    await save(hass, changed, "abendlicht", FORBIDDEN, None)
+    entry = er.async_get(hass).async_get(household)
+    assert entry.labels == {"licht"} and LABEL_TASKS not in entry.labels
+    assert hass.states.get(household) is not None
+    # A new or changed action is checked as when creating.
+    new_lock = changed | {"actions": [HOUSEHOLD["actions"][0], {"action": "lock.unlock", "target": {"entity_id": "lock.keller"}}]}
+    with pytest.raises(NotAllowed):
+        await save(hass, new_lock, "abendlicht", FORBIDDEN, None)
+
+
+async def test_AE04_the_list_with_all_names_every_task(hass, tmp_path, aioclient_mock, entry, hass_ws_client):
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    household, mira = await editor_house(hass, tmp_path)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+
+    await client.send_json_auto_id({"type": "mira/automation/list", "all": True})
+    found = {a["entity_id"]: a for a in (await client.receive_json())["result"]["automations"]}
+    assert found[household]["editable"] and found[household]["name"] == "Abendlicht Wohnzimmer"
+    assert found[household]["labels"] == ["licht"]
+    assert found[mira]["editable"] and not found["automation.aus_yaml"]["editable"]
+
+    await client.send_json_auto_id({"type": "mira/automation/list"})
+    assert [a["entity_id"] for a in (await client.receive_json())["result"]["automations"]] == [mira]
+
+    await client.send_json_auto_id({"type": "mira/automation/get", "entity_id": "automation.aus_yaml"})
+    msg = await client.receive_json()
+    assert not msg["success"] and msg["error"]["code"] == "not_editable"

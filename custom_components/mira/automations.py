@@ -21,13 +21,18 @@ inside a script exposed to Assist. Those go into an automation only through
 Home Assistant's own editor.
 
 Saving takes the automation editor's path: validate the item, replace it in
-automations.yaml, reload that one automation.
+automations.yaml, reload that one automation. Mira may also change the
+household's own tasks, the ones the editor saved: she reads one with get,
+finds them with list (all), and saves them keeping their labels. An action
+that was in the task before and stays unchanged is the admin's decision and
+is not checked again; what is new or changed is.
 """
 
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import json
 import re
 from typing import Any
 import uuid
@@ -40,7 +45,12 @@ from homeassistant.components.automation.config import async_validate_config_ite
 from homeassistant.config import AUTOMATION_CONFIG_PATH
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er, label_registry as lr
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+    label_registry as lr,
+)
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.target import TargetSelection, async_extract_referenced_entity_ids
 from homeassistant.util.file import write_utf8_file_atomic
@@ -76,6 +86,8 @@ class _Rule:
     services: dict[str, dict[str, Any]]
     domains: set[str]
     entities: set[str]
+    # The steps the task had before, as _key gives them: not checked again.
+    known: frozenset[str] = field(default_factory=frozenset)
 
 
 _TEMPLATE = re.compile(r"\{[{%#]")
@@ -96,11 +108,38 @@ def _templated(value: Any) -> bool:
     return False
 
 
+def _key(step: Any) -> str:
+    """A step as one string, to compare it with the steps a task had."""
+    return json.dumps(step, sort_keys=True, default=str)
+
+
+def _steps(actions: Any) -> set[str]:
+    """Every step of actions, nested ones too, as _key gives them."""
+    if isinstance(actions, dict):
+        actions = [actions]
+    if not isinstance(actions, (list, tuple)):
+        return set()
+    out: set[str] = set()
+    for step in actions:
+        if not isinstance(step, dict):
+            continue
+        out.add(_key(step))
+        for key in ("then", "else", "sequence", "parallel", "default"):
+            out |= _steps(step.get(key))
+        for option in step.get("choose") or []:
+            if isinstance(option, dict):
+                out |= _steps(option.get("sequence"))
+        if isinstance(step.get("repeat"), dict):
+            out |= _steps(step["repeat"].get("sequence"))
+    return out
+
+
 async def check_actions(
     hass: HomeAssistant,
     actions: Any,
     forbidden_domains: set[str] = frozenset(),
     forbidden_entities: set[str] = frozenset(),
+    before: Any = None,
 ) -> None:
     """Raise NotAllowed if an action calls what a task may not: a domain in
     _NEVER or forbidden_domains, an entity in forbidden_entities or reaching
@@ -112,8 +151,17 @@ async def check_actions(
     Assistant knows (if, choose, repeat, parallel, sequence), the name of an
     action and its targets must be written out, not a template, and a step it
     does not understand is refused. A template could name what the check is
-    there to keep out."""
-    rule = _Rule(hass, await async_get_all_descriptions(hass), set(forbidden_domains), set(forbidden_entities))
+    there to keep out.
+
+    A step that was among before (the task's actions until now) unchanged is
+    not checked again: it is the admin's decision."""
+    rule = _Rule(
+        hass,
+        await async_get_all_descriptions(hass),
+        set(forbidden_domains),
+        set(forbidden_entities),
+        frozenset(_steps(before)),
+    )
     _check_actions(rule, actions)
 
 
@@ -131,6 +179,8 @@ def _check_actions(rule: _Rule, actions: Any) -> None:
 def _check_step(rule: _Rule, step: Any) -> None:
     if not isinstance(step, dict):
         raise NotAllowed(f"unexpected action {step!r}")
+    if _key(step) in rule.known:
+        return
     if "service_template" in step:
         raise NotAllowed("the action of a task must be written out, not a template")
     name = step.get("action") or step.get("service")
@@ -263,8 +313,14 @@ def _exposed(hass: HomeAssistant, entity_id: str) -> bool:
         return False
 
 
-async def validate(hass: HomeAssistant, config: dict[str, Any], forbidden: dict[str, Any] | None = None) -> None:
-    """Home Assistant's own validation, then the rule what a task may call."""
+async def validate(
+    hass: HomeAssistant,
+    config: dict[str, Any],
+    forbidden: dict[str, Any] | None = None,
+    before: dict[str, Any] | None = None,
+) -> None:
+    """Home Assistant's own validation, then the rule what a task may call;
+    before is the task as it was, whose unchanged steps pass."""
     try:
         await async_validate_config_item(hass, "mira_check", config)
     except (vol.Invalid, HomeAssistantError) as err:
@@ -276,10 +332,15 @@ async def validate(hass: HomeAssistant, config: dict[str, Any], forbidden: dict[
     labelled = {e.entity_id for e in er.async_entries_for_label(er.async_get(hass), LABEL_CONFIRM)}
     await check_actions(
         hass,
-        config.get("actions", config.get("action")),
+        _actions(config),
         set(forbidden.get("domains") or []),
         set(forbidden.get("entities") or []) | labelled,
+        _actions(before) if before else None,
     )
+
+
+def _actions(config: dict[str, Any]) -> Any:
+    return config.get("actions", config.get("action"))
 
 
 def _read(path: str) -> list[dict[str, Any]]:
@@ -299,16 +360,18 @@ async def save(
     config: dict[str, Any],
     automation_id: str | None,
     forbidden: dict[str, Any] | None = None,
-    label_id: str = LABEL_TASKS,
+    label_id: str | None = LABEL_TASKS,
 ) -> dict[str, Any]:
     """Validate, write and reload one automation; label it "Mira" (or the
-    given label)."""
-    await validate(hass, config, forbidden)
+    given label; None keeps its labels as they are). An automation saved
+    before keeps its unchanged steps unchecked."""
     automation_id = automation_id or f"mira_{uuid.uuid4().hex[:12]}"
     item = {"id": automation_id} | {k: v for k, v in config.items() if k != "id"}
     path = hass.config.path(AUTOMATION_CONFIG_PATH)
     async with _LOCK:
         data = await hass.async_add_executor_job(_read, path)
+        before = next((a for a in data if a.get("id") == automation_id), None)
+        await validate(hass, config, forbidden, before)
         for index, current in enumerate(data):
             if current.get("id") == automation_id:
                 data[index] = item
@@ -322,7 +385,8 @@ async def save(
         raise HomeAssistantError(
             "the automation was written but not loaded; does configuration.yaml include automations.yaml?"
         )
-    _label(hass, entity_id, label_id)
+    if label_id is not None:
+        _label(hass, entity_id, label_id)
     return {"id": automation_id, "entity_id": entity_id}
 
 
@@ -381,6 +445,52 @@ async def list_tasks(hass: HomeAssistant, label_id: str = LABEL_TASKS) -> list[d
     return out
 
 
+class NotEditable(HomeAssistantError):
+    """The automation is not one the editor saved."""
+
+
+async def get_task(hass: HomeAssistant, entity_id: str) -> dict[str, Any]:
+    """One automation's configuration as the editor saved it."""
+    state = hass.states.get(entity_id)
+    if state is None or state.domain != "automation":
+        raise HomeAssistantError(f"no automation {entity_id}")
+    automation_id = state.attributes.get("id")
+    path = hass.config.path(AUTOMATION_CONFIG_PATH)
+    for config in await hass.async_add_executor_job(_read, path):
+        if automation_id and config.get("id") == automation_id:
+            return {"id": automation_id, "entity_id": entity_id, "config": config}
+    raise NotEditable(f"{entity_id} is not in automations.yaml; it is changed where it is defined")
+
+
+async def list_all(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Every automation, with name, area, labels and whether the editor
+    saved it (only those Mira can change)."""
+    entities = er.async_get(hass)
+    devices = dr.async_get(hass)
+    areas = ar.async_get(hass)
+    path = hass.config.path(AUTOMATION_CONFIG_PATH)
+    editable = {a.get("id") for a in await hass.async_add_executor_job(_read, path)}
+    out = []
+    for state in hass.states.async_all("automation"):
+        entry = entities.async_get(state.entity_id)
+        area_id = entry.area_id if entry else None
+        if entry and area_id is None and entry.device_id and (device := devices.async_get(entry.device_id)):
+            area_id = device.area_id
+        area = areas.async_get_area(area_id) if area_id else None
+        out.append(
+            {
+                "entity_id": state.entity_id,
+                "id": state.attributes.get("id"),
+                "name": state.name,
+                "area": area.name if area else None,
+                "labels": sorted(entry.labels) if entry else [],
+                "state": state.state,
+                "editable": bool(state.attributes.get("id")) and state.attributes.get("id") in editable,
+            }
+        )
+    return out
+
+
 def _agent_only(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> bool:
     """Only the agent's own user, or an admin, may use these commands."""
     agents = {e.data.get(CONF_AGENT_USER) for e in hass.config_entries.async_entries(DOMAIN)}
@@ -414,14 +524,16 @@ async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConn
         vol.Required("config"): dict,
         vol.Optional("automation_id"): str,
         vol.Optional("forbidden"): _FORBIDDEN,
+        vol.Optional("keep_labels", default=False): bool,
     }
 )
 @websocket_api.async_response
 async def _ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _agent_only(hass, connection, msg):
         return
+    label = None if msg["keep_labels"] else LABEL_TASKS
     try:
-        result = await save(hass, msg["config"], msg.get("automation_id"), msg.get("forbidden"))
+        result = await save(hass, msg["config"], msg.get("automation_id"), msg.get("forbidden"), label)
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
@@ -441,10 +553,31 @@ async def _ws_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnec
     connection.send_result(msg["id"], {"deleted": True})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "mira/automation/list"})
+@websocket_api.websocket_command({vol.Required("type"): "mira/automation/get", vol.Required("entity_id"): str})
+@websocket_api.async_response
+async def _ws_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    if not _agent_only(hass, connection, msg):
+        return
+    try:
+        result = await get_task(hass, msg["entity_id"])
+    except NotEditable as err:
+        connection.send_error(msg["id"], "not_editable", str(err))
+        return
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "mira/automation/list", vol.Optional("all", default=False): bool}
+)
 @websocket_api.async_response
 async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _agent_only(hass, connection, msg):
+        return
+    if msg["all"]:
+        connection.send_result(msg["id"], {"automations": await list_all(hass)})
         return
     connection.send_result(msg["id"], {"automations": await list_tasks(hass)})
 
@@ -452,5 +585,5 @@ async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
 @callback
 def async_register_commands(hass: HomeAssistant) -> None:
     """Register the agent's automation commands."""
-    for command in (_ws_validate, _ws_save, _ws_delete, _ws_list):
+    for command in (_ws_validate, _ws_save, _ws_delete, _ws_list, _ws_get):
         websocket_api.async_register_command(hass, command)

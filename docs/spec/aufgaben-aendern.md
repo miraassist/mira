@@ -1,6 +1,6 @@
 # Changing tasks in the conversation – Spec
 
-Status 2026-10-29: specified, not built. Scenarios: [aufgaben-aendern.feature](aufgaben-aendern.feature). Builds on
+Status 2026-10-29: step 1 built (the integration; its scenarios AE-01 to AE-04 are tested in pytest). Scenarios: [aufgaben-aendern.feature](aufgaben-aendern.feature). Builds on
 [Tasks](aufgaben.md) and [Threads](vorgaenge.md); protection by [Hooks](hooks.md).
 
 ## Goal
@@ -67,7 +67,8 @@ A check of the field `aufgabe`:
 4. **Security rules for what is new**: an action the draft adds or changes passes the rules of
    [aufgaben.md](aufgaben.md) (no critical targets, no actions without entity targets, nothing that runs code). An
    action that was there before and stays unchanged is the admin's decision and is not checked again; otherwise a
-   household task that unlocks the door could never get a new time.
+   household task that unlocks the door could never get a new time. The integration decides this when saving, by
+   the task as `automations.yaml` holds it, not by what Mira sends.
 5. A draft that changes nothing ends the thread with that said.
 
 **The proposal** is the drafting model's sentence (before → after), and what the code says itself, as when creating:
@@ -105,7 +106,7 @@ with an error, and Mira says she cannot change tasks yet and that the integratio
 
 ## Steps
 
-1. **Integration**: `get`, `list` with `all`, `save` with `keep_labels`; tests in pytest.
+1. **Integration**: `get`, `list` with `all`, `save` with `keep_labels`, unchanged steps not checked again; tests in pytest (built).
 2. **The building blocks** `tasks.find` and `tasks.edit`, the hook call `task_edit`.
 3. **The skill `aufgabe-aendern`**.
 4. **The guide**.
