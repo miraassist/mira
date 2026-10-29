@@ -191,4 +191,4 @@ Testing happens on the test HA.
 - **User concept:** settled in [benutzer.md](benutzer.md). Tasks have an owner (house or person). `assess` and `decide` get `owner`. Personal memory only goes along with personal tasks.
 - **Discussion list:**
   - confirming via a fixed yes in the code (language-dependent phrases);
-  - editing tasks in the conversation ("nimm den Sensor raus"). With HA as the editor this means: Mira changes the automation via `save`.
+  - editing tasks in the conversation ("nimm den Sensor raus"): specified in [aufgaben-aendern.md](aufgaben-aendern.md) (2026-10-29), for every task HA's editor saved, not only Mira's.
