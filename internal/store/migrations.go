@@ -380,6 +380,12 @@ INSERT INTO memory_facts_fts(memory_facts_fts) VALUES ('rebuild');
 		name: "0022_announcement_thread",
 		stmt: `ALTER TABLE announcements ADD COLUMN thread_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// The last delivery to an area is asked on every motion
+		// (LastDeliveryToArea); it was a scan of the whole table.
+		name: "0023_announcements_area",
+		stmt: `CREATE INDEX idx_announcements_area ON announcements(area_id, created_at DESC);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

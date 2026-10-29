@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -47,44 +48,31 @@ func (a *app) readPhonebook(ctx context.Context) (phone.Phonebook, error) {
 // phoneLine is the phone of a satellite's device: its node, its call actions
 // and the state of its Phone sensor.
 func (a *app) phoneLine(ctx context.Context, deviceID string) phone.Line {
-	devices, err := a.ha.Devices(ctx)
-	if err != nil {
-		return phone.Line{}
-	}
-	var line phone.Line
-	for _, d := range devices {
-		if d.ID == deviceID {
-			line.Node = slug(d.Name)
-		}
-	}
+	line := phone.Line{Node: a.deviceNode(deviceID)}
 	if line.Node == "" {
 		return line
 	}
-	if services, err := a.ha.Services(ctx); err == nil {
-		_, line.Phone = services["esphome"][line.Node+"_phone_call"]
-		_, line.Named = services["esphome"][line.Node+"_phone_call_named"]
-		_, line.Intercom = services["esphome"][line.Node+"_intercom_call"]
-	}
+	line.Phone = a.hasAction(ctx, "esphome", line.Node+"_phone_call")
+	line.Named = a.hasAction(ctx, "esphome", line.Node+"_phone_call_named")
+	line.Intercom = a.hasAction(ctx, "esphome", line.Node+"_intercom_call")
 	if !line.Phone {
 		return line
 	}
-	entities, err := a.ha.Entities(ctx)
-	if err != nil {
-		return line
-	}
 	sensor := ""
-	for _, e := range entities {
-		if e.DeviceID == deviceID && strings.HasPrefix(e.EntityID, "sensor.") && strings.HasSuffix(e.EntityID, "_phone") {
-			sensor = e.EntityID
+	for _, id := range a.structure.Snapshot().DeviceEntities[deviceID] {
+		if strings.HasPrefix(id, "sensor.") && strings.HasSuffix(id, "_phone") {
+			sensor = id
 		}
 	}
 	if sensor == "" {
 		return line
 	}
-	if states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{sensor}}); err == nil {
-		for _, s := range states {
-			line.State = s.State
-		}
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{sensor}})
+	if err != nil {
+		a.log.Warn("could not read the phone line", "sensor", sensor, "error", err)
+	}
+	for _, s := range states {
+		line.State = s.State
 	}
 	return line
 }
@@ -103,17 +91,10 @@ func (a *app) intercomDevice(ctx context.Context, target string) (string, string
 	if a.structure != nil {
 		area = a.structure.Snapshot().AreaKeys[t]
 	}
-	devices, err := a.ha.Devices(ctx)
-	if err != nil {
-		return "", "", false
-	}
-	services, err := a.ha.Services(ctx)
-	if err != nil {
-		return "", "", false
-	}
+	devices := slices.Collect(maps.Values(a.structure.Snapshot().Devices))
 	sort.Slice(devices, func(i, j int) bool { return devices[i].Name < devices[j].Name })
 	for _, d := range devices {
-		if _, ok := services["esphome"][slug(d.Name)+"_intercom_call"]; !ok {
+		if !a.hasAction(ctx, "esphome", slug(d.Name)+"_intercom_call") {
 			continue
 		}
 		if (area != "" && d.AreaID == area) || strings.ToLower(d.Name) == t || strings.ToLower(d.NameByUser) == t {

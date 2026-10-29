@@ -276,8 +276,17 @@ func areaOf(ctx context.Context) string {
 // open, so the turn has the skill's tools (docs/spec/vorgaenge.md,
 // Assignment).
 func (m *Manager) link(ctx context.Context, sessionKey string, th store.Thread) {
-	_ = m.opts.Store.SetSessionThread(ctx, sessionKey, th.ID)
-	_ = m.opts.Store.AddSessionSkill(ctx, sessionKey, th.Target)
+	if err := m.opts.Store.SetSessionThread(ctx, sessionKey, th.ID); err != nil {
+		m.log.Warn("could not link the turn to its thread", "thread", th.ID, "error", err)
+	}
+	m.openSkill(ctx, sessionKey, th.Target)
+}
+
+// openSkill opens a thread's skill for a turn, so it has the skill's tools.
+func (m *Manager) openSkill(ctx context.Context, sessionKey, skill string) {
+	if err := m.opts.Store.AddSessionSkill(ctx, sessionKey, skill); err != nil {
+		m.log.Warn("could not open the thread's skill for the turn", "skill", skill, "error", err)
+	}
 }
 
 // current is the thread a tool call acts on: the turn's own, or else the
@@ -382,7 +391,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
 		return "", err
 	}
-	_ = m.opts.Store.AddSessionSkill(ctx, inv.SessionKey, th.Target)
+	m.openSkill(ctx, inv.SessionKey, th.Target)
 	m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
 	trace.Add(ctx, trace.Thread, target, "started")
 	var said string

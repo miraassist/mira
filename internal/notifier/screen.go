@@ -24,15 +24,16 @@ const screenFor = 60 * time.Second
 // holds n.mu.
 func (n *Notifier) syncScreens(ctx context.Context) {
 	busy := n.busyAreas(ctx)
+	w, err := n.readWaiting(ctx)
+	if err != nil {
+		n.log.Error("could not check waiting messages", "error", err)
+		return
+	}
 	for area, action := range n.screens {
 		if n.cfg.Indicators[area] != "" {
 			continue // the light shows it
 		}
-		list, err := n.waiting(ctx, area)
-		if err != nil {
-			n.log.Error("could not check waiting messages", "area", area, "error", err)
-			return
-		}
+		list := w.in(area)
 		count := len(list)
 		if count == n.screenCount[area] {
 			continue

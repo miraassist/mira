@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
@@ -115,6 +116,11 @@ type Options struct {
 	Hold func(ctx context.Context, deviceID string, hold bool)
 	// Stop stops what a speaker plays (its state goes "paused").
 	Stop func(ctx context.Context, speaker string) error
+	// Logger tells what failed on the way and did not stop it.
+	Logger *slog.Logger
+	// Counts is what is new, from Mira FRITZ!Box's sensors as Mira watches
+	// them; without it News asks the integration's actions (the box).
+	Counts func(ctx context.Context) (News, error)
 }
 
 // step is how a message appears in the plan, and how its step is found.
@@ -122,8 +128,9 @@ func step(id string) string { return "(id " + id + ")" }
 
 // Machine is the answering machine as Mira sees it.
 type Machine struct {
-	o Options
-	t texts
+	o   Options
+	t   texts
+	log *slog.Logger
 
 	mu      sync.Mutex
 	missing bool
@@ -146,13 +153,16 @@ type playRun struct {
 }
 
 func New(o Options) *Machine {
+	if o.Logger == nil {
+		o.Logger = slog.Default()
+	}
 	if o.Location == nil {
 		o.Location = time.Local
 	}
 	if o.Clock == nil {
 		o.Clock = time.Now
 	}
-	return &Machine{o: o, t: i18n.Pick(catalog, o.Lang)}
+	return &Machine{o: o, t: i18n.Pick(catalog, o.Lang), log: o.Logger.With("component", "voicemail")}
 }
 
 // Missing says whether the last call found no Mira FRITZ!Box.
@@ -358,7 +368,9 @@ func (m *Machine) tick(ctx context.Context, threadID, id string) {
 	if threadID == "" || m.o.Tick == nil {
 		return
 	}
-	_ = m.o.Tick(ctx, threadID, step(id))
+	if err := m.o.Tick(ctx, threadID, step(id)); err != nil {
+		m.log.Warn("could not tick a message in the listening plan", "message", id, "error", err)
+	}
 }
 
 func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -439,7 +451,7 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 					source = t.source
 				}
 				if err := m.o.Title(ctx, sat.TitleAction, fmt.Sprintf(t.title, p.who), p.when, source); err != nil {
-					_ = err // it plays all the same
+					m.log.Warn("could not title the player", "error", err) // it plays all the same
 				}
 			}
 			m.setCurrent(this, p.msg.ID)
@@ -459,7 +471,10 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 				}
 				return
 			}
-			_ = m.o.Do(ctx, "mark_heard", map[string]any{"message_ids": []string{p.msg.ID}})
+			if err := m.o.Do(ctx, "mark_heard", map[string]any{"message_ids": []string{p.msg.ID}}); err != nil {
+				// Heard, but the box still says new: the ring stays on.
+				m.log.Warn("could not mark a message heard at the box", "message", p.msg.ID, "error", err)
+			}
 			m.tick(ctx, threadID, p.msg.ID)
 		}
 	})
@@ -499,7 +514,7 @@ func (m *Machine) end(ctx context.Context, r *playRun) {
 	}
 	if playing && m.o.Stop != nil {
 		if err := m.o.Stop(ctx, speaker); err != nil {
-			_ = err // the run is over all the same
+			m.log.Warn("could not stop the recording", "speaker", speaker, "error", err) // the run is over all the same
 		}
 	}
 }
@@ -550,7 +565,9 @@ func (m *Machine) deletedNow(ctx context.Context, id string) {
 	m.mu.Unlock()
 	for _, sp := range speakers {
 		if m.o.Stop != nil {
-			_ = m.o.Stop(ctx, sp)
+			if err := m.o.Stop(ctx, sp); err != nil {
+				m.log.Warn("could not stop the deleted message", "speaker", sp, "error", err)
+			}
 		}
 	}
 }
@@ -600,6 +617,9 @@ func (m *Machine) delete(ctx context.Context, inv tools.Invocation) (string, err
 
 // News is what is new now, for the indicators.
 func (m *Machine) News(ctx context.Context) (News, error) {
+	if m.o.Counts != nil {
+		return m.o.Counts(ctx)
+	}
 	msgs, err := m.messages(ctx, true)
 	if err != nil {
 		return News{}, err

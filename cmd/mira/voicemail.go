@@ -33,7 +33,7 @@ func (a *app) newVoicemail() *voicemail.Machine {
 		return err
 	}
 	return voicemail.New(voicemail.Options{
-		Lang: a.lang,
+		Lang: a.lang, Logger: a.log,
 		Ask: func(ctx context.Context, service string, data map[string]any) (json.RawMessage, error) {
 			raw, err := a.ha.CallServiceResponse(ctx, "mira_fritz", service, data)
 			return raw, call(err)
@@ -101,6 +101,10 @@ func (a *app) newVoicemail() *voicemail.Machine {
 			}
 		},
 		Played: a.playedThrough,
+		Counts: func(ctx context.Context) (voicemail.News, error) {
+			messages, missed, _, err := a.phoneCounts(ctx)
+			return voicemail.News{Messages: messages, Missed: missed}, err
+		},
 		Title: func(ctx context.Context, action, title, subtitle, source string) error {
 			domain, service, _ := strings.Cut(action, ".")
 			return a.ha.CallService(ctx, domain, service, map[string]any{
@@ -127,37 +131,65 @@ func (a *app) phoneNews() func(ctx context.Context) (notifier.PhoneNews, error) 
 		return nil
 	}
 	return func(ctx context.Context) (notifier.PhoneNews, error) {
-		news, err := a.voicemail.News(ctx)
-		return notifier.PhoneNews{Messages: news.Messages, Missed: news.Missed}, err
+		messages, missed, _, err := a.phoneCounts(ctx)
+		return notifier.PhoneNews{Messages: messages, Missed: missed}, err
 	}
+}
+
+// phoneSensors are Mira FRITZ!Box's two sensors, found by their unique ids
+// (their entity ids follow Home Assistant's language), and their device.
+func (a *app) phoneSensors() (messages, missed, device string) {
+	for id, e := range a.structure.Snapshot().Entities {
+		if e.Platform != "mira_fritz" {
+			continue
+		}
+		switch {
+		case strings.HasSuffix(e.UniqueID, "_new_messages"):
+			messages, device = id, e.DeviceID
+		case strings.HasSuffix(e.UniqueID, "_missed_calls"):
+			missed, device = id, e.DeviceID
+		}
+	}
+	return messages, missed, device
+}
+
+// phoneCounts are the two sensors' counts: from the watch on them while it
+// runs (watchPhone), else read once, filtered to them. Never through Mira
+// FRITZ!Box's actions, which ask the box.
+func (a *app) phoneCounts(ctx context.Context) (messages, missed int, device string, err error) {
+	msgID, missedID, device := a.phoneSensors()
+	if msgID == "" && missedID == "" {
+		return 0, 0, "", voicemail.ErrNoIntegration
+	}
+	count := func(s haws.State) int { n, _ := strconv.Atoi(s.State); return n }
+	a.phoneMu.Lock()
+	w := a.phoneWatch
+	a.phoneMu.Unlock()
+	if w != nil && w.Ready() {
+		m, _ := w.State(msgID)
+		c, _ := w.State(missedID)
+		return count(m), count(c), device, nil
+	}
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{msgID, missedID}})
+	if err != nil {
+		return 0, 0, device, err
+	}
+	for _, s := range states {
+		if s.EntityID == msgID {
+			messages = count(s)
+		} else {
+			missed = count(s)
+		}
+	}
+	return messages, missed, device, nil
 }
 
 // voicemailSatellite is the satellite of a device: its speaker, the action
 // that titles its player screen and its assist_satellite.
 func (a *app) voicemailSatellite(ctx context.Context, deviceID string) voicemail.Satellite {
-	sat := voicemail.Satellite{Speaker: a.speakerOf(ctx, deviceID)}
-	if entities, err := a.ha.Entities(ctx); err == nil {
-		for _, e := range entities {
-			if e.DeviceID == deviceID && strings.HasPrefix(e.EntityID, "assist_satellite.") {
-				sat.Entity = e.EntityID
-			}
-		}
-	}
-	devices, err := a.ha.Devices(ctx)
-	if err != nil {
-		return sat
-	}
-	for _, d := range devices {
-		if d.ID != deviceID {
-			continue
-		}
-		node := slug(d.Name)
-		if services, err := a.ha.Services(ctx); err == nil && node != "" {
-			if fields, ok := services["esphome"][node+"_media_title"]; ok && slices.Contains(fields, "title") &&
-				slices.Contains(fields, "subtitle") && slices.Contains(fields, "source") {
-				sat.TitleAction = "esphome." + node + "_media_title"
-			}
-		}
+	sat := voicemail.Satellite{Speaker: a.speakerOf(ctx, deviceID), Entity: a.deviceEntity(deviceID, "assist_satellite")}
+	if node := a.deviceNode(deviceID); node != "" && a.hasAction(ctx, "esphome", node+"_media_title", "title", "subtitle", "source") {
+		sat.TitleAction = "esphome." + node + "_media_title"
 	}
 	return sat
 }
@@ -255,28 +287,19 @@ func (a *app) announceNext(ctx context.Context, entity, text string) bool {
 	return true
 }
 
-// watchPhone updates the indicators as soon as one of Mira FRITZ!Box's two
-// sensors changes, found by their unique ids (their entity ids follow Home
-// Assistant's language).
+// watchPhone keeps Mira FRITZ!Box's two sensors current (a filtered
+// subscription) and updates the indicators as soon as one changes. While it
+// runs, the counts are read from it, not asked for.
 func (a *app) watchPhone(ctx context.Context, n *notifier.Notifier) {
-	entities, err := a.ha.Entities(ctx)
-	if err != nil {
-		return
-	}
-	var ids []string
-	for _, e := range entities {
-		if e.Platform == "mira_fritz" && (strings.HasSuffix(e.UniqueID, "_new_messages") || strings.HasSuffix(e.UniqueID, "_missed_calls")) {
-			ids = append(ids, e.EntityID)
-		}
-	}
-	if len(ids) == 0 {
+	msgID, missedID, _ := a.phoneSensors()
+	if msgID == "" && missedID == "" {
 		return
 	}
 	// The handler runs on the connection's read loop: it only passes the
 	// change on. Asking Home Assistant there would wait for answers that
 	// loop has to read.
 	changed := make(chan struct{}, 1)
-	cancel, err := a.ha.SubscribeTrigger(ctx, map[string]any{"trigger": "state", "entity_id": ids}, func(haws.Event) {
+	w, err := a.ha.WatchStates(ctx, haws.StateFilter{EntityIDs: []string{msgID, missedID}}, func() {
 		select {
 		case changed <- struct{}{}:
 		default: // both sensors at once; one update is enough
@@ -286,8 +309,18 @@ func (a *app) watchPhone(ctx context.Context, n *notifier.Notifier) {
 		a.log.Warn("could not watch the answering machine", "error", err)
 		return
 	}
-	defer cancel()
-	a.log.Info("watching the answering machine", "sensors", ids)
+	defer w.Stop()
+	a.phoneMu.Lock()
+	a.phoneWatch = w
+	a.phoneMu.Unlock()
+	defer func() {
+		a.phoneMu.Lock()
+		if a.phoneWatch == w {
+			a.phoneWatch = nil
+		}
+		a.phoneMu.Unlock()
+	}()
+	a.log.Info("watching the answering machine", "sensors", []string{msgID, missedID})
 	for {
 		select {
 		case <-ctx.Done():
@@ -308,51 +341,16 @@ func (a *app) phonePage(ctx context.Context) (ui.PhoneNews, error) {
 	if !a.voicemailOn() {
 		return news, nil
 	}
-	entities, err := a.ha.Entities(ctx)
+	messages, missed, device, err := a.phoneCounts(ctx)
+	if errors.Is(err, voicemail.ErrNoIntegration) {
+		return news, nil
+	}
 	if err != nil {
 		return news, err
 	}
-	kind := map[string]*int{}
-	device := ""
-	for _, e := range entities {
-		if e.Platform != "mira_fritz" {
-			continue
-		}
-		switch {
-		case strings.HasSuffix(e.UniqueID, "_new_messages"):
-			kind[e.EntityID] = &news.Messages
-		case strings.HasSuffix(e.UniqueID, "_missed_calls"):
-			kind[e.EntityID] = &news.Missed
-		default:
-			continue
-		}
-		device = e.DeviceID
-	}
-	if len(kind) == 0 {
-		return news, nil
-	}
-	ids := make([]string, 0, len(kind))
-	for id := range kind {
-		ids = append(ids, id)
-	}
-	states, err := a.ha.GetStates(ctx, haws.StateFilter{EntityIDs: ids})
-	if err != nil {
-		return news, err
-	}
-	for _, s := range states {
-		if n, ok := kind[s.EntityID]; ok {
-			*n, _ = strconv.Atoi(s.State)
-		}
-	}
-	if news.Messages+news.Missed == 0 {
-		return news, nil
-	}
-	if devices, err := a.ha.Devices(ctx); err == nil {
-		for _, d := range devices {
-			if d.ID == device {
-				news.URL = d.ConfigurationURL
-			}
-		}
+	news.Messages, news.Missed = messages, missed
+	if messages+missed > 0 {
+		news.URL = a.structure.Snapshot().Devices[device].ConfigurationURL
 	}
 	return news, nil
 }

@@ -64,7 +64,7 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, place string,
 	// to go on with it.
 	var parts []string
 	for _, th := range open[:min(len(open), maxWaiting)] {
-		_ = m.opts.Store.AddSessionSkill(ctx, sess.Key, th.Target)
+		m.openSkill(ctx, sess.Key, th.Target)
 		parts = append(parts, t.headerWaiting+"\n"+m.describe(th, m.lang(ctx)))
 		foreign = foreign || (m.isPlan(th) && planOf(th).Foreign)
 	}

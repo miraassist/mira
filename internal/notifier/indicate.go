@@ -19,11 +19,36 @@ import (
 
 // waiting returns the messages that would be spoken in area.
 func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Message, error) {
-	pending, err := n.pending(ctx)
+	w, err := n.readWaiting(ctx)
 	if err != nil {
 		return nil, err
 	}
-	home := n.whoIsHome(ctx)
+	return w.in(area), nil
+}
+
+// waitingNow is what waits in the house, read once for every area of a
+// sync: the pending messages, and who is home only when any are.
+type waitingNow struct {
+	n       *Notifier
+	pending []store.Message
+	home    map[string]bool
+}
+
+func (n *Notifier) readWaiting(ctx context.Context) (waitingNow, error) {
+	pending, err := n.pending(ctx)
+	if err != nil {
+		return waitingNow{}, err
+	}
+	w := waitingNow{n: n, pending: pending}
+	if len(pending) > 0 {
+		w.home = n.whoIsHome(ctx)
+	}
+	return w, nil
+}
+
+// in are the messages that would be spoken in area.
+func (w waitingNow) in(area string) []store.Message {
+	n, pending, home := w.n, w.pending, w.home
 	var out []store.Message
 	for _, nt := range pending {
 		if nt.Source == store.SourceReminder {
@@ -33,7 +58,7 @@ func (n *Notifier) waiting(ctx context.Context, area string) ([]store.Message, e
 			out = append(out, nt)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // heldAt reports whether a message does not count as waiting in area yet: it
@@ -84,15 +109,16 @@ func (n *Notifier) phoneNews(ctx context.Context) PhoneNews {
 // every light is set once. The caller holds n.mu.
 func (n *Notifier) syncIndicators(ctx context.Context) {
 	phone := n.phoneNews(ctx)
+	w, err := n.readWaiting(ctx)
+	if err != nil {
+		n.log.Error("could not check waiting messages", "error", err)
+		return
+	}
 	for area, light := range n.cfg.Indicators {
 		if n.speakingIn[area] {
 			continue // speaking restores it when the text ends
 		}
-		list, err := n.waiting(ctx, area)
-		if err != nil {
-			n.log.Error("could not check waiting messages", "area", area, "error", err)
-			return
-		}
+		list := w.in(area)
 		want := ""
 		switch {
 		case len(list) > 0:

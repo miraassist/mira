@@ -63,12 +63,31 @@ type Snapshot struct {
 	// ExposureKnown is false when Home Assistant could not tell us which
 	// entities are exposed and the build fell back to including everything.
 	ExposureKnown bool
+	// Devices are every device by id; Entities every entity not switched
+	// off, by id; DeviceEntities those of each device, sorted. A
+	// satellite's speaker, node name or phone line is looked up here, kept
+	// current by the registry events, never read from a registry per call
+	// (docs/spec/ha-anbindung.md, Watching states).
+	Devices        map[string]haws.Device
+	Entities       map[string]haws.Entity
+	DeviceEntities map[string][]string
 	// SatelliteDevices are the device ids of the voice satellites (Assist
 	// satellite entities), sorted. The MCP host asks Home Assistant for its
 	// tools as each of them would get them.
 	SatelliteDevices []string
 	// Counts for logging and telemetry.
 	AreaCount, EntityCount int
+}
+
+// DeviceEntity is the first entity of a domain on a device, not switched
+// off; "" for none.
+func (s Snapshot) DeviceEntity(deviceID, domain string) string {
+	for _, id := range s.DeviceEntities[deviceID] {
+		if Domain(id) == domain {
+			return id
+		}
+	}
+	return ""
 }
 
 // entityRow is one line of the block, prepared so sorting is explicit.
@@ -102,6 +121,24 @@ func Build(reg Registry) Snapshot {
 		Confirm:         map[string]bool{},
 		Private:         map[string]bool{},
 		ExposureKnown:   reg.Exposed != nil,
+		Devices:         make(map[string]haws.Device, len(reg.Devices)),
+		Entities:        make(map[string]haws.Entity, len(reg.Entities)),
+		DeviceEntities:  map[string][]string{},
+	}
+	for _, d := range reg.Devices {
+		snap.Devices[d.ID] = d
+	}
+	for _, e := range reg.Entities {
+		if e.DisabledBy != "" { // hidden and diagnostic ones count: a phone line is one
+			continue
+		}
+		snap.Entities[e.EntityID] = e
+		if e.DeviceID != "" {
+			snap.DeviceEntities[e.DeviceID] = append(snap.DeviceEntities[e.DeviceID], e.EntityID)
+		}
+	}
+	for _, ids := range snap.DeviceEntities {
+		slices.Sort(ids)
 	}
 	for _, e := range reg.Entities {
 		if slices.Contains(e.Labels, LabelConfirm) {

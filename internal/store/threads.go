@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 )
@@ -135,9 +136,15 @@ func scanThread(row scannable) (Thread, error) {
 		&created, &updated, &expires, &t.Version, &calls, &t.Area); err != nil {
 		return Thread{}, err
 	}
-	_ = json.Unmarshal([]byte(fields), &t.Fields)
-	_ = json.Unmarshal([]byte(log), &t.Log)
-	_ = json.Unmarshal([]byte(calls), &t.Calls)
+	// A row that does not read is an error, not an empty thread.
+	for _, part := range []struct {
+		name, raw string
+		into      any
+	}{{"fields", fields, &t.Fields}, {"log", log, &t.Log}, {"calls", calls, &t.Calls}} {
+		if err := json.Unmarshal([]byte(part.raw), part.into); err != nil {
+			return Thread{}, fmt.Errorf("thread %s: %s: %w", t.ID, part.name, err)
+		}
+	}
 	t.Content = json.RawMessage(content)
 	t.CreatedAt, t.UpdatedAt, t.ExpiresAt = parseTime(created), parseTime(updated), parseTime(expires)
 	return t, nil

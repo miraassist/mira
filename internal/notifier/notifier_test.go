@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -34,9 +35,16 @@ type fakeHA struct {
 	private *fakePrivate
 	// changed is closed by the next set: what WaitState waits on.
 	changed chan struct{}
+	// listening, when set, holds start_conversation as the satellite does
+	// until the reply: one receive when it starts, one send to end it.
+	listening chan struct{}
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
+	if service == "start_conversation" && f.listening != nil {
+		f.listening <- struct{}{} // the satellite speaks and listens until told
+		<-f.listening
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if domain == "notify" && f.private != nil {
@@ -169,8 +177,12 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { e.st.Close() })
+	// The registries as Mira keeps them: the fake's devices and entities.
+	entities, _ := e.ha.Entities(context.Background())
+	snap := structure.Build(structure.Registry{Entities: entities})
 	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
-		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Structure: func() structure.Snapshot { return snap }})
 	e.n.speakPause = 0
 	return e
 }
@@ -582,5 +594,32 @@ func TestUrgentRuleCanBeTurnedOff(t *testing.T) {
 	e.message("leak", 3, nil)
 	if sent := e.tick(); len(sent) != 0 {
 		t.Fatalf("sent during quiet hours without the urgent rule: %v", sent)
+	}
+}
+
+// The reply to an announcement made with start_conversation comes while the
+// call still runs (it returns once the satellite stopped listening): it
+// finds what was announced, and the notifier does not keep it waiting.
+func TestTheReplyFindsTheAnnouncementAndDoesNotWait(t *testing.T) {
+	e := newEnv(t, nil)
+	e.message("inverter", 2, func(n *store.Message) { n.Spoken = "Der Wechselrichter meldet einen Fehler" })
+	e.now = at("06:45")
+	e.ha.listening = make(chan struct{})
+	done := make(chan Outcome, 1)
+	go func() { done <- e.presence("bad") }()
+	<-e.ha.listening // speaking and listening now
+	if a, err := e.st.RecentAnnouncement(context.Background(), "dev-bad", 2*time.Minute); err != nil || len(a.MessageIDs) != 1 {
+		t.Fatalf("no announcement to follow up on while it listens: %+v %v", a, err)
+	}
+	afterword := make(chan string, 1)
+	go func() { afterword <- e.n.Afterword(context.Background(), "bad") }()
+	select {
+	case <-afterword:
+	case <-time.After(time.Second):
+		t.Fatal("the reply waits for the notifier")
+	}
+	e.ha.listening <- struct{}{}
+	if out := <-done; len(out.Announced) != 1 || e.state("inverter") != store.MessageDelivered {
+		t.Errorf("outcome %+v, state %s", out, e.state("inverter"))
 	}
 }

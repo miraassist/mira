@@ -58,7 +58,7 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 				n.log.Debug("presence ignored", "area", area, "reason", out.Skipped)
 			}
 		case <-remind.C:
-			n.DueMessages(ctx)
+			n.dueInBackground(ctx)
 		case <-tick.C:
 			if _, err := n.Tick(ctx); err != nil && ctx.Err() == nil {
 				n.log.Error("notifier tick failed", "error", err)

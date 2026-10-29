@@ -73,21 +73,50 @@ func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID st
 // delivery is retried on the next call, and given up after
 // store.MaxDeliveryAttempts.
 func (n *Notifier) DueMessages(ctx context.Context) {
-	due, err := n.store.ScheduledMessages(ctx, n.clock())
-	if err != nil {
-		if ctx.Err() == nil {
-			n.log.Error("could not read scheduled messages", "error", err)
-		}
-		return
+	for _, m := range n.due(ctx) {
+		n.remindOne(ctx, m)
 	}
-	for _, m := range due {
-		if err := n.Remind(ctx, m); err != nil {
-			gaveUp, ferr := n.store.DeliveryFailed(ctx, m.ID)
-			n.log.Error("scheduled message delivery failed", "message", m.ID, "gave_up", gaveUp, "error", errors.Join(err, ferr))
+}
+
+// dueInBackground delivers each due message on its own goroutine: a
+// reminder waits for its satellite to be quiet (up to minutes), and the
+// notifier's loop must go on meanwhile (motion, urgent messages). One that
+// is still being delivered is not started again.
+func (n *Notifier) dueInBackground(ctx context.Context) {
+	for _, m := range n.due(ctx) {
+		n.mu.Lock()
+		busy := n.delivering[m.ID]
+		n.delivering[m.ID] = true
+		n.mu.Unlock()
+		if busy {
 			continue
 		}
-		n.log.Info("scheduled message delivered", "message", m.ID, "area", m.AreaID, "receiver", m.Receiver)
+		go func(m store.Message) {
+			defer func() {
+				n.mu.Lock()
+				delete(n.delivering, m.ID)
+				n.mu.Unlock()
+			}()
+			n.remindOne(ctx, m)
+		}(m)
 	}
+}
+
+func (n *Notifier) due(ctx context.Context) []store.Message {
+	due, err := n.store.ScheduledMessages(ctx, n.clock())
+	if err != nil && ctx.Err() == nil {
+		n.log.Error("could not read scheduled messages", "error", err)
+	}
+	return due
+}
+
+func (n *Notifier) remindOne(ctx context.Context, m store.Message) {
+	if err := n.Remind(ctx, m); err != nil {
+		gaveUp, ferr := n.store.DeliveryFailed(ctx, m.ID)
+		n.log.Error("scheduled message delivery failed", "message", m.ID, "gave_up", gaveUp, "error", errors.Join(err, ferr))
+		return
+	}
+	n.log.Info("scheduled message delivered", "message", m.ID, "area", m.AreaID, "receiver", m.Receiver)
 }
 
 // idleWait bounds how long a message waits for a busy satellite.
@@ -123,17 +152,13 @@ func (n *Notifier) waitIdle(ctx context.Context, areaID string) {
 // voice actually plays.
 func (n *Notifier) speakers(ctx context.Context, sat string) []string {
 	device := n.deviceID(ctx, sat)
-	if device == "" {
-		return nil
-	}
-	entities, err := n.ha.Entities(ctx)
-	if err != nil {
+	if device == "" || n.structure == nil {
 		return nil
 	}
 	var out []string
-	for _, e := range entities {
-		if e.DeviceID == device && strings.HasPrefix(e.EntityID, "media_player.") {
-			out = append(out, e.EntityID)
+	for _, id := range n.structure().DeviceEntities[device] {
+		if strings.HasPrefix(id, "media_player.") {
+			out = append(out, id)
 		}
 	}
 	return out

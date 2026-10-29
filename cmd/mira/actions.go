@@ -33,7 +33,7 @@ func (h haActions) Has(ctx context.Context, action string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	services, err := h.a.ha.Services(ctx)
+	services, err := h.a.services(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -75,24 +75,6 @@ func (h haActions) Place(ctx context.Context, area string) map[string]string {
 
 // nodeOf is the ESPHome node name of an entity's device, as its actions
 // spell it; "" when unknown.
-func (a *app) nodeOf(ctx context.Context, entity string) string {
-	entities, err := a.ha.Entities(ctx)
-	if err != nil {
-		return ""
-	}
-	devices, err := a.ha.Devices(ctx)
-	if err != nil {
-		return ""
-	}
-	for _, e := range entities {
-		if e.EntityID != entity {
-			continue
-		}
-		for _, d := range devices {
-			if d.ID == e.DeviceID {
-				return slug(d.Name)
-			}
-		}
-	}
-	return ""
+func (a *app) nodeOf(_ context.Context, entity string) string {
+	return a.deviceNode(a.entityDevice(entity))
 }

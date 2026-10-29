@@ -61,10 +61,13 @@ type app struct {
 	phonebook *phone.Book
 	// voicemail is the FRITZ!Box's answering machine (skill anrufbeantworter).
 	voicemail *voicemail.Machine
-	log       *slog.Logger
-	tel       *telemetry.Provider
-	store     *store.Store
-	llm       *llm.Client
+	// phoneWatch keeps Mira FRITZ!Box's two sensors while watchPhone runs.
+	phoneMu    sync.Mutex
+	phoneWatch *haws.StateWatch
+	log        *slog.Logger
+	tel        *telemetry.Provider
+	store      *store.Store
+	llm        *llm.Client
 	// langs says which language applies when; lang is the one at the start,
 	// for what only the model reads.
 	langs *language.Resolver
@@ -112,9 +115,11 @@ type app struct {
 	notifier  *notifier.Notifier
 	ha        *haws.Client
 	structure *structure.Cache
-	assist    *assistprompt.Cache
-	mcp       *mcp.Host
-	engine    *conversation.Engine
+	// serviceCache keeps Home Assistant's actions (lookup.go).
+	serviceCache serviceCache
+	assist       *assistprompt.Cache
+	mcp          *mcp.Host
+	engine       *conversation.Engine
 
 	// live is the config the proactive parts run with: the YAML file plus
 	// the sections changed in the web UI. fileCfg is the file alone, for
@@ -660,6 +665,12 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 				} else if n > 0 {
 					a.log.Info("expired sessions purged", "count", n)
 				}
+				if p, err := a.store.PruneFinished(ctx); err != nil {
+					a.log.Warn("pruning finished rows failed", "error", err)
+				} else if p != (store.Pruned{}) {
+					a.log.Info("finished rows pruned", "messages", p.Messages, "assessments", p.Assessments,
+						"announcements", p.Announcements, "threads", p.Threads)
+				}
 			}
 		}
 	})
@@ -693,6 +704,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	}
 	a.runCtx = ctx
 	a.goRun(ctx, "people", a.watchPeople)
+	a.goRun(ctx, "services", a.watchServices)
 	// The eval runner's agent announces nothing: the test Mira next to it
 	// does that, and an eval must not speak on a real device.
 	if !cfg.Server.Eval {
@@ -796,7 +808,7 @@ func (a *app) startProactive(parent context.Context) {
 	a.proactiveCancel = cancel
 
 	n := notifier.New(notifier.Options{
-		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
+		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel, Structure: a.structure.Snapshot,
 		Composer: a.notifyCompose, Screens: a.screens(ctx, cfg), Languages: a.langs,
 		Phone: a.phoneNews(),
 	})
@@ -843,7 +855,7 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 	if n == nil {
 		// Not running (the chat command): reading out needs no loop.
 		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-			Composer: a.notifyCompose, Languages: a.langs})
+			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Languages: a.langs})
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"github.com/miraassist/mira/internal/config"
@@ -15,40 +14,12 @@ import (
 // that messages wait (internal/notifier/screen.go).
 func (a *app) screens(ctx context.Context, cfg config.Config) map[string]string {
 	out := map[string]string{}
-	if len(cfg.Satellites) == 0 {
-		return out
-	}
-	services, err := a.ha.Services(ctx)
-	if err != nil {
-		a.log.Warn("could not read home assistant's actions; no screen hints", "error", err)
-		return out
-	}
-	entities, err := a.ha.Entities(ctx)
-	if err != nil {
-		return out
-	}
-	devices, err := a.ha.Devices(ctx)
-	if err != nil {
-		return out
-	}
-	deviceOf := map[string]string{}
-	for _, e := range entities {
-		deviceOf[e.EntityID] = e.DeviceID
-	}
-	nameOf := map[string]string{}
-	for _, d := range devices {
-		nameOf[d.ID] = d.Name
-	}
 	for area, sat := range cfg.Satellites {
 		if cfg.Notifier.Indicators[area] != "" {
-			continue
+			continue // the ring shows it
 		}
-		node := slug(nameOf[deviceOf[sat]])
-		if node == "" {
-			continue
-		}
-		fields, ok := services["esphome"][node+"_notify"]
-		if ok && slices.Contains(fields, "message") && slices.Contains(fields, "tag") && slices.Contains(fields, "seconds") {
+		node := a.deviceNode(a.entityDevice(sat))
+		if node != "" && a.hasAction(ctx, "esphome", node+"_notify", "message", "tag", "seconds") {
 			out[area] = "esphome." + node + "_notify"
 			a.log.Info("satellite shows waiting messages on its screen", "area", area, "action", out[area])
 		}

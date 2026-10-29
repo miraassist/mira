@@ -143,3 +143,30 @@ func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 		t.Errorf("services: %v", e.ha.servicesCalled())
 	}
 }
+
+// A due reminder waits for its satellite in the background: the notifier's
+// loop goes on meanwhile, and one being delivered is not started twice.
+func TestDueRemindersDoNotBlockTheLoop(t *testing.T) {
+	e := newEnv(t, nil)
+	e.now = at("08:00")
+	sat := e.n.sats["kueche"]
+	e.ha.set(sat, "responding", nil) // busy: the reminder must wait
+	e.reminder("r1", at("07:59"), "kueche", "ben")
+	ctx := context.Background()
+	returned := make(chan struct{})
+	go func() { e.n.dueInBackground(ctx); e.n.dueInBackground(ctx); close(returned) }()
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("the loop waits for the busy satellite")
+	}
+	e.ha.set(sat, "idle", nil)
+	deadline := time.Now().Add(3 * time.Second)
+	for e.state("r1") != store.MessageDelivered && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if called := e.ha.servicesCalled(); len(called) != 1 {
+		t.Errorf("services %v: delivered %d times", called, len(called))
+	}
+}

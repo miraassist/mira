@@ -24,6 +24,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
@@ -42,9 +43,14 @@ type HA interface {
 }
 
 type Options struct {
-	Config    config.Config
-	Store     *store.Store
-	HA        HA
+	Config config.Config
+	Store  *store.Store
+	HA     HA
+	// Structure is the registries as Mira keeps them current (devices and
+	// their entities): a satellite's device and speakers are looked up
+	// there, never read from a registry per delivery. Nil in tests that need
+	// neither.
+	Structure func() structure.Snapshot
 	Clock     func() time.Time
 	Location  *time.Location
 	Logger    *slog.Logger
@@ -74,6 +80,7 @@ type Languages interface {
 }
 
 type Notifier struct {
+	structure func() structure.Snapshot
 	// indicatorOn is the last state set per area ("" off, else what it
 	// shows: indicatorMira, indicatorVoicemail, indicatorMissed); missing
 	// means unknown.
@@ -87,18 +94,20 @@ type Notifier struct {
 	// awaitingIdle are the areas whose satellite is in a conversation, with
 	// a hint waiting until it is idle again (screen.go).
 	awaitingIdle map[string]bool
-	langs        Languages
-	cfg          config.Notifier
-	sats         map[string]string
-	persons      map[string]config.Person
-	store        *store.Store
-	ha           HA
-	clock        func() time.Time
-	loc          *time.Location
-	log          *slog.Logger
-	tel          *telemetry.Provider
-	composer     Composer
-	screens      map[string]string
+	// delivering are the scheduled messages being delivered now (remind.go).
+	delivering map[string]bool
+	langs      Languages
+	cfg        config.Notifier
+	sats       map[string]string
+	persons    map[string]config.Person
+	store      *store.Store
+	ha         HA
+	clock      func() time.Time
+	loc        *time.Location
+	log        *slog.Logger
+	tel        *telemetry.Provider
+	composer   Composer
+	screens    map[string]string
 	// screenCount is what each screen overlay last showed; screenShown when.
 	screenCount map[string]int
 	screenShown map[string]time.Time
@@ -115,8 +124,6 @@ type Notifier struct {
 	// mu serialises decisions, so two motion events a second apart cannot
 	// both announce the same messages.
 	mu sync.Mutex
-	// deviceOf caches satellite entity -> device id, for follow-up linking.
-	deviceOf map[string]string
 }
 
 func New(opts Options) *Notifier {
@@ -142,6 +149,7 @@ func New(opts Options) *Notifier {
 		persons:       opts.Config.Persons,
 		store:         opts.Store,
 		ha:            opts.HA,
+		structure:     opts.Structure,
 		clock:         opts.Clock,
 		loc:           opts.Location,
 		log:           opts.Logger.With("component", "notifier"),
@@ -156,7 +164,7 @@ func New(opts Options) *Notifier {
 		phoneShown:    map[string]PhoneNews{},
 		phoneHeld:     map[string]bool{},
 		awaitingIdle:  map[string]bool{},
-		deviceOf:      map[string]string{},
+		delivering:    map[string]bool{},
 	}
 	for _, a := range opts.Config.Notifier.MorningTrigger.Areas {
 		n.areas[a] = true
@@ -537,42 +545,77 @@ func (n *Notifier) announce(ctx context.Context, area string, messages []store.M
 	sat := n.sats[area]
 	text := n.compose(ctx, messages)
 	n.speaking(ctx, area)
-	method, err := n.deliver(ctx, sat, text, preannounce)
-	if err != nil {
-		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
-	}
+	method := n.method(ctx, sat)
 	ids := make([]string, len(messages))
 	for i, nt := range messages {
 		ids[i] = nt.ID
-		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
+	}
+	// start_conversation returns only once the satellite stopped listening,
+	// after the reply. The reply must find what was announced (the record)
+	// and must not wait for this notifier (Afterword, ReadOut take n.mu):
+	// so the messages count as delivered and the record is written before
+	// the call, and n.mu is let go while the satellite speaks and listens.
+	// Should the call fail, the messages wait again.
+	if method == "start_conversation" {
+		if err := n.delivered(ctx, area, sat, ids); err != nil {
 			return err
 		}
-	}
-	err = n.store.RecordAnnouncement(ctx, store.Announcement{
-		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
-		Channel: "voice", MessageIDs: ids,
-	})
-	if err != nil {
-		return err
+		n.mu.Unlock()
+		err := n.deliver(ctx, sat, method, text, preannounce)
+		n.mu.Lock()
+		if err != nil {
+			for _, id := range ids {
+				_ = n.store.SetMessageState(ctx, id, store.MessagePending)
+			}
+			return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
+		}
+	} else {
+		if err := n.deliver(ctx, sat, method, text, preannounce); err != nil {
+			return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
+		}
+		if err := n.delivered(ctx, area, sat, ids); err != nil {
+			return err
+		}
 	}
 	n.tel.RecordMessageDelivery(ctx, "voice", len(ids))
 	n.log.Info("announced", "area", area, "satellite", sat, "method", method, "messages", len(ids))
 	return nil
 }
 
-// deliver speaks text on a satellite and reports the method used.
-func (n *Notifier) deliver(ctx context.Context, sat, text string, preannounce bool) (string, error) {
+// delivered marks messages delivered by voice in an area and records the
+// announcement, so a reply from the satellite finds them.
+func (n *Notifier) delivered(ctx context.Context, area, sat string, ids []string) error {
+	for _, id := range ids {
+		if err := n.store.MarkDelivered(ctx, id, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+	}
+	return n.store.RecordAnnouncement(ctx, store.Announcement{
+		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
+		Channel: "voice", MessageIDs: ids,
+	})
+}
+
+// method is how a satellite speaks: tts for a plain speaker or by setting,
+// else the configured one, or by the satellite's features.
+func (n *Notifier) method(ctx context.Context, sat string) string {
 	if strings.HasPrefix(sat, "media_player.") || n.cfg.Delivery == "tts" {
-		return "tts", n.ha.CallService(ctx, "tts", "speak",
-			map[string]any{"media_player_entity_id": sat, "message": text},
-			&haws.Target{EntityID: []string{n.cfg.TTSEntity}})
+		return "tts"
 	}
-	method := n.cfg.Delivery
-	if method == "auto" {
-		method = n.satelliteMethod(ctx, sat)
+	if n.cfg.Delivery == "auto" {
+		return n.satelliteMethod(ctx, sat)
 	}
+	return n.cfg.Delivery
+}
+
+// deliver speaks text on a satellite by method.
+func (n *Notifier) deliver(ctx context.Context, sat, method, text string, preannounce bool) error {
 	target := &haws.Target{EntityID: []string{sat}}
 	switch method {
+	case "tts":
+		return n.ha.CallService(ctx, "tts", "speak",
+			map[string]any{"media_player_entity_id": sat, "message": text},
+			&haws.Target{EntityID: []string{n.cfg.TTSEntity}})
 	case "start_conversation":
 		// The satellite listens afterwards; the reply comes back through the
 		// integration and finds the messages through the announcement record.
@@ -582,11 +625,11 @@ func (n *Notifier) deliver(ctx context.Context, sat, text string, preannounce bo
 		// after the reply: a timeout means it spoke and is still listening.
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			n.log.Info("start_conversation still listening, counted as spoken", "satellite", sat)
-			return method, nil
+			return nil
 		}
-		return method, err
+		return err
 	default:
-		return "announce", n.ha.CallService(ctx, "assist_satellite", "announce",
+		return n.ha.CallService(ctx, "assist_satellite", "announce",
 			map[string]any{"message": text, "preannounce": preannounce}, target)
 	}
 }
@@ -610,19 +653,13 @@ func (n *Notifier) satelliteMethod(ctx context.Context, sat string) string {
 	return "announce"
 }
 
-func (n *Notifier) deviceID(ctx context.Context, entityID string) string {
-	if id, ok := n.deviceOf[entityID]; ok {
-		return id
-	}
-	entities, err := n.ha.Entities(ctx)
-	if err != nil {
-		n.log.Warn("could not resolve the satellite's device; follow-up questions will not be linked", "error", err)
+// deviceID is the device of a satellite entity, for linking a follow-up
+// question to what was announced there.
+func (n *Notifier) deviceID(_ context.Context, entityID string) string {
+	if n.structure == nil {
 		return ""
 	}
-	for _, e := range entities {
-		n.deviceOf[e.EntityID] = e.DeviceID
-	}
-	return n.deviceOf[entityID]
+	return n.structure().Entities[entityID].DeviceID
 }
 
 // sendPrivate delivers a message to its recipients over the first private
