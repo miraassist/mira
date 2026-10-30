@@ -17,6 +17,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // Source is what the tasks read from Home Assistant.
@@ -58,6 +59,9 @@ type Options struct {
 	// HAURL is how Mira reaches Home Assistant. Links into its editor use
 	// the URL Home Assistant has configured for itself, this only without.
 	HAURL string
+	// Hooks decide on a change of a task (ToolEdit) after the yes, with
+	// the entities it reaches as args; without them nothing is checked.
+	Hooks func(ctx context.Context, th store.Thread, args json.RawMessage) tools.Decision
 	// Forbidden is what Mira only switches after an explicit yes, as the
 	// hook critical.star says (docs/spec/hooks.md): a task never calls it.
 	Forbidden func() (domains, entities []string)
@@ -117,6 +121,10 @@ type ErrQuestion struct{ Question string }
 
 func (e ErrQuestion) Error() string { return e.Question }
 
+// errNoValid: Home Assistant refused the second draft too; the reason
+// follows.
+var errNoValid = errors.New("no valid automation")
+
 // ErrCannot is a task the house cannot do; drafting again does not help.
 type ErrCannot struct{ Reason string }
 
@@ -158,6 +166,23 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
 	instruction += m.originText(from)
 	instruction += m.fieldsText(fields)
+	d, err := m.draft(ctx, instruction, goal, "")
+	if err != nil {
+		return Draft{}, err
+	}
+	// A person's task judges with their memory: the owner is set here, not
+	// left to the model.
+	if from.Person != "" {
+		setOwner(d.Automation, from.Person)
+	}
+	m.log.Info("automation drafted", "title", d.Title, "area", from.Area, "person", from.Person)
+	return d, nil
+}
+
+// draft asks the planner and has Home Assistant check the draft; a refused
+// one is made once more with the reason. automationID names the task a
+// change is drafted for ("" for a new one).
+func (m *Manager) draft(ctx context.Context, instruction, goal, automationID string) (Draft, error) {
 	t := m.texts()
 	var d Draft
 	for attempt := 0; ; attempt++ {
@@ -174,24 +199,17 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 			return Draft{}, ErrQuestion{strings.TrimSpace(d.Question)}
 		}
 		if err == nil {
-			err = m.check(ctx, &d, goal)
+			err = m.check(ctx, &d, goal, automationID)
 		}
 		if err == nil {
-			break
+			return d, nil
 		}
 		if attempt == 1 {
-			return Draft{}, fmt.Errorf("no valid automation: %w", err)
+			return Draft{}, fmt.Errorf("%w: %w", errNoValid, err)
 		}
 		m.log.Info("draft refused, drafting again", "error", err)
 		instruction += fmt.Sprintf(t.redraft, err.Error())
 	}
-	// A person's task judges with their memory: the owner is set here, not
-	// left to the model.
-	if from.Person != "" {
-		setOwner(d.Automation, from.Person)
-	}
-	m.log.Info("automation drafted", "title", d.Title, "area", from.Area, "person", from.Person)
-	return d, nil
 }
 
 // originText tells the planner where and from whom the task came, so "here"
@@ -273,8 +291,9 @@ func (m *Manager) SaveAutomation(ctx context.Context, id string, automation map[
 // NewAutomationID is the id a new task gets in Home Assistant.
 func NewAutomationID() string { return automationID(strings.ToLower(ulid.Make().String()[:10])) }
 
-// check completes a draft and lets Home Assistant validate it.
-func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
+// check completes a draft and lets Home Assistant validate it; for a change
+// of a task (automationID), its unchanged steps are not checked again.
+func (m *Manager) check(ctx context.Context, d *Draft, goal, automationID string) error {
 	if strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Summary) == "" || len(d.Automation) == 0 {
 		return errors.New("title, summary and automation are required")
 	}
@@ -284,12 +303,16 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal string) error {
 	if d.Automation["alias"] == nil {
 		d.Automation["alias"] = d.Title
 	}
-	if d.Automation["description"] == nil {
+	// A change keeps the task's description as it is (or as it was not).
+	if d.Automation["description"] == nil && automationID == "" {
 		d.Automation["description"] = strings.TrimSpace(goal)
 	}
 	tagTask(d.Automation["actions"])
-	raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/validate", "config": d.Automation,
-		"forbidden": m.forbidden()})
+	cmd := map[string]any{"type": "mira/automation/validate", "config": d.Automation, "forbidden": m.forbidden()}
+	if automationID != "" {
+		cmd["automation_id"] = automationID
+	}
+	raw, err := m.opts.HA.Call(ctx, cmd)
 	if err != nil {
 		return err
 	}
@@ -332,10 +355,32 @@ func nonNil(s []string) []string {
 // to exactly what will be switched.
 func otherActions(actions any) []string {
 	var out []string
+	for _, s := range switchedSteps(actions) {
+		name := s.name
+		if len(s.targets) > 0 {
+			name += " (" + strings.Join(s.targets, ", ") + ")"
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+// switched is a step of an automation that switches something besides
+// Mira's own actions: its action ("light.turn_on", "scene (scene.x)",
+// "light turn_on" for a device action) and its targets as written.
+type switched struct {
+	name    string
+	targets []string
+}
+
+// switchedSteps finds the steps that switch something, also inside choose,
+// if, sequence, parallel and repeat.
+func switchedSteps(actions any) []switched {
+	var out []switched
 	switch a := actions.(type) {
 	case []any:
 		for _, step := range a {
-			out = append(out, otherActions(step)...)
+			out = append(out, switchedSteps(step)...)
 		}
 	case map[string]any:
 		name, _ := a["action"].(string)
@@ -381,23 +426,20 @@ func otherActions(actions any) []string {
 					add(h[key])
 				}
 			}
-			if len(targets) > 0 {
-				name += " (" + strings.Join(targets, ", ") + ")"
-			}
-			out = append(out, name)
+			out = append(out, switched{name, targets})
 		}
 		for _, key := range []string{"then", "else", "sequence", "parallel", "default"} {
-			out = append(out, otherActions(a[key])...)
+			out = append(out, switchedSteps(a[key])...)
 		}
 		if options, ok := a["choose"].([]any); ok {
 			for _, o := range options {
 				if om, ok := o.(map[string]any); ok {
-					out = append(out, otherActions(om["sequence"])...)
+					out = append(out, switchedSteps(om["sequence"])...)
 				}
 			}
 		}
 		if rep, ok := a["repeat"].(map[string]any); ok {
-			out = append(out, otherActions(rep["sequence"])...)
+			out = append(out, switchedSteps(rep["sequence"])...)
 		}
 	}
 	return out

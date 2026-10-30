@@ -13,6 +13,20 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 - **Replies to the maintainer in German**; everything in the repository in English (specs, code, comments,
   commits), except the user-facing texts and the guide, which come in German and English, and the skills, which stay
   German.
+- **Try before building, test before handing over.** Before a flow waits for a signal (a state change, a call that
+  returns when done, an event), make the exact call on the test HA and see the signal come in its state history.
+  After building, run the flow end to end yourself (Mira's conversation API with the satellite's device id, the
+  state history, HA's pipeline debug, the log); the maintainer only tests what needs a voice or ears. Every
+  scenario of the flow runs, the interruptions too (wake word, "stop", "cancel", "next", "again", silence, an
+  unknown voice); the handover names which ran and what is left for the maintainer.
+- **Test against the fake devices.** The fakes in the test HA (`testenv/techo5_fake`,
+  [Fake devices](docs/spec/fake-geraete.md)) are built for exactly these tests: use them while building. When a test
+  needs something a fake cannot do, consider extending the fake (or ask) before building a detour or leaving it
+  untested.
+- **One flow at a time.** While a flow does not work, only it is built; whatever else comes up on the way goes into
+  the private TODO list, unless it blocks the flow.
+- **Evidence or "assumption".** A cause is named with its evidence (a log line, the state history, a pipeline run);
+  without one it is called an assumption.
 - **Terms**: the Mira service, the HA app, the integration; a *turn* (one conversation as Home Assistant conducts it)
   and a *thread* ("Vorgang", a concern across turns). "The agent" means one of Mira's helpers, never the service.
 
@@ -20,6 +34,11 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 
 - A feature starts as `docs/spec/<topic>.md` with its goal, the decisions (with date), what it does, and numbered
   **Steps**; its testable rules in `docs/spec/<topic>.feature`.
+- **Existing building blocks first.** A new flow's spec first names the concept it hangs on (a thread with a plan, an
+  announcement of a thread, a tool, a finisher) and gives the reason for every departure from it.
+- **A flow that drives devices in sequence has a state table**: per transition the trigger, the signal, how Mira
+  learns of it, and "checked on the test HA (date)"; with the ways to interrupt and to cancel. It is built only
+  when every row is checked.
 - **Every tool and every step a voice turn waits for says what it does step by step and what it costs**: calls to
   Home Assistant or devices, downloads, subscriptions, waits, and what the turn waits for versus what runs after it.
   Anything that grows with the number of items is named.

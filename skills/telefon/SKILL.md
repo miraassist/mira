@@ -2,6 +2,9 @@
 name: telefon
 description: "Telefonieren mit dem Telefonbuch der FRITZ!Box: jemanden anrufen („Ruf Oma an“, „Ruf Ben auf dem Handy an“), auch ein Gerät im Haus („Ruf die Küche an“) oder eine Nummer."
 license: MIT
+metadata:
+  mira:
+    chapter: "## Telefonieren"
 ---
 # Telefonieren
 

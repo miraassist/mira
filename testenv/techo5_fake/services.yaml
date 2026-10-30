@@ -1,0 +1,20 @@
+# Test actions of the fake devices (docs/spec/fake-geraete.md); the real device has none.
+wake_word:
+  fields:
+    device:
+      required: true
+      example: fake_show
+      selector:
+        text:
+say:
+  fields:
+    device:
+      required: true
+      example: fake_show
+      selector:
+        text:
+    text:
+      required: true
+      example: Wie spät ist es?
+      selector:
+        text:

@@ -3,6 +3,17 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.14.0
+
+- Mira's pages show their entries as cards: opened, a card offers what can be changed right there, skills and tasks
+  have a switch, each fact in the memory is a text field, satellites and people save one entry at a time. Every page
+  links to its chapter in the guide.
+- Settings saved on the pages (notifications; satellites and people without the integration) go into `mira.yaml`,
+  only what differs from the defaults, and hold at once. "Back to mira.yaml" is gone; changes Mira kept in her
+  database before are no longer read.
+- New skill `aufgabe-aendern`: change a task in the conversation, also one made in Home Assistant ("Das
+  Abendlicht soll erst um 19 Uhr angehen").
+
 ## 0.13.1
 
 - Fixes from a review: the reply to an announcement no longer waits, satellites' speakers and actions are looked

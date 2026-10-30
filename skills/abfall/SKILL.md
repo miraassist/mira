@@ -4,6 +4,7 @@ description: Abfuhrtermine aus dem Abfallkalender – wann welcher Müll abgehol
 license: MIT
 metadata:
   mira:
+    chapter: "## Skills: zum Beispiel die Müllabfuhr"
     settings:
       calendar:
         description: Der Kalender mit den Abfuhrterminen in Home Assistant, Name oder Entität (z. B. calendar.abfuhrtermine). Er muss für Assist freigegeben sein.

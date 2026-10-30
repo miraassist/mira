@@ -769,6 +769,48 @@ func (e *editor) change(secrets map[string]string, fn func(top *yaml.Node) error
 	return nil
 }
 
+// writeSections puts settings sections (YAML by name, what differs from
+// the defaults) into mira.yaml (docs/spec/bearbeiten.md, Settings sections). keep are the
+// notifier's parts the file keeps as they are. They hold at once, so no
+// restart is asked for.
+func (e *editor) writeSections(sections map[string][]byte, keep []string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	err := e.file.Edit(func(top *yaml.Node) error {
+		for name, raw := range sections {
+			var doc yaml.Node
+			if err := yaml.Unmarshal(raw, &doc); err != nil {
+				return err
+			}
+			node := &yaml.Node{Kind: yaml.MappingNode}
+			if len(doc.Content) > 0 && doc.Content[0].Tag != "!!null" {
+				node = doc.Content[0]
+			}
+			if name == "notifier" {
+				old := config.MapGet(top, name)
+				for _, k := range keep {
+					if v := config.MapGet(old, k); v != nil {
+						config.MapSet(node, k, v)
+					} else {
+						config.MapDelete(node, k)
+					}
+				}
+			}
+			// A section at its defaults needs no entry.
+			if node.Kind == yaml.MappingNode && len(node.Content) == 0 {
+				config.MapDelete(top, name)
+				continue
+			}
+			config.MapSet(top, name, node)
+		}
+		return nil
+	})
+	if err == nil {
+		e.a.log.Info("settings written on the page", "file", e.file.Path)
+	}
+	return err
+}
+
 // --- helpers ---------------------------------------------------------------
 
 // alwaysOn are the skills that are on without an entry.

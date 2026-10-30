@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -525,5 +526,39 @@ func TestUrgentSchedule(t *testing.T) {
 	}
 	if !strings.Contains(tasker.instruction, "2 = wichtig") || strings.Contains(tasker.instruction, "3 = dringend") {
 		t.Errorf("the last, not urgent, schedule was told about 3:\n%s", tasker.instruction)
+	}
+}
+
+// A skill names its chapter of Mira's guide in its own language and in its
+// translations; the page links it, also for a skill not switched on.
+func TestChapters(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "kochen")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skill := "---\nname: kochen\ndescription: Kochen.\nmetadata:\n  mira:\n    chapter: \"## Kochen und Backen\"\n---\n# Kochen\n"
+	en := "---\ndescription: Cooking.\nchapter: \"## Cooking and baking\"\n---\n# Cooking\n"
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.en.md"), []byte(en), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"de": "## Kochen und Backen", "en": "## Cooking and baking"}
+	sk, p := load(dir, nil)
+	if p != nil || !maps.Equal(sk.Chapters(), want) {
+		t.Errorf("loaded: %v %v", sk.Chapters(), p)
+	}
+	av := Available([]string{root}, nil)
+	if len(av) != 1 || !maps.Equal(av[0].Chapters, want) {
+		t.Errorf("available: %+v", av)
+	}
+	// Without a chapter there is none, in no language.
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: kochen\ndescription: Kochen.\n---\n# Kochen\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if sk, _ := load(dir, nil); sk.Chapters() != nil {
+		t.Errorf("without a chapter: %v", sk.Chapters())
 	}
 }

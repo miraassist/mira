@@ -46,7 +46,8 @@ func (a *app) catalog(ctx context.Context) ui.Catalog {
 	}
 	for _, info := range skills.Available(a.cfg.Skills.Dirs, a.cfg.Skills.Enabled) {
 		if _, problem := problems[info.Name]; !problem && !started[info.Name] {
-			c.Skills = append(c.Skills, ui.SkillInfo{Name: info.Name, Description: info.Description, State: "available"})
+			c.Skills = append(c.Skills, ui.SkillInfo{Name: info.Name, Description: info.Description, State: "available",
+				Chapters: info.Chapters})
 		}
 	}
 	sort.SliceStable(c.Skills, func(i, j int) bool {
@@ -173,7 +174,8 @@ func stateOrder(s string) int {
 
 // skillInfo is what the view shows of a started skill.
 func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
-	info := ui.SkillInfo{Name: sk.Name, Description: sk.Description, State: "active", Guide: strings.TrimSpace(sk.Body)}
+	info := ui.SkillInfo{Name: sk.Name, Description: sk.Description, State: "active", Guide: strings.TrimSpace(sk.Body),
+		Chapters: sk.Chapters()}
 	values := a.cfg.Skills.Enabled[sk.Name]
 	for _, name := range sortedNames(sk.Settings) {
 		decl := sk.Settings[name]

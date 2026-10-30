@@ -4,6 +4,7 @@ description: Sich etwas merken, wenn der Nutzer es ankündigt, aber noch nicht s
 license: MIT
 metadata:
   mira:
+    chapter: "## Mira merkt sich"
     target:
       timeout: 5m
       fields:

@@ -4,6 +4,7 @@ description: Eine dauerhafte Aufgabe einrichten, wenn der Nutzer möchte, dass M
 license: MIT
 metadata:
   mira:
+    chapter: "## Mira passt aufs Haus auf"
     target:
       timeout: 15m
       confirm: true

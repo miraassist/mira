@@ -338,3 +338,21 @@ async def test_AE04_the_list_with_all_names_every_task(hass, tmp_path, aioclient
     await client.send_json_auto_id({"type": "mira/automation/get", "entity_id": "automation.aus_yaml"})
     msg = await client.receive_json()
     assert not msg["success"] and msg["error"]["code"] == "not_editable"
+
+
+async def test_AE05_checking_a_change_knows_the_task_before(hass, tmp_path, aioclient_mock, entry, hass_ws_client):
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    await editor_house(hass, tmp_path)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    changed = HOUSEHOLD | {"triggers": [HOUSEHOLD["triggers"][0] | {"for": "00:30:00"}]}
+
+    # The unlock was there before: the change is fine.
+    await client.send_json_auto_id(
+        {"type": "mira/automation/validate", "config": changed, "forbidden": FORBIDDEN, "automation_id": "abendlicht"}
+    )
+    assert (await client.receive_json())["result"] == {"valid": True}
+    # Without the task it is checked as new, and the unlock is refused.
+    await client.send_json_auto_id({"type": "mira/automation/validate", "config": changed, "forbidden": FORBIDDEN})
+    assert (await client.receive_json())["result"]["valid"] is False

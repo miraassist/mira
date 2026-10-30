@@ -1,6 +1,7 @@
 # Changing tasks in the conversation – Spec
 
-Status 2026-10-29: step 1 built (the integration; its scenarios AE-01 to AE-04 are tested in pytest). Scenarios: [aufgaben-aendern.feature](aufgaben-aendern.feature). Builds on
+Status 2026-10-30: steps 1–4 built (the integration's scenarios AE-01 to AE-04 are tested in pytest, the others in
+Go). Scenarios: [aufgaben-aendern.feature](aufgaben-aendern.feature). Builds on
 [Tasks](aufgaben.md) and [Threads](vorgaenge.md); protection by [Hooks](hooks.md).
 
 ## Goal
@@ -98,6 +99,8 @@ with an error, and Mira says she cannot change tasks yet and that the integratio
 - `mira/automation/list` with `all: true` (new field): every task, with name, area, labels and `editable`; without it,
   as today, only Mira's.
 - `mira/automation/save` with `keep_labels: true` (new field): no label "Mira" is added.
+- `mira/automation/validate` with `automation_id` (new field): a change is checked as when saving, its unchanged
+  steps not again.
 
 ## Where one sees it
 
@@ -107,6 +110,6 @@ with an error, and Mira says she cannot change tasks yet and that the integratio
 ## Steps
 
 1. **Integration**: `get`, `list` with `all`, `save` with `keep_labels`, unchanged steps not checked again; tests in pytest (built).
-2. **The building blocks** `tasks.find` and `tasks.edit`, the hook call `task_edit`.
-3. **The skill `aufgabe-aendern`**.
-4. **The guide**.
+2. **The building blocks** `tasks.find` and `tasks.edit`, the hook call `task_edit` (built).
+3. **The skill `aufgabe-aendern`**, always on like `aufgabe` (built).
+4. **The guide** (built).

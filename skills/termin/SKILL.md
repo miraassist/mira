@@ -4,6 +4,7 @@ description: Einen Termin in einen Kalender eintragen („Trag mir Freitag um 15
 license: MIT
 metadata:
   mira:
+    chapter: "## Kalender und Listen"
     target:
       timeout: 10m
       fields:

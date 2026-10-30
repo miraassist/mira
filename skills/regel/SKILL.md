@@ -4,6 +4,7 @@ description: "Eigene Regeln, die festlegen, was Mira tun darf und was nicht („
 license: MIT
 metadata:
   mira:
+    chapter: "## Eigene Regeln"
     target:
       timeout: 15m
       fields:

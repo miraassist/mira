@@ -469,3 +469,15 @@ Between Home Assistant and the agent there are two directions, on separate paths
   demo devices, a non-admin user, the integration and
   `automations.yaml`. Alongside runs a test Mira with `testenv/mira.yaml` on
   port 8788. This way whole flows can be checked without touching the house.
+- **End to end at a real satellite:** a flow that plays, speaks and listens is
+  run before anyone tests it by voice:
+  - drive it through Mira's conversation API (`POST /v1/conversation` with
+    the satellite's `device_id` and a fixed `conversation_id`): Mira acts as
+    if the satellite had heard it;
+  - read what happened from HA's state history of the satellite, its
+    speaker and the sensors involved (`/api/history/period`), from HA's
+    pipeline debug (`assist_pipeline/pipeline_debug/*`: what the satellite
+    understood, also turns nobody meant) and from Mira's log.
+  - Such a script depends on one setup (its devices, its box) and stays out
+    of the repository (`*.local.py`); what the repository tests runs against
+    the fake devices.

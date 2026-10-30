@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -297,13 +298,19 @@ func (a *app) agentNames() map[string]bool {
 }
 
 // skillsWithAgents are the started skills that may describe agents: those in
-// the skill set and those with a target.
+// the skill set and those with a target, each once (a target skill Mira binds
+// tools to is in both).
 func (a *app) skillsWithAgents() []skills.Skill {
 	var out []skills.Skill
 	if a.skills != nil {
 		out = append(out, a.skills.Skills...)
 	}
-	return append(out, a.targetSkills...)
+	for _, sk := range a.targetSkills {
+		if !slices.ContainsFunc(out, func(s skills.Skill) bool { return s.Name == sk.Name }) {
+			out = append(out, sk)
+		}
+	}
+	return out
 }
 
 // unknownAgent is the first agent a target names that does not exist.

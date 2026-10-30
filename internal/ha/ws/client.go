@@ -364,10 +364,11 @@ func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawM
 			return nil, ErrNotConnected // connection dropped while waiting
 		}
 		if msg.Success != nil && !*msg.Success {
-			if msg.Error != nil && msg.Error.Code == "not_found" {
-				return nil, fmt.Errorf("home assistant rejected %v: %w: %s", command["type"], ErrNotFound, errorText(msg.Error))
+			e := &Error{Command: fmt.Sprint(command["type"]), Message: "unknown error"}
+			if msg.Error != nil {
+				e.Code, e.Message = msg.Error.Code, msg.Error.Message
 			}
-			return nil, fmt.Errorf("home assistant rejected %v: %s", command["type"], errorText(msg.Error))
+			return nil, e
 		}
 		return msg.Result, nil
 	case <-ctx.Done():
@@ -588,6 +589,29 @@ func errorText(e *wsError) string {
 		return "unknown error"
 	}
 	return fmt.Sprintf("%s (%s)", e.Message, e.Code)
+}
+
+// Error is Home Assistant's refusal of a command, with its code
+// ("not_found", "unknown_command", or one of an integration's own).
+type Error struct {
+	Command, Code, Message string
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("home assistant rejected %s: %s (%s)", e.Command, e.Message, e.Code)
+}
+
+// Is makes a refusal with the code "not_found" an ErrNotFound.
+func (e *Error) Is(target error) bool { return target == ErrNotFound && e.Code == "not_found" }
+
+// CodeOf is the code of Home Assistant's refusal in err, "" for any other
+// error.
+func CodeOf(err error) string {
+	var e *Error
+	if errors.As(err, &e) {
+		return e.Code
+	}
+	return ""
 }
 
 func readJSON(ctx context.Context, conn *websocket.Conn, v any) error {

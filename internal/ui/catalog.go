@@ -96,6 +96,9 @@ type SkillInfo struct {
 	MCP       *MCPInfo       `json:"mcp,omitempty"`
 	Agents    []string       `json:"agents,omitempty"`
 	Guide     string         `json:"guide,omitempty"`
+	// Chapters are how the heading of the skill's chapter in Mira's guide
+	// begins, by language ("de": "## Kochen und Backen").
+	Chapters map[string]string `json:"chapters,omitempty"`
 	// Phonebook is the skill telefon's phone book.
 	Phonebook *PhonebookInfo `json:"phonebook,omitempty"`
 }

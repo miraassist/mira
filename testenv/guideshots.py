@@ -69,7 +69,7 @@ class Session:
         self.page.evaluate(
             f"{HASS}.connection.sendMessagePromise({{type: 'frontend/set_user_data', key: 'language', value: {json.dumps(value)}}})")
 
-    def go(self, tab: str, wait: str = "#view section.card"):
+    def go(self, tab: str, wait: str = "#view .list-head, #view section.card"):
         self.frame.evaluate(f"go({tab!r})")
         self.ui.locator(wait).first.wait_for()
         self.page.wait_for_timeout(1500)
@@ -98,12 +98,11 @@ def pictures(browser, lang: str, out: pathlib.Path, logins: dict[str, str]):
         s.ui.locator("mira-hooks details.item summary").first.click()
         s.shot(out, "mira-hooks", 900)
         s.go("notifier"); s.shot(out, "benachrichtigung", 800)
-        # The model dialog: the second model's entry, its last button is "Edit".
+        # Editing a model: the second model's card opened is its form.
         s.go("models", "mira-models details.item")
         s.page.set_viewport_size({"width": WIDTH, "height": 900})
         s.ui.locator("mira-models details.item summary").nth(1).click()
-        s.ui.locator("mira-models details.item[open] button.secondary").last.click()
-        s.ui.locator("dialog[open]").wait_for()
+        s.ui.locator("mira-models details.item[open] form.inline-editor").wait_for()
         s.shot(out, "mira-bearbeiten", 900)
     finally:
         s.close()
@@ -111,7 +110,9 @@ def pictures(browser, lang: str, out: pathlib.Path, logins: dict[str, str]):
     try:
         s.go("memory"); s.shot(out, "gedaechtnis", 760)
         s.page.set_viewport_size({"width": WIDTH, "height": 560})
-        s.ui.locator("#view button.danger").first.click()
+        # A fact's card opened, its "Forget".
+        s.ui.locator("#view details[data-fact] summary").first.click()
+        s.ui.locator("#view details[data-fact][open] button.danger").click()
         s.ui.locator("dialog#dlg[open]").wait_for()
         s.shot(out, "dialog-vergessen", 560)
         s.ui.locator("#dlg-cancel").click()

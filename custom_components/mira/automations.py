@@ -504,14 +504,25 @@ _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "mira/automation/validate", vol.Required("config"): dict, vol.Optional("forbidden"): _FORBIDDEN}
+    {
+        vol.Required("type"): "mira/automation/validate",
+        vol.Required("config"): dict,
+        vol.Optional("forbidden"): _FORBIDDEN,
+        # A change of an existing task: its unchanged steps are not checked
+        # again, as when saving (docs/spec/aufgaben-aendern.md).
+        vol.Optional("automation_id"): str,
+    }
 )
 @websocket_api.async_response
 async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     if not _agent_only(hass, connection, msg):
         return
+    before = None
+    if automation_id := msg.get("automation_id"):
+        data = await hass.async_add_executor_job(_read, hass.config.path(AUTOMATION_CONFIG_PATH))
+        before = next((a for a in data if a.get("id") == automation_id), None)
     try:
-        await validate(hass, msg["config"], msg.get("forbidden"))
+        await validate(hass, msg["config"], msg.get("forbidden"), before)
     except HomeAssistantError as err:
         connection.send_result(msg["id"], {"valid": False, "error": str(err)})
         return

@@ -13,7 +13,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, ServiceCall, Servic
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_set_service_schema
 
-from .const import ESPHOME
+from .const import DOMAIN, ESPHOME
 from .device import FakeDevice, parse_duration
 
 Handler = Callable[[FakeDevice, dict[str, Any]], Awaitable[dict[str, Any] | None] | dict[str, Any] | None]
@@ -84,6 +84,11 @@ def _notify(dev: FakeDevice, d: dict[str, Any]) -> None:
     """The screen hint (a Show shows it; the logged entry is what a test checks)."""
 
 
+def _media_title(dev: FakeDevice, d: dict[str, Any]) -> None:
+    """Names the next play_media once (the speaker shows it as media_title)."""
+    dev.media_title = {k: str(d.get(k) or "") for k in ("title", "subtitle", "source")}
+
+
 BEHAVIOUR: dict[str, Handler] = {
     "alarm_set": _alarm_set(),
     "alarm_set_silent": _alarm_set(silent=True),
@@ -100,7 +105,40 @@ BEHAVIOUR: dict[str, Handler] = {
     "timer_add": _timer("add"),
     "timer_remove": _timer("remove"),
     "notify": _notify,
+    "media_title": _media_title,
 }
+
+
+@callback
+def async_register_test_services(hass: HomeAssistant, devices: dict[str, FakeDevice]) -> CALLBACK_TYPE:
+    """techo5_fake.wake_word and techo5_fake.say: what a test does instead of
+    saying the wake word or a sentence (docs/spec/fake-geraete.md). Not in the
+    contract: the real device has none."""
+
+    def satellite(call: ServiceCall) -> Any:
+        dev = devices.get(str(call.data["device"]))
+        if dev is None or dev.satellite is None:
+            raise HomeAssistantError(f"no fake satellite {call.data['device']!r}")
+        return dev.satellite
+
+    async def wake_word(call: ServiceCall) -> None:
+        satellite(call).wake_word()
+
+    async def say(call: ServiceCall) -> ServiceResponse:
+        return await satellite(call).say(str(call.data["text"]))
+
+    hass.services.async_register(DOMAIN, "wake_word", wake_word, schema=vol.Schema({vol.Required("device"): str}))
+    hass.services.async_register(
+        DOMAIN, "say", say, schema=vol.Schema({vol.Required("device"): str, vol.Required("text"): str}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    @callback
+    def remove() -> None:
+        hass.services.async_remove(DOMAIN, "wake_word")
+        hass.services.async_remove(DOMAIN, "say")
+
+    return remove
 
 
 @callback

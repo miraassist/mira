@@ -49,13 +49,19 @@ type Entity struct {
 
 // Config is what the agent exposes to the UI.
 type Config interface {
-	// Section returns a section as JSON and whether the UI changed it.
-	Section(name string) (json.RawMessage, bool, error)
-	// SetSections changes one or more sections at once; they are validated
-	// together, because some depend on each other (a presence sensor needs
-	// its area's satellite).
+	// Section returns a section as JSON, as Mira runs with it.
+	Section(name string) (json.RawMessage, error)
+	// SetSections writes one or more sections into mira.yaml and applies
+	// them at once; they are validated together, because some depend on
+	// each other (a presence sensor needs its area's satellite).
 	SetSections(ctx context.Context, sections map[string]json.RawMessage) error
-	ResetSection(ctx context.Context, name string) error
+	// SetHASections applies what Home Assistant sends, held in memory only
+	// (docs/spec/bearbeiten.md, What Home Assistant sends).
+	SetHASections(ctx context.Context, sections map[string]json.RawMessage) error
+	// HAManaged says the integration manages persons and rooms.
+	HAManaged() bool
+	// ReleaseHA hands them back to the page.
+	ReleaseHA()
 }
 
 type Options struct {
@@ -135,7 +141,6 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
-	h.mux.HandleFunc("DELETE /v1/ui/config/{section}", h.auth(h.resetSection))
 	h.mux.HandleFunc("GET /v1/ui/entities", h.auth(h.entities))
 	// Everyone sees the house's messages and, with mine=1, their own;
 	// admins see all.
@@ -297,8 +302,7 @@ func (h *Handler) personName(key string) string {
 
 func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 	type section struct {
-		Value      json.RawMessage `json:"value"`
-		Overridden bool            `json:"overridden"`
+		Value json.RawMessage `json:"value"`
 		// People are Home Assistant's persons, with the persons section:
 		// its value then holds only Mira's settings per person.
 		People []PersonInfo `json:"people,omitempty"`
@@ -307,15 +311,15 @@ func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 		// means only its morning_trigger.
 		ManagedBy string `json:"managed_by,omitempty"`
 	}
-	managed := h.managedByHA(r)
+	managed := h.opts.Config.HAManaged()
 	out := map[string]section{}
 	for _, name := range h.opts.Sections {
-		v, over, err := h.opts.Config.Section(name)
+		v, err := h.opts.Config.Section(name)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		s := section{Value: v, Overridden: over}
+		s := section{Value: v}
 		if name == "persons" {
 			s.People = h.people()
 		}
@@ -350,24 +354,10 @@ func (h *Handler) putSections(w http.ResponseWriter, r *http.Request) {
 	h.getConfig(w, r)
 }
 
-func (h *Handler) resetSection(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("section")
-	if h.managedByHA(r) && (slices.Contains(haSections, name) || name == "notifier") {
-		writeError(w, http.StatusConflict, "section "+name+" is managed in Home Assistant")
-		return
-	}
-	if err := h.opts.Config.ResetSection(r.Context(), name); err != nil {
-		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	h.log.Info("config section reset to the file", "section", name)
-	h.getConfig(w, r)
-}
-
 // keepManaged refuses changes to sections Home Assistant manages, and keeps
 // the notifier's morning trigger as Home Assistant set it.
 func (h *Handler) keepManaged(r *http.Request, sections map[string]json.RawMessage) error {
-	if !h.managedByHA(r) {
+	if !h.opts.Config.HAManaged() {
 		return nil
 	}
 	for _, name := range haSections {
@@ -380,7 +370,7 @@ func (h *Handler) keepManaged(r *http.Request, sections map[string]json.RawMessa
 		return nil
 	}
 	var in, current map[string]json.RawMessage
-	cur, _, err := h.opts.Config.Section("notifier")
+	cur, err := h.opts.Config.Section("notifier")
 	if err == nil {
 		err = json.Unmarshal(cur, &current)
 	}

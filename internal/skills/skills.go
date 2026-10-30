@@ -63,6 +63,10 @@ type Skill struct {
 	// MCP is the skill's MCP server, named after the skill, with its
 	// settings filled in (docs/spec/skill-mcp.md); nil for none.
 	MCP *config.MCPServer
+	// Chapter is how the heading of the chapter in Mira's guide about this
+	// skill begins (metadata.mira.chapter, "## Kochen und Backen"), in the
+	// skill's language; Mira's page links it. Empty for none.
+	Chapter string
 }
 
 // Mail is a skill's part in the mail calendar: how to read its mails. The
@@ -236,6 +240,7 @@ type frontmatter struct {
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
 			Language  string               `yaml:"language"`
+			Chapter   string               `yaml:"chapter"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -413,6 +418,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		s.MCP = &srv
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
+	s.Chapter = strings.TrimSpace(m.Chapter)
 	if s.Lang, err = i18n.Parse(m.Language); err != nil {
 		return Skill{}, problem("language", m.Language)
 	}
@@ -437,7 +443,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 // translation is a skill's texts in another language than its own. A text it
 // leaves out keeps the skill's own.
 type translation struct {
-	Description, Body string
+	Description, Body, Chapter string
 }
 
 // readTranslation reads SKILL.<lang>.md: frontmatter with the translated
@@ -458,12 +464,14 @@ func readTranslation(dir string, l i18n.Lang, vals map[string]string, decl map[s
 	}
 	var meta struct {
 		Description string `yaml:"description"`
+		Chapter     string `yaml:"chapter"`
 	}
 	if err := yaml.Unmarshal(fm, &meta); err != nil {
 		return translation{}, false, problem("translation", name, err)
 	}
 	return translation{
 		Description: strings.TrimSpace(meta.Description),
+		Chapter:     strings.TrimSpace(meta.Chapter),
 		Body:        fill(strings.TrimSpace(string(body)), vals, decl),
 	}, true, nil
 }
@@ -475,6 +483,21 @@ func (s Skill) DescriptionIn(l i18n.Lang) string {
 		return t.Description
 	}
 	return s.Description
+}
+
+// Chapters are the skill's chapter of Mira's guide by language: its own
+// language's and its translations'; nil for none.
+func (s Skill) Chapters() map[string]string {
+	if s.Chapter == "" {
+		return nil
+	}
+	out := map[string]string{string(s.Lang): s.Chapter}
+	for l, t := range s.translations {
+		if t.Chapter != "" {
+			out[string(l)] = t.Chapter
+		}
+	}
+	return out
 }
 
 // BodyIn is the skill's guide in l: its translation's, else its own.
@@ -576,10 +599,12 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string) (confi
 // Exists reports whether a skill folder of that name is in dirs.
 func Exists(dirs []string, name string) bool { return find(dirs, name) != "" }
 
-// Info is a skill folder's name and description, read without loading it.
+// Info is a skill folder's name, description and chapter of Mira's guide
+// by language (as Skill.Chapters), read without loading it.
 type Info struct {
 	Name        string
 	Description string
+	Chapters    map[string]string
 }
 
 // Available are the skills in dirs that are not enabled, by name: what a
@@ -607,16 +632,34 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 			}
 			info := Info{Name: name}
 			if front, _, p := split(raw); p == nil {
-				var fm struct {
-					Description string `yaml:"description"`
-				}
+				var fm frontmatter
 				if yaml.Unmarshal(front, &fm) == nil {
 					info.Description = strings.TrimSpace(fm.Description)
+					info.Chapters = availableChapters(filepath.Join(d, name), fm.Metadata.Mira.Language, fm.Metadata.Mira.Chapter)
 				}
 			}
 			out = append(out, info)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// availableChapters are the chapters of a skill not switched on: its own
+// and those of its translations, as Skill.Chapters.
+func availableChapters(dir, language, chapter string) map[string]string {
+	own, err := i18n.Parse(language)
+	if err != nil || strings.TrimSpace(chapter) == "" {
+		return nil
+	}
+	out := map[string]string{string(own): strings.TrimSpace(chapter)}
+	for _, l := range i18n.All {
+		if l == own {
+			continue
+		}
+		if t, ok, _ := readTranslation(dir, l, nil, nil); ok && t.Chapter != "" {
+			out[string(l)] = t.Chapter
+		}
+	}
 	return out
 }

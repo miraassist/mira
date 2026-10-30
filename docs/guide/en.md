@@ -64,11 +64,18 @@ When judging, Mira compares, for example, the last hour's usage with the same ho
 - "Which tasks do you have?" – "Pause the gas task." – "Delete the electricity task." – "Do a dry run of the gas task."
 - In Home Assistant under Mira → **Tasks** you see all tasks with on/off, dry run and the log of their judgements, plus proposals still waiting for your yes.
 
-![Mira in Home Assistant's sidebar: a paused and several running tasks](img/aufgaben-liste-en.png)
+![Mira in Home Assistant's sidebar: a running task, its on/off switch on the right](img/aufgaben-liste-en.png)
 
 Under the hood every task is an ordinary **automation in Home Assistant** labelled "Mira": Home Assistant decides *when* something happens (hourly, when a sensor fires, only at night …), Mira decides *what* of it interests you. "Edit in Home Assistant" opens it in the editor; you can change it there yourself too.
 
 ![The gas task in Home Assistant's automation editor: hourly trigger, action "Mira: Assess"](img/ha-automation-en.png)
+
+**Changing tasks, your own as well:** Mira changes every task saved in Home Assistant's automation editor, not only her own. Just say what should be different:
+
+- "The evening light in the living room should only come on 30 minutes after sunset."
+- "In the task with the water, take out the sensor in the basement."
+
+Mira looks the task up, asks when two fit, and tells you the change: "The task Evening light living room: so far at sunset, now 30 minutes later. Shall I change it like this?" Only after your **"Yes"** does she save it. If the task then switches something new, Mira names it first, and the same rules as when setting one up apply to what is new. What a task has always switched stays allowed. Anyone Mira knows can change a task; when she does not recognise the voice, she changes nothing. Tasks from YAML files Mira cannot change; she tells you so.
 
 **What a task may switch:** lights, radio, blinds and the like, plus push messages. Before you say "yes", Mira names everything the task switches besides, scenes too. A task never switches locks, the alarm panel or what is labelled "Mira: confirm first", not through a scene or group that holds one either. A task starts a script only if it is exposed to Assist. Raw commands such as MQTT messages or REST commands Mira cannot check and does not call directly in tasks: create a script for them and expose it to Assist.
 
@@ -290,6 +297,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
   - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) and `{{person_calendar}}` (the calendar named like the login or the person; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house. A message from a schedule is at most "important" (2) and waits at night until the morning. With `urgent: true` the schedule may report "urgent" (3): that goes to everyone at once, in quiet hours too. Use it only where it really matters, as for official severe weather warnings.
   - `target`: turns the skill into a concern over several turns, with questions back or as a run step by step (see below).
   - `mail`: turns the skill into a mail application (see below).
+  - `chapter`: the chapter of this guide about the skill, as its heading begins (`"## Cooking and baking"`, `###` for a section). Mira's page shows a link to it with the skill. A skill written in German names the German guide's chapter; its translation (`SKILL.en.md`) names the English one.
 - The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`. Where the house is, Mira knows from Home Assistant (Settings → System → General): she puts in `{{ home.latitude }}`, `{{ home.longitude }}` and `{{ home.name }}` when the skill is used; no setting is needed for it.
 
 **3. Switch it on.** A skill runs only when it is listed under `skills` in `mira.yaml`, with its settings below. If it has none, the name followed by `{}` is enough. `enabled: false` switches it off without losing its settings. The bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels are on without an entry; `enabled: false` switches them off too, say for a replacement of your own.
@@ -662,23 +670,26 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 ![The overview: Day to day, Setup, Capabilities and Guide](img/mira-uebersicht-en.png)
 
-![Capabilities → Skills: each skill with its settings and schedules](img/mira-skills-en.png)
+![Capabilities → Skills: each skill with its switch; opened, its settings are right there to change](img/mira-skills-en.png)
 
 ![Capabilities → Agents: model, rounds and who calls the agent](img/mira-agenten-en.png)
 
 ![Capabilities → Models: which models Mira uses and whether they answer](img/mira-modelle-en.png)
 
-**Changing things on the page** (admins only): under **Capabilities** every model, agent and skill has an **Edit** button, and there are **New model** and **New agent**.
+**The lists**: every page shows its entries as cards that start closed. A click opens a card, and what can be changed is right there to change; **Apply** saves it. Skills and tasks have a switch on the right for on and off, without opening the card. A fact in the memory opens as a text field; satellites and people save only the one entry.
+
+**Changing things on the page** (admins only): under **Capabilities** you open a model, an agent or a skill and change it right there; **New model** and **New agent** add one.
 - For a model you pick the **Provider** (OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic); Mira knows the address. For a local model or another server, pick **Own server** and enter the address. With the token Mira fetches the list of models and you pick one. Mira tries it at once and fills in the context size; a wrong key is shown right below it.
 - The page writes straight into `mira.yaml` and changes only the entry in question; comments stay. What is in the file holds, whether written by hand or by the page.
 - Keys (tokens) do not go into `mira.yaml` but into a file of their own in the data folder that only Mira can read; `mira.yaml` has only a reference such as `${MIRA_MODEL_SMART_TOKEN}`. If you set `MIRA_SECRET_KEY` (in the compose file, say), Mira encrypts that file.
 - A model an agent still takes and an agent someone still calls cannot be deleted; `main` can be neither renamed nor deleted.
 - Skills: switch on, switch off and set them up, with **Test connection** for a skill with an MCP server. For your own skills also the instructions, agents, thread and MCP server; an update replaces the bundled skills, so for those only the settings.
-- Changes hold after a restart; the page offers **Restart Mira** for it.
+- Changes to models, agents and skills hold after a restart; the page offers **Restart Mira** for it.
+- **Notifications**, and without the integration also **Satellites** and **People**, the page writes into `mira.yaml` too, only what differs from the defaults. That holds at once, without a restart. What the integration manages stays in Home Assistant and does not go into the file.
 
-![Editing a model: provider and model to choose from, the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
+![A model opened: provider and model to choose from, the token stays hidden and does not go into mira.yaml](img/mira-bearbeiten-en.png)
 
-**Your card.** First on the overview is a card with your name, for everything that is yours: **Settings**, **Voice**, **Messages** to you and your **Memory**. Below it stands how many messages wait for you, how many memories Mira keeps for you and whether she knows your voice. On the card you set yourself whose messages you take and whether it is you when you are alone at home, and you enroll your voice (see "Who is speaking"). What belongs to the house is under **Day to day**: the messages to the house and the house's memory. Under Settings → **People** admins see all persons in a list; a click opens the same card, with the channels and the voice threshold besides.
+**Your card.** First on the overview is a card with your name, for everything that is yours: **Settings**, **Voice**, **Messages** to you and your **Memory**. Below it stands how many messages wait for you, how many memories Mira keeps for you and whether she knows your voice. On the card you set yourself whose messages you take and whether it is you when you are alone at home, and you enroll your voice (see "Who is speaking"). What belongs to the house is under **Day to day**: the messages to the house and the house's memory. Under Setup → **People** admins see all persons; opened, they set channels, "Alone = me" and the voice threshold there, and **Whole card and voice** opens the same card the person sees.
 
 Someone who is no admin sees only their card, **Messages** (to the house), **Plans**, **Memory** (the house's) and **Guide**; they can mark done only messages to themselves. For Mira to know which card and memory are yours, your person must be linked to your HA user (in Home Assistant under Settings → People).
 

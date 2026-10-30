@@ -16,7 +16,7 @@ func TestExposedHashMatchesTheIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	a := &app{store: st}
+	a := &app{store: st, haSent: true}
 	ctx := context.Background()
 	if got := a.exposedHash(ctx); got != "" {
 		t.Errorf("before any list: %q", got)

@@ -121,12 +121,15 @@ type app struct {
 	mcp          *mcp.Host
 	engine       *conversation.Engine
 
-	// live is the config the proactive parts run with: the YAML file plus
-	// the sections changed in the web UI. fileCfg is the file alone, for
-	// "back to mira.yaml".
-	liveMu  sync.Mutex
-	live    config.Config
-	fileCfg config.Config
+	// live is the config the proactive parts run with: mira.yaml, what the
+	// page saved into it since, and what Home Assistant sent, held in
+	// memory only (docs/spec/bearbeiten.md, Settings sections). haSent says
+	// the integration sent its settings since the start; haManaged that it
+	// still manages them.
+	liveMu    sync.Mutex
+	live      config.Config
+	haSent    bool
+	haManaged bool
 	// proactive runs the notifier; the UI restarts it.
 	proactiveMu     sync.Mutex
 	proactiveCancel context.CancelFunc
@@ -163,10 +166,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if err != nil {
 		return nil, err
 	}
-	// The config as it runs: the file with what the web UI or Home
-	// Assistant changed. Read from the start, by the web search switch too.
-	a.fileCfg = cfg
-	a.live = a.withUIOverrides(ctx, cfg)
+	// The config as it runs: the file; what Home Assistant sends comes
+	// after the start. Read from the start, by the web search switch too.
+	a.live = cfg
 	// What only the model reads (tool descriptions, the structure block) is
 	// built once, in the language last spoken; what is said follows each
 	// turn, area or person (docs/spec/sprache.md).
@@ -397,6 +399,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Planner:    a.tasksPlan(),
 		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
 		Forbidden:  func() ([]string, []string) { return a.hooks.Forbidden(snapshot()) },
+		Hooks:      a.taskEditDecision,
 		Persons:    a.persons,
 		Satellites: func() map[string]string { return a.liveConfig().Satellites },
 		Upcoming: func(ctx context.Context, entity string, from, to time.Time) (string, error) {
@@ -411,6 +414,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	checks["calendar_event"] = a.calendar.CheckEvent
 	checks["todo_list"] = a.checkTodoList
 	finishers["tasks.automation"] = a.tasks.Finisher()
+	checks[tasks.CheckFind] = a.tasks.CheckTask
+	finishers[tasks.FinishEdit] = a.tasks.EditFinisher()
 	finishers["calendar.delete"] = a.calendar.Delete()
 	checks["hook.check"] = func(_ context.Context, v string) (string, error) { return a.hooks.CheckRule(v) }
 	finishers["hook.save"] = a.hooks.SaveFinisher(func() *tools.Guard { return a.guard },
@@ -844,7 +849,7 @@ func (a *app) haUser(ctx context.Context) string {
 
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
-	return []string{"aufgabe", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel"}
+	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel"}
 }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
@@ -908,75 +913,18 @@ func (a *app) liveConfig() config.Config {
 	return a.live
 }
 
-// uiKey is where a section changed in the web UI is stored, as YAML.
-func uiKey(section string) string { return "ui_config:" + section }
+// haKeys are the notifier's parts that come from Home Assistant while it
+// manages the rooms.
+var haKeys = []string{"morning_trigger", "room_mode", "indicators"}
 
-// withUIOverrides lays the sections changed in the web UI over the file.
-// They are validated together, like when they were saved: one may depend on
-// another (a presence sensor needs its area's satellite). If the file changed
-// so that they no longer fit, each is tried alone and the misfits are skipped.
-func (a *app) withUIOverrides(ctx context.Context, cfg config.Config) config.Config {
-	stored := map[string][]byte{}
-	for _, name := range config.UISections {
-		if raw, err := a.store.GetKV(ctx, uiKey(name)); err == nil {
-			stored[name] = []byte(raw)
-		}
-	}
-	if len(stored) == 0 {
-		return cfg
-	}
-	all := cfg
-	ok := true
-	for _, name := range config.UISections {
-		if raw, found := stored[name]; found {
-			if err := all.ApplySection(name, raw); err != nil {
-				ok = false
-			}
-		}
-	}
-	if ok && all.Validate() == nil {
-		for name := range stored {
-			a.log.Info("config section from the web UI", "section", name)
-		}
-		return all
-	}
-	for _, name := range config.UISections {
-		raw, found := stored[name]
-		if !found {
-			continue
-		}
-		next := cfg
-		err := next.ApplySection(name, raw)
-		if err == nil {
-			err = next.Validate()
-		}
-		if err != nil {
-			a.log.Error("ignoring a section changed in the web UI", "section", name, "error", err)
-			continue
-		}
-		a.log.Info("config section from the web UI", "section", name)
-		cfg = next
-	}
-	return cfg
-}
-
-// setSections applies sections from the UI (YAML by name), validates the
-// whole config, stores them and restarts what depends on them. A nil value
-// resets that section to the file's.
-func (a *app) setSections(ctx, runCtx context.Context, sections map[string][]byte) error {
+// setSections applies sections (YAML by name) to the running config,
+// validates the whole and restarts what depends on them. write, when not
+// nil, stores them first (the page's go into mira.yaml); what Home
+// Assistant sends is held in memory only.
+func (a *app) setSections(runCtx context.Context, sections map[string][]byte, write func() error) error {
 	a.liveMu.Lock()
 	next := a.live
 	for name, raw := range sections {
-		if raw == nil {
-			fileJSON, err := a.fileCfg.SectionJSON(name)
-			if err == nil {
-				raw, err = config.SectionYAML(name, fileJSON)
-			}
-			if err != nil {
-				a.liveMu.Unlock()
-				return err
-			}
-		}
 		if err := next.ApplySection(name, raw); err != nil {
 			a.liveMu.Unlock()
 			return err
@@ -986,14 +934,8 @@ func (a *app) setSections(ctx, runCtx context.Context, sections map[string][]byt
 		a.liveMu.Unlock()
 		return err
 	}
-	for name, raw := range sections {
-		var err error
-		if raw == nil {
-			err = a.store.DeleteKV(ctx, uiKey(name))
-		} else {
-			err = a.store.SetKV(ctx, uiKey(name), string(raw))
-		}
-		if err != nil {
+	if write != nil {
+		if err := write(); err != nil {
 			a.liveMu.Unlock()
 			return err
 		}
@@ -1010,16 +952,45 @@ type uiConfig struct {
 	runCtx context.Context
 }
 
-func (u uiConfig) Section(name string) (json.RawMessage, bool, error) {
-	raw, err := u.a.liveConfig().SectionJSON(name)
-	if err != nil {
-		return nil, false, err
-	}
-	_, kvErr := u.a.store.GetKV(context.Background(), uiKey(name))
-	return raw, kvErr == nil, nil
+func (u uiConfig) Section(name string) (json.RawMessage, error) {
+	return u.a.liveConfig().SectionJSON(name)
 }
 
+// SetSections writes the page's sections into mira.yaml and applies them.
+// While Home Assistant manages the rooms, the file keeps its own notifier
+// parts for them and Mira runs with Home Assistant's.
 func (u uiConfig) SetSections(ctx context.Context, sections map[string]json.RawMessage) error {
+	if u.a.editor() == nil {
+		return errors.New("Mira hat keine mira.yaml, in die sie schreiben kann.")
+	}
+	// Mira runs with the whole section; the file gets what differs from
+	// the defaults.
+	yamls := make(map[string][]byte, len(sections))
+	inFile := make(map[string][]byte, len(sections))
+	for name, raw := range sections {
+		y, err := config.SectionYAML(name, raw)
+		if err != nil {
+			return err
+		}
+		yamls[name] = y
+		set, err := config.WithoutDefaults(name, raw)
+		if err == nil {
+			inFile[name], err = config.SectionYAML(name, set)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	keep := []string(nil)
+	if u.HAManaged() {
+		keep = haKeys
+	}
+	return u.a.setSections(u.runCtx, yamls, func() error { return u.a.edit.writeSections(inFile, keep) })
+}
+
+// SetHASections applies what Home Assistant sends; it is held in memory
+// only and sent again after a restart (the empty fingerprint).
+func (u uiConfig) SetHASections(ctx context.Context, sections map[string]json.RawMessage) error {
 	yamls := make(map[string][]byte, len(sections))
 	for name, raw := range sections {
 		y, err := config.SectionYAML(name, raw)
@@ -1028,14 +999,27 @@ func (u uiConfig) SetSections(ctx context.Context, sections map[string]json.RawM
 		}
 		yamls[name] = y
 	}
-	return u.a.setSections(ctx, u.runCtx, yamls)
+	if err := u.a.setSections(u.runCtx, yamls, nil); err != nil {
+		return err
+	}
+	u.a.liveMu.Lock()
+	u.a.haSent, u.a.haManaged = true, true
+	u.a.liveMu.Unlock()
+	return nil
 }
 
-func (u uiConfig) ResetSection(ctx context.Context, name string) error {
-	if !slices.Contains(config.UISections, name) {
-		return fmt.Errorf("unknown or read-only config section %q", name)
-	}
-	return u.a.setSections(ctx, u.runCtx, map[string][]byte{name: nil})
+func (u uiConfig) HAManaged() bool {
+	u.a.liveMu.Lock()
+	defer u.a.liveMu.Unlock()
+	return u.a.haManaged
+}
+
+// ReleaseHA hands the sections back to the page; Home Assistant's values
+// hold until Mira restarts.
+func (u uiConfig) ReleaseHA() {
+	u.a.liveMu.Lock()
+	u.a.haManaged = false
+	u.a.liveMu.Unlock()
 }
 
 // httpHandler serves the web UI and its API under /ui and /v1/ui/, and the
@@ -1310,6 +1294,21 @@ func (a *app) actionDecision(ctx context.Context, c threads.ActionCall) tools.De
 	raw, _ := json.Marshal(args)
 	spec := tools.Spec{ToolDef: prompt.ToolDef{Name: threads.SkillAction}, Skill: c.Skill}
 	return a.guard.Decide(ctx, ts, spec, raw)
+}
+
+// taskEditDecision lets the hooks decide on a change of a task after the
+// thread's yes (docs/spec/aufgaben-aendern.md, Saving): in the turn of the
+// yes, or for the thread's person when the yes came from the page.
+func (a *app) taskEditDecision(ctx context.Context, th store.Thread, args json.RawMessage) tools.Decision {
+	if a.guard == nil {
+		return tools.Decision{Outcome: tools.Allow}
+	}
+	ts := tools.TurnOf(ctx)
+	if ts == nil {
+		ts = &tools.TurnState{SessionKey: "thread:" + th.ID, Person: th.Person}
+	}
+	spec := tools.Spec{ToolDef: prompt.ToolDef{Name: tasks.ToolEdit}}
+	return a.guard.Decide(ctx, ts, spec, args)
 }
 
 // houseForRules is the house as the agent that writes a rule needs it: areas

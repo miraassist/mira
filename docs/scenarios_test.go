@@ -18,7 +18,9 @@ import (
 // have its Go test.
 var builtSteps = map[string][]int{
 	"AB": {1, 2, 3, 4},                    // docs/spec/anrufbeantworter.md
+	"AE": {2, 3},                          // docs/spec/aufgaben-aendern.md; step 1 is tested in pytest
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, // docs/spec/agenten.md, Switching over in steps
+	"BE": {2},                             // docs/spec/bearbeiten.md, Steps; step 1 predates the map
 	"HK": {1, 2},
 	"HW": {1, 2, 3},       // docs/spec/hooks.md, Steps
 	"MO": {1, 2, 3, 4, 5}, // docs/spec/modelle.md, Steps

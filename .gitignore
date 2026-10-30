@@ -17,6 +17,8 @@ __pycache__/
 !/testenv/ha/www/
 /testenv/ha/www/*
 !/testenv/ha/www/abfall-test.ics
+# Media of known length for the fake devices (docs/spec/fake-geraete.md), served at /local/fake/.
+!/testenv/ha/www/fake/
 /testenv/.env
 /testenv/mira.db*
 !/testenv/mira.yaml
@@ -28,8 +30,9 @@ __pycache__/
 # Private demo scripts, not for the repo
 /docs/demo/
 
-# Private notes (to-do list, security review), not for the repo
+# Private notes (to-do list, security review) and tools for one setup, not for the repo
 *.local.md
+*.local.py
 
 # Example mails with personal data, not for the repo (cleaned copies go elsewhere)
 /testenv/mails/

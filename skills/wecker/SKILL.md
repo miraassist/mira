@@ -4,6 +4,7 @@ description: Einen Wecker stellen, wenn der Nutzer geweckt werden will („Weck 
 license: MIT
 metadata:
   mira:
+    chapter: "## Erinnerungen, Timer und Wecker"
     target:
       timeout: 5m
       fields:

@@ -4,6 +4,7 @@ description: Einen Termin aus einem Kalender löschen („Sag meinen Termin morg
 license: MIT
 metadata:
   mira:
+    chapter: "## Kalender und Listen"
     target:
       timeout: 10m
       confirm: true

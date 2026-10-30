@@ -110,6 +110,22 @@ hint (`notify`), the ring, the sleep timer and sleep sounds as selects. Every
 other action is accepted and only logged. They speak nothing (no speech
 synthesis, so no cloud voice is paid for).
 
+**Sound and listening** behave as on the real device
+([satellit.md](../docs/spec/satellit.md), How a TECHO5 satellite behaves; [fake-geraete.md](../docs/spec/fake-geraete.md)):
+the speaker reads the length of what it is given (`ffprobe`) and goes `idle`
+when it is over, a stream plays until it is stopped, stopping leaves it
+`paused`; with `announce` the satellite is `responding` meanwhile; an
+announcement is `responding` then `idle`, a started conversation `responding`,
+a moment `idle`, then `listening`. Media of known length for tests:
+`/local/fake/two-seconds.wav`. Instead of the wake word a test calls
+`techo5_fake.wake_word` (`device: fake_show`): the satellite listens and music
+is lowered (the speaker's `volume_level`). Instead of speaking a test calls
+`techo5_fake.say` (`device`, `text`): a whole voice turn at the fake, with the
+satellite's states (`listening`, `processing`, `responding`, then `idle` or
+listening on) and the text to the preferred pipeline's agent; it answers with
+what was said back. Speaking takes as long as the text. For flows while building, use
+these fakes ([CLAUDE.md](../CLAUDE.md)).
+
 What a fake was told is in `sensor.fake_show_fake_log` / `sensor.fake_echo_fake_log`
 (attribute `log`, the last 50 entries with time, kind and data: announcements
 with their text, actions with their fields, media played, ring on/off).

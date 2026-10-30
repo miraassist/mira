@@ -73,6 +73,27 @@ A hint on a screen (Mira's messages, the answering machine) never comes while it
 (listening, thinking or speaking): it would cover the turn screen, and one would not see that Mira listens or speaks
 (heard 2026-10-29). It waits, watching the satellite's state (no polling), and comes once the satellite is idle.
 
+## How a TECHO5 satellite behaves
+
+Tried at an Echo Show 5 and an Echo Dot 2 with TECHO5 firmware (2026-10-29); flows wait for these signals, not for
+times ([CLAUDE.md](../../CLAUDE.md), Signals, not timing). This section is also the spec of the fake devices
+([Fake devices](fake-geraete.md)); the scenario in brackets tests that a fake does the same. When the real device
+turns out different, this section changes first, then the fake.
+
+- **`media_player.play_media` without `announce`** plays as background music: the wake word ducks it, the satellite
+  understands the user over it, and it carries on. The speaker goes `playing` at once, `idle` at the end, `paused`
+  after `media_stop` or Home Assistant's pause. The satellite stays `idle` meanwhile. A `play_media` that replaces
+  one still playing reports no state change. (FG-01 to FG-04, FG-07, FG-12)
+- **With `announce`** the media plays in the foreground: the wake word neither ducks nor stops it. (FG-05, FG-13)
+- **A plain announcement** (`assist_satellite.announce`): the satellite goes `responding`, then `idle`; the call
+  returns when it is over. No listening afterwards, and the turn screen shows. (FG-10)
+- **`assist_satellite.start_conversation`**: speaks, then `idle` for a few milliseconds, then `listening`. That short
+  `idle` is no end of the conversation. (FG-11)
+- **`esphome.<node>_media_title(title, subtitle, source)`** names the next `play_media` once, on the player screen
+  (instead of "Radio"). Mira looks for the action before using it. (FG-06)
+- **A device without a screen** (Echo Dot) has the `notify` action, but nothing shows it. Its LED ring is a light
+  entity on a sub-device of its own (`<name> ring`). (FG-14)
+
 ## The skills that use them
 
 - **quiz:** at the end, all right → `fanfare_big`, from 80 % → `fanfare`, under 50 % → `too_bad`, nothing in between.

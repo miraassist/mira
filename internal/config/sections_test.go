@@ -100,3 +100,69 @@ func TestOwnMessageHoldConfig(t *testing.T) {
 		t.Errorf("0 rejected: %v", err)
 	}
 }
+
+// What WithoutDefaults leaves is read exactly as the whole section: the
+// parts left out come back as their defaults, also inside a part.
+func TestWithoutDefaultsReadsAsTheWhole(t *testing.T) {
+	c := Default()
+	c.Notifier.Cooldown = Duration(10 * time.Minute)
+	c.Notifier.QuietHours.From = mustClock(t, "23:00")
+	c.Persons = map[string]Person{"anna": {Entity: "person.anna", AloneIsMe: true}}
+	c.Satellites = map[string]string{"bad": "assist_satellite.bad"}
+	c.Prompt.Persona = "Kurz und freundlich."
+	for _, name := range UISections {
+		whole, err := c.SectionJSON(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		set, err := WithoutDefaults(name, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := func(raw json.RawMessage) string {
+			y, err := SectionYAML(name, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := Default()
+			if err := r.ApplySection(name, y); err != nil {
+				t.Fatal(err)
+			}
+			out, _ := r.SectionJSON(name)
+			return string(out)
+		}
+		if a, b := read(whole), read(set); a != b {
+			t.Errorf("%s: whole reads %s, without defaults %s (%s)", name, a, b, set)
+		}
+	}
+	set, _ := WithoutDefaults("notifier", mustJSON(t, c, "notifier"))
+	if string(set) != `{"cooldown":"10m","quiet_hours":{"from":"23:00"}}` {
+		t.Errorf("notifier without defaults: %s", set)
+	}
+	def := Default()
+	if set, _ := WithoutDefaults("notifier", mustJSON(t, def, "notifier")); string(set) != "null" {
+		t.Errorf("all defaults: %s", set)
+	}
+	// "30m" as the page may send it is the default "30m0s".
+	if set, _ := WithoutDefaults("notifier", json.RawMessage(`{"cooldown":"30m"}`)); string(set) != "null" {
+		t.Errorf("30m: %s", set)
+	}
+}
+
+func mustClock(t *testing.T, s string) ClockTime {
+	t.Helper()
+	c, err := ParseClockTime(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func mustJSON(t *testing.T, c Config, name string) json.RawMessage {
+	t.Helper()
+	raw, err := c.SectionJSON(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}

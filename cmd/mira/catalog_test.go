@@ -109,3 +109,22 @@ func TestCheckModelSendsARealRequest(t *testing.T) {
 		t.Errorf("unknown model: %+v", res)
 	}
 }
+
+// A target skill Mira binds tools to (the answering machine) is in the skill
+// set and among the targets; the page lists it once.
+func TestCatalogListsATargetSkillWithToolsOnce(t *testing.T) {
+	a, _, _ := deliveryApp(t)
+	sk := skills.Skill{Name: "anrufbeantworter", Target: &skills.Target{Plan: true}}
+	a.skills = &skills.Set{Skills: []skills.Skill{sk}}
+	a.targetSkills = []skills.Skill{sk}
+
+	n := 0
+	for _, s := range a.catalog(context.Background()).Skills {
+		if s.Name == "anrufbeantworter" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("listed %d times", n)
+	}
+}

@@ -20,27 +20,40 @@ import (
 type fakeConfig struct {
 	logins   map[string]string
 	sections map[string]json.RawMessage
-	over     map[string]bool
+	// written are the sections the page saved, fromHA what Home Assistant
+	// sent; managed says it manages persons and rooms.
+	written, fromHA map[string]bool
+	managed         bool
 }
 
-func (f *fakeConfig) Section(name string) (json.RawMessage, bool, error) {
-	return f.sections[name], f.over[name], nil
+func (f *fakeConfig) Section(name string) (json.RawMessage, error) {
+	return f.sections[name], nil
 }
 
-func (f *fakeConfig) SetSections(_ context.Context, s map[string]json.RawMessage) error {
+func (f *fakeConfig) set(s map[string]json.RawMessage, mark map[string]bool) error {
 	for name, raw := range s {
 		if strings.Contains(string(raw), "invalid") {
 			return errors.New("notifier: quiet_hours invalid")
 		}
-		f.sections[name], f.over[name] = raw, true
+		f.sections[name], mark[name] = raw, true
 	}
 	return nil
 }
 
-func (f *fakeConfig) ResetSection(_ context.Context, name string) error {
-	f.over[name] = false
+func (f *fakeConfig) SetSections(_ context.Context, s map[string]json.RawMessage) error {
+	return f.set(s, f.written)
+}
+
+func (f *fakeConfig) SetHASections(_ context.Context, s map[string]json.RawMessage) error {
+	if err := f.set(s, f.fromHA); err != nil {
+		return err
+	}
+	f.managed = true
 	return nil
 }
+
+func (f *fakeConfig) HAManaged() bool { return f.managed }
+func (f *fakeConfig) ReleaseHA()      { f.managed = false }
 
 func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	t.Helper()
@@ -49,7 +62,8 @@ func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	cfg := &fakeConfig{sections: map[string]json.RawMessage{"notifier": json.RawMessage(`{"cooldown":"30m0s"}`)}, over: map[string]bool{}}
+	cfg := &fakeConfig{sections: map[string]json.RawMessage{"notifier": json.RawMessage(`{"cooldown":"30m0s"}`)},
+		written: map[string]bool{}, fromHA: map[string]bool{}}
 	h := New(Options{Token: "secret", Sections: []string{"notifier", "persons", "satellites"}, Config: cfg, Store: st,
 		Entities:       func() []Entity { return []Entity{{ID: "light.b"}, {ID: "light.a", Name: "A"}} },
 		CompactProfile: func(context.Context) (bool, error) { return true, nil },
@@ -103,18 +117,28 @@ func TestPageIsPublicAPIIsNot(t *testing.T) {
 func TestConfigEditing(t *testing.T) {
 	srv, cfg, _ := setup(t)
 	code, body := call(t, srv, "GET", "/v1/ui/config", "secret", "")
-	if code != 200 || !strings.Contains(body, `"notifier":{"value":{"cooldown":"30m0s"},"overridden":false}`) {
+	if code != 200 || !strings.Contains(body, `"notifier":{"value":{"cooldown":"30m0s"}}`) {
 		t.Fatalf("config: %d %s", code, body)
 	}
 	code, body = call(t, srv, "PUT", "/v1/ui/config", "secret", `{"notifier":{"cooldown":"10m"}}`)
-	if code != 200 || !strings.Contains(body, `"overridden":true`) || !cfg.over["notifier"] {
+	if code != 200 || !strings.Contains(body, `"cooldown":"10m"`) || !cfg.written["notifier"] {
 		t.Fatalf("put: %d %s", code, body)
 	}
 	if code, body := call(t, srv, "PUT", "/v1/ui/config", "secret", `{"notifier":{"quiet_hours":"invalid"}}`); code != 422 || !strings.Contains(body, "quiet_hours") {
 		t.Errorf("invalid config: %d %s", code, body)
 	}
-	if code, _ := call(t, srv, "DELETE", "/v1/ui/config/notifier", "secret", ""); code != 200 || cfg.over["notifier"] {
-		t.Errorf("reset: %d", code)
+}
+
+// The page reads no source of a section and has no way back to the file:
+// what is in mira.yaml is what holds.
+func TestBE19_NoSourceNoReset(t *testing.T) {
+	srv, _, _ := setup(t)
+	call(t, srv, "PUT", "/v1/ui/config", "secret", `{"notifier":{"cooldown":"10m"}}`)
+	if _, body := call(t, srv, "GET", "/v1/ui/config", "secret", ""); strings.Contains(body, "overridden") {
+		t.Errorf("config still names a source: %s", body)
+	}
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/config/notifier", "secret", ""); code == 200 {
+		t.Errorf("reset still there: %d", code)
 	}
 }
 
@@ -340,7 +364,7 @@ func TestTasksAPI(t *testing.T) {
 	fth := &fakeThreads{}
 	st.PutThread(context.Background(), &store.Thread{ID: "p1", Target: "aufgabe", Place: "area:bad", State: store.ThreadProposed,
 		Request: "Achte auf das Wasser", Log: []store.ThreadEntry{{Who: "mira", Text: "Vorschlag …"}}, ExpiresAt: time.Now().Add(time.Hour)})
-	h := New(Options{Token: "secret", Store: st, Tasks: ft, Threads: fth, Config: &fakeConfig{sections: map[string]json.RawMessage{}, over: map[string]bool{}}})
+	h := New(Options{Token: "secret", Store: st, Tasks: ft, Threads: fth, Config: &fakeConfig{sections: map[string]json.RawMessage{}, written: map[string]bool{}, fromHA: map[string]bool{}}})
 	srv = httptest.NewServer(h)
 	defer srv.Close()
 

@@ -18,7 +18,7 @@ A skill has parts that are the same in every language, and texts:
 
 | Same in every language (the skill's **metadata**) | Depends on the language (its **texts**) |
 |---|---|
-| name, settings' names, `required`, `secret` | description |
+| name, settings' names, `required`, `secret` | description, `chapter` (the guide's chapter about the skill, linked on Mira's page) |
 | schedules: `cron`, `per_person` | the guide (the Markdown body) |
 | target: fields' names, `check`, `enum`, `optional`, `agent`, `input`; finish and undo with their data; `confirm`, `timeout`, `plan` | settings' and fields' descriptions |
 | mail, MCP server, privacy | schedules' `task` texts |

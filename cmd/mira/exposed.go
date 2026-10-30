@@ -52,9 +52,17 @@ func (a *app) exposed(ctx context.Context) (map[string]bool, bool) {
 // exposedHash is a fingerprint of the kept list, for /v1/status: the
 // integration compares it with its own and sends the list again when they
 // differ (a late-discovered device, an agent that started with an empty
-// database). "" while no list was ever sent. The integration computes the
-// same: sha256 of the sorted ids joined by newlines.
+// database). "" until the integration sent its settings since the start:
+// Mira holds them in memory only, and the empty fingerprint makes it send
+// them again. The integration computes the same: sha256 of the sorted ids
+// joined by newlines.
 func (a *app) exposedHash(ctx context.Context) string {
+	a.liveMu.Lock()
+	sent := a.haSent
+	a.liveMu.Unlock()
+	if !sent {
+		return ""
+	}
 	raw, err := a.store.GetKV(ctx, kvExposed)
 	if err != nil {
 		return ""

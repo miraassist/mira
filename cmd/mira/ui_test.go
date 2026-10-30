@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,9 +17,8 @@ import (
 )
 
 // TestUIChangesApplyWithoutRestart edits the notifier and the satellites
-// through the web UI's API while the agent runs: the change is stored,
-// survives a restart of the agent, and the notifier comes back with its
-// subscriptions.
+// through the web UI's API while the agent runs: the change goes into
+// mira.yaml, and the notifier comes back with its subscriptions.
 func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	model := fakellm.New()
 	defer model.Close()
@@ -42,10 +42,14 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{Areas: []string{"bad"}, Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}}}
 
+	path := filepath.Join(t.TempDir(), "mira.yaml")
+	if err := os.WriteFile(path, []byte(editConfig+"satellites:\n  bad: assist_satellite.bad\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	start := func() (stop func()) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- runAgent(ctx, cfg, prepared{}) }()
+		go func() { done <- runAgent(ctx, cfg, prepared{path: path}) }()
 		return func() {
 			http.DefaultClient.CloseIdleConnections()
 			cancel()
@@ -95,15 +99,12 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	}
 	stop()
 
-	// The change survives a restart of the agent.
-	stop = start()
-	defer stop()
-	waitUntil(t, "the API again", func() bool { code, _ := api("GET", "/v1/health", ""); return code == 200 })
-	if _, body := api("GET", "/v1/ui/config", ""); !strings.Contains(body, `"from":"23:00"`) || !strings.Contains(body, `"overridden":true`) {
-		t.Fatalf("after restart: %s", body)
+	// The change is in mira.yaml, so it holds after a restart.
+	saved, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// Back to the file.
-	if code, body := api("DELETE", "/v1/ui/config/notifier", ""); code != 200 || strings.Contains(body, `"from":"23:00"`) {
-		t.Fatalf("reset: %d %s", code, body)
+	if saved.Notifier.QuietHours.From.String() != "23:00" || saved.Satellites["flur"] != "assist_satellite.flur" {
+		t.Errorf("file: quiet hours %v, satellites %v", saved.Notifier.QuietHours, saved.Satellites)
 	}
 }

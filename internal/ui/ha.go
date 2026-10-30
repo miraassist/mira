@@ -14,9 +14,6 @@ import (
 // writes all of them on every change. While it manages them, the web UI
 // shows those sections read-only, so there is only one place to edit them.
 
-// kvHAManaged marks the sections as managed by Home Assistant.
-const kvHAManaged = "ui_managed_by_ha"
-
 // haSections are the sections the integration replaces as a whole.
 // notifier is only touched in its morning_trigger.
 var haSections = []string{"persons", "satellites"}
@@ -72,15 +69,10 @@ func (e *entityList) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-func (h *Handler) managedByHA(r *http.Request) bool {
-	v, err := h.opts.Store.GetKV(r.Context(), kvHAManaged)
-	return err == nil && v == "1"
-}
-
 func (h *Handler) getHA(w http.ResponseWriter, r *http.Request) {
-	out := haConfig{Managed: h.managedByHA(r)}
+	out := haConfig{Managed: h.opts.Config.HAManaged()}
 	var err error
-	out.Persons, _, err = h.opts.Config.Section("persons")
+	out.Persons, err = h.opts.Config.Section("persons")
 	if err == nil {
 		out.Rooms, err = h.rooms()
 	}
@@ -99,12 +91,12 @@ func (h *Handler) rooms() ([]Room, error) {
 		RoomMode       map[string]string `json:"room_mode"`
 		Indicators     map[string]string `json:"indicators"`
 	}
-	raw, _, err := h.opts.Config.Section("satellites")
+	raw, err := h.opts.Config.Section("satellites")
 	if err == nil {
 		err = json.Unmarshal(raw, &sats)
 	}
 	if err == nil {
-		raw, _, err = h.opts.Config.Section("notifier")
+		raw, err = h.opts.Config.Section("notifier")
 	}
 	if err == nil {
 		err = json.Unmarshal(raw, &notifier)
@@ -158,12 +150,8 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 		// for her update (docs/spec/versionen.md).
 		h.log.Info("fields from Home Assistant this Mira does not know, left out", "fields", unknown)
 	}
-	if err := h.opts.Config.SetSections(r.Context(), sections); err != nil {
+	if err := h.opts.Config.SetHASections(r.Context(), sections); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if err := h.opts.Store.SetKV(r.Context(), kvHAManaged, "1"); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if in.Exposed != nil && h.opts.SetExposed != nil {
@@ -221,7 +209,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 	}
 	// The notifier keeps everything else; only its morning trigger comes
 	// from the rooms.
-	raw, _, err := h.opts.Config.Section("notifier")
+	raw, err := h.opts.Config.Section("notifier")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,12 +260,10 @@ func knownPersonFields(raw json.RawMessage) (json.RawMessage, []string, error) {
 	return out, unknown, nil
 }
 
-// deleteHA hands the sections back to the web UI. Their values stay.
+// deleteHA hands the sections back to the web UI. Their values hold until
+// Mira restarts.
 func (h *Handler) deleteHA(w http.ResponseWriter, r *http.Request) {
-	if err := h.opts.Store.DeleteKV(r.Context(), kvHAManaged); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+	h.opts.Config.ReleaseHA()
 	h.log.Info("Home Assistant no longer manages persons and rooms")
 	writeJSON(w, http.StatusOK, map[string]bool{"managed": false})
 }

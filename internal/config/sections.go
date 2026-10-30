@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -46,6 +47,61 @@ func (c Config) SectionJSON(name string) (json.RawMessage, error) {
 		return nil, err
 	}
 	return json.Marshal(generic)
+}
+
+// WithoutDefaults leaves out of a section sent by the UI (JSON) what equals
+// Mira's default, compared as Mira reads it ("30m" is "30m0s"), down into
+// its parts; what is left goes into mira.yaml (docs/spec/bearbeiten.md,
+// Settings sections). A section all at its defaults is null.
+func WithoutDefaults(name string, raw json.RawMessage) (json.RawMessage, error) {
+	y, err := SectionYAML(name, raw)
+	if err != nil {
+		return nil, err
+	}
+	read, def := Default(), Default()
+	if err := read.ApplySection(name, y); err != nil {
+		return nil, err
+	}
+	var in, got, want any
+	for _, x := range []struct {
+		from func() (json.RawMessage, error)
+		to   *any
+	}{
+		{func() (json.RawMessage, error) { return raw, nil }, &in},
+		{func() (json.RawMessage, error) { return read.SectionJSON(name) }, &got},
+		{func() (json.RawMessage, error) { return def.SectionJSON(name) }, &want},
+	} {
+		b, err := x.from()
+		if err == nil {
+			err = json.Unmarshal(b, x.to)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("section %s: %w", name, err)
+		}
+	}
+	out, _ := differing(in, got, want)
+	return json.Marshal(out)
+}
+
+// differing is what of in (as sent) differs from the default, judged by got
+// (in as Mira reads it) against want (the default); false when nothing does.
+func differing(in, got, want any) (any, bool) {
+	if reflect.DeepEqual(got, want) {
+		return nil, false
+	}
+	inMap, ok1 := in.(map[string]any)
+	gotMap, ok2 := got.(map[string]any)
+	wantMap, ok3 := want.(map[string]any)
+	if !ok1 || !ok2 || !ok3 {
+		return in, true
+	}
+	out := map[string]any{}
+	for k, v := range inMap {
+		if d, ok := differing(v, gotMap[k], wantMap[k]); ok {
+			out[k] = d
+		}
+	}
+	return out, len(out) > 0
 }
 
 // SectionYAML converts a section sent by the UI (JSON) to YAML, the form it

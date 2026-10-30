@@ -24,6 +24,9 @@ func TestHomeAssistantManagesPersonsRooms(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"managed":true`) {
 		t.Fatalf("put: %d %s", code, body)
 	}
+	if !cfg.fromHA["persons"] || !cfg.fromHA["satellites"] || cfg.written["persons"] {
+		t.Errorf("what HA sends is not kept apart from what the page writes: ha %v page %v", cfg.fromHA, cfg.written)
+	}
 	var notifier map[string]any
 	json.Unmarshal(cfg.sections["notifier"], &notifier)
 	if notifier["cooldown"] != "30m" || !strings.Contains(string(cfg.sections["notifier"]), `"morning_trigger":{"areas":["kueche"],"presence":{"kueche":["binary_sensor.k","binary_sensor.k2"]}}`) {

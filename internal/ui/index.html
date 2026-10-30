@@ -148,6 +148,8 @@ details.item.task > summary, details.item.agent > summary, details.item.hook > s
   details.item > summary .short { grid-column: 2 / 4; }
 }
 .hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+/* The page's chapter of the guide, above the page. */
+.chapter-line { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
 tr.clickable { cursor: pointer; }
 p.say { font-size: 1.15em; font-weight: 600; margin: 8px 0; }
 tr.clickable:hover td { background: var(--badge); }
@@ -273,6 +275,75 @@ details.item>summary::before,details.item[open]>summary::before { content:"›";
 details.item[open]>summary::before { transform:rotate(90deg); }
 details.item>summary h3 { color:var(--text); }
 .badge { font-size:11px; padding:3px 8px; border-radius:6px; }
+/* Card lists (the pages under a group, after the draft for the agents' page):
+   a head with the count, groups with a label, each entry a card that opens. */
+.list-section { margin-bottom:16px; }
+.list-head { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:8px 0 22px; }
+.list-head h2 { display:flex; align-items:center; gap:10px; font-size:23px; margin:0; }
+.list-head p { font-size:13px; color:var(--muted); margin:5px 0 0; max-width:70ch; }
+.list-head>button { flex:none; font-size:13px; }
+.count { display:grid; place-items:center; min-width:24px; height:24px; padding:0 6px; font-size:11px; font-weight:650; border-radius:5px;
+  color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+.group-label { display:flex; justify-content:space-between; font-size:11px; font-weight:650; letter-spacing:.05em; color:var(--muted); text-transform:uppercase; margin:24px 0 10px; }
+.group-hint { margin:-4px 0 10px; }
+.card-list { display:flex; flex-direction:column; gap:10px; }
+.item.card-item,html.ha .item.card-item { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:0; margin:0; overflow:hidden; }
+.item.card-item:last-of-type { border-bottom:1px solid var(--line); }
+details.item.card-item[open] { border-color:color-mix(in oklch,var(--tone) 32%,var(--line)); }
+details.item.card-item>summary,.item.card-item.plain { display:grid; grid-template-columns:36px minmax(9em,13em) minmax(0,1fr) auto 16px; gap:14px; align-items:center; padding:15px 18px; min-height:68px; }
+.item.card-item.plain { grid-template-columns:36px minmax(9em,13em) minmax(0,1fr) auto; }
+details.item.card-item>summary::before { display:none; }
+details.item.card-item[open]>summary { background:color-mix(in oklch,var(--tone) 5%,var(--panel)); }
+.item.card-item h3 { font-size:14px; font-weight:750; }
+.item.card-item .short { font-size:13px; color:var(--muted); }
+.item.card-item .short.clip { color:var(--muted); white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.item-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:8px; color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+.item-tags { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+.chevron { color:var(--muted); transform:rotate(-90deg); transition:transform .15s; }
+details.item.card-item[open] .chevron { transform:none; color:var(--tone); }
+.item-body { padding:6px 22px 18px 68px; }
+.item-body table.facts { table-layout:fixed; width:100%; }
+.item-body table.facts th { width:160px; font-size:12px; }
+.item-body table.facts td { font-size:13px; overflow-wrap:anywhere; }
+.item-body table.facts code { white-space:normal; }
+.chapter-hint { display:block; margin-top:4px; }
+/* A switch in a card's head (a skill on or off). */
+button.switch { position:relative; width:42px; height:24px; padding:0; border:0; border-radius:999px; flex:none; cursor:pointer;
+  background:color-mix(in oklch,var(--muted) 35%,var(--panel)); transition:background .15s; }
+button.switch>span { position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:var(--panel); transition:transform .15s; box-shadow:0 1px 2px rgb(0 0 0 / .2); }
+button.switch[aria-checked=true] { background:var(--accent); }
+button.switch[aria-checked=true]>span { transform:translateX(18px); }
+button.switch:disabled { opacity:.5; cursor:wait; }
+button.switch:focus-visible { outline:2px solid var(--tone); outline-offset:2px; }
+.button-icon { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; margin-right:4px; }
+/* The editor inside an opened card. */
+.inline-editor { margin:4px 0 14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+.inline-editor .actions { align-items:center; gap:10px; }
+.inline-editor .ok { color:var(--accent); font-size:13px; }
+.item-body > .inline-editor:last-child { border-bottom:0; padding-bottom:0; margin-bottom:0; }
+section.card > :first-child, section.card > :first-child > :first-child { margin-top:0; }
+details.item.card-item.unclip[open]>summary .short.clip { display:block; -webkit-line-clamp:unset; }
+.item.card-item .item-tags .checkline, .list-head .checkline { margin:0; white-space:nowrap; }
+@media(max-width:900px) {
+  details.item.card-item>summary,.item.card-item.plain { grid-template-columns:36px minmax(0,1fr) auto 16px; gap:6px 12px; }
+  .item.card-item.plain { grid-template-columns:36px minmax(0,1fr) auto; }
+  .item.card-item .item-icon { grid-row:1 / 3; }
+  .item.card-item .short { grid-column:2; grid-row:2; }
+  .item.card-item .item-tags { grid-column:3; grid-row:1 / 3; }
+  .item.card-item .chevron { grid-column:4; grid-row:1 / 3; }
+}
+@media(max-width:560px) {
+  .list-head { align-items:flex-start; }
+  .list-head>button { white-space:normal; max-width:130px; }
+  details.item.card-item>summary,.item.card-item.plain { grid-template-columns:30px minmax(0,1fr) 16px; padding:13px 12px; gap:6px 10px; }
+  .item.card-item.plain { grid-template-columns:30px minmax(0,1fr); }
+  .item.card-item .item-icon { width:30px; height:30px; grid-row:1; }
+  .item.card-item .short { grid-column:2 / 4; }
+  .item.card-item .item-tags { grid-column:2 / 4; grid-row:3; justify-content:flex-start; }
+  .item.card-item .chevron { grid-column:3; grid-row:1; }
+  .item-body { padding:0 14px 16px; }
+  .item-body table.facts th { width:100px; }
+}
 .badge.ui { color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
 .chip { background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
 td,th { padding:12px 7px; } table { display:block; overflow-x:auto; }
@@ -397,7 +468,7 @@ const I18N = {
   "voice_was": name => `Das war ${name}`,
   "voice_enrolled": "angelernt",
   "voice_col": "Stimme",
-  "persons_list_hint": "Jede Person aus Home Assistant ist auch für Mira eine Person. Ein Klick öffnet ihre Karte, dieselbe, die sie selbst als „Ich“ sieht.",
+  "persons_list_hint": "Jede Person aus Home Assistant ist auch für Mira eine Person. Zum Ändern eine Person aufklappen; ihre ganze Karte mit der Stimme ist dieselbe, die sie selbst als „Ich“ sieht.",
   "tab_memory": "Gedächtnis",
   "token_wrong": "Token fehlt oder ist falsch.",
   "unreachable": "Ich bin gerade nicht erreichbar, vielleicht starte ich gerade neu. Ich versuche es gleich noch mal …",
@@ -405,12 +476,7 @@ const I18N = {
   "dlg_ok": "OK",
   "dlg_cancel": "Abbrechen",
   "saved": "Gespeichert. Die Benachrichtigung läuft mit der neuen Einstellung.",
-  "reset_confirm": "Die Einstellungen aus mira.yaml wiederherstellen?",
-  "reset_done": "Zurückgesetzt auf mira.yaml.",
   "badge_ha": "in Home Assistant verwaltet",
-  "badge_ui": "in der UI geändert",
-  "reset_button": "Zurück auf mira.yaml",
-  "badge_file": "aus mira.yaml",
   "managed_hint": "Wird in Home Assistant bearbeitet: Einstellungen → Geräte &amp; Dienste → Mira. Unter „Konfigurieren“ gibt es Einstellungen für einen Satelliten und für eine Person; gespeichert wird an Satellit und Person selbst.",
   "remove": "Entfernen",
   "entity_search": "Entity suchen und auswählen …",
@@ -552,7 +618,6 @@ const I18N = {
   "import_unknown": h => `„${h}“ ist weder das Haus noch eine Person in Home Assistant. Nichts wurde geändert.`,
   "import_not_allowed": h => `Den Abschnitt „${h}“ darfst du nicht importieren. Nichts wurde geändert.`,
   "forget": "Vergessen",
-  "fact_edit": "Bearbeiten",
   "forget_confirm": "Diesen Fakt vergessen?",
   "compacting": "Verdichtet … (kann eine Minute dauern)",
   "profile_updated": "Profil aktualisiert.",
@@ -594,13 +659,19 @@ const I18N = {
   // The start page links three chapters of the guide: a short name, and how
   // the chapter's heading begins.
   "home_chapters": [["Gespräche", "Ein Gespräch"], ["Aufgaben", "Mira passt aufs Haus auf"], ["Skills", "Skills:"]],
+  // Each page's chapter of the guide, by how its heading begins (## a chapter, ### a section).
+  "guide_link": "Anleitung:",
+  "page_chapters": { me: "## Wer spricht", messages: "## Mira meldet sich", tasks: "## Mira passt aufs Haus auf",
+    plans: "### Ein Ablauf Schritt für Schritt", memory: "## Mira merkt sich", rooms: "## Einrichtung",
+    persons: "## Wer spricht", notifier: "## Mira meldet sich", skills: "## Skills:", agents: "### Eigene Agenten",
+    models: "## Mehrere Modelle", hooks: "## Eigene Regeln" },
   "home_satellites": n => n === 1 ? "1 Satellit" : `${n} Satelliten`,
   "home_persons": n => n === 1 ? "1 Person" : `${n} Personen`,
   "home_quiet": (a, b) => `Ruhezeit ${a}–${b}`,
   "tab_skills": "Skills",
   "tab_models": "Modelle",
   "models_title": "Modelle",
-  "models_hint": "Die Sprachmodelle, die Mira nutzt, wie sie eingestellt sind und wer sie nimmt. Ändern geht hier mit „Bearbeiten“ oder in der mira.yaml unter models; das Hauptmodell kann auch aus der Einrichtung in Home Assistant kommen.",
+  "models_hint": "Die Sprachmodelle, die Mira nutzt, wie sie eingestellt sind und wer sie nimmt. Zum Ändern ein Modell aufklappen; das Hauptmodell kann auch aus der Einrichtung in Home Assistant kommen.",
   "mod_endpoint": "Adresse", "mod_model": "Modell", "mod_provider": "Anbieter", "ed_provider_custom": "Eigener Server", "mod_token": "Token",
   "mod_token_set": "gesetzt", "mod_token_unset": "keiner",
   "mod_privacy": "Datenschutz", "mod_parallel": "Anfragen gleichzeitig", "mod_fallback": "Ersatz bei Fehlern",
@@ -623,6 +694,10 @@ const I18N = {
   "mod_check_timeout": s => `Keine Antwort nach ${s} s.`,
   "mod_check_close": "Schließen",
   "ed_edit": "Bearbeiten", "ed_save": "Speichern", "ed_cancel": "Abbrechen", "ed_delete": "Löschen",
+  "ed_apply": "Übernehmen", "ed_applied": "Gespeichert, gilt nach einem Neustart.",
+  "card_saved": "Gespeichert.", "person_open": "Ganze Karte und Stimme", "tag_announces": "sagt an", "tag_indicator": "Anzeige",
+  "task_switch": "Aufgabe an oder aus", "tasks_planning": "In Planung",
+  "ed_switch_failed": (name, why) => `„${name}“ ließ sich nicht umschalten: ${why}`,
   "ed_title": n => `„${n}“ bearbeiten`,
   "ed_new_model": "Neues Modell", "ed_new_agent": "Neuer Agent", "ed_new_skill": "Skill",
   "ed_switch_on": "Einschalten",
@@ -676,7 +751,7 @@ const I18N = {
   "home_problems": n => n === 1 ? "1 Skill nicht gestartet" : `${n} Skills nicht gestartet`,
   "home_available": n => n === 1 ? "1 weiterer verfügbar" : `${n} weitere verfügbar`,
   "cat_active": "Aktive Skills",
-  "cat_skills_hint": "Was Mira beim Start geladen hat. Ändern geht hier mit „Bearbeiten“, in der mira.yaml oder im Ordner des Skills.",
+  "cat_skills_hint": "Was Mira beim Start geladen hat. Zum Ändern einen Skill aufklappen; der Schalter schaltet ihn ein oder aus.",
   "cat_problem": "Nicht gestartet",
   "cat_available": "Verfügbar",
   "cat_available_hint": "Diese Skills liegen im Skill-Ordner, sind aber nicht eingeschaltet. Einschalten: mit „Einschalten“ hier oder in der mira.yaml unter skills.",
@@ -860,7 +935,7 @@ const I18N = {
   "voice_was": name => `That was ${name}`,
   "voice_enrolled": "enrolled",
   "voice_col": "Voice",
-  "persons_list_hint": "Every person in Home Assistant is a person for Mira too. A click opens their card, the same one they see themselves as \"Me\".",
+  "persons_list_hint": "Every person in Home Assistant is a person for Mira too. Open a person to change their settings; their whole card with the voice is the same one they see themselves as \"Me\".",
   "tab_memory": "Memory",
   "token_wrong": "Token missing or wrong.",
   "unreachable": "I can't be reached right now, maybe I'm restarting. Trying again in a moment …",
@@ -868,12 +943,7 @@ const I18N = {
   "dlg_ok": "OK",
   "dlg_cancel": "Cancel",
   "saved": "Saved. Notifications run with the new settings.",
-  "reset_confirm": "Restore the settings from mira.yaml?",
-  "reset_done": "Reset to mira.yaml.",
   "badge_ha": "managed in Home Assistant",
-  "badge_ui": "changed in the UI",
-  "reset_button": "Back to mira.yaml",
-  "badge_file": "from mira.yaml",
   "managed_hint": "Edited in Home Assistant: Settings → Devices &amp; services → Mira. Under \"Configure\" there are settings for a satellite and for a person, stored on the satellite and the person themselves.",
   "remove": "Remove",
   "entity_search": "Search and pick an entity …",
@@ -1015,7 +1085,6 @@ const I18N = {
   "import_unknown": h => `"${h}" is neither the house nor a person in Home Assistant. Nothing was changed.`,
   "import_not_allowed": h => `You may not import the section "${h}". Nothing was changed.`,
   "forget": "Forget",
-  "fact_edit": "Edit",
   "forget_confirm": "Forget this fact?",
   "compacting": "Compacting … (may take a minute)",
   "profile_updated": "Profile updated.",
@@ -1055,13 +1124,18 @@ const I18N = {
   "home_label": "YOUR MIRA", "home_label_side": "One home. Many possibilities.",
   "home_help_line": "Conversations, tasks and your own skills.", "home_footer": "Personal to your home.", "footer_service": "Mira service", "footer_integration": "Integration",
   "home_chapters": [["Conversations", "A conversation"], ["Tasks", "Mira looks after the house"], ["Skills", "Skills:"]],
+  "guide_link": "Guide:",
+  "page_chapters": { me: "## Who is speaking", messages: "## Mira speaks up", tasks: "## Mira looks after the house",
+    plans: "### A run step by step", memory: "## Mira remembers", rooms: "## Setup",
+    persons: "## Who is speaking", notifier: "## Mira speaks up", skills: "## Skills:", agents: "### Your own agents",
+    models: "## Several models", hooks: "## Rules of your own" },
   "home_satellites": n => n === 1 ? "1 satellite" : `${n} satellites`,
   "home_persons": n => n === 1 ? "1 person" : `${n} people`,
   "home_quiet": (a, b) => `Quiet hours ${a}–${b}`,
   "tab_skills": "Skills",
   "tab_models": "Models",
   "models_title": "Models",
-  "models_hint": "The language models Mira uses, how they are set and who takes them. Change them here with “Edit” or in mira.yaml under models; the main model can also come from the setup in Home Assistant.",
+  "models_hint": "The language models Mira uses, how they are set and who takes them. Open a model to change it; the main model can also come from the setup in Home Assistant.",
   "mod_endpoint": "Address", "mod_model": "Model", "mod_provider": "Provider", "ed_provider_custom": "Own server", "mod_token": "Token",
   "mod_token_set": "set", "mod_token_unset": "none",
   "mod_privacy": "Privacy", "mod_parallel": "Requests at once", "mod_fallback": "Fallback on errors",
@@ -1084,6 +1158,10 @@ const I18N = {
   "mod_check_timeout": s => `No answer after ${s} s.`,
   "mod_check_close": "Close",
   "ed_edit": "Edit", "ed_save": "Save", "ed_cancel": "Cancel", "ed_delete": "Delete",
+  "ed_apply": "Apply", "ed_applied": "Saved; it counts after a restart.",
+  "card_saved": "Saved.", "person_open": "Whole card and voice", "tag_announces": "announces", "tag_indicator": "indicator",
+  "task_switch": "Task on or off", "tasks_planning": "Being planned",
+  "ed_switch_failed": (name, why) => `"${name}" could not be switched: ${why}`,
   "ed_title": n => `Edit "${n}"`,
   "ed_new_model": "New model", "ed_new_agent": "New agent", "ed_new_skill": "Skill",
   "ed_switch_on": "Switch on",
@@ -1137,7 +1215,7 @@ const I18N = {
   "home_problems": n => n === 1 ? "1 skill not started" : `${n} skills not started`,
   "home_available": n => n === 1 ? "1 more available" : `${n} more available`,
   "cat_active": "Active skills",
-  "cat_skills_hint": "What Mira loaded at her start. Change it here with “Edit”, in mira.yaml or in the skill's folder.",
+  "cat_skills_hint": "What Mira loaded at her start. Open a skill to change it; the switch turns it on or off.",
   "cat_problem": "Not started",
   "cat_available": "Available",
   "cat_available_hint": "These skills are in the skill folder but not switched on. Switch one on with “Switch on” here or in mira.yaml under skills.",
@@ -1454,23 +1532,10 @@ async function save(sections) {
   } catch (e) { message(e.message, false); }
 }
 
-async function reset(name) {
-  if (!await ask({ text: T.reset_confirm, ok: T.reset_button })) return;
-  try {
-    config = await api("DELETE", "/v1/ui/config/" + name);
-    message(T.reset_done, true);
-    render();
-  } catch (e) { message(e.message, false); }
-}
-
+// source says a section is managed in Home Assistant; what the page saves
+// is in mira.yaml, which needs no word.
 function source(name) {
-  const s = config[name];
-  if (!s) return "";
-  if (managed(name) && name !== "notifier")
-    return `<span class="badge ui">${T.badge_ha}</span>`;
-  return s.overridden
-    ? `<span class="badge ui">${T.badge_ui}</span> <button class="secondary" onclick="reset('${name}')">${T.reset_button}</button>`
-    : `<span class="badge">${T.badge_file}</span>`;
+  return managed(name) && name !== "notifier" ? `<span class="badge ui">${T.badge_ha}</span>` : "";
 }
 
 const val = name => (config[name] || {}).value;
@@ -1500,8 +1565,9 @@ function render() {
   document.documentElement.dataset.group = group ? group.id : "";
   nav();
   const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, hooks, guide };
-  $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><div id="view"></div>`;
+  $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><p id="chapter-line" class="chapter-line" hidden></p><div id="view"></div>`;
   views[tab]();
+  chapterLine(tab);
   const owner = { rooms: "satellites", persons: "persons", person: "persons" }[tab];
   if (owner && managed(owner) && !embedded) {
     $("#view").querySelectorAll("input, textarea, select, button").forEach(el => { el.disabled = true; });
@@ -1516,12 +1582,67 @@ function skills() { $("#view").innerHTML = "<mira-skills></mira-skills>"; }
 function models() { $("#view").innerHTML = "<mira-models></mira-models>"; }
 function hooks() { $("#view").innerHTML = "<mira-hooks></mira-hooks>"; }
 
+// ---- Card lists ----------------------------------------------------------
+// The other pages show their entries as cards the way js/app.js does for
+// Skills, Agents and Models: a head with the count, each entry a closed card
+// that opens to what can be changed.
+// listHead is a list's title with its count, a line under it, and a button.
+function listHead(title, count, hint = "", button = "") {
+  return `<div class="list-head"><div><h2>${title}${count === undefined ? "" : `<span class="count">${count}</span>`}</h2>
+    ${hint ? `<p>${hint}</p>` : ""}</div>${button}</div>`;
+}
+// groupLabel names a group of cards, with how many there are.
+const groupLabel = (text, count) => `<div class="group-label"><span>${text}</span><span>${count}</span></div>`;
+// cardIcon is the line icon of a card by its kind.
+const CARD_ICONS = {
+  message: `<path d="M4 5h16v11H9l-5 4Z"/><path d="M8 9h8M8 12h5"/>`,
+  task: `<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>`,
+  plan: `<path d="M10 6h10M10 12h10M10 18h10"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>`,
+  satellite: `<rect x="6" y="3" width="12" height="18" rx="3"/><circle cx="12" cy="14" r="3"/><path d="M12 7h.01"/>`,
+  person: `<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>`,
+  fact: `<path d="M5 3h10l4 4v14H5Z"/><path d="M15 3v4h4M8 12h8M8 16h6"/>`,
+  profile: `<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.5-1.3 1.6-2 3-2s2.5.7 3 2"/>`,
+  run: `<rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 7V3M8 12v2m8-2v2M9 17h6"/>`,
+};
+const cardIcon = kind => `<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true">${CARD_ICONS[kind]}</svg>`;
+// buttonIcon is the small line icon on a button.
+const buttonIcon = kind => `<svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">${kind === "save"
+  ? `<path d="M5 3h11l3 3v15H5Z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/>` : `<path d="M7 4v16l13-8Z"/>`}</svg>`;
+// cardItem is an entry as a card: icon, name, a short line and tags in its
+// head, the body when opened. Cards start closed unless open is set (a list
+// drawn anew keeps the cards that were open).
+function cardItem({ kind, name, short = "", tags = "", cls = "", attrs = "", open = false }, body) {
+  return `<details class="item card-item ${cls}"${attrs}${open ? " open" : ""}>
+    <summary><span class="item-icon">${cardIcon(kind)}</span><span class="lead"><h3>${name}</h3></span>
+      <span class="short clip">${short}</span><span class="item-tags">${tags}</span>
+      <span class="chevron" aria-hidden="true">⌄</span></summary>
+    <div class="item-body">${body}</div></details>`;
+}
+// headSwitch is a switch in a card's head; it does not open the card.
+const headSwitch = (on, label, onclick) => `<button type="button" role="switch" class="switch" aria-checked="${on ? "true" : "false"}"
+  aria-label="${esc(label)}" onclick="event.preventDefault(); event.stopPropagation(); ${onclick}"><span></span></button>`;
+const badge = (text, ui = false) => `<span class="badge${ui ? " ui" : ""}">${text}</span>`;
+const factRow = (label, value) => value === undefined || value === null || value === "" ? "" : `<tr><th>${label}</th><td>${value}</td></tr>`;
+// openIds are the ids of the cards open in a list, so a list drawn anew
+// keeps them open.
+const openIds = list => new Set([...document.querySelectorAll(`${list} details[open][data-id]`)].map(d => d.dataset.id));
+// applyRow is the line under a card's form: "Apply" with its note, and what
+// else the card offers to the right.
+const applyRow = (right = "") => `<div class="actions left"><button class="primary" type="submit">${buttonIcon("save")} ${T.ed_apply}</button>
+  <span class="ok" hidden>${T.card_saved}</span><span class="spacer"></span>${right}</div>`;
+// applied shows the note under a card's form until something is changed.
+function applied(form) {
+  const ok = form.querySelector(".ok");
+  ok.hidden = false;
+  form.addEventListener("input", () => { ok.hidden = true; }, { once: true });
+}
+
 // ---- Nachrichten ----------------------------------------------------------
 let openOnly = false, messagePage = 0;
 async function messages() {
   const view = $("#view");
-  view.innerHTML = `<section class="card"><h2>${isAdmin ? T.messages_title : T.messages_house}</h2>
-    <label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; messagePage = 0; messages()"> ${T.open_only}</label>
+  view.innerHTML = `<section class="list-section">${listHead(isAdmin ? T.messages_title : T.messages_house, undefined, "",
+    `<label class="checkline"><input type="checkbox" id="open_only" ${openOnly ? "checked" : ""} onchange="openOnly = this.checked; messagePage = 0; messages()"> ${T.open_only}</label>`)}
     <div id="list">${T.loading}</div></section>`;
   try {
     const r = await api("GET", `/v1/ui/messages?page=${messagePage}${openOnly ? "&open=1" : ""}`);
@@ -1539,17 +1660,12 @@ async function messages() {
 }
 // messageItems lists messages; done can be marked where may(n) says so.
 function messageItems(items, may) {
-  return items.length === 0 ? `<p class="hint">${T.no_messages}</p>` : items.map(n => `
-      <details class="item">
-        <summary>
-          <span class="lead"><span class="hint">${esc(n.created_at.slice(5))}</span>
-            <span class="badge${n.state === "pending" ? " ui" : ""}">${T["state_" + shownState(n.state)]}${n.state === "scheduled" && n.deliver_at ? " " + esc(n.deliver_at.slice(5)) : ""}</span></span>
-          <span class="short clip">${esc(n.spoken)}</span>
-          ${n.state === "pending" && may(n) ? `<button class="secondary" onclick="event.preventDefault(); ack('${esc(n.id)}')">${T.done}</button>` : "<span></span>"}
-        </summary>
-        ${n.details ? `<p>${esc(n.details)}</p>` : ""}
-        <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}</p>
-      </details>`).join("");
+  return items.length === 0 ? `<p class="hint">${T.no_messages}</p>` : `<div class="card-list">${items.map(n => cardItem({
+    kind: "message", name: esc(n.created_at.slice(5)), short: esc(n.spoken), cls: "unclip",
+    tags: badge(T["state_" + shownState(n.state)] + (n.state === "scheduled" && n.deliver_at ? " " + esc(n.deliver_at.slice(5)) : ""), n.state === "pending")
+      + (n.state === "pending" && may(n) ? `<button class="secondary" onclick="event.preventDefault(); event.stopPropagation(); ack('${esc(n.id)}')">${T.done}</button>` : "") }, `
+      ${n.details ? `<p>${esc(n.details)}</p>` : ""}
+      <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}</p>`)).join("")}</div>`;
 }
 // shownState folds delivered and done into one: for the user both mean
 // "heard"; Mira keeps them apart for repeats and follow-up questions.
@@ -1565,9 +1681,9 @@ function notifier() {
   const n = val("notifier") || {};
   const qh = n.quiet_hours || {}, esc2 = n.escalate_to_telegram || {}, urg = n.urgent || {};
   $("#view").innerHTML = `
-  <section class="card">
-    <h2>${T.tab_notifier} ${source("notifier")}</h2>
-    <h3>${T.when_announce}</h3>
+  <section class="list-section">
+    ${listHead(`${T.tab_notifier} ${source("notifier")}`)}
+    <section class="card"><h3>${T.when_announce}</h3>
     <div class="grid">
       <label>${T.quiet_from}</label><input type="time" id="qh_from" value="${esc(qh.from)}">
       <label>${T.quiet_to}</label><input type="time" id="qh_to" value="${esc(qh.to)}">
@@ -1577,28 +1693,28 @@ function notifier() {
       <label>${T.follow_up}</label><input id="follow_up" value="${esc(n.follow_up_window)}" placeholder="2m">
       <label>${T.delivery}</label><select id="delivery">${["auto", "start_conversation", "announce", "tts"].map(d => opt(d, n.delivery)).join("")}</select>
       <label>${T.tts_entity}</label><input id="tts_entity" list="entities" value="${esc(n.tts_entity)}" placeholder="tts.piper">
-    </div>
-    <h3>${T.confidential_title}</h3>
+    </div></section>
+    <section class="card"><h3>${T.confidential_title}</h3>
     <div class="grid">
       <label>${T.conf_voice}</label><select id="conf_voice">
         ${opt("never", n.confidential_voice, T.conf_never)}
         ${opt("when_alone", n.confidential_voice, T.conf_alone)}
         ${opt("always", n.confidential_voice, T.conf_always)}</select>
-    </div>
-    <h3>${T.escalation}</h3>
+    </div></section>
+    <section class="card"><h3>${T.escalation}</h3>
     <div class="grid">
       <label>${T.from_importance}</label><select id="esc_min">${[1,2,3].map(i => opt(i, esc2.min_importance)).join("")}</select>
       <label>${T.unheard_after}</label><input type="time" id="esc_after" value="${esc(esc2.after)}">
       <label>${T.grace}</label><input id="esc_grace" value="${esc(esc2.grace)}" placeholder="30m">
     </div>
-    <p class="hint">${T.escalation_hint}</p>
-    <h3>${T.urgent}</h3>
+    <p class="hint">${T.escalation_hint}</p></section>
+    <section class="card"><h3>${T.urgent}</h3>
     <div class="grid">
       <label>${T.urgent_from}</label><select id="urg_min">${opt(0, urg.min_importance, T.off)}${[1,2,3].map(i => opt(i, urg.min_importance)).join("")}</select>
       <label>${T.urgent_announce}</label><input type="checkbox" id="urg_announce" ${urg.announce ? "checked" : ""}>
     </div>
-    <p class="hint">${T.urgent_hint}</p>
-    <div class="actions"><button class="primary" onclick="saveNotifier()">${T.save}</button></div>
+    <p class="hint">${T.urgent_hint}</p></section>
+    <div class="actions left"><button class="primary" onclick="saveNotifier()">${buttonIcon("save")} ${T.save}</button></div>
   </section>`;
 }
 function saveNotifier() {
@@ -1743,9 +1859,8 @@ async function personCard(key, name, self) {
   try { s = await cardSettings(key); } catch (e) { message(e.message, false); s = {}; }
   const admin = isAdmin, voice = !!(await whoAmI()).voice;
   $("#view").innerHTML = `
-  <section class="card" data-person="${esc(key)}" id="me-settings">
-    <h2>${esc(name)}</h2>${self ? "" : `<p class="hint">${esc(personEntityOf(key))}</p>`}
-    <h3>${T.card_settings}</h3>
+  <section class="list-section" id="me-settings">${listHead(T.card_settings, undefined, self ? "" : esc(personEntityOf(key)))}
+  <section class="card" data-person="${esc(key)}">
     <div class="grid">
       <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
       <label title="${self ? T.alone_hint_self : T.alone_hint}">${self ? T.alone_is_me_long : T.alone_is_me_other(esc(name))}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
@@ -1754,16 +1869,16 @@ async function personCard(key, name, self) {
     </div>
     <p class="hint">${self ? T.alone_hint_self : T.alone_hint}${admin && voice ? " " + T.voice_threshold_hint : ""}</p>
     <datalist id="card-notify">${cardNotify.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>
-    <div class="actions"><button class="primary" onclick="saveCard('${esc(key)}')">${T.save}</button></div>
-  </section>
-  <section class="card" id="voice"><h2>${T.voice_title}</h2><p>${T.loading}</p></section>
-  ${self ? `<section class="card" id="me-messages"><h2>${T.me_messages_title}</h2><p>${T.loading}</p></section>
-  <div id="me-memory"><section class="card"><h2>${T.memory_yours}</h2><p>${T.loading}</p></section></div>` : ""}`;
+    <div class="actions left"><button class="primary" onclick="saveCard('${esc(key)}')">${buttonIcon("save")} ${T.save}</button></div>
+  </section></section>
+  <section class="list-section" id="voice">${listHead(T.voice_title)}<section class="card"><p>${T.loading}</p></section></section>
+  ${self ? `<section class="list-section" id="me-messages">${listHead(T.me_messages_title)}<p class="hint">${T.loading}</p></section>
+  <div id="me-memory">${listHead(T.memory_yours)}<p class="hint">${T.loading}</p></div>` : ""}`;
   const parts = [voiceCard(key, name, self)];
   if (self) {
     parts.push(api("GET", "/v1/ui/messages?mine=1").then(r => {
       const box = $("#me-messages");
-      if (box) box.innerHTML = `<h2>${T.me_messages_title}</h2>` + messageItems(r.items || [], () => true);
+      if (box) box.innerHTML = listHead(T.me_messages_title, (r.items || []).length) + messageItems(r.items || [], () => true);
     }).catch(e => message(e.message, false)));
     parts.push(api("GET", "/v1/ui/memory").then(r => {
       const own = (r.memories || []).find(m => m.owner === r.you);
@@ -1816,27 +1931,28 @@ async function voiceCard(key, name, self) {
   if (!box) return;
   if (!(await whoAmI()).voice) {
     // Optional: without it the card says so and where it is explained.
-    box.innerHTML = `<h2>${T.voice_title}</h2>
-      <div class="actions"><button class="primary" disabled title="${T.voice_unavailable}">${T.voice_enroll}</button></div>
-      <p class="hint">${T.voice_unavailable} <a href="#guide" onclick="event.preventDefault(); openGuideAbout('## ${T.guide_voice_chapter}')">${T.voice_unavailable_link}</a></p>`;
+    box.innerHTML = `${listHead(T.voice_title)}<section class="card">
+      <div class="actions left"><button class="primary" disabled title="${T.voice_unavailable}">${T.voice_enroll}</button></div>
+      <p class="hint">${T.voice_unavailable} <a href="#guide" onclick="event.preventDefault(); openGuideAbout('## ${T.guide_voice_chapter}')">${T.voice_unavailable_link}</a></p></section>`;
     return;
   }
   let v;
-  try { v = await api("GET", `/v1/ui/voice/${encodeURIComponent(key)}`); } catch (e) { box.innerHTML = `<h2>${T.voice_title}</h2><p class="msg err">${esc(e.message)}</p>`; return; }
+  try { v = await api("GET", `/v1/ui/voice/${encodeURIComponent(key)}`); } catch (e) { box.innerHTML = `${listHead(T.voice_title)}<p class="msg err">${esc(e.message)}</p>`; return; }
   const k = esc(key), n = esc(name);
   box.innerHTML = `
-    <h2>${T.voice_title}</h2>
+    ${listHead(T.voice_title)}<section class="card">
     ${v.enrolling ? `<div id="enroll">
         <p class="say">${self ? T.voice_say(n) : T.voice_say_other(n)}</p>
         <ul class="say">${(v.sentences || []).map(x => `<li>${lang === "de" ? `„${esc(x)}“` : `"${esc(x)}"`}</li>`).join("")}</ul>
         <p>${self ? T.voice_say_more : T.voice_say_more_other(n)} <span class="hint" id="enroll-left"></span></p>
         <table class="facts" id="heard"></table></div>
-      <div class="actions"><button class="primary" onclick="enrollStop('${k}', '${n}', ${self})">${T.voice_enroll_stop}</button></div>`
+      <div class="actions left"><button class="primary" onclick="enrollStop('${k}', '${n}', ${self})">${T.voice_enroll_stop}</button></div>`
     : `<p>${v.samples ? T.voice_samples(v.samples) : self ? T.voice_none_self : T.voice_none}</p>
     <p class="hint">${self ? T.voice_hint_self : T.voice_hint}</p>
-    <div class="actions">
+    <div class="actions left">
       <button class="primary" onclick="enrollStart('${k}', '${n}', ${self})">${v.samples ? T.voice_enroll_more : T.voice_enroll}</button>
-      ${v.samples ? `<button class="danger" onclick="forgetVoice('${k}', '${n}', ${self})">${T.voice_forget}</button>` : ""}</div>`}`;
+      <span class="spacer"></span>
+      ${v.samples ? `<button class="danger" onclick="forgetVoice('${k}', '${n}', ${self})">${T.voice_forget}</button>` : ""}</div>`}</section>`;
   if (v.enrolling) heard(key, name, self);
 }
 async function enrollStart(key, name, self) {
@@ -1884,30 +2000,57 @@ async function forgetVoice(key, name, self) {
   voiceCard(key, name, self);
 }
 
-// The admins' list of persons: a line each with what is set, a click opens
-// the person's card.
+// The admins' list of persons: a card each with what is set; opened, the
+// settings to change, and a link to the person's whole card (the voice).
 async function personList() {
   $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
-  let settings = {}, samples = {}, voice = false;
+  let settings = {}, samples = {}, voice = false, notify = [];
   try {
     const d = await haApi("GET", `${HA_BASE}/settings/persons`);
     (d.items || []).forEach(i => { settings[i.entity] = i.settings || {}; });
+    notify = d.notify || [];
   } catch (e) { message(e.message, false); }
   try { const v = await api("GET", "/v1/ui/voice"); voice = v.available; samples = v.samples || {}; } catch (e) { /* no voices then */ }
+  const people = peopleList();
   $("#view").innerHTML = `
-  <section class="card">
-    <h2>${T.tab_persons} ${source("persons")}</h2>
-    <p class="hint">${T.persons_list_hint}</p>
-    <table class="facts"><tr><th>${T.person}</th>${voice ? `<th>${T.voice_col}</th>` : ""}<th>${T.alone_is_me}</th><th>${T.accept_from}</th><th>${T.channels.split(" (")[0]}</th></tr>
-      ${peopleList().map(p => {
-        const s = settings[p.entity] || {};
-        return `<tr class="clickable" onclick="go('person:${esc(encodeURIComponent(p.key))}')">
-          <td><a href="#person:${esc(encodeURIComponent(p.key))}">${esc(p.name)}</a><p class="hint">${esc(p.entity)}</p></td>
-          ${voice ? `<td>${samples[p.key] ? T.voice_samples(samples[p.key]).replace(/\.$/, "") : "–"}</td>` : ""}
-          <td>${s.alone_is_me ? T.yes : "–"}</td><td>${T["accept_" + (s.accept_from || "all")]}</td><td>${list(s.channels).length || "–"}</td></tr>`;
-      }).join("")}
-    </table>
+  <section class="list-section">
+    ${listHead(`${T.tab_persons} ${source("persons")}`, people.length, T.persons_list_hint)}
+    <div class="card-list">${people.map(p => {
+      const s = settings[p.entity] || {}, key = esc(encodeURIComponent(p.key));
+      return cardItem({ kind: "person", name: esc(p.name), short: esc(p.entity), tags: personTags(s, voice ? samples[p.key] || 0 : -1) }, `
+        <form class="inline-editor" data-e="${esc(p.entity)}" onsubmit="event.preventDefault(); savePersonCard(this)">
+          <div class="grid">
+            <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
+            <label title="${T.alone_hint}">${T.alone_is_me_other(esc(p.name))}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>
+            <label>${T.channels}</label><input data-f="channels" list="ha-notify" value="${esc(csv(s.channels))}" placeholder="notify.…">
+            ${voice ? `<label>${T.voice_threshold}</label><input type="number" data-f="voice_threshold" min="0.3" max="0.99" step="0.01" value="${esc(s.voice_threshold || "")}" placeholder="0.7">` : ""}
+          </div>
+          <p class="hint">${T.alone_hint}${voice ? " " + T.voice_threshold_hint : ""}</p>
+          ${applyRow(`<a class="button secondary" href="#person:${key}" onclick="event.preventDefault(); go('person:${key}')">${T.person_open}</a>`)}
+        </form>`);
+    }).join("")}</div>
+    <datalist id="ha-notify">${notify.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>
   </section>`;
+}
+// personTags are what a person's card head shows of their settings; samples
+// is -1 without voices.
+function personTags(s, samples) {
+  return (samples > 0 ? badge(T.voice_samples(samples).replace(/\.$/, ""), true) : "")
+    + (s.alone_is_me ? badge(T.alone_is_me) : "") + (list(s.channels).length ? badge(`${T.channels.split(" (")[0]}: ${list(s.channels).length}`) : "");
+}
+// savePersonCard stores one person's settings from their card.
+async function savePersonCard(form) {
+  const v = {};
+  form.querySelectorAll("[data-f]").forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
+  v.channels = fromCsv(v.channels || "");
+  if ("voice_threshold" in v) v.voice_threshold = v.voice_threshold === "" ? null : Number(v.voice_threshold);
+  try {
+    await haApi("PUT", `${HA_BASE}/settings/persons`, { [form.dataset.e]: v });
+    config = await api("GET", "/v1/ui/config");
+  } catch (e) { message(e.message, false); return; }
+  const tags = form.closest("details").querySelector(".item-tags"), had = tags.querySelector(".badge.ui");
+  tags.innerHTML = (had ? had.outerHTML : "") + personTags(v, -1);
+  applied(form);
 }
 
 // Inside Home Assistant an admin edits Mira's settings on HA's persons and
@@ -1928,79 +2071,77 @@ async function haSettings(kind) {
   try { d = await haApi("GET", `${HA_BASE}/settings/${kind}`); } catch (e) { message(e.message, false); return; }
   const lists = (id, items) => `<datalist id="${id}">${items.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>`;
   const persons = kind === "persons";
-  const head = persons
-    ? `<th>${T.person}</th><th>${T.channels}</th><th>${T.accept_from}</th><th title="${T.alone_hint}">${T.alone_is_me}</th>`
-    : `<th>${T.satellite}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.indicator}</th>`;
-  const row = it => {
-    const s = it.settings || {}, sub = persons ? it.entity : `${esc(it.area)} · ${esc(it.entity)}`;
-    const who = `<td>${esc(it.name)}<p class="hint">${persons ? esc(sub) : sub}</p></td>`;
-    return `<tr data-e="${esc(it.entity)}">${who}` + (persons
-      ? `<td><input data-f="channels" list="ha-notify" value="${esc(csv(s.channels))}" placeholder="notify.…"></td>
-         <td>${acceptSelect(s.accept_from, "accept_from")}</td>
-         <td><input type="checkbox" data-f="alone_is_me" title="${T.alone_hint}"${s.alone_is_me ? " checked" : ""}></td>`
-      : `<td><input data-f="presence" list="ha-motion" value="${esc(csv(s.presence))}" placeholder="binary_sensor.…, …"></td>
-         <td><input type="checkbox" data-f="morning"${s.morning ? " checked" : ""}></td>
-         <td><input data-f="indicator" list="ha-lights" value="${esc(s.indicator || "")}" placeholder="light.…"></td>`) + `</tr>`;
+  const card = it => {
+    const s = it.settings || {};
+    return cardItem({ kind: persons ? "person" : "satellite", name: esc(it.name),
+      short: persons ? esc(it.entity) : `${esc(it.area)} · ${esc(it.entity)}`, tags: persons ? personTags(s, -1) : satelliteTags(s) }, `
+      <form class="inline-editor" data-e="${esc(it.entity)}" onsubmit="event.preventDefault(); saveHASetting('${kind}', this)">
+        <div class="grid">${persons
+          ? `<label>${T.channels}</label><input data-f="channels" list="ha-notify" value="${esc(csv(s.channels))}" placeholder="notify.…">
+             <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
+             <label title="${T.alone_hint}">${T.alone_is_me}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>`
+          : `<label>${T.motion}</label><input data-f="presence" list="ha-motion" value="${esc(csv(s.presence))}" placeholder="binary_sensor.…, …">
+             <label>${T.announcements}</label><input type="checkbox" data-f="morning"${s.morning ? " checked" : ""}>
+             <label>${T.indicator}</label><input data-f="indicator" list="ha-lights" value="${esc(s.indicator || "")}" placeholder="light.…">`}
+        </div>
+        ${applyRow()}
+      </form>`);
   };
   $("#view").innerHTML = `
-  <section class="card">
-    <h2>${persons ? T.tab_persons : T.tab_rooms} <span class="badge ui">${T.badge_ha}</span></h2>
-    <p class="hint">${persons ? T.persons_ha_hint : T.satellites_ha_hint}</p>
-    <table>${`<tr>${head}</tr>`}${d.items.map(row).join("")}</table>
+  <section class="list-section">
+    ${listHead(`${persons ? T.tab_persons : T.tab_rooms} <span class="badge ui">${T.badge_ha}</span>`, d.items.length, persons ? T.persons_ha_hint : T.satellites_ha_hint)}
+    <div class="card-list">${d.items.map(card).join("")}</div>
     ${persons ? lists("ha-notify", d.notify || []) : lists("ha-motion", d.binary_sensors || []) + lists("ha-lights", d.lights || [])}
-    <div class="actions"><button class="primary" onclick="saveHASettings('${kind}')">${T.save}</button></div>
   </section>`;
 }
-async function saveHASettings(kind) {
-  const out = {};
-  document.querySelectorAll("#view tr[data-e]").forEach(tr => {
-    const v = {};
-    tr.querySelectorAll("[data-f]").forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
-    if (kind === "satellites") v.presence = fromCsv(v.presence || "");
-    if (kind === "persons") v.channels = fromCsv(v.channels || "");
-    out[tr.dataset.e] = v;
-  });
+// satelliteTags are what a satellite's card head shows of its settings.
+const satelliteTags = s => (s.morning ? badge(T.tag_announces, true) : "") + (list(s.presence).length ? badge(T.motion) : "") + (s.indicator ? badge(T.tag_indicator) : "");
+// saveHASetting stores the settings of one person or satellite from its card.
+async function saveHASetting(kind, form) {
+  const v = {};
+  form.querySelectorAll("[data-f]").forEach(el => { v[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value.trim(); });
+  if (kind === "satellites") v.presence = fromCsv(v.presence || "");
+  if (kind === "persons") v.channels = fromCsv(v.channels || "");
   try {
-    await haApi("PUT", `${HA_BASE}/settings/${kind}`, out);
-    message(T.saved, true);
+    await haApi("PUT", `${HA_BASE}/settings/${kind}`, { [form.dataset.e]: v });
     config = await api("GET", "/v1/ui/config");
-  } catch (e) { message(e.message, false); }
+  } catch (e) { message(e.message, false); return; }
+  form.closest("details").querySelector(".item-tags").innerHTML = kind === "persons" ? personTags(v, -1) : satelliteTags(v);
+  applied(form);
 }
 // With the integration the satellites and Mira's settings on them come
 // from Home Assistant; the page only shows them.
 function haSatellites(rows) {
   const name = id => esc((entityNames[id] || "").split(" · ")[0] || id);
-  const sensors = s => fromCsv(s).map(name).join(", ") || "–";
+  const sensors = s => fromCsv(s).map(name).join(", ");
   $("#view").innerHTML = `
-  <section class="card">
-    <h2>${T.tab_rooms} ${source("satellites")}</h2>
-    <p class="hint">${T.satellites_ha_hint}</p>
-    <table><tr><th>${T.satellite}</th><th>${T.area}</th><th>${T.motion}</th><th>${T.announcements}</th><th>${T.indicator}</th></tr>
-      ${rows.map(r => `<tr><td>${name(r.sat)}${name(r.sat) !== esc(r.sat) ? `<p class="hint">${esc(r.sat)}</p>` : ""}</td><td>${esc(r.area)}</td><td>${sensors(r.sensor)}</td>
-        <td>${r.active ? T.yes : T.no}</td><td>${r.ind ? name(r.ind) : "–"}</td></tr>`).join("")}
-    </table>
+  <section class="list-section">
+    ${listHead(`${T.tab_rooms} ${source("satellites")}`, rows.length, T.satellites_ha_hint)}
+    <div class="card-list">${rows.map(r => cardItem({ kind: "satellite", name: name(r.sat), short: `${esc(r.area)} · ${esc(r.sat)}`,
+      tags: satelliteTags({ morning: r.active, presence: fromCsv(r.sensor), indicator: r.ind }) },
+      `<table class="facts">${factRow(T.motion, sensors(r.sensor) || "–")}${factRow(T.announcements, r.active ? T.yes : T.no)}${factRow(T.indicator, r.ind ? name(r.ind) : "–")}</table>`)).join("")}</div>
   </section>`;
 }
 // With Home Assistant every HA person is a person; the page only sets
 // Mira's settings for them.
 function haPersons(people, settings) {
+  const ro = managed("persons");
   $("#view").innerHTML = `
-  <section class="card">
-    <h2>${T.tab_persons} ${source("persons")}</h2>
-    <p class="hint">${T.persons_ha_hint}</p>
-    <table id="persons"><tr><th>${T.person}</th><th>${T.channels}</th><th>${T.accept_from}</th><th title="${T.alone_hint}">${T.alone_is_me}</th></tr>
-      ${people.map(h => {
-        const s = settings[h.key] || Object.values(settings).find(x => x.entity === h.entity) || {};
-        if (managed("persons")) return `<tr><td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
-          <td>${esc(csv(s.channels) || "–")}</td><td>${T["accept_" + (s.accept_from || "all")]}</td><td>${s.alone_is_me ? T.yes : T.no}</td></tr>`;
-        return `<tr data-p="${esc(h.key)}" data-key="${esc(h.key)}">
-          <td>${esc(h.name)}<p class="hint">${esc(h.entity)}</p></td>
-          <td><input data-f="channels" value="${esc(csv(s.channels))}" placeholder="notify.…"></td>
-          <td>${acceptSelect(s.accept_from)}</td>
-          <td><input type="checkbox" data-f="alone" title="${T.alone_hint}"${s.alone_is_me ? " checked" : ""}></td></tr>`;
-      }).join("")}
-    </table>
-    <div class="actions"><button class="primary" onclick="savePersons()">${T.save}</button></div>
+  <section class="list-section">
+    ${listHead(`${T.tab_persons} ${source("persons")}`, people.length, T.persons_ha_hint)}
+    <div class="card-list">${people.map(h => {
+      const s = settings[h.key] || Object.values(settings).find(x => x.entity === h.entity) || {};
+      return cardItem({ kind: "person", name: esc(h.name), short: esc(h.entity), tags: personTags(s, -1) }, ro
+        ? `<table class="facts">${factRow(T.channels, esc(csv(s.channels)) || "–")}${factRow(T.accept_from, T["accept_" + (s.accept_from || "all")])}${factRow(T.alone_is_me, s.alone_is_me ? T.yes : T.no)}</table>`
+        : `<form class="inline-editor" data-p="${esc(h.key)}" data-key="${esc(h.key)}" onsubmit="event.preventDefault(); savePersons()">
+          <div class="grid">
+            <label>${T.channels}</label><input data-f="channels" value="${esc(csv(s.channels))}" placeholder="notify.…">
+            <label>${T.accept_from}</label>${acceptSelect(s.accept_from)}
+            <label title="${T.alone_hint}">${T.alone_is_me}</label><input type="checkbox" data-f="alone"${s.alone_is_me ? " checked" : ""}>
+          </div>
+          ${applyRow()}
+        </form>`);
+    }).join("")}</div>
   </section>`;
 }
 function addPerson() { $("#persons").insertAdjacentHTML("beforeend", personRow("", {}, Date.now())); }
@@ -2037,58 +2178,48 @@ async function memory() {
       <button class="secondary" onclick="importMemory()">${T.mem_import}</button></div></section>`;
   } catch (e) { message(e.message, false); }
 }
-// memoryCard is one memory: title, profile, facts with edit and forget.
+// memoryCard is one memory: its head with the count, the profile, and each
+// fact a card that opens as a text field to change or forget it.
 function memoryCard(m, r) {
   const house = m.owner === "house", yours = !!r.you && m.owner === r.you;
   const title = house ? T.memory_house : yours ? T.memory_yours : T.memory_of.replace("{name}", m.name || m.owner);
   const name = esc(m.name || m.owner);
-  const facts = m.facts.length === 0 ? `<p class="empty">${house ? T.empty_house : yours ? T.empty_yours : T.empty_person.replaceAll("{name}", name)}</p>
-    <p class="hint">${house ? T.empty_house_how : yours ? T.empty_yours_how : T.empty_person_how.replaceAll("{name}", name)}</p>` : `
-    <table>${m.facts.map(f => `<tr data-fact="${esc(f.id)}"><td class="fact"><span class="text">${esc(f.text)}</span>
-      <p class="hint">${f.author ? esc(f.author) + " · " : ""}${esc(f.told || f.updated)}${f.told ? " · " + T.edited + " " + esc(f.updated) : ""}</p></td>
-      <td class="fact-actions"><button class="secondary" onclick="editFact('${esc(f.id)}')">${T.fact_edit}</button>
-      <button class="danger" onclick="forget('${esc(f.id)}')">${T.forget}</button></td></tr>`).join("")}</table>`;
-  return `<section class="card"><h2>${esc(title)} <span class="badge">${m.facts.length}</span></h2>
-    ${m.facts.length ? `<p class="hint">${house ? T.memory_house_hint : yours ? T.memory_yours_hint : T.memory_person_hint}</p>` : ""}
-    ${m.facts.length || m.profile ? `<details class="profile"><summary>${T.profile}${m.profile_updated ? ` <small class="hint">${T.last_compacted}${esc(m.profile_updated)}</small>` : ""}</summary>
-      ${m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`}</details>` : ""}
-    ${facts}</section>`;
+  const hint = m.facts.length ? (house ? T.memory_house_hint : yours ? T.memory_yours_hint : T.memory_person_hint) : "";
+  const profile = m.facts.length || m.profile ? cardItem({ kind: "profile", name: T.profile,
+    short: m.profile_updated ? T.last_compacted + esc(m.profile_updated) : "" },
+    m.profile ? `<pre>${esc(m.profile)}</pre>` : `<p class="hint">${T.no_profile}</p>`) : "";
+  const facts = m.facts.length === 0 ? `<section class="card"><p class="empty">${house ? T.empty_house : yours ? T.empty_yours : T.empty_person.replaceAll("{name}", name)}</p>
+    <p class="hint">${house ? T.empty_house_how : yours ? T.empty_yours_how : T.empty_person_how.replaceAll("{name}", name)}</p></section>`
+    : m.facts.map(f => cardItem({ kind: "fact", name: esc(f.told || f.updated), short: esc(f.text),
+      tags: f.author ? badge(esc(f.author)) : "", attrs: ` data-fact="${esc(f.id)}"` }, `
+      <form class="inline-editor" onsubmit="event.preventDefault(); saveFact('${esc(f.id)}', this)">
+        <textarea rows="3" onkeydown="if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); saveFact('${esc(f.id)}', this.form); }
+          if (event.key === 'Escape') this.value = this.defaultValue;">${esc(f.text)}</textarea>
+        ${f.told ? `<p class="hint">${T.edited} ${esc(f.updated)}</p>` : ""}
+        ${applyRow(`<button class="danger" type="button" onclick="forget('${esc(f.id)}')">${T.forget}</button>`)}
+      </form>`)).join("");
+  return `<section class="list-section memory">${listHead(esc(title), m.facts.length, hint)}
+    <div class="card-list">${profile}${facts}</div></section>`;
 }
-// editFact turns the row into a text field; Enter saves, Escape cancels.
-// editFact and forget change the one row in place: the page stays where it
-// is (a fact may be far down, on the card "Ich").
-function editFact(id) {
-  const row = document.querySelector(`tr[data-fact="${CSS.escape(id)}"]`);
-  const before = row.innerHTML;
-  const cell = row.querySelector("td.fact"), text = row.querySelector(".text").textContent;
-  cell.innerHTML = `<textarea rows="2">${esc(text)}</textarea>`;
-  row.querySelector("td.fact-actions").innerHTML = `<button class="primary">${T.save}</button> <button class="secondary">${T.dlg_cancel}</button>`;
-  const area = cell.querySelector("textarea"), [save, cancel] = row.querySelectorAll("td.fact-actions button");
-  const back = (t = text) => { row.innerHTML = before; row.querySelector(".text").textContent = t; };
-  const store = async () => {
-    const t = area.value.trim();
-    if (!t || t === text) { back(); return; }
-    try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); back(t); } catch (e) { message(e.message, false); }
-  };
-  save.onclick = store;
-  cancel.onclick = () => back();
-  area.addEventListener("keydown", e => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); store(); }
-    if (e.key === "Escape") back();
-  });
-  area.focus();
-  area.setSelectionRange(area.value.length, area.value.length);
+// saveFact stores a fact's new text; the card stays where it is (a fact may
+// be far down, on the card "Ich").
+async function saveFact(id, form) {
+  const area = form.querySelector("textarea"), t = area.value.trim();
+  if (!t || t === area.defaultValue.trim()) return;
+  try { await api("PUT", "/v1/ui/memory/" + encodeURIComponent(id), { text: t }); } catch (e) { message(e.message, false); return; }
+  area.defaultValue = t;
+  form.closest("details").querySelector("summary .short").textContent = t;
+  applied(form);
 }
 async function forget(id) {
   if (!await ask({ text: T.forget_confirm, ok: T.forget, danger: true })) return;
   try { await api("DELETE", "/v1/ui/memory/" + encodeURIComponent(id)); } catch (e) { message(e.message, false); return; }
-  const row = document.querySelector(`tr[data-fact="${CSS.escape(id)}"]`), card = row && row.closest("section.card");
-  if (!row) { render(); return; }
-  row.remove();
-  const left = card.querySelectorAll("tr[data-fact]").length;
-  if (left === 0) { render(); return; } // the card says how to fill it again
-  const badge = card.querySelector("h2 .badge");
-  if (badge) badge.textContent = left;
+  const card = document.querySelector(`details[data-fact="${CSS.escape(id)}"]`), list = card && card.closest(".list-section");
+  if (!card) { render(); return; }
+  card.remove();
+  const left = list.querySelectorAll("details[data-fact]").length;
+  if (left === 0) { render(); return; } // the list says how to fill it again
+  list.querySelector(".list-head .count").textContent = left;
 }
 // The memory as a file (docs/spec/gedaechtnis-datei.md): export downloads
 // what this page shows; import shows what a file changes and asks first.
@@ -2150,20 +2281,15 @@ async function agents() {
   clearTimeout(runTimer);
   if (tab !== "agents") return;
   if (!$("#runlist")) {
-    $("#view").innerHTML = `<mira-agent-defs></mira-agent-defs><section class="card"><h2>${T.runs_title}</h2><p class="hint">${T.agents_hint}</p><div id="runlist">${T.loading}</div></section>`;
+    $("#view").innerHTML = `<mira-agent-defs></mira-agent-defs><section class="list-section">${listHead(T.runs_title, undefined, T.agents_hint)}<div id="runlist">${T.loading}</div></section>`;
   }
   if (!document.querySelector("#runlist details[open]")) {
     try {
       const list = (await api("GET", "/v1/ui/agents")).runs || [];
-      $("#runlist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_runs}</p>` : list.map(r => `
-        <details class="item run" ontoggle="if (this.open) runDetail(this, '${esc(r.call_id)}')">
-          <summary>
-            <span class="lead"><h3>${esc(r.agent)}</h3><span class="badge${r.status === "running" ? " ui" : ""}">${esc(r.status)}</span></span>
-            <span class="short">${esc(r.started)}${r.ended ? "–" + esc(r.ended) : ""} · ${(r.duration_ms / 1000).toFixed(1)} s${r.model ? ` · ${esc(r.model)} · ${r.model_calls} ${T.run_calls} · ${r.prompt_tokens + r.completion_tokens} ${T.run_tokens}` : ""}${r.route ? ` · ${esc(r.route)}` : ""}</span>
-            <span class="short">${r.parent_id ? `${T.run_from} ${esc(r.parent_id)}` : ""}</span>
-          </summary>
-          <div class="rundetail">${T.loading}</div>
-        </details>`).join("");
+      $("#runlist").innerHTML = list.length === 0 ? `<p class="hint">${T.no_runs}</p>` : `<div class="card-list">${list.map(r => cardItem({
+        kind: "run", name: esc(r.agent), cls: "run", attrs: ` ontoggle="if (this.open) runDetail(this, '${esc(r.call_id)}')"`,
+        short: `${esc(r.started)}${r.ended ? "–" + esc(r.ended) : ""} · ${(r.duration_ms / 1000).toFixed(1)} s${r.model ? ` · ${esc(r.model)} · ${r.model_calls} ${T.run_calls} · ${r.prompt_tokens + r.completion_tokens} ${T.run_tokens}` : ""}${r.route ? ` · ${esc(r.route)}` : ""}${r.parent_id ? ` · ${T.run_from} ${esc(r.parent_id)}` : ""}`,
+        tags: badge(esc(r.status), r.status === "running") }, `<div class="rundetail">${T.loading}</div>`)).join("")}</div>`;
     } catch (e) { message(e.message, false); }
   }
   if (tab === "agents") runTimer = setTimeout(agents, 10000);
@@ -2204,23 +2330,26 @@ async function plans() {
   clearTimeout(planTimer);
   if (tab !== "plans") return;
   if (!$("#planlist")) {
-    $("#view").innerHTML = `<section class="card"><h2>${T.tab_plans}</h2><p class="hint">${T.plans_hint}</p><div id="planlist">${T.loading}</div></section>`;
+    $("#view").innerHTML = `<section class="list-section" id="planpage">${listHead(T.tab_plans, undefined, T.plans_hint)}<div id="planlist">${T.loading}</div></section>`;
     planShown = "";
   }
   try {
     const r = await api("GET", "/v1/ui/plans");
     const list = r.plans || [];
-    const html = list.length === 0 ? `<p class="hint">${T.no_plans}</p>` : list.map(p => {
+    // A card opened stays open while the list follows the plans.
+    const open = openIds("#planlist");
+    const html = list.length === 0 ? `<p class="hint">${T.no_plans}</p>` : `<div class="card-list">${list.map(p => {
       const a = planAsk(p.request || p.target);
-      return `
-      <div class="item plan">
-        <div class="plan-head">${a.picture ? `<img class="plan-pic" src="${esc(a.picture)}" alt="">` : ""}
-          <div><h3>${esc(a.title)}</h3>${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${T.plan_recipe}</a>` : ""}</div></div>
-        <p class="hint">${p.place ? `<span class="badge">${esc(p.place)}</span> ` : ""}${p.steps ? `${p.done}/${p.steps} ${T.plan_steps} · ` : ""}${T.plan_since} ${esc(p.started)}${p.finished ? ` · <span class="badge ui">${T.plan_finished}</span>` : ""}</p>
-        ${planHtml(p.plan)}
-      </div>`;
-    }).join("");
-    if (html !== planShown) { $("#planlist").innerHTML = html; planShown = html; }
+      return cardItem({ kind: "plan", name: esc(a.title), attrs: ` data-id="${esc(p.id)}"`, open: open.has(p.id),
+        short: `${p.steps ? `${p.done}/${p.steps} ${T.plan_steps} · ` : ""}${T.plan_since} ${esc(p.started)}`,
+        tags: (p.place ? badge(esc(p.place)) : "") + (p.finished ? badge(T.plan_finished, true) : "") }, `
+        ${a.picture || a.link ? `<div class="plan-head">${a.picture ? `<img class="plan-pic" src="${esc(a.picture)}" alt="">` : ""}
+          ${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${T.plan_recipe}</a>` : ""}</div>` : ""}
+        ${planHtml(p.plan)}`);
+    }).join("")}</div>`;
+    const shown = JSON.stringify(list);
+    if (shown !== planShown) { $("#planpage .list-head .count")?.remove(); $("#planpage h2").insertAdjacentHTML("beforeend", `<span class="count">${list.length}</span>`);
+      $("#planlist").innerHTML = html; planShown = shown; }
   } catch (e) { message(e.message, false); }
   if (tab === "plans") planTimer = setTimeout(plans, 2000);
 }
@@ -2255,50 +2384,45 @@ function planHtml(md) {
 
 // ---- Aufträge -----------------------------------------------------------
 async function tasks() {
-  $("#view").innerHTML = `<section class="card"><h2>${T.tab_tasks}</h2><p class="hint">${T.tasks_hint}</p><div id="tasklist">${T.loading}</div></section>`;
+  const open = openIds("#tasklist");
+  if (!$("#tasklist")) $("#view").innerHTML = `<section class="list-section" id="taskpage">${listHead(T.tab_tasks, undefined, T.tasks_hint)}<div id="tasklist">${T.loading}</div></section>`;
   try {
     const r = await api("GET", "/v1/ui/tasks");
-    const list = r.items || [];
+    const list = r.items || [], planning = r.planning || [];
     const warn = r.error ? `<p class="msg err">${T.tasks_ha_error}: ${esc(r.error)}</p>` : "";
     // Tasks still being planned: open threads, with what Mira said last.
-    const planning = (r.planning || []).map(p => `
-      <details class="item task">
-        <summary>
-          <span class="lead"><h3>${esc(p.request)}</h3>
-            <span class="badge ui">${T["thread_" + p.state] || p.state}</span></span>
-          <span class="short">${esc(p.last || "")}</span>
-          ${p.state === "proposed" ? `<button class="primary" onclick="event.preventDefault(); setTask('${esc(p.id)}', 'activate')">${T.task_create}</button>` : "<span></span>"}
-        </summary>
-        <p class="hint">${esc(p.updated)}</p>
-        <div class="actions"><button class="danger" onclick="setTask('${esc(p.id)}', 'pause')">${T.thread_cancel}</button></div>
-      </details>`).join("");
-    $("#tasklist").innerHTML = warn + planning + (list.length === 0 && !planning ? `<p class="hint">${T.no_tasks}</p>` : list.map(t => {
+    const planned = planning.map(p => cardItem({ kind: "task", name: esc(p.request), short: esc(p.last || ""),
+      attrs: ` data-id="${esc(p.id)}"`, open: open.has(p.id),
+      tags: badge(T["thread_" + p.state] || p.state, true)
+        + (p.state === "proposed" ? `<button class="primary" onclick="event.preventDefault(); event.stopPropagation(); setTask('${esc(p.id)}', 'activate')">${T.task_create}</button>` : "") }, `
+      <p class="hint">${esc(p.updated)}</p>
+      <div class="actions left"><span class="spacer"></span><button class="danger" onclick="setTask('${esc(p.id)}', 'pause')">${T.thread_cancel}</button></div>`)).join("");
+    const cards = list.map(t => {
       const id = esc(t.id);
-      const button = t.state === "proposed"
-        ? `<button class="primary" onclick="event.preventDefault(); setTask('${id}', 'activate')">${T.task_create}</button>`
-        : t.state === "on"
-          ? `<button class="secondary" onclick="event.preventDefault(); setTask('${id}', 'pause')">${T.task_pause}</button>`
-          : `<button class="primary" onclick="event.preventDefault(); setTask('${id}', 'activate')">${T.task_resume}</button>`;
-      return `
-      <details class="item task" ontoggle="if (this.open) taskLog('${id}')">
-        <summary>
-          <span class="lead"><h3>${esc(t.title)}</h3>
-            <span class="badge${t.state === "on" ? " ui" : ""}">${T["task_" + t.state] || t.state}</span></span>
-          <span class="short">${esc(t.goal)}${t.last_triggered ? ` · ${T.task_last}: ${esc(localTime(t.last_triggered))}` : ""}</span>
-          ${button}
-        </summary>
+      // On and paused switch; a proposed one is created, one HA does not
+      // have just says so.
+      const head = t.state === "proposed"
+        ? `<button class="primary" onclick="event.preventDefault(); event.stopPropagation(); setTask('${id}', 'activate')">${T.task_create}</button>`
+        : t.state === "on" || t.state === "off"
+          ? headSwitch(t.state === "on", T.task_switch, `setTask('${id}', '${t.state === "on" ? "pause" : "activate"}')`)
+          : badge(T["task_" + t.state] || t.state);
+      return cardItem({ kind: "task", name: esc(t.title), attrs: ` data-id="${id}" ontoggle="if (this.open) taskLog('${id}')"`, open: open.has(t.id),
+        short: esc(t.goal) + (t.last_triggered ? ` · ${T.task_last}: ${esc(localTime(t.last_triggered))}` : ""), tags: head }, `
         ${t.summary ? `<p>${esc(t.summary)}</p>` : ""}
         <pre class="code">${esc(JSON.stringify(t.automation, null, 2))}</pre>
-        <div class="actions">
+        <div class="actions left">
           ${t.edit_url ? `<a class="button secondary" href="${esc(haLink(t.edit_url))}" target="${haTarget}" rel="noopener"${embedded ? " data-ha" : ""}>${T.task_edit}</a>` : ""}
-          <button class="secondary" onclick="tryTask('${id}')">${T.task_try}</button>
+          <button class="secondary" onclick="tryTask('${id}')">${buttonIcon("play")} ${T.task_try}</button>
+          <span class="spacer"></span>
           <button class="danger" onclick="deleteTask('${id}')">${T.remove}</button>
         </div>
         <p class="msg ok" id="try-${id}" hidden></p>
         <h4>${T.task_log}</h4>
-        <div id="log-${id}" class="hint">${T.loading}</div>
-      </details>`;
-    }).join(""));
+        <div id="log-${id}" class="hint">${T.loading}</div>`);
+    }).join("");
+    $("#taskpage").innerHTML = listHead(T.tab_tasks, list.length, T.tasks_hint) + `<div id="tasklist">${warn}
+      ${planning.length ? groupLabel(T.tasks_planning, planning.length) + `<div class="card-list">${planned}</div>` + groupLabel(T.tab_tasks, list.length) : ""}
+      ${list.length === 0 && !planning.length ? `<p class="hint">${T.no_tasks}</p>` : `<div class="card-list">${cards}</div>`}</div>`;
   } catch (e) { message(e.message, false); }
 }
 // localTime shows an ISO time from Home Assistant (UTC) in local time.
@@ -2335,26 +2459,57 @@ async function deleteTask(id) {
 // ---- Anleitung ----------------------------------------------------------
 // The guide is Markdown from docs/guide/; this renders the little it uses:
 // headings, lists, tables, paragraphs, bold, code and links.
-// guideChapter is the chapter the guide opens at (a link on the start page).
-let guideChapter = null;
-function openChapter(n) { guideChapter = n; go("guide"); }
-// openGuideAbout opens the guide at the chapter with this heading ("## …").
-async function openGuideAbout(heading) {
+// guideAt is the heading's id the guide opens at (a link on the start page
+// or on another page).
+let guideAt = null;
+function openChapter(n) { guideAt = "chapter-" + n; go("guide"); }
+// guideTexts are the guide by language, each read once.
+const guideTexts = {};
+const guideMarkdown = () => {
+  const l = lang;
+  if (!guideTexts[l]) guideTexts[l] = fetch(url("/ui/guide/" + l)).then(r => r.text()).catch(e => { delete guideTexts[l]; throw e; });
+  return guideTexts[l];
+};
+// guideHeading finds the chapter ("## …") or section ("### …") whose heading
+// begins like this: its id in the shown guide and its title, or null.
+async function guideHeading(begins) {
+  const level = begins.match(/^#+ /)[0], text = begins.slice(level.length);
+  const headings = (await guideMarkdown()).split("\n").filter(l => l.startsWith(level));
+  const n = headings.findIndex(l => l.slice(level.length).trim().startsWith(text));
+  if (n < 0) return null;
+  return { id: (level === "## " ? "chapter-" : "section-") + n, title: headings[n].slice(level.length).trim() };
+}
+// openGuideAbout opens the guide at the heading that begins like this.
+async function openGuideAbout(begins) {
   try {
-    const md = await (await fetch(url("/ui/guide/" + lang))).text();
-    const n = md.split("\n").filter(l => l.startsWith("## ")).findIndex(l => l.trim() === heading);
-    if (n >= 0) return openChapter(n);
+    const h = await guideHeading(begins);
+    if (h) guideAt = h.id;
   } catch (e) { /* the guide's start then */ }
   go("guide");
+}
+// guideLink is "Guide: <chapter>" for a heading, a link into the guide;
+// empty when the guide has no such heading (renamed, another language).
+async function guideLink(begins) {
+  try {
+    const h = await guideHeading(begins);
+    return h ? `${T.guide_link} <a href="#guide" onclick="event.preventDefault(); openGuideAbout(${esc(JSON.stringify(begins))})">${esc(h.title)}</a>` : "";
+  } catch (e) { return ""; }
+}
+// chapterLine shows the page's chapter of the guide above it (T.page_chapters).
+async function chapterLine(page) {
+  const begins = T.page_chapters[page], el = $("#chapter-line");
+  if (!begins || !el) return;
+  const link = await guideLink(begins);
+  if (link && el.isConnected && tab === page) { el.innerHTML = link; el.hidden = false; }
 }
 async function guide() {
   $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
   try {
     const res = await fetch(url("/ui/guide/" + lang));
     $("#guide").innerHTML = markdown(await res.text());
-    if (guideChapter !== null) {
-      const h = document.getElementById("chapter-" + guideChapter);
-      guideChapter = null;
+    if (guideAt !== null) {
+      const h = document.getElementById(guideAt);
+      guideAt = null;
       if (h) h.scrollIntoView({ block: "start" });
     }
   } catch (e) { message(e.message, false); }
@@ -2368,7 +2523,7 @@ function inline(s) {
 }
 function markdown(md) {
   const out = [];
-  let chapter = 0;
+  let chapter = 0, section = 0;
   let list = null, table = null, para = [], code = null, quote = [];
   const flush = () => {
     if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
@@ -2401,8 +2556,9 @@ function markdown(md) {
     if (!line.trim()) { flush(); continue; }
     if ((m = line.match(/^(#{1,3})\s+(.*)/))) {
       flush(); const n = m[1].length + 1;
-      // A chapter (##) gets an id by its order, for links from the start page.
-      const id = m[1] === "##" ? ` id="chapter-${chapter++}"` : "";
+      // A chapter (##) and a section (###) get an id by their order, for
+      // links from the start page and from the other pages.
+      const id = m[1] === "##" ? ` id="chapter-${chapter++}"` : m[1] === "###" ? ` id="section-${section++}"` : "";
       out.push(`<h${n}${id}>${inline(m[2])}</h${n}>`); continue;
     }
     // A recording is "▶ [caption](https://….mp4#t=start,end)": a plain link on GitHub, a player here.

@@ -1,5 +1,5 @@
 # Scenarios of docs/spec/bearbeiten.md. Every scenario has a number (BE-01, …); the Go test that checks it carries
-# the number in its name (TestBE01_…). @step1 is the whole feature.
+# the number in its name (TestBE01_…). @step1 is the first switch-over, @step2 the settings sections.
 
 Feature: BE Editing models, agents and skills on Mira's page
 
@@ -56,6 +56,24 @@ Feature: BE Editing models, agents and skills on Mira's page
     And an empty description is refused, and switching off takes the skill out of mira.yaml
 
   @step1
+  Scenario: BE-09 Mira's own skill can be switched off
+    Given Mira's own skill without an entry in mira.yaml
+    When the page switches it off
+    Then its entry says enabled: false, and switched on again the entry is gone
+
+  @step1
+  Scenario: BE-10 Skills are entries that are on unless they say off
+    Given skills under skills, beside dirs, each with its settings
+    When Mira reads the file
+    Then each is on unless it says enabled: false, and the old skills.enabled is refused with a hint
+
+  @step1
+  Scenario: BE-11 A model beside the integration's main
+    Given a mira.yaml without main
+    When the page adds a further model
+    Then it is refused without the integration's main, and written when the integration sets main up
+
+  @step1
   Scenario: BE-12 The model form offers the providers and the server's models
     Given the page's form for a model
     When it starts and the server is known
@@ -68,3 +86,48 @@ Feature: BE Editing models, agents and skills on Mira's page
     When it is saved or its model is chosen
     Then Mira tries it with a real request, and a refused key or unknown model is not saved
     And when it answers, the context field gets what the server says, else the size that holds without an entry
+
+  @step2
+  Scenario: BE-14 A settings section saved on the page goes into mira.yaml and holds at once
+    Given a mira.yaml with a notifier section and a comment elsewhere
+    When the page saves the notifier with another cooldown
+    Then the file has the new cooldown and the comment, nothing is stored in the database
+    And the running notifier has the new cooldown without a restart
+
+  @step2
+  Scenario: BE-15 A section Mira would refuse is not written
+    Given a mira.yaml
+    When the page saves a notifier with a morning trigger in an unknown area
+    Then the page gets the reason and the file stays as it was
+
+  @step2
+  Scenario: BE-16 What Home Assistant sends is held in memory, not written
+    Given a mira.yaml without persons
+    When the integration sends persons and rooms
+    Then Mira runs with them, the file has none of them, and nothing is stored in the database
+
+  @step2
+  Scenario: BE-17 After a restart Mira asks for the settings again
+    Given Mira started and the integration has not sent its settings since
+    Then the status reports an empty fingerprint
+    When the integration sends them
+    Then the status reports the fingerprint of the exposed list
+
+  @step2
+  Scenario: BE-18 A notifier saved while Home Assistant manages the rooms keeps the file's morning trigger
+    Given the integration sent rooms with a morning trigger
+    When the page saves the notifier with another cooldown
+    Then the file has the new cooldown and its own morning trigger
+    And Mira runs with the new cooldown and the morning trigger from Home Assistant
+
+  @step2
+  Scenario: BE-19 The page shows no source and no way back
+    Given a section saved on the page
+    Then the configuration the page reads has no "overridden" and there is no reset
+
+  @step2
+  Scenario: BE-20 Only what differs from the defaults goes into the file
+    Given a mira.yaml with a notifier
+    When the page saves the whole notifier with only the cooldown changed
+    Then the file's notifier has only the cooldown
+    And saved back at its defaults, the file has no notifier

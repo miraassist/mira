@@ -4,6 +4,7 @@ description: "Kochen und Backen nach Rezept, Schritt f√ºr Schritt vorgelesen (‚Ä
 license: MIT
 metadata:
   mira:
+    chapter: "## Kochen und Backen"
     target:
       plan: true
       bound: room

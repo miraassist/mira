@@ -245,6 +245,56 @@ const catalog = (fresh = false) => {
   if (fresh || !catalogLoad) catalogLoad = api("GET", "/v1/ui/catalog");
   return catalogLoad;
 };
+// chapterOf is a link into the guide at the skill's chapter in the page's
+// language (metadata.mira.chapter), or nothing.
+const chapterOf = s => {
+  const begins = (s.chapters || {})[lang];
+  if (!begins) return nothing;
+  return html`<a href="#guide" @click=${e => { e.preventDefault(); e.stopPropagation(); openGuideAbout(begins); }}>${begins.replace(/^#+\s*/, "")}</a>`;
+};
+// ---- Card lists -------------------------------------------------------------
+// The pages under a group show their entries as cards (the draft for the
+// agents' page, 2026-10-30): a head with the count, groups with a label, and
+// each entry a card that opens.
+// listHead is a list's title with its count, a line under it, and a button.
+const listHead = (title, count, hint, button = nothing) => html`<div class="list-head"><div>
+  <h2>${title}${count === undefined ? nothing : html`<span class="count">${count}</span>`}</h2>
+  ${hint ? html`<p>${hint}</p>` : nothing}</div>${button}</div>`;
+// groupLabel names a group of cards, with how many there are.
+const groupLabel = (text, count, hint = "") => html`<div class="group-label"><span>${text}</span><span>${count}</span></div>
+  ${hint ? html`<p class="hint group-hint">${hint}</p>` : nothing}`;
+// itemIcon is the line icon of a card by its kind.
+const itemIcon = kind => svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true">${
+  kind === "voice" ? svg`<path d="M4 9v6m4-10v14m4-17v20m4-17v14m4-10v6"/>` :
+  kind === "agent" ? svg`<rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 7V3M8 12v2m8-2v2M9 17h6"/>` :
+  kind === "model" ? svg`<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/>` :
+  kind === "hook" ? svg`<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/>` :
+  svg`<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>`
+}</svg>`;
+// buttonIcon is the small line icon on a button.
+const buttonIcon = kind => svg`<svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">${
+  kind === "save" ? svg`<path d="M5 3h11l3 3v15H5Z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/>` :
+  svg`<path d="M7 4v16l13-8Z"/>`
+}</svg>`;
+// cardItem is an entry as a card: icon, name, a short line and tags in its
+// head; body when opened.
+// onToggle hears it opened or closed (a card renders its body only when open).
+const cardItem = ({ icon, name, short = "", tags = nothing, cls = "", onToggle = null }, body) => html`
+  <details class=${"item card-item " + cls} @toggle=${onToggle ? e => onToggle(e.target.open) : null}>
+    <summary><span class="item-icon">${icon}</span><span class="lead"><h3>${name}</h3></span>
+      <span class="short clip">${short}</span><span class="item-tags">${tags}</span>
+      <span class="chevron" aria-hidden="true">⌄</span></summary>
+    <div class="item-body">${body}</div>
+  </details>`;
+// toggleSwitch is a switch in a card's head: it does not open the card.
+const toggleSwitch = (on, label, change, busy = false) => html`<button type="button" role="switch" class="switch"
+  aria-checked=${on ? "true" : "false"} aria-label=${label} ?disabled=${busy}
+  @click=${e => { e.preventDefault(); e.stopPropagation(); change(!on); }}><span></span></button>`;
+// plainCard is an entry as a card that does not open (a skill to switch on,
+// one saved but not loaded yet).
+const plainCard = ({ icon, name, short = "", tags = nothing }, actions = nothing) => html`
+  <div class="item card-item plain"><span class="item-icon">${icon}</span><span class="lead"><h3>${name}</h3></span>
+    <span class="short">${short}</span><span class="item-tags">${tags}${actions}</span></div>`;
 const badge = (text, ui = false) => html`<span class=${ui ? "badge ui" : "badge"}>${text}</span>`;
 const row = (label, value) => value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length)
   ? nothing : html`<tr><th>${label}</th><td>${value}</td></tr>`;
@@ -288,6 +338,16 @@ class EditPage extends Light {
   }
   // canEdit: editing is there and the file can be written.
   get canEdit() { return !!(this.ed && !this.ed.read_only); }
+  // opener keeps which cards are open: a card renders its editor only then.
+  opener(key) {
+    this.opened = this.opened || new Set();
+    return open => { if (open) this.opened.add(key); else this.opened.delete(key); this.requestUpdate(); };
+  }
+  isOpen(key) { return !!(this.opened && this.opened.has(key)); }
+  // editor is the inline editor of an opened card.
+  editor(kind, name, extra = nothing) {
+    return html`<mira-editor inline .kind=${kind} .name=${name} .extra=${extra}></mira-editor>`;
+  }
   bar() {
     const s = this.ed;
     if (!s) return nothing;
@@ -304,8 +364,8 @@ class EditPage extends Light {
   pending(kind, loaded) {
     if (!this.ed) return nothing;
     const names = Object.keys(this.ed[kind] || {}).filter(n => !loaded.includes(n) && !(this.ed[kind][n] || {}).own);
-    return names.map(n => html`<div class="item pending"><span class="lead"><h3>${n}</h3></span>
-      ${badge(T.ed_pending, true)} ${this.editButton(kind === "models" ? "model" : "agent", n)}</div>`);
+    return names.map(n => plainCard({ icon: itemIcon(kind === "models" ? "model" : "agent"), name: n, tags: badge(T.ed_pending, true) },
+      this.editButton(kind === "models" ? "model" : "agent", n)));
   }
 }
 
@@ -322,31 +382,51 @@ async function restartMira() {
 }
 
 class MiraSkills extends EditPage {
+  static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true } };
+  // on says whether the skill is switched on, as mira.yaml has it.
+  on(s) {
+    const e = ((this.ed || {}).skills || {})[s.name];
+    return e ? !!e.enabled : s.state !== "available";
+  }
+  // setOn switches a skill on or off in mira.yaml; it counts after a restart.
+  async setOn(s, on) {
+    const e = ((this.ed || {}).skills || {})[s.name] || {};
+    this.busy = s.name;
+    this.switchError = null;
+    try {
+      await api("PUT", "/v1/ui/edit/skills/" + encodeURIComponent(s.name), { enabled: on, settings: e.settings || {}, parts: [],
+        description: "", guide: "", agents: "", target: "", mcp: "" });
+      edited();
+    } catch (err) { this.switchError = T.ed_switch_failed(s.name, err.message); }
+    this.busy = null;
+  }
   render() {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
     const of = s => this.data.skills.filter(x => x.state === s);
-    return html`${this.bar()}
-      <section class="card"><h2>${T.cat_active}</h2><p class="hint">${T.cat_skills_hint}</p>
-        ${of("active").map(s => this.skill(s))}</section>
-      ${of("problem").length ? html`<section class="card"><h2>${T.cat_problem}</h2>
-        ${of("problem").map(s => html`<div class="item"><h3>${s.name}</h3><p class="msg err">${s.problem}</p>
-          <div class="actions">${this.editButton("skill", s.name)}</div></div>`)}</section>` : nothing}
-      ${of("available").length ? html`<section class="card"><h2>${T.cat_available}</h2><p class="hint">${T.cat_available_hint}</p>
-        <table>${of("available").map(s => html`<tr><th><code>${s.name}</code></th><td>${s.description}</td>
-          <td class="nowrap">${this.editButton("skill", s.name, T.ed_switch_on)}</td></tr>`)}</table></section>` : nothing}`;
+    return html`${this.bar()}<section class="list-section">
+      ${listHead(T.cat_active, of("active").length, T.cat_skills_hint)}
+      ${this.switchError ? html`<p class="msg err">${this.switchError}</p>` : nothing}
+      <div class="card-list">${of("active").map(s => this.skill(s))}</div>
+      ${of("problem").length ? html`${groupLabel(T.cat_problem, of("problem").length)}
+        <div class="card-list">${of("problem").map(s => this.skill(s))}</div>` : nothing}
+      ${of("available").length ? html`${groupLabel(T.cat_available, of("available").length, T.cat_available_hint)}
+        <div class="card-list">${of("available").map(s => this.skill(s))}</div>` : nothing}
+      </section>`;
   }
   skill(s) {
     const t = s.target, m = s.mcp;
-    return html`<details class="item">
-      <summary>
-        <span class="lead"><h3>${s.name}</h3></span>
-        <span class="short clip">${s.description}</span>
-        <span>${(s.kinds || []).map(k => badge(T["kind_" + k] || k))}${m && !m.connected ? badge(T.cat_mcp_down, true) : nothing}</span>
-      </summary>
+    const edit = this.canEdit, open = this.isOpen(s.name);
+    return cardItem({ icon: itemIcon("skill"), name: s.name, short: s.description, onToggle: this.opener(s.name),
+      tags: html`${(s.kinds || []).map(k => badge(T["kind_" + k] || k))}${m && !m.connected ? badge(T.cat_mcp_down, true) : nothing}
+        ${s.state === "problem" ? badge(T.cat_not_started, true) : nothing}
+        ${edit ? toggleSwitch(this.on(s), T.ed_enabled, on => this.setOn(s, on), this.busy === s.name) : nothing}` }, !open ? nothing : html`
+      ${s.problem ? html`<p class="msg err">${s.problem}</p>` : nothing}
+      ${edit ? this.editor("skill", s.name) : nothing}
       <table class="facts">
         ${row(T.cat_description, s.description)}
-        ${(s.settings || []).length ? row(T.cat_settings, html`${s.settings.map(x => html`<div>
+        ${(s.chapters || {})[lang] ? row(T.guide_link.replace(/:$/, ""), chapterOf(s)) : nothing}
+        ${!edit && (s.settings || []).length ? row(T.cat_settings, html`${s.settings.map(x => html`<div>
           <code>${x.name}</code>: ${x.secret ? (x.set ? T.cat_secret_set : T.cat_secret_unset) : (x.set ? x.value : html`<span class="hint">${T.cat_unset}</span>`)}
           ${x.description ? html`<div class="hint">${x.description}</div>` : nothing}</div>`)}`) : nothing}
         ${(s.schedules || []).length ? row(T.cat_schedules, html`${s.schedules.map(x => html`<div>
@@ -369,9 +449,7 @@ class MiraSkills extends EditPage {
           ${s.phonebook.link ? html`<div><a href=${s.phonebook.link} target="_blank" rel="noopener">${T.cat_phonebook_open}</a> <span class="hint">${T.cat_phonebook_hint}</span></div>` : nothing}`) : nothing}
         ${(s.agents || []).length ? row(T.cat_agents, html`${s.agents.map((a, i) => html`${i ? ", " : ""}<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${a}</code></a>`)}`) : nothing}
       </table>
-      ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}
-      <div class="actions">${this.editButton("skill", s.name)}</div>
-    </details>`;
+      ${s.guide ? html`<details class="profile"><summary>${T.cat_guide}</summary><pre>${s.guide}</pre></details>` : nothing}`);
   }
 }
 customElements.define("mira-skills", MiraSkills);
@@ -383,12 +461,12 @@ class MiraAgentDefs extends EditPage {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
     const of = o => this.data.agents.filter(a => a.origin === o);
-    return html`${this.bar()}<section class="card"><h2>${T.cat_agents_title}
-        ${this.canEdit ? html`<button class="secondary" @click=${() => openEditor("agent", "")}>${T.ed_new_agent}</button>` : nothing}</h2>
-      <p class="hint">${T.cat_agents_hint}</p>
+    return html`${this.bar()}<section class="list-section">
+      ${listHead(T.cat_agents_title, this.data.agents.length, T.cat_agents_hint,
+        this.canEdit ? html`<button class="secondary" @click=${() => openEditor("agent", "")}><span aria-hidden="true">＋</span> ${T.ed_new_agent}</button>` : nothing)}
       ${["own", "config", "skill"].filter(o => of(o).length).map(o => html`
-        <h3 class="subhead">${T["origin_" + o]}</h3>${of(o).map(a => this.agent(a))}`)}
-      ${this.pending("agents", this.data.agents.map(a => a.name))}</section>`;
+        ${groupLabel(T["origin_" + o], of(o).length)}<div class="card-list">${of(o).map(a => this.agent(a))}</div>`)}
+      <div class="card-list">${this.pending("agents", this.data.agents.map(a => a.name))}</div></section>`;
   }
   agent(a) {
     const own = a.origin === "own";
@@ -400,25 +478,25 @@ class MiraAgentDefs extends EditPage {
       ...(a.called_by || []).map(n => T.cat_called_agent(n)),
       own ? "" : T.cat_called_ha,
     ].filter(Boolean);
-    return html`<details class="item agent">
-      <summary>
-        <span class="lead"><h3>${a.name}</h3></span>
-        <span class="short clip">${desc}</span>
-        <span>${a.model ? badge(a.model) : nothing}${a.model_privacy ? badge(T["privacy_" + a.model_privacy] || a.model_privacy) : nothing}${a.problem ? badge(T.cat_not_started, true) : nothing}</span>
-      </summary>
+    const edit = this.canEdit && a.origin !== "skill", open = this.isOpen(a.name);
+    return cardItem({ icon: itemIcon(a.name === "conversation.voice" ? "voice" : "agent"), name: a.name, short: desc, cls: "agent",
+      onToggle: this.opener(a.name),
+      tags: html`${a.model ? badge(a.model, true) : nothing}${a.model_privacy ? badge(T["privacy_" + a.model_privacy] || a.model_privacy) : nothing}${a.problem ? badge(T.cat_not_started, true) : nothing}` }, html`
+      ${!open ? nothing : html`
       ${a.problem ? html`<p class="msg err">${a.problem}</p>` : nothing}
+      ${edit ? this.editor("agent", a.name) : nothing}
       <table class="facts">
-        ${row(T.cat_description, desc)}
+        ${edit && !own ? nothing : row(T.cat_description, desc)}
         ${row(T.cat_skill, a.skill)}
-        ${row(T.cat_model, a.model ? html`<a href="#models" @click=${e => { e.preventDefault(); go("models"); }}><code>${a.model}</code></a>${a.model_privacy ? ` (${T["privacy_" + a.model_privacy] || a.model_privacy})` : ""}${a.fallback ? html` · ${T.cat_fallback} <code>${a.fallback}</code>` : nothing}${a.privacy === "local" ? html` · ${T.cat_must_be_local}` : nothing}` : "")}
+        ${edit ? nothing : row(T.cat_model, a.model ? html`<a href="#models" @click=${e => { e.preventDefault(); go("models"); }}><code>${a.model}</code></a>${a.model_privacy ? ` (${T["privacy_" + a.model_privacy] || a.model_privacy})` : ""}${a.fallback ? html` · ${T.cat_fallback} <code>${a.fallback}</code>` : nothing}${a.privacy === "local" ? html` · ${T.cat_must_be_local}` : nothing}` : "")}
+        ${edit && !own ? nothing : html`
         ${row(T.cat_context, a.context ? (T["context_" + a.context] || a.context) : "")}
         ${row(T.cat_tools, a.tools ? (a.tools === "list" ? code(a.tool_names) : (T["tools_" + a.tools] || a.tools)) : "")}
         ${row(T.cat_rights, (a.rights || []).filter(r => r !== "none").map(r => T["right_" + r] || r).join(", "))}
-        ${row(T.cat_rounds, a.max_rounds ? String(a.max_rounds) : "")}
+        ${row(T.cat_rounds, a.max_rounds ? String(a.max_rounds) : "")}`}
         ${row(T.cat_called, called.length ? html`${called.map(c => html`<div>${c}</div>`)}` : "")}
       </table>
-      <div class="actions">${a.origin === "skill" ? html`<span class="hint">${T.ed_skill_agent}</span>` : this.editButton("agent", a.name)}</div>
-    </details>`;
+      ${a.origin === "skill" ? html`<p class="hint">${T.ed_skill_agent}</p>` : nothing}`}`);
   }
 }
 customElements.define("mira-agent-defs", MiraAgentDefs);
@@ -487,11 +565,12 @@ class MiraModels extends EditPage {
   render() {
     if (this.error) return html`<p class="msg err">${this.error}</p>`;
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
-    return html`${this.bar()}<section class="card"><h2>${T.models_title}
-        ${this.canEdit ? html`<button class="secondary" @click=${() => openEditor("model", "")}>${T.ed_new_model}</button>` : nothing}</h2>
-      <p class="hint">${T.models_hint}</p>
-      ${(this.data.models || []).map(m => this.model(m))}
-      ${this.pending("models", (this.data.models || []).map(m => m.name))}</section>${this.dialog()}`;
+    const models = this.data.models || [];
+    return html`${this.bar()}<section class="list-section">
+      ${listHead(T.models_title, models.length, T.models_hint,
+        this.canEdit ? html`<button class="secondary" @click=${() => openEditor("model", "")}><span aria-hidden="true">＋</span> ${T.ed_new_model}</button>` : nothing)}
+      <div class="card-list">${models.map(m => this.model(m))}
+      ${this.pending("models", models.map(m => m.name))}</div></section>${this.dialog()}`;
   }
   state(m) {
     if (m.last_failed && (!m.last_ok || m.last_failed > m.last_ok)) return badge(T.mod_failed, true);
@@ -508,20 +587,19 @@ class MiraModels extends EditPage {
       m.warmup ? T.mod_warmup : "",
     ].filter(Boolean).join(" · ");
     const agentLink = n => html`<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${n}</code></a>`;
-    return html`<details class="item">
-      <summary>
-        <span class="lead"><h3>${m.name}</h3></span>
-        <span class="short clip">${m.model}</span>
-        <span>${badge(T["privacy_" + m.privacy] || m.privacy)}${this.state(m)}</span>
-      </summary>
-      <table class="facts">
+    const edit = this.canEdit, open = this.isOpen(m.name);
+    const check = html`<button class="secondary" type="button" @click=${() => this.check(m.name)}>${buttonIcon("play")} ${T.mod_check}</button>`;
+    return cardItem({ icon: itemIcon("model"), name: m.name, short: m.model, onToggle: this.opener(m.name),
+      tags: html`${badge(T["privacy_" + m.privacy] || m.privacy)}${this.state(m)}` }, !open ? nothing : html`
+      ${edit ? this.editor("model", m.name, check) : nothing}
+      <table class="facts">${edit ? nothing : html`
         ${row(T.mod_endpoint, html`<code>${m.endpoint}</code>${m.from_ha ? html` <span class="hint">(${T.mod_from_ha})</span>` : nothing}`)}
         ${row(T.mod_model, html`<code>${m.model}</code>`)}
         ${row(T.mod_token, m.token_set ? T.mod_token_set : T.mod_token_unset)}
         ${row(T.mod_privacy, T["privacy_" + m.privacy] || m.privacy)}
         ${row(T.mod_parallel, String(m.parallel || ""))}
         ${row(T.mod_fallback, m.fallback ? html`<code>${m.fallback}</code>` : "")}
-        ${row(T.mod_settings, settings)}
+        ${row(T.mod_settings, settings)}`}
         ${row(T.mod_used_by, (m.used_by || []).length ? html`${m.used_by.map((n, i) => html`${i ? ", " : ""}${agentLink(n)}`)}` : html`<span class="hint">${T.mod_nobody}</span>`)}
         ${row(T.mod_fallback_for, (m.fallback_for || []).length ? code(m.fallback_for) : "")}
         ${row(T.mod_state, html`
@@ -530,11 +608,7 @@ class MiraModels extends EditPage {
           ${!m.last_ok && !m.last_failed ? html`<div class="hint">${T.mod_unknown}</div>` : nothing}
           ${m.runs ? html`<div class="hint">${T.mod_runs(m.runs, m.tokens)}</div>` : nothing}`)}
       </table>
-      <div class="actions">
-        <button class="secondary" @click=${() => this.check(m.name)}>${T.mod_check}</button>
-        ${this.editButton("model", m.name)}
-      </div>
-    </details>`;
+      ${edit ? nothing : html`<div class="actions">${check}</div>`}`);
   }
 }
 customElements.define("mira-models", MiraModels);
@@ -548,24 +622,20 @@ class MiraHooks extends EditPage {
     if (!this.data) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
     const of = level => (this.data.hooks || []).filter(h => h.level === level);
     const own = of("household");
-    return html`${this.bar()}
-      <section class="card"><h2>${T.hooks_household}</h2><p class="hint">${T.hooks_intro}</p><p class="hint">${T.hooks_household_hint}</p>
-        ${own.length ? own.map(h => this.hook(h)) : html`<p class="hint">${T.hooks_none}</p>`}</section>
-      <section class="card"><h2>${T.hooks_default}</h2><p class="hint">${T.hooks_default_hint}</p>
-        ${of("default").map(h => this.hook(h))}</section>
-      <section class="card"><h2>${T.hooks_system}</h2><p class="hint">${T.hooks_system_hint}</p>
-        ${of("system").map(h => this.hook(h))}</section>`;
+    return html`${this.bar()}<section class="list-section">
+      ${listHead(T.tab_hooks, (this.data.hooks || []).length, T.hooks_intro)}
+      ${groupLabel(T.hooks_household, own.length, T.hooks_household_hint)}
+      <div class="card-list">${own.length ? own.map(h => this.hook(h)) : html`<p class="hint">${T.hooks_none}</p>`}</div>
+      ${groupLabel(T.hooks_default, of("default").length, T.hooks_default_hint)}
+      <div class="card-list">${of("default").map(h => this.hook(h))}</div>
+      ${groupLabel(T.hooks_system, of("system").length, T.hooks_system_hint)}
+      <div class="card-list">${of("system").map(h => this.hook(h))}</div></section>`;
   }
   hook(h) {
-    return html`<details class="item hook">
-      <summary>
-        <span class="lead"><h3>${h.name}</h3></span>
-        <span class="short clip">${h.problem ? "" : h.description}</span>
-        <span>${h.problem ? badge(T.hooks_not_loaded, true) : nothing}${h.off ? badge(T.hooks_off, true) : nothing}${h.replaced ? badge(T.hooks_replaced, true) : nothing}</span>
-      </summary>
+    return cardItem({ icon: itemIcon("hook"), name: h.name, short: h.problem ? "" : h.description, cls: "hook",
+      tags: html`${h.problem ? badge(T.hooks_not_loaded, true) : nothing}${h.off ? badge(T.hooks_off, true) : nothing}${h.replaced ? badge(T.hooks_replaced, true) : nothing}` }, html`
       ${h.problem ? html`<p class="msg err">${h.problem}</p>` : nothing}
-      <pre class="code">${h.source}</pre>
-    </details>`;
+      <pre class="code">${h.source}</pre>`);
   }
 }
 customElements.define("mira-hooks", MiraHooks);
@@ -577,8 +647,15 @@ const providerOf = (providers, endpoint) =>
 const opts = (list, current) => list.map(([v, label]) => html`<option value=${v} ?selected=${v === (current ?? "")}>${label}</option>`);
 const RIGHTS = ["read_house", "act_on_house", "remember", "messages", "web"];
 
+// MiraEditor edits a model, an agent or a skill: as a dialog for a new one,
+// inline in its opened card for one there is (<mira-editor inline>), so
+// opening a card offers it for editing at once.
 class MiraEditor extends Light {
-  static properties = { e: { state: true } };
+  static properties = { e: { state: true }, kind: {}, name: {}, inline: { type: Boolean }, extra: { attribute: false } };
+  connectedCallback() {
+    super.connectedCallback();
+    if (this.inline) this.open(this.kind, this.name);
+  }
   open(kind, name) {
     edits().then(s => {
       if (!s) return;
@@ -600,12 +677,12 @@ class MiraEditor extends Light {
         this.original = { description: sk.description || "", guide: sk.guide || "", agents: sk.agents || "", target: sk.target || "", mcp: sk.mcp || "" };
       }
       this.e = { kind, name, isNew, form, state: s, error: "", saving: false, mcp: null };
-      this.updateComplete.then(() => { const d = this.querySelector("dialog"); if (d && !d.open) d.showModal(); });
+      if (!this.inline) this.updateComplete.then(() => { const d = this.querySelector("dialog"); if (d && !d.open) d.showModal(); });
       if (kind === "model" && name && !form.from_ha) this.loadModels();
     });
   }
   close() { const d = this.querySelector("dialog"); if (d && d.open) d.close(); this.e = null; }
-  set(key, value) { this.e = { ...this.e, form: { ...this.e.form, [key]: value } }; }
+  set(key, value) { this.e = { ...this.e, saved: false, form: { ...this.e.form, [key]: value } }; }
   setSetting(key, value) { this.set("settings", { ...this.e.form.settings, [key]: value }); }
   async save() {
     const { kind, name, form } = this.e;
@@ -628,6 +705,10 @@ class MiraEditor extends Light {
         conversation: !!form.conversation, max_rounds: +form.max_rounds || 0, instructions: form.instructions || "",
         input: form.input || "", output: form.output || "" });
     }
+    if (kind === "skill" && this.inline) {
+      const st = await edits();
+      form.enabled = !!(((st && st.skills) || {})[name] || {}).enabled;
+    }
     if (kind === "skill") {
       path = "/v1/ui/edit/skills/" + encodeURIComponent(name);
       const parts = form.own ? Object.keys(this.original).filter(k => (form[k] || "") !== this.original[k]) : [];
@@ -637,16 +718,19 @@ class MiraEditor extends Light {
     this.e = { ...this.e, saving: true, error: "" };
     try {
       await api("PUT", path, body);
-      this.close();
+      if (this.inline) this.e = { ...this.e, saving: false, saved: true };
+      else this.close();
       edited();
     } catch (err) { this.e = { ...this.e, saving: false, error: err.message }; }
   }
-  async remove() {
+  // deleteItem is not called remove: that would replace Element.remove,
+  // which Lit calls when a closed card takes the editor out.
+  async deleteItem() {
     const { kind, name } = this.e;
     if (!confirm(T.ed_delete_confirm(name))) return;
     try {
       await api("DELETE", `/v1/ui/edit/${kind}s/` + encodeURIComponent(name));
-      this.close();
+      if (!this.inline) this.close();
       edited();
     } catch (err) { this.e = { ...this.e, error: err.message }; }
   }
@@ -790,8 +874,9 @@ class MiraEditor extends Light {
     const { form: f, name } = this.e;
     const cat = ((catalogData || {}).skills || []).find(x => x.name === name) || {};
     return html`
-      <label class="checkline"><input type="checkbox" .checked=${!!f.enabled} @change=${ev => this.set("enabled", ev.target.checked)}> ${T.ed_enabled}</label>
-      ${!f.enabled ? html`<p class="hint">${T.ed_disable_hint}</p>` : nothing}
+      ${this.inline ? nothing : html`
+        <label class="checkline"><input type="checkbox" .checked=${!!f.enabled} @change=${ev => this.set("enabled", ev.target.checked)}> ${T.ed_enabled}</label>
+        ${!f.enabled ? html`<p class="hint">${T.ed_disable_hint}</p>` : nothing}`}
       ${(f.setting_defs || []).length ? html`<h4>${T.cat_settings}</h4><div class="grid">${f.setting_defs.map(d => html`
         <label title=${d.description || ""}>${d.name}${d.required ? " *" : ""}</label>
         <div>${d.secret ? html`<input type="password" autocomplete="new-password" .value=${f.settings[d.name] || ""}
@@ -823,13 +908,25 @@ class MiraEditor extends Light {
     const e = this.e;
     const title = !e ? "" : e.isNew ? T["ed_new_" + e.kind] : T.ed_title(e.name);
     const canDelete = e && !e.isNew && ((e.kind === "model" && e.name !== "main" && e.form.in_file) || (e.kind === "agent" && !e.form.own));
+    if (this.inline) return !e ? html`<p class="hint">${T.loading}</p>` : html`
+      <form class="inline-editor" @submit=${ev => { ev.preventDefault(); this.save(); }}>
+        ${e.kind === "model" ? this.modelForm() : e.kind === "agent" ? this.agentForm() : this.skillForm()}
+        ${e.error ? html`<p class="msg err">${e.error}</p>` : nothing}
+        <div class="actions left">
+          <button class="primary" type="submit" ?disabled=${e.saving || (e.kind === "model" && e.form.from_ha)}>${buttonIcon("save")} ${T.ed_apply}</button>
+          ${this.extra || nothing}
+          ${e.saved ? html`<span class="ok">${T.ed_applied}</span>` : nothing}
+          <span class="spacer"></span>
+          ${canDelete ? html`<button class="danger" @click=${ev => { ev.preventDefault(); this.deleteItem(); }}>${T.ed_delete}</button>` : nothing}
+        </div>
+      </form>`;
     return html`<dialog class="mira-dialog wide" @close=${() => { this.e = null; }}>
       <form method="dialog" @submit=${ev => { ev.preventDefault(); this.save(); }}>
         ${e ? html`<h3>${title}</h3>
           ${e.kind === "model" ? this.modelForm() : e.kind === "agent" ? this.agentForm() : this.skillForm()}
           ${e.error ? html`<p class="msg err">${e.error}</p>` : nothing}
           <div class="actions">
-            ${canDelete ? html`<button class="danger" @click=${ev => { ev.preventDefault(); this.remove(); }}>${T.ed_delete}</button>` : nothing}
+            ${canDelete ? html`<button class="danger" @click=${ev => { ev.preventDefault(); this.deleteItem(); }}>${T.ed_delete}</button>` : nothing}
             <span class="spacer"></span>
             <button class="secondary" @click=${ev => { ev.preventDefault(); this.close(); }}>${T.ed_cancel}</button>
             <button class="primary" type="submit" ?disabled=${e.saving || (e.kind === "model" && e.form.from_ha)}>${T.ed_save}</button>

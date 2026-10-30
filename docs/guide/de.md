@@ -66,11 +66,18 @@ Beim Beurteilen vergleicht Mira zum Beispiel den Verbrauch der letzten Stunde mi
 - „Welche Aufgaben hast du?“ – „Pausier die Gas-Aufgabe.“ – „Lösch die Aufgabe mit dem Strom.“ – „Mach einen Probelauf der Gas-Aufgabe.“
 - In Home Assistant unter Mira → **Aufgaben** siehst du alle Aufgaben mit an/aus, Probelauf und dem Protokoll ihrer Urteile, dazu Vorschläge, die noch auf dein Ja warten.
 
-![Mira im Seitenmenü von Home Assistant: eine pausierte und mehrere laufende Aufgaben](img/aufgaben-liste-de.png)
+![Mira im Seitenmenü von Home Assistant: eine laufende Aufgabe, rechts ihr Schalter für an und aus](img/aufgaben-liste-de.png)
 
 Unter der Haube ist jede Aufgabe eine ganz normale **Automation in Home Assistant** mit dem Label „Mira“: Home Assistant entscheidet, *wann* etwas passiert (stündlich, wenn ein Sensor auslöst, nur nachts …), Mira entscheidet, *was* davon dich interessiert. „In Home Assistant bearbeiten“ öffnet sie im Editor; dort kannst du sie auch selbst ändern.
 
 ![Die Gas-Aufgabe im Automations-Editor von Home Assistant: stündlicher Auslöser, Aktion „Mira: Bewerten“](img/ha-automation-de.png)
+
+**Aufgaben ändern, auch eure eigenen:** Mira ändert jede Aufgabe, die im Automations-Editor von Home Assistant gespeichert ist, nicht nur ihre eigenen. Sag einfach, was anders werden soll:
+
+- „Das Abendlicht im Wohnzimmer soll erst 30 Minuten nach Sonnenuntergang angehen.“
+- „Bei der Aufgabe mit dem Wasser nimm den Sensor im Keller raus.“
+
+Mira sucht die Aufgabe heraus, fragt nach, wenn zwei passen, und nennt dir die Änderung: „Die Aufgabe Abendlicht Wohnzimmer: bisher bei Sonnenuntergang, neu 30 Minuten danach. Soll ich das so ändern?“ Erst nach deinem **„Ja“** speichert sie. Schaltet die Aufgabe danach etwas Neues, nennt Mira es dir vorher, und für Neues gelten dieselben Regeln wie beim Einrichten. Was eine Aufgabe schon immer geschaltet hat, bleibt erlaubt. Ändern kann jeder, den Mira kennt; spricht eine Stimme, die sie nicht erkennt, ändert sie nichts. Aufgaben aus YAML-Dateien kann Mira nicht ändern; das sagt sie dir.
 
 **Was eine Aufgabe schalten darf:** Licht, Radio, Rollos und Ähnliches, dazu Push-Nachrichten. Bevor du „Ja“ sagst, nennt Mira alles, was die Aufgabe außerdem schaltet, auch Szenen. Nie schaltet eine Aufgabe Schlösser, die Alarmanlage und was das Label „Mira: nachfragen“ trägt, auch nicht über eine Szene oder Gruppe, die so etwas enthält. Ein Skript startet eine Aufgabe nur, wenn es für Assist freigegeben ist. Rohe Befehle wie MQTT-Nachrichten oder REST-Befehle kann Mira nicht prüfen und ruft sie in Aufgaben nicht direkt auf: Leg dafür ein Skript an und gib es für Assist frei.
 
@@ -294,6 +301,7 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
   - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). Eingesetzt werden `{{person}}` (der Name), `{{person_login}}` (der Login-Name in Home Assistant, „-“ ohne) und `{{person_calendar}}` (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne). Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus. Eine Nachricht aus einem Zeitplan ist höchstens „wichtig“ (2) und wartet nachts bis zum Morgen. Mit `urgent: true` darf der Zeitplan „dringend“ (3) melden: Das geht sofort an alle, auch in der Ruhezeit. Nimm das nur, wo es wirklich darauf ankommt, wie bei amtlichen Unwetterwarnungen.
   - `target`: macht aus dem Skill ein Anliegen über mehrere Gesprächszüge, mit Rückfragen oder als Ablauf Schritt für Schritt (siehe unten).
   - `mail`: macht aus dem Skill eine Mail-Anwendung (siehe unten).
+  - `chapter`: das Kapitel dieser Anleitung zum Skill, so wie seine Überschrift beginnt (`"## Kochen und Backen"`, für einen Abschnitt `###`). Miras Seite zeigt beim Skill einen Link dorthin. In einer Übersetzung (`SKILL.en.md`) steht das Kapitel der englischen Anleitung.
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein. Wo das Haus liegt, weiß Mira aus Home Assistant (Einstellungen → System → Allgemein): `{{ home.latitude }}`, `{{ home.longitude }}` und `{{ home.name }}` setzt sie ein, wenn der Skill gebraucht wird; eine Einstellung dafür ist nicht nötig.
 
 **3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
@@ -686,23 +694,26 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 
 ![Die Übersicht: Aktuell, Einrichtung, Fähigkeiten und Anleitung](img/mira-uebersicht-de.png)
 
-![Fähigkeiten → Skills: jeder Skill mit Einstellungen und Zeitplänen](img/mira-skills-de.png)
+![Fähigkeiten → Skills: jeder Skill mit seinem Schalter; aufgeklappt stehen seine Einstellungen gleich zum Ändern da](img/mira-skills-de.png)
 
 ![Fähigkeiten → Agenten: Modell, Runden und wer den Agenten aufruft](img/mira-agenten-de.png)
 
 ![Fähigkeiten → Modelle: welche Modelle Mira nutzt und ob sie antworten](img/mira-modelle-de.png)
 
-**Ändern auf der Seite** (nur Admins): Unter **Fähigkeiten** hat jedes Modell, jeder Agent und jeder Skill einen Knopf **Bearbeiten**, dazu **Neues Modell** und **Neuer Agent**.
+**Die Listen**: Jede Seite zeigt ihre Einträge als Karten, die zugeklappt starten. Ein Klick klappt eine Karte auf, und was sich ändern lässt, steht gleich darin zum Ändern; **Übernehmen** speichert. Skills und Aufgaben haben rechts einen Schalter für an und aus, ohne dass sich die Karte öffnet. Ein Fakt im Gedächtnis ist aufgeklappt gleich ein Textfeld; Satelliten und Personen speichern jeweils nur den einen Eintrag.
+
+**Ändern auf der Seite** (nur Admins): Unter **Fähigkeiten** klappst du ein Modell, einen Agenten oder einen Skill auf und änderst ihn gleich dort; neu anlegen geht mit **Neues Modell** und **Neuer Agent**.
 - Bei einem Modell wählst du den **Anbieter** (OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic); die Adresse kennt Mira. Für ein lokales Modell oder einen anderen Server nimmst du **Eigener Server** und trägst die Adresse ein. Mit dem Token holt Mira die Liste der Modelle, du wählst eins aus. Mira probiert es gleich aus und trägt die Kontextgröße ein; ein falscher Schlüssel steht direkt darunter.
 - Die Seite schreibt direkt in die `mira.yaml` und ändert dort nur den betroffenen Eintrag; Kommentare bleiben. Was in der Datei steht, gilt, egal ob von Hand oder von der Seite geschrieben.
 - Schlüssel (Tokens) landen nicht in der `mira.yaml`, sondern in einer eigenen Datei im Datenordner, die nur Mira lesen kann; in der `mira.yaml` steht nur ein Verweis wie `${MIRA_MODEL_SMART_TOKEN}`. Setzt du `MIRA_SECRET_KEY` (etwa im Compose-File), verschlüsselt Mira diese Datei.
 - Ein Modell, das noch ein Agent nimmt, und einen Agenten, den noch jemand ruft, kann man nicht löschen; `main` lässt sich weder umbenennen noch löschen.
 - Bei Skills: einschalten, ausschalten und einstellen, bei einem Skill mit MCP-Server mit **Verbindung testen**. Bei eigenen Skills auch die Anleitung, die Agenten, den Vorgang und den MCP-Server; mitgelieferte Skills ersetzt ein Update, darum dort nur die Einstellungen.
-- Änderungen gelten nach einem Neustart; die Seite bietet dafür **Mira neu starten** an.
+- Änderungen an Modellen, Agenten und Skills gelten nach einem Neustart; die Seite bietet dafür **Mira neu starten** an.
+- **Benachrichtigung**, und ohne die Integration auch **Satelliten** und **Personen**, schreibt die Seite ebenfalls in die `mira.yaml`, und zwar nur, was vom Standard abweicht. Das gilt sofort, ohne Neustart. Was die Integration verwaltet, bleibt in Home Assistant und kommt nicht in die Datei.
 
-![Ein Modell bearbeiten: Anbieter und Modell zur Auswahl, der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
+![Ein Modell aufgeklappt: Anbieter und Modell zur Auswahl, der Token bleibt verborgen und landet nicht in der mira.yaml](img/mira-bearbeiten-de.png)
 
-**Deine Karte.** Ganz vorn auf der Übersicht steht eine Karte mit deinem Namen, für alles, was dir gehört: **Einstellungen**, **Stimme**, **Nachrichten** an dich und dein **Gedächtnis**. Darunter steht, wie viele Nachrichten für dich warten, wie viele Erinnerungen Mira für dich hat und ob sie deine Stimme kennt. Auf der Karte stellst du selbst ein, von wem du Nachrichten annimmst und ob du es allein zu Hause bist, und lernst deine Stimme an (siehe „Wer spricht“). Was dem Haus gehört, steht unter **Aktuell**: die Nachrichten an das Haus und das Gedächtnis des Hauses. Unter Einstellungen → **Personen** sehen Admins alle Personen in einer Liste; ein Klick öffnet dieselbe Karte, mit dazu den Kanälen und der Schwelle für die Stimme.
+**Deine Karte.** Ganz vorn auf der Übersicht steht eine Karte mit deinem Namen, für alles, was dir gehört: **Einstellungen**, **Stimme**, **Nachrichten** an dich und dein **Gedächtnis**. Darunter steht, wie viele Nachrichten für dich warten, wie viele Erinnerungen Mira für dich hat und ob sie deine Stimme kennt. Auf der Karte stellst du selbst ein, von wem du Nachrichten annimmst und ob du es allein zu Hause bist, und lernst deine Stimme an (siehe „Wer spricht“). Was dem Haus gehört, steht unter **Aktuell**: die Nachrichten an das Haus und das Gedächtnis des Hauses. Unter Einrichtung → **Personen** sehen Admins alle Personen; aufgeklappt stellen sie dort Kanäle, „Allein = ich“ und die Schwelle für die Stimme ein, und **Ganze Karte und Stimme** öffnet dieselbe Karte, die die Person selbst sieht.
 
 Wer kein Admin ist, sieht nur seine Karte, **Nachrichten** (an das Haus), **Pläne**, **Gedächtnis** (des Hauses) und **Anleitung**; als erledigt markieren kann er nur Nachrichten an sich selbst. Damit Mira weiß, wessen Karte und Gedächtnis deins sind, muss deine Person mit deinem HA-Benutzer verknüpft sein (in Home Assistant unter Einstellungen → Personen).
 

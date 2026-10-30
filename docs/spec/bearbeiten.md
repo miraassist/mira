@@ -1,6 +1,7 @@
 # Editing models, agents and skills on Mira's page
 
-Status 2026-10-25: built, released in 0.7.0; provider list and model check in 0.8.0. Scenarios: [bearbeiten.feature](bearbeiten.feature).
+Status 2026-10-30: step 1 built, released in 0.7.0; provider list and model check in 0.8.0. Step 2 (the settings
+sections in the file, nothing in the database) built 2026-10-30. Scenarios: [bearbeiten.feature](bearbeiten.feature).
 
 ## Goal
 
@@ -20,7 +21,8 @@ now change what is there and add new ones, without opening a file on the server.
   editing goes by hand only.
 - **Skills:** a skill's settings and whether it is on are in mira.yaml (its entry under `skills`, off with `enabled: false`); a skill's instructions,
   agents and thread (target) are in its `SKILL.md`, and the page writes that file, for the user's own skills only.
-- The old overlay of the sections satellites, persons and notifier in Mira's database stays for now (open point).
+- **The settings sections** (`notifier`, `persons`, `satellites`, `persona`, `web_search`) go into the file too; see
+  [Settings sections](#settings-sections).
 
 ## Secrets
 
@@ -81,6 +83,49 @@ now change what is there and add new ones, without opening a file on the server.
   entered (or as set) and says whether it worked, how many tools the server has and which of the skill's tools are
   missing.
 
+## Settings sections
+
+The pages Notifications, Satellites and Persons (without the integration) and the integration's options "General"
+(persona, web search, notifications) change whole sections of the configuration. Until 2026-10-30 Mira kept such a
+change in her database and laid it over the file ("changed in the UI", "Back to mira.yaml"). Now:
+
+- **Saving writes the section into mira.yaml.** Mira replaces the section in the file's YAML tree; the rest of the
+  file, its comments and order stay, comments inside the section do not. A section that Mira would refuse is not
+  written, and the page shows why (as in step 1).
+- **Only what differs from Mira's defaults goes into the file** (2026-10-30), compared as Mira reads it (`30m` is
+  `30m0s`), down into the parts of a section (the quiet hours, the escalation). A section left at its defaults has no
+  entry. So the file stays short and a later default still reaches it.
+- **It holds at once**, as before: Mira applies it to the running configuration and restarts the notifier; no restart
+  of Mira.
+- **The page shows no source any more:** no "changed in the UI", no "Back to mira.yaml". What is in the file is what
+  holds. "Managed in Home Assistant" stays for what the integration sends.
+- **Without a writable mira.yaml** saving is refused with the reason, as for models and skills.
+- **Costs:** one save reads mira.yaml once and writes it once (a temporary file, then a rename); nothing grows with
+  the number of entries beyond the file's size.
+
+### What Home Assistant sends
+
+The integration sends Mira's settings on HA's persons and satellites (`PUT /v1/ui/ha`): the sections `persons` and
+`satellites` and, of `notifier`, `morning_trigger`, `room_mode` and `indicators` ([HA connection](ha-anbindung.md)).
+These settings live in Home Assistant, on the persons and satellites; Mira writes them nowhere:
+
+- **Mira holds them in memory only.** They are laid over the file while she runs.
+- **After a restart of Mira** she has none of them until the integration sends again. While she has none since her
+  start, she reports an **empty fingerprint** in `/v1/status` (`exposed_hash: ""`). The integration compares the
+  fingerprint on every poll (every minute) and sends everything again when it differs (ha-anbindung.md). So the
+  settings are back within a minute; until then the persons and rooms from HA are missing.
+  - Why a poll: it is the integration's existing status poll, the only way Mira reaches the integration; nothing
+    new is polled, and the integration needs no change, so an older integration does the same.
+- **While the integration manages them,** the page refuses `persons` and `satellites`; a notifier saved on the page or
+  in the options keeps the file's own `morning_trigger`, `room_mode` and `indicators` in the file and runs with the
+  ones from Home Assistant.
+- **Released** (the integration removed, `DELETE /v1/ui/ha`): the values from Home Assistant hold until Mira restarts;
+  then the file's.
+- The list of what is exposed to Assist and the login names stay stored as before (ha-anbindung.md): they are not
+  settings, and without the list Mira does not act.
+
+**What was in the database is not carried over** (no users yet, 2026-10-30): Mira no longer reads it.
+
 ## When a change holds
 
 - Changes to models, agents and skills hold after a **restart**. After a save the page says "Restart needed" and has
@@ -108,7 +153,16 @@ nothing of this.
    as `llm` and `routing` were (no users to migrate yet).
 8. **A further model beside the integration's main** (2026-10-24): mira.yaml may name models without `main` when
    the integration sets `main` up (MO-02 relaxed); without either, the page refuses and Mira waits for the setup.
+9. **Settings sections in the file, nothing in the database** (2026-10-30): the page and the options write the
+   sections into mira.yaml; what Home Assistant sends Mira holds in memory and gets again after her restart through
+   the empty fingerprint. The overlay in the database and its "Back to mira.yaml" are gone; nothing is carried over.
+
+## Steps
+
+1. Models, agents and skills edited in the file (built, 0.7.0).
+2. The settings sections in the file; what Home Assistant sends in memory, fetched again after a restart (built
+   2026-10-30).
 
 ## Open
 
-- Move the overlay of satellites, persons and notifier onto the same principle.
+- Nothing.

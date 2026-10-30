@@ -4,6 +4,7 @@ description: Etwas mit Fälligkeit oder Beschreibung auf eine To-do-Liste setzen
 license: MIT
 metadata:
   mira:
+    chapter: "## Kalender und Listen"
     target:
       timeout: 10m
       fields:
