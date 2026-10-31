@@ -796,12 +796,23 @@ func (e *editor) writeSections(sections map[string][]byte, keep []string) error 
 					}
 				}
 			}
-			// A section at its defaults needs no entry.
+			// The section's place: its parents are made when missing.
+			path := config.SectionPath(name)
+			parent := top
+			for _, k := range path[:len(path)-1] {
+				parent = config.MapChild(parent, k)
+			}
+			key := path[len(path)-1]
+			// A section at its defaults needs no entry, nor do parents
+			// left empty.
 			if node.Kind == yaml.MappingNode && len(node.Content) == 0 {
-				config.MapDelete(top, name)
+				config.MapDelete(parent, key)
+				if parent != top && len(parent.Content) == 0 {
+					config.MapDelete(top, path[0])
+				}
 				continue
 			}
-			config.MapSet(top, name, node)
+			config.MapSet(parent, key, node)
 		}
 		return nil
 	})

@@ -31,6 +31,15 @@ func (c *Config) section(name string) (any, error) {
 	return nil, fmt.Errorf("unknown or read-only config section %q", name)
 }
 
+// SectionPath is where a section stands in mira.yaml: most at the top, the
+// persona under prompt.
+func SectionPath(name string) []string {
+	if name == "persona" {
+		return []string{"prompt", "persona"}
+	}
+	return []string{name}
+}
+
 // SectionJSON renders one section as JSON with the YAML field names, so the
 // UI sees the same keys and value formats ("30m", "22:30") as the file.
 func (c Config) SectionJSON(name string) (json.RawMessage, error) {

@@ -131,3 +131,11 @@ Feature: BE Editing models, agents and skills on Mira's page
     When the page saves the whole notifier with only the cooldown changed
     Then the file's notifier has only the cooldown
     And saved back at its defaults, the file has no notifier
+
+  @step2
+  Scenario: BE-21 The persona goes under prompt, the web search at the top
+    Given a mira.yaml without a persona
+    When the options save a persona and switch the web search off
+    Then the file has the persona under prompt and the web search at the top
+    And Mira reads the file and runs with both
+    And saved back empty, the file has no prompt

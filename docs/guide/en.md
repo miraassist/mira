@@ -108,6 +108,15 @@ Several messages become one announcement, the most important first and with time
 
 When Mira speaks up on her own, the room's LED ring glows steadily while she speaks.
 
+**The ring's colors:** **teal** while a message from Mira waits (and steady while she speaks), **amber** for a new message on the answering machine, **red** for a missed call. Teal, the effect and the brightness are set in `mira.yaml`; amber and red are fixed:
+
+```yaml
+notifier:
+  indicator: { rgb_color: [32, 201, 176], effect: Pulse, brightness: 160 }
+```
+
+What the Echo shows while it listens, thinks and replies is set on the Echo itself (Wake word effect, Thinking effect, Replying effect). Effects without colors of their own, like Pulse or Ripple, run in the color the ring was given last, usually that of Mira's last hint; effects with their own colors, like Ice Comet or Ocean Ripple, keep theirs. If **Ring follows the room** is set to an effect on the Echo, the ring shows the room instead of Mira's hint; leave it at **None** for the indicator.
+
 **Quiet hours**: during quiet hours (e.g. 23:30–6:30) Mira announces nothing – except urgent things and your reminders. LED rings still glow; what came in at night you see in the morning.
 
 **Quiet mode**: the "Quiet mode" switch in Home Assistant turns off all announcements until you turn it off again.

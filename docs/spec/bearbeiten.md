@@ -89,7 +89,8 @@ The pages Notifications, Satellites and Persons (without the integration) and th
 (persona, web search, notifications) change whole sections of the configuration. Until 2026-10-30 Mira kept such a
 change in her database and laid it over the file ("changed in the UI", "Back to mira.yaml"). Now:
 
-- **Saving writes the section into mira.yaml.** Mira replaces the section in the file's YAML tree; the rest of the
+- **Saving writes the section into mira.yaml**, at its place there: most at the top, the persona under
+  `prompt: persona:` (fixed in 0.14.1). Mira replaces the section in the file's YAML tree; the rest of the
   file, its comments and order stay, comments inside the section do not. A section that Mira would refuse is not
   written, and the page shows why (as in step 1).
 - **Only what differs from Mira's defaults goes into the file** (2026-10-30), compared as Mira reads it (`30m` is

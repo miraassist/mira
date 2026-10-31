@@ -195,3 +195,37 @@ func TestBE20_OnlyWhatDiffersFromTheDefaultsGoesIntoTheFile(t *testing.T) {
 		t.Errorf("live cooldown %v", got)
 	}
 }
+
+func TestBE21_ThePersonaGoesUnderPromptTheWebSearchAtTheTop(t *testing.T) {
+	a, u, path := sectionsApp(t)
+	ctx := context.Background()
+	// When the options save a persona and switch the web search off
+	if err := u.SetSections(ctx, map[string]json.RawMessage{
+		"persona":    json.RawMessage(`"Du duzt alle."`),
+		"web_search": json.RawMessage(`{"enabled":false}`)}); err != nil {
+		t.Fatal(err)
+	}
+	// Then the file has the persona under prompt and the web search at the top
+	file := read(t, path)
+	if !strings.Contains(file, "prompt:\n  persona: Du duzt alle.\n") || !strings.Contains(file, "web_search:\n  enabled: false\n") {
+		t.Errorf("file:\n%s", file)
+	}
+	// And Mira reads the file and runs with both
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Prompt.Persona != "Du duzt alle." || cfg.WebSearch.Enabled {
+		t.Errorf("file reads %q %+v", cfg.Prompt.Persona, cfg.WebSearch)
+	}
+	if live := a.liveConfig(); live.Prompt.Persona != "Du duzt alle." || live.WebSearch.Enabled {
+		t.Errorf("live %q %+v", live.Prompt.Persona, live.WebSearch)
+	}
+	// And saved back empty, the file has no prompt
+	if err := u.SetSections(ctx, map[string]json.RawMessage{"persona": json.RawMessage(`""`)}); err != nil {
+		t.Fatal(err)
+	}
+	if file := read(t, path); strings.Contains(file, "prompt") {
+		t.Errorf("file still has a prompt:\n%s", file)
+	}
+}

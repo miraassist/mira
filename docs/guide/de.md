@@ -110,6 +110,15 @@ Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst u
 
 Wenn Mira von sich aus spricht, leuchtet der LED-Ring des Raums ruhig, solange sie spricht.
 
+**Die Farben am Ring:** **Türkis**, solange eine Nachricht von Mira wartet (und ruhig, während sie spricht), **Bernstein** bei einer neuen Nachricht auf dem Anrufbeantworter, **Rot** bei einem verpassten Anruf. Türkis, Effekt und Helligkeit stellst du in der `mira.yaml` ein; Bernstein und Rot sind fest:
+
+```yaml
+notifier:
+  indicator: { rgb_color: [32, 201, 176], effect: Pulse, brightness: 160 }
+```
+
+Was der Echo beim Hören, Denken und Sprechen zeigt, stellst du am Echo selbst ein (Wake word effect, Thinking effect, Replying effect). Effekte ohne eigene Farben wie Pulse oder Ripple laufen in der Farbe, die der Ring zuletzt bekommen hat, meist also in der von Miras letztem Hinweis; Effekte mit eigenen Farben wie Ice Comet oder Ocean Ripple behalten ihre. Steht am Echo **Ring follows the room** auf einem Effekt, zeigt der Ring den Raum statt Miras Hinweis; für die Anzeige also auf **None** lassen.
+
 **Ruhezeit**: In der Ruhezeit (z. B. 23:30–6:30) sagt Mira nichts an – außer Dringendem und deinen Erinnerungen. LED-Ringe leuchten trotzdem; was nachts kommt, siehst du morgens.
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.

@@ -3,6 +3,12 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.14.1
+
+- The persona set in the integration's options is saved again: it goes into `mira.yaml` under `prompt: persona:`.
+  Saving it failed in 0.14.0 with an error about `mira.yaml`. A persona set before 0.14.0 was kept in Mira's
+  database, which 0.14.0 no longer reads: enter it again in the options (Mira's integration, Configure, General).
+
 ## 0.14.0
 
 - Mira's pages show their entries as cards: opened, a card offers what can be changed right there, skills and tasks
