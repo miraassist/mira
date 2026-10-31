@@ -36,22 +36,24 @@ type Config struct {
 	Server Server `yaml:"server"`
 	// Models are the language models by name (docs/spec/modelle.md); main
 	// must exist. An agent without a model takes main.
-	Models     map[string]LLM    `yaml:"models"`
-	Store      Store             `yaml:"store"`
-	Prompt     Prompt            `yaml:"prompt"`
-	HA         HA                `yaml:"ha"`
-	MCPServers []MCPServer       `yaml:"mcp_servers"`
-	Sessions   Sessions          `yaml:"sessions"`
-	Satellites map[string]string `yaml:"satellites"`
-	Persons    map[string]Person `yaml:"persons"`
-	Notifier   Notifier          `yaml:"notifier"`
-	Security   Security          `yaml:"security"`
-	Memory     Memory            `yaml:"memory"`
-	Skills     Skills            `yaml:"skills"`
-	WebSearch  WebSearch         `yaml:"web_search"`
-	SpeakerID  SpeakerID         `yaml:"speaker_id"`
-	Agents     Agents            `yaml:"agents"`
-	Telemetry  Telemetry         `yaml:"telemetry"`
+	Models     map[string]LLM `yaml:"models"`
+	Store      Store          `yaml:"store"`
+	Prompt     Prompt         `yaml:"prompt"`
+	HA         HA             `yaml:"ha"`
+	MCPServers []MCPServer    `yaml:"mcp_servers"`
+	Sessions   Sessions       `yaml:"sessions"`
+	// Satellites are each area's satellites, one or several; the first is
+	// the room's primary (docs/spec/satelliten-raeume.md).
+	Satellites map[string]Entities `yaml:"satellites"`
+	Persons    map[string]Person   `yaml:"persons"`
+	Notifier   Notifier            `yaml:"notifier"`
+	Security   Security            `yaml:"security"`
+	Memory     Memory              `yaml:"memory"`
+	Skills     Skills              `yaml:"skills"`
+	WebSearch  WebSearch           `yaml:"web_search"`
+	SpeakerID  SpeakerID           `yaml:"speaker_id"`
+	Agents     Agents              `yaml:"agents"`
+	Telemetry  Telemetry           `yaml:"telemetry"`
 
 	// mainMissing: the file has models but not main (LacksMain).
 	mainMissing bool
@@ -522,10 +524,10 @@ type Notifier struct {
 	// shows waiting messages either way. An old "indicate" takes the area
 	// out of MorningTrigger.Areas when the config is read.
 	RoomMode map[string]string `yaml:"room_mode,omitempty"`
-	// Indicators maps an area to the light that shows waiting messages, such
-	// as the LED ring of a satellite, whether or not Mira announces there.
-	Indicators map[string]string `yaml:"indicators"`
-	Indicator  IndicatorStyle    `yaml:"indicator"`
+	// Indicators maps an area to the lights that show waiting messages, such
+	// as the LED rings of its satellites, whether or not Mira announces there.
+	Indicators map[string]Entities `yaml:"indicators"`
+	Indicator  IndicatorStyle      `yaml:"indicator"`
 }
 
 // IndicatorStyle is how an indicator light shows waiting messages.
@@ -558,6 +560,10 @@ type MorningTrigger struct {
 	// Presence are the motion sensors per area, one or several: any of
 	// them means someone came in.
 	Presence map[string]Entities `yaml:"presence"`
+	// SpeakAt is the satellite a motion sensor speaks at, for the sensors
+	// of a room's satellites other than its primary; the others speak at
+	// the primary (docs/spec/satelliten-raeume.md).
+	SpeakAt map[string]string `yaml:"speak_at,omitempty"`
 }
 
 type Urgent struct {
@@ -865,7 +871,7 @@ func (c *Config) normalize() {
 		}
 	}
 	if c.Satellites == nil {
-		c.Satellites = map[string]string{}
+		c.Satellites = map[string]Entities{}
 	}
 	if c.Persons == nil {
 		c.Persons = map[string]Person{}
@@ -978,15 +984,17 @@ func (c Config) Validate() error {
 		}
 	}
 
-	for area, sat := range c.Satellites {
-		switch {
-		case strings.HasPrefix(sat, "assist_satellite."):
-		case strings.HasPrefix(sat, "media_player."):
-			if c.Notifier.TTSEntity == "" {
-				add("satellites[%s]: %q is a media_player, which needs notifier.tts_entity", area, sat)
+	for area, sats := range c.Satellites {
+		for _, sat := range sats {
+			switch {
+			case strings.HasPrefix(sat, "assist_satellite."):
+			case strings.HasPrefix(sat, "media_player."):
+				if c.Notifier.TTSEntity == "" {
+					add("satellites[%s]: %q is a media_player, which needs notifier.tts_entity", area, sat)
+				}
+			default:
+				add("satellites[%s]: %q must be an assist_satellite or media_player entity", area, sat)
 			}
-		default:
-			add("satellites[%s]: %q must be an assist_satellite or media_player entity", area, sat)
 		}
 	}
 	// Persons and satellites come from Home Assistant once Mira runs; the
@@ -1001,9 +1009,11 @@ func (c Config) Validate() error {
 			add("notifier.room_mode[%s] must be announce or indicate, not %q", area, mode)
 		}
 	}
-	for area, light := range c.Notifier.Indicators {
-		if !strings.HasPrefix(light, "light.") {
-			add("notifier.indicators[%s]: %q must be a light entity", area, light)
+	for area, lights := range c.Notifier.Indicators {
+		for _, light := range lights {
+			if !strings.HasPrefix(light, "light.") {
+				add("notifier.indicators[%s]: %q must be a light entity", area, light)
+			}
 		}
 	}
 	if rgb := c.Notifier.Indicator.RGBColor; len(rgb) != 0 && len(rgb) != 3 {

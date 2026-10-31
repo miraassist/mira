@@ -163,7 +163,7 @@ func (f editFinisher) Work(ctx context.Context, th store.Thread) (threads.Result
 		name = entity
 	}
 
-	from := Origin{Person: th.Person}
+	from := Origin{Person: th.Person, Device: th.Device}
 	from.Area, _ = strings.CutPrefix(th.Place, "area:")
 	if from.Area == th.Place {
 		from.Area = ""

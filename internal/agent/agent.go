@@ -157,8 +157,11 @@ type Delivery struct {
 	Route    Route
 	Receiver string
 	Area     string
-	Thread   string
-	Into     string
+	// Device is the satellite's device the call came from: in a room with
+	// several satellites the message is spoken there.
+	Device string
+	Thread string
+	Into   string
 }
 
 func (m Mode) String() string {

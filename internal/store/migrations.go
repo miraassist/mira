@@ -386,6 +386,16 @@ INSERT INTO memory_facts_fts(memory_facts_fts) VALUES ('rebuild');
 		name: "0023_announcements_area",
 		stmt: `CREATE INDEX idx_announcements_area ON announcements(area_id, created_at DESC);`,
 	},
+	{
+		// The satellite's device a message or thread was asked at: in a room
+		// with several satellites, what comes later is spoken there
+		// (docs/spec/satelliten-raeume.md).
+		name: "0024_origin_device",
+		stmt: `
+ALTER TABLE messages ADD COLUMN origin_device TEXT NOT NULL DEFAULT '';
+ALTER TABLE threads ADD COLUMN device TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

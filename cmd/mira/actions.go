@@ -56,13 +56,14 @@ func (h haActions) Call(ctx context.Context, action string, data map[string]any)
 
 // Place is the area of a satellite as placeholders: area, area_name,
 // satellite and satellite.device, the ESPHome node its actions are named
-// after (esphome.<node>_alarm_set).
-func (h haActions) Place(ctx context.Context, area string) map[string]string {
+// after (esphome.<node>_alarm_set). The satellite is the one on device,
+// while it is in the area, else the area's primary.
+func (h haActions) Place(ctx context.Context, area, device string) map[string]string {
 	vars := map[string]string{"area": area, "area_name": area}
 	if name := h.a.structure.Snapshot().AreaNames[area]; name != "" {
 		vars["area_name"] = name
 	}
-	sat := h.a.liveConfig().Satellites[area]
+	sat := h.a.satelliteOn(area, device)
 	if sat == "" {
 		return vars
 	}

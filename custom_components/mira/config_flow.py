@@ -61,7 +61,7 @@ from .managed import (
     entity_name,
     notify_targets,
     person_settings,
-    satellite_settings,
+    satellite_form_settings,
     save_settings,
 )
 
@@ -667,6 +667,7 @@ FIELD_NAMES = {
         "presence": "Bewegungsmelder",
         "morning": "Beim Hereinkommen ansagen",
         "indicator": "Anzeige (z. B. LED-Ring)",
+        "primary": "Hauptsatellit im Raum (bei mehreren: spricht, wo nicht klar ist, welcher)",
     },
     "en": {
         "channels": "Channels (notify targets, e.g. Telegram chat, companion app)",
@@ -675,6 +676,7 @@ FIELD_NAMES = {
         "presence": "Motion sensors",
         "morning": "Announce on entry",
         "indicator": "Indicator (e.g. LED ring)",
+        "primary": "Main satellite in the room (with several: speaks where it is not clear which one)",
     },
 }
 
@@ -787,10 +789,11 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
                 ),
                 vol.Optional("morning", default=False): selector.BooleanSelector(),
                 vol.Optional("indicator"): selector.EntitySelector(selector.EntitySelectorConfig(domain="light")),
+                vol.Optional("primary", default=False): selector.BooleanSelector(),
             }
         )
         return await self._sections(
-            "satellites", all_satellites(self.hass), satellite_settings(self.hass), fields, user_input
+            "satellites", all_satellites(self.hass), satellite_form_settings(self.hass), fields, user_input
         )
 
     def _names(self) -> dict[str, str]:

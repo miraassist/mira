@@ -249,20 +249,32 @@ func (m *Manager) adopt(ctx context.Context, th store.Thread, turnPlace string) 
 // or commit: an action's satellite placeholders are that turn's.
 type areaKey struct{}
 
+// deviceKey carries the satellite's device of that turn.
+type deviceKey struct{}
+
 // withTurnArea is ctx carrying the satellite's area of the calling turn:
-// the invocation's, else its place's, else its voice session's.
+// the invocation's, else its place's, else its voice session's; and its
+// satellite's device, the invocation's, else its voice session's.
 func (m *Manager) withTurnArea(ctx context.Context, inv tools.Invocation) context.Context {
-	area := inv.Area
+	area, device := inv.Area, inv.DeviceID
 	if area == "" {
 		_, area = m.place(ctx, inv)
 	}
-	if area == "" && inv.Channel == config.ChannelVoice {
+	if (area == "" || device == "") && inv.Channel == config.ChannelVoice {
 		if sess, err := m.opts.Store.GetSession(ctx, inv.SessionKey); err == nil {
-			area = sess.AreaID
+			if area == "" {
+				area = sess.AreaID
+			}
+			if device == "" {
+				device = sess.DeviceID
+			}
 		}
 	}
 	if area == "" {
 		return ctx
+	}
+	if device != "" {
+		ctx = context.WithValue(ctx, deviceKey{}, device)
 	}
 	return context.WithValue(ctx, areaKey{}, area)
 }
@@ -270,6 +282,12 @@ func (m *Manager) withTurnArea(ctx context.Context, inv tools.Invocation) contex
 func areaOf(ctx context.Context) string {
 	a, _ := ctx.Value(areaKey{}).(string)
 	return a
+}
+
+// deviceOf is the satellite's device withTurnArea carries, "" for none.
+func deviceOf(ctx context.Context) string {
+	d, _ := ctx.Value(deviceKey{}).(string)
+	return d
 }
 
 // link makes a turn belong to a thread: its thread, and its target skill
@@ -373,9 +391,10 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 			m.end(ctx, old, store.ThreadCancelled)
 		}
 	}
+	turn := m.withTurnArea(ctx, inv)
 	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
 		State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{},
-		Area: areaOf(m.withTurnArea(ctx, inv))}
+		Area: areaOf(turn), Device: deviceOf(turn)}
 	m.logEntry(&th, "user", th.Request)
 	launches := m.dispatch(&th)
 	if err := m.save(ctx, &th); err != nil {
@@ -699,7 +718,7 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 	}
 	n := store.Message{ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
 		Importance: 2, Receiver: receiver, Spoken: text, Details: m.summary(th), ThreadID: th.ID,
-		ExpiresAt: th.ExpiresAt}
+		ExpiresAt: th.ExpiresAt, OriginDevice: th.Device}
 	if err := m.opts.Deliver(ctx, n, area); err != nil {
 		m.log.Error("could not deliver a thread message", "thread", th.ID, "error", err)
 	}

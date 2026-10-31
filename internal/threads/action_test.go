@@ -29,7 +29,7 @@ func (f *fakeActions) Call(_ context.Context, action string, data map[string]any
 	f.data = append(f.data, data)
 	return nil
 }
-func (f *fakeActions) Place(_ context.Context, area string) map[string]string {
+func (f *fakeActions) Place(_ context.Context, area, _ string) map[string]string {
 	device := map[string]string{"schlafzimmer": "show", "wohnzimmer": "wohnzimmer"}[area]
 	return map[string]string{"area": area, "area_name": area, "satellite": "assist_satellite." + device, "satellite.device": device}
 }

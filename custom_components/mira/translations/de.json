@@ -141,16 +141,18 @@
       },
       "satellites": {
         "title": "Einstellungen für Satelliten",
-        "description": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Klapp einen auf und stell ein, was dazukommt; gespeichert wird am Satelliten selbst, der Raum ist sein Bereich. {error}",
+        "description": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich; ein Raum kann mehrere haben, einer davon ist der Hauptsatellit. Klapp einen auf und stell ein, was dazukommt; gespeichert wird am Satelliten selbst, der Raum ist sein Bereich. {error}",
         "data": {
           "presence": "Bewegungsmelder",
           "morning": "Beim Hereinkommen ansagen",
-          "indicator": "Anzeige (z. B. LED-Ring)"
+          "indicator": "Anzeige (z. B. LED-Ring)",
+          "primary": "Hauptsatellit im Raum"
         },
         "data_description": {
           "presence": "Bewegung an einem davon startet eine Ansage, z. B. Flur und Wohnzimmer.",
           "morning": "Merkt einer der Bewegungsmelder, dass jemand hereinkommt, sagt Mira an, was wartet. Aus: nur auf Nachfrage oder nach einer Antwort („Übrigens …“). Die Anzeige (LED-Ring oder Einblendung) zeigt es so oder so.",
-          "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten."
+          "indicator": "Zeigt wartende Nachrichten, z. B. der LED-Ring des Satelliten.",
+          "primary": "Bei mehreren Satelliten in einem Raum: Dieser spricht, wo nicht klar ist, welcher es soll, z. B. bei einer Nachricht an den Raum."
         }
       },
       "model_server": {
@@ -426,6 +428,10 @@
     "version_agent_newer": {
       "title": "Mira-Integration aktualisieren",
       "description": "Der Mira-Dienst hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration in HACS auf {agent} und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+    },
+    "satellite_no_area": {
+      "title": "Mira weiß nicht, wo {name} steht",
+      "description": "{name} hat in Home Assistant keinen Bereich, deshalb kennt Mira keinen Raum dafür. Du kannst mit ihm sprechen, aber Mira meldet sich dort nicht von selbst, sein Ring zeigt nichts an, und für einen Timer oder das Radio dort musst du den Raum nennen.\n\n[{name} öffnen]({link}) und in seinen Einstellungen einen Bereich wählen. Diese Meldung verschwindet, sobald er einen Bereich hat."
     }
   }
 }

@@ -3,6 +3,7 @@ package notifier
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,27 +20,26 @@ import (
 // screenFor is how long the overlay stays.
 const screenFor = 60 * time.Second
 
-// syncScreens shows or updates each area's overlay when the number of
-// waiting messages changes, and takes it away when none wait. The caller
-// holds n.mu.
+// syncScreens shows or updates each screen's overlay when the number of
+// messages waiting in its room changes, and takes it away when none wait.
+// Every screen of a room shows the room's (docs/spec/satelliten-raeume.md).
+// The caller holds n.mu.
 func (n *Notifier) syncScreens(ctx context.Context) {
-	busy := n.busyAreas(ctx)
+	busy := n.busyScreens(ctx)
 	w, err := n.readWaiting(ctx)
 	if err != nil {
 		n.log.Error("could not check waiting messages", "error", err)
 		return
 	}
-	for area, action := range n.screens {
-		if n.cfg.Indicators[area] != "" {
-			continue // the light shows it
-		}
+	for sat, action := range n.screens {
+		area := n.areaOf(sat)
 		list := w.in(area)
 		count := len(list)
-		if count == n.screenCount[area] {
+		if count == n.screenCount[sat] {
 			continue
 		}
-		if busy[area] {
-			n.showWhenIdle(area)
+		if busy[sat] {
+			n.showWhenIdle(sat)
 			continue
 		}
 		t := textsFor(n.langOf(n.inArea(ctx, area)))
@@ -51,8 +51,8 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 				text = fmt.Sprintf(t.screenMany, count)
 			}
 			err = n.overlay(ctx, action, "mira", text, "mdi:message-badge", screenFor)
-			n.screenShown[area] = now
-		case now.Sub(n.screenShown[area]) < screenFor:
+			n.screenShown[sat] = now
+		case now.Sub(n.screenShown[sat]) < screenFor:
 			// Still on the screen: replace it with a short "all heard".
 			err = n.overlay(ctx, action, "mira", t.screenHeard, "mdi:check", time.Second)
 		}
@@ -60,8 +60,8 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 			n.log.Warn("could not show waiting messages on the screen", "area", area, "action", action, "error", err)
 			continue
 		}
-		n.screenCount[area] = count
-		n.log.Info("screen hint", "area", area, "waiting", count)
+		n.screenCount[sat] = count
+		n.log.Info("screen hint", "area", area, "satellite", sat, "waiting", count)
 	}
 }
 
@@ -70,13 +70,14 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 // it goes when nothing is new (docs/spec/anrufbeantworter.md). The caller
 // holds n.mu.
 func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
-	busy := n.busyAreas(ctx)
-	for area, action := range n.screens {
-		if n.cfg.Indicators[area] != "" || n.phoneShown[area] == news || n.phoneHeld[area] {
+	busy := n.busyScreens(ctx)
+	for sat, action := range n.screens {
+		area := n.areaOf(sat)
+		if n.phoneShown[sat] == news || n.phoneHeld[area] {
 			continue
 		}
-		if busy[area] {
-			n.showWhenIdle(area)
+		if busy[sat] {
+			n.showWhenIdle(sat)
 			continue
 		}
 		t := textsFor(n.langOf(n.inArea(ctx, area)))
@@ -107,8 +108,8 @@ func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 			n.log.Warn("could not show the answering machine on the screen", "area", area, "error", err)
 			continue
 		}
-		n.phoneShown[area] = news
-		n.log.Info("screen hint for the answering machine", "area", area, "messages", news.Messages, "missed", news.Missed)
+		n.phoneShown[sat] = news
+		n.log.Info("screen hint for the answering machine", "area", area, "satellite", sat, "messages", news.Messages, "missed", news.Missed)
 	}
 }
 
@@ -118,48 +119,57 @@ func inConversation(state string) bool {
 	return state == "listening" || state == "processing" || state == "responding"
 }
 
-// busyAreas are the areas with a screen whose satellite is in a
-// conversation now: a hint there would cover the turn screen, and one
-// would not see that Mira listens. Read once per sync, filtered to the
-// satellites.
-func (n *Notifier) busyAreas(ctx context.Context) map[string]bool {
-	areaOf := map[string]string{}
+// busyScreens are the satellites with a screen that are in a conversation
+// now: a hint there would cover the turn screen, and one would not see that
+// Mira listens. Read once per sync, filtered to the satellites.
+func (n *Notifier) busyScreens(ctx context.Context) map[string]bool {
 	var ids []string
-	for area := range n.screens {
-		if sat := n.sats[area]; strings.HasPrefix(sat, "assist_satellite.") {
-			areaOf[sat] = area
+	for sat := range n.screens {
+		if strings.HasPrefix(sat, "assist_satellite.") {
 			ids = append(ids, sat)
 		}
 	}
 	busy := map[string]bool{}
+	if len(ids) == 0 {
+		return busy
+	}
 	states, err := n.ha.GetStates(ctx, haws.StateFilter{EntityIDs: ids})
 	if err != nil {
 		return busy
 	}
 	for _, st := range states {
 		if inConversation(st.State) {
-			busy[areaOf[st.EntityID]] = true
+			busy[st.EntityID] = true
 		}
 	}
 	return busy
 }
 
-// showWhenIdle shows an area's hints once its satellite has left the
+// areaOf is the area a satellite is in, "" for none.
+func (n *Notifier) areaOf(sat string) string {
+	for area, sats := range n.sats {
+		if slices.Contains(sats, sat) {
+			return area
+		}
+	}
+	return ""
+}
+
+// showWhenIdle shows a screen's hints once its satellite has left the
 // conversation: it watches the satellite's state (no polling), one waiter
-// per area. The caller holds n.mu.
-func (n *Notifier) showWhenIdle(area string) {
-	if n.awaitingIdle[area] {
+// per satellite. The caller holds n.mu.
+func (n *Notifier) showWhenIdle(sat string) {
+	if n.awaitingIdle[sat] {
 		return
 	}
-	n.awaitingIdle[area] = true
-	sat := n.sats[area]
+	n.awaitingIdle[sat] = true
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), idleWait*10)
 		defer cancel()
 		n.ha.WaitState(ctx, sat, idleWait*10, func(s string) bool { return !inConversation(s) })
 		n.mu.Lock()
 		defer n.mu.Unlock()
-		delete(n.awaitingIdle, area)
+		delete(n.awaitingIdle, sat)
 		n.syncIndicators(ctx)
 	}()
 }

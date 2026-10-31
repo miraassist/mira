@@ -125,8 +125,8 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 // reports how each satellite would speak.
 func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
 	sats := make([]string, 0, len(cfg.Satellites))
-	for _, sat := range cfg.Satellites {
-		sats = append(sats, sat)
+	for _, list := range cfg.Satellites {
+		sats = append(sats, list...)
 	}
 	states, err := c.GetStates(ctx, haws.StateFilter{EntityIDs: sats})
 	if err != nil {
@@ -143,23 +143,24 @@ func checkEntities(ctx context.Context, c *haws.Client, cfg config.Config) {
 	}
 	sort.Strings(areas)
 	for _, area := range areas {
-		sat := cfg.Satellites[area]
-		st, ok := byID[sat]
-		switch {
-		case !ok:
-			fmt.Printf("  ! satellite %s (%s) does not exist\n", sat, area)
-		case strings.HasPrefix(sat, "media_player."):
-			fmt.Printf("    satellite %-32s %s: tts.speak via %s\n", sat, area, cfg.Notifier.TTSEntity)
-		default:
-			f, _ := st.Attributes["supported_features"].(float64)
-			method := "none: cannot announce"
+		for _, sat := range cfg.Satellites[area] {
+			st, ok := byID[sat]
 			switch {
-			case int(f)&2 != 0:
-				method = "start_conversation (listens afterwards)"
-			case int(f)&1 != 0:
-				method = "announce (does not listen afterwards)"
+			case !ok:
+				fmt.Printf("  ! satellite %s (%s) does not exist\n", sat, area)
+			case strings.HasPrefix(sat, "media_player."):
+				fmt.Printf("    satellite %-32s %s: tts.speak via %s\n", sat, area, cfg.Notifier.TTSEntity)
+			default:
+				f, _ := st.Attributes["supported_features"].(float64)
+				method := "none: cannot announce"
+				switch {
+				case int(f)&2 != 0:
+					method = "start_conversation (listens afterwards)"
+				case int(f)&1 != 0:
+					method = "announce (does not listen afterwards)"
+				}
+				fmt.Printf("    satellite %-32s %s: %s\n", sat, area, method)
 			}
-			fmt.Printf("    satellite %-32s %s: %s\n", sat, area, method)
 		}
 	}
 	want := map[string]string{}

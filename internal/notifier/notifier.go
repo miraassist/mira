@@ -57,8 +57,8 @@ type Options struct {
 	Telemetry *telemetry.Provider
 	// Composer words several messages as one announcement (compose.go).
 	Composer Composer
-	// Screens are on-screen overlay actions per area, for satellites
-	// without an indicator light (screen.go); found by the app.
+	// Screens are on-screen overlay actions per satellite (screen.go); found
+	// by the app.
 	Screens map[string]string
 	// Languages says which language an area or a person gets
 	// (docs/spec/sprache.md); tests without it get the default language.
@@ -91,23 +91,24 @@ type Notifier struct {
 	// phoneHeld are the areas playing messages of the answering machine:
 	// their screen gets no new hint until it ends.
 	phoneHeld map[string]bool
-	// awaitingIdle are the areas whose satellite is in a conversation, with
+	// awaitingIdle are the satellites with a screen in a conversation, with
 	// a hint waiting until it is idle again (screen.go).
 	awaitingIdle map[string]bool
 	// delivering are the scheduled messages being delivered now (remind.go).
 	delivering map[string]bool
 	langs      Languages
 	cfg        config.Notifier
-	sats       map[string]string
-	persons    map[string]config.Person
-	store      *store.Store
-	ha         HA
-	clock      func() time.Time
-	loc        *time.Location
-	log        *slog.Logger
-	tel        *telemetry.Provider
-	composer   Composer
-	screens    map[string]string
+	// sats are each area's satellites, the primary first.
+	sats     map[string]config.Entities
+	persons  map[string]config.Person
+	store    *store.Store
+	ha       HA
+	clock    func() time.Time
+	loc      *time.Location
+	log      *slog.Logger
+	tel      *telemetry.Provider
+	composer Composer
+	screens  map[string]string
 	// screenCount is what each screen overlay last showed; screenShown when.
 	screenCount map[string]int
 	screenShown map[string]time.Time
@@ -179,8 +180,14 @@ type Outcome struct {
 	Private   []string // message ids sent privately instead
 }
 
-// OnPresence handles motion in an area.
+// OnPresence handles motion in an area, spoken at its primary.
 func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error) {
+	return n.OnPresenceAt(ctx, area, n.primary(area))
+}
+
+// OnPresenceAt handles motion in an area, spoken at the satellite the motion
+// sensor belongs to (docs/spec/satelliten-raeume.md).
+func (n *Notifier) OnPresenceAt(ctx context.Context, area, sat string) (Outcome, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -245,7 +252,7 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 	if max := n.cfg.MaxItemsPerAnnouncement; len(voice) > max {
 		voice = voice[:max] // the rest waits for the next occasion
 	}
-	if err := n.announce(ctx, area, voice, true); err != nil {
+	if err := n.announce(ctx, area, sat, voice, true); err != nil {
 		return out, err
 	}
 	for _, nt := range voice {
@@ -337,17 +344,17 @@ func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
 	return sent, nil
 }
 
-// announceEverywhere speaks one message on each satellite once.
+// announceEverywhere speaks one message once in each room, at its primary.
 func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Message) bool {
 	done := map[string]bool{}
 	spoken := false
 	for _, area := range sortedKeys(n.sats) {
-		sat := n.sats[area]
-		if done[sat] {
+		sat := n.primary(area)
+		if sat == "" || done[sat] {
 			continue
 		}
 		done[sat] = true
-		if err := n.announce(ctx, area, []store.Message{nt}, true); err != nil {
+		if err := n.announce(ctx, area, sat, []store.Message{nt}, true); err != nil {
 			n.log.Error("urgent announcement failed", "area", area, "error", err)
 			continue
 		}
@@ -356,7 +363,7 @@ func (n *Notifier) announceEverywhere(ctx context.Context, nt store.Message) boo
 	return spoken
 }
 
-func sortedKeys(m map[string]string) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -539,12 +546,12 @@ func countWord(t texts, n int) string {
 }
 
 // preannounce plays the satellite's chime first; an answer someone waits
-// for in that room does without it.
-func (n *Notifier) announce(ctx context.Context, area string, messages []store.Message, preannounce bool) error {
+// for in that room does without it. sat is the satellite of the room that
+// speaks (docs/spec/satelliten-raeume.md, Who speaks).
+func (n *Notifier) announce(ctx context.Context, area, sat string, messages []store.Message, preannounce bool) error {
 	ctx = n.inArea(ctx, area)
-	sat := n.sats[area]
 	text := n.compose(ctx, messages)
-	n.speaking(ctx, area)
+	n.speaking(ctx, area, sat)
 	method := n.method(ctx, sat)
 	ids := make([]string, len(messages))
 	for i, nt := range messages {
@@ -651,6 +658,27 @@ func (n *Notifier) satelliteMethod(ctx context.Context, sat string) string {
 		}
 	}
 	return "announce"
+}
+
+// primary is the area's primary satellite, "" without one.
+func (n *Notifier) primary(area string) string {
+	if sats := n.sats[area]; len(sats) > 0 {
+		return sats[0]
+	}
+	return ""
+}
+
+// satOn is the area's satellite on device, else its primary: what was
+// asked for at a satellite is spoken there while it is still in the room.
+func (n *Notifier) satOn(ctx context.Context, area, device string) string {
+	if device != "" {
+		for _, sat := range n.sats[area] {
+			if n.deviceID(ctx, sat) == device {
+				return sat
+			}
+		}
+	}
+	return n.primary(area)
 }
 
 // deviceID is the device of a satellite entity, for linking a follow-up

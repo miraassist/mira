@@ -35,7 +35,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
 		Tools: tools.NewRegistry(nil, internal...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: houseSnapshot, Logger: quietLogger(), Location: time.UTC,
-		Afterword: func(_ context.Context, area string) string {
+		Afterword: func(_ context.Context, area, _ string) string {
 			asked = append(asked, area)
 			w := waiting
 			waiting = ""

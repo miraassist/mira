@@ -39,7 +39,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Memory.ProfileSchedule = ""
-	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad"}
+	cfg.Satellites = map[string]config.Entities{"bad": {"assist_satellite.bad"}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{Areas: []string{"bad"}, Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}}}
 
 	path := filepath.Join(t.TempDir(), "mira.yaml")
@@ -104,7 +104,7 @@ func TestUIChangesApplyWithoutRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if saved.Notifier.QuietHours.From.String() != "23:00" || saved.Satellites["flur"] != "assist_satellite.flur" {
+	if saved.Notifier.QuietHours.From.String() != "23:00" || saved.Satellites["flur"][0] != "assist_satellite.flur" {
 		t.Errorf("file: quiet hours %v, satellites %v", saved.Notifier.QuietHours, saved.Satellites)
 	}
 }

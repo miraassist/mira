@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/miraassist/mira/internal/config"
 	"net/http"
+	"slices"
 	"sort"
 )
 
@@ -31,6 +32,18 @@ type Room struct {
 	// that shows waiting messages.
 	Mode      string `json:"mode,omitempty"`
 	Indicator string `json:"indicator,omitempty"`
+	// Others are the room's satellites besides Satellite, its primary, each
+	// with its own settings; nil from an older integration
+	// (docs/spec/satelliten-raeume.md).
+	Others []RoomSatellite `json:"others,omitempty"`
+}
+
+// RoomSatellite is one more satellite of a room.
+type RoomSatellite struct {
+	Satellite string   `json:"satellite"`
+	Presence  []string `json:"presence,omitempty"`
+	Morning   bool     `json:"morning"`
+	Indicator string   `json:"indicator,omitempty"`
 }
 
 type haConfig struct {
@@ -49,10 +62,19 @@ type haConfig struct {
 type morningTrigger struct {
 	Areas    []string              `json:"areas"`
 	Presence map[string]entityList `json:"presence"`
+	SpeakAt  map[string]string     `json:"speak_at,omitempty"`
 }
 
-// entityList reads one entity id or a list, as the YAML allows both.
+// entityList reads one entity id or a list, as the YAML allows both, and
+// writes one as itself, so a room with one satellite reads as before.
 type entityList []string
+
+func (e entityList) MarshalJSON() ([]byte, error) {
+	if len(e) == 1 {
+		return json.Marshal(e[0])
+	}
+	return json.Marshal([]string(e))
+}
 
 func (e *entityList) UnmarshalJSON(b []byte) error {
 	var one string
@@ -85,11 +107,11 @@ func (h *Handler) getHA(w http.ResponseWriter, r *http.Request) {
 
 // rooms joins satellites and the morning trigger into one list by area.
 func (h *Handler) rooms() ([]Room, error) {
-	var sats map[string]string
+	var sats map[string]entityList
 	var notifier struct {
-		MorningTrigger morningTrigger    `json:"morning_trigger"`
-		RoomMode       map[string]string `json:"room_mode"`
-		Indicators     map[string]string `json:"indicators"`
+		MorningTrigger morningTrigger        `json:"morning_trigger"`
+		RoomMode       map[string]string     `json:"room_mode"`
+		Indicators     map[string]entityList `json:"indicators"`
 	}
 	raw, err := h.opts.Config.Section("satellites")
 	if err == nil {
@@ -111,20 +133,42 @@ func (h *Handler) rooms() ([]Room, error) {
 		}
 		return byArea[area]
 	}
-	for area, sat := range sats {
-		room(area).Satellite = sat
+	speakAt := notifier.MorningTrigger.SpeakAt
+	for area, list := range sats {
+		r := room(area)
+		for i, sat := range list {
+			if i == 0 {
+				r.Satellite = sat
+				continue
+			}
+			other := RoomSatellite{Satellite: sat}
+			for _, sensor := range notifier.MorningTrigger.Presence[area] {
+				if speakAt[sensor] == sat {
+					other.Presence = append(other.Presence, sensor)
+				}
+			}
+			r.Others = append(r.Others, other)
+		}
 	}
 	for _, area := range notifier.MorningTrigger.Areas {
 		room(area).Morning = true
 	}
 	for area, sensors := range notifier.MorningTrigger.Presence {
-		room(area).Presence = sensors
+		// The primary's are those that speak at no other satellite.
+		r := room(area)
+		for _, sensor := range sensors {
+			if speakAt[sensor] == "" {
+				r.Presence = append(r.Presence, sensor)
+			}
+		}
 	}
 	for area, mode := range notifier.RoomMode {
 		room(area).Mode = mode
 	}
-	for area, light := range notifier.Indicators {
-		room(area).Indicator = light
+	for area, lights := range notifier.Indicators {
+		if len(lights) > 0 {
+			room(area).Indicator = lights[0]
+		}
 	}
 	out := make([]Room, 0, len(byArea))
 	for _, r := range byArea {
@@ -179,9 +223,9 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 	if err != nil {
 		return nil, nil, err
 	}
-	sats := map[string]string{}
-	mt := morningTrigger{Areas: []string{}, Presence: map[string]entityList{}}
-	modes, indicators := map[string]string{}, map[string]string{}
+	sats := map[string]entityList{}
+	mt := morningTrigger{Areas: []string{}, Presence: map[string]entityList{}, SpeakAt: map[string]string{}}
+	modes, indicators := map[string]string{}, map[string]entityList{}
 	seen := map[string]bool{}
 	for _, room := range in.Rooms {
 		if room.Area == "" {
@@ -192,19 +236,50 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 		}
 		seen[room.Area] = true
 		if room.Satellite != "" {
-			sats[room.Area] = room.Satellite
+			sats[room.Area] = entityList{room.Satellite}
 		}
-		if len(room.Presence) > 0 {
-			mt.Presence[room.Area] = room.Presence
+		presence := append([]string{}, room.Presence...)
+		morning := room.Morning
+		lights := entityList{}
+		if room.Indicator != "" {
+			lights = append(lights, room.Indicator)
 		}
-		if room.Morning {
+		// The others of the room: their sensors speak at them, unless the
+		// primary or another one has the sensor too; their lights show the
+		// room's state (docs/spec/satelliten-raeume.md).
+		owners := map[string][]string{}
+		for _, o := range room.Others {
+			if o.Satellite == "" || room.Satellite == "" {
+				continue
+			}
+			sats[room.Area] = append(sats[room.Area], o.Satellite)
+			for _, sensor := range o.Presence {
+				owners[sensor] = append(owners[sensor], o.Satellite)
+				if !slices.Contains(presence, sensor) {
+					presence = append(presence, sensor)
+				}
+			}
+			morning = morning || o.Morning
+			if o.Indicator != "" && !slices.Contains(lights, o.Indicator) {
+				lights = append(lights, o.Indicator)
+			}
+		}
+		for sensor, at := range owners {
+			if len(at) == 1 && !slices.Contains(room.Presence, sensor) {
+				mt.SpeakAt[sensor] = at[0]
+			}
+		}
+		if len(presence) > 0 {
+			mt.Presence[room.Area] = presence
+		}
+		if morning {
 			mt.Areas = append(mt.Areas, room.Area)
 		}
 		if room.Mode != "" {
 			modes[room.Area] = room.Mode
 		}
-		if room.Indicator != "" {
-			indicators[room.Area] = room.Indicator
+		if len(lights) > 0 {
+			indicators[room.Area] = lights
 		}
 	}
 	// The notifier keeps everything else; only its morning trigger comes

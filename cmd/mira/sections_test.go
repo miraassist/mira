@@ -105,7 +105,7 @@ func TestBE16_WhatHomeAssistantSendsIsHeldInMemoryNotWritten(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if live := a.liveConfig(); live.Persons["ben"].Entity != "person.ben" || live.Satellites["kueche"] == "" {
+	if live := a.liveConfig(); live.Persons["ben"].Entity != "person.ben" || len(live.Satellites["kueche"]) == 0 {
 		t.Errorf("not running with them: %+v %+v", live.Persons, live.Satellites)
 	}
 	if file := read(t, path); file != sectionsConfig {

@@ -52,8 +52,9 @@ type Options struct {
 	Model, Decider, Planner Model
 	QuietHours              config.QuietHours
 	Persons                 func() map[string]config.Person
-	// Satellites maps an area to its satellite, for where a task was asked.
-	Satellites func() map[string]string
+	// Satellite is an area's satellite on a device, else its primary, for
+	// where a task was asked.
+	Satellite func(area, device string) string
 	// Upcoming renders a calendar's events in a window (view upcoming).
 	Upcoming func(ctx context.Context, entity string, from, to time.Time) (string, error)
 	// HAURL is how Mira reaches Home Assistant. Links into its editor use
@@ -139,6 +140,8 @@ func (e ErrCannot) Error() string { return e.Reason }
 // empty.
 type Origin struct {
 	Area, Person string
+	// Device is the satellite's device it was asked at.
+	Device string
 }
 
 // exposedStates are the states of what Mira may see, as Home Assistant
@@ -223,8 +226,8 @@ func (m *Manager) originText(from Origin) string {
 			name = from.Area
 		}
 		sat := ""
-		if m.opts.Satellites != nil {
-			sat = m.opts.Satellites()[from.Area]
+		if m.opts.Satellite != nil {
+			sat = m.opts.Satellite(from.Area, from.Device)
 		}
 		fmt.Fprintf(&b, t.draftArea, name, from.Area, sat)
 	}

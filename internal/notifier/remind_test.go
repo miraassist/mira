@@ -71,7 +71,7 @@ func TestReminderWithoutRoomGoesPrivately(t *testing.T) {
 // that asked for it.
 func TestTellWaitsForIdleSatellite(t *testing.T) {
 	e := newEnv(t, nil)
-	sat := e.n.sats["kueche"]
+	sat := e.n.primary("kueche")
 	e.ha.set(sat, "responding", nil)
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -94,7 +94,7 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 // timeout while it listens is not a failure and sends nothing privately.
 func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 	e := newEnv(t, nil)
-	sat := e.n.sats["kueche"]
+	sat := e.n.primary("kueche")
 	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
 	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
@@ -149,7 +149,7 @@ func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 func TestDueRemindersDoNotBlockTheLoop(t *testing.T) {
 	e := newEnv(t, nil)
 	e.now = at("08:00")
-	sat := e.n.sats["kueche"]
+	sat := e.n.primary("kueche")
 	e.ha.set(sat, "responding", nil) // busy: the reminder must wait
 	e.reminder("r1", at("07:59"), "kueche", "ben")
 	ctx := context.Background()

@@ -14,16 +14,23 @@ type Subscriber interface {
 
 // Run watches the presence sensors and runs Tick every minute until ctx ends.
 func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
-	motion := make(chan string, 16)
+	// A motion sensor speaks at its satellite: the one SpeakAt names, else
+	// the room's primary (docs/spec/satelliten-raeume.md).
+	type motionAt struct{ area, sat string }
+	motion := make(chan motionAt, 16)
 	for area, sensors := range n.cfg.MorningTrigger.Presence {
 		if !n.areas[area] {
 			continue
 		}
 		for _, sensor := range sensors {
+			at := motionAt{area, n.primary(area)}
+			if sat := n.cfg.MorningTrigger.SpeakAt[sensor]; sat != "" {
+				at.sat = sat
+			}
 			trigger := map[string]any{"trigger": "state", "entity_id": sensor, "to": "on"}
 			cancel, err := sub.SubscribeTrigger(ctx, trigger, func(haws.Event) {
 				select {
-				case motion <- area:
+				case motion <- at:
 				default: // a burst of motion events; one is enough
 				}
 			})
@@ -32,7 +39,7 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 				continue
 			}
 			defer cancel()
-			n.log.Info("watching presence", "area", area, "sensor", sensor)
+			n.log.Info("watching presence", "area", area, "sensor", sensor, "satellite", at.sat)
 		}
 	}
 
@@ -47,8 +54,9 @@ func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case area := <-motion:
-			out, err := n.OnPresence(ctx, area)
+		case at := <-motion:
+			area := at.area
+			out, err := n.OnPresenceAt(ctx, area, at.sat)
 			switch {
 			case err != nil:
 				n.log.Error("announcement failed", "area", area, "error", err)

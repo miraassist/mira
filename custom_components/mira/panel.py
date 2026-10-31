@@ -41,7 +41,8 @@ from .managed import (
     notify_targets,
     person_settings,
     satellite_area,
-    satellite_settings,
+    satellite_form_settings,
+    satellites_without_area,
     save_settings,
 )
 
@@ -242,7 +243,7 @@ class MiraSettingsView(HomeAssistantView):
             items = [{"entity": e, "name": entity_name(hass, e), "settings": current.get(e, {})} for e in all_persons(hass)]
             return web.json_response({"items": items, "notify": notify_targets(hass)})
         if kind == "satellites":
-            current = satellite_settings(hass)
+            current = satellite_form_settings(hass)
             areas = ar.async_get(hass)
             items = []
             for e in all_satellites(hass):
@@ -256,8 +257,16 @@ class MiraSettingsView(HomeAssistantView):
                         "settings": current.get(e, {}),
                     }
                 )
+            # Satellites without an area have no room, so nothing to set; the
+            # page lists them with the reason (docs/spec/satelliten-raeume.md).
+            unplaced = [{"entity": e, "name": entity_name(hass, e)} for e in satellites_without_area(hass)]
             return web.json_response(
-                {"items": items, "binary_sensors": _choices(hass, "binary_sensor"), "lights": _choices(hass, "light")}
+                {
+                    "items": items,
+                    "unplaced": unplaced,
+                    "binary_sensors": _choices(hass, "binary_sensor"),
+                    "lights": _choices(hass, "light"),
+                }
             )
         return web.Response(status=404)
 

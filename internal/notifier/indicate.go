@@ -114,7 +114,7 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 		n.log.Error("could not check waiting messages", "error", err)
 		return
 	}
-	for area, light := range n.cfg.Indicators {
+	for area, lights := range n.cfg.Indicators {
 		if n.speakingIn[area] {
 			continue // speaking restores it when the text ends
 		}
@@ -131,12 +131,19 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 		if shown, known := n.indicatorOn[area]; known && shown == want {
 			continue
 		}
-		if err := n.setIndicator(ctx, light, want); err != nil {
-			n.log.Error("could not switch indicator", "area", area, "light", light, "error", err)
+		// Every light of the room shows the room's state.
+		failed := false
+		for _, light := range lights {
+			if err := n.setIndicator(ctx, light, want); err != nil {
+				n.log.Error("could not switch indicator", "area", area, "light", light, "error", err)
+				failed = true
+			}
+		}
+		if failed {
 			continue
 		}
 		n.indicatorOn[area] = want
-		n.log.Info("indicator switched", "area", area, "light", light, "shows", want, "waiting", len(list))
+		n.log.Info("indicator switched", "area", area, "lights", strings.Join(lights, ","), "shows", want, "waiting", len(list))
 	}
 	n.syncScreens(ctx)
 	n.syncPhoneScreens(ctx, phone)
@@ -190,17 +197,24 @@ func (n *Notifier) lightUpIn(ctx context.Context, light, effect string, colour [
 // when the text ends: the satellite leaves "responding". Until then
 // syncIndicators leaves that light alone; afterwards it shows what waits.
 
-// speaking lights the area's indicator steadily for an announcement and
-// watches the satellite to restore it when the text ends. It runs before
-// the announcement is sent, since start_conversation returns only after
-// the listening that follows. The caller holds n.mu.
-func (n *Notifier) speaking(ctx context.Context, area string) {
-	light, sat := n.cfg.Indicators[area], n.sats[area]
-	if light == "" || !strings.HasPrefix(sat, "assist_satellite.") {
+// speaking lights the area's indicators steadily for an announcement and
+// watches the satellite that speaks to restore them when the text ends. It
+// runs before the announcement is sent, since start_conversation returns
+// only after the listening that follows. The caller holds n.mu.
+func (n *Notifier) speaking(ctx context.Context, area, sat string) {
+	lights := n.cfg.Indicators[area]
+	if len(lights) == 0 || !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}
-	if err := n.lightUp(ctx, light, "None"); err != nil {
-		n.log.Warn("could not light the indicator for an announcement", "area", area, "error", err)
+	lit := false
+	for _, light := range lights {
+		if err := n.lightUp(ctx, light, "None"); err != nil {
+			n.log.Warn("could not light the indicator for an announcement", "area", area, "light", light, "error", err)
+			continue
+		}
+		lit = true
+	}
+	if !lit {
 		return
 	}
 	n.speakingIn[area] = true
@@ -230,7 +244,8 @@ func (n *Notifier) SyncIndicators(ctx context.Context) {
 //
 // Read out by voice, it counts as an announcement on that satellite, so a
 // follow-up question ("Was genau?") gets the details as after any other.
-func (n *Notifier) ReadOut(ctx context.Context, area, receiver string) (string, error) {
+// device is the satellite's device the turn came from.
+func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (string, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -256,9 +271,12 @@ func (n *Notifier) ReadOut(ctx context.Context, area, receiver string) (string, 
 			return "", err
 		}
 	}
-	if sat := n.sats[area]; sat != "" {
+	if device == "" {
+		device = n.deviceID(ctx, n.primary(area))
+	}
+	if area != "" && device != "" {
 		if err := n.store.RecordAnnouncement(ctx, store.Announcement{
-			ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, sat), AreaID: area,
+			ID: ulid.Make().String(), DeviceID: device, AreaID: area,
 			Channel: "voice", MessageIDs: ids,
 		}); err != nil {
 			return "", err
@@ -293,11 +311,11 @@ func (n *Notifier) forReceiver(ctx context.Context, receiver string) ([]store.Me
 // Afterword is what follows an answer on a satellite: the messages waiting
 // for its area, as "Übrigens: ...", marked heard. Nothing during quiet hours
 // (a light switched at night wants no news) and nothing urgent, which was
-// spoken already.
-func (n *Notifier) Afterword(ctx context.Context, area string) string {
+// spoken already. device is the satellite's device the answer is spoken on.
+func (n *Notifier) Afterword(ctx context.Context, area, device string) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.sats[area] == "" || n.inQuietHours(n.clock()) {
+	if len(n.sats[area]) == 0 || n.inQuietHours(n.clock()) {
 		return ""
 	}
 	list, err := n.waiting(ctx, area)
@@ -327,8 +345,11 @@ func (n *Notifier) Afterword(ctx context.Context, area string) string {
 			return ""
 		}
 	}
+	if device == "" {
+		device = n.deviceID(ctx, n.primary(area))
+	}
 	if err := n.store.RecordAnnouncement(ctx, store.Announcement{
-		ID: ulid.Make().String(), DeviceID: n.deviceID(ctx, n.sats[area]), AreaID: area,
+		ID: ulid.Make().String(), DeviceID: device, AreaID: area,
 		Channel: "voice", MessageIDs: ids,
 	}); err != nil {
 		n.log.Error("could not record announcement", "area", area, "error", err)

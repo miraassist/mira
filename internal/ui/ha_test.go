@@ -99,3 +99,71 @@ func TestHomeAssistantFieldsFromANewerIntegration(t *testing.T) {
 		t.Errorf("persons = %s", got)
 	}
 }
+
+func TestSR20_ARoomWithOthersBecomesAListThePrimaryFirst(t *testing.T) {
+	srv, cfg, _ := setup(t)
+	cfg.sections["notifier"] = json.RawMessage(`{"cooldown":"30m"}`)
+	code, body := call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"rooms":[{"area":"wz","satellite":"assist_satellite.sofa",
+		"presence":["binary_sensor.sofa","binary_sensor.flur"],"morning":false,"indicator":"light.sofa_ring",
+		"others":[{"satellite":"assist_satellite.essen","presence":["binary_sensor.essen","binary_sensor.flur"],"morning":true,"indicator":"light.essen_ring"},
+		          {"satellite":"assist_satellite.fenster","presence":["binary_sensor.terrasse"],"morning":false}]}]}`)
+	if code != 200 {
+		t.Fatalf("put: %d %s", code, body)
+	}
+	if got := string(cfg.sections["satellites"]); got != `{"wz":["assist_satellite.sofa","assist_satellite.essen","assist_satellite.fenster"]}` {
+		t.Errorf("satellites %s", got)
+	}
+	var n struct {
+		Indicators     map[string][]string `json:"indicators"`
+		MorningTrigger struct {
+			Areas    []string            `json:"areas"`
+			Presence map[string][]string `json:"presence"`
+			SpeakAt  map[string]string   `json:"speak_at"`
+		} `json:"morning_trigger"`
+	}
+	if err := json.Unmarshal(cfg.sections["notifier"], &n); err != nil {
+		t.Fatal(err)
+	}
+	// every light of the room
+	if strings.Join(n.Indicators["wz"], ",") != "light.sofa_ring,light.essen_ring" {
+		t.Errorf("indicators %v", n.Indicators)
+	}
+	// every sensor of the room; one of an other speaks at it; one the
+	// primary has too speaks at the primary
+	if strings.Join(n.MorningTrigger.Presence["wz"], ",") != "binary_sensor.sofa,binary_sensor.flur,binary_sensor.essen,binary_sensor.terrasse" {
+		t.Errorf("presence %v", n.MorningTrigger.Presence)
+	}
+	want := map[string]string{"binary_sensor.essen": "assist_satellite.essen", "binary_sensor.terrasse": "assist_satellite.fenster"}
+	if len(n.MorningTrigger.SpeakAt) != 2 || n.MorningTrigger.SpeakAt["binary_sensor.essen"] != want["binary_sensor.essen"] ||
+		n.MorningTrigger.SpeakAt["binary_sensor.terrasse"] != want["binary_sensor.terrasse"] {
+		t.Errorf("speak_at %v", n.MorningTrigger.SpeakAt)
+	}
+	// one of them announces on entry: the room does
+	if strings.Join(n.MorningTrigger.Areas, ",") != "wz" {
+		t.Errorf("areas %v", n.MorningTrigger.Areas)
+	}
+	// read back with the others and their sensors
+	if code, body := call(t, srv, "GET", "/v1/ui/ha", "secret", ""); code != 200 ||
+		!strings.Contains(body, `"satellite":"assist_satellite.sofa","presence":["binary_sensor.sofa","binary_sensor.flur"]`) ||
+		!strings.Contains(body, `{"satellite":"assist_satellite.essen","presence":["binary_sensor.essen"],"morning":false}`) {
+		t.Errorf("rooms read back: %s", body)
+	}
+}
+
+func TestSR21_ARoomWithoutOthersIsTakenAsBefore(t *testing.T) {
+	srv, cfg, _ := setup(t)
+	cfg.sections["notifier"] = json.RawMessage(`{"cooldown":"30m"}`)
+	code, body := call(t, srv, "PUT", "/v1/ui/ha", "secret", `{"rooms":[{"area":"bad","satellite":"assist_satellite.bad",
+		"presence":["binary_sensor.bad"],"morning":true,"indicator":"light.bad_ring"}]}`)
+	if code != 200 {
+		t.Fatalf("put: %d %s", code, body)
+	}
+	if got := string(cfg.sections["satellites"]); got != `{"bad":"assist_satellite.bad"}` {
+		t.Errorf("satellites %s", got)
+	}
+	n := string(cfg.sections["notifier"])
+	if !strings.Contains(n, `"indicators":{"bad":"light.bad_ring"}`) || !strings.Contains(n, `"presence":{"bad":"binary_sensor.bad"}`) ||
+		strings.Contains(n, "speak_at") {
+		t.Errorf("notifier %s", n)
+	}
+}

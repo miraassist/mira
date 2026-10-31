@@ -59,7 +59,7 @@ func (e *Engine) AgentCall(ctx context.Context) agent.CallContext {
 			receiver = store.ReceiverHouse
 		}
 		cc.Mode = agent.Mode{Timeout: wait, OnTimeout: agent.RunOn,
-			Delivery: agent.Delivery{Route: agent.ToMessage, Receiver: receiver, Area: conv.Place}}
+			Delivery: agent.Delivery{Route: agent.ToMessage, Receiver: receiver, Area: conv.Place, Device: conv.DeviceID}}
 	}
 	return cc
 }

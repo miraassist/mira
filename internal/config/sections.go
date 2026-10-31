@@ -149,8 +149,8 @@ func (c *Config) ApplySection(name string, raw []byte) error {
 			return fmt.Errorf("section %s: %w", name, err)
 		}
 		*p = v
-	case *map[string]string:
-		var v map[string]string
+	case *map[string]Entities:
+		var v map[string]Entities
 		if err := yaml.Unmarshal(raw, &v); err != nil {
 			return fmt.Errorf("section %s: %w", name, err)
 		}

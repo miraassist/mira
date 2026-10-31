@@ -33,6 +33,21 @@ func (a *app) deviceNode(deviceID string) string {
 	return slug(d.Name)
 }
 
+// satelliteOn is the area's satellite on device, else the area's primary
+// (docs/spec/satelliten-raeume.md); "" when the area has none.
+func (a *app) satelliteOn(area, device string) string {
+	sats := a.liveConfig().Satellites[area]
+	if len(sats) == 0 {
+		return ""
+	}
+	for _, sat := range sats {
+		if device != "" && a.entityDevice(sat) == device {
+			return sat
+		}
+	}
+	return sats[0]
+}
+
 // entityDevice is the device of an entity, "" for none.
 func (a *app) entityDevice(entity string) string {
 	return a.structure.Snapshot().Entities[entity].DeviceID

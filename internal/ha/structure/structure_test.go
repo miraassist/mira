@@ -332,3 +332,29 @@ func TestBuildKeepsTheSatelliteDevices(t *testing.T) {
 		t.Errorf("satellite devices = %q", got)
 	}
 }
+
+func TestSR05_ATurnsAreaIsTheSatelliteEntitysElseItsDevices(t *testing.T) {
+	snap := Build(Registry{
+		Devices: []haws.Device{
+			{ID: "dev-flur"},
+			{ID: "dev-bad", AreaID: "bad"},
+			{ID: "dev-both", AreaID: "keller"},
+		},
+		Entities: []haws.Entity{
+			// the entity has an area, its device none
+			{EntityID: "assist_satellite.flur", DeviceID: "dev-flur", AreaID: "flur"},
+			// the entity has none: the device's, as before
+			{EntityID: "assist_satellite.bad", DeviceID: "dev-bad"},
+			// both: the entity's
+			{EntityID: "assist_satellite.both", DeviceID: "dev-both", AreaID: "kueche"},
+			// another entity's own area does not move its device
+			{EntityID: "sensor.flur_temp", DeviceID: "dev-bad", AreaID: "flur"},
+		},
+		Exposed: map[string]bool{},
+	})
+	for device, want := range map[string]string{"dev-flur": "flur", "dev-bad": "bad", "dev-both": "kueche"} {
+		if got := snap.DeviceArea[device]; got != want {
+			t.Errorf("DeviceArea[%s] = %q, want %q", device, got, want)
+		}
+	}
+}

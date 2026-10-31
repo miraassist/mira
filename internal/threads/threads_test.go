@@ -321,3 +321,22 @@ func TestWorkingThreadStartsAgainAfterARestart(t *testing.T) {
 		t.Errorf("state %s", got.State)
 	}
 }
+
+// In a room with several satellites, what a thread tells later is spoken at
+// the satellite it began at: the message carries its device
+// (docs/spec/satelliten-raeume.md).
+func TestSR29_TheAnswerOfAThreadComesAtTheSatelliteItBeganAt(t *testing.T) {
+	e := setup(t)
+	e.fin.delay = 200 * time.Millisecond // slower than the turn waits: it comes as a message
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	inv.DeviceID = "dev-essen"
+	if _, err := e.m.Start(ctx, inv, "aufgabe", "Sag Bescheid, wenn das Licht nachts angeht"); err != nil {
+		t.Fatal(err)
+	}
+	e.m.Fill(ctx, inv, map[string]string{"watch": "licht im schlafzimmer"})
+	e.m.Fill(ctx, inv, map[string]string{"measure": "- Mira soll es selbst beurteilen"})
+	if q := e.next(t); q.OriginDevice != "dev-essen" {
+		t.Errorf("message of the thread carries device %q", q.OriginDevice)
+	}
+}

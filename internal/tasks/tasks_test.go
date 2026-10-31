@@ -371,7 +371,7 @@ func TestDraftQuestionsAndHonestProposal(t *testing.T) {
 // judgements.
 func TestDraftKnowsWhereAndFromWhom(t *testing.T) {
 	e := setup(t)
-	e.m.opts.Satellites = func() map[string]string { return map[string]string{"schlafzimmer": "assist_satellite.show"} }
+	e.m.opts.Satellite = func(area, _ string) string { return map[string]string{"schlafzimmer": "assist_satellite.show"}[area] }
 	ctx := context.Background()
 	e.st.SaveFact(ctx, store.Fact{ID: "a", Text: "Anna steht werktags um 6 auf.", Owner: "anna"})
 	e.st.SaveFact(ctx, store.Fact{ID: "b", Text: "Ben hört gern Jazz.", Owner: "ben"})

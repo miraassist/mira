@@ -76,7 +76,7 @@ type automationFinisher struct{ m *Manager }
 func (automationFinisher) Async() bool { return true }
 
 func (f automationFinisher) Work(ctx context.Context, th store.Thread) (threads.Result, error) {
-	from := Origin{Person: th.Person}
+	from := Origin{Person: th.Person, Device: th.Device}
 	from.Area, _ = strings.CutPrefix(th.Place, "area:")
 	if from.Area == th.Place {
 		from.Area = "" // not at a satellite: Telegram or the app chat

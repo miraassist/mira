@@ -174,6 +174,15 @@ func Build(reg Registry) Snapshot {
 			snap.DeviceArea[d.ID] = d.AreaID
 		}
 	}
+	// A satellite's area is its entity's, else its device's, as the
+	// integration finds it (docs/spec/satelliten-raeume.md, decision 8).
+	for _, e := range reg.Entities {
+		if Domain(e.EntityID) == "assist_satellite" && e.DisabledBy == "" && e.AreaID != "" {
+			if _, ok := deviceByID[e.DeviceID]; ok {
+				snap.DeviceArea[e.DeviceID] = e.AreaID
+			}
+		}
+	}
 
 	// Group entities by area. The empty area id collects what has no room.
 	byArea := map[string][]entityRow{}

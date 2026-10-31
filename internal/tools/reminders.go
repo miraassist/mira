@@ -102,7 +102,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 				}
 				m := store.Message{ID: ulid.Make().String(), Source: store.SourcePerson, Sender: senderOf(inv),
 					Importance: 1, Receiver: receiver, Spoken: spoken, SessionKey: inv.SessionKey,
-					OriginArea: inv.Area, ExpiresAt: o.Clock().Add(7 * 24 * time.Hour)}
+					OriginArea: inv.Area, OriginDevice: inv.DeviceID, ExpiresAt: o.Clock().Add(7 * 24 * time.Hour)}
 				if a.At != "" || a.InMinutes != 0 {
 					now := o.Clock().In(o.Location)
 					due, err := dueTime(now, a.At, a.InMinutes, o.Location)
@@ -176,7 +176,9 @@ func Reminders(o ReminderOptions) []InternalTool {
 				}
 				if inv.Channel == config.ChannelVoice && o.Store != nil {
 					if sess, err := o.Store.GetSession(ctx, inv.SessionKey); err == nil {
-						m.AreaID = sess.AreaID
+						// Spoken in the room it was asked in, at the satellite
+						// asked (docs/spec/satelliten-raeume.md).
+						m.AreaID, m.OriginDevice = sess.AreaID, sess.DeviceID
 					}
 				}
 				if _, err := o.Store.ScheduleMessage(ctx, m); err != nil {

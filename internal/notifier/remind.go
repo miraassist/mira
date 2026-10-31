@@ -16,7 +16,7 @@ import (
 // privately to its receiver. It stays a delivered message, so it shows in
 // the web UI and messages_list like any other.
 func (n *Notifier) Remind(ctx context.Context, m store.Message) error {
-	n.waitIdle(ctx, m.AreaID)
+	n.waitIdle(ctx, n.satOn(ctx, m.AreaID, m.OriginDevice))
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -36,7 +36,7 @@ func (n *Notifier) Remind(ctx context.Context, m store.Message) error {
 // reminder it is spoken in the room it was asked in, otherwise it goes
 // privately to its receiver.
 func (n *Notifier) Tell(ctx context.Context, nt store.Message, areaID string) error {
-	n.waitIdle(ctx, areaID)
+	n.waitIdle(ctx, n.satOn(ctx, areaID, nt.OriginDevice))
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if nt.ExpiresAt.IsZero() {
@@ -52,15 +52,16 @@ func (n *Notifier) Tell(ctx context.Context, nt store.Message, areaID string) er
 }
 
 // deliverAsked speaks nt in the area unless quiet mode is on, falling back
-// to a private message. n.mu is held.
+// to a private message: at the satellite it was asked at, while that is in
+// the room, else at the room's primary. n.mu is held.
 func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID string, preannounce bool) error {
 	quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false)
 	if err != nil {
 		return err
 	}
 	defer n.syncIndicators(ctx)
-	if sat := n.sats[areaID]; sat != "" && !quiet {
-		err := n.announce(ctx, areaID, []store.Message{nt}, preannounce)
+	if sat := n.satOn(ctx, areaID, nt.OriginDevice); sat != "" && !quiet {
+		err := n.announce(ctx, areaID, sat, []store.Message{nt}, preannounce)
 		if err == nil {
 			return nil
 		}
@@ -122,15 +123,14 @@ func (n *Notifier) remindOne(ctx context.Context, m store.Message) {
 // idleWait bounds how long a message waits for a busy satellite.
 const idleWait = time.Minute
 
-// waitIdle waits until the area's satellite has finished speaking: the
+// waitIdle waits until the satellite that will speak has finished: the
 // satellite idle and the speakers of its device no longer playing (the
 // satellite turns idle while the audio still plays), then a short pause.
 // A message that arrives while it still speaks the answer that asked for
 // it would cut that answer off or follow it without a breath, and the
 // announcement would time out on the busy satellite. After idleWait it
 // gives up waiting and delivers anyway.
-func (n *Notifier) waitIdle(ctx context.Context, areaID string) {
-	sat := n.sats[areaID]
+func (n *Notifier) waitIdle(ctx context.Context, sat string) {
 	if !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}

@@ -38,7 +38,7 @@ from .coordinator import MiraCoordinator
 from .agents import async_register_agent_services
 from .labels import ensure_labels
 from .mail import async_setup_mail
-from .managed import async_config, import_settings
+from .managed import async_config, clear_area_repairs, ensure_primaries, import_settings, sync_area_repairs
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
 
@@ -195,6 +195,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # Once Home Assistant has started, compare at once what Assist sees with
     # what the agent has, without waiting for the next poll.
     entry.async_on_unload(async_at_started(hass, lambda _hass: coordinator.async_request_refresh()))
+    # A satellite without an area is a repair (docs/spec/satelliten-raeume.md);
+    # once started, when every satellite is registered.
+    entry.async_on_unload(async_at_started(hass, sync_area_repairs))
+    entry.async_on_unload(async_at_started(hass, ensure_primaries))
+    entry.async_on_unload(lambda: clear_area_repairs(hass))
     # Telegram through Home Assistant's own integration (telegram.py).
     entry.async_on_unload(async_setup_telegram(hass, entry))
     # Mails of IMAP entries named like a mail application (mail.py).
@@ -205,6 +210,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # entities in one go) are sent once, with what is current then.
     @callback
     def _resend() -> None:  # a callback: it runs in the event loop, not in a thread
+        sync_area_repairs(hass)
+        ensure_primaries(hass)
         _send_exposed(hass, entry)
 
     resend = Debouncer(hass, _LOGGER, cooldown=RESEND_COOLDOWN, immediate=False, function=_resend)

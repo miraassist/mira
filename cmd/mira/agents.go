@@ -185,7 +185,7 @@ func (a *app) resultMessage(ctx context.Context, rec store.AgentRun, d agent.Del
 	}
 	return nf.Tell(ctx, store.Message{ID: ulid.Make().String(), Source: store.SourceTask,
 		DedupeKey: "agent:" + rec.CallID, Importance: 2, Receiver: receiver, Spoken: spoken,
-		Details: about}, d.Area)
+		Details: about, OriginDevice: d.Device}, d.Area)
 }
 
 var resultSchema = json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`)

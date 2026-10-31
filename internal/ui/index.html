@@ -323,6 +323,7 @@ button.switch:focus-visible { outline:2px solid var(--tone); outline-offset:2px;
 .item-body > .inline-editor:last-child { border-bottom:0; padding-bottom:0; margin-bottom:0; }
 section.card > :first-child, section.card > :first-child > :first-child { margin-top:0; }
 details.item.card-item.unclip[open]>summary .short.clip { display:block; -webkit-line-clamp:unset; }
+details.item.card-item.unplaced>summary { opacity:.6; }
 .item.card-item .item-tags .checkline, .list-head .checkline { margin:0; white-space:nowrap; }
 @media(max-width:900px) {
   details.item.card-item>summary,.item.card-item.plain { grid-template-columns:36px minmax(0,1fr) auto 16px; gap:6px 12px; }
@@ -575,7 +576,7 @@ const I18N = {
   "motion": "Bewegungsmelder",
   "announcements": "Beim Hereinkommen ansagen",
   "add_room": "+ Raum",
-  "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich. Was dazukommt, steht am Satelliten selbst in Home Assistant: Bewegungsmelder (auch mehrere mit Komma), ob Mira beim Hereinkommen von selbst ansagt, und eine Anzeige wie den LED-Ring, der leuchtet, solange etwas wartet (Geräte mit Bildschirm wie die Echo Show blenden es von selbst ein).",
+  "satellites_ha_hint": "Jeder Assist-Satellit mit Bereich spricht in seinem Bereich; stehen mehrere in einem Bereich, spricht der Hauptsatellit, wo nicht klar ist, welcher. Was dazukommt, steht am Satelliten selbst in Home Assistant: Bewegungsmelder (auch mehrere mit Komma), ob Mira beim Hereinkommen von selbst ansagt, und eine Anzeige wie den LED-Ring, der leuchtet, solange etwas wartet (Geräte mit Bildschirm wie die Echo Show blenden es von selbst ein).",
   "persons_ha_hint": "Jede Person aus Home Assistant ist auch für mich eine Person, angelegt wird hier nichts. Du stellst nur ein, was ich zusätzlich brauche: wohin persönliche Nachrichten gehen und ob die Satelliten als diese Person gelten, wenn sie allein zu Hause ist.",
   "person": "Person",
   "persons_hint": "Personen sind Empfänger persönlicher Nachrichten. Über die Person-Entity weiß Mira, wer zu Hause ist; ohne Tracker (Zustand unknown) gilt jemand als „vielleicht da“.",
@@ -696,6 +697,8 @@ const I18N = {
   "ed_edit": "Bearbeiten", "ed_save": "Speichern", "ed_cancel": "Abbrechen", "ed_delete": "Löschen",
   "ed_apply": "Übernehmen", "ed_applied": "Gespeichert, gilt nach einem Neustart.",
   "card_saved": "Gespeichert.", "person_open": "Ganze Karte und Stimme", "tag_announces": "sagt an", "tag_indicator": "Anzeige",
+  "primary": "Hauptsatellit", "primary_hint": "Bei mehreren Satelliten in einem Raum spricht dieser, wo nicht klar ist, welcher es soll, z. B. bei einer Nachricht an den Raum.",
+  "no_area": "Kein Bereich", "no_area_hint": "Mira kennt keinen Raum für diesen Satelliten: Er antwortet, aber Mira meldet sich dort nicht von selbst, und sein Ring zeigt nichts an. Gib ihm in Home Assistant einen Bereich (Einstellungen → Geräte → das Gerät → Bereich).",
   "task_switch": "Aufgabe an oder aus", "tasks_planning": "In Planung",
   "ed_switch_failed": (name, why) => `„${name}“ ließ sich nicht umschalten: ${why}`,
   "ed_title": n => `„${n}“ bearbeiten`,
@@ -1042,7 +1045,7 @@ const I18N = {
   "motion": "Motion sensor",
   "announcements": "Announce on entry",
   "add_room": "+ Room",
-  "satellites_ha_hint": "Every Assist satellite with an area speaks in its area. What comes on top is stored on the satellite itself in Home Assistant: motion sensors (several with commas), whether Mira announces by herself when someone comes in, and an indicator such as an LED ring that glows while something waits (devices with a screen like the Echo Show show an overlay by themselves).",
+  "satellites_ha_hint": "Every Assist satellite with an area speaks in its area; with several in one area, the main satellite speaks where it is not clear which one should. What comes on top is stored on the satellite itself in Home Assistant: motion sensors (several with commas), whether Mira announces by herself when someone comes in, and an indicator such as an LED ring that glows while something waits (devices with a screen like the Echo Show show an overlay by themselves).",
   "persons_ha_hint": "Every person in Home Assistant is a person for me too; nothing is created here. You only set what I need on top: where personal messages go and whether the satellites count as this person when they are alone at home.",
   "person": "Person",
   "persons_hint": "People receive personal messages. Through the person entity Mira knows who is home; without a tracker (state unknown) someone counts as “maybe there”.",
@@ -1160,6 +1163,8 @@ const I18N = {
   "ed_edit": "Edit", "ed_save": "Save", "ed_cancel": "Cancel", "ed_delete": "Delete",
   "ed_apply": "Apply", "ed_applied": "Saved; it counts after a restart.",
   "card_saved": "Saved.", "person_open": "Whole card and voice", "tag_announces": "announces", "tag_indicator": "indicator",
+  "primary": "Main satellite", "primary_hint": "With several satellites in a room, this one speaks where it is not clear which one should, e.g. a message for the room.",
+  "no_area": "No area", "no_area_hint": "Mira knows no room for this satellite: it answers, but Mira does not speak there on her own, and its ring shows nothing. Give it an area in Home Assistant (Settings → Devices → the device → Area).",
   "task_switch": "Task on or off", "tasks_planning": "Being planned",
   "ed_switch_failed": (name, why) => `"${name}" could not be switched: ${why}`,
   "ed_title": n => `Edit "${n}"`,
@@ -1739,7 +1744,15 @@ function rooms() {
   const presence = mt.presence || {}, inds = n.indicators || {};
   const areas = new Set([...Object.keys(sats), ...list(mt.areas)]);
   const rows = [...areas].sort().map(a => ({ area: a, sat: sats[a] || "", sensor: csv(presence[a]), active: list(mt.areas).includes(a), ind: inds[a] || "" }));
-  if (managed("satellites")) return embedded && isAdmin ? haSettings("satellites") : haSatellites(rows);
+  if (managed("satellites")) {
+    if (embedded && isAdmin) return haSettings("satellites");
+    // A row per satellite; a room's first is its primary, the motion sensors
+    // of the others speak at them (docs/spec/satelliten-raeume.md).
+    const at = mt.speak_at || {}, many = [];
+    [...areas].sort().forEach(a => list(sats[a]).forEach((sat, i) => many.push({ area: a, sat, primary: i === 0 && list(sats[a]).length > 1,
+      sensor: csv(list(presence[a]).filter(s => (at[s] || list(sats[a])[0]) === sat)), active: list(mt.areas).includes(a), ind: csv(inds[a]) })));
+    return haSatellites(many);
+  }
   $("#view").innerHTML = `
   <section class="card">
     <h2>${T.tab_rooms} ${source("satellites")}</h2>
@@ -2071,6 +2084,9 @@ async function haSettings(kind) {
   try { d = await haApi("GET", `${HA_BASE}/settings/${kind}`); } catch (e) { message(e.message, false); return; }
   const lists = (id, items) => `<datalist id="${id}">${items.map(c => typeof c === "string" ? `<option value="${esc(c)}">` : `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</datalist>`;
   const persons = kind === "persons";
+  // How many satellites share each area: only there is one the primary.
+  const shared = {};
+  if (!persons) d.items.forEach(it => { shared[it.area] = (shared[it.area] || 0) + 1; });
   const card = it => {
     const s = it.settings || {};
     return cardItem({ kind: persons ? "person" : "satellite", name: esc(it.name),
@@ -2082,7 +2098,8 @@ async function haSettings(kind) {
              <label title="${T.alone_hint}">${T.alone_is_me}</label><input type="checkbox" data-f="alone_is_me"${s.alone_is_me ? " checked" : ""}>`
           : `<label>${T.motion}</label><input data-f="presence" list="ha-motion" value="${esc(csv(s.presence))}" placeholder="binary_sensor.…, …">
              <label>${T.announcements}</label><input type="checkbox" data-f="morning"${s.morning ? " checked" : ""}>
-             <label>${T.indicator}</label><input data-f="indicator" list="ha-lights" value="${esc(s.indicator || "")}" placeholder="light.…">`}
+             <label>${T.indicator}</label><input data-f="indicator" list="ha-lights" value="${esc(s.indicator || "")}" placeholder="light.…">
+             ${shared[it.area] > 1 ? `<label title="${T.primary_hint}">${T.primary}</label><input type="checkbox" data-f="primary"${s.primary ? " checked" : ""}>` : ""}`}
         </div>
         ${applyRow()}
       </form>`);
@@ -2090,12 +2107,16 @@ async function haSettings(kind) {
   $("#view").innerHTML = `
   <section class="list-section">
     ${listHead(`${persons ? T.tab_persons : T.tab_rooms} <span class="badge ui">${T.badge_ha}</span>`, d.items.length, persons ? T.persons_ha_hint : T.satellites_ha_hint)}
-    <div class="card-list">${d.items.map(card).join("")}</div>
+    <div class="card-list">${d.items.map(card).join("")}${persons ? "" : (d.unplaced || []).map(unplacedCard).join("")}</div>
     ${persons ? lists("ha-notify", d.notify || []) : lists("ha-motion", d.binary_sensors || []) + lists("ha-lights", d.lights || [])}
   </section>`;
 }
+// unplacedCard is a satellite without an area: greyed, with the reason and
+// the next click; there is nothing to set before it has a room.
+const unplacedCard = it => cardItem({ kind: "satellite", name: esc(it.name), short: esc(it.entity),
+  tags: badge(T.no_area), cls: "unplaced" }, `<p class="hint">${T.no_area_hint}</p>`);
 // satelliteTags are what a satellite's card head shows of its settings.
-const satelliteTags = s => (s.morning ? badge(T.tag_announces, true) : "") + (list(s.presence).length ? badge(T.motion) : "") + (s.indicator ? badge(T.tag_indicator) : "");
+const satelliteTags = s => (s.primary ? badge(T.primary) : "") + (s.morning ? badge(T.tag_announces, true) : "") + (list(s.presence).length ? badge(T.motion) : "") + (s.indicator ? badge(T.tag_indicator) : "");
 // saveHASetting stores the settings of one person or satellite from its card.
 async function saveHASetting(kind, form) {
   const v = {};
@@ -2106,6 +2127,8 @@ async function saveHASetting(kind, form) {
     await haApi("PUT", `${HA_BASE}/settings/${kind}`, { [form.dataset.e]: v });
     config = await api("GET", "/v1/ui/config");
   } catch (e) { message(e.message, false); return; }
+  // A new primary takes the mark from another card of its room.
+  if (v.primary) { await haSettings(kind); return; }
   form.closest("details").querySelector(".item-tags").innerHTML = kind === "persons" ? personTags(v, -1) : satelliteTags(v);
   applied(form);
 }
@@ -2118,8 +2141,8 @@ function haSatellites(rows) {
   <section class="list-section">
     ${listHead(`${T.tab_rooms} ${source("satellites")}`, rows.length, T.satellites_ha_hint)}
     <div class="card-list">${rows.map(r => cardItem({ kind: "satellite", name: name(r.sat), short: `${esc(r.area)} · ${esc(r.sat)}`,
-      tags: satelliteTags({ morning: r.active, presence: fromCsv(r.sensor), indicator: r.ind }) },
-      `<table class="facts">${factRow(T.motion, sensors(r.sensor) || "–")}${factRow(T.announcements, r.active ? T.yes : T.no)}${factRow(T.indicator, r.ind ? name(r.ind) : "–")}</table>`)).join("")}</div>
+      tags: satelliteTags({ primary: r.primary, morning: r.active, presence: fromCsv(r.sensor), indicator: r.ind }) },
+      `<table class="facts">${factRow(T.motion, sensors(r.sensor) || "–")}${factRow(T.announcements, r.active ? T.yes : T.no)}${factRow(T.indicator, r.ind ? sensors(r.ind) : "–")}</table>`)).join("")}</div>
   </section>`;
 }
 // With Home Assistant every HA person is a person; the page only sets

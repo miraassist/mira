@@ -119,8 +119,9 @@ type Options struct {
 	// satellite ("" for none); they go into the turn layer, not layer 4.
 	DeviceHints func(device string) string
 	// Afterword returns the messages waiting for an area as a closing
-	// sentence, marking them heard, or "" when none wait.
-	Afterword func(ctx context.Context, area string) string
+	// sentence spoken on the satellite's device, marking them heard, or ""
+	// when none wait.
+	Afterword func(ctx context.Context, area, device string) string
 	// Thread links the turn to its thread ("Vorgang", package threads) and
 	// renders it for layer 7. place is where the turn's threads live;
 	// followedUp are the messages this turn answers.
@@ -157,7 +158,7 @@ type Engine struct {
 	structure   func() structure.Snapshot
 	assist      func() string
 	deviceHints func(device string) string
-	afterword   func(ctx context.Context, area string) string
+	afterword   func(ctx context.Context, area, device string) string
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
 	// follow are the voice conversations Mira's last answer left listening,
@@ -534,7 +535,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
 		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) &&
 		!calledTool(added, tools.ToolKeepListening) {
-		if extra := e.afterword(ctx, sess.AreaID); extra != "" {
+		if extra := e.afterword(ctx, sess.AreaID, req.DeviceID); extra != "" {
 			final.Content = strings.TrimSpace(final.Content) + " " + extra
 		}
 	}

@@ -67,6 +67,8 @@ type Device struct {
 	Manufacturer string `json:"manufacturer"`
 	Model        string `json:"model"`
 	DisabledBy   string `json:"disabled_by"`
+	// ViaDeviceID is the device it hangs off (TECHO5: "Dot 2 ring" off "Dot 2").
+	ViaDeviceID string `json:"via_device_id"`
 	// ConfigurationURL is where the device's own web interface is.
 	ConfigurationURL string `json:"configuration_url"`
 }

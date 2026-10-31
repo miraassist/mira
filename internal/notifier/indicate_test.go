@@ -14,7 +14,7 @@ import (
 func indicateEnv(t *testing.T) *env {
 	e := newEnv(t, func(c *config.Config) {
 		c.Notifier.MorningTrigger.Areas = []string{"bad"} // the kitchen does not announce on entry, it shows
-		c.Notifier.Indicators = map[string]string{"kueche": "light.ring"}
+		c.Notifier.Indicators = map[string]config.Entities{"kueche": {"light.ring"}}
 	})
 	e.now = at("08:00") // after quiet hours
 	// The fake satellite never speaks: the ring is restored at once.
@@ -77,7 +77,7 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	}
 
 	e.message("n2", 2, nil)
-	text, err := e.n.ReadOut(context.Background(), "kueche", "")
+	text, err := e.n.ReadOut(context.Background(), "kueche", "", "")
 	if err != nil || !strings.Contains(text, "Hinweis n2") {
 		t.Fatalf("read out: %q %v", text, err)
 	}
@@ -88,7 +88,7 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	if last := lights[len(lights)-1]; last.Service != "turn_off" {
 		t.Errorf("ring still on: %+v", lights)
 	}
-	if text, _ := e.n.ReadOut(context.Background(), "kueche", ""); text != "" {
+	if text, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); text != "" {
 		t.Errorf("read twice: %q", text)
 	}
 }
@@ -122,7 +122,7 @@ func TestReadOutForPerson(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("mine", 1, func(n *store.Message) { n.Receiver = "ben"; n.Confidentiality = store.ConfidentialityConfidential })
 	e.message("other", 1, func(n *store.Message) { n.Receiver = "anna" })
-	text, err := e.n.ReadOut(context.Background(), "", "ben")
+	text, err := e.n.ReadOut(context.Background(), "", "", "ben")
 	if err != nil || !strings.Contains(text, "Hinweis mine") || strings.Contains(text, "other") {
 		t.Errorf("read out: %q %v", text, err)
 	}
@@ -134,7 +134,7 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("n1", 1, func(n *store.Message) { n.Spoken = "Heute hast du einen Zahnarzttermin" })
 	e.tick()
-	if got := e.n.Afterword(context.Background(), "kueche"); got != "Übrigens: Heute hast du einen Zahnarzttermin." {
+	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "Übrigens: Heute hast du einen Zahnarzttermin." {
 		t.Fatalf("afterword: %q", got)
 	}
 	if e.state("n1") != store.MessageDelivered {
@@ -143,12 +143,12 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	if lights := e.lightCalls(); lights[len(lights)-1].Service != "turn_off" {
 		t.Errorf("light still on: %+v", lights)
 	}
-	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "" {
 		t.Errorf("said twice: %q", got)
 	}
 	e.message("n2", 1, nil)
 	e.now = at("01:00")
-	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "" {
 		t.Errorf("news at night: %q", got)
 	}
 }
@@ -158,7 +158,7 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 func TestRingGlowsWhileAnnouncing(t *testing.T) {
 	e := indicateEnv(t)
 	e.n.speakingStart = time.Second
-	sat := e.n.sats["kueche"]
+	sat := e.n.primary("kueche")
 	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
 		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 		t.Fatal(err)
@@ -188,7 +188,7 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 // away when everything was heard.
 func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
-	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
 	e.now = at("08:00")
 	overlays := func() []call {
 		var out []call
@@ -211,7 +211,7 @@ func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 	if msg, _ := got[1].Data["message"].(string); !strings.HasPrefix(msg, "2 Nachrichten warten") {
 		t.Errorf("refreshed with the count: %v", got[1].Data["message"])
 	}
-	if _, err := e.n.ReadOut(context.Background(), "kueche", ""); err != nil {
+	if _, err := e.n.ReadOut(context.Background(), "kueche", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	got = overlays()
@@ -235,10 +235,10 @@ func TestOwnMessageHold(t *testing.T) {
 			t.Errorf("ring in the sender's room: %+v", l)
 		}
 	}
-	if got := e.n.Afterword(context.Background(), "kueche"); got != "" {
+	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "" {
 		t.Errorf("afterword in the sender's room: %q", got)
 	}
-	if text, _ := e.n.ReadOut(context.Background(), "kueche", ""); text != "" {
+	if text, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); text != "" {
 		t.Errorf("read out in the sender's room: %q", text)
 	}
 	// Another room hears it at once; a message left there is held back there.
@@ -253,7 +253,7 @@ func TestOwnMessageHold(t *testing.T) {
 	if lights := e.lightCalls(); len(lights) == 0 || lights[len(lights)-1].Service != "turn_on" {
 		t.Errorf("no ring after the hold: %+v", lights)
 	}
-	if got := e.n.Afterword(context.Background(), "kueche"); !strings.Contains(got, "Hinweis n3") {
+	if got := e.n.Afterword(context.Background(), "kueche", ""); !strings.Contains(got, "Hinweis n3") {
 		t.Errorf("afterword after the hold: %q", got)
 	}
 }
@@ -307,7 +307,7 @@ func TestAB12_TheScreenCountsBoth(t *testing.T) {
 	news := PhoneNews{Messages: 2, Missed: 1}
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
-	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
 	e.now = at("08:00")
 	e.n.SyncIndicators(context.Background())
 	e.n.SyncIndicators(context.Background()) // nothing new: no overlay again
@@ -328,7 +328,7 @@ func TestAB35_ThePlayingSatelliteGetsNoNewHintUntilItEnds(t *testing.T) {
 	news := PhoneNews{Messages: 2}
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
-	e.n.screens = map[string]string{"kueche": "esphome.show_notify", "bad": "esphome.bad_notify"}
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify", "assist_satellite.bad": "esphome.bad_notify"}
 	e.now = at("08:00")
 	ctx := context.Background()
 	e.n.SyncIndicators(ctx)
@@ -360,9 +360,9 @@ func TestAB37_AHintWaitsWhileTheSatelliteIsInAConversation(t *testing.T) {
 	news := PhoneNews{Messages: 2}
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.phone = func(context.Context) (PhoneNews, error) { return news, nil }
-	e.n.screens = map[string]string{"kueche": "esphome.show_notify"}
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
 	e.now = at("08:00")
-	sat := e.n.sats["kueche"]
+	sat := e.n.primary("kueche")
 	e.ha.set(sat, "listening", nil)
 	e.n.SyncIndicators(context.Background())
 	overlays := func() int {

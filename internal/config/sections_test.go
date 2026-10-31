@@ -108,7 +108,7 @@ func TestWithoutDefaultsReadsAsTheWhole(t *testing.T) {
 	c.Notifier.Cooldown = Duration(10 * time.Minute)
 	c.Notifier.QuietHours.From = mustClock(t, "23:00")
 	c.Persons = map[string]Person{"anna": {Entity: "person.anna", AloneIsMe: true}}
-	c.Satellites = map[string]string{"bad": "assist_satellite.bad"}
+	c.Satellites = map[string]Entities{"bad": {"assist_satellite.bad"}}
 	c.Prompt.Persona = "Kurz und freundlich."
 	for _, name := range UISections {
 		whole, err := c.SectionJSON(name)

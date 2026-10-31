@@ -97,3 +97,11 @@ func (e *Entities) UnmarshalYAML(value *yaml.Node) error {
 	*e = list
 	return nil
 }
+
+// MarshalYAML writes one entity as itself, so a single one reads as before.
+func (e Entities) MarshalYAML() (any, error) {
+	if len(e) == 1 {
+		return e[0], nil
+	}
+	return []string(e), nil
+}

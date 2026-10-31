@@ -24,7 +24,7 @@ type Actions interface {
 	Call(ctx context.Context, action string, data map[string]any) error
 	// Place gives the placeholders of an area: area, area_name, satellite,
 	// satellite.device.
-	Place(ctx context.Context, area string) map[string]string
+	Place(ctx context.Context, area, device string) map[string]string
 }
 
 // SkillAction is the tool name a skill's action has for the hooks.
@@ -136,13 +136,14 @@ func (f actionFinish) render(ctx context.Context, th store.Thread) (done, error)
 		}
 	}
 	// The satellite is the one of the turn that acts; without a turn (the web
-	// UI's yes), the room the thread lives in.
-	area := areaOf(ctx)
+	// UI's yes), the one the thread began at, in the room it lives in.
+	area, device := areaOf(ctx), deviceOf(ctx)
 	if area == "" {
 		area, _ = strings.CutPrefix(th.Place, "area:")
+		device = th.Device
 	}
 	if area != "" {
-		for k, v := range f.m.opts.Actions.Place(ctx, area) {
+		for k, v := range f.m.opts.Actions.Place(ctx, area, device) {
 			vars[k] = v
 		}
 	}

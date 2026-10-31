@@ -40,7 +40,7 @@ func TestReminderSet(t *testing.T) {
 	tl, st, now := reminderTools(t)
 	set := tl[ToolReminderSet]
 	voice := Invocation{Channel: config.ChannelVoice, SessionKey: "voice:v1"}
-	st.UpsertSession(context.Background(), store.Session{Key: "voice:v1", Channel: "voice", ConversationID: "v1", AreaID: "kueche"}, time.Hour)
+	st.UpsertSession(context.Background(), store.Session{Key: "voice:v1", Channel: "voice", ConversationID: "v1", AreaID: "kueche", DeviceID: "dev-essen"}, time.Hour)
 
 	out, err := run(t, set, voice, `{"text":"Nudeln abgießen","in_minutes":10}`)
 	if err != nil || !strings.Contains(out, "Donnerstag, 15. Oktober 2026, 18:10 Uhr") {
@@ -57,7 +57,8 @@ func TestReminderSet(t *testing.T) {
 		t.Fatalf("reminders: %+v", list)
 	}
 	timer, trash, doctor := list[0], list[1], list[2]
-	if !timer.DeliverAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.Receiver != "house" {
+	// spoken in the room and at the satellite it was asked at
+	if !timer.DeliverAt.Equal(now.Add(10*time.Minute)) || timer.AreaID != "kueche" || timer.OriginDevice != "dev-essen" || timer.Receiver != "house" {
 		t.Errorf("timer: %+v", timer)
 	}
 	if trash.Receiver != "ben" || trash.AreaID != "" {

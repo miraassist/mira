@@ -51,8 +51,10 @@ type Thread struct {
 	// Person is who started it, when known; its results are theirs.
 	Person string
 	// Area is the satellite's area it began at, for a voice turn: its
-	// messages are spoken there.
+	// messages are spoken there, at Device, the satellite's device, while
+	// that is in the area (docs/spec/satelliten-raeume.md).
 	Area      string
+	Device    string
 	State     string
 	Request   string
 	Fields    map[string]string
@@ -101,15 +103,15 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 		calls = []byte("{}")
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, state = excluded.state,
 	request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
 	calls = excluded.calls, version = threads.version + 1
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area)
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area, t.Device)
 	if err != nil {
 		return err
 	}
@@ -127,13 +129,13 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
 	var fields, log, content, created, updated, expires, calls string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version, &calls, &t.Area); err != nil {
+		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device); err != nil {
 		return Thread{}, err
 	}
 	// A row that does not read is an error, not an empty thread.

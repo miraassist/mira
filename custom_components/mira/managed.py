@@ -26,8 +26,8 @@ from typing import Any
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 
 from .const import DOMAIN
 
@@ -36,7 +36,9 @@ PERSON_FIELDS = ("channels", "accept_from", "alone_is_me", "voice_threshold")
 # What a person may set for themselves on the panel's card "Me"; the rest is an admin's.
 PERSON_OWN_FIELDS = ("accept_from", "alone_is_me")
 ACCEPT = ("all", "persons", "none")
-SATELLITE_FIELDS = ("presence", "morning", "indicator")
+SATELLITE_FIELDS = ("presence", "morning", "indicator", "primary")
+# "primary" is stored as the area the satellite is the primary of, so the
+# mark does not move with it to another room; forms show it as a switch.
 SATELLITE_DOMAINS = ("assist_satellite", "media_player")
 
 def _settings(hass: HomeAssistant, domains: tuple[str, ...]) -> dict[str, dict[str, Any]]:
@@ -193,6 +195,62 @@ def import_settings(hass: HomeAssistant, agent: dict[str, Any]) -> None:
             )
 
 
+def room_satellites(hass: HomeAssistant, settings: dict[str, dict[str, Any]] | None = None) -> dict[str, list[str]]:
+    """The satellites of each area, the primary first, then the others in
+    the order they came (docs/spec/satelliten-raeume.md): every Assist
+    satellite that is on and has an area, and speakers with settings. The
+    primary is the one marked; without a mark (until ensure_primaries has
+    marked one), the oldest in the entity registry."""
+    settings = satellite_settings(hass) if settings is None else settings
+    registry = er.async_get(hass)
+    by_area: dict[str, list[er.RegistryEntry]] = {}
+    for entry in registry.entities.values():
+        if entry.disabled_by:
+            continue
+        if entry.domain != "assist_satellite" and entry.entity_id not in settings:
+            continue
+        if entry.domain not in SATELLITE_DOMAINS or not (area := satellite_area(hass, entry.entity_id)):
+            continue
+        by_area.setdefault(area, []).append(entry)
+    out: dict[str, list[str]] = {}
+    for area, entries in by_area.items():
+        entries.sort(key=lambda e: (e.created_at, e.entity_id))
+        marked = [e for e in entries if (settings.get(e.entity_id) or {}).get("primary") == area]
+        first = marked[0] if marked else entries[0]
+        out[area] = [first.entity_id] + [e.entity_id for e in entries if e is not first]
+    return out
+
+
+# The satellite each area had as its room when ensure_primaries last ran:
+# the one that was there before a second came (hass.data, not stored).
+_ROOM_BEFORE = f"{DOMAIN}_room_before"
+
+
+@callback
+def ensure_primaries(hass: HomeAssistant) -> None:
+    """Every room with several satellites has exactly one marked primary,
+    visible in its settings. Without one, the satellite that was the room's
+    before is marked; when that is not known (after a restart), the oldest.
+    Of several marks, the first stays. A room with one satellite needs no
+    mark."""
+    settings = satellite_settings(hass)
+    before: dict[str, str] = hass.data.setdefault(_ROOM_BEFORE, {})
+    rooms = room_satellites(hass, settings)
+    for area, sats in rooms.items():
+        if len(sats) > 1:
+            marked = [s for s in sats if (settings.get(s) or {}).get("primary") == area]
+            primary = marked[0] if marked else before.get(area) if before.get(area) in sats else sats[0]
+            if (settings.get(primary) or {}).get("primary") != area:
+                set_satellite_settings(hass, primary, (settings.get(primary) or {}) | {"primary": area})
+            # A mark of another room, brought along, or a second one goes.
+            for other in sats:
+                if other != primary and (settings.get(other) or {}).get("primary"):
+                    set_satellite_settings(hass, other, settings[other] | {"primary": ""})
+            before[area] = primary
+        else:
+            before[area] = sats[0]
+
+
 def build_config(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -207,26 +265,19 @@ def build_config(
     for entity, data in sorted(persons_in.items()):
         if any(data.get(k) for k in PERSON_FIELDS):
             persons_out[person_key(hass, entity)] = person_to_agent(data | {"entity": entity})
-    satellites_in = satellite_settings(hass) | (satellites or {})
-    registry = er.async_get(hass)
-    rooms: dict[str, dict[str, Any]] = {}
-    for entity, data in sorted(satellites_in.items()):
-        # A satellite switched off keeps its settings but no room.
-        if (entry := registry.async_get(entity)) is None or entry.disabled_by:
-            continue
-        if any(data.get(k) for k in SATELLITE_FIELDS) and (area := satellite_area(hass, entity)):
-            if area in rooms:
-                raise ValueError(f"{rooms[area]['satellite']} and {entity} are both set up for area {area}")
-            rooms[area] = room_to_agent(area, entity, data, ring_of(hass, entity))
-    # Every Assist satellite with an area speaks for it; the settings only
-    # add to that. A second one in an area that has one already is left out.
-    for entry in sorted(er.async_get(hass).entities.values(), key=lambda e: e.entity_id):
-        taken = {r["satellite"] for r in rooms.values()}
-        if entry.domain != "assist_satellite" or entry.disabled_by or entry.entity_id in taken:
-            continue
-        if (area := satellite_area(hass, entry.entity_id)) and area not in rooms:
-            rooms[area] = room_to_agent(area, entry.entity_id, {}, ring_of(hass, entry.entity_id))
-    return {"persons": persons_out, "rooms": [rooms[a] for a in sorted(rooms)], "exposed": exposed_entities(hass)}
+    settings = satellite_settings(hass) | (satellites or {})
+    rooms = []
+    for area, sats in sorted(room_satellites(hass, settings).items()):
+        # The room as an older service knows it is the primary's; the others
+        # come on top, and an older service leaves them out.
+        room = room_to_agent(area, sats[0], settings.get(sats[0]) or {}, ring_of(hass, sats[0]))
+        if len(sats) > 1:
+            room["others"] = [
+                {k: v for k, v in room_to_agent(area, s, settings.get(s) or {}, ring_of(hass, s)).items() if k != "area"}
+                for s in sats[1:]
+            ]
+        rooms.append(room)
+    return {"persons": persons_out, "rooms": rooms, "exposed": exposed_entities(hass)}
 
 
 async def async_config(
@@ -309,6 +360,7 @@ def normalize_satellite(data: dict[str, Any]) -> dict[str, Any]:
         "presence": [p for p in presence if p],
         "morning": bool(data.get("morning")),
         "indicator": str(data.get("indicator") or "").strip(),
+        "primary": data.get("primary") or "",
     }
 
 
@@ -332,10 +384,24 @@ async def save_settings(
         for c in data["channels"]:
             if c in own:
                 raise ValueError(f"{c} is Mira's own and takes messages for her; a channel delivers them")
-    satellites = {e: normalize_satellite(d) for e, d in (satellites or {}).items()}
-    for entity in satellites:
+    # The switch "primary" becomes the area it is the primary of; left out
+    # of a form, the mark stays as it was.
+    have_sats = satellite_settings(hass)
+    for entity, data in list((satellites or {}).items()):
         if not satellite_area(hass, entity):
             raise ValueError(f"{entity} has no area")
+        mark = have_sats.get(entity, {}).get("primary") or ""
+        if "primary" in data:
+            mark = satellite_area(hass, entity) if data["primary"] else ""
+        satellites[entity] = normalize_satellite(data | {"primary": mark})
+    satellites = satellites or {}
+    # A satellite made primary takes the mark from the others in its room.
+    for entity, data in list(satellites.items()):
+        if not data["primary"]:
+            continue
+        for other, have in have_sats.items():
+            if other != entity and other not in satellites and have.get("primary") == data["primary"]:
+                satellites[other] = have | {"primary": ""}
     await entry.runtime_data.client.set_managed_config(await async_config(hass, entry, persons, satellites))
     for entity, data in persons.items():
         set_person_settings(hass, entity, data)
@@ -355,11 +421,69 @@ def all_persons(hass: HomeAssistant) -> list[str]:
 
 def all_satellites(hass: HomeAssistant) -> list[str]:
     """The satellites Mira may use: every Assist satellite with an area, and
-    speakers that have settings already."""
+    speakers with an area that have settings already. One without an area
+    has nothing to set (satellites_without_area)."""
     have = satellite_settings(hass)
     return sorted(
         e.entity_id
         for e in er.async_get(hass).entities.values()
         if not e.disabled_by
-        and ((e.domain == "assist_satellite" and satellite_area(hass, e.entity_id)) or e.entity_id in have)
+        and (e.domain == "assist_satellite" or e.entity_id in have)
+        and satellite_area(hass, e.entity_id)
     )
+
+
+def satellites_without_area(hass: HomeAssistant) -> list[str]:
+    """The Assist satellites that are on and have no area, their own or their
+    device's: Mira knows no room for them (docs/spec/satelliten-raeume.md)."""
+    return sorted(
+        e.entity_id
+        for e in er.async_get(hass).entities.values()
+        if e.domain == "assist_satellite" and not e.disabled_by and not satellite_area(hass, e.entity_id)
+    )
+
+
+# A repair per satellite without an area: ISSUE_NO_AREA + its entity id.
+ISSUE_NO_AREA = "no_area_"
+
+
+@callback
+def sync_area_repairs(hass: HomeAssistant) -> None:
+    """A repair for each satellite without an area, and none for the others:
+    what is open is compared with what the registries say now."""
+    wanted = {ISSUE_NO_AREA + e: e for e in satellites_without_area(hass)}
+    for domain, issue_id in list(ir.async_get(hass).issues):
+        if domain == DOMAIN and issue_id.startswith(ISSUE_NO_AREA) and issue_id not in wanted:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+    entities = er.async_get(hass)
+    for issue_id, entity in wanted.items():
+        entry = entities.async_get(entity)
+        link = f"/config/devices/device/{entry.device_id}" if entry and entry.device_id else "/config/entities"
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="satellite_no_area",
+            translation_placeholders={"name": entity_name(hass, entity), "link": link},
+        )
+
+
+@callback
+def clear_area_repairs(hass: HomeAssistant) -> None:
+    """Takes away the repairs for satellites without an area."""
+    for domain, issue_id in list(ir.async_get(hass).issues):
+        if domain == DOMAIN and issue_id.startswith(ISSUE_NO_AREA):
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
+def satellite_form_settings(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
+    """The satellites' settings as the forms show them: "primary" as a
+    switch, on where the satellite is the primary of the room it is in."""
+    out = {}
+    for entity, data in satellite_settings(hass).items():
+        out[entity] = dict(data)
+        if "primary" in data:
+            out[entity]["primary"] = bool(data["primary"]) and data["primary"] == satellite_area(hass, entity)
+    return out

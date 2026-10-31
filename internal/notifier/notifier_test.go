@@ -78,6 +78,8 @@ func (f *fakeHA) Entities(context.Context) ([]haws.Entity, error) {
 		{EntityID: "assist_satellite.bad", DeviceID: "dev-bad"},
 		{EntityID: "assist_satellite.kueche", DeviceID: "dev-kueche"},
 		{EntityID: "media_player.kueche", DeviceID: "dev-kueche"},
+		{EntityID: "assist_satellite.essen", DeviceID: "dev-essen"},
+		{EntityID: "assist_satellite.flur", DeviceID: "dev-flur"},
 	}, nil
 }
 
@@ -154,7 +156,7 @@ func at(hhmm string) time.Time {
 func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	t.Helper()
 	cfg := config.Default()
-	cfg.Satellites = map[string]string{"bad": "assist_satellite.bad", "kueche": "assist_satellite.kueche"}
+	cfg.Satellites = map[string]config.Entities{"bad": {"assist_satellite.bad"}, "kueche": {"assist_satellite.kueche"}}
 	cfg.Notifier.MorningTrigger = config.MorningTrigger{
 		Areas:    []string{"bad", "kueche"},
 		Presence: map[string]config.Entities{"bad": {"binary_sensor.bad_motion"}, "kueche": {"binary_sensor.kueche_motion"}},
@@ -360,7 +362,7 @@ func TestBundlingTakesTheMostImportantThree(t *testing.T) {
 
 func TestMediaPlayerSatelliteUsesTTS(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) {
-		c.Satellites["bad"] = "media_player.echo_bad"
+		c.Satellites["bad"] = config.Entities{"media_player.echo_bad"}
 		c.Notifier.TTSEntity = "tts.piper"
 	})
 	e.message("n1", 2, nil)
@@ -612,7 +614,7 @@ func TestTheReplyFindsTheAnnouncementAndDoesNotWait(t *testing.T) {
 		t.Fatalf("no announcement to follow up on while it listens: %+v %v", a, err)
 	}
 	afterword := make(chan string, 1)
-	go func() { afterword <- e.n.Afterword(context.Background(), "bad") }()
+	go func() { afterword <- e.n.Afterword(context.Background(), "bad", "") }()
 	select {
 	case <-afterword:
 	case <-time.After(time.Second):

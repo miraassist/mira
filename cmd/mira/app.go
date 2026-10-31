@@ -398,10 +398,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Decider:    a.tasksDecide(),
 		Planner:    a.tasksPlan(),
 		QuietHours: cfg.Notifier.QuietHours, Logger: a.log, HAURL: cfg.HA.URL,
-		Forbidden:  func() ([]string, []string) { return a.hooks.Forbidden(snapshot()) },
-		Hooks:      a.taskEditDecision,
-		Persons:    a.persons,
-		Satellites: func() map[string]string { return a.liveConfig().Satellites },
+		Forbidden: func() ([]string, []string) { return a.hooks.Forbidden(snapshot()) },
+		Hooks:     a.taskEditDecision,
+		Persons:   a.persons,
+		Satellite: a.satelliteOn,
 		Upcoming: func(ctx context.Context, entity string, from, to time.Time) (string, error) {
 			return a.calendar.Render(ctx, calendar.Query{From: from, To: to, Calendar: entity})
 		},
@@ -494,14 +494,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
 		Languages: a.langs,
-		Afterword: func(ctx context.Context, area string) string {
+		Afterword: func(ctx context.Context, area, device string) string {
 			a.proactiveMu.Lock()
 			n := a.notifier
 			a.proactiveMu.Unlock()
 			if n == nil {
 				return ""
 			}
-			return n.Afterword(ctx, area)
+			return n.Afterword(ctx, area, device)
 		},
 	})
 	a.registerAgents(registry)
@@ -864,15 +864,18 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, e
 		a.notifier = n
 	}
 	a.proactiveMu.Unlock()
-	area := ""
+	area, device := "", inv.DeviceID
 	if inv.Channel == config.ChannelVoice {
 		sess, err := a.store.GetSession(ctx, inv.SessionKey)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return "", err
 		}
 		area = sess.AreaID
+		if device == "" {
+			device = sess.DeviceID
+		}
 	}
-	text, err := n.ReadOut(ctx, area, tools.ReceiverFor("", inv, a.persons()))
+	text, err := n.ReadOut(ctx, area, device, tools.ReceiverFor("", inv, a.persons()))
 	if err != nil || a.voicemail == nil || !a.voicemailOn() {
 		return text, err
 	}

@@ -135,9 +135,10 @@ func (m *Manager) SetPlan(ctx context.Context, inv tools.Invocation, target, req
 		}
 	}
 	if th.ID == "" {
+		turn := m.withTurnArea(ctx, inv)
 		th = store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place, Person: inv.Person,
 			State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{},
-			Area: areaOf(m.withTurnArea(ctx, inv))}
+			Area: areaOf(turn), Device: deviceOf(turn)}
 		m.logEntry(&th, "user", th.Request)
 		if err := m.save(ctx, &th); err != nil {
 			return "", err
