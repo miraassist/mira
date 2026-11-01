@@ -85,6 +85,10 @@ Unfolded:
 
 Only admins see the page (it changes `mira.yaml`).
 
+On the page **Skills**, an opened skill lists its schedules as before (the time in words, "off", the next run), and
+each one with a name has a link **Change** that opens this page at its entry, unfolded (decided 2026-11-01: the
+schedule is changed in one place, found from both).
+
 ### When a change holds
 
 At once, without a restart: after a save Mira applies the new `mira.yaml` to the running scheduler, which takes the

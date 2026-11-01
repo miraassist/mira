@@ -187,10 +187,16 @@ func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
 		}
 		info.Settings = append(info.Settings, s)
 	}
+	// As the scheduler has them now: the page "Schedules" changes them
+	// while Mira runs.
+	scheds := sk.Schedules
+	if a.runner != nil {
+		scheds = a.runner.Schedules(sk.Name)
+	}
 	now := time.Now()
-	for _, s := range sk.Schedules {
-		si := ui.ScheduleInfo{Cron: s.Cron, PerPerson: s.PerPerson}
-		if next := s.Parsed().Next(now); !next.IsZero() {
+	for _, s := range scheds {
+		si := ui.ScheduleInfo{Name: s.Name, Off: s.Off, Cron: s.Cron, PerPerson: s.PerPerson}
+		if next := s.Parsed().Next(now); !next.IsZero() && !s.Off {
 			si.Next = next.Format("2006-01-02 15:04")
 		}
 		info.Schedules = append(info.Schedules, si)

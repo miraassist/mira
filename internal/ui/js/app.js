@@ -279,8 +279,8 @@ const buttonIcon = kind => svg`<svg class="button-icon" viewBox="0 0 24 24" aria
 // cardItem is an entry as a card: icon, name, a short line and tags in its
 // head; body when opened.
 // onToggle hears it opened or closed (a card renders its body only when open).
-const cardItem = ({ icon, name, short = "", tags = nothing, cls = "", onToggle = null }, body) => html`
-  <details class=${"item card-item " + cls} @toggle=${onToggle ? e => onToggle(e.target.open) : null}>
+const cardItem = ({ icon, name, short = "", tags = nothing, cls = "", onToggle = null, key = nothing }, body) => html`
+  <details class=${"item card-item " + cls} data-key=${key} @toggle=${onToggle ? e => onToggle(e.target.open) : null}>
     <summary><span class="item-icon">${icon}</span><span class="lead"><h3>${name}</h3></span>
       <span class="short clip">${short}</span><span class="item-tags">${tags}</span>
       <span class="chevron" aria-hidden="true">⌄</span></summary>
@@ -430,7 +430,9 @@ class MiraSkills extends EditPage {
           <code>${x.name}</code>: ${x.secret ? (x.set ? T.cat_secret_set : T.cat_secret_unset) : (x.set ? x.value : html`<span class="hint">${T.cat_unset}</span>`)}
           ${x.description ? html`<div class="hint">${x.description}</div>` : nothing}</div>`)}`) : nothing}
         ${(s.schedules || []).length ? row(T.cat_schedules, html`${s.schedules.map(x => html`<div>
-          ${cronWords(x.cron)}${x.per_person ? html` · ${T.cat_per_person}` : nothing}${x.next ? html` · ${T.cat_next} ${x.next}` : nothing}</div>`)}`) : nothing}
+          ${cronWords(x.cron)}${x.per_person ? html` · ${T.cat_per_person}` : nothing}${x.off ? html` · ${T.sch_off}`
+            : x.next ? html` · ${T.cat_next} ${x.next}` : nothing}
+          ${x.name ? html` · <a href="#schedules" @click=${e => { e.preventDefault(); openSchedule(s.name, x.name); }}>${T.sch_change}</a>` : nothing}</div>`)}`) : nothing}
         ${t ? row(T.cat_target, html`
           ${t.plan ? html`<div>${T.cat_plan}${t.agent ? html` · ${T.cat_written_by} <code>${t.agent}</code>` : nothing}</div>` : nothing}
           ${(t.fields || []).map(f => html`<div><code>${f.name}</code>${f.optional ? html` <span class="hint">(${T.cat_optional})</span>` : nothing}:
@@ -471,12 +473,23 @@ function scheduleWords(it) {
   if (m) return T.sch_every_minutes(m[1]);
   return html`<code>${c}</code>`;
 }
+// openSchedule opens the page "Schedules" at one entry (from a skill).
+let scheduleFocus = null;
+function openSchedule(skill, name) { scheduleFocus = skill + "/" + name; go("schedules"); }
 const clockIcon = svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
 
 class MiraSchedules extends Light {
   static properties = { items: { state: true }, error: { state: true }, busy: { state: true }, failed: { state: true },
     forms: { state: true } };
   connectedCallback() { super.connectedCallback(); this.forms = {}; this.load(); }
+  // A schedule opened from a skill: unfolded and shown once the list is there.
+  updated() {
+    // Only the page shown takes it (the page may be built twice on the way).
+    if (!scheduleFocus || !this.items || !this.isConnected) return;
+    const d = this.querySelector(`details[data-key="${CSS.escape(scheduleFocus)}"]`);
+    scheduleFocus = null;
+    if (d) { d.open = true; d.scrollIntoView({ block: "center" }); }
+  }
   disconnectedCallback() { super.disconnectedCallback(); clearTimeout(this.poll); }
   key(it) { return it.skill + "/" + it.name; }
   async load() {
@@ -546,7 +559,7 @@ class MiraSchedules extends Light {
         <button class="primary" ?disabled=${busy || !f.time || !f.days.length || (f.time === it.time && f.days.join() === (it.days || []).join())}
           @click=${() => this.change(it, { time: f.time, days: f.days })}>${buttonIcon("save")}${T.ed_save}</button></div>`
       : html`<div>${scheduleWords(it)}</div>${it.skill_off ? nothing : html`<div class="hint">${it.name ? T.sch_yaml_only : T.sch_no_name}</div>`}`;
-    return cardItem({ icon: clockIcon, name: it.description || it.name || T.sch_unnamed,
+    return cardItem({ key: k, icon: clockIcon, name: it.description || it.name || T.sch_unnamed,
       short: html`${scheduleWords(it)}${it.description && it.name ? html` · <code>${it.name}</code>` : nothing}`, tags }, html`
       ${this.failed && this.failed.key === k ? html`<p class="msg err">${this.failed.text}</p>` : nothing}
       ${it.own ? html`<p class="hint">${T.sch_own}</p>` : nothing}

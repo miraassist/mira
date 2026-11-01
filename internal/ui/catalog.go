@@ -123,6 +123,9 @@ type SettingInfo struct {
 
 // ScheduleInfo is a skill's schedule with its next run.
 type ScheduleInfo struct {
+	// Name is how the page "Schedules" knows it ("" for one without).
+	Name      string `json:"name,omitempty"`
+	Off       bool   `json:"off,omitempty"`
 	Cron      string `json:"cron"`
 	PerPerson bool   `json:"per_person,omitempty"`
 	Next      string `json:"next,omitempty"`
