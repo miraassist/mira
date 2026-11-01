@@ -518,7 +518,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		msgs = append(msgs, msg)
 		added = append(added, msg)
 		for _, call := range msg.ToolCalls {
-			result := e.runTool(ctx, ts, call)
+			result := e.runTool(ctx, ts, call, model)
 			tm := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name, Content: result}
 			msgs = append(msgs, tm)
 			added = append(added, tm)
@@ -657,7 +657,7 @@ func (e *Engine) modelFor(name string) (Chatter, config.LLM, string) {
 // runTool executes one call through the guard and returns what the model
 // reads back. Failures are reported to the model as text, never swallowed:
 // a model that does not see the error will claim success.
-func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.ToolCall) string {
+func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.ToolCall, model config.LLM) string {
 	name := call.Function.Name
 	ctx, span := e.tel.Tracer.Start(ctx, "execute_tool "+name, trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
@@ -705,6 +705,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	text, isError, err := e.tools.Execute(tools.WithTurn(ctx, ts), tools.Invocation{
 		Name: name, Args: args, SessionKey: ts.SessionKey, Channel: ts.Channel, Person: ts.Person, Area: ts.Area,
 		Place: ts.Place, DeviceID: ts.DeviceID, Foreign: ts.Foreign() || e.sawWeb(ts.SessionKey),
+		ContextTokens: model.ContextTokens, Lang: e.lang(ctx),
 	})
 	e.guard.Observe(ts, spec)
 	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),

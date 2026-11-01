@@ -416,7 +416,7 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 // asynchronous run stores that it started and what came back.
 func (ex *execution) runTool(ctx context.Context, r *Runtime, call llm.ToolCall) {
 	ex.saved.add(ctx, stepStarted, llm.Message{ToolCallID: call.ID, Name: call.Function.Name})
-	ex.addResult(ctx, call, r.runTool(ctx, ex.me, call, ex.t))
+	ex.addResult(ctx, call, r.runTool(ctx, ex.me, call, ex.t, ex.model))
 }
 
 func (ex *execution) addResult(ctx context.Context, call llm.ToolCall, text string) {
@@ -584,7 +584,7 @@ func BuildTools(defs []prompt.ToolDef) ([]llm.Tool, error) { return prompt.Build
 
 // runTool runs one tool call of a run through the guard, as every tool: the
 // hook system/rights.star holds it to the run's rights.
-func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t texts) string {
+func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t texts, model config.LLM) string {
 	name := call.Function.Name
 	if sub, ok := me.subs[name]; ok {
 		return r.callSub(ctx, sub, call.Function.Arguments, t)
@@ -612,7 +612,8 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 		}
 	}
 	text, isError, err := r.o.Tools.Execute(tools.WithTurn(ctx, me.ts), tools.Invocation{Name: name, Args: args, SessionKey: me.ts.SessionKey,
-		Channel: me.ts.Channel, Person: me.cc.Person, Area: me.cc.Place, DeviceID: me.cc.DeviceID, Foreign: me.ts.Foreign()})
+		Channel: me.ts.Channel, Person: me.cc.Person, Area: me.cc.Place, DeviceID: me.cc.DeviceID, Foreign: me.ts.Foreign(),
+		ContextTokens: model.ContextTokens, Lang: lang(me.cc)})
 	if r.o.Guard != nil {
 		r.o.Guard.Observe(me.ts, spec)
 	}

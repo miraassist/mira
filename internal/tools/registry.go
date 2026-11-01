@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"sync"
@@ -65,6 +66,11 @@ type Invocation struct {
 	DeviceID string
 	// Foreign: the turn has third-party text before it (TurnState.Foreign).
 	Foreign bool
+	// ContextTokens is the context window of the model that runs the call:
+	// a result may take a quarter of it (docs/spec/context.md, 5.1).
+	ContextTokens int
+	// Lang is the language of the note on a result that was cut.
+	Lang i18n.Lang
 }
 
 // Author is how a fact or message records who it came from: the person, else
@@ -115,10 +121,24 @@ type MCPSource interface {
 	Call(ctx context.Context, name string, args json.RawMessage) (mcp.Result, error)
 }
 
-// MaxResultChars caps what a single tool result may put into the context.
-// GetLiveContext of a large house or a long web page would otherwise eat the
-// slot's context in one call.
-const MaxResultChars = 8000
+// defaultContextTokens is the context of a model that names none (as the
+// config's default), for a call that does not say.
+const defaultContextTokens = 16384
+
+// resultLimit is how many characters a tool result may have: a quarter of
+// the model's context, at about four characters per token
+// (docs/spec/context.md, 5.1).
+func resultLimit(contextTokens int) int {
+	if contextTokens <= 0 {
+		contextTokens = defaultContextTokens
+	}
+	return contextTokens
+}
+
+var cutNotes = map[i18n.Lang]string{
+	i18n.DE: "[Gekürzt: Du siehst %d von %d Zeichen; der Rest fehlt. Frag gezielter, etwa nach einem Bereich, einer Domain oder einem Namen.]",
+	i18n.EN: "[Cut: you see %d of %d characters; the rest is missing. Ask more precisely, for example for an area, a domain or a name.]",
+}
 
 // Registry is the complete tool set: MCP tools plus internal ones.
 type Registry struct {
@@ -297,7 +317,7 @@ func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, is
 		if err != nil {
 			return "Fehler: " + err.Error(), true, nil
 		}
-		return clip(out), false, nil
+		return clip(out, inv), false, nil
 	}
 	if r.mcp == nil {
 		return "", true, fmt.Errorf("%w: %s", ErrUnknownTool, inv.Name)
@@ -309,16 +329,20 @@ func (r *Registry) Execute(ctx context.Context, inv Invocation) (text string, is
 	if err != nil {
 		return "Fehler: " + err.Error(), true, nil
 	}
-	return clip(res.Text), res.IsError, nil
+	return clip(res.Text, inv), res.IsError, nil
 }
 
-func clip(s string) string {
-	if len(s) <= MaxResultChars {
+// clip cuts a result longer than the model may take, says so at its end for
+// the model, and logs it.
+func clip(s string, inv Invocation) string {
+	limit := resultLimit(inv.ContextTokens)
+	if len(s) <= limit {
 		return s
 	}
-	cut := MaxResultChars
+	cut := limit
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
-	return s[:cut] + "\n[…]"
+	slog.Warn("tool result cut", "tool", inv.Name, "chars", len(s), "kept", cut, "context_tokens", inv.ContextTokens)
+	return s[:cut] + "\n" + fmt.Sprintf(i18n.Pick(cutNotes, inv.Lang), cut, len(s))
 }

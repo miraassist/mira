@@ -138,6 +138,23 @@ What the model sees of the conversation: **the running thread + the last turns.*
 - **Every cut appears in the log** as `history compacted`, because it deliberately breaks the cache and things said drop out: session, reason (`max_turns` or `context` with `prompt_tokens`, `limit`, `context_tokens`), turns before and after, removed messages, from when removed and from when kept, and whether more was kept for a running thread (`kept_for_thread`). If it cannot be cut further because only `keep_turns` are left, that appears as a warning in the log.
 - **Session duration**: voice 5 minutes (a new sentence a quarter of an hour later almost never connects); Telegram **without a time limit**, the cut limits the history itself. `/neu` still starts a new conversation.
 
+## 5.1 A tool result that is too large
+
+Decided 2026-11-01. Before, every tool result was cut at a fixed 8,000 characters with only "[…]" at the end, never
+specified: the full sensor list of a house with 210 entities (`GetLiveContext`) lost everything after about 50
+entries, and neither Mira nor the user knew.
+
+- **The limit follows the model:** a tool result may take a quarter of the context window of the model that runs the
+  turn or the helper, counted as characters: `context_tokens` characters (a quarter of the tokens, at about four
+  characters per token). With the default 16,384 tokens that is 16,384 characters; Gemini's large windows let a
+  whole house's list through.
+- **When a result is longer, it is cut, and Mira is told:** the result ends with a note in Mira's language that
+  names how much she sees and how much there was, and how to ask more precisely: "[Gekürzt: Du siehst 16384 von
+  23400 Zeichen; der Rest fehlt. Frag gezielter, etwa nach einem Bereich, einer Domain oder einem Namen.]" So she
+  does not take a cut list for the whole.
+- **The log says so** as a warning `tool result cut`: tool, characters before and after, the model's context.
+- A model without `context_tokens` gets the default (16,384); there is no other fixed limit.
+
 ## 6. Configurable values
 
 | Value | Default | Meaning |
