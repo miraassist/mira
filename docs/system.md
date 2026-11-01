@@ -95,7 +95,7 @@ flowchart LR
 | `internal/calendar`, `internal/timeline` | Read and change calendars from Home Assistant; the shared rendering of the timeline |
 | `internal/mailcal` | Mail calendar: evaluate mails from HA's IMAP integration (the integration passes them on via `POST /v1/mail`) in isolation and maintain them as an entry in a calendar; hourly cleanup ([Mail calendar](spec/mail-kalender.md)) |
 | `internal/feeds` | Read feeds (RSS/Atom) |
-| `internal/store` | SQLite: sessions, histories, messages, memory, reminders, task proposals, log of assessments |
+| `internal/store` | SQLite: sessions, histories, messages, memory, reminders, task proposals, log of assessments; tables, relations and how long things are kept: [Database](database.md) |
 | `internal/profile` | Nightly condensation of the facts into the household profile |
 | `internal/ui` | Web UI and its API (`/v1/ui/*`), with each person's card ("Ich": settings, enrolling the voice) and the admins' list of persons |
 | `internal/speakerid` | Client of the speaker-id service: who said a satellite turn's text (`/api/match`, 300 ms at most; Mira decides with `speaker_id.threshold` or a person's `voice_threshold`), and enrolling for the page ([Speaker recognition](spec/sprecher.md)) |
