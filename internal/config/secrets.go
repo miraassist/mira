@@ -16,7 +16,7 @@ import (
 )
 
 // Secrets keeps the tokens entered on Mira's page out of mira.yaml
-// (docs/spec/bearbeiten.md, Secrets): a file in the data folder, mode 0600,
+// (docs/spec/editing.md, Secrets): a file in the data folder, mode 0600,
 // encrypted when MIRA_SECRET_KEY is set. mira.yaml refers to them as ${NAME}.
 type Secrets struct {
 	Path string

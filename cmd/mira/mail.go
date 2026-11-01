@@ -9,7 +9,7 @@ import (
 	"github.com/miraassist/mira/internal/skills"
 )
 
-// The mail calendar (docs/spec/mail-kalender.md) keeps its entries in Home
+// The mail calendar (docs/spec/mail-calendar.md) keeps its entries in Home
 // Assistant's calendars: read over REST like every calendar, written over
 // the WebSocket commands calendar/event/create, update and delete.
 

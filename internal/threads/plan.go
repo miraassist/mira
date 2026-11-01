@@ -15,7 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// Plans (docs/spec/vorgaenge.md, Pläne): a thread of a target with plan:
+// Plans (docs/spec/threads.md, Pläne): a thread of a target with plan:
 // true carries a Markdown text the model writes, for a run that lasts
 // longer than a conversation (cooking). The core understands only its
 // checkboxes: it shows the step before, the current and the next one in the
@@ -116,7 +116,7 @@ func (m *Manager) finished(c *planContent) {
 
 // SetPlan writes a plan from Mira's own code rather than the model, where
 // the plan is facts already (the answering machine's messages,
-// docs/spec/anrufbeantworter.md): it takes the target's plan thread
+// docs/spec/voicemail.md): it takes the target's plan thread
 // running at the turn's place, or starts one, writes text as its plan and
 // links the turn to it. It returns the thread's id.
 func (m *Manager) SetPlan(ctx context.Context, inv tools.Invocation, target, request, text string) (string, error) {
@@ -225,7 +225,7 @@ func (m *Manager) Plan(ctx context.Context, inv tools.Invocation, action, text s
 		return "", fmt.Errorf("unknown action %q", action)
 	}
 	// Applied to the plan as it is now: another run may have ticked a step
-	// meanwhile (docs/spec/agenten.md, Shared state).
+	// meanwhile (docs/spec/agents.md, Shared state).
 	th, err = m.change(ctx, th.ID, func(th *store.Thread) error {
 		c := planOf(*th)
 		switch action {

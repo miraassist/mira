@@ -11,7 +11,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Asynchronous runs (docs/spec/agenten.md, Runtime): each in a goroutine of
+// Asynchronous runs (docs/spec/agents.md, Runtime): each in a goroutine of
 // its own, at most maxAsync at once, stored after every step so a restart
 // continues them, ended by cancel, time limit or their answer, and delivered
 // on their route.

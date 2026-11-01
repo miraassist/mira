@@ -35,7 +35,7 @@ class MiraBadCode(MiraError):
 
 class MiraNotFound(MiraError):
     """The agent does not have that path: an older agent than this
-    integration (docs/spec/versionen.md)."""
+    integration (docs/spec/versions.md)."""
 
 
 class MiraInvalidConfig(MiraError):

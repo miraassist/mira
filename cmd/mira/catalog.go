@@ -18,7 +18,7 @@ import (
 )
 
 // catalog is every skill and agent as Mira loaded them, for the view on her
-// page (docs/spec/uebersicht.md). It reads; it changes nothing.
+// page (docs/spec/overview.md). It reads; it changes nothing.
 func (a *app) catalog(ctx context.Context) ui.Catalog {
 	c := ui.Catalog{Skills: []ui.SkillInfo{}, Agents: []ui.AgentInfo{}}
 	problems := map[string]string{}
@@ -233,7 +233,7 @@ func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
 	info.Agents = sortedNames(sk.Agents)
 	info.Kinds = skillKinds(sk)
 	// The phone book: that it is on, its books and the box, never a contact
-	// (docs/spec/telefon.md).
+	// (docs/spec/phone.md).
 	if sk.Name == phoneSkill && a.phonebook != nil {
 		st := a.phonebook.Status()
 		pb := &ui.PhonebookInfo{Link: st.Link, Books: st.Books, Error: st.Error}

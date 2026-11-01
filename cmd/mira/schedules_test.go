@@ -14,7 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 )
 
-// The page "Schedules" (docs/spec/zeitplan.md, step 3).
+// The page "Schedules" (docs/spec/schedules.md, step 3).
 
 const planSkill = `---
 name: plan

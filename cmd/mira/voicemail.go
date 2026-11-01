@@ -20,7 +20,7 @@ import (
 	"github.com/miraassist/mira/internal/voicemail"
 )
 
-// The answering machine at the satellite (docs/spec/anrufbeantworter.md):
+// The answering machine at the satellite (docs/spec/voicemail.md):
 // the FRITZ!Box's messages and missed calls from Mira FRITZ!Box, played at
 // the satellite of the turn and shown on rings and screens.
 

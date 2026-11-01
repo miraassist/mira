@@ -21,7 +21,7 @@ from .once import sweep
 _LOGGER = logging.getLogger(__name__)
 
 # The repair when the agent and this integration are not the same version
-# (major.minor; a patch apart is fine): docs/spec/versionen.md.
+# (major.minor; a patch apart is fine): docs/spec/versions.md.
 ISSUE_VERSION = "version_mismatch"
 
 

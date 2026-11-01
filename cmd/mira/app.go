@@ -74,7 +74,7 @@ type app struct {
 	// for what only the model reads.
 	langs *language.Resolver
 	lang  i18n.Lang
-	// agents is the runtime of Mira's agents (docs/spec/agenten.md).
+	// agents is the runtime of Mira's agents (docs/spec/agents.md).
 	agents *agent.Runtime
 	// calendar reads and changes Home Assistant's calendars.
 	calendar *calendar.Calendar
@@ -86,7 +86,7 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
-	// runner runs the skills' schedules and Mira's own (docs/spec/zeitplan.md).
+	// runner runs the skills' schedules and Mira's own (docs/spec/schedules.md).
 	runner *skills.Runner
 	// homeCache keeps the house's location for skills (home.go).
 	homeCache homeCache
@@ -107,7 +107,7 @@ type app struct {
 	// people are Home Assistant's persons (people.go).
 	people people
 	// speaker asks who said a satellite turn's text; nil without
-	// speaker_id (docs/spec/sprecher.md).
+	// speaker_id (docs/spec/speaker-id.md).
 	speaker *speakerid.Client
 	// runCtx is run's context, for restarts from background work.
 	runCtx context.Context
@@ -127,7 +127,7 @@ type app struct {
 
 	// live is the config the proactive parts run with: mira.yaml, what the
 	// page saved into it since, and what Home Assistant sent, held in
-	// memory only (docs/spec/bearbeiten.md, Settings sections). haSent says
+	// memory only (docs/spec/editing.md, Settings sections). haSent says
 	// the integration sent its settings since the start; haManaged that it
 	// still manages them.
 	liveMu    sync.Mutex
@@ -175,7 +175,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.live = cfg
 	// What only the model reads (tool descriptions, the structure block) is
 	// built once, in the language last spoken; what is said follows each
-	// turn, area or person (docs/spec/sprache.md).
+	// turn, area or person (docs/spec/language.md).
 	a.langs = newLanguages(cfg, a.store, a.log)
 	a.lang = a.langs.Last(ctx)
 
@@ -286,11 +286,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	})...)
-	// The answering machine at the satellite (docs/spec/anrufbeantworter.md).
+	// The answering machine at the satellite (docs/spec/voicemail.md).
 	a.voicemail = a.newVoicemail()
 	internal = append(internal, a.voicemail.Tools()...)
 	// A skill Mira binds tools to can be opened even when it has a target:
-	// its tools come with skill_open (docs/spec/vorgaenge.md).
+	// its tools come with skill_open (docs/spec/threads.md).
 	bound := map[string]bool{}
 	for _, t := range internal {
 		if t.Skill != "" {
@@ -300,7 +300,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	var loaded, targets []skills.Skill
 	for _, sk := range all {
 		// A skill that must run locally does not start on a cloud model
-		// (docs/spec/modelle.md, Privacy as a rule).
+		// (docs/spec/models.md, Privacy as a rule).
 		if name, model, privacy := notLocal(cfg, sk); name != "" {
 			problems = append(problems, skills.NewProblem(sk.Name, skills.KindNotLocal, name, model, privacy))
 			continue
@@ -318,26 +318,26 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 	}
 	// Home Assistant's calendars, read the way Mira decides
-	// (docs/spec/kalender.md).
+	// (docs/spec/calendar.md).
 	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
 		Calendars: a.calendarList, Delete: a.deleteEvent, Logger: a.log})
 	internal = append(internal, a.calendar.Tool(a.lang))
 	// Mails that announce something with a time, kept in a calendar
-	// (docs/spec/mail-kalender.md); the mail skills say what to read.
+	// (docs/spec/mail-calendar.md); the mail skills say what to read.
 	if apps := mailApps(loaded); len(apps) > 0 {
 		a.mail = mailcal.New(mailcal.Options{Calendar: mailCalendar{a}, Model: a.mailRead(), Matcher: a.mailMatch(),
 			Apps: func() map[string]mailcal.App { return apps }, Logger: a.log})
 		a.log.Info("mail calendar on", "apps", a.mail.AppNames())
 	}
-	// Mira's own web search (docs/spec/websuche.md); switched in the
+	// Mira's own web search (docs/spec/web-search.md); switched in the
 	// integration's options, so it is asked at every turn.
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
 	// Rules Mira writes and manages on request, with the skill "regel"
-	// (docs/spec/hooks-schreiben.md).
+	// (docs/spec/hooks-writing.md).
 	internal = append(internal, a.hooks.Tools("regel", func() string { return a.houseForRules(snapshot()) })...)
-	// Sleep timer: one-time automations in Home Assistant (docs/spec/geplante-aktionen.md).
+	// Sleep timer: one-time automations in Home Assistant (docs/spec/scheduled-actions.md).
 	internal = append(internal, timer.Tools(timer.Options{
 		Lang: a.lang, HA: a.ha,
 		Players: func(area string) []string { return exposedIn(snapshot(), area, "media_player.") },
@@ -386,11 +386,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return id
 		},
 	}))
-	// Phone calls from the satellite of the turn (docs/spec/telefon.md).
+	// Phone calls from the satellite of the turn (docs/spec/phone.md).
 	a.phonebook = &phone.Book{On: a.phoneBookOn, Read: a.readPhonebook}
 	internal = append(internal, phone.Tool(phone.Options{Lang: a.lang, Book: a.phonebook,
 		Line: a.phoneLine, Device: a.intercomDevice, Call: a.callESPHome}))
-	// Sounds and cards on the satellite of the turn (docs/spec/satellit.md).
+	// Sounds and cards on the satellite of the turn (docs/spec/satellite.md).
 	internal = append(internal, satellite.Tools(satellite.Options{
 		Lang: a.lang, Speaker: a.speakerOf, CardAction: a.cardActionOf, BaseURL: a.haAddress,
 		Play: func(ctx context.Context, entity, url string) error {
@@ -638,10 +638,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	}
 	a.goRun(ctx, "warmup", a.engine.RunWarmups)
 	// A rule written, changed or deleted in hooks/ applies without a restart
-	// (docs/spec/hooks-schreiben.md, Reloading).
+	// (docs/spec/hooks-writing.md, Reloading).
 	a.goRun(ctx, "hooks", func(ctx context.Context) error { a.hooks.Watch(ctx, 2*time.Second); return nil })
 	// The phone book once soon after the start, so Mira's page shows whether
-	// the access works before the first call (docs/spec/telefon.md).
+	// the access works before the first call (docs/spec/phone.md).
 	// Whether Mira FRITZ!Box is there for the answering machine, for the
 	// skill's problem.
 	if a.voicemailOn() {
@@ -702,7 +702,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	}
 
 	// One scheduler for the skills' schedules and Mira's own: one job after
-	// the other (docs/spec/zeitplan.md).
+	// the other (docs/spec/schedules.md).
 	a.runner = &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.briefingPeople}
 	if cfg.Memory.ProfileSchedule != "" {
 		compactor := a.profileCompactor()
@@ -1118,7 +1118,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	mux.Handle("/ui/", page)
 	mux.Handle("/v1/ui/", page)
 	// Pairing anew and changing the model from Home Assistant
-	// (docs/spec/einrichtung.md).
+	// (docs/spec/setup.md).
 	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
 		Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log}).Register(mux)
 	mux.Handle("/", api)
@@ -1335,7 +1335,7 @@ func (a *app) actionDecision(ctx context.Context, c threads.ActionCall) tools.De
 }
 
 // taskEditDecision lets the hooks decide on a change of a task after the
-// thread's yes (docs/spec/aufgaben-aendern.md, Saving): in the turn of the
+// thread's yes (docs/spec/tasks-editing.md, Saving): in the turn of the
 // yes, or for the thread's person when the yes came from the page.
 func (a *app) taskEditDecision(ctx context.Context, th store.Thread, args json.RawMessage) tools.Decision {
 	if a.guard == nil {

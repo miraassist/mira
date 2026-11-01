@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-// Schedules are Mira's jobs at a time (docs/spec/zeitplan.md): the skills'
+// Schedules are Mira's jobs at a time (docs/spec/schedules.md): the skills'
 // schedules and Mira's own.
 type Schedules interface {
 	List(ctx context.Context) ([]ScheduleItem, error)

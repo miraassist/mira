@@ -13,7 +13,7 @@ import (
 )
 
 // The settings sections in the file, what Home Assistant sends in memory
-// (docs/spec/bearbeiten.md, Settings sections; step 2).
+// (docs/spec/editing.md, Settings sections; step 2).
 
 const sectionsConfig = editConfig + `# the rooms
 satellites:

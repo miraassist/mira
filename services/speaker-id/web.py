@@ -1,4 +1,4 @@
-"""The service's API, for Mira (docs/spec/sprecher.md). With a token (--token, SPEAKER_TOKEN) every call
+"""The service's API, for Mira (docs/spec/speaker-id.md). With a token (--token, SPEAKER_TOKEN) every call
 needs it as "Authorization: Bearer <token>"; enrolling happens in Mira's page, not here.
 
 GET  /api/match      ?text=...&within=10: every utterance of this text just now, with its best and

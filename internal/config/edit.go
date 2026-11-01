@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// File is mira.yaml as Mira's page edits it (docs/spec/bearbeiten.md): the
+// File is mira.yaml as Mira's page edits it (docs/spec/editing.md): the
 // only truth. An edit reads the file afresh, changes the entry in its YAML
 // tree, so comments and order stay, checks the whole result as Mira would
 // load it, and writes it through a temporary file.

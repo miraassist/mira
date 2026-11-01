@@ -21,7 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// The agents (docs/spec/agenten.md): one runtime for all of them, and the
+// The agents (docs/spec/agents.md): one runtime for all of them, and the
 // internal agents described here.
 
 // newAgents is the runtime the agents run in. Model clients are the app's.
@@ -47,7 +47,7 @@ func (a *app) newAgents(registry *tools.Registry, guard *tools.Guard) *agent.Run
 // registerAgents makes the agents callable by name, from Home Assistant
 // (mira.agent) and when a stored run is taken up after a restart: Mira's
 // own with a fixed description, then those described in YAML, in mira.yaml
-// and in the skills (docs/spec/agenten.md, Factory). A YAML agent that does
+// and in the skills (docs/spec/agents.md, Factory). A YAML agent that does
 // not fit is left out and shown as a problem.
 func (a *app) registerAgents(registry *tools.Registry) {
 	for _, spec := range a.engine.Agents() {
@@ -86,7 +86,7 @@ func (a *app) registerAgents(registry *tools.Registry) {
 }
 
 // conversationTool is a YAML agent with conversation true as a tool of the
-// conversation (docs/spec/agenten.md, An agent as a tool in a conversation):
+// conversation (docs/spec/agents.md, An agent as a tool in a conversation):
 // a skill's comes with the skill, one of mira.yaml is always there. The
 // conversation waits for it as for delegate.
 func (a *app) conversationTool(d agent.Defined) (tools.InternalTool, bool) {
@@ -133,7 +133,7 @@ func sortedNames[V any](m map[string]V) []string {
 }
 
 // deliverRun hands a finished asynchronous run to its route
-// (docs/spec/agenten.md, Delivery): Home Assistant fires mira_agent_done, or
+// (docs/spec/agents.md, Delivery): Home Assistant fires mira_agent_done, or
 // a person or the house gets a message about it.
 func (a *app) deliverRun(ctx context.Context, rec store.AgentRun, cc agent.CallContext) {
 	switch cc.Mode.Delivery.Route {

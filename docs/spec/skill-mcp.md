@@ -53,7 +53,7 @@ skills:
   2026-10-29 only a skill with a server was noted as opened, so those tools never reached the conversation (SM-14).
 - **The skill's schedules** (`skill.task` running for that skill) get its tools.
 - **The skill's agents** (`metadata.mira.agents`) get the tools their `tools` list names, whether the conversation,
-  a thread or Home Assistant calls them (agenten.md, Factory). Such an agent with `conversation: true` is a tool of
+  a thread or Home Assistant calls them (agents.md, Factory). Such an agent with `conversation: true` is a tool of
   the conversation once the skill is opened:
 
   ```yaml
@@ -88,7 +88,7 @@ skills:
 - `web_content: true` makes what the server returns third-party text, as for any MCP server: after it, Mira asks
   before keeping or passing anything on, and critical actions are locked.
 - `read_only` decides, as for any MCP server, whether background work may use the tools at all.
-- The rights of agents apply as for every tool (agenten.md, Rights).
+- The rights of agents apply as for every tool (agents.md, Rights).
 
 ## Decided
 

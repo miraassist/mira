@@ -101,7 +101,7 @@ Requirements:
   `ha.token` in `mira.yaml` instead, set both up by hand.
 - Optional: more MCP servers under `mcp_servers`, over HTTP or started by
   Mira (stdio). A web search is built in (DuckDuckGo, no key; switched in the
-  integration's options, docs/spec/websuche.md). Radio is built in too: "play SWR3"
+  integration's options, docs/spec/web-search.md). Radio is built in too: "play SWR3"
   finds the station in Home Assistant's Radio Browser and starts it on the
   room's speaker (`radio_play`, docs/spec/radio.md). See "More tools over MCP" in the guide
   ([de](docs/guide/de.md), [en](docs/guide/en.md)).
@@ -143,7 +143,7 @@ labelled "Mira" that the model drafts and the user confirms. Home Assistant's
 triggers and conditions decide when; the integration's actions `mira.assess`
 (judge against the goal with condensed data, maybe notify), `mira.decide`
 (yes/no for conditions) and `mira.send_message` decide what is said. See
-docs/spec/aufgaben.md and docs/system.md.
+docs/spec/tasks.md and docs/system.md.
 
 Skills: folders under `skills/` with a `SKILL.md` in the Agent Skills format
 (frontmatter `name`, `description`; Mira's settings, calendars and schedules
@@ -158,7 +158,7 @@ as background jobs and may queue one message. `mira skill NAME` runs a
 schedule now. The first skill, `abfall`, reads a waste collection calendar
 and reminds the evening before.
 
-Languages (`de`, `en`; docs/spec/sprache.md): in a conversation Mira takes
+Languages (`de`, `en`; docs/spec/language.md): in a conversation Mira takes
 the language Home Assistant sends with it, the Assist pipeline's. What she
 says on her own takes the language last spoken at that satellite or by that
 person, otherwise the last at all, and before anyone spoke, Home Assistant's
@@ -181,7 +181,7 @@ an urgent message. These rules are enforced in code, not only in the prompt.
    with one click (an agent with `server.token` in `mira.yaml` asks for
    that token), then the form asks for the AI model and the assistants.
 
-Pairing (docs/spec/einrichtung.md): the form chooses and tries the model
+Pairing (docs/spec/setup.md): the form chooses and tries the model
 first (the agent answers `/v1/setup/models` and `/v1/setup/probe` without a
 token only while it was never paired); nothing is changed before the
 summary's "Pair". That creates the HA user and token, switches on HA's MCP
@@ -206,7 +206,7 @@ theme. There everyone, admins too, sees the house's memory and their own
 enforced by the proxy and the agent. The integration's options switch it off.
 
 Mira keeps no lists of her own for what Home Assistant has
-(docs/spec/ha-anbindung.md): every HA person is a person for Mira, every
+(docs/spec/ha-integration.md): every HA person is a person for Mira, every
 Assist satellite with an area speaks for that area. What Mira needs on top
 is stored on the person or satellite itself, as entity registry options
 under `mira`, and set in the integration's options ("Configure": settings

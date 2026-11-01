@@ -1,4 +1,4 @@
-"""The mail calendar (docs/spec/mail-kalender.md): passes the mails of IMAP
+"""The mail calendar (docs/spec/mail-calendar.md): passes the mails of IMAP
 entries named like a mail application on to the agent, and keeps the
 calendars they are written into.
 

@@ -1,5 +1,5 @@
 """notify.mira_*: send a message through Mira with Home Assistant's own
-notify.send_message (docs/spec/nachrichten.md). One entity for the house,
+notify.send_message (docs/spec/messages.md). One entity for the house,
 one per person; the sender is the automation (or whoever calls it).
 Mira then delivers it like any message: in the house by announcement or
 the indicator light, to a person over their channels."""

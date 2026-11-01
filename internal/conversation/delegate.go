@@ -11,13 +11,13 @@ import (
 )
 
 // How long a conversation waits for the delegate before it runs on and its
-// result comes as a message (docs/spec/agenten.md, Decided 27).
+// result comes as a message (docs/spec/agents.md, Decided 27).
 var (
 	delegateWaitVoice    = 5 * time.Second
 	delegateWaitTelegram = 30 * time.Second
 )
 
-// Delegate runs the agent delegate (docs/spec/agenten.md): a task handed on
+// Delegate runs the agent delegate (docs/spec/agents.md): a task handed on
 // by the conversation, typically to a stronger cloud model, whose answer the
 // user hears through the conversation's model. Without routing.delegate it
 // takes main.
@@ -45,7 +45,7 @@ func (e *Engine) Delegate(ctx context.Context, task string) (string, error) {
 // (delegate, a YAML agent with conversation true): its person and place, one
 // deeper. The conversation waits 5 seconds at a satellite, 30 on Telegram;
 // then the run goes on and its result comes as a message to the person or
-// the room (docs/spec/agenten.md, An agent as a tool in a conversation).
+// the room (docs/spec/agents.md, An agent as a tool in a conversation).
 func (e *Engine) AgentCall(ctx context.Context) agent.CallContext {
 	cc := agent.CallContext{Origin: agent.FromCode, Rights: agent.AllRights, Lang: string(e.lang(ctx))}
 	if conv, ok := agent.Current(ctx); ok {

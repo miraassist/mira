@@ -45,7 +45,7 @@ type Options struct {
 	// valid and there is nothing to warm up.
 	OnChange func(Snapshot)
 	// Exposed, when it knows, is what Home Assistant exposes to Assist as
-	// the Mira integration sent it (docs/spec/ha-anbindung.md). It comes
+	// the Mira integration sent it (docs/spec/ha-integration.md). It comes
 	// before asking Home Assistant, which only answers admins.
 	Exposed func(ctx context.Context) (map[string]bool, bool)
 }

@@ -28,7 +28,7 @@ func SetAuth(req *http.Request, key string) {
 	}
 }
 
-// Where a context size came from (docs/spec/modelle.md, Context size).
+// Where a context size came from (docs/spec/models.md, Context size).
 const (
 	ContextFromModels   = "models"   // the server's /models
 	ContextFromGemini   = "gemini"   // Google's own model endpoint

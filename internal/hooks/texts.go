@@ -3,7 +3,7 @@ package hooks
 import "github.com/miraassist/mira/internal/i18n"
 
 // texts are what the built-in hooks say (text(key) in a hook), the engine's
-// own messages and the rule tools (docs/spec/hooks-schreiben.md).
+// own messages and the rule tools (docs/spec/hooks-writing.md).
 type texts struct {
 	keys map[string]string
 	// failed: %s = the hook. notLoaded: %s = the problem. criticalMissing:

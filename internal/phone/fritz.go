@@ -1,4 +1,4 @@
-// Package phone is phone_call (docs/spec/telefon.md): Mira calls a contact
+// Package phone is phone_call (docs/spec/phone.md): Mira calls a contact
 // of the FRITZ!Box's phone book, a device in the house or a number from the
 // satellite being spoken at. The phone book comes from the integration Mira
 // FRITZ!Box (miraassist/mira-fritz), its action get_phonebook.

@@ -20,7 +20,7 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
   scenario of the flow runs, the interruptions too (wake word, "stop", "cancel", "next", "again", silence, an
   unknown voice); the handover names which ran and what is left for the maintainer.
 - **Test against the fake devices.** The fakes in the test HA (`testenv/techo5_fake`,
-  [Fake devices](docs/spec/fake-geraete.md)) are built for exactly these tests: use them while building. When a test
+  [Fake devices](docs/spec/fake-devices.md)) are built for exactly these tests: use them while building. When a test
   needs something a fake cannot do, consider extending the fake (or ask) before building a detour or leaving it
   untested.
 - **One flow at a time.** While a flow does not work, only it is built; whatever else comes up on the way goes into
@@ -62,7 +62,7 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
   transitions: a state changes, an event comes, a turn arrives. Never by computed durations, estimated delays or
   sleeps. A time is only a safety net, or the very last resort where no signal exists, and then the spec says why.
 - **Handlers of a subscription never block**: they run on the connection's read loop and only pass the change on.
-- **Whose a thread is follows clear rules** ([Threads](docs/spec/vorgaenge.md), Assignment): a thread is bound to a
+- **Whose a thread is follows clear rules** ([Threads](docs/spec/threads.md), Assignment): a thread is bound to a
   person or a room by its type; who speaks is decided by the voice alone.
 - **User-facing texts** (pages, setup, options, repairs) are for Home Assistant users who are not technical: the next
   click, no terms they do not know.

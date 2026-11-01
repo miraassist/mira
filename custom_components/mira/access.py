@@ -1,5 +1,5 @@
 """What the agent needs from Home Assistant, set up by the integration
-(docs/spec/einrichtung.md): a user of its own without admin rights, with a
+(docs/spec/setup.md): a user of its own without admin rights, with a
 long-lived token, and Home Assistant's MCP server with the Assist API. Then
 nobody has to log in as another user for a token, or know the MCP server
 integration."""
@@ -25,7 +25,7 @@ TOKEN_LIFETIME = timedelta(days=3650)
 # Home Assistant's own conversation agent.
 HA_AGENT = "conversation.home_assistant"
 # The tokens of agents this Home Assistant removed, by agent id: it pairs
-# with them again without a code (docs/spec/einrichtung.md), by the key of
+# with them again without a code (docs/spec/setup.md), by the key of
 # the token after the agent let go, or with the token itself if the agent
 # was away and never did. The store outlives the entry, which removing
 # deletes.

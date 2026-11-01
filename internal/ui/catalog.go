@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// The skills and agents at a glance (docs/spec/uebersicht.md): what Mira
+// The skills and agents at a glance (docs/spec/overview.md): what Mira
 // loaded, read only, for admins.
 
 // Catalog is every skill and agent with what the view shows of it.

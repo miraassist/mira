@@ -19,7 +19,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// Writing rules on request (docs/spec/hooks-schreiben.md).
+// Writing rules on request (docs/spec/hooks-writing.md).
 
 const denyAll = `DESCRIPTION = "nichts"
 def pre_tool(call, verdict):
@@ -115,7 +115,7 @@ func TestHW04_ABrokenFileWhileRunningIsReportedTheOthersApply(t *testing.T) {
 }
 
 // A household critical.star switched off does not switch off the default:
-// critical.star cannot be switched off (hooks-schreiben.md, decision 8).
+// critical.star cannot be switched off (hooks-writing.md, decision 8).
 func TestCriticalCannotBeSwitchedOff(t *testing.T) {
 	f := newFixture(t, map[string]string{"critical.star": `DESCRIPTION = "x"
 ACTIVE = False

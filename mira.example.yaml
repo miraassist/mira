@@ -17,7 +17,7 @@ server:
   announce: true
   name: Mira
 
-# The language models by name (docs/spec/modelle.md). main must exist: every
+# The language models by name (docs/spec/models.md). main must exist: every
 # agent that names no model takes it. Settings a model leaves out come from
 # main, except cache_prompt, warmups and pin_slots (each model's own).
 models:
@@ -58,7 +58,7 @@ models:
 # store:
 #   path: "/var/lib/mira/mira.db"
 
-# Mira speaks the language spoken to her (docs/spec/sprache.md); there is
+# Mira speaks the language spoken to her (docs/spec/language.md); there is
 # no setting for it.
 prompt:
   # Static text appended to the system prompt. Part of the cached prefix,
@@ -86,12 +86,12 @@ mcp_servers:
     # actions (locks, alarm, garage) for the rest of the turn.
     web_content: true
 
-# Mira's own web search (docs/spec/websuche.md): DuckDuckGo, no key. The
+# Mira's own web search (docs/spec/web-search.md): DuckDuckGo, no key. The
 # integration's options ("General" → "Web search") win over this.
 web_search:
   enabled: true
 
-# Who speaks at a satellite, by the voice (docs/spec/sprecher.md): the
+# Who speaks at a satellite, by the voice (docs/spec/speaker-id.md): the
 # speaker-id service (services/speaker-id) in front of the STT. Without a
 # URL the satellites are anonymous unless the "alone at home" rule names
 # someone.
@@ -102,9 +102,9 @@ web_search:
 #                           # voice_threshold (under persons) wins
 
 # Telegram runs through Home Assistant's own Telegram integration
-# (telegram_bot); Mira has no bot of her own (docs/spec/kanaele.md).
+# (telegram_bot); Mira has no bot of her own (docs/spec/channels.md).
 
-# What the model sees of a conversation (docs/spec/kontext.md): the running
+# What the model sees of a conversation (docs/spec/context.md): the running
 # thread plus the last turns. At max_turns the history is cut to keep_turns,
 # and at llm.compact_at_fraction (0.9) of the context window as well.
 sessions:
@@ -133,7 +133,7 @@ persons:
 # Tasks ("Achte auf den Wasserverbrauch") are Home Assistant automations
 # with the label "Mira" that call mira.assess, mira.decide or
 # mira.send_message; create them in conversation or in Home Assistant
-# (docs/spec/aufgaben.md).
+# (docs/spec/tasks.md).
 
 notifier:
   quiet_hours: { from: "22:30", to: "06:30" }
@@ -190,7 +190,7 @@ telemetry:
   log_level: info
 
 # Agents: how deep agents may call each other, and agents described in YAML
-# (docs/spec/agenten.md, Factory). Call them from automations with mira.agent.
+# (docs/spec/agents.md, Factory). Call them from automations with mira.agent.
 # Every agent takes main unless it names its model here (Mira's own agents
 # take only model and privacy). delegate is the model the conversation hands
 # harder tasks to; mail.read and mail.match read the mails of the mail

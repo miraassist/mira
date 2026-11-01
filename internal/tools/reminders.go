@@ -152,7 +152,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 					return "", errors.New(t.reminderTooFar)
 				}
 				// A reminder is a message with a delivery time
-				// (docs/spec/nachrichten.md). One for a person named who
+				// (docs/spec/messages.md). One for a person named who
 				// is not known is refused, as for message_send: it must
 				// not go to the asker or the whole house instead.
 				receiver := ReceiverFor("", inv, o.Persons())
@@ -177,7 +177,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 				if inv.Channel == config.ChannelVoice && o.Store != nil {
 					if sess, err := o.Store.GetSession(ctx, inv.SessionKey); err == nil {
 						// Spoken in the room it was asked in, at the satellite
-						// asked (docs/spec/satelliten-raeume.md).
+						// asked (docs/spec/satellites-rooms.md).
 						m.AreaID, m.OriginDevice = sess.AreaID, sess.DeviceID
 					}
 				}
@@ -316,7 +316,7 @@ func resolveReceiver(to string, persons map[string]config.Person) string {
 }
 
 // accepts checks the receiver's setting for messages from people
-// (docs/spec/nachrichten.md): the house takes everything; a person takes
+// (docs/spec/messages.md): the house takes everything; a person takes
 // all, only messages from persons Mira recognised, or none. A message to
 // oneself is always fine.
 func accepts(t texts, persons map[string]config.Person, receiver string, inv Invocation) error {

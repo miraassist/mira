@@ -1,5 +1,5 @@
 // Package language says which language Mira speaks when
-// (docs/spec/sprache.md): in a conversation the one Home Assistant sends
+// (docs/spec/language.md): in a conversation the one Home Assistant sends
 // with the request, otherwise the one last spoken at that satellite's area,
 // by that person, or at all; before anyone ever spoke, Home Assistant's
 // server language. There is no setting for it.

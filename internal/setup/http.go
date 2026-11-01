@@ -22,7 +22,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Handler serves pairing and setup (docs/spec/einrichtung.md):
+// Handler serves pairing and setup (docs/spec/setup.md):
 //
 //	GET  /v1/pair          open: the agent's id, whether it pairs without a
 //	                       code (never paired) or a code waits, its model
@@ -522,7 +522,7 @@ func mentionsModel(s string) bool {
 }
 
 // contextOf asks the model's server once, at setup, how much context the
-// model has, and keeps it with the model (docs/spec/modelle.md, Context
+// model has, and keeps it with the model (docs/spec/models.md, Context
 // size); a server that does not say leaves it to the default.
 func (h *Handler) contextOf(ctx context.Context, l *LLM) {
 	if l == nil {

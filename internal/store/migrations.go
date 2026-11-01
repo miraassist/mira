@@ -249,7 +249,7 @@ ALTER TABLE threads ADD COLUMN person TEXT NOT NULL DEFAULT '';
 `,
 	},
 	{
-		// Notices become messages (docs/spec/nachrichten.md): a sender and a
+		// Notices become messages (docs/spec/messages.md): a sender and a
 		// receiver ("house" or a person). The session transcripts, which
 		// had the name, are chat messages now.
 		name: "0013_messages",
@@ -294,7 +294,7 @@ ALTER TABLE messages ADD COLUMN origin_area TEXT NOT NULL DEFAULT '';
 	},
 	{
 		// A thread is changed only if nobody changed it since it was read
-		// (docs/spec/agenten.md, Shared state). Agents' asynchronous runs
+		// (docs/spec/agents.md, Shared state). Agents' asynchronous runs
 		// are stored, with what each round added, so they survive a restart.
 		name: "0016_agent_runs",
 		stmt: `
@@ -323,7 +323,7 @@ CREATE TABLE agent_run_steps (
 `,
 	},
 	{
-		// Agents fill a thread's fields (docs/spec/agenten.md, Continuation):
+		// Agents fill a thread's fields (docs/spec/agents.md, Continuation):
 		// the thread keeps their call ids by field; a run record keeps
 		// whether the run read third-party text, for a foreign plan.
 		name: "0017_thread_calls",
@@ -353,7 +353,7 @@ ALTER TABLE sessions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
 	{
 		// The satellite's area a thread began at: its messages are spoken
 		// there, where the user is, even when it belongs to a person
-		// (docs/spec/vorgaenge.md).
+		// (docs/spec/threads.md).
 		name: "0020_thread_area",
 		stmt: `
 ALTER TABLE threads ADD COLUMN area TEXT NOT NULL DEFAULT '';
@@ -389,7 +389,7 @@ INSERT INTO memory_facts_fts(memory_facts_fts) VALUES ('rebuild');
 	{
 		// The satellite's device a message or thread was asked at: in a room
 		// with several satellites, what comes later is spoken there
-		// (docs/spec/satelliten-raeume.md).
+		// (docs/spec/satellites-rooms.md).
 		name: "0024_origin_device",
 		stmt: `
 ALTER TABLE messages ADD COLUMN origin_device TEXT NOT NULL DEFAULT '';

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// The output check (docs/spec/agenten.md, Decided 15): a small check of our
+// The output check (docs/spec/agents.md, Decided 15): a small check of our
 // own for the parts of JSON Schema Mira's agents use — type, properties,
 // required, enum, items. Other keywords are ignored.
 

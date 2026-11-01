@@ -56,7 +56,7 @@ type Config interface {
 	// each other (a presence sensor needs its area's satellite).
 	SetSections(ctx context.Context, sections map[string]json.RawMessage) error
 	// SetHASections applies what Home Assistant sends, held in memory only
-	// (docs/spec/bearbeiten.md, What Home Assistant sends).
+	// (docs/spec/editing.md, What Home Assistant sends).
 	SetHASections(ctx context.Context, sections map[string]json.RawMessage) error
 	// HAManaged says the integration manages persons and rooms.
 	HAManaged() bool
@@ -90,7 +90,7 @@ type Options struct {
 	// People are Home Assistant's persons, each a person for Mira.
 	People func() []PersonInfo
 	// Voices is the speaker-id service, for enrolling a voice on the page;
-	// nil without speaker_id (docs/spec/sprecher.md).
+	// nil without speaker_id (docs/spec/speaker-id.md).
 	Voices Voices
 	// VoiceThreshold is the score a person's voice needs to count as
 	// theirs: enrolling hides what sounds like someone else.
@@ -103,17 +103,17 @@ type Options struct {
 	// Location is the time zone times are shown in.
 	Location *time.Location
 	// Schedules are the skills' and Mira's own jobs at a time
-	// (docs/spec/zeitplan.md).
+	// (docs/spec/schedules.md).
 	Schedules Schedules
-	// Catalog lists the skills, agents and models (docs/spec/uebersicht.md).
+	// Catalog lists the skills, agents and models (docs/spec/overview.md).
 	Catalog CatalogSource
 	// CheckModel asks a model whether it answers.
 	CheckModel ModelCheck
-	// Editor changes models, agents and skills (docs/spec/bearbeiten.md);
+	// Editor changes models, agents and skills (docs/spec/editing.md);
 	// without it the pages only read.
 	Editor Editor
 	// Phone is what waits on the answering machine, for the start page and
-	// the messages page (docs/spec/anrufbeantworter.md); nil without it.
+	// the messages page (docs/spec/voicemail.md); nil without it.
 	Phone func(ctx context.Context) (PhoneNews, error)
 	// Version is the agent's version, shown in the page header.
 	Version string
@@ -237,7 +237,7 @@ func (h *Handler) guideFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
 }
 
-// sound serves Mira's sounds to the satellites (docs/spec/satellit.md),
+// sound serves Mira's sounds to the satellites (docs/spec/satellite.md),
 // through the integration's open page; like the page they need no token.
 func (h *Handler) sound(w http.ResponseWriter, r *http.Request) {
 	name, ok := strings.CutSuffix(r.PathValue("name"), ".mp3")
@@ -527,7 +527,7 @@ const (
 )
 
 // HeaderIntegration is the integration's version, on everything its proxy
-// passes on, the page too (docs/spec/versionen.md). Older integrations do
+// passes on, the page too (docs/spec/versions.md). Older integrations do
 // not send it.
 const HeaderIntegration = "X-Mira-Integration"
 
@@ -684,7 +684,7 @@ func (h *Handler) fileOwners(keys []string) []memfile.Owner {
 }
 
 // exportMemory is the memories the viewer sees, as a file
-// (docs/spec/gedaechtnis-datei.md).
+// (docs/spec/memory-file.md).
 func (h *Handler) exportMemory(w http.ResponseWriter, r *http.Request) {
 	owners, err := h.memoryOwners(r.Context(), h.viewer(r))
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 )
 
 // Voices is the speaker-id service as the page needs it: who has a voice,
-// and enrolling one (docs/spec/sprecher.md). *speakerid.Client is one.
+// and enrolling one (docs/spec/speaker-id.md). *speakerid.Client is one.
 type Voices interface {
 	Profiles(ctx context.Context) (map[string]int, error)
 	Now(ctx context.Context) (float64, error)
@@ -31,7 +31,7 @@ const enrollFor = 3 * time.Minute
 // enrollSentences are what enrolling asks to say, after the wake word:
 // harmless requests Mira answers in a moment. Only utterances that are one
 // of them show on the page, so enrolling cannot be used to read along with
-// what the house says (docs/spec/sprecher.md).
+// what the house says (docs/spec/speaker-id.md).
 var enrollSentences = map[string][]string{
 	"de": {
 		"Wie spät ist es gerade?",

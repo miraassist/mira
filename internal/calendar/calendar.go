@@ -1,5 +1,5 @@
 // Package calendar lets Mira read and change Home Assistant's calendars
-// (docs/spec/kalender.md): the tool calendar_events, which shows events the
+// (docs/spec/calendar.md): the tool calendar_events, which shows events the
 // way Mira decides (package timeline), the checks for the skills termin and
 // termin_absagen, and the building block calendar.delete, for which Home
 // Assistant has no action.
@@ -472,7 +472,7 @@ var catalog = map[i18n.Lang]texts{
 }
 
 // DeleteCreated is the building block "calendar.delete_created", the undo
-// of the skill termin (docs/spec/kalender.md): Home Assistant returns no ID
+// of the skill termin (docs/spec/calendar.md): Home Assistant returns no ID
 // for an event it added, so it finds the event in the calendar (entity_id)
 // by its title (summary) and start (start_date_time "2006-01-02 15:04", or
 // start_date for a whole day) and deletes it. Exactly one match is deleted;

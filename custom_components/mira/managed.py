@@ -1,4 +1,4 @@
-"""Mira's settings on Home Assistant's own things (docs/spec/ha-anbindung.md).
+"""Mira's settings on Home Assistant's own things (docs/spec/ha-integration.md).
 
 Mira keeps no lists of her own for what Home Assistant has. Her settings
 are entity registry options under the "mira" domain, the way Assist stores
@@ -158,7 +158,7 @@ def ring_of(hass: HomeAssistant, satellite: str) -> str:
 
 def room_to_agent(area: str, satellite: str, data: dict[str, Any], ring: str = "") -> dict[str, Any]:
     """A room as the agent has it. Without a setting its indicator is the
-    satellite's own ring, found (docs/spec/ha-anbindung.md)."""
+    satellite's own ring, found (docs/spec/ha-integration.md)."""
     presence = data.get("presence") or []
     if isinstance(presence, str):
         presence = [presence]
@@ -197,7 +197,7 @@ def import_settings(hass: HomeAssistant, agent: dict[str, Any]) -> None:
 
 def room_satellites(hass: HomeAssistant, settings: dict[str, dict[str, Any]] | None = None) -> dict[str, list[str]]:
     """The satellites of each area, the primary first, then the others in
-    the order they came (docs/spec/satelliten-raeume.md): every Assist
+    the order they came (docs/spec/satellites-rooms.md): every Assist
     satellite that is on and has an area, and speakers with settings. The
     primary is the one marked; without a mark (until ensure_primaries has
     marked one), the oldest in the entity registry."""
@@ -293,7 +293,7 @@ async def async_config(
 
 async def person_logins(hass: HomeAssistant) -> dict[str, str]:
     """The login name of each person's Home Assistant user, by person
-    entity. A calendar named like it is the person's (docs/spec/kalender.md).
+    entity. A calendar named like it is the person's (docs/spec/calendar.md).
     Only an admin may read users, which the agent's user is not."""
     out: dict[str, str] = {}
     for state in hass.states.async_all("person"):
@@ -317,7 +317,7 @@ def exposed_entities(hass: HomeAssistant) -> list[str]:
     """What Home Assistant exposes to Assist, decided the way it does
     itself. The agent's own user may not read that list (it is no admin), so
     the integration hands it over: it is the line for everything Mira reads
-    by herself (docs/spec/ha-anbindung.md)."""
+    by herself (docs/spec/ha-integration.md)."""
     return sorted(e for e in hass.states.async_entity_ids() if async_should_expose(hass, "conversation", e))
 
 
@@ -435,7 +435,7 @@ def all_satellites(hass: HomeAssistant) -> list[str]:
 
 def satellites_without_area(hass: HomeAssistant) -> list[str]:
     """The Assist satellites that are on and have no area, their own or their
-    device's: Mira knows no room for them (docs/spec/satelliten-raeume.md)."""
+    device's: Mira knows no room for them (docs/spec/satellites-rooms.md)."""
     return sorted(
         e.entity_id
         for e in er.async_get(hass).entities.values()

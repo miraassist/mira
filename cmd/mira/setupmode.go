@@ -20,7 +20,7 @@ import (
 
 // prepared is the config as the agent runs with it: mira.yaml, if there is
 // one, with what the integration set up laid over it
-// (docs/spec/einrichtung.md).
+// (docs/spec/setup.md).
 type prepared struct {
 	cfg config.Config
 	// pairing: the token is the agent's own, so Home Assistant pairs (the
@@ -36,7 +36,7 @@ type prepared struct {
 	// let go.
 	code string
 	// path is the mira.yaml Mira read and the page writes
-	// (docs/spec/bearbeiten.md).
+	// (docs/spec/editing.md).
 	path string
 }
 

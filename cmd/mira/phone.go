@@ -15,7 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/skills"
 )
 
-// The phone (docs/spec/telefon.md): a TECHO5 satellite's ESPHome actions
+// The phone (docs/spec/phone.md): a TECHO5 satellite's ESPHome actions
 // phone_call and intercom_call, and the FRITZ!Box's phone book from Mira
 // FRITZ!Box when the skill telefon is on.
 

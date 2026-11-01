@@ -10,7 +10,7 @@ import (
 
 // A satellite whose own ring shows the room's messages gets no screen hint
 // on top; another satellite of the room keeps its screen
-// (docs/spec/satelliten-raeume.md, Rings and screens).
+// (docs/spec/satellites-rooms.md, Rings and screens).
 func TestASatelliteWhoseRingShowsGetsNoScreenHint(t *testing.T) {
 	a, ha, _ := deliveryApp(t)
 	ha.SetRegistry(nil,

@@ -54,7 +54,7 @@ Mira says. "Hook" is the technical word: in this spec, the code, the log and the
   own `critical.star`.
 - **Household hooks** are the household's own. Mira watches the folder: a file written, changed or deleted applies
   at once, without a restart; a line `ACTIVE = False` switches one off without deleting it
-  ([hooks-schreiben.md](hooks-schreiben.md)). Mira also writes them on request (the skill `regel`).
+  ([hooks-writing.md](hooks-writing.md)). Mira also writes them on request (the skill `regel`).
 
 ## Order
 
@@ -157,7 +157,7 @@ on areas).
 | `turn.text` | the user's message of this turn |
 | `time.hour`, `time.minute`, `time.weekday` (1 = Monday), `time.date` | now, local |
 
-Persons have no role or age in Home Assistant ([benutzer.md](benutzer.md)). A hook tells persons apart by
+Persons have no role or age in Home Assistant ([users.md](users.md)). A hook tells persons apart by
 `who.person` and `who.name`, and whether someone is known at all.
 
 ## Logging
@@ -239,7 +239,7 @@ def pre_tool(call, verdict):
 ```
 
 ```python
-# system/self.star (docs/spec/hooks-schreiben.md, Who may; docs/spec/aufgaben-aendern.md, Saving)
+# system/self.star (docs/spec/hooks-writing.md, Who may; docs/spec/tasks-editing.md, Saving)
 TOOLS = ["hook_save", "hook_switch", "hook_delete"]
 PROTECTED = ["rights.star", "background.star", "web.star", "self.star", "ask.star", "critical.star"]
 
@@ -289,7 +289,7 @@ def pre_tool(call, verdict):
 
 ### `critical.star` also says what a task may not switch
 
-Tasks (HA automations Mira drafts, [aufgaben.md](aufgaben.md)) and the sleep timer may not switch what needs a yes in
+Tasks (HA automations Mira drafts, [tasks.md](tasks.md)) and the sleep timer may not switch what needs a yes in
 the conversation; the integration refuses such an automation. What that is, `critical.star` says, the default one or
 the household's:
 
@@ -308,7 +308,7 @@ A household `critical.star` without both is a file that does not load (and the d
 
 ## Skill actions
 
-A skill whose thread ends with a Home Assistant action ([skill-aktionen.md](skill-aktionen.md)) calls it without the
+A skill whose thread ends with a Home Assistant action ([skill-actions.md](skill-actions.md)) calls it without the
 model; until 2026-10-28 nothing checked it. Now the action passes the hooks as a call of its own:
 
 - **The call**: tool name `skill_action`, `call.tool.skill` the skill, the action's data as arguments with `action`
@@ -339,7 +339,7 @@ model; until 2026-10-28 nothing checked it. Now the action passes the hooks as a
 
 2. **Skill actions** (built): a skill's action passes the hooks as a call of its own (see Skill actions).
 3. **Writing rules on request** (built): `ACTIVE`, reloading without a restart, `system/self.star`, the skill `regel`
-   ([hooks-schreiben.md](hooks-schreiben.md)).
+   ([hooks-writing.md](hooks-writing.md)).
 
 ## Later
 

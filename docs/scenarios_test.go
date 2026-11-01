@@ -17,19 +17,19 @@ import (
 // switch-over that are built: every scenario tagged with one of them must
 // have its Go test.
 var builtSteps = map[string][]int{
-	"AB": {1, 2, 3, 4},                    // docs/spec/anrufbeantworter.md
-	"AE": {2, 3},                          // docs/spec/aufgaben-aendern.md; step 1 is tested in pytest
-	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, // docs/spec/agenten.md, Switching over in steps
-	"BE": {2},                             // docs/spec/bearbeiten.md, Steps; step 1 predates the map
+	"AB": {1, 2, 3, 4},                    // docs/spec/voicemail.md
+	"AE": {2, 3},                          // docs/spec/tasks-editing.md; step 1 is tested in pytest
+	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, // docs/spec/agents.md, Switching over in steps
+	"BE": {2},                             // docs/spec/editing.md, Steps; step 1 predates the map
 	"HK": {1, 2},
 	"HW": {1, 2, 3},       // docs/spec/hooks.md, Steps
-	"MO": {1, 2, 3, 4, 5}, // docs/spec/modelle.md, Steps
+	"MO": {1, 2, 3, 4, 5}, // docs/spec/models.md, Steps
 	"SM": {1, 2},          // docs/spec/skill-mcp.md
-	"SP": {3},             // docs/spec/sprecher.md
+	"SP": {3},             // docs/spec/speaker-id.md
 	"BK": {1},             // docs/spec/backup.md; steps 2 and 3 are tested in pytest
 	"RA": {2},             // docs/spec/radio.md, Steps
-	"SR": {2, 4},          // docs/spec/satelliten-raeume.md; steps 1 and 3 are tested in pytest
-	"ZP": {1, 2, 3},       // docs/spec/zeitplan.md, Steps
+	"SR": {2, 4},          // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
+	"ZP": {1, 2, 3},       // docs/spec/schedules.md, Steps
 }
 
 var (

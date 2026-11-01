@@ -13,7 +13,7 @@ import (
 )
 
 // Agents is what Home Assistant's mira.agent, mira.agent_result and
-// mira.agent_cancel reach (docs/spec/agenten.md, Calling).
+// mira.agent_cancel reach (docs/spec/agents.md, Calling).
 type Agents interface {
 	CallByName(ctx context.Context, name string, input json.RawMessage, cc agent.CallContext) (agent.Result, error)
 	Record(ctx context.Context, callID string) (store.AgentRun, error)

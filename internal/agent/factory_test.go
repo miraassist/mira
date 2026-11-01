@@ -325,7 +325,7 @@ agents:
 }
 
 // A YAML agent with "model: delegate" takes the model mira.yaml names for
-// delegate, when it runs (docs/spec/hooks-schreiben.md, decision 4).
+// delegate, when it runs (docs/spec/hooks-writing.md, decision 4).
 func TestAYAMLAgentTakesTheModelOfOneOfMirasOwn(t *testing.T) {
 	e := setup(t)
 	var file struct {

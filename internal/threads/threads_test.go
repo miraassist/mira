@@ -324,7 +324,7 @@ func TestWorkingThreadStartsAgainAfterARestart(t *testing.T) {
 
 // In a room with several satellites, what a thread tells later is spoken at
 // the satellite it began at: the message carries its device
-// (docs/spec/satelliten-raeume.md).
+// (docs/spec/satellites-rooms.md).
 func TestSR29_TheAnswerOfAThreadComesAtTheSatelliteItBeganAt(t *testing.T) {
 	e := setup(t)
 	e.fin.delay = 200 * time.Millisecond // slower than the turn waits: it comes as a message

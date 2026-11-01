@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// LastRun is how a schedule's job ran last (docs/spec/zeitplan.md): kept per
+// LastRun is how a schedule's job ran last (docs/spec/schedules.md): kept per
 // schedule (and person) in kv, each run replacing the one before.
 type LastRun struct {
 	Started time.Time `json:"started"`

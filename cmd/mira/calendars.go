@@ -14,7 +14,7 @@ import (
 )
 
 // Calendars and to-do lists Mira may use: those exposed to Assist
-// (docs/spec/kalender.md). What a calendar can do comes from its features.
+// (docs/spec/calendar.md). What a calendar can do comes from its features.
 const (
 	calendarCreate = 1 // CalendarEntityFeature.CREATE_EVENT
 	calendarDelete = 2 // CalendarEntityFeature.DELETE_EVENT
@@ -87,7 +87,7 @@ func features(attrs map[string]any) int {
 // a personal message can reach, by a channel of their own or because "alone
 // at home is me" lets a satellite count as them. Each with their own
 // calendar, by convention one named like the person in Home Assistant ("Ben"
-// is Ben's; docs/spec/kalender.md), and their personal profile.
+// is Ben's; docs/spec/calendar.md), and their personal profile.
 func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 	cals, err := a.calendarList(ctx)
 	if err != nil {

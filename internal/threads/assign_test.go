@@ -14,7 +14,7 @@ import (
 )
 
 // assignEnv has a target bound to the room (kochen) and one bound to the
-// person (vokabeln), both with plans (docs/spec/vorgaenge.md, Assignment).
+// person (vokabeln), both with plans (docs/spec/threads.md, Assignment).
 func assignEnv(t *testing.T) *env {
 	t.Helper()
 	e := setup(t)

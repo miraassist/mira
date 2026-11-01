@@ -5,7 +5,7 @@ import (
 )
 
 // speakerOf is the media player of a satellite's device, where Mira plays
-// her sounds (docs/spec/satellit.md); "" if the device has none.
+// her sounds (docs/spec/satellite.md); "" if the device has none.
 func (a *app) speakerOf(_ context.Context, deviceID string) string {
 	return a.deviceEntity(deviceID, "media_player")
 }

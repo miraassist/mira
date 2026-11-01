@@ -135,7 +135,7 @@ type Options struct {
 	// turn that continues a conversation may keep its person after that
 	// (continued, prompt.ByConversation).
 	Identify func(ctx context.Context, req Request) (person, by string)
-	// Languages says which language applies (docs/spec/sprache.md); tests
+	// Languages says which language applies (docs/spec/language.md); tests
 	// without it get the default language.
 	Languages Languages
 	// Persona returns the persona as it is now, which the web UI can
@@ -175,7 +175,7 @@ type Engine struct {
 
 	// One turn per session at a time, so its history stays in order; turns
 	// of different sessions run at once, limited only by the access to the
-	// model (docs/spec/agenten.md, Several conversations at once).
+	// model (docs/spec/agents.md, Several conversations at once).
 	sessions sessionLocks
 	// webSeen notes the conversations that read web content, and when: what
 	// Mira writes down in a later turn of one (a plan) counts as foreign.
@@ -323,7 +323,7 @@ func (e *Engine) threadContext(ctx context.Context, sess store.Session, place st
 	return e.thread(ctx, sess, place, followedUp, announced)
 }
 
-// belongsTo says what a turn belongs to (docs/spec/agenten.md, What a turn
+// belongsTo says what a turn belongs to (docs/spec/agents.md, What a turn
 // belongs to): the session key of its conversation and the place of its
 // threads and plans. A known person's turn belongs to the person, at every
 // satellite; otherwise it stays in its room, as does everything in a
@@ -357,7 +357,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	now := e.clock()
 	key := ts.SessionKey
 	if !snap.ExposureKnown {
-		// What Assist may see comes from the integration (docs/spec/ha-anbindung.md).
+		// What Assist may see comes from the integration (docs/spec/ha-integration.md).
 		// Until it has sent that, no tool runs: Home Assistant's MCP server would
 		// act on what is exposed there, and the guard cannot know those names.
 		e.log.Warn("turn refused: the list of what Assist may see has not arrived", "session", key)
@@ -444,7 +444,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		began := time.Now()
 		out, err := e.chat(ctx, client, modelName, model, chatReq)
-		// A model that failed passes to its fallback (docs/spec/modelle.md),
+		// A model that failed passes to its fallback (docs/spec/models.md),
 		// which serves the rest of the turn.
 		for err != nil && ctx.Err() == nil {
 			next, ok := e.cfg.Fallback(modelName, mustBeLocal)
@@ -866,7 +866,7 @@ func (e *Engine) nameOf(person string) string {
 }
 
 // sentLang tells whether a request brought a language Mira can read, the
-// Assist pipeline's (docs/spec/sprache.md).
+// Assist pipeline's (docs/spec/language.md).
 func sentLang(s string) bool {
 	_, err := i18n.Parse(s)
 	return s != "" && err == nil
@@ -879,7 +879,7 @@ type followUp struct {
 }
 
 // continued is who speaks in a turn that continues a conversation at a
-// satellite (docs/spec/sprecher.md, "The speaker stays in a running
+// satellite (docs/spec/speaker-id.md, "The speaker stays in a running
 // conversation"): Home Assistant sends the conversation id Mira's answer
 // carried, at the same satellite, and that answer kept listening. Then the
 // conversation's person stays, unless identify knew better: a signed-in

@@ -12,7 +12,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 )
 
-// A skill's SKILL.md as Mira's page edits it (docs/spec/bearbeiten.md): the
+// A skill's SKILL.md as Mira's page edits it (docs/spec/editing.md): the
 // frontmatter as a YAML tree, so what the page does not change stays as
 // written, and the body as text.
 

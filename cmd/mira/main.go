@@ -52,7 +52,7 @@ func run() error {
 	defer stop()
 
 	// mira.yaml is optional: without it the integration sets the agent up
-	// (docs/spec/einrichtung.md).
+	// (docs/spec/setup.md).
 	p, err := prepare(ctx, *configPath)
 	if err != nil {
 		return err

@@ -55,7 +55,7 @@ func (a *app) home(ctx context.Context) map[string]string {
 }
 
 // haAddress is Home Assistant's address as satellites reach it
-// (docs/spec/satellit.md): its internal URL, else the one Mira uses.
+// (docs/spec/satellite.md): its internal URL, else the one Mira uses.
 func (a *app) haAddress(ctx context.Context) string {
 	a.home(ctx)
 	a.homeCache.mu.Lock()

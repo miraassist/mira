@@ -12,7 +12,7 @@ import (
 )
 
 // BackgroundContext builds an agent's background profile
-// (docs/spec/agenten.md, Context profiles): the background prefix, so the
+// (docs/spec/agents.md, Context profiles): the background prefix, so the
 // slot's cache stays warm, and the agent's instructions and input as layer 7.
 // It takes no lock: the runtime limits the access to each model.
 func (e *Engine) BackgroundContext(ctx context.Context, cc agent.CallContext, instructions, input string) (agent.Built, error) {

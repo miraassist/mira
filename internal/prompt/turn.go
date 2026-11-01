@@ -29,7 +29,7 @@ type Turn struct {
 	// DeviceHints are the lines Home Assistant's Assist prompt adds for the
 	// device that asks (its area, whether it can start timers). They come
 	// last in HA's prompt and here too, so layer 4 stays the same for every
-	// device (docs/spec/kontext.md).
+	// device (docs/spec/context.md).
 	DeviceHints string
 	// Person is who is speaking, when known; PersonProfile is their
 	// compacted personal memory (the house's is layer 5).
@@ -39,7 +39,7 @@ type Turn struct {
 	PersonName string
 	// PersonBy is how Mira knows the person: "" when they signed in or wrote
 	// from their messenger, ByVoice, ByAlone or ByConversation when she recognized them
-	// (docs/spec/sprecher.md). Then the model names them when it does
+	// (docs/spec/speaker-id.md). Then the model names them when it does
 	// something personal for them, so a mix-up is noticed.
 	PersonBy string
 	// Memories are facts retrieved for this turn. The compacted profile lives

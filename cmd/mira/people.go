@@ -14,7 +14,7 @@ import (
 // people is the directory of Home Assistant's persons: with Home Assistant
 // every HA person is a person for Mira, keyed by the HA person's id. Mira
 // creates nothing and keeps nothing in sync; the config only adds Mira's
-// settings per person (docs/spec/benutzer.md).
+// settings per person (docs/spec/users.md).
 type people struct {
 	mu     sync.Mutex
 	list   []haPerson
@@ -28,7 +28,7 @@ type haPerson struct {
 }
 
 // personStates is what Mira reads of the persons: Home Assistant filters
-// to the domain person (docs/spec/ha-anbindung.md, Watching states).
+// to the domain person (docs/spec/ha-integration.md, Watching states).
 var personStates = haws.StateFilter{Domains: []string{"person"}}
 
 // haPersonsFrom reads the person entities from the states. The id is the

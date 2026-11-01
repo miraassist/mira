@@ -41,7 +41,7 @@ type Spec struct {
 	AgentsOnly bool
 	// PlaysAfter: the tool plays something at the satellite after the
 	// answer (a recording); the turn never keeps the satellite listening,
-	// or its microphone would hear what plays (docs/spec/satellit.md).
+	// or its microphone would hear what plays (docs/spec/satellite.md).
 	PlaysAfter bool
 }
 
@@ -57,7 +57,7 @@ type Invocation struct {
 	// Area is the satellite's area of a voice turn.
 	Area string
 	// Place is where the turn's threads and plans live: "person:<key>",
-	// "area:<id>" or the session key (docs/spec/agenten.md, What a turn
+	// "area:<id>" or the session key (docs/spec/agents.md, What a turn
 	// belongs to). Empty for calls that are no conversation turn.
 	Place string
 	// DeviceID is the satellite's device id of a voice turn. Home Assistant's
@@ -94,13 +94,13 @@ type InternalTool struct {
 	// a switched-off tool is unknown to the model.
 	Enabled func() bool
 	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
-	// for the conversation, docs/spec/agenten.md).
+	// for the conversation, docs/spec/agents.md).
 	Skill string
 	// PlaysAfter: see Spec.
 	PlaysAfter bool
 	// DescribeIn, when set, gives the description in a turn's language: for
 	// tools that list skills, whose texts may come in several languages
-	// (docs/spec/skill-sprachen.md). Description is then the one in the
+	// (docs/spec/skill-languages.md). Description is then the one in the
 	// language at the start.
 	DescribeIn func(l i18n.Lang) string
 	Run        func(ctx context.Context, inv Invocation) (string, error)

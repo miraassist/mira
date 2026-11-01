@@ -7,7 +7,7 @@ DOMAIN = "mira"
 VERSION = "0.14.1"
 
 CONF_PERSONA = "persona"
-# Mira's own web search, switched at the agent (docs/spec/websuche.md).
+# Mira's own web search, switched at the agent (docs/spec/web-search.md).
 CONF_WEB_SEARCH = "web_search"
 CONF_OWN_HOLD = "own_message_hold"
 CONF_TIMEOUT = "timeout"

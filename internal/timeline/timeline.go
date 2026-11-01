@@ -1,5 +1,5 @@
 // Package timeline renders a list of entries with a time for the model
-// (docs/spec/kontext.md, section 2.2): calendar events, logbook changes,
+// (docs/spec/context.md, section 2.2): calendar events, logbook changes,
 // forecast hours, prices per hour. Mira decides how the model sees them:
 // a window, a selection, a limit, short fields by default, grouped by day,
 // times in the language of the conversation, and short labels instead of

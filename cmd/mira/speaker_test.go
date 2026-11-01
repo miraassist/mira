@@ -17,7 +17,7 @@ import (
 	"github.com/miraassist/mira/internal/speakerid"
 )
 
-// Scenarios of docs/spec/sprecher.md.
+// Scenarios of docs/spec/speaker-id.md.
 
 // speakerApp is an app whose speaker-id service answers body after delay,
 // with anna and ben as persons; ben is signed in to the HA app as u-ben.

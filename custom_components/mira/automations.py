@@ -509,7 +509,7 @@ _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"
         vol.Required("config"): dict,
         vol.Optional("forbidden"): _FORBIDDEN,
         # A change of an existing task: its unchanged steps are not checked
-        # again, as when saving (docs/spec/aufgaben-aendern.md).
+        # again, as when saving (docs/spec/tasks-editing.md).
         vol.Optional("automation_id"): str,
     }
 )

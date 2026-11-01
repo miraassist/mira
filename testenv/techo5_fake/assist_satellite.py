@@ -1,4 +1,4 @@
-"""The voice satellite, as a TECHO5 device's (docs/spec/satellit.md, How a
+"""The voice satellite, as a TECHO5 device's (docs/spec/satellite.md, How a
 TECHO5 satellite behaves). It speaks nothing: an announcement or the start
 of a conversation is logged with its text, and the satellite reports the
 states a device reports.

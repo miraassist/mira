@@ -66,7 +66,7 @@ type Options struct {
 	// that the integration last sent ("" if none), so it can see whether
 	// the agent has the current one.
 	ExposedHash func(ctx context.Context) string
-	// Mail is the mail calendar (docs/spec/mail-kalender.md); nil turns
+	// Mail is the mail calendar (docs/spec/mail-calendar.md); nil turns
 	// POST /v1/mail off.
 	Mail Mail
 	// Agents runs the agents Home Assistant calls (mira.agent); nil turns
@@ -230,7 +230,7 @@ type conversationRequest struct {
 	UserID string `json:"user_id"`
 	// Channel is "voice" (default: satellites and the HA chat) or
 	// "telegram": a chat of HA's Telegram integration, passed on by the
-	// integration's adapter (docs/spec/kanaele.md).
+	// integration's adapter (docs/spec/channels.md).
 	Channel string `json:"channel"`
 	// Person is who writes on a messenger: the integration matched the
 	// chat to a person's channels. Trusted, like everything that comes with
@@ -368,7 +368,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		problems = append(problems, s.opts.Problems()...)
 	}
 	// version lets the integration say when it and the agent do not match
-	// (docs/spec/versionen.md).
+	// (docs/spec/versions.md).
 	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems, "version": s.opts.Version}
 	if s.opts.ExposedHash != nil {
 		status["exposed_hash"] = s.opts.ExposedHash(r.Context())

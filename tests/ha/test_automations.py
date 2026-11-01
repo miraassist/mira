@@ -237,7 +237,7 @@ async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):
         await validate(hass, task)
 
 
-# --- Changing the household's tasks (docs/spec/aufgaben-aendern.md) ---------------------------------------
+# --- Changing the household's tasks (docs/spec/tasks-editing.md) ---------------------------------------
 
 HOUSEHOLD = {
     "id": "abendlicht",

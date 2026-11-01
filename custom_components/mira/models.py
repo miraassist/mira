@@ -1,5 +1,5 @@
 """Where the agent's AI model (LLM) can come from in the setup form
-(docs/spec/einrichtung.md): an AI integration Home Assistant already has,
+(docs/spec/setup.md): an AI integration Home Assistant already has,
 a common cloud provider, or a server of one's own. A key taken over from
 Home Assistant goes to the agent and is never shown."""
 

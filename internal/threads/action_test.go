@@ -121,7 +121,7 @@ func TestActionFinishWhereItCannot(t *testing.T) {
 	}
 }
 
-// A known person's thread lives with them, not in the room (agenten.md, What a
+// A known person's thread lives with them, not in the room (agents.md, What a
 // turn belongs to): the satellite an action names is the one of the turn that
 // acts. "Weck mich" in the bedroom sets the Show's alarm; a yes said in the
 // living room acts there, where the Echo has no alarms.

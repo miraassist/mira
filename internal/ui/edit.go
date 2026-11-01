@@ -10,7 +10,7 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 )
 
-// Editing models, agents and skills (docs/spec/bearbeiten.md): the page
+// Editing models, agents and skills (docs/spec/editing.md): the page
 // changes mira.yaml and a skill's SKILL.md; the changes hold after a restart.
 
 // Editor changes what Mira loads at start.

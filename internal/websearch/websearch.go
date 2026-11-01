@@ -1,4 +1,4 @@
-// Package websearch is Mira's own web search (docs/spec/websuche.md): the
+// Package websearch is Mira's own web search (docs/spec/web-search.md): the
 // tools web_search, which asks DuckDuckGo's HTML results page, and web_page,
 // which reads the main text of one page. No browser, no key. Both only
 // read, and what they return is untrusted third-party text, so the guard

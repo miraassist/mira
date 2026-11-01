@@ -1,4 +1,4 @@
-"""Mira's agents from Home Assistant (docs/spec/agenten.md, Calling).
+"""Mira's agents from Home Assistant (docs/spec/agents.md, Calling).
 
 mira.agent calls an agent, synchronously with its answer for the
 automation's response_variable, or asynchronously with a call id;

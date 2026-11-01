@@ -17,7 +17,7 @@ import (
 
 // runMemory is "mira memory export [-o FILE]" and "mira memory import FILE
 // [-yes]": the memory as a file, for a fresh setup by script
-// (docs/spec/gedaechtnis-datei.md). The command line sees every memory.
+// (docs/spec/memory-file.md). The command line sees every memory.
 func runMemory(parent context.Context, cfg config.Config, args []string) error {
 	if len(args) == 0 {
 		return errors.New("memory needs export or import, e.g. mira memory export -o gedaechtnis.md")

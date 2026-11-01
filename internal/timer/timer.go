@@ -1,4 +1,4 @@
-// Package timer is the sleep timer: "stop in 30 minutes" (docs/spec/geplante-aktionen.md).
+// Package timer is the sleep timer: "stop in 30 minutes" (docs/spec/scheduled-actions.md).
 // Mira does not keep the timer. She asks the Mira integration to put a
 // one-time automation into Home Assistant, which runs it – even when Mira is
 // off – and the integration tidies it away afterwards.

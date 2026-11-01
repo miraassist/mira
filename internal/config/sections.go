@@ -60,7 +60,7 @@ func (c Config) SectionJSON(name string) (json.RawMessage, error) {
 
 // WithoutDefaults leaves out of a section sent by the UI (JSON) what equals
 // Mira's default, compared as Mira reads it ("30m" is "30m0s"), down into
-// its parts; what is left goes into mira.yaml (docs/spec/bearbeiten.md,
+// its parts; what is left goes into mira.yaml (docs/spec/editing.md,
 // Settings sections). A section all at its defaults is null.
 func WithoutDefaults(name string, raw json.RawMessage) (json.RawMessage, error) {
 	y, err := SectionYAML(name, raw)

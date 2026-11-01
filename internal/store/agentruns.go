@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// AgentRun is the record of an agent's asynchronous run (docs/spec/agenten.md,
+// AgentRun is the record of an agent's asynchronous run (docs/spec/agents.md,
 // The run record): what was called, how it stands, what came out.
 type AgentRun struct {
 	CallID   string

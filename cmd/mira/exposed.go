@@ -13,7 +13,7 @@ import (
 )
 
 // kvExposed is what Home Assistant exposes to Assist, as the Mira
-// integration last sent it (docs/spec/ha-anbindung.md). It is kept, so it
+// integration last sent it (docs/spec/ha-integration.md). It is kept, so it
 // holds across restarts of the agent until the integration sends anew.
 const kvExposed = "ha_exposed"
 
@@ -78,7 +78,7 @@ func (a *app) exposedHash(ctx context.Context) string {
 
 // kvLogins are the login names of the persons' Home Assistant users, by
 // person entity, as the integration last sent them. A calendar named like a
-// person's login is theirs (docs/spec/kalender.md).
+// person's login is theirs (docs/spec/calendar.md).
 const kvLogins = "ha_logins"
 
 func (a *app) setLogins(ctx context.Context, logins map[string]string) error {

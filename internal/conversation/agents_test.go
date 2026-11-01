@@ -18,7 +18,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// The conversation agents (docs/spec/agenten.md, Several conversations at
+// The conversation agents (docs/spec/agents.md, Several conversations at
 // once, What a turn belongs to).
 
 // slowModel answers after a pause and notes how many requests ran at once.

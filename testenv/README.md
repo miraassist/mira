@@ -111,7 +111,7 @@ other action is accepted and only logged. They speak nothing (no speech
 synthesis, so no cloud voice is paid for).
 
 **Sound and listening** behave as on the real device
-([satellit.md](../docs/spec/satellit.md), How a TECHO5 satellite behaves; [fake-geraete.md](../docs/spec/fake-geraete.md)):
+([satellite.md](../docs/spec/satellite.md), How a TECHO5 satellite behaves; [fake-devices.md](../docs/spec/fake-devices.md)):
 the speaker reads the length of what it is given (`ffprobe`) and goes `idle`
 when it is over, a stream plays until it is stopped, stopping leaves it
 `paused`; with `announce` the satellite is `responding` meanwhile; an

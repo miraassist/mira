@@ -12,7 +12,7 @@ import (
 // its actions) comes from what Mira keeps current by Home Assistant's
 // events: the devices and entities from the structure snapshot (registry
 // events), the actions from a cache the service events clear. Nothing is
-// read from a registry per tool call (docs/spec/ha-anbindung.md, Watching
+// read from a registry per tool call (docs/spec/ha-integration.md, Watching
 // states).
 
 // deviceEntity is the first entity of a domain on a device, "" for none.
@@ -34,7 +34,7 @@ func (a *app) deviceNode(deviceID string) string {
 }
 
 // satelliteOn is the area's satellite on device, else the area's primary
-// (docs/spec/satelliten-raeume.md); "" when the area has none.
+// (docs/spec/satellites-rooms.md); "" when the area has none.
 func (a *app) satelliteOn(area, device string) string {
 	sats := a.liveConfig().Satellites[area]
 	if len(sats) == 0 {

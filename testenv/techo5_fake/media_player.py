@@ -1,4 +1,4 @@
-"""The speaker, as a TECHO5 device's (docs/spec/satellit.md, How a TECHO5
+"""The speaker, as a TECHO5 device's (docs/spec/satellite.md, How a TECHO5
 satellite behaves): it plays nothing, but reads the media's length and
 reports the end of a playback when that length is over.
 

@@ -34,7 +34,7 @@ COPY skills /app/skills
 COPY --from=build --chown=nonroot:nonroot /out/data /var/lib/mira
 ENV MIRA_CONFIG=/etc/mira/mira.yaml
 # No config file needed: listen on all interfaces, keep the data in the
-# volume; the integration sets the rest up (docs/spec/einrichtung.md).
+# volume; the integration sets the rest up (docs/spec/setup.md).
 ENV MIRA_LISTEN=0.0.0.0:8787
 ENV MIRA_DATA=/var/lib/mira
 VOLUME /var/lib/mira

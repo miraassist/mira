@@ -47,7 +47,7 @@ func (e *Engine) WarmupAll(ctx context.Context, reason string) {
 	// Only local models that want it are warmed (warmup_on_start at the
 	// start, warmup_on_prefix_change otherwise), for the channels whose
 	// agent takes them. A warmup of a cloud model costs money and buys
-	// nothing (docs/spec/modelle.md).
+	// nothing (docs/spec/models.md).
 	var channels []config.Channel
 	byModel := map[string]int{}
 	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {

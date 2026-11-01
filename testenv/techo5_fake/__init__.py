@@ -9,7 +9,7 @@ like the device (alarms, timers, announcements, the speaker, the screen hint,
 the ring); every other action is accepted and only logged. What a device was
 told shows in sensor.<node>_fake_log, so a test can check it. The satellite
 and the speaker report the states a device reports, and techo5_fake.wake_word
-stands in for the wake word (docs/spec/fake-geraete.md).
+stands in for the wake word (docs/spec/fake-devices.md).
 """
 
 from __future__ import annotations

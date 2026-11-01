@@ -22,7 +22,7 @@ const screenFor = 60 * time.Second
 
 // syncScreens shows or updates each screen's overlay when the number of
 // messages waiting in its room changes, and takes it away when none wait.
-// Every screen of a room shows the room's (docs/spec/satelliten-raeume.md).
+// Every screen of a room shows the room's (docs/spec/satellites-rooms.md).
 // The caller holds n.mu.
 func (n *Notifier) syncScreens(ctx context.Context) {
 	busy := n.busyScreens(ctx)
@@ -67,7 +67,7 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 
 // syncPhoneScreens shows on each screen what is new on the answering
 // machine, as a hint of its own beside Mira's messages, when it changes;
-// it goes when nothing is new (docs/spec/anrufbeantworter.md). The caller
+// it goes when nothing is new (docs/spec/voicemail.md). The caller
 // holds n.mu.
 func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 	busy := n.busyScreens(ctx)
@@ -177,7 +177,7 @@ func (n *Notifier) showWhenIdle(sat string) {
 // HoldPhoneScreen keeps the answering machine's hint off an area's screen
 // while it plays messages: each one heard lowers the count, and the hint
 // would cover the card of what plays. Released, the screen gets the count
-// as it is now (docs/spec/anrufbeantworter.md, decision 10).
+// as it is now (docs/spec/voicemail.md, decision 10).
 func (n *Notifier) HoldPhoneScreen(ctx context.Context, area string, hold bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

@@ -1400,7 +1400,7 @@ const I18N = {
 };
 const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "schedules", "agents", "models", "hooks", "guide"];
 // The start page shows a card per group; inside a group its tabs are on top
-// (docs/spec/uebersicht.md, Navigation).
+// (docs/spec/overview.md, Navigation).
 const GROUPS = [
   { id: "daily", tabs: ["messages", "tasks", "plans", "memory"] },
   { id: "setup", tabs: ["rooms", "persons", "notifier"] },
@@ -1803,7 +1803,7 @@ function rooms() {
   if (managed("satellites")) {
     if (embedded && isAdmin) return haSettings("satellites");
     // A row per satellite; a room's first is its primary, the motion sensors
-    // of the others speak at them (docs/spec/satelliten-raeume.md).
+    // of the others speak at them (docs/spec/satellites-rooms.md).
     const at = mt.speak_at || {}, many = [];
     [...areas].sort().forEach(a => list(sats[a]).forEach((sat, i) => many.push({ area: a, sat, primary: i === 0 && list(sats[a]).length > 1,
       sensor: csv(list(presence[a]).filter(s => (at[s] || list(sats[a])[0]) === sat)), active: list(mt.areas).includes(a), ind: csv(inds[a]) })));
@@ -1885,7 +1885,7 @@ function personRow(key, p, i) {
     <td><button class="danger" onclick="this.closest('tr').remove()">×</button></td></tr>`;
 }
 // ---- Ich, eine Person -----------------------------------------------------
-// A person's card: their settings and their voice (docs/spec/sprecher.md).
+// A person's card: their settings and their voice (docs/spec/speaker-id.md).
 // Everyone has their own as "Ich"; an admin opens anyone's from the list of
 // persons, a child's without a login too. What is whose to set: their own
 // accept_from and alone_is_me; channels and the voice threshold an admin's.
@@ -2300,7 +2300,7 @@ async function forget(id) {
   if (left === 0) { render(); return; } // the list says how to fill it again
   list.querySelector(".list-head .count").textContent = left;
 }
-// The memory as a file (docs/spec/gedaechtnis-datei.md): export downloads
+// The memory as a file (docs/spec/memory-file.md): export downloads
 // what this page shows; import shows what a file changes and asks first.
 async function exportMemory() {
   try {
@@ -2353,7 +2353,7 @@ async function compact() {
 }
 
 // ---- Agenten --------------------------------------------------------------
-// The stored agent runs, read-only (docs/spec/agenten.md, Run view). The
+// The stored agent runs, read-only (docs/spec/agents.md, Run view). The
 // list follows by itself while no run is opened.
 let runTimer = null;
 async function agents() {

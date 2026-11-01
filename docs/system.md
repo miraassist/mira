@@ -74,34 +74,34 @@ flowchart LR
 | `cmd/mira` | Start, wiring of all parts (`app.go`), commands `run`, `chat`, `check`, `profile`, `skill` |
 | `cmd/testha` | Start test HA in Docker, populate it, switch sensors |
 | `internal/channels/haconv` | HTTP API for the integration: `/v1/conversation`, `/v1/messages`, `/v1/assess`, `/v1/decide`, `/v1/health`, `/v1/status` |
-| `internal/channels/telegram` | Format replies for Telegram (Telegram HTML, splitting); Telegram itself runs via HA's integration and the adapter `custom_components/mira/telegram.py` ([Channels](spec/kanaele.md)) |
+| `internal/channels/telegram` | Format replies for Telegram (Telegram HTML, splitting); Telegram itself runs via HA's integration and the adapter `custom_components/mira/telegram.py` ([Channels](spec/channels.md)) |
 | `internal/conversation` | The conversation engine: build the prompt, ask the model, run tools, protection against unsupported answers, "Übrigens", handover to stronger models, isolated calls |
 | `internal/prompt` | Prompt layers, example conversation, texts per language |
 | `internal/llm` | OpenAI-compatible client (LM Studio, llama.cpp, Gemini) |
 | `internal/tools` | Tool registry, the guard (the mechanism around the hooks: resolving a call's targets, the pending question and the user's yes), internal tools (memory, reminders, messages, `calculate`: an arithmetic expression computed exactly, since models add badly) |
 | `internal/hooks` | Hooks: small Starlark scripts that decide on every tool call (allow, confirm, deny), on three levels (system, default, the household's folder `hooks/`); what the guard decided before ([Hooks](spec/hooks.md)) |
 | `internal/mcp` | MCP host: HA Assist tools, further MCP servers |
-| `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/websuche.md)) |
+| `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/web-search.md)) |
 | `internal/radio` | `radio_play`: search for a station in HA's Radio Browser and start it on the speaker of the room ([Radio](spec/radio.md)) |
-| `internal/satellite` | `sound_play`, `display_card` and `keep_listening`: Mira's own sounds (embedded, CC0) on the speaker of the turn's satellite, a picture card on its screen (TECHO5 `notify_picture`), listening again without a question ([Sounds and cards](spec/satellit.md)) |
-| `internal/phone` | `phone_call`: a contact of the FRITZ!Box's phone book (TR-064, skill `telefon`), a TECHO5 device over the intercom, or a number, from the satellite of the turn, only when its phone is signed in ([Phone calls](spec/telefon.md)) |
-| `internal/timer` | `sleep_timer` (set, list, extend, cancel): creates one-off automations in HA via the integration ([Scheduled actions](spec/geplante-aktionen.md)). The countdown timers are HA's own tools, which the MCP host fetches with the satellite's device id |
+| `internal/satellite` | `sound_play`, `display_card` and `keep_listening`: Mira's own sounds (embedded, CC0) on the speaker of the turn's satellite, a picture card on its screen (TECHO5 `notify_picture`), listening again without a question ([Sounds and cards](spec/satellite.md)) |
+| `internal/phone` | `phone_call`: a contact of the FRITZ!Box's phone book (TR-064, skill `telefon`), a TECHO5 device over the intercom, or a number, from the satellite of the turn, only when its phone is signed in ([Phone calls](spec/phone.md)) |
+| `internal/timer` | `sleep_timer` (set, list, extend, cancel): creates one-off automations in HA via the integration ([Scheduled actions](spec/scheduled-actions.md)). The countdown timers are HA's own tools, which the MCP host fetches with the satellite's device id |
 | `internal/ha/ws` | WebSocket client to HA: states, registries, statistics, services, subscriptions |
 | `internal/ha/structure` | House structure (areas, entities) as prompt layer 4 |
-| `internal/ha/assistprompt` | HA's own Assist prompt as an alternative for layer 4: the common beginning of all versions (without device and per satellite) is layer 4, what HA appends per device goes into the turn ([Context](spec/kontext.md), 1.1) |
+| `internal/ha/assistprompt` | HA's own Assist prompt as an alternative for layer 4: the common beginning of all versions (without device and per satellite) is layer 4, what HA appends per device goes into the turn ([Context](spec/context.md), 1.1) |
 | `internal/tasks` | Tasks: assessments (`assess`, `decide`), data views, drafting and managing the automations, tools |
 | `internal/notifier` | Delivery: when, where, how a message arrives; indicators (LED ring, screen); reminders |
 | `internal/skills` | Skills in the Agent Skills format (`SKILL.md`), schedules, calendar. A skill that cannot start is skipped and reported with a readable reason in the log and in `/v1/status` (`problems`); the integration shows it as a repair in HA |
 | `internal/calendar`, `internal/timeline` | Read and change calendars from Home Assistant; the shared rendering of the timeline |
-| `internal/mailcal` | Mail calendar: evaluate mails from HA's IMAP integration (the integration passes them on via `POST /v1/mail`) in isolation and maintain them as an entry in a calendar; hourly cleanup ([Mail calendar](spec/mail-kalender.md)) |
+| `internal/mailcal` | Mail calendar: evaluate mails from HA's IMAP integration (the integration passes them on via `POST /v1/mail`) in isolation and maintain them as an entry in a calendar; hourly cleanup ([Mail calendar](spec/mail-calendar.md)) |
 | `internal/feeds` | Read feeds (RSS/Atom) |
 | `internal/store` | SQLite: sessions, histories, messages, memory, reminders, task proposals, log of assessments; tables, relations and how long things are kept: [Database](database.md) |
 | `internal/profile` | Nightly condensation of the facts into the household profile |
 | `internal/ui` | Web UI and its API (`/v1/ui/*`), with each person's card ("Ich": settings, enrolling the voice) and the admins' list of persons |
-| `internal/speakerid` | Client of the speaker-id service: who said a satellite turn's text (`/api/match`, 300 ms at most; Mira decides with `speaker_id.threshold` or a person's `voice_threshold`), and enrolling for the page ([Speaker recognition](spec/sprecher.md)) |
-| `services/speaker-id` | Optional, a container of its own: a Wyoming STT proxy in front of the real STT that passes the audio on and compares a speaker embedding (sherpa-onnx, CPU) with the enrolled persons. No audio is kept; voice prints in its data directory. API on port 10311 behind `SPEAKER_TOKEN`. Released on its own (tag `speaker-id-vX.Y.Z`, image `ghcr.io/miraassist/speaker-id`) ([Speaker recognition](spec/sprecher.md)) |
+| `internal/speakerid` | Client of the speaker-id service: who said a satellite turn's text (`/api/match`, 300 ms at most; Mira decides with `speaker_id.threshold` or a person's `voice_threshold`), and enrolling for the page ([Speaker recognition](spec/speaker-id.md)) |
+| `services/speaker-id` | Optional, a container of its own: a Wyoming STT proxy in front of the real STT that passes the audio on and compares a speaker embedding (sherpa-onnx, CPU) with the enrolled persons. No audio is kept; voice prints in its data directory. API on port 10311 behind `SPEAKER_TOKEN`. Released on its own (tag `speaker-id-vX.Y.Z`, image `ghcr.io/miraassist/speaker-id`) ([Speaker recognition](spec/speaker-id.md)) |
 | `internal/announce` | mDNS advertisement (`_mira._tcp`) so that HA finds Mira. Only IPv4 addresses: IPv6 addresses are mostly temporary and expire; in addition, the integration keeps an address that answers and never adopts an IPv6 address |
-| `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Configuration (with the page's edits of mira.yaml and the secrets file, [Editing](spec/bearbeiten.md)), languages, cron, OpenTelemetry |
+| `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Configuration (with the page's edits of mira.yaml and the secrets file, [Editing](spec/editing.md)), languages, cron, OpenTelemetry |
 
 Where the time of a conversation goes is in the log: every model call appears as `model round` (round, model, `ms`, number and characters of the messages and the tools, tokens, of which from cache), every tool as `tool done` (name, `ms`, whether it failed), and `turn done` gives the total duration in `ms`. If a model call fails, `model round failed` appears with the duration. Before the first call of each conversation step there is `context built`: how many steps of history go along (`history_turns`, messages, characters), how large the part for this step is and which of its parts are present (reminders, profile, thread). The long, unchanging prefix (rules, tools, house) appears only when it changes (`prefix_changed`), with the size of its parts. A history is only cut further after `history compacted`. Every mail of the mail calendar appears in the log as `mail read`: what it caused (`action`, `reason`), the total duration in `ms`, the model, the number of its calls, their duration (`model_ms`) and the tokens; if it fails, `mail failed` appears with the error.
 
@@ -146,19 +146,19 @@ Important:
   volatile: system message (rules, house structure, house profile), tools,
   example conversation, channel style, history, current turn. The prefix is
   byte-identical and the same for all channels, so that it comes from the cache.
-  Composition, cache and compaction: [Context](spec/kontext.md).
-  Which language Mira speaks when: [Language](spec/sprache.md).
-  Skills that call an HA action (e.g. alarm): [Skill actions](spec/skill-aktionen.md).
-  Reading calendars, adding and cancelling appointments, to-do with due date: [Calendar](spec/kalender.md).
-  Mails that announce something with a time, as a calendar entry (first application parcels): [Mail calendar](spec/mail-kalender.md), [Parcels](spec/pakete.md).
-  Long procedures step by step (cooking), as a thread with a plan: [Threads, plans](spec/vorgaenge.md).
-  Agents as a building block (description, call context, permissions, synchronous and asynchronous), draft: [Agents](spec/agenten.md).
+  Composition, cache and compaction: [Context](spec/context.md).
+  Which language Mira speaks when: [Language](spec/language.md).
+  Skills that call an HA action (e.g. alarm): [Skill actions](spec/skill-actions.md).
+  Reading calendars, adding and cancelling appointments, to-do with due date: [Calendar](spec/calendar.md).
+  Mails that announce something with a time, as a calendar entry (first application parcels): [Mail calendar](spec/mail-calendar.md), [Parcels](spec/parcels.md).
+  Long procedures step by step (cooking), as a thread with a plan: [Threads, plans](spec/threads.md).
+  Agents as a building block (description, call context, permissions, synchronous and asynchronous), draft: [Agents](spec/agents.md).
   Radio on the speaker of a room: [Radio](spec/radio.md).
-  Scheduled actions in HA (sleep timer, cleanup): [Scheduled actions](spec/geplante-aktionen.md).
-  Ideas for further skills (scenes, briefing, cooking, stories, quiz, learning): [Skill ideas](spec/skill-ideen.md).
+  Scheduled actions in HA (sleep timer, cleanup): [Scheduled actions](spec/scheduled-actions.md).
+  Ideas for further skills (scenes, briefing, cooking, stories, quiz, learning): [Skill ideas](spec/skill-ideas.md).
   Further tools and skills (history, weather, music, camera, lists): [Plan](spec/skills-plan.md).
   Checking whether Mira works with a model setup: [Evals](spec/evals.md).
-  How to set up Mira (pairing, language model in the form, agent without config file): [Setup](spec/einrichtung.md).
+  How to set up Mira (pairing, language model in the form, agent without config file): [Setup](spec/setup.md).
 - **Protection against unsupported answers.** If the model only announces an action,
   reports something as done or states readings and states
   without having called a tool, it must catch up. Otherwise
@@ -185,7 +185,7 @@ maps the chat to a person and sends it with channel `telegram` to
 ## 4. Flow: creating a task
 
 A task is an HA automation with the label "Mira"
-([spec](spec/aufgaben.md)).
+([spec](spec/tasks.md)).
 
 ```mermaid
 sequenceDiagram
@@ -445,7 +445,7 @@ Between Home Assistant and the agent there are two directions, on separate paths
 
 | Direction | Path | Protection |
 |---|---|---|
-| Integration → agent | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The agent creates the token on first start; the integration fetches it on first adding without a code. Removing the integration releases the agent (`/v1/unpair`, new token); only the same Home Assistant pairs again without a code, with a key derived from the old token it keeps; another one needs the pairing code the agent writes into its log at unpair (12 characters, 5 attempts). `mira reset` or the app's option `reset_data` deletes the database on the agent's machine; then it pairs like a new one. If `server.token` is set in `mira.yaml`, that one applies, without pairing. Agent and integration may be different versions for a while: a new field is optional in both directions, and a repair says which one to update ([Versions](spec/versionen.md)) |
+| Integration → agent | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The agent creates the token on first start; the integration fetches it on first adding without a code. Removing the integration releases the agent (`/v1/unpair`, new token); only the same Home Assistant pairs again without a code, with a key derived from the old token it keeps; another one needs the pairing code the agent writes into its log at unpair (12 characters, 5 attempts). `mira reset` or the app's option `reset_data` deletes the database on the agent's machine; then it pairs like a new one. If `server.token` is set in `mira.yaml`, that one applies, without pairing. Agent and integration may be different versions for a while: a new field is optional in both directions, and a repair says which one to update ([Versions](spec/versions.md)) |
 | Agent → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token of a dedicated HA user without admin rights |
 | Agent → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`) | only Mira's HA user or an admin (the integration knows the ID from `/v1/health`) |
 | Agent → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |

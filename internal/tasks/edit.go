@@ -18,7 +18,7 @@ import (
 )
 
 // Changing the household's tasks in the conversation
-// (docs/spec/aufgaben-aendern.md): the check "tasks.find" finds the task,
+// (docs/spec/tasks-editing.md): the check "tasks.find" finds the task,
 // the finish "tasks.edit" drafts the change, proposes it and saves it on yes.
 
 const (

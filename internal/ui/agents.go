@@ -10,7 +10,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// The run view (docs/spec/agenten.md, Run view): what the agent runtime
+// The run view (docs/spec/agents.md, Run view): what the agent runtime
 // stores, read-only, for admins. Only asynchronous runs (and those running
 // on after their timeout) are stored, each until 60 minutes after its end.
 

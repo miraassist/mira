@@ -36,7 +36,7 @@ services:
       - mosquitto-data:/mosquitto/data
     restart: "no"
 
-  # A mail server of its own for the mail calendar (docs/spec/mail-kalender.md):
+  # A mail server of its own for the mail calendar (docs/spec/mail-calendar.md):
   # the test HA's IMAP entry (device "Pakete") reads the mailbox pakete@test.local
   # (password pakete, IMAPS with a self-signed certificate: verify_ssl off);
   # `go run ./cmd/testha mail` delivers the sample mails

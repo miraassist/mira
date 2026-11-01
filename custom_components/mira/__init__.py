@@ -198,7 +198,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # Once Home Assistant has started, compare at once what Assist sees with
     # what the agent has, without waiting for the next poll.
     entry.async_on_unload(async_at_started(hass, lambda _hass: coordinator.async_request_refresh()))
-    # A satellite without an area is a repair (docs/spec/satelliten-raeume.md);
+    # A satellite without an area is a repair (docs/spec/satellites-rooms.md);
     # once started, when every satellite is registered.
     entry.async_on_unload(async_at_started(hass, sync_area_repairs))
     entry.async_on_unload(async_at_started(hass, ensure_primaries))

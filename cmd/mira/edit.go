@@ -25,7 +25,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 )
 
-// editor is the editing on Mira's page (docs/spec/bearbeiten.md): it writes
+// editor is the editing on Mira's page (docs/spec/editing.md): it writes
 // mira.yaml and the user's own SKILL.md files; what it saves holds after a
 // restart.
 type editor struct {
@@ -218,7 +218,7 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 		return fmt.Errorf("Der Name „%s“ geht nicht: kleine Buchstaben und Ziffern, verbunden mit - oder _.", newName)
 	}
 	// A new server, model or key is tried first: what does not answer is
-	// not saved (docs/spec/bearbeiten.md).
+	// not saved (docs/spec/editing.md).
 	if old, ok := e.State(ctx).Models[name]; !ok || old.Endpoint != m.Endpoint || old.Model != m.Model || m.Token != "" {
 		if res := e.check(ctx, ui.ModelRequest{Name: name, Endpoint: m.Endpoint, Model: m.Model, Token: m.Token, Privacy: m.Privacy}, false); !res.OK {
 			return fmt.Errorf("%s (%s)", probeProblems[res.Reason], res.Error)
@@ -678,7 +678,7 @@ var probeProblems = map[string]string{
 }
 
 // ModelCheck tries the model as the form has it and, when it answers, asks
-// its server how much context it has (docs/spec/modelle.md, Context size).
+// its server how much context it has (docs/spec/models.md, Context size).
 func (e *editor) ModelCheck(ctx context.Context, c ui.ModelRequest) ui.ModelCheckResult {
 	return e.check(ctx, c, true)
 }
@@ -770,7 +770,7 @@ func (e *editor) change(secrets map[string]string, fn func(top *yaml.Node) error
 }
 
 // writeSections puts settings sections (YAML by name, what differs from
-// the defaults) into mira.yaml (docs/spec/bearbeiten.md, Settings sections). keep are the
+// the defaults) into mira.yaml (docs/spec/editing.md, Settings sections). keep are the
 // notifier's parts the file keeps as they are. They hold at once, so no
 // restart is asked for.
 func (e *editor) writeSections(sections map[string][]byte, keep []string) error {

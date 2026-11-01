@@ -67,7 +67,7 @@ var catalog = map[i18n.Lang]texts{
 func (e *Engine) texts(ctx context.Context) texts { return i18n.Pick(catalog, e.lang(ctx)) }
 
 // lang is the language of what is being said now: the turn's, carried in
-// ctx, otherwise the one last spoken (docs/spec/sprache.md).
+// ctx, otherwise the one last spoken (docs/spec/language.md).
 func (e *Engine) lang(ctx context.Context) i18n.Lang {
 	if l, ok := i18n.FromContext(ctx); ok {
 		return l

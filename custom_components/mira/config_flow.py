@@ -1,4 +1,4 @@
-"""Config flow for Mira (docs/spec/einrichtung.md).
+"""Config flow for Mira (docs/spec/setup.md).
 
 The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
 under "Discovered". A new agent pairs without a code, gets Home Assistant's
@@ -312,7 +312,7 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     answers in, "Pair". Every branch comes back to it, also when its
     dialog was closed and opened again. Nothing is done at the agent or in
     Home Assistant before "Pair", so a setup broken off leaves nothing
-    behind (docs/spec/einrichtung.md)."""
+    behind (docs/spec/setup.md)."""
 
     VERSION = 1
 

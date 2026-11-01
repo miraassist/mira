@@ -29,7 +29,7 @@ backup_exclude:
   - mira.db
   - mira.db-wal
   - mira.db-shm
-# Reset (docs/spec/einrichtung.md): on at the next start, Mira deletes its
+# Reset (docs/spec/setup.md): on at the next start, Mira deletes its
 # data and keeps mira.yaml; once, until turned off and on again.
 options:
   reset_data: false

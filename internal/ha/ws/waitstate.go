@@ -9,7 +9,7 @@ import (
 
 // Mira reads states only as Home Assistant filters them: subscribe_entities
 // with the entities or domains she needs, never every state in the house
-// (docs/spec/ha-anbindung.md, Watching states). get_states has no filter,
+// (docs/spec/ha-integration.md, Watching states). get_states has no filter,
 // so the client does not offer it.
 
 // StateFilter says which states to read: these entities, and every entity

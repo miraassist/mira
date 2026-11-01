@@ -65,7 +65,7 @@ class FakeDevice:
         self.timer_sounding = False
         self.log: list[dict[str, Any]] = []
         self._listeners: list[Callable[[], None]] = []
-        # The sound side (docs/spec/fake-geraete.md): the satellite and the
+        # The sound side (docs/spec/fake-devices.md): the satellite and the
         # speaker entities register here, so one can act on the other, as
         # in the device.
         self.satellite: Any = None

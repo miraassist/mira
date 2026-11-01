@@ -1,5 +1,5 @@
 """The integration and the agent may be different versions for a while
-(docs/spec/versionen.md): a repair says which one to update, and what an
+(docs/spec/versions.md): a repair says which one to update, and what an
 older agent does not have is taken as missing, not as an error."""
 
 from homeassistant.helpers import issue_registry as ir

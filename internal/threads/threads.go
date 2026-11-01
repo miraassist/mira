@@ -1,4 +1,4 @@
-// Package threads runs threads ("Vorgänge", docs/spec/vorgaenge.md): a
+// Package threads runs threads ("Vorgänge", docs/spec/threads.md): a
 // concern that runs over several turns, such as planning a task with a
 // question back and a yes. Home Assistant makes a new conversation of every
 // announcement and every wake word; a thread holds them together.
@@ -146,7 +146,7 @@ func (m *Manager) HasTargets() bool { return len(m.targets) > 0 }
 
 func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
-// lang is the turn's language, for the skill's texts (docs/spec/skill-sprachen.md);
+// lang is the turn's language, for the skill's texts (docs/spec/skill-languages.md);
 // without a turn the language at the start.
 func (m *Manager) lang(ctx context.Context) i18n.Lang {
 	if l, ok := i18n.FromContext(ctx); ok {
@@ -174,7 +174,7 @@ func (m *Manager) place(ctx context.Context, inv tools.Invocation) (place, area 
 }
 
 // roomBound says whether a target's threads are bound to the room rather
-// than the person (docs/spec/vorgaenge.md, Assignment 1).
+// than the person (docs/spec/threads.md, Assignment 1).
 func (m *Manager) roomBound(target string) bool {
 	sk, ok := m.targets[target]
 	return ok && sk.Target != nil && sk.Target.Bound == skills.BoundRoom
@@ -291,7 +291,7 @@ func deviceOf(ctx context.Context) string {
 }
 
 // link makes a turn belong to a thread: its thread, and its target skill
-// open, so the turn has the skill's tools (docs/spec/vorgaenge.md,
+// open, so the turn has the skill's tools (docs/spec/threads.md,
 // Assignment).
 func (m *Manager) link(ctx context.Context, sessionKey string, th store.Thread) {
 	if err := m.opts.Store.SetSessionThread(ctx, sessionKey, th.ID); err != nil {

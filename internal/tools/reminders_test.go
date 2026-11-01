@@ -104,7 +104,7 @@ func TestReminderTextsComplete(t *testing.T) {
 }
 
 // A message names its sender, goes to the house or a person, and follows the
-// receiver's setting whose messages they take (docs/spec/nachrichten.md).
+// receiver's setting whose messages they take (docs/spec/messages.md).
 func TestMessageSend(t *testing.T) {
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
 	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return now }})

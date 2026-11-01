@@ -260,7 +260,7 @@ func stem(w string) string {
 }
 
 // ReplaceFacts adds, updates and deletes facts in one transaction: an
-// import from a file changes all or nothing (docs/spec/gedaechtnis-datei.md).
+// import from a file changes all or nothing (docs/spec/memory-file.md).
 // Updated facts keep their author and creation time.
 func (s *Store) ReplaceFacts(ctx context.Context, add, update []Fact, remove []string) error {
 	now := formatTime(s.now())

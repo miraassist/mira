@@ -57,7 +57,7 @@ type Snapshot struct {
 	// Mira switches them only after the user confirmed.
 	Confirm map[string]bool
 	// Private are the areas labelled "Mira: privater Bereich"
-	// (LabelPrivate): what starts in one stays there (docs/spec/agenten.md,
+	// (LabelPrivate): what starts in one stays there (docs/spec/agents.md,
 	// What a turn belongs to).
 	Private map[string]bool
 	// ExposureKnown is false when Home Assistant could not tell us which
@@ -67,7 +67,7 @@ type Snapshot struct {
 	// off, by id; DeviceEntities those of each device, sorted. A
 	// satellite's speaker, node name or phone line is looked up here, kept
 	// current by the registry events, never read from a registry per call
-	// (docs/spec/ha-anbindung.md, Watching states).
+	// (docs/spec/ha-integration.md, Watching states).
 	Devices        map[string]haws.Device
 	Entities       map[string]haws.Entity
 	DeviceEntities map[string][]string
@@ -175,7 +175,7 @@ func Build(reg Registry) Snapshot {
 		}
 	}
 	// A satellite's area is its entity's, else its device's, as the
-	// integration finds it (docs/spec/satelliten-raeume.md, decision 8).
+	// integration finds it (docs/spec/satellites-rooms.md, decision 8).
 	for _, e := range reg.Entities {
 		if Domain(e.EntityID) == "assist_satellite" && e.DisabledBy == "" && e.AreaID != "" {
 			if _, ok := deviceByID[e.DeviceID]; ok {
@@ -269,7 +269,7 @@ func writeRows(b *strings.Builder, t texts, rows []entityRow) {
 // isExposed decides whether an entity belongs in the block.
 //
 // Only what the user exposed to Assist counts, and only the list the Mira
-// integration sent (docs/spec/ha-anbindung.md). Without it nothing is
+// integration sent (docs/spec/ha-integration.md). Without it nothing is
 // exposed: not knowing what was shared never means everything is.
 func isExposed(e haws.Entity, exposed map[string]bool) bool {
 	return exposed[e.EntityID]

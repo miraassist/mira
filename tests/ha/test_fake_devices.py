@@ -1,6 +1,6 @@
-"""The fake TECHO5 devices behave like the real ones (docs/spec/fake-geraete.md,
+"""The fake TECHO5 devices behave like the real ones (docs/spec/fake-devices.md,
 scenarios FG-nn): the states of satellite and speaker, at the same
-transitions as docs/spec/satellit.md describes."""
+transitions as docs/spec/satellite.md describes."""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 """mira.agent, mira.agent_result, mira.agent_cancel and the event
-mira_agent_done (docs/spec/agenten.md, Calling)."""
+mira_agent_done (docs/spec/agents.md, Calling)."""
 
 import pytest
 

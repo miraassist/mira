@@ -1,9 +1,9 @@
-// Package agent is Mira's agent building block (docs/spec/agenten.md). An
+// Package agent is Mira's agent building block (docs/spec/agents.md). An
 // agent is a model with a context profile, tools, rights, an input and an
 // output; it is callable like a tool. Spec is its static description,
 // CallContext what comes with each call, and Runtime runs a call.
 //
-// The testable rules are the scenarios in docs/spec/agenten.feature; each
+// The testable rules are the scenarios in docs/spec/agents.feature; each
 // test here carries the scenario's number in its name (TestAG07_…).
 package agent
 
@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// Profile is what the model sees (docs/spec/agenten.md, Context profiles).
+// Profile is what the model sees (docs/spec/agents.md, Context profiles).
 type Profile int
 
 const (
@@ -78,7 +78,7 @@ type Spec struct {
 	Output json.RawMessage
 	// Model names the agent's model (agents from YAML); without it the
 	// model is what mira.yaml names for the agent under agents, else main
-	// (docs/spec/modelle.md).
+	// (docs/spec/models.md).
 	Model string
 	// ModelOf names one of Mira's own agents whose model this one takes
 	// (model: delegate in a skill), when it runs; Model is empty then.
@@ -94,7 +94,7 @@ type Spec struct {
 	Rights Rights
 	Limits Limits
 	// Skill is the skill that describes the agent: its runs run for that
-	// skill and get the tools of its MCP server (docs/spec/agenten.md, A
+	// skill and get the tools of its MCP server (docs/spec/agents.md, A
 	// skill's agents work in the skill).
 	Skill string
 }
@@ -102,7 +102,7 @@ type Spec struct {
 // Origin is who calls.
 type Origin string
 
-// The origins of docs/spec/agenten.md, The call context: Home Assistant
+// The origins of docs/spec/agents.md, The call context: Home Assistant
 // (an automation, Assist, Telegram, IMAP), Mira's timers, the Mira page,
 // another agent, and Mira's own code (the notifier, say).
 const (
@@ -136,7 +136,7 @@ type Mode struct {
 }
 
 // Route is how a finished asynchronous run reaches its caller
-// (docs/spec/agenten.md, Delivery).
+// (docs/spec/agents.md, Delivery).
 type Route string
 
 const (
@@ -146,7 +146,7 @@ const (
 	// notify.compose.
 	ToMessage Route = "message"
 	// ToThread: into a field (or the plan) of a thread, which goes on with
-	// it (docs/spec/agenten.md, Continuation).
+	// it (docs/spec/agents.md, Continuation).
 	ToThread Route = "thread"
 )
 

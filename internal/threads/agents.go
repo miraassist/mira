@@ -13,7 +13,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Agents fill a thread's fields, as the user does (docs/spec/agenten.md,
+// Agents fill a thread's fields, as the user does (docs/spec/agents.md,
 // Continuation): a field of the target names the agent and its input; Mira
 // starts it once everything its input names is there, its result is filled
 // in when it comes, and the thread goes on from there.

@@ -192,7 +192,7 @@ class SpeakerStore:
 
         Several are several satellites that heard the same request. Each gives its best and second-best
         speaker with their scores; whether that is somebody is the caller's decision (Mira's threshold,
-        docs/spec/sprecher.md), not this service's.
+        docs/spec/speaker-id.md), not this service's.
         """
         want = normalize(text)
         if not want:

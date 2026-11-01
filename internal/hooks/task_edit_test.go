@@ -10,7 +10,7 @@ import (
 )
 
 // A change of a task passes the hooks as the call task_edit, with the
-// entities its actions reach (docs/spec/aufgaben-aendern.md, Saving).
+// entities its actions reach (docs/spec/tasks-editing.md, Saving).
 
 var taskEdit = tools.Spec{ToolDef: prompt.ToolDef{Name: "task_edit"}}
 

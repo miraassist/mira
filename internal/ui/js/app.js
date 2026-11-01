@@ -1,4 +1,4 @@
-// Mira's page, the parts built on Lit (docs/spec/uebersicht.md): the start
+// Mira's page, the parts built on Lit (docs/spec/overview.md): the start
 // page with its cards, the navigation inside a group, the skills and the
 // agents at a glance. The older views are still the page's script; they move
 // over one by one. The components render into the page itself (no shadow
@@ -314,7 +314,7 @@ function cronWords(cron) {
 }
 
 // ---- Editing --------------------------------------------------------------
-// Models, agents and skills can be changed (docs/spec/bearbeiten.md): the
+// Models, agents and skills can be changed (docs/spec/editing.md): the
 // page writes mira.yaml and the user's own SKILL.md files; what it saves
 // holds after a restart. One dialog serves all three.
 let editLoad = null;
@@ -473,7 +473,7 @@ class MiraSkills extends EditPage {
 customElements.define("mira-skills", MiraSkills);
 
 // ---- Schedules ------------------------------------------------------------
-// What Mira does at fixed times (docs/spec/zeitplan.md): one folding entry
+// What Mira does at fixed times (docs/spec/schedules.md): one folding entry
 // per schedule, grouped by skill, Mira's own last. A change holds at once.
 // scheduleWords says when a schedule runs: "Mo–Fr 06:45", "stündlich".
 function scheduleWords(it) {

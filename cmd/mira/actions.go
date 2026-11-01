@@ -9,12 +9,12 @@ import (
 )
 
 // haActions lets a skill finish with a Home Assistant action
-// (docs/spec/skill-aktionen.md): whether the action exists, calling it, and
+// (docs/spec/skill-actions.md): whether the action exists, calling it, and
 // the placeholders of a satellite's area.
 type haActions struct{ a *app }
 
 // core is a building block of the core a skill's action may name where Home
-// Assistant has no action (docs/spec/skill-aktionen.md): the undo of termin.
+// Assistant has no action (docs/spec/skill-actions.md): the undo of termin.
 func (h haActions) core(action string) func(context.Context, map[string]any) error {
 	switch action {
 	case "calendar.delete_created":

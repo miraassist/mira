@@ -17,7 +17,7 @@ import (
 //   - The HA app and its chat: the person whose HA person entity belongs to
 //     the signed-in HA user.
 //   - A satellite: the person the voice was recognized as (speaker-id, see
-//     docs/spec/sprecher.md), else the one person at home who switched on
+//     docs/spec/speaker-id.md), else the one person at home who switched on
 //     the "alone at home" rule, else nobody.
 func (a *app) identify(ctx context.Context, req conversation.Request) (person, by string) {
 	persons := a.persons()

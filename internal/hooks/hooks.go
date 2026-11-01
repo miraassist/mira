@@ -85,7 +85,7 @@ type Problem struct {
 }
 
 // Engine holds the loaded hooks. The household's files can change while
-// Mira runs (docs/spec/hooks-schreiben.md, Reloading): each load builds a new
+// Mira runs (docs/spec/hooks-writing.md, Reloading): each load builds a new
 // state, which replaces the old one in one step.
 type Engine struct {
 	texts    texts

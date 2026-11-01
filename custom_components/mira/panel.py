@@ -258,7 +258,7 @@ class MiraSettingsView(HomeAssistantView):
                     }
                 )
             # Satellites without an area have no room, so nothing to set; the
-            # page lists them with the reason (docs/spec/satelliten-raeume.md).
+            # page lists them with the reason (docs/spec/satellites-rooms.md).
             unplaced = [{"entity": e, "name": entity_name(hass, e)} for e in satellites_without_area(hass)]
             return web.json_response(
                 {

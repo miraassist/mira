@@ -20,7 +20,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// Rules Mira writes and manages on request (docs/spec/hooks-schreiben.md):
+// Rules Mira writes and manages on request (docs/spec/hooks-writing.md):
 // checking a rule, saving it, switching it on or off, deleting it, and the
 // tools the skill "regel" brings. Every change passes the hooks first, as
 // the tools hook_save, hook_switch and hook_delete (system/self.star).

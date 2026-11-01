@@ -71,7 +71,7 @@ type Message struct {
 	// come from a satellite. The notifier holds it back there for a while.
 	OriginArea string
 	// OriginDevice is the satellite's device it was asked at: in a room
-	// with several satellites it is spoken there (docs/spec/satelliten-raeume.md).
+	// with several satellites it is spoken there (docs/spec/satellites-rooms.md).
 	OriginDevice string
 	SessionKey   string
 	// Attempts counts failed deliveries of a scheduled message.

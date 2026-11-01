@@ -432,7 +432,7 @@ func TestMessagesArePaged(t *testing.T) {
 	}
 }
 
-// The memory as a file (docs/spec/gedaechtnis-datei.md): export what the
+// The memory as a file (docs/spec/memory-file.md): export what the
 // viewer sees; an import shows what it changes and replaces on apply.
 func TestMemoryFile(t *testing.T) {
 	srv, _, st := setup(t)

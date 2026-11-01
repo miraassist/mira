@@ -86,7 +86,7 @@ func TestHomeAssistantSendsTheLogins(t *testing.T) {
 }
 
 // A newer integration may send a person field this Mira does not know: the
-// sync goes through, the field is left out (docs/spec/versionen.md, VE-01).
+// sync goes through, the field is left out (docs/spec/versions.md, VE-01).
 func TestHomeAssistantFieldsFromANewerIntegration(t *testing.T) {
 	srv, cfg, _ := setup(t)
 	code, body := call(t, srv, "PUT", "/v1/ui/ha", "secret",

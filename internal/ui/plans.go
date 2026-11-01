@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Plan is a running plan (docs/spec/vorgaenge.md, Pläne) as the page shows
+// Plan is a running plan (docs/spec/threads.md, Pläne) as the page shows
 // it: everyone in the house may follow it, nobody changes it here.
 type Plan struct {
 	ID       string `json:"id"`

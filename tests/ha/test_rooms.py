@@ -1,4 +1,4 @@
-"""Satellites and rooms (docs/spec/satelliten-raeume.md): a satellite without
+"""Satellites and rooms (docs/spec/satellites-rooms.md): a satellite without
 an area is a repair and listed on the page; several satellites in a room."""
 
 from datetime import timedelta

@@ -9,7 +9,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
-// The test house's calendars and to-do list (docs/spec/kalender.md): a
+// The test house's calendars and to-do list (docs/spec/calendar.md): a
 // writable family calendar, the waste calendar the abfall skill reads (the
 // made-up iCal file under /local/, through Home Assistant's remote
 // calendar), and a shopping list with due dates and descriptions.

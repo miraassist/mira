@@ -613,7 +613,7 @@ func TestSA08_KeepListeningWithoutAQuestion(t *testing.T) {
 
 // A turn whose tool plays something after the answer never keeps the
 // satellite listening, even when the model asks for it or asks a question:
-// the microphone would hear the recording (docs/spec/satellit.md).
+// the microphone would hear the recording (docs/spec/satellite.md).
 func TestAB36_ATurnThatPlaysAfterTheAnswerDoesNotListen(t *testing.T) {
 	play := tools.InternalTool{Name: "play_after", Description: "plays", Schema: `{"type":"object"}`, PlaysAfter: true,
 		Run: func(context.Context, tools.Invocation) (string, error) { return "plays after your answer", nil }}

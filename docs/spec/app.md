@@ -1,8 +1,8 @@
 # The agent as a Home Assistant app
 
 Status 2026-10-26: built, not yet tried on Home Assistant OS (see Testing). Home Assistant calls apps "apps" now (the official repository is
-`home-assistant/apps`); this document uses its words: app, app store. See also [Versions](versionen.md) (why the agent and the
-integration drift apart) and [Setup](einrichtung.md).
+`home-assistant/apps`); this document uses its words: app, app store. See also [Versions](versions.md) (why the agent and the
+integration drift apart) and [Setup](setup.md).
 
 ## Goal
 
@@ -11,7 +11,7 @@ store, updated there, with the same release as the integration. Whoever updates 
 app's update next to it; the two stay together without anyone editing an image tag.
 
 Not for Home Assistant as a container (no Supervisor, no apps): there the agent stays a container of its own,
-with the repair from [Versions](versionen.md) when the two drift apart.
+with the repair from [Versions](versions.md) when the two drift apart.
 
 ## What an app is made of
 
@@ -40,7 +40,7 @@ with the repair from [Versions](versionen.md) when the two drift apart.
 - **Options in the app's page:** as few as possible: the setup goes through the integration as today (model,
   pairing). [Fewer settings, one place.] One option, **Reset data** (`reset_data`, since 0.11.0): the app has no
   terminal for `mira reset`, so the option does it at the next start, once until turned off and on again
-  ([Setup](einrichtung.md), Reset). The agent reads it from Supervisor's `/data/options.json`. The pairing code for
+  ([Setup](setup.md), Reset). The agent reads it from Supervisor's `/data/options.json`. The pairing code for
   another Home Assistant is in the app's log.
 - **Home Assistant from inside:** the agent keeps its own non-admin user and token from the integration's setup,
   as today. Not the app's Supervisor token: that one has admin rights, and Mira works without them on purpose.
@@ -64,7 +64,7 @@ with the repair from [Versions](versionen.md) when the two drift apart.
 - The other three places of the one version (`cmd/mira/main.go`, `const.py`, `manifest.json`) stay as they are: the
   release commit raises them, the workflow refuses a tag that does not match.
 - The integration from HACS and the app from the store are still two updates, but both are offered at the same
-  time, in Home Assistant, with one click each. The repair from [Versions](versionen.md) reminds of the second.
+  time, in Home Assistant, with one click each. The repair from [Versions](versions.md) reminds of the second.
 
 ## Testing
 

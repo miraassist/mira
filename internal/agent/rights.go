@@ -6,7 +6,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// Rights is the small rights model (docs/spec/agenten.md, Rights): only what
+// Rights is the small rights model (docs/spec/agents.md, Rights): only what
 // Mira already tells apart. A run may do what both its call context and its
 // agent's description allow.
 type Rights uint8
@@ -87,7 +87,7 @@ func ParseRights(names []string) (Rights, []string) {
 }
 
 // ownToolRights are the rights Mira's own tools need, where the flags they
-// declare do not say it (docs/spec/agenten.md, Decided 16).
+// declare do not say it (docs/spec/agents.md, Decided 16).
 var ownToolRights = map[string]Rights{
 	tools.ToolMemorySave:     Remember,
 	tools.ToolMemoryForget:   Remember,

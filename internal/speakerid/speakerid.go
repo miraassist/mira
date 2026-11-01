@@ -1,5 +1,5 @@
 // Package speakerid asks the speaker-id service who said a satellite turn's
-// text (docs/spec/sprecher.md). The service recognizes the voice beside
+// text (docs/spec/speaker-id.md). The service recognizes the voice beside
 // speech recognition; Mira only reads its result and keeps nothing of it.
 package speakerid
 

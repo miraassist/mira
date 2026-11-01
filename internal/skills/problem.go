@@ -8,7 +8,7 @@ import (
 
 // Problem is why an enabled skill did not start, worded so that whoever
 // wrote or enabled it can see what to fix. A skill with a problem is left
-// out; the agent starts all the same (docs/spec/skill-aktionen.md).
+// out; the agent starts all the same (docs/spec/skill-actions.md).
 type Problem struct {
 	Skill string
 	kind  string

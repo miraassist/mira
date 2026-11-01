@@ -24,7 +24,7 @@ const (
 	// four weeks up to the same time.
 	ViewDay = "day"
 	// ViewUpcoming is a calendar's events from now to the end of tomorrow,
-	// the way calendar_events shows them (docs/spec/kontext.md, 2.2).
+	// the way calendar_events shows them (docs/spec/context.md, 2.2).
 	ViewUpcoming = "upcoming"
 )
 

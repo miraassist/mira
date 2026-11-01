@@ -14,7 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// newLanguages builds the resolver of docs/spec/sprache.md. Before anyone
+// newLanguages builds the resolver of docs/spec/language.md. Before anyone
 // spoke it takes Home Assistant's server language, read over REST so it is
 // there before the WebSocket connects.
 func newLanguages(cfg config.Config, st *store.Store, log *slog.Logger) *language.Resolver {

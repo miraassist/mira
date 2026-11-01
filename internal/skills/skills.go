@@ -1,7 +1,7 @@
 // Package skills loads skills: folders with a SKILL.md in the Agent Skills
 // format (YAML frontmatter with name and description, Markdown body). Mira
 // reads her own additions from metadata.mira: settings, schedules and a
-// target (docs/spec/vorgaenge.md, docs/spec/skill-aktionen.md).
+// target (docs/spec/threads.md, docs/spec/skill-actions.md).
 //
 // A skill costs the prompt one line until it is used: the skill_open tool
 // lists the enabled skills, and only opening one puts its instructions into
@@ -40,7 +40,7 @@ type Skill struct {
 	Body string
 	// Lang is the language SKILL.md is written in (metadata.mira.language,
 	// German if not said); translations are SKILL.<lang>.md beside it, with
-	// only texts (docs/spec/skill-sprachen.md). DescriptionIn and BodyIn give
+	// only texts (docs/spec/skill-languages.md). DescriptionIn and BodyIn give
 	// the texts for a turn's language.
 	Lang         i18n.Lang
 	translations map[i18n.Lang]translation
@@ -52,14 +52,14 @@ type Skill struct {
 	Target *Target
 	// Mail, when set, makes the skill a mail application: mails of an IMAP
 	// entry named like the skill go into a calendar of that name
-	// (docs/spec/mail-kalender.md).
+	// (docs/spec/mail-calendar.md).
 	Mail *Mail
 	// Agents are the agents the skill describes (metadata.mira.agents), by
 	// name, with the settings filled into description and instructions
-	// (docs/spec/agenten.md, Factory).
+	// (docs/spec/agents.md, Factory).
 	Agents map[string]config.AgentDef
 	// Privacy local makes every agent the skill uses run on a local model
-	// (docs/spec/modelle.md, Privacy as a rule).
+	// (docs/spec/models.md, Privacy as a rule).
 	Privacy string
 	// MCP is the skill's MCP server, named after the skill, with its
 	// settings filled in (docs/spec/skill-mcp.md); nil for none.
@@ -79,12 +79,12 @@ type Mail struct {
 	Done string `yaml:"done"`
 }
 
-// Target is a goal definition (docs/spec/vorgaenge.md). Checks and Finish
+// Target is a goal definition (docs/spec/threads.md). Checks and Finish
 // name building blocks of the core: a skill runs no code.
 type Target struct {
 	// Plan makes a thread that carries a plan (a Markdown text with
 	// checkboxes) for a long run step by step, such as cooking; it has no
-	// fields and no finish (docs/spec/vorgaenge.md, Pläne). Agent and Input
+	// fields and no finish (docs/spec/threads.md, Pläne). Agent and Input
 	// let an agent write the plan when the thread starts.
 	Plan   bool           `yaml:"plan"`
 	Agent  string         `yaml:"agent"`
@@ -95,7 +95,7 @@ type Target struct {
 	Confirm bool `yaml:"confirm"`
 	// Finish does the work and ends the thread: a building block of the
 	// core (tasks.automation, memory.save), or a Home Assistant action the
-	// skill names (docs/spec/skill-aktionen.md).
+	// skill names (docs/spec/skill-actions.md).
 	Finish Finish `yaml:"finish"`
 	// Undo takes back what an action finish did, for a correction ("no,
 	// half past six"); optional.
@@ -105,7 +105,7 @@ type Target struct {
 	Timeout string `yaml:"timeout"`
 	timeout time.Duration
 	// Bound is what a thread of the target is bound to: "person" (the
-	// default) or "room" (docs/spec/vorgaenge.md, Assignment).
+	// default) or "room" (docs/spec/threads.md, Assignment).
 	Bound string `yaml:"bound"`
 	// DoneAfter keeps a plan whose steps are all done open that long, for
 	// "wait, not done yet"; default 30m.
@@ -145,7 +145,7 @@ type TargetField struct {
 	Optional bool `yaml:"optional"`
 	// Agent fills the field instead of the user, with Input (placeholders:
 	// the thread's fields, {{ request }}); it starts once every field its
-	// input names is there (docs/spec/agenten.md, Continuation).
+	// input names is there (docs/spec/agents.md, Continuation).
 	Agent string         `yaml:"agent"`
 	Input map[string]any `yaml:"input"`
 }
@@ -212,7 +212,7 @@ type Setting struct {
 // message.
 type Schedule struct {
 	// Name is the schedule's key within the skill: mira.yaml changes it by
-	// it (docs/spec/zeitplan.md). Without one it cannot be changed there.
+	// it (docs/spec/schedules.md). Without one it cannot be changed there.
 	Name string `yaml:"name"`
 	// Description is a few words for the page.
 	Description string `yaml:"description"`

@@ -61,10 +61,10 @@ type Options struct {
 	// by the app.
 	Screens map[string]string
 	// Languages says which language an area or a person gets
-	// (docs/spec/sprache.md); tests without it get the default language.
+	// (docs/spec/language.md); tests without it get the default language.
 	Languages Languages
 	// Phone is what is new on the FRITZ!Box's answering machine
-	// (docs/spec/anrufbeantworter.md); nil without the skill anrufbeantworter.
+	// (docs/spec/voicemail.md); nil without the skill anrufbeantworter.
 	Phone func(ctx context.Context) (PhoneNews, error)
 }
 
@@ -186,7 +186,7 @@ func (n *Notifier) OnPresence(ctx context.Context, area string) (Outcome, error)
 }
 
 // OnPresenceAt handles motion in an area, spoken at the satellite the motion
-// sensor belongs to (docs/spec/satelliten-raeume.md).
+// sensor belongs to (docs/spec/satellites-rooms.md).
 func (n *Notifier) OnPresenceAt(ctx context.Context, area, sat string) (Outcome, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -547,7 +547,7 @@ func countWord(t texts, n int) string {
 
 // preannounce plays the satellite's chime first; an answer someone waits
 // for in that room does without it. sat is the satellite of the room that
-// speaks (docs/spec/satelliten-raeume.md, Who speaks).
+// speaks (docs/spec/satellites-rooms.md, Who speaks).
 func (n *Notifier) announce(ctx context.Context, area, sat string, messages []store.Message, preannounce bool) error {
 	ctx = n.inArea(ctx, area)
 	text := n.compose(ctx, messages)
@@ -727,7 +727,7 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 }
 
 // sendTo sends text to the first of the person's channels that works
-// (docs/spec/kanaele.md): a notify entity (notify.send_message), or a
+// (docs/spec/channels.md): a notify entity (notify.send_message), or a
 // legacy notify service such as notify.mobile_app_anna.
 func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, error) {
 	p, ok := n.persons[personID]

@@ -1,7 +1,7 @@
 // Package tasks makes Mira's tasks ("Achte auf den Wasserverbrauch"). A
 // task is a Home Assistant automation labelled "Mira": Home Assistant's
 // triggers and conditions decide when, Mira's actions decide what is worth
-// saying (docs/spec/aufgaben.md).
+// saying (docs/spec/tasks.md).
 //
 // The package has two halves. Assess and Decide are what mira.assess and
 // mira.decide call: they condense data from Home Assistant into a few

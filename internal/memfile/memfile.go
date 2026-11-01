@@ -1,5 +1,5 @@
 // Package memfile writes Mira's memory as a Markdown file for people and
-// reads it back (docs/spec/gedaechtnis-datei.md): a heading per owner, a
+// reads it back (docs/spec/memory-file.md): a heading per owner, a
 // fact per line, tags as #words at its end. Importing replaces the facts of
 // every owner the file has a section for, like loading a file into an
 // editor.

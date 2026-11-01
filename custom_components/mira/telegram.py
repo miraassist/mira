@@ -1,5 +1,5 @@
 """Telegram as a conversation channel, through Home Assistant's own Telegram
-integration (telegram_bot), see docs/spec/kanaele.md.
+integration (telegram_bot), see docs/spec/channels.md.
 
 Mira runs no bot of her own. This adapter is the only place that knows
 HA's Telegram events and actions:
@@ -75,7 +75,7 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
                 conversation_id=str(chat),
                 device_id=None,
                 # Telegram has no Assist pipeline: the agent takes the
-                # language the person last spoke (docs/spec/sprache.md).
+                # language the person last spoke (docs/spec/language.md).
                 language="",
                 agent_id="",
                 extra_system_prompt=None,

@@ -3,7 +3,7 @@ name: Speaker ID
 # The speaker-id service (services/speaker-id) changes far less often than
 # Mira, so it has releases of its own: a tag speaker-id-vX.Y.Z builds its
 # image to ghcr.io/<owner>/speaker-id (amd64, arm64). The model is not in the
-# image; the service downloads it on its first start (docs/spec/sprecher.md).
+# image; the service downloads it on its first start (docs/spec/speaker-id.md).
 on:
   push:
     tags: ["speaker-id-v*"]

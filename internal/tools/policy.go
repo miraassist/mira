@@ -171,9 +171,9 @@ type TurnState struct {
 	// ForeignContext: the turn's context holds third-party text that Mira
 	// wrote down earlier, such as a plan made from a web page. What keeps or
 	// passes on asks for a yes, as after web content; critical actions are
-	// not locked (docs/spec/vorgaenge.md, Pläne).
+	// not locked (docs/spec/threads.md, Pläne).
 	ForeignContext bool
-	// ByRights: an agent's run (docs/spec/agenten.md, Rights). Rights are its
+	// ByRights: an agent's run (docs/spec/agents.md, Rights). Rights are its
 	// effective rights by name; the hook system/rights.star holds its calls
 	// to them, and what needs a yes is refused, as nobody can give one.
 	ByRights bool

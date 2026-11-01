@@ -1,8 +1,8 @@
 # Plan: further tools and skills
 
-Status 2026-10-17: decided, not built. Same pattern as [Calendar](kalender.md): what HA can already do via Assist, Mira does not rebuild. How data is presented (levels, timeline): [Context](kontext.md), section 2. For the rest:
+Status 2026-10-17: decided, not built. Same pattern as [Calendar](calendar.md): what HA can already do via Assist, Mira does not rebuild. How data is presented (levels, timeline): [Context](context.md), section 2. For the rest:
 - **Reading** gets its own tool with a compact presentation: Mira decides how the model sees the data instead of passing on raw amounts.
-- **Acting** becomes a [skill action](skill-aktionen.md), preferably without code.
+- **Acting** becomes a [skill action](skill-actions.md), preferably without code.
 
 Assist already offers today:
 - lights, switching, covers, climate, fans, vacuums;
@@ -12,7 +12,7 @@ Assist already offers today:
 
 ## Order
 
-0. **Calendar and to-do**: see [kalender.md](kalender.md).
+0. **Calendar and to-do**: see [calendar.md](calendar.md).
 1. **History and logbook**: tool with view.
 2. **Weather forecast**: tool with view.
 3. **Music via Music Assistant**: skill.

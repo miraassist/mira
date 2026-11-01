@@ -18,7 +18,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 )
 
-// schedules is the page "Schedules" (docs/spec/zeitplan.md): the skills'
+// schedules is the page "Schedules" (docs/spec/schedules.md): the skills'
 // schedules and Mira's own, from the running scheduler; a change goes into
 // mira.yaml and to the scheduler at once.
 type schedules struct{ a *app }

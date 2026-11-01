@@ -20,7 +20,7 @@ import (
 var haSections = []string{"persons", "satellites"}
 
 // Room is one area as the integration sees it: its satellite with Mira's
-// settings on it (docs/spec/ha-anbindung.md): the motion sensors and whether
+// settings on it (docs/spec/ha-integration.md): the motion sensors and whether
 // motion there starts the morning announcement. The agent stores it as
 // satellites plus notifier.morning_trigger.
 type Room struct {
@@ -34,7 +34,7 @@ type Room struct {
 	Indicator string `json:"indicator,omitempty"`
 	// Others are the room's satellites besides Satellite, its primary, each
 	// with its own settings; nil from an older integration
-	// (docs/spec/satelliten-raeume.md).
+	// (docs/spec/satellites-rooms.md).
 	Others []RoomSatellite `json:"others,omitempty"`
 }
 
@@ -191,7 +191,7 @@ func (h *Handler) putHA(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(unknown) > 0 {
 		// A newer integration than this Mira: what she does not know waits
-		// for her update (docs/spec/versionen.md).
+		// for her update (docs/spec/versions.md).
 		h.log.Info("fields from Home Assistant this Mira does not know, left out", "fields", unknown)
 	}
 	if err := h.opts.Config.SetHASections(r.Context(), sections); err != nil {
@@ -246,7 +246,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 		}
 		// The others of the room: their sensors speak at them, unless the
 		// primary or another one has the sensor too; their lights show the
-		// room's state (docs/spec/satelliten-raeume.md).
+		// room's state (docs/spec/satellites-rooms.md).
 		owners := map[string][]string{}
 		for _, o := range room.Others {
 			if o.Satellite == "" || room.Satellite == "" {
@@ -308,7 +308,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 // knownPersonFields keeps of each person what mira.yaml has a key for, and
 // says which other fields it left out. Persons become part of mira.yaml,
 // which is read strictly; a field a newer integration sends must not stop
-// this Mira (docs/spec/versionen.md).
+// this Mira (docs/spec/versions.md).
 func knownPersonFields(raw json.RawMessage) (json.RawMessage, []string, error) {
 	var persons map[string]map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &persons); err != nil {

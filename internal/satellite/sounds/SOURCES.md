@@ -1,7 +1,7 @@
 # Sources of Mira's sounds
 
 Only sounds under CC0 or in the public domain go here, so the binary carries them without conditions
-(docs/spec/satellit.md).
+(docs/spec/satellite.md).
 
 | File | Source | Author | License |
 |---|---|---|---|

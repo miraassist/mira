@@ -15,7 +15,7 @@ import (
 )
 
 // RuleField is the field of the skill "regel" the agent fills with the rule
-// as JSON; WishField the user's words (docs/spec/hooks-schreiben.md).
+// as JSON; WishField the user's words (docs/spec/hooks-writing.md).
 const (
 	RuleField = "regel"
 	WishField = "wunsch"

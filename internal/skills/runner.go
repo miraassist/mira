@@ -168,7 +168,7 @@ func (r *Runner) find(skill, name string) (job, *Schedule, error) {
 }
 
 // Change gives a skill's named schedule a new time or switches it on or off
-// while Mira runs (docs/spec/zeitplan.md); its next run is taken anew. An
+// while Mira runs (docs/spec/schedules.md); its next run is taken anew. An
 // empty cron keeps the time. Mira's own (skill "mira") take a time only.
 func (r *Runner) Change(skill, name string, ch ScheduleChange) error {
 	r.mu.Lock()

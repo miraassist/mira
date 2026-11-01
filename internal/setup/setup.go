@@ -1,5 +1,5 @@
 // Package setup lets the Mira integration set the agent up
-// (docs/spec/einrichtung.md): pairing instead of typing a token (the first
+// (docs/spec/setup.md): pairing instead of typing a token (the first
 // time without a code, later with one), and the Home Assistant access and the language model sent from Home
 // Assistant instead of written into mira.yaml. What it gets is kept in the
 // database and laid over the config at start.
@@ -120,7 +120,7 @@ func Load(ctx context.Context, st *store.Store) (Settings, error) {
 
 // Apply lays the settings over the config: the token when the file has
 // none, the Home Assistant access and its MCP server, and the language
-// model. What setup sent wins over the file (docs/spec/einrichtung.md).
+// model. What setup sent wins over the file (docs/spec/setup.md).
 func Apply(cfg config.Config, s Settings) config.Config {
 	if cfg.Server.Token == "" {
 		cfg.Server.Token = s.Token
@@ -133,7 +133,7 @@ func Apply(cfg config.Config, s Settings) config.Config {
 			URL: cfg.HA.URL + haMCPEndpoint, Token: cfg.HA.Token}}, cfg.MCPServers...)
 	}
 	if l := s.LLM; l != nil {
-		// The integration's model is main (docs/spec/modelle.md): a
+		// The integration's model is main (docs/spec/models.md): a
 		// provider is cloud, an own server local.
 		main := cfg.Main()
 		main.BaseURL, main.Model, main.APIKey = strings.TrimRight(l.BaseURL, "/"), l.Model, l.APIKey

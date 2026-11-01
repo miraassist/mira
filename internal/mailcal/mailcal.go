@@ -1,4 +1,4 @@
-// Package mailcal is the mail calendar (docs/spec/mail-kalender.md): a mail
+// Package mailcal is the mail calendar (docs/spec/mail-calendar.md): a mail
 // that announces something with a time (a parcel, an appointment) is read in
 // an isolated model call and kept as an entry in a calendar. The entry is
 // found again by a key in its description, a newer mail changes it, an

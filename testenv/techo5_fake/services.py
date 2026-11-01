@@ -118,7 +118,7 @@ BEHAVIOUR: dict[str, Handler] = {
 @callback
 def async_register_test_services(hass: HomeAssistant, devices: dict[str, FakeDevice]) -> CALLBACK_TYPE:
     """techo5_fake.wake_word and techo5_fake.say: what a test does instead of
-    saying the wake word or a sentence (docs/spec/fake-geraete.md). Not in the
+    saying the wake word or a sentence (docs/spec/fake-devices.md). Not in the
     contract: the real device has none."""
 
     def satellite(call: ServiceCall) -> Any:

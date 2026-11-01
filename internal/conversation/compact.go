@@ -9,7 +9,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Compaction (docs/spec/kontext.md): the model sees the running thread and
+// Compaction (docs/spec/context.md): the model sees the running thread and
 // the last turns. When the history reaches MaxTurns, or a request used
 // CompactAtFraction of the model's context window, it is cut back to
 // KeepTurns: whole turns only, in one jump, so its start stays the same in

@@ -52,7 +52,7 @@ type Thread struct {
 	Person string
 	// Area is the satellite's area it began at, for a voice turn: its
 	// messages are spoken there, at Device, the satellite's device, while
-	// that is in the area (docs/spec/satelliten-raeume.md).
+	// that is in the area (docs/spec/satellites-rooms.md).
 	Area      string
 	Device    string
 	State     string

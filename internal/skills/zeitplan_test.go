@@ -12,7 +12,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Schedules on Mira's page (docs/spec/zeitplan.md): names and mira.yaml.
+// Schedules on Mira's page (docs/spec/schedules.md): names and mira.yaml.
 
 const scheduledSkill = `---
 name: plan

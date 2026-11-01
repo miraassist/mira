@@ -17,7 +17,7 @@ __pycache__/
 !/testenv/ha/www/
 /testenv/ha/www/*
 !/testenv/ha/www/abfall-test.ics
-# Media of known length for the fake devices (docs/spec/fake-geraete.md), served at /local/fake/.
+# Media of known length for the fake devices (docs/spec/fake-devices.md), served at /local/fake/.
 !/testenv/ha/www/fake/
 /testenv/.env
 /testenv/mira.db*

@@ -65,7 +65,7 @@ type Options struct {
 	Logger *slog.Logger
 }
 
-// Runtime runs agents (docs/spec/agenten.md, Runtime): synchronous ones in
+// Runtime runs agents (docs/spec/agents.md, Runtime): synchronous ones in
 // the caller's goroutine, asynchronous ones in goroutines of their own
 // (async.go). It limits the access to each model.
 type Runtime struct {
@@ -125,7 +125,7 @@ func Current(ctx context.Context) (cc CallContext, ok bool) {
 }
 
 // Enter starts a run its caller drives itself: a conversation turn, which
-// stays in package conversation (docs/spec/agenten.md, Context profiles). The
+// stays in package conversation (docs/spec/agents.md, Context profiles). The
 // calls made inside it inherit from it as from any run; ts is the turn's
 // guard state. done logs the run as every run is logged; the caller fills
 // in the result.
@@ -310,7 +310,7 @@ func (ex *execution) use(cfg config.Config, client Chatter, name string, model c
 }
 
 // fallback switches the run to the fallback of its failed model, when
-// there is one it may take (docs/spec/modelle.md, Fallback); the run keeps
+// there is one it may take (docs/spec/models.md, Fallback); the run keeps
 // it for its remaining rounds.
 func (r *Runtime) fallback(ex *execution, failed error) bool {
 	cfg := r.o.Config()
@@ -670,7 +670,7 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, par
 }
 
 // acquire waits for a free request of a model: it takes parallel at once
-// (docs/spec/modelle.md, parallel).
+// (docs/spec/models.md, parallel).
 func (r *Runtime) acquire(ctx context.Context, model string, parallel int) (func(), error) {
 	if parallel < 1 {
 		parallel = 1
@@ -690,7 +690,7 @@ func (r *Runtime) acquire(ctx context.Context, model string, parallel int) (func
 	}
 }
 
-// logRun writes the one line every run writes (docs/spec/agenten.md, Log).
+// logRun writes the one line every run writes (docs/spec/agents.md, Log).
 func (r *Runtime) logRun(spec Spec, cc CallContext, res Result, took time.Duration, err error) {
 	attrs := []any{"agent", spec.Name, "call_id", cc.CallID, "parent_id", cc.ParentID, "depth", cc.Depth,
 		"origin", cc.Origin, "mode", cc.Mode.String(), "status", res.Status, "model", res.Model,

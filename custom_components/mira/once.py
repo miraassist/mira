@@ -1,5 +1,5 @@
 """One-time automations: "in 30 minutes, stop the music and turn off the
-light" (docs/spec/geplante-aktionen.md).
+light" (docs/spec/scheduled-actions.md).
 
 An ordinary Home Assistant automation with the label "Mira: einmalig". It
 fires at the due time and again when Home Assistant starts, but its condition

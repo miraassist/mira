@@ -3,7 +3,7 @@ package llm
 import "strings"
 
 // Provider is a common cloud provider with an OpenAI-compatible API: the
-// user picks it by name and gives only a key (docs/spec/modelle.md,
+// user picks it by name and gives only a key (docs/spec/models.md,
 // Providers). The integration's setup and Mira's page both take this list.
 type Provider struct {
 	Key     string `json:"key"`

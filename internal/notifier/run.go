@@ -15,7 +15,7 @@ type Subscriber interface {
 // Run watches the presence sensors and runs Tick every minute until ctx ends.
 func (n *Notifier) Run(ctx context.Context, sub Subscriber) error {
 	// A motion sensor speaks at its satellite: the one SpeakAt names, else
-	// the room's primary (docs/spec/satelliten-raeume.md).
+	// the room's primary (docs/spec/satellites-rooms.md).
 	type motionAt struct{ area, sat string }
 	motion := make(chan motionAt, 16)
 	for area, sensors := range n.cfg.MorningTrigger.Presence {

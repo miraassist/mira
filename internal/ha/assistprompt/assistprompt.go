@@ -16,7 +16,7 @@
 // share as layer 4 (the same for every room and channel, so the cache of
 // everything behind it holds), and gives each request the rest of its own
 // satellite's version in the turn layer, the last part of the prompt
-// (docs/spec/kontext.md).
+// (docs/spec/context.md).
 package assistprompt
 
 import (

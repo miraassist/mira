@@ -12,7 +12,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// Several satellites in a room (docs/spec/satelliten-raeume.md): the bath
+// Several satellites in a room (docs/spec/satellites-rooms.md): the bath
 // has its primary and "essen" as another, each with its own motion sensor
 // and ring; the hallway sensor is the primary's and essen's.
 func roomsEnv(t *testing.T) *env {

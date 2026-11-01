@@ -84,7 +84,7 @@ class SpeakerIdEventHandler(AsyncEventHandler):
             # Everything the upstream says goes back as it comes, up to the transcript. The transcript
             # waits for the recognition, which is nearly always done by then (it is ten times faster
             # than the STT): the conversation agent looks the speaker up by this text the moment Home
-            # Assistant has it, so the utterance has to carry it first (docs/spec/sprecher.md).
+            # Assistant has it, so the utterance has to carry it first (docs/spec/speaker-id.md).
             transcript_event, transcript = Transcript(text="").event(), ""
             while True:
                 reply = await client.read_event()

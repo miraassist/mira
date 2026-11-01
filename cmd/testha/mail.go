@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// The mail calendar in the test HA (docs/spec/mail-kalender.md): the IMAP
+// The mail calendar in the test HA (docs/spec/mail-calendar.md): the IMAP
 // entry with the device "Pakete" reads the GreenMail mailbox pakete@test.local, and mail
 // delivers the samples from testenv/mailsamples to it, one after the other.
 //

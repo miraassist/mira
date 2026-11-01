@@ -34,7 +34,7 @@ const (
 
 type Config struct {
 	Server Server `yaml:"server"`
-	// Models are the language models by name (docs/spec/modelle.md); main
+	// Models are the language models by name (docs/spec/models.md); main
 	// must exist. An agent without a model takes main.
 	Models     map[string]LLM `yaml:"models"`
 	Store      Store          `yaml:"store"`
@@ -43,7 +43,7 @@ type Config struct {
 	MCPServers []MCPServer    `yaml:"mcp_servers"`
 	Sessions   Sessions       `yaml:"sessions"`
 	// Satellites are each area's satellites, one or several; the first is
-	// the room's primary (docs/spec/satelliten-raeume.md).
+	// the room's primary (docs/spec/satellites-rooms.md).
 	Satellites map[string]Entities `yaml:"satellites"`
 	Persons    map[string]Person   `yaml:"persons"`
 	Notifier   Notifier            `yaml:"notifier"`
@@ -59,7 +59,7 @@ type Config struct {
 	mainMissing bool
 }
 
-// Agents are the settings of Mira's agents (docs/spec/agenten.md): next to
+// Agents are the settings of Mira's agents (docs/spec/agents.md): next to
 // max_depth, every other key is an agent described in YAML (Factory).
 type Agents struct {
 	// MaxDepth is how deep agents may call each other; an outside call has
@@ -105,13 +105,13 @@ func (a *Agents) UnmarshalYAML(n *yaml.Node) error {
 }
 
 // AgentDef is an agent described in YAML, in mira.yaml under agents or in a
-// skill under metadata.mira.agents (docs/spec/agenten.md, Factory).
+// skill under metadata.mira.agents (docs/spec/agents.md, Factory).
 type AgentDef struct {
 	Description string `yaml:"description"`
 	// Model is a model name (under models); empty is main.
 	Model string `yaml:"model"`
 	// Privacy local makes the agent run only on a local model
-	// (docs/spec/modelle.md, Privacy as a rule).
+	// (docs/spec/models.md, Privacy as a rule).
 	Privacy string `yaml:"privacy"`
 	// Context is isolated (the default) or background.
 	Context string `yaml:"context"`
@@ -174,7 +174,7 @@ type Server struct {
 	Eval bool `yaml:"eval"`
 }
 
-// LLM is a language model (docs/spec/modelle.md).
+// LLM is a language model (docs/spec/models.md).
 type LLM struct {
 	BaseURL string `yaml:"endpoint"`
 	Model   string `yaml:"model"`
@@ -211,7 +211,7 @@ type LLM struct {
 
 // Skills are folders with a SKILL.md (the Agent Skills format). Beside
 // dirs, every key under skills is a skill with its settings; it is on
-// unless it says enabled: false (docs/spec/bearbeiten.md).
+// unless it says enabled: false (docs/spec/editing.md).
 type Skills struct {
 	// Dirs are searched for skill folders, in order; the first match wins.
 	Dirs []string `yaml:"dirs"`
@@ -227,7 +227,7 @@ type Skills struct {
 const SkillOn = "enabled"
 
 // SkillSchedules is the key under a skill that changes its schedules by
-// name (docs/spec/zeitplan.md); no setting may be called so.
+// name (docs/spec/schedules.md); no setting may be called so.
 const SkillSchedules = "schedules"
 
 // UnmarshalYAML reads dirs and the skills beside it.
@@ -289,7 +289,7 @@ const (
 	PrivacyCloud = "cloud"
 )
 
-// Requests at once when a model does not say (docs/spec/modelle.md).
+// Requests at once when a model does not say (docs/spec/models.md).
 const (
 	localParallel = 1
 	cloudParallel = 4
@@ -308,7 +308,7 @@ func (c Config) Model(name string) (LLM, bool) {
 func (c Config) Main() LLM { return c.Models[MainModel] }
 
 // ModelFor names the model of an agent: what its entry under agents says
-// (Mira's own agents: docs/spec/modelle.md), else main; a name no model
+// (Mira's own agents: docs/spec/models.md), else main; a name no model
 // has is main too (the agent's entry reports it).
 func (c Config) ModelFor(agent string) string {
 	if name := c.Agents.models[agent]; name != "" {
@@ -330,7 +330,7 @@ func (c Config) PrivacyFor(agent string) string {
 
 // Fallback is the model to take after name failed: its fallback, unless
 // the caller must run locally and the fallback is not local
-// (docs/spec/modelle.md). ok is false when there is none to take.
+// (docs/spec/models.md). ok is false when there is none to take.
 func (c Config) Fallback(name string, mustBeLocal bool) (string, bool) {
 	m, ok := c.Model(name)
 	if !ok || m.Fallback == "" {
@@ -429,7 +429,7 @@ func (s MCPServer) WantsDevice() bool {
 	return strings.HasSuffix(strings.TrimRight(s.URL, "/"), "/api/mcp/assist")
 }
 
-// Sessions bound what the model sees of a conversation (docs/spec/kontext.md).
+// Sessions bound what the model sees of a conversation (docs/spec/context.md).
 type Sessions struct {
 	VoiceTTL Duration `yaml:"voice_ttl"`
 	// TelegramTTL ends a Telegram conversation after that long without a
@@ -444,7 +444,7 @@ type Sessions struct {
 // Person is someone the agent can address personally. The key in the
 // persons map is the receiver id messages use.
 //
-// With Home Assistant every HA person is a person (docs/spec/benutzer.md):
+// With Home Assistant every HA person is a person (docs/spec/users.md):
 // the key is the HA person's id, and Entity, Name and UserID come from
 // Home Assistant. The config then holds only Mira's settings per person,
 // under that id (an older entry is matched by its entity).
@@ -469,13 +469,13 @@ type Person struct {
 	// satellites count as them: their memory, their personal tasks.
 	AloneIsMe bool `yaml:"alone_is_me,omitempty"`
 	// VoiceThreshold is this person's own speaker_id threshold, for a voice
-	// that scores lower or higher than most (docs/spec/sprecher.md).
+	// that scores lower or higher than most (docs/spec/speaker-id.md).
 	VoiceThreshold float64 `yaml:"voice_threshold,omitempty"`
 }
 
 // PersonFields are the keys a person has in mira.yaml, from Person's yaml
 // tags: what Mira takes of a person Home Assistant sends
-// (docs/spec/versionen.md).
+// (docs/spec/versions.md).
 func PersonFields() map[string]bool {
 	out := map[string]bool{}
 	t := reflect.TypeOf(Person{})
@@ -566,7 +566,7 @@ type MorningTrigger struct {
 	Presence map[string]Entities `yaml:"presence"`
 	// SpeakAt is the satellite a motion sensor speaks at, for the sensors
 	// of a room's satellites other than its primary; the others speak at
-	// the primary (docs/spec/satelliten-raeume.md).
+	// the primary (docs/spec/satellites-rooms.md).
 	SpeakAt map[string]string `yaml:"speak_at,omitempty"`
 }
 
@@ -634,14 +634,14 @@ type Telemetry struct {
 
 // Default returns the configuration the agent runs with when the YAML says
 // nothing. Every Load result starts from this.
-// WebSearch is Mira's own web search (docs/spec/websuche.md); the
+// WebSearch is Mira's own web search (docs/spec/web-search.md); the
 // integration switches it in its options.
 type WebSearch struct {
 	Enabled bool `yaml:"enabled"`
 }
 
 // SpeakerID is the speaker-id service that recognizes who speaks at a
-// satellite (docs/spec/sprecher.md); without a URL the satellites stay as
+// satellite (docs/spec/speaker-id.md); without a URL the satellites stay as
 // they are.
 type SpeakerID struct {
 	URL string `yaml:"url"`
@@ -727,7 +727,7 @@ func Load(path string) (Config, error) {
 // apply, and the integration sets the rest up. hasLLM says whether the file
 // names the language models.
 func LoadOptional(path string) (cfg Config, hasLLM bool, err error) {
-	// The page's secrets (docs/spec/bearbeiten.md) come before the
+	// The page's secrets (docs/spec/editing.md) come before the
 	// environment; a file Mira cannot read is told, and the rest goes on.
 	lookup := OSLookup
 	secrets := DefaultSecrets()
@@ -766,7 +766,7 @@ func fileModels(raw []byte) (hasModels, hasMain bool) {
 }
 
 // LacksMain says that the file names models but not main: main has to come
-// from the integration's setup (docs/spec/modelle.md, MO-02).
+// from the integration's setup (docs/spec/models.md, MO-02).
 func (c Config) LacksMain() bool { return c.mainMissing }
 
 func envOr(name, fallback string) string {
@@ -797,7 +797,7 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 	cfg := Default()
 	// The file's models replace the default main, not add to it. Models
 	// without main keep it as a stand-in: main then comes from the
-	// integration's setup (docs/spec/modelle.md, MO-02), and without that
+	// integration's setup (docs/spec/models.md, MO-02), and without that
 	// Mira waits for the setup.
 	switch hasModels, hasMain := fileModels(expanded); {
 	case hasMain:
@@ -818,7 +818,7 @@ func Parse(raw []byte, lookup Lookup) (Config, error) {
 }
 
 // oldModelKeys refuses a config of before the named models
-// (docs/spec/modelle.md, Decided 4), saying what to write instead.
+// (docs/spec/models.md, Decided 4), saying what to write instead.
 func oldModelKeys(raw []byte) error {
 	var top map[string]any
 	_ = yaml.Unmarshal(raw, &top)
@@ -952,7 +952,7 @@ func (c Config) Validate() error {
 		add("store.path must not be empty")
 	}
 	// Without both, the agent waits to be set up by the integration
-	// (docs/spec/einrichtung.md); one without the other is a mistake.
+	// (docs/spec/setup.md); one without the other is a mistake.
 	if (c.HA.URL == "") != (c.HA.Token == "") {
 		add("ha.url and ha.token come together: Mira works through Home Assistant")
 	}

@@ -16,7 +16,7 @@ import (
 )
 
 // Actions is what an action finish needs of Home Assistant
-// (docs/spec/skill-aktionen.md).
+// (docs/spec/skill-actions.md).
 type Actions interface {
 	// Has reports whether Home Assistant offers the action, e.g. a
 	// satellite's esphome.show_alarm_set.

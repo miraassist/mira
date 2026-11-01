@@ -1,5 +1,5 @@
 // Package voicemail is the answering machine at the satellite
-// (docs/spec/anrufbeantworter.md): the skill anrufbeantworter's tools, which
+// (docs/spec/voicemail.md): the skill anrufbeantworter's tools, which
 // read and play the FRITZ!Box's messages through the integration Mira
 // FRITZ!Box, and what is new for the indicators.
 package voicemail
@@ -99,7 +99,7 @@ type Options struct {
 	// while it plays or is paused, gone when it ends).
 	Title func(ctx context.Context, action, title, subtitle, source string) error
 
-	// Listening is a thread with a plan (docs/spec/anrufbeantworter.md,
+	// Listening is a thread with a plan (docs/spec/voicemail.md,
 	// step 4). Plan writes the plan of the turn's listening thread, starting
 	// it when none runs, and returns its id; PlanThread finds the turn's;
 	// Tick ticks the step that names a message.

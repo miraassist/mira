@@ -14,7 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 )
 
-// The factory (docs/spec/agenten.md, Factory): agents described in YAML, in
+// The factory (docs/spec/agents.md, Factory): agents described in YAML, in
 // mira.yaml under agents and in skills under metadata.mira.agents. Each is
 // checked on its own; one that does not fit is left out with a problem that
 // says why, and Mira starts all the same.
@@ -130,7 +130,7 @@ func check(d Defined, models func(name string) (config.LLM, bool)) (*Spec, *Prob
 		return fail("yaml", d.Err)
 	case slices.Contains(codeAgents, d.Name) && d.Skill == "":
 		// One of Mira's own agents: mira.yaml names only its model and
-		// privacy (docs/spec/modelle.md).
+		// privacy (docs/spec/models.md).
 		model, known := models(d.Def.Model)
 		switch {
 		case ownExtra(d.Def) != "":

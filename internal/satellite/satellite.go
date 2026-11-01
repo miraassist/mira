@@ -1,5 +1,5 @@
 // Package satellite is what Mira does at the satellite she is talking at
-// besides speaking (docs/spec/satellit.md): sound_play plays one of her own
+// besides speaking (docs/spec/satellite.md): sound_play plays one of her own
 // sounds on its speaker, display_card puts a card on its screen,
 // keep_listening has it listen again after the answer. Both go to
 // the satellite of the turn only; where it cannot, nothing happens.

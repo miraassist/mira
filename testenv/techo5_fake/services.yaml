@@ -1,4 +1,4 @@
-# Test actions of the fake devices (docs/spec/fake-geraete.md); the real device has none.
+# Test actions of the fake devices (docs/spec/fake-devices.md); the real device has none.
 wake_word:
   fields:
     device:

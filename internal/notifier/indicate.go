@@ -77,7 +77,7 @@ func (n *Notifier) heldAt(nt store.Message, area string) bool {
 }
 
 // What an indicator shows, by rank: Mira's own messages, then the
-// answering machine, then missed calls (docs/spec/anrufbeantworter.md).
+// answering machine, then missed calls (docs/spec/voicemail.md).
 const (
 	indicatorMira      = "mira"
 	indicatorVoicemail = "voicemail"
