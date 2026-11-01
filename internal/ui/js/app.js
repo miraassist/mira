@@ -28,14 +28,17 @@ class MiraNav extends Light {
     if (!this.tab || this.tab === "home") return html`<span class="group-title">${T.tab_home}</span>`;
     // The card "Ich" is a group of its own: the person's name and its parts,
     // which jump to their place on the card.
-    if (this.tab === "me") return this.head("person", (me && (me.name || me.person)) || T.me_title, T.subtitle_me,
+    if (this.tab === "me") return this.head(avatar(me && (me.name || me.person)), (me && (me.name || me.person)) || T.me_title, T.subtitle_me,
       mePartsOf().map(([id, label]) => html`
         <button @click=${() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: "start" }); }}>${label}</button>`));
     // A person's card belongs to the people.
     const group = groupOf(this.tab === "person" ? "persons" : this.tab);
     if (!group) return this.head("person", T.tab_home, "", []);
     const tabs = tabsOf(group);
-    return this.head(group.id, T["group_" + group.id], T["subtitle_" + group.id], tabs.length > 1 ? tabs.map(id => html`
+    // A person's page shows the person: their picture and name.
+    const person = this.tab === "person";
+    return this.head(person ? avatar(personNameOf(cardPerson), personEntityOf(cardPerson)) : group.id,
+      person ? personNameOf(cardPerson) : T["group_" + group.id], T["subtitle_" + group.id], tabs.length > 1 ? tabs.map(id => html`
       <button class=${id === this.tab || (id === "persons" && this.tab === "person") ? "active" : ""} @click=${() => go(id)}>${T["tab_" + id]}</button>`) : []);
   }
   // head is the way back, the group's icon, name and subtitle, and its pages
@@ -43,7 +46,8 @@ class MiraNav extends Light {
   head(icon, title, subtitle, buttons) {
     return html`
       <button class="back" @click=${() => go("home")}>← ${T.tab_home}</button>
-      <div class="page-head"><span class="category-icon">${homeIcon(icon)}</span>
+      <div class="page-head">${typeof icon === "string" ? html`<span class="category-icon">${homeIcon(icon)}</span>`
+        : html`<span class="category-icon avatar">${icon}</span>`}
         <div><h1>${title}</h1>${subtitle ? html`<p>${subtitle}</p>` : nothing}</div></div>
       ${buttons.length ? html`<div class="tabs">${buttons}</div>` : nothing}`;
   }
@@ -62,13 +66,13 @@ const homeIcon = kind => svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hid
 // avatar is the picture of whoever is logged in, as Home Assistant's sidebar
 // shows it: their person's entity_picture (Home Assistant serves it itself),
 // else their initials.
-function avatar(name) {
+// With an entity it is that person's (the persons' pages).
+function avatar(name, entity = "") {
   const h = hass(), id = h && h.user && h.user.id;
-  const person = id ? Object.values(h.states || {}).find(s => s.entity_id.startsWith("person.") && s.attributes.user_id === id) : null;
-  const picture = person && person.attributes.entity_picture;
+  const person = entity ? null : id ? Object.values(h.states || {}).find(s => s.entity_id.startsWith("person.") && s.attributes.user_id === id) : null;
+  const picture = entity ? personPicture(entity) : person && person.attributes.entity_picture;
   if (picture) return html`<img src=${picture} alt="">`;
-  const initials = String(name || "").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
-  return html`<span class="initials">${initials}</span>`;
+  return html`<span class="initials">${initialsOf(name)}</span>`;
 }
 
 // ---- Start page -----------------------------------------------------------

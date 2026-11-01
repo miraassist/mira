@@ -301,6 +301,10 @@ details.item.card-item[open]>summary { background:color-mix(in oklch,var(--tone)
 .item.card-item .short { font-size:13px; color:var(--muted); }
 .item.card-item .short.clip { color:var(--muted); white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .item-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:8px; color:var(--tone); background:color-mix(in oklch,var(--tone) 12%,var(--panel)); }
+.item-icon.avatar, .page-head .category-icon.avatar { border-radius:50%; overflow:hidden; color:var(--accent); background:var(--panel); }
+.item-icon.avatar img, .page-head .category-icon.avatar img { width:100%; height:100%; object-fit:cover; }
+.item-icon.avatar .initials { font-size:13px; font-weight:650; }
+.page-head .category-icon.avatar .initials { font-size:17px; font-weight:650; }
 .item-tags { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
 .chevron { color:var(--muted); transform:rotate(-90deg); transition:transform .15s; }
 details.item.card-item[open] .chevron { transform:none; color:var(--tone); }
@@ -1654,9 +1658,23 @@ const buttonIcon = kind => `<svg class="button-icon" viewBox="0 0 24 24" aria-hi
 // cardItem is an entry as a card: icon, name, a short line and tags in its
 // head, the body when opened. Cards start closed unless open is set (a list
 // drawn anew keeps the cards that were open).
-function cardItem({ kind, name, short = "", tags = "", cls = "", attrs = "", open = false }, body) {
+// personPicture is a person's picture as Home Assistant has it (the
+// person entity's entity_picture), "" without one or outside Home Assistant.
+function personPicture(entity) {
+  const h = hass(), s = h && entity && h.states && h.states[entity];
+  return (s && s.attributes && s.attributes.entity_picture) || "";
+}
+// initialsOf are the first letters of up to two words of a name.
+const initialsOf = name => String(name || "").trim().split(/\s+/).slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
+// avatarHTML is a person's picture, else their initials, as on the start
+// page.
+function avatarHTML(entity, name) {
+  const pic = personPicture(entity);
+  return pic ? `<img src="${esc(pic)}" alt="">` : `<span class="initials">${esc(initialsOf(name))}</span>`;
+}
+function cardItem({ kind, name, short = "", tags = "", cls = "", attrs = "", open = false, avatar = "" }, body) {
   return `<details class="item card-item ${cls}"${attrs}${open ? " open" : ""}>
-    <summary><span class="item-icon">${cardIcon(kind)}</span><span class="lead"><h3>${name}</h3></span>
+    <summary>${avatar ? `<span class="item-icon avatar">${avatar}</span>` : `<span class="item-icon">${cardIcon(kind)}</span>`}<span class="lead"><h3>${name}</h3></span>
       <span class="short clip">${short}</span><span class="item-tags">${tags}</span>
       <span class="chevron" aria-hidden="true">⌄</span></summary>
     <div class="item-body">${body}</div></details>`;
@@ -2068,7 +2086,7 @@ async function personList() {
     ${listHead(`${T.tab_persons} ${source("persons")}`, people.length, T.persons_list_hint)}
     <div class="card-list">${people.map(p => {
       const s = settings[p.entity] || {}, key = esc(encodeURIComponent(p.key));
-      return cardItem({ kind: "person", name: esc(p.name), short: esc(p.entity), tags: personTags(s, voice ? samples[p.key] || 0 : -1) }, `
+      return cardItem({ kind: "person", avatar: avatarHTML(p.entity, p.name), name: esc(p.name), short: esc(p.entity), tags: personTags(s, voice ? samples[p.key] || 0 : -1) }, `
         <form class="inline-editor" data-e="${esc(p.entity)}" onsubmit="event.preventDefault(); savePersonCard(this)">
           <div class="grid">
             <label>${T.accept_from}</label>${acceptSelect(s.accept_from, "accept_from")}
@@ -2192,7 +2210,7 @@ function haPersons(people, settings) {
     ${listHead(`${T.tab_persons} ${source("persons")}`, people.length, T.persons_ha_hint)}
     <div class="card-list">${people.map(h => {
       const s = settings[h.key] || Object.values(settings).find(x => x.entity === h.entity) || {};
-      return cardItem({ kind: "person", name: esc(h.name), short: esc(h.entity), tags: personTags(s, -1) }, ro
+      return cardItem({ kind: "person", avatar: avatarHTML(h.entity, h.name), name: esc(h.name), short: esc(h.entity), tags: personTags(s, -1) }, ro
         ? `<table class="facts">${factRow(T.channels, esc(csv(s.channels)) || "–")}${factRow(T.accept_from, T["accept_" + (s.accept_from || "all")])}${factRow(T.alone_is_me, s.alone_is_me ? T.yes : T.no)}</table>`
         : `<form class="inline-editor" data-p="${esc(h.key)}" data-key="${esc(h.key)}" onsubmit="event.preventDefault(); savePersons()">
           <div class="grid">
