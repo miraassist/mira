@@ -1,6 +1,6 @@
 # Satellites and rooms – spec
 
-Status 2026-10-31: steps 1–4 built, not released. Scenarios: [satellites-rooms.feature](satellites-rooms.feature).
+Status 2026-10-31: built (steps 1–4), released in 0.15.0. Scenarios: [satellites-rooms.feature](satellites-rooms.feature).
 Builds on [Mira in Home Assistant](ha-integration.md), "Rooms are satellites"; it replaces the rule "one satellite per
 area" there.
 

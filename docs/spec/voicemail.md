@@ -1,6 +1,6 @@
 # The answering machine at the satellite – Spec
 
-Status 2026-10-29: built (steps 1 to 4), not released. Scenarios: [voicemail.feature](voicemail.feature). Builds on
+Status 2026-10-29: built (steps 1 to 4), released in 0.14.0. Scenarios: [voicemail.feature](voicemail.feature). Builds on
 the integration Mira FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz), its spec
 `docs/spec/fritz.md`) and on the indicators of [Messages](messages.md).
 

@@ -197,6 +197,7 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 - In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow.
 - **Your own briefing:** if Mira can reach you personally (your phone or Telegram under "Configure → Persons", or "alone at home is me"), you also get a message of your own in the morning. It has your appointments for today if you have a calendar of your own (one named like your Home Assistant login or like you as a person; with the login `stefan`, "Stefan"), and two headlines on your topics if Mira knows them: "Remember that I'm interested in football and electric cars." With neither, nothing comes.
 - "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
+- When the briefings come is set under **Capabilities → Schedules** (see "Schedules").
 - In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
 
 **Parcels** (skill `pakete`): Mira reads the shipping mails of the parcel services and knows when which parcel comes.
@@ -291,6 +292,19 @@ sequence:
     response_variable: antwort
 ```
 
+## Schedules: what Mira does by herself
+
+Some skills speak up by themselves at fixed times: the morning briefing at 5:30, the waste collection the evening before at 6 pm, the severe weather warnings every hour. Then there is Mira's own job that rebuilds the profiles from her memory at night. All of them are in one place: **Capabilities → Schedules** (admins only).
+
+![Capabilities → Schedules: each schedule with its time and switch; opened, the last and the next run, the time with weekdays and "Run now"](img/mira-zeitplan-en.png)
+
+- **Each schedule is a card**, by skill, Mira's own last. Closed, it shows what it does, when ("Mon–Fri 06:45", "hourly"), how the last run went (✓ or ✗ with its time) and the switch for on and off.
+- **Opened** it has the **last run** (done with what Mira will say, "nothing to report" or the error; for the personal briefing per person), the **next run**, the **time with the weekdays** to change, and **Run now** to try it at once. A second run on the same day replaces the first one's message instead of sending another. The skill's name leads to its card under **Skills**.
+- **A change holds at once**, without a restart. It is in `mira.yaml` with the skill under `schedules`, such as `briefing: { schedules: { morgen: { cron: "45 6 * * 1-5" } } }`; a schedule switched off has `enabled: false` there and keeps its time. Without an entry the skill's time holds, so an update of the skill brings its new time.
+- **Mira's own schedules** can be moved, not switched off.
+- A time such as "every hour" cannot be set here as a time of day; it is shown in words and changed in `mira.yaml` only. Switching it off works all the same.
+- A skill under **Skills** has **Change** at each of its schedules; it leads here.
+
 ## Creating your own skill
 
 A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules. A skill runs no program code; it only tells Mira what to do, when and with what, using the tools she already has (reading calendars, messages, controlling the house and so on).
@@ -303,7 +317,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 - `description`: one sentence on when the skill is needed. That is all Mira sees until she opens the skill; a good sentence makes her open it at the right time.
 - Optionally under `metadata:` → `mira:`:
   - `settings`: values every household fills in itself, each with a `description` (it also appears in error messages) and `required: true` if the skill cannot work without it.
-  - `schedules`: jobs on a schedule. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) and `{{person_calendar}}` (the calendar named like the login or the person; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house. A message from a schedule is at most "important" (2) and waits at night until the morning. With `urgent: true` the schedule may report "urgent" (3): that goes to everyone at once, in quiet hours too. Use it only where it really matters, as for official severe weather warnings.
+  - `schedules`: jobs on a schedule. `name` is a short fixed name (`morgen`) and `description` a few words for the page; with a `name` the schedule can be changed and switched off under **Schedules**. `cron` is the time (five fields, for example `0 10 * * 0` for Sundays at 10), `task` is what Mira should do then. The result is either nothing (`importance: 0`, `spoken` empty) or a short message to the house. With `per_person: true` the job runs once for each person Mira can reach personally (a channel of their own, or "alone at home is me"). Filled in are `{{person}}` (the name), `{{person_login}}` (the Home Assistant login, "-" without one) and `{{person_calendar}}` (the calendar named like the login or the person; "-" without one). Mira adds what she knows about the person, and the message goes to that person instead of the house. A message from a schedule is at most "important" (2) and waits at night until the morning. With `urgent: true` the schedule may report "urgent" (3): that goes to everyone at once, in quiet hours too. Use it only where it really matters, as for official severe weather warnings.
   - `target`: turns the skill into a concern over several turns, with questions back or as a run step by step (see below).
   - `mail`: turns the skill into a mail application (see below).
   - `chapter`: the chapter of this guide about the skill, as its heading begins (`"## Cooking and baking"`, `###` for a section). Mira's page shows a link to it with the skill. A skill written in German names the German guide's chapter; its translation (`SKILL.en.md`) names the English one.
@@ -358,7 +372,7 @@ skills:
     plants: "fern every Sunday, cactus on the first Sunday of the month"
 ```
 
-Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with `mira skill plants`.
+Then restart Mira. She answers "When does the cactus need water?" from the list, and on Sundays at 10 she speaks up by herself. You can try the schedule right away with **Run now** under **Schedules**, or with `mira skill plants`.
 
 **When something is wrong:** Mira starts anyway; only the affected skill does not run. The log has `skill not started` with a sentence saying what is wrong, for example "The setting "plants" is missing in mira.yaml under skills.blumen". Home Assistant shows the same message under Settings → System → **Repairs**. After fixing it, restart Mira; the message disappears once the skill runs.
 
@@ -575,7 +589,7 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 
 ## Listening to the radio
 
-"Play SWR3." – "Turn on the radio in the living room." Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. Louder, quieter and pause work like on any media player.
+"Play SWR3." – "Turn on the radio in the living room." Mira searches the station in Home Assistant's Radio Browser, which is always there, and plays it on the room's speaker. The speaker has to be exposed to Assist (Settings → Voice assistants → Expose entities). If several stations fit, she names a few and asks which one. Louder, quieter and pause work like on any media player. A satellite with TECHO5 (version 1.6.16 or later) shows the station's name and logo and the song playing.
 
 ## Phone calls
 
@@ -674,7 +688,7 @@ The **Overview** shows four cards. Each says briefly what is going on and leads 
 
 - **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit, forget, export and import as a file).
 - **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below) and **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages).
-- **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers).
+- **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Schedules** (what Mira does by herself and when, with the last run; see "Schedules"), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers).
 - **Guide**: this page, with jumps to the main chapters.
 
 ![The overview: Day to day, Setup, Capabilities and Guide](img/mira-uebersicht-en.png)

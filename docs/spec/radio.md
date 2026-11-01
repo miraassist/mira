@@ -1,6 +1,6 @@
 # Radio – Spec
 
-Status 2026-11-01: decided and built in 0.6.37; step 2 (the station's name on the device) built, not released.
+Status 2026-11-01: decided and built in 0.6.37; step 2 (the station's name on the device) released in 0.15.0.
 Scenarios of step 2: [radio.feature](radio.feature).
 
 ## Target

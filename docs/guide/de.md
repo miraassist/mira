@@ -201,6 +201,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 - Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht.
 - **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Hast du weder Termine noch Themen, kommt nichts.
 - „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
+- Wann die Briefings kommen, stellst du unter **Fähigkeiten → Zeitplan** ein (siehe „Zeitplan“).
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
 
 **Pakete**: Mira liest die Versandmails der Paketdienste und weiß, wann welches Paket kommt.
@@ -295,6 +296,19 @@ sequence:
     response_variable: antwort
 ```
 
+## Zeitplan: was Mira von selbst tut
+
+Manche Skills melden sich zu festen Zeiten von selbst: das Morgen-Briefing um 5:30, die Müllabfuhr am Vorabend um 18 Uhr, die Unwetterwarnungen jede Stunde. Dazu kommt Miras eigener Job, der nachts aus dem Gedächtnis die Profile neu baut. Alles steht an einer Stelle: **Fähigkeiten → Zeitplan** (nur für Admins).
+
+![Fähigkeiten → Zeitplan: jeder Zeitplan mit Zeit und Schalter; aufgeklappt der letzte und der nächste Lauf, die Uhrzeit mit Wochentagen und „Jetzt ausführen“](img/mira-zeitplan-de.png)
+
+- **Jeder Zeitplan ist eine Karte**, sortiert nach Skill, Miras eigene zuletzt. Zugeklappt siehst du, was er tut, wann („Mo–Fr 06:45“, „stündlich“), wie der letzte Lauf ausging (✓ oder ✗ mit Uhrzeit) und den Schalter für an und aus.
+- **Aufgeklappt** stehen dort der **letzte Lauf** (erledigt mit dem, was Mira sagen wird, „nichts zu melden“ oder der Fehler; beim persönlichen Briefing für jede Person), der **nächste Lauf**, die **Uhrzeit mit den Wochentagen** zum Ändern und **Jetzt ausführen**, um ihn sofort auszuprobieren. Ein zweiter Lauf am selben Tag ersetzt die Nachricht des ersten, statt eine zweite zu schicken. Der Name des Skills führt zu seiner Karte unter **Skills**.
+- **Eine Änderung gilt sofort**, ohne Neustart. Sie steht in der `mira.yaml` beim Skill unter `schedules`, etwa `briefing: { schedules: { morgen: { cron: "45 6 * * 1-5" } } }`; ein ausgeschalteter Zeitplan hat dort `enabled: false` und behält seine Zeit. Ohne Eintrag gilt die Zeit des Skills, so bringt ein Update des Skills seine neue Zeit mit.
+- **Miras eigene Zeitpläne** lassen sich verschieben, aber nicht ausschalten.
+- Eine Zeit wie „jede Stunde“ lässt sich hier nicht als Uhrzeit einstellen; sie steht in Worten da, ändern geht nur in der `mira.yaml`. Ausschalten geht trotzdem.
+- Bei einem Skill unter **Skills** steht bei jedem Zeitplan **Ändern**; das führt hierher.
+
 ## Eigenen Skill erstellen
 
 Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung für Mira, auf Wunsch mit Einstellungen und Zeitplänen. Ein Skill führt keinen Programmcode aus; er sagt Mira nur, was sie wann und womit tun soll, mit den Werkzeugen, die sie ohnehin hat (Kalender lesen, Nachrichten, Haussteuerung und so weiter).
@@ -307,7 +321,7 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 - `description`: ein Satz, wann der Skill gebraucht wird. Mehr sieht Mira nicht, bis sie den Skill öffnet; ist der Satz gut, öffnet sie ihn zur rechten Zeit.
 - Optional unter `metadata:` → `mira:`:
   - `settings`: Angaben, die jeder Haushalt selbst einträgt, jeweils mit einer `description` (die erscheint auch in Fehlermeldungen) und `required: true`, wenn der Skill ohne sie nicht arbeiten kann.
-  - `schedules`: Aufgaben nach Zeitplan. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). Eingesetzt werden `{{person}}` (der Name), `{{person_login}}` (der Login-Name in Home Assistant, „-“ ohne) und `{{person_calendar}}` (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne). Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus. Eine Nachricht aus einem Zeitplan ist höchstens „wichtig“ (2) und wartet nachts bis zum Morgen. Mit `urgent: true` darf der Zeitplan „dringend“ (3) melden: Das geht sofort an alle, auch in der Ruhezeit. Nimm das nur, wo es wirklich darauf ankommt, wie bei amtlichen Unwetterwarnungen.
+  - `schedules`: Aufgaben nach Zeitplan. `name` ist ein kurzer, fester Name (`morgen`) und `description` ein paar Worte für die Seite; mit `name` lässt sich der Zeitplan unter **Zeitplan** ändern und ausschalten. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). Eingesetzt werden `{{person}}` (der Name), `{{person_login}}` (der Login-Name in Home Assistant, „-“ ohne) und `{{person_calendar}}` (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne). Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus. Eine Nachricht aus einem Zeitplan ist höchstens „wichtig“ (2) und wartet nachts bis zum Morgen. Mit `urgent: true` darf der Zeitplan „dringend“ (3) melden: Das geht sofort an alle, auch in der Ruhezeit. Nimm das nur, wo es wirklich darauf ankommt, wie bei amtlichen Unwetterwarnungen.
   - `target`: macht aus dem Skill ein Anliegen über mehrere Gesprächszüge, mit Rückfragen oder als Ablauf Schritt für Schritt (siehe unten).
   - `mail`: macht aus dem Skill eine Mail-Anwendung (siehe unten).
   - `chapter`: das Kapitel dieser Anleitung zum Skill, so wie seine Überschrift beginnt (`"## Kochen und Backen"`, für einen Abschnitt `###`). Miras Seite zeigt beim Skill einen Link dorthin. In einer Übersetzung (`SKILL.en.md`) steht das Kapitel der englischen Anleitung.
@@ -362,7 +376,7 @@ skills:
     pflanzen: "Farn jeden Sonntag, Kaktus am ersten Sonntag im Monat"
 ```
 
-Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet sie aus der Liste, und sonntags um 10 Uhr meldet sie sich von selbst. Den Zeitplan probierst du mit `mira skill blumen` sofort aus.
+Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet sie aus der Liste, und sonntags um 10 Uhr meldet sie sich von selbst. Den Zeitplan probierst du unter **Zeitplan** mit **Jetzt ausführen** oder mit `mira skill blumen` sofort aus.
 
 **Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.blumen“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
 
@@ -585,7 +599,7 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 
 ## Radio hören
 
-„Spiel SWR3.“ – „Mach im Wohnzimmer das Radio an.“ Mira sucht den Sender im Radio Browser von Home Assistant, der immer dabei ist, und spielt ihn auf dem Lautsprecher des Raums. Der Lautsprecher muss für Assist freigegeben sein (Einstellungen → Sprachassistenten → Entitäten freigeben). Findet sie mehrere passende Sender, nennt sie ein paar und fragt, welcher es sein soll. Lauter, leiser und Pause gehen wie bei jedem Medienspieler.
+„Spiel SWR3.“ – „Mach im Wohnzimmer das Radio an.“ Mira sucht den Sender im Radio Browser von Home Assistant, der immer dabei ist, und spielt ihn auf dem Lautsprecher des Raums. Der Lautsprecher muss für Assist freigegeben sein (Einstellungen → Sprachassistenten → Entitäten freigeben). Findet sie mehrere passende Sender, nennt sie ein paar und fragt, welcher es sein soll. Lauter, leiser und Pause gehen wie bei jedem Medienspieler. Ein Satellit mit TECHO5 (ab Version 1.6.16) zeigt dabei den Namen und das Logo des Senders und den laufenden Titel.
 
 ▶ [Das Lieblingsradio: Mira fragt nach dem Sender, merkt ihn sich und spielt ihn](https://mira-assist.com/videos/mira-chat-de.mp4#t=717)
 
@@ -698,7 +712,7 @@ Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und f
 
 - **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten, vergessen, als Datei exportieren und importieren).
 - **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten) und **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten).
-- **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
+- **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Zeitplan** (was Mira wann von selbst tut, mit letztem Lauf; siehe „Zeitplan“), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
 - **Anleitung**: diese Seite, mit Sprüngen zu den wichtigsten Kapiteln.
 
 ![Die Übersicht: Aktuell, Einrichtung, Fähigkeiten und Anleitung](img/mira-uebersicht-de.png)

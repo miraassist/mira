@@ -1,6 +1,6 @@
 # Schedules on Mira's page – spec
 
-Status 2026-11-01: steps 1–3 built, not released. Scenarios: [schedules.feature](schedules.feature). Builds on
+Status 2026-11-01: built (steps 1–3), released in 0.15.0. Scenarios: [schedules.feature](schedules.feature). Builds on
 [Skills and agents at a glance](overview.md) (the page, read only so far) and
 [Editing models, agents and skills](editing.md) (a skill's entry in `mira.yaml`).
 

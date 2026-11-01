@@ -179,7 +179,7 @@ security:
   read_only_tools: [ha__GetDateTime, ha__GetLiveContext, ha__HassGetWeather, ha__todo_get_items]
 
 memory:
-  profile_schedule: "30 3 * * *"   # nightly: facts -> compact profile (prompt layer 5)
+  profile_schedule: "30 3 * * *"   # nightly: facts -> compact profile (prompt layer 5); also on the page "Schedules"
   max_facts_in_layer: 8
   max_profile_chars: 2000
 
@@ -226,3 +226,6 @@ skills:
   briefing:                            # morning and evening briefing, also on request
     kalender: Familie                  # the house's calendars; empty = all exposed, personal ones too
     themen: Deutschland                # news topics for the morning; empty = no news
+    # schedules:                       # a schedule's own time, or off; the page "Schedules" writes this
+    #   morgen: { cron: "45 6 * * 1-5" }   # the house briefing on weekdays at 6:45
+    #   abend: { enabled: false }          # no evening briefing

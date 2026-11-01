@@ -1,6 +1,6 @@
 # Phone calls
 
-Status 2026-10-29: built, released in 0.7.0; the phone book comes from Mira FRITZ!Box since 2026-10-29 (not released yet). Scenarios: [phone.feature](phone.feature).
+Status 2026-10-29: built, released in 0.7.0; the phone book comes from Mira FRITZ!Box since 2026-10-29 (released in 0.14.0). Scenarios: [phone.feature](phone.feature).
 
 ## Goal
 

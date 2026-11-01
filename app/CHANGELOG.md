@@ -3,6 +3,17 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.15.0
+
+- New page **Capabilities → Schedules**: every schedule of the skills and Mira's own, with the last run and what came
+  of it, the next run, the time with weekdays, a switch, and "Run now". A change holds at once and goes into
+  `mira.yaml`.
+- Mira's data goes into Home Assistant's backups through the integration; after a restore of Home Assistant a repair
+  offers to restore Mira's data. The app's own backup leaves the database out.
+- A satellite without an area is reported as a repair; a room may have several satellites, with a main satellite.
+- "Spiel SWR3" shows the station's name and logo on a TECHO5 satellite.
+- People are shown with their picture from Home Assistant.
+
 ## 0.14.1
 
 - The persona set in the integration's options is saved again: it goes into `mira.yaml` under `prompt: persona:`.
