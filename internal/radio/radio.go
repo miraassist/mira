@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"unicode"
@@ -43,6 +44,10 @@ type Options struct {
 	Search func(ctx context.Context, query string) ([]Station, error)
 	// Play starts a station on a player.
 	Play func(ctx context.Context, entity string, st Station) error
+	// Name tells the player's device the station that plays next, for its
+	// screen (a TECHO5 device's media_station); nil or a device without it
+	// does nothing. A failure does not stop the station.
+	Name func(ctx context.Context, p Player, st Station) error
 	// Players are the exposed media players in an area id.
 	Players func(area string) []Player
 	// Area resolves what the model says ("Küche") to an area id; "" if unknown.
@@ -143,6 +148,11 @@ func Tool(o Options) tools.InternalTool {
 				return fmt.Sprintf(t.noStation, args.Station), nil
 			case st == nil:
 				return fmt.Sprintf(t.severalStations, args.Station, strings.Join(titles, "; ")), nil
+			}
+			if o.Name != nil {
+				if err := o.Name(ctx, players[0], *st); err != nil {
+					slog.Warn("radio: could not name the station on the device", "player", players[0].Entity, "error", err)
+				}
 			}
 			if err := o.Play(ctx, players[0].Entity, *st); err != nil {
 				return "", err

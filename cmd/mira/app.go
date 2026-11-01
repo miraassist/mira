@@ -353,6 +353,15 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Radio on the room's speaker (docs/spec/radio.md).
 	internal = append(internal, radio.Tool(radio.Options{
 		Lang: a.lang, Search: radio.Search(a.ha), Play: radio.Play(a.ha),
+		// A TECHO5 device shows the station's name and logo when told it
+		// before play_media (docs/spec/radio.md).
+		Name: func(ctx context.Context, p radio.Player, st radio.Station) error {
+			node := a.deviceNode(p.Device)
+			if p.Device == "" || node == "" || !a.hasAction(ctx, "esphome", node+"_media_station", "name") {
+				return nil
+			}
+			return a.ha.CallService(ctx, "esphome", node+"_media_station", map[string]any{"name": st.Title}, nil)
+		},
 		Players: func(area string) []radio.Player {
 			snap := snapshot()
 			var out []radio.Player

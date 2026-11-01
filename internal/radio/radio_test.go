@@ -201,3 +201,52 @@ func TestHomeAssistantSide(t *testing.T) {
 		t.Errorf("service: %s %v", ha.svc, ha.data)
 	}
 }
+
+func TestRA01_a_device_that_can_name_the_station_is_told_it_before_it_plays(t *testing.T) {
+	var steps []string
+	players := map[string][]Player{"wohnzimmer": {{Entity: "media_player.show_speaker", Device: "show"}}}
+	tool := Tool(Options{
+		Lang:   i18n.DE,
+		Search: func(ctx context.Context, q string) ([]Station, error) { return swr3, nil },
+		Name: func(ctx context.Context, p Player, st Station) error {
+			steps = append(steps, "name "+p.Device+" "+st.Title)
+			return nil
+		},
+		Play: func(ctx context.Context, entity string, st Station) error {
+			steps = append(steps, "play "+entity)
+			return nil
+		},
+		Players:  func(area string) []Player { return players[area] },
+		AreaName: func(id string) string { return id },
+	})
+	call(t, tool, "wohnzimmer", `{"station":"SWR 3"}`)
+	if strings.Join(steps, "; ") != "name show SWR3; play media_player.show_speaker" {
+		t.Errorf("steps: %q", steps)
+	}
+}
+
+func TestRA02_a_device_without_the_action_plays_as_before(t *testing.T) {
+	players := map[string][]Player{"wohnzimmer": {{Entity: "media_player.show_speaker", Device: "show"}}}
+	var got []string
+	tool := Tool(Options{
+		Lang:   i18n.DE,
+		Search: func(ctx context.Context, q string) ([]Station, error) { return swr3, nil },
+		Name:   func(ctx context.Context, p Player, st Station) error { return errors.New("no such action") },
+		Play: func(ctx context.Context, entity string, st Station) error {
+			got = append(got, entity)
+			return nil
+		},
+		Players:  func(area string) []Player { return players[area] },
+		AreaName: func(id string) string { return id },
+	})
+	out := call(t, tool, "wohnzimmer", `{"station":"SWR3"}`)
+	if len(got) != 1 || !strings.Contains(out, "SWR3") {
+		t.Errorf("played %v, answer %q", got, out)
+	}
+	// without Name, only play_media (env has none)
+	tool, played := env(swr3, players, nil)
+	call(t, tool, "wohnzimmer", `{"station":"SWR3"}`)
+	if len(*played) != 1 {
+		t.Errorf("played %+v", *played)
+	}
+}
