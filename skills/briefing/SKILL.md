@@ -10,7 +10,9 @@ metadata:
       themen:
         description: 'Nachrichten-Themen fürs Morgen-Briefing, mit Komma, z. B. "Deutschland, Fußball". Leer heißt keine Nachrichten.' 
     schedules:
-      - cron: "30 5 * * *"
+      - name: morgen
+        description: Morgen-Briefing fürs Haus
+        cron: "30 5 * * *"
         task: >-
           Stell das Morgen-Briefing für heute zusammen, fürs ganze Haus (es wird
           angesagt, wenn jemand den Raum betritt, oder nebenbei erwähnt). Nur mit
@@ -31,7 +33,9 @@ metadata:
           gesprochenen Text, als ein Satz am Ende. importance 1, spoken höchstens vier
           kurze Sätze zum Vorlesen, details die Termine mit Uhrzeit und die
           Schlagzeilen, expires_in_hours 6.
-      - cron: "35 5 * * *"
+      - name: persoenlich
+        description: Persönliches Morgen-Briefing
+        cron: "35 5 * * *"
         per_person: true
         task: >-
           Persönliches Morgen-Briefing für {{person}}. Drei mögliche Teile, alle nur,
@@ -51,7 +55,9 @@ metadata:
           importance 1, spoken höchstens drei kurze Sätze an {{person}} gerichtet
           (du-Form, z. B. „Du hast heute um halb zehn Zahnarzt.“), details die Termine
           mit Uhrzeit, die Pakete und die Schlagzeilen, expires_in_hours 8.
-      - cron: "0 18 * * *"
+      - name: abend
+        description: Abend-Briefing für morgen
+        cron: "0 18 * * *"
         task: >-
           Stell das Abend-Briefing für morgen zusammen, fürs ganze Haus. Nur mit dem,
           was die Werkzeuge liefern: die Termine von morgen aus diesen Kalendern:

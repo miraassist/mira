@@ -1,6 +1,6 @@
 # Schedules on Mira's page – spec
 
-Status 2026-11-01: specified, not built. Scenarios: [zeitplan.feature](zeitplan.feature). Builds on
+Status 2026-11-01: step 1 built, not released. Scenarios: [zeitplan.feature](zeitplan.feature). Builds on
 [Skills and agents at a glance](uebersicht.md) (the page, read only so far) and
 [Editing models, agents and skills](bearbeiten.md) (a skill's entry in `mira.yaml`).
 

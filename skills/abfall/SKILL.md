@@ -12,7 +12,9 @@ metadata:
       types:
         description: Abfallarten, die interessieren, als Wortteile mit Komma, z. B. "Restabfall, Wertstoff". Leer heißt alle.
     schedules:
-      - cron: "0 18 * * *"
+      - name: abfuhr
+        description: Erinnerung an die Müllabfuhr morgen
+        cron: "0 18 * * *"
         task: >-
           Prüfe mit calendar_events (calendar "{{calendar}}", from und to beide der Tag
           von morgen), ob morgen etwas zu den interessanten Abfallarten abgeholt wird.

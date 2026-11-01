@@ -15,6 +15,7 @@ package skills
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -210,8 +211,13 @@ type Setting struct {
 // Schedule runs Task as a background job at Cron; the result may become a
 // message.
 type Schedule struct {
-	Cron string `yaml:"cron"`
-	Task string `yaml:"task"`
+	// Name is the schedule's key within the skill: mira.yaml changes it by
+	// it (docs/spec/zeitplan.md). Without one it cannot be changed there.
+	Name string `yaml:"name"`
+	// Description is a few words for the page.
+	Description string `yaml:"description"`
+	Cron        string `yaml:"cron"`
+	Task        string `yaml:"task"`
 	// PerPerson runs the task once for each person a message can reach (a
 	// channel of their own, or "alone at home is me"), with {{person}} and
 	// {{person_calendar}} (their own calendar, one named like them; "-" if
@@ -222,7 +228,68 @@ type Schedule struct {
 	// quiet hours too (an official warning of extreme weather); without it
 	// a job reports at most 2.
 	Urgent bool `yaml:"urgent"`
-	cron   schedule.Cron
+	// Default is the skill's own time; Cron is mira.yaml's when it has one.
+	Default string `yaml:"-"`
+	// Off: mira.yaml switches it off (enabled: false); it keeps its time.
+	Off  bool `yaml:"-"`
+	cron schedule.Cron
+}
+
+// SetCron gives the schedule a new time.
+func (s *Schedule) SetCron(expr string) error {
+	c, err := schedule.Parse(expr)
+	if err != nil {
+		return err
+	}
+	s.Cron, s.cron = expr, c
+	return nil
+}
+
+// ScheduleChange is a schedule's entry in mira.yaml, under the skill's
+// schedules: a time of its own and whether it is off.
+type ScheduleChange struct {
+	Cron string
+	Off  bool
+}
+
+// ScheduleChanges reads the entry schedules of a skill's settings in
+// mira.yaml: name → change.
+func ScheduleChanges(v any) (map[string]ScheduleChange, error) {
+	if v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, errors.New("schedules is a mapping of schedule names")
+	}
+	out := map[string]ScheduleChange{}
+	for name, e := range m {
+		fields, ok := e.(map[string]any)
+		if !ok && e != nil {
+			return nil, fmt.Errorf("schedules.%s takes cron and enabled", name)
+		}
+		var c ScheduleChange
+		for k, f := range fields {
+			switch k {
+			case "cron":
+				s, ok := f.(string)
+				if !ok {
+					return nil, fmt.Errorf("schedules.%s.cron must be a cron expression in quotes", name)
+				}
+				c.Cron = s
+			case config.SkillOn:
+				b, ok := f.(bool)
+				if !ok {
+					return nil, fmt.Errorf("schedules.%s.enabled must be true or false", name)
+				}
+				c.Off = !b
+			default:
+				return nil, fmt.Errorf("schedules.%s.%s does not exist; possible are cron and enabled", name, k)
+			}
+		}
+		out[name] = c
+	}
+	return out, nil
 }
 
 func (s Schedule) Parsed() schedule.Cron { return s.cron }
@@ -312,8 +379,18 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		return Skill{}, problem("privacyword", s.Privacy)
 	}
 
+	if _, ok := m.Settings[config.SkillSchedules]; ok {
+		return Skill{}, problem("schedulessetting")
+	}
+	changes, err := ScheduleChanges(values[config.SkillSchedules])
+	if err != nil {
+		return Skill{}, problem("scheduleentry", err)
+	}
 	vals := map[string]string{}
 	for k, v := range values {
+		if k == config.SkillSchedules {
+			continue
+		}
 		if _, ok := m.Settings[k]; !ok {
 			if len(m.Settings) == 0 {
 				return Skill{}, problem("nosettings", k)
@@ -332,6 +409,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 			return Skill{}, problem("required", k, decl.Description, meta.Name)
 		}
 	}
+	named := map[string]bool{}
 	for i, sc := range m.Schedules {
 		c, err := schedule.Parse(sc.Cron)
 		if err != nil {
@@ -340,9 +418,27 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		if strings.TrimSpace(sc.Task) == "" {
 			return Skill{}, problem("notask", i+1)
 		}
-		sc.cron = c
+		sc.Name = strings.TrimSpace(sc.Name)
+		if sc.Name != "" && named[sc.Name] {
+			return Skill{}, problem("scheduledup", sc.Name)
+		}
+		named[sc.Name] = sc.Name != ""
+		sc.cron, sc.Default = c, sc.Cron
+		if ch, ok := changes[sc.Name]; ok && sc.Name != "" {
+			if ch.Cron != "" {
+				if err := sc.SetCron(ch.Cron); err != nil {
+					return Skill{}, problem("schedulecron", sc.Name, err)
+				}
+			}
+			sc.Off = ch.Off
+		}
 		sc.Task = fill(sc.Task, vals, m.Settings)
 		s.Schedules = append(s.Schedules, sc)
+	}
+	for name := range changes {
+		if !named[name] {
+			return Skill{}, problem("scheduleunknown", name)
+		}
 	}
 	if t := m.Target; t != nil {
 		if t.Plan && (len(t.Fields) > 0 || t.Finish.Name != "") {

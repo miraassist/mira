@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -37,6 +38,10 @@ type Runner struct {
 	Logger *slog.Logger
 	// People are the persons a per_person schedule runs for.
 	People func(ctx context.Context) []Person
+
+	mu      sync.Mutex
+	changed map[string]bool // jobs whose next run is to be taken anew
+	wake    chan struct{}
 }
 
 // Person is someone a per_person schedule runs for: the receiver key of
@@ -53,46 +58,125 @@ type job struct {
 	sched Schedule
 }
 
+func (j job) key() string { return fmt.Sprintf("%s/%d", j.skill.Name, j.index) }
+
+// jobs are the schedules that are on, as they are now.
+func (r *Runner) jobs() []job {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []job
+	for _, sk := range r.Set.Skills {
+		for i, sc := range sk.Schedules {
+			if !sc.Off {
+				out = append(out, job{skill: sk, index: i, sched: sc})
+			}
+		}
+	}
+	return out
+}
+
+// Change gives a skill's named schedule a new time or switches it on or off
+// while Mira runs (docs/spec/zeitplan.md); its next run is taken anew. An
+// empty cron keeps the time.
+func (r *Runner) Change(skill, name string, ch ScheduleChange) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for si := range r.Set.Skills {
+		sk := &r.Set.Skills[si]
+		if sk.Name != skill {
+			continue
+		}
+		for i := range sk.Schedules {
+			sc := &sk.Schedules[i]
+			if name == "" || sc.Name != name {
+				continue
+			}
+			if ch.Cron != "" {
+				if err := sc.SetCron(ch.Cron); err != nil {
+					return err
+				}
+			}
+			sc.Off = ch.Off
+			if r.changed == nil {
+				r.changed = map[string]bool{}
+			}
+			r.changed[job{skill: *sk, index: i}.key()] = true
+			r.signal()
+			return nil
+		}
+		return fmt.Errorf("skill %s has no schedule %q", skill, name)
+	}
+	return fmt.Errorf("no skill %s", skill)
+}
+
+// signal wakes Run; r.mu is held.
+func (r *Runner) signal() {
+	if r.wake == nil {
+		r.wake = make(chan struct{}, 1)
+	}
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (r *Runner) wakeup() chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.wake == nil {
+		r.wake = make(chan struct{}, 1)
+	}
+	return r.wake
+}
+
 // Run starts every schedule of every enabled skill and blocks until ctx
-// ends. Jobs run one after the other, never in parallel.
+// ends. Jobs run one after the other, never in parallel. A schedule changed
+// meanwhile (Change) gets its next run anew.
 func (r *Runner) Run(ctx context.Context) error {
 	log := r.Logger
 	if log == nil {
 		log = slog.Default()
 	}
 	log = log.With("component", "skills")
-	var jobs []job
-	for _, sk := range r.Set.Skills {
-		for i, sc := range sk.Schedules {
-			jobs = append(jobs, job{skill: sk, index: i, sched: sc})
-		}
-	}
-	if len(jobs) == 0 {
-		<-ctx.Done()
-		return ctx.Err()
-	}
-	next := make([]time.Time, len(jobs))
-	for i, j := range jobs {
-		next[i] = j.sched.Parsed().Next(r.Set.clock().In(r.Set.loc()))
-		log.Info("scheduled", "skill", j.skill.Name, "cron", j.sched.Cron, "next", next[i].Format("2006-01-02 15:04"))
-	}
+	wake := r.wakeup()
+	next := map[string]time.Time{}
 	for {
-		soonest := 0
-		for i := range next {
-			if next[i].Before(next[soonest]) {
-				soonest = i
+		r.mu.Lock()
+		for k := range r.changed {
+			delete(next, k)
+		}
+		r.changed = nil
+		r.mu.Unlock()
+		jobs := r.jobs()
+		var soonest *job
+		for i := range jobs {
+			j := &jobs[i]
+			at, ok := next[j.key()]
+			if !ok {
+				at = j.sched.Parsed().Next(r.Set.clock().In(r.Set.loc()))
+				next[j.key()] = at
+				log.Info("scheduled", "skill", j.skill.Name, "schedule", j.sched.Name, "cron", j.sched.Cron, "next", at.Format("2006-01-02 15:04"))
+			}
+			if soonest == nil || at.Before(next[soonest.key()]) {
+				soonest = j
 			}
 		}
-		wait := time.Until(next[soonest])
-		if wait < 0 {
-			wait = 0
+		var timer <-chan time.Time
+		if soonest != nil {
+			wait := time.Until(next[soonest.key()])
+			if wait < 0 {
+				wait = 0
+			}
+			timer = time.After(wait)
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-wake:
+			continue
+		case <-timer:
 		}
-		j := jobs[soonest]
+		j := *soonest
 		if queued, err := r.RunJob(ctx, j.skill, j.index); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -101,7 +185,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		} else {
 			log.Info("scheduled task done", "skill", j.skill.Name, "message", queued)
 		}
-		next[soonest] = j.sched.Parsed().Next(r.Set.clock().In(r.Set.loc()).Add(time.Second))
+		next[j.key()] = j.sched.Parsed().Next(r.Set.clock().In(r.Set.loc()).Add(time.Second))
 	}
 }
 
@@ -197,4 +281,25 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 		ExpiresAt: now.Add(time.Duration(res.ExpiresInHours * float64(time.Hour))),
 	})
 	return err == nil, err
+}
+
+// NextRun is when a schedule runs next; zero while it is off.
+func (r *Runner) NextRun(sc Schedule) time.Time {
+	if sc.Off {
+		return time.Time{}
+	}
+	return sc.Parsed().Next(r.Set.clock().In(r.Set.loc()))
+}
+
+// Schedules are the skills' schedules as they are now (with the changes
+// made while Mira runs).
+func (r *Runner) Schedules(skill string) []Schedule {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, sk := range r.Set.Skills {
+		if sk.Name == skill {
+			return append([]Schedule(nil), sk.Schedules...)
+		}
+	}
+	return nil
 }

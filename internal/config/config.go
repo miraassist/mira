@@ -226,6 +226,10 @@ type Skills struct {
 // called so.
 const SkillOn = "enabled"
 
+// SkillSchedules is the key under a skill that changes its schedules by
+// name (docs/spec/zeitplan.md); no setting may be called so.
+const SkillSchedules = "schedules"
+
 // UnmarshalYAML reads dirs and the skills beside it.
 func (s *Skills) UnmarshalYAML(n *yaml.Node) error {
 	if n.Kind != yaml.MappingNode {

@@ -5,7 +5,9 @@ license: MIT
 metadata:
   mira:
     schedules:
-      - cron: "0 * * * *"
+      - name: pruefen
+        description: Amtliche Wetterwarnungen prüfen
+        cron: "0 * * * *"
         urgent: true
         task: >-
           Prüf die amtlichen Warnungen für den Landkreis des Hauses. Den
