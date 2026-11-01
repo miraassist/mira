@@ -46,6 +46,8 @@ func TestBuildRendersAreasEntitiesAndAliases(t *testing.T) {
 	want := strings.Join([]string{
 		"Bereich Bad (bad)",
 		"  light.bad — Bad",
+		"  sensor.bad_diag — Diag",
+		"  switch.hidden — Versteckt",
 		"Bereich Keller (keller)",
 		"  sensor.inverter_status — Status, Gerät: Solar-WR",
 		"Bereich Küche (kueche), auch genannt: Kochecke",
@@ -57,7 +59,7 @@ func TestBuildRendersAreasEntitiesAndAliases(t *testing.T) {
 	if snap.Block != want {
 		t.Fatalf("block mismatch\n got:\n%s\nwant:\n%s", snap.Block, want)
 	}
-	if snap.AreaCount != 3 || snap.EntityCount != 5 {
+	if snap.AreaCount != 3 || snap.EntityCount != 7 {
 		t.Errorf("counts = %d areas, %d entities", snap.AreaCount, snap.EntityCount)
 	}
 	if !snap.ExposureKnown {
@@ -72,9 +74,14 @@ func TestBuildRendersAreasEntitiesAndAliases(t *testing.T) {
 	if got := snap.EntityArea["sensor.kueche_temp"]; got != "kueche" {
 		t.Errorf("entity without own area must inherit the device's: %q", got)
 	}
-	for _, id := range []string{"light.secret", "sensor.bad_diag", "switch.hidden"} {
-		if snap.ExposedEntities[id] || strings.Contains(snap.Block, id) {
-			t.Errorf("%s must not be in the block", id)
+	// Only what is not exposed stays out; an exposed diagnostic or hidden
+	// entity is in (the list is taken as it is).
+	if snap.ExposedEntities["light.secret"] || strings.Contains(snap.Block, "light.secret") {
+		t.Error("light.secret is not exposed, but in the block")
+	}
+	for _, id := range []string{"sensor.bad_diag", "switch.hidden"} {
+		if !snap.ExposedEntities[id] {
+			t.Errorf("%s is exposed, but not in the block", id)
 		}
 	}
 }

@@ -187,9 +187,8 @@ func Build(reg Registry) Snapshot {
 	// Group entities by area. The empty area id collects what has no room.
 	byArea := map[string][]entityRow{}
 	for _, e := range reg.Entities {
-		if !e.Usable() {
-			continue
-		}
+		// The exposed list is taken as it is: what the user exposed counts,
+		// diagnostic and hidden ones too (docs/spec/ha-integration.md).
 		if !isExposed(e, reg.Exposed) {
 			continue
 		}
