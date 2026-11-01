@@ -35,7 +35,7 @@ func setup(t *testing.T, answer string) (*Compactor, *store.Store, *fakeAssessor
 	t.Cleanup(func() { st.Close() })
 	ai := &fakeAssessor{answer: answer}
 	changes := 0
-	c := New(Options{Store: st, Assessor: ai, Schedule: "30 3 * * *", MaxChars: 200,
+	c := New(Options{Store: st, Assessor: ai, MaxChars: 200,
 		OnChange: func() { changes++ }, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Location: time.UTC})
 	return c, st, ai, &changes
 }

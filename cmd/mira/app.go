@@ -84,6 +84,8 @@ type app struct {
 	// models are the further models by name (config.Models).
 	models map[string]*llm.Client
 	skills *skills.Set
+	// runner runs the skills' schedules and Mira's own (docs/spec/zeitplan.md).
+	runner *skills.Runner
 	// homeCache keeps the house's location for skills (home.go).
 	homeCache homeCache
 	// targetSkills are the skills with a target (they run as threads, not
@@ -697,15 +699,22 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.goRun(ctx, "mail", a.mail.Run)
 	}
 
-	if a.skills != nil && len(a.skills.Skills) > 0 {
-		runner := &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.briefingPeople}
-		a.goRun(ctx, "skills", runner.Run)
-	}
-
+	// One scheduler for the skills' schedules and Mira's own: one job after
+	// the other (docs/spec/zeitplan.md).
+	a.runner = &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.briefingPeople}
 	if cfg.Memory.ProfileSchedule != "" {
 		compactor := a.profileCompactor()
-		a.goRun(ctx, "profile", compactor.Run)
+		job, err := skills.NewSystemJob(profileJob, "Profile aus den Erinnerungen neu bauen", cfg.Memory.ProfileSchedule,
+			func(ctx context.Context) (string, error) {
+				n, err := compactor.Rebuild(ctx)
+				return fmt.Sprintf("%d Profile neu gebaut", n), err
+			})
+		if err != nil {
+			return err
+		}
+		a.runner.System = append(a.runner.System, job)
 	}
+	a.goRun(ctx, "schedules", a.runner.Run)
 
 	// The persons come from Home Assistant; read them before the notifier
 	// starts with them.
@@ -1152,11 +1161,14 @@ func (a *app) healthChecks() map[string]haconv.HealthCheck {
 func (a *app) profileCompactor() *profile.Compactor {
 	return profile.New(profile.Options{
 		Lang:  a.lang,
-		Store: a.store, Assessor: a.profileCompact(), Schedule: a.cfg.Memory.ProfileSchedule,
+		Store: a.store, Assessor: a.profileCompact(),
 		MaxChars: a.cfg.Memory.MaxProfileChars, Logger: a.log,
 		OnChange: func() { a.warmup("profile_changed") },
 	})
 }
+
+// profileJob is the name of Mira's own schedule that rebuilds the profiles.
+const profileJob = "profile"
 
 // runProfile compacts the profile now and prints it.
 func runProfile(parent context.Context, cfg config.Config) error {

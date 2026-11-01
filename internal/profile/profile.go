@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/i18n"
-	"github.com/miraassist/mira/internal/schedule"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -71,8 +70,6 @@ type Options struct {
 	Lang     i18n.Lang
 	Store    *store.Store
 	Assessor Assessor
-	// Schedule is a cron expression, e.g. "30 3 * * *".
-	Schedule string
 	// MaxChars bounds the profile; it is part of every prompt.
 	MaxChars int
 	// OnChange runs after the house profile was replaced (prompt layer 5).
@@ -103,29 +100,6 @@ func New(opts Options) *Compactor {
 	return &Compactor{opts: opts, log: opts.Logger.With("component", "profile")}
 }
 
-// Run compacts on the schedule until ctx ends.
-func (c *Compactor) Run(ctx context.Context) error {
-	cron, err := schedule.Parse(c.opts.Schedule)
-	if err != nil {
-		return err
-	}
-	for {
-		now := c.opts.Clock().In(c.opts.Location)
-		next := cron.Next(now)
-		c.log.Info("next profile compaction", "at", next.Format(time.DateTime))
-		timer := time.NewTimer(next.Sub(now))
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-		if _, err := c.Compact(ctx); err != nil && ctx.Err() == nil {
-			c.log.Error("profile compaction failed", "error", err)
-		}
-	}
-}
-
 // maxInputChars bounds the facts shown to the model in one compaction.
 const maxInputChars = 24000
 
@@ -134,15 +108,21 @@ var profileSchema = json.RawMessage(`{"type":"object","properties":{"profile":{"
 // Compact rebuilds the profiles, one per owner with facts. It reports
 // whether any changed.
 func (c *Compactor) Compact(ctx context.Context) (bool, error) {
+	n, err := c.Rebuild(ctx)
+	return n > 0, err
+}
+
+// Rebuild compacts the profiles and reports how many changed.
+func (c *Compactor) Rebuild(ctx context.Context) (int, error) {
 	owners, err := c.opts.Store.FactOwners(ctx)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	if len(owners) == 0 {
 		c.log.Info("no facts, profile unchanged")
-		return false, nil
+		return 0, nil
 	}
-	changedAny := false
+	n := 0
 	var errs []error
 	for _, owner := range owners {
 		changed, err := c.compact(ctx, owner)
@@ -150,12 +130,14 @@ func (c *Compactor) Compact(ctx context.Context) (bool, error) {
 			errs = append(errs, fmt.Errorf("%s: %w", owner, err))
 			continue
 		}
-		changedAny = changedAny || changed
+		if changed {
+			n++
+		}
 		if changed && owner == store.OwnerHouse && c.opts.OnChange != nil {
 			c.opts.OnChange()
 		}
 	}
-	return changedAny, errors.Join(errs...)
+	return n, errors.Join(errs...)
 }
 
 func (c *Compactor) compact(ctx context.Context, owner string) (bool, error) {
