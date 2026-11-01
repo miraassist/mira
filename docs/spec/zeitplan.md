@@ -73,6 +73,7 @@ One entry per schedule, grouped by skill, Mira's own last ("Mira"). Folded:
 
 Unfolded:
 
+- **Skill:** its name as a link that opens the page Skills at that skill, unfolded (not for Mira's own).
 - **Last run:** started, how long it took; the result: the message it queued (the spoken text), "nothing to
   report" (the job found nothing worth saying), or the error. Per person for a per-person schedule (one line each).
   For Mira's own: how many profiles were rebuilt.

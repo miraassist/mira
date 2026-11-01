@@ -381,8 +381,20 @@ async function restartMira() {
   location.reload();
 }
 
+// openSkill opens the page "Skills" at one skill (from a schedule).
+let skillFocus = null;
+function openSkill(name) { skillFocus = name; go("skills"); }
+
 class MiraSkills extends EditPage {
   static properties = { ...EditPage.properties, busy: { state: true }, switchError: { state: true } };
+  // A skill opened from a schedule: unfolded and shown once the list is
+  // there; only the page shown takes it (it may be built twice on the way).
+  updated() {
+    if (!skillFocus || !this.data || !this.isConnected) return;
+    const d = this.querySelector(`details[data-key="${CSS.escape(skillFocus)}"]`);
+    skillFocus = null;
+    if (d) { d.open = true; d.scrollIntoView({ block: "center" }); }
+  }
   // on says whether the skill is switched on, as mira.yaml has it.
   on(s) {
     const e = ((this.ed || {}).skills || {})[s.name];
@@ -417,7 +429,7 @@ class MiraSkills extends EditPage {
   skill(s) {
     const t = s.target, m = s.mcp;
     const edit = this.canEdit, open = this.isOpen(s.name);
-    return cardItem({ icon: itemIcon("skill"), name: s.name, short: s.description, onToggle: this.opener(s.name),
+    return cardItem({ key: s.name, icon: itemIcon("skill"), name: s.name, short: s.description, onToggle: this.opener(s.name),
       tags: html`${(s.kinds || []).map(k => badge(T["kind_" + k] || k))}${m && !m.connected ? badge(T.cat_mcp_down, true) : nothing}
         ${s.state === "problem" ? badge(T.cat_not_started, true) : nothing}
         ${edit ? toggleSwitch(this.on(s), T.ed_enabled, on => this.setOn(s, on), this.busy === s.name) : nothing}` }, !open ? nothing : html`
@@ -564,6 +576,7 @@ class MiraSchedules extends Light {
       ${this.failed && this.failed.key === k ? html`<p class="msg err">${this.failed.text}</p>` : nothing}
       ${it.own ? html`<p class="hint">${T.sch_own}</p>` : nothing}
       <table class="facts">
+        ${it.own ? nothing : row(T.sch_skill, html`<a href="#skills" @click=${e => { e.preventDefault(); openSkill(it.skill); }}><code>${it.skill}</code></a>`)}
         ${row(T.sch_last, it.state ? (it.state === "running" ? T.sch_running : T.sch_waiting) : last.length ? last.map(r => html`<div>
           ${r.person ? html`<b>${r.person}</b>: ` : nothing}${this.status(r)} · ${r.started} · ${T.sch_seconds(r.seconds)}
           ${r.text ? html`<div class="hint">${r.text}</div>` : nothing}${r.error ? html`<div class="msg err">${r.error}</div>` : nothing}</div>`)
