@@ -444,6 +444,25 @@
     "backup_missing_error": {
       "title": "Mira was not in the last backup",
       "description": "Home Assistant made its backup, but Mira's data could not be added to it: {error}\n\nThis message disappears with the next backup that has Mira."
+    },
+    "restore_backup": {
+      "title": "Restore Mira's data",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "Restore Mira's data of {date}?",
+            "description": "Home Assistant was restored from a backup that has Mira's data of {date} (Mira {version}). Restoring replaces what Mira remembers now, her messages, threads, settings and your own skills with the backup's; Mira restarts for a moment.",
+            "menu_options": {
+              "restore": "Restore",
+              "discard": "Keep Mira as she is"
+            }
+          },
+          "failed": {
+            "title": "Mira did not restore it",
+            "description": "{reason}\n\nNothing was changed. The backup stays here; you can try again."
+          }
+        }
+      }
     }
   }
 }

@@ -193,6 +193,31 @@ class MiraClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             raise MiraError(f"GET /v1/backup: {err!r}") from err
 
+    async def restore(self, archive: bytes) -> dict[str, Any]:
+        """Sends a snapshot back to Mira (docs/spec/backup.md); she checks it,
+        puts it in place and starts anew. A refused one raises MiraError
+        with Mira's reason, and nothing was changed."""
+        try:
+            async with self._session.post(
+                self._url + "/v1/restore",
+                data=archive,
+                headers={**self._headers, "Content-Type": "application/gzip"},
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                if resp.status == 401:
+                    raise MiraAuthError("token rejected")
+                body: Any = {}
+                try:
+                    body = await resp.json(content_type=None)
+                except (ValueError, aiohttp.ContentTypeError):
+                    pass
+                if resp.status >= 400:
+                    reason = body.get("error") if isinstance(body, dict) else None
+                    raise MiraError(str(reason or f"HTTP {resp.status}"))
+                return body if isinstance(body, dict) else {}
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MiraError(f"POST /v1/restore: {err!r}") from err
+
     async def health(self) -> dict[str, Any]:
         """Check the connection and the token."""
         return await self._request("GET", "/v1/health", 10)

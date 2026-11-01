@@ -21,6 +21,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .access import hand_back, keep_rejoin, revoke_agent_token, use_mira_in
 from .api import MiraClient, MiraError
+from .backup import async_offer_restore
 from .automations import async_register_commands
 from .once import async_register_commands as async_register_once_commands
 from .const import (
@@ -189,6 +190,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # leaving the satellite silent; the sensor and switch go unavailable.
     await coordinator.async_refresh()
     entry.runtime_data = MiraData(client=client, coordinator=coordinator)
+    # A snapshot left by a restore of Home Assistant: offer Mira's data back.
+    await async_offer_restore(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _use_in_assistants(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload))

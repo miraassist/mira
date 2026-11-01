@@ -5,7 +5,10 @@ backup: without Mira, a repair says why."""
 
 from __future__ import annotations
 
+import json
 import logging
+import tarfile
+from datetime import datetime
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntryState
@@ -21,6 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 # and after a restore.
 BACKUP_FILE = "mira_backup.tar.gz"
 ISSUE_BACKUP = "backup_missing"
+ISSUE_RESTORE = "restore_backup"
 
 
 def backup_path(hass: HomeAssistant) -> Path:
@@ -76,3 +80,58 @@ def _missing(hass: HomeAssistant, key: str, why: str, error: str = "") -> None:
         translation_key=key,
         translation_placeholders={"error": error},
     )
+
+
+# --- restore -----------------------------------------------------------------
+
+
+async def async_offer_restore(hass: HomeAssistant) -> None:
+    """A snapshot in the config folder came with a restore of Home Assistant
+    (after a backup it is deleted): a repair offers to restore Mira's data,
+    with the snapshot's date and Mira's version."""
+    path = backup_path(hass)
+    if not await hass.async_add_executor_job(path.exists):
+        return
+    manifest = await hass.async_add_executor_job(_manifest, path)
+    created = str(manifest.get("created") or "")
+    try:
+        created = datetime.fromisoformat(created).astimezone().strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        created = created or "?"
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_RESTORE,
+        is_fixable=True,
+        is_persistent=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_RESTORE,
+        translation_placeholders={"date": created, "version": str(manifest.get("version") or "?")},
+    )
+
+
+def _manifest(path: Path) -> dict:
+    """The snapshot's manifest; {} if it cannot be read (Mira says why when
+    she gets it)."""
+    try:
+        with tarfile.open(path, "r:gz") as tar:
+            member = tar.extractfile("manifest.json")
+            return json.load(member) if member else {}
+    except (OSError, tarfile.TarError, KeyError, ValueError):
+        return {}
+
+
+async def async_restore(hass: HomeAssistant, client) -> dict:
+    """Sends the snapshot to Mira; on success the file goes. Raises MiraError
+    with Mira's reason when she refuses it; the file stays for another try."""
+    path = backup_path(hass)
+    data = await hass.async_add_executor_job(path.read_bytes)
+    result = await client.restore(data)
+    await async_discard(hass)
+    _LOGGER.info("Mira's data restored from the snapshot of %s", result.get("created"))
+    return result
+
+
+async def async_discard(hass: HomeAssistant) -> None:
+    """Deletes the snapshot: Mira stays as she is."""
+    await hass.async_add_executor_job(backup_path(hass).unlink, True)

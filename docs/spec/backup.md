@@ -1,6 +1,6 @@
 # Backup and restore – spec
 
-Status 2026-11-01: steps 1 and 2 built, not released. Scenarios: [backup.feature](backup.feature). Builds on Home Assistant's
+Status 2026-11-01: steps 1–3 built, not released. Scenarios: [backup.feature](backup.feature). Builds on Home Assistant's
 backups (Settings → System → Backups) and on [The interface between the integration and the service](ha-anbindung.md).
 
 ## Goal
