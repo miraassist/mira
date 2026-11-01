@@ -313,7 +313,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		}
 		var timer <-chan time.Time
 		if soonest != nil {
-			wait := time.Until(next[soonest.key()])
+			wait := next[soonest.key()].Sub(r.Set.clock()) // the set's clock, as next was taken
 			if wait < 0 {
 				wait = 0
 			}
