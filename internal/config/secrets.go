@@ -82,6 +82,22 @@ func (s Secrets) Set(values map[string]string) error {
 			all[name] = v
 		}
 	}
+	return s.write(all)
+}
+
+// Replace writes exactly these secrets (a restore, docs/spec/backup.md),
+// encrypted with this Mira's key if she has one.
+func (s Secrets) Replace(values map[string]string) error {
+	all := map[string]string{}
+	for name, v := range values {
+		if v != "" {
+			all[name] = v
+		}
+	}
+	return s.write(all)
+}
+
+func (s Secrets) write(all map[string]string) error {
 	raw, err := json.MarshalIndent(sorted(all), "", "  ")
 	if err != nil {
 		return err

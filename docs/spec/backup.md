@@ -1,6 +1,6 @@
 # Backup and restore – spec
 
-Status 2026-11-01: specified, not built. Scenarios: [backup.feature](backup.feature). Builds on Home Assistant's
+Status 2026-11-01: step 1 built, not released. Scenarios: [backup.feature](backup.feature). Builds on Home Assistant's
 backups (Settings → System → Backups) and on [The interface between the integration and the service](ha-anbindung.md).
 
 ## Goal
@@ -18,7 +18,8 @@ back too, on every kind of installation.
 | 2 | The HA app | Its database is left out of the app's own backup (`backup_exclude`), so it is not there twice and never as a torn copy |
 | 3 | What the snapshot holds | The database, `mira.yaml`, the secrets file, and one's own skill folders (not Mira's bundled skills) |
 | 4 | Restore | After Home Assistant was restored, a repair "Restore Mira's data" with the snapshot's date; a click sends it to Mira |
-| 5 | The secrets key | `MIRA_SECRET_KEY` is never in the snapshot; with it set, the secrets file can only be read with the same key |
+| 5 | The secrets | Decrypted in the snapshot: Home Assistant's backup encryption protects them, as it does Home Assistant's own secrets. A restore encrypts them again with the restoring Mira's `MIRA_SECRET_KEY`, if set; so a lost key or a new Mira loses nothing. The key itself is never in the snapshot |
+| 6 | `mira.yaml` read only at a restore | Everything else is restored; `mira.yaml` is left as it is, the backup's copy is written to the data folder as `mira.yaml.restored`, and the answer says so |
 
 Not built: backups of Mira on her own (a schedule, a place, keeping several). Home Assistant does that.
 
@@ -32,7 +33,7 @@ Not built: backups of Mira on her own (a schedule, a place, keeping several). Ho
 |---|---|
 | `mira.db` | the database, written as one consistent copy with SQLite's `VACUUM INTO` into the data folder, then streamed and removed |
 | `mira.yaml` | the configuration file as it is |
-| `secrets` | the secrets file as it is (encrypted when `MIRA_SECRET_KEY` is set) |
+| `secrets.json` | the secrets, decrypted (decision 5) |
 | `skills/<dir>/<skill>/…` | every skill folder in a folder of `skills.dirs` other than Mira's bundled one |
 | `manifest.json` | Mira's version, the time, the highest migration, the file list |
 
@@ -65,10 +66,15 @@ The integration has Home Assistant's backup platform (`backup.py`):
   migration it knows (a snapshot of a newer Mira is refused with the reason: update Mira first). Then it:
   1. keeps its own pairing with the integration (the keys of the setup in `kv`): the archive's would cut the
      integration off;
-  2. puts the database in place (and removes `-wal` and `-shm`), the secrets file, `mira.yaml` and the skill folders;
-  3. answers, then starts anew in its own process (as "Restart Mira" on the page), so everything is read again.
+  2. writes the database beside the live one (`mira.db.restore`): the store puts it in place when it opens the
+     database next, at the restart (removing `-wal` and `-shm`), so an open database is never replaced;
+  3. writes the secrets (encrypted with its own key, if set), `mira.yaml` and the skill folders (a skill folder of
+     the snapshot replaces the one of that name; into the folder it came from if that is still one of
+     `skills.dirs`, else into the first of one's own);
+  4. answers, then starts anew in its own process (as "Restart Mira" on the page), so everything is read again.
 - **`mira.yaml` cannot be written** (mounted read only, as in a container setup that keeps it under version
-  control): to be decided, see the open question below.
+  control): it is left as it is, the backup's copy goes to the data folder as `mira.yaml.restored`, and the answer
+  says so (decision 6).
 
 ### The HA app
 
@@ -94,16 +100,10 @@ New fields and calls are optional both ways:
   Mira (a few seconds without Mira).
 - Nothing runs between backups.
 
-## Open question
-
-1. `mira.yaml` read only at a restore: (A) restore everything else and say in the repair's answer that `mira.yaml`
-   was left as it is, with the backup's copy written beside the data as `mira.yaml.restored`; (B) refuse the whole
-   restore until the file can be written; (C) restore everything else and leave `mira.yaml` without a copy.
-
 ## Steps
 
 1. **Service: the snapshot and the restore.** `GET /v1/backup`, `POST /v1/restore` with the checks and the restart.
-   Scenarios BK-01 to BK-06.
+   Scenarios BK-01 to BK-07.
 2. **Integration: into Home Assistant's backup.** `backup.py`, the repair when Mira was not in it. Scenarios BK-10
    to BK-13, tested in pytest.
 3. **Integration: restore.** The file found at start, the repair's flow, the upload. Scenarios BK-20 to BK-23,

@@ -26,6 +26,7 @@ var builtSteps = map[string][]int{
 	"MO": {1, 2, 3, 4, 5}, // docs/spec/modelle.md, Steps
 	"SM": {1, 2},          // docs/spec/skill-mcp.md
 	"SP": {3},             // docs/spec/sprecher.md
+	"BK": {1},             // docs/spec/backup.md; steps 2 and 3 are tested in pytest
 	"RA": {2},             // docs/spec/radio.md, Steps
 	"SR": {2, 4},          // docs/spec/satelliten-raeume.md; steps 1 and 3 are tested in pytest
 	"ZP": {1, 2, 3},       // docs/spec/zeitplan.md, Steps

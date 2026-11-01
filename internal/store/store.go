@@ -58,6 +58,11 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 	if opts.Clock == nil {
 		opts.Clock = time.Now
 	}
+	if isFile(opts.Path) {
+		if err := takeRestored(opts.Path); err != nil {
+			return nil, err
+		}
+	}
 	dsn := opts.Path
 	if dsn == ":memory:" {
 		// A shared cache keeps the in-memory DB alive across pooled connections.

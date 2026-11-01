@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/announce"
+	"github.com/miraassist/mira/internal/backup"
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/config"
@@ -1052,6 +1054,17 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Logger: a.log, TurnTimeout: longestTimeout(cfg), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents,
+		Backup: func(ctx context.Context, w io.Writer) error { return backup.Make(ctx, a.backupMira(), w) },
+		Restore: func(ctx context.Context, r io.Reader) (any, error) {
+			res, err := backup.Restore(ctx, a.backupMira(), r)
+			if err != nil {
+				return nil, err
+			}
+			a.log.Info("snapshot restored; starting anew", "from", res.Created, "version", res.Version, "config", res.Config)
+			// Everything is read again at the start, the database put in place.
+			go func() { time.Sleep(300 * time.Millisecond); restart() }()
+			return res, nil
+		},
 	}
 	if a.mail != nil {
 		opts.Mail = a.mail

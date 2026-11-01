@@ -40,10 +40,18 @@ Feature: BK Backup and restore
     Then it is refused with the reason, and nothing is changed
 
   @step1
-  Scenario: BK-06 The secrets key is never in the snapshot
+  Scenario: BK-06 The secrets go decrypted, the key never
     Given MIRA_SECRET_KEY is set
     When the snapshot is made
-    Then the archive has the encrypted secrets file and nowhere the key
+    Then the archive has the secrets decrypted and nowhere the key
+    And a restore on a Mira with another key encrypts them with that key
+
+  @step1
+  Scenario: BK-07 A read-only mira.yaml is left, its copy kept
+    Given mira.yaml cannot be written
+    When a snapshot is restored
+    Then everything else is restored, mira.yaml is as it was
+    And the snapshot's mira.yaml is in the data folder as mira.yaml.restored, and the answer says so
 
   # --- Into Home Assistant's backup -------------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -71,6 +72,17 @@ type Options struct {
 	// Agents runs the agents Home Assistant calls (mira.agent); nil turns
 	// /v1/agent off.
 	Agents Agents
+	// Backup writes Mira's snapshot for Home Assistant's backup, Restore
+	// puts one in place (docs/spec/backup.md); nil turns them off.
+	Backup  func(ctx context.Context, w io.Writer) error
+	Restore func(ctx context.Context, r io.Reader) (any, error)
+}
+
+// RefusedError is a restore that was refused, with the reason for the user;
+// nothing was changed.
+type RefusedError interface {
+	error
+	Refused() bool
 }
 
 // Mail takes the mails the integration passes on.
@@ -123,6 +135,10 @@ func New(opts Options) *Server {
 	}
 	if s.opts.Eval {
 		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
+	}
+	if s.opts.Backup != nil {
+		s.mux.HandleFunc("GET /v1/backup", s.backup)
+		s.mux.HandleFunc("POST /v1/restore", s.restore)
 	}
 	return s
 }
@@ -502,4 +518,29 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func writeError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
+}
+
+// backup streams the snapshot. An error before the first byte is an
+// answer; after it the archive breaks off, which the integration sees.
+func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/gzip")
+	if err := s.opts.Backup(r.Context(), w); err != nil {
+		s.log.Error("backup failed", "error", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+// restore takes a snapshot; a refused one is 400 with the reason.
+func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
+	res, err := s.opts.Restore(r.Context(), r.Body)
+	var refused RefusedError
+	switch {
+	case errors.As(err, &refused):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case err != nil:
+		s.log.Error("restore failed", "error", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, res)
+	}
 }
