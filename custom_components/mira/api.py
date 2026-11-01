@@ -176,6 +176,23 @@ class MiraClient:
             "POST", "/v1/conversation/reset", 10, json={"channel": channel, "conversation_id": conversation_id}
         )
 
+    async def backup(self) -> bytes:
+        """Mira's snapshot for Home Assistant's backup (docs/spec/backup.md):
+        one tar.gz of a few MB, read whole."""
+        try:
+            async with self._session.get(
+                self._url + "/v1/backup", headers=self._headers, timeout=aiohttp.ClientTimeout(total=120)
+            ) as resp:
+                if resp.status == 401:
+                    raise MiraAuthError("token rejected")
+                if resp.status == 404:
+                    raise MiraNotFound("GET /v1/backup: HTTP 404")
+                if resp.status >= 400:
+                    raise MiraError(f"GET /v1/backup: HTTP {resp.status}")
+                return await resp.read()
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise MiraError(f"GET /v1/backup: {err!r}") from err
+
     async def health(self) -> dict[str, Any]:
         """Check the connection and the token."""
         return await self._request("GET", "/v1/health", 10)

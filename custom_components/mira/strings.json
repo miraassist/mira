@@ -432,6 +432,18 @@
     "satellite_no_area": {
       "title": "Mira does not know where {name} stands",
       "description": "{name} has no area in Home Assistant, so Mira knows no room for it. You can talk to it, but Mira does not speak there on her own, its ring shows nothing, and a timer or the radio there needs the room named.\n\n[Open {name}]({link}) and choose an area in its settings. This message disappears once it has an area."
+    },
+    "backup_missing_unreachable": {
+      "title": "Mira was not in the last backup",
+      "description": "Home Assistant made its backup, but Mira could not be reached, so what she remembers, her messages and settings are not in it.\n\nCheck that Mira is running (Settings → Devices & services → Mira). This message disappears with the next backup that has Mira."
+    },
+    "backup_missing_old": {
+      "title": "Mira was not in the last backup",
+      "description": "This version of Mira cannot be backed up yet, so what she remembers, her messages and settings are not in Home Assistant's backup.\n\nUpdate Mira. This message disappears with the next backup that has Mira."
+    },
+    "backup_missing_error": {
+      "title": "Mira was not in the last backup",
+      "description": "Home Assistant made its backup, but Mira's data could not be added to it: {error}\n\nThis message disappears with the next backup that has Mira."
     }
   }
 }
