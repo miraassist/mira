@@ -21,6 +21,7 @@ import (
 //
 //	go run ./cmd/testha contract          compare the real devices with the contract
 //	go run ./cmd/testha contract record   record it anew from the real devices
+//	go run ./cmd/testha contract record show   only the Show's (or echo's)
 type contract struct {
 	Model    string                     `json:"model"`
 	Services map[string]contractService `json:"services"`
@@ -115,7 +116,15 @@ func realTECHO5(ctx context.Context, admin *haws.Client, token string) ([]techo5
 		}
 		out = append(out, techo5Device{node: node, kind: kind, contract: c})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].node < out[j].node })
+	// A node can have a second device of its name with a few entities (left
+	// from an older setup); the device is the one with the most.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].node != out[j].node {
+			return out[i].node < out[j].node
+		}
+		return len(out[i].contract.Entities) > len(out[j].contract.Entities)
+	})
+	out = slices.CompactFunc(out, func(a, b techo5Device) bool { return a.node == b.node })
 	return out, nil
 }
 
@@ -194,11 +203,15 @@ func contractCmd(ctx context.Context, dir string, args []string) error {
 		return fmt.Errorf("no real TECHO5 device in the test Home Assistant")
 	}
 	record := len(args) > 0 && args[0] == "record"
+	only := ""
+	if record && len(args) > 1 {
+		only = args[1]
+	}
 	recorded := map[string]bool{}
 	differ := false
 	for _, d := range found {
 		if record {
-			if recorded[d.kind] {
+			if recorded[d.kind] || (only != "" && d.kind != only) {
 				continue // the first device of a kind is the reference
 			}
 			raw, _ := json.MarshalIndent(d.contract, "", "  ")

@@ -71,6 +71,7 @@ class FakeDevice:
         self.satellite: Any = None
         self.speaker: Any = None
         self.media_title: dict[str, str] | None = None
+        self.media_station: str | None = None
 
     # --- listeners and the log -------------------------------------------
 

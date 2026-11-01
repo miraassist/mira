@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-10-30: steps 1–4 built; FG-06 waits until `media_title` is in a released firmware; then the contract is recorded anew (decided 2026-10-30), never from a development build. Scenarios: [fake-geraete.feature](fake-geraete.feature). Builds on the
+Status 2026-11-01: steps 1–4 built; the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-geraete.feature](fake-geraete.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellit.md#how-a-techo5-satellite-behaves).
 
@@ -50,6 +50,8 @@ real Show. A test that runs a flow against fakes catches that early only if the 
   state (stays `playing`), as the real device.
 - `esphome.<node>_media_title` names the next `play_media` once: the speaker shows it as `media_title` while it plays
   or is paused, and it is gone when the playback ends.
+- `esphome.<node>_media_station` names the next `play_media` once as a station: the speaker shows its name as
+  `media_channel` (the real device shows the station's name and logo on its screen), gone when the playback ends.
 
 ### The satellite (`assist_satellite.<node>_assist_satellit`)
 

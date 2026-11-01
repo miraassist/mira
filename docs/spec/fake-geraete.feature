@@ -51,6 +51,14 @@ Feature: FG Fake satellites that behave like the real ones
     And when the playback has ended it has no media_title
     And the next play_media has no media_title
 
+  @step1
+  Scenario: FG-08 The station names the next playback once
+    Given esphome.fake_show_media_station was called with "SWR3"
+    When the speaker gets play_media
+    Then its media_channel is "SWR3"
+    And when the playback has ended it has no media_channel
+    And the next play_media has no media_channel
+
   # --- The satellite ---------------------------------------------------------------------------------------
 
   @step2

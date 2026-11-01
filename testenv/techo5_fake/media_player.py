@@ -102,6 +102,8 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
         self._attr_media_content_id = media_id
         self._attr_media_content_type = media_type
         self._attr_media_title = title["title"] if title else None
+        station, self.dev.media_station = self.dev.media_station, None
+        self._attr_media_channel = station
         self._attr_state = MediaPlayerState.PLAYING
         self._set_announcing(announce)
         self.async_write_ha_state()
@@ -178,6 +180,7 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
         self._attr_state = MediaPlayerState.IDLE
         self._attr_media_content_id = None
         self._attr_media_title = None
+        self._attr_media_channel = None
         self.ducked = False
         self._set_announcing(False)
         self.async_write_ha_state()

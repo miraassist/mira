@@ -1,5 +1,5 @@
 {
-  "model": "Echo Show 5 1st gen (checkers) · TECHO5 v1.2.24",
+  "model": "Echo Show 5 1st gen (checkers) · TECHO5 v1.6.18",
   "services": {
     "alarm_delete": {
       "fields": [
@@ -39,6 +39,28 @@
       ],
       "response": true
     },
+    "alarm_turn_off": {
+      "fields": [
+        "label",
+        "time"
+      ]
+    },
+    "alarm_turn_off_id": {
+      "fields": [
+        "id"
+      ]
+    },
+    "alarm_turn_on": {
+      "fields": [
+        "label",
+        "time"
+      ]
+    },
+    "alarm_turn_on_id": {
+      "fields": [
+        "id"
+      ]
+    },
     "alarms_follow": {
       "fields": [
         "entities"
@@ -64,6 +86,12 @@
     "calendar_sources": {
       "fields": [
         "calendars"
+      ]
+    },
+    "camera_credentials": {
+      "fields": [
+        "password",
+        "username"
       ]
     },
     "copy_settings": {
@@ -99,6 +127,12 @@
       "fields": [
         "token",
         "url"
+      ]
+    },
+    "home_camera_buttons": {
+      "fields": [
+        "buttons",
+        "camera"
       ]
     },
     "home_cameras": {
@@ -171,6 +205,24 @@
         "confirm"
       ]
     },
+    "media_station": {
+      "fields": [
+        "name"
+      ]
+    },
+    "media_title": {
+      "fields": [
+        "source",
+        "subtitle",
+        "title"
+      ]
+    },
+    "netbird_login": {
+      "fields": [
+        "management_url",
+        "setup_key"
+      ]
+    },
     "network_address": {
       "fields": [
         "address",
@@ -219,6 +271,12 @@
         "number"
       ]
     },
+    "phone_call_named": {
+      "fields": [
+        "name",
+        "number"
+      ]
+    },
     "phone_contacts": {
       "fields": [
         "contacts"
@@ -258,6 +316,12 @@
         "start"
       ]
     },
+    "screen_weekend_night_hours": {
+      "fields": [
+        "end",
+        "start"
+      ]
+    },
     "settings_lock_pin": {
       "fields": [
         "pin"
@@ -270,6 +334,11 @@
     },
     "stop_video": {
       "fields": []
+    },
+    "tailscale_login": {
+      "fields": [
+        "auth_key"
+      ]
     },
     "timer_add": {
       "fields": [
@@ -373,6 +442,7 @@
     "number.assistant_1_recordings_kept",
     "number.assistant_1_reply_buffer",
     "number.assistant_1_wake_word_threshold",
+    "number.assistant_1_wake_word_threshold_playing",
     "number.assistant_2_follow_up_time",
     "number.assistant_2_follow_ups_in_a_row",
     "number.assistant_2_max_listening_time",
@@ -380,12 +450,17 @@
     "number.assistant_2_recordings_kept",
     "number.assistant_2_reply_buffer",
     "number.assistant_2_wake_word_threshold",
+    "number.assistant_2_wake_word_threshold_playing",
     "number.auto_brightness_dimmest",
     "number.metrics_interval",
     "number.microphone_confirm_threshold",
+    "number.microphone_hang_up_word_threshold",
     "number.microphone_microphone_gain",
+    "number.microphone_next_song_word_threshold",
     "number.microphone_room_sensitivity",
     "number.microphone_stop_word_threshold",
+    "number.microphone_volume_down_word_threshold",
+    "number.microphone_volume_up_word_threshold",
     "number.minimum_cpu_cores",
     "number.night_light_brightness",
     "number.playback_bass",
@@ -405,15 +480,9 @@
     "select.answer_time_on_screen",
     "select.assistant_1_follow_up_tone",
     "select.assistant_1_reply_delivery",
-    "select.assistant_1_replying_effect",
-    "select.assistant_1_thinking_effect",
-    "select.assistant_1_wake_word_effect",
     "select.assistant_1_wake_word_tone",
     "select.assistant_2_follow_up_tone",
     "select.assistant_2_reply_delivery",
-    "select.assistant_2_replying_effect",
-    "select.assistant_2_thinking_effect",
-    "select.assistant_2_wake_word_effect",
     "select.assistant_2_wake_word_tone",
     "select.assistent",
     "select.assistent_2",
@@ -427,9 +496,14 @@
     "select.dashboard_tiles",
     "select.dashboard_to_show",
     "select.date_color",
+    "select.microphone_hang_up_word",
     "select.microphone_microphone_echo_canceller",
+    "select.microphone_microphone_echo_canceller_in_calls",
     "select.microphone_microphone_mixing",
     "select.microphone_mute_led_brightness",
+    "select.microphone_next_song_word",
+    "select.microphone_volume_down_word",
+    "select.microphone_volume_up_word",
     "select.night_clock_style",
     "select.night_ends",
     "select.night_hours",
@@ -532,6 +606,7 @@
     "switch.night_mode",
     "switch.playback_duck_after_a_near_miss",
     "switch.playback_home_assistant_sounds_for_muting_and_timers",
+    "switch.playback_louder_speech",
     "switch.playback_sendspin",
     "switch.playback_speaker_eq",
     "switch.pop_up_chime",

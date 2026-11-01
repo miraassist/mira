@@ -89,6 +89,11 @@ def _media_title(dev: FakeDevice, d: dict[str, Any]) -> None:
     dev.media_title = {k: str(d.get(k) or "") for k in ("title", "subtitle", "source")}
 
 
+def _media_station(dev: FakeDevice, d: dict[str, Any]) -> None:
+    """Names the next play_media as a station (the speaker shows it as media_channel); "" drops it."""
+    dev.media_station = str(d.get("name") or "").strip() or None
+
+
 BEHAVIOUR: dict[str, Handler] = {
     "alarm_set": _alarm_set(),
     "alarm_set_silent": _alarm_set(silent=True),
@@ -106,6 +111,7 @@ BEHAVIOUR: dict[str, Handler] = {
     "timer_remove": _timer("remove"),
     "notify": _notify,
     "media_title": _media_title,
+    "media_station": _media_station,
 }
 
 

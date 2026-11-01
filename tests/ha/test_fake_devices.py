@@ -126,6 +126,26 @@ async def test_FG05_an_announced_playback_plays_in_the_foreground(hass, fakes):
     assert hass.states.get(SAT).state == "idle"
 
 
+async def test_FG06_the_title_names_the_next_playback_once(hass, fakes):
+    await hass.services.async_call("esphome", "fake_show_media_title", {"title": "Nachricht von Oma"}, blocking=True)
+    await play(hass, TWO_SECONDS)
+    assert hass.states.get(SPK).attributes.get("media_title") == "Nachricht von Oma"
+    await later(hass, 2.5)
+    assert hass.states.get(SPK).state == "idle" and "media_title" not in hass.states.get(SPK).attributes
+    await play(hass, TWO_SECONDS)
+    assert "media_title" not in hass.states.get(SPK).attributes
+
+
+async def test_FG08_the_station_names_the_next_playback_once(hass, fakes):
+    await hass.services.async_call("esphome", "fake_show_media_station", {"name": "SWR3"}, blocking=True)
+    await play(hass, TWO_SECONDS)
+    assert hass.states.get(SPK).attributes.get("media_channel") == "SWR3"
+    await later(hass, 2.5)
+    assert hass.states.get(SPK).state == "idle" and "media_channel" not in hass.states.get(SPK).attributes
+    await play(hass, TWO_SECONDS)
+    assert "media_channel" not in hass.states.get(SPK).attributes
+
+
 async def test_FG10_a_plain_announcement_ends_idle(hass, fakes):
     seen = states(hass, SAT)
     call = call_in_background(hass, "assist_satellite", "announce",
