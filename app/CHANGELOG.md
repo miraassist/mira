@@ -3,6 +3,14 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.15.1
+
+- Entities you expose to Assist all reach Mira, also those Home Assistant marks as diagnostic (the GitHub
+  integration's stars, for example) or hides; before, Mira left them out.
+- A large tool result (a whole house's sensor list) is no longer cut at a fixed size: the limit follows the model's
+  context, and when something is cut, Mira is told how much is missing.
+- Mira answers a fragment that makes no sense in her own words instead of a fixed sentence.
+
 ## 0.15.0
 
 - New page **Capabilities → Schedules**: every schedule of the skills and Mira's own, with the last run and what came
