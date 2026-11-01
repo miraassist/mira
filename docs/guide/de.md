@@ -930,6 +930,16 @@ Und sonst:
 
 Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
 
+### Backup und Wiederherstellen
+
+Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → System → Backups): was sie sich gemerkt hat, ihre Nachrichten und Vorgänge, die `mira.yaml`, ihre Schlüssel (Tokens) und deine eigenen Skills. Einrichten musst du dafür nichts; es gilt für die App genauso wie für Mira im eigenen Container.
+
+- **Jedes Backup** holt sich vorher Miras Daten. Ist Mira dabei nicht erreichbar, entsteht das Backup trotzdem, nur ohne Mira; unter Einstellungen → Reparaturen steht dann **Mira war nicht im letzten Backup** mit dem Grund. Die Meldung verschwindet mit dem nächsten Backup, in dem Mira dabei ist.
+- **Wiederherstellen:** Stellst du Home Assistant aus einem Backup wieder her, erscheint unter Reparaturen **Miras Daten wiederherstellen**, mit dem Datum des Backups. Öffne die Meldung und wähle **Wiederherstellen**: Mira übernimmt die Daten und startet kurz neu. Mit **Mira so lassen** bleibt alles, wie es ist. Das geht auch mit einer frisch eingerichteten Mira, etwa auf einem neuen Rechner.
+- **Ein Backup einer neueren Mira** nimmt Mira nicht an: Aktualisiere Mira zuerst, dann klappt es.
+- **Die Schlüssel** stehen im Backup unverschlüsselt in Miras Daten. Geschützt sind sie durch die Verschlüsselung der Backups von Home Assistant, genau wie die Schlüssel von Home Assistant selbst; lass sie deshalb eingeschaltet (das ist der Standard). Bewahre deshalb den **Backup-Schlüssel** von Home Assistant sicher auf, etwa in einem Passwort-Manager; ohne ihn lässt sich kein Backup öffnen. `MIRA_SECRET_KEY` brauchst du fürs Wiederherstellen nicht.
+- Ist die `mira.yaml` nur lesbar (im Container so eingebunden), lässt Mira sie beim Wiederherstellen, wie sie ist, und legt die aus dem Backup als `mira.yaml.restored` in ihren Datenordner, zum Vergleichen.
+
 ## Sicherheit: wie Mira und Home Assistant miteinander sprechen
 
 - **Zwei Schlüssel:**

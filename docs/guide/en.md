@@ -906,6 +906,16 @@ Otherwise:
 
 For advanced setups (several models, more MCP servers, skills with settings) there is the file `mira.yaml`; see [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). What you set in the integration wins over the file.
 
+### Backup and restore
+
+Mira's data goes into Home Assistant's backups (Settings → System → Backups): what she remembers, her messages and threads, `mira.yaml`, her keys (tokens) and your own skills. There is nothing to set up; it works for the app as well as for Mira in a container of her own.
+
+- **Every backup** fetches Mira's data first. If Mira cannot be reached then, the backup is made all the same, only without Mira; Settings → Repairs then shows **Mira was not in the last backup** with the reason. It disappears with the next backup that has Mira.
+- **Restore:** when you restore Home Assistant from a backup, Repairs shows **Restore Mira's data** with the backup's date. Open it and choose **Restore**: Mira takes the data and restarts for a moment. **Keep Mira as she is** leaves everything as it is. This also works with a freshly set up Mira, on a new machine say.
+- **A backup of a newer Mira** is not taken: update Mira first, then it works.
+- **The keys** are in the backup without encryption of their own. Home Assistant's backup encryption protects them, as it protects Home Assistant's own keys; so leave it on (it is the default). So keep Home Assistant's **backup key** safe, in a password manager say; without it no backup can be opened. You do not need `MIRA_SECRET_KEY` to restore.
+- If `mira.yaml` is read only (mounted so in a container), Mira leaves it as it is at a restore and puts the backup's as `mira.yaml.restored` into her data folder, to compare.
+
 ## Security: how Mira and Home Assistant talk
 
 - **Two keys:**

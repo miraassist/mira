@@ -23,6 +23,12 @@ environment:
   MIRA_CONFIG: /config/mira.yaml
   MIRA_DATA: /data
   MIRA_LISTEN: 0.0.0.0:8787
+# The database goes into Home Assistant's backups through the integration, as
+# one consistent copy (docs/spec/backup.md); the app's own backup leaves it out.
+backup_exclude:
+  - mira.db
+  - mira.db-wal
+  - mira.db-shm
 # Reset (docs/spec/einrichtung.md): on at the next start, Mira deletes its
 # data and keeps mira.yaml; once, until turned off and on again.
 options:

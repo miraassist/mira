@@ -17,7 +17,10 @@ is in this app's config folder (`/addon_configs/…_mira/mira.yaml`). The guide 
 
 ## Data
 
-Mira's database is in the app's data folder and part of Home Assistant's backups.
+Mira's data (memory, messages, settings, keys, your own skills) goes into Home Assistant's backups through the Mira
+integration; after a restore of Home Assistant, a repair offers to restore Mira's data. The guide's "Backup and
+restore" says more. The app's own backup leaves the database out: it comes through the integration, as one
+consistent copy.
 
 ## Pairing again and resetting
 
