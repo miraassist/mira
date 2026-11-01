@@ -102,6 +102,9 @@ type Options struct {
 	AreaName func(id string) string
 	// Location is the time zone times are shown in.
 	Location *time.Location
+	// Schedules are the skills' and Mira's own jobs at a time
+	// (docs/spec/zeitplan.md).
+	Schedules Schedules
 	// Catalog lists the skills, agents and models (docs/spec/uebersicht.md).
 	Catalog CatalogSource
 	// CheckModel asks a model whether it answers.
@@ -165,6 +168,9 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("POST /v1/ui/voice/{person}/assign", h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
+	h.mux.HandleFunc("GET /v1/ui/schedules", h.auth(h.schedules))
+	h.mux.HandleFunc("PUT /v1/ui/schedules/{skill}/{name}", h.auth(h.changeSchedule))
+	h.mux.HandleFunc("POST /v1/ui/schedules/{skill}/{name}/run", h.auth(h.runSchedule))
 	h.mux.HandleFunc("POST /v1/ui/models/{name}/check", h.auth(h.checkModel))
 	h.mux.HandleFunc("GET /v1/ui/agents", h.auth(h.runs))
 	h.mux.HandleFunc("GET /v1/ui/agents/{id}", h.auth(h.run))

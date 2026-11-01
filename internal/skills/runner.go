@@ -513,3 +513,11 @@ func (r *Runner) Schedules(skill string) []Schedule {
 	}
 	return nil
 }
+
+// NextSystemRun is when one of Mira's own jobs runs next.
+func (r *Runner) NextSystemRun(sj *SystemJob) time.Time {
+	r.mu.Lock()
+	c := sj.cron
+	r.mu.Unlock()
+	return c.Next(r.Set.clock().In(r.Set.loc()))
+}

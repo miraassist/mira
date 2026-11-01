@@ -454,6 +454,117 @@ class MiraSkills extends EditPage {
 }
 customElements.define("mira-skills", MiraSkills);
 
+// ---- Schedules ------------------------------------------------------------
+// What Mira does at fixed times (docs/spec/zeitplan.md): one folding entry
+// per schedule, grouped by skill, Mira's own last. A change holds at once.
+// scheduleWords says when a schedule runs: "Mo–Fr 06:45", "stündlich".
+function scheduleWords(it) {
+  if (it.time) {
+    const d = (it.days || []).join(",");
+    const days = d === "0,1,2,3,4,5,6" ? T.sch_daily : d === "1,2,3,4,5" ? T.sch_weekdays : d === "0,6" ? T.sch_weekend
+      : [1, 2, 3, 4, 5, 6, 0].filter(x => it.days.includes(x)).map(x => T.sch_days[x]).join(", ");
+    return `${days} ${it.time}`;
+  }
+  const c = it.cron.trim();
+  if (/^0 \* \* \* \*$/.test(c)) return T.sch_hourly;
+  const m = /^\*\/(\d+) \* \* \* \*$/.exec(c);
+  if (m) return T.sch_every_minutes(m[1]);
+  return html`<code>${c}</code>`;
+}
+const clockIcon = svg`<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+
+class MiraSchedules extends Light {
+  static properties = { items: { state: true }, error: { state: true }, busy: { state: true }, failed: { state: true },
+    forms: { state: true } };
+  connectedCallback() { super.connectedCallback(); this.forms = {}; this.load(); }
+  disconnectedCallback() { super.disconnectedCallback(); clearTimeout(this.poll); }
+  key(it) { return it.skill + "/" + it.name; }
+  async load() {
+    try { this.items = (await api("GET", "/v1/ui/schedules")).items || []; this.error = null; }
+    catch (e) { this.error = e.message; }
+    // While one waits or runs, ask again.
+    clearTimeout(this.poll);
+    if ((this.items || []).some(it => it.state)) this.poll = setTimeout(() => this.load(), 2000);
+  }
+  async change(it, body) {
+    this.busy = this.key(it);
+    this.failed = null;
+    try {
+      await api("PUT", `/v1/ui/schedules/${encodeURIComponent(it.skill)}/${encodeURIComponent(it.name)}`, body);
+      delete this.forms[this.key(it)];
+      await this.load();
+    } catch (e) { this.failed = { key: this.key(it), text: T.sch_failed_save(e.message) }; }
+    this.busy = null;
+  }
+  async runNow(it) {
+    this.failed = null;
+    try { await api("POST", `/v1/ui/schedules/${encodeURIComponent(it.skill)}/${encodeURIComponent(it.name)}/run`); }
+    catch (e) { this.failed = { key: this.key(it), text: e.message }; }
+    await this.load();
+  }
+  // form is the entry's time as being edited.
+  form(it) {
+    const k = this.key(it);
+    return this.forms[k] || { time: it.time, days: [...(it.days || [])] };
+  }
+  setForm(it, f) { this.forms = { ...this.forms, [this.key(it)]: f }; }
+  render() {
+    if (this.error) return html`<p class="msg err">${this.error}</p>`;
+    if (!this.items) return html`<section class="card"><p class="hint">${T.loading}</p></section>`;
+    const groups = [];
+    for (const it of this.items) {
+      const g = it.own ? T.sch_mira : it.skill;
+      let last = groups[groups.length - 1];
+      if (!last || last.name !== g) groups.push(last = { name: g, items: [] });
+      last.items.push(it);
+    }
+    return html`<section class="list-section">
+      ${listHead(T.tab_schedules, this.items.length, T.sch_hint)}
+      ${groups.map(g => html`${groupLabel(g.name, g.items.length)}<div class="card-list">${g.items.map(it => this.entry(it))}</div>`)}
+    </section>`;
+  }
+  status(r) {
+    const word = { done: T.sch_done, nothing: T.sch_nothing, failed: T.sch_failed }[r.status] || r.status;
+    return r.status === "failed" ? html`<span class="warn">${word}</span>` : word;
+  }
+  entry(it) {
+    const k = this.key(it), busy = this.busy === k;
+    const last = it.last || [];
+    const failed = last.some(r => r.status === "failed");
+    const lastTag = it.state ? badge(it.state === "running" ? T.sch_running : T.sch_waiting, true)
+      : last.length ? badge(`${failed ? "✗" : "✓"} ${last[0].started.slice(5)}`, failed) : nothing;
+    const switchable = !it.own && it.name && !it.skill_off;
+    const tags = html`${it.per_person ? badge(T.cat_per_person) : nothing}${it.skill_off ? badge(T.sch_skill_off, true) : nothing}
+      ${!it.enabled && !it.skill_off ? badge(T.sch_off, true) : nothing}${lastTag}
+      ${switchable ? toggleSwitch(it.enabled, T.ed_enabled, on => this.change(it, { enabled: on }), busy) : nothing}`;
+    const f = this.form(it);
+    const dayBox = d => html`<label class="day"><input type="checkbox" .checked=${f.days.includes(d)}
+      @change=${e => this.setForm(it, { ...f, days: e.target.checked ? [...f.days, d] : f.days.filter(x => x !== d) })}>${T.sch_days[d]}</label>`;
+    const time = it.editable && !it.skill_off ? html`
+      <div class="schedule-time"><input type="time" .value=${f.time} @input=${e => this.setForm(it, { ...f, time: e.target.value })}>
+        ${[1, 2, 3, 4, 5, 6, 0].map(dayBox)}
+        <button class="primary" ?disabled=${busy || !f.time || !f.days.length || (f.time === it.time && f.days.join() === (it.days || []).join())}
+          @click=${() => this.change(it, { time: f.time, days: f.days })}>${buttonIcon("save")}${T.ed_save}</button></div>`
+      : html`<div>${scheduleWords(it)}</div>${it.skill_off ? nothing : html`<div class="hint">${it.name ? T.sch_yaml_only : T.sch_no_name}</div>`}`;
+    return cardItem({ icon: clockIcon, name: it.description || it.name || T.sch_unnamed,
+      short: html`${scheduleWords(it)}${it.description && it.name ? html` · <code>${it.name}</code>` : nothing}`, tags }, html`
+      ${this.failed && this.failed.key === k ? html`<p class="msg err">${this.failed.text}</p>` : nothing}
+      ${it.own ? html`<p class="hint">${T.sch_own}</p>` : nothing}
+      <table class="facts">
+        ${row(T.sch_last, it.state ? (it.state === "running" ? T.sch_running : T.sch_waiting) : last.length ? last.map(r => html`<div>
+          ${r.person ? html`<b>${r.person}</b>: ` : nothing}${this.status(r)} · ${r.started} · ${T.sch_seconds(r.seconds)}
+          ${r.text ? html`<div class="hint">${r.text}</div>` : nothing}${r.error ? html`<div class="msg err">${r.error}</div>` : nothing}</div>`)
+          : html`<span class="hint">${T.sch_never}</span>`)}
+        ${row(T.sch_next, it.next || (it.skill_off || !it.enabled ? html`<span class="hint">${T.sch_off}</span>` : ""))}
+        ${row(T.sch_time, time)}
+      </table>
+      ${it.name && !it.skill_off ? html`<div class="actions"><button class="secondary" ?disabled=${!!it.state}
+        @click=${() => this.runNow(it)}>${buttonIcon("run")}${T.sch_run_now}</button>
+        <span class="hint">${T.sch_run_now_hint}</span></div>` : nothing}`);
+  }
+}
+customElements.define("mira-schedules", MiraSchedules);
+
 // ---- Agents ---------------------------------------------------------------
 // The agents' descriptions, above the runs in the tab "Agenten".
 class MiraAgentDefs extends EditPage {

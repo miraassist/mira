@@ -1,6 +1,6 @@
 # Schedules on Mira's page – spec
 
-Status 2026-11-01: steps 1 and 2 built, not released. Scenarios: [zeitplan.feature](zeitplan.feature). Builds on
+Status 2026-11-01: steps 1–3 built, not released. Scenarios: [zeitplan.feature](zeitplan.feature). Builds on
 [Skills and agents at a glance](uebersicht.md) (the page, read only so far) and
 [Editing models, agents and skills](bearbeiten.md) (a skill's entry in `mira.yaml`).
 
@@ -110,7 +110,9 @@ Between the page and the service only (the integration is not involved):
 - `GET /v1/ui/schedules`: the list, as above: skill, name, description, per person, cron, in words, enabled, can be
   switched off, can be changed (a name, a cron the fields can show), the time and weekdays, next run, last run(s),
   running/waiting.
-- `PUT /v1/ui/schedules/{skill}/{name}`: `{enabled?, cron?}`; writes `mira.yaml`, applies it.
+- `PUT /v1/ui/schedules/{skill}/{name}`: `{enabled?, time?, days?}` (time `"06:45"`, days 0 Sunday … 6 Saturday);
+  writes `mira.yaml` (a time equal to the skill's own is no line), applies it. A time for a schedule the fields
+  cannot show is refused.
   `{skill}` is `mira` for Mira's own.
 - `POST /v1/ui/schedules/{skill}/{name}/run`: run now; answers at once (202) or "running" (409).
 

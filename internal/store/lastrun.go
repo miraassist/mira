@@ -48,3 +48,25 @@ func (s *Store) LastRun(ctx context.Context, key string) (r LastRun, ok bool, er
 	}
 	return r, true, nil
 }
+
+// LastRuns are the last runs kept under keys that begin with prefix, by key
+// (a per-person schedule's: one per person).
+func (s *Store) LastRuns(ctx context.Context, prefix string) (map[string]LastRun, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT key, value FROM kv WHERE key >= ? AND key < ?`, prefix, prefix+"\xff")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]LastRun{}
+	for rows.Next() {
+		var key, raw string
+		if err := rows.Scan(&key, &raw); err != nil {
+			return nil, err
+		}
+		var r LastRun
+		if json.Unmarshal([]byte(raw), &r) == nil {
+			out[key] = r
+		}
+	}
+	return out, rows.Err()
+}

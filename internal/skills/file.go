@@ -119,3 +119,14 @@ type NamedSetting struct {
 	Name string
 	Setting
 }
+
+// ScheduleDecls are the schedules the frontmatter declares, as written (for
+// a skill that is off: shown, not run).
+func (f File) ScheduleDecls() []Schedule {
+	var out []Schedule
+	meta := config.MapGet(f.Front, "metadata")
+	if n := config.MapGet(config.MapGet(meta, "mira"), "schedules"); n != nil {
+		_ = n.Decode(&out)
+	}
+	return out
+}

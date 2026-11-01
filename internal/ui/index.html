@@ -99,6 +99,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 button:disabled { opacity: .55; cursor: default; }
 button:focus-visible, a.button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent-2) 40%, transparent); outline-offset: 2px; }
 .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.schedule-time { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; }
+.schedule-time label.day { display: inline-flex; gap: 3px; align-items: center; font-weight: normal; }
+.schedule-time input[type=time] { width: auto; }
 .guide h2 { font-size: 22px; margin-bottom: 8px; }
 .guide h3 { font-size: 16px; color: var(--text); margin: 20px 0 6px; }
 .guide h4 { font-size: 15px; margin: 14px 0 6px; }
@@ -670,6 +673,23 @@ const I18N = {
   "home_persons": n => n === 1 ? "1 Person" : `${n} Personen`,
   "home_quiet": (a, b) => `Ruhezeit ${a}–${b}`,
   "tab_skills": "Skills",
+  "tab_schedules": "Zeitplan",
+  "sch_hint": "Was Mira zu festen Zeiten von selbst tut: die Zeitpläne der Skills und Miras eigene. Zum Ändern einen Eintrag aufklappen; eine Änderung gilt sofort.",
+  "sch_mira": "Mira selbst",
+  "sch_last": "Letzter Lauf", "sch_next": "Nächster Lauf", "sch_time": "Zeit", "sch_never": "noch nicht gelaufen",
+  "sch_done": "erledigt", "sch_nothing": "nichts zu melden", "sch_failed": "fehlgeschlagen",
+  "sch_waiting": "wartet", "sch_running": "läuft",
+  "sch_seconds": n => `${n} s`,
+  "sch_run_now": "Jetzt ausführen", "sch_run_now_hint": "Läuft im Hintergrund; eine Nachricht von heute wird dabei ersetzt, nicht doppelt.",
+  "sch_skill_off": "Skill ist aus", "sch_off": "aus",
+  "sch_no_name": "Gib dem Zeitplan im SKILL.md einen Namen (name), um ihn hier zu ändern.",
+  "sch_yaml_only": "Diese Zeit lässt sich nur in der mira.yaml ändern.",
+  "sch_own": "Miras eigener Zeitplan: lässt sich verschieben, nicht ausschalten.",
+  "sch_unnamed": "ohne Namen",
+  "sch_days": ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+  "sch_daily": "täglich", "sch_weekdays": "Mo–Fr", "sch_weekend": "Sa, So",
+  "sch_hourly": "stündlich", "sch_every_minutes": n => `alle ${n} Minuten`,
+  "sch_failed_save": why => `Nicht gespeichert: ${why}`,
   "tab_models": "Modelle",
   "models_title": "Modelle",
   "models_hint": "Die Sprachmodelle, die Mira nutzt, wie sie eingestellt sind und wer sie nimmt. Zum Ändern ein Modell aufklappen; das Hauptmodell kann auch aus der Einrichtung in Home Assistant kommen.",
@@ -1136,6 +1156,23 @@ const I18N = {
   "home_persons": n => n === 1 ? "1 person" : `${n} people`,
   "home_quiet": (a, b) => `Quiet hours ${a}–${b}`,
   "tab_skills": "Skills",
+  "tab_schedules": "Schedules",
+  "sch_hint": "What Mira does by herself at fixed times: the skills' schedules and her own. Open an entry to change it; a change holds at once.",
+  "sch_mira": "Mira herself",
+  "sch_last": "Last run", "sch_next": "Next run", "sch_time": "Time", "sch_never": "not run yet",
+  "sch_done": "done", "sch_nothing": "nothing to report", "sch_failed": "failed",
+  "sch_waiting": "waiting", "sch_running": "running",
+  "sch_seconds": n => `${n} s`,
+  "sch_run_now": "Run now", "sch_run_now_hint": "Runs in the background; a message of today is replaced, not doubled.",
+  "sch_skill_off": "Skill is off", "sch_off": "off",
+  "sch_no_name": "Give the schedule a name in SKILL.md to change it here.",
+  "sch_yaml_only": "This time can only be changed in mira.yaml.",
+  "sch_own": "Mira's own schedule: it can be moved, not switched off.",
+  "sch_unnamed": "without a name",
+  "sch_days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  "sch_daily": "daily", "sch_weekdays": "Mon–Fri", "sch_weekend": "Sat, Sun",
+  "sch_hourly": "hourly", "sch_every_minutes": n => `every ${n} minutes`,
+  "sch_failed_save": why => `Not saved: ${why}`,
   "tab_models": "Models",
   "models_title": "Models",
   "models_hint": "The language models Mira uses, how they are set and who takes them. Open a model to change it; the main model can also come from the setup in Home Assistant.",
@@ -1357,13 +1394,13 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "agents", "models", "hooks", "guide"];
+const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "schedules", "agents", "models", "hooks", "guide"];
 // The start page shows a card per group; inside a group its tabs are on top
 // (docs/spec/uebersicht.md, Navigation).
 const GROUPS = [
   { id: "daily", tabs: ["messages", "tasks", "plans", "memory"] },
   { id: "setup", tabs: ["rooms", "persons", "notifier"] },
-  { id: "abilities", tabs: ["skills", "agents", "models", "hooks"] },
+  { id: "abilities", tabs: ["skills", "schedules", "agents", "models", "hooks"] },
   { id: "help", tabs: ["guide"] },
 ];
 let TABS = ALL_TABS;
@@ -1569,7 +1606,7 @@ function render() {
   const group = GROUPS.find(g => g.tabs.includes(tab === "person" ? "persons" : tab));
   document.documentElement.dataset.group = group ? group.id : "";
   nav();
-  const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, agents, models, hooks, guide };
+  const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, schedules, agents, models, hooks, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><p id="chapter-line" class="chapter-line" hidden></p><div id="view"></div>`;
   views[tab]();
   chapterLine(tab);
@@ -1584,6 +1621,7 @@ function render() {
 // ---- Start, Skills (built on Lit, js/app.js) --------------------------------
 function home() { $("#view").innerHTML = "<mira-home></mira-home>"; }
 function skills() { $("#view").innerHTML = "<mira-skills></mira-skills>"; }
+function schedules() { $("#view").innerHTML = "<mira-schedules></mira-schedules>"; }
 function models() { $("#view").innerHTML = "<mira-models></mira-models>"; }
 function hooks() { $("#view").innerHTML = "<mira-hooks></mira-hooks>"; }
 

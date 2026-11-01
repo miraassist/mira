@@ -1082,6 +1082,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		},
 		AreaName: func(id string) string { return a.structure.Snapshot().AreaNames[id] },
 		Tasks:    a.tasks, Threads: a.threads, Catalog: a.catalog, CheckModel: a.checkModel, Editor: a.editor(),
+		Schedules: a.schedules(),
 		Plans: func(ctx context.Context) ([]ui.Plan, error) {
 			list, err := a.threads.Plans(ctx)
 			out := make([]ui.Plan, 0, len(list))
