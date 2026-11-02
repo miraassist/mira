@@ -101,13 +101,16 @@ def _snapshot(created="2026-10-31T21:00:00Z", version="0.15.0") -> bytes:
     return buf.getvalue()
 
 
-async def _restored(hass, aioclient_mock, entry, tmp_path):
-    """Home Assistant just restored: the snapshot is in the config folder."""
+async def _restored(hass, aioclient_mock, entry, tmp_path) -> bytes:
+    """Home Assistant just restored: the snapshot is in the config folder. Returns the snapshot as written:
+    gzip stamps the current second into it, so a second _snapshot() may differ."""
     hass.config.config_dir = str(tmp_path)
     (tmp_path / ".storage").mkdir(exist_ok=True)
-    backup.backup_path(hass).write_bytes(_snapshot())
+    snapshot = _snapshot()
+    backup.backup_path(hass).write_bytes(snapshot)
     await _setup(hass, aioclient_mock, entry)
     assert await async_setup_component(hass, "repairs", {})
+    return snapshot
 
 
 async def _fix(hass_client, step=None):
@@ -134,12 +137,12 @@ async def test_BK20_after_a_restore_of_home_assistant_the_repair_offers_miras_da
 
 async def test_BK21_yes_restores_miras_data(hass, aioclient_mock, entry, tmp_path, hass_client):
     aioclient_mock.post(f"{AGENT_URL}/v1/restore", json={"config": "written", "created": "2026-10-31T21:00:00Z"})
-    await _restored(hass, aioclient_mock, entry, tmp_path)
+    snapshot = await _restored(hass, aioclient_mock, entry, tmp_path)
     _, flow = await _fix(hass_client)
     assert flow["type"] == "menu" and flow["menu_options"] == ["restore", "discard"]
     _, result = await _fix(hass_client, "restore")
     assert result["type"] == "create_entry"
-    assert len(_restore_calls(aioclient_mock)) == 1 and _restore_calls(aioclient_mock)[0][2] == _snapshot()
+    assert len(_restore_calls(aioclient_mock)) == 1 and _restore_calls(aioclient_mock)[0][2] == snapshot
     assert not backup.backup_path(hass).exists()
     assert ir.async_get(hass).async_get_issue(DOMAIN, backup.ISSUE_RESTORE) is None
 
