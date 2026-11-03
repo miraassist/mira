@@ -729,42 +729,20 @@ func TestAssistPromptReplacesTheStructureBlock(t *testing.T) {
 	}
 }
 
-func TestAnnouncementWithoutToolCallGetsOneMoreChance(t *testing.T) {
-	h := newHarness(t,
-		fakellm.Step{Content: "Ich prüfe die Temperatur in der Küche."},
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
-		fakellm.Step{Content: "In der Küche sind es 21,5 Grad."},
-	)
-	resp := h.say(t, config.ChannelVoice, "v1", "Wie warm ist es in der Küche?")
-	if resp.Text != "In der Küche sind es 21,5 Grad." || resp.ToolRounds != 1 {
-		t.Fatalf("resp = %+v", resp)
+// ST-12: an answer without a tool call goes on as the model wrote it; the
+// check of unsupported answers is gone (docs/spec/streaming.md, decision 8).
+func TestST12_AnAnswerWithoutAToolCallGoesOnAsWritten(t *testing.T) {
+	story := "Jeden Abend hat er die große Lampe eingeschaltet."
+	h := newHarness(t, fakellm.Step{Content: story})
+	resp := h.say(t, config.ChannelVoice, "v1", "Erzähl mir eine Geschichte über einen Leuchtturmwärter.")
+	if resp.Text != story {
+		t.Fatalf("resp.Text = %q", resp.Text)
 	}
-	second := h.llm.Requests()[1].Request.Messages
-	if last := second[len(second)-1]; last.Role != llm.RoleUser || !strings.Contains(last.Content, "kein Werkzeug") {
-		t.Fatalf("no nudge sent: %+v", last)
+	if n := len(h.llm.Requests()); n != 1 {
+		t.Fatalf("model asked %d times", n)
 	}
-	stored, err := h.store.ChatMessages(context.Background(), "voice:v1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, m := range stored {
-		if strings.Contains(m.Content, "Ich prüfe") || strings.Contains(m.Content, "Hinweis des Systems") {
-			t.Errorf("the discarded exchange reached the history: %q", m.Content)
-		}
-	}
-}
-
-func TestClaimedActionWithoutToolCallIsNotPassedOn(t *testing.T) {
-	h := newHarness(t,
-		fakellm.Step{Content: "Das Küchenlicht ist eingeschaltet."},
-		fakellm.Step{Content: "Das Küchenlicht ist jetzt eingeschaltet."},
-	)
-	resp := h.say(t, config.ChannelVoice, "v1", "Mach das Küchenlicht an.")
-	if strings.Contains(resp.Text, "eingeschaltet") {
-		t.Fatalf("unbacked claim passed on: %q", resp.Text)
-	}
-	if len(h.haCalls("HassTurnOn")) != 0 {
-		t.Fatal("unexpected tool call")
+	if req := h.llm.Requests()[0].Request; req.ToolChoice == "required" {
+		t.Fatal("a tool call was forced")
 	}
 }
 

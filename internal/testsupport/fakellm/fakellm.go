@@ -29,6 +29,13 @@ type Step struct {
 	Status int
 	Body   string
 	Delay  time.Duration
+	// Pieces, for a streamed request, is how Content is sent; empty splits
+	// it after each space. PieceDelay comes between two pieces.
+	Pieces     []string
+	PieceDelay time.Duration
+	// BreakAfter, for a streamed request, ends the stream after that many
+	// pieces, as a server that fails in the middle of an answer.
+	BreakAfter int
 }
 
 // Recorded is one request as the server saw it.
@@ -187,8 +194,56 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			CacheN:     &cacheN,
 		},
 	}
+	if req.Stream {
+		s.stream(w, step, resp)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// stream sends a completion as llama.cpp does (tried 2026-11-03): the text in
+// pieces, each tool call's arguments split in two, the finish reason, then
+// the usage and timings in a chunk of their own.
+func (s *Server) stream(w http.ResponseWriter, step Step, resp llm.ChatResponse) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	flusher, _ := w.(http.Flusher)
+	send := func(v any) {
+		raw, _ := json.Marshal(v)
+		fmt.Fprintf(w, "data: %s\n\n", raw)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	delta := func(d map[string]any, finish any) {
+		send(map[string]any{"id": resp.ID, "model": resp.Model, "object": "chat.completion.chunk",
+			"choices": []any{map[string]any{"index": 0, "delta": d, "finish_reason": finish}}})
+	}
+	delta(map[string]any{"role": "assistant", "content": nil}, nil)
+	pieces := step.Pieces
+	if len(pieces) == 0 && step.Content != "" {
+		pieces = strings.SplitAfter(step.Content, " ")
+	}
+	for i, p := range pieces {
+		if i > 0 && step.PieceDelay > 0 {
+			time.Sleep(step.PieceDelay)
+		}
+		if step.BreakAfter > 0 && i == step.BreakAfter {
+			return
+		}
+		delta(map[string]any{"content": p}, nil)
+	}
+	for i, tc := range step.ToolCalls {
+		half := len(tc.Function.Arguments) / 2
+		delta(map[string]any{"tool_calls": []any{map[string]any{"index": i, "id": tc.ID, "type": "function",
+			"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments[:half]}}}}, nil)
+		delta(map[string]any{"tool_calls": []any{map[string]any{"index": i,
+			"function": map[string]any{"arguments": tc.Function.Arguments[half:]}}}}, nil)
+	}
+	delta(map[string]any{}, resp.Choices[0].FinishReason)
+	send(map[string]any{"id": resp.ID, "model": resp.Model, "object": "chat.completion.chunk",
+		"choices": []any{}, "usage": resp.Usage, "timings": resp.Timings})
+	fmt.Fprint(w, "data: [DONE]\n\n")
 }
 
 // Tokenize renders a request the way a chat template would and splits it into

@@ -62,6 +62,10 @@ type Request struct {
 	// Person is who writes, named by the Home Assistant integration for a
 	// messenger (Telegram through HA): it matched the chat to a person.
 	Person string
+	// Stream, set for a voice turn, gets the answer while it is written
+	// (docs/spec/streaming.md); the Response still carries it whole. Other
+	// channels ignore it.
+	Stream func(Piece)
 }
 
 // Response is the answer to a Request.
@@ -427,26 +431,35 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	resp := Response{ConversationID: req.ConversationID, PrefixHash: built.PrefixHash}
 	resp.Model = modelName
 	maxRounds := model.MaxToolRounds
+	var pass *passer
+	if req.Channel == config.ChannelVoice {
+		// The fixed sentence only where a satellite speaks the answer early;
+		// in Home Assistant's chat it would only stand in the text.
+		bridge := ""
+		if req.DeviceID != "" && e.cfg.Sessions.EarlyReply {
+			bridge = e.texts(ctx).bridge
+		}
+		pass = newPasser(req.Stream, bridge)
+		defer pass.close()
+	}
 	var final llm.Message
-	nudged, forced, force := false, false, false
 	for round := 0; ; round++ {
+		if pass != nil {
+			pass.round()
+		}
 		chatReq := e.chatRequestOn(modelName, req.Channel, msgs, built)
 		// The tools of the skills this conversation opened, also one opened
 		// in the round before (docs/spec/skill-mcp.md).
 		chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)
-		switch {
-		case round >= maxRounds:
+		if round >= maxRounds {
 			// Out of rounds: the model has to answer with what it has.
 			chatReq.ToolChoice = "none"
-		case force:
-			chatReq.ToolChoice = "required"
-			force = false
 		}
 		began := time.Now()
-		out, err := e.chat(ctx, client, modelName, model, chatReq)
+		out, err := e.chat(ctx, client, modelName, model, chatReq, pass.onText())
 		// A model that failed passes to its fallback (docs/spec/models.md),
-		// which serves the rest of the turn.
-		for err != nil && ctx.Err() == nil {
+		// which serves the rest of the turn; not once something was said.
+		for err != nil && ctx.Err() == nil && !pass.passed() {
 			next, ok := e.cfg.Fallback(modelName, mustBeLocal)
 			if !ok {
 				break
@@ -461,7 +474,21 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			chatReq = e.chatRequestOn(modelName, req.Channel, msgs, built)
 			chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)
 			chatReq.ToolChoice = choice
-			out, err = e.chat(ctx, client, modelName, model, chatReq)
+			out, err = e.chat(ctx, client, modelName, model, chatReq, pass.onText())
+		}
+		if err != nil && pass.passed() {
+			// Part of the answer was said: no other model goes on with it,
+			// a fixed sentence ends it (docs/spec/streaming.md, decision 5).
+			// When Home Assistant ended the turn (the wake word, "Stopp"),
+			// nobody hears a sentence any more: what was said is kept.
+			if ctx.Err() != nil {
+				e.log.Info("answer ended by the caller", "session", key, "round", round)
+			} else {
+				e.log.Error("model failed while answering", "session", key, "round", round, "model", modelName, "error", err)
+				pass.add(e.texts(ctx).streamBroken)
+			}
+			final = llm.Message{Role: llm.RoleAssistant, Content: pass.spoken()}
+			break
 		}
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
@@ -479,34 +506,12 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		} else {
 			resp.MorePromptTokens += out.Usage.PromptTokens
 		}
+		if pass != nil {
+			pass.endRound()
+		}
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
 		msg.Content = stripThinking(msg.Content)
-		if len(msg.ToolCalls) == 0 && resp.ToolRounds == 0 && round < maxRounds && unbacked(msg.Content) {
-			if !nudged {
-				// Announced or claimed an action, or reported a state,
-				// without any tool: give the model one more chance. Neither
-				// message reaches the history.
-				nudged = true
-				e.log.Warn("answer without tool call, asking again", "session", key)
-				msgs = append(msgs, msg, llm.Message{Role: llm.RoleUser, Content: e.texts(ctx).unbackedNudge})
-				continue
-			}
-			if !forced {
-				// Still made up: this time it must call a tool. The local
-				// model sometimes answers from imagination twice in a row.
-				forced, force = true, true
-				e.log.Warn("answer still without tool call, requiring one", "session", key)
-				continue
-			}
-			if reportsState(msg.Content) {
-				e.log.Warn("answer still reports states without tool call", "session", key)
-				msg.Content = e.texts(ctx).notLookedUp
-			} else if claimsAction(msg.Content) {
-				e.log.Warn("answer still claims an action without tool call", "session", key)
-				msg.Content = e.texts(ctx).notDone
-			}
-		}
 		if len(msg.ToolCalls) == 0 || round >= maxRounds {
 			msg.ToolCalls = nil
 			final = msg
@@ -518,7 +523,13 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		msgs = append(msgs, msg)
 		added = append(added, msg)
 		for _, call := range msg.ToolCalls {
+			if pass != nil {
+				pass.tool(call)
+			}
 			result := e.runTool(ctx, ts, call, model)
+			if pass != nil {
+				pass.toolDone(call, result)
+			}
 			tm := llm.Message{Role: llm.RoleTool, ToolCallID: call.ID, Name: call.Function.Name, Content: result}
 			msgs = append(msgs, tm)
 			added = append(added, tm)
@@ -527,27 +538,40 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 
 	if strings.TrimSpace(final.Content) == "" {
 		final.Content = e.texts(ctx).fallback
+		if pass != nil {
+			pass.add(final.Content)
+		}
 	}
 	// Messages waiting for this room follow the answer ("Licht ist an.
 	// Übrigens: ..."): whoever talks to the satellite is listening anyway.
 	// Not after a question, which the next turn completes, and not when the
 	// user just asked for the messages.
-	if req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
+	// A turn its caller ended is still written down (what was said), with
+	// a context of its own; nothing more is added to it.
+	ended := ctx.Err() != nil
+	storeCtx := ctx
+	if ended {
+		storeCtx = context.WithoutCancel(ctx)
+	}
+	if !ended && req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
 		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) &&
 		!calledTool(added, tools.ToolKeepListening) {
 		if extra := e.afterword(ctx, sess.AreaID, req.DeviceID); extra != "" {
 			final.Content = strings.TrimSpace(final.Content) + " " + extra
+			if pass != nil {
+				pass.add(extra)
+			}
 		}
 	}
 	added = append(added, final)
-	if err := e.store.AppendChatMessages(ctx, key, toStore(added)...); err != nil {
+	if err := e.store.AppendChatMessages(storeCtx, key, toStore(added)...); err != nil {
 		return Response{}, fmt.Errorf("store transcript: %w", err)
 	}
 
 	// Whoever answered right after an announcement on this satellite has
 	// heard it; that is the acknowledgement the plan asks for.
 	for _, id := range followedUp {
-		if err := e.store.SetMessageState(ctx, id, store.MessageAcked); err != nil {
+		if err := e.store.SetMessageState(storeCtx, id, store.MessageAcked); err != nil {
 			e.log.Warn("could not acknowledge message", "message", id, "error", err)
 		}
 	}
@@ -575,12 +599,15 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 // logRound is one call to the model: how long it took and what it cost. With
 // the tool times it shows where the time of a turn went.
 // chat is one model call within the runtime's limit for that model.
-func (e *Engine) chat(ctx context.Context, client Chatter, name string, model config.LLM, req llm.ChatRequest) (*llm.ChatResponse, error) {
+func (e *Engine) chat(ctx context.Context, client Chatter, name string, model config.LLM, req llm.ChatRequest, onText func(string)) (*llm.ChatResponse, error) {
 	release, err := e.agents.Acquire(ctx, name, model)
 	if err != nil {
 		return nil, err
 	}
 	defer release()
+	if s, ok := client.(streamer); ok && onText != nil {
+		return s.ChatStream(ctx, req, onText)
+	}
 	return client.Chat(ctx, req)
 }
 

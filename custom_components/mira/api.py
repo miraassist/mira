@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import re
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,6 +20,16 @@ def _minutes(value: Any) -> int | None:
         return None
     hours, minutes, seconds = (int(p or 0) for p in parts.groups())
     return hours * 60 + minutes + seconds // 60
+
+
+@dataclass
+class ToolCallPart:
+    """A tool call of the agent's turn, as it starts (result None) or ended."""
+
+    id: str
+    name: str
+    arguments: str = ""
+    result: str | None = None
 
 
 class MiraError(Exception):
@@ -68,6 +80,16 @@ def rejoin_key(token: str) -> str:
     """What the Home Assistant that let go of an agent shows to pair again
     without a code, as internal/setup.RejoinKey computes it."""
     return hmac.new(token.encode(), b"mira-rejoin", hashlib.sha256).hexdigest()
+
+
+def _reply(data: dict[str, Any], conversation_id: str | None) -> AgentReply:
+    """The agent's answer to one turn, from its JSON."""
+    return AgentReply(
+        text=str(data.get("text", "")),
+        conversation_id=str(data.get("conversation_id") or conversation_id or ""),
+        continue_conversation=bool(data.get("continue_conversation", False)),
+        html=[str(p) for p in data.get("html") or []] or None,
+    )
 
 
 class MiraClient:
@@ -249,12 +271,69 @@ class MiraClient:
                 "person": person,
             },
         )
-        return AgentReply(
-            text=str(data.get("text", "")),
-            conversation_id=str(data.get("conversation_id") or conversation_id or ""),
-            continue_conversation=bool(data.get("continue_conversation", False)),
-            html=[str(p) for p in data.get("html") or []] or None,
-        )
+        return _reply(data, conversation_id)
+
+    async def converse_stream(
+        self,
+        text: str,
+        conversation_id: str | None,
+        device_id: str | None,
+        language: str,
+        agent_id: str,
+        extra_system_prompt: str | None,
+        timeout: float,
+        user_id: str | None = None,
+    ) -> AsyncIterator[str | ToolCallPart | AgentReply]:
+        """Forward one voice message and yield the answer while it is written:
+        each piece as a str, each tool call as it starts and ends, then the
+        whole answer as an AgentReply (docs/spec/streaming.md). An older agent
+        answers whole: then only the AgentReply comes."""
+        body = {
+            "text": text,
+            "conversation_id": conversation_id or "",
+            "device_id": device_id or "",
+            "language": language,
+            "agent_id": agent_id,
+            "extra_system_prompt": extra_system_prompt or "",
+            "user_id": user_id or "",
+            "channel": "voice",
+            "stream": True,
+        }
+        path = "/v1/conversation"
+        # The timeout holds until the first piece and between two pieces, not
+        # for the whole answer: a story takes longer than any timeout.
+        wait = aiohttp.ClientTimeout(total=None, sock_connect=timeout, sock_read=timeout)
+        try:
+            async with self._session.post(self._url + path, headers=self._headers, timeout=wait, json=body) as resp:
+                if resp.status == 401:
+                    raise MiraAuthError("token rejected")
+                if resp.status >= 400:
+                    raise MiraError(f"POST {path}: HTTP {resp.status}")
+                if not (resp.content_type or "").startswith("application/x-ndjson"):
+                    yield _reply(await resp.json(), conversation_id)
+                    return
+                async for raw in resp.content:
+                    if not (line := raw.strip()):
+                        continue
+                    data = json.loads(line)
+                    if "delta" in data:
+                        yield str(data["delta"])
+                    elif call := data.get("tool_call"):
+                        yield ToolCallPart(
+                            str(call.get("id", "")), str(call.get("name", "")), str(call.get("arguments", ""))
+                        )
+                    elif call := data.get("tool_result"):
+                        yield ToolCallPart(
+                            str(call.get("id", "")), str(call.get("name", "")), result=str(call.get("result", ""))
+                        )
+                    elif "error" in data:
+                        raise MiraError(f"POST {path}: {data['error']}")
+                    else:
+                        yield _reply(data, conversation_id)
+                        return
+                raise MiraError(f"POST {path}: the answer broke off")
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            raise MiraError(f"POST {path}: {err!r}") from err
 
     async def status(self) -> dict[str, Any]:
         """Pending message count and quiet mode."""

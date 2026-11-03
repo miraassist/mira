@@ -7,6 +7,11 @@ The app has the version of Mira's release; what changed is in the release notes:
 
 - When Home Assistant has started, the integration tells Mira at once what Assist sees, instead of only at the next
   check a minute later.
+- Mira speaks while she writes the answer: a long answer (a story, the briefing) starts seconds earlier. If an
+  answer takes longer than two seconds, Mira first says "Einen kleinen Moment, bitte." The speech engine and the
+  satellite must stream too (Phonon does; TECHO5: reply delivery "Early").
+- A story or an answer from general knowledge is no longer cut off as "Das habe ich nicht ausgeführt.": Mira no
+  longer checks the model's answer for words like "eingeschaltet" or a number with a unit.
 
 ## 0.15.1
 

@@ -817,6 +817,10 @@ agents:
 
 What the integration sets up as the model applies to `main` before what `mira.yaml` says.
 
+### Answers that start early
+
+Mira hands on a spoken answer while she writes it: a long answer, a story say, starts seconds earlier. For that, the speech output and the satellite must be able to play early too (Phonon can; on a TECHO5 set the reply delivery to **Early**). If an answer takes longer than two seconds, Mira first says "Just a moment, please." If you hear that sentence only at the end, together with the answer, your satellite does not play early: change it, or switch the sentence off in `mira.yaml` with `sessions: { early_reply: false }`.
+
 ## Rules of your own
 
 Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Rules**, with their code.

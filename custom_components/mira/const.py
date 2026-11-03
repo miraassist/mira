@@ -33,3 +33,8 @@ ERROR_TEXT = {
     "de": "Ich kann gerade nicht antworten. Bitte versuch es gleich noch einmal.",
     "en": "I can't answer right now. Please try again in a moment.",
 }
+# Ends a spoken answer whose connection to the agent broke off after part of it.
+BROKEN_TEXT = {
+    "de": "Da ist etwas schiefgegangen.",
+    "en": "Something went wrong.",
+}

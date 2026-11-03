@@ -115,6 +115,19 @@ func (c *Client) Model() string { return c.model }
 
 // Chat performs one chat completion and records a GenAI span for it.
 func (c *Client) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	return c.chat(ctx, req, nil)
+}
+
+// ChatStream is Chat with the answer streamed (docs/spec/streaming.md):
+// onText gets each piece of the answer's text as the server sends it, and
+// the response is the whole answer, tool calls assembled from their pieces,
+// as Chat would have returned it.
+func (c *Client) ChatStream(ctx context.Context, req ChatRequest, onText func(string)) (*ChatResponse, error) {
+	req.Stream, req.StreamOptions = true, &StreamOptions{IncludeUsage: true}
+	return c.chat(ctx, req, onText)
+}
+
+func (c *Client) chat(ctx context.Context, req ChatRequest, onText func(string)) (*ChatResponse, error) {
 	if req.Model == "" {
 		req.Model = c.model
 	}
@@ -146,7 +159,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, erro
 	}
 
 	started := time.Now()
-	resp, err := c.do(ctx, req)
+	resp, err := c.do(ctx, req, onText)
 	c.note(err)
 	latency := time.Since(started)
 	if err != nil {
@@ -182,7 +195,7 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, erro
 	return resp, nil
 }
 
-func (c *Client) do(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (*ChatResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("encode request: %w", err)
@@ -190,12 +203,19 @@ func (c *Client) do(ctx context.Context, req ChatRequest) (*ChatResponse, error)
 
 	var lastErr error
 	for attempt := 0; ; attempt++ {
-		resp, err := c.once(ctx, body)
+		// A streamed answer is retried only while nothing of it was passed
+		// on: what was said cannot be taken back.
+		passed := false
+		pass := onText
+		if onText != nil {
+			pass = func(text string) { passed = true; onText(text) }
+		}
+		resp, err := c.once(ctx, body, pass)
 		if err == nil {
 			return resp, nil
 		}
 		lastErr = err
-		if attempt >= c.retries || !retryable(err) || ctx.Err() != nil {
+		if passed || attempt >= c.retries || !retryable(err) || ctx.Err() != nil {
 			return nil, lastErr
 		}
 		// Linear backoff: the server is local, a long wait helps nobody.
@@ -208,7 +228,7 @@ func (c *Client) do(ctx context.Context, req ChatRequest) (*ChatResponse, error)
 	}
 }
 
-func (c *Client) once(ctx context.Context, body []byte) (*ChatResponse, error) {
+func (c *Client) once(ctx context.Context, body []byte, onText func(string)) (*ChatResponse, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
@@ -225,6 +245,9 @@ func (c *Client) once(ctx context.Context, body []byte) (*ChatResponse, error) {
 	}
 	defer httpResp.Body.Close()
 
+	if onText != nil && httpResp.StatusCode >= 200 && httpResp.StatusCode <= 299 {
+		return readStream(httpResp.Body, onText)
+	}
 	raw, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read llm response: %w", err)

@@ -236,6 +236,12 @@ type conversationRequest struct {
 	// chat to a person's channels. Trusted, like everything that comes with
 	// the token.
 	Person string `json:"person"`
+	// Stream asks for a voice answer while it is written: one JSON line per
+	// piece ({"delta": "…"}) and per tool call as it starts ({"tool_call":
+	// {id, name, arguments}}) and ends ({"tool_result": {id, name, result}}),
+	// then a last line with the whole answer as without it
+	// (docs/spec/streaming.md). An older service ignores it.
+	Stream bool `json:"stream"`
 }
 
 type conversationResponse struct {
@@ -270,13 +276,34 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "channel must be voice or telegram")
 		return
 	}
-	resp, err := s.opts.Conversation.Handle(ctx, conversation.Request{
+	creq := conversation.Request{
 		Channel: channel, ConversationID: req.ConversationID, DeviceID: req.DeviceID,
 		Language: req.Language, Text: req.Text, Extra: req.ExtraSystemPrompt, HAUser: req.UserID,
 		Person: req.Person,
-	})
+	}
+	var lines *lineWriter
+	if req.Stream && channel == config.ChannelVoice {
+		lines = &lineWriter{w: w}
+		creq.Stream = func(p conversation.Piece) {
+			switch {
+			case p.Tool == nil:
+				lines.write(map[string]string{"delta": p.Text})
+			case !p.Tool.Done:
+				lines.write(map[string]any{"tool_call": map[string]string{
+					"id": p.Tool.ID, "name": p.Tool.Name, "arguments": p.Tool.Arguments}})
+			default:
+				lines.write(map[string]any{"tool_result": map[string]string{
+					"id": p.Tool.ID, "name": p.Tool.Name, "result": p.Tool.Result}})
+			}
+		}
+	}
+	resp, err := s.opts.Conversation.Handle(ctx, creq)
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)
+		if lines.started() {
+			lines.write(map[string]string{"error": "the agent could not answer"})
+			return
+		}
 		writeError(w, http.StatusBadGateway, "the agent could not answer")
 		return
 	}
@@ -289,8 +316,34 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 			out.HTML = append(out.HTML, telegram.ToHTML(part))
 		}
 	}
+	if lines != nil {
+		lines.write(out)
+		return
+	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// lineWriter writes a streamed answer, one JSON object per line, each sent
+// at once. The status and type go out with the first line, so a turn that
+// fails before it still answers with an error status.
+type lineWriter struct {
+	w     http.ResponseWriter
+	begun bool
+}
+
+func (l *lineWriter) write(v any) {
+	if !l.begun {
+		l.w.Header().Set("Content-Type", "application/x-ndjson")
+		l.w.WriteHeader(http.StatusOK)
+		l.begun = true
+	}
+	_ = json.NewEncoder(l.w).Encode(v)
+	if f, ok := l.w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (l *lineWriter) started() bool { return l != nil && l.begun }
 
 // evalReset empties Mira's state between eval scenarios (conversations,
 // threads, memory, messages) and puts in the facts a scenario starts with.

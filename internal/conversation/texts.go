@@ -7,18 +7,22 @@ import (
 )
 
 // texts are what the engine itself writes: into layer 7, back to the model,
-// or to the user when the model fails. What the engine only reads (the
-// checks for unbacked claims, follow-up questions, stopwords) knows both
-// languages at once, since the user may speak either.
+// or to the user when the model fails. What the engine only reads
+// (follow-up questions, stopwords) knows both languages at once, since the
+// user may speak either.
 type texts struct {
-	voiceInArea     string // %[1]s = area name
-	voiceNoArea     string
-	telegram        string
-	background      string
-	fallback        string
-	notDone         string
-	notLookedUp     string
-	unbackedNudge   string
+	voiceInArea string // %[1]s = area name
+	voiceNoArea string
+	telegram    string
+	background  string
+	fallback    string
+	// streamBroken ends a voice answer whose model failed after part of
+	// it was said.
+	streamBroken string
+	// bridge fills a silence of a voice answer: at least 20 characters to
+	// its end, a mark and a space, or the speech engine holds it back
+	// (docs/spec/streaming.md).
+	bridge          string
 	errorPrefix     string
 	unknownTool     string // %s = tool name
 	invalidJSONArgs string
@@ -36,9 +40,8 @@ var catalog = map[i18n.Lang]texts{
 		telegram:        "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen.",
 		background:      "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
 		fallback:        "Entschuldigung, darauf habe ich gerade keine Antwort.",
-		notDone:         "Das habe ich nicht ausgeführt. Bitte sag es mir noch einmal.",
-		notLookedUp:     "Das habe ich gerade nicht nachgesehen. Frag mich bitte noch einmal.",
-		unbackedNudge:   "[Hinweis des Systems, nicht des Nutzers] In dieser Anfrage wurde noch kein Werkzeug aufgerufen. Wenn die Anfrage einen Zustand im Haus, eine Aktion oder das Gedächtnis betrifft, rufe jetzt das passende Werkzeug auf. Sonst antworte erneut, ohne eine Aktion anzukündigen, als erledigt zu melden oder Werte und Zustände zu nennen, die du nicht abgefragt hast.",
+		streamBroken:    "Da ist etwas schiefgegangen.",
+		bridge:          "Einen kleinen Moment, bitte. ",
 		errorPrefix:     "Fehler: ",
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
@@ -52,9 +55,8 @@ var catalog = map[i18n.Lang]texts{
 		telegram:        "Channel: Telegram, the user may not be at home. Ask when a room matters.",
 		background:      "Channel: background job, no person in the conversation.",
 		fallback:        "Sorry, I have no answer to that right now.",
-		notDone:         "I did not do that. Please tell me again.",
-		notLookedUp:     "I have not looked that up just now. Please ask me again.",
-		unbackedNudge:   "[Note from the system, not the user] No tool has been called in this request yet. If the request concerns a state in the house, an action or the memory, call the matching tool now. Otherwise answer again without announcing an action, reporting one as done, or stating values and states you have not looked up.",
+		streamBroken:    "Something went wrong.",
+		bridge:          "Just a moment, please. ",
 		errorPrefix:     "Error: ",
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",

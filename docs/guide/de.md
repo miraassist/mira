@@ -841,6 +841,10 @@ agents:
 
 Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.
 
+### Antworten, die früh beginnen
+
+Mira gibt eine gesprochene Antwort schon weiter, während sie sie schreibt: Eine lange Antwort, etwa eine Geschichte, beginnt so Sekunden früher. Dafür müssen auch die Sprachausgabe und der Satellit früh abspielen können (Phonon kann es; beim TECHO5 die Antwort-Ausgabe auf **Early** stellen). Dauert eine Antwort länger als zwei Sekunden, sagt Mira zuerst „Einen kleinen Moment, bitte.“ Hörst du diesen Satz erst am Ende, zusammen mit der Antwort, spielt dein Satellit nicht früh ab: Stell ihn um, oder schalte den Satz in `mira.yaml` mit `sessions: { early_reply: false }` ab.
+
 ## Eigene Regeln
 
 Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Regeln**, samt ihrem Code.

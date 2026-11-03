@@ -75,7 +75,7 @@ flowchart LR
 | `cmd/testha` | Start test HA in Docker, populate it, switch sensors |
 | `internal/channels/haconv` | HTTP API for the integration: `/v1/conversation`, `/v1/messages`, `/v1/assess`, `/v1/decide`, `/v1/health`, `/v1/status` |
 | `internal/channels/telegram` | Format replies for Telegram (Telegram HTML, splitting); Telegram itself runs via HA's integration and the adapter `custom_components/mira/telegram.py` ([Channels](spec/channels.md)) |
-| `internal/conversation` | The conversation engine: build the prompt, ask the model, run tools, protection against unsupported answers, "Übrigens", handover to stronger models, isolated calls |
+| `internal/conversation` | The conversation engine: build the prompt, ask the model, run tools, "Übrigens", handover to stronger models, isolated calls |
 | `internal/prompt` | Prompt layers, example conversation, texts per language |
 | `internal/llm` | OpenAI-compatible client (LM Studio, llama.cpp, Gemini) |
 | `internal/tools` | Tool registry, the guard (the mechanism around the hooks: resolving a call's targets, the pending question and the user's yes), internal tools (memory, reminders, messages, `calculate`: an arithmetic expression computed exactly, since models add badly) |
@@ -159,10 +159,12 @@ Important:
   Further tools and skills (history, weather, music, camera, lists): [Plan](spec/skills-plan.md).
   Checking whether Mira works with a model setup: [Evals](spec/evals.md).
   How to set up Mira (pairing, language model in the form, agent without config file): [Setup](spec/setup.md).
-- **Protection against unsupported answers.** If the model only announces an action,
-  reports something as done or states readings and states
-  without having called a tool, it must catch up. Otherwise
-  the code replaces the answer honestly ("habe ich nicht nachgesehen").
+- **Speaking while written.** A voice answer goes to Home Assistant piece by piece while the model writes it, and
+  Mira's tool calls with it; a silence of 2 s is bridged with a fixed sentence ([Streaming](spec/streaming.md)).
+- **No check of the answer's words.** What the model says without a tool call goes on as written; the prompt asks
+  it not to claim what it did not do or look up. A check by word lists was removed on 2026-11-03: it also hit stories
+  and knowledge, and it needs the finished answer, which streaming does not have
+  ([Streaming](spec/streaming.md), decision 8).
 - **Critical actions.** The hooks decide on every tool call
   ([Hooks](spec/hooks.md)): for locks, the alarm and what carries the label
   "Mira: nachfragen" an explicit yes in the next turn is required; after web

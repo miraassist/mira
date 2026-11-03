@@ -439,6 +439,10 @@ type Sessions struct {
 	// jumps, so its start stays the same in between and the cache holds.
 	MaxTurns  int `yaml:"max_turns"`
 	KeepTurns int `yaml:"keep_turns"`
+	// EarlyReply says the satellites speak an answer while it is written:
+	// then a silence of a voice turn is bridged with a fixed sentence
+	// (docs/spec/streaming.md). Off, the sentence is left out.
+	EarlyReply bool `yaml:"early_reply"`
 }
 
 // Person is someone the agent can address personally. The key in the
@@ -681,6 +685,7 @@ func Default() Config {
 			TelegramTTL: 0,
 			MaxTurns:    50,
 			KeepTurns:   30,
+			EarlyReply:  true,
 		},
 		Notifier: Notifier{
 			QuietHours:              QuietHours{From: ClockTime{22, 30}, To: ClockTime{6, 30}},

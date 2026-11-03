@@ -23,6 +23,10 @@ type fakeConversation struct {
 
 func (f *fakeConversation) Handle(_ context.Context, req conversation.Request) (conversation.Response, error) {
 	f.got = req
+	if req.Stream != nil {
+		req.Stream(conversation.Piece{Text: "Welches "})
+		req.Stream(conversation.Piece{Text: "Licht?"})
+	}
 	return conversation.Response{Text: "Welches Licht?", ConversationID: "c1", ContinueConversation: true}, nil
 }
 
@@ -222,5 +226,51 @@ func TestDecideAnswersYesOrNo(t *testing.T) {
 	t.Cleanup(bare.Close)
 	if code, _ := do(t, bare, "POST", "/v1/decide", "secret", `{"question":"q"}`); code != http.StatusServiceUnavailable {
 		t.Errorf("without Home Assistant: %d", code)
+	}
+}
+
+// A voice turn asked with stream: one line per piece, then the whole answer
+// as without it (docs/spec/streaming.md).
+func TestConversationStreamsLines(t *testing.T) {
+	srv, _, _ := setup(t)
+	req, _ := http.NewRequest("POST", srv.URL+"/v1/conversation",
+		strings.NewReader(`{"text":"Mach das Licht an","conversation_id":"c1","stream":true}`))
+	req.Header.Set("Authorization", "Bearer secret")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if resp.Header.Get("Content-Type") != "application/x-ndjson" || len(lines) != 3 {
+		t.Fatalf("%s: %q", resp.Header.Get("Content-Type"), raw)
+	}
+	if lines[0] != `{"delta":"Welches "}` || lines[1] != `{"delta":"Licht?"}` {
+		t.Fatalf("pieces %q", lines[:2])
+	}
+	var last map[string]any
+	if err := json.Unmarshal([]byte(lines[2]), &last); err != nil || last["text"] != "Welches Licht?" ||
+		last["conversation_id"] != "c1" || last["continue_conversation"] != true {
+		t.Fatalf("last line %q", lines[2])
+	}
+}
+
+// ST-09: an integration that does not ask for the stream gets one JSON
+// object, as before.
+func TestST09_AnOlderIntegrationGetsTheWholeAnswer(t *testing.T) {
+	srv, conv, _ := setup(t)
+	code, out := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"Mach das Licht an","conversation_id":"c1"}`)
+	if code != http.StatusOK || out["text"] != "Welches Licht?" || conv.got.Stream != nil {
+		t.Fatalf("%d %v", code, out)
+	}
+}
+
+// Telegram is never streamed, also when asked (decision 6).
+func TestTelegramIsNotStreamed(t *testing.T) {
+	srv, conv, _ := setup(t)
+	code, out := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"Hallo","conversation_id":"4711","channel":"telegram","stream":true}`)
+	if code != http.StatusOK || out["text"] != "Welches Licht?" || conv.got.Stream != nil {
+		t.Fatalf("%d %v", code, out)
 	}
 }

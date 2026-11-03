@@ -81,10 +81,20 @@ type ChatRequest struct {
 	// CachePrompt asks llama.cpp to keep the prompt in the slot's KV cache.
 	CachePrompt *bool `json:"cache_prompt,omitempty"`
 
+	// Stream and StreamOptions are set by ChatStream: the answer comes as
+	// server-sent events, the usage in the last of them.
+	Stream        bool           `json:"stream,omitempty"`
+	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
+
 	// Channel is not sent to the server; it labels telemetry.
 	Channel string `json:"-"`
 	// PrefixHash is not sent either; it is the layer 1-5 hash for telemetry.
 	PrefixHash string `json:"-"`
+}
+
+// StreamOptions asks a streaming server to send the usage too.
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type Choice struct {

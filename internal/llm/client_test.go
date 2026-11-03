@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -290,5 +291,84 @@ func TestLastCall(t *testing.T) {
 	c.Chat(ctx, llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "x"}}})
 	if l := c.Last(); l.OK.IsZero() || !l.Failed.IsZero() {
 		t.Errorf("after an answer and a cancelled call: %+v", l)
+	}
+}
+
+// ST-01: a streamed answer comes out in pieces, in order, and its tool call
+// is the same as the whole answer would have had (docs/spec/streaming.md).
+func TestST01_AStreamedAnswerAndItsToolCallsAreAssembled(t *testing.T) {
+	call := fakellm.ToolCall("c1", "ha__GetLiveContext", `{"area":"Küche","domain":"light"}`)
+	srv := fakellm.New(fakellm.Step{Content: "Ich schaue in der Küche nach. ", ToolCalls: []llm.ToolCall{call}})
+	defer srv.Close()
+	c := llm.New(llm.Options{BaseURL: srv.BaseURL(), Model: "test"})
+
+	var pieces []string
+	resp, err := c.ChatStream(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}},
+		func(text string) { pieces = append(pieces, text) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pieces) < 2 || strings.Join(pieces, "") != "Ich schaue in der Küche nach. " {
+		t.Fatalf("pieces = %q", pieces)
+	}
+	msg := resp.Message()
+	if msg.Content != "Ich schaue in der Küche nach. " || len(msg.ToolCalls) != 1 {
+		t.Fatalf("message = %+v", msg)
+	}
+	if got := msg.ToolCalls[0]; got.ID != "c1" || got.Function.Name != call.Function.Name || got.Function.Arguments != call.Function.Arguments {
+		t.Fatalf("tool call = %+v", got)
+	}
+	if resp.FinishReason() != "tool_calls" || resp.Usage.PromptTokens == 0 || resp.CachedTokens() != 0 {
+		t.Fatalf("finish %q, usage %+v", resp.FinishReason(), resp.Usage)
+	}
+	if !srv.Last().Request.Stream || srv.Last().Request.StreamOptions == nil || !srv.Last().Request.StreamOptions.IncludeUsage {
+		t.Fatalf("request = %s", srv.Last().RawBody)
+	}
+}
+
+// Gemini sends a tool call whole, without index, with its thought signature,
+// and the usage so far in every chunk (tried 2026-11-03).
+func TestStreamTakesGeminisToolCallsWithoutIndex(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, ev := range []string{
+			`{"choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":"sig"}},"function":{"arguments":"{\"name\":\"Küche\"}","name":"get_state"},"id":"call_1","type":"function"},{"function":{"arguments":"{}","name":"get_time"},"id":"call_2","type":"function"}]},"index":0}],"usage":{"completion_tokens":19,"prompt_tokens":57,"total_tokens":76}}`,
+			`{"choices":[{"delta":{"role":"assistant"},"finish_reason":"stop","index":0}],"usage":{"completion_tokens":20,"prompt_tokens":57,"total_tokens":77}}`,
+		} {
+			fmt.Fprintf(w, "data: %s\n\n", ev)
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	c := llm.New(llm.Options{BaseURL: srv.URL, Model: "gemini"})
+	resp, err := c.ChatStream(context.Background(), llm.ChatRequest{}, func(string) { t.Error("no text expected") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := resp.Message().ToolCalls
+	if len(calls) != 2 || calls[0].Function.Name != "get_state" || calls[1].ID != "call_2" ||
+		string(calls[0].ExtraContent) != `{"google":{"thought_signature":"sig"}}` {
+		t.Fatalf("calls = %+v", calls)
+	}
+	if resp.Usage.CompletionTokens != 20 {
+		t.Fatalf("usage = %+v", resp.Usage)
+	}
+}
+
+// A stream that breaks off after some text is an error, and it is not
+// retried: what was passed on cannot be taken back.
+func TestStreamBrokenOffIsNotRetried(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Es war einmal \"}}]}\n\n")
+	}))
+	defer srv.Close()
+	c := llm.New(llm.Options{BaseURL: srv.URL, Model: "test", MaxRetries: 2})
+	var got string
+	_, err := c.ChatStream(context.Background(), llm.ChatRequest{}, func(text string) { got += text })
+	if err == nil || got != "Es war einmal " || calls.Load() != 1 {
+		t.Fatalf("err %v, got %q, calls %d", err, got, calls.Load())
 	}
 }
