@@ -14,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/tasks"
 )
 
 type fakeConversation struct {
@@ -178,5 +179,48 @@ func TestTaskMessageIsLogged(t *testing.T) {
 	log, _ := st.Assessments(context.Background(), "mira_licht", 5)
 	if len(log) != 1 || log[0].Kind != store.AssessmentMessage || log[0].MessageID != n.ID {
 		t.Errorf("log = %+v", log)
+	}
+}
+
+type fakeTasks struct {
+	got tasks.Request
+	err error
+}
+
+func (f *fakeTasks) Assess(context.Context, tasks.Request) (tasks.Verdict, error) {
+	return tasks.Verdict{}, nil
+}
+
+func (f *fakeTasks) Decide(_ context.Context, r tasks.Request) (tasks.Decision, error) {
+	f.got = r
+	return tasks.Decision{Answer: true, Reason: "Niemand ist zu Hause."}, f.err
+}
+
+// mira.decide as the integration sends it: the action's fields as they
+// are, the answer back as {answer, reason}.
+func TestDecideAnswersYesOrNo(t *testing.T) {
+	ft := &fakeTasks{}
+	srv := httptest.NewServer(New(Options{Token: "secret", Tasks: ft, Version: "test"}))
+	t.Cleanup(srv.Close)
+
+	code, out := do(t, srv, "POST", "/v1/decide", "secret",
+		`{"question":"Ist jemand zu Hause?","data":[{"entity_id":"person.anna","view":"state"}],"task":"mira_heizung"}`)
+	if code != http.StatusOK || out["answer"] != true || out["reason"] != "Niemand ist zu Hause." {
+		t.Fatalf("%d %v", code, out)
+	}
+	if ft.got.Question != "Ist jemand zu Hause?" || ft.got.Task != "mira_heizung" ||
+		len(ft.got.Data) != 1 || ft.got.Data[0].EntityID != "person.anna" {
+		t.Errorf("request = %+v", ft.got)
+	}
+
+	ft.err = errors.New("question is required")
+	if code, out := do(t, srv, "POST", "/v1/decide", "secret", `{}`); code != http.StatusBadRequest || out["error"] == nil {
+		t.Errorf("a failed decision: %d %v", code, out)
+	}
+
+	bare := httptest.NewServer(New(Options{Token: "secret", Version: "test"}))
+	t.Cleanup(bare.Close)
+	if code, _ := do(t, bare, "POST", "/v1/decide", "secret", `{"question":"q"}`); code != http.StatusServiceUnavailable {
+		t.Errorf("without Home Assistant: %d", code)
 	}
 }

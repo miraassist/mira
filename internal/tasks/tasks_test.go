@@ -144,6 +144,33 @@ func (e *env) nightWater() {
 	e.src.stats = map[string][]haws.StatRow{"sensor.wasser": rows}
 }
 
+// The view "day": today until now (Thursday 03:20) against the Thursdays of
+// the four weeks before, each up to the same time; other weekdays and later
+// hours do not count.
+func TestDayViewComparesTheSameWeekdayUpToNow(t *testing.T) {
+	e := setup(t)
+	var rows []haws.StatRow
+	thursday := func(weeksBack int, perHour float64) {
+		day := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -7*weeksBack)
+		for h := range 3 {
+			rows = append(rows, haws.StatRow{Start: day.Add(time.Duration(h) * time.Hour), Change: f(perHour)})
+		}
+		rows = append(rows, haws.StatRow{Start: day.Add(4 * time.Hour), Change: f(100)}) // after 03:20
+	}
+	thursday(0, 10)
+	thursday(1, 5)
+	thursday(2, 10)
+	thursday(3, 20)
+	rows = append(rows, haws.StatRow{Start: time.Date(2026, 10, 14, 1, 0, 0, 0, time.UTC), Change: f(500)}) // a Wednesday
+	e.src.stats = map[string][]haws.StatRow{"sensor.wasser": rows}
+
+	got := e.m.render(context.Background(), []DataRequest{{EntityID: "sensor.wasser", View: ViewDay}})
+	want := "Heute bis 03:20 Uhr Verbrauch 30 L. Dieselben Wochentage bis zu dieser Uhrzeit (3): Median 30, Bereich 15–60 L."
+	if !strings.Contains(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestAssessCondensesDataAndNotifies(t *testing.T) {
 	e := setup(t)
 	e.nightWater()

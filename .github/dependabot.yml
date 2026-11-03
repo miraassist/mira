@@ -1,0 +1,26 @@
+# Version updates once a month, one pull request per ecosystem. The
+# integration's test requirements (requirements_test.txt) are left out: they
+# follow Home Assistant's version and are bumped together by hand.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      go:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directories: ["/", "/services/speaker-id"]
+    schedule:
+      interval: monthly
+    groups:
+      docker:
+        patterns: ["*"]
