@@ -250,3 +250,27 @@ func TestRA02_a_device_without_the_action_plays_as_before(t *testing.T) {
 		t.Errorf("played %+v", *played)
 	}
 }
+
+// RA-03: on the satellite's own speaker the confirmation names neither the
+// speaker nor the room; on another speaker it does.
+func TestRA03_on_the_satellites_own_speaker_the_confirmation_is_short(t *testing.T) {
+	players := map[string][]Player{"bad": {{Entity: "media_player.show_bad_speaker", Name: "Show Bad Lautsprecher", Device: "sat"}},
+		"wohnzimmer": {{Entity: "media_player.onkyo", Name: "Onkyo", Device: "receiver"}}}
+	tool, _ := env(swr3, players, nil)
+	run := func(device, area, args string) string {
+		out, err := tool.Run(context.Background(), tools.Invocation{Area: area, DeviceID: device, Args: json.RawMessage(args)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if out := run("sat", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "an dem der Nutzer spricht") || strings.Contains(out, "Show Bad") {
+		t.Errorf("own speaker: %q", out)
+	}
+	if out := run("sat", "bad", `{"station":"SWR3","room":"wohnzimmer"}`); !strings.Contains(out, "Onkyo") || !strings.Contains(out, "Den Lautsprecher nennen") {
+		t.Errorf("another room: %q", out)
+	}
+	if out := run("", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "Show Bad") {
+		t.Errorf("without a satellite: %q", out)
+	}
+}

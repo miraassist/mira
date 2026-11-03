@@ -60,7 +60,7 @@ type texts struct {
 	desc, stationDesc, roomDesc, playerDesc string
 	noRoom, noPlayer, severalPlayers        string
 	noStation, severalStations, unavailable string
-	playing                                 string
+	playing, playingHere                    string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -76,6 +76,7 @@ var catalog = map[i18n.Lang]texts{
 		severalStations: "Zu „%s“ gibt es mehrere Sender: %s. Frag den Nutzer, welcher es sein soll.",
 		unavailable:     "Ergebnis: nichts gestartet. Grund: Die Radiosuche ist gerade nicht möglich (ist die Integration „Radio Browser“ in Home Assistant eingerichtet?).",
 		playing:         "Ergebnis: läuft: %s auf %s im Raum %s. Den Lautsprecher nennen.",
+		playingHere:     "Ergebnis: läuft: %s, auf dem Lautsprecher, an dem der Nutzer spricht. Nur kurz bestätigen, ohne Lautsprecher und Raum.",
 	},
 	i18n.EN: {
 		desc:            "Starts a radio station on a room's speaker (without a room: the room the user is speaking in). Only for real radio stations: \"play SWR3\", \"turn on the radio\", \"I want to listen to the radio\". Nature sounds, music and routines such as \"sleep with rain\" are not stations; if one of the user's scripts or scenes fits, use that. Stopping, quieter, louder work with the normal media tools.",
@@ -89,6 +90,7 @@ var catalog = map[i18n.Lang]texts{
 		severalStations: "There are several stations for \"%s\": %s. Ask the user which one.",
 		unavailable:     "Result: nothing started. Reason: searching for radio stations is not possible right now (is the \"Radio Browser\" integration set up in Home Assistant?).",
 		playing:         "Result: playing: %s on %s in %s. Name the speaker.",
+		playingHere:     "Result: playing: %s, on the speaker the user speaks to. Only confirm briefly, without speaker or room.",
 	},
 }
 
@@ -156,6 +158,11 @@ func Tool(o Options) tools.InternalTool {
 			}
 			if err := o.Play(ctx, players[0].Entity, *st); err != nil {
 				return "", err
+			}
+			// On the satellite's own speaker nothing needs naming; anywhere
+			// else Mira says where, so a mix-up is noticed (docs/spec/radio.md).
+			if inv.DeviceID != "" && players[0].Device == inv.DeviceID {
+				return fmt.Sprintf(t.playingHere, st.Title), nil
 			}
 			return fmt.Sprintf(t.playing, st.Title, players[0].display(), room), nil
 		},
