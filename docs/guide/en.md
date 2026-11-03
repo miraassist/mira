@@ -651,6 +651,16 @@ Mira always fetches values fresh instead of guessing. If she cannot check someth
 
 **Confirming important actions**: locks, the alarm system and everything that carries the label "Mira: confirm first" in Home Assistant (such as the garage door) Mira only operates after you explicitly say "Yes" to her question.
 
+
+## What happened? Questions about the past
+
+- "When was the bathroom window open today?" – "When was the front door last unlocked?"
+- "How long did the washing machine run yesterday?" – "How warm was it outside last week?"
+
+For this Mira reads the history from Home Assistant and works out the times herself. You can ask about the last 31 days. For readings such as temperature or power, older values are coarser, by the hour say; Mira then says so. A washing machine that only has a power meter, Mira recognises by when it draws more than a few watts.
+
+**Older on/off states:** Home Assistant keeps the history of switches, doors, windows and lights for 10 days only. If you want to ask further back, set Home Assistant to keep it longer (in `configuration.yaml`: `recorder:` with `purge_keep_days: 31`). Home Assistant's database then grows accordingly.
+
 ## Timer
 
 "Set a timer for 10 minutes for the pasta." – "How long is left?" – "Five more minutes." – "Pause the timer." – "Cancel the timer."

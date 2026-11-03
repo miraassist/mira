@@ -675,6 +675,16 @@ Mira fragt Werte immer frisch ab, statt sie zu schätzen. Kann sie etwas nicht n
 
 **Wichtige Aktionen bestätigen**: Schlösser, die Alarmanlage und alles, was in Home Assistant das Label „Mira: nachfragen“ trägt (etwa das Garagentor), schaltet Mira erst, wenn du auf ihre Rückfrage ausdrücklich „Ja“ sagst.
 
+
+## Was war? Fragen nach dem Verlauf
+
+- „Wann war das Fenster im Bad heute offen?“ – „Wann wurde die Haustür zuletzt aufgeschlossen?“
+- „Wie lange lief die Waschmaschine gestern?“ – „Wie warm war es letzte Woche draußen?“
+
+Mira liest dafür den Verlauf aus Home Assistant und rechnet die Zeiten selbst aus. Gefragt werden kann nach den letzten 31 Tagen. Bei Messwerten wie Temperatur oder Strom sind ältere Werte gröber, etwa stundenweise; das sagt Mira dann dazu. Eine Waschmaschine, die nur einen Strommesser hat, erkennt Mira daran, wann sie mehr als ein paar Watt zieht.
+
+**Ältere Schaltzustände:** Home Assistant hebt den Verlauf von Schaltern, Türen, Fenstern und Lichtern nur 10 Tage auf. Willst du weiter zurück fragen, stell die Aufbewahrung in Home Assistant länger ein (in `configuration.yaml`: `recorder:` mit `purge_keep_days: 31`). Die Datenbank von Home Assistant wird dann entsprechend größer.
+
 ## Timer
 
 „Stell einen Timer auf 10 Minuten für die Nudeln.“ – „Wie lange noch?“ – „Noch fünf Minuten dazu.“ – „Timer anhalten.“ – „Timer abbrechen.“

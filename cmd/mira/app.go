@@ -26,6 +26,7 @@ import (
 	"github.com/miraassist/mira/internal/ha/assistprompt"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/history"
 	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/language"
@@ -334,6 +335,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
+	// Questions about the past, from Home Assistant's recorder
+	// (docs/spec/history.md).
+	if a.ha != nil {
+		internal = append(internal, history.New(history.Options{Lang: a.lang, Source: a.ha,
+			Structure: a.structure.Snapshot}))
+	}
 	// Rules Mira writes and manages on request, with the skill "regel"
 	// (docs/spec/hooks-writing.md).
 	internal = append(internal, a.hooks.Tools("regel", func() string { return a.houseForRules(snapshot()) })...)

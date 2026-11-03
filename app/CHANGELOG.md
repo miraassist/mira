@@ -7,6 +7,8 @@ The app has the version of Mira's release; what changed is in the release notes:
 
 - When Home Assistant has started, the integration tells Mira at once what Assist sees, instead of only at the next
   check a minute later.
+- Mira answers questions about the past: "When was the bathroom window open today?", "How long did the washing machine
+  run yesterday?", up to 31 days, from Home Assistant's history.
 - Mira speaks while she writes the answer: a long answer (a story, the briefing) starts seconds earlier. If an
   answer takes longer than two seconds, Mira first says "Einen kleinen Moment, bitte." The speech engine and the
   satellite must stream too (Phonon does; TECHO5: reply delivery "Early").

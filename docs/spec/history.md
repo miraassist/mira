@@ -1,6 +1,6 @@
 # Questions about the past – Spec
 
-Status 2026-11-03: specified, not built. Scenarios: [history.feature](history.feature).
+Status 2026-11-03: built (steps 1 to 3, in 0.15.2), checked end to end on the test HA. Scenarios: [history.feature](history.feature).
 
 ## Goal
 
@@ -24,7 +24,7 @@ herself, since models add times badly.
 | 3 | Measurements (power, temperature) | From Home Assistant's statistics, not the raw history; with an optional threshold (`above`) that turns them into periods ("über 5 W") |
 | 4 | How the period is given | Fixed names (`today`, `yesterday`, `last_24h`, `last_7_days`, `last_31_days`) or `from`/`to` as points in time |
 | 5 | Shortening | More than 12 periods: the first 3 and the last 6 are listed, with the totals and the count |
-| 6 | Which entities | One per call, and only one exposed to Assist; any other is answered like one that does not exist |
+| 6 | Which entities | One per call, found by its name (or alias, device name, id) and optionally its area, as Home Assistant's intents find it (`ResolveName` of the house structure); only one exposed to Assist; any other is answered like one that does not exist. Several that fit are named with their areas. By name, because the house structure from Home Assistant's Assist prompt shows names, not ids (seen on the test HA 2026-11-03: the model guessed `sensor.außentemperatur` for `sensor.outside_temperature`); Mira's own structure block shows ids, and those are found too |
 | 7 | Older measurements | The 5-minute statistics where they reach, the hourly ones before; the answer names the resolution of each part, so the model can say it ("bis zum 24. nur stundenweise") |
 | 8 | Older states | Not kept by Mira: the answer says from when the history is there; the guide explains how to keep it longer in Home Assistant (`recorder: purge_keep_days: 31`; its database grows accordingly) |
 
@@ -34,9 +34,10 @@ herself, since models add times badly.
 
 | Field | Meaning |
 |---|---|
-| `entity_id` | one entity, as in the house structure |
+| `name` | the device or entity as the house structure names it: name, alias, device name or id |
+| `area` | optionally the area, when the name is ambiguous |
 | `period` | `today` (midnight until now), `yesterday`, `last_24h`, `last_7_days`, `last_31_days` |
-| `from`, `to` | instead of `period`: points in time (ISO 8601, local time); `to` defaults to now |
+| `from`, `to` | instead of `period`: points in time (ISO 8601, local time; a time of day alone is today); `to` defaults to now |
 | `above` | measurements only, optional: a threshold; the answer becomes the periods above it |
 
 Days follow Home Assistant's time zone. A period longer than 31 days, or one in the future, is refused with a short

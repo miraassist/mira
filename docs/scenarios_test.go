@@ -31,6 +31,7 @@ var builtSteps = map[string][]int{
 	"SR": {2, 4},          // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
 	"ST": {2, 3, 4, 6},    // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10)
 	"WS": {2},             // docs/spec/warm-slot.md, Steps
+	"VL": {1, 2},          // docs/spec/history.md, Steps
 	"ZP": {1, 2, 3},       // docs/spec/schedules.md, Steps
 }
 
