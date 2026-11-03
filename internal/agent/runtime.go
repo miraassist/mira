@@ -74,6 +74,7 @@ type Runtime struct {
 
 	mu      sync.Mutex
 	slots   map[string]chan struct{}
+	warm    map[string]*WarmSlots
 	agents  map[string]Spec
 	cancels map[string]context.CancelCauseFunc
 
@@ -647,6 +648,13 @@ func (r *Runtime) chat(ctx context.Context, client Chatter, model string, parall
 }
 
 func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, timeout time.Duration, res *Result) (*llm.ChatResponse, error) {
+	// A helper runs in the spare slot of a model with warm slots: the warm
+	// one belongs to the conversation (docs/spec/warm-slot.md, decision 8).
+	if w := r.Warm(model); w != nil {
+		w.Enter()
+		defer w.Leave()
+		req.IDSlot = llm.IntPtr(w.Spare())
+	}
 	release, err := r.acquire(ctx, model, parallel)
 	if err != nil {
 		return nil, err

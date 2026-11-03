@@ -117,7 +117,7 @@ func (a *app) modelInfos(ctx context.Context, agents []ui.AgentInfo) []ui.ModelI
 		info := ui.ModelInfo{Name: name, Endpoint: m.BaseURL, Model: m.Model, TokenSet: m.APIKey != "", Privacy: m.Privacy,
 			Parallel: m.Parallel, Fallback: m.Fallback, FromHA: fromHA && name == config.MainModel,
 			ContextTokens: m.ContextTokens, ReasoningEffort: m.ReasoningEffort, Temperature: m.Temperature,
-			MaxToolRounds: m.MaxToolRounds, CachePrompt: m.CachePrompt, Warmup: m.WarmupOnStart || m.WarmupOnPrefixChange,
+			MaxToolRounds: m.MaxToolRounds, CachePrompt: m.CachePrompt, Warmup: m.WarmupOnStart || m.WarmupOnPrefixChange, WarmSlots: m.WarmSlots,
 			Runs: used[name].runs, Tokens: used[name].tokens}
 		if m.Timeout > 0 {
 			info.Timeout = m.Timeout.Duration().String()

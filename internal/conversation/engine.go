@@ -192,6 +192,11 @@ type Engine struct {
 	lastPrefix map[config.Channel]string
 
 	warm chan string
+
+	// served is, per model with warm slots and per channel and language,
+	// the prompt its warm slot holds (warmslots.go).
+	servedMu sync.Mutex
+	served   map[string]map[string]prompt.Prefix
 }
 
 func New(opts Options) *Engine {
@@ -418,6 +423,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	}
 	agentName := config.ChannelAgent(req.Channel)
 	client, model, modelName := e.modelFor(e.cfg.ModelFor(agentName))
+	// A model with warm slots: the turn goes on with the prompt its warm
+	// slot holds (docs/spec/warm-slot.md).
+	warm := e.warmSlots(modelName)
+	if warm != nil {
+		warm.Enter()
+		defer warm.Leave()
+		prefix = e.servedPrefix(modelName, warm, prefix, req.Channel)
+	}
 	mustBeLocal := e.cfg.PrivacyFor(agentName) == config.PrivacyLocal
 	if mustBeLocal && model.Privacy != config.PrivacyLocal {
 		return Response{}, fmt.Errorf("%s must run on a local model; its model %s is %s", agentName, modelName, model.Privacy)
@@ -448,6 +461,9 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			pass.round()
 		}
 		chatReq := e.chatRequestOn(modelName, req.Channel, msgs, built)
+		if warm != nil && e.agents.Warm(modelName) == warm {
+			chatReq.IDSlot = llm.IntPtr(warm.Warm())
+		}
 		// The tools of the skills this conversation opened, also one opened
 		// in the round before (docs/spec/skill-mcp.md).
 		chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)

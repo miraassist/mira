@@ -10,6 +10,9 @@ The app has the version of Mira's release; what changed is in the release notes:
 - Mira speaks while she writes the answer: a long answer (a story, the briefing) starts seconds earlier. If an
   answer takes longer than two seconds, Mira first says "Einen kleinen Moment, bitte." The speech engine and the
   satellite must stream too (Phonon does; TECHO5: reply delivery "Early").
+- For a local model on llama.cpp: the new setting "Always keep a warm slot" (`warm_slots`) keeps Mira's prompt warm in
+  one of two slots while a changed one is read into the other, so a turn no longer waits half a minute after Home
+  Assistant changed something. The server needs two slots of its own (see the guide).
 - A story or an answer from general knowledge is no longer cut off as "Das habe ich nicht ausgeführt.": Mira no
   longer checks the model's answer for words like "eingeschaltet" or a number with a unit.
 

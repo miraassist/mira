@@ -98,6 +98,7 @@ func (e *editor) modelsState(ctx context.Context, top *yaml.Node, st *ui.EditSta
 				Parallel: num(raw["parallel"]), Fallback: str(raw["fallback"]), ContextTokens: num(raw["context_tokens"]),
 				ReasoningEffort: str(raw["reasoning_effort"]), MaxToolRounds: num(raw["max_tool_rounds"]),
 				Timeout: str(raw["timeout"]), TokenSet: str(raw["token"]) != "", InFile: true}
+			m.WarmSlots, _ = raw["warm_slots"].(bool)
 			if t, ok := raw["temperature"].(float64); ok {
 				m.Temperature = &t
 			} else if t, ok := raw["temperature"].(int); ok {
@@ -107,7 +108,7 @@ func (e *editor) modelsState(ctx context.Context, top *yaml.Node, st *ui.EditSta
 		} else {
 			l := e.a.cfg.Models[name]
 			m = ui.ModelEdit{Endpoint: l.BaseURL, Model: l.Model, Privacy: l.Privacy, Parallel: l.Parallel,
-				Fallback: l.Fallback, TokenSet: l.APIKey != ""}
+				Fallback: l.Fallback, TokenSet: l.APIKey != "", WarmSlots: l.WarmSlots}
 		}
 		m.FromHA = fromHA && name == config.MainModel
 		st.Models[name] = m
@@ -258,6 +259,11 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 		setStr(n, "reasoning_effort", m.ReasoningEffort)
 		setInt(n, "max_tool_rounds", m.MaxToolRounds)
 		setStr(n, "timeout", m.Timeout)
+		if m.WarmSlots && m.Privacy == config.PrivacyLocal {
+			config.MapSet(n, "warm_slots", config.Scalar("true"))
+		} else {
+			config.MapDelete(n, "warm_slots")
+		}
 		if m.Temperature != nil {
 			config.MapSet(n, "temperature", config.Scalar(strconv.FormatFloat(*m.Temperature, 'f', -1, 64)))
 		} else {

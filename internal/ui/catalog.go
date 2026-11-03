@@ -52,6 +52,7 @@ type ModelInfo struct {
 	Timeout         string   `json:"timeout,omitempty"`
 	CachePrompt     bool     `json:"cache_prompt,omitempty"`
 	Warmup          bool     `json:"warmup,omitempty"`
+	WarmSlots       bool     `json:"warm_slots,omitempty"`
 	// UsedBy are the agents that take it; FallbackFor the models it stands in
 	// for.
 	UsedBy      []string `json:"used_by,omitempty"`

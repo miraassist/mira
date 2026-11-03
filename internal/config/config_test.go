@@ -367,3 +367,26 @@ security:
 		t.Error("the defaults set a key that is no longer read")
 	}
 }
+
+// WS-06: warm_slots is only for a local model (docs/spec/warm-slot.md).
+func TestWS06_WarmSlotsIsRefusedForACloudModel(t *testing.T) {
+	_, err := Parse([]byte(`
+ha: { url: "http://ha", token: t }
+models:
+  main: { endpoint: "https://cloud/v1", model: m, privacy: cloud, warm_slots: true }
+`), fakeEnv(nil))
+	if err == nil || !strings.Contains(err.Error(), "warm_slots: only for a local model") {
+		t.Fatalf("want warm_slots error, got %v", err)
+	}
+	cfg, err := Parse([]byte(`
+ha: { url: "http://ha", token: t }
+models:
+  main: { endpoint: "http://llama:8080/v1", model: m, privacy: local, warm_slots: true, pin_slots: { voice: 3 } }
+`), fakeEnv(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Main().WarmSlots || cfg.SlotFor(MainModel, ChannelVoice) != -1 {
+		t.Fatalf("warm_slots %v, pinned slot %d", cfg.Main().WarmSlots, cfg.SlotFor(MainModel, ChannelVoice))
+	}
+}

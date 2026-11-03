@@ -203,6 +203,11 @@ type LLM struct {
 	CompactAtFraction    float64 `yaml:"compact_at_fraction"`
 	WarmupOnStart        bool    `yaml:"warmup_on_start"`
 	WarmupOnPrefixChange bool    `yaml:"warmup_on_prefix_change"`
+	// WarmSlots keeps the conversation prompt warm in one of two llama.cpp
+	// slots while a changed one is read into the other
+	// (docs/spec/warm-slot.md); only for a local model. PinSlots is not used
+	// then.
+	WarmSlots bool `yaml:"warm_slots"`
 	// ReasoningEffort is passed as reasoning_effort when set ("none", "low",
 	// ...). Cloud models that think by default are slower and dearer without
 	// it; llama.cpp and LM Studio do not need it.
@@ -939,6 +944,9 @@ func (c Config) Validate() error {
 		if m.CompactAtFraction <= 0 || m.CompactAtFraction >= 1 {
 			add("models.%s: compact_at_fraction must be between 0 and 1 (exclusive)", name)
 		}
+		if m.WarmSlots && m.Privacy != PrivacyLocal {
+			add("models.%s.warm_slots: only for a local model (privacy: local) on llama.cpp", name)
+		}
 		for ch := range m.PinSlots {
 			if ch != ChannelVoice && ch != ChannelTelegram && ch != ChannelBackground {
 				add("models.%s.pin_slots: %q is no channel (voice, telegram, background)", name, ch)
@@ -1087,7 +1095,7 @@ func (c Config) SlotFor(model string, ch Channel) int {
 	if !ok {
 		return -1
 	}
-	if slot, ok := m.PinSlots[ch]; ok {
+	if slot, ok := m.PinSlots[ch]; ok && !m.WarmSlots {
 		return slot
 	}
 	return -1

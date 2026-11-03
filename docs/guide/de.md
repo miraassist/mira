@@ -845,6 +845,24 @@ Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mir
 
 Mira gibt eine gesprochene Antwort schon weiter, während sie sie schreibt: Eine lange Antwort, etwa eine Geschichte, beginnt so Sekunden früher. Dafür müssen auch die Sprachausgabe und der Satellit früh abspielen können (Phonon kann es; beim TECHO5 die Antwort-Ausgabe auf **Early** stellen). Dauert eine Antwort länger als zwei Sekunden, sagt Mira zuerst „Einen kleinen Moment, bitte.“ Hörst du diesen Satz erst am Ende, zusammen mit der Antwort, spielt dein Satellit nicht früh ab: Stell ihn um, oder schalte den Satz in `mira.yaml` mit `sessions: { early_reply: false }` ab.
 
+### Ein lokales Modell ohne Wartezeit: immer ein warmer Slot
+
+Bevor Mira antwortet, liest das Modell ihre Anweisungen: wer sie ist, was es im Haus gibt, welche Werkzeuge sie hat. Das sind viele Seiten. Ein lokales Modell merkt sich das Gelesene, dann geht jede weitere Frage schnell. Ändert sich aber etwas im Haus (ein neues Gerät, ein umbenanntes Licht, ein Neustart von Home Assistant), muss es alles neu lesen. Mit einem lokalen Modell wie Qwen 30B dauert das etwa eine halbe Minute, und wer in dieser Zeit fragt, wartet.
+
+Mit **Immer einen warmen Slot halten** (unter **Modelle**, beim Modell; in `mira.yaml` `warm_slots: true`) hat das Modell zwei Plätze zum Merken. Auf dem einen liegt die bisherige Fassung bereit, und Mira antwortet von dort. Auf dem anderen liest das Modell die neue Fassung, wenn es gerade nichts zu tun hat. Ist es fertig, tauschen die beiden Plätze. So wartet niemand eine halbe Minute.
+
+Was du dafür in Kauf nimmst:
+
+- **Doppelter Speicher:** Das Modell braucht Platz für zwei Fassungen, bei Qwen 30B etwa 3 GB mehr.
+- **Kurz der alte Stand:** Bis die neue Fassung gelesen ist, also etwa eine halbe Minute, kennt Mira ein gerade dazugekommenes oder umbenanntes Gerät noch nicht.
+- **Manchmal ein paar Sekunden:** Fragst du genau, während die neue Fassung gelesen wird, unterbricht Mira das Lesen. Das dauert bis zu etwa 4 Sekunden.
+
+Das geht nur mit einem eigenen **llama.cpp**-Server, nicht mit LM Studio und nicht mit einem Cloud-Modell (dort gibt es das Problem nicht). Der Server braucht zwei Plätze mit je eigenem Speicher. Starte ihn so:
+
+- `--parallel 2` (zwei Plätze),
+- `--ctx-size` doppelt so groß wie bisher, für Qwen 30B etwa `60000`,
+- **ohne** `--kv-unified` (sonst teilen sich die Plätze den Speicher und verdrängen sich gegenseitig).
+
 ## Eigene Regeln
 
 Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Regeln**, samt ihrem Code.

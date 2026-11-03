@@ -67,6 +67,9 @@ type ModelEdit struct {
 	Token           string   `json:"token,omitempty"`
 	TokenClear      bool     `json:"token_clear,omitempty"`
 	TokenSet        bool     `json:"token_set"`
+	// WarmSlots keeps one prompt warm in two llama.cpp slots
+	// (docs/spec/warm-slot.md).
+	WarmSlots bool `json:"warm_slots,omitempty"`
 	// FromHA: main as the integration sets it up; changed there, not here.
 	FromHA bool `json:"from_ha,omitempty"`
 	// InFile: the entry is in mira.yaml (else Mira's default).

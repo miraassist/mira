@@ -726,6 +726,7 @@ class MiraModels extends EditPage {
       m.timeout ? `${T.mod_timeout} ${m.timeout}` : "",
       m.cache_prompt ? T.mod_cache : "",
       m.warmup ? T.mod_warmup : "",
+      m.warm_slots ? T.mod_warm_slots : "",
     ].filter(Boolean).join(" · ");
     const agentLink = n => html`<a href="#agents" @click=${e => { e.preventDefault(); go("agents"); }}><code>${n}</code></a>`;
     const edit = this.canEdit, open = this.isOpen(m.name);
@@ -834,7 +835,7 @@ class MiraEditor extends Light {
       body = { name: form.name.trim(), endpoint: form.endpoint || "", model: form.model || "", privacy: form.privacy || "",
         parallel: +form.parallel || 0, fallback: form.fallback || "", context_tokens: +form.context_tokens || 0,
         reasoning_effort: form.reasoning_effort || "", max_tool_rounds: +form.max_tool_rounds || 0, timeout: form.timeout || "",
-        token: form.token || "", token_clear: !!form.token_clear };
+        token: form.token || "", token_clear: !!form.token_clear, warm_slots: !!form.warm_slots };
       if (String(form.temperature ?? "").trim() !== "") body.temperature = parseFloat(String(form.temperature).replace(",", "."));
     }
     if (kind === "agent") {
@@ -957,6 +958,8 @@ class MiraEditor extends Light {
         ${this.field(T.mod_temperature, "temperature", { disabled: locked, placeholder: "0.7" })}
         ${this.field(T.ed_tool_rounds, "max_tool_rounds", { type: "number", disabled: locked })}
         ${this.field(T.mod_timeout, "timeout", { disabled: locked, placeholder: "60s" })}
+        ${f.privacy === "local" ? html`<span></span><label class="checkline"><input type="checkbox" ?disabled=${locked}
+          .checked=${!!f.warm_slots} @change=${ev => this.set("warm_slots", ev.target.checked)}> ${T.ed_warm_slots}</label>` : nothing}
       </div>
       <p class="hint">${s.encrypted ? T.ed_secrets_encrypted : T.ed_secrets_plain}</p>`;
   }

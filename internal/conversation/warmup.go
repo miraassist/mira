@@ -52,6 +52,12 @@ func (e *Engine) WarmupAll(ctx context.Context, reason string) {
 	byModel := map[string]int{}
 	for _, ch := range []config.Channel{config.ChannelVoice, config.ChannelTelegram, config.ChannelBackground} {
 		name := e.cfg.ModelFor(config.ChannelAgent(ch))
+		// A model with warm slots reads the new prompt into its spare slot
+		// while it is free (docs/spec/warm-slot.md).
+		if w := e.warmSlots(name); w != nil {
+			w.Changed()
+			continue
+		}
 		m, _ := e.cfg.Model(name)
 		wants := m.WarmupOnPrefixChange
 		if reason == WarmupStartup {

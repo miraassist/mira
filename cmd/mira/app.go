@@ -518,7 +518,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 	})
 	a.registerAgents(registry)
-	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnPrefixChange }) {
+	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnPrefixChange || m.WarmSlots }) {
 		a.warmup = a.engine.RequestWarmup
 	}
 	return a, nil

@@ -821,6 +821,24 @@ What the integration sets up as the model applies to `main` before what `mira.ya
 
 Mira hands on a spoken answer while she writes it: a long answer, a story say, starts seconds earlier. For that, the speech output and the satellite must be able to play early too (Phonon can; on a TECHO5 set the reply delivery to **Early**). If an answer takes longer than two seconds, Mira first says "Just a moment, please." If you hear that sentence only at the end, together with the answer, your satellite does not play early: change it, or switch the sentence off in `mira.yaml` with `sessions: { early_reply: false }`.
 
+### A local model without waiting: always a warm slot
+
+Before Mira answers, the model reads her instructions: who she is, what there is in the house, which tools she has. That is many pages. A local model remembers what it read, so every further question goes fast. But when something in the house changes (a new device, a renamed light, a restart of Home Assistant), it has to read everything again. With a local model such as Qwen 30B that takes about half a minute, and whoever asks in that time waits.
+
+With **Always keep a warm slot** (under **Models**, at the model; in `mira.yaml` `warm_slots: true`) the model has two places to remember. On one the previous version lies ready, and Mira answers from there. On the other the model reads the new version while it has nothing else to do. Once it is done, the two places swap. So nobody waits half a minute.
+
+What you accept for it:
+
+- **Twice the memory:** the model needs room for two versions, with Qwen 30B about 3 GB more.
+- **Briefly the old state:** until the new version is read, about half a minute, Mira does not know a device just added or renamed yet.
+- **Sometimes a few seconds:** if you ask exactly while the new version is being read, Mira interrupts the reading. That takes up to about 4 seconds.
+
+This works only with a **llama.cpp** server of your own, not with LM Studio and not with a cloud model (there the problem does not exist). The server needs two places with a memory of their own each. Start it with:
+
+- `--parallel 2` (two places),
+- `--ctx-size` twice as large as before, for Qwen 30B about `60000`,
+- **without** `--kv-unified` (otherwise the places share the memory and push each other out).
+
 ## Rules of your own
 
 Before Mira uses a tool, small rules decide whether she may: run it, ask first or refuse. Mira brings her own, such as "locks only with a yes" and "nothing critical after a web search". You see them on Mira's page under **Capabilities → Rules**, with their code.
