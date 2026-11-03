@@ -118,7 +118,7 @@ func TestSpeakersByName(t *testing.T) {
 		t.Errorf("question: %q", out)
 	}
 	out := call(t, tool, "bad", `{"station":"SWR3","player":"media_player.show_bad_speaker"}`)
-	if len(*got) != 1 || (*got)[0].entity != "media_player.show_bad_speaker" || !strings.Contains(out, "läuft: SWR3 im Raum") || strings.Contains(out, "Show Bad Speaker") {
+	if len(*got) != 1 || (*got)[0].entity != "media_player.show_bad_speaker" || !strings.Contains(out, "Jetzt läuft SWR3, im Raum") || strings.Contains(out, "Show Bad Speaker") {
 		t.Errorf("played %+v: %q", *got, out)
 	}
 }
@@ -264,13 +264,13 @@ func TestRA03_on_the_satellites_own_speaker_the_confirmation_is_short(t *testing
 		}
 		return out
 	}
-	if out := run("sat", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "ohne Raum und Gerät") || strings.Contains(out, "Show Bad") {
+	if out := run("sat", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "hier, wo der Nutzer spricht") || strings.Contains(out, "Show Bad") {
 		t.Errorf("own speaker: %q", out)
 	}
 	if out := run("sat", "bad", `{"station":"SWR3","room":"wohnzimmer"}`); !strings.Contains(out, "im Raum Wohnzimmer") || strings.Contains(out, "Onkyo") {
 		t.Errorf("another room: %q", out)
 	}
-	if out := run("", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "läuft: SWR3 im Raum") || strings.Contains(out, "Show Bad") {
+	if out := run("", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "Jetzt läuft SWR3, im Raum") || strings.Contains(out, "Show Bad") {
 		t.Errorf("without a satellite: %q", out)
 	}
 }
