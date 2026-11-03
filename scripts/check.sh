@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run the CI checks locally before a push: gofmt, go vet, staticcheck, go test -race,
-# the integration's pytest and Home Assistant's hassfest (Docker image).
+# ruff (lint and format) and pytest for the integration, and Home Assistant's
+# hassfest (Docker image).
 # The HACS validation needs the GitHub repository and only runs in CI.
 #
 #   scripts/check.sh              # everything
@@ -12,6 +13,8 @@ cd "$repo"
 docker=1
 # staticcheck 2026.2.2; the same version as in .github/workflows/ci.yml.
 staticcheck_version=v0.8.2
+# ruff with its default rules; the same version as in .github/workflows/ci.yml.
+ruff_version=0.17.3
 [[ "${1:-}" == "--no-docker" ]] && docker=0
 
 step() { printf '\n== %s\n' "$*"; }
@@ -31,6 +34,10 @@ go run "honnef.co/go/tools/cmd/staticcheck@$staticcheck_version" ./...
 
 step "go test -race"
 go test -race ./... | grep -v '^?'
+
+step ruff
+uvx "ruff@$ruff_version" check custom_components tests
+uvx "ruff@$ruff_version" format --check custom_components tests
 
 step pytest
 if [[ -x .venv/bin/pytest ]]; then

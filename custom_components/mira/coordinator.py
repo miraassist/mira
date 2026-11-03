@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 import re
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -58,7 +58,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Finished one-time timers go, whether or not the agent answers.
         try:
             await sweep(self.hass)
-        except Exception:  # noqa: BLE001 - a failing sweep must not stop the status
+        except Exception:
             _LOGGER.exception("Cleaning up finished timers failed")
         try:
             status = await self.client.status()
@@ -67,7 +67,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._sync(status)
         try:
             await ensure_calendars(self.hass, list(status.get("mail_apps") or []))
-        except Exception:  # noqa: BLE001 - a missing calendar must not stop the status
+        except Exception:
             _LOGGER.exception("Creating the calendars of the mail entries failed")
         self._show_problems(status.get("problems") or [])
         self._show_version(status.get("version") or self.agent_version)

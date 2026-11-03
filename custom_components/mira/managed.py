@@ -21,13 +21,14 @@ Tasks are automations labelled "Mira"
 from __future__ import annotations
 
 import hashlib
-
 from typing import Any
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
 

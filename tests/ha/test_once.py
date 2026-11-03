@@ -5,7 +5,6 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
@@ -70,7 +69,7 @@ async def test_a_timer_is_a_valid_automation_that_runs_once_and_catches_up(hass)
     )
     # Not before the due time, and only if it never ran.
     condition = config["conditions"][0]["value_template"]
-    assert "now() >= as_datetime('%s')" % stamp in condition and "last_triggered is none" in condition
+    assert f"now() >= as_datetime('{stamp}')" in condition and "last_triggered is none" in condition
     assert config["mode"] == "single"
 
 
@@ -93,7 +92,14 @@ async def test_at_most_ten_timers_per_person_and_room(hass):
     full = [_timer(f"t{i}") for i in range(once.MAX_PER_OWNER_AREA)]
     saved = AsyncMock(return_value={"id": "new", "entity_id": "automation.new"})
     with patch.object(once, "list_once", AsyncMock(return_value=full)), patch.object(once.automations, "save", saved):
-        kwargs = dict(title="x", due=due, kind="sleep", actions=ACTIONS, forbidden=FORBIDDEN, automation_id=None)
+        kwargs = {
+            "title": "x",
+            "due": due,
+            "kind": "sleep",
+            "actions": ACTIONS,
+            "forbidden": FORBIDDEN,
+            "automation_id": None,
+        }
         with pytest.raises(HomeAssistantError, match="too many"):
             await once.save(hass, owner="anna", area="wohnzimmer", **kwargs)
         saved.assert_not_called()
@@ -108,7 +114,7 @@ async def test_at_most_ten_timers_per_person_and_room(hass):
 
 async def test_no_timer_in_the_past_or_without_actions(hass):
     with patch.object(once, "list_once", AsyncMock(return_value=[])):
-        base = dict(owner="", area="", kind="sleep", forbidden=None, automation_id=None)
+        base = {"owner": "", "area": "", "kind": "sleep", "forbidden": None, "automation_id": None}
         with pytest.raises(HomeAssistantError, match="past"):
             await once.save(
                 hass, title="x", due=(dt_util.now() - timedelta(minutes=1)).isoformat(), actions=ACTIONS, **base

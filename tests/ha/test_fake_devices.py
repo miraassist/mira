@@ -5,17 +5,17 @@ transitions as docs/spec/satellite.md describes."""
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime
 from pathlib import Path
-import time
 
 import pytest
-
-import custom_components
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+
+import custom_components
 
 REPO = Path(__file__).resolve().parents[2]
 FAKE = REPO / "testenv" / "techo5_fake"

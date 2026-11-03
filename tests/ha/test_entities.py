@@ -1,7 +1,6 @@
 """Status sensor, quiet mode switch and the send_message service."""
 
 import pytest
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.exceptions import ServiceValidationError
@@ -59,7 +58,7 @@ async def test_send_message_service(hass, aioclient_mock, entry):
         return_response=True,
     )
     assert result == {"id": "01J", "created": True}
-    sent = [c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/messages")][0][2]
+    sent = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/messages"))[2]
     assert sent == {
         "text": "Die Waschmaschine ist fertig.",
         "importance": 1,

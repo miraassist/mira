@@ -31,26 +31,23 @@ is not checked again; what is new or changed is.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 import json
 import re
-from typing import Any
 import uuid
+from dataclasses import dataclass, field
+from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
-from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.components.automation.config import async_validate_config_item
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config import AUTOMATION_CONFIG_PATH
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import (
-    area_registry as ar,
-    device_registry as dr,
-    entity_registry as er,
-    label_registry as lr,
-)
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.target import TargetSelection, async_extract_referenced_entity_ids
 from homeassistant.util.file import write_utf8_file_atomic

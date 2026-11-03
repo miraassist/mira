@@ -74,7 +74,7 @@ async def test_a_chat_of_nobody_is_ignored(hass, aioclient_mock, entry):
 
 async def test_new_conversation_command(hass, aioclient_mock, entry):
     aioclient_mock.post(f"{AGENT_URL}/v1/conversation/reset", json={"reset": True})
-    chat, calls = await _setup(hass, aioclient_mock, entry)
+    _chat, calls = await _setup(hass, aioclient_mock, entry)
     hass.bus.async_fire("telegram_command", {"chat_id": 4711, "command": "/neu", "args": []})
     await hass.async_block_till_done()
     _, _, sent, _ = next(c for c in aioclient_mock.mock_calls if str(c[1]).endswith("/v1/conversation/reset"))

@@ -1,7 +1,6 @@
 """Mira's tasks as automations: the action rule, validation, who may manage them."""
 
 import pytest
-
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 
@@ -33,7 +32,9 @@ async def house(hass):
     """Home Assistant with the actions a task uses, described as HA does,
     and a few things to reach: a scene, scripts, a group, an area, a device."""
     from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
-    from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
+    from homeassistant.helpers import area_registry as ar
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     for domain in ("light", "cover", "switch", "media_player", "lock", "alarm_control_panel"):

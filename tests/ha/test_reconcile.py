@@ -1,6 +1,7 @@
 """What Assist sees is sent again when the agent's fingerprint differs from
 ours, and never while Home Assistant is still starting."""
 
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState
 
 from custom_components.mira.managed import exposed_entities, exposed_hash
@@ -76,6 +77,20 @@ async def test_nothing_is_sent_while_home_assistant_is_starting(hass, aioclient_
 
     hass.set_state(CoreState.running)
     await _poll(entry)
+    assert len(_puts(aioclient_mock)) == 1
+
+
+async def test_the_list_is_compared_once_home_assistant_has_started(hass, aioclient_mock, entry):
+    """Without waiting for the next poll."""
+    hass.set_state(CoreState.starting)
+    _agent(aioclient_mock, "old")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert not _puts(aioclient_mock)
+
+    hass.set_state(CoreState.running)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
     assert len(_puts(aioclient_mock)) == 1
 
 

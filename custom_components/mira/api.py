@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
 import hashlib
 import hmac
 import re
+from dataclasses import dataclass
+from typing import Any
 
 import aiohttp
 

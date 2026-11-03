@@ -1,13 +1,14 @@
 """Config flow: the connection test decides between entry and error."""
 
+from unittest.mock import AsyncMock, patch
+
 from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
-
-from unittest.mock import AsyncMock, patch
-
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.mira.access import keep_rejoin, rejoin_token
+from custom_components.mira.api import rejoin_key
 from custom_components.mira.const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
@@ -16,9 +17,6 @@ from custom_components.mira.const import (
     CONF_TIMEOUT,
     DOMAIN,
 )
-
-from custom_components.mira.access import keep_rejoin, rejoin_token
-from custom_components.mira.api import rejoin_key
 
 from .conftest import AGENT_ID, AGENT_URL
 

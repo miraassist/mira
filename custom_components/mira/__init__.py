@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components.homeassistant.exposed_entities import async_listen_entity_updates
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
 from .access import hand_back, keep_rejoin, revoke_agent_token, use_mira_in
+from .agents import async_register_agent_services
 from .api import MiraClient, MiraError
-from .backup import async_offer_restore
 from .automations import async_register_commands
-from .once import async_register_commands as async_register_once_commands
+from .backup import async_offer_restore
 from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
@@ -36,10 +37,10 @@ from .const import (
     VERSION,
 )
 from .coordinator import MiraCoordinator
-from .agents import async_register_agent_services
 from .labels import ensure_labels
 from .mail import async_setup_mail
 from .managed import async_config, clear_area_repairs, ensure_primaries, import_settings, sync_area_repairs
+from .once import async_register_commands as async_register_once_commands
 from .panel import async_register_panel, async_register_views, async_remove_panel
 from .telegram import async_setup_telegram
 
@@ -197,9 +198,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _use_in_assistants(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
+
     # Once Home Assistant has started, compare at once what Assist sees with
     # what the agent has, without waiting for the next poll.
-    entry.async_on_unload(async_at_started(hass, lambda _hass: coordinator.async_request_refresh()))
+    # A coroutine function: HA runs a plain lambda in the executor and never
+    # awaits the coroutine it returns.
+    async def _refresh(_hass: HomeAssistant) -> None:
+        await coordinator.async_request_refresh()
+
+    entry.async_on_unload(async_at_started(hass, _refresh))
     # A satellite without an area is a repair (docs/spec/satellites-rooms.md);
     # once started, when every satellite is registered.
     entry.async_on_unload(async_at_started(hass, sync_area_repairs))

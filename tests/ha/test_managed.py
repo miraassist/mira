@@ -3,25 +3,23 @@ on Home Assistant's persons."""
 
 from datetime import timedelta
 from ipaddress import ip_address
-
 from unittest.mock import AsyncMock, patch
 
 import aiohttp
-
 import pytest
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import area_registry as ar, entity_registry as er
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.mira import RESEND_COOLDOWN
-from custom_components.mira.config_flow import FIELD_NAMES
 from custom_components.mira.access import rejoin_token
 from custom_components.mira.api import proof
+from custom_components.mira.config_flow import FIELD_NAMES
 from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
 from custom_components.mira.managed import notify_targets
 

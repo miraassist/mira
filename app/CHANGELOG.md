@@ -3,6 +3,11 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.15.2
+
+- When Home Assistant has started, the integration tells Mira at once what Assist sees, instead of only at the next
+  check a minute later.
+
 ## 0.15.1
 
 - Entities you expose to Assist all reach Mira, also those Home Assistant marks as diagnostic (the GitHub

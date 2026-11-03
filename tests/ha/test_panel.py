@@ -68,7 +68,7 @@ async def test_api_through_proxy_with_agent_token(hass, aioclient_mock, entry, h
     resp = await client.put("/api/mira/proxy/v1/ui/memory/f1", json={"text": "Neu."})
     assert resp.status == 200
     assert await resp.json() == {"ok": True}
-    method, url, data, headers = aioclient_mock.mock_calls[-1]
+    method, url, _data, headers = aioclient_mock.mock_calls[-1]
     assert (method, str(url)) == ("PUT", f"{AGENT_URL}/v1/ui/memory/f1")
     assert headers["Authorization"] == "Bearer secret"
     assert headers["X-Mira-HA-Admin"] == "1"

@@ -16,13 +16,12 @@ a person has at most ten of them per room.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 import logging
-from typing import Any
 import uuid
+from datetime import datetime, timedelta
+from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -69,7 +68,7 @@ def build(
             {
                 "condition": "template",
                 "value_template": (
-                    "{{ now() >= as_datetime('%s') - timedelta(seconds=%d) "
+                    "{{ now() >= as_datetime('%s') - timedelta(seconds=%d) "  # noqa: UP031 - Jinja braces
                     "and this.attributes.last_triggered is none }}" % (stamp, int(_SLACK.total_seconds()))
                 ),
             }

@@ -3,12 +3,10 @@ an area is a repair and listed on the page; several satellites in a room."""
 
 from datetime import timedelta
 
-from homeassistant.helpers import (
-    area_registry as ar,
-    device_registry as dr,
-    entity_registry as er,
-    issue_registry as ir,
-)
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
@@ -69,7 +67,7 @@ async def test_SR01_a_satellite_without_an_area_raises_a_repair(hass, aioclient_
 
 async def test_SR02_the_repair_goes_when_the_satellite_gets_an_area(hass, aioclient_mock, entry):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
-    sat, device = _satellite(hass, "kueche")
+    _sat, device = _satellite(hass, "kueche")
     other, _ = _satellite(hass, "flur")
     gone, _ = _satellite(hass, "keller")
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -108,7 +106,7 @@ async def test_SR04_a_satellite_with_an_area_raises_nothing(hass, aioclient_mock
     await hass.async_block_till_done()
     assert _repairs(hass) == {}
     # and nothing is left behind when the integration goes
-    sat, _ = _satellite(hass, "kueche")
+    _satellite(hass, "kueche")
     await _settle(hass)
     assert len(_repairs(hass)) == 1
     assert await hass.config_entries.async_unload(entry.entry_id)

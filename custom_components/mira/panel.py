@@ -19,7 +19,6 @@ import re
 
 import aiohttp
 from aiohttp import web
-
 from homeassistant.components import frontend
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.config_entries import ConfigEntryState
@@ -286,7 +285,7 @@ class MiraSettingsView(HomeAssistantView):
         try:
             changes = await request.json()
             if not isinstance(changes, dict):
-                raise ValueError("body must be {entity: settings}")
+                raise ValueError("body must be {entity: settings}")  # noqa: TRY004 - answered as 422 below
             known = set(all_persons(hass) if kind == "persons" else all_satellites(hass))
             if kind == "satellites":
                 known |= {e for e in changes if e.split(".", 1)[0] in SATELLITE_DOMAINS}
@@ -330,7 +329,7 @@ class MiraMySettingsView(HomeAssistantView):
         try:
             body = await request.json()
             if not isinstance(body, dict):
-                raise ValueError("body must be {field: value}")
+                raise ValueError("body must be {field: value}")  # noqa: TRY004 - answered as 422 below
             if other := set(body) - set(PERSON_OWN_FIELDS):
                 raise ValueError(f"not yours to set: {', '.join(sorted(other))}")
             # The other fields stay as the admin set them.

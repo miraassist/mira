@@ -15,14 +15,7 @@ import secrets
 from typing import Any
 
 import voluptuous as vol
-
-from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigEntryState,
-    ConfigFlow,
-    ConfigFlowResult,
-    OptionsFlow,
-)
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
@@ -44,16 +37,15 @@ from .const import (
     CONF_AGENT_TOKEN,
     CONF_AGENT_USER,
     CONF_IMPORTED,
+    CONF_OWN_HOLD,
     CONF_PERSONA,
     CONF_PIPELINES,
     CONF_SIDEBAR,
     CONF_TIMEOUT,
-    CONF_OWN_HOLD,
     CONF_WEB_SEARCH,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
-from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers, ha_sources
 from .managed import (
     ACCEPT,
     all_persons,
@@ -64,6 +56,7 @@ from .managed import (
     satellite_form_settings,
     save_settings,
 )
+from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers, ha_sources
 
 USER_SCHEMA = vol.Schema({vol.Required(CONF_URL, default="http://localhost:8787"): str})
 TOKEN_SCHEMA = vol.Schema({vol.Required(CONF_TOKEN): str})
@@ -135,7 +128,7 @@ class ModelSteps:
     does the rest."""
 
     _source: ModelSource | None = None
-    _models: list[str] = []
+    _models: list[str] | None = None
     _providers: Providers | None = None
 
     def _model_client(self) -> MiraClient:
@@ -292,7 +285,7 @@ class ModelSteps:
                 _model_error(err, errors, placeholders)
             except (RuntimeError, TimeoutError) as err:
                 errors["base"], placeholders["error"] = "setup_failed", f"\n\n`{err}`"
-        models = sorted(self._models)
+        models = sorted(self._models or [])
         default = self._source.model if self._source.model else vol.UNDEFINED
         return self.async_show_form(
             step_id="model",
@@ -330,7 +323,7 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     _llm: dict[str, Any] | None = None
     _pipelines: list[str] | None = None
     _error: str = ""
-    _data: dict[str, Any] = {}
+    _data: dict[str, Any] | None = None
     # The step last shown: a step run again without input while it is
     # shown means its dialog was opened again.
     _shown: str = ""
@@ -640,7 +633,7 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
         return self._create()
 
     def _create(self) -> ConfigFlowResult:
-        data = {CONF_URL: self._url, CONF_TOKEN: self._token, **self._data}
+        data = {CONF_URL: self._url, CONF_TOKEN: self._token, **(self._data or {})}
         return self.async_create_entry(title="Mira", data={**data, CONF_PIPELINES: self._pipelines or []})
 
     async def _wait_ready(self) -> None:
@@ -693,7 +686,6 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
     satellite, filled with what is set now. The settings are stored on the
     persons and satellites themselves (managed.py)."""
 
-    _keys: dict[str, str] = {}
     # The persona and the web search switch as the agent had them when the
     # form opened; None without the agent.
     _general: dict[str, Any] | None = None

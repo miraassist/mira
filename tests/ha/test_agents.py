@@ -2,7 +2,6 @@
 mira_agent_done (docs/spec/agents.md, Calling)."""
 
 import pytest
-
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.mira.const import DOMAIN

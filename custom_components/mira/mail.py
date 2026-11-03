@@ -11,14 +11,15 @@ person with that login; the calendar has the same name.
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, CoreState, Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .api import MiraError
 

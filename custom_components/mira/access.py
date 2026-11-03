@@ -6,8 +6,8 @@ integration."""
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 from homeassistant.auth.const import GROUP_ID_USER
 from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
@@ -110,7 +110,7 @@ def assistants(hass: HomeAssistant) -> dict[str, tuple[str, bool]]:
     """Home Assistant's assistants (Assist pipelines): id -> (name, preferred)."""
     if "assist_pipeline" not in hass.config.components:
         return {}
-    from homeassistant.components.assist_pipeline import async_get_pipeline, async_get_pipelines  # noqa: PLC0415
+    from homeassistant.components.assist_pipeline import async_get_pipeline, async_get_pipelines
 
     preferred = async_get_pipeline(hass).id
     return {p.id: (p.name, p.id == preferred) for p in async_get_pipelines(hass)}
@@ -121,7 +121,7 @@ async def use_mira_in(hass: HomeAssistant, pipeline_ids: list[str], entity_id: s
     assistant changed, the agent it had before."""
     if not pipeline_ids or "assist_pipeline" not in hass.config.components:
         return {}
-    from homeassistant.components.assist_pipeline import async_get_pipelines, async_update_pipeline  # noqa: PLC0415
+    from homeassistant.components.assist_pipeline import async_get_pipelines, async_update_pipeline
 
     before = {}
     for pipeline in async_get_pipelines(hass):
@@ -138,7 +138,7 @@ async def hand_back(hass: HomeAssistant, entity_id: str | None, before: dict[str
     that no longer exists."""
     if not entity_id or "assist_pipeline" not in hass.config.components:
         return
-    from homeassistant.components.assist_pipeline import async_get_pipelines, async_update_pipeline  # noqa: PLC0415
+    from homeassistant.components.assist_pipeline import async_get_pipelines, async_update_pipeline
 
     for pipeline in async_get_pipelines(hass):
         if pipeline.conversation_engine != entity_id:
