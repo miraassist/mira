@@ -13,7 +13,6 @@ package tasks
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/miraassist/mira/internal/ha/structure"
@@ -27,11 +26,6 @@ type Entity struct {
 
 func (e Entity) counter() bool {
 	return e.StateClass == "total" || e.StateClass == "total_increasing"
-}
-
-func (e Entity) numeric() bool {
-	_, err := strconv.ParseFloat(e.State, 64)
-	return err == nil || e.StateClass != ""
 }
 
 // Catalog lists the entities Mira may watch: the ones exposed to Assist,

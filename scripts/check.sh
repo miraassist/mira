@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the CI checks locally before a push: gofmt, go vet, go test -race,
+# Run the CI checks locally before a push: gofmt, go vet, staticcheck, go test -race,
 # the integration's pytest and Home Assistant's hassfest (Docker image).
 # The HACS validation needs the GitHub repository and only runs in CI.
 #
@@ -10,6 +10,8 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"
 docker=1
+# staticcheck 2026.2.2; the same version as in .github/workflows/ci.yml.
+staticcheck_version=v0.8.2
 [[ "${1:-}" == "--no-docker" ]] && docker=0
 
 step() { printf '\n== %s\n' "$*"; }
@@ -23,6 +25,9 @@ fi
 
 step "go vet"
 go vet ./...
+
+step staticcheck
+go run "honnef.co/go/tools/cmd/staticcheck@$staticcheck_version" ./...
 
 step "go test -race"
 go test -race ./... | grep -v '^?'

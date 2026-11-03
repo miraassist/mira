@@ -126,11 +126,6 @@ func (s *Set) Tools() []tools.InternalTool {
 	return out
 }
 
-func mustJSON(v any) string {
-	raw, _ := json.Marshal(v)
-	return string(raw)
-}
-
 type texts struct {
 	openDesc, openName, noSkill string
 	taskIntro, taskRules        string
