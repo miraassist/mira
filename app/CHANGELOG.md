@@ -7,8 +7,8 @@ The app has the version of Mira's release; what changed is in the release notes:
 
 - When Home Assistant has started, the integration tells Mira at once what Assist sees, instead of only at the next
   check a minute later.
-- Radio on the speaker you are talking to is confirmed briefly ("SWR3 läuft."); Mira names the speaker only when it
-  plays somewhere else.
+- Radio on the speaker you are talking to is confirmed briefly ("SWR3 läuft."); elsewhere Mira says only the room
+  ("SWR1 läuft im Bad"), no longer the speaker's name.
 - Mira answers questions about the past: "When was the bathroom window open today?", "How long did the washing machine
   run yesterday?", up to 31 days, from Home Assistant's history.
 - Mira speaks while she writes the answer: a long answer (a story, the briefing) starts seconds earlier. Before a

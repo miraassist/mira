@@ -22,5 +22,5 @@ Feature: RA Radio
   Scenario: RA-03 On the satellite's own speaker the confirmation is short
     Given the user speaks to the satellite in the bathroom and its own speaker plays
     When the user says "Spiel SWR3"
-    Then Mira confirms briefly, without naming the speaker or the room
-    And on any other speaker, in that room or another, Mira names it
+    Then Mira confirms briefly, without naming the device or the room
+    And on a speaker elsewhere Mira names only the room, never the device or the word "Lautsprecher"

@@ -118,7 +118,7 @@ func TestSpeakersByName(t *testing.T) {
 		t.Errorf("question: %q", out)
 	}
 	out := call(t, tool, "bad", `{"station":"SWR3","player":"media_player.show_bad_speaker"}`)
-	if len(*got) != 1 || (*got)[0].entity != "media_player.show_bad_speaker" || !strings.Contains(out, "auf Show Bad Speaker im Raum") {
+	if len(*got) != 1 || (*got)[0].entity != "media_player.show_bad_speaker" || !strings.Contains(out, "läuft: SWR3 im Raum") || strings.Contains(out, "Show Bad Speaker") {
 		t.Errorf("played %+v: %q", *got, out)
 	}
 }
@@ -252,7 +252,7 @@ func TestRA02_a_device_without_the_action_plays_as_before(t *testing.T) {
 }
 
 // RA-03: on the satellite's own speaker the confirmation names neither the
-// speaker nor the room; on another speaker it does.
+// device nor the room; elsewhere only the room.
 func TestRA03_on_the_satellites_own_speaker_the_confirmation_is_short(t *testing.T) {
 	players := map[string][]Player{"bad": {{Entity: "media_player.show_bad_speaker", Name: "Show Bad Lautsprecher", Device: "sat"}},
 		"wohnzimmer": {{Entity: "media_player.onkyo", Name: "Onkyo", Device: "receiver"}}}
@@ -264,13 +264,13 @@ func TestRA03_on_the_satellites_own_speaker_the_confirmation_is_short(t *testing
 		}
 		return out
 	}
-	if out := run("sat", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "an dem der Nutzer spricht") || strings.Contains(out, "Show Bad") {
+	if out := run("sat", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "ohne Raum und Gerät") || strings.Contains(out, "Show Bad") {
 		t.Errorf("own speaker: %q", out)
 	}
-	if out := run("sat", "bad", `{"station":"SWR3","room":"wohnzimmer"}`); !strings.Contains(out, "Onkyo") || !strings.Contains(out, "Den Lautsprecher nennen") {
+	if out := run("sat", "bad", `{"station":"SWR3","room":"wohnzimmer"}`); !strings.Contains(out, "im Raum Wohnzimmer") || strings.Contains(out, "Onkyo") {
 		t.Errorf("another room: %q", out)
 	}
-	if out := run("", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "Show Bad") {
+	if out := run("", "bad", `{"station":"SWR3"}`); !strings.Contains(out, "läuft: SWR3 im Raum") || strings.Contains(out, "Show Bad") {
 		t.Errorf("without a satellite: %q", out)
 	}
 }

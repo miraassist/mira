@@ -75,8 +75,8 @@ var catalog = map[i18n.Lang]texts{
 		noStation:       "Ergebnis: nichts gestartet. Gesucht: „%s“. Kein Sender gefunden.",
 		severalStations: "Zu „%s“ gibt es mehrere Sender: %s. Frag den Nutzer, welcher es sein soll.",
 		unavailable:     "Ergebnis: nichts gestartet. Grund: Die Radiosuche ist gerade nicht möglich (ist die Integration „Radio Browser“ in Home Assistant eingerichtet?).",
-		playing:         "Ergebnis: läuft: %s auf %s im Raum %s. Den Lautsprecher nennen.",
-		playingHere:     "Ergebnis: läuft: %s, auf dem Lautsprecher, an dem der Nutzer spricht. Nur kurz bestätigen, ohne Lautsprecher und Raum.",
+		playing:         "Ergebnis: läuft: %s im Raum %s. Bestätige in deinen Worten mit dem Raum, etwa \"läuft im Bad\"; das Gerät und das Wort Lautsprecher nennst du nicht.",
+		playingHere:     "Ergebnis: läuft: %s, hier, wo der Nutzer spricht. Bestätige kurz in deinen Worten, ohne Raum und Gerät.",
 	},
 	i18n.EN: {
 		desc:            "Starts a radio station on a room's speaker (without a room: the room the user is speaking in). Only for real radio stations: \"play SWR3\", \"turn on the radio\", \"I want to listen to the radio\". Nature sounds, music and routines such as \"sleep with rain\" are not stations; if one of the user's scripts or scenes fits, use that. Stopping, quieter, louder work with the normal media tools.",
@@ -89,8 +89,8 @@ var catalog = map[i18n.Lang]texts{
 		noStation:       "Result: nothing started. Looked for: \"%s\". No station found.",
 		severalStations: "There are several stations for \"%s\": %s. Ask the user which one.",
 		unavailable:     "Result: nothing started. Reason: searching for radio stations is not possible right now (is the \"Radio Browser\" integration set up in Home Assistant?).",
-		playing:         "Result: playing: %s on %s in %s. Name the speaker.",
-		playingHere:     "Result: playing: %s, on the speaker the user speaks to. Only confirm briefly, without speaker or room.",
+		playing:         "Result: playing: %s in %s. Confirm in your own words with the room, such as \"playing in the bathroom\"; do not name the device or say speaker.",
+		playingHere:     "Result: playing: %s, here where the user speaks. Confirm briefly in your own words, without room or device.",
 	},
 }
 
@@ -160,11 +160,11 @@ func Tool(o Options) tools.InternalTool {
 				return "", err
 			}
 			// On the satellite's own speaker nothing needs naming; anywhere
-			// else Mira says where, so a mix-up is noticed (docs/spec/radio.md).
+			// else Mira says the room (docs/spec/radio.md).
 			if inv.DeviceID != "" && players[0].Device == inv.DeviceID {
 				return fmt.Sprintf(t.playingHere, st.Title), nil
 			}
-			return fmt.Sprintf(t.playing, st.Title, players[0].display(), room), nil
+			return fmt.Sprintf(t.playing, st.Title, room), nil
 		},
 	}
 }
