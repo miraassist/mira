@@ -446,14 +446,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	maxRounds := model.MaxToolRounds
 	var pass *passer
 	if req.Channel == config.ChannelVoice {
-		// The fixed sentence only where a satellite speaks the answer early;
-		// in Home Assistant's chat it would only stand in the text.
-		bridge := ""
-		if req.DeviceID != "" && e.cfg.Sessions.EarlyReply {
-			bridge = e.texts(ctx).bridge
-		}
-		pass = newPasser(req.Stream, bridge)
-		defer pass.close()
+		pass = newPasser(req.Stream)
 	}
 	var final llm.Message
 	for round := 0; ; round++ {

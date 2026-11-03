@@ -1,6 +1,6 @@
 # Testable rules of docs/spec/streaming.md. Each scenario has a fixed number (ST-nn) that is never reused; its test
 # carries the number in its name (TestST01_…). The tags @stepN say in which step of the spec ("Steps") the scenario
-# gets built.
+# gets built. ST-11 and ST-14 (a fixed bridging sentence) were removed on 2026-11-03 and are not reused.
 
 Feature: ST Speaking while the answer is written
 
@@ -62,26 +62,13 @@ Feature: ST Speaking while the answer is written
     Then the integration ends the answer in Home Assistant with the pieces so far and a short fixed sentence
 
   @step6
-  Scenario: ST-11 A silence of 2 seconds is bridged with a fixed sentence
-    Given a voice turn whose model has handed on nothing 2 s after the request reached Mira
-    Then Mira hands on "Einen kleinen Moment, bitte. " at once, so that Home Assistant starts the speech
-    And the answer follows when the model has it
-    And no second bridging sentence comes in the same answer
-
-  @step6
-  Scenario: ST-13 A model that speaks before its tools is not bridged
+  Scenario: ST-13 A model that speaks before its tools is heard at once
     Given a voice turn whose model writes "Ich schaue im Kalender nach. " before calling a tool
-    Then that sentence is handed on as written
-    And no fixed sentence comes
+    Then that sentence is handed on first, then the tool call, so that Home Assistant speaks it at once
+    And no sentence of Mira's own comes
 
   @step2
   Scenario: ST-12 An answer without a tool call goes on as the model wrote it
     Given a voice turn whose model answers "Jeden Abend hat er die große Lampe eingeschaltet." without calling a tool
     Then the answer reaches the user as written
     And the model is not asked again and no tool call is forced
-
-  @step6
-  Scenario: ST-14 The fixed sentence comes only from a satellite with early_reply
-    Given a voice turn whose model has handed on nothing 2 s after the request reached Mira
-    When the turn comes from Home Assistant's chat (no satellite), or sessions.early_reply is false
-    Then no fixed sentence is handed on

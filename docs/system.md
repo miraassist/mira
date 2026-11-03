@@ -160,7 +160,8 @@ Important:
   Checking whether Mira works with a model setup: [Evals](spec/evals.md).
   How to set up Mira (pairing, language model in the form, agent without config file): [Setup](spec/setup.md).
 - **Speaking while written.** A voice answer goes to Home Assistant piece by piece while the model writes it, and
-  Mira's tool calls with it; a silence of 2 s is bridged with a fixed sentence ([Streaming](spec/streaming.md)).
+  Mira's tool calls with it, so a short sentence of the model before a longer task is spoken at once
+  ([Streaming](spec/streaming.md)).
 - **No check of the answer's words.** What the model says without a tool call goes on as written; the prompt asks
   it not to claim what it did not do or look up. A check by word lists was removed on 2026-11-03: it also hit stories
   and knowledge, and it needs the finished answer, which streaming does not have

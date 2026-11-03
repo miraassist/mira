@@ -853,7 +853,7 @@ Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mir
 
 ### Antworten, die früh beginnen
 
-Mira gibt eine gesprochene Antwort schon weiter, während sie sie schreibt: Eine lange Antwort, etwa eine Geschichte, beginnt so Sekunden früher. Dafür müssen auch die Sprachausgabe und der Satellit früh abspielen können (Phonon kann es; beim TECHO5 die Antwort-Ausgabe auf **Early** stellen). Dauert eine Antwort länger als zwei Sekunden, sagt Mira zuerst „Einen kleinen Moment, bitte.“ Hörst du diesen Satz erst am Ende, zusammen mit der Antwort, spielt dein Satellit nicht früh ab: Stell ihn um, oder schalte den Satz in `mira.yaml` mit `sessions: { early_reply: false }` ab.
+Mira gibt eine gesprochene Antwort schon weiter, während sie sie schreibt: Eine lange Antwort, etwa eine Geschichte, beginnt so Sekunden früher. Dafür müssen auch die Sprachausgabe und der Satellit früh abspielen können (Phonon kann es; beim TECHO5 die Antwort-Ausgabe auf **Early** stellen). Vor einer längeren Aufgabe, etwa einer Suche im Internet, sagt Mira manchmal zuerst, was sie tut („Ich schaue nach.“). Kann dein Satellit nicht früh abspielen, ist alles wie bisher: Du hörst die Antwort am Stück.
 
 ### Ein lokales Modell ohne Wartezeit: immer ein warmer Slot
 

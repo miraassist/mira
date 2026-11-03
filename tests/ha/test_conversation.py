@@ -138,9 +138,7 @@ async def test_tool_calls_go_into_the_chat_log_as_external_calls(hass, aioclient
     Assistant speaks the text at once; the answer after the tool's result."""
     aioclient_mock.post(
         f"{AGENT_URL}/v1/conversation",
-        text='{"delta":"Einen kleinen Moment, bitte. "}\n'
-        '{"tool_call":{"id":"mira_working","name":"mira_working","arguments":""}}\n'
-        '{"tool_result":{"id":"mira_working","name":"mira_working","result":""}}\n'
+        text='{"delta":"Ich schaue in der Küche nach. "}\n'
         '{"tool_call":{"id":"c1","name":"GetLiveContext","arguments":"{\\"area\\":\\"Küche\\"}"}}\n'
         '{"tool_result":{"id":"c1","name":"GetLiveContext","result":"Küchenlicht: aus"}}\n'
         '{"delta":"Das Küchenlicht ist aus."}\n'
@@ -151,4 +149,4 @@ async def test_tool_calls_go_into_the_chat_log_as_external_calls(hass, aioclient
 
     result = await _say(hass, "Ist das Küchenlicht an?")
 
-    assert result.response.speech["plain"]["speech"] == "Einen kleinen Moment, bitte. Das Küchenlicht ist aus."
+    assert result.response.speech["plain"]["speech"] == "Ich schaue in der Küche nach. Das Küchenlicht ist aus."

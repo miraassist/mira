@@ -829,7 +829,7 @@ What the integration sets up as the model applies to `main` before what `mira.ya
 
 ### Answers that start early
 
-Mira hands on a spoken answer while she writes it: a long answer, a story say, starts seconds earlier. For that, the speech output and the satellite must be able to play early too (Phonon can; on a TECHO5 set the reply delivery to **Early**). If an answer takes longer than two seconds, Mira first says "Just a moment, please." If you hear that sentence only at the end, together with the answer, your satellite does not play early: change it, or switch the sentence off in `mira.yaml` with `sessions: { early_reply: false }`.
+Mira hands on a spoken answer while she writes it: a long answer, a story say, starts seconds earlier. For that, the speech output and the satellite must be able to play early too (Phonon can; on a TECHO5 set the reply delivery to **Early**). Before a longer task, a search on the internet say, Mira sometimes first says what she is doing ("Let me check."). If your satellite cannot play early, everything is as before: you hear the answer in one go.
 
 ### A local model without waiting: always a warm slot
 

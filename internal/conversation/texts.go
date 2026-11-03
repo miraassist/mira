@@ -18,11 +18,7 @@ type texts struct {
 	fallback    string
 	// streamBroken ends a voice answer whose model failed after part of
 	// it was said.
-	streamBroken string
-	// bridge fills a silence of a voice answer: at least 20 characters to
-	// its end, a mark and a space, or the speech engine holds it back
-	// (docs/spec/streaming.md).
-	bridge          string
+	streamBroken    string
 	errorPrefix     string
 	unknownTool     string // %s = tool name
 	invalidJSONArgs string
@@ -41,7 +37,6 @@ var catalog = map[i18n.Lang]texts{
 		background:      "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
 		fallback:        "Entschuldigung, darauf habe ich gerade keine Antwort.",
 		streamBroken:    "Da ist etwas schiefgegangen.",
-		bridge:          "Einen kleinen Moment, bitte. ",
 		errorPrefix:     "Fehler: ",
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
 		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
@@ -56,7 +51,6 @@ var catalog = map[i18n.Lang]texts{
 		background:      "Channel: background job, no person in the conversation.",
 		fallback:        "Sorry, I have no answer to that right now.",
 		streamBroken:    "Something went wrong.",
-		bridge:          "Just a moment, please. ",
 		errorPrefix:     "Error: ",
 		unknownTool:     "There is no tool %s.",
 		invalidJSONArgs: "The arguments are not valid JSON.",

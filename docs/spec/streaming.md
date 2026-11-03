@@ -40,7 +40,7 @@ happens where a turn today relies on the finished answer.
 | 3 | the satellite speaks early | the offer of row 1 | `media_player.<speaker>` → `playing` | state subscription, where a flow waits on it (as today) | 2026-11-03 (playing 4 ms after the offer, 1.14 s before `intent-end`) |
 | 4 | satellite state | the answer is complete (`tts-start`) | `assist_satellite` → `responding` | as today | 2026-11-03: `responding` comes at the end of the answer, not at the early start; waits on it (e.g. `afterAnswer`) are unchanged |
 | 5 | speech ends | the last audio played | speaker → `idle`, satellite → `idle` or `listening` | as today | 2026-11-03 |
-| 6 | text, then a tool call | a piece of text, then a delta that carries `tool_calls` (the bridging sentence, decision 7) | `tts_start_streaming` before 60 characters | not at all | 2026-11-03 in Home Assistant's code (`default_pipeline.py`: `delta_character_count > 0 and delta.get("tool_calls")`) and on the test HA with a test agent: `tts_start_streaming` at once, first audio after 0.22 s; at the Show 11:40, `show_speaker` playing 4 ms after the request, 5.0 s before the answer |
+| 6 | text, then a tool call | a piece of text, then a delta that carries `tool_calls` (the model's own sentence before its tools, decision 7) | `tts_start_streaming` before 60 characters | not at all | 2026-11-03 in Home Assistant's code (`default_pipeline.py`: `delta_character_count > 0 and delta.get("tool_calls")`) and on the test HA with a test agent: `tts_start_streaming` at once, first audio after 0.22 s; at the Show 11:40, `show_speaker` playing 4 ms after the request, 5.0 s before the answer |
 | 7 | interrupted by the wake word | wake word while the streamed answer plays | the speaker → `idle` at once, then a new run (`listening`) | as today | 2026-11-03 10:52 (story of 3,020 characters: playing 2.9 s before `intent-end`; wake word: speaker `idle` 53.85, `listening` 54.61; the next answer played) |
 | 8 | "Stopp" during the answer | as row 7, then "Stopp" | as row 7; "Stopp" is then a turn of its own | as today | 2026-11-03 10:53 (speaker `idle` at the wake word; "Stopp" then went to the agent like any request) |
 | 10 | the speech engine speaks a short piece | a sentence end at least 20 characters in: `.`, `!`, `?` or `…` followed by a space, or a line break | first audio | — | 2026-11-03 at the Phonon server and in its code (`xn-ptts`, `wyoming.rs`: `MIN_PIECE_CHARS = 20`, fixed, not a setting): "Einen Moment, ich schaue nach. " spoken after 0.03 s; "Einen Moment. " and "Einen Moment bitte. " not until more text came |
@@ -70,36 +70,34 @@ happens where a turn today relies on the finished answer.
 | 4 | "Übrigens" | Appended as the last piece, once the model is done; the rules for when stay |
 | 5 | The model fails after the first piece | No fallback to another model: the answer would be pieced together from two. A short fixed sentence ends it. Before the first piece the fallback holds as today |
 | 6 | Which channels | Only voice; Telegram and background runs stay whole |
-| 7 | Bridging a silence | The model may say something itself before its tools (the prompt allows a short sentence before longer work). If nothing has been handed on 2 s after the request reached Mira, Mira puts in a fixed sentence, at most once per answer, and it must be heard at once (see "Bridging a silence") |
+| 7 | Before a longer task | The model may say a short sentence itself before its tools (the prompt allows it before several tools, a search on the web, in the calendar or the mails; not before a simple switching). Mira adds no sentence of her own: helpers that take long (delegate, agents) announce themselves, and what else is slow is a search on the web, which the model may announce (decided 2026-11-03, after a fixed sentence was tried) |
 | 8 | The check of unsupported answers | Removed, for every channel (step 2). The rest risk that a model claims something it did not do or look up is accepted: it is inherent in a model answering; the prompt keeps asking it not to |
 
 Keep listening after a question is decided at the end of the answer, as today; Home Assistant reads the flag at the
 end.
 
-## Bridging a silence
+## The model's own sentence before its tools
 
-- **Where:** only in a turn from a satellite (with a device id), never in Home Assistant's chat, where it would only
-  stand in the text; and only with `sessions.early_reply: true`, the default: the satellites speak an answer early.
-  A satellite that speaks it only at its end would say the sentence before the answer, in one go; then
-  `early_reply: false` leaves the sentence out (decided 2026-11-03: one setting for all satellites, no check of each
-  device; the streaming itself is always on, since without an early satellite everything is as before).
-- **When:** 2 s after the request reached Mira, if nothing has been handed on yet; at most once per answer. With
-  Gemini a simple turn with a tool takes 1 to 2 s, so the sentence comes rarely; with qwen about 4 s, so it comes
-  for most turns with a tool.
-- **Why a time:** what is to be avoided is the silence itself, and "it has been quiet too long" has no signal. The
-  time is the rule here, not a safety net (the exception the design rules allow, named here).
-- **The sentence:** fixed per language, at least 20 characters to its end, ending with a mark and a space
-  ("Einen kleinen Moment, bitte. "): the speech engine speaks a piece only once a sentence ends that far in
-  (row 10). It is not part of the transcript the model sees. Neutral, because at 2 s Mira does not know yet what
-  comes: a lookup or a story ("ich schaue nach" before a story, heard 2026-11-03, did not fit; decided 2026-11-03).
-- **Heard at once** (decided 2026-11-03): Home Assistant starts the speech only past 60 characters or when a tool
-  call follows the text (row 6). Mira's tool calls are written into the chat log as external tool calls; before the
-  first real one is known, a placeholder entry (`mira_working`) follows the sentence. The tool calls then also show
-  in Home Assistant's debug view, each with the first 300 characters of its result (only there; the model gets the
-  whole result as before). Measured at the Show 2026-11-03: first sound 4 ms after the request, 5 s before
-  the answer.
+- **The prompt** allows the model a short sentence before a longer task ("Ich schaue im Kalender nach.") and not
+  before a simple switching or lookup.
+- **Heard at once:** Home Assistant starts the speech of a text under 60 characters only when a tool call follows it
+  (row 6). Mira's tool calls are written into the chat log as external tool calls, so the sentence is spoken while the
+  tool runs. They also show in Home Assistant's debug view, each with the first 300 characters of its result (only
+  there; the model gets the whole result as before).
+- **The speech engine** speaks a piece only once a sentence ends at least 20 characters in (row 10): a sentence of
+  the model shorter than that waits for more text.
 
 ## What we do not do, and why
+
+- **A fixed sentence of Mira's after a time** ("Einen kleinen Moment, bitte." after 2 or 3 s of silence, built and
+  heard on 2026-11-03). With qwen the model needs about 3 to 5 s before it calls a tool (it reads and decides; it says
+  nothing then), and the tools of the house take milliseconds: the sentence came in almost every turn and right
+  before the answer. A time says that one has waited, not that one will wait.
+- **A fixed sentence before slow tools** (those that go to the web or run a model). Helpers that run a model
+  announce themselves when they take long ("ich melde mich"), so the sentence would come twice; what remains is a
+  search on the web, which the model may announce itself.
+- **Spaces after a sentence** up to 60 characters to make Home Assistant speak it: it rests on every speech engine
+  dropping the spaces as Phonon does; the tool call after it does the same.
 
 - **Keep the check of unsupported answers.** It looks for words in the model's answer (German and English lists:
   "eingeschaltet", "gespeichert", "done"; a number with a unit; "ist an/aus/offen") when no tool was called, asks the
@@ -138,7 +136,7 @@ end.
 | the model call | `stream: true` to the model's server; pieces as they come | no more tokens, no more calls | the turn is the stream |
 | service → integration | one HTTP response held open, one line per piece | a few hundred small writes for a long answer | — |
 | integration → Home Assistant | each piece into the chat log | as above | — |
-| the bridging sentence | one fixed piece, and each tool call written into the chat log | none | no |
+| the tool calls in the chat log | one line each as it starts and as it ends | none | no |
 
 Nothing grows beyond the answer itself; no subscription, no polling.
 
@@ -154,8 +152,7 @@ Nothing grows beyond the answer itself; no subscription, no polling.
    1 to 6; row 9 is checked with a slow model.
 5. **Service → integration → Home Assistant**: the field `stream`, the lines, the integration's
    `async_add_delta_content_stream`; both directions of the interface.
-6. **Bridging a silence** (decision 7): the prompt's permission, the time, the sentence and the way it is heard at
-   once.
+6. **Before a longer task** (decision 7): the prompt's permission and Mira's tool calls in the chat log.
 7. **Guide:** for answers that start early, the speech engine must stream (Phonon does) and the satellite must play at
    the offer (TECHO5: reply delivery "Early").
 

@@ -202,45 +202,18 @@ func TestST07_TelegramAndBackgroundRunsStayWhole(t *testing.T) {
 	}
 }
 
-// ST-11: a silence of 2 seconds is bridged with the fixed sentence, a
-// placeholder call after it so that Home Assistant speaks it at once; once
-// per answer, also when the next round is slow too.
-func TestST11_ASilenceOfTwoSecondsIsBridged(t *testing.T) {
-	h := newHarness(t,
-		fakellm.Step{Delay: 2300 * time.Millisecond, ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
-		fakellm.Step{Delay: 2300 * time.Millisecond, Content: "Das Küchenlicht ist aus."},
-	)
-	began := time.Now()
-	_, p, _ := streamed(t, h.engine, "Ist das Küchenlicht an?")
-	if after := p.first.Sub(began); after < 1900*time.Millisecond || after > 2300*time.Millisecond {
-		t.Fatalf("bridged after %v", after)
-	}
-	want := []string{"Einen kleinen Moment, bitte. ", "call:mira_working", "done:mira_working",
-		"call:ha__GetLiveContext", "done:ha__GetLiveContext", "Das Küchenlicht ist aus."}
-	if got := p.merged(); strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("order %q", got)
-	}
-}
-
-// ST-13: a model that speaks before its tools is not bridged.
-func TestST13_AModelThatSpeaksBeforeItsToolsIsNotBridged(t *testing.T) {
+// ST-13: a model that speaks before its tools: its sentence goes on at
+// once, before the tool call that makes Home Assistant speak it, and no
+// sentence of Mira's own comes.
+func TestST13_AModelThatSpeaksBeforeItsToolsIsHandedOnFirst(t *testing.T) {
 	h := newHarness(t,
 		fakellm.Step{Content: "Ich schaue im Kalender nach. ", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
-		fakellm.Step{Delay: 2300 * time.Millisecond, Content: "Morgen hast du keine Termine."},
+		fakellm.Step{Content: "Morgen hast du keine Termine."},
 	)
 	_, p, _ := streamed(t, h.engine, "Was steht morgen an?")
-	if p.text() != "Ich schaue im Kalender nach. Morgen hast du keine Termine." || strings.Contains(strings.Join(p.order, "|"), "mira_working") {
-		t.Fatalf("order %q", p.order)
-	}
-}
-
-// A quick answer is not bridged.
-func TestAQuickAnswerIsNotBridged(t *testing.T) {
-	h := newHarness(t, fakellm.Step{Content: "Gern geschehen."})
-	_, p, _ := streamed(t, h.engine, "Danke")
-	time.Sleep(2200 * time.Millisecond)
-	if strings.Join(p.order, "") != "Gern geschehen." {
-		t.Fatalf("order %q", p.order)
+	want := []string{"Ich schaue im Kalender nach. ", "call:ha__GetLiveContext", "done:ha__GetLiveContext", "Morgen hast du keine Termine."}
+	if got := p.merged(); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("order %q", got)
 	}
 }
 
@@ -272,28 +245,5 @@ func TestAnAnswerEndedByTheCallerKeepsWhatWasSaid(t *testing.T) {
 	}
 	if last := msgs[len(msgs)-1]; last.Role != llm.RoleAssistant || last.Content != said {
 		t.Fatalf("transcript ends with %+v, said %q", last, said)
-	}
-}
-
-// ST-14: the fixed sentence comes only from a satellite, and only with
-// early_reply (the default): not in Home Assistant's chat, not when it is off.
-func TestST14_NoBridgeInTheChatOrWithoutEarlyReply(t *testing.T) {
-	slow := func() []fakellm.Step {
-		return []fakellm.Step{{Delay: 2300 * time.Millisecond, Content: "Das Küchenlicht ist aus."}}
-	}
-	h := newHarness(t, slow()...)
-	p := &pieces{}
-	if _, err := h.engine.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice,
-		ConversationID: "chat", Text: "Ist das Küchenlicht an?", Language: "de", Stream: p.add}); err != nil {
-		t.Fatal(err)
-	}
-	if p.text() != "Das Küchenlicht ist aus." {
-		t.Fatalf("chat: %q", p.order)
-	}
-
-	off := newHarnessWith(t, func(c *config.Config) { c.Sessions.EarlyReply = false }, slow()...)
-	_, q, _ := streamed(t, off.engine, "Ist das Küchenlicht an?")
-	if q.text() != "Das Küchenlicht ist aus." {
-		t.Fatalf("early_reply off: %q", q.order)
 	}
 }

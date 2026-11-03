@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/miraassist/mira/internal/llm"
 )
@@ -24,15 +23,6 @@ type ToolPiece struct {
 	Result              string
 }
 
-// bridgeAfter is how long a voice answer may stay silent before a fixed
-// sentence bridges it (docs/spec/streaming.md, "Bridging a silence").
-const bridgeAfter = 2 * time.Second
-
-// working is the tool call that follows the fixed sentence while no call of
-// the model is known: Home Assistant starts the speech of a short text only
-// when a tool call follows it.
-const working = "mira_working"
-
 // toolResultChars is how much of a tool's result goes into Home Assistant's
 // chat log, where it only shows in the debug view.
 const toolResultChars = 300
@@ -45,56 +35,21 @@ type streamer interface {
 
 // passer hands a voice answer on while it is written: the visible text of
 // every round, thinking cut out, one space between the rounds, and the tool
-// calls. If nothing was handed on after bridgeAfter, it hands on a fixed
-// sentence, once. A model's text and the timer come from two goroutines:
-// everything goes through mu.
+// calls, which make Home Assistant speak a short text before them at once.
 type passer struct {
 	mu    sync.Mutex
 	sink  func(Piece)
 	think thinkFilter
 	said  strings.Builder
 	// fresh is set at the start of a round, until its first visible text.
-	fresh  bool
-	timer  *time.Timer
-	closed bool
+	fresh bool
 }
 
-func newPasser(sink func(Piece), bridge string) *passer {
+func newPasser(sink func(Piece)) *passer {
 	if sink == nil {
 		return nil
 	}
-	p := &passer{sink: sink}
-	if bridge != "" {
-		p.timer = time.AfterFunc(bridgeAfter, func() { p.bridge(bridge) })
-	}
-	return p
-}
-
-// bridge hands on the fixed sentence and the placeholder call, if nothing
-// was said yet.
-func (p *passer) bridge(text string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed || p.said.Len() > 0 {
-		return
-	}
-	p.emit(text)
-	p.sink(Piece{Tool: &ToolPiece{ID: working, Name: working}})
-	p.sink(Piece{Tool: &ToolPiece{ID: working, Name: working, Done: true}})
-	p.fresh = true
-}
-
-// close ends the passing: the timer stops, nothing goes on after it.
-func (p *passer) close() {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.closed = true
-	if p.timer != nil {
-		p.timer.Stop()
-	}
+	return &passer{sink: sink}
 }
 
 // tool hands on a tool call before it runs, and toolDone after it ran.
