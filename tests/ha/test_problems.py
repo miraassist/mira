@@ -36,7 +36,9 @@ async def test_skill_problem_is_a_repair_until_it_is_gone(hass, aioclient_mock, 
 async def test_agent_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry):
     """A YAML agent that does not fit says so as an agent, and goes away like a skill's."""
     problem = {"source": "agent", "name": "plauder", "text": "Der Kontext „conversation“ geht hier nicht."}
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]})
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -53,7 +55,9 @@ async def test_agent_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry)
 async def test_hook_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry):
     """A household hook that does not load says so as a hook (docs/spec/hooks.md)."""
     problem = {"source": "hook", "name": "tuer.star", "text": "Der Hook ist nicht aktiv: DESCRIPTION is missing"}
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]})
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 

@@ -148,8 +148,9 @@ async def test_FG08_the_station_names_the_next_playback_once(hass, fakes):
 
 async def test_FG10_a_plain_announcement_ends_idle(hass, fakes):
     seen = states(hass, SAT)
-    call = call_in_background(hass, "assist_satellite", "announce",
-                              {"entity_id": SAT, "message": "Hallo", "preannounce": False})
+    call = call_in_background(
+        hass, "assist_satellite", "announce", {"entity_id": SAT, "message": "Hallo", "preannounce": False}
+    )
     await later(hass, 0)
     assert not call.done()
     await later(hass, 2)
@@ -159,8 +160,12 @@ async def test_FG10_a_plain_announcement_ends_idle(hass, fakes):
 
 async def test_FG11_starting_a_conversation_has_a_short_idle_before_listening(hass, fakes):
     seen = states(hass, SAT)
-    call = call_in_background(hass, "assist_satellite", "start_conversation",
-                              {"entity_id": SAT, "start_message": "Noch etwas?", "preannounce": False})
+    call = call_in_background(
+        hass,
+        "assist_satellite",
+        "start_conversation",
+        {"entity_id": SAT, "start_message": "Noch etwas?", "preannounce": False},
+    )
     await later(hass, 0)
     await later(hass, 2)
     await call
@@ -190,20 +195,29 @@ async def test_FG13_the_wake_word_does_not_lower_an_announced_playback(hass, fak
 
 
 async def test_FG14_a_device_without_a_screen_shows_nothing(hass, fakes):
-    before = {s.entity_id: s.state for s in hass.states.async_all() if "fake_echo" in s.entity_id
-              and not s.entity_id.endswith("fake_log")}
+    before = {
+        s.entity_id: s.state
+        for s in hass.states.async_all()
+        if "fake_echo" in s.entity_id and not s.entity_id.endswith("fake_log")
+    }
     await hass.services.async_call("esphome", "fake_echo_notify", {"message": "Hallo"}, blocking=True)
     await hass.async_block_till_done()
-    after = {s.entity_id: s.state for s in hass.states.async_all() if "fake_echo" in s.entity_id
-             and not s.entity_id.endswith("fake_log")}
+    after = {
+        s.entity_id: s.state
+        for s in hass.states.async_all()
+        if "fake_echo" in s.entity_id and not s.entity_id.endswith("fake_log")
+    }
     assert after == before
     log = hass.states.get("sensor.fake_echo_fake_log").attributes["log"]
     assert log[-1]["kind"] == "action" and log[-1]["action"] == "notify"
 
 
 async def say(hass: HomeAssistant, text: str) -> asyncio.Task:
-    return asyncio.ensure_future(hass.services.async_call(
-        "techo5_fake", "say", {"device": "fake_show", "text": text}, blocking=True, return_response=True))
+    return asyncio.ensure_future(
+        hass.services.async_call(
+            "techo5_fake", "say", {"device": "fake_show", "text": text}, blocking=True, return_response=True
+        )
+    )
 
 
 async def test_FG15_a_voice_turn_reports_the_states_of_a_voice_turn(hass, fakes):
@@ -242,8 +256,9 @@ async def test_FG16_background_music_is_lowered_for_the_whole_voice_turn(hass, f
 
 async def test_FG17_a_longer_text_takes_longer_to_speak(hass, fakes):
     async def responding_for(text: str) -> int:
-        call = call_in_background(hass, "assist_satellite", "announce",
-                                  {"entity_id": SAT, "message": text, "preannounce": False})
+        call = call_in_background(
+            hass, "assist_satellite", "announce", {"entity_id": SAT, "message": text, "preannounce": False}
+        )
         await later(hass, 0)
         for second in range(1, 20):
             await later(hass, second)

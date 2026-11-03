@@ -117,9 +117,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     commands the agent manages its automations with."""
 
     def loaded() -> MiraConfigEntry:
-        entries = [
-            e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED
-        ]
+        entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
         if not entries:
             raise ServiceValidationError("No Mira agent is set up")
         return entries[0]
@@ -153,7 +151,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise HomeAssistantError(f"Mira agent could not decide: {err}") from err
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SEND_MESSAGE, send_message, schema=SEND_MESSAGE_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+        DOMAIN,
+        SERVICE_SEND_MESSAGE,
+        send_message,
+        schema=SEND_MESSAGE_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ASSESS, assess, schema=ASSESS_SCHEMA, supports_response=SupportsResponse.OPTIONAL
@@ -207,6 +209,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.async_on_unload(async_setup_telegram(hass, entry))
     # Mails of IMAP entries named like a mail application (mail.py).
     entry.async_on_unload(async_setup_mail(hass, entry))
+
     # A change of what Assist sees reaches the agent at once, as does a
     # satellite switched off or moved to another area, or a ring added: the
     # rooms come from the registries. Changes in a burst (exposing many
@@ -224,7 +227,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     @callback
     def _rooms_changed(event: Any) -> None:
         entity = event.data.get("entity_id") or ""
-        if event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED or entity.split(".")[0] in ("assist_satellite", "light"):
+        if event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED or entity.split(".")[0] in (
+            "assist_satellite",
+            "light",
+        ):
             resend.async_schedule_call()
 
     entry.async_on_unload(hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _rooms_changed))
@@ -267,7 +273,11 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     except MiraError:
         health = {}
     agent_id = health.get("id")
-    if entry.unique_id is None and agent_id and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id):
+    if (
+        entry.unique_id is None
+        and agent_id
+        and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id)
+    ):
         hass.config_entries.async_update_entry(entry, unique_id=agent_id)
     # The agent's own Home Assistant user may manage Mira's automations. The
     # integration made it at pairing; only an entry from before that learns

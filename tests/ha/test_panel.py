@@ -131,7 +131,9 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
         assert (await client.request(method, path)).status == 401, path
 
 
-async def test_agent_restarting_is_waited_for(hass, aioclient_mock, entry, hass_client, hass_client_no_auth, monkeypatch):
+async def test_agent_restarting_is_waited_for(
+    hass, aioclient_mock, entry, hass_client, hass_client_no_auth, monkeypatch
+):
     import aiohttp
 
     from custom_components.mira import panel

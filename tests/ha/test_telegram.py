@@ -27,7 +27,12 @@ async def _setup(hass, aioclient_mock, entry, chat_owner=True):
     sub = next(iter(bot.subentries))
     registry = er.async_get(hass)
     chat = registry.async_get_or_create(
-        "notify", "telegram_bot", "bot_4711", config_entry=bot, config_subentry_id=sub, suggested_object_id="telegram_anna"
+        "notify",
+        "telegram_bot",
+        "bot_4711",
+        config_entry=bot,
+        config_subentry_id=sub,
+        suggested_object_id="telegram_anna",
     )
     person = registry.async_get_or_create("person", "person", "anna", suggested_object_id="anna")
     if chat_owner:

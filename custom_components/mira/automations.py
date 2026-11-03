@@ -58,13 +58,23 @@ from homeassistant.util.yaml import dump, load_yaml
 
 from .const import CONF_AGENT_USER, DOMAIN
 from .labels import LABEL_CONFIRM, LABEL_TASKS, ensure_label
+
 _LOCK = asyncio.Lock()
 
 # Domains a task never calls: they run arbitrary code or change Home
 # Assistant itself.
 _NEVER = {
-    "shell_command", "python_script", "pyscript", "hassio", "homeassistant",
-    "automation", "recorder", "backup", "update", "system_log", "logger",
+    "shell_command",
+    "python_script",
+    "pyscript",
+    "hassio",
+    "homeassistant",
+    "automation",
+    "recorder",
+    "backup",
+    "update",
+    "system_log",
+    "logger",
 }
 # Actions without entities as their target that a task may still call: they
 # only tell someone something.
@@ -92,7 +102,15 @@ class _Rule:
 
 _TEMPLATE = re.compile(r"\{[{%#]")
 # Steps that cannot switch anything: they wait, set a variable, stop, or test.
-_HARMLESS = ("condition", "delay", "wait_template", "wait_for_trigger", "variables", "stop", "set_conversation_response")
+_HARMLESS = (
+    "condition",
+    "delay",
+    "wait_template",
+    "wait_for_trigger",
+    "variables",
+    "stop",
+    "set_conversation_response",
+)
 _TARGET_KEYS = ("entity_id", "area_id", "device_id", "floor_id", "label_id")
 _BROAD_KEYS = ("area_id", "device_id", "floor_id", "label_id")
 

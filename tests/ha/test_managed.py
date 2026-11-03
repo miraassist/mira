@@ -102,8 +102,7 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
     sent = _puts(aioclient_mock)[-1]
     assert sent["persons"] == {"anna": {"entity": "person.anna", "channels": ["notify.anna_phone"]}}
     assert sent["rooms"] == [
-        {"area": "bad", "satellite": satellite, "presence": ["binary_sensor.bad"], "morning": True,
-         "indicator": ""}
+        {"area": "bad", "satellite": satellite, "presence": ["binary_sensor.bad"], "morning": True, "indicator": ""}
     ]
 
 
@@ -148,11 +147,15 @@ async def test_general_lives_at_the_agent(hass, aioclient_mock, entry):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     puts = [c[2] for c in aioclient_mock.mock_calls if c[0] == "PUT" and str(c[1]).endswith("/v1/ui/config")]
     # The notifier section goes back whole, only the hold changed.
-    assert puts == [{
-        "persona": "Frech.", "web_search": {"enabled": False},
-        "notifier": {"cooldown": "30m", "own_message_hold": "0m"},
-    }]
+    assert puts == [
+        {
+            "persona": "Frech.",
+            "web_search": {"enabled": False},
+            "notifier": {"cooldown": "30m", "own_message_hold": "0m"},
+        }
+    ]
     assert "persona" not in entry.options and "own_message_hold" not in entry.options
+
 
 async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, entry):
     """A room is a satellite's area; several motion sensors may say someone
@@ -170,8 +173,9 @@ async def test_satellite_settings_live_on_the_satellite(hass, aioclient_mock, en
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            "Wohnzimmer-Echo": _fields({"presence": ["binary_sensor.flur", "binary_sensor.wz"], "morning": True,
-                                        "indicator": "light.ring"}),
+            "Wohnzimmer-Echo": _fields(
+                {"presence": ["binary_sensor.flur", "binary_sensor.wz"], "morning": True, "indicator": "light.ring"}
+            ),
             kueche: _fields({"morning": False}),
         },
     )
@@ -224,18 +228,27 @@ async def test_person_settings_live_on_the_person(hass, aioclient_mock, entry):
     assert await hass.config_entries.async_setup(entry.entry_id)
     result = await _form(hass, entry, "persons")
     assert [str(k) for k in result["data_schema"].schema] == ["Ben"]
-    result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"channels": ["telegram ben"]})})
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"Ben": _fields({"channels": ["telegram ben"]})}
+    )
     assert result["errors"] == {"base": "invalid_config"}
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"Ben": _fields({"channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True})}
+        result["flow_id"],
+        {"Ben": _fields({"channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True})},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert er.async_get(hass).async_get(entity).options[DOMAIN] == {"channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True}
+    assert er.async_get(hass).async_get(entity).options[DOMAIN] == {
+        "channels": ["notify.telegram_ben"],
+        "accept_from": "persons",
+        "alone_is_me": True,
+    }
     assert _puts(aioclient_mock)[-1]["persons"] == {
         "ben_1": {"entity": entity, "channels": ["notify.telegram_ben"], "accept_from": "persons", "alone_is_me": True}
     }
     # Mira's own notify entities take messages for her; they are no channel.
-    own = next(e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify")
+    own = next(
+        e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify"
+    )
     assert own not in notify_targets(hass)
     result = await _form(hass, entry, "persons")
     result = await hass.config_entries.options.async_configure(result["flow_id"], {"Ben": _fields({"channels": [own]})})
@@ -257,9 +270,13 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
     client = await hass_client()
     body = await (await client.get("/api/mira/settings/persons")).json()
     assert [i["name"] for i in body["items"]] == ["Anna"]
-    resp = await client.put("/api/mira/settings/persons", json={anna: {"channels": "notify.anna_phone, notify.telegram_anna"}})
+    resp = await client.put(
+        "/api/mira/settings/persons", json={anna: {"channels": "notify.anna_phone, notify.telegram_anna"}}
+    )
     assert resp.status == 200
-    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"channels": ["notify.anna_phone", "notify.telegram_anna"]}
+    assert er.async_get(hass).async_get(anna).options[DOMAIN] == {
+        "channels": ["notify.anna_phone", "notify.telegram_anna"]
+    }
     body = await (await client.get("/api/mira/settings/satellites")).json()
     assert body["items"][0]["entity"] == wz and body["items"][0]["area"] == "Wohnzimmer"
     resp = await client.put(
@@ -375,7 +392,11 @@ async def test_ipv4_is_preferred_among_the_announced_addresses(hass, aioclient_m
     info = ZeroconfServiceInfo(
         ip_address=info.ip_address,
         ip_addresses=[ip_address("fdf4:27c6:8ba:0:4298:2414:e338:b4cc"), ip_address("192.168.178.186")],
-        hostname=info.hostname, name=info.name, port=info.port, type=info.type, properties=info.properties,
+        hostname=info.hostname,
+        name=info.name,
+        port=info.port,
+        type=info.type,
+        properties=info.properties,
     )
     _proves(aioclient_mock, url="http://192.168.178.186:8787")
     with patch("custom_components.mira.config_flow.secrets.token_hex", return_value=NONCE):
@@ -470,7 +491,10 @@ async def test_a_person_sets_their_own_settings(hass, aioclient_mock, entry, has
     resp = await client.put("/api/mira/settings/me", json={"alone_is_me": True, "accept_from": "persons"})
     assert resp.status == 200
     assert er.async_get(hass).async_get(anna).options[DOMAIN] == {
-        "channels": ["notify.anna_phone"], "accept_from": "persons", "alone_is_me": True, "voice_threshold": 0.65
+        "channels": ["notify.anna_phone"],
+        "accept_from": "persons",
+        "alone_is_me": True,
+        "voice_threshold": 0.65,
     }
     assert _puts(aioclient_mock)[-1]["persons"]["anna"]["voice_threshold"] == 0.65
     resp = await client.put("/api/mira/settings/me", json={"voice_threshold": 0.3})
@@ -502,7 +526,9 @@ async def test_the_agent_cannot_change_who_may_manage_tasks(hass, aioclient_mock
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
     entry = MockConfigEntry(
-        domain=DOMAIN, title="Mira", unique_id=AGENT_ID,
+        domain=DOMAIN,
+        title="Mira",
+        unique_id=AGENT_ID,
         data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret", CONF_IMPORTED: True, CONF_AGENT_USER: "mira-user"},
     )
     entry.add_to_hass(hass)
@@ -522,13 +548,25 @@ def _device_satellite(hass, name, area_name, ring_names=()):
     area = ar.async_get(hass).async_get_or_create(area_name)
     main = devices.async_get_or_create(config_entry_id=source.entry_id, identifiers={("esphome", name)}, name=name)
     devices.async_update_device(main.id, area_id=area.id)
-    ring = devices.async_get_or_create(config_entry_id=source.entry_id, identifiers={("esphome", name + "-ring")},
-                                       name=name + " ring", via_device_id=main.id)
+    ring = devices.async_get_or_create(
+        config_entry_id=source.entry_id,
+        identifiers={("esphome", name + "-ring")},
+        name=name + " ring",
+        via_device_id=main.id,
+    )
     registry = er.async_get(hass)
     sat = registry.async_get_or_create("assist_satellite", "esphome", name, device_id=main.id, suggested_object_id=name)
-    lights = [registry.async_get_or_create("light", "esphome", name + n, device_id=ring.id, original_name=n,
-                                           suggested_object_id=name + "_" + n.lower().replace(" ", "_")).entity_id
-              for n in ring_names]
+    lights = [
+        registry.async_get_or_create(
+            "light",
+            "esphome",
+            name + n,
+            device_id=ring.id,
+            original_name=n,
+            suggested_object_id=name + "_" + n.lower().replace(" ", "_"),
+        ).entity_id
+        for n in ring_names
+    ]
     return sat.entity_id, area.id, lights
 
 

@@ -41,6 +41,7 @@ SATELLITE_FIELDS = ("presence", "morning", "indicator", "primary")
 # mark does not move with it to another room; forms show it as a switch.
 SATELLITE_DOMAINS = ("assist_satellite", "media_player")
 
+
 def _settings(hass: HomeAssistant, domains: tuple[str, ...]) -> dict[str, dict[str, Any]]:
     return {
         e.entity_id: dict(e.options[DOMAIN])
@@ -120,9 +121,7 @@ def own_notify(hass: HomeAssistant) -> set[str]:
     """Mira's own notify entities, the house's and each person's. They take
     a message for Mira to deliver, so they are never a channel: one would
     turn a person's message into a new message instead of delivering it."""
-    return {
-        e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify"
-    }
+    return {e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN and e.domain == "notify"}
 
 
 def notify_targets(hass: HomeAssistant) -> list[str]:
@@ -151,7 +150,11 @@ def ring_of(hass: HomeAssistant, satellite: str) -> str:
     family = [sat.device_id] + sorted(d.id for d in devices.devices.values() if d.via_device_id == sat.device_id)
     for device_id in family:
         for e in er.async_entries_for_device(entities, device_id):
-            if e.domain == "light" and not e.disabled_by and (e.original_name or "").strip().lower().endswith("led ring"):
+            if (
+                e.domain == "light"
+                and not e.disabled_by
+                and (e.original_name or "").strip().lower().endswith("led ring")
+            ):
                 return e.entity_id
     return ""
 
@@ -273,7 +276,11 @@ def build_config(
         room = room_to_agent(area, sats[0], settings.get(sats[0]) or {}, ring_of(hass, sats[0]))
         if len(sats) > 1:
             room["others"] = [
-                {k: v for k, v in room_to_agent(area, s, settings.get(s) or {}, ring_of(hass, s)).items() if k != "area"}
+                {
+                    k: v
+                    for k, v in room_to_agent(area, s, settings.get(s) or {}, ring_of(hass, s)).items()
+                    if k != "area"
+                }
                 for s in sats[1:]
             ]
         rooms.append(room)
@@ -343,7 +350,7 @@ def normalize_person(data: dict[str, Any]) -> dict[str, Any]:
     else:
         try:
             threshold = float(threshold)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             raise ValueError(f"voice_threshold must be a number, not {threshold!r}") from None
         if not 0 < threshold < 1:
             raise ValueError(f"voice_threshold must be between 0 and 1, not {threshold}")

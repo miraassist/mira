@@ -61,7 +61,10 @@ async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -
         if token.client_name == TOKEN_NAME:
             hass.auth.async_remove_refresh_token(token)
     refresh = await hass.auth.async_create_refresh_token(
-        user, client_name=TOKEN_NAME, token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, access_token_expiration=TOKEN_LIFETIME
+        user,
+        client_name=TOKEN_NAME,
+        token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
+        access_token_expiration=TOKEN_LIFETIME,
     )
     return user.id, refresh.id, hass.auth.async_create_access_token(refresh)
 

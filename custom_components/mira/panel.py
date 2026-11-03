@@ -50,7 +50,9 @@ PANEL_URL_PATH = "mira"
 PANEL_ICON = "mdi:face-woman-shimmer"
 PAGE = "/api/mira/panel/ui"
 # The agent's page and its files; nothing else goes through the open view.
-PAGE_FILES = re.compile(r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/guide/(de|en)|ui/guide/img/[\w.-]+")
+PAGE_FILES = re.compile(
+    r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/guide/(de|en)|ui/guide/img/[\w.-]+"
+)
 API = "v1/ui/"
 # What a user who is no admin may call: their memory, changing a fact, the
 # memory as a file, the house's messages and their own (marking their own
@@ -240,7 +242,9 @@ class MiraSettingsView(HomeAssistantView):
             raise Unauthorized()
         if kind == "persons":
             current = person_settings(hass)
-            items = [{"entity": e, "name": entity_name(hass, e), "settings": current.get(e, {})} for e in all_persons(hass)]
+            items = [
+                {"entity": e, "name": entity_name(hass, e), "settings": current.get(e, {})} for e in all_persons(hass)
+            ]
             return web.json_response({"items": items, "notify": notify_targets(hass)})
         if kind == "satellites":
             current = satellite_form_settings(hass)
@@ -349,9 +353,7 @@ def person_of_user(hass: HomeAssistant, user_id: str) -> str:
 
 
 def _choices(hass: HomeAssistant, domain: str) -> list[dict[str, str]]:
-    return sorted(
-        ({"id": s.entity_id, "name": s.name} for s in hass.states.async_all(domain)), key=lambda c: c["name"]
-    )
+    return sorted(({"id": s.entity_id, "name": s.name} for s in hass.states.async_all(domain)), key=lambda c: c["name"])
 
 
 def _loaded(hass: HomeAssistant):

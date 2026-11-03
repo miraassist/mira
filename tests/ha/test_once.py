@@ -33,8 +33,16 @@ async def actions_described(hass):
 
 def _timer(id_, owner="anna", area="wohnzimmer", ran=False, running=0):
     return {
-        "id": id_, "entity_id": f"automation.{id_}", "title": "Schlaf-Timer", "due": "2099-01-01T22:35:00+01:00",
-        "owner": owner, "area": area, "kind": "sleep", "actions": ACTIONS, "ran": ran, "running": running,
+        "id": id_,
+        "entity_id": f"automation.{id_}",
+        "title": "Schlaf-Timer",
+        "due": "2099-01-01T22:35:00+01:00",
+        "owner": owner,
+        "area": area,
+        "kind": "sleep",
+        "actions": ACTIONS,
+        "ran": ran,
+        "running": running,
     }
 
 
@@ -46,7 +54,10 @@ async def test_a_timer_is_a_valid_automation_that_runs_once_and_catches_up(hass)
 
     stamp = dt_util.as_local(due).replace(microsecond=0).isoformat()
     assert config["variables"] == {
-        "mira_title": "Schlaf-Timer", "mira_due": stamp, "mira_owner": "anna", "mira_area": "wohnzimmer",
+        "mira_title": "Schlaf-Timer",
+        "mira_due": stamp,
+        "mira_owner": "anna",
+        "mira_area": "wohnzimmer",
         "mira_kind": "sleep",
     }
     # Every timer has its own entity id, so no state is restored from an earlier one.
@@ -54,7 +65,9 @@ async def test_a_timer_is_a_valid_automation_that_runs_once_and_catches_up(hass)
     assert config["alias"] == "Schlaf-Timer 837deda7" and other["alias"] != config["alias"]
     # At the due second, and again when Home Assistant starts (it was off).
     assert {"trigger": "homeassistant", "event": "start"} in config["triggers"]
-    assert any(t["trigger"] == "time" and t["at"] == dt_util.as_local(due).strftime("%H:%M:%S") for t in config["triggers"])
+    assert any(
+        t["trigger"] == "time" and t["at"] == dt_util.as_local(due).strftime("%H:%M:%S") for t in config["triggers"]
+    )
     # Not before the due time, and only if it never ran.
     condition = config["conditions"][0]["value_template"]
     assert "now() >= as_datetime('%s')" % stamp in condition and "last_triggered is none" in condition
@@ -64,7 +77,11 @@ async def test_a_timer_is_a_valid_automation_that_runs_once_and_catches_up(hass)
 async def test_a_timer_may_not_switch_what_needs_a_yes(hass):
     assert await async_setup_component(hass, "automation", {})
     config = once.build(
-        "Nachts", dt_util.now() + timedelta(hours=1), "anna", "flur", "timer",
+        "Nachts",
+        dt_util.now() + timedelta(hours=1),
+        "anna",
+        "flur",
+        "timer",
         [{"action": "lock.unlock", "target": {"entity_id": "lock.haustuer"}}],
     )
     with pytest.raises(HomeAssistantError):
@@ -93,7 +110,9 @@ async def test_no_timer_in_the_past_or_without_actions(hass):
     with patch.object(once, "list_once", AsyncMock(return_value=[])):
         base = dict(owner="", area="", kind="sleep", forbidden=None, automation_id=None)
         with pytest.raises(HomeAssistantError, match="past"):
-            await once.save(hass, title="x", due=(dt_util.now() - timedelta(minutes=1)).isoformat(), actions=ACTIONS, **base)
+            await once.save(
+                hass, title="x", due=(dt_util.now() - timedelta(minutes=1)).isoformat(), actions=ACTIONS, **base
+            )
         with pytest.raises(HomeAssistantError, match="time zone"):
             await once.save(hass, title="x", due="2099-01-01T10:00:00", actions=ACTIONS, **base)
         with pytest.raises(HomeAssistantError, match="at least one"):
@@ -102,20 +121,26 @@ async def test_no_timer_in_the_past_or_without_actions(hass):
 
 async def test_the_sweep_removes_only_what_ran_and_is_finished(hass):
     timers = [
-        _timer("waiting"),                      # not due, never ran: stays
-        _timer("late"),                         # due, never ran: catches up by itself, stays
+        _timer("waiting"),  # not due, never ran: stays
+        _timer("late"),  # due, never ran: catches up by itself, stays
         _timer("fading", ran=True, running=1),  # ran, still fading out: stays
-        _timer("done", ran=True),               # ran, finished: goes
+        _timer("done", ran=True),  # ran, finished: goes
     ]
     delete = AsyncMock()
-    with patch.object(once, "list_once", AsyncMock(return_value=timers)), patch.object(once.automations, "delete", delete):
+    with (
+        patch.object(once, "list_once", AsyncMock(return_value=timers)),
+        patch.object(once.automations, "delete", delete),
+    ):
         await once.sweep(hass)
     delete.assert_awaited_once_with(hass, "done")
 
 
 async def test_only_one_time_automations_can_be_deleted_here(hass):
     delete = AsyncMock()
-    with patch.object(once, "list_once", AsyncMock(return_value=[_timer("t1")])), patch.object(once.automations, "delete", delete):
+    with (
+        patch.object(once, "list_once", AsyncMock(return_value=[_timer("t1")])),
+        patch.object(once.automations, "delete", delete),
+    ):
         await once.delete(hass, "t1")
         with pytest.raises(HomeAssistantError):
             await once.delete(hass, "a-task")
@@ -124,8 +149,13 @@ async def test_only_one_time_automations_can_be_deleted_here(hass):
 
 async def test_list_reads_the_variables_and_the_run_state(hass):
     item = {
-        "id": "t1", "entity_id": "automation.t1", "last_triggered": None, "current": 0,
-        "config": once.build("Schlaf-Timer", dt_util.now() + timedelta(minutes=5), "anna", "bad", "sleep", ACTIONS, "abcd1234"),
+        "id": "t1",
+        "entity_id": "automation.t1",
+        "last_triggered": None,
+        "current": 0,
+        "config": once.build(
+            "Schlaf-Timer", dt_util.now() + timedelta(minutes=5), "anna", "bad", "sleep", ACTIONS, "abcd1234"
+        ),
     }
     other = {"id": "x", "entity_id": "automation.x", "config": {"alias": "no variables"}}
     with patch.object(once.automations, "list_tasks", AsyncMock(return_value=[item, other])):

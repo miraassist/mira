@@ -3,7 +3,12 @@ an area is a repair and listed on the page; several satellites in a room."""
 
 from datetime import timedelta
 
-from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er, issue_registry as ir
+from homeassistant.helpers import (
+    area_registry as ar,
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
@@ -26,8 +31,14 @@ def _satellite(hass, name, area_name=None, entity_area_name=None):
     if area_name:
         devices.async_update_device(device.id, area_id=areas.async_get_or_create(area_name).id)
     registry = er.async_get(hass)
-    sat = registry.async_get_or_create("assist_satellite", "esphome", name, device_id=device.id, suggested_object_id=name,
-                                       original_name="Assist satellite")
+    sat = registry.async_get_or_create(
+        "assist_satellite",
+        "esphome",
+        name,
+        device_id=device.id,
+        suggested_object_id=name,
+        original_name="Assist satellite",
+    )
     if entity_area_name:
         registry.async_update_entity(sat.entity_id, area_id=areas.async_get_or_create(entity_area_name).id)
     hass.states.async_set(sat.entity_id, "idle", {"friendly_name": name.title()})
@@ -72,7 +83,9 @@ async def test_SR02_the_repair_goes_when_the_satellite_gets_an_area(hass, aiocli
     assert _repairs(hass) == {}
 
 
-async def test_SR03_the_page_lists_a_satellite_without_an_area(hass, aioclient_mock, entry, hass_client, hass_admin_user):
+async def test_SR03_the_page_lists_a_satellite_without_an_area(
+    hass, aioclient_mock, entry, hass_client, hass_admin_user
+):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     placed, _ = _satellite(hass, "bad", "Bad")
     unplaced, _ = _satellite(hass, "kueche")
@@ -134,7 +147,9 @@ async def test_SR10_a_second_satellite_in_an_area_makes_the_first_the_primary(ha
     # one older in the registry, moved in from another room as that room's
     # primary, does not take it: its mark is for the other room
     er.async_get(hass).async_update_entity_options(older, DOMAIN, {"primary": "keller"})
-    dr.async_get(hass).async_update_device(older_device, area_id=ar.async_get(hass).async_get_area_by_name("Wohnzimmer").id)
+    dr.async_get(hass).async_update_device(
+        older_device, area_id=ar.async_get(hass).async_get_area_by_name("Wohnzimmer").id
+    )
     await _settle(hass)
     await _settle(hass)
     assert _marked(hass, first) and not _marked(hass, older)
@@ -182,14 +197,19 @@ async def test_SR13_two_satellites_in_an_area_with_settings_are_not_refused(hass
     second, _ = _satellite(hass, "essen", "Wohnzimmer")
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    await save_settings(hass, entry, satellites={
-        first: {"presence": ["binary_sensor.sofa"], "morning": True},
-        second: {"presence": ["binary_sensor.essen"], "indicator": "light.essen_ring"},
-    })
+    await save_settings(
+        hass,
+        entry,
+        satellites={
+            first: {"presence": ["binary_sensor.sofa"], "morning": True},
+            second: {"presence": ["binary_sensor.essen"], "indicator": "light.essen_ring"},
+        },
+    )
     room = _rooms(aioclient_mock)[ar.async_get(hass).async_get_area_by_name("Wohnzimmer").id]
     assert room["presence"] == ["binary_sensor.sofa"] and room["morning"]
-    assert room["others"] == [{"satellite": second, "presence": ["binary_sensor.essen"], "morning": False,
-                               "indicator": "light.essen_ring"}]
+    assert room["others"] == [
+        {"satellite": second, "presence": ["binary_sensor.essen"], "morning": False, "indicator": "light.essen_ring"}
+    ]
 
 
 async def test_SR14_a_room_with_one_satellite_is_sent_as_before(hass, aioclient_mock, entry):

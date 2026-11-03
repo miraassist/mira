@@ -127,7 +127,9 @@ def _restore_calls(aioclient_mock):
     return [c for c in aioclient_mock.mock_calls if c[0] == "POST" and str(c[1]).endswith("/v1/restore")]
 
 
-async def test_BK20_after_a_restore_of_home_assistant_the_repair_offers_miras_data(hass, aioclient_mock, entry, tmp_path):
+async def test_BK20_after_a_restore_of_home_assistant_the_repair_offers_miras_data(
+    hass, aioclient_mock, entry, tmp_path
+):
     await _restored(hass, aioclient_mock, entry, tmp_path)
     issue = ir.async_get(hass).async_get_issue(DOMAIN, backup.ISSUE_RESTORE)
     assert issue is not None and issue.is_fixable

@@ -17,7 +17,10 @@ TASK = {
     "actions": [
         {
             "action": "mira.assess",
-            "data": {"goal": "Achte auf den Wasserverbrauch.", "data": [{"entity_id": "sensor.w", "view": "same_hour"}]},
+            "data": {
+                "goal": "Achte auf den Wasserverbrauch.",
+                "data": [{"entity_id": "sensor.w", "view": "same_hour"}],
+            },
         }
     ],
 }
@@ -51,7 +54,9 @@ async def house(hass):
         {"script": {"kaffee": {"sequence": [{"delay": 1}]}, "geheim": {"sequence": [{"delay": 1}]}}},
     )
     async_expose_entity(hass, "conversation", "script.kaffee", True)
-    assert await async_setup_component(hass, "group", {"group": {"aussen": {"entities": ["cover.garage", "light.hof"]}}})
+    assert await async_setup_component(
+        hass, "group", {"group": {"aussen": {"entities": ["cover.garage", "light.hof"]}}}
+    )
     # Actions that name no entities: they could switch anything.
     for domain, service in (("mqtt", "publish"), ("rest_command", "garage_auf"), ("conversation", "process")):
         hass.services.async_register(domain, service, lambda call: None)
@@ -152,7 +157,16 @@ async def test_the_check_cannot_be_walked_around(hass):
         hass,
         [
             {"repeat": {"count": 2, "sequence": [{"action": "light.toggle", "target": {"entity_id": "light.flur"}}]}},
-            {"parallel": [{"sequence": [{"delay": "00:00:05"}, {"action": "notify.phone", "data": {"message": "{{ trigger.to_state.state }}"}}]}]},
+            {
+                "parallel": [
+                    {
+                        "sequence": [
+                            {"delay": "00:00:05"},
+                            {"action": "notify.phone", "data": {"message": "{{ trigger.to_state.state }}"}},
+                        ]
+                    }
+                ]
+            },
             {"action": "mira.assess", "data": {"task": "{{ this.attributes.id }}", "goal": "g"}},
             {"scene": "scene.abend"},
             {"wait_for_trigger": [], "timeout": 5},
@@ -171,7 +185,9 @@ async def test_validate_uses_home_assistant(hass):
     with pytest.raises(HomeAssistantError):
         await validate(hass, TASK | {"actions": [{"action": "lock.unlock"}]}, FORBIDDEN)
     # Switching something harmless is the user's choice.
-    await validate(hass, TASK | {"actions": [{"action": "light.turn_on", "target": {"entity_id": "light.bad"}}]}, FORBIDDEN)
+    await validate(
+        hass, TASK | {"actions": [{"action": "light.turn_on", "target": {"entity_id": "light.bad"}}]}, FORBIDDEN
+    )
 
 
 async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
@@ -314,7 +330,9 @@ async def test_AE03_saving_a_household_task_keeps_its_labels(hass, tmp_path):
     assert entry.labels == {"licht"} and LABEL_TASKS not in entry.labels
     assert hass.states.get(household) is not None
     # A new or changed action is checked as when creating.
-    new_lock = changed | {"actions": [HOUSEHOLD["actions"][0], {"action": "lock.unlock", "target": {"entity_id": "lock.keller"}}]}
+    new_lock = changed | {
+        "actions": [HOUSEHOLD["actions"][0], {"action": "lock.unlock", "target": {"entity_id": "lock.keller"}}]
+    }
     with pytest.raises(NotAllowed):
         await save(hass, new_lock, "abendlicht", FORBIDDEN, None)
 

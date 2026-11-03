@@ -86,9 +86,13 @@ async def test_the_logins_of_the_persons_go_along(hass, aioclient_mock, entry, h
 
     from custom_components.mira.managed import person_logins
 
-    cred = Credentials(auth_provider_type="homeassistant", auth_provider_id=None, data={"username": "stefan"}, is_new=False)
+    cred = Credentials(
+        auth_provider_type="homeassistant", auth_provider_id=None, data={"username": "stefan"}, is_new=False
+    )
     await hass.auth.async_link_user(hass_admin_user, cred)
-    hass.states.async_set("person.stefan_rinke", "home", {"user_id": hass_admin_user.id, "friendly_name": "Stefan Rinke"})
+    hass.states.async_set(
+        "person.stefan_rinke", "home", {"user_id": hass_admin_user.id, "friendly_name": "Stefan Rinke"}
+    )
     hass.states.async_set("person.gast", "home", {"friendly_name": "Gast"})
     assert await person_logins(hass) == {"person.stefan_rinke": "stefan"}
 

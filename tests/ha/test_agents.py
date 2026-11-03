@@ -26,10 +26,15 @@ async def test_agent_answers_synchronously(hass, aioclient_mock, entry):
     """AG-62: the automation gets the agent's answer in its response_variable."""
     await _setup(hass, aioclient_mock, entry)
     aioclient_mock.post(
-        f"{AGENT_URL}/v1/agent", json={"call_id": "c1", "agent": "rezept", "status": "done", "output": {"steps": ["Teig"]}}
+        f"{AGENT_URL}/v1/agent",
+        json={"call_id": "c1", "agent": "rezept", "status": "done", "output": {"steps": ["Teig"]}},
     )
     result = await hass.services.async_call(
-        DOMAIN, "agent", {"agent": "rezept", "input": {"url": "https://example.com"}}, blocking=True, return_response=True
+        DOMAIN,
+        "agent",
+        {"agent": "rezept", "input": {"url": "https://example.com"}},
+        blocking=True,
+        return_response=True,
     )
     assert result["output"] == {"steps": ["Teig"]}
     # AG-98: only agent and input given, the defaults go along.
@@ -56,14 +61,22 @@ async def test_agent_asynchronously_with_the_done_event(hass, aioclient_mock, en
     hass.bus.async_listen("mira_agent_done", lambda e: events.append(e.data))
     agent = await hass_ws_client(hass)
     await agent.send_json_auto_id(
-        {"type": "mira/agent/done", "call_id": "c1", "agent": "rezept", "status": "done", "output": '{"steps": ["Teig"]}'}
+        {
+            "type": "mira/agent/done",
+            "call_id": "c1",
+            "agent": "rezept",
+            "status": "done",
+            "output": '{"steps": ["Teig"]}',
+        }
     )
     assert (await agent.receive_json())["success"]
     await hass.async_block_till_done()
     assert events == [{"call_id": "c1", "agent": "rezept", "status": "done", "output": {"steps": ["Teig"]}}]
 
 
-async def test_only_the_agent_fires_the_done_event(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
+async def test_only_the_agent_fires_the_done_event(
+    hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token
+):
     await _setup(hass, aioclient_mock, entry)
     events = []
     hass.bus.async_listen("mira_agent_done", lambda e: events.append(e.data))
@@ -80,9 +93,13 @@ async def test_agent_result_and_cancel(hass, aioclient_mock, entry):
     await _setup(hass, aioclient_mock, entry)
     aioclient_mock.post(f"{AGENT_URL}/v1/agent/result", json={"call_id": "c1", "status": "running"})
     aioclient_mock.post(f"{AGENT_URL}/v1/agent/cancel", json={"cancelled": True})
-    result = await hass.services.async_call(DOMAIN, "agent_result", {"call_id": "c1"}, blocking=True, return_response=True)
+    result = await hass.services.async_call(
+        DOMAIN, "agent_result", {"call_id": "c1"}, blocking=True, return_response=True
+    )
     assert result == {"call_id": "c1", "status": "running"}
-    result = await hass.services.async_call(DOMAIN, "agent_cancel", {"call_id": "c1"}, blocking=True, return_response=True)
+    result = await hass.services.async_call(
+        DOMAIN, "agent_cancel", {"call_id": "c1"}, blocking=True, return_response=True
+    )
     assert result == {"cancelled": True}
     assert _sent(aioclient_mock, "/v1/agent/cancel") == {"call_id": "c1"}
 

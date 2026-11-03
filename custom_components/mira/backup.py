@@ -117,7 +117,7 @@ def _manifest(path: Path) -> dict:
         with tarfile.open(path, "r:gz") as tar:
             member = tar.extractfile("manifest.json")
             return json.load(member) if member else {}
-    except (OSError, tarfile.TarError, KeyError, ValueError):
+    except OSError, tarfile.TarError, KeyError, ValueError:
         return {}
 
 

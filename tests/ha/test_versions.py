@@ -51,8 +51,10 @@ async def test_agent_without_a_version_in_status_uses_health(hass, aioclient_moc
     judged by what /v1/health said at setup; without any version, no repair."""
     aioclient_mock.clear_requests()
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
-    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": "01agent", "ha_user_id": "mira-user",
-                                                       "version": _minor_apart(-2)})
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/health",
+        json={"status": "ok", "id": "01agent", "ha_user_id": "mira-user", "version": _minor_apart(-2)},
+    )
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

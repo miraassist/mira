@@ -118,7 +118,6 @@ def _model_error(err: MiraError, errors: dict[str, str], placeholders: dict[str,
     placeholders["error"] = f"\n\n`{err}`"
 
 
-
 def _best_host(info: ZeroconfServiceInfo) -> str:
     """The agent's address to use: a plain IPv4 one of those it announced,
     else whatever Home Assistant found first."""
@@ -126,6 +125,7 @@ def _best_host(info: ZeroconfServiceInfo) -> str:
         if ip.version == 4 and not ip.is_link_local and not ip.is_loopback:
             return str(ip)
     return info.host
+
 
 class ModelSteps:
     """Choosing the AI model (LLM): where it comes from (an AI integration
@@ -180,7 +180,9 @@ class ModelSteps:
         providers = self._providers or {}
         from_ha = ha_sources(self.hass, providers)
         words = _words(self.hass)
-        options = [selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()]
+        options = [
+            selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()
+        ]
         options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in providers.items()]
         options.append(selector.SelectOptionDict(value=CUSTOM, label=words["custom"]))
         return self.async_show_form(
@@ -496,7 +498,9 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
             self._code = user_input["code"].strip()
             self._error = ""
             return await self.async_step_summary()
-        return self.async_show_form(step_id="pair", data_schema=CODE_SCHEMA, description_placeholders={"url": self._url})
+        return self.async_show_form(
+            step_id="pair", data_schema=CODE_SCHEMA, description_placeholders={"url": self._url}
+        )
 
     async def async_step_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The token, for an agent whose token is set in its mira.yaml."""
@@ -546,7 +550,9 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
                 {
                     vol.Optional(CONF_PIPELINES, default=default): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=[selector.SelectOptionDict(value=p, label=name) for p, (name, _) in pipelines.items()],
+                            options=[
+                                selector.SelectOptionDict(value=p, label=name) for p, (name, _) in pipelines.items()
+                            ],
                             multiple=True,
                             mode=selector.SelectSelectorMode.LIST,
                         )
@@ -727,8 +733,12 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
             if self._general is not None and search is not None and search != self._general["web_search"]:
                 changes["web_search"] = search
             hold = data.pop(CONF_OWN_HOLD, None)
-            if self._general is not None and self._general["notifier"] is not None and hold is not None \
-                    and hold != self._general["own_message_hold"]:
+            if (
+                self._general is not None
+                and self._general["notifier"] is not None
+                and hold is not None
+                and hold != self._general["own_message_hold"]
+            ):
                 changes["notifier"] = {**self._general["notifier"], "own_message_hold": f"{int(hold)}m"}
             if client and changes:
                 try:
@@ -769,7 +779,9 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
             {
                 vol.Optional("channels"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=notify_targets(self.hass), custom_value=True, multiple=True,
+                        options=notify_targets(self.hass),
+                        custom_value=True,
+                        multiple=True,
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),

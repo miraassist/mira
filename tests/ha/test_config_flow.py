@@ -180,7 +180,12 @@ async def test_model_from_home_assistant_needs_no_key(hass, aioclient_mock, hass
         data={"api_key": "ha-key"},
         state=config_entries.ConfigEntryState.LOADED,
         subentries_data=[
-            {"subentry_type": "conversation", "data": {"chat_model": "models/gemini-flash-latest"}, "title": "Gemini", "unique_id": None}
+            {
+                "subentry_type": "conversation",
+                "data": {"chat_model": "models/gemini-flash-latest"},
+                "title": "Gemini",
+                "unique_id": None,
+            }
         ],
     )
     ai.add_to_hass(hass)

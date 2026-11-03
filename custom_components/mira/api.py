@@ -102,7 +102,7 @@ class MiraClient:
                         body = await resp.json(content_type=None)
                         if isinstance(body, dict) and body.get("error"):
                             reason = f": {body['error']}"
-                    except (ValueError, aiohttp.ContentTypeError):
+                    except ValueError, aiohttp.ContentTypeError:
                         pass
                     error = MiraNotFound if resp.status == 404 else MiraError
                     raise error(f"{method} {path}: HTTP {resp.status}{reason}")
@@ -121,9 +121,7 @@ class MiraClient:
         body = await self._request("POST", "/v1/prove", 10, json={"nonce": nonce})
         return str(body["proof"])
 
-    async def pair(
-        self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None, rejoin: str = ""
-    ) -> str:
+    async def pair(self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None, rejoin: str = "") -> str:
         """Pair and set up in one step: the agent keeps Home Assistant's
         access and the model, hands out its token and starts anew. The
         first time, while the agent was never paired, without a code; the
@@ -209,7 +207,7 @@ class MiraClient:
                 body: Any = {}
                 try:
                     body = await resp.json(content_type=None)
-                except (ValueError, aiohttp.ContentTypeError):
+                except ValueError, aiohttp.ContentTypeError:
                     pass
                 if resp.status >= 400:
                     reason = body.get("error") if isinstance(body, dict) else None

@@ -48,9 +48,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(
         self, hass: HomeAssistant, entry: ConfigEntry, client: MiraClient, agent_version: str | None = None
     ) -> None:
-        super().__init__(
-            hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=60)
-        )
+        super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=60))
         self.client = client
         self._synced = False
         # From /v1/health at setup; a newer agent says it in /v1/status too.

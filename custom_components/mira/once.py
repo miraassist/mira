@@ -55,7 +55,11 @@ def build(
         "alias": f"{title} {tag}".strip(),
         "description": f"Mira: {title}",
         "variables": {
-            "mira_title": title, "mira_due": stamp, "mira_owner": owner, "mira_area": area, "mira_kind": kind,
+            "mira_title": title,
+            "mira_due": stamp,
+            "mira_owner": owner,
+            "mira_area": area,
+            "mira_kind": kind,
         },
         "triggers": [
             {"trigger": "time", "at": local.strftime("%H:%M:%S")},

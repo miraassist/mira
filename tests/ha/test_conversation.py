@@ -18,8 +18,14 @@ async def _setup(hass, entry):
 
 async def _say(hass, text, conversation_id=None, device_id=None, extra=None, user_id=None):
     return await conversation.async_converse(
-        hass, text, conversation_id, Context(user_id=user_id), language="de", agent_id=ENTITY_ID,
-        device_id=device_id, extra_system_prompt=extra,
+        hass,
+        text,
+        conversation_id,
+        Context(user_id=user_id),
+        language="de",
+        agent_id=ENTITY_ID,
+        device_id=device_id,
+        extra_system_prompt=extra,
     )
 
 

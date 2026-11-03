@@ -119,8 +119,7 @@ async def ensure_calendars(hass: HomeAssistant, apps: list[str]) -> None:
     if not apps or hass.state is not CoreState.running:
         return
     have = {
-        calendar_name(str(s.attributes.get("friendly_name") or "")).lower()
-        for s in hass.states.async_all("calendar")
+        calendar_name(str(s.attributes.get("friendly_name") or "")).lower() for s in hass.states.async_all("calendar")
     }
     for _imap, name in mail_entries(hass, apps):
         if name.lower() in have or name.lower() in _failed:

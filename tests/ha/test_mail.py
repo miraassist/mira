@@ -49,8 +49,13 @@ async def test_new_mails_of_a_mail_entry_reach_the_agent(hass, aioclient_mock, e
     devices.async_update_device(device.id, name_by_user="Pakete  stefan")
 
     async def fetch(call):
-        return {"text": "Ihr Paket kommt morgen.", "sender": "a@dhl.example", "subject": "Paket",
-                "date": "2026-10-20T08:00:00+02:00", "uid": call.data["uid"]}
+        return {
+            "text": "Ihr Paket kommt morgen.",
+            "sender": "a@dhl.example",
+            "subject": "Paket",
+            "date": "2026-10-20T08:00:00+02:00",
+            "uid": call.data["uid"],
+        }
 
     hass.services.async_register("imap", "fetch", fetch, supports_response=SupportsResponse.ONLY)
     assert await hass.config_entries.async_setup(entry.entry_id)
