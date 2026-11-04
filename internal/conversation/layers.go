@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode"
@@ -28,12 +29,16 @@ func (e *Engine) Prefix(ctx context.Context, ch config.Channel) (prompt.Prefix, 
 	if err != nil {
 		return prompt.Prefix{}, err
 	}
+	structure := e.structureText()
+	if structure == "" {
+		return prompt.Prefix{}, ErrNoHousePrompt
+	}
 	return prompt.Prefix{
 		Lang:      e.lang(ctx),
 		Agent:     prompt.AgentLayer(e.lang(ctx), e.currentPersona()),
 		Style:     prompt.StyleFor(e.lang(ctx), ch),
 		Tools:     toolList,
-		Structure: e.structureText(),
+		Structure: structure,
 		Profile:   clipProfile(profile, e.cfg.Memory.MaxProfileChars),
 		Examples:  prompt.Examples(e.lang(ctx), toolList),
 	}, nil
@@ -48,22 +53,23 @@ func (e *Engine) currentPersona() string {
 	return e.cfg.Prompt.Persona
 }
 
-// structureText is layer 4: Home Assistant's Assist prompt when there is
-// one, otherwise the agent's own block built from the registries.
+// ErrNoHousePrompt is a prompt asked for while Home Assistant's prompt is
+// missing: nothing replaces it (docs/spec/context.md, 1.2).
+var ErrNoHousePrompt = errors.New("no house structure: home assistant's prompt is missing")
+
+// structureText is layer 4, Home Assistant's Assist prompt; "" while there
+// is none.
 func (e *Engine) structureText() string {
-	if e.assist != nil {
-		if t := e.assist(); t != "" {
-			return t
-		}
+	if e.assist == nil {
+		return ""
 	}
-	return e.structure().Block
+	return e.assist()
 }
 
 // deviceHintsFor are the lines of Home Assistant's Assist prompt that depend
-// on the device asking, for the turn layer. Only while layer 4 is that
-// prompt: with the own block there is nothing to add to.
+// on the device asking, for the turn layer.
 func (e *Engine) deviceHintsFor(device string) string {
-	if e.assist == nil || e.deviceHints == nil || e.assist() == "" {
+	if e.deviceHints == nil {
 		return ""
 	}
 	return e.deviceHints(device)

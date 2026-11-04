@@ -60,13 +60,13 @@ Almost everything that is a "room" today is a property of the satellite:
 
 ## What Mira sees: exposure to Assist
 
-What Mira may see is determined by HA's "Expose to Assist". HA's own tools via MCP respect that themselves. Mira's own parts, however, talk to HA directly and must keep the same boundary: reading calendars, the checks of calendar and list, the catalog for task drafts, her own structure block and the guard.
+What Mira may see is determined by HA's "Expose to Assist". HA's own tools via MCP respect that themselves. Mira's own parts, however, talk to HA directly and must keep the same boundary: reading calendars, the checks of calendar and list, the catalog for task drafts, the house structure's name lookup and the guard.
 
 - **The integration supplies the list.** On every sync (`PUT /v1/ui/ha`) it sends, alongside persons and satellites, `exposed`: the IDs of all entities that HA exposes to Assist. It determines this the same way HA itself does (`async_should_expose`). If an exposure changes, it sends again.
 - **The agent stores the list** persistently and treats it as authoritative.
 - **The list is taken as it is** (decided 2026-11-01): what the user exposed counts, also an entity Home Assistant
   marks as diagnostic or configuration (the GitHub integration's stars, for example) or hides. Mira filters nothing
-  away from it; before, her structure block silently left out such entities.
+  away from it; before, her own structure block (gone since 2026-11-05) silently left out such entities.
 - **Without this list nothing counts as exposed,** and Mira does not act.
   - The agent does not ask HA itself: the exposure list can only be read by an admin, and Mira's user deliberately has no admin rights. There is also no fallback to entity options or to "everything".
   - Without the list the house plan is empty, as is the selection for tasks, calendars and lists.

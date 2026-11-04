@@ -15,6 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
+	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 )
 
 func waitUntil(t *testing.T, what string, cond func() bool) {
@@ -40,6 +41,10 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 
 	ha := fakeha.New()
 	defer ha.Close()
+	// Home Assistant's MCP server: Mira does not answer without its prompt.
+	haMCP := fakemcp.HA("")
+	haMCP.Token = ha.Token
+	defer haMCP.Close()
 	ha.SetRegistry(
 		[]haws.Area{{AreaID: "bad", Name: "Bad"}},
 		[]haws.Device{{ID: "dev-sat-bad", AreaID: "bad", Name: "Echo Bad"}},
@@ -61,6 +66,7 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 	cfg.Store.Path = filepath.Join(t.TempDir(), "mira.db")
 	seedExposed(t, cfg.Store.Path, "assist_satellite.bad", "sensor.inverter_status")
 	cfg.HA = config.HA{URL: ha.URL, Token: ha.Token, StructureDebounce: config.Duration(time.Second)}
+	cfg.MCPServers = []config.MCPServer{{Name: "ha", Transport: config.TransportHTTP, URL: haMCP.Endpoint(), Token: ha.Token}}
 	cfg.Telemetry.LogLevel = "error"
 	cfg.Satellites = map[string]config.Entities{"bad": {"assist_satellite.bad"}}
 	cfg.Persons = map[string]config.Person{"ben": {Entity: "person.ben"}}

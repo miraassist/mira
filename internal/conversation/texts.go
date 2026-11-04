@@ -27,6 +27,8 @@ type texts struct {
 	// longer than the conversation waits.
 	delegateLater string
 	waitingForHA  string
+	// noHousePrompt answers a turn without Home Assistant's prompt.
+	noHousePrompt string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -43,6 +45,7 @@ var catalog = map[i18n.Lang]texts{
 		delegated:       "Abgegebene Aufgabe: Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
 		delegateLater:   "Ergebnis: braucht länger, läuft im Hintergrund weiter. Das Ergebnis kommt als Nachricht, sobald es da ist.",
 		waitingForHA:    "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
+		noHousePrompt:   "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt.",
 	},
 	i18n.EN: {
 		voiceInArea:     "Channel: voice, satellite in area %[1]s. Without a room given, area %[1]s is meant.",
@@ -57,6 +60,7 @@ var catalog = map[i18n.Lang]texts{
 		delegated:       "Delegated task: Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
 		delegateLater:   "Result: takes longer, goes on in the background. The result comes as a message as soon as it is there.",
 		waitingForHA:    "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
+		noHousePrompt:   "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why.",
 	},
 }
 

@@ -10,7 +10,6 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
-	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/telemetry"
@@ -106,13 +105,13 @@ func checkHA(ctx context.Context, cfg config.Config, tel *telemetry.Provider, re
 	}
 	report("home assistant", nil, c.Endpoint())
 
-	cache := structure.NewCache(structure.Options{Lang: i18n.Default, Source: c, Logger: tel.Logger})
+	cache := structure.NewCache(structure.Options{Source: c, Logger: tel.Logger})
 	if _, err := cache.Rebuild(ctx); err != nil {
 		report("structure", err, "")
 		return
 	}
 	snap := cache.Snapshot()
-	report("structure", nil, fmt.Sprintf("%d areas, %d exposed entities, %d bytes", snap.AreaCount, snap.EntityCount, len(snap.Block)))
+	report("structure", nil, fmt.Sprintf("%d areas, %d exposed entities", snap.AreaCount, snap.EntityCount))
 	for area, sat := range cfg.Satellites {
 		if _, ok := snap.AreaNames[area]; !ok {
 			fmt.Printf("  ! satellites: area %q (for %s) does not exist in Home Assistant\n", area, sat)

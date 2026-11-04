@@ -151,3 +151,50 @@ func TestWithoutSatellitesTheWholePromptIsLayerFour(t *testing.T) {
 		t.Errorf("layer 4 = %q, tail = %q", c.Text(), c.Tail(""))
 	}
 }
+
+// HP-02 A failed fetch is a problem until the prompt comes
+func TestHP02_AFailedFetchIsAProblemUntilThePromptComes(t *testing.T) {
+	src := &source{err: errors.New("Unknown prompt: Assist")}
+	c := New(Options{Source: src, Server: "ha"})
+	if c.Problem() != nil {
+		t.Fatal("a problem before the first fetch")
+	}
+	if _, err := c.Refresh(context.Background()); err == nil {
+		t.Fatal("error swallowed")
+	}
+	if err := c.Problem(); err == nil || err.Error() != "Unknown prompt: Assist" {
+		t.Fatalf("problem = %v", err)
+	}
+	src.text, src.err = "", nil
+	if _, err := c.Refresh(context.Background()); err == nil || c.Problem() == nil {
+		t.Fatalf("an empty prompt is no prompt: %v, %v", err, c.Problem())
+	}
+	src.text = "Static Context: Küche"
+	if _, err := c.Refresh(context.Background()); err != nil || c.Problem() != nil {
+		t.Fatalf("the prompt came: %v, problem %v", err, c.Problem())
+	}
+}
+
+// HP-04 A short outage keeps the last prompt
+func TestHP04_AShortOutageKeepsTheLastPrompt(t *testing.T) {
+	src := &source{text: "Static Context: Küche"}
+	c := New(Options{Source: src, Server: "ha"})
+	if _, err := c.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	src.err = errors.New("mcp down")
+	if _, err := c.Refresh(context.Background()); err == nil {
+		t.Fatal("error swallowed")
+	}
+	if c.Text() != "Static Context: Küche" || c.Problem() != nil {
+		t.Fatalf("text %q, problem %v", c.Text(), c.Problem())
+	}
+}
+
+// Versions that are all the same are layer 4 whole, a prompt of one line too.
+func TestSameVersionsAreSharedWhole(t *testing.T) {
+	c := New(Options{Source: &source{text: "Static Context: Küche"}, Server: "ha", Devices: func() []string { return []string{"sat-a"} }})
+	if _, err := c.Refresh(context.Background()); err != nil || c.Text() != "Static Context: Küche" || c.Tail("sat-a") != "" {
+		t.Fatalf("text %q, tail %q, %v", c.Text(), c.Tail("sat-a"), err)
+	}
+}

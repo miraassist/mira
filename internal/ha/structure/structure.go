@@ -1,14 +1,11 @@
-// Package structure turns the Home Assistant registries into prompt layer 4.
-//
-// The block lists areas, devices and exposed entities with their aliases and
-// deliberately contains no states: the model asks for those through a tool.
-// Everything here is sorted by stable keys so the same house always renders
-// to the same bytes, which is what keeps the prompt cache warm.
+// Package structure keeps what Mira needs to know of the Home Assistant
+// registries: areas, devices and exposed entities with their names and
+// aliases, for looking them up. The house structure the model reads is Home
+// Assistant's own prompt (docs/spec/context.md, 1.2); there is no text here.
 package structure
 
 import (
-	"fmt"
-	"github.com/miraassist/mira/internal/i18n"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -18,8 +15,6 @@ import (
 
 // Registry is the raw input of a build.
 type Registry struct {
-	// Lang is the language of the block's labels.
-	Lang     i18n.Lang
 	Areas    []haws.Area
 	Devices  []haws.Device
 	Entities []haws.Entity
@@ -28,11 +23,8 @@ type Registry struct {
 	Exposed map[string]bool
 }
 
-// Snapshot is a built structure block plus the lookups the rest of the agent
-// needs from the same data.
+// Snapshot is the lookups the rest of the agent needs from the registries.
 type Snapshot struct {
-	// Block is prompt layer 4.
-	Block string
 	// AreaNames maps area id to its display name.
 	AreaNames map[string]string
 	// DeviceArea maps device id to area id, which is how a voice request from
@@ -90,14 +82,6 @@ func (s Snapshot) DeviceEntity(deviceID, domain string) string {
 	return ""
 }
 
-// entityRow is one line of the block, prepared so sorting is explicit.
-type entityRow struct {
-	entityID   string
-	name       string
-	deviceName string
-	aliases    []string
-}
-
 // LabelConfirm is the id of the label "Mira: nachfragen", which the
 // integration creates; the label's name may be anything.
 const LabelConfirm = "mira_confirm"
@@ -105,10 +89,9 @@ const LabelConfirm = "mira_confirm"
 // LabelPrivate is the id of the label "Mira: privater Bereich" on areas.
 const LabelPrivate = "mira_private"
 
-// Build renders the structure block. It is a pure function of its input:
-// no clock, no randomness, no map iteration order.
+// Build makes the lookups. It is a pure function of its input: no clock, no
+// randomness, no map iteration order.
 func Build(reg Registry) Snapshot {
-	t := i18n.Pick(catalog, reg.Lang)
 	snap := Snapshot{
 		AreaNames:       make(map[string]string, len(reg.Areas)),
 		DeviceArea:      make(map[string]string, len(reg.Devices)),
@@ -151,9 +134,7 @@ func Build(reg Registry) Snapshot {
 	}
 	slices.Sort(snap.SatelliteDevices)
 
-	areaByID := make(map[string]haws.Area, len(reg.Areas))
 	for _, a := range reg.Areas {
-		areaByID[a.AreaID] = a
 		snap.AreaNames[a.AreaID] = a.Name
 		if slices.Contains(a.Labels, LabelPrivate) {
 			snap.Private[a.AreaID] = true
@@ -184,8 +165,7 @@ func Build(reg Registry) Snapshot {
 		}
 	}
 
-	// Group entities by area. The empty area id collects what has no room.
-	byArea := map[string][]entityRow{}
+	areas := map[string]bool{}
 	for _, e := range reg.Entities {
 		// The exposed list is taken as it is: what the user exposed counts,
 		// diagnostic and hidden ones too (docs/spec/ha-integration.md).
@@ -207,65 +187,18 @@ func Build(reg Registry) Snapshot {
 		if name == "" {
 			name = friendlyFromEntityID(e.EntityID)
 		}
-		row := entityRow{entityID: e.EntityID, name: name, aliases: sortedCopy(e.Aliases)}
-		// The device name only earns a mention when it adds something the
-		// entity name does not already say.
-		if dn := device.DisplayName(); dn != "" && !strings.EqualFold(dn, name) {
-			row.deviceName = dn
-		}
-		byArea[area] = append(byArea[area], row)
 		snap.EntityNames[e.EntityID] = nameKeys(e.EntityID, name, device.DisplayName(), e.Aliases)
 		snap.EntityLabel[e.EntityID] = name
-	}
-
-	areaIDs := make([]string, 0, len(byArea))
-	for id := range byArea {
-		if id != "" {
-			areaIDs = append(areaIDs, id)
+		if area != "" {
+			areas[area] = true
 		}
 	}
-	sort.Strings(areaIDs)
-
-	var b strings.Builder
-	for _, id := range areaIDs {
-		a := areaByID[id]
-		name := a.Name
-		if name == "" {
-			name = id
-		}
-		fmt.Fprintf(&b, t.area, name, id)
-		if aliases := sortedCopy(a.Aliases); len(aliases) > 0 {
-			fmt.Fprintf(&b, t.aliases, strings.Join(aliases, ", "))
-		}
-		b.WriteByte('\n')
-		writeRows(&b, t, byArea[id])
-		snap.AreaCount++
-	}
-	if rows := byArea[""]; len(rows) > 0 {
-		b.WriteString(t.noArea + "\n")
-		writeRows(&b, t, rows)
-	}
-
-	snap.Block = strings.TrimRight(b.String(), "\n")
+	snap.AreaCount = len(areas)
 	snap.EntityCount = len(snap.ExposedEntities)
 	return snap
 }
 
-func writeRows(b *strings.Builder, t texts, rows []entityRow) {
-	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
-	for _, r := range rows {
-		fmt.Fprintf(b, "  %s — %s", r.entityID, r.name)
-		if r.deviceName != "" {
-			fmt.Fprintf(b, t.device, r.deviceName)
-		}
-		if len(r.aliases) > 0 {
-			fmt.Fprintf(b, t.aliases, strings.Join(r.aliases, ", "))
-		}
-		b.WriteByte('\n')
-	}
-}
-
-// isExposed decides whether an entity belongs in the block.
+// isExposed decides whether an entity is one Mira may see.
 //
 // Only what the user exposed to Assist counts, and only the list the Mira
 // integration sent (docs/spec/ha-integration.md). Without it nothing is
@@ -291,28 +224,17 @@ func friendlyFromEntityID(entityID string) string {
 	return strings.Join(parts, " ")
 }
 
-func sortedCopy(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if s = strings.TrimSpace(s); s != "" {
-			out = append(out, s)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
 // normalizeName is the form names are compared in.
 func normalizeName(s string) string {
 	return strings.ToLower(strings.Join(strings.Fields(s), " "))
 }
 
+// nameKeys are an entity's names, its aliases sorted: the same house in any
+// order has the same names (Same).
 func nameKeys(entityID, name, deviceName string, aliases []string) []string {
 	seen := map[string]bool{}
 	var out []string
+	aliases = slices.Sorted(slices.Values(aliases))
 	for _, k := range append([]string{entityID, name, deviceName}, aliases...) {
 		if k = normalizeName(k); k != "" && !seen[k] {
 			seen[k] = true
@@ -377,10 +299,15 @@ func Domain(entityID string) string {
 	return ""
 }
 
-// texts are the labels of the structure block.
-type texts struct{ area, aliases, noArea, device string }
-
-var catalog = map[i18n.Lang]texts{
-	i18n.DE: {area: "Bereich %s (%s)", aliases: ", auch genannt: %s", noArea: "Ohne Bereich", device: ", Gerät: %s"},
-	i18n.EN: {area: "Area %s (%s)", aliases: ", also called: %s", noArea: "No area", device: ", device: %s"},
+// Same reports whether two snapshots know the same house: the same areas,
+// names, aliases, exposure, labels and satellites. Only then is a rebuild a
+// change worth fetching Home Assistant's prompt again for.
+func Same(a, b Snapshot) bool {
+	return a.ExposureKnown == b.ExposureKnown &&
+		reflect.DeepEqual(a.AreaNames, b.AreaNames) && reflect.DeepEqual(a.AreaKeys, b.AreaKeys) &&
+		reflect.DeepEqual(a.DeviceArea, b.DeviceArea) && reflect.DeepEqual(a.EntityArea, b.EntityArea) &&
+		reflect.DeepEqual(a.EntityDevice, b.EntityDevice) && reflect.DeepEqual(a.ExposedEntities, b.ExposedEntities) &&
+		reflect.DeepEqual(a.EntityNames, b.EntityNames) && reflect.DeepEqual(a.EntityLabel, b.EntityLabel) &&
+		reflect.DeepEqual(a.Confirm, b.Confirm) && reflect.DeepEqual(a.Private, b.Private) &&
+		slices.Equal(a.SatelliteDevices, b.SatelliteDevices)
 }

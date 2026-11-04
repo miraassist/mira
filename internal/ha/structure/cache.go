@@ -2,7 +2,6 @@ package structure
 
 import (
 	"context"
-	"github.com/miraassist/mira/internal/i18n"
 	"log/slog"
 	"sync"
 	"time"
@@ -10,7 +9,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
-// Registry events that invalidate the structure block.
+// Registry events that invalidate the house structure.
 var registryEvents = []string{
 	"area_registry_updated",
 	"device_registry_updated",
@@ -32,17 +31,14 @@ type Subscriber interface {
 }
 
 type Options struct {
-	// Lang is the language of the block's labels.
-	Lang       i18n.Lang
 	Source     Source
 	Subscriber Subscriber
 	// Debounce collapses a burst of registry updates — renaming ten entities
 	// in the UI should cost one rebuild, not ten.
 	Debounce time.Duration
 	Logger   *slog.Logger
-	// OnChange runs whenever the block actually changed. A rebuild that
-	// produces identical bytes does not call it: the prompt cache is still
-	// valid and there is nothing to warm up.
+	// OnChange runs whenever the house actually changed (Same). A rebuild
+	// that knows the same house does not call it.
 	OnChange func(Snapshot)
 	// Exposed, when it knows, is what Home Assistant exposes to Assist as
 	// the Mira integration sent it (docs/spec/ha-integration.md). It comes
@@ -52,7 +48,6 @@ type Options struct {
 
 // Cache holds the current structure snapshot and keeps it up to date.
 type Cache struct {
-	lang     i18n.Lang
 	src      Source
 	sub      Subscriber
 	debounce time.Duration
@@ -75,7 +70,6 @@ func NewCache(opts Options) *Cache {
 		opts.Logger = slog.Default()
 	}
 	return &Cache{
-		lang:     opts.Lang,
 		src:      opts.Source,
 		sub:      opts.Subscriber,
 		debounce: opts.Debounce,
@@ -86,7 +80,7 @@ func NewCache(opts Options) *Cache {
 	}
 }
 
-// Snapshot returns the current block. It is safe to call before the first
+// Snapshot returns the current structure. It is safe to call before the first
 // build; the zero snapshot renders as an empty layer 4.
 func (c *Cache) Snapshot() Snapshot {
 	c.mu.RLock()
@@ -95,7 +89,7 @@ func (c *Cache) Snapshot() Snapshot {
 }
 
 // Rebuild reads the registries and replaces the snapshot. It reports whether
-// the block changed.
+// the house changed.
 func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 	areas, err := c.src.Areas(ctx)
 	if err != nil {
@@ -118,17 +112,17 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 		exposed = nil
 	}
 
-	snap := Build(Registry{Lang: c.lang, Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})
+	snap := Build(Registry{Areas: areas, Devices: devices, Entities: entities, Exposed: exposed})
 
 	c.mu.Lock()
-	changed := c.snap.Block != snap.Block
+	changed := !Same(c.snap, snap)
 	c.snap = snap
 	c.mu.Unlock()
 
 	if !snap.ExposureKnown {
 		c.log.Warn("what Assist may see is not known yet; Mira waits for the integration's list")
 	}
-	c.log.Info("structure block built",
+	c.log.Info("house structure built",
 		"areas", snap.AreaCount, "entities", snap.EntityCount, "changed", changed)
 
 	if changed && c.onChange != nil {
@@ -137,7 +131,7 @@ func (c *Cache) Rebuild(ctx context.Context) (bool, error) {
 	return changed, nil
 }
 
-// Run subscribes to registry changes and rebuilds the block when they
+// Run subscribes to registry changes and rebuilds the structure when they
 // arrive, debounced. It returns when ctx ends.
 func (c *Cache) Run(ctx context.Context) error {
 	if c.sub != nil {
@@ -202,11 +196,4 @@ func (c *Cache) AreaName(areaID string) string {
 		return name
 	}
 	return areaID
-}
-
-// Block is prompt layer 4.
-func (c *Cache) Block() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.snap.Block
 }

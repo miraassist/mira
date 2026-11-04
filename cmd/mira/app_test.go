@@ -141,8 +141,8 @@ func TestAgentEndToEnd(t *testing.T) {
 	}
 	reqs := model.Requests()
 	turn := reqs[3].Request
-	if !strings.Contains(turn.Messages[0].Content, "light.kueche — Küchenlicht") {
-		t.Errorf("structure block missing from the system prompt:\n%s", turn.Messages[0].Content)
+	if !strings.Contains(turn.Messages[0].Content, "Static Context: an overview") {
+		t.Errorf("Home Assistant's prompt missing from the system prompt:\n%s", turn.Messages[0].Content)
 	}
 	if !strings.Contains(turn.Messages[len(turn.Messages)-1].Content, "Satellit im Bereich Küche") {
 		t.Error("satellite area not resolved")

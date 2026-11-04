@@ -419,6 +419,10 @@
       "title": "Der Agent {name} läuft nicht",
       "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere seine Beschreibung unter agents in der mira.yaml oder in seinem Skill. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Agent läuft."
     },
+    "ha_problem": {
+      "title": "Mira bekommt die Beschreibung des Hauses nicht",
+      "description": "Bis dahin antwortet Mira nicht. {text}\n\nMira holt sie über die Integration „Model Context Protocol“ von Home Assistant. Schau unter Einstellungen → Geräte & Dienste, ob sie eingerichtet ist und läuft. Die Meldung verschwindet hier, sobald Mira die Beschreibung wieder bekommt."
+    },
     "hook_problem": {
       "title": "Die Regel {name} ist nicht aktiv",
       "description": "Mira ist ohne sie gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald die Datei lädt."

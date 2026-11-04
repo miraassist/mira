@@ -375,11 +375,6 @@ type HA struct {
 	Token string `yaml:"token"`
 	// StructureDebounce collapses bursts of registry updates into one rebuild.
 	StructureDebounce Duration `yaml:"structure_debounce"`
-	// AssistPromptServer names the MCP server whose prompt (HA's Assist
-	// prompt) becomes layer 4: Home Assistant's own tool instructions and
-	// entity overview.
-	// Empty uses the agent's own structure block instead.
-	AssistPromptServer string `yaml:"assist_prompt_server"`
 	// AssistPromptRefresh is how often that prompt is checked for changes.
 	AssistPromptRefresh Duration `yaml:"assist_prompt_refresh"`
 }
@@ -683,7 +678,6 @@ func Default() Config {
 		Store: Store{Path: dataPath("mira.db")},
 		HA: HA{
 			StructureDebounce:   Duration(30e9), // 30s
-			AssistPromptServer:  "ha",
 			AssistPromptRefresh: Duration(5 * 60e9),
 		},
 		Sessions: Sessions{

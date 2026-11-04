@@ -1,7 +1,7 @@
 // Package fakeha is an in-process stand-in for the Home Assistant WebSocket
 // API. It performs the auth handshake, answers registry and state commands
 // from data the test sets, records service calls, and can push events into
-// live subscriptions — enough to exercise reconnects, the structure block and
+// live subscriptions — enough to exercise reconnects, the house structure and
 // the notifier without a Home Assistant instance.
 package fakeha
 

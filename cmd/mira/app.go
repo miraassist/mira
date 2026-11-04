@@ -176,9 +176,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// The config as it runs: the file; what Home Assistant sends comes
 	// after the start. Read from the start, by the web search switch too.
 	a.live = cfg
-	// What only the model reads (tool descriptions, the structure block) is
-	// built once, in the language last spoken; what is said follows each
-	// turn, area or person (docs/spec/language.md).
+	// What only the model reads (tool descriptions) is built once, in the
+	// language last spoken; what is said follows each turn, area or person
+	// (docs/spec/language.md).
 	a.langs = newLanguages(cfg, a.store, a.log)
 	a.lang = a.langs.Last(ctx)
 
@@ -255,19 +255,19 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	})
 	// Built before Home Assistant connects: the structure cache's change
 	// handler refreshes it.
-	if cfg.HA.AssistPromptServer != "" {
-		a.assist = assistprompt.New(assistprompt.Options{
-			Source: a.mcp, Server: cfg.HA.AssistPromptServer,
-			Devices: func() []string {
-				if a.structure == nil {
-					return nil
-				}
-				return a.structure.Snapshot().SatelliteDevices
-			},
-			Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
-			OnChange: func() { a.warmup("structure_changed") },
-		})
-	}
+	// Layer 4 is Home Assistant's prompt from the MCP server "ha"; nothing
+	// replaces it (docs/spec/context.md, 1.2).
+	a.assist = assistprompt.New(assistprompt.Options{
+		Source: a.mcp, Server: haServer,
+		Devices: func() []string {
+			if a.structure == nil {
+				return nil
+			}
+			return a.structure.Snapshot().SatelliteDevices
+		},
+		Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
+		OnChange: func() { a.warmup("structure_changed") },
+	})
 	if err := a.startHA(ctx); err != nil {
 		return nil, err
 	}
@@ -278,12 +278,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	a.goRun(ctx, "mcp", a.mcp.Run)
 
-	if a.assist != nil {
-		if _, err := a.assist.Refresh(ctx); err != nil {
-			a.log.Warn("no assist prompt from home assistant; using the own structure block", "error", err)
-		}
-		a.goRun(ctx, "assist-prompt", a.assist.Run)
+	if _, err := a.assist.Refresh(ctx); err != nil {
+		a.log.Error("no house structure: home assistant's prompt is missing; mira does not answer until it comes", "error", err)
 	}
+	a.goRun(ctx, "assist-prompt", a.assist.Run)
 
 	snapshot := a.structure.Snapshot
 	// The delegate tool is bound late: the engine it calls is built from the
@@ -512,12 +510,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for name, c := range a.models {
 		models[name] = c
 	}
-	var assistText func() string
-	var deviceHints func(string) string
-	if a.assist != nil {
-		assistText = a.assist.Text
-		deviceHints = a.assist.Tail
-	}
 	guard := tools.NewGuard(a.lang, cfg.Security, a.store, snapshot, a.hooks,
 		tools.WithRightOf(func(s tools.Spec) string { return agent.RightFor(s).String() }))
 	a.guard = guard
@@ -525,7 +517,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
-		Structure: snapshot, StructurePrompt: assistText, DeviceHints: deviceHints, Telemetry: tel, Logger: a.log,
+		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.Tail, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
 		Languages: a.langs,
@@ -546,7 +538,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	return a, nil
 }
 
-// startHA connects the WebSocket client and builds the structure block once
+// startHA connects the WebSocket client and builds the house structure once
 // before the first turn. HA being down is not fatal: the agent starts with an
 // empty layer 4 and fills it when the connection comes up.
 func (a *app) startHA(ctx context.Context) error {
@@ -560,7 +552,6 @@ func (a *app) startHA(ctx context.Context) error {
 		return err
 	}
 	a.structure = structure.NewCache(structure.Options{
-		Lang:   a.lang,
 		Source: a.ha, Subscriber: a.ha, Exposed: a.exposed,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
@@ -571,13 +562,9 @@ func (a *app) startHA(ctx context.Context) error {
 					go a.mcp.Refresh(context.WithoutCancel(ctx))
 				}
 			}
-			if a.assist != nil {
-				// The Assist prompt follows the registry; its own change
-				// triggers the warmup.
-				a.assist.Trigger(ctx)
-				return
-			}
-			a.warmup("structure_changed")
+			// The Assist prompt follows the registry; its own change
+			// triggers the warmup.
+			a.assist.Trigger(ctx)
 		},
 	})
 
@@ -605,7 +592,7 @@ func (a *app) startHA(ctx context.Context) error {
 			a.log.Error("initial structure build failed", "error", err)
 		}
 	} else {
-		a.log.Warn("home assistant not reachable yet; starting without the structure block")
+		a.log.Warn("home assistant not reachable yet; starting without the house structure")
 	}
 	a.goRun(ctx, "ha-structure", a.structure.Run)
 	return nil
@@ -1450,6 +1437,17 @@ func longestTimeout(cfg config.Config) time.Duration {
 // does not work right now (docs/spec/skill-mcp.md): one that cannot be
 // reached, tools a skill names that its server lacks. These come and go
 // with the server.
+// haServer is the MCP server of Home Assistant's Assist API: its tools are
+// "ha__…", its prompt is layer 4.
+const haServer = "ha"
+
+// promptProblem is the repair's text when Home Assistant's prompt is
+// missing; %v is why.
+var promptProblem = map[i18n.Lang]string{
+	i18n.DE: "Der Grund: %v",
+	i18n.EN: "The reason: %v",
+}
+
 func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
 	for _, p := range a.hooks.Problems() {
@@ -1471,6 +1469,12 @@ func (a *app) allProblems() []haconv.Problem {
 				p := skills.NewProblem(name, skills.KindOAuthExpired, a.oauth.OAuth(name).Name)
 				out = append(out, haconv.Problem{Source: "skill", Name: name, Text: p.Text(a.lang)})
 			}
+		}
+	}
+	// Without Home Assistant's prompt Mira does not answer (docs/spec/context.md, 1.2).
+	if a.assist != nil {
+		if err := a.assist.Problem(); err != nil {
+			out = append(out, haconv.Problem{Source: "ha", Name: "prompt", Text: fmt.Sprintf(i18n.Pick(promptProblem, a.lang), err)})
 		}
 	}
 	if a.mcp == nil {

@@ -69,3 +69,27 @@ async def test_hook_problem_is_a_repair_of_its_own(hass, aioclient_mock, entry):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
     await entry.runtime_data.coordinator.async_refresh()
     assert registry.async_get_issue(DOMAIN, "hook_tuer.star") is None
+
+
+# HP-06 The repair for the source ha comes and goes
+async def test_hp06_the_repair_for_the_source_ha_comes_and_goes(hass, aioclient_mock, entry):
+    # Given the Mira service reports the problem "prompt" of the source "ha"
+    problem = {"source": "ha", "name": "prompt", "text": "Der Grund: Unknown prompt: Assist"}
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Then Home Assistant shows the repair that Mira does not get the description of the house
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "ha_prompt")
+    assert issue is not None and issue.translation_key == "ha_problem"
+    assert issue.translation_placeholders == {"name": "prompt", "text": problem["text"]}
+
+    # When the problem is gone from the status
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    # Then the repair is gone
+    assert registry.async_get_issue(DOMAIN, "ha_prompt") is None

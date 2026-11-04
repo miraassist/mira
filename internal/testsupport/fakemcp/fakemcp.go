@@ -206,6 +206,9 @@ func HA(liveContext string) *Server {
 		func(map[string]any) (string, bool) { return `{"success":true}`, false })
 	s.AddTool("HassTurnOff", "Turns off/closes a device or entity. For locks, this performs an 'unlock' action.", intentSchema, false,
 		func(map[string]any) (string, bool) { return `{"success":true}`, false })
+	// Its one prompt, named after the LLM API as Home Assistant 2026.11 does;
+	// Mira does not answer without it (docs/spec/context.md, 1.2).
+	s.SetPrompt("Device control", "Static Context: an overview of the areas and the devices in this smart home.")
 	return s
 }
 

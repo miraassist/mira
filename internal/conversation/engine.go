@@ -116,8 +116,9 @@ type Options struct {
 	// Agents runs the agents the engine calls (delegate, skill.task).
 	Agents    *agent.Runtime
 	Structure func() structure.Snapshot
-	// StructurePrompt, when it returns text, replaces the structure block in
-	// layer 4: Home Assistant's own Assist prompt.
+	// StructurePrompt is layer 4: Home Assistant's own Assist prompt, ""
+	// while there is none. Nothing replaces it: without it the engine does
+	// not answer (docs/spec/context.md, 1.2).
 	StructurePrompt func() string
 	// DeviceHints returns the lines Home Assistant's Assist prompt adds for a
 	// satellite ("" for none); they go into the turn layer, not layer 4.
@@ -375,6 +376,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			lang = e.languages.Turn(ctx, req.Language, "", "")
 		}
 		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).waitingForHA}, nil
+	}
+	if e.structureText() == "" {
+		e.log.Warn("turn refused: no house structure from home assistant's prompt", "session", key)
+		lang := e.lang(ctx)
+		if e.languages != nil {
+			lang = e.languages.Turn(ctx, req.Language, "", "")
+		}
+		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noHousePrompt}, nil
 	}
 
 	sess, err := e.openSession(ctx, key, req, ts.Area)

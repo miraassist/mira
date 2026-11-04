@@ -103,7 +103,7 @@ func newHouse(t *testing.T, privacy string, delay time.Duration) *house {
 		}
 		return snap
 	}
-	h.engine = conversation.New(conversation.Options{
+	h.engine = conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: h.model, Store: st, Tools: tools.NewRegistry(nil), Structure: snapshot,
 		Identify: func(context.Context, conversation.Request) (string, string) { return h.person, "" },
 		Thread: func(_ context.Context, _ store.Session, place string, _ []string, _ string) (string, bool) {

@@ -107,7 +107,7 @@ func (e Entity) DisplayName() string {
 }
 
 // Usable reports whether the entity is something the agent should ever see:
-// disabled, hidden and diagnostic entities are noise in the structure block.
+// disabled, hidden and diagnostic entities are noise in the house structure.
 func (e Entity) Usable() bool {
 	return e.DisabledBy == "" && e.HiddenBy == "" && e.EntityCat == ""
 }

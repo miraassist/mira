@@ -1,6 +1,6 @@
 # Context – Spec
 
-Status 2026-10-20: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
+Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
 
 The **context** is everything the model sees with a request. Mira does two things with it:
 - **Composition**: what goes into the context window in which order;
@@ -12,7 +12,7 @@ In this order (`internal/prompt`, `prompt.Build`):
 
 | # | Part | Content | changes when | Layer |
 |---|---|---|---|---|
-| 1 | **System message** | Role and rules; house structure (HA's Assist prompt, otherwise Mira's own block: areas, devices, entities without states); house profile (condensed house memory) | Rules: never; structure: device/area new or renamed; profile: nightly condensation | 1, 4, 5 |
+| 1 | **System message** | Role and rules; house structure (HA's Assist prompt; without it Mira does not answer, section 1.2); house profile (condensed house memory) | Rules: never; structure: device/area new or renamed; profile: nightly condensation | 1, 4, 5 |
 | 2 | **Tools** (own field of the request) | HA's tools via MCP, Mira's own (memory, messages, reminders, tasks, skills …), further MCP servers | Tool list changes | 3 |
 | 3 | **Example conversation** | a fixed short exchange that shows tone and tool use | never | – |
 | 4 | **Channel style** | how to reply on this channel (voice: short, without Markdown; Telegram: longer, lists, links), as a message with a fixed confirmation | never (fixed per channel) | 2 |
@@ -35,10 +35,28 @@ Properties:
 - **Assumption "at the end":** Should the difference come further forward in future, the common beginning gets shorter and more moves into the turn. That stays correct, only the cache gain shrinks. If the common part is below 90 % of the length, a warning appears in the log.
 - **Failure:** If a satellite does not answer, it keeps its old piece; if the version without a device does not answer, everything stays as it was.
 - **Without satellites** (none known) the whole prompt is part 1, as before.
-- **If Mira does not have HA's prompt** (it then uses its own structure block), there are also no hints.
+- **Without HA's prompt** Mira does not answer at all (section 1.2).
 - **Cost:** one or two lines in the turn per voice request (estimated about 40 tokens) and one extra fetch per satellite when the prompt is fetched anew (every few minutes and on changes).
 
 The same rule applies to the **tools**: the list is fetched once without a device and once as each satellite and merged, and every call carries the satellite's id, so that HA serves it like its own agents (timers, room for commands without a room; [Scheduled actions](scheduled-actions.md)). **What Home Assistant offers we do not rebuild, and nothing is lost because the context does not come along.**
+
+### 1.2 Without HA's prompt: an error
+
+Decided 2026-11-05: HA's prompt is part 1's house structure, and nothing replaces it. Until then Mira silently used its own structure block instead (areas, entities, aliases, ids). That block lacked HA's instructions for its tools, the device's lines (its area, whether it can start timers) and the names as HA's tools expect them; after Home Assistant 2026.11 renamed the prompt, Mira ran with it for hours and nobody learnt of it. The block is gone, and so is the setting `ha.assist_prompt_server`: the prompt comes from the MCP server `ha`, the one whose tools are `ha__…`.
+
+- **A turn without HA's prompt** answers with a fixed sentence and calls no model: "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt." (in English: "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why."). Every channel, voice and Telegram alike.
+- **A repair** appears in Home Assistant once a fetch of the prompt has failed and there is none: the problem `prompt` of the source `ha` in `GET /v1/status`, with the reason (Home Assistant's answer, or that its MCP server is not reachable). It goes away when the prompt comes. Before the first fetch (at startup, while the MCP server connects) there is no problem yet, only the sentence.
+- **A background job** (assessing, skill schedules, helpers) fails like a failed model call; it does not run with less.
+- **The warm-up** warms nothing then and logs it.
+- **A short outage keeps the last prompt** (as before, `internal/ha/assistprompt`): the text is Home Assistant's own, only not fetched again; a failed fetch does not empty part 1. Only a prompt that was never fetched counts as missing.
+- **Interface:** the source `ha` is new. An older integration shows it with the text of a skill's problem and does not remove it when the prompt comes back (it removes only `skill_`, `agent_` and `hook_` issues); service and integration are released together, so this is the nuisance of a mixed update only.
+- **Cost:** nothing new; the prompt is fetched as before. A turn without it costs no model call.
+
+Steps:
+1. **The service:** the own block and the setting go, the fixed sentence, the problem, background jobs and warm-up fail. Scenarios HP-01 to HP-05. Built.
+2. **The integration:** the repair text for the source `ha` (`ha_problem`), and it removes `ha_` issues that are gone. Scenario HP-06. Built.
+
+Testable rules: [context.feature](context.feature).
 
 What is not in the context: **states of devices.** The model queries them when needed via tools; the rules require that.
 
@@ -52,7 +70,7 @@ An entity reaches the model at different times by different paths, each in its o
 
 | Stage | When | What the model sees | Who renders |
 |---|---|---|---|
-| **A. Structure** | always, in the prefix (part 1, cache) | that the entity exists: name, area, type. **Never states**: they would break the cache on every change. | HA (Assist prompt) or, without it, Mira |
+| **A. Structure** | always, in the prefix (part 1, cache) | that the entity exists: name, area, type. **Never states**: they would break the cache on every change. | HA (Assist prompt) |
 | **B. Turn** | every request (part 6) | only what belongs to the place and the person: area of the satellite, waiting messages, running thread. No states of devices. | Mira |
 | **C. Query** | when the model calls a tool | **now**: `GetLiveContext` from HA, state and selected attributes. **Over time**: Mira's tools for appointments, history, forecast, list attributes (2.3). | HA or Mira |
 | **D. Background** | assessment of a task (`mira.assess`, `mira.decide`) | a condensed view for exactly one question (`data[].view`, see [Tasks](tasks.md)) | Mira |

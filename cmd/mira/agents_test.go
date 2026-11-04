@@ -82,7 +82,7 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil))
 	a.agents = a.newAgents(registry, guard)
 	a.engine = conversation.New(conversation.Options{Config: cfg, LLM: a.llm, Store: st, Tools: registry,
-		Guard: guard, Agents: a.agents, Logger: quiet})
+		Guard: guard, Agents: a.agents, Logger: quiet, StructurePrompt: func() string { return "Static Context: Küche" }})
 	a.notifier = notifier.New(notifier.Options{Config: cfg, Store: st, HA: quietHA{}, Logger: quiet,
 		Composer: a.notifyCompose})
 	return a, ha, model

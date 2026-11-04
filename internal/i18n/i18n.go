@@ -9,8 +9,8 @@
 // Which language applies when is docs/spec/language.md: in a conversation
 // the one Home Assistant sends, otherwise the one last spoken (package
 // language). It travels in the context; what reads only the model (tool
-// descriptions, the structure block) is built once in the language at the
-// start, except the skills' texts, which follow the turn
+// descriptions) is built once in the language at the start, except the
+// skills' texts, which follow the turn
 // (docs/spec/skill-languages.md). The web UI picks its language from the
 // browser.
 package i18n

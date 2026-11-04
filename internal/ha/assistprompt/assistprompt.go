@@ -5,6 +5,9 @@
 // until 2026.10, "Device control" since 2026.11). It becomes layer 4, so the
 // model sees the house exactly the way the Assist tools expect it.
 //
+// Nothing replaces the prompt: without it Mira does not answer, and a failed
+// fetch is a problem until it comes (docs/spec/context.md, 1.2).
+//
 // The text has no states and no time in it, so it is stable between requests.
 // It is fetched again when the structure changes, when the MCP server comes
 // back, and on a timer — exposing an entity changes the text without any
@@ -22,6 +25,7 @@ package assistprompt
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -63,6 +67,7 @@ type Cache struct {
 	base    string
 	tails   map[string]string // by device; "" is the version without one
 	fetched bool
+	err     error // of the last fetch of the version without a device
 }
 
 func New(opts Options) *Cache {
@@ -76,12 +81,25 @@ func New(opts Options) *Cache {
 }
 
 // Text is layer 4: what every version of the prompt has in common, or "" if
-// it was never fetched. The caller falls back to its own structure block
-// then.
+// it was never fetched.
 func (c *Cache) Text() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.base
+}
+
+// Problem is why there is no prompt: the error of the last fetch while none
+// was ever fetched; nil while there is one, and before the first fetch.
+func (c *Cache) Problem() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	switch {
+	case c.base != "":
+		return nil
+	case c.err == nil && c.fetched:
+		return errors.New("the versions of home assistant's prompt share no line")
+	}
+	return c.err
 }
 
 // Tail is what Home Assistant adds for that device, to go into the turn
@@ -102,6 +120,12 @@ func (c *Cache) Tail(device string) string {
 // tail.
 func (c *Cache) Refresh(ctx context.Context) (bool, error) {
 	plain, err := c.opts.Source.PromptAs(ctx, c.opts.Server, c.opts.Name, "")
+	if err == nil && strings.TrimSpace(plain) == "" {
+		err = errors.New("home assistant served an empty prompt")
+	}
+	c.mu.Lock()
+	c.err = err
+	c.mu.Unlock()
 	if err != nil {
 		return false, err
 	}
@@ -148,14 +172,18 @@ func (c *Cache) Refresh(ctx context.Context) (bool, error) {
 }
 
 // sharedStart is what all versions begin with, cut at a line end so no line
-// is split between layer 4 and the turn.
+// is split between layer 4 and the turn. Versions that are all the same are
+// shared whole.
 func sharedStart(versions map[string]string) string {
 	var first string
-	set := false
+	set, differ := false, false
 	for _, v := range versions {
 		if !set {
 			first, set = v, true
 			continue
+		}
+		if v != first {
+			differ = true
 		}
 		n := 0
 		for n < len(first) && n < len(v) && first[n] == v[n] {
@@ -163,7 +191,7 @@ func sharedStart(versions map[string]string) string {
 		}
 		first = first[:n]
 	}
-	if len(versions) == 1 {
+	if !differ {
 		return first
 	}
 	if i := strings.LastIndexByte(first, '\n'); i >= 0 {

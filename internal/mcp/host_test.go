@@ -192,7 +192,7 @@ func TestPromptQualifiesToolNames(t *testing.T) {
 func TestPromptWithoutANameTakesTheServersPrompt(t *testing.T) {
 	ha := fakemcp.HA("ok")
 	ha.SetPrompt("Device control", "Use HassTurnOn.")
-	none := fakemcp.HA("ok")
+	none := fakemcp.Search("ok")
 	t.Cleanup(ha.Close)
 	t.Cleanup(none.Close)
 	h := start(t, mcp.Options{Servers: []config.MCPServer{

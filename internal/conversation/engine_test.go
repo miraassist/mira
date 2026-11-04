@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/prompt"
@@ -56,7 +57,12 @@ type harness struct {
 	logs *syncBuffer
 	// identify, when set, says who speaks instead of the default below.
 	identify func(context.Context, conversation.Request) (string, string)
+	// housePrompt is Home Assistant's prompt, layer 4; "" is none.
+	housePrompt string
 }
+
+// harnessHousePrompt is Home Assistant's prompt in the harness.
+const harnessHousePrompt = "Static Context: An overview of the areas and the devices in this smart home:\n- names: Küchenlicht\n  domain: light\n  areas: Küche"
 
 // syncBuffer is a log sink safe for the engine's goroutines.
 type syncBuffer struct {
@@ -106,7 +112,7 @@ func newHarnessWith(t *testing.T, mutate func(*config.Config), script ...fakellm
 // newHarnessTools adds internal tools of the test's own.
 func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.InternalTool, script ...fakellm.Step) *harness {
 	t.Helper()
-	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &syncBuffer{}}
+	h := &harness{clock: &clock{now: time.Date(2026, 10, 14, 7, 12, 0, 0, time.UTC)}, logs: &syncBuffer{}, housePrompt: harnessHousePrompt}
 
 	h.llm = fakellm.New(script...)
 	t.Cleanup(h.llm.Close)
@@ -148,16 +154,17 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 
 	registry := tools.NewRegistry(host, append(tools.Internal(i18n.DE, h.store, nil), extra...)...)
 	h.engine = conversation.New(conversation.Options{
-		Config:    cfg,
-		LLM:       llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),
-		Store:     h.store,
-		Tools:     registry,
-		Guard:     tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot, hooks.Load("", i18n.DE, nil)),
-		Structure: houseSnapshot,
-		Logger:    slog.New(slog.NewTextHandler(h.logs, nil)),
-		Clock:     h.clock.Now,
-		Location:  time.UTC,
-		Languages: harnessLanguages,
+		Config:          cfg,
+		LLM:             llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}),
+		Store:           h.store,
+		Tools:           registry,
+		Guard:           tools.NewGuard(i18n.DE, cfg.Security, h.store, houseSnapshot, hooks.Load("", i18n.DE, nil)),
+		Structure:       houseSnapshot,
+		StructurePrompt: func() string { return h.housePrompt },
+		Logger:          slog.New(slog.NewTextHandler(h.logs, nil)),
+		Clock:           h.clock.Now,
+		Location:        time.UTC,
+		Languages:       harnessLanguages,
 		// Telegram chat 42 is Anna; everyone else is unknown.
 		Identify: func(ctx context.Context, req conversation.Request) (string, string) {
 			if h.identify != nil {
@@ -241,8 +248,8 @@ func TestTelegramSwitchesLightAndReadsSensor(t *testing.T) {
 			t.Errorf("layer 7 lacks %q:\n%s", want, user.Content)
 		}
 	}
-	if !strings.Contains(first.Messages[0].Content, "light.kueche — Küchenlicht") {
-		t.Error("system message lacks the structure block")
+	if !strings.Contains(first.Messages[0].Content, harnessHousePrompt) {
+		t.Error("system message lacks Home Assistant's prompt")
 	}
 }
 
@@ -705,27 +712,52 @@ func TestBackgroundAgentUsesTheBackgroundSlotWithoutTools(t *testing.T) {
 	}
 }
 
-func TestAssistPromptReplacesTheStructureBlock(t *testing.T) {
+// Layer 4 is Home Assistant's prompt as it is.
+func TestHomeAssistantsPromptIsLayerFour(t *testing.T) {
 	h := newHarness(t)
-	ctx := context.Background()
-	own, err := h.engine.Prefix(ctx, config.ChannelVoice)
-	if err != nil || !strings.Contains(own.Structure, "light.kueche") {
-		t.Fatalf("own block expected without assist prompt: %q, %v", own.Structure, err)
+	p, err := h.engine.Prefix(context.Background(), config.ChannelVoice)
+	if err != nil || p.Structure != harnessHousePrompt {
+		t.Fatalf("layer 4 = %q, %v", p.Structure, err)
 	}
+}
 
-	assist := ""
-	e := conversation.New(conversation.Options{
-		Config: config.Default(), Store: h.store, Tools: tools.NewRegistry(nil),
-		Structure: houseSnapshot, StructurePrompt: func() string { return assist }, Logger: quietLogger(),
-	})
-	p, _ := e.Prefix(ctx, config.ChannelVoice)
-	if !strings.Contains(p.Structure, "light.kueche") {
-		t.Error("an empty assist prompt must fall back to the own block")
+// HP-01 A turn without Home Assistant's prompt answers with a fixed sentence
+func TestHP01_ATurnWithoutHomeAssistantsPromptAnswersWithAFixedSentence(t *testing.T) {
+	// Given Home Assistant's prompt was never fetched
+	h := newHarness(t, fakellm.Step{Content: "Das Licht ist an."})
+	h.housePrompt = ""
+	// When someone speaks to Mira
+	res, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "v1", Text: "Mach das Licht an", Language: "de"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	assist = "Static Context: An overview of the areas and the devices in this smart home:\n- names: Küchenlicht"
-	p, _ = e.Prefix(ctx, config.ChannelVoice)
-	if p.Structure != assist {
-		t.Errorf("layer 4 = %q", p.Structure)
+	// Then Mira answers that the description of the house is missing and Repairs say why
+	if !strings.Contains(res.Text, "Beschreibung des Hauses") || !strings.Contains(res.Text, "Reparaturen") {
+		t.Errorf("answer = %q", res.Text)
+	}
+	// And no model is called
+	if n := len(h.llm.Requests()); n != 0 {
+		t.Errorf("model called %d times", n)
+	}
+	if _, err := h.engine.Prefix(context.Background(), config.ChannelVoice); !errors.Is(err, conversation.ErrNoHousePrompt) {
+		t.Errorf("a prompt without layer 4: %v", err)
+	}
+}
+
+// HP-03 A background job without Home Assistant's prompt fails
+func TestHP03_ABackgroundJobWithoutHomeAssistantsPromptFails(t *testing.T) {
+	// Given Home Assistant's prompt was never fetched
+	h := newHarness(t, fakellm.Step{Content: "{}"})
+	h.housePrompt = ""
+	// When a background job runs
+	_, err := h.engine.BackgroundContext(context.Background(), agent.CallContext{}, "Beurteile.", "Eingabe")
+	// Then it fails and no model is called
+	if !errors.Is(err, conversation.ErrNoHousePrompt) {
+		t.Errorf("background context = %v", err)
+	}
+	if n := len(h.llm.Requests()); n != 0 {
+		t.Errorf("model called %d times", n)
 	}
 }
 
@@ -861,17 +893,5 @@ func TestDeviceLinesGoInTheTurnAndNotInLayerFour(t *testing.T) {
 	}
 	if got := lastContent(reqs[1].Request.Messages); !strings.Contains(got, "This device is not able to start timers.") {
 		t.Errorf("turn without a device: %s", got)
-	}
-	// With the own structure block (no Assist prompt) there is nothing to add to.
-	own := conversation.New(conversation.Options{
-		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
-		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
-		StructurePrompt: func() string { return "" }, DeviceHints: func(string) string { return "hint" },
-	})
-	if _, err := own.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice, ConversationID: "v3", Text: "Hallo", Language: "de"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := lastContent(h.llm.Requests()[2].Request.Messages); strings.Contains(got, "hint") {
-		t.Errorf("hints without the Assist prompt: %s", got)
 	}
 }

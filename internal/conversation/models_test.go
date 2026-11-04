@@ -92,7 +92,7 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 		},
 		Logger: quietLogger(),
 	})
-	engine = conversation.New(conversation.Options{
+	engine = conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg,
 		LLM:    mainClient,
 		Models: map[string]conversation.Chatter{"smart": smartClient},
@@ -240,7 +240,7 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 	}
 	defer st.Close()
 	cfg := config.Default()
-	engine := conversation.New(conversation.Options{
+	engine := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "local"}),
 		Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
 		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil)),

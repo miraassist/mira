@@ -31,7 +31,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	waiting := "Übrigens: Heute hast du einen Zahnarzttermin."
 	internal := append(tools.Internal(i18n.DE, st, nil),
 		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (string, error) { return "Nichts.", nil }))
-	e := conversation.New(conversation.Options{
+	e := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
 		Tools: tools.NewRegistry(nil, internal...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: houseSnapshot, Logger: quietLogger(), Location: time.UTC,

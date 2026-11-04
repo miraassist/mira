@@ -150,7 +150,7 @@ func TestST05_UebrigensComesAsTheLastPiece(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	e := conversation.New(conversation.Options{
+	e := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
 		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: houseSnapshot, Logger: quietLogger(), Location: time.UTC,

@@ -3,6 +3,7 @@ package structure
 import (
 	"context"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -41,23 +42,16 @@ func sampleRegistry() Registry {
 	}
 }
 
-func TestBuildRendersAreasEntitiesAndAliases(t *testing.T) {
+func TestBuildKnowsAreasEntitiesAndAliases(t *testing.T) {
 	snap := Build(sampleRegistry())
-	want := strings.Join([]string{
-		"Bereich Bad (bad)",
-		"  light.bad — Bad",
-		"  sensor.bad_diag — Diag",
-		"  switch.hidden — Versteckt",
-		"Bereich Keller (keller)",
-		"  sensor.inverter_status — Status, Gerät: Solar-WR",
-		"Bereich Küche (kueche), auch genannt: Kochecke",
-		"  light.kueche_decke — Deckenlicht, auch genannt: Decke, Hauptlicht",
-		"  sensor.kueche_temp — Temperatur, Gerät: Voice PE",
-		"Ohne Bereich",
-		"  lock.haustuer — Haustür",
-	}, "\n")
-	if snap.Block != want {
-		t.Fatalf("block mismatch\n got:\n%s\nwant:\n%s", snap.Block, want)
+	if got := snap.EntityNames["light.kueche_decke"]; !slices.Equal(got, []string{"light.kueche_decke", "deckenlicht", "decke", "hauptlicht"}) {
+		t.Errorf("names of light.kueche_decke = %v", got)
+	}
+	if got := snap.EntityNames["sensor.inverter_status"]; !slices.Contains(got, "solar-wr") {
+		t.Errorf("the device name is a name too: %v", got)
+	}
+	if snap.EntityLabel["sensor.kueche_temp"] != "Temperatur" || snap.AreaKeys["kochecke"] != "kueche" {
+		t.Errorf("label %q, area alias %q", snap.EntityLabel["sensor.kueche_temp"], snap.AreaKeys["kochecke"])
 	}
 	if snap.AreaCount != 3 || snap.EntityCount != 7 {
 		t.Errorf("counts = %d areas, %d entities", snap.AreaCount, snap.EntityCount)
@@ -76,19 +70,19 @@ func TestBuildRendersAreasEntitiesAndAliases(t *testing.T) {
 	}
 	// Only what is not exposed stays out; an exposed diagnostic or hidden
 	// entity is in (the list is taken as it is).
-	if snap.ExposedEntities["light.secret"] || strings.Contains(snap.Block, "light.secret") {
-		t.Error("light.secret is not exposed, but in the block")
+	if snap.ExposedEntities["light.secret"] || snap.EntityNames["light.secret"] != nil {
+		t.Error("light.secret is not exposed, but known")
 	}
 	for _, id := range []string{"sensor.bad_diag", "switch.hidden"} {
 		if !snap.ExposedEntities[id] {
-			t.Errorf("%s is exposed, but not in the block", id)
+			t.Errorf("%s is exposed, but not known", id)
 		}
 	}
 }
 
-// The cache invariant: the same house in any order renders to the same bytes.
+// The same house in any order is the same house: no change is reported.
 func TestBuildIsIndependentOfInputOrder(t *testing.T) {
-	want := Build(sampleRegistry()).Block
+	want := Build(sampleRegistry())
 	rng := rand.New(rand.NewSource(1))
 	for i := 0; i < 50; i++ {
 		reg := sampleRegistry()
@@ -99,8 +93,8 @@ func TestBuildIsIndependentOfInputOrder(t *testing.T) {
 			al := reg.Entities[j].Aliases
 			rng.Shuffle(len(al), func(a, b int) { al[a], al[b] = al[b], al[a] })
 		}
-		if got := Build(reg).Block; got != want {
-			t.Fatalf("shuffle %d changed the block:\n%s", i, got)
+		if got := Build(reg); !Same(got, want) {
+			t.Fatalf("shuffle %d changed the house: %v", i, got.EntityNames)
 		}
 	}
 }
@@ -117,8 +111,8 @@ func TestBuildWithoutExposureListListsNothing(t *testing.T) {
 	if snap.ExposureKnown {
 		t.Error("ExposureKnown = true without an exposure list")
 	}
-	if len(snap.ExposedEntities) != 0 || strings.Contains(snap.Block, "light.bad") {
-		t.Errorf("listed without a list: %v\n%s", snap.ExposedEntities, snap.Block)
+	if len(snap.ExposedEntities) != 0 || snap.EntityNames["light.bad"] != nil {
+		t.Errorf("listed without a list: %v", snap.ExposedEntities)
 	}
 }
 func TestFriendlyFromEntityID(t *testing.T) {
@@ -178,7 +172,7 @@ func (f *fakeSubscriber) fire(ev string) bool {
 	return true
 }
 
-func TestRebuildCallsOnChangeOnlyWhenTheBlockChanged(t *testing.T) {
+func TestRebuildCallsOnChangeOnlyWhenTheHouseChanged(t *testing.T) {
 	src := &fakeSource{}
 	src.set(sampleRegistry())
 	var changes atomic.Int32
@@ -199,10 +193,10 @@ func TestRebuildCallsOnChangeOnlyWhenTheBlockChanged(t *testing.T) {
 	reg.Areas[0].Name = "Wohnküche"
 	src.set(reg)
 	if changed, _ := c.Rebuild(ctx); !changed {
-		t.Fatal("renamed area did not change the block")
+		t.Fatal("renamed area did not change the house")
 	}
-	if !strings.Contains(c.Block(), "Wohnküche") || changes.Load() != 2 {
-		t.Fatalf("block or OnChange not updated: %d\n%s", changes.Load(), c.Block())
+	if c.Snapshot().AreaNames["kueche"] != "Wohnküche" || changes.Load() != 2 {
+		t.Fatalf("structure or OnChange not updated: %d, %v", changes.Load(), c.Snapshot().AreaNames)
 	}
 	if id, name, ok := c.AreaForDevice("sat-kueche"); !ok || id != "kueche" || name != "Wohnküche" {
 		t.Errorf("AreaForDevice = %q %q %v", id, name, ok)
@@ -219,8 +213,8 @@ func TestRebuildWithoutTheIntegrationsListShowsNothing(t *testing.T) {
 	if c.Snapshot().ExposureKnown {
 		t.Error("ExposureKnown must be false before the integration sent the list")
 	}
-	if strings.Contains(c.Block(), "light.bad") || len(c.Snapshot().ExposedEntities) != 0 {
-		t.Errorf("nothing may be listed without the list:\n%s", c.Block())
+	if len(c.Snapshot().ExposedEntities) != 0 {
+		t.Errorf("nothing may be listed without the list: %v", c.Snapshot().ExposedEntities)
 	}
 }
 
@@ -281,8 +275,8 @@ func TestRegistryEventsAreDebounced(t *testing.T) {
 
 	select {
 	case s := <-changed:
-		if !strings.Contains(s.Block, "Großes Licht") {
-			t.Fatalf("rebuilt block lacks the new alias:\n%s", s.Block)
+		if !slices.Contains(s.EntityNames[reg.Entities[0].EntityID], "großes licht") {
+			t.Fatalf("rebuilt structure lacks the new alias: %v", s.EntityNames)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no rebuild after registry events")
