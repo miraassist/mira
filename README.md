@@ -12,9 +12,9 @@
 
 Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
 
-[![Install with HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=miraassist&repository=mira&category=integration)
+[![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=miraassist&repository=mira&category=integration)
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz) [![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
+[![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
 
 # Mira
 
@@ -31,7 +31,7 @@ This repository holds both parts, released together under one version:
 | Part | Where | What it does |
 | --- | --- | --- |
 | Agent (Go) | `cmd/mira`, `internal/` | Prompting, tools, memory, messages, security policy |
-| Integration (HACS) | `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the agent |
+| Integration (Marketplace) | `custom_components/mira` | Thin Assist conversation agent that forwards each turn to the agent |
 
 The integration does not use Home Assistant's LLM API and runs no tools. All
 logic lives in the agent.
@@ -41,7 +41,7 @@ logic lives in the agent.
 No config file, three steps (details and troubleshooting in the guide:
 [Deutsch](docs/guide/de.md#einrichtung) · [English](docs/guide/en.md#setup)):
 
-1. **Install the integration** with the HACS button above, restart Home Assistant.
+1. **Install the integration** with the Marketplace button above, restart Home Assistant.
 2. **Start the agent** on a machine with Docker in your home network:
    ```sh
    docker run -d --name mira --restart unless-stopped --network host --user nonroot \
@@ -173,7 +173,7 @@ an urgent message. These rules are enforced in code, not only in the prompt.
 
 ## Integration
 
-1. Click **Install with HACS** above, or HACS → Custom repositories → `https://github.com/miraassist/mira`, type Integration.
+1. Click **Open in the Marketplace** above, or Settings → Marketplace → **Add from link** → `https://github.com/miraassist/mira`. The first time, the Marketplace asks to connect GitHub. Before Home Assistant 2026.11: HACS → Custom repositories, the same address, type Integration.
 2. Install **Mira**, restart Home Assistant.
 3. Settings → Devices & services: the agent announces itself by mDNS
    (`_mira._tcp`, `server.announce`) and shows up under **Discovered**;

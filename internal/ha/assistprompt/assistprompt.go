@@ -1,7 +1,8 @@
 // Package assistprompt keeps Home Assistant's own Assist prompt: the tool
 // instructions and the overview of exposed entities (names, aliases, domain,
 // area; no states) that HA gives its built-in LLM agents. Home Assistant's
-// MCP server serves it as the prompt "Assist". It becomes layer 4, so the
+// MCP server serves it as its one prompt, named after the LLM API ("Assist"
+// until 2026.10, "Device control" since 2026.11). It becomes layer 4, so the
 // model sees the house exactly the way the Assist tools expect it.
 //
 // The text has no states and no time in it, so it is stable between requests.
@@ -36,7 +37,7 @@ type Source interface {
 type Options struct {
 	Source Source
 	Server string
-	Name   string // "Assist"
+	Name   string // "" for the server's prompt, whatever its name
 	// Devices are the voice satellites' device ids; the prompt is fetched
 	// as each of them.
 	Devices func() []string
@@ -67,9 +68,6 @@ type Cache struct {
 func New(opts Options) *Cache {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
-	}
-	if opts.Name == "" {
-		opts.Name = "Assist"
 	}
 	if opts.Interval == 0 {
 		opts.Interval = 5 * time.Minute

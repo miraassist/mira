@@ -1,6 +1,6 @@
 name: Release
 
-# Agent and integration share one version. A tag vX.Y.Z releases both: HACS
+# Agent and integration share one version. A tag vX.Y.Z releases both: the Marketplace
 # picks the tag up for the integration, the agent binaries are attached and
 # the image goes to ghcr.io/<owner>/mira (amd64, arm64). Once the image is
 # there, the Home Assistant app (app/config.yaml) gets the version, so Home

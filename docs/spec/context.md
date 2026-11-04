@@ -23,7 +23,7 @@ In this order (`internal/prompt`, `prompt.Build`):
 
 HA's Assist prompt (part 1, house structure) is not the same for every device. Home Assistant appends lines **at the end** that depend on the asking device: which area it is in ("You are in area Wohnzimmer and all generic commands … should target this area", otherwise the request to name an area) and whether it can start timers ("This device is not able to start timers", if not). HA puts this at the end because its own cache likewise depends on the same beginning. Measured (HA 2026.10): around 3.5 KB of prompt, of which only the last one or two lines depend on the device.
 
-Mira therefore fetches the prompt via MCP (`prompts/get` "Assist") **not only without a device**, otherwise it would get the "cannot do timers" version and the model would refuse timers even where the device can do them (this happened). Instead:
+Mira therefore fetches the prompt via MCP (`prompts/get` with the one prompt `prompts/list` offers: Home Assistant names it after the LLM API, "Assist" until 2026.10, "Device control" since 2026.11) **not only without a device**, otherwise it would get the "cannot do timers" version and the model would refuse timers even where the device can do them (this happened). Instead:
 
 1. It fetches it **once without a device** and **once as each satellite** (the id goes into `_meta` with `io.home-assistant/device_id`, as with the tools).
 2. **The common beginning of all versions**, up to the first difference and cut at a line boundary, is **part 1** (the prompt cache `internal/ha/assistprompt`). It is the same for all rooms and channels, so the cache behind it (tools, examples, history) is preserved.

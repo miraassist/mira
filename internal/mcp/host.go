@@ -598,6 +598,9 @@ func (h *Host) Prompt(ctx context.Context, serverName, name string) (string, err
 
 // PromptAs is Prompt as a satellite would get it: Home Assistant adds the
 // area it is in and whether it can start timers. "" asks without a device.
+// A name "" takes the server's first prompt: Home Assistant serves one per
+// LLM API and names it after the API, which it renames ("Assist" until
+// 2026.10, "Device control" since 2026.11).
 func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (string, error) {
 	s, ok := h.byName[serverName]
 	if !ok {
@@ -611,6 +614,16 @@ func (h *Host) PromptAs(ctx context.Context, serverName, name, device string) (s
 	}
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
+	if name == "" {
+		list, err := session.ListPrompts(cctx, nil)
+		if err != nil {
+			return "", fmt.Errorf("list prompts of %s: %w", serverName, err)
+		}
+		if len(list.Prompts) == 0 {
+			return "", fmt.Errorf("%s serves no prompt", serverName)
+		}
+		name = list.Prompts[0].Name
+	}
 	params := &sdk.GetPromptParams{Name: name}
 	if device != "" && s.cfg.WantsDevice() {
 		params.Meta = sdk.Meta{deviceMeta: device}

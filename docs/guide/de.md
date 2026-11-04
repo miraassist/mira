@@ -614,7 +614,7 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 - Anrufen geht nur per Sprache am Satelliten, nie per Telegram, aus Aufgaben oder Zeitplänen.
 - Die Kontakte bleiben in der FRITZ!Box; auf den Geräten landen keine.
 
-**Einrichten:** Das Telefonbuch liest Mira über die Integration [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz). Installiere sie über HACS, füge sie unter Einstellungen → Geräte & Dienste hinzu und gib Benutzer und Passwort eines eigenen FRITZ!Box-Benutzers ein; was er an Rechten braucht, steht im Formular. Dann den Skill `telefon` einschalten, am einfachsten auf Miras Seite unter Fähigkeiten → Skills → telefon → **Einschalten**; **Verbindung testen** zeigt, wie viele Kontakte Mira liest. Welche Telefonbücher gelesen werden, stellst du in den Optionen der Integration ein. Oder in der `mira.yaml`:
+**Einrichten:** Das Telefonbuch liest Mira über die Integration [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz). Installiere sie über den Marketplace wie Mira selbst (Einstellungen → Marketplace → **Über Link hinzufügen**, `https://github.com/miraassist/mira-fritz`), füge sie unter Einstellungen → Geräte & Dienste hinzu und gib Benutzer und Passwort eines eigenen FRITZ!Box-Benutzers ein; was er an Rechten braucht, steht im Formular. Dann den Skill `telefon` einschalten, am einfachsten auf Miras Seite unter Fähigkeiten → Skills → telefon → **Einschalten**; **Verbindung testen** zeigt, wie viele Kontakte Mira liest. Welche Telefonbücher gelesen werden, stellst du in den Optionen der Integration ein. Oder in der `mira.yaml`:
 
 ```yaml
 skills:
@@ -921,7 +921,7 @@ Du brauchst zwei Dinge:
 
 Eine Config-Datei brauchst du nicht. Drei Schritte:
 
-**1. Die Integration installieren.** In Home Assistant über HACS: Benutzerdefinierte Repositories → `https://github.com/miraassist/mira`, Typ Integration. **Mira** installieren, Home Assistant neu starten.
+**1. Die Integration installieren.** In Home Assistant: Einstellungen → Marketplace → **Über Link hinzufügen**, als GitHub-Link `https://github.com/miraassist/mira` eintragen, **Hinzufügen**. Beim ersten Mal fragt der Marketplace nach einer Verbindung mit GitHub: dem Link folgen, den angezeigten Code eingeben, bestätigen. Dann **Mira** öffnen, **Installieren**, Home Assistant neu starten. (Vor Home Assistant 2026.11 über HACS: Benutzerdefinierte Repositories → dieselbe Adresse, Typ Integration.)
 
 **2. Mira starten.** Mit Home Assistant OS als App: Einstellungen → Apps → App-Store → Repositories → `https://github.com/miraassist/mira` hinzufügen, dann **Mira** installieren und starten. In Schritt 3 steht Mira dann nicht unter **Entdeckt**: **Integration hinzufügen** → **Mira**, als Adresse `http://localhost:8787`.
 

@@ -187,6 +187,27 @@ func TestPromptQualifiesToolNames(t *testing.T) {
 	}
 }
 
+// Home Assistant names its prompt after the LLM API and renamed it in
+// 2026.11 ("Assist" became "Device control"): no name takes the server's.
+func TestPromptWithoutANameTakesTheServersPrompt(t *testing.T) {
+	ha := fakemcp.HA("ok")
+	ha.SetPrompt("Device control", "Use HassTurnOn.")
+	none := fakemcp.HA("ok")
+	t.Cleanup(ha.Close)
+	t.Cleanup(none.Close)
+	h := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint()},
+		{Name: "none", Transport: config.TransportHTTP, URL: none.Endpoint()},
+	}})
+	got, err := h.Prompt(context.Background(), "ha", "")
+	if err != nil || got != "Use ha__HassTurnOn." {
+		t.Fatalf("prompt = %q, %v", got, err)
+	}
+	if _, err := h.Prompt(context.Background(), "none", ""); err == nil {
+		t.Error("a server without a prompt did not fail")
+	}
+}
+
 // A remote server that restarts forgets its sessions. The next call fails
 // on the old session; Mira connects anew and repeats it once.
 func TestCallReconnectsWhenTheServerForgotTheSession(t *testing.T) {

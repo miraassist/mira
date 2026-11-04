@@ -429,7 +429,7 @@
     },
     "version_agent_newer": {
       "title": "Update the Mira integration",
-      "description": "The Mira service is version {agent}, the Mira integration only {integration}. Update the integration in HACS to {agent} and restart Home Assistant.\n\nThis message disappears once both have the same version."
+      "description": "The Mira service is version {agent}, the Mira integration only {integration}. Update the integration to {agent} under Settings → Updates (before Home Assistant 2026.11: in HACS) and restart Home Assistant.\n\nThis message disappears once both have the same version."
     },
     "satellite_no_area": {
       "title": "Mira does not know where {name} stands",

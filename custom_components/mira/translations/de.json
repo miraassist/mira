@@ -429,7 +429,7 @@
     },
     "version_agent_newer": {
       "title": "Mira-Integration aktualisieren",
-      "description": "Der Mira-Dienst hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration in HACS auf {agent} und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+      "description": "Der Mira-Dienst hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration unter Einstellungen → Updates auf {agent} (vor Home Assistant 2026.11: in HACS) und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
     },
     "satellite_no_area": {
       "title": "Mira weiß nicht, wo {name} steht",

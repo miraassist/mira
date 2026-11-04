@@ -11,7 +11,7 @@ Today a new user needs nine steps:
 
 In future there are three, and none of them requires understanding a config file or typing in a code:
 
-1. **Install Mira via HACS**, restart HA.
+1. **Install Mira via the Marketplace** (HACS before HA 2026.11), restart HA.
 2. **Start the container**, one line, without a config file:
    `docker run -d --name mira --network host -v mira-data:/var/lib/mira ghcr.io/miraassist/mira`
 3. **Add Mira under "Discovered".** An overview shows what is still missing: the AI model (LLM) and the assistants. "Start using Mira" does the rest.
