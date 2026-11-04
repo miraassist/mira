@@ -90,7 +90,23 @@ type Options struct {
 	// Home Assistant does not announce that a satellite came back with
 	// timers. 0 means every five minutes.
 	RefreshInterval time.Duration
+	// Connections give the servers with token: oauth their token
+	// (docs/spec/oauth.md); without them such a server is not connected.
+	Connections Connections
 }
+
+// Connections are the skills' logins at services, as the MCP host needs
+// them.
+type Connections interface {
+	// Connected reports whether the skill has a connection to use.
+	Connected(skill string) bool
+	// Transport adds the skill's token to the requests it allows.
+	Transport(skill string, next http.RoundTripper) http.RoundTripper
+}
+
+// ErrNoConnection: a server with token: oauth whose skill is not connected;
+// it is not tried.
+var ErrNoConnection = errors.New("the skill is not connected")
 
 // deviceMeta is the key Home Assistant's MCP server reads the requesting
 // satellite from.
@@ -136,6 +152,7 @@ type Host struct {
 	version      string
 	devices      func() []string
 	refreshEvery time.Duration
+	conns        Connections
 
 	// mu guards the aggregated view.
 	mu        sync.RWMutex
@@ -154,7 +171,8 @@ func New(opts Options) *Host {
 	if opts.CallTimeout == 0 {
 		opts.CallTimeout = 30 * time.Second
 	}
-	if opts.Connector == nil {
+	custom := opts.Connector != nil
+	if !custom {
 		opts.Connector = DialTransport
 	}
 	if opts.Version == "" {
@@ -175,6 +193,10 @@ func New(opts Options) *Host {
 		devices:      opts.Devices,
 		refreshEvery: opts.RefreshInterval,
 		toolIndex:    map[string]Tool{},
+		conns:        opts.Connections,
+	}
+	if !custom {
+		h.connect = h.dial
 	}
 	for _, name := range opts.ReadOnlyTools {
 		h.readOnly[name] = true
@@ -200,7 +222,7 @@ func (h *Host) Start(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := h.connectServer(ctx, s); err != nil {
+			if err := h.connectServer(ctx, s); err != nil && !errors.Is(err, ErrNoConnection) {
 				h.log.Warn("mcp server unreachable", "server", s.cfg.Name, "error", err)
 			}
 		}()
@@ -208,15 +230,21 @@ func (h *Host) Start(ctx context.Context) error {
 	wg.Wait()
 	h.rebuild()
 
-	if len(h.servers) == 0 {
-		return nil
-	}
+	tried := 0
 	for _, s := range h.servers {
 		if s.connected() {
 			return nil
 		}
+		s.mu.Lock()
+		if !errors.Is(s.lastErr, ErrNoConnection) {
+			tried++
+		}
+		s.mu.Unlock()
 	}
-	return fmt.Errorf("none of %d mcp servers is reachable", len(h.servers))
+	if tried == 0 {
+		return nil
+	}
+	return fmt.Errorf("none of %d mcp servers is reachable", tried)
 }
 
 // Run retries unreachable servers until ctx ends.
@@ -667,6 +695,10 @@ type Status struct {
 	// asked for and does not have.
 	Skill   string
 	Missing []string
+	// OAuth: its token is the skill's connection; while there is none it
+	// is not tried (NoConnection).
+	OAuth        bool
+	NoConnection bool
 }
 
 func (h *Host) Status() []Status {
@@ -674,7 +706,8 @@ func (h *Host) Status() []Status {
 	for _, s := range h.servers {
 		s.mu.Lock()
 		st := Status{Name: s.cfg.Name, Connected: s.session != nil, Tools: len(s.tools), Skill: s.cfg.Skill,
-			Missing: append([]string(nil), s.missing...)}
+			Missing: append([]string(nil), s.missing...), OAuth: s.cfg.OAuth,
+			NoConnection: errors.Is(s.lastErr, ErrNoConnection)}
 		if s.lastErr != nil {
 			st.Error = s.lastErr.Error()
 		}
@@ -707,6 +740,40 @@ func StdioEnv(parent, extra []string) []string {
 		}
 	}
 	return append(out, extra...)
+}
+
+// dial is the default connector: a server with token: oauth gets its
+// skill's connection, the others DialTransport.
+func (h *Host) dial(ctx context.Context, client *sdk.Client, cfg config.MCPServer) (*sdk.ClientSession, error) {
+	if !cfg.OAuth {
+		return DialTransport(ctx, client, cfg)
+	}
+	if h.conns == nil || !h.conns.Connected(cfg.Skill) {
+		return nil, ErrNoConnection
+	}
+	hc := &http.Client{Transport: h.conns.Transport(cfg.Skill, http.DefaultTransport)}
+	return client.Connect(ctx, &sdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: hc}, nil)
+}
+
+// Reconnect connects a skill's server anew after its connection changed:
+// connected, it is connected at once; disconnected or expired, its session
+// and tools are dropped.
+func (h *Host) Reconnect(ctx context.Context, name string) {
+	s := h.byName[name]
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.session != nil {
+		_ = s.session.Close()
+		s.session = nil
+	}
+	s.tools, s.missing, s.lastErr = nil, nil, nil
+	s.mu.Unlock()
+	if err := h.connectServer(ctx, s); err != nil && !errors.Is(err, ErrNoConnection) {
+		h.log.Warn("mcp server unreachable", "server", name, "error", err)
+	}
+	h.rebuild()
 }
 
 // DialTransport connects with the transport the config names.

@@ -34,6 +34,7 @@ import (
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
+	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/profile"
 	"github.com/miraassist/mira/internal/prompt"
@@ -124,6 +125,7 @@ type app struct {
 	serviceCache serviceCache
 	assist       *assistprompt.Cache
 	mcp          *mcp.Host
+	oauth        *oauth.Manager
 	engine       *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
@@ -220,8 +222,19 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			servers = append(servers, *sk.MCP)
 		}
 	}
+	// The skills' connections (docs/spec/oauth.md): a change connects or
+	// drops the skill's server at once.
+	a.oauth, err = oauth.New(ctx, oauth.Options{Store: a.store, Secrets: config.DefaultSecrets(), Skills: all,
+		Logger: a.log, OnChange: func(skill string) {
+			if a.mcp != nil {
+				go a.mcp.Reconnect(context.WithoutCancel(ctx), skill)
+			}
+		}})
+	if err != nil {
+		return nil, err
+	}
 	a.mcp = mcp.New(mcp.Options{
-		Servers: servers, Logger: a.log, Version: version,
+		Servers: servers, Logger: a.log, Version: version, Connections: a.oauth,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
 		// Home Assistant's tools as each voice satellite would get them
 		// (the timers exist only for those that have them).
@@ -313,8 +326,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
-	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home}
+	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home,
+		Connection: a.oauth.State}
 	internal = append(internal, a.skills.Tools()...)
+	internal = append(internal, a.oauth.APITools(a.lang)...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 	}
@@ -1062,6 +1077,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents,
 		Backup: func(ctx context.Context, w io.Writer) error { return backup.Make(ctx, a.backupMira(), w) },
+		Logins: a.oauth,
 		Restore: func(ctx context.Context, r io.Reader) (any, error) {
 			res, err := backup.Restore(ctx, a.backupMira(), r)
 			if err != nil {
@@ -1084,7 +1100,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	uiOpts := ui.Options{
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
-		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage,
+		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a},
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))
 			for k := range a.persons() {
@@ -1447,11 +1463,21 @@ func (a *app) allProblems() []haconv.Problem {
 	if a.phonebook != nil && a.phonebook.IsOn() && a.phonebook.Status().Missing {
 		out = append(out, haconv.Problem{Source: "skill", Name: phoneSkill, Text: phone.MissingText(a.lang)})
 	}
+	// A connection the service refused to renew (docs/spec/oauth.md,
+	// Problems); one that was never made is no problem.
+	if a.oauth != nil {
+		for _, name := range a.oauth.Skills() {
+			if a.oauth.State(name) == oauth.StateExpired {
+				p := skills.NewProblem(name, skills.KindOAuthExpired, a.oauth.OAuth(name).Name)
+				out = append(out, haconv.Problem{Source: "skill", Name: name, Text: p.Text(a.lang)})
+			}
+		}
+	}
 	if a.mcp == nil {
 		return out
 	}
 	for _, st := range a.mcp.Status() {
-		if st.Skill == "" {
+		if st.Skill == "" || st.NoConnection {
 			continue
 		}
 		var p skills.Problem

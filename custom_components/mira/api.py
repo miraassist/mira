@@ -9,6 +9,7 @@ import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import aiohttp
 
@@ -404,6 +405,22 @@ class MiraClient:
             body["notifier"] = changes["notifier"]
         if body:
             await self._request("PUT", "/v1/ui/config", 10, json=body)
+
+    async def oauth_login(self, skill: str) -> dict[str, Any]:
+        """What a skill's login at a service starts with, client secret
+        included (docs/spec/oauth.md). MiraNotFound for a skill without one, or
+        an agent from before connections; MiraInvalidConfig while client id or
+        secret is missing."""
+        return await self._request("GET", f"/v1/oauth/{quote(skill, safe='')}", 10)
+
+    async def put_oauth_token(self, skill: str, token: dict[str, Any]) -> None:
+        """Hand the tokens of a finished login to the agent, once."""
+        body = {
+            k: token[k]
+            for k in ("access_token", "refresh_token", "token_type", "scope", "expires_in", "expires_at")
+            if k in token
+        }
+        await self._request("PUT", f"/v1/oauth/{quote(skill, safe='')}/token", 10, json=body)
 
     async def managed_config(self) -> dict[str, Any]:
         """Watchers, persons and rooms as the agent has them now."""

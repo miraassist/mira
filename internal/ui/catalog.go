@@ -95,8 +95,11 @@ type SkillInfo struct {
 	Schedules []ScheduleInfo `json:"schedules,omitempty"`
 	Target    *TargetInfo    `json:"target,omitempty"`
 	MCP       *MCPInfo       `json:"mcp,omitempty"`
-	Agents    []string       `json:"agents,omitempty"`
-	Guide     string         `json:"guide,omitempty"`
+	// Connection is the state of the skill's login at a service (none,
+	// connected, expired; docs/spec/oauth.md); empty for a skill without.
+	Connection string   `json:"connection,omitempty"`
+	Agents     []string `json:"agents,omitempty"`
+	Guide      string   `json:"guide,omitempty"`
 	// Chapters are how the heading of the skill's chapter in Mira's guide
 	// begins, by language ("de": "## Kochen und Backen").
 	Chapters map[string]string `json:"chapters,omitempty"`

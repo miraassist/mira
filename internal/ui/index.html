@@ -640,6 +640,28 @@ const I18N = {
   "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
   "tab_agents": "Agenten",
   "tab_hooks": "Regeln",
+  "tab_connections": "Verbindungen",
+  "conn_intro": "Manche Skills brauchen eine Anmeldung bei einem Dienst, etwa bei X. Lege dort eine App an, trag ihre Client-ID und ihr Secret hier ein und klick auf „Verbinden“.",
+  "conn_none": "Kein eingeschalteter Skill braucht eine Verbindung.",
+  "conn_state_none": "nicht verbunden",
+  "conn_state_connected": "verbunden",
+  "conn_state_expired": "abgelaufen",
+  "conn_client_id": "Client-ID",
+  "conn_client_secret": "Client-Secret",
+  "conn_redirect": "Redirect-Adresse",
+  "conn_redirect_hint": "Trag diese Adresse bei der App des Dienstes als Redirect- oder Callback-Adresse ein.",
+  "conn_connect": "Verbinden",
+  "conn_reconnect": "Neu verbinden",
+  "conn_disconnect": "Trennen",
+  "conn_disconnect_ask": "Die Verbindung mit %s trennen? Der Skill kann den Dienst dann nicht mehr nutzen.",
+  "conn_need_client": "Trag zuerst Client-ID und Client-Secret ein.",
+  "conn_open_in_ha": "Verbinden geht nur, wenn du diese Seite in Home Assistant öffnest.",
+  "conn_need_ha": "Zum Verbinden braucht es Home Assistant 2026.11 oder neuer.",
+  "conn_old_integration": "Zum Verbinden braucht es eine neuere Mira-Integration in Home Assistant.",
+  "conn_old_mira": "Für Verbindungen braucht es eine neuere Version von Mira.",
+  "conn_window": "Melde dich im neuen Fenster beim Dienst an und erlaube den Zugriff. Danach steht hier „verbunden“.",
+  "conn_row": "Verbindung",
+  "conn_open": "zu den Verbindungen",
   "hooks_intro": "Regeln entscheiden bei jedem Werkzeug, ob Mira es ausführt, erst nachfragt oder ablehnt. Deine laufen zuerst, das System hat das letzte Wort, und es gilt immer das Strengste.",
   "hooks_household": "Deine Regeln",
   "hooks_household_hint": "Mira legt sie an, wenn du sie darum bittest („Merk dir eine Regel: …“), oder du schreibst sie selbst als Datei mit der Endung .star in den Ordner hooks neben der mira.yaml. Änderungen gelten sofort. Eine Datei mit dem Namen einer Standard-Regel ersetzt sie.",
@@ -1127,6 +1149,28 @@ const I18N = {
   "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
   "tab_agents": "Agents",
   "tab_hooks": "Rules",
+  "tab_connections": "Connections",
+  "conn_intro": "Some skills need a login at a service, X for one. Create an app there, enter its client ID and secret here and click \"Connect\".",
+  "conn_none": "No skill that is on needs a connection.",
+  "conn_state_none": "not connected",
+  "conn_state_connected": "connected",
+  "conn_state_expired": "expired",
+  "conn_client_id": "Client ID",
+  "conn_client_secret": "Client secret",
+  "conn_redirect": "Redirect address",
+  "conn_redirect_hint": "Enter this address in the service's app as its redirect or callback address.",
+  "conn_connect": "Connect",
+  "conn_reconnect": "Connect again",
+  "conn_disconnect": "Disconnect",
+  "conn_disconnect_ask": "Disconnect from %s? The skill can no longer use the service then.",
+  "conn_need_client": "Enter the client ID and the client secret first.",
+  "conn_open_in_ha": "Connecting works only when you open this page in Home Assistant.",
+  "conn_need_ha": "Connecting needs Home Assistant 2026.11 or newer.",
+  "conn_old_integration": "Connecting needs a newer Mira integration in Home Assistant.",
+  "conn_old_mira": "Connections need a newer version of Mira.",
+  "conn_window": "Sign in at the service in the new window and allow the access. Then it says \"connected\" here.",
+  "conn_row": "Connection",
+  "conn_open": "to the connections",
   "hooks_intro": "Rules decide on every tool whether Mira runs it, asks first or refuses. Yours run first, the system has the last word, and the strictest always wins.",
   "hooks_household": "Your rules",
   "hooks_household_hint": "Mira makes them when you ask her (\"Remember a rule: …\"), or you write them yourself as files ending in .star in the folder hooks next to mira.yaml. Changes apply at once. A file with the name of a default rule replaces it.",
@@ -1400,12 +1444,12 @@ const I18N = {
   "when_day": "by day"
  }
 };
-const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "skills", "schedules", "agents", "models", "hooks", "guide"];
+const ALL_TABS = ["home", "me", "messages", "tasks", "plans", "memory", "rooms", "persons", "notifier", "connections", "skills", "schedules", "agents", "models", "hooks", "guide"];
 // The start page shows a card per group; inside a group its tabs are on top
 // (docs/spec/overview.md, Navigation).
 const GROUPS = [
   { id: "daily", tabs: ["messages", "tasks", "plans", "memory"] },
-  { id: "setup", tabs: ["rooms", "persons", "notifier"] },
+  { id: "setup", tabs: ["rooms", "persons", "notifier", "connections"] },
   { id: "abilities", tabs: ["skills", "schedules", "agents", "models", "hooks"] },
   { id: "help", tabs: ["guide"] },
 ];
@@ -1612,7 +1656,7 @@ function render() {
   const group = GROUPS.find(g => g.tabs.includes(tab === "person" ? "persons" : tab));
   document.documentElement.dataset.group = group ? group.id : "";
   nav();
-  const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, rooms, persons, memory, skills, schedules, agents, models, hooks, guide };
+  const views = { home, me: mine, person: personTab, messages, tasks, plans, notifier, connections, rooms, persons, memory, skills, schedules, agents, models, hooks, guide };
   $("#main").innerHTML = `<div id="msg" class="msg" hidden></div><p id="chapter-line" class="chapter-line" hidden></p><div id="view"></div>`;
   views[tab]();
   chapterLine(tab);
@@ -1795,6 +1839,72 @@ function saveNotifier() {
   n.urgent = { min_importance: num($("#urg_min").value, 3), announce: $("#urg_announce").checked };
   save({ notifier: n });
 }
+
+// ---- Verbindungen (docs/spec/oauth.md) -------------------------------------
+// Each skill with a login at a service: client id and secret (written to
+// mira.yaml and the secrets file), the redirect to enter at the service,
+// connect (inside Home Assistant, which does the login) and disconnect.
+async function connections() {
+  $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
+  let list;
+  try { list = (await api("GET", "/v1/ui/connections")).connections || []; }
+  catch (e) { $("#view").innerHTML = `<section class="card"><p class="hint">${T.conn_old_mira}</p></section>`; return; }
+  // Inside Home Assistant: can the integration and Home Assistant connect?
+  let note = embedded ? "" : T.conn_open_in_ha;
+  if (embedded) {
+    try { if (!(await haApi("GET", `${HA_BASE}/oauth`)).supported) note = T.conn_need_ha; }
+    catch (e) { note = T.conn_old_integration; }
+  }
+  const card = c => {
+    const ready = c.client_id && c.secret_set, linked = c.state !== "none";
+    const connect = !note && ready ? `<button type="button" class="primary" onclick="connectionStart('${esc(c.skill)}')">${T[linked ? "conn_reconnect" : "conn_connect"]}</button>` : "";
+    const disconnect = linked ? `<button type="button" onclick="connectionDrop('${esc(c.skill)}', '${esc(c.name)}')">${T.conn_disconnect}</button>` : "";
+    return cardItem({ kind: "skill", name: esc(c.name), short: esc(c.skill), open: true,
+      tags: badge(T["conn_state_" + c.state] || c.state, c.state !== "connected"), attrs: ` data-id="${esc(c.skill)}"` }, `
+      <form onsubmit="event.preventDefault(); connectionSave(this, '${esc(c.skill)}')">
+        <div class="grid">
+          <label>${T.conn_client_id}</label><input name="client_id" value="${esc(c.client_id)}" autocomplete="off">
+          <label>${T.conn_client_secret}</label><input name="client_secret" type="password" autocomplete="new-password"
+            placeholder="${c.secret_set ? esc(T.ed_token_keep) : ""}">
+          <label>${T.conn_redirect}</label><input value="${esc(c.redirect)}" readonly onclick="this.select()">
+        </div>
+        <p class="hint">${T.conn_redirect_hint}</p>
+        ${!ready ? `<p class="hint">${T.conn_need_client}</p>` : ""}
+        ${applyRow(connect + " " + disconnect)}
+      </form>`);
+  };
+  $("#view").innerHTML = `<section class="list-section">
+    ${listHead(T.tab_connections, list.length, T.conn_intro)}
+    ${note ? `<p class="msg">${note}</p>` : ""}
+    ${list.length ? `<div class="card-list">${list.map(card).join("")}</div>` : `<section class="card"><p class="hint">${T.conn_none}</p></section>`}
+  </section>`;
+}
+async function connectionSave(form, skill) {
+  try {
+    await api("PUT", `/v1/ui/connections/${encodeURIComponent(skill)}`,
+      { client_id: form.client_id.value.trim(), client_secret: form.client_secret.value.trim() });
+    await connections();
+    const again = document.querySelector(`details[data-id="${CSS.escape(skill)}"] form`);
+    if (again) applied(again);
+  } catch (e) { message(e.message, false); }
+}
+// connectionStart opens the window at once, on the click (else the browser
+// blocks it), and sends it to the service's login once the integration has
+// started it. The page reads the state again when it gets the focus back.
+async function connectionStart(skill) {
+  const w = window.open("", "_blank");
+  try {
+    const r = await haApi("POST", `${HA_BASE}/oauth/${encodeURIComponent(skill)}/start`);
+    if (w) w.location.href = r.url; else location.href = r.url;
+    message(T.conn_window, true);
+  } catch (e) { if (w) w.close(); message(e.message, false); }
+}
+async function connectionDrop(skill, name) {
+  if (!confirm(T.conn_disconnect_ask.replace("%s", name))) return;
+  try { await api("DELETE", `/v1/ui/connections/${encodeURIComponent(skill)}/token`); await connections(); }
+  catch (e) { message(e.message, false); }
+}
+window.addEventListener("focus", () => { if (tab === "connections") connections(); });
 
 // ---- Räume --------------------------------------------------------------
 function rooms() {
@@ -2129,7 +2239,10 @@ async function savePersonCard(form) {
 // stores them on the person or satellite (/api/mira/settings/…).
 async function haApi(method, path, body) {
   const res = await fetch(path, {
-    method, headers: { "Authorization": await authorization(), "Content-Type": "application/json" },
+    // HA-Frontend-Base: the address the page is on, for the redirect of a
+    // login when Home Assistant has no "My Home Assistant" (docs/spec/oauth.md).
+    method, headers: { "Authorization": await authorization(), "Content-Type": "application/json",
+      "HA-Frontend-Base": location.origin },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));

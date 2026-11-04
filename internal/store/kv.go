@@ -150,12 +150,13 @@ func (s *Store) DeleteKV(ctx context.Context, key string) error {
 	return err
 }
 
-// ResetForEval empties every table but the schema's and the key-value
-// settings: conversations, threads, memory, messages, judgements. Only the
+// ResetForEval empties every table but the schema's, the key-value
+// settings and the connections' tokens: conversations, threads, memory,
+// messages, judgements. Only the
 // eval runner's own agent calls it, between scenarios.
 func (s *Store) ResetForEval(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table'
-		AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND name NOT IN ('schema_migrations', 'kv')`)
+		AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND name NOT IN ('schema_migrations', 'kv', 'oauth_tokens')`)
 	if err != nil {
 		return err
 	}

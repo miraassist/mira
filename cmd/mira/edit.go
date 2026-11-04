@@ -748,6 +748,11 @@ func (e *editor) Restart() {
 // change writes secrets (when given) and then edits mira.yaml; when the edit
 // fails, the secrets go back as they were.
 func (e *editor) change(secrets map[string]string, fn func(top *yaml.Node) error) error {
+	return e.write(secrets, fn, true)
+}
+
+// write is change; restart false is for what holds at once without one.
+func (e *editor) write(secrets map[string]string, fn func(top *yaml.Node) error, restart bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var before map[string]string
@@ -770,7 +775,9 @@ func (e *editor) change(secrets map[string]string, fn func(top *yaml.Node) error
 		}
 		return err
 	}
-	e.changed = true
+	if restart {
+		e.changed = true
+	}
 	e.a.log.Info("config written on the page", "file", e.file.Path)
 	return nil
 }

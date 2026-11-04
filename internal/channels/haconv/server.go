@@ -74,7 +74,10 @@ type Options struct {
 	Agents Agents
 	// Backup writes Mira's snapshot for Home Assistant's backup, Restore
 	// puts one in place (docs/spec/backup.md); nil turns them off.
-	Backup  func(ctx context.Context, w io.Writer) error
+	Backup func(ctx context.Context, w io.Writer) error
+	// Logins are the skills' connections (docs/spec/oauth.md); nil for an
+	// agent without them, whose /v1/oauth is then missing.
+	Logins  Logins
 	Restore func(ctx context.Context, r io.Reader) (any, error)
 }
 
@@ -135,6 +138,10 @@ func New(opts Options) *Server {
 	}
 	if s.opts.Eval {
 		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
+	}
+	if s.opts.Logins != nil {
+		s.mux.HandleFunc("GET /v1/oauth/{skill}", s.oauthLogin)
+		s.mux.HandleFunc("PUT /v1/oauth/{skill}/token", s.oauthToken)
 	}
 	if s.opts.Backup != nil {
 		s.mux.HandleFunc("GET /v1/backup", s.backup)

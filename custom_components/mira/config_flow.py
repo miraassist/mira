@@ -15,12 +15,13 @@ import secrets
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHandler
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .access import (
@@ -57,6 +58,7 @@ from .managed import (
     save_settings,
 )
 from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers, ha_sources
+from .oauth import ConnectSteps
 
 USER_SCHEMA = vol.Schema({vol.Required(CONF_URL, default="http://localhost:8787"): str})
 TOKEN_SCHEMA = vol.Schema({vol.Required(CONF_TOKEN): str})
@@ -301,7 +303,7 @@ class ModelSteps:
         )
 
 
-class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
+class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain=DOMAIN):
     """Find the agent, then an overview that says what is chosen and what
     is missing, with its branches: the AI model, the assistants Mira
     answers in, "Pair". Every branch comes back to it, also when its
@@ -310,6 +312,8 @@ class MiraConfigFlow(ModelSteps, ConfigFlow, domain=DOMAIN):
     behind (docs/spec/setup.md)."""
 
     VERSION = 1
+    # For Home Assistant's OAuth steps of a skill's connection (oauth.py).
+    DOMAIN = DOMAIN
 
     _url: str = ""
     # The agent's token: entered (mira.yaml) or handed out when pairing.

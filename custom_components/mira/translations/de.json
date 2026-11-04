@@ -90,7 +90,9 @@
       "already_configured": "Dieser Agent ist bereits eingerichtet.",
       "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren.",
       "not_proven": "Ein Mira-Agent hat sich unter einer neuen Adresse gemeldet, konnte aber nicht zeigen, dass er deiner ist. Die Adresse bleibt, wie sie ist.",
-      "setup_failed": "Die Einrichtung hat nicht geklappt: {error}"
+      "setup_failed": "Die Einrichtung hat nicht geklappt: {error}",
+      "connected": "Verbunden. Mira behält die Verbindung.",
+      "connect_failed": "Mira konnte die Verbindung nicht übernehmen; siehe Protokoll."
     },
     "flow_title": "{name} ({host})",
     "create_entry": {

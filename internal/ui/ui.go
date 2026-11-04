@@ -112,6 +112,8 @@ type Options struct {
 	// Editor changes models, agents and skills (docs/spec/editing.md);
 	// without it the pages only read.
 	Editor Editor
+	// Connections are the skills' logins at services (docs/spec/oauth.md).
+	Connections Connections
 	// Phone is what waits on the answering machine, for the start page and
 	// the messages page (docs/spec/voicemail.md); nil without it.
 	Phone func(ctx context.Context) (PhoneNews, error)
@@ -184,6 +186,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
 	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
 	h.editRoutes()
+	h.connectionRoutes()
 	return h
 }
 

@@ -102,6 +102,9 @@ type InternalTool struct {
 	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
 	// for the conversation, docs/spec/agents.md).
 	Skill string
+	// Background: a skill's tool that its agents and schedules get too, as
+	// its MCP tools (a skill's web API tool, docs/spec/oauth.md).
+	Background bool
 	// PlaysAfter: see Spec.
 	PlaysAfter bool
 	// DescribeIn, when set, gives the description in a turn's language: for
@@ -248,13 +251,27 @@ func internalSpec(t InternalTool) Spec {
 	}
 }
 
-// SkillDefs are the tools of the skills' MCP servers, in a fixed order: what
-// a conversation that opened these skills gets besides the shared tools.
+// SkillDefs are the tools of the skills' MCP servers, and Mira's own tools
+// for them marked Background, in a fixed order: what the skills' agents and
+// schedules get besides the shared tools.
 func (r *Registry) SkillDefs(skills ...string) []prompt.ToolDef {
-	if r.mcp == nil || len(skills) == 0 {
+	if len(skills) == 0 {
 		return nil
 	}
 	var out []prompt.ToolDef
+	var own []InternalTool
+	for _, t := range r.internalTools() {
+		if t.Background && slices.Contains(skills, t.Skill) && t.on() {
+			own = append(own, t)
+		}
+	}
+	sort.Slice(own, func(i, j int) bool { return own[i].Name < own[j].Name })
+	for _, t := range own {
+		out = append(out, internalSpec(t).ToolDef)
+	}
+	if r.mcp == nil {
+		return out
+	}
 	for _, t := range r.mcp.Tools() {
 		if t.Skill != "" && slices.Contains(skills, t.Skill) {
 			out = append(out, t.ToolDef)

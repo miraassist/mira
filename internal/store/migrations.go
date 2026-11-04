@@ -396,6 +396,18 @@ ALTER TABLE messages ADD COLUMN origin_device TEXT NOT NULL DEFAULT '';
 ALTER TABLE threads ADD COLUMN device TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// A skill's connection: its tokens as one JSON value, sealed like the
+		// secrets file (docs/spec/oauth.md, decision 2).
+		name: "0025_oauth_tokens",
+		stmt: `
+CREATE TABLE oauth_tokens (
+    skill      TEXT PRIMARY KEY,
+    token      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

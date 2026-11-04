@@ -84,6 +84,15 @@ The fakes get two actions of their own, for tests only (the real device has noth
 are not in the contract): `techo5_fake.wake_word` (`device`, the node: `fake_show`) and `techo5_fake.say` (`device`,
 `text`), as above. By hand they are called like any action in Home Assistant (developer tools, Actions).
 
+### The fake OAuth service (`internal/testsupport/fakeoauth`)
+
+For the skills' connections ([Connections](oauth.md)), in the Go tests only: a login that answers at once with a
+code, a token address that exchanges it (checking PKCE) and renews with a new refresh token each time, as X does,
+the client secret as HTTP Basic or in the body (refusing the other), and a web API that wants a current access
+token. A test lets the tokens run out (`Expire`), withdraws the app (`Revoke`) and reads the requests. The fake
+MCP server takes its tokens (`Authorize`). The test HA does not use it: it would have to trust the fake's
+certificate; there the service is X itself.
+
 ## What it costs
 
 Nothing for Mira: these are fakes in the test HA. Per `play_media` the fake fetches the media once and runs

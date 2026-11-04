@@ -44,6 +44,7 @@ from .managed import (
     satellites_without_area,
     save_settings,
 )
+from .oauth import MiraOAuthStartView, MiraOAuthView
 
 PANEL_URL_PATH = "mira"
 PANEL_ICON = "mdi:face-woman-shimmer"
@@ -98,6 +99,8 @@ def async_register_views(hass: HomeAssistant) -> None:
     hass.http.register_view(MiraProxyView())
     hass.http.register_view(MiraSettingsView())
     hass.http.register_view(MiraMySettingsView())
+    hass.http.register_view(MiraOAuthView())
+    hass.http.register_view(MiraOAuthStartView())
 
 
 @callback

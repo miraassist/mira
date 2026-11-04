@@ -29,6 +29,27 @@ type Set struct {
 	// Home gives where the house is, as Home Assistant knows it: the values of
 	// the placeholders home.latitude, home.longitude and home.name.
 	Home func(ctx context.Context) map[string]string
+	// Connection is a skill's connection state (docs/spec/oauth.md):
+	// "connected", "expired" or "none"; opening a skill with a login that
+	// is not connected says so. Nil: all connected.
+	Connection func(skill string) string
+}
+
+// connectionNote is what opening a skill says about its missing connection.
+func (s *Set) connectionNote(sk Skill, l i18n.Lang) string {
+	if sk.OAuth == nil || s.Connection == nil {
+		return ""
+	}
+	kind := ""
+	switch s.Connection(sk.Name) {
+	case "none":
+		kind = KindOAuthNone
+	case "expired":
+		kind = KindOAuthExpired
+	default:
+		return ""
+	}
+	return "\n\n" + NewProblem(sk.Name, kind, sk.OAuth.Name).Text(l)
 }
 
 // withHome fills the placeholders of the house's location into a skill's
@@ -120,7 +141,7 @@ func (s *Set) Tools() []tools.InternalTool {
 			if !ok {
 				l = s.Lang
 			}
-			return s.withHome(ctx, sk.BodyIn(l)), nil
+			return s.withHome(ctx, sk.BodyIn(l)) + s.connectionNote(sk, l), nil
 		},
 	}}
 	return out

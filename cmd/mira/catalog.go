@@ -230,6 +230,9 @@ func (a *app) skillInfo(sk skills.Skill) ui.SkillInfo {
 		}
 		info.MCP = mi
 	}
+	if sk.OAuth != nil && a.oauth != nil {
+		info.Connection = a.oauth.State(sk.Name)
+	}
 	info.Agents = sortedNames(sk.Agents)
 	info.Kinds = skillKinds(sk)
 	// The phone book: that it is on, its books and the box, never a contact

@@ -128,6 +128,34 @@ func (s Secrets) Lookup(base Lookup) Lookup {
 	}
 }
 
+// Seal is one value as the secrets file would keep it: encrypted with the
+// key, plain without one. A connection's tokens are kept so in Mira's
+// database (docs/spec/oauth.md, decision 2).
+func (s Secrets) Seal(plain string) (string, error) {
+	if s.Key == "" {
+		return plain, nil
+	}
+	sealed, err := s.seal([]byte(plain))
+	if err != nil {
+		return "", err
+	}
+	return encPrefix + sealed, nil
+}
+
+// Open reads a value written by Seal; ErrSecretKey if it is encrypted and
+// the key is missing or wrong.
+func (s Secrets) Open(value string) (string, error) {
+	rest, ok := strings.CutPrefix(value, encPrefix)
+	if !ok {
+		return value, nil
+	}
+	if s.Key == "" {
+		return "", ErrSecretKey
+	}
+	plain, err := s.open(rest)
+	return string(plain), err
+}
+
 func (s Secrets) aead() (cipher.AEAD, error) {
 	key := sha256.Sum256([]byte(s.Key))
 	block, err := aes.NewCipher(key[:])

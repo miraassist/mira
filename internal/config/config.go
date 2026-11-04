@@ -416,6 +416,10 @@ type MCPServer struct {
 	// Conversation false keeps a skill's server out of the conversation:
 	// only the skill's agents and schedules get its tools. Default true.
 	Conversation *bool `yaml:"conversation"`
+	// OAuth is set for a skill's server whose token is the skill's
+	// connection (token: oauth, docs/spec/oauth.md): Mira adds the current
+	// token to every request and renews it.
+	OAuth bool `yaml:"-"`
 	// Skill is the skill whose server this is (docs/spec/skill-mcp.md): its
 	// tools are in no conversation until the skill is opened. Empty for the
 	// servers under mcp_servers.

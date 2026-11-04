@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,6 +36,9 @@ type Server struct {
 
 	// Token, when set, is required as a bearer token.
 	Token string
+	// Authorize, when set, decides on each request's bearer token (a
+	// service whose tokens change, fakeoauth); Tokens records them.
+	Authorize func(token string) bool
 
 	mu      sync.Mutex
 	calls   []Call
@@ -43,6 +47,14 @@ type Server struct {
 	// (Home Assistant's timers); lists records the satellite of each listing.
 	deviceOnly map[string]bool
 	lists      []string
+	tokens     []string
+}
+
+// Tokens are the bearer tokens of the requests Authorize was asked about.
+func (s *Server) Tokens() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.tokens...)
 }
 
 // New starts an empty server. Add tools with AddTool.
@@ -54,6 +66,16 @@ func New(name string) *Server {
 		if s.Token != "" && r.Header.Get("Authorization") != "Bearer "+s.Token {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
+		}
+		if s.Authorize != nil {
+			tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			s.mu.Lock()
+			s.tokens = append(s.tokens, tok)
+			s.mu.Unlock()
+			if !s.Authorize(tok) {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
 		}
 		s.mu.Lock()
 		h := s.handler

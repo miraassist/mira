@@ -30,6 +30,8 @@ const (
 	KindNotLocal      = "notlocal"
 	KindMCPDown       = "mcpdown"
 	KindMCPTools      = "mcptools"
+	KindOAuthExpired  = "oauthexpired"
+	KindOAuthNone     = "oauthnone"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -84,6 +86,13 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mcptransport":     "transport „%s“ im Abschnitt mcp geht nicht; möglich sind http und stdio.",
 		"mcpdown":          "Der MCP-Server des Skills ist nicht erreichbar (%s). Der Skill ist da, aber ohne seine Werkzeuge; Mira versucht es weiter.",
 		"mcptools":         "Diese Werkzeuge nennt der Skill unter tools, der Server hat sie aber nicht: %s. Die übrigen gehen.",
+		"oauthurl":         "Der Abschnitt oauth braucht authorize_url und token_url, beide als https-Adresse.",
+		"oauthauth":        "token_auth „%s“ im Abschnitt oauth geht nicht; möglich sind post und basic.",
+		"oauthapi":         "Die Adresse „%s“ unter api im Abschnitt oauth muss eine https-Adresse sein.",
+		"oauthmethod":      "Die Methode „%s“ für %s unter api geht nicht; möglich sind GET, POST, PUT, PATCH und DELETE.",
+		"oauthmcp":         "Der Abschnitt mcp nimmt token: oauth, aber der Skill hat keinen Abschnitt oauth.",
+		"oauthnone":        "Der Skill ist noch nicht mit %s verbunden. Verbinde ihn in Mira auf der Seite Verbindungen.",
+		"oauthexpired":     "Die Verbindung mit %s ist abgelaufen oder wurde widerrufen. Verbinde den Skill in Mira auf der Seite Verbindungen neu.",
 		"notlocal":         "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
 	},
 	i18n.EN: {
@@ -122,6 +131,13 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"mcptransport":     "transport \"%s\" in the mcp section does not work; possible are http and stdio.",
 		"mcpdown":          "The skill's MCP server cannot be reached (%s). The skill is there, but without its tools; Mira keeps trying.",
 		"mcptools":         "The skill names these tools under tools, but the server does not have them: %s. The others work.",
+		"oauthurl":         "The oauth section needs authorize_url and token_url, both as https addresses.",
+		"oauthauth":        "token_auth \"%s\" in the oauth section does not work; possible are post and basic.",
+		"oauthapi":         "The address \"%s\" under api in the oauth section must be an https address.",
+		"oauthmethod":      "The method \"%s\" for %s under api does not work; possible are GET, POST, PUT, PATCH and DELETE.",
+		"oauthmcp":         "The mcp section takes token: oauth, but the skill has no oauth section.",
+		"oauthnone":        "The skill is not connected with %s yet. Connect it in Mira on the Connections page.",
+		"oauthexpired":     "The connection with %s has expired or was revoked. Connect the skill again in Mira on the Connections page.",
 		"notlocal":         "The skill must run locally (privacy: local), but its agent %s runs on the model \"%s\" (%s). Give the agent a local model in mira.yaml under agents.",
 	},
 }

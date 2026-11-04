@@ -434,13 +434,16 @@ class MiraSkills extends EditPage {
     const t = s.target, m = s.mcp;
     const edit = this.canEdit, open = this.isOpen(s.name);
     return cardItem({ key: s.name, icon: itemIcon("skill"), name: s.name, short: s.description, onToggle: this.opener(s.name),
-      tags: html`${(s.kinds || []).map(k => badge(T["kind_" + k] || k))}${m && !m.connected ? badge(T.cat_mcp_down, true) : nothing}
+      tags: html`${(s.kinds || []).map(k => badge(T["kind_" + k] || k))}${m && !m.connected && !s.connection ? badge(T.cat_mcp_down, true) : nothing}
+        ${s.connection && s.connection !== "connected" ? badge(T["conn_state_" + s.connection], true) : nothing}
         ${s.state === "problem" ? badge(T.cat_not_started, true) : nothing}
         ${edit ? toggleSwitch(this.on(s), T.ed_enabled, on => this.setOn(s, on), this.busy === s.name) : nothing}` }, !open ? nothing : html`
       ${s.problem ? html`<p class="msg err">${s.problem}</p>` : nothing}
       ${edit ? this.editor("skill", s.name) : nothing}
       <table class="facts">
         ${row(T.cat_description, s.description)}
+        ${s.connection ? row(T.conn_row, html`${T["conn_state_" + s.connection]} ·
+          <a href="#connections" @click=${e => { e.preventDefault(); go("connections"); }}>${T.conn_open}</a>`) : nothing}
         ${(s.chapters || {})[lang] ? row(T.guide_link.replace(/:$/, ""), chapterOf(s)) : nothing}
         ${!edit && (s.settings || []).length ? row(T.cat_settings, html`${s.settings.map(x => html`<div>
           <code>${x.name}</code>: ${x.secret ? (x.set ? T.cat_secret_set : T.cat_secret_unset) : (x.set ? x.value : html`<span class="hint">${T.cat_unset}</span>`)}

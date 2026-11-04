@@ -64,6 +64,9 @@ type Skill struct {
 	// MCP is the skill's MCP server, named after the skill, with its
 	// settings filled in (docs/spec/skill-mcp.md); nil for none.
 	MCP *config.MCPServer
+	// OAuth is the skill's login at a service, with its settings filled in
+	// (docs/spec/oauth.md); nil for none.
+	OAuth *OAuth
 	// Chapter is how the heading of the chapter in Mira's guide about this
 	// skill begins (metadata.mira.chapter, "## Kochen und Backen"), in the
 	// skill's language; Mira's page links it. Empty for none.
@@ -306,6 +309,7 @@ type frontmatter struct {
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
+			OAuth     *OAuth               `yaml:"oauth"`
 			Language  string               `yaml:"language"`
 			Chapter   string               `yaml:"chapter"`
 		} `yaml:"mira"`
@@ -389,6 +393,10 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	vals := map[string]string{}
 	for k, v := range values {
 		if k == config.SkillSchedules {
+			continue
+		}
+		if m.OAuth != nil && (k == SettingClientID || k == SettingClientSecret) {
+			vals[k] = render(v)
 			continue
 		}
 		if _, ok := m.Settings[k]; !ok {
@@ -506,10 +514,24 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		s.Agents[name] = d
 	}
+	if m.OAuth != nil {
+		o, p := oauthSection(meta.Name, *m.OAuth, vals)
+		if p != nil {
+			return Skill{}, p
+		}
+		s.OAuth = &o
+	}
 	if m.MCP != nil {
+		oauth := strings.TrimSpace(m.MCP.Token) == TokenOAuth
+		if oauth && s.OAuth == nil {
+			return Skill{}, problem("oauthmcp")
+		}
 		srv, p := mcpServer(meta.Name, *m.MCP, vals)
 		if p != nil {
 			return Skill{}, p
+		}
+		if oauth {
+			srv.Token, srv.OAuth = "", true
 		}
 		s.MCP = &srv
 	}

@@ -1,6 +1,6 @@
 # Connections (OAuth) – spec
 
-Status 2026-11-04: decided; checks C1–C4, C6, C7 done on the test HA; nothing built. Scenarios: [oauth.feature](oauth.feature).
+Status 2026-11-04: steps 1–5 built, not released; run on the test HA, the sign-in at X included (see Steps). Scenarios: [oauth.feature](oauth.feature).
 
 ## Goal
 
@@ -104,7 +104,8 @@ What happens, step by step:
    address to the page, which opens it in a new window.
 4. **The service** sends the browser to `my.home-assistant.io/redirect/oauth`, which forwards it to the user's
    Home Assistant (`/auth/external/callback`). Home Assistant checks the state and continues the flow with the
-   code; the window closes itself.
+   code; the window closes itself. A flow at that point waits for the next step to be asked for, which otherwise
+   a dialog of the frontend does (checked in pytest, 2026-11-04); the flow asks for it itself.
 5. **The flow** exchanges the code for the tokens at `token_url` with the helper (the secret in the body or as HTTP
    Basic, `token_auth`), gives them to the Mira service
    (`PUT /v1/oauth/<skill>/token`) and ends without creating a config entry.
@@ -116,7 +117,11 @@ What happens, step by step:
 left to the user (a link to the service's page is not part of step 1).
 
 **Outside Home Assistant** (Mira's page opened on its own address) Connect is not offered: the redirect needs Home
-Assistant. The page says to open it in Home Assistant.
+Assistant. The page says to open it in Home Assistant. Inside it the page sends its own address
+(`HA-Frontend-Base`), from which Home Assistant without "My Home Assistant" builds the redirect.
+
+**Client id and secret** saved on the page go into the skill's entry of mira.yaml (`client_id`, `client_secret` as
+`${MIRA_SKILL_<SKILL>_CLIENT_SECRET}`) and the secrets file, and hold at once, without a restart.
 
 ## Renewing and using the token
 
@@ -128,12 +133,14 @@ Assistant. The page says to open it in Home Assistant.
 - **The token goes only where the skill says** (decision 5): the skill's MCP server (`mcp.url`), the `api`
   prefixes and `token_url`. A request to another address, also after a redirect, gets no token; redirects to
   another host are not followed with the token.
-- **The web API tool** (`<skill>__api`): method, path below one of the `api` prefixes, query and body; answer: the
-  service's status and body, shortened like `web_page`. It is only there with an `api` section, offered like the
-  skill's MCP tools (from opening the skill, to its agents and schedules). What it returns is third-party text.
-  A method the `api` section does not name is refused; the others are used as the skill's instructions say
-  (decision 9). For background work (`read_only`) only `GET` counts as reading.
-- **After third-party text** in the same turn, a method other than `GET` asks first, like keeping or passing on
+- **The web API tools:** `<skill>__api_get` (an address) for the `GET` prefixes, read only, and `<skill>__api_write`
+  (method, address, body) for the other methods the `api` section names; answer: the service's status and body
+  (at most 2 MB, shortened like every tool's answer). They are there only with an `api` section and only while the
+  skill is connected, offered like the skill's MCP tools (from opening the skill, to its agents and schedules).
+  What they return is third-party text. A method or address the `api` section does not name is refused; the rest
+  is used as the skill's instructions say (decision 9). Two tools, so that background work (`read_only`) gets
+  reading only and the rule after third-party text holds per tool.
+- **After third-party text** in the same turn, `<skill>__api_write` asks first, like keeping or passing on
   (decision 10).
 
 **Who:** connecting, disconnecting and entering client id and secret is for HA admins, as the other settings of
@@ -174,9 +181,10 @@ skills.
   one write to Mira's database, one connection to the MCP server. The user's sign-in at the service is not timed;
   the flow waits for the redirect, not a turn.
 - **Using:** no extra call while the token is valid. When it has run out, one request to `token_url` and one write
-  to the database before the call; the turn waits for it (with X about every two hours, assumption).
+  to the database before the call; the turn waits for it (with X every two hours: `expires_in` 7200, C4).
 - **Nothing grows with the number of items**; one database row per connection.
-- **The page:** reading the state is one request to the Mira service, when the page opens or gets the focus again.
+- **The page:** reading the state is one request to the Mira service, and inside Home Assistant one to the
+  integration (whether Connect works there), when the page opens or gets the focus again.
 
 ## Checks on the test HA before building
 
@@ -188,7 +196,7 @@ The login waits for signals that are checked first:
 | C2 | Flow started without a dialog in HA's frontend, not shown as a discovered integration | — | the integrations page stays unchanged | 2026-11-04, from HA's frontend code (2026.10): it shows flows of the discovery sources (`zeroconf`, `dhcp`, …) and `reauth`; a flow with source `user` is not among them |
 | C3 | Sign-in done → flow continues | the redirect with code and state | `my.home-assistant.io` → `/auth/external/callback`; the flow's step is called | 2026-11-04: the browser with the test HA set at my.home-assistant.io lands on its `/auth/external/callback`, the flow continues |
 | C4 | Code → tokens | the token answer | the helper's exchange, with PKCE and `token_auth: basic` for X | 2026-11-04 on Home Assistant 2026.11.0 with the helper's own exchange (`client_secret_basic`): access and refresh token, `expires_in` 7200 s. On 2026.10 a first try was refused with 400, its reason not logged (cause unknown) |
-| C5 | Tokens → Mira | `PUT /v1/oauth/<skill>/token` answered | answer of the Mira service | not yet |
+| C5 | Tokens → Mira | `PUT /v1/oauth/<skill>/token` answered | answer of the Mira service | 2026-11-04: after the sign-in at X the log shows `oauth: connected` and X's MCP server connected with its 6 tools |
 | C6 | X's hosted MCP server takes the user token | `initialize` and a `get_users_timeline` call answered | the MCP answer | 2026-11-04: `initialize`, `get_users_me` and `get_users_timeline` answered (with the app-only bearer token the last two are refused with 403) |
 | C7 | Renewing at X | new access token, new refresh token | the token answer; the old refresh token refused afterwards | 2026-11-04: new access and refresh token, 7200 s; the old refresh token is refused (400); the secret in the body instead of HTTP Basic is refused (401 "Missing valid authorization header") |
 
@@ -200,17 +208,32 @@ Interrupting: the user closes the window or refuses at the service (the redirect
 ends, nothing is stored, the page stays "not connected". A flow left open ends with Home Assistant's own cleanup of
 unfinished flows; nothing of Mira waits for it.
 
-For the automated tests a **fake OAuth provider** (authorize, token, renewing, refusing, revoking) is added to the
-test environment ([Fake devices](fake-devices.md)); the sign-in at X itself is done once by the maintainer.
+For the automated tests a **fake OAuth service** (`internal/testsupport/fakeoauth`: login, token with PKCE and
+HTTP Basic or the body, renewing with a new refresh token each time, letting tokens run out, revoking, a web API
+that wants a current token) is used by the Go tests; the integration's tests fake the service in pytest. The test
+HA cannot reach a fake over HTTPS it trusts, so there the service is X itself; the sign-in at X is done by the
+maintainer ([Fake devices](fake-devices.md)).
+
+**Run on the test HA (2026-11-04, Home Assistant 2026.11.0, the test Mira):** the skill `x` switched on, client id and
+secret saved on the page's endpoint (no restart asked for); the integration's start gives X's login address with
+`my.home-assistant.io`, PKCE and the scopes; tokens handed to the Mira service connect X's MCP server; X refused an
+older token set (401, then the refresh token refused: the connection became expired), Home Assistant showed the
+repair `skill_x`, and a voice turn with the Show's device id said that the connection with X must be made again.
+After the maintainer's sign-in at X the Mira service got the tokens and connected X's MCP server (C5); a voice turn
+with the Show's device id ("Was gibt es Neues von NASA auf X?") read posts through `x__search_posts_all` and answered.
+Left for the maintainer: Connect and Disconnect by hand on the page (CO-12, CO-13).
 
 ## Steps
 
-1. **Checks** C1–C7 on the test HA (done except C5, which needs step 2), the fake provider with them.
+1. **Checks** C1–C7 on the test HA, the fake service with them. Built.
 2. **The `oauth` section, the stored tokens, renewing, `token: oauth` for the MCP server** in the Mira service, with
-   `GET /v1/oauth/<skill>` and `PUT /v1/oauth/<skill>/token`. Scenarios CO-01 to CO-08.
-3. **The login in the integration and the Connections page.** Scenarios CO-09 to CO-14.
-4. **The web API tool.** Scenarios CO-15 to CO-19.
-5. **The skill `x`** (reading: search, posts of an account, own timeline and mentions), with its own costs per call.
+   `GET /v1/oauth/<skill>` and `PUT /v1/oauth/<skill>/token`. Scenarios CO-01 to CO-08. Built.
+3. **The login in the integration and the Connections page.** Scenarios CO-09 to CO-14 (pytest: CO-09, CO-10, CO-11,
+   CO-14; CO-12 and CO-13 are the page's, run by hand). Built.
+4. **The web API tools.** Scenarios CO-15 to CO-19. Built.
+5. **The skill `x`** (reading: search, posts of an account, own timeline and mentions). Costs per call: one request
+   to X's MCP server, which X bills per post read (about 0.005 USD a post, measured 2026-11-04); the skill asks for
+   10 posts in a search (X's least) and 5 elsewhere, and for nothing twice in a conversation. Built.
 
 ## What is not part of it
 
