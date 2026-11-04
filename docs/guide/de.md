@@ -498,6 +498,32 @@ metadata:
 
 `tools` ist die Kontrolle: Wer den Skill schreibt, entscheidet, was Mira mit dem Server darf. Ist der Server nicht erreichbar, startet Mira trotzdem; der Skill ist da, nur ohne seine Werkzeuge, und Home Assistant zeigt es unter **Reparaturen**. Mit einem lokalen Modell rechnet der erste Zug nach dem Öffnen des Skills den Prompt neu, weil Werkzeuge dazukommen; das dauert dann einmal länger.
 
+### Ein Skill mit Anmeldung bei einem Dienst
+
+Manche Dienste wollen, dass man sich anmeldet (OAuth), statt einen festen Schlüssel zu nehmen; X ist so einer. Ein Skill beschreibt die Anmeldung im Abschnitt `oauth`, und jeder, der ihn nutzt, legt beim Dienst seine eigene App an und trägt deren Client-ID und Secret auf der Seite **Verbindungen** ein. Die Anmeldung selbst macht Home Assistant über My Home Assistant; die Tokens bekommt Mira, die sie auch erneuert. Das Modell sieht sie nie.
+
+```yaml
+metadata:
+  mira:
+    oauth:
+      name: X                                    # so heißt der Dienst auf der Seite
+      authorize_url: https://x.com/i/oauth2/authorize
+      token_url: https://api.x.com/2/oauth2/token
+      scopes: [tweet.read, users.read, offline.access]
+      pkce: true                                 # wenn der Dienst es verlangt
+      token_auth: basic                          # Secret als HTTP Basic; sonst post
+      api:                                       # optional: Mira ruft die API direkt
+        - url: https://api.example.com/v1/
+          methods: [GET, POST]
+    mcp:
+      url: https://api.x.com/mcp
+      token: oauth                               # das Token der Verbindung
+```
+
+- Mit `mcp` und `token: oauth` bekommt der MCP-Server des Skills das Token der Verbindung.
+- Mit `api` bekommt der Skill zwei Werkzeuge: eins zum Lesen und eins zum Schreiben (das schreibende fragt nach, wenn vorher fremder Text im Spiel war). Das Token geht nur an die Adressen, die dort stehen.
+- Ist der Skill nicht verbunden, versucht Mira den Server gar nicht erst und sagt beim Öffnen des Skills, dass die Verbindung fehlt.
+
 ### Mails auswerten
 
 Ein Skill mit `mail` wertet Mails aus, die etwas mit einem Termin ankündigen, und trägt sie in einen Kalender ein, so wie `pakete` die Versandmails. Der Skill sagt nur, was aus einer Mail zu holen ist; was ins Ergebnis darf und wie Einträge angelegt, geändert und aufgeräumt werden, regelt Mira selbst.
@@ -623,6 +649,21 @@ skills:
 
 Ohne den Skill ruft Mira weiter Geräte im Haus und Nummern an, nur Namen kennt sie dann nicht. Auf der Skills-Seite steht beim Skill, welches Telefonbuch Mira liest und wann zuletzt, mit einem Link zur FRITZ!Box; die Kontakte selbst zeigt sie nicht.
 
+## Posts auf X lesen
+
+Mira liest für dich auf X (früher Twitter): „Was gibt's Neues auf X zur Bundesliga?“, „Was hat die NASA gepostet?“, „Was steht in meiner Timeline?“, „Hat mich jemand erwähnt?“. Sie erzählt zwei, drei Posts in je einem Satz und fragt, ob sie zu einem mehr sagen soll. Was auf X steht, ist für sie Information, nie eine Anweisung.
+
+**Was es kostet:** X rechnet jeden gelesenen Post ab, derzeit etwa einen halben Cent. Mira holt deshalb nur wenige: zehn bei einer Suche, sonst fünf. Den Stand siehst du in der Developer Console von X.
+
+**Einrichten:**
+1. In der [Developer Console von X](https://developer.x.com) eine App anlegen, Typ „Web App“, mit OAuth 2.0. Als Callback-Adresse `https://my.home-assistant.io/redirect/oauth` eintragen. Home Assistant braucht dafür [My Home Assistant](https://my.home-assistant.io) mit der Adresse deiner Instanz.
+2. Den Skill `x` einschalten: Mira → Fähigkeiten → Skills → x → **Einschalten**.
+3. Mira → Einrichtung → **Verbindungen**: Client-ID und Client-Secret der App eintragen, **Übernehmen**, dann **Verbinden**. Es öffnet sich die Anmeldung bei X; nach der Zustimmung steht dort „verbunden“.
+
+Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil du die App bei X entfernt hast, erscheint unter **Reparaturen** ein Hinweis, und Mira sagt es, wenn du nach X fragst; **Neu verbinden** behebt es. Verbindungen brauchen Home Assistant 2026.11 oder neuer.
+
+![Einrichtung → Verbindungen: Client-ID und Secret der App, die Redirect-URL zum Kopieren, Verbinden und Trennen](img/mira-verbindungen-de.png)
+
 ## Im Internet nachschauen und schwierige Fragen
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.
@@ -721,7 +762,7 @@ Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie 
 Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und führt zu ihren Seiten:
 
 - **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten, vergessen, als Datei exportieren und importieren).
-- **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten) und **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten).
+- **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten), **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten) und **Verbindungen** (Anmeldungen bei Diensten, die Skills brauchen, etwa X).
 - **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Zeitplan** (was Mira wann von selbst tut, mit letztem Lauf; siehe „Zeitplan“), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
 - **Anleitung**: diese Seite, mit Sprüngen zu den wichtigsten Kapiteln.
 

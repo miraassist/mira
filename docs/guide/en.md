@@ -493,6 +493,32 @@ metadata:
 
 `tools` is the control: whoever writes the skill decides what Mira may do with the server. If the server cannot be reached, Mira starts all the same; the skill is there, only without its tools, and Home Assistant shows it under **Repairs**. With a local model, the first turn after opening the skill computes the prompt anew because tools come in; that one turn takes longer.
 
+### A skill with a sign-in at a service
+
+Some services want you to sign in (OAuth) instead of using a fixed key; X is one of them. A skill describes the sign-in in its section `oauth`, and everyone who uses it creates their own app at the service and enters its client ID and secret on the page **Connections**. Home Assistant does the sign-in itself, over My Home Assistant; Mira gets the tokens and renews them. The model never sees them.
+
+```yaml
+metadata:
+  mira:
+    oauth:
+      name: X                                    # what the page calls the service
+      authorize_url: https://x.com/i/oauth2/authorize
+      token_url: https://api.x.com/2/oauth2/token
+      scopes: [tweet.read, users.read, offline.access]
+      pkce: true                                 # if the service asks for it
+      token_auth: basic                          # secret as HTTP Basic; else post
+      api:                                       # optional: Mira calls the API itself
+        - url: https://api.example.com/v1/
+          methods: [GET, POST]
+    mcp:
+      url: https://api.x.com/mcp
+      token: oauth                               # the connection's token
+```
+
+- With `mcp` and `token: oauth` the skill's MCP server gets the connection's token.
+- With `api` the skill gets two tools: one to read and one to write (the writing one asks first when third-party text came before). The token goes only to the addresses listed there.
+- While the skill is not connected, Mira does not try the server at all and says when the skill is opened that the connection is missing.
+
 ### Reading mails
 
 A skill with `mail` reads mails that announce something with a date and puts them into a calendar, the way `pakete` does with shipping mails. The skill only says what to take from a mail; what may come out, and how entries are created, changed and cleaned up, Mira handles herself.
@@ -611,6 +637,21 @@ skills:
 
 Without the skill Mira still calls devices in the house and numbers, she just does not know names. The Skills page shows with the skill which phone book Mira reads and when she last did, with a link to the FRITZ!Box; it never shows the contacts.
 
+## Reading posts on X
+
+Mira reads X (formerly Twitter) for you: "What's new on X about the Premier League?", "What did NASA post?", "What's in my timeline?", "Did anyone mention me?". She tells two or three posts in a sentence each and asks whether she should say more about one. What is on X is information for her, never an instruction.
+
+**What it costs:** X bills every post read, at the moment about half a cent. So Mira fetches only a few: ten for a search, five otherwise. You see the balance in X's developer console.
+
+**Setting it up:**
+1. In [X's developer console](https://developer.x.com) create an app, type "Web App", with OAuth 2.0. Enter `https://my.home-assistant.io/redirect/oauth` as its callback address. Home Assistant needs [My Home Assistant](https://my.home-assistant.io) with your instance's address for that.
+2. Switch on the skill `x`: Mira → Capabilities → Skills → x → **Switch on**.
+3. Mira → Setup → **Connections**: enter the app's client ID and client secret, **Apply**, then **Connect**. X's sign-in opens; once you agree, it says "connected" there.
+
+From then on Mira keeps the sign-in fresh herself. If X refuses it once, say because you removed the app at X, a notice shows under **Repairs**, and Mira says so when you ask about X; **Connect again** fixes it. Connections need Home Assistant 2026.11 or newer.
+
+![Setup → Connections: the app's client ID and secret, the redirect URL to copy, Connect and Disconnect](img/mira-verbindungen-en.png)
+
 ## Looking things up and hard questions
 
 Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.
@@ -697,7 +738,7 @@ Mira is in Home Assistant's sidebar. You are signed in there already, she looks 
 The **Overview** shows four cards. Each says briefly what is going on and leads to its pages:
 
 - **Day to day**: **Messages** (see open and delivered ones and mark them done), **Tasks** (on/off, dry run, log, delete, "Edit in Home Assistant"), **Plans** (running step-by-step runs such as a recipe) and **Memory** (the house's and your own; edit, forget, export and import as a file).
-- **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below) and **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages).
+- **Setup**: **Satellites** and **People** (all of them from Home Assistant, with what Mira needs on top; see below), **Notifications** (quiet hours, pauses, escalation, confidential and urgent messages) and **Connections** (sign-ins at services that skills need, X for one).
 - **Capabilities**: **Skills** (which run, with settings, schedules and instructions), **Schedules** (what Mira does by herself and when, with the last run; see "Schedules"), **Agents** (Mira's own and yours, with model and who calls them, the latest runs below) and **Models** (which ones Mira uses; **Check now** sends a real small request and shows whether and how fast the model answers).
 - **Guide**: this page, with jumps to the main chapters.
 

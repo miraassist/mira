@@ -3,6 +3,20 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.16.0
+
+- Connections: a skill can sign in at a service (OAuth). On the new page Setup → Connections you enter the client ID
+  and secret of your own app at the service and click "Connect"; Home Assistant does the sign-in, Mira keeps the
+  sign-in fresh. Needs Home Assistant 2026.11.
+- New skill `x`: reads posts on X (search, what an account posted, your timeline, mentions). Every post read costs a
+  little at X, so Mira fetches only a few.
+- Home Assistant 2026.11 renamed the prompt that describes the house; Mira found it no longer and worked with less.
+  She now takes the prompt Home Assistant offers, under any name.
+- Without that description of the house Mira no longer answers with less: she says so in one sentence, and Home
+  Assistant shows a repair until it is back.
+- Installing and updating now point to the Marketplace (HACS before Home Assistant 2026.11).
+- Questions before deleting or disconnecting are the page's own dialog, no longer a browser alert.
+
 ## 0.15.2
 
 - When Home Assistant has started, the integration tells Mira at once what Assist sees, instead of only at the next

@@ -98,6 +98,10 @@ def pictures(browser, lang: str, out: pathlib.Path, logins: dict[str, str]):
         s.ui.locator("mira-hooks details.item summary").first.click()
         s.shot(out, "mira-hooks", 900)
         s.go("notifier"); s.shot(out, "benachrichtigung", 800)
+        # Connections: the skill x; its client id is a placeholder, no real setup in the pictures.
+        s.go("connections", "#view details[data-id]")
+        s.frame.evaluate("document.querySelectorAll('#view input[name=client_id]').forEach(i => i.value = 'Y2xpZW50LWlkLWRlaW5lci1hcHA')")
+        s.shot(out, "mira-verbindungen", 800)
         # Editing a model: the second model's card opened is its form.
         s.go("models", "mira-models details.item")
         s.page.set_viewport_size({"width": WIDTH, "height": 900})
