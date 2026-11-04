@@ -322,6 +322,11 @@ button.switch[aria-checked=true] { background:var(--accent); }
 button.switch[aria-checked=true]>span { transform:translateX(18px); }
 button.switch:disabled { opacity:.5; cursor:wait; }
 button.switch:focus-visible { outline:2px solid var(--tone); outline-offset:2px; }
+.copyline { display:flex; align-items:center; gap:6px; min-width:0; }
+.copyline code { overflow-wrap:anywhere; }
+button.copy { background:none; border:0; padding:4px; color:var(--muted); cursor:pointer; line-height:0; }
+button.copy:hover { color:var(--text); }
+button.copy .button-icon { margin-right:0; }
 .button-icon { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; margin-right:4px; }
 /* The editor inside an opened card. */
 .inline-editor { margin:4px 0 14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
@@ -648,8 +653,9 @@ const I18N = {
   "conn_state_expired": "abgelaufen",
   "conn_client_id": "Client-ID",
   "conn_client_secret": "Client-Secret",
-  "conn_redirect": "Redirect-Adresse",
-  "conn_redirect_hint": "Trag diese Adresse bei der App des Dienstes als Redirect- oder Callback-Adresse ein.",
+  "conn_redirect": "Redirect-URL",
+  "conn_copy": "Kopieren",
+  "conn_copied": "Adresse kopiert.",
   "conn_connect": "Verbinden",
   "conn_reconnect": "Neu verbinden",
   "conn_disconnect": "Trennen",
@@ -1157,8 +1163,9 @@ const I18N = {
   "conn_state_expired": "expired",
   "conn_client_id": "Client ID",
   "conn_client_secret": "Client secret",
-  "conn_redirect": "Redirect address",
-  "conn_redirect_hint": "Enter this address in the service's app as its redirect or callback address.",
+  "conn_redirect": "Redirect URL",
+  "conn_copy": "Copy",
+  "conn_copied": "Address copied.",
   "conn_connect": "Connect",
   "conn_reconnect": "Connect again",
   "conn_disconnect": "Disconnect",
@@ -1699,8 +1706,12 @@ const CARD_ICONS = {
 };
 const cardIcon = kind => `<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true">${CARD_ICONS[kind]}</svg>`;
 // buttonIcon is the small line icon on a button.
-const buttonIcon = kind => `<svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">${kind === "save"
-  ? `<path d="M5 3h11l3 3v15H5Z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/>` : `<path d="M7 4v16l13-8Z"/>`}</svg>`;
+const BUTTON_ICONS = {
+  save: `<path d="M5 3h11l3 3v15H5Z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/>`,
+  copy: `<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>`,
+  run: `<path d="M7 4v16l13-8Z"/>`,
+};
+const buttonIcon = kind => `<svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">${BUTTON_ICONS[kind] || BUTTON_ICONS.run}</svg>`;
 // cardItem is an entry as a card: icon, name, a short line and tags in its
 // head, the body when opened. Cards start closed unless open is set (a list
 // drawn anew keeps the cards that were open).
@@ -1858,7 +1869,7 @@ async function connections() {
   const card = c => {
     const ready = c.client_id && c.secret_set, linked = c.state !== "none";
     const connect = !note && ready ? `<button type="button" class="primary" onclick="connectionStart('${esc(c.skill)}')">${T[linked ? "conn_reconnect" : "conn_connect"]}</button>` : "";
-    const disconnect = linked ? `<button type="button" onclick="connectionDrop('${esc(c.skill)}', '${esc(c.name)}')">${T.conn_disconnect}</button>` : "";
+    const disconnect = linked ? `<button type="button" class="secondary" onclick="connectionDrop('${esc(c.skill)}', '${esc(c.name)}')">${T.conn_disconnect}</button>` : "";
     return cardItem({ kind: "skill", name: esc(c.name), short: esc(c.skill), open: true,
       tags: badge(T["conn_state_" + c.state] || c.state, c.state !== "connected"), attrs: ` data-id="${esc(c.skill)}"` }, `
       <form onsubmit="event.preventDefault(); connectionSave(this, '${esc(c.skill)}')">
@@ -1866,9 +1877,9 @@ async function connections() {
           <label>${T.conn_client_id}</label><input name="client_id" value="${esc(c.client_id)}" autocomplete="off">
           <label>${T.conn_client_secret}</label><input name="client_secret" type="password" autocomplete="new-password"
             placeholder="${c.secret_set ? esc(T.ed_token_keep) : ""}">
-          <label>${T.conn_redirect}</label><input value="${esc(c.redirect)}" readonly onclick="this.select()">
+          <label>${T.conn_redirect}</label><span class="copyline"><code>${esc(c.redirect)}</code><button type="button" class="copy"
+            title="${T.conn_copy}" aria-label="${T.conn_copy}" onclick="connectionCopy('${esc(c.redirect)}')">${buttonIcon("copy")}</button></span>
         </div>
-        <p class="hint">${T.conn_redirect_hint}</p>
         ${!ready ? `<p class="hint">${T.conn_need_client}</p>` : ""}
         ${applyRow(connect + " " + disconnect)}
       </form>`);
@@ -1900,11 +1911,21 @@ async function connectionStart(skill) {
   } catch (e) { if (w) w.close(); message(e.message, false); }
 }
 async function connectionDrop(skill, name) {
-  if (!confirm(T.conn_disconnect_ask.replace("%s", name))) return;
+  if (!await ask({ text: T.conn_disconnect_ask.replace("%s", name), ok: T.conn_disconnect })) return;
   try { await api("DELETE", `/v1/ui/connections/${encodeURIComponent(skill)}/token`); await connections(); }
   catch (e) { message(e.message, false); }
 }
-window.addEventListener("focus", () => { if (tab === "connections") connections(); });
+async function connectionCopy(text) {
+  try { await navigator.clipboard.writeText(text); message(T.conn_copied, true); }
+  catch (e) { message(e.message, false); }
+}
+// Inside Home Assistant's panel the page is an iframe: coming back from the
+// login window focuses Home Assistant's window, not the iframe's, so both
+// are watched; a login in a tab makes the page visible again.
+const connectionsAgain = () => { if (tab === "connections" && document.visibilityState === "visible") connections(); };
+window.addEventListener("focus", connectionsAgain);
+if (embedded) try { window.parent.addEventListener("focus", connectionsAgain); } catch (e) {}
+document.addEventListener("visibilitychange", connectionsAgain);
 
 // ---- Räume --------------------------------------------------------------
 function rooms() {

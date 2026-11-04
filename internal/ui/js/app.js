@@ -872,7 +872,7 @@ class MiraEditor extends Light {
   // which Lit calls when a closed card takes the editor out.
   async deleteItem() {
     const { kind, name } = this.e;
-    if (!confirm(T.ed_delete_confirm(name))) return;
+    if (!await ask({ text: T.ed_delete_confirm(name), ok: T.ed_delete, danger: true })) return;
     try {
       await api("DELETE", `/v1/ui/edit/${kind}s/` + encodeURIComponent(name));
       if (!this.inline) this.close();

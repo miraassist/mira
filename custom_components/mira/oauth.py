@@ -55,6 +55,7 @@ class ConnectSteps:
     are Home Assistant's (AbstractOAuth2FlowHandler)."""
 
     _login: dict[str, Any] | None = None
+    _done: ConfigFlowResult | None = None
 
     @property
     def logger(self) -> logging.Logger:
@@ -75,13 +76,24 @@ class ConnectSteps:
         return await self.async_step_auth()
 
     async def async_step_auth(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Home Assistant's step; after the redirect the flow moves on by
-        itself, since no dialog of the frontend does it (checked: a flow at
-        external_done waits for the next configure)."""
+        """Home Assistant's step. On the redirect the code is exchanged and
+        the tokens go to the agent before the redirect's page answers: that
+        page closes the window, and the Connections page reads the state
+        when it gets the focus back. Then the flow moves on by itself, since
+        no dialog of the frontend does it (checked: a flow at external_done
+        waits for the next configure)."""
         result = await super().async_step_auth(user_input)
         if result["type"] is FlowResultType.EXTERNAL_STEP_DONE:
+            if "error" not in (user_input or {}):
+                self._done = await super().async_step_creation()
             self.hass.async_create_task(self._continue(), eager_start=False)
         return result
+
+    async def async_step_creation(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """The outcome of the exchange already done on the redirect."""
+        if self._done is not None:
+            return self._done
+        return await super().async_step_creation(user_input)
 
     async def _continue(self) -> None:
         try:

@@ -102,6 +102,26 @@ async def test_co10_the_redirect_hands_the_tokens_to_mira(hass, mira, aioclient_
     assert hass.config_entries.flow.async_progress() == []
 
 
+async def test_the_tokens_are_at_mira_when_the_window_closes(
+    hass, mira, aioclient_mock, hass_client, hass_client_no_auth, monkeypatch
+):
+    """The redirect's page closes the window and the Connections page reads
+    the state on getting the focus back: the tokens are at Mira by then,
+    before the flow moves on."""
+    url = await _start(await hass_client())
+    state = parse_qs(urlsplit(url).query)["state"][0]
+    aioclient_mock.post(LOGIN["token_url"], json={"access_token": "at-1", "refresh_token": "rt-1", "expires_in": 7200})
+    aioclient_mock.put(f"{AGENT_URL}/v1/oauth/x/token", json={"connected": True})
+
+    async def later(self):
+        pass
+
+    monkeypatch.setattr(oauth.ConnectSteps, "_continue", later)
+    resp = await (await hass_client_no_auth()).get(f"/auth/external/callback?code=c-1&state={state}")
+    assert resp.status == 200
+    assert ("PUT", f"{AGENT_URL}/v1/oauth/x/token") in [(m, str(u)) for m, u, _, _ in aioclient_mock.mock_calls]
+
+
 # CO-11 Refusing at the service stores nothing
 async def test_co11_refusing_at_the_service_stores_nothing(
     hass, mira, aioclient_mock, hass_client, hass_client_no_auth
