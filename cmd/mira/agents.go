@@ -159,9 +159,13 @@ func (a *app) deliverRun(ctx context.Context, rec store.AgentRun, cc agent.CallC
 // cannot word it, a fixed sentence says that the result is there.
 func (a *app) resultMessage(ctx context.Context, rec store.AgentRun, d agent.Delivery) error {
 	t := i18n.Pick(resultCatalog, a.lang)
+	// The receiver stays as the run named it: a person not known (yet)
+	// waits for that person, never the house (docs/spec/fallbacks.md, FB-02).
 	receiver := d.Receiver
-	if _, ok := a.persons()[receiver]; !ok {
+	if receiver == "" {
 		receiver = store.ReceiverHouse
+	} else if _, ok := a.persons()[receiver]; !ok && receiver != store.ReceiverHouse {
+		a.log.Warn("a run's result is for a person not known; it waits for them", "receiver", receiver, "call_id", rec.CallID)
 	}
 	about := rec.Output
 	if rec.Status != string(agent.Done) {

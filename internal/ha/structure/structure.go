@@ -52,8 +52,8 @@ type Snapshot struct {
 	// (LabelPrivate): what starts in one stays there (docs/spec/agents.md,
 	// What a turn belongs to).
 	Private map[string]bool
-	// ExposureKnown is false when Home Assistant could not tell us which
-	// entities are exposed and the build fell back to including everything.
+	// ExposureKnown is false while the integration has not sent which
+	// entities are exposed; then nothing counts as exposed.
 	ExposureKnown bool
 	// Devices are every device by id; Entities every entity not switched
 	// off, by id; DeviceEntities those of each device, sorted. A

@@ -98,7 +98,11 @@ func (m *Manager) Assess(ctx context.Context, r Request) (Verdict, error) {
 	t := m.texts()
 	key := taskKey(r.Task, r.Goal)
 	data := m.render(ctx, r.Data)
-	prompt := m.judgement(ctx, key, r, data) + t.assessRules
+	judgement, err := m.judgement(ctx, key, r, data)
+	if err != nil {
+		return Verdict{}, err
+	}
+	prompt := judgement + t.assessRules
 	raw, err := m.opts.Model.Ask(ctx, t.judgeSystem, prompt, json.RawMessage(verdictSchema))
 	if err != nil {
 		return Verdict{}, err
@@ -159,7 +163,11 @@ func (m *Manager) Decide(ctx context.Context, r Request) (Decision, error) {
 	t := m.texts()
 	key := taskKey(r.Task, r.Question)
 	data := m.render(ctx, r.Data)
-	prompt := m.judgement(ctx, key, r, data) + t.decideRules
+	judgement, err := m.judgement(ctx, key, r, data)
+	if err != nil {
+		return Decision{}, err
+	}
+	prompt := judgement + t.decideRules
 	raw, err := m.opts.Decider.Ask(ctx, t.judgeSystem, prompt, json.RawMessage(decisionSchema))
 	if err != nil {
 		return Decision{}, err
@@ -178,7 +186,7 @@ func (m *Manager) Decide(ctx context.Context, r Request) (Decision, error) {
 // judgement is the isolated prompt: the task, what happened, the condensed
 // data and the context. No house prompt: the model sees what the task asks
 // for and nothing else.
-func (m *Manager) judgement(ctx context.Context, key string, r Request, data string) string {
+func (m *Manager) judgement(ctx context.Context, key string, r Request, data string) (string, error) {
 	t := m.texts()
 	var b strings.Builder
 	if r.Goal != "" {
@@ -193,28 +201,35 @@ func (m *Manager) judgement(ctx context.Context, key string, r Request, data str
 	if data != "" {
 		fmt.Fprintf(&b, t.secData, data)
 	}
-	b.WriteString(m.situation(ctx))
+	situation, err := m.situation(ctx)
+	if err != nil {
+		return "", err
+	}
+	b.WriteString(situation)
 	if mem := m.memory(ctx, r); mem != "" {
 		fmt.Fprintf(&b, t.secMemory, mem)
 	}
 	if earlier := m.earlier(ctx, key); earlier != "" {
 		fmt.Fprintf(&b, t.secEarlier, earlier)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 // situation is the time, quiet hours and who is home: cheap, and often
 // what decides ("nobody is home and water runs").
-func (m *Manager) situation(ctx context.Context) string {
+func (m *Manager) situation(ctx context.Context) (string, error) {
 	t := m.texts()
 	now := m.opts.Clock().In(m.opts.Location)
 	quiet := t.no
 	if inQuietHours(m.opts.QuietHours, now) {
 		quiet = t.yes
 	}
-	home, away := m.presence(ctx)
+	home, away, err := m.presence(ctx)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf(t.secSituation, i18n.FormatDate(m.opts.Lang, now), now.Format("15:04"), quiet,
-		list(t, home), list(t, away))
+		list(t, home), list(t, away)), nil
 }
 
 func list(t texts, names []string) string {
@@ -224,13 +239,15 @@ func list(t texts, names []string) string {
 	return strings.Join(names, ", ")
 }
 
-func (m *Manager) presence(ctx context.Context) (home, away []string) {
+// presence fails when the states cannot be read: nothing is judged on a
+// house without people (docs/spec/fallbacks.md, FB-01).
+func (m *Manager) presence(ctx context.Context) (home, away []string, err error) {
 	if m.opts.Persons == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	persons := m.opts.Persons()
 	if len(persons) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var entities []string
 	for _, p := range persons {
@@ -240,7 +257,7 @@ func (m *Manager) presence(ctx context.Context) (home, away []string) {
 	}
 	states, err := m.opts.Source.GetStates(ctx, haws.StateFilter{EntityIDs: entities})
 	if err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("who is home: %w", err)
 	}
 	byID := map[string]string{}
 	for _, s := range states {
@@ -257,7 +274,7 @@ func (m *Manager) presence(ctx context.Context) (home, away []string) {
 			away = append(away, key)
 		}
 	}
-	return home, away
+	return home, away, nil
 }
 
 // memory is the household profile and the facts that match the task. Read

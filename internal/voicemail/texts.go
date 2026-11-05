@@ -13,6 +13,7 @@ type texts struct {
 	playingMany, next, planHead                           string
 	today, yesterday                                      string
 	missing, boxFailed, newsLine, onlyNewest              string
+	newsFailed                                            string // %s = why
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -47,6 +48,7 @@ var catalog = map[i18n.Lang]texts{
 		boxFailed:    "Ergebnis: Der Anrufbeantworter ließ sich nicht lesen (%s).",
 		onlyNewest:   " Nenn dem Nutzer nur die neuesten %d (die ersten unten) mit Absender und Zeit und sag, dass es %d weitere gibt; abspielen geht jede.",
 		newsLine:     "Auf dem Anrufbeantworter: %d neue Nachrichten, %d neue verpasste Anrufe. Einzelheiten und Abspielen mit dem Skill anrufbeantworter.",
+		newsFailed:   "Der Anrufbeantworter ließ sich nicht lesen (%s); ob dort Neues ist, ist unbekannt.",
 	},
 	i18n.EN: {
 		listDesc:     "The messages on the answering machine (from whom, when, how long, new or heard, newest first) and the missed calls not told yet. Afterwards the missed calls count as seen.",
@@ -79,5 +81,6 @@ var catalog = map[i18n.Lang]texts{
 		boxFailed:    "Result: the answering machine could not be read (%s).",
 		onlyNewest:   " Tell the user only the newest %d (the first below) with caller and time, and that there are %d more; any of them can be played.",
 		newsLine:     "On the answering machine: %d new messages, %d new missed calls. Details and playing with the skill anrufbeantworter.",
+		newsFailed:   "The answering machine could not be read (%s); whether there is anything new is unknown.",
 	},
 }

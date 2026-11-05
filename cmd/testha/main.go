@@ -8,6 +8,7 @@
 //	go run ./cmd/testha down          stop the container, keep its state
 //	go run ./cmd/testha reset         stop and delete all state; next up starts fresh
 //	go run ./cmd/testha contract      compare the real TECHO5 devices with the fakes' contract
+//	go run ./cmd/testha compat        check what Mira relies on in Home Assistant (docs/spec/ha-compat.md)
 //	go run ./cmd/testha mail [N...]   deliver the sample mails to the IMAP device "Pakete"
 //
 // Everything up does is idempotent: it only creates what is missing.
@@ -69,8 +70,10 @@ func run() error {
 		return contractCmd(ctx, dir, args[1:])
 	case "mail":
 		return mailCmd(ctx, dir, args[1:])
+	case "compat":
+		return compatCmd(ctx, dir)
 	default:
-		return fmt.Errorf("unknown command %q (up, set, env, down, reset, dashboard, eval, contract, mail)", args[0])
+		return fmt.Errorf("unknown command %q (up, set, env, down, reset, dashboard, eval, contract, mail, compat)", args[0])
 	}
 }
 

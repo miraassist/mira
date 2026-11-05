@@ -35,6 +35,8 @@ var builtSteps = map[string][]int{
 	"ZP": {1, 2, 3},       // docs/spec/schedules.md, Steps
 	"CO": {2, 4},          // docs/spec/oauth.md; step 3 is tested in pytest
 	"HP": {1},             // docs/spec/context.md, 1.2; step 2 is tested in pytest
+	"HC": {1},             // docs/spec/ha-compat.md
+	"FB": {1},             // docs/spec/fallbacks.md
 }
 
 var (

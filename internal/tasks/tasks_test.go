@@ -22,10 +22,15 @@ func f(v float64) *float64 { return &v }
 type fakeSource struct {
 	states []haws.State
 	stats  map[string][]haws.StatRow
+	// personsFail makes reading the person states fail.
+	personsFail error
 }
 
 // GetStates filters as Home Assistant does: only the entities asked for.
 func (s *fakeSource) GetStates(_ context.Context, f haws.StateFilter) ([]haws.State, error) {
+	if s.personsFail != nil && slices.ContainsFunc(f.EntityIDs, func(id string) bool { return strings.HasPrefix(id, "person.") }) {
+		return nil, s.personsFail
+	}
 	var out []haws.State
 	for _, st := range s.states {
 		if slices.Contains(f.EntityIDs, st.EntityID) {
@@ -456,5 +461,28 @@ func TestProposalNamesEveryFormOfSwitching(t *testing.T) {
 	}
 	if got := otherActions(actions); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("otherActions = %v", got)
+	}
+}
+
+// FB-01 An assessment without the person states fails
+func TestFB01_AnAssessmentWithoutThePersonStatesFails(t *testing.T) {
+	// Given the person states cannot be read from Home Assistant
+	e := setup(t)
+	e.nightWater()
+	e.src.personsFail = errors.New("connection lost")
+	e.model.answers = []string{`{"importance":3,"spoken":"Wasser läuft.","details":""}`}
+	// When a task asks Mira to assess
+	_, err := e.m.Assess(context.Background(), Request{Goal: "Achte auf den Wasserverbrauch.",
+		Data: []DataRequest{{EntityID: "sensor.wasser", View: ViewSameHour}}, Task: "mira_wasser"})
+	// Then the assessment fails with the error
+	if err == nil || !strings.Contains(err.Error(), "connection lost") {
+		t.Fatalf("assess = %v", err)
+	}
+	// And no model is asked
+	if len(e.model.instructions) != 0 {
+		t.Errorf("model asked %d times", len(e.model.instructions))
+	}
+	if _, err := e.m.Decide(context.Background(), Request{Question: "Ist jemand zu Hause?", Task: "mira_wasser"}); err == nil {
+		t.Error("a decision without the person states did not fail")
 	}
 }

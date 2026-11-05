@@ -632,10 +632,16 @@ func (m *Machine) News(ctx context.Context) (News, error) {
 }
 
 // NewsLine is what "Gibt es Neues?" adds about the answering machine; ""
-// when nothing is new there.
+// when nothing is new there. When it cannot be read, it says so
+// (docs/spec/fallbacks.md, FB-03).
 func (m *Machine) NewsLine(ctx context.Context) string {
 	news, err := m.News(ctx)
-	if err != nil || news.Messages+news.Missed == 0 {
+	switch {
+	case errors.Is(err, ErrNoIntegration):
+		return m.t.missing
+	case err != nil:
+		return fmt.Sprintf(m.t.newsFailed, err)
+	case news.Messages+news.Missed == 0:
 		return ""
 	}
 	return fmt.Sprintf(m.t.newsLine, news.Messages, news.Missed)

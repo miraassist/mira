@@ -469,10 +469,14 @@ Between Home Assistant and the agent there are two directions, on separate paths
     and `fakemcp`.
 - **Python:** `.venv/bin/python -m pytest` for config flow, conversation,
   entities, sub-entries as well as rules and permissions of the automations.
-- **Test HA:** `go run ./cmd/testha up` starts HA 2026.10 in Docker. It has
+- **Test HA:** `go run ./cmd/testha up` starts HA 2026.11 in Docker. It has
   demo devices, a non-admin user, the integration and
   `automations.yaml`. Alongside runs a test Mira with `testenv/mira.yaml` on
   port 8788. This way whole flows can be checked without touching the house.
+- **After every update of the test HA:** `go run ./cmd/testha compat` checks
+  what Mira relies on in Home Assistant, with Mira's own code and as her user
+  ([Compatibility](spec/ha-compat.md)); every check says ok or FAIL with its
+  evidence.
 - **End to end at a real satellite:** a flow that plays, speaks and listens is
   run before anyone tests it by voice:
   - drive it through Mira's conversation API (`POST /v1/conversation` with

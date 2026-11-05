@@ -366,3 +366,17 @@ recherche: { description: Recherchiert., instructions: Antworte., context: backg
 		t.Error("the tool does not carry third-party text")
 	}
 }
+
+// FB-02 A result for a person not known yet does not go to the house
+func TestFB02_AResultForAPersonNotKnownYetDoesNotGoToTheHouse(t *testing.T) {
+	a, _, _ := deliveryApp(t, fakellm.Step{Content: `{"text":"Carla, dein Rezept ist fertig."}`})
+	// Given a run's result is for Carla and Carla is not among the known persons
+	cc := agent.CallContext{Mode: agent.Mode{Async: true, Delivery: agent.Delivery{Route: agent.ToMessage, Receiver: "carla"}}}
+	// When the result is delivered as a message
+	a.deliverRun(context.Background(), store.AgentRun{CallID: "c1", Agent: "rezept", Status: "done", Output: `{}`}, cc)
+	// Then the message is for Carla, not for the house
+	list := messages(t, a)
+	if len(list) != 1 || list[0].Receiver != "carla" {
+		t.Errorf("messages %+v", list)
+	}
+}

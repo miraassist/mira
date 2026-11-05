@@ -3,6 +3,7 @@ package voicemail
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -27,6 +28,7 @@ type box struct {
 	messages []Message
 	calls    []Call
 	missing  bool
+	fail     error    // reading the answering machine fails
 	done     []string // actions without a response, with their data
 	played   []string // speaker: media id
 	shown    []string // title action: title | subtitle | source
@@ -53,6 +55,9 @@ func (b *box) machine() *Machine {
 			defer b.mu.Unlock()
 			if b.missing {
 				return nil, ErrNoIntegration
+			}
+			if b.fail != nil {
+				return nil, b.fail
 			}
 			switch service {
 			case "get_messages":
@@ -484,5 +489,20 @@ func TestAB34_ANewPlayStopsTheRecordingAtOnce(t *testing.T) {
 	defer b.mu.Unlock()
 	if len(b.stopped) != 1 || len(b.ticked) != 0 || !strings.HasSuffix(b.played[1], "e/0/13") {
 		t.Errorf("played %v, stopped %v, ticked %v", b.played, b.stopped, b.ticked)
+	}
+}
+
+// FB-03 "Gibt es Neues?" says when the answering machine could not be read
+func TestFB03_TheNewsSayWhenTheAnsweringMachineCouldNotBeRead(t *testing.T) {
+	// Given the answering machine cannot be read
+	b := &box{fail: errors.New("FRITZ!Box antwortet nicht")}
+	// When Mira tells what is new
+	line := b.machine().NewsLine(context.Background())
+	// Then the answer says that the answering machine could not be read
+	if !strings.Contains(line, "ließ sich nicht lesen") || !strings.Contains(line, "FRITZ!Box antwortet nicht") {
+		t.Errorf("news line = %q", line)
+	}
+	if line := (&box{}).machine().NewsLine(context.Background()); line != "" {
+		t.Errorf("nothing new: %q", line)
 	}
 }
