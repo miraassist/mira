@@ -99,6 +99,8 @@ type evalRun struct {
 	client    *http.Client
 	agentLog  string
 	version   string
+	// keep leaves the eval agent's folder (database, log) in place.
+	keep bool
 	// leftOut are the skills left out of the run because a variable their
 	// settings need is not in testenv/.env, with that variable.
 	leftOut []string
@@ -111,6 +113,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	runs := fs.Int("runs", runsDefault, "runs per scenario")
 	keep := fs.Bool("no-report", false, "do not write a report")
 	overview := fs.Bool("overview", false, "only renew evals/README.md from the stored results")
+	keepAgent := fs.Bool("keep", false, "keep the eval agent's database and log, to look into a failure")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -121,7 +124,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 		return fmt.Errorf("usage: testha eval --setup evals/setups/NAME.yaml [--scenario a,b] [--runs 3]")
 	}
 	root := filepath.Dir(dir)
-	r := &evalRun{dir: dir, root: root, env: loadEnv(dir), client: &http.Client{Timeout: 2 * time.Minute}}
+	r := &evalRun{dir: dir, root: root, env: loadEnv(dir), client: &http.Client{Timeout: 2 * time.Minute}, keep: *keepAgent}
 	r.haToken = r.env["TESTHA_ADMIN_TOKEN"]
 	raw, err := os.ReadFile(filepath.Join(root, *setupPath))
 	if err != nil {
@@ -160,6 +163,15 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 		}
 		res.finish(*runs)
 		report.Scenarios = append(report.Scenarios, res)
+	}
+	if *only != "" {
+		// A scenario measured again goes into the setup's last report; the
+		// others stay as they were (docs/spec/evals.md).
+		merged, err := report.into(filepath.Join(root, "evals"))
+		if err != nil {
+			return err
+		}
+		report = merged
 	}
 	report.print()
 	if *keep {
@@ -323,6 +335,10 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 			cmd.Process.Kill()
 		}
 		logFile.Close()
+		if r.keep {
+			fmt.Printf("eval agent kept: %s (eval.db, agent.log)\n", tmp)
+			return
+		}
 		os.RemoveAll(tmp)
 	}
 	r.agentURL = "http://127.0.0.1:8790"

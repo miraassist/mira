@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -19,6 +21,8 @@ type Report struct {
 	Scenarios []ScenarioResult `json:"scenarios"`
 	// LeftOut are skills not in the run, a variable missing (docs/spec/evals.md).
 	LeftOut []string `json:"left_out,omitempty"`
+	// Again are scenarios measured again on their own, with when.
+	Again []string `json:"again,omitempty"`
 }
 
 type ScenarioResult struct {
@@ -93,6 +97,34 @@ func rating(sec float64) string {
 	return "langsam"
 }
 
+// into puts r's scenarios, measured again on their own, into the setup's
+// last stored report, replacing the ones of the same name; the report keeps
+// its date and notes which were measured again and when. Without a stored
+// report, r stays as it is.
+func (r Report) into(dir string) (Report, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, "results", r.Setup+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return r, nil
+	}
+	if err != nil {
+		return r, err
+	}
+	var last Report
+	if err := json.Unmarshal(raw, &last); err != nil {
+		return r, err
+	}
+	for _, s := range r.Scenarios {
+		i := slices.IndexFunc(last.Scenarios, func(o ScenarioResult) bool { return o.Name == s.Name })
+		if i < 0 {
+			last.Scenarios = append(last.Scenarios, s)
+		} else {
+			last.Scenarios[i] = s
+		}
+		last.Again = append(last.Again, fmt.Sprintf("%s (%s, Mira %s, %d runs)", s.Name, r.Date, r.Mira, r.Runs))
+	}
+	return last, nil
+}
+
 func (r Report) passed() (passed, total int) {
 	for _, s := range r.Scenarios {
 		total++
@@ -116,6 +148,9 @@ func (r Report) markdown() string {
 	b.WriteString("Modelle:\n")
 	for _, m := range r.Models {
 		fmt.Fprintf(&b, "- %s\n", m)
+	}
+	if len(r.Again) > 0 {
+		fmt.Fprintf(&b, "\nEinzeln nachgemessen: %s\n", strings.Join(r.Again, "; "))
 	}
 	if len(r.LeftOut) > 0 {
 		fmt.Fprintf(&b, "\nOhne diese Skills (Variable fehlt in testenv/.env): %s\n", strings.Join(r.LeftOut, "; "))

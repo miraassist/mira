@@ -3,6 +3,17 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.17.0
+
+- Answers spoken while they are written no longer repeat themselves: a quiz asked some questions twice with
+  models that write a sentence next to their tool calls (DeepSeek, for example).
+- A sound (the quiz's fanfare) no longer cuts Mira's answer off: it plays under her voice, and as an announcement
+  only when music or the radio plays, so the radio goes on after it.
+- After a question the satellite listens again even when the question was not the last sentence.
+- "Spiel SWR 3" with a space finds the station at once.
+- Version 0.16.0 told the integration it was 0.15.2 and showed a wrong "versions do not match" repair; fixed.
+- More is in Mira's log: retried model calls, and errors that were handled without a trace before.
+
 ## 0.16.0
 
 - Connections: a skill can sign in at a service (OAuth). On the new page Setup → Connections you enter the client ID

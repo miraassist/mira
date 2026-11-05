@@ -452,7 +452,7 @@ The bundled skill `kochen` is a detailed example; `quiz` and `vokabeln` are shor
 
 At a satellite a skill can do more than speak. Mira has three tools for it; the skill's instructions say when she uses them:
 
-- **`sound_play`** plays one of Mira's sounds on the speaker of the satellite being spoken at: `fanfare_big` (a big success), `fanfare` (a success) and `too_bad` (it did not work out). Mira speaks on only when the sound is over. The quiz uses it at the end.
+- **`sound_play`** plays one of Mira's sounds on the speaker of the satellite being spoken at: `fanfare_big` (a big success), `fanfare` (a success) and `too_bad` (it did not work out). Mira speaks on only when the sound is over. When music or the radio plays, the sound interrupts it only briefly, and it goes on after it. The quiz uses it at the end.
 - **`display_card`** puts a card on the satellite's screen: a picture over the whole screen, with a title and one line over it. This works on an Echo Show with TECHO5. Mira still says what is on the card.
 - **`keep_listening`** has the satellite listen again after Mira's answer, without the wake word, even when the answer is no question. Good when a short word comes next, such as "next".
 

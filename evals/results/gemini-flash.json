@@ -330,137 +330,143 @@
       "name": "termin-absagen",
       "description": "Termin absagen, erst nach dem Ja",
       "core": true,
-      "passed_runs": 0,
+      "passed_runs": 3,
       "answer_ok_runs": 3,
-      "passed": false,
+      "passed": true,
       "step_times": [
         {
           "say": "Sag meinen Zahnarzttermin ab",
-          "median_seconds": 7.574113728,
-          "max_seconds": 7.955207483,
-          "model_ms_median": 7540,
+          "median_seconds": 7.230041629,
+          "max_seconds": 7.566859311,
+          "model_ms_median": 7182,
           "rating": "brauchbar"
         },
         {
           "say": "Ja",
-          "median_seconds": 2.321779847,
-          "max_seconds": 10.307680417,
-          "model_ms_median": 2309,
-          "rating": "gut"
+          "median_seconds": 4.012552783,
+          "max_seconds": 6.320337034,
+          "model_ms_median": 3886,
+          "rating": "brauchbar"
         }
       ],
-      "tokens": 168509,
+      "tokens": 254582,
       "runs": [
         {
-          "passed": false,
+          "passed": true,
           "answer_ok": true,
-          "failures": [
-            "step 1: missing thread:termin-absagen:proposed",
-            "step 2: missing action:calendar.delete",
-            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
-          ],
           "steps": [
             {
               "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag oder den von Anna am Dienstag?",
-              "seconds": 7.955207483,
-              "model_ms": 7915,
-              "rounds": 3,
-              "tokens": 41853,
+              "text": "Soll ich den Zahnarzttermin am Sonntag, dem 8. November um 15 Uhr absagen?",
+              "seconds": 7.566859311,
+              "model_ms": 7524,
+              "rounds": 4,
+              "tokens": 55926,
               "trace": [
-                "round:main:2202ms",
+                "round:main:1922ms",
                 "tool:thread_start",
                 "thread:termin-absagen:started",
-                "round:main:2201ms",
-                "tool:calendar_events",
-                "round:main:3512ms"
-              ]
-            },
-            {
-              "say": "Ja",
-              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder Annas Termin am Dienstag absagen?",
-              "seconds": 2.321779847,
-              "model_ms": 2309,
-              "rounds": 1,
-              "tokens": 14390,
-              "trace": [
-                "round:main:2309ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": false,
-          "answer_ok": true,
-          "failures": [
-            "step 1: missing thread:termin-absagen:proposed",
-            "step 2: missing action:calendar.delete",
-            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
-          ],
-          "steps": [
-            {
-              "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag um 15 Uhr oder den von Anna am Dienstag um 14 Uhr?",
-              "seconds": 5.747863573,
-              "model_ms": 5713,
-              "rounds": 3,
-              "tokens": 41833,
-              "trace": [
-                "round:main:1570ms",
-                "tool:thread_start",
-                "thread:termin-absagen:started",
-                "round:main:1902ms",
-                "tool:calendar_events",
-                "round:main:2241ms"
-              ]
-            },
-            {
-              "say": "Ja",
-              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder den am Dienstag um 14 Uhr absagen?",
-              "seconds": 1.7147193120000002,
-              "model_ms": 1701,
-              "rounds": 1,
-              "tokens": 14388,
-              "trace": [
-                "round:main:1701ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": false,
-          "answer_ok": true,
-          "failures": [
-            "step 1: missing thread:termin-absagen:proposed",
-            "step 2: missing action:calendar.delete",
-            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
-          ],
-          "steps": [
-            {
-              "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag um 15 Uhr oder den von Anna am Dienstag um 14 Uhr?",
-              "seconds": 7.574113728,
-              "model_ms": 7540,
-              "rounds": 3,
-              "tokens": 41670,
-              "trace": [
-                "round:main:2006ms",
+                "round:main:1665ms",
                 "tool:calendar_events",
                 "round:main:1909ms",
-                "tool:thread_start",
-                "thread:termin-absagen:started",
-                "round:main:3625ms"
+                "tool:thread_fill",
+                "thread:termin-absagen:proposed",
+                "round:main:2028ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder Annas Termin am Dienstag um 14 Uhr absagen?",
-              "seconds": 10.307680417,
-              "model_ms": 10295,
-              "rounds": 1,
-              "tokens": 14375,
+              "text": "Alles klar, der Zahnarzttermin ist abgesagt.",
+              "seconds": 6.320337034,
+              "model_ms": 6298,
+              "rounds": 2,
+              "tokens": 29073,
               "trace": [
-                "round:main:10295ms"
+                "round:main:2086ms",
+                "tool:thread_confirm",
+                "action:calendar.delete",
+                "thread:termin-absagen:confirmed",
+                "round:main:4212ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Sag meinen Zahnarzttermin ab",
+              "text": "Soll ich den Zahnarzttermin am Sonntag, den 8. November um 15:00 Uhr absagen?",
+              "seconds": 7.230041629,
+              "model_ms": 7182,
+              "rounds": 4,
+              "tokens": 55713,
+              "trace": [
+                "round:main:1714ms",
+                "tool:calendar_events",
+                "round:main:2268ms",
+                "tool:thread_start",
+                "thread:termin-absagen:started",
+                "round:main:1421ms",
+                "tool:thread_fill",
+                "thread:termin-absagen:proposed",
+                "round:main:1779ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Der Zahnarzttermin am Sonntag ist abgesagt.",
+              "seconds": 3.547761345,
+              "model_ms": 3524,
+              "rounds": 2,
+              "tokens": 29048,
+              "trace": [
+                "round:main:1746ms",
+                "tool:thread_confirm",
+                "action:calendar.delete",
+                "thread:termin-absagen:confirmed",
+                "round:main:1778ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Sag meinen Zahnarzttermin ab",
+              "text": "Soll ich den Zahnarzttermin am Sonntag, den 8. November um 15:00 Uhr absagen?",
+              "seconds": 6.758558561,
+              "model_ms": 6716,
+              "rounds": 4,
+              "tokens": 55727,
+              "trace": [
+                "round:main:1993ms",
+                "tool:calendar_events",
+                "round:main:1390ms",
+                "tool:thread_start",
+                "thread:termin-absagen:started",
+                "round:main:1639ms",
+                "tool:thread_fill",
+                "thread:termin-absagen:proposed",
+                "round:main:1694ms"
+              ]
+            },
+            {
+              "say": "Ja",
+              "text": "Alles klar, der Zahnarzttermin ist abgesagt.",
+              "seconds": 4.012552783,
+              "model_ms": 3886,
+              "rounds": 2,
+              "tokens": 29095,
+              "trace": [
+                "round:main:1691ms",
+                "tool:thread_confirm",
+                "action:calendar.delete",
+                "thread:termin-absagen:confirmed",
+                "round:main:2195ms"
               ]
             }
           ]
@@ -1451,5 +1457,8 @@
   ],
   "left_out": [
     "x (MIRA_SKILL_X_CLIENT_SECRET)"
+  ],
+  "again": [
+    "termin-absagen (2026-11-05 22:34, Mira 0.16.0, 3 runs)"
   ]
 }

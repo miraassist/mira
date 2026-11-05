@@ -457,7 +457,7 @@ Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel; `quiz` und `vo
 
 Am Satelliten kann ein Skill mehr als sprechen. Drei Werkzeuge stehen Mira dafür zur Verfügung; die Anleitung des Skills sagt, wann sie sie nimmt:
 
-- **`sound_play`** spielt einen von Miras Klängen auf dem Lautsprecher des Satelliten, an dem gesprochen wird: `fanfare_big` (großer Erfolg), `fanfare` (Erfolg) und `too_bad` (hat nicht geklappt). Mira spricht erst weiter, wenn der Klang vorbei ist. Das Quiz nutzt das am Ende.
+- **`sound_play`** spielt einen von Miras Klängen auf dem Lautsprecher des Satelliten, an dem gesprochen wird: `fanfare_big` (großer Erfolg), `fanfare` (Erfolg) und `too_bad` (hat nicht geklappt). Mira spricht erst weiter, wenn der Klang vorbei ist. Läuft gerade Musik oder Radio, unterbricht der Klang sie nur kurz, danach läuft sie weiter. Das Quiz nutzt das am Ende.
 - **`display_card`** zeigt eine Karte auf dem Bildschirm des Satelliten: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Das geht an einem Echo Show mit TECHO5. Was auf der Karte steht, sagt Mira trotzdem.
 - **`keep_listening`** lässt den Satelliten nach Miras Antwort noch einmal zuhören, ohne Aktivierungswort, auch wenn die Antwort keine Frage ist. Gut, wenn gleich ein kurzes Wort kommt, etwa „weiter“.
 

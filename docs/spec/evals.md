@@ -88,6 +88,9 @@ although no scenario uses X). Model keys for evals (e.g. `GEMINI_API_TOKEN`) the
 go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario termin-absagen] [--runs 3]
 ```
 
+- `--scenario` with a report: the scenarios measured again replace theirs in the setup's last report, the others
+  stay; the report notes which were measured again and when (decided 2026-11-05). `--keep` keeps the eval agent's
+  database and log, to look into a failure.
 - The run starts **its own agent** with the test configuration, the setup and a fresh database. That is not the running test Mira, so that nothing from before has an effect.
 - It sends the steps to `/v1/conversation`, as the integration does. Then it checks result and trace: the trace from a log the agent writes per turn in eval mode (tool calls, threads, actions).
 - It measures per step the response time (see "Time"), per scenario tokens and, where the provider has prices, the costs.
