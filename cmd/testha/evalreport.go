@@ -17,6 +17,8 @@ type Report struct {
 	Date      string           `json:"date"`
 	Runs      int              `json:"runs"`
 	Scenarios []ScenarioResult `json:"scenarios"`
+	// LeftOut are skills not in the run, a variable missing (docs/spec/evals.md).
+	LeftOut []string `json:"left_out,omitempty"`
 }
 
 type ScenarioResult struct {
@@ -114,6 +116,9 @@ func (r Report) markdown() string {
 	b.WriteString("Modelle:\n")
 	for _, m := range r.Models {
 		fmt.Fprintf(&b, "- %s\n", m)
+	}
+	if len(r.LeftOut) > 0 {
+		fmt.Fprintf(&b, "\nOhne diese Skills (Variable fehlt in testenv/.env): %s\n", strings.Join(r.LeftOut, "; "))
 	}
 	b.WriteString("\n| Szenario | Kern | Bestanden | Ergebnis + Verhalten | Antwort | Zeit je Schritt (Median / Max, Modell) | Tokens |\n|---|---|---|---|---|---|---|\n")
 	for _, s := range r.Scenarios {

@@ -77,7 +77,10 @@ A setup is a small file in `evals/setups/` with `models` and, if needed, the age
 `mira.yaml`, without keys. It replaces the test config's models, and the test config's entries that only name a
 model.
 
-**Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval agent gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name. Model keys for evals (e.g. `GEMINI_API_TOKEN`) therefore belong in `testenv/.env`. Examples: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. A setup describes what really runs in the house, mixed too: voice local, difficult tasks in the cloud.
+**Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval agent gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name; a skill whose
+settings need a missing variable is left out of the run instead, and the report names it with the variable (decided
+2026-11-05: the X skill's secret lives in the test Mira's secrets file, written by the page, and stopped the whole run
+although no scenario uses X). Model keys for evals (e.g. `GEMINI_API_TOKEN`) therefore belong in `testenv/.env`. Examples: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. A setup describes what really runs in the house, mixed too: voice local, difficult tasks in the cloud.
 
 ## Run
 

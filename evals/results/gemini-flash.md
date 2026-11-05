@@ -1,39 +1,38 @@
-# Eval gemini-flash – 2026-10-17 11:28
+# Eval gemini-flash – 2026-11-05 22:20
 
-Mira 0.6.19 · 3 Durchläufe je Szenario · **10 von 12 Szenarien bestanden**
+Mira 0.16.0 · 3 Durchläufe je Szenario · **11 von 12 Szenarien bestanden**
 
 Modelle:
 - main: gemini-flash-latest
 
+Ohne diese Skills (Variable fehlt in testenv/.env): x (MIRA_SKILL_X_CLIENT_SECRET)
+
 | Szenario | Kern | Bestanden | Ergebnis + Verhalten | Antwort | Zeit je Schritt (Median / Max, Modell) | Tokens |
 |---|---|---|---|---|---|---|
-| kalender-lesen | ja | ✓ | 3/3 | 2/3 | 3.5 / 3.7 s, 3.5 s (brauchbar) | 52191 |
-| termin-eintragen | ja | ✗ | 0/3 | 0/3 | 4.6 / 5.1 s, 4.5 s (brauchbar) | 82374 |
-| termin-kalender-waehlen |  | ✓ | 3/3 | 3/3 | 4.7 / 5.3 s, 4.7 s (brauchbar)<br>3.4 / 4.6 s, 3.3 s (brauchbar) | 143151 |
-| termin-absagen | ja | ✓ | 3/3 | 3/3 | 6.0 / 6.1 s, 5.9 s (brauchbar)<br>3.3 / 3.5 s, 3.2 s (brauchbar) | 163219 |
-| todo-faellig |  | ✓ | 2/3 | 3/3 | 4.9 / 23.0 s, 4.9 s (brauchbar)<br>2.9 / 3.3 s, 2.9 s (gut) | 136742 |
-| abfall | ja | ✓ | 3/3 | 3/3 | 4.2 / 5.4 s, 4.2 s (brauchbar) | 80706 |
-| wecker | ja | ✓ | 3/3 | 3/3 | 5.7 / 5.9 s, 5.7 s (brauchbar)<br>7.0 / 7.1 s, 6.9 s (brauchbar) | 191267 |
-| merken | ja | ✓ | 3/3 | 3/3 | 2.9 / 3.0 s, 2.9 s (gut)<br>3.8 / 3.8 s, 3.7 s (brauchbar) | 103301 |
-| aufgabe |  | ✓ | 2/3 | 3/3 | 7.7 / 26.7 s, 5.1 s (brauchbar)<br>3.1 / 3.7 s, 3.0 s (brauchbar) | 140139 |
-| nachricht |  | ✓ | 3/3 | 3/3 | 3.5 / 4.6 s, 3.5 s (brauchbar) | 51110 |
-| licht | ja | ✓ | 3/3 | 3/3 | 2.8 / 4.2 s, 2.8 s (gut)<br>3.4 / 3.8 s, 3.4 s (brauchbar) | 105444 |
-| garagentor | ja | ✗ | 0/3 | 3/3 | 1.7 / 2.1 s, 1.6 s (gut)<br>3.8 / 5.2 s, 3.8 s (brauchbar) | 78621 |
+| kalender-lesen | ja | ✓ | 3/3 | 3/3 | 4.0 / 12.3 s, 4.0 s (brauchbar) | 82741 |
+| termin-eintragen | ja | ✓ | 3/3 | 3/3 | 9.2 / 11.6 s, 9.2 s (langsam) | 171277 |
+| termin-kalender-waehlen |  | ✓ | 3/3 | 3/3 | 9.3 / 10.7 s, 9.3 s (langsam)<br>5.6 / 6.2 s, 5.6 s (brauchbar) | 263933 |
+| termin-absagen | ja | ✗ | 0/3 | 3/3 | 7.6 / 8.0 s, 7.5 s (brauchbar)<br>2.3 / 10.3 s, 2.3 s (gut) | 168509 |
+| todo-faellig |  | ✓ | 2/3 | 3/3 | 13.9 / 17.1 s, 13.9 s (langsam)<br>5.0 / 5.9 s, 4.9 s (brauchbar) | 230071 |
+| abfall | ja | ✓ | 3/3 | 3/3 | 7.3 / 7.6 s, 7.2 s (brauchbar) | 126960 |
+| wecker | ja | ✓ | 3/3 | 3/3 | 5.6 / 7.6 s, 5.5 s (brauchbar)<br>8.8 / 10.9 s, 8.7 s (langsam) | 298736 |
+| merken | ja | ✓ | 3/3 | 3/3 | 4.4 / 5.5 s, 4.4 s (brauchbar)<br>4.4 / 10.0 s, 4.3 s (brauchbar) | 163717 |
+| aufgabe |  | ✓ | 2/3 | 3/3 | 11.8 / 32.9 s, 8.6 s (langsam)<br>3.9 / 7.9 s, 3.9 s (brauchbar) | 216935 |
+| nachricht |  | ✓ | 3/3 | 3/3 | 3.5 / 3.8 s, 3.5 s (brauchbar) | 81059 |
+| licht | ja | ✓ | 3/3 | 2/3 | 3.6 / 3.8 s, 3.5 s (brauchbar)<br>3.7 / 4.3 s, 3.6 s (brauchbar) | 166905 |
+| garagentor | ja | ✓ | 3/3 | 3/3 | 7.3 / 12.5 s, 7.3 s (brauchbar)<br>3.7 / 3.8 s, 3.7 s (brauchbar) | 168136 |
 
 ## Auffälligkeiten
 
-- kalender-lesen, Lauf 2 (Antwort): step 1: answer lacks "10"
-- termin-eintragen, Lauf 1: step 1: missing action:calendar.create_event
-- termin-eintragen, Lauf 1: step 1: no event "Friseur" at +2 15:00 in calendar.familie
-- termin-eintragen, Lauf 1 (Antwort): step 1: answer lacks "15"
-- termin-eintragen, Lauf 2: step 1: missing action:calendar.create_event
-- termin-eintragen, Lauf 2: step 1: no event "Friseur" at +2 15:00 in calendar.familie
-- termin-eintragen, Lauf 2 (Antwort): step 1: answer lacks "15"
-- termin-eintragen, Lauf 3: step 1: missing action:calendar.create_event
-- termin-eintragen, Lauf 3: step 1: no event "Friseur" at +2 15:00 in calendar.familie
-- termin-eintragen, Lauf 3 (Antwort): step 1: answer lacks "15"
-- todo-faellig, Lauf 3: step 1 took 23.0s, over 15s
-- aufgabe, Lauf 2: step 1 took 26.7s, over 15s
-- garagentor, Lauf 1: step 2: cover.garage_door is closed, not opening|open
-- garagentor, Lauf 2: step 2: cover.garage_door is closed, not opening|open
-- garagentor, Lauf 3: step 2: cover.garage_door is closed, not opening|open
+- termin-absagen, Lauf 1: step 1: missing thread:termin-absagen:proposed
+- termin-absagen, Lauf 1: step 2: missing action:calendar.delete
+- termin-absagen, Lauf 1: step 2: event "Zahnarzt" still in calendar.familie on +3
+- termin-absagen, Lauf 2: step 1: missing thread:termin-absagen:proposed
+- termin-absagen, Lauf 2: step 2: missing action:calendar.delete
+- termin-absagen, Lauf 2: step 2: event "Zahnarzt" still in calendar.familie on +3
+- termin-absagen, Lauf 3: step 1: missing thread:termin-absagen:proposed
+- termin-absagen, Lauf 3: step 2: missing action:calendar.delete
+- termin-absagen, Lauf 3: step 2: event "Zahnarzt" still in calendar.familie on +3
+- todo-faellig, Lauf 1: step 1 took 17.1s, over 15s
+- aufgabe, Lauf 2: step 1 took 32.9s, over 15s
+- licht, Lauf 1 (Antwort): step 2: answer lacks "an|eingeschaltet|leuchtet"

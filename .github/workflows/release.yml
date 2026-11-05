@@ -27,6 +27,13 @@ jobs:
             echo "manifest.json says $got, tag says $want" >&2
             exit 1
           fi
+          # The version the integration compares with the agent's
+          # (0.16.0 went out with 0.15.2 here).
+          code="$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' custom_components/mira/const.py)"
+          if [ "$want" != "$code" ]; then
+            echo "const.py says $code, tag says $want" >&2
+            exit 1
+          fi
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod

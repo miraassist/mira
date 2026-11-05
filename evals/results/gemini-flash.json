@@ -3,8 +3,8 @@
   "models": [
     "main: gemini-flash-latest"
   ],
-  "mira": "0.6.19",
-  "date": "2026-10-17 11:28",
+  "mira": "0.16.0",
+  "date": "2026-11-05 22:20",
   "runs": 3,
   "scenarios": [
     {
@@ -12,18 +12,18 @@
       "description": "Termine von morgen erfragen",
       "core": true,
       "passed_runs": 3,
-      "answer_ok_runs": 2,
+      "answer_ok_runs": 3,
       "passed": true,
       "step_times": [
         {
           "say": "Was steht morgen im Kalender?",
-          "median_seconds": 3.522710428,
-          "max_seconds": 3.68289837,
-          "model_ms_median": 3493,
+          "median_seconds": 4.002076989,
+          "max_seconds": 12.316732543,
+          "model_ms_median": 3978,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 52191,
+      "tokens": 82741,
       "runs": [
         {
           "passed": true,
@@ -31,37 +31,15 @@
           "steps": [
             {
               "say": "Was steht morgen im Kalender?",
-              "text": "Morgen um 10:00 Uhr steht ein Zahnarzttermin im Kalender Familie.",
-              "seconds": 3.522710428,
-              "model_ms": 3493,
+              "text": "Morgen um 10 Uhr steht der Zahnarzttermin im Kalender.",
+              "seconds": 3.843217112,
+              "model_ms": 3815,
               "rounds": 2,
-              "tokens": 17394,
+              "tokens": 27579,
               "trace": [
-                "round:main:1769ms",
+                "round:main:1956ms",
                 "tool:calendar_events",
-                "round:main:1724ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": true,
-          "answer_ok": false,
-          "answer_notes": [
-            "step 1: answer lacks \"10\""
-          ],
-          "steps": [
-            {
-              "say": "Was steht morgen im Kalender?",
-              "text": "Morgen um zehn Uhr steht Zahnarzt im Familienkalender.",
-              "seconds": 3.091995354,
-              "model_ms": 3063,
-              "rounds": 2,
-              "tokens": 17405,
-              "trace": [
-                "round:main:1813ms",
-                "tool:calendar_events",
-                "round:main:1250ms"
+                "round:main:1859ms"
               ]
             }
           ]
@@ -72,15 +50,34 @@
           "steps": [
             {
               "say": "Was steht morgen im Kalender?",
-              "text": "Morgen um 10:00 Uhr steht Zahnarzt im Familienkalender.",
-              "seconds": 3.68289837,
-              "model_ms": 3653,
+              "text": "Morgen steht um 10 Uhr nur der Zahnarzttermin im Familienkalender.",
+              "seconds": 4.002076989,
+              "model_ms": 3978,
               "rounds": 2,
-              "tokens": 17392,
+              "tokens": 27581,
               "trace": [
-                "round:main:1845ms",
+                "round:main:2234ms",
                 "tool:calendar_events",
-                "round:main:1808ms"
+                "round:main:1744ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Was steht morgen im Kalender?",
+              "text": "Morgen steht um 10:00 Uhr Zahnarzt im Familienkalender.",
+              "seconds": 12.316732543,
+              "model_ms": 12292,
+              "rounds": 2,
+              "tokens": 27581,
+              "trace": [
+                "round:main:5784ms",
+                "tool:calendar_events",
+                "round:main:6508ms"
               ]
             }
           ]
@@ -91,103 +88,94 @@
       "name": "termin-eintragen",
       "description": "Termin eintragen, der Standard-Kalender steht im Gedächtnis",
       "core": true,
-      "passed_runs": 0,
-      "answer_ok_runs": 0,
-      "passed": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
       "step_times": [
         {
           "say": "Trag mir übermorgen um 15 Uhr Friseur ein",
-          "median_seconds": 4.5638346720000005,
-          "max_seconds": 5.119492018,
-          "model_ms_median": 4524,
-          "rating": "brauchbar"
+          "median_seconds": 9.235911299,
+          "max_seconds": 11.585748495,
+          "model_ms_median": 9192,
+          "rating": "langsam"
         }
       ],
-      "tokens": 82374,
+      "tokens": 171277,
       "runs": [
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing action:calendar.create_event",
-            "step 1: no event \"Friseur\" at +2 15:00 in calendar.familie"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"15\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Trag mir übermorgen um 15 Uhr Friseur ein",
-              "text": "In welchen Kalender soll ich den Friseurtermin eintragen, Familie oder Ben?",
-              "seconds": 5.119492018,
-              "model_ms": 4981,
-              "rounds": 3,
-              "tokens": 27460,
+              "text": "Alles klar, Friseur steht für Samstag, 7. November, um 15:00 Uhr im Kalender Familie.",
+              "seconds": 9.235911299,
+              "model_ms": 9192,
+              "rounds": 4,
+              "tokens": 57092,
               "trace": [
-                "round:main:1713ms",
+                "round:main:2199ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:1714ms",
+                "round:main:3243ms",
+                "tool:memory_search",
+                "round:main:1955ms",
                 "tool:thread_fill",
-                "round:main:1554ms"
+                "action:calendar.create_event",
+                "thread:termin:done",
+                "round:main:1795ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing action:calendar.create_event",
-            "step 1: no event \"Friseur\" at +2 15:00 in calendar.familie"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"15\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Trag mir übermorgen um 15 Uhr Friseur ein",
-              "text": "In welchen Kalender soll ich den Friseurtermin eintragen, Familie oder Ben?",
-              "seconds": 4.082899465,
-              "model_ms": 4048,
-              "rounds": 3,
-              "tokens": 27460,
+              "text": "Ich habe dir den Friseurtermin für Samstag, den 7. November um 15 Uhr im Kalender Familie eingetragen.",
+              "seconds": 7.850196852,
+              "model_ms": 7806,
+              "rounds": 4,
+              "tokens": 57092,
               "trace": [
-                "round:main:1399ms",
+                "round:main:1870ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:1488ms",
+                "round:main:1745ms",
+                "tool:memory_search",
+                "round:main:2241ms",
                 "tool:thread_fill",
-                "round:main:1161ms"
+                "action:calendar.create_event",
+                "thread:termin:done",
+                "round:main:1950ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing action:calendar.create_event",
-            "step 1: no event \"Friseur\" at +2 15:00 in calendar.familie"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"15\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Trag mir übermorgen um 15 Uhr Friseur ein",
-              "text": "In welchen Kalender soll der Termin, Familie oder Ben?",
-              "seconds": 4.5638346720000005,
-              "model_ms": 4524,
-              "rounds": 3,
-              "tokens": 27454,
+              "text": "Friseur ist für Samstag, den 7. November, von 15 bis 16 Uhr im Kalender Familie eingetragen.",
+              "seconds": 11.585748495,
+              "model_ms": 11544,
+              "rounds": 4,
+              "tokens": 57093,
               "trace": [
-                "round:main:1418ms",
+                "round:main:4892ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:1847ms",
+                "round:main:2012ms",
+                "tool:memory_search",
+                "round:main:2864ms",
                 "tool:thread_fill",
-                "round:main:1259ms"
+                "action:calendar.create_event",
+                "thread:termin:done",
+                "round:main:1776ms"
               ]
             }
           ]
@@ -204,20 +192,20 @@
       "step_times": [
         {
           "say": "Trag mir übermorgen um 17 Uhr Training ein",
-          "median_seconds": 4.70021746,
-          "max_seconds": 5.283633472,
-          "model_ms_median": 4659,
-          "rating": "brauchbar"
+          "median_seconds": 9.307187591,
+          "max_seconds": 10.741165952,
+          "model_ms_median": 9273,
+          "rating": "langsam"
         },
         {
           "say": "In den Kalender Ben",
-          "median_seconds": 3.366062632,
-          "max_seconds": 4.636001041,
-          "model_ms_median": 3326,
+          "median_seconds": 5.598128478,
+          "max_seconds": 6.162670192,
+          "model_ms_median": 5572,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 143151,
+      "tokens": 263933,
       "runs": [
         {
           "passed": true,
@@ -225,33 +213,35 @@
           "steps": [
             {
               "say": "Trag mir übermorgen um 17 Uhr Training ein",
-              "text": "In welchen Kalender soll ich das Training eintragen, Familie oder Ben?",
-              "seconds": 5.283633472,
-              "model_ms": 5240,
-              "rounds": 3,
-              "tokens": 27452,
+              "text": "In welchen Kalender soll ich das Training eintragen: Ben, Anna oder Familie?",
+              "seconds": 10.741165952,
+              "model_ms": 10704,
+              "rounds": 4,
+              "tokens": 57250,
               "trace": [
-                "round:main:1587ms",
+                "round:main:2689ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:2033ms",
+                "round:main:2051ms",
+                "tool:memory_search",
+                "round:main:1988ms",
                 "tool:thread_fill",
-                "round:main:1620ms"
+                "round:main:3976ms"
               ]
             },
             {
               "say": "In den Kalender Ben",
-              "text": "Ich habe Training für Montag, 19. Oktober 2026 von 17:00 bis 18:00 Uhr im Kalender Ben eingetragen. Soll ich mir Ben als deinen Standard-Kalender merken?",
-              "seconds": 4.636001041,
-              "model_ms": 4597,
+              "text": "Training ist für Samstag, den 7. November, von 17 bis 18 Uhr im Kalender Ben eingetragen. Soll ich mir Ben als deinen Standard-Kalender merken?",
+              "seconds": 3.227107172,
+              "model_ms": 3203,
               "rounds": 2,
-              "tokens": 20277,
+              "tokens": 30736,
               "trace": [
-                "round:main:1281ms",
+                "round:main:1739ms",
                 "tool:thread_fill",
                 "action:calendar.create_event",
                 "thread:termin:done",
-                "round:main:3316ms"
+                "round:main:1464ms"
               ]
             }
           ]
@@ -262,33 +252,35 @@
           "steps": [
             {
               "say": "Trag mir übermorgen um 17 Uhr Training ein",
-              "text": "In welchen Kalender soll ich das Training eintragen, Ben oder Familie?",
-              "seconds": 4.70021746,
-              "model_ms": 4659,
-              "rounds": 3,
-              "tokens": 27449,
+              "text": "In welchen Kalender soll ich das Training eintragen: Ben, Familie oder Anna?",
+              "seconds": 9.307187591,
+              "model_ms": 9273,
+              "rounds": 4,
+              "tokens": 57247,
               "trace": [
-                "round:main:1544ms",
+                "round:main:2984ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:1618ms",
+                "round:main:1864ms",
+                "tool:memory_search",
+                "round:main:2207ms",
                 "tool:thread_fill",
-                "round:main:1497ms"
+                "round:main:2218ms"
               ]
             },
             {
               "say": "In den Kalender Ben",
-              "text": "Ich habe das Training für Montag, 19. Oktober, von 17:00 bis 18:00 Uhr in Bens Kalender eingetragen. Soll ich mir Ben als deinen Standard-Kalender merken?",
-              "seconds": 3.366062632,
-              "model_ms": 3326,
+              "text": "Training steht für Samstag, 7. November, von 17 bis 18 Uhr in Bens Kalender. Soll ich mir Ben als deinen Standard-Kalender merken?",
+              "seconds": 5.598128478,
+              "model_ms": 5572,
               "rounds": 2,
-              "tokens": 20266,
+              "tokens": 30725,
               "trace": [
-                "round:main:1566ms",
+                "round:main:3626ms",
                 "tool:thread_fill",
                 "action:calendar.create_event",
                 "thread:termin:done",
-                "round:main:1760ms"
+                "round:main:1946ms"
               ]
             }
           ]
@@ -299,33 +291,35 @@
           "steps": [
             {
               "say": "Trag mir übermorgen um 17 Uhr Training ein",
-              "text": "In welchen Kalender soll ich das Training eintragen, Familie oder Ben?",
-              "seconds": 4.457214513,
-              "model_ms": 4418,
-              "rounds": 3,
-              "tokens": 27449,
+              "text": "In welchen Kalender soll ich das Training eintragen: Ben, Anna oder Familie?",
+              "seconds": 8.454717816,
+              "model_ms": 8413,
+              "rounds": 4,
+              "tokens": 57247,
               "trace": [
-                "round:main:1243ms",
+                "round:main:1719ms",
                 "tool:thread_start",
                 "thread:termin:started",
-                "round:main:1661ms",
+                "round:main:1949ms",
+                "tool:memory_search",
+                "round:main:2189ms",
                 "tool:thread_fill",
-                "round:main:1514ms"
+                "round:main:2556ms"
               ]
             },
             {
               "say": "In den Kalender Ben",
-              "text": "Training ist für Montag, den 19. Oktober von 17 bis 18 Uhr im Kalender Ben eingetragen. Soll ich mir Ben als deinen Standard-Kalender merken?",
-              "seconds": 2.984132173,
-              "model_ms": 2948,
+              "text": "Training ist für Samstag, den 7. November, von 17 bis 18 Uhr im Kalender Ben eingetragen. Soll ich mir Ben als deinen Standard-Kalender merken?",
+              "seconds": 6.162670192,
+              "model_ms": 6136,
               "rounds": 2,
-              "tokens": 20258,
+              "tokens": 30728,
               "trace": [
-                "round:main:1328ms",
+                "round:main:4010ms",
                 "tool:thread_fill",
                 "action:calendar.create_event",
                 "thread:termin:done",
-                "round:main:1620ms"
+                "round:main:2126ms"
               ]
             }
           ]
@@ -336,143 +330,137 @@
       "name": "termin-absagen",
       "description": "Termin absagen, erst nach dem Ja",
       "core": true,
-      "passed_runs": 3,
+      "passed_runs": 0,
       "answer_ok_runs": 3,
-      "passed": true,
+      "passed": false,
       "step_times": [
         {
           "say": "Sag meinen Zahnarzttermin ab",
-          "median_seconds": 5.953166953,
-          "max_seconds": 6.138739466,
-          "model_ms_median": 5905,
+          "median_seconds": 7.574113728,
+          "max_seconds": 7.955207483,
+          "model_ms_median": 7540,
           "rating": "brauchbar"
         },
         {
           "say": "Ja",
-          "median_seconds": 3.251014745,
-          "max_seconds": 3.458571991,
-          "model_ms_median": 3219,
-          "rating": "brauchbar"
+          "median_seconds": 2.321779847,
+          "max_seconds": 10.307680417,
+          "model_ms_median": 2309,
+          "rating": "gut"
         }
       ],
-      "tokens": 163219,
+      "tokens": 168509,
       "runs": [
         {
-          "passed": true,
+          "passed": false,
           "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:termin-absagen:proposed",
+            "step 2: missing action:calendar.delete",
+            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
+          ],
           "steps": [
             {
               "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Soll ich den Zahnarzttermin am Dienstag, 20. Oktober um 15:00 Uhr absagen?",
-              "seconds": 6.138739466,
-              "model_ms": 6090,
-              "rounds": 4,
-              "tokens": 35462,
+              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag oder den von Anna am Dienstag?",
+              "seconds": 7.955207483,
+              "model_ms": 7915,
+              "rounds": 3,
+              "tokens": 41853,
               "trace": [
-                "round:main:1360ms",
-                "tool:calendar_events",
-                "round:main:1420ms",
+                "round:main:2202ms",
                 "tool:thread_start",
                 "thread:termin-absagen:started",
-                "round:main:1759ms",
-                "tool:thread_fill",
-                "thread:termin-absagen:proposed",
-                "round:main:1551ms"
+                "round:main:2201ms",
+                "tool:calendar_events",
+                "round:main:3512ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Der Zahnarzttermin ist abgesagt. Dein Bohrer bleibt im Schrank.",
-              "seconds": 2.95072109,
-              "model_ms": 2920,
-              "rounds": 2,
-              "tokens": 18967,
+              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder Annas Termin am Dienstag absagen?",
+              "seconds": 2.321779847,
+              "model_ms": 2309,
+              "rounds": 1,
+              "tokens": 14390,
               "trace": [
-                "round:main:1195ms",
-                "tool:thread_confirm",
-                "action:calendar.delete",
-                "thread:termin-absagen:confirmed",
-                "round:main:1725ms"
+                "round:main:2309ms"
               ]
             }
           ]
         },
         {
-          "passed": true,
+          "passed": false,
           "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:termin-absagen:proposed",
+            "step 2: missing action:calendar.delete",
+            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
+          ],
           "steps": [
             {
               "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Soll ich den Zahnarzttermin am Dienstag, 20. Oktober um 15 Uhr absagen?",
-              "seconds": 5.856412488,
-              "model_ms": 5811,
-              "rounds": 4,
-              "tokens": 35551,
+              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag um 15 Uhr oder den von Anna am Dienstag um 14 Uhr?",
+              "seconds": 5.747863573,
+              "model_ms": 5713,
+              "rounds": 3,
+              "tokens": 41833,
               "trace": [
-                "round:main:1783ms",
+                "round:main:1570ms",
                 "tool:thread_start",
                 "thread:termin-absagen:started",
-                "round:main:1319ms",
+                "round:main:1902ms",
                 "tool:calendar_events",
-                "round:main:1292ms",
-                "tool:thread_fill",
-                "thread:termin-absagen:proposed",
-                "round:main:1417ms"
+                "round:main:2241ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Der Zahnarzttermin am Dienstag ist abgesagt.",
-              "seconds": 3.251014745,
-              "model_ms": 3219,
-              "rounds": 2,
-              "tokens": 18817,
+              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder den am Dienstag um 14 Uhr absagen?",
+              "seconds": 1.7147193120000002,
+              "model_ms": 1701,
+              "rounds": 1,
+              "tokens": 14388,
               "trace": [
-                "round:main:1762ms",
-                "tool:thread_confirm",
-                "action:calendar.delete",
-                "thread:termin-absagen:confirmed",
-                "round:main:1457ms"
+                "round:main:1701ms"
               ]
             }
           ]
         },
         {
-          "passed": true,
+          "passed": false,
           "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:termin-absagen:proposed",
+            "step 2: missing action:calendar.delete",
+            "step 2: event \"Zahnarzt\" still in calendar.familie on +3"
+          ],
           "steps": [
             {
               "say": "Sag meinen Zahnarzttermin ab",
-              "text": "Soll ich den Zahnarzttermin am Dienstag, 20. Oktober um 15:00 Uhr absagen?",
-              "seconds": 5.953166953,
-              "model_ms": 5905,
-              "rounds": 4,
-              "tokens": 35562,
+              "text": "Welchen Zahnarzttermin meinst du, den am Sonntag um 15 Uhr oder den von Anna am Dienstag um 14 Uhr?",
+              "seconds": 7.574113728,
+              "model_ms": 7540,
+              "rounds": 3,
+              "tokens": 41670,
               "trace": [
-                "round:main:1367ms",
+                "round:main:2006ms",
+                "tool:calendar_events",
+                "round:main:1909ms",
                 "tool:thread_start",
                 "thread:termin-absagen:started",
-                "round:main:1209ms",
-                "tool:calendar_events",
-                "round:main:1543ms",
-                "tool:thread_fill",
-                "thread:termin-absagen:proposed",
-                "round:main:1786ms"
+                "round:main:3625ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Der Zahnarzttermin am Dienstag ist abgesagt. Dein Gebiss hat noch mal Schonfrist.",
-              "seconds": 3.458571991,
-              "model_ms": 3430,
-              "rounds": 2,
-              "tokens": 18860,
+              "text": "Soll ich den Termin am Sonntag um 15 Uhr oder Annas Termin am Dienstag um 14 Uhr absagen?",
+              "seconds": 10.307680417,
+              "model_ms": 10295,
+              "rounds": 1,
+              "tokens": 14375,
               "trace": [
-                "round:main:1732ms",
-                "tool:thread_confirm",
-                "action:calendar.delete",
-                "thread:termin-absagen:confirmed",
-                "round:main:1698ms"
+                "round:main:10295ms"
               ]
             }
           ]
@@ -489,131 +477,133 @@
       "step_times": [
         {
           "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
-          "median_seconds": 4.940336135,
-          "max_seconds": 22.969226018,
-          "model_ms_median": 4899,
-          "rating": "brauchbar"
+          "median_seconds": 13.895530106,
+          "max_seconds": 17.090078765,
+          "model_ms_median": 13853,
+          "rating": "langsam"
         },
         {
           "say": "Auf Einkauf",
-          "median_seconds": 2.941398338,
-          "max_seconds": 3.272957832,
-          "model_ms_median": 2908,
-          "rating": "gut"
+          "median_seconds": 4.971102774,
+          "max_seconds": 5.860392667,
+          "model_ms_median": 4945,
+          "rating": "brauchbar"
         }
       ],
-      "tokens": 136742,
+      "tokens": 230071,
       "runs": [
-        {
-          "passed": true,
-          "answer_ok": true,
-          "steps": [
-            {
-              "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
-              "text": "Auf welche Liste soll es, Einkauf oder Einkaufsliste?",
-              "seconds": 4.521664494,
-              "model_ms": 4480,
-              "rounds": 3,
-              "tokens": 26663,
-              "trace": [
-                "round:main:1492ms",
-                "tool:thread_start",
-                "thread:todo:started",
-                "round:main:1674ms",
-                "tool:thread_fill",
-                "round:main:1314ms"
-              ]
-            },
-            {
-              "say": "Auf Einkauf",
-              "text": "Batterien AAA stehen auf der Liste Einkauf, fällig am Montag. Soll ich mir Einkauf als deine Standard-Liste merken?",
-              "seconds": 3.272957832,
-              "model_ms": 3235,
-              "rounds": 2,
-              "tokens": 18923,
-              "trace": [
-                "round:main:1378ms",
-                "tool:thread_fill",
-                "action:todo.add_item",
-                "thread:todo:done",
-                "round:main:1857ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": true,
-          "answer_ok": true,
-          "steps": [
-            {
-              "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
-              "text": "Auf welche Liste soll ich das setzen, Einkauf oder Einkaufsliste?",
-              "seconds": 4.940336135,
-              "model_ms": 4899,
-              "rounds": 3,
-              "tokens": 26662,
-              "trace": [
-                "round:main:1884ms",
-                "tool:thread_start",
-                "thread:todo:started",
-                "round:main:1580ms",
-                "tool:thread_fill",
-                "round:main:1435ms"
-              ]
-            },
-            {
-              "say": "Auf Einkauf",
-              "text": "Batterien AAA stehen auf der Liste Einkauf, fällig am Montag. Soll ich mir Einkauf als deine Standard-Liste merken?",
-              "seconds": 2.941398338,
-              "model_ms": 2908,
-              "rounds": 2,
-              "tokens": 18919,
-              "trace": [
-                "round:main:1493ms",
-                "tool:thread_fill",
-                "action:todo.add_item",
-                "thread:todo:done",
-                "round:main:1415ms"
-              ]
-            }
-          ]
-        },
         {
           "passed": false,
           "answer_ok": true,
           "failures": [
-            "step 1 took 23.0s, over 15s"
+            "step 1 took 17.1s, over 15s"
           ],
           "steps": [
             {
               "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
-              "text": "Auf welche Liste soll es, Einkauf oder Einkaufsliste?",
-              "seconds": 22.969226018,
-              "model_ms": 22928,
-              "rounds": 3,
-              "tokens": 26660,
+              "text": "Auf welche Liste soll ich es setzen, Einkauf oder Einkaufsliste?",
+              "seconds": 17.090078765,
+              "model_ms": 17047,
+              "rounds": 4,
+              "tokens": 57286,
               "trace": [
-                "round:main:20022ms",
+                "round:main:6610ms",
                 "tool:thread_start",
                 "thread:todo:started",
-                "round:main:1345ms",
+                "round:main:3789ms",
+                "tool:memory_search",
+                "round:main:2771ms",
                 "tool:thread_fill",
-                "round:main:1561ms"
+                "round:main:3877ms"
               ]
             },
             {
               "say": "Auf Einkauf",
-              "text": "Batterien AAA stehen auf der Liste Einkauf, fällig am Montag. Soll ich mir Einkauf als deine Standard-Liste merken?",
-              "seconds": 2.689613722,
-              "model_ms": 2650,
+              "text": "Ich habe Batterien AAA bis zum 7. November auf die Liste Einkauf gesetzt. Soll ich mir Einkauf als deine Standard-Liste merken?",
+              "seconds": 5.860392667,
+              "model_ms": 5835,
               "rounds": 2,
-              "tokens": 18915,
+              "tokens": 30477,
               "trace": [
-                "round:main:1385ms",
+                "round:main:2418ms",
                 "tool:thread_fill",
                 "action:todo.add_item",
                 "thread:todo:done",
-                "round:main:1265ms"
+                "round:main:3417ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
+              "text": "Auf welche Liste möchtest du das setzen, Einkauf oder Einkaufsliste?",
+              "seconds": 13.895530106,
+              "model_ms": 13853,
+              "rounds": 3,
+              "tokens": 41952,
+              "trace": [
+                "round:main:3818ms",
+                "tool:thread_start",
+                "thread:todo:started",
+                "round:main:5861ms",
+                "tool:thread_fill",
+                "round:main:4174ms"
+              ]
+            },
+            {
+              "say": "Auf Einkauf",
+              "text": "Batterien AAA stehen auf der Liste Einkauf, fällig bis Samstag. Soll ich mir Einkauf als deine Standardliste merken?",
+              "seconds": 4.186918154,
+              "model_ms": 4161,
+              "rounds": 2,
+              "tokens": 29196,
+              "trace": [
+                "round:main:1579ms",
+                "tool:thread_fill",
+                "action:todo.add_item",
+                "thread:todo:done",
+                "round:main:2582ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Setz Batterien AAA auf die Liste, bis übermorgen",
+              "text": "Auf welche Liste möchtest du Batterien AAA setzen, Einkaufsliste oder Einkauf?",
+              "seconds": 5.422288318,
+              "model_ms": 5387,
+              "rounds": 3,
+              "tokens": 41954,
+              "trace": [
+                "round:main:1731ms",
+                "tool:thread_start",
+                "thread:todo:started",
+                "round:main:2153ms",
+                "tool:thread_fill",
+                "round:main:1503ms"
+              ]
+            },
+            {
+              "say": "Auf Einkauf",
+              "text": "Batterien AAA stehen auf der Liste Einkauf, fällig bis Samstag, 7. November. Soll ich mir Einkauf als Standardliste für dich merken?",
+              "seconds": 4.971102774,
+              "model_ms": 4945,
+              "rounds": 2,
+              "tokens": 29206,
+              "trace": [
+                "round:main:2341ms",
+                "tool:thread_fill",
+                "action:todo.add_item",
+                "thread:todo:done",
+                "round:main:2604ms"
               ]
             }
           ]
@@ -630,13 +620,13 @@
       "step_times": [
         {
           "say": "Wann wird der Restmüll abgeholt?",
-          "median_seconds": 4.208265473,
-          "max_seconds": 5.431345416,
-          "model_ms_median": 4180,
+          "median_seconds": 7.272985066,
+          "max_seconds": 7.615353271,
+          "model_ms_median": 7243,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 80706,
+      "tokens": 126960,
       "runs": [
         {
           "passed": true,
@@ -644,17 +634,17 @@
           "steps": [
             {
               "say": "Wann wird der Restmüll abgeholt?",
-              "text": "Der Restabfall wird am Dienstag, den 20. Oktober abgeholt.",
-              "seconds": 4.208265473,
-              "model_ms": 4180,
+              "text": "Der nächste Restmüll wird am Dienstag, den 17. November abgeholt.",
+              "seconds": 6.093405552,
+              "model_ms": 6067,
               "rounds": 3,
-              "tokens": 27112,
+              "tokens": 42440,
               "trace": [
-                "round:main:1286ms",
+                "round:main:1741ms",
                 "tool:skill_open",
-                "round:main:1483ms",
+                "round:main:2193ms",
                 "tool:calendar_events",
-                "round:main:1411ms"
+                "round:main:2133ms"
               ]
             }
           ]
@@ -665,17 +655,17 @@
           "steps": [
             {
               "say": "Wann wird der Restmüll abgeholt?",
-              "text": "Der Restmüll wird am Dienstag, den 20. Oktober abgeholt.",
-              "seconds": 5.431345416,
-              "model_ms": 5405,
+              "text": "Der Restmüll wird am Dienstag, den 17. November abgeholt.",
+              "seconds": 7.615353271,
+              "model_ms": 7588,
               "rounds": 3,
-              "tokens": 26799,
+              "tokens": 42439,
               "trace": [
-                "round:main:2318ms",
+                "round:main:2792ms",
                 "tool:skill_open",
-                "round:main:1505ms",
+                "round:main:2298ms",
                 "tool:calendar_events",
-                "round:main:1582ms"
+                "round:main:2498ms"
               ]
             }
           ]
@@ -686,17 +676,17 @@
           "steps": [
             {
               "say": "Wann wird der Restmüll abgeholt?",
-              "text": "Der Restmüll wird am Dienstag, den 20. Oktober abgeholt.",
-              "seconds": 4.176355164,
-              "model_ms": 4144,
+              "text": "Der nächste Restmüll wird am Dienstag, den 17. November abgeholt.",
+              "seconds": 7.272985066,
+              "model_ms": 7243,
               "rounds": 3,
-              "tokens": 26795,
+              "tokens": 42081,
               "trace": [
-                "round:main:1271ms",
+                "round:main:2163ms",
                 "tool:skill_open",
-                "round:main:1630ms",
+                "round:main:2922ms",
                 "tool:calendar_events",
-                "round:main:1243ms"
+                "round:main:2158ms"
               ]
             }
           ]
@@ -705,7 +695,7 @@
     },
     {
       "name": "wecker",
-      "description": "Wecker an der Show stellen und gleich korrigieren",
+      "description": "Wecker an der (Fake-)Show stellen und gleich korrigieren",
       "core": true,
       "passed_runs": 3,
       "answer_ok_runs": 3,
@@ -713,20 +703,20 @@
       "step_times": [
         {
           "say": "Weck mich morgen um sechs",
-          "median_seconds": 5.7284891810000005,
-          "max_seconds": 5.899924345,
-          "model_ms_median": 5684,
+          "median_seconds": 5.557750384,
+          "max_seconds": 7.606412563,
+          "model_ms_median": 5530,
           "rating": "brauchbar"
         },
         {
           "say": "Nein, halb sieben",
-          "median_seconds": 6.971433144,
-          "max_seconds": 7.094795554,
-          "model_ms_median": 6919,
-          "rating": "brauchbar"
+          "median_seconds": 8.773094386,
+          "max_seconds": 10.927971084,
+          "model_ms_median": 8745,
+          "rating": "langsam"
         }
       ],
-      "tokens": 191267,
+      "tokens": 298736,
       "runs": [
         {
           "passed": true,
@@ -734,41 +724,41 @@
           "steps": [
             {
               "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen, 6 Uhr.",
-              "seconds": 5.7284891810000005,
-              "model_ms": 5684,
+              "text": "Wecker steht: morgen früh um 6 Uhr.",
+              "seconds": 5.349305073,
+              "model_ms": 5321,
               "rounds": 3,
-              "tokens": 26600,
+              "tokens": 41872,
               "trace": [
-                "round:main:1553ms",
+                "round:main:2132ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:1244ms",
+                "round:main:1748ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:2887ms"
+                "round:main:1441ms"
               ]
             },
             {
               "say": "Nein, halb sieben",
-              "text": "Alles klar, Wecker steht auf morgen, 6:30 Uhr.",
-              "seconds": 6.971433144,
-              "model_ms": 6919,
+              "text": "Alles klar, Wecker steht: morgen, 6:30 Uhr.",
+              "seconds": 8.773094386,
+              "model_ms": 8745,
               "rounds": 4,
-              "tokens": 37193,
+              "tokens": 57691,
               "trace": [
-                "round:main:1530ms",
+                "round:main:4281ms",
                 "tool:thread_undo",
-                "action:esphome.show_alarm_delete",
-                "round:main:2151ms",
+                "action:esphome.fake_show_alarm_delete",
+                "round:main:1661ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:1606ms",
+                "round:main:1461ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:1632ms"
+                "round:main:1342ms"
               ]
             }
           ]
@@ -779,41 +769,41 @@
           "steps": [
             {
               "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen, 6 Uhr.",
-              "seconds": 5.899924345,
-              "model_ms": 5855,
+              "text": "Wecker steht: morgen früh um 6 Uhr. Schlaf gut!",
+              "seconds": 7.606412563,
+              "model_ms": 7580,
               "rounds": 3,
-              "tokens": 26586,
+              "tokens": 41875,
               "trace": [
-                "round:main:1354ms",
+                "round:main:1713ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:3135ms",
+                "round:main:1892ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:1366ms"
+                "round:main:3975ms"
               ]
             },
             {
               "say": "Nein, halb sieben",
-              "text": "Alles klar, Wecker steht auf morgen, 6 Uhr 30.",
-              "seconds": 7.094795554,
-              "model_ms": 7044,
+              "text": "Alles klar, umgestellt: Der Wecker klingelt morgen um 6:30 Uhr.",
+              "seconds": 10.927971084,
+              "model_ms": 10898,
               "rounds": 4,
-              "tokens": 37151,
+              "tokens": 57707,
               "trace": [
-                "round:main:1485ms",
+                "round:main:5300ms",
                 "tool:thread_undo",
-                "action:esphome.show_alarm_delete",
-                "round:main:1830ms",
+                "action:esphome.fake_show_alarm_delete",
+                "round:main:2065ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:2048ms",
+                "round:main:1572ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:1681ms"
+                "round:main:1961ms"
               ]
             }
           ]
@@ -824,41 +814,41 @@
           "steps": [
             {
               "say": "Weck mich morgen um sechs",
-              "text": "Wecker steht: morgen um 6 Uhr.",
-              "seconds": 5.539242122,
-              "model_ms": 5497,
+              "text": "Wecker steht: morgen um 6:00 Uhr. Schlaf gut.",
+              "seconds": 5.557750384,
+              "model_ms": 5530,
               "rounds": 3,
-              "tokens": 26586,
+              "tokens": 41877,
               "trace": [
-                "round:main:1333ms",
+                "round:main:1439ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:2606ms",
+                "round:main:2220ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:1558ms"
+                "round:main:1871ms"
               ]
             },
             {
               "say": "Nein, halb sieben",
-              "text": "Alles klar, Wecker steht auf morgen um 6:30 Uhr.",
-              "seconds": 6.349390858,
-              "model_ms": 6298,
+              "text": "Alles klar, Wecker ist korrigiert auf morgen um 6:30 Uhr.",
+              "seconds": 7.8542260630000005,
+              "model_ms": 7811,
               "rounds": 4,
-              "tokens": 37151,
+              "tokens": 57714,
               "trace": [
-                "round:main:1749ms",
+                "round:main:1925ms",
                 "tool:thread_undo",
-                "action:esphome.show_alarm_delete",
-                "round:main:1471ms",
+                "action:esphome.fake_show_alarm_delete",
+                "round:main:2452ms",
                 "tool:thread_start",
                 "thread:wecker:started",
-                "round:main:1607ms",
+                "round:main:1865ms",
                 "tool:thread_fill",
-                "action:esphome.show_alarm_set",
+                "action:esphome.fake_show_alarm_set",
                 "thread:wecker:done",
-                "round:main:1471ms"
+                "round:main:1569ms"
               ]
             }
           ]
@@ -875,20 +865,20 @@
       "step_times": [
         {
           "say": "Merk dir, dass der Schlüssel für den Keller im Flur hängt",
-          "median_seconds": 2.895186034,
-          "max_seconds": 2.958106128,
-          "model_ms_median": 2866,
-          "rating": "gut"
+          "median_seconds": 4.378951912,
+          "max_seconds": 5.485627353,
+          "model_ms_median": 4353,
+          "rating": "brauchbar"
         },
         {
           "say": "Merk dir, dass ich keine Pilze mag",
-          "median_seconds": 3.765177342,
-          "max_seconds": 3.847558384,
-          "model_ms_median": 3747,
+          "median_seconds": 4.365140264,
+          "max_seconds": 10.008030058,
+          "model_ms_median": 4344,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 103301,
+      "tokens": 163717,
       "runs": [
         {
           "passed": true,
@@ -897,59 +887,27 @@
             {
               "say": "Merk dir, dass der Schlüssel für den Keller im Flur hängt",
               "text": "Hab ich mir gemerkt.",
-              "seconds": 2.895186034,
-              "model_ms": 2866,
+              "seconds": 4.144848823,
+              "model_ms": 4122,
               "rounds": 2,
-              "tokens": 17361,
+              "tokens": 27542,
               "trace": [
-                "round:main:1731ms",
+                "round:main:2151ms",
                 "tool:memory_save",
-                "round:main:1135ms"
+                "round:main:1971ms"
               ]
             },
             {
               "say": "Merk dir, dass ich keine Pilze mag",
-              "text": "Alles klar, Pilze sind für dich gestrichen. Hab’s mir gemerkt.",
-              "seconds": 3.847558384,
-              "model_ms": 3829,
+              "text": "Hab ich mir für dich gemerkt – Pilze bleiben draußen.",
+              "seconds": 4.365140264,
+              "model_ms": 4344,
               "rounds": 2,
-              "tokens": 17084,
+              "tokens": 27024,
               "trace": [
-                "round:main:1763ms",
+                "round:main:3035ms",
                 "tool:memory_save",
-                "round:main:2066ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": true,
-          "answer_ok": true,
-          "steps": [
-            {
-              "say": "Merk dir, dass der Schlüssel für den Keller im Flur hängt",
-              "text": "Ist notiert, der Kellerschlüssel hängt im Flur.",
-              "seconds": 2.8464772050000002,
-              "model_ms": 2818,
-              "rounds": 2,
-              "tokens": 17366,
-              "trace": [
-                "round:main:1519ms",
-                "tool:memory_save",
-                "round:main:1299ms"
-              ]
-            },
-            {
-              "say": "Merk dir, dass ich keine Pilze mag",
-              "text": "Alles klar, Pilze sind für dich gestrichen.",
-              "seconds": 2.585426999,
-              "model_ms": 2566,
-              "rounds": 2,
-              "tokens": 17050,
-              "trace": [
-                "round:main:1346ms",
-                "tool:memory_save",
-                "round:main:1220ms"
+                "round:main:1309ms"
               ]
             }
           ]
@@ -961,27 +919,59 @@
             {
               "say": "Merk dir, dass der Schlüssel für den Keller im Flur hängt",
               "text": "Hab ich mir gemerkt.",
-              "seconds": 2.958106128,
-              "model_ms": 2913,
+              "seconds": 5.485627353,
+              "model_ms": 5461,
               "rounds": 2,
-              "tokens": 17359,
+              "tokens": 27542,
               "trace": [
-                "round:main:1771ms",
+                "round:main:2043ms",
                 "tool:memory_save",
-                "round:main:1142ms"
+                "round:main:3418ms"
               ]
             },
             {
               "say": "Merk dir, dass ich keine Pilze mag",
-              "text": "Gemerkt: Pilze sind für dich gestrichen.",
-              "seconds": 3.765177342,
-              "model_ms": 3747,
+              "text": "Hab ich mir für dich gemerkt – Pilze gestrichen.",
+              "seconds": 3.728930881,
+              "model_ms": 3705,
               "rounds": 2,
-              "tokens": 17081,
+              "tokens": 27023,
               "trace": [
-                "round:main:2245ms",
+                "round:main:1795ms",
                 "tool:memory_save",
-                "round:main:1502ms"
+                "round:main:1910ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Merk dir, dass der Schlüssel für den Keller im Flur hängt",
+              "text": "Hab ich mir gemerkt.",
+              "seconds": 4.378951912,
+              "model_ms": 4353,
+              "rounds": 2,
+              "tokens": 27541,
+              "trace": [
+                "round:main:1746ms",
+                "tool:memory_save",
+                "round:main:2607ms"
+              ]
+            },
+            {
+              "say": "Merk dir, dass ich keine Pilze mag",
+              "text": "Hab ich mir für dich gemerkt: Keine Pilze für Anna.",
+              "seconds": 10.008030058,
+              "model_ms": 9985,
+              "rounds": 2,
+              "tokens": 27045,
+              "trace": [
+                "round:main:8052ms",
+                "tool:memory_save",
+                "round:main:1933ms"
               ]
             }
           ]
@@ -998,20 +988,20 @@
       "step_times": [
         {
           "say": "Sag Bescheid, wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht",
-          "median_seconds": 7.650189939,
-          "max_seconds": 26.654305802,
-          "model_ms_median": 5103,
-          "rating": "brauchbar"
+          "median_seconds": 11.774375568,
+          "max_seconds": 32.949436004,
+          "model_ms_median": 8552,
+          "rating": "langsam"
         },
         {
           "say": "Ja",
-          "median_seconds": 3.091980803,
-          "max_seconds": 3.707652498,
-          "model_ms_median": 3049,
+          "median_seconds": 3.888986894,
+          "max_seconds": 7.869965559,
+          "model_ms_median": 3852,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 140139,
+      "tokens": 216935,
       "runs": [
         {
           "passed": true,
@@ -1019,33 +1009,33 @@
           "steps": [
             {
               "say": "Sag Bescheid, wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht",
-              "text": "Wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht, gebe ich Bescheid. Soll ich das so einrichten?",
-              "seconds": 7.650189939,
-              "model_ms": 5103,
+              "text": "Mein Vorschlag für die Nachttischlampe: Wenn sie zwischen ein und vier Uhr nachts angeht, sage ich dir Bescheid. Soll ich die Aufgabe so einrichten?",
+              "seconds": 10.179299014,
+              "model_ms": 7796,
               "rounds": 3,
-              "tokens": 27086,
+              "tokens": 42375,
               "trace": [
-                "round:main:1538ms",
+                "round:main:1782ms",
                 "tool:thread_start",
                 "thread:aufgabe:started",
-                "round:main:1877ms",
+                "round:main:3999ms",
                 "tool:thread_fill",
                 "thread:aufgabe:proposed",
-                "round:main:1688ms"
+                "round:main:2015ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Alles klar, die Aufgabe ist eingerichtet.",
-              "seconds": 2.88493148,
-              "model_ms": 2846,
+              "text": "Alles klar, die Aufgabe ist eingerichtet. Ich sage Bescheid, wenn nachts das Licht angeht.",
+              "seconds": 3.888986894,
+              "model_ms": 3852,
               "rounds": 2,
-              "tokens": 19620,
+              "tokens": 29911,
               "trace": [
-                "round:main:1450ms",
+                "round:main:1909ms",
                 "tool:thread_confirm",
                 "thread:aufgabe:confirmed",
-                "round:main:1396ms"
+                "round:main:1943ms"
               ]
             }
           ]
@@ -1054,38 +1044,38 @@
           "passed": false,
           "answer_ok": true,
           "failures": [
-            "step 1 took 26.7s, over 15s"
+            "step 1 took 32.9s, over 15s"
           ],
           "steps": [
             {
               "say": "Sag Bescheid, wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht",
-              "text": "Wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht, gebe ich dir Bescheid. Soll ich die Aufgabe so einrichten?",
-              "seconds": 26.654305802,
-              "model_ms": 24224,
+              "text": "Mein Vorschlag für die Aufgabe: Wenn die Nachttischlampe angeht, gebe ich Bescheid, aber nur zwischen 1 und 4 Uhr nachts. Soll ich das so einrichten?",
+              "seconds": 32.949436004,
+              "model_ms": 29783,
               "rounds": 3,
-              "tokens": 27086,
+              "tokens": 42379,
               "trace": [
-                "round:main:10154ms",
+                "round:main:10611ms",
                 "tool:thread_start",
                 "thread:aufgabe:started",
-                "round:main:12092ms",
+                "round:main:1491ms",
                 "tool:thread_fill",
                 "thread:aufgabe:proposed",
-                "round:main:1978ms"
+                "round:main:17681ms"
               ]
             },
             {
               "say": "Ja",
               "text": "Alles klar, die Aufgabe ist eingerichtet.",
-              "seconds": 3.091980803,
-              "model_ms": 3049,
+              "seconds": 7.869965559,
+              "model_ms": 7833,
               "rounds": 2,
-              "tokens": 19622,
+              "tokens": 29906,
               "trace": [
-                "round:main:1873ms",
+                "round:main:1760ms",
                 "tool:thread_confirm",
                 "thread:aufgabe:confirmed",
-                "round:main:1176ms"
+                "round:main:6073ms"
               ]
             }
           ]
@@ -1096,33 +1086,33 @@
           "steps": [
             {
               "say": "Sag Bescheid, wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht",
-              "text": "Mein Vorschlag für die Aufgabe: Wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht, sage ich Bescheid. Passt das so für dich?",
-              "seconds": 7.297283101,
-              "model_ms": 4778,
+              "text": "Mein Vorschlag: Wenn die Nachttischlampe zwischen 1 und 4 Uhr nachts angeht, gebe ich dir Bescheid. Soll ich das so einrichten?",
+              "seconds": 11.774375568,
+              "model_ms": 8552,
               "rounds": 3,
-              "tokens": 27091,
+              "tokens": 42390,
               "trace": [
-                "round:main:1480ms",
+                "round:main:4629ms",
                 "tool:thread_start",
                 "thread:aufgabe:started",
-                "round:main:1753ms",
+                "round:main:2050ms",
                 "tool:thread_fill",
                 "thread:aufgabe:proposed",
-                "round:main:1545ms"
+                "round:main:1873ms"
               ]
             },
             {
               "say": "Ja",
               "text": "Alles klar, die Aufgabe ist eingerichtet und aktiv.",
-              "seconds": 3.707652498,
-              "model_ms": 3663,
+              "seconds": 3.301799553,
+              "model_ms": 3266,
               "rounds": 2,
-              "tokens": 19634,
+              "tokens": 29974,
               "trace": [
-                "round:main:2290ms",
+                "round:main:1704ms",
                 "tool:thread_confirm",
                 "thread:aufgabe:confirmed",
-                "round:main:1373ms"
+                "round:main:1562ms"
               ]
             }
           ]
@@ -1139,13 +1129,13 @@
       "step_times": [
         {
           "say": "Sag Ben, dass das Essen im Ofen steht",
-          "median_seconds": 3.510821642,
-          "max_seconds": 4.562703619,
-          "model_ms_median": 3489,
+          "median_seconds": 3.472214244,
+          "max_seconds": 3.750496927,
+          "model_ms_median": 3453,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 51110,
+      "tokens": 81059,
       "runs": [
         {
           "passed": true,
@@ -1153,15 +1143,15 @@
           "steps": [
             {
               "say": "Sag Ben, dass das Essen im Ofen steht",
-              "text": "Richte ich Ben aus.",
-              "seconds": 3.424246142,
-              "model_ms": 3401,
+              "text": "Hab Ben ausgerichtet, dass das Essen im Ofen steht.",
+              "seconds": 3.472214244,
+              "model_ms": 3453,
               "rounds": 2,
-              "tokens": 17034,
+              "tokens": 27019,
               "trace": [
-                "round:main:1652ms",
+                "round:main:1966ms",
                 "tool:message_send",
-                "round:main:1749ms"
+                "round:main:1487ms"
               ]
             }
           ]
@@ -1172,15 +1162,15 @@
           "steps": [
             {
               "say": "Sag Ben, dass das Essen im Ofen steht",
-              "text": "Geht an Ben raus: Das Essen steht im Ofen.",
-              "seconds": 4.562703619,
-              "model_ms": 4542,
+              "text": "Hab Ben Bescheid gegeben, dass das Essen im Ofen steht.",
+              "seconds": 3.750496927,
+              "model_ms": 3730,
               "rounds": 2,
-              "tokens": 17041,
+              "tokens": 27020,
               "trace": [
-                "round:main:2672ms",
+                "round:main:1669ms",
                 "tool:message_send",
-                "round:main:1870ms"
+                "round:main:2061ms"
               ]
             }
           ]
@@ -1191,15 +1181,15 @@
           "steps": [
             {
               "say": "Sag Ben, dass das Essen im Ofen steht",
-              "text": "Hab's Ben ausgerichtet.",
-              "seconds": 3.510821642,
-              "model_ms": 3489,
+              "text": "Hab Ben Bescheid gegeben, dass das Essen im Ofen steht.",
+              "seconds": 3.212314406,
+              "model_ms": 3192,
               "rounds": 2,
-              "tokens": 17035,
+              "tokens": 27020,
               "trace": [
-                "round:main:1678ms",
+                "round:main:1857ms",
                 "tool:message_send",
-                "round:main:1811ms"
+                "round:main:1335ms"
               ]
             }
           ]
@@ -1211,54 +1201,57 @@
       "description": "Licht schalten und Zustand abfragen",
       "core": true,
       "passed_runs": 3,
-      "answer_ok_runs": 3,
+      "answer_ok_runs": 2,
       "passed": true,
       "step_times": [
         {
           "say": "Mach die Nachttischlampe an",
-          "median_seconds": 2.792769034,
-          "max_seconds": 4.219716329,
-          "model_ms_median": 2761,
-          "rating": "gut"
+          "median_seconds": 3.572962117,
+          "max_seconds": 3.783911058,
+          "model_ms_median": 3550,
+          "rating": "brauchbar"
         },
         {
           "say": "Ist die Nachttischlampe an?",
-          "median_seconds": 3.4047219220000002,
-          "max_seconds": 3.79066267,
-          "model_ms_median": 3372,
+          "median_seconds": 3.662500299,
+          "max_seconds": 4.339626691,
+          "model_ms_median": 3640,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 105444,
+      "tokens": 166905,
       "runs": [
         {
           "passed": true,
-          "answer_ok": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 2: answer lacks \"an|eingeschaltet|leuchtet\""
+          ],
           "steps": [
             {
               "say": "Mach die Nachttischlampe an",
-              "text": "Brennt schon.",
-              "seconds": 2.771341341,
-              "model_ms": 2737,
+              "text": "Leuchtet.",
+              "seconds": 3.572962117,
+              "model_ms": 3550,
               "rounds": 2,
-              "tokens": 17383,
+              "tokens": 27573,
               "trace": [
-                "round:main:1320ms",
+                "round:main:1866ms",
                 "tool:ha__intent__HassTurnOn",
-                "round:main:1417ms"
+                "round:main:1684ms"
               ]
             },
             {
               "say": "Ist die Nachttischlampe an?",
-              "text": "Ja, die Nachttischlampe ist an.",
-              "seconds": 3.4047219220000002,
-              "model_ms": 3372,
+              "text": "Ja, die brennt.",
+              "seconds": 3.156768578,
+              "model_ms": 3133,
               "rounds": 2,
-              "tokens": 17766,
+              "tokens": 28017,
               "trace": [
-                "round:main:1879ms",
+                "round:main:1515ms",
                 "tool:ha__homeassistant__GetLiveContext",
-                "round:main:1493ms"
+                "round:main:1618ms"
               ]
             }
           ]
@@ -1270,27 +1263,27 @@
             {
               "say": "Mach die Nachttischlampe an",
               "text": "Brennt schon.",
-              "seconds": 2.792769034,
-              "model_ms": 2761,
+              "seconds": 3.783911058,
+              "model_ms": 3760,
               "rounds": 2,
-              "tokens": 17383,
+              "tokens": 27573,
               "trace": [
-                "round:main:1318ms",
+                "round:main:1821ms",
                 "tool:ha__intent__HassTurnOn",
-                "round:main:1443ms"
+                "round:main:1939ms"
               ]
             },
             {
               "say": "Ist die Nachttischlampe an?",
-              "text": "Ja, die Nachttischlampe ist an.",
-              "seconds": 3.79066267,
-              "model_ms": 3757,
+              "text": "Ja, die ist an.",
+              "seconds": 4.339626691,
+              "model_ms": 4316,
               "rounds": 2,
-              "tokens": 17766,
+              "tokens": 28033,
               "trace": [
-                "round:main:1859ms",
+                "round:main:2708ms",
                 "tool:ha__homeassistant__GetLiveContext",
-                "round:main:1898ms"
+                "round:main:1608ms"
               ]
             }
           ]
@@ -1301,28 +1294,28 @@
           "steps": [
             {
               "say": "Mach die Nachttischlampe an",
-              "text": "Brennt.",
-              "seconds": 4.219716329,
-              "model_ms": 4185,
+              "text": "Brennt schon.",
+              "seconds": 3.156334444,
+              "model_ms": 3133,
               "rounds": 2,
-              "tokens": 17382,
+              "tokens": 27611,
               "trace": [
-                "round:main:2592ms",
+                "round:main:1723ms",
                 "tool:ha__intent__HassTurnOn",
-                "round:main:1593ms"
+                "round:main:1410ms"
               ]
             },
             {
               "say": "Ist die Nachttischlampe an?",
               "text": "Ja, die Nachttischlampe ist an.",
-              "seconds": 2.9501717960000002,
-              "model_ms": 2910,
+              "seconds": 3.662500299,
+              "model_ms": 3640,
               "rounds": 2,
-              "tokens": 17764,
+              "tokens": 28098,
               "trace": [
-                "round:main:1444ms",
+                "round:main:1405ms",
                 "tool:ha__homeassistant__GetLiveContext",
-                "round:main:1466ms"
+                "round:main:2235ms"
               ]
             }
           ]
@@ -1333,130 +1326,130 @@
       "name": "garagentor",
       "description": "Was das Label „Mira nachfragen“ trägt, schaltet Mira erst nach dem Ja",
       "core": true,
-      "passed_runs": 0,
+      "passed_runs": 3,
       "answer_ok_runs": 3,
-      "passed": false,
+      "passed": true,
       "step_times": [
         {
           "say": "Öffne das Garagentor",
-          "median_seconds": 1.6502161869999998,
-          "max_seconds": 2.074576331,
-          "model_ms_median": 1635,
-          "rating": "gut"
+          "median_seconds": 7.2954875040000005,
+          "max_seconds": 12.513139156,
+          "model_ms_median": 7275,
+          "rating": "brauchbar"
         },
         {
           "say": "Ja",
-          "median_seconds": 3.7857329809999998,
-          "max_seconds": 5.236638525,
-          "model_ms_median": 3762,
+          "median_seconds": 3.6805567740000003,
+          "max_seconds": 3.798987157,
+          "model_ms_median": 3655,
           "rating": "brauchbar"
         }
       ],
-      "tokens": 78621,
+      "tokens": 168136,
       "runs": [
         {
-          "passed": false,
+          "passed": true,
           "answer_ok": true,
-          "failures": [
-            "step 2: cover.garage_door is closed, not opening|open"
-          ],
           "steps": [
             {
               "say": "Öffne das Garagentor",
               "text": "Soll ich das Garagentor wirklich öffnen?",
-              "seconds": 2.074576331,
-              "model_ms": 2058,
-              "rounds": 1,
-              "tokens": 8631,
+              "seconds": 7.2954875040000005,
+              "model_ms": 7275,
+              "rounds": 2,
+              "tokens": 27608,
               "trace": [
-                "round:main:2058ms"
+                "round:main:5837ms",
+                "tool:ha__intent__HassTurnOn",
+                "blocked:ha__intent__HassTurnOn",
+                "round:main:1438ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Soll ich das Garagentor jetzt wirklich aufmachen?",
-              "seconds": 3.7857329809999998,
-              "model_ms": 3762,
+              "text": "Das Garagentor geht auf.",
+              "seconds": 3.302572175,
+              "model_ms": 3273,
               "rounds": 2,
-              "tokens": 17589,
+              "tokens": 28195,
               "trace": [
-                "round:main:2142ms",
+                "round:main:1536ms",
                 "tool:ha__intent__HassTurnOn",
-                "blocked:ha__intent__HassTurnOn",
-                "round:main:1620ms"
+                "round:main:1737ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
+          "passed": true,
           "answer_ok": true,
-          "failures": [
-            "step 2: cover.garage_door is closed, not opening|open"
-          ],
           "steps": [
             {
               "say": "Öffne das Garagentor",
-              "text": "Soll ich das Garagentor wirklich öffnen?",
-              "seconds": 1.449586601,
-              "model_ms": 1432,
-              "rounds": 1,
-              "tokens": 8631,
+              "text": "Soll ich das Garagentor wirklich aufmachen?",
+              "seconds": 12.513139156,
+              "model_ms": 12494,
+              "rounds": 2,
+              "tokens": 27840,
               "trace": [
-                "round:main:1432ms"
+                "round:main:9698ms",
+                "tool:ha__intent__HassTurnOn",
+                "blocked:ha__intent__HassTurnOn",
+                "round:main:2796ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Möchtest du das Garagentor wirklich öffnen?",
-              "seconds": 5.236638525,
-              "model_ms": 5215,
+              "text": "Tor geht auf.",
+              "seconds": 3.798987157,
+              "model_ms": 3774,
               "rounds": 2,
-              "tokens": 17567,
+              "tokens": 28693,
               "trace": [
-                "round:main:3497ms",
+                "round:main:1625ms",
                 "tool:ha__intent__HassTurnOn",
-                "blocked:ha__intent__HassTurnOn",
-                "round:main:1718ms"
+                "round:main:2149ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
+          "passed": true,
           "answer_ok": true,
-          "failures": [
-            "step 2: cover.garage_door is closed, not opening|open"
-          ],
           "steps": [
             {
               "say": "Öffne das Garagentor",
               "text": "Soll ich das Garagentor wirklich öffnen?",
-              "seconds": 1.6502161869999998,
-              "model_ms": 1635,
-              "rounds": 1,
-              "tokens": 8631,
+              "seconds": 3.36438773,
+              "model_ms": 3345,
+              "rounds": 2,
+              "tokens": 27608,
               "trace": [
-                "round:main:1635ms"
+                "round:main:2096ms",
+                "tool:ha__intent__HassTurnOn",
+                "blocked:ha__intent__HassTurnOn",
+                "round:main:1249ms"
               ]
             },
             {
               "say": "Ja",
-              "text": "Möchtest du wirklich, dass ich das Garagentor jetzt öffne?",
-              "seconds": 2.7162739780000003,
-              "model_ms": 2695,
+              "text": "Tor geht auf.",
+              "seconds": 3.6805567740000003,
+              "model_ms": 3655,
               "rounds": 2,
-              "tokens": 17572,
+              "tokens": 28192,
               "trace": [
-                "round:main:1231ms",
+                "round:main:1929ms",
                 "tool:ha__intent__HassTurnOn",
-                "blocked:ha__intent__HassTurnOn",
-                "round:main:1464ms"
+                "round:main:1726ms"
               ]
             }
           ]
         }
       ]
     }
+  ],
+  "left_out": [
+    "x (MIRA_SKILL_X_CLIENT_SECRET)"
   ]
 }

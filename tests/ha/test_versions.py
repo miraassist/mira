@@ -2,6 +2,9 @@
 (docs/spec/versions.md): a repair says which one to update, and what an
 older agent does not have is taken as missing, not as an error."""
 
+import json
+from pathlib import Path
+
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -75,3 +78,10 @@ async def test_agent_without_provider_list_knows_none(hass, aioclient_mock):
     aioclient_mock.get(f"{AGENT_URL}/v1/setup/providers", status=404, json={"error": "not found"})
     client = MiraClient(async_get_clientsession(hass), AGENT_URL, "secret")
     assert await client.providers() == {}
+
+
+def test_the_code_version_is_the_manifests():
+    # The release raises manifest.json; VERSION is what the integration compares with the agent and shows on the
+    # device. 0.16.0 went out with VERSION still 0.15.2 and a wrong "versions do not match" repair.
+    manifest = json.loads((Path(__file__).parents[2] / "custom_components/mira/manifest.json").read_text())
+    assert VERSION == manifest["version"]

@@ -1,0 +1,9 @@
+# Everything on DeepSeek V4 Flash over OpenRouter (cloud). The key comes from the environment.
+models:
+  main:
+    endpoint: "https://openrouter.ai/api/v1"
+    token: ${OPEN_ROUTER_API_KEY}
+    model: "deepseek/deepseek-v4-flash"
+    privacy: cloud
+    context_tokens: 1048576
+    timeout: 2m

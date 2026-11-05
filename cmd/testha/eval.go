@@ -99,6 +99,9 @@ type evalRun struct {
 	client    *http.Client
 	agentLog  string
 	version   string
+	// leftOut are the skills left out of the run because a variable their
+	// settings need is not in testenv/.env, with that variable.
+	leftOut []string
 }
 
 func evalCmd(ctx context.Context, dir string, args []string) error {
@@ -142,7 +145,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 		r.printLogTail()
 		return err
 	}
-	report := Report{Setup: r.setupName, Models: modelsOf(r.setup), Mira: r.version, Date: time.Now().Format("2006-01-02 15:04"), Runs: *runs}
+	report := Report{Setup: r.setupName, Models: modelsOf(r.setup), Mira: r.version, Date: time.Now().Format("2006-01-02 15:04"), Runs: *runs, LeftOut: r.leftOut}
 	for _, sc := range scenarios {
 		res := ScenarioResult{Name: sc.Name, Description: sc.Description, Core: sc.Core}
 		for i := 0; i < *runs; i++ {
@@ -272,6 +275,10 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 			agents[k] = v
 		}
 		cfg["agents"] = agents
+	}
+	r.leftOut = r.withoutUnsetSkills(cfg)
+	for _, s := range r.leftOut {
+		fmt.Printf("skill left out, a variable is missing in testenv/.env: %s\n", s)
 	}
 	server, _ := cfg["server"].(map[string]any)
 	if server == nil {
@@ -509,6 +516,35 @@ func (r *evalRun) agentEnv(config string) ([]string, error) {
 		return nil, fmt.Errorf("missing in testenv/.env: %s", strings.Join(missing, ", "))
 	}
 	return env, nil
+}
+
+// withoutUnsetSkills removes the skills whose settings refer to a variable
+// testenv/.env does not have, and names them with it (docs/spec/evals.md):
+// no scenario may need them, and one that does fails on its own.
+func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
+	skills, _ := cfg["skills"].(map[string]any)
+	var out []string
+	for name, settings := range skills {
+		if name == "dirs" || name == "enabled" {
+			continue
+		}
+		raw, err := yaml.Marshal(settings)
+		if err != nil {
+			continue
+		}
+		var missing []string
+		for _, m := range envRef.FindAllStringSubmatch(string(raw), -1) {
+			if v, ok := r.env[m[1]]; (!ok || v == "") && !slices.Contains(missing, m[1]) {
+				missing = append(missing, m[1])
+			}
+		}
+		if len(missing) > 0 {
+			delete(skills, name)
+			out = append(out, name+" ("+strings.Join(missing, ", ")+")")
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // printLogTail shows the end of the eval agent's log, for a failure.

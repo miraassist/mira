@@ -12,6 +12,7 @@ Modelle, die nur von Hand ausprobiert wurden (ohne Eval-Lauf): [models.md](model
 
 | Setup | Modelle | Stand | Mira | bestanden | Bericht |
 |---|---|---|---|---|---|
-| gemini-flash | main: gemini-flash-latest | 2026-10-17 11:28 | 0.6.19 | 10 von 12 | [gemini-flash.md](results/gemini-flash.md) |
+| deepseek-flash | main: deepseek/deepseek-v4-flash | 2026-11-05 22:08 | 0.15.2 | 8 von 12 | [deepseek-flash.md](results/deepseek-flash.md) |
+| gemini-flash | main: gemini-flash-latest | 2026-11-05 22:20 | 0.16.0 | 11 von 12 | [gemini-flash.md](results/gemini-flash.md) |
 | strata-qwen36 | main: qwen3.6-35b-a3b | 2026-10-22 09:11 | 0.6.58 | 1 von 12 | [strata-qwen36.md](results/strata-qwen36.md) |
 | strata-qwen38-q2 | main: qwen3.8-flash-next-q2_0 | 2026-10-22 16:02 | 0.6.59 | 4 von 12 | [strata-qwen38-q2.md](results/strata-qwen38-q2.md) |
