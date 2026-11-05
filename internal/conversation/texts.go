@@ -15,7 +15,12 @@ type texts struct {
 	voiceNoArea string
 	telegram    string
 	background  string
-	fallback    string
+	// notFinished answers a turn the model did not finish: its tool rounds
+	// were used up, or it answered nothing.
+	notFinished string
+	// alreadySaid follows the result of a tool whose round's text was
+	// spoken already, so the model does not say it again.
+	alreadySaid string
 	// streamBroken ends a voice answer whose model failed after part of
 	// it was said.
 	streamBroken    string
@@ -37,7 +42,8 @@ var catalog = map[i18n.Lang]texts{
 		voiceNoArea:     "Kanal: Sprache. Der Raum des Satelliten ist unbekannt; bei Raumbezug nachfragen.",
 		telegram:        "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen.",
 		background:      "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
-		fallback:        "Entschuldigung, darauf habe ich gerade keine Antwort.",
+		notFinished:     "Ich bin damit nicht ganz fertig geworden.",
+		alreadySaid:     "\n\n(Schon gesprochen: „%s“. Wiederhole das nicht; sag nur, was danach noch fehlt, oder nichts.)",
 		streamBroken:    "Da ist etwas schiefgegangen.",
 		errorPrefix:     "Fehler: ",
 		unknownTool:     "Das Werkzeug %s gibt es nicht.",
@@ -52,7 +58,8 @@ var catalog = map[i18n.Lang]texts{
 		voiceNoArea:     "Channel: voice. The satellite's room is unknown; ask when a room matters.",
 		telegram:        "Channel: Telegram, the user may not be at home. Ask when a room matters.",
 		background:      "Channel: background job, no person in the conversation.",
-		fallback:        "Sorry, I have no answer to that right now.",
+		notFinished:     "I did not quite finish that.",
+		alreadySaid:     "\n\n(Already said: \"%s\". Do not repeat it; say only what is still missing, or nothing.)",
 		streamBroken:    "Something went wrong.",
 		errorPrefix:     "Error: ",
 		unknownTool:     "There is no tool %s.",

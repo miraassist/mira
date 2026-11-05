@@ -456,6 +456,8 @@ func (m *Machine) play(ctx context.Context, inv tools.Invocation) (string, error
 			}
 			m.setCurrent(this, p.msg.ID)
 			if err := m.o.Play(ctx, sat.Speaker, p.msg.MediaContentID); err != nil {
+				// docs/spec/fallbacks.md, row 22.
+				m.log.Error("could not play a message; the playback ends and it stays new", "message", p.msg.ID, "speaker", sat.Speaker, "error", err)
 				return
 			}
 			// Played to its end, by the speaker's state; stopped, the rest

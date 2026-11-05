@@ -1,6 +1,7 @@
 # Radio – Spec
 
-Status 2026-11-01: decided and built in 0.6.37; step 2 (the station's name on the device) released in 0.15.0.
+Status 2026-11-05: decided and built in 0.6.37; step 2 (the station's name on the device) released in 0.15.0; step 4
+(a name with a space searched once more without it) built.
 Scenarios of step 2: [radio.feature](radio.feature).
 
 ## Target
@@ -15,6 +16,12 @@ Scenarios of step 2: [radio.feature](radio.feature).
 - **Player:** the `media_player` in the area that is exposed to Assist. If there is none, Mira says so honestly. If there are several and none is named, the satellite's own speaker plays when the room is the satellite's (a Music Assistant player for the same device would otherwise make every request a question; decided 2026-10-25). Otherwise it asks which one (`player`); for that the tool names them with their name in Home Assistant and the entity ("Show Bad Speaker (media_player.show_bad_speaker)"), so that Mira does not guess the id.
 - **Confirmation** in the model's own words: on the speaker of the satellite being spoken to briefly ("SWR3 läuft."), since one hears where it plays; anywhere else with the room ("SWR1 läuft im Bad"), never with the device's name or the word "Lautsprecher", which nobody says (decided 2026-11-03, after "SWR3 läuft auf deinem Lautsprecher im Bad" every morning; before, the speaker was named so that a mix-up would be noticed).
 - **Search:** WebSocket `media_source/search_media` on `media-source://radio_browser`, the most popular first. Only playable hits from the Radio Browser source count.
+- **A name with a space** (decided 2026-11-05): speech recognition writes "SWR 3" as often as "SWR3", and Radio
+  Browser finds nothing for "SWR 3". If the search has no hit and the name has a space, Mira searches once more
+  with the spaces taken out. Before, the model got "no station found" and tried again itself: a whole model round
+  (8.6 s on the test HA, 2026-11-05) instead of one more search. If that second search fails, it is the same as a
+  failed first one ("searching does not work right now"); if it finds nothing either, Mira says that no station was
+  found under the name as it was asked.
 - **Selection:** If a hit matches the name (upper and lower case, spaces and punctuation do not matter, "SWR 3" = "SWR3"), it plays. If there is exactly one hit, it plays. Otherwise Mira names up to five names and asks back.
 - **Playing:** `media_player.play_media` with the address and the type of the hit. Home Assistant fetches the stream and converts it.
 - **The station's name on the device** (decided 2026-11-01): Home Assistant sends the stream through its ffmpeg
@@ -31,7 +38,8 @@ It asks nothing back: radio is not critical.
 
 ## Costs
 
-Per started station: one `search_media` call, one `play_media` call, and on a device with the action one
+Per started station: one `search_media` call (two when the first finds nothing and the name has a space), one
+`play_media` call, and on a device with the action one
 `esphome.<node>_media_station` call before it. Whether the device has it comes from the list of Home Assistant's
 actions, read once and cached until Home Assistant registers or removes an action. The turn waits for all of
 them; nothing runs after it.
@@ -41,6 +49,7 @@ them; nothing runs after it.
 1. **The tool** (0.6.37), before the scenario map.
 2. **The station's name on the device.** Scenarios RA-01 and RA-02.
 3. **A short confirmation on the satellite's own speaker.** Scenario RA-03.
+4. **A name with a space searched once more without it.** Scenario RA-04.
 
 ## What is not part of it
 

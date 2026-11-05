@@ -66,6 +66,8 @@ func (s schedules) List(ctx context.Context) ([]ui.ScheduleItem, error) {
 		dir := skills.Find(a.cfg.Skills.Dirs, info.Name)
 		f, err := skills.ReadFile(dir)
 		if err != nil {
+			// docs/spec/fallbacks.md, row 29.
+			a.log.Warn("could not read a skill that is off; its schedules are missing from the page", "skill", info.Name, "error", err)
 			continue
 		}
 		for _, sc := range f.ScheduleDecls() {

@@ -1,6 +1,6 @@
 # Silent fallbacks – Spec
 
-Status 2026-11-05: step 1 built, not released. Scenarios: [fallbacks.feature](fallbacks.feature).
+Status 2026-11-05: steps 1 to 3 built, not released; step 4 to decide; step 5 (FB-13 to FB-28) and step 6 (FB-29) built, not released. Scenarios: [fallbacks.feature](fallbacks.feature).
 
 ## Goal
 
@@ -17,6 +17,44 @@ is an error, or a decided behaviour with its reason, never a silent substitute.
    a sentence to the user, the caller's error.
 2. **Small first:** step 1 fixes the three that make Mira say or decide something wrong without anybody noticing.
    The rest is listed below and decided step by step.
+3. **Most of these are weak error handling, not fallbacks:** an error that ends in nothing, an empty result taken as
+   "nothing there", a quiet default. Error paths are part of every spec: for each step that can fail, what Mira does
+   then and who learns of it. Code handles a failure only as its spec says.
+4. **Every error handler leaves a trace** (2026-11-05, after a "Stopp" turn of 23 s whose first model call took
+   15.5 s and the log could not say whether Gemini was slow or the client had retried): a retry, an unexpected
+   answer of a server, a request broken off, an error caught and carried on from writes a log line where it
+   happens, with what failed (the status or the error), what it cost (how long the attempt took) and what happens
+   next (the next attempt and the wait, the substitute, the end). An error passed to the caller needs no line of its
+   own where the caller logs it.
+
+Decided in the rounds of 2026-11-05 (rows below): rows 4 to 12 as follows; the deprecation found by `testha
+compat` (HC-06) is fixed for Home Assistant 2026.10 and 2026.11 alike. Rows 13 to 20 are decided next.
+
+- **Row 4:** when the tool rounds are used up, Mira says she did not finish ("Ich bin damit nicht ganz fertig
+  geworden.") and the log names the dropped calls; an empty answer says the same, not "keine Antwort". Since
+  2026-11-05 an answer is empty only when nothing at all was said in the turn ([Streaming](streaming.md), decision
+  10): text spoken in a round with a tool is an answer.
+- **Row 5:** when a satellite's own version of Home Assistant's prompt was never fetched, its turn fetches it; if
+  that fails, the turn answers with the fixed sentence of a missing house description, not with the lines of the
+  version without a device.
+- **Row 6:** when the tools for a satellite could not be listed, its turn lists them again; if that fails, the turn
+  answers with the fixed sentence of a missing house description ([Context](context.md), 1.2).
+- **Row 7:** when the calendar list cannot be read, the mail is an error back to the integration, not "no calendar";
+  the log names it. The integration sends a mail once (on IMAP's event for a new mail); after an error it logs a
+  warning ("The agent could not read the mail of …") and the mail does not come again. Sending it again is not
+  decided.
+- **Row 8:** the language stays as it is, now written down in [Languages](language.md): a language Home Assistant
+  sends that Mira does not speak is replaced by the person's last one, an unreadable server language by German; both
+  with a log line.
+- **Row 9:** when the satellite's state cannot be read before speaking a message, the delivery fails and the message
+  stays open for the next attempt; no plain announcement instead of a conversation.
+- **Row 10:** when `start_conversation` runs into its deadline, the satellite's state decides: it was speaking
+  (`responding`) → spoken; otherwise not delivered, and the message stays open. Cost: a subscription to the
+  satellite's state while the call runs, ended with it.
+- **Row 11:** a reminder that cannot be spoken at the satellite is sent privately; decided, with its log line: the
+  reminder arrives, on another way.
+- **Row 12:** when the satellite is still busy after the wait, the message stays open and comes once the satellite
+  reports `idle`; nothing is cut off.
 
 ## Step 1: the three that change what Mira says or decides
 
@@ -62,4 +100,44 @@ everything; it includes nothing ([Home Assistant integration](ha-integration.md)
 ## Steps
 
 1. **FB-01 to FB-03.** Built.
-2. The rest of the list, decided one by one with the maintainer. Not built.
+2. **Rows 4 to 12**, scenarios FB-04 to FB-11 (rows 8 and 11 are decisions written down, no change of behaviour
+   beyond the log lines). Built.
+3. **The deprecation found by `testha compat`** (`managed.py`, the device registry read the same under 2026.10 and
+   2026.11), scenario FB-12, tested in pytest. Built.
+4. Rows 13 to 20, decided with the maintainer. Not built.
+5. **Error handlers that leave no trace** (decision 4): FB-13, and rows 21 to 35 as FB-14 to FB-28. Built.
+6. **Row 36** (the integration), FB-29, tested in pytest. Built.
+
+## Step 5: error handlers that leave no trace
+
+| Id | Where | Before | Now |
+|---|---|---|---|
+| FB-13 | the model client (`internal/llm/client.go`, retries) | a 429 or 5xx, or a failed connection, was retried up to twice without a word; the log showed only the round's whole time | each retry writes a warning: the model, the endpoint's host, the attempt, the status or error, how long the failed attempt took, and the wait before the next. A retry that is not made because part of a streamed answer was passed on is the caller's error ("model failed while answering") |
+
+Decided 2026-11-05: each of rows 21 to 36 gets its log line where it happens (scenarios FB-14 to FB-29, in the order
+of the rows); what Mira does stays as it is. A read that finds nothing (a skills folder not made yet, a message
+deleted since, no announcement in the window) is no error and stays without a line.
+
+Found 2026-11-05 by a search of the code for errors that end in `continue`, an empty return, `_ =` or `x, _ :=`,
+retry loops, and `except` branches of the integration that neither log nor raise; not changed yet. Places where
+the error goes to the caller, who logs it, and places where a failure cannot happen (`json.Marshal` of own
+values) are left out.
+
+| # | Where | What fails → what happens, without a trace |
+|---|---|---|
+| 21 | `threads/agents.go` (`finishInBackground`), `threads/threads.go` (`work`) | a thread's background work is done, reading the thread again fails: the result is dropped |
+| 22 | `voicemail/voicemail.go` (`play`) | playing a message on the speaker fails: the playback ends, the message stays new |
+| 23 | `ha/ws/waitstate.go`, `cmd/mira/voicemail.go` (`playedThrough`) | subscribing to an entity's state fails: "not reached", the same as running out of time |
+| 24 | `ha/ws/statetrigger.go` (`apply`) | an entities event from Home Assistant cannot be decoded: it is dropped (an unexpected answer of the server) |
+| 25 | `notifier/notifier.go` (after a failed delivery), `threads/threads.go` (withdrawing a proposal's messages) | writing the message's state back fails: the error is dropped, the message may stay "delivering" or a moot proposal stay announced |
+| 26 | `conversation/engine.go` (`skillTools`, the skills a session opened) | the session's open skills cannot be read: the turn runs without their tools |
+| 27 | `conversation/layers.go` (`messageContext`) | a waiting message cannot be read: it is left out of what the turn knows |
+| 28 | `tasks/assess.go` (`earlier`) | the task's past judgements cannot be read: it is judged without them (row 13 is the cooldown) |
+| 29 | `skills/skills.go` (`Available`), `cmd/mira/schedules.go` | a skills folder or a `SKILL.md` cannot be read: the skill is missing from the list and its schedules from the page |
+| 30 | `backup/backup.go` (`Restore`) | a skill named in the manifest is not in the archive: skipped, the restore reports success |
+| 31 | `cmd/mira/edit.go` (`moveSecret`, reading and restoring the secrets) | the secrets file cannot be read or written back while a page edits: a secret is not moved, counts as empty, or a failed undo is dropped (row 19 is the start) |
+| 32 | `cmd/mira/exposed.go` | the stored list of exposed entities cannot be read: "not known" |
+| 33 | `store/threads.go`, `threads/plan.go`, `tasks/manager.go`, `tools/policy.go`, `hooks/rules.go`, `agent/async.go` | stored JSON, or an automation's config from Home Assistant, cannot be decoded: it counts as empty; a run taken up after a restart skips the step |
+| 34 | `threads/threads.go` (saving a thread) | a conflict is retried without a line |
+| 35 | `websearch/websearch.go` (`excerpt`) | a hit's page cannot be read: the next hit is taken |
+| 36 | integration `api.py` (restore), `__init__.py` (`_adopt`) | Mira answers a restore with a body that is not JSON: success with nothing; Mira not reachable at setup: the adoption waits for the next start |

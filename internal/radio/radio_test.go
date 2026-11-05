@@ -274,3 +274,56 @@ func TestRA03_on_the_satellites_own_speaker_the_confirmation_is_short(t *testing
 		t.Errorf("without a satellite: %q", out)
 	}
 }
+
+func TestRA04_a_name_with_a_space_is_searched_once_more_without_it(t *testing.T) {
+	players := map[string][]Player{"wohnzimmer": {{Entity: "media_player.show_speaker"}}}
+	run := func(found map[string][]Station, failOn string, args string) (string, []string, []played) {
+		var queries []string
+		var got []played
+		tool := Tool(Options{
+			Lang: i18n.DE,
+			Search: func(ctx context.Context, q string) ([]Station, error) {
+				queries = append(queries, q)
+				if q == failOn {
+					return nil, errors.New("boom")
+				}
+				return found[q], nil
+			},
+			Play: func(ctx context.Context, entity string, st Station) error {
+				got = append(got, played{entity, st.ContentID})
+				return nil
+			},
+			Players:  func(area string) []Player { return players[area] },
+			Area:     func(string) string { return "" },
+			AreaName: func(string) string { return "Wohnzimmer" },
+		})
+		return call(t, tool, "wohnzimmer", args), queries, got
+	}
+	radioBrowser := map[string][]Station{"SWR3": swr3}
+
+	out, queries, got := run(radioBrowser, "", `{"station":"SWR 3"}`)
+	if strings.Join(queries, "|") != "SWR 3|SWR3" {
+		t.Errorf("searched %q, want SWR 3 then SWR3", queries)
+	}
+	if len(got) != 1 || got[0].id != "media-source://radio_browser/a" || !strings.Contains(out, "SWR3") {
+		t.Errorf("played %+v, answer %q", got, out)
+	}
+
+	// A name without a space is searched once; nothing found is said for it.
+	out, queries, got = run(radioBrowser, "", `{"station":"Nix"}`)
+	if len(queries) != 1 || len(got) != 0 || !strings.Contains(out, "„Nix“") {
+		t.Errorf("searched %q, played %+v, answer %q", queries, got, out)
+	}
+
+	// The second search finds nothing either: the name as it was asked.
+	out, queries, got = run(radioBrowser, "", `{"station":"Radio Nix"}`)
+	if strings.Join(queries, "|") != "Radio Nix|RadioNix" || len(got) != 0 || !strings.Contains(out, "„Radio Nix“") {
+		t.Errorf("searched %q, played %+v, answer %q", queries, got, out)
+	}
+
+	// The second search fails: the same as a failed first one.
+	out, _, got = run(radioBrowser, "SWR3", `{"station":"SWR 3"}`)
+	if len(got) != 0 || !strings.Contains(out, "Radio Browser") {
+		t.Errorf("played %+v, answer %q", got, out)
+	}
+}

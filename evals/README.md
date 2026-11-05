@@ -8,6 +8,7 @@ nicht bestanden.
 Ausführen: `go run ./cmd/testha eval --setup evals/setups/<setup>.yaml`
 
 Je Setup steht hier der letzte Lauf; frühere Läufe sind in der Git-Geschichte.
+Modelle, die nur von Hand ausprobiert wurden (ohne Eval-Lauf): [models.md](models.md).
 
 | Setup | Modelle | Stand | Mira | bestanden | Bericht |
 |---|---|---|---|---|---|

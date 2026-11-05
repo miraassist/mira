@@ -279,7 +279,10 @@ func (e *Engine) Tools(skill string, house func() string) []tools.InternalTool {
 	}
 	parse := func(raw string) nameArgs {
 		var a nameArgs
-		_ = json.Unmarshal([]byte(raw), &a)
+		if err := json.Unmarshal([]byte(raw), &a); err != nil {
+			// docs/spec/fallbacks.md, row 33.
+			e.log.Warn("a hook tool's arguments cannot be read; it gets none", "error", err)
+		}
 		return a
 	}
 	schema := func(props string, required ...string) string {

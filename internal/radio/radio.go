@@ -141,6 +141,11 @@ func Tool(o Options) tools.InternalTool {
 				return fmt.Sprintf(t.severalPlayers, room, strings.Join(ids, ", ")), nil
 			}
 			stations, err := o.Search(ctx, args.Station)
+			// Radio Browser finds nothing for "SWR 3": a name with a space is
+			// searched once more without it (docs/spec/radio.md).
+			if joined := strings.Join(strings.Fields(args.Station), ""); err == nil && len(stations) == 0 && joined != strings.TrimSpace(args.Station) {
+				stations, err = o.Search(ctx, joined)
+			}
 			if err != nil {
 				return t.unavailable, nil
 			}

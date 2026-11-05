@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -244,12 +245,15 @@ func Restore(ctx context.Context, m Mira, r io.Reader) (Result, error) {
 	for name, from := range man.Skills {
 		src := filepath.Join(tmp, skillsDir, name)
 		if _, err := os.Stat(src); err != nil {
+			// docs/spec/fallbacks.md, row 30.
+			slog.Warn("a skill named in the backup is not in it; it is not restored", "skill", name, "error", err)
 			continue
 		}
 		dir := from
 		if !slices.Contains(m.SkillDirs, from) {
 			if len(m.SkillDirs) == 0 {
-				continue // this Mira has no folder for one's own skills
+				slog.Warn("this Mira has no folder for one's own skills; a skill of the backup is not restored", "skill", name)
+				continue
 			}
 			dir = m.SkillDirs[0]
 		}

@@ -551,8 +551,11 @@ func countWord(t texts, n int) string {
 func (n *Notifier) announce(ctx context.Context, area, sat string, messages []store.Message, preannounce bool) error {
 	ctx = n.inArea(ctx, area)
 	text := n.compose(ctx, messages)
+	method, err := n.method(ctx, sat)
+	if err != nil {
+		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
+	}
 	n.speaking(ctx, area, sat)
-	method := n.method(ctx, sat)
 	ids := make([]string, len(messages))
 	for i, nt := range messages {
 		ids[i] = nt.ID
@@ -572,7 +575,10 @@ func (n *Notifier) announce(ctx context.Context, area, sat string, messages []st
 		n.mu.Lock()
 		if err != nil {
 			for _, id := range ids {
-				_ = n.store.SetMessageState(ctx, id, store.MessagePending)
+				if err := n.store.SetMessageState(ctx, id, store.MessagePending); err != nil {
+					// docs/spec/fallbacks.md, row 25.
+					n.log.Error("a message that was not delivered cannot be set back to open; it may not come again", "message", id, "error", err)
+				}
 			}
 			return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
 		}
@@ -605,14 +611,14 @@ func (n *Notifier) delivered(ctx context.Context, area, sat string, ids []string
 
 // method is how a satellite speaks: tts for a plain speaker or by setting,
 // else the configured one, or by the satellite's features.
-func (n *Notifier) method(ctx context.Context, sat string) string {
+func (n *Notifier) method(ctx context.Context, sat string) (string, error) {
 	if strings.HasPrefix(sat, "media_player.") || n.cfg.Delivery == "tts" {
-		return "tts"
+		return "tts", nil
 	}
 	if n.cfg.Delivery == "auto" {
 		return n.satelliteMethod(ctx, sat)
 	}
-	return n.cfg.Delivery
+	return n.cfg.Delivery, nil
 }
 
 // deliver speaks text on a satellite by method.
@@ -626,13 +632,27 @@ func (n *Notifier) deliver(ctx context.Context, sat, method, text string, preann
 	case "start_conversation":
 		// The satellite listens afterwards; the reply comes back through the
 		// integration and finds the messages through the announcement record.
+		// Whether the satellite speaks is watched during the call (its state
+		// responding), so that a call that runs out of time is decided by it.
+		watch, stop := context.WithCancel(ctx)
+		said := make(chan bool, 1)
+		go func() {
+			said <- n.ha.WaitState(watch, sat, time.Hour, func(state string) bool { return state == "responding" })
+		}()
 		err := n.ha.CallService(ctx, "assist_satellite", "start_conversation",
 			map[string]any{"start_message": text, "preannounce": preannounce}, target)
+		stop()
+		spoke := <-said
 		// The call returns only once the satellite has stopped listening,
-		// after the reply: a timeout means it spoke and is still listening.
+		// after the reply. At its deadline the satellite's state decides:
+		// it spoke when it was responding, else nothing was said
+		// (docs/spec/fallbacks.md, row 10).
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-			n.log.Info("start_conversation still listening, counted as spoken", "satellite", sat)
-			return nil
+			if spoke {
+				n.log.Info("start_conversation still listening after speaking, counted as spoken", "satellite", sat)
+				return nil
+			}
+			return fmt.Errorf("start_conversation on %s ran out of time and the satellite did not speak: %w", sat, err)
 		}
 		return err
 	default:
@@ -647,17 +667,20 @@ const (
 	featureStartConversation = 2
 )
 
-func (n *Notifier) satelliteMethod(ctx context.Context, sat string) string {
+// satelliteMethod: start_conversation when the satellite can listen after
+// speaking, else announce. A state that cannot be read is an error, no
+// announcement that does not listen (docs/spec/fallbacks.md, row 9).
+func (n *Notifier) satelliteMethod(ctx context.Context, sat string) (string, error) {
 	states, err := n.ha.GetStates(ctx, haws.StateFilter{EntityIDs: []string{sat}})
 	if err != nil {
-		return "announce"
+		return "", fmt.Errorf("the state of %s: %w", sat, err)
 	}
 	for _, s := range states {
 		if f, ok := s.Attributes["supported_features"].(float64); ok && int(f)&featureStartConversation != 0 {
-			return "start_conversation"
+			return "start_conversation", nil
 		}
 	}
-	return "announce"
+	return "announce", nil
 }
 
 // primary is the area's primary satellite, "" without one.

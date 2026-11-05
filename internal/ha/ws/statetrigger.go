@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
@@ -26,7 +27,7 @@ func (c *Client) SubscribeTrigger(ctx context.Context, trigger map[string]any, h
 	if err != nil {
 		return nil, err
 	}
-	w := &stateWatch{trigger: st, handler: handler}
+	w := &stateWatch{trigger: st, handler: handler, table: stateTable{log: c.log}}
 	return c.subscribeCommand(ctx,
 		map[string]any{"type": CmdSubscribeEntities, "entity_ids": st.entityIDs}, w.handle)
 }
@@ -124,6 +125,16 @@ func (w *stateWatch) handle(ev Event) {
 type stateTable struct {
 	mu     sync.Mutex
 	states map[string]State
+	// log gets an event that cannot be read; none in a zero table.
+	log *slog.Logger
+}
+
+// clip shortens s to n bytes for a log line.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // compressedState is Home Assistant's compact state form in
@@ -153,6 +164,10 @@ type entitiesEvent struct {
 func (t *stateTable) apply(raw json.RawMessage) [][2]State {
 	var msg entitiesEvent
 	if err := json.Unmarshal(raw, &msg); err != nil {
+		// docs/spec/fallbacks.md, row 24.
+		if t.log != nil {
+			t.log.Warn("an entities event from home assistant cannot be read; it is dropped", "error", err, "event", clip(string(raw), 300))
+		}
 		return nil
 	}
 	t.mu.Lock()

@@ -121,8 +121,13 @@ type Options struct {
 	// not answer (docs/spec/context.md, 1.2).
 	StructurePrompt func() string
 	// DeviceHints returns the lines Home Assistant's Assist prompt adds for a
-	// satellite ("" for none); they go into the turn layer, not layer 4.
-	DeviceHints func(device string) string
+	// satellite ("" for none); they go into the turn layer, not layer 4. An
+	// error is a satellite whose lines cannot be fetched: its turn does not
+	// run (docs/spec/fallbacks.md, row 5).
+	DeviceHints func(ctx context.Context, device string) (string, error)
+	// DeviceTools makes sure a satellite's own tools are listed; an error:
+	// they cannot be, and its turn does not run (row 6).
+	DeviceTools func(ctx context.Context, device string) error
 	// Afterword returns the messages waiting for an area as a closing
 	// sentence spoken on the satellite's device, marking them heard, or ""
 	// when none wait.
@@ -162,7 +167,8 @@ type Engine struct {
 	agents      *agent.Runtime
 	structure   func() structure.Snapshot
 	assist      func() string
-	deviceHints func(device string) string
+	deviceHints func(ctx context.Context, device string) (string, error)
+	deviceTools func(ctx context.Context, device string) error
 	afterword   func(ctx context.Context, area, device string) string
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
@@ -226,6 +232,7 @@ func New(opts Options) *Engine {
 		structure:   opts.Structure,
 		assist:      opts.StructurePrompt,
 		deviceHints: opts.DeviceHints,
+		deviceTools: opts.DeviceTools,
 		afterword:   opts.Afterword,
 		thread:      opts.Thread,
 		identify:    opts.Identify,
@@ -385,6 +392,18 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noHousePrompt}, nil
 	}
+	// The satellite's own lines and tools, or no turn: without them the model
+	// would not know its room or its timers (docs/spec/fallbacks.md, rows 5, 6).
+	hints, err := e.deviceReady(ctx, req.DeviceID)
+	if err != nil {
+		e.log.Error("turn refused: the satellite's part of home assistant's prompt or tools is missing",
+			"session", key, "device", req.DeviceID, "error", err)
+		lang := e.lang(ctx)
+		if e.languages != nil {
+			lang = e.languages.Turn(ctx, req.Language, "", "")
+		}
+		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noHousePrompt}, nil
+	}
 
 	sess, err := e.openSession(ctx, key, req, ts.Area)
 	if err != nil {
@@ -407,7 +426,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		Lang:           e.lang(ctx),
 		Now:            now.In(e.loc),
 		ChannelContext: e.channelContext(ctx, req, sess, snap),
-		DeviceHints:    e.deviceHintsFor(req.DeviceID),
+		DeviceHints:    hints,
 		Person:         person,
 		PersonBy:       ts.PersonBy,
 		PersonName:     e.nameOf(person),
@@ -530,8 +549,19 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
 		msg.Content = stripThinking(msg.Content)
-		if len(msg.ToolCalls) == 0 || round >= maxRounds {
-			msg.ToolCalls = nil
+		if len(msg.ToolCalls) > 0 && round >= maxRounds {
+			// The rounds are used up while the model still wants tools: what
+			// it wanted is not done, and Mira says so (docs/spec/fallbacks.md,
+			// row 4) instead of what it may have written alongside.
+			names := make([]string, 0, len(msg.ToolCalls))
+			for _, c := range msg.ToolCalls {
+				names = append(names, c.Function.Name)
+			}
+			e.log.Warn("tool rounds used up; the model's last tool calls are not run", "session", key,
+				"rounds", maxRounds, "tools", strings.Join(names, ","))
+			msg.ToolCalls, msg.Content = nil, ""
+		}
+		if len(msg.ToolCalls) == 0 {
 			final = msg
 			break
 		}
@@ -552,10 +582,20 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			msgs = append(msgs, tm)
 			added = append(added, tm)
 		}
+		// The round's text was spoken while the model wrote it: the last
+		// tool result says so, or the model says it again (a try, not in a
+		// spec yet).
+		if said := strings.TrimSpace(msg.Content); pass != nil && said != "" {
+			last := &msgs[len(msgs)-1]
+			last.Content += fmt.Sprintf(e.texts(ctx).alreadySaid, said)
+			added[len(added)-1].Content = last.Content
+		}
 	}
 
-	if strings.TrimSpace(final.Content) == "" {
-		final.Content = e.texts(ctx).fallback
+	// A round with text and a tool is an answer too: the turn is empty only
+	// when nothing at all was said.
+	if strings.TrimSpace(final.Content) == "" && (pass == nil || strings.TrimSpace(pass.spoken()) == "") {
+		final.Content = e.texts(ctx).notFinished
 		if pass != nil {
 			pass.add(final.Content)
 		}
@@ -604,8 +644,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	}
 	// Never after a tool that plays something after the answer: the
 	// satellite's microphone would hear the recording.
+	// The question may stand in a round with a tool, before the last round's
+	// text: what was spoken in the whole turn counts.
+	heard := resp.Text
+	if pass != nil && strings.TrimSpace(pass.spoken()) != "" {
+		heard = pass.spoken()
+	}
 	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) &&
-		(expectsReply(resp.Text) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
+		(expectsReply(heard) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,
@@ -641,7 +687,15 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 // one.
 func (e *Engine) skillTools(ctx context.Context, key string) []llm.Tool {
 	open, err := e.store.SessionSkills(ctx, key)
-	if err != nil || len(open) == 0 {
+	if err != nil {
+		// docs/spec/fallbacks.md, row 26; a turn Home Assistant ended is no
+		// failure of the store.
+		if ctx.Err() == nil {
+			e.log.Warn("could not read the skills the conversation opened; the turn runs without their tools", "session", key, "error", err)
+		}
+		return nil
+	}
+	if len(open) == 0 {
 		return nil
 	}
 	out, err := prompt.BuildTools(e.tools.ConversationSkillDefs(open...))
@@ -718,7 +772,11 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	if ok && spec.Skill != "" {
 		// A skill's tool exists for the conversation only once it opened
 		// the skill, and never one only for the skill's agents.
-		open, _ := e.store.SessionSkills(ctx, ts.SessionKey)
+		open, err := e.store.SessionSkills(ctx, ts.SessionKey)
+		if err != nil && ctx.Err() == nil {
+			// docs/spec/fallbacks.md, row 26.
+			e.log.Warn("could not read the skills the conversation opened; the skill's tool counts as unknown", "session", ts.SessionKey, "tool", name, "error", err)
+		}
 		ok = slices.Contains(open, spec.Skill) && !spec.AgentsOnly
 	}
 	if !ok {

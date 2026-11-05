@@ -3,6 +3,7 @@ package satellite
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"strings"
 	"testing"
@@ -32,10 +33,13 @@ func TestSoundsMatchFiles(t *testing.T) {
 }
 
 type fake struct {
-	played  []string
-	shown   []Card
-	actions []string
-	waited  time.Duration
+	playing    bool  // the speaker plays now
+	playingErr error // reading whether it plays fails
+	announced  []bool
+	played     []string
+	shown      []Card
+	actions    []string
+	waited     time.Duration
 }
 
 func env() (map[string]tools.InternalTool, *fake) {
@@ -45,9 +49,13 @@ func env() (map[string]tools.InternalTool, *fake) {
 		Speaker: func(_ context.Context, device string) string {
 			return map[string]string{"show": "media_player.show_speaker"}[device]
 		},
-		Play: func(_ context.Context, entity, url string) error {
+		Play: func(_ context.Context, entity, url string, announce bool) error {
 			f.played = append(f.played, entity+" "+url)
+			f.announced = append(f.announced, announce)
 			return nil
+		},
+		Playing: func(context.Context, string, string) (bool, string, error) {
+			return f.playing, "media_player.show_speaker", f.playingErr
 		},
 		BaseURL: func(context.Context) string { return "http://ha.local:8123/" },
 		CardAction: func(_ context.Context, device string) string {
@@ -130,5 +138,24 @@ func TestSA07_SatelliteWithoutCards(t *testing.T) {
 	out := call(t, tl[ToolCard], "echo", `{"title":"T","line":"L","picture":"https://x/y.jpg"}`)
 	if len(f.shown) != 0 || !strings.Contains(out, "keinen Bildschirm") {
 		t.Errorf("shown %v: %q", f.shown, out)
+	}
+}
+
+func TestSA09_a_sound_plays_as_music_unless_something_plays(t *testing.T) {
+	for name, c := range map[string]struct {
+		playing  bool
+		err      error
+		announce bool
+	}{
+		"nothing plays":      {false, nil, false},
+		"the radio plays":    {true, nil, true},
+		"state not readable": {false, errors.New("no connection"), true},
+	} {
+		tl, f := env()
+		f.playing, f.playingErr = c.playing, c.err
+		call(t, tl[ToolSound], "show", `{"name":"fanfare"}`)
+		if len(f.announced) != 1 || f.announced[0] != c.announce {
+			t.Errorf("%s: announce %v, want %v", name, f.announced, c.announce)
+		}
 	}
 }

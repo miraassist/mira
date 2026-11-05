@@ -40,6 +40,8 @@ func (a *app) exposed(ctx context.Context) (map[string]bool, bool) {
 	}
 	var ids []string
 	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		// docs/spec/fallbacks.md, row 32.
+		a.log.Warn("the kept list of what Assist sees cannot be read; it counts as not sent", "error", err)
 		return nil, false
 	}
 	out := make(map[string]bool, len(ids))
@@ -65,10 +67,15 @@ func (a *app) exposedHash(ctx context.Context) string {
 	}
 	raw, err := a.store.GetKV(ctx, kvExposed)
 	if err != nil {
+		// docs/spec/fallbacks.md, row 32: the integration sends the list again.
+		if !errors.Is(err, store.ErrNotFound) {
+			a.log.Warn("could not read what Assist sees for its fingerprint; the integration sends it again", "error", err)
+		}
 		return ""
 	}
 	var ids []string
 	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		a.log.Warn("the kept list of what Assist sees cannot be read; the integration sends it again", "error", err)
 		return ""
 	}
 	slices.Sort(ids)
@@ -92,8 +99,17 @@ func (a *app) setLogins(ctx context.Context, logins map[string]string) error {
 // logins is the kept map; empty when the integration never sent one.
 func (a *app) logins(ctx context.Context) map[string]string {
 	out := map[string]string{}
-	if raw, err := a.store.GetKV(ctx, kvLogins); err == nil {
-		_ = json.Unmarshal([]byte(raw), &out)
+	raw, err := a.store.GetKV(ctx, kvLogins)
+	if err != nil {
+		// docs/spec/fallbacks.md, row 32.
+		if !errors.Is(err, store.ErrNotFound) {
+			a.log.Warn("could not read the persons' logins; no calendar counts as a person's", "error", err)
+		}
+		return out
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		a.log.Warn("the kept logins of the persons cannot be read; no calendar counts as a person's", "error", err)
+		return map[string]string{}
 	}
 	return out
 }

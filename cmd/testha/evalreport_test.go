@@ -25,7 +25,7 @@ func TestReportNamedAfterSetup(t *testing.T) {
 	}
 	readme, _ := os.ReadFile(filepath.Join(dir, "README.md"))
 	if !strings.Contains(string(readme), "[qwen-lokal.md](results/qwen-lokal.md)") || !strings.Contains(string(readme), "2026-10-18 09:00") ||
-		!strings.Contains(string(readme), "main: qwen") {
+		!strings.Contains(string(readme), "main: qwen") || !strings.Contains(string(readme), "[models.md](models.md)") {
 		t.Errorf("overview:\n%s", readme)
 	}
 }

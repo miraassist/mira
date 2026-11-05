@@ -137,6 +137,9 @@ type server struct {
 	// missing are the tools the configuration names that the server does
 	// not have.
 	missing []string
+	// unlisted are the satellites whose tools could not be listed last
+	// time, with why (docs/spec/fallbacks.md, row 6).
+	unlisted map[string]error
 }
 
 // Host owns the server connections.
@@ -318,7 +321,7 @@ func (h *Host) connectServer(ctx context.Context, s *server) error {
 		s.mu.Unlock()
 		return err
 	}
-	tools, err := h.listTools(cctx, s.cfg, session)
+	tools, unlisted, err := h.listTools(cctx, s.cfg, session)
 	if err != nil {
 		_ = session.Close()
 		s.mu.Lock()
@@ -328,7 +331,7 @@ func (h *Host) connectServer(ctx context.Context, s *server) error {
 	}
 	s.mu.Lock()
 	s.session = session
-	s.tools, s.missing = tools, missingTools(s.cfg, tools)
+	s.tools, s.missing, s.unlisted = tools, missingTools(s.cfg, tools), unlisted
 	s.lastErr = nil
 	s.mu.Unlock()
 	h.log.Info("mcp server connected", "server", s.cfg.Name, "tools", len(tools))
@@ -391,15 +394,41 @@ func (h *Host) refresh(ctx context.Context, s *server) {
 	}
 	cctx, cancel := context.WithTimeout(ctx, h.callTimeout)
 	defer cancel()
-	tools, err := h.listTools(cctx, s.cfg, session)
+	tools, unlisted, err := h.listTools(cctx, s.cfg, session)
 	if err != nil {
 		h.log.Warn("could not refresh tool list", "server", s.cfg.Name, "error", err)
 		return
 	}
 	s.mu.Lock()
-	s.tools, s.missing = tools, missingTools(s.cfg, tools)
+	s.tools, s.missing, s.unlisted = tools, missingTools(s.cfg, tools), unlisted
 	s.mu.Unlock()
 	h.rebuild()
+}
+
+// DeviceTools makes sure a satellite's own tools are in the list before its
+// turn: when listing them failed last time, the servers that take the
+// satellite into account list again; an error says they still cannot
+// (docs/spec/fallbacks.md, row 6). A device no server failed for is fine.
+func (h *Host) DeviceTools(ctx context.Context, device string) error {
+	if device == "" {
+		return nil
+	}
+	for _, s := range h.servers {
+		s.mu.Lock()
+		_, failed := s.unlisted[device]
+		s.mu.Unlock()
+		if !failed {
+			continue
+		}
+		h.refresh(ctx, s)
+		s.mu.Lock()
+		err, still := s.unlisted[device]
+		s.mu.Unlock()
+		if still {
+			return fmt.Errorf("the tools of %s for satellite %s: %w", s.cfg.Name, device, err)
+		}
+	}
+	return nil
 }
 
 // missingTools are the tools a server's configuration names that it does
@@ -432,11 +461,12 @@ func (h *Host) Refresh(ctx context.Context) {
 // listTools asks for the tools. For a server that takes the satellite into
 // account, once without one and once as each satellite would get them; the
 // lists are joined, so nothing a satellite is offered is lost.
-func (h *Host) listTools(ctx context.Context, cfg config.MCPServer, session *sdk.ClientSession) ([]Tool, error) {
+func (h *Host) listTools(ctx context.Context, cfg config.MCPServer, session *sdk.ClientSession) ([]Tool, map[string]error, error) {
 	out, err := h.listOne(ctx, cfg, session, "")
 	if err != nil || !cfg.WantsDevice() || h.devices == nil {
-		return out, err
+		return out, nil, err
 	}
+	var unlisted map[string]error
 	have := map[string]bool{}
 	for _, t := range out {
 		have[t.Name] = true
@@ -444,7 +474,12 @@ func (h *Host) listTools(ctx context.Context, cfg config.MCPServer, session *sdk
 	for _, device := range h.devices() {
 		more, err := h.listOne(ctx, cfg, session, device)
 		if err != nil {
-			h.log.Warn("could not list the tools for a satellite", "server", cfg.Name, "error", err)
+			h.log.Warn("could not list the tools for a satellite; its turns list them again", "server", cfg.Name,
+				"device", device, "error", err)
+			if unlisted == nil {
+				unlisted = map[string]error{}
+			}
+			unlisted[device] = err
 			continue
 		}
 		for _, t := range more {
@@ -454,7 +489,7 @@ func (h *Host) listTools(ctx context.Context, cfg config.MCPServer, session *sdk
 			}
 		}
 	}
-	return out, nil
+	return out, unlisted, nil
 }
 
 func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.ClientSession, device string) ([]Tool, error) {

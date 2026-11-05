@@ -56,6 +56,9 @@ func (r *Resolver) Turn(ctx context.Context, sent, area, person string) i18n.Lan
 			r.remember(ctx, l, area, person)
 			return l
 		}
+		// Decided (docs/spec/language.md): a language Mira does not speak
+		// is the person's last one.
+		r.log.Info("home assistant sent a language mira does not speak; the person's last one is taken", "sent", sent)
 	}
 	return r.ForPerson(ctx, person)
 }
@@ -100,11 +103,12 @@ func (r *Resolver) start(ctx context.Context) i18n.Lang {
 	}
 	code, err := r.server(ctx)
 	if err != nil {
-		r.log.Warn("could not read Home Assistant's language", "error", err)
+		r.log.Warn("could not read Home Assistant's language; German until it can be read", "error", err)
 		return i18n.Default
 	}
 	l, err := i18n.Parse(code)
 	if err != nil {
+		r.log.Info("home assistant's language is one mira does not speak; German", "language", code)
 		l = i18n.Default
 	}
 	r.serverLang = l

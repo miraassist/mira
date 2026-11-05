@@ -247,3 +247,57 @@ func TestAnAnswerEndedByTheCallerKeepsWhatWasSaid(t *testing.T) {
 		t.Fatalf("transcript ends with %+v, said %q", last, said)
 	}
 }
+
+// ST-14: the text of a round with a tool was spoken; the tool's result says
+// so, so the model does not say it again. A turn that is not streamed gets
+// no note.
+func TestST14_TextSpokenBeforeATool_IsNotedInItsResult(t *testing.T) {
+	steps := func() []fakellm.Step {
+		return []fakellm.Step{
+			{Content: "Richtig!", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
+			{Content: "Nächste Frage: Wofür steht RAM?"},
+		}
+	}
+	note := "(Schon gesprochen: „Richtig!“."
+	toolResult := func(h *harness) string {
+		reqs := h.llm.Requests()
+		msgs := reqs[len(reqs)-1].Request.Messages
+		return msgs[len(msgs)-1].Content
+	}
+	h := newHarness(t, steps()...)
+	streamed(t, h.engine, "Central Processing Unit")
+	if got := toolResult(h); !strings.Contains(got, note) {
+		t.Errorf("streamed: the tool result lacks the note: %q", got)
+	}
+	h = newHarness(t, steps()...)
+	h.say(t, config.ChannelVoice, "v1", "Central Processing Unit")
+	if got := toolResult(h); strings.Contains(got, "Schon gesprochen") {
+		t.Errorf("not streamed: a note although nothing was spoken: %q", got)
+	}
+}
+
+// ST-15: a round with text and a tool is an answer: when the last round
+// writes nothing, Mira does not add that she did not finish.
+func TestST15_ARoundWithTextAndAToolIsAnAnswer(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{Content: "Richtig! Nächste Frage: Wofür steht RAM?", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
+		fakellm.Step{Content: ""},
+	)
+	_, p, _ := streamed(t, h.engine, "Central Processing Unit")
+	if strings.Contains(p.text(), "nicht ganz fertig") {
+		t.Errorf("handed on %q", p.text())
+	}
+}
+
+// ST-16: the question stands in a round with a tool, and the last round adds
+// a filler: the satellite listens all the same.
+func TestST16_AQuestionBeforeAToolOrAFillerKeepsTheSatelliteListening(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{Content: "Richtig! Wie viele Beine hat eine Spinne?", ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", "ha__GetLiveContext", `{}`)}},
+		fakellm.Step{Content: "Ich warte auf deine Antwort."},
+	)
+	resp, _, _ := streamed(t, h.engine, "Ich denke der Blauwal.")
+	if !resp.ContinueConversation {
+		t.Error("the satellite does not listen after the question")
+	}
+}

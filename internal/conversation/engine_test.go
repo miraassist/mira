@@ -866,7 +866,7 @@ func TestDeviceLinesGoInTheTurnAndNotInLayerFour(t *testing.T) {
 		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
 		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
 		StructurePrompt: func() string { return "Static Context: Küchenlicht" },
-		DeviceHints:     func(device string) string { return hints[device] },
+		DeviceHints:     func(_ context.Context, device string) (string, error) { return hints[device], nil },
 	})
 	ask := func(conv, device string) {
 		t.Helper()
@@ -893,5 +893,61 @@ func TestDeviceLinesGoInTheTurnAndNotInLayerFour(t *testing.T) {
 	}
 	if got := lastContent(reqs[1].Request.Messages); !strings.Contains(got, "This device is not able to start timers.") {
 		t.Errorf("turn without a device: %s", got)
+	}
+}
+
+// FB-04 A turn whose tool rounds are used up says it did not finish
+func TestFB04_ATurnWhoseToolRoundsAreUsedUpSaysItDidNotFinish(t *testing.T) {
+	// Given the model still asks for tools after its last round (the harness allows 3)
+	look := func(id string) fakellm.Step {
+		return fakellm.Step{Content: "Erledigt.", ToolCalls: []llm.ToolCall{fakellm.ToolCall(id, "ha__GetLiveContext", `{}`)}}
+	}
+	h := newHarness(t, look("c1"), look("c2"), look("c3"), look("c4"))
+	// When the turn ends
+	res, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "v1", Text: "Schau überall nach", Language: "de"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Then Mira says she did not finish, not what the model wrote alongside
+	if res.Text != "Ich bin damit nicht ganz fertig geworden." {
+		t.Errorf("answer = %q", res.Text)
+	}
+	// And the dropped call is not run, and the log names it
+	if n := len(h.ha.Calls()); n != 3 {
+		t.Errorf("tool calls run = %d, want 3", n)
+	}
+	if !strings.Contains(h.logs.String(), "tool rounds used up") {
+		t.Error("the log does not name the dropped calls")
+	}
+}
+
+// FB-05 An empty answer says it did not finish
+func TestFB05_AnEmptyAnswerSaysItDidNotFinish(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: ""})
+	res, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "v1", Text: "Hallo", Language: "de"})
+	if err != nil || res.Text != "Ich bin damit nicht ganz fertig geworden." {
+		t.Errorf("answer = %q, %v", res.Text, err)
+	}
+}
+
+// A satellite's turn without its part of Home Assistant's prompt or its tools
+// does not run (docs/spec/fallbacks.md, rows 5 and 6).
+func TestASatellitesTurnWithoutItsPartDoesNotRun(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Ok."})
+	e := conversation.New(conversation.Options{
+		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
+		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
+		StructurePrompt: func() string { return harnessHousePrompt },
+		DeviceTools:     func(context.Context, string) error { return errors.New("listing failed") },
+	})
+	res, err := e.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "v1", DeviceID: "sat-kueche", Text: "Stell einen Timer", Language: "de"})
+	if err != nil || !strings.Contains(res.Text, "Beschreibung des Hauses") {
+		t.Errorf("answer = %q, %v", res.Text, err)
+	}
+	if n := len(h.llm.Requests()); n != 0 {
+		t.Errorf("model called %d times", n)
 	}
 }

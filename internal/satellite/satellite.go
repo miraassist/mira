@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -79,8 +80,13 @@ type Options struct {
 	Lang i18n.Lang
 	// Speaker is the media player of a satellite's device; "" if none.
 	Speaker func(ctx context.Context, deviceID string) string
-	// Play plays an address on a media player.
-	Play func(ctx context.Context, entity, url string) error
+	// Play plays an address on a media player, as an announcement or as
+	// music.
+	Play func(ctx context.Context, entity, url string, announce bool) error
+	// Playing says whether media plays now on a satellite's device, not
+	// counting Mira's own voice, and from which entity it read that
+	// (docs/spec/satellite.md: a sound is music unless something plays).
+	Playing func(ctx context.Context, deviceID, speaker string) (playing bool, from string, err error)
 	// BaseURL is Home Assistant's address as satellites reach it.
 	BaseURL func(ctx context.Context) string
 	// CardAction is the card action of a satellite's device
@@ -185,7 +191,18 @@ func soundTool(o Options, t texts) tools.InternalTool {
 				return t.noSpeaker, nil
 			}
 			url := strings.TrimRight(o.BaseURL(ctx), "/") + SoundPath + s.Name + ".mp3"
-			if err := o.Play(ctx, speaker, url); err != nil {
+			// As music it plays under Mira's voice; over the radio as an
+			// announcement, which the radio survives (docs/spec/satellite.md).
+			announce := true
+			if o.Playing != nil {
+				playing, from, err := o.Playing(ctx, inv.DeviceID, speaker)
+				if err != nil {
+					slog.Warn("could not read whether media plays; the sound plays as an announcement", "speaker", speaker, "from", from, "error", err)
+				}
+				announce = err != nil || playing
+				slog.Info("sound played", "sound", s.Name, "speaker", speaker, "media_playing", playing, "read_from", from, "announce", announce)
+			}
+			if err := o.Play(ctx, speaker, url, announce); err != nil {
 				return "", err
 			}
 			if err := o.Wait(ctx, s.Length+afterSound); err != nil {

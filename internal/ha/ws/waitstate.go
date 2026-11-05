@@ -39,7 +39,7 @@ func (c *Client) GetStates(ctx context.Context, f StateFilter) ([]State, error) 
 	if f.empty() {
 		return nil, nil
 	}
-	var table stateTable
+	table := stateTable{log: c.log}
 	first := make(chan struct{})
 	var once sync.Once
 	cancel, err := c.subscribeCommand(ctx, f.command(), func(ev Event) {
@@ -75,7 +75,7 @@ func (c *Client) WatchStates(ctx context.Context, f StateFilter, changed func())
 	if f.empty() {
 		return nil, errors.New("a watch needs entities or domains")
 	}
-	w := &StateWatch{}
+	w := &StateWatch{table: stateTable{log: c.log}}
 	cancel, err := c.subscribeCommand(ctx, f.command(), func(ev Event) {
 		w.table.apply(ev.Raw)
 		w.mu.Lock()
@@ -119,7 +119,7 @@ func (w *StateWatch) Stop() {
 //
 // fn runs on the connection's read loop, so it must not block.
 func (c *Client) WatchState(ctx context.Context, entity string, fn func(state string)) (func(), error) {
-	var table stateTable
+	table := stateTable{log: c.log}
 	var mu sync.Mutex
 	last, first := "", true
 	return c.subscribeCommand(ctx, StateFilter{EntityIDs: []string{entity}}.command(), func(ev Event) {
@@ -147,6 +147,8 @@ func (c *Client) WaitState(ctx context.Context, entity string, limit time.Durati
 		}
 	})
 	if err != nil {
+		// docs/spec/fallbacks.md, row 23.
+		c.log.Warn("could not watch an entity's state; it counts as not reached", "entity", entity, "error", err)
 		return false
 	}
 	defer cancel()

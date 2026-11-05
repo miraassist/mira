@@ -219,7 +219,12 @@ func (m *Manager) finishInBackground(ctx context.Context, th store.Thread) {
 	}
 	res := m.runWork(ctx, fin, th)
 	cur, err := m.opts.Store.GetThread(ctx, th.ID)
-	if err != nil || cur.State != store.ThreadWorking {
+	if err != nil {
+		// docs/spec/fallbacks.md, row 21.
+		m.log.Error("a thread's work is done but the thread cannot be read again; its result is dropped", "thread", th.ID, "error", err)
+		return
+	}
+	if cur.State != store.ThreadWorking {
 		return
 	}
 	if said := m.apply(ctx, cur, res, false); !m.handOver(th.ID, said) {

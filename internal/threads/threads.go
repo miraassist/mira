@@ -359,6 +359,8 @@ func (m *Manager) change(ctx context.Context, id string, fn func(*store.Thread) 
 		if !errors.Is(err, store.ErrConflict) || try == maxChangeTries-1 {
 			return th, err
 		}
+		// docs/spec/fallbacks.md, row 34.
+		m.log.Info("a thread changed meanwhile; reading it again", "thread", id, "try", try+1)
 	}
 }
 
@@ -515,7 +517,10 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 	if th.State == store.ThreadWaiting || th.State == store.ThreadProposed {
 		// An answer or a change: back to collecting; a proposal is moot.
 		th.State = store.ThreadCollecting
-		_, _ = m.opts.Store.WithdrawThreadMessages(ctx, th.ID)
+		if _, err := m.opts.Store.WithdrawThreadMessages(ctx, th.ID); err != nil {
+			// docs/spec/fallbacks.md, row 25.
+			m.log.Warn("could not withdraw the messages of a thread's proposal; they may still be announced", "thread", th.ID, "error", err)
+		}
 	}
 	if len(problems) > 0 || len(missing(sk.Target, th.Fields)) > 0 {
 		// An agent whose input is there now starts.
@@ -567,7 +572,13 @@ func (m *Manager) work(ctx context.Context, inv tools.Invocation, th store.Threa
 			return
 		}
 		// The user may have cancelled meanwhile.
-		if cur, err := m.opts.Store.GetThread(ctx, th.ID); err != nil || cur.State != store.ThreadWorking {
+		cur, err := m.opts.Store.GetThread(ctx, th.ID)
+		if err != nil {
+			// docs/spec/fallbacks.md, row 21.
+			m.log.Error("a thread's work is done but the thread cannot be read again; its result is dropped", "thread", th.ID, "error", err)
+			return
+		}
+		if cur.State != store.ThreadWorking {
 			return
 		}
 		m.apply(ctx, th, res, true)

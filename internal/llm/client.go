@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -46,6 +48,9 @@ type Options struct {
 	MaxRetries int
 	HTTPClient *http.Client
 	Telemetry  *telemetry.Provider
+	// Log gets a warning for every retry (docs/spec/fallbacks.md, FB-13);
+	// slog's default without one.
+	Log *slog.Logger
 }
 
 type Client struct {
@@ -55,6 +60,7 @@ type Client struct {
 	http    *http.Client
 	retries int
 	tel     *telemetry.Provider
+	log     *slog.Logger
 
 	// last is how the model's calls went, for Mira's page.
 	mu   sync.Mutex
@@ -100,6 +106,9 @@ func New(opts Options) *Client {
 	if opts.Telemetry == nil {
 		opts.Telemetry = telemetry.NewTestProvider()
 	}
+	if opts.Log == nil {
+		opts.Log = slog.Default()
+	}
 	return &Client{
 		baseURL: strings.TrimRight(opts.BaseURL, "/"),
 		apiKey:  opts.APIKey,
@@ -107,6 +116,7 @@ func New(opts Options) *Client {
 		http:    opts.HTTPClient,
 		retries: opts.MaxRetries,
 		tel:     opts.Telemetry,
+		log:     opts.Log,
 	}
 }
 
@@ -210,6 +220,7 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 		if onText != nil {
 			pass = func(text string) { passed = true; onText(text) }
 		}
+		began := time.Now()
 		resp, err := c.once(ctx, body, pass)
 		if err == nil {
 			return resp, nil
@@ -220,6 +231,10 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 		}
 		// Linear backoff: the server is local, a long wait helps nobody.
 		delay := time.Duration(attempt+1) * 250 * time.Millisecond
+		// A retry is never silent (docs/spec/fallbacks.md, FB-13).
+		c.log.Warn("model call failed, trying again", "model", c.model, "host", c.host(), "attempt", attempt+1,
+			"status", errorType(err), "error", err, "attempt_ms", time.Since(began).Milliseconds(),
+			"wait_ms", delay.Milliseconds())
 		select {
 		case <-ctx.Done():
 			return nil, lastErr
@@ -264,6 +279,14 @@ func (c *Client) once(ctx context.Context, body []byte, onText func(string)) (*C
 		return nil, fmt.Errorf("llm returned no choices")
 	}
 	return &out, nil
+}
+
+// host is the model server's host, for the log.
+func (c *Client) host() string {
+	if u, err := url.Parse(c.baseURL); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return c.baseURL
 }
 
 // Warmup sends a minimal request that carries the real cached prefix, so the

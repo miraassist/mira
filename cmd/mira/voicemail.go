@@ -233,6 +233,8 @@ func (a *app) playedThrough(ctx context.Context, speaker string, limit time.Dura
 		}
 	})
 	if err != nil {
+		// docs/spec/fallbacks.md, row 23.
+		a.log.Warn("could not watch the speaker play a message; it counts as not played to its end", "speaker", speaker, "error", err)
 		return false
 	}
 	defer stop()

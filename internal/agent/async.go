@@ -221,6 +221,8 @@ func (r *Runtime) takeUp(ctx context.Context, ex *execution, steps []store.Agent
 		}
 		var m llm.Message
 		if err := json.Unmarshal(st.Body, &m); err != nil {
+			// docs/spec/fallbacks.md, row 33.
+			r.log.Warn("a step of an agent run cannot be read; the run goes on without it", "agent", ex.spec.Name, "call_id", ex.res.CallID, "step", st.Kind, "error", err)
 			continue
 		}
 		switch st.Kind {
@@ -295,7 +297,10 @@ func (r *Runtime) Resume(ctx context.Context) error {
 	}
 	for _, rec := range runs {
 		var cc CallContext
-		_ = json.Unmarshal(rec.Call, &cc)
+		if err := json.Unmarshal(rec.Call, &cc); err != nil {
+			// docs/spec/fallbacks.md, row 33.
+			r.log.Warn("an agent run's call cannot be read; it is taken up without it", "call_id", rec.CallID, "error", err)
+		}
 		spec, ok := r.lookup(rec.Agent)
 		switch {
 		case !ok:

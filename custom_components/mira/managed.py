@@ -138,6 +138,16 @@ def notify_targets(hass: HomeAssistant) -> list[str]:
     return sorted(entities | services)
 
 
+def all_devices(registry: dr.DeviceRegistry) -> list[dr.DeviceEntry]:
+    """Every device entry. Iterating `registry.devices` gives the entries
+    since Home Assistant 2026.11 (using it as a mapping is deprecated, gone
+    in 2027.9), their ids before (docs/spec/fallbacks.md)."""
+    items = list(registry.devices)
+    if items and isinstance(items[0], str):
+        return [d for d in (registry.async_get(i) for i in items) if d is not None]
+    return items
+
+
 def ring_of(hass: HomeAssistant, satellite: str) -> str:
     """The LED ring of a satellite's device, "" without one: a light named
     "LED ring" on the device or on a device of its own that hangs off it
@@ -148,7 +158,7 @@ def ring_of(hass: HomeAssistant, satellite: str) -> str:
     if sat is None or not sat.device_id:
         return ""
     devices = dr.async_get(hass)
-    family = [sat.device_id] + sorted(d.id for d in devices.devices.values() if d.via_device_id == sat.device_id)
+    family = [sat.device_id] + sorted(d.id for d in all_devices(devices) if d.via_device_id == sat.device_id)
     for device_id in family:
         for e in er.async_entries_for_device(entities, device_id):
             if (

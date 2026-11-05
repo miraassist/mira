@@ -1,6 +1,6 @@
 # Sounds and cards on the satellite
 
-Status 2026-10-23: built (0.6.61). Scenarios: [satellite.feature](satellite.feature).
+Status 2026-11-05: built (0.6.61); a sound as music when nothing plays (SA-09) built. Scenarios: [satellite.feature](satellite.feature).
 
 ## Goal
 
@@ -34,9 +34,20 @@ They are files in the binary, each with a name that says what it means, not wher
   internal address (`internal_url`, else the address Mira uses for Home Assistant) and the integration's open page
   path (`/api/mira/panel/ui/sounds/<name>.mp3`); the integration passes the sound files through, as the page's own
   files. Satellites always reach Home Assistant; Mira's own address they may not know.
-- **As an announcement** (`announce: true`): during a voice turn the satellite turns down everything playing in
-  the background, and a sound played as media is one (TECHO5, tried 2026-10-23); an announcement plays like
-  Mira's voice, at full volume, and interrupts the radio instead of replacing it.
+- **As music, or as an announcement when something plays** (decided 2026-11-05): with streamed answers a sound can
+  come while Mira still speaks (the model writes the score and calls the sound in one round), and an announcement
+  cut Mira's answer off at the Show ("the reply was cut off by another sound"). So before playing, Mira reads the
+  device's media state once (one read, filtered to the entities): a TECHO5 device's own sensor
+  `sensor.<node>_now_playing_state` first, as the speaker also reports `playing` while Mira speaks (seen 2026-11-05:
+  the speaker `playing` during the quiz's answer, the sensor `paused`; reading the speaker chose the announcement and
+  cut Mira off), else the speaker's state. Not `playing` → `play_media` without `announce`, as
+  music; it plays under Mira's voice, turned down while she speaks, and does not cut her off (tried at the Show
+  2026-11-05: a sentence over `start_conversation` and the fanfare 1 s later both played to their end; the same
+  with `announce: true` broke the sentence off with "playing the announcement failed"). `playing` (the radio) →
+  `announce: true` as before, which interrupts the radio instead of replacing it and may cut Mira off. When the
+  state cannot be read, the sound plays as an announcement and the log says why. Every sound writes the line
+  `sound played` with the entity read, what it said and the choice. Before (2026-10-23) every sound
+  was an announcement: as media it is turned down during a voice turn (TECHO5); that is now the accepted cost.
 - **Waiting:** the tool returns only when the sound is over (its length and half a second). The model speaks after
   it; a sound and speech at once do not go together, as the satellite turns a sound down while it speaks (tried on
   the Echo Show 5, 2026-10-23).
@@ -59,6 +70,8 @@ They are files in the binary, each with a name that says what it means, not wher
 - With `keep_listening` (no arguments) the model asks for it itself, when it expects a quick word without asking
   ("weiter" after a short step). The engine sees the call and sets `continue_conversation` for that answer; it is
   called in the same round as other tools (with the card), so it costs no time.
+- After a question: the last sentence or the one before it ends with "?", in all the turn spoke
+  ([Streaming](streaming.md), decision 11).
 - How long the satellite listens is its own setting (TECHO5: "Follow-up time", up to 30 seconds). Only for a quick
   word: after a long step the wake word again is fine.
 - Not a rule "a plan is open, so listen": whether a quick word comes depends on the step, which only the model knows.

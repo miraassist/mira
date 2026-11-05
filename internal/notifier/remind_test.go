@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -90,18 +91,22 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 	}
 }
 
-// start_conversation returns only after the satellite stopped listening; a
-// timeout while it listens is not a failure and sends nothing privately.
-func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
-	e := newEnv(t, nil)
-	sat := e.n.primary("kueche")
-	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
-	e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
-	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
-		Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche")
-	if err != nil {
-		t.Fatal(err)
+// FB-09 A start_conversation that runs out of time counts as spoken only when the satellite spoke
+func TestFB09_AStartConversationThatRunsOutOfTimeCountsAsSpokenOnlyWhenTheSatelliteSpoke(t *testing.T) {
+	tell := func(speaks bool) *env {
+		e := newEnv(t, nil)
+		sat := e.n.primary("kueche")
+		e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
+		e.ha.speaks = speaks
+		e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
+		if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+			Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
+			t.Fatal(err)
+		}
+		return e
 	}
+	// The satellite was responding: it spoke and still listens; nothing goes privately.
+	e := tell(true)
 	if called := e.ha.servicesCalled(); len(called) != 1 || called[0] != "assist_satellite.start_conversation" {
 		t.Fatalf("services: %v", called)
 	}
@@ -110,6 +115,11 @@ func TestStartConversationTimeoutCountsAsSpoken(t *testing.T) {
 	}
 	if e.ha.calls[0].Data["preannounce"] != false {
 		t.Errorf("chime before a proposal: %v", e.ha.calls[0].Data)
+	}
+	// It never spoke: not delivered by voice, so it goes privately (row 11).
+	e = tell(false)
+	if len(e.tg.sent) != 1 {
+		t.Errorf("not sent privately: %v", e.tg.sent)
 	}
 }
 
@@ -168,5 +178,46 @@ func TestDueRemindersDoNotBlockTheLoop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if called := e.ha.servicesCalled(); len(called) != 1 {
 		t.Errorf("services %v: delivered %d times", called, len(called))
+	}
+}
+
+// FB-10 A message is not spoken when the satellite's state cannot be read
+func TestFB10_AMessageIsNotSpokenWhenTheSatellitesStateCannotBeRead(t *testing.T) {
+	e := newEnv(t, nil)
+	sat := e.n.primary("kueche")
+	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
+	e.ha.statesErr = errors.New("connection lost")
+	e.n.mu.Lock()
+	err := e.n.announce(context.Background(), "kueche", sat, []store.Message{{ID: "m1", Spoken: "Post ist da."}}, false)
+	e.n.mu.Unlock()
+	if err == nil || !strings.Contains(err.Error(), "connection lost") {
+		t.Errorf("announce = %v", err)
+	}
+	if called := e.ha.servicesCalled(); len(called) != 0 {
+		t.Errorf("spoken anyway: %v", called)
+	}
+}
+
+// FB-11 A message for a busy satellite waits until it is idle
+func TestFB11_AMessageForABusySatelliteWaitsUntilItIsIdle(t *testing.T) {
+	e := newEnv(t, nil)
+	sat := e.n.primary("kueche")
+	e.ha.set(sat, "responding", map[string]any{"supported_features": float64(1)})
+	done := make(chan error, 1)
+	go func() {
+		done <- e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+			Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche")
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("delivered while the satellite was busy: %v, %v", err, e.ha.servicesCalled())
+	case <-time.After(200 * time.Millisecond):
+	}
+	e.ha.set(sat, "idle", map[string]any{"supported_features": float64(1)})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if called := e.ha.servicesCalled(); len(called) != 1 || called[0] != "assist_satellite.announce" {
+		t.Errorf("services: %v", called)
 	}
 }

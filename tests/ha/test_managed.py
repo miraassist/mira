@@ -586,3 +586,19 @@ async def test_a_ring_is_found_and_a_switched_off_satellite_gives_its_area_up(ha
     rooms = {r["area"]: r for r in build_config(hass, entry)["rooms"]}
     assert rooms[area]["satellite"] == dot
     assert rooms[area]["indicator"] == lights[1]  # the ring, not a segment
+
+
+# FB-12 The devices are read the same under Home Assistant 2026.10 and 2026.11
+def test_fb12_all_devices_under_both_versions(hass):
+    from homeassistant.helpers import device_registry as dr
+
+    from custom_components.mira.managed import all_devices
+
+    registry = dr.async_get(hass)
+    entry = MockConfigEntry(domain="esphome")
+    entry.add_to_hass(hass)
+    made = registry.async_get_or_create(config_entry_id=entry.entry_id, identifiers={("esphome", "x")}, name="X")
+    # Whatever iterating gives in this version (ids before 2026.11, entries
+    # since), the result is the entries.
+    assert made in all_devices(registry)
+    assert all(isinstance(d, dr.DeviceEntry) for d in all_devices(registry))

@@ -58,8 +58,10 @@ type Entry struct {
 
 // Calendar is what the mail calendar needs from Home Assistant.
 type Calendar interface {
-	// Find returns the entity of the exposed calendar with this name.
-	Find(ctx context.Context, name string) (string, bool)
+	// Find returns the entity of the exposed calendar with this name; an
+	// error when the calendars cannot be read, which is no "not there"
+	// (docs/spec/fallbacks.md, row 7).
+	Find(ctx context.Context, name string) (string, bool, error)
 	// Names lists the names of the exposed calendars.
 	Names(ctx context.Context) ([]string, error)
 	Events(ctx context.Context, entity string, from, to time.Time) ([]Event, error)
@@ -179,7 +181,10 @@ func (s *Service) handle(ctx context.Context, m Mail) (Outcome, error) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	entity, ok := s.o.Calendar.Find(ctx, name)
+	entity, ok, err := s.o.Calendar.Find(ctx, name)
+	if err != nil {
+		return Outcome{}, fmt.Errorf("the calendar %s: %w", name, err)
+	}
 	if !ok {
 		return Outcome{Action: "ignored", Reason: "no calendar " + name}, nil
 	}

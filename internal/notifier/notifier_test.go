@@ -38,9 +38,22 @@ type fakeHA struct {
 	// listening, when set, holds start_conversation as the satellite does
 	// until the reply: one receive when it starts, one send to end it.
 	listening chan struct{}
+	// speaks makes start_conversation turn the satellite responding, as the
+	// device does while it says the message.
+	speaks bool
+	// statesErr, when set, is what reading states returns.
+	statesErr error
+	// onCall, when set, runs at the start of every service call.
+	onCall func()
 }
 
 func (f *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
+	if f.onCall != nil {
+		f.onCall()
+	}
+	if service == "start_conversation" && f.speaks && target != nil && len(target.EntityID) > 0 {
+		f.set(target.EntityID[0], "responding", f.stateOf(target.EntityID[0]).Attributes)
+	}
 	if service == "start_conversation" && f.listening != nil {
 		f.listening <- struct{}{} // the satellite speaks and listens until told
 		<-f.listening
@@ -63,6 +76,9 @@ func (f *fakeHA) CallService(_ context.Context, domain, service string, data map
 func (f *fakeHA) GetStates(_ context.Context, filter haws.StateFilter) ([]haws.State, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.statesErr != nil {
+		return nil, f.statesErr
+	}
 	var out []haws.State
 	for _, s := range f.states {
 		domain, _, _ := strings.Cut(s.EntityID, ".")
@@ -81,6 +97,12 @@ func (f *fakeHA) Entities(context.Context) ([]haws.Entity, error) {
 		{EntityID: "assist_satellite.essen", DeviceID: "dev-essen"},
 		{EntityID: "assist_satellite.flur", DeviceID: "dev-flur"},
 	}, nil
+}
+
+func (f *fakeHA) stateOf(entity string) haws.State {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.states[entity]
 }
 
 func (f *fakeHA) set(entity, state string, attrs map[string]any) {

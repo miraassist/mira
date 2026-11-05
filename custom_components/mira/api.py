@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from typing import Any
 from urllib.parse import quote
 
 import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _minutes(value: Any) -> int | None:
@@ -230,7 +233,11 @@ class MiraClient:
                 try:
                     body = await resp.json(content_type=None)
                 except ValueError, aiohttp.ContentTypeError:
-                    pass
+                    # docs/spec/fallbacks.md, row 36.
+                    _LOGGER.warning(
+                        "Mira answered the restore with HTTP %s and a body that is no JSON",
+                        resp.status,
+                    )
                 if resp.status >= 400:
                     reason = body.get("error") if isinstance(body, dict) else None
                     raise MiraError(str(reason or f"HTTP {resp.status}"))

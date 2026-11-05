@@ -194,7 +194,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for name, m := range cfg.Models {
 		a.models[name] = llm.New(llm.Options{
 			BaseURL: m.BaseURL, APIKey: m.APIKey, Model: m.Model,
-			Timeout: m.Timeout.Duration(), MaxRetries: 2, Telemetry: tel,
+			Timeout: m.Timeout.Duration(), MaxRetries: 2, Telemetry: tel, Log: a.log,
 		})
 	}
 	a.llm = a.models[config.MainModel]
@@ -413,11 +413,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Sounds and cards on the satellite of the turn (docs/spec/satellite.md).
 	internal = append(internal, satellite.Tools(satellite.Options{
 		Lang: a.lang, Speaker: a.speakerOf, CardAction: a.cardActionOf, BaseURL: a.haAddress,
-		Play: func(ctx context.Context, entity, url string) error {
-			return a.ha.CallService(ctx, "media_player", "play_media", map[string]any{
-				"media_content_id": url, "media_content_type": "music", "announce": true,
-			}, &haws.Target{EntityID: []string{entity}})
+		Play: func(ctx context.Context, entity, url string, announce bool) error {
+			data := map[string]any{"media_content_id": url, "media_content_type": "music"}
+			if announce {
+				data["announce"] = true
+			}
+			return a.ha.CallService(ctx, "media_player", "play_media", data, &haws.Target{EntityID: []string{entity}})
 		},
+		Playing: a.mediaPlaying,
 		Show: func(ctx context.Context, action string, c satellite.Card) error {
 			domain, service, _ := strings.Cut(action, ".")
 			return a.ha.CallService(ctx, domain, service, satellite.CardData(c), nil)
@@ -517,7 +520,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.engine = conversation.New(conversation.Options{
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
-		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.Tail, Telemetry: tel, Logger: a.log,
+		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona:   func() string { return a.liveConfig().Prompt.Persona },
 		Languages: a.langs,

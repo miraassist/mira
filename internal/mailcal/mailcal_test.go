@@ -3,6 +3,7 @@ package mailcal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -12,10 +13,15 @@ import (
 type fakeCal struct {
 	events map[string]Event // uid -> event
 	next   int
+	// listFails makes reading the calendars fail.
+	listFails error
 }
 
-func (f *fakeCal) Find(_ context.Context, name string) (string, bool) {
-	return "calendar.pakete", strings.EqualFold(name, "Pakete")
+func (f *fakeCal) Find(_ context.Context, name string) (string, bool, error) {
+	if f.listFails != nil {
+		return "", false, f.listFails
+	}
+	return "calendar.pakete", strings.EqualFold(name, "Pakete"), nil
 }
 func (f *fakeCal) Names(context.Context) ([]string, error) { return []string{"Pakete", "Familie"}, nil }
 func (f *fakeCal) Events(_ context.Context, _ string, from, to time.Time) ([]Event, error) {
@@ -295,5 +301,15 @@ func TestNoDayNoEntryButCancelWithoutDay(t *testing.T) {
 	s.Handle(ctx, mail("Pakete", now.Add(time.Hour)))
 	if out, _ := s.Handle(ctx, mail("Pakete", now.Add(2*time.Hour))); out.Action != "deleted" || len(cal.events) != 0 {
 		t.Errorf("cancel without day: %+v %+v", out, cal.events)
+	}
+}
+
+// FB-08 A mail when the calendars cannot be read is an error, not "no calendar"
+func TestFB08_AMailWhenTheCalendarsCannotBeReadIsAnError(t *testing.T) {
+	s, cal := service(&fakeModel{items: []item{{Relevant: true, Title: "Paket", Status: "scheduled", Day: "2026-10-21"}}})
+	cal.listFails = errors.New("home assistant does not answer")
+	out, err := s.Handle(context.Background(), mail("Pakete", now.Add(-time.Hour)))
+	if err == nil || !strings.Contains(err.Error(), "home assistant does not answer") || out.Action == "ignored" {
+		t.Errorf("outcome %+v, %v", out, err)
 	}
 }

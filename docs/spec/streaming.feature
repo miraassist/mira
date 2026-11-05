@@ -72,3 +72,19 @@ Feature: ST Speaking while the answer is written
     Given a voice turn whose model answers "Jeden Abend hat er die große Lampe eingeschaltet." without calling a tool
     Then the answer reaches the user as written
     And the model is not asked again and no tool call is forced
+
+  @step8
+  Scenario: ST-14 Text spoken before a tool is noted in its result
+    Given the model writes "Richtig!" and a tool call in one round of a streamed voice turn
+    Then the tool's result tells the model that "Richtig!" was spoken already, not to say it again
+    And a turn that is not streamed gets no such note
+
+  @step8
+  Scenario: ST-15 A round with text and a tool is an answer
+    Given the model writes the next question next to its tool call and nothing after the tool
+    Then the question is the answer, and Mira does not add that she did not finish
+
+  @step8
+  Scenario: ST-16 A question before a tool, or a filler after it, keeps the satellite listening
+    Given the question stands in the round with the tool and the last round says "Ich warte auf deine Antwort."
+    Then the satellite listens again for the answer

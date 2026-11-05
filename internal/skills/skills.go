@@ -17,6 +17,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -733,6 +735,10 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 	for _, d := range dirs {
 		entries, err := os.ReadDir(d)
 		if err != nil {
+			// docs/spec/fallbacks.md, row 29; a folder not made yet is no error.
+			if !errors.Is(err, fs.ErrNotExist) {
+				slog.Warn("could not read a skills folder; its skills are missing from the list", "dir", d, "error", err)
+			}
 			continue
 		}
 		for _, e := range entries {
@@ -742,6 +748,10 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 			}
 			raw, err := os.ReadFile(filepath.Join(d, name, "SKILL.md"))
 			if err != nil {
+				// A folder without SKILL.md is no skill.
+				if !errors.Is(err, fs.ErrNotExist) {
+					slog.Warn("could not read a skill; it is missing from the list", "skill", name, "dir", d, "error", err)
+				}
 				continue
 			}
 			seen[name] = true

@@ -43,6 +43,7 @@ type box struct {
 	announced []string
 	held      []bool
 	stopped   []string // speakers told to stop
+	playErr   error    // what playing on the speaker returns
 }
 
 func (b *box) machine() *Machine {
@@ -90,6 +91,9 @@ func (b *box) machine() *Machine {
 		Play: func(_ context.Context, speaker, id string) error {
 			b.mu.Lock()
 			defer b.mu.Unlock()
+			if b.playErr != nil {
+				return b.playErr
+			}
 			b.played = append(b.played, speaker+": "+id)
 			return nil
 		},

@@ -32,17 +32,17 @@ func mailApps(loaded []skills.Skill) map[string]mailcal.App {
 
 type mailCalendar struct{ a *app }
 
-func (c mailCalendar) Find(ctx context.Context, name string) (string, bool) {
+func (c mailCalendar) Find(ctx context.Context, name string) (string, bool, error) {
 	cals, err := c.a.calendarList(ctx)
 	if err != nil {
-		return "", false
+		return "", false, err
 	}
 	for _, cal := range cals {
 		if strings.EqualFold(cal.Name, name) {
-			return cal.Entity, true
+			return cal.Entity, true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 func (c mailCalendar) Names(ctx context.Context) ([]string, error) {

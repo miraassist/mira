@@ -616,7 +616,10 @@ func (m *Manager) homeURL(ctx context.Context) string {
 		Internal string `json:"internal_url"`
 	}
 	if raw, err := m.opts.HA.Call(ctx, map[string]any{"type": "get_config"}); err == nil {
-		_ = json.Unmarshal(raw, &cfg)
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			// docs/spec/fallbacks.md, row 33.
+			m.log.Warn("home assistant's config cannot be read; links use Mira's own address of it", "error", err)
+		}
 	}
 	for _, u := range []string{cfg.External, cfg.Internal, m.opts.HAURL} {
 		if u != "" {
@@ -671,7 +674,10 @@ func (m *Manager) Try(ctx context.Context, id string) (TryResult, error) {
 	key := id
 	for _, it := range items {
 		if it.ID == id {
-			_ = json.Unmarshal(it.Automation, &automation)
+			if err := json.Unmarshal(it.Automation, &automation); err != nil {
+				// docs/spec/fallbacks.md, row 33.
+				m.log.Warn("a task's automation from home assistant cannot be read; it cannot be tried", "task", id, "error", err)
+			}
 		}
 	}
 	if automation == nil {

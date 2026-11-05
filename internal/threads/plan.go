@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -52,7 +53,10 @@ func (m *Manager) isPlan(th store.Thread) bool {
 func planOf(th store.Thread) planContent {
 	var c planContent
 	if len(th.Content) > 0 {
-		_ = json.Unmarshal(th.Content, &c)
+		if err := json.Unmarshal(th.Content, &c); err != nil {
+			// docs/spec/fallbacks.md, row 33.
+			slog.Warn("a thread's plan cannot be read; it counts as empty", "thread", th.ID, "error", err)
+		}
 	}
 	return c
 }

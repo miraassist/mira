@@ -11,6 +11,9 @@ func TestExpectsReply(t *testing.T) {
 		"In welchem Raum soll es sein?",
 		"Okay. Welche Temperatur hättest du gern.",
 		"Bitte bestätige, dass ich die Haustür abschließen soll.",
+		// A filler after the question: the sentence before the last counts.
+		"Richtig! Weiter zur zweiten Frage: Wie viele Beine hat eine Spinne? Ich warte auf deine Antwort.",
+		"Richtig!\n\n Wofür steht RAM?\n\n Ich warte.",
 	}
 	no := []string{
 		"Das Küchenlicht ist an.",

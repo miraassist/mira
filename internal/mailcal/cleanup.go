@@ -19,7 +19,10 @@ func (s *Service) Cleanup(ctx context.Context) error {
 		if s.App(name) == "" {
 			continue
 		}
-		entity, ok := s.o.Calendar.Find(ctx, name)
+		entity, ok, err := s.o.Calendar.Find(ctx, name)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			continue
 		}

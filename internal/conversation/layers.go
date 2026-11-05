@@ -66,13 +66,19 @@ func (e *Engine) structureText() string {
 	return e.assist()
 }
 
-// deviceHintsFor are the lines of Home Assistant's Assist prompt that depend
-// on the device asking, for the turn layer.
-func (e *Engine) deviceHintsFor(device string) string {
-	if e.deviceHints == nil {
-		return ""
+// deviceReady are the lines of Home Assistant's Assist prompt that depend on
+// the device asking, for the turn layer, once its own tools are listed too;
+// an error when either cannot be had.
+func (e *Engine) deviceReady(ctx context.Context, device string) (string, error) {
+	if e.deviceTools != nil {
+		if err := e.deviceTools(ctx, device); err != nil {
+			return "", err
+		}
 	}
-	return e.deviceHints(device)
+	if e.deviceHints == nil {
+		return "", nil
+	}
+	return e.deviceHints(ctx, device)
 }
 
 func clipProfile(p string, max int) string {
@@ -158,6 +164,10 @@ func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, [
 	}
 	a, err := e.store.RecentAnnouncement(ctx, deviceID, e.cfg.Notifier.FollowUpWindow.Duration())
 	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			// docs/spec/fallbacks.md, row 27.
+			e.log.Warn("could not read what was just announced at the satellite; the turn does not know it", "device", deviceID, "error", err)
+		}
 		return "", nil, ""
 	}
 	var b strings.Builder
@@ -165,6 +175,11 @@ func (e *Engine) messageContext(ctx context.Context, deviceID string) (string, [
 	for _, id := range a.MessageIDs {
 		n, err := e.store.GetMessage(ctx, id)
 		if err != nil {
+			// docs/spec/fallbacks.md, row 27; a message deleted since is
+			// simply gone.
+			if !errors.Is(err, store.ErrNotFound) {
+				e.log.Warn("could not read an announced message; the turn does not know it", "message", id, "error", err)
+			}
 			continue
 		}
 		if n.State == store.MessageDelivered {

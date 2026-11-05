@@ -8,6 +8,7 @@ package fakemcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,8 +47,10 @@ type Server struct {
 	// deviceOnly are tools offered only in a listing that names a satellite
 	// (Home Assistant's timers); lists records the satellite of each listing.
 	deviceOnly map[string]bool
-	lists      []string
-	tokens     []string
+	// failList are the satellites whose listing fails.
+	failList map[string]bool
+	lists    []string
+	tokens   []string
 }
 
 // Tokens are the bearer tokens of the requests Authorize was asked about.
@@ -133,6 +136,16 @@ func (s *Server) Lists() []string {
 	return append([]string(nil), s.lists...)
 }
 
+// FailListing makes the tool listing for a satellite fail, or work again.
+func (s *Server) FailListing(device string, fail bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failList == nil {
+		s.failList = map[string]bool{}
+	}
+	s.failList[device] = fail
+}
+
 // listing is a middleware that records tools/list requests and hides the
 // device-only tools from those without a satellite.
 func (s *Server) listing(next sdk.MethodHandler) sdk.MethodHandler {
@@ -146,7 +159,11 @@ func (s *Server) listing(next sdk.MethodHandler) sdk.MethodHandler {
 		}
 		s.mu.Lock()
 		s.lists = append(s.lists, device)
+		fail := s.failList[device]
 		s.mu.Unlock()
+		if fail {
+			return nil, fmt.Errorf("listing for %s failed", device)
+		}
 		res, err := next(ctx, method, req)
 		if lr, ok := res.(*sdk.ListToolsResult); ok && err == nil && device == "" {
 			s.mu.Lock()

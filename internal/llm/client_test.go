@@ -1,9 +1,11 @@
 package llm_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -370,5 +372,37 @@ func TestStreamBrokenOffIsNotRetried(t *testing.T) {
 	_, err := c.ChatStream(context.Background(), llm.ChatRequest{}, func(text string) { got += text })
 	if err == nil || got != "Es war einmal " || calls.Load() != 1 {
 		t.Fatalf("err %v, got %q, calls %d", err, got, calls.Load())
+	}
+}
+
+func TestFB13_a_retried_model_call_is_in_the_log(t *testing.T) {
+	var attempts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error":"overloaded"}`))
+			return
+		}
+		w.Write([]byte(`{"id":"x","model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{}}`))
+	}))
+	defer srv.Close()
+
+	var logged bytes.Buffer
+	c := llm.New(llm.Options{BaseURL: srv.URL + "/v1", Model: "gemini-x", MaxRetries: 2,
+		Log: slog.New(slog.NewTextHandler(&logged, nil))})
+	resp, err := c.Chat(context.Background(), llm.ChatRequest{Messages: []llm.Message{{Role: llm.RoleUser, Content: "hi"}}})
+	if err != nil || resp.Choices[0].Message.Content != "ok" {
+		t.Fatalf("answer %+v, error %v", resp, err)
+	}
+	line := logged.String()
+	host := strings.TrimPrefix(srv.URL, "http://")
+	for _, want := range []string{"level=WARN", "model=gemini-x", "host=" + host, "attempt=1", "status=http_503", "overloaded", "attempt_ms=", "wait_ms=250"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("log lacks %q: %s", want, line)
+		}
+	}
+	if n := strings.Count(line, "\n"); n != 1 {
+		t.Errorf("want one line for one retry, got %d: %s", n, line)
 	}
 }

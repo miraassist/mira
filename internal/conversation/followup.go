@@ -9,9 +9,13 @@ import (
 // satellite keeps listening. A question mark is the clear case. Local models
 // also ask for input with a plain request ("Bitte gib an, welches Licht."),
 // which is caught by how the last sentence begins.
+//
+// The sentence before the last counts too: a model may add a filler after
+// its question ("Wie viele Beine hat eine Spinne? Ich warte auf deine
+// Antwort.").
 func expectsReply(text string) bool {
 	text = strings.TrimSpace(text)
-	if strings.HasSuffix(text, "?") {
+	if strings.HasSuffix(text, "?") || strings.HasSuffix(beforeLastSentence(text), "?") {
 		return true
 	}
 	last := strings.ToLower(lastSentence(text))
@@ -40,6 +44,16 @@ var replyOpeners = []string{
 
 // statementOpeners look like question words but open a statement.
 var statementOpeners = []string{"wie gewünscht", "wie besprochen", "wie gewohnt", "wie immer", "was das betrifft", "wo ich kann"}
+
+// beforeLastSentence is the text up to the end of the sentence before the
+// last, with its punctuation; "" for a single sentence.
+func beforeLastSentence(text string) string {
+	text = strings.TrimRightFunc(text, func(r rune) bool { return unicode.IsPunct(r) || unicode.IsSpace(r) })
+	if i := strings.LastIndexAny(text, ".!?\n"); i >= 0 {
+		return strings.TrimSpace(text[:i+1])
+	}
+	return ""
+}
 
 // lastSentence returns the final sentence, ignoring trailing punctuation.
 func lastSentence(text string) string {

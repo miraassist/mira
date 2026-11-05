@@ -153,7 +153,11 @@ func (e *editor) agentsState(top *yaml.Node, st *ui.EditState) {
 
 func (e *editor) skillsState(top *yaml.Node, st *ui.EditState) {
 	entries := config.MapGet(top, "skills")
-	secrets, _ := e.file.Secrets.Load()
+	secrets, err := e.file.Secrets.Load()
+	if err != nil {
+		// docs/spec/fallbacks.md, row 31.
+		e.a.log.Warn("could not read the secrets file; the skills' secrets show as not set", "error", err)
+	}
 	names := map[string]bool{}
 	for _, info := range skills.Available(e.a.cfg.Skills.Dirs, nil) {
 		names[info.Name] = true
@@ -348,12 +352,19 @@ func (e *editor) moveSecret(from, to string, entry *yaml.Node) {
 		return
 	}
 	all, err := e.file.Secrets.Load()
-	if err != nil || all[from] == "" {
+	if err != nil {
+		// docs/spec/fallbacks.md, row 31.
+		e.a.log.Warn("could not read the secrets file; a renamed model keeps its token under the old name", "from", from, "to", to, "error", err)
 		return
 	}
-	if e.file.Secrets.Set(map[string]string{to: all[from], from: ""}) == nil {
-		tok.Value = "${" + to + "}"
+	if all[from] == "" {
+		return
 	}
+	if err := e.file.Secrets.Set(map[string]string{to: all[from], from: ""}); err != nil {
+		e.a.log.Warn("could not write the secrets file; a renamed model keeps its token under the old name", "from", from, "to", to, "error", err)
+		return
+	}
+	tok.Value = "${" + to + "}"
 }
 
 // --- agents --------------------------------------------------------------
@@ -771,7 +782,10 @@ func (e *editor) write(secrets map[string]string, fn func(top *yaml.Node) error,
 	}
 	if err := e.file.Edit(fn); err != nil {
 		if before != nil {
-			_ = e.file.Secrets.Set(before)
+			if err := e.file.Secrets.Set(before); err != nil {
+				// docs/spec/fallbacks.md, row 31.
+				e.a.log.Error("the change failed and its secrets could not be put back; the secrets file holds the new ones", "error", err)
+			}
 		}
 		return err
 	}

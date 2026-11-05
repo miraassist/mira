@@ -1,6 +1,6 @@
 # Speaking while the answer is written – Spec
 
-Status 2026-11-03: built (steps 1 to 7, in 0.15.2); all rows of the state table checked. Scenarios: [streaming.feature](streaming.feature).
+Status 2026-11-05: built (steps 1 to 7, in 0.15.2; step 8 built, not released); all rows of the state table checked. Scenarios: [streaming.feature](streaming.feature).
 
 ## Goal
 
@@ -72,6 +72,9 @@ happens where a turn today relies on the finished answer.
 | 6 | Which channels | Only voice; Telegram and background runs stay whole |
 | 7 | Before a longer task | The model may say a short sentence itself before its tools (the prompt allows it before several tools, a search on the web, in the calendar or the mails; not before a simple switching). Mira adds no sentence of her own: helpers that take long (delegate, agents) announce themselves, and what else is slow is a search on the web, which the model may announce (decided 2026-11-03, after a fixed sentence was tried) |
 | 8 | The check of unsupported answers | Removed, for every channel (step 2). The rest risk that a model claims something it did not do or look up is accepted: it is inherent in a model answering; the prompt keeps asking it not to |
+| 9 | Text next to a tool call, said again (2026-11-05) | Some models (DeepSeek) write text and a tool call in one round, then write the same again after the tool's result; with decision 7 both were spoken (a quiz asked each question twice; Gemini writes no text next to its tools: 0 of 136 rounds in the test history). The early start stays. When a round with a tool call had text and it was handed on, Mira adds to that round's last tool result: "(Schon gesprochen: „…“. Wiederhole das nicht; sag nur, was danach noch fehlt, oder nichts.)" A turn that is not streamed gets no note: nothing was spoken. Tried at the Show with DeepSeek: a quiz without a repeated question |
+| 10 | What a turn's answer is (2026-11-05) | All the text it spoke, from every round. A round with text and a tool is an answer: when the last round writes nothing, Mira adds no "Ich bin damit nicht ganz fertig geworden." That sentence comes only when nothing at all was said ([Silent fallbacks](fallbacks.md), FB-05) |
+| 11 | Listening after the answer (2026-11-05) | Decided on the whole spoken text of the turn, not the last round's: the question may stand in a round with a tool. The satellite listens when the last sentence or the one before it ends with "?" (a model may add a filler: "Wie viele Beine hat eine Spinne? Ich warte auf deine Antwort."). The worst case is a nuisance: the satellite listens once for nothing |
 
 Keep listening after a question is decided at the end of the answer, as today; Home Assistant reads the flag at the
 end.
@@ -155,6 +158,8 @@ Nothing grows beyond the answer itself; no subscription, no polling.
 6. **Before a longer task** (decision 7): the prompt's permission and Mira's tool calls in the chat log.
 7. **Guide:** for answers that start early, the speech engine must stream (Phonon does) and the satellite must play at
    the offer (TECHO5: reply delivery "Early").
+8. **What was spoken counts** (decisions 9 to 11): the note in the tool result, the answer as all spoken text, the
+   listening on it. Scenarios ST-14 to ST-16.
 
 ## Later
 

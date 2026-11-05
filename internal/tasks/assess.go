@@ -323,7 +323,12 @@ func (m *Manager) memory(ctx context.Context, r Request) string {
 // earlier lists the task's last judgements, newest first.
 func (m *Manager) earlier(ctx context.Context, key string) string {
 	list, err := m.opts.Store.Assessments(ctx, key, recentVerdicts)
-	if err != nil || len(list) == 0 {
+	if err != nil {
+		// docs/spec/fallbacks.md, row 28.
+		m.log.Warn("could not read the task's past judgements; it is judged without them", "task", key, "error", err)
+		return ""
+	}
+	if len(list) == 0 {
 		return ""
 	}
 	t := m.texts()

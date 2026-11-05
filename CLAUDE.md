@@ -39,6 +39,13 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 - **A flow that drives devices in sequence has a state table**: per transition the trigger, the signal, how Mira
   learns of it, and "checked on the test HA (date)"; with the ways to interrupt and to cancel. It is built only
   when every row is checked.
+- **Every step of a spec says what happens when it fails, and who learns of it** (a log line, a repair, a sentence to
+  the user, the caller's error): error paths are part of the spec, not only the green path. No error ends in nothing,
+  an empty result or a quiet default the spec does not name.
+- **Every error handler leaves a trace** ([Silent fallbacks](docs/spec/fallbacks.md), decision 4): a retry, an
+  unexpected answer of a server, a request broken off, an error caught and carried on from writes a log line where
+  it happens, with what failed, what it cost and what happens next. An error passed to a caller who logs it needs no
+  line of its own.
 - **Every tool and every step a voice turn waits for says what it does step by step and what it costs**: calls to
   Home Assistant or devices, downloads, subscriptions, waits, and what the turn waits for versus what runs after it.
   Anything that grows with the number of items is named.

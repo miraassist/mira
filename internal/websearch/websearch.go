@@ -285,7 +285,12 @@ func (s *Search) excerpt(ctx context.Context, hits []Result) (n int, addr, text 
 			break
 		}
 		p, err := s.Read(ctx, h.URL)
-		if err != nil || utf8.RuneCountInString(p.Text) < minExcerpt {
+		if err != nil {
+			// docs/spec/fallbacks.md, row 35.
+			s.log.Info("a hit's page cannot be read; the next hit is taken", "url", h.URL, "error", err)
+			continue
+		}
+		if utf8.RuneCountInString(p.Text) < minExcerpt {
 			continue
 		}
 		t := p.Text

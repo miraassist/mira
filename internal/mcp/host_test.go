@@ -300,3 +300,35 @@ func TestRefreshPicksUpANewSatellite(t *testing.T) {
 		t.Error("the new satellite's tools did not arrive")
 	}
 }
+
+// FB-07 A satellite whose tools could not be listed lists them on its turn
+func TestFB07_ASatelliteWhoseToolsCouldNotBeListedListsThemOnItsTurn(t *testing.T) {
+	// Given the listing for the satellite fails when Mira connects
+	ha := fakemcp.HA("ok")
+	t.Cleanup(ha.Close)
+	ha.AddDeviceTool("HassStartTimer", "Starts a timer", `{"type":"object","properties":{}}`,
+		func(map[string]any) (string, bool) { return "{}", false })
+	ha.FailListing("sat-kueche", true)
+	yes := true
+	cfg := config.MCPServer{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), DeviceContext: &yes}
+	h := start(t, mcp.Options{Servers: []config.MCPServer{cfg}, Devices: func() []string { return []string{"sat-kueche"} }})
+	if _, ok := h.Lookup("ha__HassStartTimer"); ok {
+		t.Fatal("the timer tool is there although its listing failed")
+	}
+	// When its turn comes and the listing still fails, then it is an error
+	if err := h.DeviceTools(context.Background(), "sat-kueche"); err == nil {
+		t.Fatal("no error for a satellite without its tools")
+	}
+	// When it works again, the turn lists them and has the timer
+	ha.FailListing("sat-kueche", false)
+	if err := h.DeviceTools(context.Background(), "sat-kueche"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := h.Lookup("ha__HassStartTimer"); !ok {
+		t.Errorf("the timer tool is still missing: %v", h.Tools())
+	}
+	// A satellite no listing failed for needs nothing.
+	if err := h.DeviceTools(context.Background(), "sat-bad"); err != nil {
+		t.Error(err)
+	}
+}

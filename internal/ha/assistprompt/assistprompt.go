@@ -26,6 +26,7 @@ package assistprompt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -112,6 +113,39 @@ func (c *Cache) Tail(device string) string {
 		return t
 	}
 	return c.tails[""]
+}
+
+// TailFor is Tail for a satellite's turn: when its own version was never
+// fetched, it is fetched now; an error says it cannot be, and the turn does
+// not run with the lines of the version without a device
+// (docs/spec/fallbacks.md, row 5). No device is the version without one.
+func (c *Cache) TailFor(ctx context.Context, device string) (string, error) {
+	c.mu.RLock()
+	tail, ok := c.tails[device]
+	base := c.base
+	c.mu.RUnlock()
+	if ok || device == "" {
+		return tail, nil
+	}
+	if base == "" {
+		return "", errors.New("home assistant's prompt is missing")
+	}
+	text, err := c.opts.Source.PromptAs(ctx, c.opts.Server, c.opts.Name, device)
+	if err != nil {
+		return "", fmt.Errorf("home assistant's prompt for device %s: %w", device, err)
+	}
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, base) {
+		// The house changed since the last fetch; all versions are fetched
+		// anew, and this turn does not guess.
+		c.Trigger(ctx)
+		return "", fmt.Errorf("home assistant's prompt for device %s changed since the last fetch", device)
+	}
+	tail = strings.TrimSpace(strings.TrimPrefix(text, base))
+	c.mu.Lock()
+	c.tails[device] = tail
+	c.mu.Unlock()
+	return tail, nil
 }
 
 // Refresh fetches the prompt and reports whether layer 4 changed. A failed

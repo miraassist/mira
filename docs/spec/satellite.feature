@@ -50,3 +50,11 @@ Feature: SA Sounds and cards on the satellite
     Given a voice turn whose answer is no question
     When the model called keep_listening in it
     Then the answer asks the satellite to keep listening, and the next answer without the call does not
+
+  @step1
+  Scenario: SA-09 A sound plays as music unless something plays
+    Given nothing plays on the satellite's speaker
+    When a skill plays a sound
+    Then it plays with play_media without announce, under Mira's voice
+    And when the radio plays, the sound plays with announce, so the radio goes on after it
+    And when the speaker's state cannot be read, it plays with announce and the log says why

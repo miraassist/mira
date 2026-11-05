@@ -51,9 +51,10 @@ func (n *Notifier) Tell(ctx context.Context, nt store.Message, areaID string) er
 	return n.deliverAsked(ctx, nt, areaID, false)
 }
 
-// deliverAsked speaks nt in the area unless quiet mode is on, falling back
-// to a private message: at the satellite it was asked at, while that is in
-// the room, else at the room's primary. n.mu is held.
+// deliverAsked speaks nt in the area unless quiet mode is on, else, or when
+// speaking fails, sends it privately (decided: docs/spec/fallbacks.md, row
+// 11): at the satellite it was asked at, while that is in the room, else at
+// the room's primary. n.mu is held.
 func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID string, preannounce bool) error {
 	quiet, err := n.store.GetBool(ctx, store.KeyQuietMode, false)
 	if err != nil {
@@ -120,7 +121,8 @@ func (n *Notifier) remindOne(ctx context.Context, m store.Message) {
 	n.log.Info("scheduled message delivered", "message", m.ID, "area", m.AreaID, "receiver", m.Receiver)
 }
 
-// idleWait bounds how long a message waits for a busy satellite.
+// idleWait is how often a message that waits for a busy satellite says so
+// in the log; it waits on until the satellite is idle.
 const idleWait = time.Minute
 
 // waitIdle waits until the satellite that will speak has finished: the
@@ -128,16 +130,19 @@ const idleWait = time.Minute
 // satellite turns idle while the audio still plays), then a short pause.
 // A message that arrives while it still speaks the answer that asked for
 // it would cut that answer off or follow it without a breath, and the
-// announcement would time out on the busy satellite. After idleWait it
-// gives up waiting and delivers anyway.
+// announcement would time out on the busy satellite. It waits until the
+// satellite reports idle, however long: nothing is cut off
+// (docs/spec/fallbacks.md, row 12).
 func (n *Notifier) waitIdle(ctx context.Context, sat string) {
 	if !strings.HasPrefix(sat, "assist_satellite.") {
 		return
 	}
 	idle := func(state string) bool { return state == "idle" || state == "unavailable" || state == "unknown" }
-	if !n.waitFor(ctx, sat, idleWait, idle) {
-		n.log.Warn("satellite still busy, delivering anyway", "satellite", sat)
-		return
+	for !n.waitFor(ctx, sat, idleWait, idle) {
+		if ctx.Err() != nil {
+			return
+		}
+		n.log.Info("satellite still busy; the message waits until it is idle", "satellite", sat)
 	}
 	for _, speaker := range n.speakers(ctx, sat) {
 		n.waitWhile(ctx, speaker, idleWait, func(state string) bool { return state == "playing" || state == "buffering" })

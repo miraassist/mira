@@ -277,7 +277,9 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     the next start if the agent is down now."""
     try:
         health = await client.health()
-    except MiraError:
+    except MiraError as err:
+        # docs/spec/fallbacks.md, row 36.
+        _LOGGER.info("Mira is not reachable yet (%s); her id and settings are taken over at the next start", err)
         health = {}
     agent_id = health.get("id")
     if (

@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"strings"
@@ -474,9 +476,22 @@ func canonicalArgs(args json.RawMessage) string {
 	return string(c)
 }
 
+// clipArgs shortens a tool call's arguments for a log line.
+func clipArgs(s string) string {
+	if r := []rune(s); len(r) > 200 {
+		return string(r[:200]) + "…"
+	}
+	return s
+}
+
 func parseArgs(raw json.RawMessage) map[string]any {
 	var m map[string]any
-	_ = json.Unmarshal(raw, &m)
+	if len(bytes.TrimSpace(raw)) > 0 {
+		if err := json.Unmarshal(raw, &m); err != nil {
+			// docs/spec/fallbacks.md, row 33: the hooks see no arguments.
+			slog.Warn("a tool call's arguments are no JSON object; the hooks see none", "error", err, "arguments", clipArgs(string(raw)))
+		}
+	}
 	if m == nil {
 		m = map[string]any{}
 	}

@@ -198,3 +198,24 @@ func TestSameVersionsAreSharedWhole(t *testing.T) {
 		t.Fatalf("text %q, tail %q, %v", c.Text(), c.Tail("sat-a"), err)
 	}
 }
+
+// FB-06 A satellite whose prompt was never fetched fetches it on its turn
+func TestFB06_ASatelliteWhosePromptWasNeverFetchedFetchesItOnItsTurn(t *testing.T) {
+	// Given the satellite's version failed when the prompt was fetched
+	p := newPerDevice()
+	p.broken = map[string]bool{"sat-a": true}
+	c := New(Options{Source: p, Server: "ha", Devices: func() []string { return []string{"sat-a", "sat-b"} }})
+	if _, err := c.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// When its turn comes and it still fails, then it is an error, not the version without a device
+	if tail, err := c.TailFor(context.Background(), "sat-a"); err == nil {
+		t.Fatalf("tail without an error: %q", tail)
+	}
+	// When it works again, the turn gets the satellite's own lines
+	p.broken = nil
+	tail, err := c.TailFor(context.Background(), "sat-a")
+	if err != nil || tail != "You are in area Küche and generic commands target it." {
+		t.Errorf("tail = %q, %v", tail, err)
+	}
+}

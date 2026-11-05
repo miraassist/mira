@@ -24,3 +24,10 @@ Feature: RA Radio
     When the user says "Spiel SWR3"
     Then Mira confirms briefly, without naming the device or the room
     And on a speaker elsewhere Mira names only the room, never the device or the word "Lautsprecher"
+
+  @step4
+  Scenario: RA-04 A name with a space is searched once more without it
+    Given Radio Browser finds nothing for "SWR 3" and finds SWR3 for "SWR3"
+    When the user says "Spiel SWR 3"
+    Then Mira searches for "SWR 3", then for "SWR3", and plays SWR3 in the same tool call
+    And a name without a space, or a second search that finds nothing, ends with "no station found" for the name as asked

@@ -230,7 +230,10 @@ func (s *Store) SessionSkills(ctx context.Context, sessionKey string) ([]string,
 		return nil, err
 	}
 	var out []string
-	_ = json.Unmarshal([]byte(raw), &out)
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		// docs/spec/fallbacks.md, row 33: the caller logs it.
+		return nil, fmt.Errorf("the session's open skills cannot be read: %w", err)
+	}
 	return out, nil
 }
 
