@@ -164,6 +164,10 @@ type Options struct {
 }
 
 type Engine struct {
+	// failed are the models that failed for their key or address (modelfail.go).
+	failMu sync.Mutex
+	failed map[string]modelFailure
+
 	cfg         config.Config
 	models      map[string]Chatter
 	store       *store.Store
@@ -501,6 +505,9 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		began := time.Now()
 		out, err := e.chat(ctx, client, modelName, model, chatReq, pass.onText())
+		if err != nil {
+			e.modelFailed(ctx, modelName, err)
+		}
 		// A model that failed passes to its fallback (docs/spec/models.md),
 		// which serves the rest of the turn; not once something was said.
 		for err != nil && ctx.Err() == nil && !pass.passed() {
@@ -519,6 +526,12 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			chatReq.Tools = append(chatReq.Tools, e.skillTools(ctx, key)...)
 			chatReq.ToolChoice = choice
 			out, err = e.chat(ctx, client, modelName, model, chatReq, pass.onText())
+			if err != nil {
+				e.modelFailed(ctx, modelName, err)
+			}
+		}
+		if err == nil {
+			e.modelAnswered(modelName)
 		}
 		if err != nil && pass.passed() {
 			// Part of the answer was said: no other model goes on with it,
@@ -537,7 +550,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
 				"ms", time.Since(began).Milliseconds(), "error", err)
-			return Response{}, err
+			return Response{}, e.turnFailed(ctx, err)
 		}
 		resp.ModelCalls++
 		resp.ModelTime += time.Since(began)

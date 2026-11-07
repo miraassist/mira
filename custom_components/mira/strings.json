@@ -502,6 +502,10 @@
           }
         }
       }
+    },
+    "model_problem": {
+      "title": "Mira's AI model {name} does not answer",
+      "description": "{text}\n\nCheck the model on Mira's page under Models: its key and its address. The message disappears here once the model answers again."
     }
   }
 }

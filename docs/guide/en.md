@@ -865,6 +865,7 @@ agents:
 - **`privacy`** must be there for every model: `local` (your own server) or `cloud` (a provider).
 - **`parallel`** is how many requests a model gets at once; without it 1 for `local`, 4 for `cloud`.
 - **`fallback`** names another model Mira takes when this one does not answer. If it is only busy, Mira waits.
+- **If a model refuses its key or cannot be reached**, Mira says so in the conversation ("My AI model refuses my key …"), and **Repairs** names the model and the server's answer until it answers again.
 - **Which part takes what:** without an entry under `agents` every part takes `main`. The parts are: `conversation.voice` (voice), `conversation.telegram` (Telegram), `delegate` (hard questions), `skill.task` (skill schedules, briefing), `notify.compose` (announcements), `tasks.assess`, `tasks.decide`, `tasks.plan` (tasks), `mail.read`, `mail.match` (mails), `profile.compact` (memory profile).
 - **`privacy: local`** on a part means: it runs only on a local model, with no fallback to the cloud either. A skill can ask the same (`privacy: local` under `metadata.mira`); then Mira checks every part it uses when it starts. If something does not fit, it does not start, and Home Assistant shows under **Repairs** what to change.
 

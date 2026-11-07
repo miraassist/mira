@@ -23,7 +23,7 @@ var builtSteps = map[string][]int{
 	"BE": {2},                             // docs/spec/editing.md, Steps; step 1 predates the map
 	"HK": {1, 2},
 	"HW": {1, 2, 3},       // docs/spec/hooks.md, Steps
-	"MO": {1, 2, 3, 4, 5}, // docs/spec/models.md, Steps
+	"MO": {1, 2, 3, 4, 5}, // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
 	"SM": {1, 2},          // docs/spec/skill-mcp.md
 	"SP": {3},             // docs/spec/speaker-id.md
 	"BK": {1},             // docs/spec/backup.md; steps 2 and 3 are tested in pytest

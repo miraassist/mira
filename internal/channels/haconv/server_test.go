@@ -19,10 +19,14 @@ import (
 
 type fakeConversation struct {
 	got conversation.Request
+	err error
 }
 
 func (f *fakeConversation) Handle(_ context.Context, req conversation.Request) (conversation.Response, error) {
 	f.got = req
+	if f.err != nil {
+		return conversation.Response{}, f.err
+	}
 	if req.Stream != nil {
 		req.Stream(conversation.Piece{Text: "Welches "})
 		req.Stream(conversation.Piece{Text: "Licht?"})
@@ -116,6 +120,22 @@ func TestConversationIsForwardedAsVoice(t *testing.T) {
 	}
 	if code, _ := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"  "}`); code != 400 {
 		t.Errorf("empty text status = %d", code)
+	}
+}
+
+// A model that failed for its key: Mira's sentence is the turn's answer
+// (docs/spec/models.md, When a model fails, MO-50); any other failure stays
+// the error Home Assistant answers with its own sentence (MO-53).
+func TestAFailedModelIsSaidAsTheAnswer(t *testing.T) {
+	srv, conv, _ := setup(t)
+	conv.err = &conversation.TurnError{Say: "Ich erreiche mein KI-Modell gerade nicht.", Err: errors.New("connection refused")}
+	code, body := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"Licht an","conversation_id":"c7","language":"de"}`)
+	if code != 200 || body["text"] != "Ich erreiche mein KI-Modell gerade nicht." || body["continue_conversation"] == true {
+		t.Fatalf("response = %d %v", code, body)
+	}
+	conv.err = errors.New("llm server returned 500")
+	if code, _ := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"Licht an"}`); code != 502 {
+		t.Errorf("another failure: %d", code)
 	}
 }
 

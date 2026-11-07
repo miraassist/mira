@@ -1,7 +1,7 @@
 # Scenarios of docs/spec/models.md. Every scenario has a number (MO-01, …); the Go test that checks it carries the
 # number in its name (TestMO01_…). The tags @step1 … @step5 say in which step (models.md, "Steps") it gets built.
 #
-# Groups: MO-0x models · MO-1x agents name their model · MO-2x privacy · MO-3x fallback · MO-4x the integration
+# Groups: MO-0x models · MO-1x agents name their model · MO-2x privacy · MO-3x fallback · MO-4x the integration · MO-5x a failing model
 
 Feature: MO Models
 
@@ -142,3 +142,45 @@ Feature: MO Models
     Given the integration set a model on an own server
     When Mira starts
     Then main has privacy local
+
+  # --- A failing model (models.md: When a model fails) -------------------------------------------------------
+
+  @step6
+  Scenario: MO-50 A refused key is said in the turn
+    Given the model main answers 401
+    When the user asks something at a satellite
+    Then the turn's answer is "Mein KI-Modell lehnt meinen Schlüssel ab. Das muss auf meiner Seite unter Modelle behoben werden."
+    And it is not kept in the session's history
+
+  @step6
+  Scenario: MO-51 Gemini's missing key counts as a refused key
+    Given the model main answers 400 "Missing or invalid Authorization header"
+    When the user asks something
+    Then Mira says that her AI model refuses her key
+
+  @step6
+  Scenario: MO-52 An unreachable model is said in the turn
+    Given the model main does not answer at its address
+    When the user asks something
+    Then the turn's answer is "Ich erreiche mein KI-Modell gerade nicht."
+
+  @step6
+  Scenario: MO-53 Any other failure stays the service's error
+    Given the model main answers 500
+    When the user asks something
+    Then the turn fails as before, and Home Assistant says its fixed sentence
+
+  @step6
+  Scenario: MO-54 The failing model is a problem until it answers again
+    Given smart answers 401 and falls back to main, which answers
+    When the user asks something
+    Then main's answer is said, and /v1/status has the problem of source model and name smart
+    When smart answers again
+    Then the problem is gone
+
+  @step6
+  Scenario: MO-55 The integration shows the model's problem as a repair
+    Given /v1/status has a problem of source model, name smart
+    When the integration polls
+    Then the repair "Mira's AI model smart does not answer" is raised with the text
+    And it goes when the problem is gone

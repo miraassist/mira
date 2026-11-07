@@ -1515,6 +1515,12 @@ func (a *app) allProblems() []haconv.Problem {
 			}
 		}
 	}
+	// A model that failed for its key or its address (docs/spec/models.md, When a model fails).
+	if a.engine != nil {
+		for _, p := range a.engine.ModelProblems(a.lang) {
+			out = append(out, haconv.Problem{Source: "model", Name: p.Model, Text: p.Text})
+		}
+	}
 	// Without Home Assistant's prompt Mira does not answer (docs/spec/context.md, 1.2).
 	if a.assist != nil {
 		if err := a.assist.Problem(); err != nil {

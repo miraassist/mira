@@ -39,7 +39,15 @@ def _minor(version: Any) -> tuple[int, int] | None:
 # reads as a skill's, as before there were others.
 # "ha": Home Assistant's prompt is missing, Mira does not answer
 # (docs/spec/context.md, 1.2).
-_PROBLEM_KEYS = {"skill": "skill_problem", "agent": "agent_problem", "hook": "hook_problem", "ha": "ha_problem"}
+# "model": a model fails for its key or its address (docs/spec/models.md,
+# When a model fails).
+_PROBLEM_KEYS = {
+    "skill": "skill_problem",
+    "agent": "agent_problem",
+    "hook": "hook_problem",
+    "ha": "ha_problem",
+    "model": "model_problem",
+}
 
 
 class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -130,7 +138,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for domain, issue_id in list(registry.issues):
             if (
                 domain == DOMAIN
-                and issue_id.startswith(("skill_", "agent_", "hook_", "ha_"))
+                and issue_id.startswith(("skill_", "agent_", "hook_", "ha_", "model_"))
                 and issue_id not in wanted
             ):
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)

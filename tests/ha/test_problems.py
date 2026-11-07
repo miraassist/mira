@@ -93,3 +93,27 @@ async def test_hp06_the_repair_for_the_source_ha_comes_and_goes(hass, aioclient_
     await entry.runtime_data.coordinator.async_refresh()
     # Then the repair is gone
     assert registry.async_get_issue(DOMAIN, "ha_prompt") is None
+
+
+# MO-55 The integration shows the model's problem as a repair
+async def test_MO55_the_integration_shows_the_models_problem_as_a_repair(hass, aioclient_mock, entry):
+    problem = {
+        "source": "model",
+        "name": "smart",
+        "text": "Der Server lehnt den Schlüssel ab (llm server returned 401).",
+    }
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": [problem]}
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, "model_smart")
+    assert issue is not None and issue.translation_key == "model_problem"
+    assert issue.translation_placeholders == {"name": "smart", "text": problem["text"]}
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False, "problems": []})
+    await entry.runtime_data.coordinator.async_refresh()
+    assert registry.async_get_issue(DOMAIN, "model_smart") is None

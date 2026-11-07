@@ -1,6 +1,7 @@
 # Models
 
-Status: built. Scenarios: [models.feature](models.feature).
+Status: steps 1 to 6 built (step 6, a failing model said and shown: 2026-11-07, not released). Scenarios:
+[models.feature](models.feature).
 
 ## Goal
 
@@ -128,6 +129,45 @@ Every agent names its model; without one it takes `main`.
   that answered and that it was a fallback (`model=main fallback_from=smart`).
 - Conversations take fallbacks too, as every agent.
 
+## When a model fails (decided 2026-11-07)
+
+Before, a voice turn whose model failed ended in Home Assistant's fixed sentence "Ich kann gerade nicht antworten. Bitte
+versuch es gleich noch einmal." (the integration's, after the service's 502), whatever the reason. A model without its
+key ran for hours like that (seen 2026-11-05); "try again" never helps there.
+
+**Two causes are named**, from the model server's answer after the retries and the fallbacks:
+
+| Cause | Recognised by | Mira says (DE / EN) |
+|---|---|---|
+| Key missing or refused | HTTP 401 or 403; or 400 whose body names the authorization or the API key (Gemini answers a missing key with 400 "Missing or invalid Authorization header") | „Mein KI-Modell lehnt meinen Schlüssel ab. Das muss auf meiner Seite unter Modelle behoben werden.“ / "My AI model refuses my key. It has to be fixed on my page under Models." |
+| Not reachable | no HTTP answer: the address does not answer, the name does not resolve, the connection breaks off, the time is up | „Ich erreiche mein KI-Modell gerade nicht.“ / "I can't reach my AI model right now." |
+| Anything else | | as before: the service's error, Home Assistant's fixed sentence |
+
+1. **The turn ends with the sentence**: the engine returns the failure with the sentence to say; the conversation API
+   answers it as the turn's text (200, also on the stream), so Home Assistant speaks it, and Telegram shows it. Not
+   kept in the session's history: it is not the model's answer. When part of the answer was said already, it ends
+   with "Da ist etwas schiefgegangen." as before ([Streaming](streaming.md), decision 5).
+2. **A problem in `/v1/status`**: source `model`, name the model's name, text the cause with the server's answer
+   ("Der Server lehnt den Schlüssel ab (401: …)." / "Der Server antwortet nicht: …"). Set on every failure of that
+   model with one of the two causes, in a turn of any channel, also when its fallback then answered; gone with the
+   model's next successful call. The integration shows it as a repair ("Miras KI-Modell {name} antwortet nicht" /
+   "Mira's AI model {name} does not answer", the text, and: check the model on Mira's page under Models) and removes
+   it with the problem.
+3. **The log** keeps its line "model round failed" (model, time, error) as before.
+
+**Not here:** checking a model's key at the start (the start warning "not healthy" stays as it is); agents outside a
+conversation (they leave their error in their run, as before).
+
+**Interface:** the source `model` is new. An older integration shows it with a skill's text and does not remove it
+(as with the source `ha`, [Context](context.md)); service and integration come in the same release.
+
+**Cost:** nothing on the green path; on a failure a look at the error, and a map of the models' problems in memory.
+
+| Step | Fails | Who learns of it |
+|---|---|---|
+| 1 | The answer to Home Assistant breaks off | As today: the integration's fixed sentence, the service's log line "conversation failed" |
+| 2 | — (in memory) | |
+
 ## Providers
 
 Mira knows the common cloud providers with an OpenAI-compatible API, each with its address: OpenAI, Google Gemini,
@@ -158,6 +198,9 @@ names its model, fallback, and a section "Commands" with Mira's command line (`r
 3. **Privacy:** `privacy: local` for agents and skills; problems when it does not fit.
 4. **Fallback.**
 5. **Documentation:** guide sections "Models" and "Commands"; example config, test config, eval setups.
+6. **A failing model said and shown** (When a model fails): the two causes, the sentence as the turn's answer, the
+   problem with source `model` and the integration's repair. Scenarios MO-50 to MO-55: the service's in Go, the
+   integration's (MO-55) in pytest.
 
 ## Decided
 
@@ -168,3 +211,4 @@ names its model, fallback, and a section "Commands" with Mira's command line (`r
 5. Privacy is a rule: agents and skills can require a local model; a local requirement never falls back to the cloud.
 6. A fallback is taken when the model fails (error, time up), not when it is busy; chains yes, circles no.
 7. The integration's model becomes `main`.
+8. A model that fails for its key or its address is said in the turn and shown as a repair (2026-11-07).

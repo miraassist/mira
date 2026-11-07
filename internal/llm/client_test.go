@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -424,5 +426,23 @@ func TestFB13_a_retried_model_call_is_in_the_log(t *testing.T) {
 	}
 	if n := strings.Count(line, "\n"); n != 1 {
 		t.Errorf("want one line for one retry, got %d: %s", n, line)
+	}
+}
+
+// Why a model failed (docs/spec/models.md, When a model fails).
+func TestCause(t *testing.T) {
+	for err, want := range map[error]string{
+		&llm.Error{StatusCode: 401, Body: "bad"}:                                                             llm.CauseKey,
+		&llm.Error{StatusCode: 403, Body: "forbidden"}:                                                       llm.CauseKey,
+		&llm.Error{StatusCode: 400, Body: `{"error":{"message":"Missing or invalid Authorization header"}}`}: llm.CauseKey,
+		&llm.Error{StatusCode: 400, Body: "API key not valid"}:                                               llm.CauseKey,
+		&llm.Error{StatusCode: 400, Body: "context too long"}:                                                "",
+		&llm.Error{StatusCode: 500, Body: "oops"}:                                                            "",
+		fmt.Errorf("post: %w", &net.OpError{Op: "dial", Err: errors.New("connection refused")}):              llm.CauseUnreachable,
+		context.DeadlineExceeded:                                                                             llm.CauseUnreachable,
+	} {
+		if got := llm.Cause(err); got != want {
+			t.Errorf("Cause(%v) = %q, want %q", err, got, want)
+		}
 	}
 }

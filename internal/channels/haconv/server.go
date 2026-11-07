@@ -305,6 +305,11 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp, err := s.opts.Conversation.Handle(ctx, creq)
+	if say := conversation.SayOf(err); say != "" {
+		// The model failed for its key or its address: Mira says so
+		// (docs/spec/models.md, When a model fails); the engine logged it.
+		resp, err = conversation.Response{Text: say, ConversationID: creq.ConversationID}, nil
+	}
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)
 		if lines.started() {

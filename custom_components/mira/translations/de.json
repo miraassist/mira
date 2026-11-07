@@ -502,6 +502,10 @@
           }
         }
       }
+    },
+    "model_problem": {
+      "title": "Miras KI-Modell {name} antwortet nicht",
+      "description": "{text}\n\nPrüfe das Modell auf Miras Seite unter Modelle: seinen Schlüssel und seine Adresse. Die Meldung verschwindet hier, sobald das Modell wieder antwortet."
     }
   }
 }

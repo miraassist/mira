@@ -34,40 +34,53 @@ type texts struct {
 	waitingForHA  string
 	// noHousePrompt answers a turn without Home Assistant's prompt.
 	noHousePrompt string
+	// keyRefused and unreachable end a turn whose model failed for its key
+	// or its address; problemKey and problemUnreachable are the problem's
+	// text with the server's answer (docs/spec/models.md, When a model fails).
+	keyRefused, unreachable        string
+	problemKey, problemUnreachable string
 }
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
-		voiceInArea:     "Kanal: Sprache, Satellit im Bereich %[1]s. Ohne Raumangabe ist der Bereich %[1]s gemeint.",
-		voiceNoArea:     "Kanal: Sprache. Der Raum des Satelliten ist unbekannt; bei Raumbezug nachfragen.",
-		telegram:        "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen.",
-		background:      "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
-		notFinished:     "Ich bin damit nicht ganz fertig geworden.",
-		alreadySaid:     "\n\n(Schon gesprochen: „%s“. Wiederhole das nicht; sag nur, was danach noch fehlt, oder nichts.)",
-		streamBroken:    "Da ist etwas schiefgegangen.",
-		errorPrefix:     "Fehler: ",
-		unknownTool:     "Das Werkzeug %s gibt es nicht.",
-		invalidJSONArgs: "Die Argumente sind kein gültiges JSON.",
-		delegated:       "Abgegebene Aufgabe: Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
-		delegateLater:   "Ergebnis: braucht länger, läuft im Hintergrund weiter. Das Ergebnis kommt als Nachricht, sobald es da ist.",
-		waitingForHA:    "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
-		noHousePrompt:   "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt.",
+		voiceInArea:        "Kanal: Sprache, Satellit im Bereich %[1]s. Ohne Raumangabe ist der Bereich %[1]s gemeint.",
+		voiceNoArea:        "Kanal: Sprache. Der Raum des Satelliten ist unbekannt; bei Raumbezug nachfragen.",
+		telegram:           "Kanal: Telegram, Nutzer ist evtl. nicht zu Hause. Bei Raumbezug nachfragen.",
+		background:         "Kanal: Hintergrundjob, kein Mensch im Gespräch.",
+		notFinished:        "Ich bin damit nicht ganz fertig geworden.",
+		alreadySaid:        "\n\n(Schon gesprochen: „%s“. Wiederhole das nicht; sag nur, was danach noch fehlt, oder nichts.)",
+		streamBroken:       "Da ist etwas schiefgegangen.",
+		errorPrefix:        "Fehler: ",
+		unknownTool:        "Das Werkzeug %s gibt es nicht.",
+		invalidJSONArgs:    "Die Argumente sind kein gültiges JSON.",
+		delegated:          "Abgegebene Aufgabe: Mira hat dir diese Aufgabe gegeben und gibt deine Antwort an den Nutzer weiter. Antworte vollständig und sachlich; du darfst nachschlagen, aber nichts verändern.",
+		delegateLater:      "Ergebnis: braucht länger, läuft im Hintergrund weiter. Das Ergebnis kommt als Nachricht, sobald es da ist.",
+		waitingForHA:       "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
+		noHousePrompt:      "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt.",
+		keyRefused:         "Mein KI-Modell lehnt meinen Schlüssel ab. Das muss auf meiner Seite unter Modelle behoben werden.",
+		unreachable:        "Ich erreiche mein KI-Modell gerade nicht.",
+		problemKey:         "Der Server lehnt den Schlüssel ab (%s).",
+		problemUnreachable: "Der Server antwortet nicht: %s",
 	},
 	i18n.EN: {
-		voiceInArea:     "Channel: voice, satellite in area %[1]s. Without a room given, area %[1]s is meant.",
-		voiceNoArea:     "Channel: voice. The satellite's room is unknown; ask when a room matters.",
-		telegram:        "Channel: Telegram, the user may not be at home. Ask when a room matters.",
-		background:      "Channel: background job, no person in the conversation.",
-		notFinished:     "I did not quite finish that.",
-		alreadySaid:     "\n\n(Already said: \"%s\". Do not repeat it; say only what is still missing, or nothing.)",
-		streamBroken:    "Something went wrong.",
-		errorPrefix:     "Error: ",
-		unknownTool:     "There is no tool %s.",
-		invalidJSONArgs: "The arguments are not valid JSON.",
-		delegated:       "Delegated task: Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
-		delegateLater:   "Result: takes longer, goes on in the background. The result comes as a message as soon as it is there.",
-		waitingForHA:    "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
-		noHousePrompt:   "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why.",
+		voiceInArea:        "Channel: voice, satellite in area %[1]s. Without a room given, area %[1]s is meant.",
+		voiceNoArea:        "Channel: voice. The satellite's room is unknown; ask when a room matters.",
+		telegram:           "Channel: Telegram, the user may not be at home. Ask when a room matters.",
+		background:         "Channel: background job, no person in the conversation.",
+		notFinished:        "I did not quite finish that.",
+		alreadySaid:        "\n\n(Already said: \"%s\". Do not repeat it; say only what is still missing, or nothing.)",
+		streamBroken:       "Something went wrong.",
+		errorPrefix:        "Error: ",
+		unknownTool:        "There is no tool %s.",
+		invalidJSONArgs:    "The arguments are not valid JSON.",
+		delegated:          "Delegated task: Mira gave you this task and passes your answer on to the user. Answer completely and factually; you may look things up but must not change anything.",
+		delegateLater:      "Result: takes longer, goes on in the background. The result comes as a message as soon as it is there.",
+		waitingForHA:       "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
+		noHousePrompt:      "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why.",
+		keyRefused:         "My AI model refuses my key. It has to be fixed on my page under Models.",
+		unreachable:        "I can't reach my AI model right now.",
+		problemKey:         "The server refuses the key (%s).",
+		problemUnreachable: "The server does not answer: %s",
 	},
 }
 
