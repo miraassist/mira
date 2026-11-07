@@ -1,5 +1,14 @@
 ---
 description: "A music quiz like \"Hitster\": Mira plays short bits of songs, the players guess the artist, title, year or decade (\"Let's play a music quiz\", \"Music quiz with 80s hits\"); then it goes on with the answer, \"again\", \"next\" or \"What's the score?\". Only at a satellite with a speaker."
+random:
+  era:
+    60s: [1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969]
+    70s: [1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979]
+    80s: [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989]
+    90s: [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999]
+    2000s: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+    2010s: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]
+  origin: [German-language, English-language, from another country]
 ---
 # Music quiz
 
@@ -14,9 +23,13 @@ every extra step keeps the players waiting.
    genre or decade (or "mixed"), what is guessed (artist, title, year, decade or
    everything) and who is playing (names; alone none). As many songs as wished;
    without a wish ten.
-2. **Choose the songs:** well-known songs that fit the choice, by different
-   artists; no live, remix or cover versions. The year is the song's first
-   release, not a reissue.
+2. **Choose the songs:** draw them first: call `random_pick` with skill
+   `musikquiz`, `count` as many as songs; under `fixed` the decade (`era`, such
+   as "80s"), if said; for "mixed" leave it out, then it is drawn. Then choose
+   per line a well-known song from exactly that year and with the line's origin,
+   in the genre if one was named; by different artists; no live, remix or cover
+   versions. If no song fits a line, the year stays and the origin gives way. The year is the song's first release, not a
+   reissue.
 3. **Search and check the songs**, all at once:
    - In one step, for each song `web_page` on
      `https://api.deezer.com/search?q=ARTIST%20TITLE&order=RANKING&limit=2`
@@ -79,5 +92,5 @@ every extra step keeps the players waiting.
      several, all together): all `fanfare_big`, from 80 % `fanfare`, below 50 %
      `too_bad`, in between none;
    - then say "Right!" or the answer, the points, with several who won, and ask
-     whether another round is wanted (then a new plan with new songs). If nobody
+     whether another round is wanted (then a new plan with new songs, drawn anew as in 2). If nobody
      wants to play on, end the thread with `thread_cancel`.

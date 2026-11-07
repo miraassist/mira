@@ -69,6 +69,9 @@ type Skill struct {
 	// OAuth is the skill's login at a service, with its settings filled in
 	// (docs/spec/oauth.md); nil for none.
 	OAuth *OAuth
+	// Random are the skill's axes (metadata.mira.random), which random_pick
+	// draws from (docs/spec/random-pick.md); nil for none.
+	Random []Axis
 	// Chapter is how the heading of the chapter in Mira's guide about this
 	// skill begins (metadata.mira.chapter, "## Kochen und Backen"), in the
 	// skill's language; Mira's page links it. Empty for none.
@@ -314,6 +317,7 @@ type frontmatter struct {
 			OAuth     *OAuth               `yaml:"oauth"`
 			Language  string               `yaml:"language"`
 			Chapter   string               `yaml:"chapter"`
+			Random    yaml.Node            `yaml:"random"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -539,6 +543,9 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	s.Chapter = strings.TrimSpace(m.Chapter)
+	if s.Random, p = parseRandom(&m.Random, "SKILL.md"); p != nil {
+		return Skill{}, p
+	}
 	if s.Lang, err = i18n.Parse(m.Language); err != nil {
 		return Skill{}, problem("language", m.Language)
 	}
@@ -564,6 +571,9 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 // leaves out keeps the skill's own.
 type translation struct {
 	Description, Body, Chapter string
+	// Random replaces the skill's axes as a whole: their names and values
+	// are all text (docs/spec/random-pick.md).
+	Random []Axis
 }
 
 // readTranslation reads SKILL.<lang>.md: frontmatter with the translated
@@ -583,16 +593,22 @@ func readTranslation(dir string, l i18n.Lang, vals map[string]string, decl map[s
 		return translation{}, false, problem("translation", name, p.kind)
 	}
 	var meta struct {
-		Description string `yaml:"description"`
-		Chapter     string `yaml:"chapter"`
+		Description string    `yaml:"description"`
+		Chapter     string    `yaml:"chapter"`
+		Random      yaml.Node `yaml:"random"`
 	}
 	if err := yaml.Unmarshal(fm, &meta); err != nil {
 		return translation{}, false, problem("translation", name, err)
+	}
+	random, p := parseRandom(&meta.Random, name)
+	if p != nil {
+		return translation{}, false, p
 	}
 	return translation{
 		Description: strings.TrimSpace(meta.Description),
 		Chapter:     strings.TrimSpace(meta.Chapter),
 		Body:        fill(strings.TrimSpace(string(body)), vals, decl),
+		Random:      random,
 	}, true, nil
 }
 

@@ -1,5 +1,8 @@
 ---
 description: "Quiz and practise vocabulary or the times tables (\"Test me on my German vocabulary\", \"Practise the seven times table with me\"); wrong ones come again at the end."
+random:
+  level: [easy, medium, hard]
+  field: [family, food and drink, kitchen, weather, school, body, clothes, animals, travel, feelings, jobs, town, nature, time and calendar, house and home, free time, sport, shopping, health, colours and shapes]
 ---
 # Practising vocabulary
 
@@ -15,6 +18,10 @@ context says what is up.
      whether easy or hard, and then make up fitting ones yourself: easy are
      everyday words (dog, house, water), hard rarer ones (umbrella, pavement,
      impatient). If the foreign language is not said, German.
+     Draw the round for that: call `random_pick` with skill `vokabeln`, without
+     `count`; under `fixed` the `level` (easy, medium or hard), if said, and the
+     `field`, if the user names a topic. All words of the round come from the
+     line's field, at its level; mix nouns, verbs and adjectives.
 2. **Direction** for vocabulary: without a wish mixed, about half from the
    user's language into the foreign one, the other half the other way round, in
    no order. If the user names a direction, only that one.

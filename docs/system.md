@@ -93,7 +93,7 @@ flowchart LR
 | `internal/ha/assistprompt` | HA's own Assist prompt as an alternative for layer 4: the common beginning of all versions (without device and per satellite) is layer 4, what HA appends per device goes into the turn ([Context](spec/context.md), 1.1) |
 | `internal/tasks` | Tasks: assessments (`assess`, `decide`), data views, drafting and managing the automations, tools |
 | `internal/notifier` | Delivery: when, where, how a message arrives; indicators (LED ring, screen); reminders |
-| `internal/skills` | Skills in the Agent Skills format (`SKILL.md`), schedules, calendar. A skill that cannot start is skipped and reported with a readable reason in the log and in `/v1/status` (`problems`); the integration shows it as a repair in HA |
+| `internal/skills` | Skills in the Agent Skills format (`SKILL.md`), schedules, calendar; `random_pick`, which draws from a skill's axes so that quizzes and stories vary ([Random pick](spec/random-pick.md)). A skill that cannot start is skipped and reported with a readable reason in the log and in `/v1/status` (`problems`); the integration shows it as a repair in HA |
 | `internal/calendar`, `internal/timeline` | Read and change calendars from Home Assistant; the shared rendering of the timeline |
 | `internal/mailcal` | Mail calendar: evaluate mails from HA's IMAP integration (the integration passes them on via `POST /v1/mail`) in isolation and maintain them as an entry in a calendar; hourly cleanup ([Mail calendar](spec/mail-calendar.md)) |
 | `internal/feeds` | Read feeds (RSS/Atom) |

@@ -38,6 +38,7 @@ var builtSteps = map[string][]int{
 	"HC": {1},             // docs/spec/ha-compat.md
 	"FB": {1, 2, 5},       // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest
 	"MQ": {1},             // docs/spec/music-quiz.md, Steps
+	"RP": {1, 2},          // docs/spec/random-pick.md, Steps
 	"HD": {},              // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-20 to 22, 27) and Go (HD-23 to 26)
 }
 

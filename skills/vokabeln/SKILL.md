@@ -7,6 +7,9 @@ metadata:
     target:
       plan: true
       timeout: 1h
+    random:
+      niveau: [leicht, mittel, schwer]
+      wortfeld: [Familie, Essen und Trinken, Küche, Wetter, Schule, Körper, Kleidung, Tiere, Reisen, Gefühle, Berufe, Stadt, Natur, Zeit und Kalender, Haus und Wohnung, Freizeit, Sport, Einkaufen, Gesundheit, Farben und Formen]
 ---
 # Vokabeln abfragen
 
@@ -22,6 +25,11 @@ im Kontext steht, was gerade dran ist.
      leicht oder schwer, und denk dir dann selbst passende aus: leicht sind
      Alltagswörter (Hund, Haus, Wasser), schwer seltenere (Regenschirm,
      Bürgersteig, ungeduldig). Ist die Fremdsprache nicht gesagt, Englisch.
+     Lose dafür die Runde aus: Ruf `random_pick` auf, skill `vokabeln`, ohne
+     `count`; unter `fixed` `niveau` (leicht, mittel oder schwer), wenn gesagt,
+     und `wortfeld`, wenn der Nutzer ein Thema nennt. Alle Wörter der Runde
+     kommen aus dem Wortfeld der Zeile, mit ihrem Niveau; misch Nomen, Verben
+     und Adjektive.
 2. **Richtung** bei Vokabeln: ohne Wunsch gemischt, etwa die Hälfte von Deutsch in
    die Fremdsprache, die andere Hälfte andersherum, durcheinander. Nennt der Nutzer
    eine Richtung, nur diese.

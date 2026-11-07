@@ -316,7 +316,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			bound[t.Skill] = true
 		}
 	}
-	var loaded, targets []skills.Skill
+	var loaded, targets, usable []skills.Skill
 	for _, sk := range all {
 		// A skill that must run locally does not start on a cloud model
 		// (docs/spec/models.md, Privacy as a rule).
@@ -324,6 +324,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			problems = append(problems, skills.NewProblem(sk.Name, skills.KindNotLocal, name, model, privacy))
 			continue
 		}
+		usable = append(usable, sk)
 		if sk.Target != nil {
 			targets = append(targets, sk)
 		}
@@ -334,6 +335,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home,
 		Connection: a.oauth.State}
 	internal = append(internal, a.skills.Tools()...)
+	// random_pick draws from the axes of every skill, those with a target too
+	// (docs/spec/random-pick.md).
+	internal = append(internal, skills.RandomTools(a.lang, usable)...)
 	internal = append(internal, a.oauth.APITools(a.lang)...)
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))

@@ -8,6 +8,15 @@ metadata:
       plan: true
       bound: room
       timeout: 1h
+    random:
+      zeit:
+        60er: [1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969]
+        70er: [1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979]
+        80er: [1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989]
+        90er: [1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999]
+        2000er: [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009]
+        2010er: [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]
+      herkunft: [deutschsprachig, englischsprachig, aus einem anderen Land]
 ---
 # Musik-Quiz
 
@@ -22,9 +31,15 @@ auf: Jeder Schritt mehr lässt die Spieler warten.
    Jahrzehnt (oder „gemischt“), was geraten wird (Interpret, Titel, Jahr,
    Jahrzehnt oder alles) und wer mitspielt (Namen; allein keine). So viele
    Songs, wie gewünscht; ohne Wunsch zehn.
-2. **Songs wählen:** bekannte Songs, die zur Auswahl passen, von verschiedenen
-   Interpreten; keine Live-, Remix- oder Coverfassungen. Das Jahr ist das der
-   ersten Veröffentlichung des Songs, nicht einer Neuauflage.
+2. **Songs wählen:** Lose sie zuerst aus: Ruf `random_pick` auf, skill
+   `musikquiz`, `count` so viele wie Songs; unter `fixed` das Jahrzehnt (`zeit`,
+   etwa „80er“), wenn gesagt; bei „gemischt“ lässt du es weg, dann wird es
+   ausgelost. Wähle dann je Zeile einen bekannten Song aus genau diesem Jahr und
+   mit der Herkunft der Zeile, im Genre, wenn eins gesagt ist; von
+   verschiedenen Interpreten; keine Live-, Remix- oder Coverfassungen. Gibt es
+   zu einer Zeile keinen passenden Song, bleibt das Jahr, und die Herkunft gibt
+   nach. Das Jahr ist das der ersten Veröffentlichung des Songs,
+   nicht einer Neuauflage.
 3. **Songs suchen und prüfen**, alle auf einmal:
    - In einem Schritt für jeden Song `web_page` auf
      `https://api.deezer.com/search?q=INTERPRET%20TITEL&order=RANKING&limit=2`
@@ -93,5 +108,5 @@ auf: Jeder Schritt mehr lässt die Spieler warten.
      50 % `too_bad`, dazwischen keinen;
    - dann sag „Richtig!“ oder die Auflösung, die Punkte, bei mehreren wer
      gewonnen hat, und frag, ob noch eine Runde gewünscht ist (dann neuer Plan
-     mit neuen Songs). Will niemand mehr spielen, beende den Vorgang mit
+     mit neuen Songs, neu ausgelost wie in 2). Will niemand mehr spielen, beende den Vorgang mit
      `thread_cancel`.
