@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/miraassist/mira/internal/ha/automation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/threads"
@@ -218,11 +219,13 @@ func (f editFinisher) Commit(ctx context.Context, th store.Thread) (string, erro
 			return "", errors.New(d.Reason)
 		}
 	}
-	if _, err := m.opts.HA.Call(ctx, map[string]any{
-		"type": "mira/automation/save", "config": e.After, "automation_id": e.ID,
-		"forbidden": m.forbidden(), "keep_labels": true,
-	}); err != nil {
-		return "", err
+	// Checked once more, then saved as the editor does; the household's
+	// task keeps its own labels.
+	if err := m.validate(ctx, e.After, e.ID); err != nil {
+		return "", m.haError(err)
+	}
+	if err := automation.Save(ctx, m.opts.HA, m.log, e.ID, e.After, automation.Keep); err != nil {
+		return "", m.haError(err)
 	}
 	m.log.Info("task edited", "automation", e.ID, "person", th.Person, "change", e.Summary)
 	return fmt.Sprintf(m.texts().edited, e.Title), nil

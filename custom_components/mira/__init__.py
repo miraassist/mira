@@ -27,7 +27,6 @@ from .automations import async_register_commands
 from .backup import async_offer_restore
 from .const import (
     CONF_AGENT_TOKEN,
-    CONF_AGENT_USER,
     CONF_IMPORTED,
     CONF_PIPELINE_AGENT,
     CONF_PIPELINES,
@@ -288,11 +287,6 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
         and not hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, agent_id)
     ):
         hass.config_entries.async_update_entry(entry, unique_id=agent_id)
-    # The agent's own Home Assistant user may manage Mira's automations. The
-    # integration made it at pairing; only an entry from before that learns
-    # it from the agent, once, and the agent cannot change it later.
-    if (user := health.get("ha_user_id")) and not entry.data.get(CONF_AGENT_USER):
-        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_USER: user})
     # Persons and rooms were subentries once; their settings live on HA's
     # persons and satellites now.
     for sid in list(entry.subentries):
@@ -328,8 +322,7 @@ async def _use_in_assistants(hass: HomeAssistant, entry: MiraConfigEntry) -> Non
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
     """Hand persons and rooms back to the agent's web UI, the assistants
     back to Home Assistant's own agent, and withdraw the token the
-    integration made for the agent (its user stays: Mira's tasks hang on
-    it). An agent that was paired lets go as well. This Home Assistant
+    integration made for the agent. An agent that was paired lets go as well. This Home Assistant
     keeps the token, to pair again without a code: as proof after the
     agent let go, or as it is if the agent was away and never did."""
     revoke_agent_token(hass, entry.data.get(CONF_AGENT_TOKEN))

@@ -6,7 +6,6 @@ server:
   token: ${MIRA_API_TOKEN}
   # Not announced: the real Home Assistant would offer the test agent.
   announce: false
-
 models:
   # Gemini for now, also for delegate and the skills' agents (the local model
   # is too slow here). Local was: http://localhost:1234/v1 (LM Studio),
@@ -17,7 +16,7 @@ models:
     model: "gemini-flash-latest"
     privacy: cloud
     reasoning_effort: low
-    context_tokens: 24000
+    context_tokens: 1048576
   # Testing the flows on Gemini Flash (the local model is too slow or not loaded).
   smart:
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -25,24 +24,29 @@ models:
     model: "gemini-flash-latest"
     privacy: cloud
     reasoning_effort: low
-    context_tokens: 24000
-
+    context_tokens: 1048576
+  # 2026-11-05: Gemini was slow in the voice turns (rounds of 10-15 s);
+  # trying MiniMax over OpenRouter for conversation.voice, Gemini stays for the rest.
+  openrouter:
+    endpoint: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-v4-flash
+    token: ${OPEN_ROUTER_API_KEY}
+    privacy: cloud
+    context_tokens: 1048576
 # Every agent of the flows on smart; delegate stays on main.
 agents:
-  conversation.voice: { model: smart }
-  conversation.telegram: { model: smart }
-  skill.task: { model: smart }
-  notify.compose: { model: smart }
-  tasks.assess: { model: smart }
-  tasks.decide: { model: smart }
-  tasks.plan: { model: smart }
-  profile.compact: { model: smart }
-  mail.read: { model: smart }
-  mail.match: { model: smart }
-
+  conversation.voice: {model: smart} # 2026-11-06: back to Gemini (DeepSeek repeated text next to tools); openrouter kept
+  conversation.telegram: {model: smart}
+  skill.task: {model: smart}
+  notify.compose: {model: smart}
+  tasks.assess: {model: smart}
+  tasks.decide: {model: smart}
+  tasks.plan: {model: smart}
+  profile.compact: {model: smart}
+  mail.read: {model: smart}
+  mail.match: {model: smart}
 store:
   path: "testenv/mira.db"
-
 prompt:
   persona: |
     Du duzt alle im Haus.
@@ -67,38 +71,30 @@ prompt:
 
     Wenn etwas nicht klappt: ehrlich und knapp sagen, was los ist, ohne
     Entschuldigungsorgie.
-
 ha:
   url: "http://${HA_HOST}"
-  token: ${HA_TOKEN}
+  token: ${TESTHA_ADMIN_TOKEN}
   structure_debounce: 5s
-
 mcp_servers:
   - name: ha
     transport: http
     url: "http://${HA_HOST}/api/mcp/assist"
-    token: ${HA_TOKEN}
-
+    token: ${TESTHA_ADMIN_TOKEN}
 persons:
-  anna: { entity: person.anna }
-  ben: { entity: person.ben }
-
+  anna: {entity: person.anna}
+  ben: {entity: person.ben}
 # The speaker-id service on this machine (services/speaker-id); its token is
 # SPEAKER_ID_TOKEN in testenv/.env.
 speaker_id:
   url: http://localhost:10311
   token: ${SPEAKER_ID_TOKEN}
-
 notifier:
-  quiet_hours: { from: "23:30", to: "06:30" }
-
+  quiet_hours: {from: "23:30", to: "06:30"}
 memory:
   profile_schedule: ""
-
 telemetry:
   otlp_endpoint: ""
   log_level: info
-
 # The waste skill against a made-up calendar the test HA serves; the briefing.
 skills:
   dirs: [skills]
@@ -126,6 +122,7 @@ skills:
   nachrichten: {}
   pollen: {}
   quiz: {}
+  musikquiz: {}
   routine: {}
   sprit: {}
   telefon: {}
@@ -134,3 +131,4 @@ skills:
   urlaub: {}
   vokabeln: {}
   warnungen: {}
+  x: {client_id: cnhCc1JBNFFKa1NkSUlwcXBxMWg6MTpjaQ, client_secret: '${MIRA_SKILL_X_CLIENT_SECRET}'}

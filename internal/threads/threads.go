@@ -102,7 +102,11 @@ type Options struct {
 	// Ended is told when a thread ended (done, cancelled, expired), for what
 	// runs on its behalf outside it: the answering machine's recordings stop
 	// with their thread.
-	Ended  func(ctx context.Context, th store.Thread)
+	Ended func(ctx context.Context, th store.Thread)
+	// Done is told once when a thread's plan became done, every step
+	// ticked, while the thread stays open for what comes after (a quiz's
+	// clip stops then, docs/spec/music-quiz.md, decision 9).
+	Done   func(ctx context.Context, th store.Thread)
 	Clock  func() time.Time
 	Logger *slog.Logger
 }

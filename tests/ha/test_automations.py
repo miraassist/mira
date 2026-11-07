@@ -1,4 +1,4 @@
-"""Mira's tasks as automations: the action rule, validation, who may manage them."""
+"""Mira's tasks as automations: the action rule, validation, admins only."""
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError
@@ -191,7 +191,7 @@ async def test_validate_uses_home_assistant(hass):
     )
 
 
-async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
+async def test_commands_for_admins(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     assert await async_setup_component(hass, "automation", {})
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -212,7 +212,7 @@ async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_
     msg = await admin.receive_json()
     assert msg["result"]["valid"] is False and "lock.unlock" in msg["result"]["error"]
 
-    # Another restricted user may not: only the agent's own user.
+    # A user without admin rights may not.
     other = await hass_ws_client(hass, hass_read_only_access_token)
     await other.send_json_auto_id({"type": "mira/automation/list"})
     msg = await other.receive_json()
@@ -274,8 +274,8 @@ async def editor_house(hass, tmp_path):
     from homeassistant.helpers import entity_registry as er
     from homeassistant.util.yaml import dump
 
-    from custom_components.mira.automations import save
-    from custom_components.mira.labels import ensure_labels
+    from custom_components.mira.automations import _label
+    from custom_components.mira.labels import LABEL_TASKS, ensure_labels
 
     hass.config.config_dir = str(tmp_path)
     (tmp_path / "configuration.yaml").write_text(
@@ -285,7 +285,9 @@ async def editor_house(hass, tmp_path):
         "    triggers: [{trigger: state, entity_id: sun.sun, to: above_horizon}]\n"
         "    actions: [{action: light.turn_off, target: {entity_id: light.wohnzimmer}}]\n"
     )
-    (tmp_path / "automations.yaml").write_text(dump([HOUSEHOLD]))
+    # Mira's own task, as the agent saved it through Home Assistant's API.
+    mira_task = {"id": "mira_wasser"} | TASK | {"triggers": HOUSEHOLD["triggers"]}
+    (tmp_path / "automations.yaml").write_text(dump([HOUSEHOLD, mira_task]))
     for domain in ("light", "lock"):
         assert await async_setup_component(hass, domain, {})
     ensure_labels(hass)
@@ -296,8 +298,9 @@ async def editor_house(hass, tmp_path):
     entities = er.async_get(hass)
     household = entities.async_get_entity_id("automation", "automation", "abendlicht")
     entities.async_update_entity(household, labels={"licht"})
-    mira = await save(hass, TASK | {"triggers": HOUSEHOLD["triggers"]}, None, FORBIDDEN)
-    return household, mira["entity_id"]
+    mira = entities.async_get_entity_id("automation", "automation", "mira_wasser")
+    _label(hass, mira, LABEL_TASKS)
+    return household, mira
 
 
 async def test_AE01_mira_reads_a_task_the_editor_saved(hass, tmp_path):
@@ -317,25 +320,67 @@ async def test_AE02_a_task_from_yaml_is_not_editable(hass, tmp_path):
         await get_task(hass, "automation.aus_yaml")
 
 
-async def test_AE03_saving_a_household_task_keeps_its_labels(hass, tmp_path):
+async def test_AE03_saving_a_household_task_keeps_its_labels(hass, tmp_path, hass_client):
+    """The agent saves a changed household task through Home Assistant's
+    config API and labels nothing (docs/spec/hacs-default.md, 3): its labels
+    stay as they are."""
     from homeassistant.helpers import entity_registry as er
 
-    from custom_components.mira.automations import save
     from custom_components.mira.labels import LABEL_TASKS
 
     household, _ = await editor_house(hass, tmp_path)
+    assert await async_setup_component(hass, "config", {})
     changed = HOUSEHOLD | {"triggers": [HOUSEHOLD["triggers"][0] | {"for": "00:30:00"}]}
-    # The unlock was there before and stays unchanged: the admin's decision.
-    await save(hass, changed, "abendlicht", FORBIDDEN, None)
+    client = await hass_client()
+    resp = await client.post("/api/config/automation/config/abendlicht", json=changed)
+    assert resp.status == 200
+    await hass.services.async_call("automation", "reload", {"id": "abendlicht"}, blocking=True)
     entry = er.async_get(hass).async_get(household)
     assert entry.labels == {"licht"} and LABEL_TASKS not in entry.labels
-    assert hass.states.get(household) is not None
-    # A new or changed action is checked as when creating.
-    new_lock = changed | {
-        "actions": [HOUSEHOLD["actions"][0], {"action": "lock.unlock", "target": {"entity_id": "lock.keller"}}]
-    }
-    with pytest.raises(NotAllowed):
-        await save(hass, new_lock, "abendlicht", FORBIDDEN, None)
+    assert hass.states.get(household).attributes["id"] == "abendlicht"
+
+
+async def test_HD22_reading_automation_data_needs_an_admin(
+    hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token
+):
+    """The agent's commands are for admins only; Mira works with the owner's
+    token (docs/spec/hacs-default.md, 3)."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    assert await async_setup_component(hass, "automation", {})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    other = await hass_ws_client(hass, hass_read_only_access_token)
+    for command in (
+        {"type": "mira/automation/list"},
+        {"type": "mira/automation/get", "entity_id": "automation.x"},
+        {"type": "mira/automation/validate", "config": TASK},
+        {"type": "mira/automation/label", "automation_id": "x"},
+        {"type": "mira/once/list"},
+        {"type": "mira/once/build", "title": "x", "due": "2099-01-01T10:00:00+01:00", "actions": [{}]},
+        {"type": "mira/agent/done", "call_id": "c", "agent": "a", "status": "done"},
+    ):
+        await other.send_json_auto_id(command)
+        msg = await other.receive_json()
+        assert not msg["success"] and msg["error"]["code"] == "unauthorized", command
+
+
+async def test_HD23_the_label_marks_a_saved_automation_as_miras(hass, tmp_path, aioclient_mock, entry, hass_ws_client):
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.mira.labels import LABEL_ONCE
+
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    household, _ = await editor_house(hass, tmp_path)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "mira/automation/label", "automation_id": "abendlicht", "label": "once"})
+    msg = await client.receive_json()
+    assert msg["success"] and msg["result"] == {"entity_id": household}
+    assert er.async_get(hass).async_get(household).labels == {"licht", LABEL_ONCE}
+    await client.send_json_auto_id({"type": "mira/automation/label", "automation_id": "nicht_da"})
+    msg = await client.receive_json()
+    assert not msg["success"] and msg["error"]["code"] == "not_found"
 
 
 async def test_AE04_the_list_with_all_names_every_task(hass, tmp_path, aioclient_mock, entry, hass_ws_client):

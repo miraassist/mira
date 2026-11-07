@@ -1,25 +1,28 @@
 """What the agent needs from Home Assistant, set up by the integration
-(docs/spec/setup.md): a user of its own without admin rights, with a
-long-lived token, and Home Assistant's MCP server with the Assist API. Then
-nobody has to log in as another user for a token, or know the MCP server
-integration."""
+(docs/spec/setup.md, docs/spec/hacs-default.md): a long-lived token of Home
+Assistant's owner, given with an admin's consent in the setup, and Home
+Assistant's MCP server with the Assist API. Then nobody has to make a token
+by hand, or know the MCP server integration."""
 
 from __future__ import annotations
 
 import logging
 from datetime import timedelta
 
-from homeassistant.auth.const import GROUP_ID_USER
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
-from homeassistant.config_entries import SOURCE_USER
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, User
+from homeassistant.config_entries import SOURCE_USER, ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.storage import Store
 
+from .const import CONF_AGENT_TOKEN
+
 _LOGGER = logging.getLogger(__name__)
 
-USER_NAME = "Mira"
-TOKEN_NAME = "Mira agent"
+# The owner's token for Mira, by this name in the owner's profile. Tokens of
+# the user "Mira" that installs before 0.18 made are named OLD_TOKEN_NAME.
+TOKEN_NAME = "Mira (Integration)"
+OLD_TOKEN_NAME = "Mira agent"
 MCP_DOMAIN = "mcp_server"
 TOKEN_LIFETIME = timedelta(days=3650)
 # Home Assistant's own conversation agent.
@@ -32,31 +35,15 @@ HA_AGENT = "conversation.home_assistant"
 REJOIN_STORE = "mira.rejoin"
 
 
-async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -> tuple[str, str, str]:
-    """Mira's own user (made once, kept by id) and a fresh long-lived token
-    for it; an older token of the agent goes. Returns (user id, refresh
-    token id, access token)."""
-    user = await hass.auth.async_get_user(user_id) if user_id else None
-    if user is None:
-        # An earlier Mira user, after the integration was set up anew; never
-        # one that belongs to a person in the house, who may be called Mira.
-        people = _person_users(hass)
-        for candidate in await hass.auth.async_get_users():
-            if (
-                candidate.name == USER_NAME
-                and not candidate.system_generated
-                and not candidate.is_admin
-                and candidate.id not in people
-            ):
-                user = candidate
-                break
-    if user is None:
-        user = await hass.auth.async_create_user(USER_NAME, group_ids=[GROUP_ID_USER])
-        _LOGGER.info("Created the Home Assistant user %s for the Mira agent (no admin rights)", USER_NAME)
-    if user.is_admin:
-        # The first user of an empty Home Assistant becomes its owner; the
-        # agent must never run with admin rights.
-        raise RuntimeError("Mira's Home Assistant user would have admin rights; set Home Assistant up first")
+async def owner(hass: HomeAssistant) -> User:
+    """Home Assistant's owner: the admin who set it up, exactly one."""
+    return next(u for u in await hass.auth.async_get_users() if u.is_owner)
+
+
+async def make_owner_token(hass: HomeAssistant) -> tuple[str, str]:
+    """A fresh long-lived token of the owner for Mira; an older one of Mira
+    goes. Returns (refresh token id, access token)."""
+    user = await owner(hass)
     for token in list(user.refresh_tokens.values()):
         if token.client_name == TOKEN_NAME:
             hass.auth.async_remove_refresh_token(token)
@@ -66,16 +53,39 @@ async def ensure_agent_access(hass: HomeAssistant, user_id: str | None = None) -
         token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
         access_token_expiration=TOKEN_LIFETIME,
     )
-    return user.id, refresh.id, hass.auth.async_create_access_token(refresh)
+    return refresh.id, hass.auth.async_create_access_token(refresh)
 
 
-def _person_users(hass: HomeAssistant) -> set[str]:
-    """The users linked to a person in Home Assistant: people's own accounts."""
-    return {uid for state in hass.states.async_all("person") if (uid := state.attributes.get("user_id"))}
+def token_state(hass: HomeAssistant, refresh_token_id: str | None) -> str:
+    """What became of the token the integration made: "owner" (as it should
+    be), "old" (the user "Mira"'s, before 0.18), "gone" (revoked), or ""
+    (none made here: an agent with Home Assistant's token in its own file)."""
+    if not refresh_token_id:
+        return ""
+    token = hass.auth.async_get_refresh_token(refresh_token_id)
+    if token is None:
+        return "gone"
+    return "owner" if token.user.is_owner else "old"
+
+
+async def renew_access(hass: HomeAssistant, entry: ConfigEntry, client) -> None:
+    """A new owner's token for the agent, sent to it (it starts anew); the
+    one before goes. Raises MiraError when the agent refuses it: then the new
+    token is withdrawn again and the old one stays."""
+    before = entry.data.get(CONF_AGENT_TOKEN)
+    refresh_id, token = await make_owner_token(hass)
+    try:
+        await client.setup(ha_url(hass), token, None)
+    except Exception:
+        revoke_agent_token(hass, refresh_id)
+        raise
+    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_TOKEN: refresh_id})
+    if before != refresh_id:
+        revoke_agent_token(hass, before)
 
 
 def revoke_agent_token(hass: HomeAssistant, refresh_token_id: str | None) -> None:
-    """Withdraw the agent's token; the user stays, Mira's tasks hang on it."""
+    """Withdraw the token Mira had."""
     if not refresh_token_id:
         return
     token = hass.auth.async_get_refresh_token(refresh_token_id)

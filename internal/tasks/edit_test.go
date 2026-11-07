@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,11 +42,13 @@ func (h *editHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage,
 		}
 		raw, _ := json.Marshal(map[string]any{"id": cfg["id"], "entity_id": entity, "config": cfg})
 		return raw, nil
-	case "mira/automation/save":
-		h.saved = append(h.saved, cmd)
-		return json.RawMessage(`{"id":"x"}`), nil
 	}
 	return h.fakeHA.Call(ctx, cmd)
+}
+
+func (h *editHA) SaveAutomationConfig(ctx context.Context, id string, config map[string]any) error {
+	h.saved = append(h.saved, map[string]any{"automation_id": id, "config": config})
+	return h.fakeHA.SaveAutomationConfig(ctx, id, config)
 }
 
 func editSetup(t *testing.T) (*env, *editHA) {
@@ -237,8 +240,11 @@ func TestAE30_AfterTheYesTheTaskIsSavedUnderItsID(t *testing.T) {
 	if err != nil || !strings.Contains(say, "Tür morgens") {
 		t.Fatalf("%q %v", say, err)
 	}
-	if len(ha.saved) != 1 || ha.saved[0]["automation_id"] != "morgens" || ha.saved[0]["keep_labels"] != true {
-		t.Fatalf("saved: %v", ha.saved)
+	// Saved through Home Assistant's API, loaded, and no label of Mira's put
+	// on the household's task (docs/spec/hacs-default.md, 3).
+	if len(ha.saved) != 1 || ha.saved[0]["automation_id"] != "morgens" || len(ha.labels) != 0 ||
+		!slices.Equal(ha.reloads, []string{"morgens"}) {
+		t.Fatalf("saved: %v labels %v reloads %v", ha.saved, ha.labels, ha.reloads)
 	}
 	// The hooks saw the entities and, for the area, the domain.
 	if ids, _ := seen["entity_id"].([]any); len(ids) != 1 || ids[0] != "light.flur" {

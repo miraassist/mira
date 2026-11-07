@@ -57,7 +57,7 @@ flowchart LR
     ENG <--> LLM
     TASKS <--> LLM
     ENG -->|tools| MCPHA
-    ENG & TASKS & NOT <-->|WebSocket, non-admin| WS
+    ENG & TASKS & NOT <-->|WebSocket, owner's token| WS
     TASKS -->|mira/automation/*| INT
     NOT -->|start_conversation, light| WS
     NOT --> TG
@@ -83,10 +83,12 @@ flowchart LR
 | `internal/mcp` | MCP host: HA Assist tools, further MCP servers |
 | `internal/websearch` | Built-in web search: `web_search` (DuckDuckGo HTML), `web_page` (main text of a page); read-only, third-party web text, can be switched off ([Web search](spec/web-search.md)) |
 | `internal/radio` | `radio_play`: search for a station in HA's Radio Browser and start it on the speaker of the room ([Radio](spec/radio.md)) |
+| `internal/clip` | `clip_play`: a short clip from the web at the turn's satellite after the answer, as music, under a title the skill gives, so its screen does not tell what plays ([Music quiz](spec/music-quiz.md)) |
 | `internal/satellite` | `sound_play`, `display_card` and `keep_listening`: Mira's own sounds (embedded, CC0) on the speaker of the turn's satellite, a picture card on its screen (TECHO5 `notify_picture`), listening again without a question ([Sounds and cards](spec/satellite.md)) |
 | `internal/phone` | `phone_call`: a contact of the FRITZ!Box's phone book (TR-064, skill `telefon`), a TECHO5 device over the intercom, or a number, from the satellite of the turn, only when its phone is signed in ([Phone calls](spec/phone.md)) |
-| `internal/timer` | `sleep_timer` (set, list, extend, cancel): creates one-off automations in HA via the integration ([Scheduled actions](spec/scheduled-actions.md)). The countdown timers are HA's own tools, which the MCP host fetches with the satellite's device id |
-| `internal/ha/ws` | WebSocket client to HA: states, registries, statistics, services, subscriptions |
+| `internal/timer` | `sleep_timer` (set, list, extend, cancel): one-off automations in HA, built by the integration and saved by Mira, tidied away once they ran ([Scheduled actions](spec/scheduled-actions.md), [HACS default catalog](spec/hacs-default.md)). The countdown timers are HA's own tools, which the MCP host fetches with the satellite's device id |
+| `internal/ha/ws` | WebSocket client to HA: states, registries, statistics, services, subscriptions; the automation config API (REST) |
+| `internal/ha/automation` | Saving and deleting Mira's automations (tasks, timers) through HA's automation config API, then reload and label ([HACS default catalog](spec/hacs-default.md)) |
 | `internal/ha/structure` | House structure (areas, entities) as prompt layer 4 |
 | `internal/ha/assistprompt` | HA's own Assist prompt as an alternative for layer 4: the common beginning of all versions (without device and per satellite) is layer 4, what HA appends per device goes into the turn ([Context](spec/context.md), 1.1) |
 | `internal/tasks` | Tasks: assessments (`assess`, `decide`), data views, drafting and managing the automations, tools |
@@ -103,7 +105,7 @@ flowchart LR
 | `internal/announce` | mDNS advertisement (`_mira._tcp`) so that HA finds Mira. Only IPv4 addresses: IPv6 addresses are mostly temporary and expire; in addition, the integration keeps an address that answers and never adopts an IPv6 address |
 | `internal/config`, `internal/i18n`, `internal/schedule`, `internal/telemetry` | Configuration (with the page's edits of mira.yaml and the secrets file, [Editing](spec/editing.md)), languages, cron, OpenTelemetry |
 
-Where the time of a conversation goes is in the log: every model call appears as `model round` (round, model, `ms`, number and characters of the messages and the tools, tokens, of which from cache), every tool as `tool done` (name, `ms`, whether it failed), and `turn done` gives the total duration in `ms`. If a model call fails, `model round failed` appears with the duration. Before the first call of each conversation step there is `context built`: how many steps of history go along (`history_turns`, messages, characters), how large the part for this step is and which of its parts are present (reminders, profile, thread). The long, unchanging prefix (rules, tools, house) appears only when it changes (`prefix_changed`), with the size of its parts. A history is only cut further after `history compacted`. Every mail of the mail calendar appears in the log as `mail read`: what it caused (`action`, `reason`), the total duration in `ms`, the model, the number of its calls, their duration (`model_ms`) and the tokens; if it fails, `mail failed` appears with the error.
+Where the time of a conversation goes is in the log: every model call appears as `model round` (round, model, `ms`, number and characters of the messages and the tools, tokens, of which from cache, `total_tokens` as the server counts them, and `thinking_tokens`: what the model thought before it answered, from `completion_tokens_details.reasoning_tokens` or, as Gemini reports it, what `total_tokens` counts beyond prompt and completion), every tool as `tool done` (name, `ms`, whether it failed), and `turn done` gives the total duration in `ms`. If a model call fails, `model round failed` appears with the duration. Before the first call of each conversation step there is `context built`: how many steps of history go along (`history_turns`, messages, characters), how large the part for this step is and which of its parts are present (reminders, profile, thread). The long, unchanging prefix (rules, tools, house) appears only when it changes (`prefix_changed`), with the size of its parts. A history is only cut further after `history compacted`. Every mail of the mail calendar appears in the log as `mail read`: what it caused (`action`, `reason`), the total duration in `ms`, the model, the number of its calls, their duration (`model_ms`) and the tokens; if it fails, `mail failed` appears with the error.
 
 ## 3. Flow: a voice command
 
@@ -216,8 +218,9 @@ sequenceDiagram
     N-->>U: Announcement in the room or Telegram
     U->>E: "Ja."
     E->>T: confirm proposal from the same place
-    T->>I: mira/automation/save (id mira_…)
-    I->>HA: write automations.yaml, reload, label "Mira"
+    T->>I: mira/automation/validate
+    T->>HA: POST /api/config/automation/config/mira_…, automation.reload
+    T->>I: mira/automation/label ("Mira")
     E-->>U: "Gut, die Aufgabe … läuft."
 ```
 
@@ -449,8 +452,8 @@ Between Home Assistant and the agent there are two directions, on separate paths
 | Direction | Path | Protection |
 |---|---|---|
 | Integration → agent | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The agent creates the token on first start; the integration fetches it on first adding without a code. Removing the integration releases the agent (`/v1/unpair`, new token); only the same Home Assistant pairs again without a code, with a key derived from the old token it keeps; another one needs the pairing code the agent writes into its log at unpair (12 characters, 5 attempts). `mira reset` or the app's option `reset_data` deletes the database on the agent's machine; then it pairs like a new one. If `server.token` is set in `mira.yaml`, that one applies, without pairing. Agent and integration may be different versions for a while: a new field is optional in both directions, and a repair says which one to update ([Versions](spec/versions.md)) |
-| Agent → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token of a dedicated HA user without admin rights |
-| Agent → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`) | only Mira's HA user or an admin (the integration knows the ID from `/v1/health`) |
+| Agent → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token "Mira (Integration)" of Home Assistant's owner, made with an admin's consent at the setup ([HACS default catalog](spec/hacs-default.md)); automations are saved through Home Assistant's automation config API, as its editor does |
+| Agent → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`, `mira/once/*`, `mira/agent/done`): checking, reading, labelling | admins only (`require_admin`) |
 | Agent → a skill's service (optional) | HTTPS: the skill's MCP server and web API with the connection's token, the service's token address to renew it ([Connections](spec/oauth.md)) | The token goes only to the addresses the skill names; the tokens are in Mira's database, sealed like the secrets file. Home Assistant does the login and hands them over once (`GET /v1/oauth/<skill>`, `PUT /v1/oauth/<skill>/token`, with the bearer token) |
 | Agent → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |
 

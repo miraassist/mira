@@ -5,13 +5,14 @@ An ordinary Home Assistant automation with the label "Mira: einmalig". It
 fires at the due time and again when Home Assistant starts, but its condition
 is "not before the due time, and never ran" – so a timer that was due while
 Home Assistant was down runs as soon as it is back, and never twice. The due
-time, the owner and the room stand in the automation's variables. When it
-has run, the integration removes it (sweep, every minute with the status
-poll). Not a task: it does not carry the label "Mira".
+time, the owner and the room stand in the automation's variables. Not a
+task: it does not carry the label "Mira".
 
-The agent calls these websocket commands, like it does for tasks. A timer
-may not switch what needs an explicit yes (locks, alarm, garage door), and
-a person has at most ten of them per room.
+The agent saves and deletes it through Home Assistant's automation config
+API, and removes it once it has run (docs/spec/hacs-default.md). Here, for
+admins only, it gets the automation built and checked (build) and reads the
+open ones (list). A timer may not switch what needs an explicit yes (locks,
+alarm, garage door), and a person has at most ten of them per room.
 """
 
 from __future__ import annotations
@@ -103,7 +104,7 @@ async def list_once(hass: HomeAssistant) -> list[dict[str, Any]]:
     return out
 
 
-async def save(
+async def check(
     hass: HomeAssistant,
     *,
     title: str,
@@ -115,7 +116,8 @@ async def save(
     forbidden: dict[str, Any] | None,
     automation_id: str | None,
 ) -> dict[str, Any]:
-    """Create a timer, or replace one (extending it)."""
+    """The automation of a new timer, or of one replaced (extended), checked
+    like a task; the agent saves it. Returns its id and config."""
     when = dt_util.parse_datetime(due)
     if when is None or when.tzinfo is None:
         raise HomeAssistantError("due must be a date and time with a time zone")
@@ -124,33 +126,19 @@ async def save(
     if not actions:
         raise HomeAssistantError("a timer needs at least one action")
     current = await list_once(hass)
+    before = None
     if automation_id is None:
         same = [t for t in current if t["owner"] == owner and t["area"] == area and not t["ran"]]
         if len(same) >= MAX_PER_OWNER_AREA:
             raise HomeAssistantError(f"too many timers: at most {MAX_PER_OWNER_AREA} per person and room")
-    elif not any(t["id"] == automation_id for t in current):
-        raise HomeAssistantError(f"no timer {automation_id}")
+    else:
+        before = next((t for t in current if t["id"] == automation_id), None)
+        if before is None:
+            raise HomeAssistantError(f"no timer {automation_id}")
     automation_id = automation_id or f"mira_{uuid.uuid4().hex[:12]}"
     config = build(title, when, owner, area, kind, actions, automation_id[-8:])
-    return await automations.save(hass, config, automation_id, forbidden, LABEL_ONCE)
-
-
-async def delete(hass: HomeAssistant, automation_id: str) -> None:
-    """Remove a timer; only a one-time automation, never a task."""
-    if not any(t["id"] == automation_id for t in await list_once(hass)):
-        raise HomeAssistantError(f"no timer {automation_id}")
-    await automations.delete(hass, automation_id)
-
-
-async def sweep(hass: HomeAssistant) -> None:
-    """Remove what has run and is finished. Nothing else is touched: what is
-    due and has not run catches up by itself, what is not due waits."""
-    for timer in await list_once(hass):
-        if timer["ran"] and not timer["running"]:
-            try:
-                await automations.delete(hass, timer["id"])
-            except HomeAssistantError as err:
-                _LOGGER.warning("Could not remove the finished timer %s: %s", timer["title"], err)
+    await automations.validate(hass, config, forbidden, {"actions": before["actions"]} if before else None)
+    return {"id": automation_id, "config": config}
 
 
 _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"): [str]})
@@ -158,7 +146,7 @@ _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "mira/once/save",
+        vol.Required("type"): "mira/once/build",
         vol.Required("title"): str,
         vol.Required("due"): str,
         vol.Optional("owner", default=""): str,
@@ -169,12 +157,11 @@ _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"
         vol.Optional("automation_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
-async def _ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not automations._agent_only(hass, connection, msg):
-        return
+async def _ws_build(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     try:
-        result = await save(
+        result = await check(
             hass,
             title=msg["title"],
             due=msg["due"],
@@ -192,27 +179,13 @@ async def _ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
 
 
 @websocket_api.websocket_command({vol.Required("type"): "mira/once/list"})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not automations._agent_only(hass, connection, msg):
-        return
     connection.send_result(msg["id"], {"timers": await list_once(hass)})
-
-
-@websocket_api.websocket_command({vol.Required("type"): "mira/once/delete", vol.Required("automation_id"): str})
-@websocket_api.async_response
-async def _ws_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not automations._agent_only(hass, connection, msg):
-        return
-    try:
-        await delete(hass, msg["automation_id"])
-    except HomeAssistantError as err:
-        connection.send_error(msg["id"], "not_found", str(err))
-        return
-    connection.send_result(msg["id"], {"deleted": True})
 
 
 @callback
 def async_register_commands(hass: HomeAssistant) -> None:
-    for command in (_ws_save, _ws_list, _ws_delete):
+    for command in (_ws_build, _ws_list):
         websocket_api.async_register_command(hass, command)

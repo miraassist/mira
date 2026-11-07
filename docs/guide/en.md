@@ -212,7 +212,7 @@ To set it up:
 2. When setting it up, enter a **search** for the parcel services only, for example `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
 3. After setup Home Assistant shows the new device ("IMAP (your address)"). Rename the **device** to **"Pakete"** (for everyone in the house) or to **"Pakete" and your login name**, such as "Pakete stefan" (just for you).
 
-Mira creates the calendar "Pakete" (or "Pakete stefan") herself; you see the parcels in the calendar view there too. Mira reads only mails that arrive from now on.
+If the calendar "Pakete" (or "Pakete stefan") is missing, Settings → Repairs shows "Mira needs the calendar …"; clicking Submit creates it. You see the parcels in the calendar view there too. Mira reads only mails that arrive from now on.
 
 Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `agents` for `mail.read` and `mail.match` (`{ model: main }`). Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
 
@@ -260,6 +260,7 @@ Good to know:
 | `warnungen` | "Are there any warnings?" – "Is a storm coming?" Official warnings from NINA for your district. Mira checks every hour and speaks up by herself for severe warnings, at once for extreme ones, at night too. She finds the district herself. | none |
 | `geschichte` | "Tell me a bedtime story with a dragon." Made up, fitting child and age when Mira knows both. | none |
 | `quiz` | "Let's play a quiz." Ten questions, alone or taking turns, with points. At the end there is a fanfare if it went well. | none |
+| `musikquiz` | "Let's play a music quiz, the 80s, we guess the year." Mira plays 30 seconds of each song, you guess the artist, title, year or decade. The Echo Show only shows "Musik-Quiz" meanwhile; after the answer a card shows the song with its cover. The clips come from Deezer; no account needed. Only at a satellite with a speaker. | none |
 | `vokabeln` | "Test me on ten English words." – "Practise the seven times table with me." Unless you ask for one direction, Mira asks both ways; what was wrong comes again at the end. | none |
 | `fahrplan` | "When is the next train?" – "When does the next train to Stuttgart leave?" Departures with delays and cancellations; for trams and buses with the code of your transport association. | `haltestelle`, `verbund` (optional, e.g. `KVV`) |
 | `apotheke` | "Which pharmacy is on emergency duty today?" The nearest with address, distance and until when, from aponet.de. | none |
@@ -269,7 +270,7 @@ Good to know:
 | `tuerklingel` | "Tell me when the doorbell rings and show the front door." Mira sets up an automation for it: an announcement on all satellites, the camera picture on the Echo Shows. | `bildschirme` (optional, ESPHome names of the Echo Shows) |
 | `urlaub` | "Pretend someone is home while we are away." Mira sets up an automation that switches lights in turn in the evening while nobody is home. | none |
 
-The quiz and vocabulary run like cooking, step by step: you simply answer, and Mira knows which question is next.
+The quiz, the music quiz and vocabulary run like cooking, step by step: you simply answer, and Mira knows which question is next. In the music quiz Mira does not listen while the song plays: say "Mira" and then your answer; "again", "next", "What's the score?" and "stop" work too.
 
 **Asking a camera.** For "Who is at the door?" a script in Home Assistant looks at the picture. Create it (Settings → Automations & scenes → Scripts → new script → edit in YAML), expose it to Assist and enter its name as `skript` for the skill `kamera`. It needs an AI task (`ai_task`) in Home Assistant, for instance via Google Gemini or OpenAI; the picture goes to their model.
 
@@ -454,6 +455,7 @@ At a satellite a skill can do more than speak. Mira has three tools for it; the 
 
 - **`sound_play`** plays one of Mira's sounds on the speaker of the satellite being spoken at: `fanfare_big` (a big success), `fanfare` (a success) and `too_bad` (it did not work out). Mira speaks on only when the sound is over. When music or the radio plays, the sound interrupts it only briefly, and it goes on after it. The quiz uses it at the end.
 - **`display_card`** puts a card on the satellite's screen: a picture over the whole screen, with a title and one line over it. This works on an Echo Show with TECHO5. Mira still says what is on the card.
+- **`clip_play`** plays a short clip from a web address after Mira's answer, under a title of its own instead of the piece's; that way the Echo Show gives nothing away in the music quiz. While it plays, the satellite does not listen by itself.
 - **`keep_listening`** has the satellite listen again after Mira's answer, without the wake word, even when the answer is no question. Good when a short word comes next, such as "next".
 
 At a satellite without a speaker or a screen, and on Telegram, nothing happens.
@@ -549,7 +551,7 @@ from today on.
 To get it running:
 1. Switch the skill on under `skills` (`doctor: {}`).
 2. In Home Assistant, add the IMAP integration with a **search** for the senders, such as `FROM doctolib.de`.
-3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). Mira creates the calendar of the same name.
+3. Name the entry's **device** like the skill: "Doctor" (for the house) or "Doctor" and your login name (just for you). You create the calendar of the same name with the repair that then shows under Settings → Repairs.
 
 With `done: "●"` in the `mail` section, Mira puts a sign before the title of entries that are done, as with parcels. Pick a sign your calendar display can show.
 
@@ -951,20 +953,19 @@ docker run -d --name mira --restart unless-stopped --network host --user nonroot
 
 **3. Add Mira.** Settings → Devices & services. Mira shows up under **Discovered** → **Add**. The dialog shows an overview: what is chosen and what is still missing. From there you choose, and every step leads back to the overview:
 - **AI model (LLM)** Mira thinks with:
-  - **From Home Assistant**: an AI integration you already have; nothing more to enter.
   - **OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic**: your API key from the provider.
   - **Own server**: its address as Mira sees it (`localhost` is the machine Mira runs on).
 
   Then the model from the list. Mira tries it at once and asks the provider how much context the model has; it shows on her page under Models afterwards. If the provider does not say (OpenAI), you enter it there.
 - **Use Mira in**: the assistants Mira answers in; the preferred one is already ticked.
-- **Start using Mira**: shows once nothing is missing. Done.
+- **Start using Mira**: shows once nothing is missing. Above it, the dialog says why Mira gets an access with admin rights: she creates your tasks and timers as automations, and in Home Assistant only an administrator may do that. The access is in the name of whoever set Home Assistant up and is in their profile under Security. The click is your consent. Done.
 
 If you close the dialog in between, opening it again goes on at the overview.
 
 If Mira is not under "Discovered": **Add integration** → Mira, and enter its address, such as `http://192.168.1.20:8787`.
 
 Then the integration sets up the rest in Home Assistant by itself:
-- a user **"Mira"** without admin rights, which Mira uses to talk to Home Assistant;
+- an **access "Mira (Integration)"** in the profile of whoever set Home Assistant up, which Mira uses to talk to Home Assistant. If there is a user "Mira" from before, Mira no longer needs it; you may delete it. Until you confirm "Mira needs a new access" under Repairs, Mira cannot create new tasks and timers;
 - Home Assistant's **MCP server**, if it is missing;
 - **Mira as the conversation agent** of the assistants you ticked.
 
@@ -1007,9 +1008,9 @@ Mira's data goes into Home Assistant's backups (Settings → System → Backups)
 
 - **Two keys:**
   - Home Assistant reaches Mira with an **access token**. The integration fetches it when adding Mira; you never see it.
-  - Mira reaches Home Assistant as **a user of her own without admin rights**.
+  - Mira reaches Home Assistant with **an access in the name of whoever set Home Assistant up**, so with admin rights. You see it in their profile under Security and can revoke it there; the integration then makes a new one at its next check. To cut Mira off completely, remove the integration.
   - Whoever knows the access token can do all that Mira can. Treat it like a password.
-- **What Mira may do in HA:** manage nothing (no users, no integrations), but switch devices. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.
+- **What Mira does in HA:** only what her tools offer: switch devices and save your tasks and timers as automations, the way the automation editor does; she deletes only her own. She manages no users, integrations or settings. If Mira runs with a token from her `mira.yaml` (`ha.token`), it must be an admin's for tasks and timers. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.
 - **If Mira runs on the same machine as Home Assistant** (the usual case), everything stays on that machine.
 - **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network, as with many other devices in Home Assistant. A guest network, a shared network or the way over the internet without HTTPS is not the place for it.
 - **If Mira gets a new address**, the integration follows her by itself, but only once Mira shows there that she knows the access token. Another device posing as Mira does not get it. So keep Mira and the integration at the same version.

@@ -85,6 +85,14 @@ func boxes(plan string) []box {
 	return out
 }
 
+// appendNote appends " → note" to checkbox n's line (from 1; tick checked n).
+func appendNote(plan string, n int, note string) string {
+	lines := strings.Split(plan, "\n")
+	i := boxes(plan)[n-1].line
+	lines[i] = strings.TrimRight(lines[i], " ") + " → " + note
+	return strings.Join(lines, "\n")
+}
+
 // tick sets checkbox n (from 1) and returns the plan.
 func tick(plan string, n int, done bool) (string, error) {
 	bs := boxes(plan)
@@ -174,6 +182,29 @@ func (m *Manager) PlanThread(ctx context.Context, inv tools.Invocation, target s
 	return th.ID
 }
 
+// TurnThread is the id of the open thread the turn belongs to or that runs
+// at its place, whatever its target; "" without one.
+func (m *Manager) TurnThread(ctx context.Context, inv tools.Invocation) string {
+	th, err := m.current(ctx, inv)
+	if err != nil {
+		if !errors.Is(err, store.ErrNotFound) {
+			m.log.Warn("could not find the turn's thread; the call runs without one", "error", err)
+		}
+		return ""
+	}
+	return th.ID
+}
+
+// Note writes a line of Mira's into a thread's log, from Mira's own code: the
+// next turn's context shows it (a clip that could not be played).
+func (m *Manager) Note(ctx context.Context, threadID, text string) error {
+	_, err := m.change(ctx, threadID, func(th *store.Thread) error {
+		m.logEntry(th, "mira", text)
+		return nil
+	})
+	return err
+}
+
 // PlanText is the plan of the target's thread the turn belongs to or that
 // runs at its places; "" without one.
 func (m *Manager) PlanText(ctx context.Context, inv tools.Invocation, target string) string {
@@ -188,8 +219,10 @@ func (m *Manager) PlanText(ctx context.Context, inv tools.Invocation, target str
 // plan that contains match (a message's "(id 0:13)"); nothing when there is
 // none.
 func (m *Manager) TickPlan(ctx context.Context, threadID, match string) error {
-	_, err := m.change(ctx, threadID, func(th *store.Thread) error {
+	became := false
+	th, err := m.change(ctx, threadID, func(th *store.Thread) error {
 		c := planOf(*th)
+		was := c.DoneAt != nil
 		for i, b := range boxes(c.Plan) {
 			if b.done || !strings.Contains(b.text, match) {
 				continue
@@ -200,19 +233,47 @@ func (m *Manager) TickPlan(ctx context.Context, threadID, match string) error {
 			}
 			c.Plan = plan
 			m.finished(&c)
+			became = !was && c.DoneAt != nil
 			setPlan(th, c)
 			m.extend(th)
 			return nil
 		}
 		return nil
 	})
+	if err == nil && became {
+		m.done(ctx, th)
+	}
 	return err
+}
+
+// done tells that a thread's plan just became done.
+func (m *Manager) done(ctx context.Context, th store.Thread) {
+	if m.opts.Done != nil {
+		m.opts.Done(ctx, th)
+	}
 }
 
 // Plan runs an action of the plan tool on the turn's plan thread: write,
 // check, uncheck or read.
 func (m *Manager) Plan(ctx context.Context, inv tools.Invocation, action, text string, step int) (string, error) {
+	return m.PlanNote(ctx, inv, action, text, step, "")
+}
+
+// maxNote bounds a note on a ticked step.
+const maxNote = 200
+
+// PlanNote is Plan with a note for check: appended to the ticked step's
+// line after " → ", how the step went ("1 Punkt"; docs/spec/threads.md,
+// Tool thread_plan). A note with another action is an error.
+func (m *Manager) PlanNote(ctx context.Context, inv tools.Invocation, action, text string, step int, note string) (string, error) {
 	t := m.texts()
+	note = strings.Join(strings.Fields(note), " ")
+	if note != "" && action != "check" {
+		return "", errors.New(t.noteOnlyCheck)
+	}
+	if n := len([]rune(note)); n > maxNote {
+		return "", fmt.Errorf(t.noteTooLong, n, maxNote)
+	}
 	th, err := m.current(ctx, inv)
 	if err != nil || !m.isPlan(th) {
 		return "", errors.New(t.noPlanThread)
@@ -230,8 +291,10 @@ func (m *Manager) Plan(ctx context.Context, inv tools.Invocation, action, text s
 	}
 	// Applied to the plan as it is now: another run may have ticked a step
 	// meanwhile (docs/spec/agents.md, Shared state).
+	became := false
 	th, err = m.change(ctx, th.ID, func(th *store.Thread) error {
 		c := planOf(*th)
+		was := c.DoneAt != nil
 		switch action {
 		case "write":
 			text = strings.TrimSpace(text)
@@ -252,15 +315,25 @@ func (m *Manager) Plan(ctx context.Context, inv tools.Invocation, action, text s
 			if err != nil {
 				return err
 			}
+			if note != "" {
+				plan = appendNote(plan, step, note)
+			}
+			if n := len([]rune(plan)); n > maxPlan {
+				return fmt.Errorf(t.planTooLong, n, maxPlan)
+			}
 			c.Plan = plan
 		}
 		m.finished(&c)
+		became = !was && c.DoneAt != nil
 		setPlan(th, c)
 		m.extend(th)
 		return nil
 	})
 	if err != nil {
 		return "", err
+	}
+	if became {
+		m.done(ctx, th)
 	}
 	return m.planStatus(th), nil
 }

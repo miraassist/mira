@@ -21,7 +21,6 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, Supp
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
-from . import automations
 from .api import MiraError
 from .const import DOMAIN
 
@@ -100,10 +99,9 @@ def _output(text: str) -> Any:
         vol.Optional("error", default=""): str,
     }
 )
+@websocket_api.require_admin
 @callback
 def _ws_done(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not automations._agent_only(hass, connection, msg):
-        return
     data = {"call_id": msg["call_id"], "agent": msg["agent"], "status": msg["status"], "output": _output(msg["output"])}
     if msg["error"]:
         data["error"] = msg["error"]

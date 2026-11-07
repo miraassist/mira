@@ -128,6 +128,11 @@ type Options struct {
 	// DeviceTools makes sure a satellite's own tools are listed; an error:
 	// they cannot be, and its turn does not run (row 6).
 	DeviceTools func(ctx context.Context, device string) error
+	// Playing says whether something Mira started after an earlier answer
+	// still plays at a satellite (a clip): its turn does not keep it
+	// listening (docs/spec/music-quiz.md, decision 7). Without it, nothing
+	// plays.
+	Playing func(device string) bool
 	// Afterword returns the messages waiting for an area as a closing
 	// sentence spoken on the satellite's device, marking them heard, or ""
 	// when none wait.
@@ -170,6 +175,7 @@ type Engine struct {
 	deviceHints func(ctx context.Context, device string) (string, error)
 	deviceTools func(ctx context.Context, device string) error
 	afterword   func(ctx context.Context, area, device string) string
+	playing     func(device string) bool
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
 	identify    func(ctx context.Context, req Request) (person, by string)
 	// follow are the voice conversations Mira's last answer left listening,
@@ -232,6 +238,7 @@ func New(opts Options) *Engine {
 		structure:   opts.Structure,
 		assist:      opts.StructurePrompt,
 		deviceHints: opts.DeviceHints,
+		playing:     opts.Playing,
 		deviceTools: opts.DeviceTools,
 		afterword:   opts.Afterword,
 		thread:      opts.Thread,
@@ -642,15 +649,16 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if ts.WebContentSeen() {
 		e.noteWeb(key)
 	}
-	// Never after a tool that plays something after the answer: the
-	// satellite's microphone would hear the recording.
+	// Never after a tool that plays something after the answer, nor while
+	// something played after an earlier one still plays: the satellite's
+	// microphone would hear it.
 	// The question may stand in a round with a tool, before the last round's
 	// text: what was spoken in the whole turn counts.
 	heard := resp.Text
 	if pass != nil && strings.TrimSpace(pass.spoken()) != "" {
 		heard = pass.spoken()
 	}
-	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) &&
+	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) && !e.stillPlaying(req.DeviceID) &&
 		(expectsReply(heard) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
@@ -679,7 +687,8 @@ func (e *Engine) logRound(key string, round int, model string, took time.Duratio
 	e.log.Info("model round", "session", key, "round", round, "model", model, "ms", took.Milliseconds(),
 		"messages", messages, "message_chars", messageChars, "tools", tools, "tool_chars", toolChars,
 		"prompt_tokens", out.Usage.PromptTokens, "cached_tokens", out.CachedTokens(),
-		"completion_tokens", out.Usage.CompletionTokens)
+		"completion_tokens", out.Usage.CompletionTokens, "total_tokens", out.Usage.TotalTokens,
+		"thinking_tokens", out.Usage.ThinkingTokens())
 }
 
 // skillTools are the tools of the skills a conversation opened (their MCP
@@ -855,6 +864,12 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, areaI
 }
 
 // calledTool reports whether a tool was called in these messages.
+// stillPlaying says whether something Mira played after an earlier answer
+// still plays at the satellite.
+func (e *Engine) stillPlaying(device string) bool {
+	return device != "" && e.playing != nil && e.playing(device)
+}
+
 // playsAfter says whether the turn called a tool that plays something at the
 // satellite after the answer.
 func (e *Engine) playsAfter(msgs []llm.Message) bool {

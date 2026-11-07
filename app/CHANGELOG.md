@@ -3,6 +3,16 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.18.0
+
+- New skill `musikquiz`: Mira plays 30 seconds of a song, you guess the artist, title, year or decade. The Echo Show
+  shows only "Musik-Quiz" while it plays, and a card with the song and its cover after your answer.
+- Mira now works with an access in the name of whoever set Home Assistant up, with admin rights: she saves your tasks
+  and timers through Home Assistant's own automation editor interface. Existing installs: confirm "Mira needs a new
+  access" under Settings → Repairs; until then new tasks and timers wait. The old user "Mira" may be deleted.
+- The AI model can no longer be taken over from another integration; enter its key for Mira.
+- A missing calendar for mails ("Pakete") is a repair you confirm; Mira no longer creates it by herself.
+
 ## 0.17.0
 
 - Answers spoken while they are written no longer repeat themselves: a quiz asked some questions twice with

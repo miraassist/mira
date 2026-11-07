@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/miraassist/mira/internal/agent"
@@ -21,6 +22,7 @@ import (
 	"github.com/miraassist/mira/internal/backup"
 	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/channels/haconv"
+	"github.com/miraassist/mira/internal/clip"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
 	"github.com/miraassist/mira/internal/ha/assistprompt"
@@ -65,6 +67,11 @@ type app struct {
 	phonebook *phone.Book
 	// voicemail is the FRITZ!Box's answering machine (skill anrufbeantworter).
 	voicemail *voicemail.Machine
+	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
+	clip *clip.Player
+	// timers are the sleep timers; set after the connection to Home
+	// Assistant starts, whose every (re)connect has them looked at again.
+	timers atomic.Pointer[timer.Timers]
 	// phoneWatch keeps Mira FRITZ!Box's two sensors while watchPhone runs.
 	phoneMu    sync.Mutex
 	phoneWatch *haws.StateWatch
@@ -357,9 +364,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Rules Mira writes and manages on request, with the skill "regel"
 	// (docs/spec/hooks-writing.md).
 	internal = append(internal, a.hooks.Tools("regel", func() string { return a.houseForRules(snapshot()) })...)
-	// Sleep timer: one-time automations in Home Assistant (docs/spec/scheduled-actions.md).
-	internal = append(internal, timer.Tools(timer.Options{
-		Lang: a.lang, HA: a.ha,
+	// Sleep timer: one-time automations in Home Assistant (docs/spec/scheduled-actions.md),
+	// tidied away by Mira once they ran (docs/spec/hacs-default.md, 3).
+	timers := timer.New(timer.Options{
+		Lang: a.lang, HA: a.ha, Logger: a.log,
+		Watch: func(ctx context.Context, entities []string, changed func()) (func(), error) {
+			w, err := a.ha.WatchStates(ctx, haws.StateFilter{EntityIDs: entities}, changed)
+			if err != nil {
+				return nil, err
+			}
+			return w.Stop, nil
+		},
 		Players: func(area string) []string { return exposedIn(snapshot(), area, "media_player.") },
 		Lights:  func(area string) []string { return exposedIn(snapshot(), area, "light.") },
 		Area:    func(name string) string { return snapshot().AreaKeys[name] },
@@ -373,7 +388,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			domains, entities := a.hooks.Forbidden(snapshot())
 			return map[string]any{"domains": nonEmpty(domains), "entities": nonEmpty(entities)}
 		},
-	})...)
+	})
+	a.timers.Store(timers)
+	internal = append(internal, timers.Tools()...)
+	a.goRun(ctx, "timers", timers.Run)
 	// Radio on the room's speaker (docs/spec/radio.md).
 	internal = append(internal, radio.Tool(radio.Options{
 		Lang: a.lang, Search: radio.Search(a.ha), Play: radio.Play(a.ha),
@@ -426,6 +444,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return a.ha.CallService(ctx, domain, service, satellite.CardData(c), nil)
 		},
 	})...)
+	// Clips after the answer, titled, on the satellite of the turn
+	// (docs/spec/music-quiz.md).
+	a.clip = a.newClip()
+	internal = append(internal, a.clip.Tools()...)
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
 	a.tasks = tasks.New(tasks.Options{
@@ -502,6 +524,18 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			if a.voicemail != nil && th.Target == voicemail.Skill {
 				a.voicemail.ThreadEnded(ctx, th.ID)
 			}
+			// So do the clips a thread played.
+			if a.clip != nil {
+				a.clip.StopThread(ctx, th.ID)
+			}
+		},
+		// A done plan stops its clip: the last song of a quiz does not play
+		// under the closing words, and the satellite may listen again
+		// (docs/spec/music-quiz.md, decision 9).
+		Done: func(ctx context.Context, th store.Thread) {
+			if a.clip != nil {
+				a.clip.StopThread(ctx, th.ID)
+			}
 		},
 	})
 	for _, sk := range targets {
@@ -522,7 +556,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
 		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
-		Persona:   func() string { return a.liveConfig().Prompt.Persona },
+		Persona: func() string { return a.liveConfig().Prompt.Persona },
+		// No listening while a clip plays (docs/spec/music-quiz.md).
+		Playing:   a.clip.Playing,
 		Languages: a.langs,
 		Afterword: func(ctx context.Context, area, device string) string {
 			a.proactiveMu.Lock()
@@ -549,7 +585,12 @@ func (a *app) startHA(ctx context.Context) error {
 	a.ha, err = haws.New(haws.Options{
 		URL: a.cfg.HA.URL, Token: a.cfg.HA.Token, Logger: a.log,
 		// Registry changes may have happened while the connection was down.
-		OnConnect: func(context.Context) { a.structure.Invalidate() },
+		OnConnect: func(context.Context) {
+			a.structure.Invalidate()
+			if t := a.timers.Load(); t != nil {
+				t.Poke()
+			}
+		},
 	})
 	if err != nil {
 		return err

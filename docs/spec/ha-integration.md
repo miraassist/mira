@@ -68,7 +68,7 @@ What Mira may see is determined by HA's "Expose to Assist". HA's own tools via M
   marks as diagnostic or configuration (the GitHub integration's stars, for example) or hides. Mira filters nothing
   away from it; before, her own structure block (gone since 2026-11-05) silently left out such entities.
 - **Without this list nothing counts as exposed,** and Mira does not act.
-  - The agent does not ask HA itself: the exposure list can only be read by an admin, and Mira's user deliberately has no admin rights. There is also no fallback to entity options or to "everything".
+  - The agent does not ask HA itself: the exposure list can only be read by an admin. Since 0.18 Mira's token is the owner's ([HACS default catalog](hacs-default.md)), but the integration's push stays the one way; there is no fallback to entity options or to "everything".
   - Without the list the house plan is empty, as is the selection for tasks, calendars and lists.
   - Without the list, Mira answers a conversation with: "Ich warte noch auf die Verbindung mit Home Assistant …" She calls no tool and does not ask the model. Otherwise HA's MCP server would switch whatever is exposed there, while the guard does not know these names in the empty plan.
   - This only concerns the period before the integration's first sync. After that the agent keeps the list across restarts too.

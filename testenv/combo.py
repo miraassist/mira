@@ -20,6 +20,12 @@ Scenes:
 - show_only: no browser, the Show alone (a quiz, a question); ends after --quiet
   seconds without a turn.
 
+What the Show's speaker played besides Mira's voice goes under the picture too: clips
+of clip_play (the music quiz; their address from Mira's database, their time from the
+Show's now-playing sensors) and Mira's sounds (from the test Mira's log: --mira-log, or found
+through the process on port 8788).
+They are lowered while the Show listens, thinks or speaks, as the device does.
+
 Esc ends any scene: the video is built from what was recorded so far. (Ctrl+C
 reaches the browser too and stops everything.)
 Meanwhile the Show's screen is fetched; afterwards the pipeline runs, the
@@ -48,6 +54,8 @@ ap = argparse.ArgumentParser(description="Two-screen demo: a page of Mira and th
 ap.add_argument("out", nargs="?", type=pathlib.Path)
 ap.add_argument("--scene", choices=["enroll", "plan", "show_only", "automation", "termin", "einkauf"], default="enroll")
 ap.add_argument("--quiet", type=float, default=120, help="plan, show_only, automation, termin, einkauf: end after this many seconds without a turn")
+ap.add_argument("--mira-log", type=pathlib.Path, help="the test Mira's log, for the times of Mira's sounds (sound_play); "
+                "without it, where the process listening on port 8788 writes")
 ARGS = ap.parse_args()
 # Absolute: ffmpeg reads the paths in frames.txt relative to that file.
 OUT = (ARGS.out or ROOT / "docs" / "demo" / ARGS.scene).resolve()
@@ -66,6 +74,12 @@ CROP = W.CROP
 SATELLITE = "assist_satellite.show_assist_satellit"
 PIPELINE = "select.show_assistent"
 SHOW_LOG = "/data/techo5-linux/techo5.log"
+NOW_TITLE = "sensor.show_now_playing_title"
+NOW_STATE = "sensor.show_now_playing_state"
+MIRA_DB = ROOT / "testenv" / "mira.db"
+SOUNDS = ROOT / "internal" / "satellite" / "sounds"
+# How loud the Show's own media is in the video, and while it is lowered for a turn.
+MUSIC, DUCKED = 0.7, 0.15
 
 
 def say(text):
@@ -226,6 +240,107 @@ def say_again(text, f):
     f = f.with_suffix("." + url.rsplit(".", 1)[-1])
     f.write_bytes(requests.get(url if url.startswith("http") else D.HA + url, timeout=60).content)
     return f
+
+
+def history(entities, start, end):
+    """Home Assistant's state history of entities between two wall clock times: (seconds from start, entity, state)."""
+    iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(t))
+    r = requests.get(f"{D.HA}/api/history/period/{iso(start - 5)}", headers=D.H, timeout=30,
+                     params={"end_time": iso(end), "filter_entity_id": ",".join(entities), "minimal_response": ""})
+    r.raise_for_status()
+    out = []
+    for series in r.json():
+        entity = series[0]["entity_id"] if series else ""
+        for x in series:
+            out.append((D.ts(x["last_changed"]) - start, entity, x["state"]))
+    return sorted(out)
+
+
+def mira_log():
+    """The test Mira's log: --mira-log, else where the process listening on port 8788 writes its output."""
+    if ARGS.mira_log:
+        return ARGS.mira_log
+    out = subprocess.run(["ss", "-ltnpH", "sport = :8788"], capture_output=True, text=True).stdout
+    m = re.search(r"pid=(\d+)", out)
+    if not m:
+        return None
+    try:
+        log = pathlib.Path(f"/proc/{m.group(1)}/fd/1").resolve(strict=True)
+    except OSError:
+        return None
+    return log if log.is_file() else None
+
+
+def media(start, end):
+    """What the Show's speaker played besides Mira's voice: [(at, file, seconds or None)], and the
+    windows in which the device lowers it (a turn: listening, thinking, speaking)."""
+    import sqlite3
+    played, ducks = [], []
+    states = history([NOW_TITLE, NOW_STATE, SATELLITE], start, end + 40)
+    # Clips: the player titled (by clip_play: "Musik-Quiz") from playing to paused or idle; one clip
+    # replacing another keeps the title, but the state goes paused in between (seen 2026-11-06).
+    # The address is the newest clip_play call with that title before it.
+    calls = []
+    db = sqlite3.connect(f"file:{MIRA_DB}?mode=ro", uri=True)
+    for at, raw in db.execute("select created_at, tool_calls from chat_messages where tool_calls like '%clip_play%'"):
+        for c in json.loads(raw):
+            if c["function"]["name"] == "clip_play":
+                calls.append((D.ts(at) - start, json.loads(c["function"]["arguments"])))
+    calls.sort(key=lambda x: x[0])
+    titles = [(at, state) for at, entity, state in states if entity == NOW_TITLE]
+
+    def title_at(t):
+        now = ""
+        for at, state in titles:
+            if at <= t + 0.01:
+                now = "" if state in ("unknown", "unavailable") else state
+        return now
+
+    titled = None
+    for at, entity, state in states:
+        if entity != NOW_STATE:
+            continue
+        if state == "playing" and titled is None and title_at(at):
+            titled = (at, title_at(at))
+        elif state != "playing" and titled is not None:
+            began, title = titled
+            titled = None
+            call = [a for t, a in calls if t <= began + 1 and a.get("title") == title]
+            if not call:
+                print(f"no clip_play call for the clip at {began:.1f}s ({title}); it is left out", flush=True)
+                continue
+            f = OUT / f"clip{len(played)}.mp3"
+            r = requests.get(call[-1]["url"], timeout=30)
+            if r.status_code != 200:
+                print(f"the clip at {began:.1f}s could not be fetched ({r.status_code}; a preview's address expires after "
+                      f"about 15 minutes); it is left out", flush=True)
+                continue
+            f.write_bytes(r.content)
+            played.append((began, f, at - began))
+    # Mira's sounds, by the test Mira's log: "sound played" is written as the sound starts.
+    log = mira_log()
+    if log and log.exists():
+        for line in log.read_text().splitlines():
+            m = re.match(r'time=(\S+) level=\w+ msg="sound played" sound=(\w+)', line)
+            if m:
+                import datetime
+                at = datetime.datetime.fromisoformat(m.group(1)).timestamp() - start
+                if -5 <= at <= end - start + 5:
+                    played.append((at, SOUNDS / f"{m.group(2)}.mp3", None))
+    else:
+        print("the test Mira's log was not found (no process on port 8788 writing to a file, and no --mira-log): "
+              "Mira's sounds (fanfare) are left out", flush=True)
+    turn = None
+    for at, entity, state in states:
+        if entity != SATELLITE:
+            continue
+        busy = state in ("listening", "processing", "responding")
+        if busy and turn is None:
+            turn = at
+        elif not busy and turn is not None:
+            ducks.append((turn, at))
+            turn = None
+    return played, ducks
 
 
 def plans():
@@ -660,6 +775,8 @@ def main():
             with wave.open(str(f)) as w:
                 sounds.append((at - w.getnframes() / w.getframerate(), f))
         json.dump([(a, str(f)) for a, f in sounds], open(OUT / "sounds.json", "w"), indent=1)
+        played, ducks = media(start, end)
+        json.dump({"played": [(a, str(f), d) for a, f, d in played], "ducks": ducks}, open(OUT / "media.json", "w"), indent=1)
     finally:
         for e, v in was.items():
             D.call("switch", "turn_on" if v == "on" else "turn_off", {"entity_id": e})
@@ -673,7 +790,7 @@ def main():
         f.write(f"file '{frames[-1][1]}'\n")
     # The timeline starts at the earliest sound (somebody may start early), at most where the browser
     # video does.
-    lead = max(0.0, -min((a for a, _ in sounds), default=0.0))
+    lead = max(0.0, -min([a for a, _ in sounds] + [a for a, _, _ in played], default=0.0))
     if video:
         v_start = mark_turned(video)
         lead = min(lead, v_start)
@@ -683,7 +800,16 @@ def main():
     for i, (a, f) in enumerate(sounds):
         inputs += ["-i", str(f)]
         filt.append(f"[{i + first_sound}:a]aresample=48000,adelay={max(0, int((a + lead) * 1000))}:all=1[a{i}]")
-    mix = "".join(f"[a{i}]" for i in range(len(sounds))) + f"amix=inputs={len(sounds)}:normalize=0,aformat=channel_layouts=stereo[a]"
+    # The Show's own media, as long as it played, lowered during a turn.
+    duck = "+".join(f"between(t,{a + lead:.2f},{b + lead:.2f})" for a, b in ducks) or "0"
+    for j, (a, f, length) in enumerate(played):
+        i = len(sounds) + j
+        inputs += ["-i", str(f)]
+        cut = f"atrim=0:{length:.2f}," if length else ""
+        filt.append(f"[{i + first_sound}:a]{cut}aresample=48000,adelay={max(0, int((a + lead) * 1000))}:all=1,"
+                    f"volume='if(gt({duck},0),{DUCKED},{MUSIC})':eval=frame[a{i}]")
+    n = len(sounds) + len(played)
+    mix = "".join(f"[a{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=0,aformat=channel_layouts=stereo[a]"
     show = f"tpad=start_mode=clone:start_duration={show_pad:.3f},fps=25"
     if video:
         # The page as background, the Show top right (fading out when the scene wants the page alone).

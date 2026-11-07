@@ -36,6 +36,7 @@ type texts struct {
 	deleteDesc, enableDesc, enableOn, tryDesc, idDesc    string
 	none, notFound, deleted, enabledOn                   string
 	enabledOff, triedNothing, triedVerdict, triedDecided string
+	notMira, needAccess, notLabelled                     string
 }
 
 // maxCatalog bounds the entity list in the drafting prompt.
@@ -229,6 +230,9 @@ JSON-Objekt:
 		triedNothing: "Die Aufgabe enthält kein mira.assess oder mira.decide; sie meldet fest, ohne Urteil.",
 		triedVerdict: "Probelauf: Wichtigkeit %d. %s",
 		triedDecided: "Probelauf: Antwort %v. %s",
+		notMira:      "Das ist keine Aufgabe von Mira.",
+		needAccess:   "Dafür braucht Mira erst einen neuen Zugang: Einstellungen → Reparaturen.",
+		notLabelled:  "Die Aufgabe ist gespeichert, aber nicht als Miras markiert; sie steht deshalb nicht in Miras Aufgaben.",
 	},
 	i18n.EN: {
 		viewFailed:     "not available (%v)",
@@ -324,5 +328,8 @@ JSON object:
 		triedNothing: "The task has no mira.assess or mira.decide; it reports fixed, without judgement.",
 		triedVerdict: "Dry run: importance %d. %s",
 		triedDecided: "Dry run: answer %v. %s",
+		notMira:      "That is not one of Mira's tasks.",
+		needAccess:   "Mira first needs a new access for that: Settings → Repairs.",
+		notLabelled:  "The task is saved but not marked as Mira's, so it does not show among Mira's tasks.",
 	},
 }

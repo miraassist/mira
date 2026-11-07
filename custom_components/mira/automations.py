@@ -6,34 +6,33 @@ Home Assistant's triggers and conditions decide when, Mira's actions
 automation is the source of truth; it carries the label "Mira" and is edited
 in Home Assistant's automation editor. The agent only keeps a reference.
 
-The agent runs as a restricted user and may not write automations. The
-integration does it for the agent, through these websocket commands, and
-only for the agent's own user. A task may switch and notify (the radio, a
-push to the phone) – the user hears exactly which actions before saying
-yes – but not what the agent itself only does after an explicit yes
-(locks, alarm, garage door: its confirm list, sent with each command), and
-nothing that runs arbitrary code or changes Home Assistant itself (shell
-commands, restarts). What an action switches is learnt from Home Assistant:
-it resolves areas, devices, floors, labels and groups to entities, and an
-action whose description names no entities as its target (mqtt.publish,
-rest_command, scene.apply) could switch anything, so a task calls it only
-inside a script exposed to Assist. Those go into an automation only through
-Home Assistant's own editor.
+The agent works with the token of Home Assistant's owner, given with an
+admin's consent at the setup (docs/spec/hacs-default.md). It saves and
+deletes automations itself, through Home Assistant's automation config API,
+the one the editor uses; the integration writes no automation file. These
+websocket commands, for admins only, are what the agent cannot do there: the
+check of what a task may call, reading the tasks with their labels, and
+labelling one. A task may switch and notify (the radio, a push to the phone)
+– the user hears exactly which actions before saying yes – but not what the
+agent itself only does after an explicit yes (locks, alarm, garage door: its
+confirm list, sent with each command), and nothing that runs arbitrary code
+or changes Home Assistant itself (shell commands, restarts). What an action
+switches is learnt from Home Assistant: it resolves areas, devices, floors,
+labels and groups to entities, and an action whose description names no
+entities as its target (mqtt.publish, rest_command, scene.apply) could
+switch anything, so a task calls it only inside a script exposed to Assist.
+Those go into an automation only through Home Assistant's own editor.
 
-Saving takes the automation editor's path: validate the item, replace it in
-automations.yaml, reload that one automation. Mira may also change the
-household's own tasks, the ones the editor saved: she reads one with get,
-finds them with list (all), and saves them keeping their labels. An action
-that was in the task before and stays unchanged is the admin's decision and
-is not checked again; what is new or changed is.
+Mira may also change the household's own tasks, the ones the editor saved:
+she reads one with get, finds them with list (all), and saves them keeping
+their labels. An action that was in the task before and stays unchanged is
+the admin's decision and is not checked again; what is new or changed is.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import re
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,13 +49,10 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.helpers.target import TargetSelection, async_extract_referenced_entity_ids
-from homeassistant.util.file import write_utf8_file_atomic
-from homeassistant.util.yaml import dump, load_yaml
+from homeassistant.util.yaml import load_yaml
 
-from .const import CONF_AGENT_USER, DOMAIN
-from .labels import LABEL_CONFIRM, LABEL_TASKS, ensure_label
-
-_LOCK = asyncio.Lock()
+from .const import DOMAIN
+from .labels import LABEL_CONFIRM, LABEL_ONCE, LABEL_TASKS, ensure_label
 
 # Domains a task never calls: they run arbitrary code or change Home
 # Assistant itself.
@@ -366,45 +362,6 @@ def _read(path: str) -> list[dict[str, Any]]:
     return list(data or [])
 
 
-def _write(path: str, data: list[dict[str, Any]]) -> None:
-    write_utf8_file_atomic(path, dump(data))
-
-
-async def save(
-    hass: HomeAssistant,
-    config: dict[str, Any],
-    automation_id: str | None,
-    forbidden: dict[str, Any] | None = None,
-    label_id: str | None = LABEL_TASKS,
-) -> dict[str, Any]:
-    """Validate, write and reload one automation; label it "Mira" (or the
-    given label; None keeps its labels as they are). An automation saved
-    before keeps its unchanged steps unchecked."""
-    automation_id = automation_id or f"mira_{uuid.uuid4().hex[:12]}"
-    item = {"id": automation_id} | {k: v for k, v in config.items() if k != "id"}
-    path = hass.config.path(AUTOMATION_CONFIG_PATH)
-    async with _LOCK:
-        data = await hass.async_add_executor_job(_read, path)
-        before = next((a for a in data if a.get("id") == automation_id), None)
-        await validate(hass, config, forbidden, before)
-        for index, current in enumerate(data):
-            if current.get("id") == automation_id:
-                data[index] = item
-                break
-        else:
-            data.append(item)
-        await hass.async_add_executor_job(_write, path, data)
-    await hass.services.async_call("automation", "reload", {"id": automation_id}, blocking=True)
-    entity_id = er.async_get(hass).async_get_entity_id("automation", "automation", automation_id)
-    if entity_id is None:
-        raise HomeAssistantError(
-            "the automation was written but not loaded; does configuration.yaml include automations.yaml?"
-        )
-    if label_id is not None:
-        _label(hass, entity_id, label_id)
-    return {"id": automation_id, "entity_id": entity_id}
-
-
 @callback
 def _label(hass: HomeAssistant, entity_id: str, label_id: str = LABEL_TASKS) -> None:
     label = ensure_label(hass, label_id)
@@ -412,21 +369,6 @@ def _label(hass: HomeAssistant, entity_id: str, label_id: str = LABEL_TASKS) -> 
     entry = entities.async_get(entity_id)
     if entry is not None and label.label_id not in entry.labels:
         entities.async_update_entity(entity_id, labels=entry.labels | {label.label_id})
-
-
-async def delete(hass: HomeAssistant, automation_id: str) -> None:
-    """Remove one of Mira's automations."""
-    path = hass.config.path(AUTOMATION_CONFIG_PATH)
-    async with _LOCK:
-        data = await hass.async_add_executor_job(_read, path)
-        kept = [a for a in data if a.get("id") != automation_id]
-        if len(kept) == len(data):
-            raise HomeAssistantError(f"no automation {automation_id}")
-        await hass.async_add_executor_job(_write, path, kept)
-    entities = er.async_get(hass)
-    if entity_id := entities.async_get_entity_id("automation", "automation", automation_id):
-        entities.async_remove(entity_id)
-    await hass.services.async_call("automation", "reload", {}, blocking=True)
 
 
 async def list_tasks(hass: HomeAssistant, label_id: str = LABEL_TASKS) -> list[dict[str, Any]]:
@@ -506,15 +448,6 @@ async def list_all(hass: HomeAssistant) -> list[dict[str, Any]]:
     return out
 
 
-def _agent_only(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> bool:
-    """Only the agent's own user, or an admin, may use these commands."""
-    agents = {e.data.get(CONF_AGENT_USER) for e in hass.config_entries.async_entries(DOMAIN)}
-    if connection.user.is_admin or connection.user.id in agents:
-        return True
-    connection.send_error(msg["id"], "unauthorized", "only the Mira agent may manage its automations")
-    return False
-
-
 _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"): [str]})
 
 
@@ -528,10 +461,9 @@ _FORBIDDEN = vol.Schema({vol.Optional("domains"): [str], vol.Optional("entities"
         vol.Optional("automation_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not _agent_only(hass, connection, msg):
-        return
     before = None
     if automation_id := msg.get("automation_id"):
         data = await hass.async_add_executor_job(_read, hass.config.path(AUTOMATION_CONFIG_PATH))
@@ -546,44 +478,28 @@ async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConn
 
 @websocket_api.websocket_command(
     {
-        vol.Required("type"): "mira/automation/save",
-        vol.Required("config"): dict,
-        vol.Optional("automation_id"): str,
-        vol.Optional("forbidden"): _FORBIDDEN,
-        vol.Optional("keep_labels", default=False): bool,
+        vol.Required("type"): "mira/automation/label",
+        vol.Required("automation_id"): str,
+        vol.Optional("label", default="tasks"): vol.In(["tasks", "once"]),
     }
 )
-@websocket_api.async_response
-async def _ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not _agent_only(hass, connection, msg):
+@websocket_api.require_admin
+@callback
+def _ws_label(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Label an automation the agent just saved as Mira's task ("Mira") or
+    timer ("Mira: einmalig"), found by its id in the entity registry."""
+    entity_id = er.async_get(hass).async_get_entity_id("automation", "automation", msg["automation_id"])
+    if entity_id is None:
+        connection.send_error(msg["id"], "not_found", f"no automation {msg['automation_id']} is loaded")
         return
-    label = None if msg["keep_labels"] else LABEL_TASKS
-    try:
-        result = await save(hass, msg["config"], msg.get("automation_id"), msg.get("forbidden"), label)
-    except HomeAssistantError as err:
-        connection.send_error(msg["id"], "invalid", str(err))
-        return
-    connection.send_result(msg["id"], result)
-
-
-@websocket_api.websocket_command({vol.Required("type"): "mira/automation/delete", vol.Required("automation_id"): str})
-@websocket_api.async_response
-async def _ws_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not _agent_only(hass, connection, msg):
-        return
-    try:
-        await delete(hass, msg["automation_id"])
-    except HomeAssistantError as err:
-        connection.send_error(msg["id"], "not_found", str(err))
-        return
-    connection.send_result(msg["id"], {"deleted": True})
+    _label(hass, entity_id, LABEL_TASKS if msg["label"] == "tasks" else LABEL_ONCE)
+    connection.send_result(msg["id"], {"entity_id": entity_id})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "mira/automation/get", vol.Required("entity_id"): str})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_get(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not _agent_only(hass, connection, msg):
-        return
     try:
         result = await get_task(hass, msg["entity_id"])
     except NotEditable as err:
@@ -598,10 +514,9 @@ async def _ws_get(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
 @websocket_api.websocket_command(
     {vol.Required("type"): "mira/automation/list", vol.Optional("all", default=False): bool}
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    if not _agent_only(hass, connection, msg):
-        return
     if msg["all"]:
         connection.send_result(msg["id"], {"automations": await list_all(hass)})
         return
@@ -611,5 +526,5 @@ async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
 @callback
 def async_register_commands(hass: HomeAssistant) -> None:
     """Register the agent's automation commands."""
-    for command in (_ws_validate, _ws_save, _ws_delete, _ws_list, _ws_get):
+    for command in (_ws_validate, _ws_label, _ws_list, _ws_get):
         websocket_api.async_register_command(hass, command)

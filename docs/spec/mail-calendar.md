@@ -36,8 +36,9 @@ how to answer questions about it is said by one **skill** per application (`pake
     [calendar](calendar.md)).
   - The application is the name of a mail skill (case does not matter). Entries whose device name matches
     no mail skill, Mira does not read.
-- **The calendar is named like the device:** "Pakete", "Pakete stefan". If it is missing, the integration creates a local
-  calendar of this name and exposes it to Assist.
+- **The calendar is named like the device:** "Pakete", "Pakete stefan". If it is missing, the integration raises a repair;
+  confirmed by an admin, it creates a local calendar of this name and exposes it to Assist (since 0.18,
+  [HACS default catalog](hacs-default.md), decision 3). Until then a mail of that entry is ignored (`reason="no calendar …"`).
 - Different names via a setting: later, when someone needs them.
 
 ## 2. The path of a mail

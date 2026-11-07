@@ -57,6 +57,8 @@ type harness struct {
 	logs *syncBuffer
 	// identify, when set, says who speaks instead of the default below.
 	identify func(context.Context, conversation.Request) (string, string)
+	// playing, when set, says whether a clip still plays at a satellite.
+	playing func(device string) bool
 	// housePrompt is Home Assistant's prompt, layer 4; "" is none.
 	housePrompt string
 }
@@ -165,6 +167,7 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 		Clock:           h.clock.Now,
 		Location:        time.UTC,
 		Languages:       harnessLanguages,
+		Playing:         func(device string) bool { return h.playing != nil && h.playing(device) },
 		// Telegram chat 42 is Anna; everyone else is unknown.
 		Identify: func(ctx context.Context, req conversation.Request) (string, string) {
 			if h.identify != nil {
@@ -630,6 +633,31 @@ func TestAB36_ATurnThatPlaysAfterTheAnswerDoesNotListen(t *testing.T) {
 	)
 	if resp := h.say(t, config.ChannelVoice, "v1", "Spiel sie ab"); resp.ContinueConversation {
 		t.Errorf("listens while the recording plays: %+v", resp)
+	}
+}
+
+// MQ-09: while a clip of an earlier answer still plays at the satellite, a
+// question does not keep it listening; once it ended, it does.
+func TestMQ09_NoListeningWhileAClipPlays(t *testing.T) {
+	h := newHarness(t,
+		fakellm.Step{Content: "Du hast einen Punkt. Welches Jahr schätzt du?"},
+		fakellm.Step{Content: "Du hast einen Punkt. Welches Jahr schätzt du?"},
+	)
+	playing := true
+	h.playing = func(device string) bool { return device == "sat-kueche" && playing }
+	ask := func() bool {
+		resp, err := h.engine.Handle(context.Background(), conversation.Request{Channel: config.ChannelVoice, DeviceID: "sat-kueche", Text: "Wie steht es?"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp.ContinueConversation
+	}
+	if ask() {
+		t.Error("listens while the clip plays")
+	}
+	playing = false
+	if !ask() {
+		t.Error("does not listen after a question once the clip ended")
 	}
 }
 

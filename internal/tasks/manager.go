@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/ha/automation"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
@@ -31,8 +33,7 @@ type Source interface {
 // through the Mira integration's commands (mira/automation/*), switching
 // them on and off is an ordinary service call.
 type HA interface {
-	Call(ctx context.Context, command map[string]any) (json.RawMessage, error)
-	CallService(ctx context.Context, domain, service string, data map[string]any, target *haws.Target) error
+	automation.HA
 }
 
 // Model runs one isolated request with a JSON answer: a system message and
@@ -279,14 +280,54 @@ func (m *Manager) fieldsText(fields map[string]string) string {
 	return b.String()
 }
 
-// SaveAutomation creates or replaces one of Mira's automations.
-func (m *Manager) SaveAutomation(ctx context.Context, id string, automation map[string]any) error {
-	_, err := m.opts.HA.Call(ctx, map[string]any{
-		"type": "mira/automation/save", "config": automation, "automation_id": id,
-		"forbidden": m.forbidden(),
-	})
-	if err == nil {
-		m.log.Info("task saved", "automation", id)
+// SaveAutomation creates one of Mira's automations: checked once more by
+// the integration, saved through Home Assistant's automation config API and
+// labelled "Mira" (docs/spec/hacs-default.md, 3).
+func (m *Manager) SaveAutomation(ctx context.Context, id string, config map[string]any) error {
+	if err := m.validate(ctx, config, ""); err != nil {
+		return m.haError(err)
+	}
+	if err := automation.Save(ctx, m.opts.HA, m.log, id, config, automation.LabelTask); err != nil {
+		return m.haError(err)
+	}
+	m.log.Info("task saved", "automation", id)
+	return nil
+}
+
+// validate lets the integration check a task; for a change of a task
+// (automationID), its unchanged steps are not checked again.
+func (m *Manager) validate(ctx context.Context, config map[string]any, automationID string) error {
+	cmd := map[string]any{"type": "mira/automation/validate", "config": config, "forbidden": m.forbidden()}
+	if automationID != "" {
+		cmd["automation_id"] = automationID
+	}
+	raw, err := m.opts.HA.Call(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return err
+	}
+	if !res.Valid {
+		return errors.New(res.Error)
+	}
+	return nil
+}
+
+// haError is what the user hears of Home Assistant refusing: without an
+// admin's token, where to give Mira the new access; a task saved without
+// its label, that it is not among Mira's.
+func (m *Manager) haError(err error) error {
+	switch {
+	case errors.Is(err, haws.ErrNotAdmin):
+		m.log.Warn("home assistant refused mira's token for a task; the repair for the new access is open", "error", err)
+		return errors.New(m.texts().needAccess)
+	case errors.Is(err, automation.ErrNotLabelled):
+		return errors.New(m.texts().notLabelled)
 	}
 	return err
 }
@@ -311,25 +352,7 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal, automationID string
 		d.Automation["description"] = strings.TrimSpace(goal)
 	}
 	tagTask(d.Automation["actions"])
-	cmd := map[string]any{"type": "mira/automation/validate", "config": d.Automation, "forbidden": m.forbidden()}
-	if automationID != "" {
-		cmd["automation_id"] = automationID
-	}
-	raw, err := m.opts.HA.Call(ctx, cmd)
-	if err != nil {
-		return err
-	}
-	var res struct {
-		Valid bool   `json:"valid"`
-		Error string `json:"error"`
-	}
-	if err := json.Unmarshal(raw, &res); err != nil {
-		return err
-	}
-	if !res.Valid {
-		return errors.New(res.Error)
-	}
-	return nil
+	return m.haError(m.validate(ctx, d.Automation, automationID))
 }
 
 // forbidden is what the integration refuses in a task's actions.
@@ -629,10 +652,18 @@ func (m *Manager) homeURL(ctx context.Context) string {
 	return ""
 }
 
-// Delete deletes one of Mira's automations.
+// Delete deletes one of Mira's automations; only one labelled "Mira" (the
+// review of the HACS catalog: never any other automation).
 func (m *Manager) Delete(ctx context.Context, id string) error {
-	if _, err := m.opts.HA.Call(ctx, map[string]any{"type": "mira/automation/delete", "automation_id": id}); err != nil {
-		return err
+	items, err := m.List(ctx)
+	if err != nil {
+		return m.haError(err)
+	}
+	if !slices.ContainsFunc(items, func(it Item) bool { return it.ID == id }) {
+		return errors.New(m.texts().notMira)
+	}
+	if err := automation.Delete(ctx, m.opts.HA, m.log, id); err != nil {
+		return m.haError(err)
 	}
 	m.log.Info("task deleted", "automation", id)
 	return nil

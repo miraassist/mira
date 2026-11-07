@@ -79,6 +79,8 @@ They are files in the binary, each with a name that says what it means, not wher
 - **Never after something that plays after the answer** (2026-10-29): a turn that called a tool marked "plays after"
   (`voicemail_play`) does not keep the satellite listening, whatever the answer or `keep_listening` say. The
   satellite would put the listening behind the recording, and its microphone would hear it.
+- **Nor while a clip still plays** (2026-11-06, [Music quiz](music-quiz.md), decision 7): a turn at a satellite where
+  a clip of `clip_play` from an earlier answer still plays does not keep it listening, even after a question.
 
 ## Hints on the screen wait for a quiet satellite
 

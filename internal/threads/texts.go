@@ -20,6 +20,7 @@ type texts struct {
 	planRunning, planNoFields, planHint, linePlan, lineInstructions       string
 	fieldByAgent, planByAgent, agentStarted, agentFilled, agentFailedLog  string
 	agentAsk, agentPlanFailed, agentPlanReady                             string
+	planNoteDesc, noteOnlyCheck, noteTooLong                              string
 	stateHint                                                             map[string]string
 }
 
@@ -75,6 +76,9 @@ var catalog = map[i18n.Lang]texts{
 		planDesc:         "Der Plan eines Vorgangs mit Plan (ein langer Ablauf Schritt für Schritt, etwa Kochen). write: den ganzen Plan als Markdown schreiben (beim Start, oder wenn er sich grundlegend ändert); Schritte als Kästchen \"- [ ] …\". check/uncheck: Schritt Nummer step abhaken oder wieder öffnen (gezählt ab 1). read: den ganzen Plan lesen, wenn das, was im Kontext steht, nicht reicht.",
 		planTextDesc:     "Nur bei write: der ganze Plan als Markdown.",
 		planStepDesc:     "Nur bei check/uncheck: die Nummer des Schritts, ab 1.",
+		planNoteDesc:     "Nur bei check, wenn nötig: wie der Schritt ausging, kurz (\"1 Punkt\"); wird hinten an die Zeile gehängt, statt den Plan neu zu schreiben.",
+		noteOnlyCheck:    "eine note geht nur mit check",
+		noteTooLong:      "die note hat %d Zeichen, höchstens %d",
 		noPlanThread:     "hier läuft kein Vorgang mit Plan; eröffne einen mit thread_start",
 		planEmpty:        "der Plan ist leer",
 		planTooLong:      "der Plan hat %d Zeichen, höchstens %d; fass ihn knapper",
@@ -150,6 +154,9 @@ var catalog = map[i18n.Lang]texts{
 		planDesc:         "The plan of a thread with a plan (a long run step by step, such as cooking). write: write the whole plan as Markdown (at the start, or when it changes fundamentally); steps as checkboxes \"- [ ] …\". check/uncheck: tick off step number step or open it again (counted from 1). read: read the whole plan when what the context shows is not enough.",
 		planTextDesc:     "Only for write: the whole plan as Markdown.",
 		planStepDesc:     "Only for check/uncheck: the step's number, from 1.",
+		planNoteDesc:     "Only for check, when needed: how the step went, briefly (\"1 point\"); appended to its line instead of writing the plan anew.",
+		noteOnlyCheck:    "a note works only with check",
+		noteTooLong:      "the note has %d characters, at most %d",
 		noPlanThread:     "no thread with a plan runs here; open one with thread_start",
 		planEmpty:        "the plan is empty",
 		planTooLong:      "the plan has %d characters, at most %d; make it shorter",

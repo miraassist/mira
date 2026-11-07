@@ -7,11 +7,10 @@ from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.mira.access import keep_rejoin, rejoin_token
+from custom_components.mira.access import TOKEN_NAME, keep_rejoin, rejoin_token
 from custom_components.mira.api import rejoin_key
 from custom_components.mira.const import (
     CONF_AGENT_TOKEN,
-    CONF_AGENT_USER,
     CONF_IMPORTED,
     CONF_PIPELINES,
     CONF_TIMEOUT,
@@ -102,10 +101,11 @@ async def _finish(hass, result):
     return result, mcp
 
 
-async def test_new_agent_is_paired_and_set_up_only_at_the_end(hass, aioclient_mock, hass_owner_user):
+async def test_HD20_new_agent_is_paired_with_the_owners_token_only_at_the_end(hass, aioclient_mock, hass_owner_user):
     """A new agent: the AI model from a server of one's own, tried at once;
-    nothing is paired and no HA user made before the summary's "Pair",
-    which then pairs and sets up in one call."""
+    nothing is paired and no token made before the summary's "Pair", which
+    then pairs and sets up in one call, with a token of the owner the
+    summary names (docs/spec/hacs-default.md, 3). No user is made."""
     _new_agent(aioclient_mock)
     aioclient_mock.post(f"{AGENT_URL}/v1/setup/probe", json={"status": "ok"})
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
@@ -128,22 +128,22 @@ async def test_new_agent_is_paired_and_set_up_only_at_the_end(hass, aioclient_mo
     llm = {"kind": "custom", "base_url": "http://192.168.1.30:11434/v1", "model": "qwen3", "api_key": ""}
     assert _calls(aioclient_mock, "/v1/setup/probe") == [{"llm": llm}]
     assert not _calls(aioclient_mock, "/v1/pair")
-    assert not [u for u in await hass.auth.async_get_users() if u.name == "Mira"]
+    assert hass_owner_user.name in result["description_placeholders"]["access"]
+    users = await hass.auth.async_get_users()
 
     result, mcp = await _finish(hass, result)
     assert result["type"] is FlowResultType.CREATE_ENTRY, result
     mcp.assert_awaited_once()
     data = result["data"]
     assert data[CONF_TOKEN] == "agent-token" and data[CONF_IMPORTED]
-    user = await hass.auth.async_get_user(data[CONF_AGENT_USER])
-    assert user.name == "Mira" and not user.is_admin
+    assert await hass.auth.async_get_users() == users
     (pair,) = _calls(aioclient_mock, "/v1/pair")
     assert pair["code"] == "" and pair["llm"] == llm
     refresh = hass.auth.async_validate_access_token(pair["ha_token"])
-    assert refresh is not None and refresh.user.id == user.id and refresh.id == data[CONF_AGENT_TOKEN]
+    assert refresh is not None and refresh.user.id == hass_owner_user.id and refresh.id == data[CONF_AGENT_TOKEN]
 
 
-async def test_provider_asks_only_for_the_key_and_says_what_failed(hass, aioclient_mock, hass_owner_user):
+async def test_HD02_provider_asks_only_for_the_key_and_says_what_failed(hass, aioclient_mock, hass_owner_user):
     """A cloud provider has its address built in; a model without tools is
     said plainly in the form, right where it can be changed."""
     _new_agent(aioclient_mock)
@@ -169,41 +169,24 @@ async def test_provider_asks_only_for_the_key_and_says_what_failed(hass, aioclie
     assert result["step_id"] == "model" and result["errors"] == {"base": "model_no_tools"}
 
 
-async def test_model_from_home_assistant_needs_no_key(hass, aioclient_mock, hass_owner_user):
-    """An AI integration Home Assistant has: its key goes to the agent
-    without being asked for, and its model is ticked."""
+async def test_HD01_another_integrations_key_is_never_read(hass, aioclient_mock, hass_owner_user):
+    """A loaded AI integration with a key in Home Assistant is no choice:
+    only the agent's providers and a server of one's own are
+    (docs/spec/hacs-default.md, decision 1)."""
     ai = MockConfigEntry(
         domain="google_generative_ai_conversation",
         title="Google Generative AI",
         data={"api_key": "ha-key"},
         state=config_entries.ConfigEntryState.LOADED,
-        subentries_data=[
-            {
-                "subentry_type": "conversation",
-                "data": {"chat_model": "models/gemini-flash-latest"},
-                "title": "Gemini",
-                "unique_id": None,
-            }
-        ],
     )
     ai.add_to_hass(hass)
-    _new_agent(aioclient_mock, models=("gemini-flash-latest", "gemini-pro-latest"))
-    aioclient_mock.post(f"{AGENT_URL}/v1/setup/probe", json={"status": "ok"})
-    aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
+    _new_agent(aioclient_mock)
     result = await _start(hass)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
     result = await _to(hass, result, "model_source")
-    source = f"ha:{ai.entry_id}"
-    options = result["data_schema"].schema["source"].config["options"]
-    assert options[0]["value"] == source and "gemini-flash-latest" in options[0]["label"]
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"source": source})
-    assert result["step_id"] == "model"
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"model": "gemini-flash-latest"})
-    result, _ = await _finish(hass, result)
-    assert result["type"] is FlowResultType.CREATE_ENTRY, result
-    (pair,) = _calls(aioclient_mock, "/v1/pair")
-    assert pair["llm"]["api_key"] == "ha-key" and pair["llm"]["kind"] == "cloud"
-    # A real Gemini entry is not loaded in tests; nothing to unload.
+    options = [o["value"] for o in result["data_schema"].schema["source"].config["options"]]
+    assert options == ["openai", "gemini", "custom"]
+    assert "ha-key" not in str(aioclient_mock.mock_calls)
     ai.mock_state(hass, config_entries.ConfigEntryState.NOT_LOADED)
 
 
@@ -224,8 +207,7 @@ async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock,
     result, _ = await _finish(hass, result)
     assert result["step_id"] == "summary" and "pair" in result["menu_options"]
     assert result["description_placeholders"]["error"]
-    user = next(u for u in await hass.auth.async_get_users() if u.name == "Mira")
-    assert not [t for t in user.refresh_tokens.values() if t.client_name == "Mira agent"]
+    assert not [t for t in hass_owner_user.refresh_tokens.values() if t.client_name == TOKEN_NAME]
 
 
 def _paired_agent(aioclient_mock, rejoin=True):

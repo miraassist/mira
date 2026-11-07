@@ -20,7 +20,7 @@ from custom_components.mira import RESEND_COOLDOWN
 from custom_components.mira.access import rejoin_token
 from custom_components.mira.api import proof
 from custom_components.mira.config_flow import FIELD_NAMES
-from custom_components.mira.const import CONF_AGENT_USER, CONF_IMPORTED, DOMAIN
+from custom_components.mira.const import CONF_IMPORTED, DOMAIN
 from custom_components.mira.managed import notify_targets
 
 from .conftest import AGENT_ID, AGENT_URL
@@ -88,8 +88,6 @@ async def test_first_setup_imports_and_takes_over(hass, aioclient_mock, fresh_en
 
     assert fresh_entry.unique_id == AGENT_ID
     assert fresh_entry.data[CONF_IMPORTED] is True
-    # The agent's own user may manage Mira's automations.
-    assert fresh_entry.data[CONF_AGENT_USER] == "mira-user"
     assert not fresh_entry.subentries
     # The settings went onto the person and the satellite themselves.
     registry = er.async_get(hass)
@@ -515,24 +513,6 @@ async def test_the_voice_threshold_is_checked_and_kept(hass, aioclient_mock, ent
     result = await _form(hass, entry, "persons")
     await hass.config_entries.options.async_configure(result["flow_id"], {"Anna": _fields({"alone_is_me": True})})
     assert er.async_get(hass).async_get(anna).options[DOMAIN] == {"alone_is_me": True, "voice_threshold": 0.6}
-
-
-async def test_the_agent_cannot_change_who_may_manage_tasks(hass, aioclient_mock):
-    """The integration made Mira's user at pairing; an agent naming another
-    one later (a stranger at the agent's address) is not believed."""
-    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": "stranger"})
-    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={"pending_messages": 0, "quiet_mode": False})
-    aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Mira",
-        unique_id=AGENT_ID,
-        data={CONF_URL: AGENT_URL, CONF_TOKEN: "secret", CONF_IMPORTED: True, CONF_AGENT_USER: "mira-user"},
-    )
-    entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    assert entry.data[CONF_AGENT_USER] == "mira-user"
 
 
 def _device_satellite(hass, name, area_name, ring_names=()):

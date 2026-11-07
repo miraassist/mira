@@ -601,8 +601,11 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("home assistant rejected %s: %s (%s)", e.Command, e.Message, e.Code)
 }
 
-// Is makes a refusal with the code "not_found" an ErrNotFound.
-func (e *Error) Is(target error) bool { return target == ErrNotFound && e.Code == "not_found" }
+// Is makes a refusal with the code "not_found" an ErrNotFound, and one with
+// "unauthorized" an ErrNotAdmin.
+func (e *Error) Is(target error) bool {
+	return target == ErrNotFound && e.Code == "not_found" || target == ErrNotAdmin && e.Code == "unauthorized"
+}
 
 // CodeOf is the code of Home Assistant's refusal in err, "" for any other
 // error.

@@ -98,6 +98,7 @@ var ownToolRights = map[string]Rights{
 	"radio_play":             ActOnHouse,
 	"phone_call":             ActOnHouse,
 	"sound_play":             ActOnHouse,
+	"clip_play":              ActOnHouse,
 	"display_card":           ActOnHouse,
 	"sleep_timer":            ActOnHouse,
 	"task_delete":            ActOnHouse,

@@ -216,7 +216,7 @@ So richtest du es ein:
 2. Beim Einrichten als **Suche** nur die Paketdienste angeben, zum Beispiel `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu`.
 3. Nach dem Einrichten zeigt Home Assistant das neue Gerät („IMAP (deine Adresse)“). Das **Gerät** umbenennen in **„Pakete“** (für alle im Haus) oder in **„Pakete“ und deinen Login-Namen**, etwa „Pakete stefan“ (nur für dich).
 
-Den Kalender „Pakete“ (oder „Pakete stefan“) legt Mira selbst an; dort siehst du die Pakete auch in der Kalenderansicht. Mira liest nur Mails, die ab jetzt ankommen.
+Fehlt der Kalender „Pakete“ (oder „Pakete stefan“), steht unter Einstellungen → Reparaturen „Mira braucht den Kalender …“; ein Klick auf Absenden legt ihn an. Dort siehst du die Pakete auch in der Kalenderansicht. Mira liest nur Mails, die ab jetzt ankommen.
 
 Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `agents` bei `mail.read` und `mail.match` (`{ model: main }`). Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
 
@@ -264,6 +264,7 @@ Gut zu wissen:
 | `warnungen` | „Gibt es Warnungen?“ – „Kommt ein Unwetter?“ Amtliche Warnungen aus NINA für deinen Landkreis. Mira schaut jede Stunde nach und meldet sich bei schweren Warnungen von selbst, bei extremen sofort, auch nachts. Den Landkreis findet sie selbst. | keine |
 | `geschichte` | „Erzähl mir eine Gute-Nacht-Geschichte mit einem Drachen.“ Selbst ausgedacht, passend zu Kind und Alter, wenn Mira beides kennt. | keine |
 | `quiz` | „Lass uns ein Quiz spielen.“ Zehn Fragen, allein oder reihum mit mehreren, mit Punkten. Am Ende gibt es einen Tusch, wenn es gut lief. | keine |
+| `musikquiz` | „Lass uns ein Musik-Quiz spielen, 80er, wir raten das Jahr.“ Mira spielt je Song 30 Sekunden an, ihr ratet Interpret, Titel, Jahr oder Jahrzehnt. Auf dem Echo Show steht dabei nur „Musik-Quiz“, nach der Antwort zeigt eine Karte den Song mit Cover. Die Ausschnitte kommen von Deezer, ein Konto braucht es nicht. Nur am Satelliten mit Lautsprecher. | keine |
 | `vokabeln` | „Frag mich zehn Englisch-Vokabeln ab.“ – „Übe mit mir das Siebener-Einmaleins.“ Ohne Wunsch fragt Mira in beide Richtungen; was falsch war, kommt am Ende noch einmal. | keine |
 | `fahrplan` | „Wann fährt die nächste Bahn?“ – „Wann geht der nächste Zug nach Stuttgart?“ Abfahrten mit Verspätung und Ausfällen, für Straßenbahn und Bus mit dem Kürzel deines Verkehrsverbunds. | `haltestelle`, `verbund` (optional, etwa `KVV`) |
 | `apotheke` | „Welche Apotheke hat heute Notdienst?“ Die nächste mit Adresse, Entfernung und bis wann, von aponet.de. | keine |
@@ -273,7 +274,7 @@ Gut zu wissen:
 | `tuerklingel` | „Sag Bescheid, wenn es klingelt, und zeig die Haustür.“ Mira legt dafür eine Automation an: Ansage an allen Satelliten, Kamerabild auf den Echo Show. | `bildschirme` (optional, ESPHome-Namen der Echo Show) |
 | `urlaub` | „Tu so, als wäre jemand da, wenn wir weg sind.“ Mira legt eine Automation an, die abends Lichter wechselnd schaltet, solange niemand zu Hause ist. | keine |
 
-Quiz und Vokabeln laufen wie das Kochen als Ablauf: Du antwortest einfach, Mira weiß, welche Frage dran ist.
+Quiz, Musik-Quiz und Vokabeln laufen wie das Kochen als Ablauf: Du antwortest einfach, Mira weiß, welche Frage dran ist. Beim Musik-Quiz hört Mira nicht zu, solange der Song läuft: Sag „Mira“ und dann deine Antwort; „nochmal“, „weiter“, „Wie steht es?“ und „Stopp“ gehen auch.
 
 **Kamera fragen.** Für „Wer steht vor der Tür?“ schaut ein Skript in Home Assistant ins Bild. Leg es an (Einstellungen → Automationen & Szenen → Skripte → neues Skript → YAML bearbeiten), gib es für Assist frei und trag seinen Namen beim Skill `kamera` als `skript` ein. Es braucht in Home Assistant eine KI-Aufgabe (`ai_task`), etwa über Google Gemini oder OpenAI; das Bild geht an deren Modell.
 
@@ -459,6 +460,7 @@ Am Satelliten kann ein Skill mehr als sprechen. Drei Werkzeuge stehen Mira dafü
 
 - **`sound_play`** spielt einen von Miras Klängen auf dem Lautsprecher des Satelliten, an dem gesprochen wird: `fanfare_big` (großer Erfolg), `fanfare` (Erfolg) und `too_bad` (hat nicht geklappt). Mira spricht erst weiter, wenn der Klang vorbei ist. Läuft gerade Musik oder Radio, unterbricht der Klang sie nur kurz, danach läuft sie weiter. Das Quiz nutzt das am Ende.
 - **`display_card`** zeigt eine Karte auf dem Bildschirm des Satelliten: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Das geht an einem Echo Show mit TECHO5. Was auf der Karte steht, sagt Mira trotzdem.
+- **`clip_play`** spielt einen kurzen Ausschnitt von einer Web-Adresse nach Miras Antwort, mit eigenem Titel statt dem des Stücks; so verrät der Echo Show beim Musik-Quiz nichts. Solange er läuft, hört der Satellit nicht von selbst zu.
 - **`keep_listening`** lässt den Satelliten nach Miras Antwort noch einmal zuhören, ohne Aktivierungswort, auch wenn die Antwort keine Frage ist. Gut, wenn gleich ein kurzes Wort kommt, etwa „weiter“.
 
 An einem Satelliten ohne Lautsprecher oder Bildschirm und bei Telegram passiert dabei einfach nichts.
@@ -553,7 +555,7 @@ Fragt jemand nach Arztterminen, lies sie mit calendar_events von heute an.
 So kommt es zum Laufen:
 1. Den Skill unter `skills` einschalten (`arzt: {}`).
 2. In Home Assistant die IMAP-Integration hinzufügen, mit einer **Suche** nach den Absendern, etwa `FROM doctolib.de`.
-3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legt Mira an.
+3. Das **Gerät** des Eintrags so nennen wie den Skill: „Arzt“ (fürs Haus) oder „Arzt“ und deinen Login-Namen (nur für dich). Den Kalender gleichen Namens legst du mit der Reparatur an, die dann unter Einstellungen → Reparaturen steht.
 
 Mit `done: "●"` im Abschnitt `mail` setzt Mira ein Zeichen vor den Titel erledigter Einträge, so wie bei Paketen. Nimm ein Zeichen, das deine Kalenderanzeige darstellen kann.
 
@@ -975,20 +977,19 @@ docker run -d --name mira --restart unless-stopped --network host --user nonroot
 
 **3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**. Der Dialog zeigt eine Übersicht: was schon gewählt ist und was noch fehlt. Von dort aus wählst du, und jeder Schritt führt zurück zur Übersicht:
 - **KI-Modell (LLM)**, mit dem Mira denkt:
-  - **Aus Home Assistant**: eine KI-Integration, die du schon hast; nichts weiter einzugeben.
   - **OpenAI, Google Gemini, OpenRouter, Mistral, Anthropic**: dein API-Schlüssel vom Anbieter.
   - **Eigener Server**: seine Adresse aus Sicht von Mira (`localhost` ist der Rechner, auf dem Mira läuft).
 
   Dann das Modell aus der Liste. Mira probiert es gleich aus und fragt den Anbieter, wie viel Kontext das Modell hat; das steht danach auf ihrer Seite unter Modelle. Sagt der Anbieter es nicht (OpenAI), trägst du es dort ein.
 - **Mira verwenden in**: die Assistenten, in denen Mira antwortet; der bevorzugte ist schon angehakt.
-- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt. Fertig.
+- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt. Darüber steht, warum Mira einen Zugang mit Admin-Rechten bekommt: Sie legt eure Aufgaben und Timer als Automationen an, und das darf in Home Assistant nur ein Administrator. Der Zugang läuft im Namen dessen, der Home Assistant eingerichtet hat, und steht in dessen Profil unter Sicherheit. Mit dem Klick bist du einverstanden. Fertig.
 
 Schließt du den Dialog zwischendurch, geht es beim nächsten Öffnen in der Übersicht weiter.
 
 Steht Mira nicht unter „Entdeckt“: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
 Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
-- einen Benutzer **„Mira“** ohne Admin-Rechte, mit dem Mira Home Assistant anspricht;
+- einen **Zugang „Mira (Integration)“** im Profil dessen, der Home Assistant eingerichtet hat, mit dem Mira Home Assistant anspricht. Gab es von früher einen Benutzer „Mira“, braucht ihn Mira nicht mehr; du kannst ihn löschen. Bis du unter Reparaturen „Mira braucht einen neuen Zugang“ bestätigst, kann Mira keine neuen Aufgaben und Timer anlegen;
 - den **MCP-Server** von Home Assistant, falls er noch fehlt;
 - **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
 
@@ -1031,9 +1032,9 @@ Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → Syst
 
 - **Zwei Schlüssel:**
   - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Hinzufügen, du siehst ihn nie.
-  - Mira spricht Home Assistant als **eigener Benutzer ohne Admin-Rechte** an.
+  - Mira spricht Home Assistant mit einem **Zugang im Namen dessen an, der Home Assistant eingerichtet hat**, also mit Admin-Rechten. Du siehst ihn in seinem Profil unter Sicherheit und kannst ihn dort widerrufen; dann legt die Integration beim nächsten Abgleich einen neuen an. Wer Mira ganz abklemmen will, entfernt die Integration.
   - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
-- **Was Mira in HA darf:** nichts verwalten (keine Benutzer, keine Integrationen), aber Geräte schalten. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
+- **Was Mira in HA tut:** nur, was ihre Werkzeuge anbieten: Geräte schalten und eure Aufgaben und Timer als Automationen speichern, so wie der Automationseditor; sie löscht nur ihre eigenen. Benutzer, Integrationen und Einstellungen verwaltet sie nicht. Läuft Mira mit einem Token aus ihrer `mira.yaml` (`ha.token`), muss es für Aufgaben und Timer ein Admin-Token sein. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
 - **Läuft Mira auf demselben Rechner wie Home Assistant** (der Normalfall), bleibt alles auf diesem Rechner.
 - **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: der Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, wie bei vielen anderen Geräten in Home Assistant. Ein Gästenetz, ein geteiltes Netz oder der Weg übers Internet ohne HTTPS ist dafür nicht geeignet.
 - **Bekommt Mira eine neue Adresse**, folgt die Integration ihr von selbst, aber nur, wenn Mira dort nachweist, dass sie den Zugangs-Token kennt. Ein anderes Gerät, das sich als Mira ausgibt, bekommt ihn nicht. Halte Mira und die Integration deshalb auf derselben Version.

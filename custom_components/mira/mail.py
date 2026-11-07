@@ -6,7 +6,8 @@ Mira's own Home Assistant user may not listen to imap_content (admins only),
 so the integration does. The name of the IMAP entry's device is the switch
 (the device is what one renames after setting up an entry; the entry's own
 title does not count): "Pakete" belongs to the house, "Pakete stefan" to the
-person with that login; the calendar has the same name.
+person with that login; the calendar has the same name. A missing calendar
+is a repair the admin confirms (docs/spec/hacs-default.md, decision 3).
 """
 
 from __future__ import annotations
@@ -18,18 +19,19 @@ from typing import Any
 from homeassistant.components.homeassistant.exposed_entities import async_expose_entity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, CoreState, Event, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 
 from .api import MiraError
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 EVENT_IMAP = "imap_content"
 
-# Calendars that could not be created, told once and not tried again until
-# Home Assistant restarts.
-_failed: set[str] = set()
+ISSUE_CALENDAR = "mail_calendar"
 
 
 def mail_entries(hass: HomeAssistant, apps: list[str]) -> list[tuple[ConfigEntry, str]]:
@@ -114,27 +116,63 @@ def _date(value: Any) -> str | None:
     return date.isoformat() if date.tzinfo else None
 
 
-async def ensure_calendars(hass: HomeAssistant, apps: list[str]) -> None:
-    """A mail entry without its calendar gets a local calendar of that name,
-    exposed to Assist."""
-    if not apps or hass.state is not CoreState.running:
+@callback
+def show_missing_calendars(hass: HomeAssistant, apps: list[str]) -> None:
+    """A repair for each mail entry without its calendar; one whose calendar
+    is there, or whose entry is gone, goes."""
+    if hass.state is not CoreState.running:
         return
     have = {
         calendar_name(str(s.attributes.get("friendly_name") or "")).lower() for s in hass.states.async_all("calendar")
     }
-    for _imap, name in mail_entries(hass, apps):
-        if name.lower() in have or name.lower() in _failed:
-            continue
+    wanted = {calendar_issue(name): name for _imap, name in mail_entries(hass, apps) if name.lower() not in have}
+    for domain, issue_id in list(ir.async_get(hass).issues):
+        if domain == DOMAIN and issue_id.startswith(ISSUE_CALENDAR + "_") and issue_id not in wanted:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+    for issue_id, name in wanted.items():
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=True,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_CALENDAR,
+            translation_placeholders={"name": name},
+            data={"name": name},
+        )
+
+
+def calendar_issue(name: str) -> str:
+    return f"{ISSUE_CALENDAR}_{'_'.join(name.lower().split())}"
+
+
+async def create_calendar(hass: HomeAssistant, name: str) -> bool:
+    """The local calendar of this name, exposed to Assist; the admin asked
+    for it in the repair. False when it was made but could not be exposed;
+    raises HomeAssistantError with the reason when it was not made."""
+    try:
         result = await hass.config_entries.flow.async_init(
             "local_calendar", context={"source": "user"}, data={"calendar_name": name}
         )
-        created = result.get("result")
-        if not isinstance(created, ConfigEntry):
-            _failed.add(name.lower())
-            _LOGGER.warning("Could not create the calendar %s: %s", name, result.get("reason", result.get("type")))
-            continue
-        for reg in er.async_entries_for_config_entry(er.async_get(hass), created.entry_id):
-            if reg.domain == "calendar":
-                async_expose_entity(hass, "conversation", reg.entity_id, True)
-        _LOGGER.info("Created the calendar %s for the mails of the IMAP device of the same name", name)
-        have.add(name.lower())
+    except HomeAssistantError as err:
+        reason = str(err) or type(err).__name__
+        _LOGGER.warning("Could not create the calendar %s: %s", name, reason)
+        raise HomeAssistantError(reason) from err
+    created = result.get("result")
+    if not isinstance(created, ConfigEntry):
+        reason = str(result.get("reason") or result.get("errors") or result.get("type"))
+        _LOGGER.warning("Could not create the calendar %s: %s", name, reason)
+        raise HomeAssistantError(reason)
+    calendars = [
+        reg.entity_id
+        for reg in er.async_entries_for_config_entry(er.async_get(hass), created.entry_id)
+        if reg.domain == "calendar"
+    ]
+    if not calendars:
+        _LOGGER.warning("Created the calendar %s, but found no entity of it to expose to Assist", name)
+        return False
+    for entity_id in calendars:
+        async_expose_entity(hass, "conversation", entity_id, True)
+    _LOGGER.info("Created the calendar %s for the mails of the IMAP device of the same name", name)
+    return True

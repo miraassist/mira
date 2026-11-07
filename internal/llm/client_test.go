@@ -97,6 +97,26 @@ func TestCachedTokensFromOpenAIDetails(t *testing.T) {
 	}
 }
 
+// Thinking tokens: OpenAI's reasoning_tokens where sent, else what Gemini's
+// total counts beyond prompt and completion (seen 2026-11-06: 20 + 2, total
+// 172), else none.
+func TestThinkingTokens(t *testing.T) {
+	for _, c := range []struct {
+		usage string
+		want  int
+	}{
+		{`{"prompt_tokens":20,"completion_tokens":2,"total_tokens":172}`, 150},
+		{`{"prompt_tokens":20,"completion_tokens":30,"total_tokens":50,"completion_tokens_details":{"reasoning_tokens":12}}`, 12},
+		{`{"prompt_tokens":20,"completion_tokens":2,"total_tokens":22}`, 0},
+		{`{"prompt_tokens":20,"completion_tokens":2}`, 0},
+	} {
+		body := `{"id":"x","model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":` + c.usage + `}`
+		if got := decodeResponse(t, body).Usage.ThinkingTokens(); got != c.want {
+			t.Errorf("%s: thinking tokens = %d, want %d", c.usage, got, c.want)
+		}
+	}
+}
+
 func decodeResponse(t *testing.T, body string) *llm.ChatResponse {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

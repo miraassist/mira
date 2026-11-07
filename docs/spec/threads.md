@@ -244,10 +244,22 @@ One tool with `action`, for the plan thread of the conversation or the one runni
 |---|---|
 | `write` | writes the whole plan (`text`); the first time and when it changes fundamentally |
 | `check` / `uncheck` | ticks checkbox number `step` or reopens it (counted from 1, in the order in the text) |
+| `check` with `note` | ticks it and appends ` → ` and the note to that line: how the step went ("1 Punkt") |
 | `read` | returns the whole plan |
 
 Ticking does not rewrite the plan: the model does not change any text, and it costs hardly any time. Every change
 goes through the core; this way it knows the state for context, end and display.
+
+**A note on a ticked step** (decided 2026-11-06, [Music quiz](music-quiz.md), decision 10): a quiz must keep each
+step's result where every later turn sees it, the plan; each person has a history of their own, so the result of
+another player's turn is not in it. Without the note, keeping a result meant writing the whole plan anew, which took
+Gemini up to 23 seconds for a few lines (570 tokens out) and twice lost a point when the model rewrote a counter or
+ticked instead of writing.
+- Only with `check`. A `note` with any other action is the tool's error, so a wrong call is not taken for done.
+- One line: line breaks become spaces, at most 200 characters (else the tool's error); empty means none.
+- Appended, never replaced: a step ticked twice with a note carries both. Correcting a result is `write`.
+- The note is plan text like the rest: it shows in the context, on the plans page and in `read`, and it counts
+  towards the plan's limit of 8,000 characters.
 
 ### In the context
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/clip"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/skills"
@@ -225,6 +226,20 @@ func (a *app) playedThrough(ctx context.Context, speaker string, limit time.Dura
 	if speaker == "" {
 		return false
 	}
+	end, err := a.playback(ctx, speaker, limit)
+	if err != nil {
+		// docs/spec/fallbacks.md, row 23.
+		a.log.Warn("could not watch the speaker play a message; it counts as not played to its end", "speaker", speaker, "error", err)
+		return false
+	}
+	return end == clip.Played
+}
+
+// playback watches a speaker play, by its own state, and says how it ended:
+// played to its end (idle), stopped (paused, off, unavailable), not started
+// within a minute, or ran out (limit passed, or ctx ended). The error is
+// that the speaker could not be watched.
+func (a *app) playback(ctx context.Context, speaker string, limit time.Duration) (clip.End, error) {
 	states := make(chan string, 32)
 	stop, err := a.ha.WatchState(ctx, speaker, func(s string) {
 		select { // on the connection's read loop: only pass it on
@@ -233,9 +248,7 @@ func (a *app) playedThrough(ctx context.Context, speaker string, limit time.Dura
 		}
 	})
 	if err != nil {
-		// docs/spec/fallbacks.md, row 23.
-		a.log.Warn("could not watch the speaker play a message; it counts as not played to its end", "speaker", speaker, "error", err)
-		return false
+		return clip.RanOut, err
 	}
 	defer stop()
 	start, end := time.NewTimer(time.Minute), time.NewTimer(limit)
@@ -251,18 +264,18 @@ func (a *app) playedThrough(ctx context.Context, speaker string, limit time.Dura
 			case !started:
 				// What it was before this recording (paused after a "Stopp").
 			case s == "idle":
-				return true
+				return clip.Played, nil
 			case s == "paused" || s == "off" || s == "unavailable":
-				return false
+				return clip.Stopped, nil
 			}
 		case <-start.C:
 			if !started {
-				return false
+				return clip.NotStarted, nil
 			}
 		case <-end.C:
-			return false
+			return clip.RanOut, nil
 		case <-ctx.Done():
-			return false
+			return clip.RanOut, nil
 		}
 	}
 }

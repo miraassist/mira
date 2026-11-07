@@ -85,18 +85,19 @@ func (m *Manager) Tools() []tools.InternalTool {
 		if sk.Target.Plan {
 			out = append(out, tools.InternalTool{
 				Name: ToolPlan, Description: t.planDesc,
-				Schema: fmt.Sprintf(`{"type":"object","properties":{"action":{"type":"string","enum":["write","check","uncheck","read"]},"text":{"type":"string","description":%q},"step":{"type":"integer","description":%q}},"required":["action"]}`,
-					t.planTextDesc, t.planStepDesc),
+				Schema: fmt.Sprintf(`{"type":"object","properties":{"action":{"type":"string","enum":["write","check","uncheck","read"]},"text":{"type":"string","description":%q},"step":{"type":"integer","description":%q},"note":{"type":"string","description":%q}},"required":["action"]}`,
+					t.planTextDesc, t.planStepDesc, t.planNoteDesc),
 				Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
 					var a struct {
 						Action string `json:"action"`
 						Text   string `json:"text"`
 						Step   int    `json:"step"`
+						Note   string `json:"note"`
 					}
 					if err := json.Unmarshal(inv.Args, &a); err != nil {
 						return "", err
 					}
-					return m.Plan(ctx, inv, strings.TrimSpace(a.Action), a.Text, a.Step)
+					return m.PlanNote(ctx, inv, strings.TrimSpace(a.Action), a.Text, a.Step, a.Note)
 				},
 			})
 			break

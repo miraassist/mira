@@ -17,7 +17,8 @@ often deliver no time window to private customers. The shipping mails have both 
   `OR OR FROM dhl.de FROM hermesworld.com FROM gls-group.eu` (folder: inbox).
 - Name the **device** of the entry **"Pakete"** (for the house) or **"Pakete <login>"** (for a person, e.g.
   "Pakete stefan"). The name of the entry itself does not count.
-- Mira creates the calendar of the same name if it does not exist.
+- If the calendar of the same name does not exist, Home Assistant shows a repair "Mira needs the calendar …";
+  submitting it creates the calendar ([HACS default catalog](hacs-default.md), decision 3).
 
 ## Skill `pakete`
 

@@ -7,7 +7,7 @@
 <table>
 <tr><td align="center"><a href="https://www.youtube.com/watch?v=Fpv9fui4S7E&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/Fpv9fui4S7E/mqdefault.jpg" width="200" alt="Making a call"></a><br>Making a call</td><td align="center"><a href="https://www.youtube.com/watch?v=NbZAb3cOgk8&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/NbZAb3cOgk8/mqdefault.jpg" width="200" alt="Walkthrough the admin UI"></a><br>Walkthrough the admin UI</td><td align="center"><a href="https://www.youtube.com/watch?v=qiTTKerOOWs&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/qiTTKerOOWs/mqdefault.jpg" width="200" alt="Learns your voice"></a><br>Learns your voice</td><td align="center"><a href="https://www.youtube.com/watch?v=JRhG-fnupO0&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/JRhG-fnupO0/mqdefault.jpg" width="200" alt="Cooking together"></a><br>Cooking together</td></tr>
 <tr><td align="center"><a href="https://www.youtube.com/watch?v=JiR1YV6XYMQ&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/JiR1YV6XYMQ/mqdefault.jpg" width="200" alt="Plays a quiz"></a><br>Plays a quiz</td><td align="center"><a href="https://www.youtube.com/watch?v=rbEEmeoojKM&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/rbEEmeoojKM/mqdefault.jpg" width="200" alt="A vocabulary test"></a><br>A vocabulary test</td><td align="center"><a href="https://www.youtube.com/watch?v=OvzHRbNi6Mg&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/OvzHRbNi6Mg/mqdefault.jpg" width="200" alt="Appointments from a skill file"></a><br>Appointments from a skill file</td><td align="center"><a href="https://www.youtube.com/watch?v=WD0L1nUAwms&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/WD0L1nUAwms/mqdefault.jpg" width="200" alt="Creates an automation"></a><br>Creates an automation</td></tr>
-<tr><td align="center"><a href="https://www.youtube.com/watch?v=WpYLW-T7Fns&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/WpYLW-T7Fns/mqdefault.jpg" width="200" alt="Fills the shopping list"></a><br>Fills the shopping list</td><td align="center"><a href="https://www.youtube.com/watch?v=gbQjgAQlm-w&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/gbQjgAQlm-w/mqdefault.jpg" width="200" alt="Searches your documents"></a><br>Searches your documents</td></tr>
+<tr><td align="center"><a href="https://www.youtube.com/watch?v=WpYLW-T7Fns&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/WpYLW-T7Fns/mqdefault.jpg" width="200" alt="Fills the shopping list"></a><br>Fills the shopping list</td><td align="center"><a href="https://www.youtube.com/watch?v=gbQjgAQlm-w&list=PLEC8MZZ0-sKU"><img src="https://img.youtube.com/vi/gbQjgAQlm-w/mqdefault.jpg" width="200" alt="Searches your documents"></a><br>Searches your documents</td><td align="center"><a href="https://www.youtube.com/watch?v=axJqZueqjf4"><img src="https://img.youtube.com/vi/axJqZueqjf4/mqdefault.jpg" width="200" alt="A music quiz"></a><br>A music quiz</td></tr>
 </table>
 
 Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
@@ -51,10 +51,11 @@ No config file, three steps (details and troubleshooting in the guide:
    `https://github.com/miraassist/mira`, then **Mira**. In step 3 add the integration by hand with the address
    `http://localhost:8787`.
 3. Settings → Devices & services: **Mira** is under **Discovered** → **Add**. The dialog asks for
-   An overview shows what is chosen and what is missing: the AI model (LLM: an AI integration
-   Home Assistant already has, OpenAI, Gemini, OpenRouter or Mistral with your key, or a server of
-   your own; tried at once) and the assistants Mira answers in. **Start using Mira** does the rest: Mira's own Home Assistant user (no admin rights),
-   Home Assistant's MCP server, Mira as the assistants' conversation agent.
+   An overview shows what is chosen and what is missing: the AI model (LLM: OpenAI, Gemini,
+   OpenRouter or Mistral with your key, or a server of your own; tried at once) and the assistants
+   Mira answers in. **Start using Mira** does the rest: Mira's access to Home Assistant (a token in
+   the owner's name, with admin rights, so she can save your tasks and timers as automations; the
+   dialog says so), Home Assistant's MCP server, Mira as the assistants' conversation agent.
 
 ## Agent
 
@@ -95,8 +96,8 @@ Requirements:
   `llm.slot_pinning: true`) or LM Studio (`slot_pinning: false`; it picks
   slots by common prefix, which works well because all channels share the
   start of the prompt).
-- Home Assistant. Pairing sets up the rest there: a non-admin user "Mira"
-  with a long-lived token, and the "Model Context Protocol Server"
+- Home Assistant. Pairing sets up the rest there: a long-lived token in the
+  owner's name (admin rights, given with consent in the setup), and the "Model Context Protocol Server"
   integration with the Assist API (`/api/mcp/assist`). With `ha.url` and
   `ha.token` in `mira.yaml` instead, set both up by hand.
 - Optional: more MCP servers under `mcp_servers`, over HTTP or started by

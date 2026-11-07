@@ -30,7 +30,7 @@
       },
       "model_source": {
         "title": "KI-Modell (LLM)",
-        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **Aus Home Assistant**: eine KI-Integration, die du schon eingerichtet hast; Mira übernimmt ihren Schlüssel, du musst ihn nicht noch einmal eingeben.\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
+        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
         "data": {
           "source": "KI-Modell von"
         }
@@ -66,7 +66,7 @@
       },
       "summary": {
         "title": "Mira einrichten",
-        "description": "{status}{error}",
+        "description": "{status}\n\n{access}{error}",
         "menu_options": {
           "model_source": "KI-Modell (LLM) wählen",
           "assistants": "Mira verwenden in",
@@ -174,7 +174,7 @@
       },
       "model_source": {
         "title": "KI-Modell (LLM)",
-        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **Aus Home Assistant**: eine KI-Integration, die du schon eingerichtet hast; Mira übernimmt ihren Schlüssel, du musst ihn nicht noch einmal eingeben.\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
+        "description": "Mira braucht ein KI-Modell (LLM) zum Denken. Woher soll es kommen?\n\n- **OpenAI, Gemini, …**: Du brauchst einen Schlüssel vom Anbieter.\n- **Eigener Server**: etwa LM Studio, Ollama oder llama.cpp, mit seiner Adresse.{error}",
         "data": {
           "source": "KI-Modell von"
         }
@@ -466,6 +466,39 @@
           "failed": {
             "title": "Mira hat es nicht wiederhergestellt",
             "description": "{reason}\n\nEs wurde nichts geändert. Das Backup bleibt hier; du kannst es noch einmal versuchen."
+          }
+        }
+      }
+    },
+    "mail_calendar": {
+      "title": "Mira braucht den Kalender „{name}“",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Kalender „{name}“ anlegen?",
+            "description": "Mira trägt ein, was die Mails von „{name}“ ankündigen, in einen Kalender mit demselben Namen. Klick auf Absenden, um ihn anzulegen; Mira nutzt ihn dann auch für Antworten."
+          },
+          "failed": {
+            "title": "Der Kalender wurde nicht angelegt",
+            "description": "Der Kalender ließ sich nicht anlegen: {reason}\n\nEs wurde nichts geändert; du kannst es noch einmal versuchen."
+          }
+        },
+        "abort": {
+          "calendar_not_exposed": "Der Kalender „{name}“ ist angelegt, aber Mira sieht ihn noch nicht. Gib ihn unter Einstellungen → Sprachassistenten → Entitäten freigeben für Assist frei."
+        }
+      }
+    },
+    "new_access": {
+      "title": "Mira braucht einen neuen Zugang",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Mira den neuen Zugang geben?",
+            "description": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit Absenden bekommt Mira dafür einen Zugang im Namen von {owner}, der Home Assistant eingerichtet hat; er steht in dessen Profil unter Sicherheit und kann dort jederzeit widerrufen werden. Mira startet dafür kurz neu.\n\nBis dahin geht alles andere wie bisher; nur neue Aufgaben und Timer warten darauf."
+          },
+          "failed": {
+            "title": "Mira hat den neuen Zugang nicht übernommen",
+            "description": "{reason}\n\nEs wurde nichts geändert; du kannst es noch einmal versuchen."
           }
         }
       }

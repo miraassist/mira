@@ -1,7 +1,9 @@
 // Package timer is the sleep timer: "stop in 30 minutes" (docs/spec/scheduled-actions.md).
-// Mira does not keep the timer. She asks the Mira integration to put a
-// one-time automation into Home Assistant, which runs it – even when Mira is
-// off – and the integration tidies it away afterwards.
+// Mira does not keep the timer. She puts a one-time automation into Home
+// Assistant, which runs it – even when Mira is off – and tidies it away once
+// it has run (docs/spec/hacs-default.md, 3). The Mira integration builds and
+// checks the automation; Mira saves it through Home Assistant's automation
+// config API.
 //
 // Countdown timers ("timer for 10 minutes for the pasta") are not here: they
 // are Home Assistant's own, and Mira uses its tools (HassStartTimer and the
@@ -10,10 +12,11 @@ package timer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/miraassist/mira/internal/ha/automation"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -27,12 +30,17 @@ const (
 
 // HA is the part of the Home Assistant client the timers use.
 type HA interface {
-	Call(ctx context.Context, command map[string]any) (json.RawMessage, error)
+	automation.HA
 }
 
 type Options struct {
-	Lang     i18n.Lang
-	HA       HA
+	Lang   i18n.Lang
+	HA     HA
+	Logger *slog.Logger
+	// Watch follows the states of these automations and calls changed on
+	// every change, without blocking; stop ends it. Without it, a timer is
+	// tidied away only at the next start or the next change of a timer.
+	Watch    func(ctx context.Context, entities []string, changed func()) (stop func(), err error)
 	Clock    func() time.Time
 	Location *time.Location
 	// Players and Lights are the exposed media players and lights in an area id.
@@ -49,7 +57,7 @@ type Options struct {
 type texts struct {
 	sleepDesc, actionDesc, minutesDesc, roomDesc, lightsDesc, idDesc                             string
 	noRoom, nothingToStop, set, setLights, none, listLine, several, noMatch, extended, cancelled string
-	badMinutes, title, failed, badAction                                                         string
+	badMinutes, title, failed, badAction, needAccess                                             string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -74,6 +82,7 @@ var catalog = map[i18n.Lang]texts{
 		title:         "Schlaf-Timer %s",
 		failed:        "Ergebnis: kein Timer. Grund: Anlegen fehlgeschlagen: %s.",
 		badAction:     "Unbekannte action; erlaubt sind set, list, extend, cancel.",
+		needAccess:    "Ergebnis: kein Timer. Grund: Dafür braucht Mira erst einen neuen Zugang: Einstellungen → Reparaturen.",
 	},
 	i18n.EN: {
 		sleepDesc:     "Sleep timer: after the time the playback in the room stops (audiobook, radio, music), and on request the light goes off too. action: set (default) sets it (\"sleep timer 30 minutes\", \"turn the music off in half an hour\"; an existing one in the room is replaced), list shows the open ones with the time left, extend extends (\"ten more minutes\"), cancel cancels. Runs in Home Assistant, even when Mira is off. Not for kitchen timers that count down: Home Assistant's timer tools (HassStartTimer and the others) are for that.",
@@ -96,19 +105,35 @@ var catalog = map[i18n.Lang]texts{
 		title:         "Sleep timer %s",
 		failed:        "Result: no timer. Reason: setting it failed: %s.",
 		badAction:     "Unknown action; allowed are set, list, extend, cancel.",
+		needAccess:    "Result: no timer. Reason: Mira first needs a new access for that: Settings → Repairs.",
 	},
 }
 
-// Tools is the sleep timer.
-func Tools(o Options) []tools.InternalTool {
+// Timers are the sleep timers: the tool, and the loop that tidies away a
+// timer's automation once it has run.
+type Timers struct{ c *controller }
+
+// New makes the sleep timers; Run tidies them up.
+func New(o Options) *Timers {
 	if o.Clock == nil {
 		o.Clock = time.Now
 	}
 	if o.Location == nil {
 		o.Location = time.Local
 	}
-	t := i18n.Pick(catalog, o.Lang)
-	c := &controller{o: o, t: t}
+	if o.Logger == nil {
+		o.Logger = slog.Default()
+	}
+	return &Timers{c: &controller{o: o, t: i18n.Pick(catalog, o.Lang), log: o.Logger.With("component", "timer"),
+		pokes: make(chan struct{}, 1)}}
+}
+
+// Tools is the sleep timer.
+func Tools(o Options) []tools.InternalTool { return New(o).Tools() }
+
+// Tools is the sleep timer's tool.
+func (s *Timers) Tools() []tools.InternalTool {
+	c, t := s.c, s.c.t
 	return []tools.InternalTool{
 		{
 			Name: ToolSleep, Description: t.sleepDesc,
@@ -120,8 +145,10 @@ func Tools(o Options) []tools.InternalTool {
 }
 
 type controller struct {
-	o Options
-	t texts
+	o     Options
+	t     texts
+	log   *slog.Logger
+	pokes chan struct{}
 }
 
 func (c *controller) clock(t time.Time) string { return t.In(c.o.Location).Format("15:04") }

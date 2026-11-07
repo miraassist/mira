@@ -3,24 +3,29 @@ package timer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/ha/automation"
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// Timer is one open sleep timer as the integration reports it.
+// Timer is one sleep timer as the integration reports it.
 type Timer struct {
-	ID      string           `json:"id"`
-	Title   string           `json:"title"`
-	Due     string           `json:"due"`
-	Owner   string           `json:"owner"`
-	Area    string           `json:"area"`
-	Kind    string           `json:"kind"`
-	Actions []map[string]any `json:"actions"`
-	Ran     bool             `json:"ran"`
+	ID       string           `json:"id"`
+	EntityID string           `json:"entity_id"`
+	Title    string           `json:"title"`
+	Due      string           `json:"due"`
+	Owner    string           `json:"owner"`
+	Area     string           `json:"area"`
+	Kind     string           `json:"kind"`
+	Actions  []map[string]any `json:"actions"`
+	Ran      bool             `json:"ran"`
+	Running  int              `json:"running"`
 }
 
 func (c *controller) sleepTimer(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -71,7 +76,7 @@ func (c *controller) sleepSet(ctx context.Context, inv tools.Invocation, minutes
 	}
 	due := c.o.Clock().Add(time.Duration(minutes) * time.Minute)
 	msg := map[string]any{
-		"type": "mira/once/save", "title": fmt.Sprintf(c.t.title, name), "due": due.Format(time.RFC3339),
+		"type": "mira/once/build", "title": fmt.Sprintf(c.t.title, name), "due": due.Format(time.RFC3339),
 		"owner": inv.Person, "area": area, "kind": kindSleep, "actions": actions, "forbidden": c.forbidden(),
 	}
 	// A second sleep timer in the room replaces the first.
@@ -82,8 +87,8 @@ func (c *controller) sleepSet(ctx context.Context, inv tools.Invocation, minutes
 			}
 		}
 	}
-	if _, err := c.o.HA.Call(ctx, msg); err != nil {
-		return fmt.Sprintf(c.t.failed, err), nil
+	if err := c.save(ctx, msg); err != nil {
+		return c.failed(err), nil
 	}
 	format := c.t.set
 	if lights {
@@ -121,11 +126,11 @@ func (c *controller) sleepExtend(ctx context.Context, inv tools.Invocation, add 
 		due = now // due but not yet run (Home Assistant was off)
 	}
 	due = due.Add(time.Duration(add) * time.Minute)
-	if _, err := c.o.HA.Call(ctx, map[string]any{
-		"type": "mira/once/save", "title": tm.Title, "due": due.Format(time.RFC3339), "owner": tm.Owner,
+	if err := c.save(ctx, map[string]any{
+		"type": "mira/once/build", "title": tm.Title, "due": due.Format(time.RFC3339), "owner": tm.Owner,
 		"area": tm.Area, "kind": tm.Kind, "actions": tm.Actions, "forbidden": c.forbidden(), "automation_id": tm.ID,
 	}); err != nil {
-		return fmt.Sprintf(c.t.failed, err), nil
+		return c.failed(err), nil
 	}
 	return fmt.Sprintf(c.t.extended, c.clock(due), c.minutesLeft(due)), nil
 }
@@ -135,10 +140,44 @@ func (c *controller) sleepCancel(ctx context.Context, inv tools.Invocation, id s
 	if tm == nil {
 		return answer, err
 	}
-	if _, err := c.o.HA.Call(ctx, map[string]any{"type": "mira/once/delete", "automation_id": tm.ID}); err != nil {
-		return fmt.Sprintf(c.t.failed, err), nil
+	if err := automation.Delete(ctx, c.o.HA, c.log, tm.ID); err != nil {
+		return c.failed(err), nil
 	}
+	c.Poke()
 	return c.t.cancelled, nil
+}
+
+// save has the integration build and check the timer's automation, then
+// saves it through Home Assistant's automation config API with the label
+// "Mira: einmalig", and has it watched.
+func (c *controller) save(ctx context.Context, build map[string]any) error {
+	raw, err := c.o.HA.Call(ctx, build)
+	if err != nil {
+		return err
+	}
+	var built struct {
+		ID     string         `json:"id"`
+		Config map[string]any `json:"config"`
+	}
+	if err := json.Unmarshal(raw, &built); err != nil || built.ID == "" {
+		c.log.Warn("the integration's answer to building a timer cannot be read", "answer", string(raw), "error", err)
+		return fmt.Errorf("unexpected answer of the integration: %s", raw)
+	}
+	if err := automation.Save(ctx, c.o.HA, c.log, built.ID, built.Config, automation.LabelOnce); err != nil {
+		return err
+	}
+	c.Poke()
+	return nil
+}
+
+// failed is the tool's answer when Home Assistant refused: without an
+// admin's token, where to give Mira the new access.
+func (c *controller) failed(err error) string {
+	if errors.Is(err, haws.ErrNotAdmin) {
+		c.log.Warn("home assistant refused mira's token for a timer; the repair for the new access is open", "error", err)
+		return c.t.needAccess
+	}
+	return fmt.Sprintf(c.t.failed, err)
 }
 
 // pick chooses the timer meant: the given id, else the only one of the
@@ -187,6 +226,21 @@ func (c *controller) mine(ctx context.Context, inv tools.Invocation) ([]Timer, e
 }
 
 func (c *controller) open(ctx context.Context) ([]Timer, error) {
+	all, err := c.all(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Timer
+	for _, tm := range all {
+		if !tm.Ran {
+			out = append(out, tm)
+		}
+	}
+	return out, nil
+}
+
+// all are the one-time automations, those that ran too.
+func (c *controller) all(ctx context.Context) ([]Timer, error) {
 	raw, err := c.o.HA.Call(ctx, map[string]any{"type": "mira/once/list"})
 	if err != nil {
 		return nil, err
@@ -197,13 +251,7 @@ func (c *controller) open(ctx context.Context) ([]Timer, error) {
 	if err := json.Unmarshal(raw, &res); err != nil {
 		return nil, err
 	}
-	var out []Timer
-	for _, tm := range res.Timers {
-		if !tm.Ran {
-			out = append(out, tm)
-		}
-	}
-	return out, nil
+	return res.Timers, nil
 }
 
 func (c *controller) area(inv tools.Invocation, room string) (string, bool) {

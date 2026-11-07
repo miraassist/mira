@@ -1,5 +1,6 @@
-"""One-time automations (sleep timers): what they look like, the limit, the
-tidy-up, who may manage them."""
+"""One-time automations (sleep timers): what they look like, the limit, who
+may use the commands. The agent saves, deletes and tidies them up itself
+(docs/spec/hacs-default.md)."""
 
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
@@ -90,8 +91,7 @@ async def test_a_timer_may_not_switch_what_needs_a_yes(hass):
 async def test_at_most_ten_timers_per_person_and_room(hass):
     due = (dt_util.now() + timedelta(hours=1)).isoformat()
     full = [_timer(f"t{i}") for i in range(once.MAX_PER_OWNER_AREA)]
-    saved = AsyncMock(return_value={"id": "new", "entity_id": "automation.new"})
-    with patch.object(once, "list_once", AsyncMock(return_value=full)), patch.object(once.automations, "save", saved):
+    with patch.object(once, "list_once", AsyncMock(return_value=full)):
         kwargs = {
             "title": "x",
             "due": due,
@@ -101,56 +101,29 @@ async def test_at_most_ten_timers_per_person_and_room(hass):
             "automation_id": None,
         }
         with pytest.raises(HomeAssistantError, match="too many"):
-            await once.save(hass, owner="anna", area="wohnzimmer", **kwargs)
-        saved.assert_not_called()
+            await once.check(hass, owner="anna", area="wohnzimmer", **kwargs)
         # Another person, another room and a finished timer do not count.
-        await once.save(hass, owner="ben", area="wohnzimmer", **kwargs)
-        await once.save(hass, owner="anna", area="kueche", **kwargs)
-        assert saved.await_count == 2
-        # Extending an existing one replaces it, whatever the count.
-        await once.save(hass, owner="anna", area="wohnzimmer", **(kwargs | {"automation_id": "t3"}))
-        assert saved.await_args.args[2] == "t3" and saved.await_args.args[4] == once.LABEL_ONCE
+        new = await once.check(hass, owner="ben", area="wohnzimmer", **kwargs)
+        assert new["id"].startswith("mira_") and new["config"]["variables"]["mira_owner"] == "ben"
+        await once.check(hass, owner="anna", area="kueche", **kwargs)
+        # Extending an existing one replaces it, whatever the count; the agent saves it.
+        extended = await once.check(hass, owner="anna", area="wohnzimmer", **(kwargs | {"automation_id": "t3"}))
+        assert extended["id"] == "t3"
+        with pytest.raises(HomeAssistantError, match="no timer"):
+            await once.check(hass, owner="anna", area="wohnzimmer", **(kwargs | {"automation_id": "a-task"}))
 
 
 async def test_no_timer_in_the_past_or_without_actions(hass):
     with patch.object(once, "list_once", AsyncMock(return_value=[])):
         base = {"owner": "", "area": "", "kind": "sleep", "forbidden": None, "automation_id": None}
         with pytest.raises(HomeAssistantError, match="past"):
-            await once.save(
+            await once.check(
                 hass, title="x", due=(dt_util.now() - timedelta(minutes=1)).isoformat(), actions=ACTIONS, **base
             )
         with pytest.raises(HomeAssistantError, match="time zone"):
-            await once.save(hass, title="x", due="2099-01-01T10:00:00", actions=ACTIONS, **base)
+            await once.check(hass, title="x", due="2099-01-01T10:00:00", actions=ACTIONS, **base)
         with pytest.raises(HomeAssistantError, match="at least one"):
-            await once.save(hass, title="x", due=(dt_util.now() + timedelta(hours=1)).isoformat(), actions=[], **base)
-
-
-async def test_the_sweep_removes_only_what_ran_and_is_finished(hass):
-    timers = [
-        _timer("waiting"),  # not due, never ran: stays
-        _timer("late"),  # due, never ran: catches up by itself, stays
-        _timer("fading", ran=True, running=1),  # ran, still fading out: stays
-        _timer("done", ran=True),  # ran, finished: goes
-    ]
-    delete = AsyncMock()
-    with (
-        patch.object(once, "list_once", AsyncMock(return_value=timers)),
-        patch.object(once.automations, "delete", delete),
-    ):
-        await once.sweep(hass)
-    delete.assert_awaited_once_with(hass, "done")
-
-
-async def test_only_one_time_automations_can_be_deleted_here(hass):
-    delete = AsyncMock()
-    with (
-        patch.object(once, "list_once", AsyncMock(return_value=[_timer("t1")])),
-        patch.object(once.automations, "delete", delete),
-    ):
-        await once.delete(hass, "t1")
-        with pytest.raises(HomeAssistantError):
-            await once.delete(hass, "a-task")
-    delete.assert_awaited_once_with(hass, "t1")
+            await once.check(hass, title="x", due=(dt_util.now() + timedelta(hours=1)).isoformat(), actions=[], **base)
 
 
 async def test_list_reads_the_variables_and_the_run_state(hass):
@@ -171,7 +144,7 @@ async def test_list_reads_the_variables_and_the_run_state(hass):
     ]
 
 
-async def test_commands_only_for_the_agent(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
+async def test_commands_for_admins(hass, aioclient_mock, entry, hass_ws_client, hass_read_only_access_token):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
     assert await async_setup_component(hass, "automation", {})
     assert await hass.config_entries.async_setup(entry.entry_id)

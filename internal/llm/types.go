@@ -111,6 +111,23 @@ type Usage struct {
 	PromptTokensDetails *struct {
 		CachedTokens int `json:"cached_tokens"`
 	} `json:"prompt_tokens_details,omitempty"`
+	// CompletionTokensDetails is the OpenAI-standard place for the tokens a
+	// model thought before it answered.
+	CompletionTokensDetails *struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details,omitempty"`
+}
+
+// ThinkingTokens is how many tokens the model thought before it answered:
+// completion_tokens_details.reasoning_tokens where the server sends it, else
+// what total_tokens counts beyond prompt and completion (Gemini's OpenAI
+// interface counts its thoughts only there, seen 2026-11-06). 0 when the
+// server says neither.
+func (u Usage) ThinkingTokens() int {
+	if d := u.CompletionTokensDetails; d != nil && d.ReasoningTokens > 0 {
+		return d.ReasoningTokens
+	}
+	return max(0, u.TotalTokens-u.PromptTokens-u.CompletionTokens)
 }
 
 // Timings is llama.cpp's per-request timing block.

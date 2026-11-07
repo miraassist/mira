@@ -42,8 +42,9 @@ with the repair from [Versions](versions.md) when the two drift apart.
   terminal for `mira reset`, so the option does it at the next start, once until turned off and on again
   ([Setup](setup.md), Reset). The agent reads it from Supervisor's `/data/options.json`. The pairing code for
   another Home Assistant is in the app's log.
-- **Home Assistant from inside:** the agent keeps its own non-admin user and token from the integration's setup,
-  as today. Not the app's Supervisor token: that one has admin rights, and Mira works without them on purpose.
+- **Home Assistant from inside:** the agent keeps the token from the integration's setup, as today: since 0.18 the
+  owner's, given with an admin's consent ([HACS default catalog](hacs-default.md)). Not the app's Supervisor token:
+  that one reaches the Supervisor too, which Mira does not need.
 - **Finding it:** for now the address is typed once: **Add integration** → **Mira**, `http://localhost:8787`
   (the app's port is published on the host). Later the app could announce itself through Supervisor's discovery
   (service `mira`), so the integration offers "Mira found" (see Not for now).

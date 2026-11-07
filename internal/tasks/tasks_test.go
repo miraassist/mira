@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -43,13 +44,17 @@ func (s *fakeSource) Statistics(_ context.Context, ids []string, _ time.Time, _ 
 	return s.stats, nil
 }
 
-// fakeHA plays the Mira integration's automation commands.
+// fakeHA plays the Mira integration's automation commands and Home
+// Assistant's automation config API.
 type fakeHA struct {
 	commands    []map[string]any
 	invalid     string // validate refuses configs containing this
 	automations map[string]map[string]any
+	labels      map[string]string // automation id -> label asked for
 	services    []string
+	reloads     []string
 	config      string // get_config's answer
+	notAdmin    bool   // the token is not an admin's
 }
 
 func (h *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -61,9 +66,12 @@ func (h *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 			return json.RawMessage(`{"valid":false,"error":"Entity ` + h.invalid + ` is unknown"}`), nil
 		}
 		return json.RawMessage(`{"valid":true}`), nil
-	case "mira/automation/save":
-		h.automations[cmd["automation_id"].(string)] = cmd["config"].(map[string]any)
-		return json.RawMessage(`{"id":"x"}`), nil
+	case "mira/automation/label":
+		if h.labels == nil {
+			h.labels = map[string]string{}
+		}
+		h.labels[cmd["automation_id"].(string)] = cmd["label"].(string)
+		return json.RawMessage(`{"entity_id":"automation.x"}`), nil
 	case "mira/automation/list":
 		var list []map[string]any
 		for id, cfg := range h.automations {
@@ -73,15 +81,29 @@ func (h *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 		return raw, nil
 	case "get_config":
 		return json.RawMessage(h.config), nil
-	case "mira/automation/delete":
-		delete(h.automations, cmd["automation_id"].(string))
-		return json.RawMessage(`{"deleted":true}`), nil
 	}
 	return nil, nil
 }
 
-func (h *fakeHA) CallService(_ context.Context, domain, service string, _ map[string]any, target *haws.Target) error {
+func (h *fakeHA) CallService(_ context.Context, domain, service string, data map[string]any, target *haws.Target) error {
+	if domain == "automation" && service == "reload" {
+		h.reloads = append(h.reloads, fmt.Sprint(data["id"]))
+		return nil
+	}
 	h.services = append(h.services, domain+"."+service+" "+target.EntityID[0])
+	return nil
+}
+
+func (h *fakeHA) SaveAutomationConfig(_ context.Context, id string, config map[string]any) error {
+	if h.notAdmin {
+		return fmt.Errorf("%w: POST %s answered 401 Unauthorized", haws.ErrNotAdmin, id)
+	}
+	h.automations[id] = config
+	return nil
+}
+
+func (h *fakeHA) DeleteAutomationConfig(_ context.Context, id string) error {
+	delete(h.automations, id)
 	return nil
 }
 

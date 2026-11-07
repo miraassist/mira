@@ -34,7 +34,7 @@ skills:
 	if _, ok := skills["x"]; ok {
 		t.Error("x is still in the run")
 	}
-	if md := (Report{Setup: "s", LeftOut: got}).markdown(); !strings.Contains(md, "Ohne diese Skills (Variable fehlt in testenv/.env): x (MIRA_SKILL_X_CLIENT_SECRET)") {
+	if md := (Report{Setup: "s", LeftOut: got}).markdown(); !strings.Contains(md, "Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_SECRET)") {
 		t.Errorf("report:\n%s", md)
 	}
 }
@@ -56,7 +56,7 @@ func TestAScenarioMeasuredAgainGoesIntoTheLastReport(t *testing.T) {
 	if p, n := got.passed(); p != 2 || n != 2 || got.Date != "2026-11-05 22:20" {
 		t.Errorf("passed %d of %d, date %s", p, n, got.Date)
 	}
-	if !strings.Contains(got.markdown(), "Einzeln nachgemessen: termin-absagen (2026-11-05 23:00, Mira 0.16.0, 3 runs)") {
+	if !strings.Contains(got.markdown(), "Measured again on their own: termin-absagen (2026-11-05 23:00, Mira 0.16.0, 3 runs)") {
 		t.Errorf("report:\n%s", got.markdown())
 	}
 }

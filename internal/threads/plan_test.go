@@ -320,3 +320,97 @@ func TestAB39_EndingAThreadIsTold(t *testing.T) {
 		t.Errorf("ended %v", ended)
 	}
 }
+
+// A clip's thread is the turn's, whatever its target; a note of Mira's in
+// its log reaches the next turn's context (docs/spec/music-quiz.md, MQ-06).
+func TestANoteReachesTheNextTurn(t *testing.T) {
+	e := abEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	if id := e.m.TurnThread(ctx, inv); id != "" {
+		t.Fatalf("a thread without one: %q", id)
+	}
+	id, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "Musik-Quiz", "# Quiz\n- [ ] a-ha – Take on Me (1985)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.m.TurnThread(ctx, inv); got != id {
+		t.Fatalf("turn thread %q, want %q", got, id)
+	}
+	if err := e.m.Note(ctx, id, "Der letzte Clip ließ sich am Satelliten nicht abspielen."); err != nil {
+		t.Fatal(err)
+	}
+	_, next := e.turn(t, "voice:b")
+	text, _ := e.m.Context(ctx, next, placeOf(next), nil, "")
+	if !strings.Contains(text, "Der letzte Clip ließ sich am Satelliten nicht abspielen.") {
+		t.Errorf("context %q", text)
+	}
+}
+
+// MQ-10: a plan that becomes done is told once, while the thread stays open:
+// the quiz's last clip stops before the closing words.
+func TestMQ10_ADonePlanIsToldOnce(t *testing.T) {
+	e := setup(t)
+	quiz := skills.Skill{Name: "musikquiz", Description: "Musik-Quiz", Body: "Raten.", Target: &skills.Target{Plan: true}}
+	var done []string
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: []skills.Skill{quiz}, Clock: func() time.Time { return e.now },
+		Done: func(_ context.Context, th store.Thread) { done = append(done, th.ID) }})
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	if _, err := e.m.Start(ctx, inv, "musikquiz", "Musik-Quiz"); err != nil {
+		t.Fatal(err)
+	}
+	write := func(plan string) {
+		t.Helper()
+		if _, err := e.m.Plan(ctx, inv, "write", plan, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("# Quiz\nPunkte: 0\n- [ ] a-ha – Take on Me\n- [ ] Nena – 99 Luftballons")
+	write("# Quiz\nPunkte: 1\n- [x] a-ha – Take on Me\n- [ ] Nena – 99 Luftballons")
+	if len(done) != 0 {
+		t.Fatalf("told before the plan is done: %v", done)
+	}
+	write("# Quiz\nPunkte: 2\n- [x] a-ha – Take on Me\n- [x] Nena – 99 Luftballons")
+	write("# Quiz\nPunkte: 2\n- [x] a-ha – Take on Me\n- [x] Nena – 99 Luftballons")
+	if len(done) != 1 {
+		t.Fatalf("told %d times, want once", len(done))
+	}
+	if id := e.m.TurnThread(ctx, inv); id != done[0] {
+		t.Errorf("the thread is not open any more after its plan is done: %q", id)
+	}
+}
+
+// MQ-11: check with a note ticks the step and appends its result to that
+// line only; a note with another action, or too long, changes nothing.
+func TestMQ11_ASongIsTickedWithItsResult(t *testing.T) {
+	e := abEnv(t)
+	ctx := context.Background()
+	inv, _ := e.turn(t, "voice:a")
+	plan := "# Musik-Quiz: 80er · Interpret\nSpieler: Anna\n- [ ] Michael Jackson – Billie Jean (1982)\n- [ ] a-ha – Take on Me (1985)"
+	id, err := e.m.SetPlan(ctx, inv, "anrufbeantworter", "Musik-Quiz", plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		th, _ := e.st.GetThread(ctx, id)
+		return planOf(th).Plan
+	}
+	if _, err := e.m.PlanNote(ctx, inv, "check", "", 2, " 1\nPunkt "); err != nil {
+		t.Fatal(err)
+	}
+	want := "# Musik-Quiz: 80er · Interpret\nSpieler: Anna\n- [ ] Michael Jackson – Billie Jean (1982)\n- [x] a-ha – Take on Me (1985) → 1 Punkt"
+	if got := read(); got != want {
+		t.Fatalf("plan\n%s\nwant\n%s", got, want)
+	}
+	for _, c := range []struct {
+		action, note string
+	}{{"uncheck", "0 Punkte"}, {"write", "0 Punkte"}, {"check", strings.Repeat("x", maxNote+1)}} {
+		if _, err := e.m.PlanNote(ctx, inv, c.action, "- [ ] neu", 1, c.note); err == nil {
+			t.Errorf("%s with a note of %d characters: no error", c.action, len(c.note))
+		}
+	}
+	if got := read(); got != want {
+		t.Errorf("a refused note changed the plan:\n%s", got)
+	}
+}

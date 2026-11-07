@@ -26,17 +26,17 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .access import (
     assistants,
-    ensure_agent_access,
     ensure_mcp_server,
     forget_rejoin,
     ha_url,
+    make_owner_token,
+    owner,
     rejoin_token,
     revoke_agent_token,
 )
 from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof, rejoin_key
 from .const import (
     CONF_AGENT_TOKEN,
-    CONF_AGENT_USER,
     CONF_IMPORTED,
     CONF_OWN_HOLD,
     CONF_PERSONA,
@@ -57,7 +57,7 @@ from .managed import (
     satellite_form_settings,
     save_settings,
 )
-from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers, ha_sources
+from .models import CUSTOM, KIND_CLOUD, KIND_CUSTOM, ModelSource, Providers
 from .oauth import ConnectSteps
 
 USER_SCHEMA = vol.Schema({vol.Required(CONF_URL, default="http://localhost:8787"): str})
@@ -77,7 +77,6 @@ MODEL_ERRORS = {"unreachable", "bad_key", "no_model", "no_tools", "server_error"
 WORDS = {
     "de": {
         "custom": "Eigener Server (Adresse eingeben)",
-        "from_ha": "Aus Home Assistant",
         "keeps": "bleibt {model}",
         "none": "keinem (später unter Einstellungen → Sprachassistenten)",
         "code": "Kopplungscode",
@@ -86,10 +85,10 @@ WORDS = {
         "missing": "fehlt noch",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira; gib ihn neu ein.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
+        "access": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit „Mira jetzt nutzen“ bekommt Mira dafür einen Zugang im Namen von {owner}, der Home Assistant eingerichtet hat; er steht in dessen Profil unter Sicherheit und kann dort jederzeit widerrufen werden.",
     },
     "en": {
         "custom": "Own server (enter its address)",
-        "from_ha": "From Home Assistant",
         "keeps": "stays {model}",
         "none": "none (later under Settings → Voice assistants)",
         "code": "Pairing code",
@@ -98,6 +97,7 @@ WORDS = {
         "missing": "still missing",
         "bad_code": "The pairing code is wrong or used up. It is in Mira's log; enter it again.",
         "failed": "Pairing did not work: {error}",
+        "access": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With “Start using Mira”, Mira gets an access for it in the name of {owner}, who set Home Assistant up; it is in their profile under Security and can be revoked there at any time.",
     },
 }
 
@@ -145,7 +145,7 @@ class ModelSteps:
         return None
 
     async def async_step_model_source(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Where the model comes from; what Home Assistant has comes first."""
+        """Where the model comes from: a provider, or a server of one's own."""
         if user_input is None and (back := await self._reopened("model_source")):
             return back
         if self._providers is None:
@@ -156,13 +156,9 @@ class ModelSteps:
                 placeholders = {"error": ""}
                 _model_error(err, errors, placeholders)
                 return self._source_form(errors, placeholders)
-        from_ha = ha_sources(self.hass, self._providers)
         words = _words(self.hass)
         if user_input is not None:
             choice = user_input["source"]
-            if choice in from_ha:
-                self._source = from_ha[choice]
-                return await self._list_models("model_source")
             if choice in self._providers:
                 name, base_url = self._providers[choice]
                 self._source = ModelSource(name, base_url, "", KIND_CLOUD)
@@ -173,12 +169,8 @@ class ModelSteps:
 
     def _source_form(self, errors: dict[str, str] | None, placeholders: dict[str, str]) -> ConfigFlowResult:
         providers = self._providers or {}
-        from_ha = ha_sources(self.hass, providers)
         words = _words(self.hass)
-        options = [
-            selector.SelectOptionDict(value=k, label=f"{words['from_ha']}: {v.label}") for k, v in from_ha.items()
-        ]
-        options += [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in providers.items()]
+        options = [selector.SelectOptionDict(value=k, label=name) for k, (name, _) in providers.items()]
         options.append(selector.SelectOptionDict(value=CUSTOM, label=words["custom"]))
         return self.async_show_form(
             step_id="model_source",
@@ -262,9 +254,7 @@ class ModelSteps:
             return await self.async_step_model()
         if back == "model_key":
             return self._key_form(errors, placeholders)
-        if back == "model_server":
-            return self._server_form(errors, placeholders)
-        return self._source_form(errors, placeholders)
+        return self._server_form(errors, placeholders)
 
     async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The model from the list; the agent tries it before keeping it."""
@@ -599,19 +589,21 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
             menu_options=options,
             description_placeholders={
                 "status": "\n".join(lines),
+                "access": words["access"].format(owner=(await owner(self.hass)).name),
                 "error": f"\n\n**{self._error}**" if self._error else "",
             },
         )
 
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Pair: Mira's own HA user and token, HA's MCP server, and the agent
-        paired and set up in one call; it starts anew and is waited for."""
+        """Pair: the owner's token for Mira (the admin consented with this
+        click), HA's MCP server, and the agent paired and set up in one call;
+        it starts anew and is waited for."""
         words = _words(self.hass)
         self._error = ""
         refresh_id = None
         try:
             await ensure_mcp_server(self.hass)
-            user_id, refresh_id, ha_token = await ensure_agent_access(self.hass)
+            refresh_id, ha_token = await make_owner_token(self.hass)
             if self._token:
                 await self._client().setup(ha_url(self.hass), ha_token, self._llm)
             else:
@@ -633,7 +625,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
             return await self.async_step_summary()
         if self.unique_id:
             await forget_rejoin(self.hass, self.unique_id)
-        self._data = {CONF_IMPORTED: True, CONF_AGENT_USER: user_id, CONF_AGENT_TOKEN: refresh_id}
+        self._data = {CONF_IMPORTED: True, CONF_AGENT_TOKEN: refresh_id}
         return self._create()
 
     def _create(self) -> ConfigFlowResult:

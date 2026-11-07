@@ -22,10 +22,10 @@ Exposing to Assist remains, as before, a decision of the user in HA.
 
 The integration runs in HA with admin rights. During setup it does what is manual work today:
 
-- **Mira's HA user:** It creates a user "Mira", **without admin rights** and without login. For it, it generates a long-lived token. If the user already exists (an earlier setup), it takes it and renews the token.
+- **Mira's access** (since 0.18, [HACS default catalog](hacs-default.md), 3): a long-lived token "Mira (Integration)" of Home Assistant's owner, made when an admin submits "Start using Mira" after a paragraph that says why Mira needs admin rights. No user of her own; an earlier user "Mira" stays without a function and may be deleted.
 - **HA's MCP server:** If the integration "Model Context Protocol Server" with Assist as API is missing, it sets it up.
 - **Handover to the agent:** It sends it the HA address (HA's internal address) and token (`POST /v1/setup`). The agent stores both in its database and connects.
-- **Removing:** If one removes the integration, it revokes the token. It leaves the user in place, because Mira's automations hang on its ID.
+- **Removing:** If one removes the integration, it revokes the token.
 
 After that, the agent's config contains nothing about HA anymore (`ha.url`, `ha.token`, the MCP entry for HA).
 
@@ -59,7 +59,7 @@ After that, the agent's config contains nothing about HA anymore (`ha.url`, `ha.
 ## 3. Agent without a config file
 
 - **AI model (LLM) in the form:** Meant is the LLM Mira thinks with; it is not called "language model", that gets confused in HA with speech recognition. The dialog only asks where it comes from, and assumes the most common case: a cloud provider, no expensive hardware.
-  - **From Home Assistant:** If HA already has an AI integration (OpenAI, Google Gemini, OpenRouter, Ollama), it is at the top of the list. The integration reads address, key and model from its entry and gives them to the agent. The key is never shown, not even as a password field. If one changes it later in HA, one chooses "From Home Assistant" again under Configure → AI model. Anthropic is missing because its OpenAI-compatible interface is untested.
+  - **From Home Assistant:** gone since 0.18: another integration's key is not read ([HACS default catalog](hacs-default.md), decision 1).
   - **Provider:** OpenAI, Google Gemini, OpenRouter, Mistral with a fixed address; only the key is asked.
   - **Own server:** address (as seen from the agent) and optionally a key. A category "local" with LM Studio, Ollama, llama.cpp deliberately does not exist, and the agent does not scan the network.
   - The model is chosen from the list the agent queries at this address (`/v1/models`).

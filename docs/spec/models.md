@@ -137,9 +137,10 @@ the model form on Mira's page. A new provider is one line there; no integration 
 
 ## What the integration sets
 
-The integration's setup is unchanged: it picks one model (from Home Assistant, a provider or an own server) and
+The integration's setup is unchanged: it picks one model (a provider or an own server; "from Home Assistant" went in
+0.18, [HACS default catalog](hacs-default.md)) and
 sends it to the agent. The agent keeps it as **`main`**, the setup form's kind giving `privacy` (provider → `cloud`,
-from Home Assistant: the source's kind, own server → `local`). What the integration sets wins over `mira.yaml` for
+own server → `local`). What the integration sets wins over `mira.yaml` for
 `main`, as today for `llm`. Further models come from `mira.yaml`.
 
 ## Documentation

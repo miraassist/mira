@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -19,12 +21,16 @@ func TestTextsComplete(t *testing.T) {
 	}
 }
 
-// fakeHA keeps the timers like the integration does.
+// fakeHA plays the integration (build, list, label) and Home Assistant's
+// automation config API, keeping the timers.
 type fakeHA struct {
-	timers []Timer
-	saved  []map[string]any
-	fail   error
-	next   int
+	timers  []Timer
+	saved   []map[string]any // the build commands
+	pending map[string]Timer // built, not yet saved
+	labels  map[string]string
+	deleted []string
+	fail    error
+	next    int
 }
 
 func (f *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -35,34 +41,58 @@ func (f *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage,
 	case "mira/once/list":
 		raw, _ := json.Marshal(map[string]any{"timers": f.timers})
 		return raw, nil
-	case "mira/once/save":
+	case "mira/once/build":
 		f.saved = append(f.saved, cmd)
 		tm := Timer{Title: cmd["title"].(string), Due: cmd["due"].(string), Owner: cmd["owner"].(string), Area: cmd["area"].(string), Kind: cmd["kind"].(string)}
 		raw, _ := json.Marshal(cmd["actions"])
 		json.Unmarshal(raw, &tm.Actions)
 		if id, ok := cmd["automation_id"].(string); ok {
 			tm.ID = id
-			for i := range f.timers {
-				if f.timers[i].ID == id {
-					f.timers[i] = tm
-				}
-			}
 		} else {
 			f.next++
 			tm.ID = fmt.Sprintf("t%d", f.next)
-			f.timers = append(f.timers, tm)
 		}
-		return json.RawMessage(`{}`), nil
-	case "mira/once/delete":
-		id := cmd["automation_id"].(string)
-		for i := range f.timers {
-			if f.timers[i].ID == id {
-				f.timers = append(f.timers[:i], f.timers[i+1:]...)
-			}
+		tm.EntityID = "automation." + tm.ID
+		if f.pending == nil {
+			f.pending = map[string]Timer{}
 		}
+		f.pending[tm.ID] = tm
+		return json.Marshal(map[string]any{"id": tm.ID, "config": map[string]any{"alias": tm.Title}})
+	case "mira/automation/label":
+		if f.labels == nil {
+			f.labels = map[string]string{}
+		}
+		f.labels[cmd["automation_id"].(string)] = cmd["label"].(string)
 		return json.RawMessage(`{}`), nil
 	}
 	return nil, errors.New("unknown " + fmt.Sprint(cmd["type"]))
+}
+
+func (f *fakeHA) CallService(context.Context, string, string, map[string]any, *haws.Target) error {
+	return nil
+}
+
+func (f *fakeHA) SaveAutomationConfig(_ context.Context, id string, _ map[string]any) error {
+	tm := f.pending[id]
+	for i := range f.timers {
+		if f.timers[i].ID == id {
+			f.timers[i] = tm
+			return nil
+		}
+	}
+	f.timers = append(f.timers, tm)
+	return nil
+}
+
+func (f *fakeHA) DeleteAutomationConfig(_ context.Context, id string) error {
+	f.deleted = append(f.deleted, id)
+	for i := range f.timers {
+		if f.timers[i].ID == id {
+			f.timers = append(f.timers[:i], f.timers[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("not found")
 }
 
 var now = time.Date(2026, 10, 18, 22, 5, 0, 0, time.UTC)
@@ -234,5 +264,45 @@ func TestSeveralTimersAreAskedAbout(t *testing.T) {
 	}
 	if out := run(t, by[ToolSleep], anna, `{"action":"cancel"}`); out != "Der Schlaf-Timer ist abgebrochen." || len(ha.timers) != 0 {
 		t.Errorf("cancel the only one: %q %+v", out, ha.timers)
+	}
+}
+
+// HD-25 A finished timer goes when it has run
+func TestHD25_AFinishedTimerGoesWhenItHasRun(t *testing.T) {
+	ha := &fakeHA{timers: []Timer{
+		{ID: "waiting", EntityID: "automation.waiting"},                      // not run yet: stays, watched
+		{ID: "fading", EntityID: "automation.fading", Ran: true, Running: 1}, // still fading out: stays
+		{ID: "done", EntityID: "automation.done", Ran: true},                 // ran while Mira was off: goes
+	}}
+	watched := make(chan []string, 4)
+	var changed func()
+	timers := New(Options{Lang: i18n.DE, HA: ha, Clock: func() time.Time { return now },
+		Watch: func(_ context.Context, ids []string, fn func()) (func(), error) {
+			changed = fn
+			watched <- ids
+			return func() {}, nil
+		}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go timers.Run(ctx)
+
+	if ids := <-watched; !slices.Equal(ids, []string{"automation.fading", "automation.waiting"}) {
+		t.Fatalf("watched: %v", ids)
+	}
+	if !slices.Equal(ha.deleted, []string{"done"}) {
+		t.Fatalf("deleted at the start: %v", ha.deleted)
+	}
+	// The fading one ends: its state changes, and it goes.
+	for i := range ha.timers {
+		if ha.timers[i].ID == "fading" {
+			ha.timers[i].Running = 0
+		}
+	}
+	changed()
+	if ids := <-watched; !slices.Equal(ids, []string{"automation.waiting"}) {
+		t.Fatalf("watched after: %v", ids)
+	}
+	if !slices.Equal(ha.deleted, []string{"done", "fading"}) {
+		t.Errorf("deleted: %v", ha.deleted)
 	}
 }

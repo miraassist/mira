@@ -90,11 +90,11 @@ func (s *ScenarioResult) finish(runs int) {
 func rating(sec float64) string {
 	switch {
 	case sec <= 3:
-		return "gut"
+		return "good"
 	case sec <= 8:
-		return "brauchbar"
+		return "usable"
 	}
-	return "langsam"
+	return "slow"
 }
 
 // into puts r's scenarios, measured again on their own, into the setup's
@@ -144,18 +144,18 @@ func (r Report) markdown() string {
 	var b strings.Builder
 	p, t := r.passed()
 	fmt.Fprintf(&b, "# Eval %s – %s\n\n", r.Setup, r.Date)
-	fmt.Fprintf(&b, "Mira %s · %d Durchläufe je Szenario · **%d von %d Szenarien bestanden**\n\n", r.Mira, r.Runs, p, t)
-	b.WriteString("Modelle:\n")
+	fmt.Fprintf(&b, "Mira %s · %d runs per scenario · **%d of %d scenarios passed**\n\n", r.Mira, r.Runs, p, t)
+	b.WriteString("Models:\n")
 	for _, m := range r.Models {
 		fmt.Fprintf(&b, "- %s\n", m)
 	}
 	if len(r.Again) > 0 {
-		fmt.Fprintf(&b, "\nEinzeln nachgemessen: %s\n", strings.Join(r.Again, "; "))
+		fmt.Fprintf(&b, "\nMeasured again on their own: %s\n", strings.Join(r.Again, "; "))
 	}
 	if len(r.LeftOut) > 0 {
-		fmt.Fprintf(&b, "\nOhne diese Skills (Variable fehlt in testenv/.env): %s\n", strings.Join(r.LeftOut, "; "))
+		fmt.Fprintf(&b, "\nWithout these skills (variable missing in testenv/.env): %s\n", strings.Join(r.LeftOut, "; "))
 	}
-	b.WriteString("\n| Szenario | Kern | Bestanden | Ergebnis + Verhalten | Antwort | Zeit je Schritt (Median / Max, Modell) | Tokens |\n|---|---|---|---|---|---|---|\n")
+	b.WriteString("\n| Scenario | Core | Passed | Result + behaviour | Answer | Time per step (median / max, model) | Tokens |\n|---|---|---|---|---|---|---|\n")
 	for _, s := range r.Scenarios {
 		var times []string
 		for _, st := range s.StepTimes {
@@ -163,7 +163,7 @@ func (r Report) markdown() string {
 		}
 		core, ok := "", "✗"
 		if s.Core {
-			core = "ja"
+			core = "yes"
 		}
 		if s.Passed {
 			ok = "✓"
@@ -174,15 +174,15 @@ func (r Report) markdown() string {
 	for _, s := range r.Scenarios {
 		for i, run := range s.Runs {
 			for _, f := range run.Failures {
-				notes = append(notes, fmt.Sprintf("- %s, Lauf %d: %s", s.Name, i+1, f))
+				notes = append(notes, fmt.Sprintf("- %s, run %d: %s", s.Name, i+1, f))
 			}
 			for _, f := range run.Answers {
-				notes = append(notes, fmt.Sprintf("- %s, Lauf %d (Antwort): %s", s.Name, i+1, f))
+				notes = append(notes, fmt.Sprintf("- %s, run %d (answer): %s", s.Name, i+1, f))
 			}
 		}
 	}
 	if len(notes) > 0 {
-		b.WriteString("\n## Auffälligkeiten\n\n" + strings.Join(notes, "\n") + "\n")
+		b.WriteString("\n## Findings\n\n" + strings.Join(notes, "\n") + "\n")
 	}
 	return b.String()
 }
@@ -228,25 +228,24 @@ func writeOverview(dir string) error {
 		}
 	}
 	var b strings.Builder
-	b.WriteString(`# Evals: womit Mira geprüft ist
+	b.WriteString(`# Evals: what Mira is checked with
 
-Szenarien Ende zu Ende mit echtem Modell und Test-Home-Assistant, ohne Sprache
-(docs/spec/evals.md). Je Szenario 3 Durchläufe; Kern-Szenarien bestehen bei 3 von 3,
-die übrigen bei 2 von 3. Ein Schritt über dem Antwort-Timeout (Sprache 15 s) gilt als
-nicht bestanden.
+Scenarios end to end with a real model and the test Home Assistant, without speech
+(docs/spec/evals.md). 3 runs per scenario; core scenarios pass at 3 of 3, the others
+at 2 of 3. A step over the answer timeout (voice 15 s) counts as not passed.
 
-Ausführen: ` + "`go run ./cmd/testha eval --setup evals/setups/<setup>.yaml`" + `
+Run: ` + "`go run ./cmd/testha eval --setup evals/setups/<setup>.yaml`" + `
 
-Je Setup steht hier der letzte Lauf; frühere Läufe sind in der Git-Geschichte.
-Modelle, die nur von Hand ausprobiert wurden (ohne Eval-Lauf): [models.md](models.md).
+Each setup shows its last run; earlier runs are in git's history.
+Models tried only by hand (without an eval run): [models.md](models.md).
 
-| Setup | Modelle | Stand | Mira | bestanden | Bericht |
+| Setup | Models | Date | Mira | Passed | Report |
 |---|---|---|---|---|---|
 `)
 	for _, name := range keys(latest) {
 		r := latest[name]
 		p, t := r.passed()
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d von %d | [%s.md](results/%s.md) |\n",
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %d of %d | [%s.md](results/%s.md) |\n",
 			name, strings.Join(r.Models, "<br>"), r.Date, r.Mira, p, t, name, name)
 	}
 	return os.WriteFile(filepath.Join(dir, "README.md"), []byte(b.String()), 0o644)

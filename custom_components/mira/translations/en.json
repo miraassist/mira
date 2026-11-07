@@ -30,7 +30,7 @@
       },
       "model_source": {
         "title": "AI model (LLM)",
-        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **From Home Assistant**: an AI integration you already set up; Mira takes over its key, you need not enter it again.\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
+        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
         "data": {
           "source": "AI model from"
         }
@@ -66,7 +66,7 @@
       },
       "summary": {
         "title": "Set up Mira",
-        "description": "{status}{error}",
+        "description": "{status}\n\n{access}{error}",
         "menu_options": {
           "model_source": "Choose the AI model (LLM)",
           "assistants": "Use Mira in",
@@ -174,7 +174,7 @@
       },
       "model_source": {
         "title": "AI model (LLM)",
-        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **From Home Assistant**: an AI integration you already set up; Mira takes over its key, you need not enter it again.\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
+        "description": "Mira needs an AI model (LLM) to think with. Where does it come from?\n\n- **OpenAI, Gemini, …**: you need a key from the provider.\n- **Own server**: e.g. LM Studio, Ollama or llama.cpp, with its address.{error}",
         "data": {
           "source": "AI model from"
         }
@@ -466,6 +466,39 @@
           "failed": {
             "title": "Mira did not restore it",
             "description": "{reason}\n\nNothing was changed. The backup stays here; you can try again."
+          }
+        }
+      }
+    },
+    "mail_calendar": {
+      "title": "Mira needs the calendar “{name}”",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Create the calendar “{name}”?",
+            "description": "Mira puts what the mails of “{name}” announce into a calendar of the same name. Click Submit to create it; Mira then also uses it for answers."
+          },
+          "failed": {
+            "title": "The calendar was not created",
+            "description": "Could not create the calendar: {reason}\n\nNothing was changed; you can try again."
+          }
+        },
+        "abort": {
+          "calendar_not_exposed": "The calendar “{name}” was created, but Mira does not see it yet. Turn it on for Assist under Settings → Voice assistants → Expose."
+        }
+      }
+    },
+    "new_access": {
+      "title": "Mira needs a new access",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Give Mira the new access?",
+            "description": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With Submit, Mira gets an access for it in the name of {owner}, who set Home Assistant up; it is in their profile under Security and can be revoked there at any time. Mira restarts for a moment.\n\nUntil then everything else works as before; only new tasks and timers wait for it."
+          },
+          "failed": {
+            "title": "Mira did not take the new access",
+            "description": "{reason}\n\nNothing was changed; you can try again."
           }
         }
       }
