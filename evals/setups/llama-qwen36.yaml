@@ -1,0 +1,11 @@
+# Everything on Qwen3.6-35B-A3B (Unsloth UD-Q4_K_XL) in llama.cpp (Vulkan, b11706) on this host's Radeon 890M,
+# thinking off on the server (--reasoning off), 60K context (2 slots of 30K, as llama-service).
+models:
+  main:
+    endpoint: "http://localhost:4323/v1"
+    model: "qwen3.6-35b-a3b"
+    privacy: local
+    cache_prompt: true
+    temperature: 0.3
+    timeout: 2m
+    warmup_on_start: true
