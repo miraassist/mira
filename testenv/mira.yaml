@@ -33,9 +33,18 @@ models:
     token: ${OPEN_ROUTER_API_KEY}
     privacy: cloud
     context_tokens: 1048576
+  # 2026-11-08 trial: ChatGPT subscription through a local LiteLLM proxy (device-code login).
+  chatgpt:
+    endpoint: http://localhost:4000/v1
+    model: gpt-6.1-sol
+    token: ${LITELLM_KEY}
+    temperature: 1 # the model takes only 1 while it reasons
+    privacy: cloud
+    reasoning_effort: low
+    context_tokens: 272000
 # Every agent of the flows on smart; delegate stays on main.
 agents:
-  conversation.voice: {model: smart} # 2026-11-06: back to Gemini (DeepSeek repeated text next to tools); openrouter kept
+  conversation.voice: {model: chatgpt} # 2026-11-08: ChatGPT subscription trial (before: Gemini; DeepSeek repeated text next to tools)
   conversation.telegram: {model: smart}
   skill.task: {model: smart}
   notify.compose: {model: smart}
