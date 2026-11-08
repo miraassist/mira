@@ -308,8 +308,8 @@ A plan often comes from a web page (a recipe) and is then in the context of many
 ### Display
 
 The Mira page (also in Home Assistant) has a **Plans** tab for everyone, even without admin rights: the running
-plans with place, state and the plan itself, the checkboxes ticked or open. It updates by itself. Read
-only; changes are made in the conversation.
+plans with place, state and the plan itself, the checkboxes ticked or open. It updates by itself. Changes are made
+in the conversation; the one thing the page does is end a plan ("Beenden", [Ending a plan on the page](plan-end.md)).
 
 ## Data model
 

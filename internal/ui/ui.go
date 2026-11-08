@@ -82,7 +82,8 @@ type Options struct {
 	Tasks Tasks
 	// Plans are the running plans, for everyone to follow.
 	Plans PlanSource
-	// Threads confirms or cancels tasks still being planned.
+	// Threads confirms or cancels tasks still being planned, and ends
+	// plans (docs/spec/plan-end.md).
 	Threads Threads
 	// Persons lists the configured person keys; each gets a memory card, if
 	// empty.
@@ -160,6 +161,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /v1/ui/memory/export", h.authAnyone(h.exportMemory))
 	h.mux.HandleFunc("POST /v1/ui/memory/import", h.authAnyone(h.importMemory))
 	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
+	h.mux.HandleFunc("DELETE /v1/ui/plans/{id}", h.authAnyone(h.endPlan))
 	h.mux.HandleFunc("GET /v1/ui/me", h.authAnyone(h.me))
 	h.mux.HandleFunc("GET /v1/ui/voice", h.auth(h.voices))
 	h.mux.HandleFunc("GET /v1/ui/voice/{person}", h.authAnyone(h.voice))

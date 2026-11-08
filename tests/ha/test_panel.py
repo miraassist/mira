@@ -131,6 +131,22 @@ async def test_non_admin_gets_their_memory_only(hass, aioclient_mock, entry, has
         assert (await client.request(method, path)).status == 401, path
 
 
+# PE-06 A user without admin rights ends a plan through Home Assistant
+async def test_PE06_a_user_without_admin_rights_ends_a_plan(hass, aioclient_mock, entry, hass_admin_user, hass_client):
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.delete(f"{AGENT_URL}/v1/ui/plans/q1", json={"ended": True})
+    hass_admin_user.groups = []
+    client = await hass_client()
+    assert (await client.delete("/api/mira/proxy/v1/ui/plans/q1")).status == 200
+    _, _, _, headers = aioclient_mock.mock_calls[-1]
+    assert headers["X-Mira-HA-User"] == hass_admin_user.id
+    assert headers["X-Mira-HA-Admin"] == "0"
+    # The service decides whether the id is a running plan; nothing else on
+    # the plans is opened.
+    for method, path in [("POST", "/api/mira/proxy/v1/ui/plans/q1"), ("DELETE", "/api/mira/proxy/v1/ui/plans")]:
+        assert (await client.request(method, path)).status == 401, (method, path)
+
+
 async def test_agent_restarting_is_waited_for(
     hass, aioclient_mock, entry, hass_client, hass_client_no_auth, monkeypatch
 ):

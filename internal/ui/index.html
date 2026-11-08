@@ -908,6 +908,8 @@ const I18N = {
   "plan_steps": "Schritte erledigt",
   "plan_since": "seit", "plan_recipe": "Rezept",
   "plan_finished": "fertig",
+  "plan_end": "Beenden", "plan_end_ask": t => `„${t}“ beenden? Mira vergisst den Stand.`,
+  "plan_ended": "Plan beendet.", "plan_gone": "Dieser Plan ist schon beendet.",
   "tab_tasks": "Aufgaben",
   "tasks_hint": "Aufgaben gibst du Mira im Gespräch, z. B. „Achte auf den Wasserverbrauch“. Sie entwirft eine Home-Assistant-Automation mit dem Label „Mira“, du bestätigst sie. Home Assistant entscheidet, wann etwas passiert, Mira beurteilt und meldet. Bearbeiten kannst du sie im Automations-Editor von Home Assistant.",
   "tasks_ha_error": "Home Assistant nicht erreichbar",
@@ -1415,6 +1417,8 @@ const I18N = {
   "plan_steps": "steps done",
   "plan_since": "since", "plan_recipe": "Recipe",
   "plan_finished": "done",
+  "plan_end": "End", "plan_end_ask": t => `End "${t}"? Mira forgets where you are.`,
+  "plan_ended": "Plan ended.", "plan_gone": "This plan has already ended.",
   "tab_tasks": "Tasks",
   "tasks_hint": "You give Mira tasks in conversation, e.g. \"Keep an eye on the water usage\". She drafts a Home Assistant automation labelled \"Mira\", you confirm it. Home Assistant decides when something happens, Mira judges and reports. You edit them in Home Assistant's automation editor.",
   "tasks_ha_error": "Home Assistant not reachable",
@@ -2560,13 +2564,24 @@ async function plans() {
         tags: (p.place ? badge(esc(p.place)) : "") + (p.finished ? badge(T.plan_finished, true) : "") }, `
         ${a.picture || a.link ? `<div class="plan-head">${a.picture ? `<img class="plan-pic" src="${esc(a.picture)}" alt="">` : ""}
           ${a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${T.plan_recipe}</a>` : ""}</div>` : ""}
-        ${planHtml(p.plan)}`);
+        ${planHtml(p.plan)}
+        <div class="actions left"><span class="spacer"></span><button class="danger" data-title="${esc(a.title)}" onclick="endPlan(this)">${T.plan_end}</button></div>`);
     }).join("")}</div>`;
     const shown = JSON.stringify(list);
     if (shown !== planShown) { $("#planpage .list-head .count")?.remove(); $("#planpage h2").insertAdjacentHTML("beforeend", `<span class="count">${list.length}</span>`);
       $("#planlist").innerHTML = html; planShown = shown; }
   } catch (e) { message(e.message, false); }
   if (tab === "plans") planTimer = setTimeout(plans, 2000);
+}
+// endPlan ends a running plan after asking (docs/spec/plan-end.md).
+async function endPlan(btn) {
+  const id = btn.closest("[data-id]").dataset.id;
+  if (!await ask({ text: T.plan_end_ask(btn.dataset.title), ok: T.plan_end, danger: true })) return;
+  try {
+    await api("DELETE", `/v1/ui/plans/${encodeURIComponent(id)}`);
+    message(T.plan_ended, true);
+  } catch (e) { message(e.message === "no such plan" ? T.plan_gone : e.message, false); }
+  plans();
 }
 // planAsk splits what a plan was asked for: a picture (the cooking skill puts
 // the recipe's "Bild: https://….jpg" there), a link (the recipe's page) and

@@ -56,10 +56,11 @@ PAGE_FILES = re.compile(
 API = "v1/ui/"
 # What a user who is no admin may call: their memory, changing a fact, the
 # memory as a file, the house's messages and their own (marking their own
-# done), following the running plans, who they are, and their own voice (the
-# card "Ich"). The agent lets them have only their own and the house's.
+# done), following the running plans and ending one (docs/spec/plan-end.md),
+# who they are, and their own voice (the card "Ich"). The agent lets them have only their own and the house's.
 NON_ADMIN_LIST = "v1/ui/memory"
 NON_ADMIN_PLANS = "v1/ui/plans"
+NON_ADMIN_PLAN = re.compile(r"v1/ui/plans/[\w-]+")
 NON_ADMIN_ME = "v1/ui/me"
 NON_ADMIN_MESSAGES = "v1/ui/messages"
 NON_ADMIN_EXPORT = "v1/ui/memory/export"
@@ -186,6 +187,8 @@ def _allowed(method: str, path: str) -> bool:
         return path in (NON_ADMIN_LIST, NON_ADMIN_PLANS, NON_ADMIN_ME, NON_ADMIN_MESSAGES, NON_ADMIN_EXPORT)
     if method == "POST":
         return path == NON_ADMIN_IMPORT or NON_ADMIN_ACK.fullmatch(path) is not None
+    if method == "DELETE" and NON_ADMIN_PLAN.fullmatch(path):
+        return True
     return method in ("PUT", "DELETE") and NON_ADMIN_FACT.fullmatch(path) is not None
 
 
