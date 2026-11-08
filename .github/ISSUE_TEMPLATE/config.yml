@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or how-to
+    url: https://github.com/miraassist/mira/discussions
+    about: Ask in Discussions.
+  - name: Security problem
+    url: https://github.com/miraassist/mira/security/advisories/new
+    about: Report it privately, not as an issue.
+  - name: Guide
+    url: https://github.com/miraassist/mira/blob/main/docs/guide/en.md
+    about: Setup, skills, settings (Deutsch in docs/guide/de.md).

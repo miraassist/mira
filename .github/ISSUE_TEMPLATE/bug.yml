@@ -1,0 +1,84 @@
+name: Bug report
+description: Mira does something wrong, or nothing at all.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        German or English, both are fine. Please update to the latest release first.
+        A security problem does not belong here: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The exact sentence you said or wrote, and what Mira answered or did.
+      placeholder: |
+        I said: "Mach das Licht im Bad aus."
+        Mira said: "…" and the light stayed on.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Voice, at a satellite
+        - Telegram
+        - Chat in the Home Assistant app
+        - Mira's page in Home Assistant
+        - Setup or a repair
+        - A task, a reminder or a schedule
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mira version
+      description: Settings → Devices & services → Mira → the device "Mira" shows the versions of the integration and the service.
+      placeholder: "0.19.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How Mira runs
+      options:
+        - Home Assistant app
+        - Docker container
+        - Binary
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The model that answers, and where it runs.
+      placeholder: "Gemini 3 Flash / Qwen 3 30B in LM Studio / …"
+  - type: input
+    id: satellite
+    attributes:
+      label: Satellite and Home Assistant version
+      description: Only if it is about voice.
+      placeholder: "Echo Show 5 with TECHO5 1.6.16, Home Assistant 2026.11.1"
+  - type: textarea
+    id: log
+    attributes:
+      label: Mira's log
+      description: |
+        The lines from that moment. Home Assistant app: Settings → Apps → Mira → Log. Docker: `docker logs mira`.
+        Remove tokens, addresses and names first.
+      render: text
+  - type: checkboxes
+    id: private
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed tokens, addresses and names from what I posted.
+          required: true

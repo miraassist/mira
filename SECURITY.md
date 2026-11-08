@@ -20,9 +20,10 @@ Only the latest release gets security fixes. Updating Mira through Home Assistan
 
 ## What matters most
 
-Mira holds a Home Assistant token for its own user, without admin rights, and can switch whatever is exposed to
-Assist. Findings in these areas are especially welcome:
+Mira holds a long-lived Home Assistant token of the owner, with admin rights: she saves tasks and timers as
+automations, which only an admin may do. An admin consents to it at the setup; the owner can revoke it in their
+profile. Mira switches only what is exposed to Assist. Findings in these areas are especially welcome:
 
-- the token: how it is stored, sent and withdrawn;
+- the token: how it is stored, sent, renewed and withdrawn, and what it is used for besides Assist;
 - the HTTP API between the integration and the service, and Mira's pages;
 - anything that lets a voice, a chat message, a web page or a skill make Mira act beyond what the user allowed.
