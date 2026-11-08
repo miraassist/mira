@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run the CI checks locally before a push: gofmt, go vet, staticcheck, go test -race,
-# ruff (lint and format) and pytest for the integration, and Home Assistant's
-# hassfest (Docker image).
+# ruff (lint and format) and pytest for the integration, the syntax of the
+# page's JavaScript (Node, from nvm when it is not on the PATH), and Home
+# Assistant's hassfest (Docker image).
 # The HACS validation needs the GitHub repository and only runs in CI.
 #
 #   scripts/check.sh              # everything
@@ -45,6 +46,19 @@ if [[ -x .venv/bin/pytest ]]; then
 else
 	python3 -m pytest -q tests
 fi
+
+step "page scripts"
+if ! command -v node >/dev/null && [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
+	set +u
+	# shellcheck disable=SC1091
+	. "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+	set -u
+fi
+if ! command -v node >/dev/null; then
+	echo "node not found: install it with nvm (nvm install --lts)"
+	exit 1
+fi
+node scripts/check-js.mjs
 
 if ((docker)); then
 	step hassfest
