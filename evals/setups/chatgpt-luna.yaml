@@ -1,0 +1,12 @@
+# Everything on GPT-6 Luna from a ChatGPT subscription (cloud), through a local LiteLLM proxy that holds the
+# subscription's login (device code) and gives an OpenAI-compatible endpoint. The proxy's key comes from the
+# environment. The model takes only temperature 1 while it reasons; "low" is its lowest reasoning effort.
+models:
+  main:
+    endpoint: "http://localhost:4000/v1"
+    token: ${LITELLM_KEY}
+    model: "gpt-6-luna"
+    privacy: cloud
+    reasoning_effort: low
+    temperature: 1
+    timeout: 2m
