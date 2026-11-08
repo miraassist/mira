@@ -2,6 +2,8 @@
 
 Thank you for helping. Issues and discussions are welcome in German or English.
 
+Everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Something does not work
 
 1. Update first: only the latest release gets fixes.
