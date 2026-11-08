@@ -3,6 +3,19 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.19.0
+
+- A running plan (a recipe, a quiz) can be ended on the page: tab Plans, "End". Everyone who sees the plans may end
+  one.
+- A model that fails (a key the server refuses, a server that does not answer) is said in the answer and shown as a
+  repair until it answers again.
+- Quizzes, vocabulary and stories vary more: Mira picks at random instead of always the same.
+- Local models can be warmed up: the switch "Warm up" on the page Models, so the first answer does not take long. A
+  model with warm slots now warms them at the start too; the log says when a warm-up begins.
+- An answer ended by you or by Home Assistant is one line in the log with what was said; no longer an error.
+- The evening briefing no longer names the waste collection; the skill Waste reminds you of it.
+- HACS installs the integration from a zip of the release.
+
 ## 0.18.0
 
 - New skill `musikquiz`: Mira plays 30 seconds of a song, you guess the artist, title, year or decade. The Echo Show

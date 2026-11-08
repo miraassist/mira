@@ -135,6 +135,10 @@ func TestWarmSlotsReadAtTheStartBeforeAnyTurn(t *testing.T) {
 	h := warmHarness(t)
 	h.engine.WarmupAll(context.Background(), "startup")
 	waitFor(t, "the reading", func() bool { return strings.Contains(h.logs.String(), `msg="slot warmed"`) })
+	// Its start is logged too, for debugging a reading that takes long.
+	if !strings.Contains(h.logs.String(), `msg="reading the prompt into a slot"`) {
+		t.Error("the start of the reading is not logged")
+	}
 	if rd := readings(h); len(rd) != 1 || rd[0].Slot != 1 {
 		t.Fatalf("readings %d", len(rd))
 	}

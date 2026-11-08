@@ -73,6 +73,7 @@ func (e *Engine) readWarm(model string) {
 		return
 	}
 	started := time.Now()
+	e.log.Info("reading the prompt into a slot", "model", model, "slot", spare, "prefix_hash", prefix.Hash())
 	err = client.Warmup(ctx, req)
 	release()
 	switch {

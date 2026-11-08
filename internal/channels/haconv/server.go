@@ -310,6 +310,11 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 		// (docs/spec/models.md, When a model fails); the engine logged it.
 		resp, err = conversation.Response{Text: say, ConversationID: creq.ConversationID}, nil
 	}
+	if err != nil && ctx.Err() != nil {
+		// Home Assistant ended the turn and is gone; the engine logged how
+		// far it got (docs/spec/streaming.md, ways to interrupt).
+		return
+	}
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)
 		if lines.started() {

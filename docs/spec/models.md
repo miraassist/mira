@@ -1,6 +1,6 @@
 # Models
 
-Status: steps 1 to 6 built (step 6, a failing model said and shown: 2026-11-07, not released). Scenarios:
+Status: steps 1 to 7 built (step 6, a failing model said and shown: 2026-11-07; step 7, warming up on the page: 2026-11-08; both not released). Scenarios:
 [models.feature](models.feature).
 
 ## Goal
@@ -54,6 +54,7 @@ models:
 - **`parallel`** replaces the fixed "local 1, cloud 4" (agents.md, Decided 26) and the guess from the address.
 - **Warming up** happens for the models with `warmup_on_start` / `warmup_on_prefix_change`, for the conversation
   channels whose agent takes that model. A cloud model is never warmed (it costs money and buys nothing).
+  On the page "Models" one switch **"Vorwärmen"** sets both for a local model (step 7).
 - **`pin_slots`** is the old `llm.slots` with `slot_pinning`, now per model; without it no `id_slot` is sent.
 
 ## Context size
@@ -201,6 +202,17 @@ names its model, fallback, and a section "Commands" with Mira's command line (`r
 6. **A failing model said and shown** (When a model fails): the two causes, the sentence as the turn's answer, the
    problem with source `model` and the integration's repair. Scenarios MO-50 to MO-55: the service's in Go, the
    integration's (MO-55) in pytest.
+7. **Warming up on the page** (decided and built 2026-11-08): a local model added on the page was never warmed up,
+   because only the integration's setup sets `warmup_on_start` and `warmup_on_prefix_change`, and only for `main`.
+   The model's editor gets a switch "Vorwärmen" ("Warm up"):
+   - shown for a local model only, and not while "always keep a warm slot" is on (such a model is warmed anyway,
+     [Warm slot](warm-slot.md));
+   - on writes `warmup_on_start: true` and `warmup_on_prefix_change: true` into the model in `mira.yaml`, off removes
+     both; it shows on when either is set;
+   - for a cloud model a saved "on" writes nothing, as for `warm_slots`;
+   - it applies after Mira's restart, as every change on the page. A failed warmup is logged as before
+     (`warmup failed`); the turn then reads the prompt itself.
+   MO-60 to MO-62.
 
 ## Decided
 
@@ -212,3 +224,4 @@ names its model, fallback, and a section "Commands" with Mira's command line (`r
 6. A fallback is taken when the model fails (error, time up), not when it is busy; chains yes, circles no.
 7. The integration's model becomes `main`.
 8. A model that fails for its key or its address is said in the turn and shown as a repair (2026-11-07).
+9. A local model is warmed up by a switch on the page "Models", not by itself (2026-11-08).

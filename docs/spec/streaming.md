@@ -53,6 +53,11 @@ happens where a turn today relies on the finished answer.
   "Stopp" is then a request of its own, handled as today. If Mira's model is still writing when Home Assistant ends
   the turn (row 9): the model stops, no fixed sentence is added, and the transcript keeps what was said until then
   (decided 2026-11-03).
+- **What the log says when the caller ends a turn** (decided 2026-11-08): one info line `answer ended by the caller`
+  with the round, the model, how long the round ran (`ms`) and how much was spoken by then (`spoken_chars`, 0 when
+  nothing was said yet). It is not an error: no `model round failed`, no `turn failed`, no `conversation failed`, and the run of
+  `conversation.voice` ends `cancelled`, not `failed` (seen live 2026-11-08: a turn ended before its first piece was
+  logged as an error).
 - **How long the integration waits:** its timeout (the option, 15 s by default) holds until the first piece and
   between two pieces, not for the whole answer: a story takes longer than any timeout (seen 2026-11-03: a story cut
   off after 30 s; decided 2026-11-03).
@@ -160,6 +165,8 @@ Nothing grows beyond the answer itself; no subscription, no polling.
    the offer (TECHO5: reply delivery "Early").
 8. **What was spoken counts** (decisions 9 to 11): the note in the tool result, the answer as all spoken text, the
    listening on it. Scenarios ST-14 to ST-16.
+9. **A turn ended by the caller is logged as such** (built 2026-11-08): the line with time and spoken characters,
+   also before the first piece; the run `cancelled`. ST-17, ST-18.
 
 ## Later
 

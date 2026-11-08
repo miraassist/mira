@@ -317,3 +317,67 @@ func TestBE13_AModelIsTriedBeforeItIsSaved(t *testing.T) {
 		t.Errorf("wrong key: %+v", r)
 	}
 }
+
+// MO-60: the switch "Vorwärmen" writes both warmup settings, and off
+// removes them.
+func TestMO60_TheSwitchWarmupWritesBothSettings(t *testing.T) {
+	_, e, path := editApp(t)
+	ctx := context.Background()
+	m := ui.ModelEdit{Endpoint: "http://localhost:1234/v1", Model: "qwen", Privacy: "local", Warmup: true}
+	if err := e.SaveModel(ctx, "lokal", m); err != nil {
+		t.Fatal(err)
+	}
+	out := read(t, path)
+	if !strings.Contains(out, "warmup_on_start: true") || !strings.Contains(out, "warmup_on_prefix_change: true") {
+		t.Fatalf("on:\n%s", out)
+	}
+	if !e.State(ctx).Models["lokal"].Warmup {
+		t.Error("the switch does not show on")
+	}
+	m.Warmup = false
+	if err := e.SaveModel(ctx, "lokal", m); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); strings.Contains(out, "warmup_on") {
+		t.Errorf("off:\n%s", out)
+	}
+}
+
+// MO-61: one of the two settings set in the file shows the switch on.
+func TestMO61_TheSwitchShowsOnWithOneSetting(t *testing.T) {
+	_, e, path := editApp(t)
+	cfg := strings.Replace(editConfig, "    privacy: local\n", "    privacy: local\n    warmup_on_prefix_change: true\n", 1)
+	if err := os.WriteFile(path, []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !e.State(context.Background()).Models["main"].Warmup {
+		t.Error("the switch does not show on")
+	}
+}
+
+// MO-62: a cloud model saved with the switch on gets no warmup.
+func TestMO62_ACloudModelIsNotWarmedFromThePage(t *testing.T) {
+	_, e, path := editApp(t)
+	err := e.SaveModel(context.Background(), "smart", ui.ModelEdit{Endpoint: "https://example.com/v1", Model: "flash",
+		Privacy: "cloud", Token: "sk-x", Warmup: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); strings.Contains(out, "warmup_on") {
+		t.Errorf("file:\n%s", out)
+	}
+}
+
+// WS-08: a model with warm slots alone makes Mira warm up at the start.
+func TestWS08_AModelWithWarmSlotsReadsItsPromptAtTheStart(t *testing.T) {
+	cfg := config.Config{Models: map[string]config.LLM{"main": {Privacy: "cloud"}, "strata": {Privacy: "local", WarmSlots: true}}}
+	if !warmsAtStart(cfg) {
+		t.Error("warm slots alone do not warm up at the start")
+	}
+	if warmsAtStart(config.Config{Models: map[string]config.LLM{"main": {Privacy: "local"}}}) {
+		t.Error("a model without warmup or warm slots warms up at the start")
+	}
+	if !warmsAtStart(config.Config{Models: map[string]config.LLM{"main": {Privacy: "local", WarmupOnStart: true}}}) {
+		t.Error("warmup_on_start no longer warms up at the start")
+	}
+}

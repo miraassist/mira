@@ -99,6 +99,9 @@ func (e *editor) modelsState(ctx context.Context, top *yaml.Node, st *ui.EditSta
 				ReasoningEffort: str(raw["reasoning_effort"]), MaxToolRounds: num(raw["max_tool_rounds"]),
 				Timeout: str(raw["timeout"]), TokenSet: str(raw["token"]) != "", InFile: true}
 			m.WarmSlots, _ = raw["warm_slots"].(bool)
+			start, _ := raw["warmup_on_start"].(bool)
+			change, _ := raw["warmup_on_prefix_change"].(bool)
+			m.Warmup = start || change
 			if t, ok := raw["temperature"].(float64); ok {
 				m.Temperature = &t
 			} else if t, ok := raw["temperature"].(int); ok {
@@ -108,7 +111,8 @@ func (e *editor) modelsState(ctx context.Context, top *yaml.Node, st *ui.EditSta
 		} else {
 			l := e.a.cfg.Models[name]
 			m = ui.ModelEdit{Endpoint: l.BaseURL, Model: l.Model, Privacy: l.Privacy, Parallel: l.Parallel,
-				Fallback: l.Fallback, TokenSet: l.APIKey != "", WarmSlots: l.WarmSlots}
+				Fallback: l.Fallback, TokenSet: l.APIKey != "", WarmSlots: l.WarmSlots,
+				Warmup: l.WarmupOnStart || l.WarmupOnPrefixChange}
 		}
 		m.FromHA = fromHA && name == config.MainModel
 		st.Models[name] = m
@@ -267,6 +271,15 @@ func (e *editor) SaveModel(ctx context.Context, name string, m ui.ModelEdit) err
 			config.MapSet(n, "warm_slots", config.Scalar("true"))
 		} else {
 			config.MapDelete(n, "warm_slots")
+		}
+		// "Vorwärmen" sets both warmups of a local model (docs/spec/models.md,
+		// step 7); a cloud model is never warmed.
+		for _, key := range []string{"warmup_on_start", "warmup_on_prefix_change"} {
+			if m.Warmup && m.Privacy == config.PrivacyLocal {
+				config.MapSet(n, key, config.Scalar("true"))
+			} else {
+				config.MapDelete(n, key)
+			}
 		}
 		if m.Temperature != nil {
 			config.MapSet(n, "temperature", config.Scalar(strconv.FormatFloat(*m.Temperature, 'f', -1, 64)))

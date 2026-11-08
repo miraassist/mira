@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -292,5 +293,28 @@ func TestTelegramIsNotStreamed(t *testing.T) {
 	code, out := do(t, srv, "POST", "/v1/conversation", "secret", `{"text":"Hallo","conversation_id":"4711","channel":"telegram","stream":true}`)
 	if code != http.StatusOK || out["text"] != "Welches Licht?" || conv.got.Stream != nil {
 		t.Fatalf("%d %v", code, out)
+	}
+}
+
+// endedConversation answers like the engine when its caller ended the turn.
+type endedConversation struct{}
+
+func (endedConversation) Handle(ctx context.Context, _ conversation.Request) (conversation.Response, error) {
+	<-ctx.Done()
+	return conversation.Response{}, ctx.Err()
+}
+
+// ST-18: a turn Home Assistant ended is no error of the service either.
+func TestST18_AnEndedTurnIsNoConversationError(t *testing.T) {
+	logs := &strings.Builder{}
+	h := New(Options{Token: "secret", Conversation: endedConversation{}, Version: "test",
+		Logger: slog.New(slog.NewTextHandler(logs, nil))})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest("POST", "/v1/conversation", strings.NewReader(`{"text":"Erzähl was","channel":"voice"}`)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer secret")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if strings.Contains(logs.String(), "conversation failed") {
+		t.Errorf("logged as an error:\n%s", logs)
 	}
 }

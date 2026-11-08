@@ -184,3 +184,24 @@ Feature: MO Models
     When the integration polls
     Then the repair "Mira's AI model smart does not answer" is raised with the text
     And it goes when the problem is gone
+
+  @step7
+  Scenario: MO-60 The switch "Vorwärmen" writes both warmup settings
+    Given a local model on the page "Models"
+    When it is saved with "Vorwärmen" on
+    Then mira.yaml has warmup_on_start and warmup_on_prefix_change true for it
+    And the page shows the switch on
+    When it is saved with "Vorwärmen" off
+    Then both settings are gone from the model
+
+  @step7
+  Scenario: MO-61 The switch shows on when only one of the settings is set
+    Given a local model in mira.yaml with only warmup_on_prefix_change true
+    When the page reads the models
+    Then the switch "Vorwärmen" is on
+
+  @step7
+  Scenario: MO-62 A cloud model is not warmed up from the page
+    Given a cloud model on the page "Models"
+    When it is saved with "Vorwärmen" on
+    Then neither warmup setting is written

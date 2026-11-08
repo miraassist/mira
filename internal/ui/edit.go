@@ -70,6 +70,9 @@ type ModelEdit struct {
 	// WarmSlots keeps one prompt warm in two llama.cpp slots
 	// (docs/spec/warm-slot.md).
 	WarmSlots bool `json:"warm_slots,omitempty"`
+	// Warmup is the switch "Vorwärmen": warmup_on_start and
+	// warmup_on_prefix_change of a local model (docs/spec/models.md, step 7).
+	Warmup bool `json:"warmup,omitempty"`
 	// FromHA: main as the integration sets it up; changed there, not here.
 	FromHA bool `json:"from_ha,omitempty"`
 	// InFile: the entry is in mira.yaml (else Mira's default).

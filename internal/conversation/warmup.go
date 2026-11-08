@@ -97,6 +97,7 @@ func (e *Engine) warmup(ctx context.Context, ch config.Channel) error {
 		return err
 	}
 	defer release()
+	e.log.Info("warming a slot", "channel", ch, "model", name, "prefix_hash", built.PrefixHash)
 	if err := client.Warmup(ctx, req); err != nil {
 		return err
 	}

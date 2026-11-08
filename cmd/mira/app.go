@@ -724,7 +724,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 			return nil
 		})
 	}
-	if anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnStart }) {
+	if warmsAtStart(cfg) {
 		a.engine.RequestWarmup(conversation.WarmupStartup)
 	}
 	a.goRun(ctx, "session-purge", func(ctx context.Context) error {
@@ -1452,6 +1452,13 @@ func nonEmpty(s []string) []string {
 }
 
 // anyModel reports whether one of the models has a setting.
+// warmsAtStart says whether Mira warms a model up when it starts: one with
+// warmup_on_start, or one with warm slots, which reads its prompt into a slot
+// (docs/spec/warm-slot.md, step 4).
+func warmsAtStart(cfg config.Config) bool {
+	return anyModel(cfg, func(m config.LLM) bool { return m.WarmupOnStart || m.WarmSlots })
+}
+
 func anyModel(cfg config.Config, has func(config.LLM) bool) bool {
 	for _, m := range cfg.Models {
 		if has(m) {

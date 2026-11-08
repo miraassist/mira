@@ -2,6 +2,7 @@ package conversation_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -217,10 +218,11 @@ func TestST13_AModelThatSpeaksBeforeItsToolsIsHandedOnFirst(t *testing.T) {
 	}
 }
 
-// Home Assistant ends the turn while the model writes (the wake word,
-// "Stopp"): the model stops, no fixed sentence is added, and the transcript
-// keeps what was said (docs/spec/streaming.md, ways to interrupt).
-func TestAnAnswerEndedByTheCallerKeepsWhatWasSaid(t *testing.T) {
+// ST-17: Home Assistant ends the turn while the model writes (the wake
+// word, "Stopp"): the model stops, no fixed sentence is added, the transcript
+// keeps what was said, and the log says how far it got
+// (docs/spec/streaming.md, ways to interrupt).
+func TestST17_AnAnswerEndedWhileSpokenIsLoggedWithWhatWasSaid(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: story + story + story, PieceDelay: 50 * time.Millisecond})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -245,6 +247,47 @@ func TestAnAnswerEndedByTheCallerKeepsWhatWasSaid(t *testing.T) {
 	}
 	if last := msgs[len(msgs)-1]; last.Role != llm.RoleAssistant || last.Content != said {
 		t.Fatalf("transcript ends with %+v, said %q", last, said)
+	}
+	// The log says how long the round ran and how much was said by then.
+	line := ""
+	for _, l := range strings.Split(h.logs.String(), "\n") {
+		if strings.Contains(l, `msg="answer ended by the caller"`) {
+			line = l
+		}
+	}
+	if !strings.Contains(line, "ms=") || !strings.Contains(line, fmt.Sprintf("spoken_chars=%d", len([]rune(said)))) {
+		t.Errorf("log line %q, said %d chars", line, len([]rune(said)))
+	}
+	if logs := h.logs.String(); !strings.Contains(logs, "status=cancelled") || strings.Contains(logs, "status=failed") {
+		t.Errorf("the run is not cancelled:\n%s", logs)
+	}
+}
+
+// ST-18: a turn ended before its first piece is no error: one info line
+// with nothing spoken, and the run cancelled.
+func TestST18_ATurnEndedBeforeAnythingWasSaidIsNoError(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: story, Delay: 2 * time.Second})
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+	_, err := h.engine.Handle(ctx, conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1",
+		Text: "Erzähl mir eine Geschichte.", Language: "de", Stream: func(conversation.Piece) {}})
+	if err == nil {
+		t.Fatal("a turn ended by its caller returned no error")
+	}
+	logs := h.logs.String()
+	if !strings.Contains(logs, `msg="answer ended by the caller"`) || !strings.Contains(logs, "spoken_chars=0") {
+		t.Errorf("no line for the ended turn:\n%s", logs)
+	}
+	for _, bad := range []string{`msg="model round failed"`, `msg="turn failed"`, "status=failed"} {
+		if strings.Contains(logs, bad) {
+			t.Errorf("logged %s:\n%s", bad, logs)
+		}
+	}
+	if !strings.Contains(logs, "status=cancelled") {
+		t.Errorf("the run is not cancelled:\n%s", logs)
 	}
 }
 

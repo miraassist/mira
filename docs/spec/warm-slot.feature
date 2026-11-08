@@ -46,3 +46,9 @@ Feature: WS Always a warm slot for local models
     When one of Mira's helpers (an agent) calls the model
     Then its request is sent with id_slot 1
     And a running reading in slot 1 is cancelled and starts again once the model is free
+
+  @step4
+  Scenario: WS-08 A model with warm_slots reads its prompt at the start
+    Given a local model with warm_slots and without warmup_on_start
+    When Mira starts
+    Then the start's warmup is asked for, and the prompt is read into a slot before any turn

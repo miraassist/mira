@@ -61,9 +61,9 @@ metadata:
         task: >-
           Stell das Abend-Briefing für morgen zusammen, fürs ganze Haus. Nur mit dem,
           was die Werkzeuge liefern: die Termine von morgen aus diesen Kalendern:
-          {{kalender}} (leer heißt alle); was morgen an Müll abgeholt wird, falls es
-          einen Abfallkalender gibt; und das Wetter, falls Home Assistant eines für
-          morgen nennt. Keine Nachrichten. Gibt es morgen nichts davon: importance 0
+          {{kalender}} (leer heißt alle); und das Wetter, falls Home Assistant eines
+          für morgen nennt. Kein Müll: an die Abfuhr morgen erinnert der Skill abfall
+          zur selben Zeit. Keine Nachrichten. Gibt es morgen nichts davon: importance 0
           und spoken leer. Sonst importance 1, spoken höchstens drei kurze Sätze,
           details die Termine mit Uhrzeit, expires_in_hours 5.
 ---

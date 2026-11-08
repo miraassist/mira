@@ -1,6 +1,6 @@
 # HACS default catalog – spec
 
-Status 2026-11-07: decisions 1 to 3 taken, checks C1 to C4 done; steps 1 to 3 built and run on the test HA, not released.
+Status 2026-11-08: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and run on the test HA, not released; decision 4 (the zip) built, takes effect with the next release.
 
 ## Goal
 
@@ -45,6 +45,22 @@ Each one changes behaviour the specs describe; this spec says how, and which spe
    [System](../system.md) (agent → integration).
 3. **A missing mail calendar is a repair the admin confirms** (2026-11-06): the integration no longer creates it on
    its own. Changes [Mail calendar](mail-calendar.md), section 1, and [Parcels](parcels.md), Setup.
+4. **The integration comes as a zip at every release, so its downloads are counted** (2026-11-08). Without it HACS
+   takes the repository's archive of the tag, which GitHub counts nowhere. So `hacs.json` says `zip_release: true`,
+   `filename: mira.zip`, and the release workflow attaches `mira.zip`: the tracked files of
+   `custom_components/mira` at the zip's root (`git archive`), since HACS unpacks the zip into
+   `custom_components/mira` (HACS's `async_download_zip_file`, checked in its source 2026-11-08). HACS reads
+   `hacs.json` from the tag it installs (`async_get_hacs_json` with the version's ref), so releases before this one
+   still install from the archive, and the change takes effect with the next release.
+   - **What it counts:** downloads of the zip, summed over all releases: every install and every update through
+     HACS, not users (whoever updates ten times counts ten times). GitHub's `download_count` per asset, read by
+     `GET /repos/<owner>/<repo>/releases` (one call, up to 100 releases).
+   - **Cost:** one asset more per release, made from the files already checked out; nothing at Home Assistant's
+     side.
+   - **When it fails:** `git archive` fails → the release job fails before anything is published, the workflow's
+     log says why (no release without the zip). The asset missing at a release that says `zip_release` → HACS
+     refuses that version ("Download of mira.zip was not completed") and the user stays on the installed one; the
+     HACS check of hacs/default flags it as well.
 
 ## 1. The model's source
 

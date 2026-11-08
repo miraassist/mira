@@ -508,6 +508,10 @@ func TestWarmupCarriesTheCachedPrefixPerSlot(t *testing.T) {
 	if !slots[0] || !slots[1] || !slots[2] {
 		t.Errorf("slots warmed = %v", slots)
 	}
+	// Each warmup's start is logged, for debugging one that takes long.
+	if n := strings.Count(h.logs.String(), `msg="warming a slot"`); n != 3 {
+		t.Errorf("%d warmup starts logged", n)
+	}
 	// All channels share everything up to the channel style: system message,
 	// tools and examples. Only the style messages at the end differ.
 	voice, bg := reqs[0].Request, reqs[2].Request

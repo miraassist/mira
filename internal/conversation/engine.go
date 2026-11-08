@@ -327,9 +327,20 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 			Rights: agent.AllRights}, ts)
 	resp, err := e.turn(ctx, ts, req, snap)
 	e.noteFollowUp(req, person, err == nil && resp.ContinueConversation)
-	done(agent.Result{Model: resp.Model, FallbackFrom: resp.FallbackFrom, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
-		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}, err)
+	res := agent.Result{Model: resp.Model, FallbackFrom: resp.FallbackFrom, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
+		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}
+	// A turn its caller ended is cancelled, not failed; the turn logged
+	// how far it got (docs/spec/streaming.md, ways to interrupt).
+	ended := ctx.Err() != nil
+	if ended {
+		res.Status = agent.Cancelled
+	}
+	done(res, err)
 	resp.Trace = rec.Events()
+	if err != nil && ended {
+		span.SetStatus(codes.Error, err.Error())
+		return Response{}, err
+	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		e.log.Error("turn failed", "session", key, "error", err)
@@ -539,13 +550,19 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			// When Home Assistant ended the turn (the wake word, "Stopp"),
 			// nobody hears a sentence any more: what was said is kept.
 			if ctx.Err() != nil {
-				e.log.Info("answer ended by the caller", "session", key, "round", round)
+				e.endedByCaller(key, round, modelName, began, pass)
 			} else {
 				e.log.Error("model failed while answering", "session", key, "round", round, "model", modelName, "error", err)
 				pass.add(e.texts(ctx).streamBroken)
 			}
 			final = llm.Message{Role: llm.RoleAssistant, Content: pass.spoken()}
 			break
+		}
+		if err != nil && ctx.Err() != nil {
+			// Ended before anything was said: no error of the model
+			// (docs/spec/streaming.md, ways to interrupt).
+			e.endedByCaller(key, round, modelName, began, pass)
+			return Response{}, err
 		}
 		if err != nil {
 			e.log.Error("model round failed", "session", key, "round", round, "model", modelName,
@@ -759,6 +776,18 @@ func modelRequest(model config.LLM, msgs []llm.Message) llm.ChatRequest {
 		r.CachePrompt = llm.BoolPtr(true)
 	}
 	return r
+}
+
+// endedByCaller logs a turn its caller ended (the wake word, "Stopp", the
+// connection gone) while a model round ran: how long the round ran and how
+// much was spoken by then, 0 before the first piece.
+func (e *Engine) endedByCaller(key string, round int, model string, began time.Time, pass *passer) {
+	spoken := 0
+	if pass != nil {
+		spoken = len([]rune(pass.spoken()))
+	}
+	e.log.Info("answer ended by the caller", "session", key, "round", round, "model", model,
+		"ms", time.Since(began).Milliseconds(), "spoken_chars", spoken)
 }
 
 // modelFor returns the client and settings of a model by name. A name the

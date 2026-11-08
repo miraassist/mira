@@ -47,6 +47,12 @@ jobs:
               -o "dist/mira-linux-$arch" ./cmd/mira
           done
           cp mira.example.yaml dist/
+      - name: Integration as a zip for HACS
+        # HACS installs the integration from this asset (hacs.json: zip_release),
+        # so GitHub counts its downloads (docs/spec/hacs-default.md, decision 4).
+        # Only the tracked files, at the zip's root: HACS unpacks it into
+        # custom_components/mira.
+        run: git archive --format=zip -o dist/mira.zip "HEAD:custom_components/mira"
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           files: dist/*

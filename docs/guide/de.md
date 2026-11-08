@@ -198,7 +198,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 
 **Briefing**: eine kurze Übersicht, was ansteht, in drei, vier Sätzen.
 
-- Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht.
+- Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht, und ohne die Müllabfuhr: an die erinnert am Vorabend der Skill **Abfall**. Willst du abends an die Tonne erinnert werden, schalte ihn mit ein.
 - **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Hast du weder Termine noch Themen, kommt nichts.
 - „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
 - Wann die Briefings kommen, stellst du unter **Fähigkeiten → Zeitplan** ein (siehe „Zeitplan“).
@@ -448,7 +448,7 @@ Den Rest macht Mira von selbst:
 - Der Plan gehört zum Vorgang im Raum, in dem er begonnen wurde. Er überdauert das Gespräch: Auch Minuten später, in einem neuen Gespräch, weiß Mira, wo ihr seid.
 - Solange er läuft, sieht Mira den zuletzt erledigten, den aktuellen und den nächsten Schritt sowie die Anleitung des Skills. Den ganzen Plan liest sie bei Bedarf nach.
 - Jeder Schritt startet die Frist (`timeout`, Vorgabe 1 Stunde) neu. Sind alle Schritte erledigt, bleibt der Ablauf noch 30 Minuten offen, falls doch noch etwas ist; dann endet er. „Hör auf“ beendet ihn sofort.
-- Im Reiter **Pläne** der Mira-Seite sieht jeder im Haus den laufenden Plan.
+- Im Reiter **Pläne** der Mira-Seite sieht jeder im Haus den laufenden Plan und kann ihn dort mit **Beenden** beenden.
 - Stammt der Plan aus dem Netz (etwa ein Rezept), fragt Mira, solange er läuft, nach, bevor sie sich etwas merkt oder etwas weitergibt.
 - Ein Plan ohne Kästchen geht auch (etwa ein Menü); dann sieht Mira nur, dass es ihn gibt, und liest ihn bei Bedarf.
 
@@ -903,7 +903,9 @@ Mira gibt eine gesprochene Antwort schon weiter, während sie sie schreibt: Eine
 
 Bevor Mira antwortet, liest das Modell ihre Anweisungen: wer sie ist, was es im Haus gibt, welche Werkzeuge sie hat. Das sind viele Seiten. Ein lokales Modell merkt sich das Gelesene, dann geht jede weitere Frage schnell. Ändert sich aber etwas im Haus (ein neues Gerät, ein umbenanntes Licht, ein Neustart von Home Assistant), muss es alles neu lesen. Mit einem lokalen Modell wie Qwen 30B dauert das etwa eine halbe Minute, und wer in dieser Zeit fragt, wartet.
 
-Mit **Immer einen warmen Slot halten** (unter **Modelle**, beim Modell; in `mira.yaml` `warm_slots: true`) hat das Modell zwei Plätze zum Merken. Auf dem einen liegt die bisherige Fassung bereit, und Mira antwortet von dort. Auf dem anderen liest das Modell die neue Fassung, wenn es gerade nichts zu tun hat. Ist es fertig, tauschen die beiden Plätze. So wartet niemand eine halbe Minute.
+Mit **Vorwärmen** (unter **Modelle**, beim Modell) lässt Mira das Modell beim Start und nach jeder Änderung schon lesen, bevor jemand fragt. Wer genau in dieser halben Minute fragt, wartet trotzdem. Das geht mit jedem lokalen Modell, auch mit LM Studio.
+
+Mit **Immer einen warmen Slot halten** (unter **Modelle**, beim Modell; in `mira.yaml` `warm_slots: true`) hat das Modell zwei Plätze zum Merken. Auf dem einen liegt die bisherige Fassung bereit, und Mira antwortet von dort. Auf dem anderen liest das Modell die neue Fassung, wenn es gerade nichts zu tun hat. Ist es fertig, tauschen die beiden Plätze. So wartet niemand eine halbe Minute. Vorgewärmt wird dabei von selbst, auch beim Start.
 
 Was du dafür in Kauf nimmst:
 

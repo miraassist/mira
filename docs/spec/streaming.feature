@@ -88,3 +88,18 @@ Feature: ST Speaking while the answer is written
   Scenario: ST-16 A question before a tool, or a filler after it, keeps the satellite listening
     Given the question stands in the round with the tool and the last round says "Ich warte auf deine Antwort."
     Then the satellite listens again for the answer
+
+  @step9
+  Scenario: ST-17 An answer ended while it is spoken is logged with its time and what was said
+    Given a streamed answer of which some pieces were handed on
+    When Home Assistant ends the turn
+    Then the log has "answer ended by the caller" with the round's ms and the spoken characters
+    And the run of conversation.voice ends cancelled
+
+  @step9
+  Scenario: ST-18 A turn ended before anything was said is no error
+    Given a model still reading or writing its first round
+    When Home Assistant ends the turn before the first piece
+    Then the log has "answer ended by the caller" with spoken_chars 0
+    And neither "model round failed", "turn failed" nor "conversation failed" is logged
+    And the run of conversation.voice ends cancelled

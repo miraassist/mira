@@ -838,7 +838,7 @@ class MiraEditor extends Light {
       body = { name: form.name.trim(), endpoint: form.endpoint || "", model: form.model || "", privacy: form.privacy || "",
         parallel: +form.parallel || 0, fallback: form.fallback || "", context_tokens: +form.context_tokens || 0,
         reasoning_effort: form.reasoning_effort || "", max_tool_rounds: +form.max_tool_rounds || 0, timeout: form.timeout || "",
-        token: form.token || "", token_clear: !!form.token_clear, warm_slots: !!form.warm_slots };
+        token: form.token || "", token_clear: !!form.token_clear, warm_slots: !!form.warm_slots, warmup: !!form.warmup };
       if (String(form.temperature ?? "").trim() !== "") body.temperature = parseFloat(String(form.temperature).replace(",", "."));
     }
     if (kind === "agent") {
@@ -963,6 +963,8 @@ class MiraEditor extends Light {
         ${this.field(T.mod_timeout, "timeout", { disabled: locked, placeholder: "60s" })}
         ${f.privacy === "local" ? html`<span></span><label class="checkline"><input type="checkbox" ?disabled=${locked}
           .checked=${!!f.warm_slots} @change=${ev => this.set("warm_slots", ev.target.checked)}> ${T.ed_warm_slots}</label>` : nothing}
+        ${f.privacy === "local" && !f.warm_slots ? html`<span></span><label class="checkline"><input type="checkbox" ?disabled=${locked}
+          .checked=${!!f.warmup} @change=${ev => this.set("warmup", ev.target.checked)}> ${T.ed_warmup}</label>` : nothing}
       </div>
       <p class="hint">${s.encrypted ? T.ed_secrets_encrypted : T.ed_secrets_plain}</p>`;
   }

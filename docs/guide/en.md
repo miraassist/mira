@@ -194,7 +194,7 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 
 **Briefing**: a short overview of what is coming, in three or four sentences.
 
-- In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow.
+- In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow, and without the waste collection: the skill **Waste** reminds you of that on the evening before. To be reminded of the bins in the evening, turn it on as well.
 - **Your own briefing:** if Mira can reach you personally (your phone or Telegram under "Configure → Persons", or "alone at home is me"), you also get a message of your own in the morning. It has your appointments for today if you have a calendar of your own (one named like your Home Assistant login or like you as a person; with the login `stefan`, "Stefan"), and two headlines on your topics if Mira knows them: "Remember that I'm interested in football and electric cars." With neither, nothing comes.
 - "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
 - When the briefings come is set under **Capabilities → Schedules** (see "Schedules").
@@ -443,7 +443,7 @@ Mira does the rest by herself:
 - The plan belongs to the thread in the room where it started. It outlasts the conversation: minutes later, in a new conversation, Mira knows where you are.
 - While it runs, Mira sees the step done last, the current and the next one, and the skill's instructions. She reads the whole plan when she needs it.
 - Every step starts the time limit (`timeout`, 1 hour by default) anew. Once all steps are done, the run stays open for another 30 minutes in case something is left; then it ends. "Stop" ends it at once.
-- Everyone in the house sees the running plan in the **Plans** tab of the Mira page.
+- Everyone in the house sees the running plan in the **Plans** tab of the Mira page and can end it there with **End**.
 - If the plan comes from the web (a recipe, say), Mira asks before she remembers or passes anything on while it runs.
 - A plan without checkboxes works too (a menu, say); Mira then only sees that there is one and reads it when needed.
 
@@ -879,7 +879,9 @@ Mira hands on a spoken answer while she writes it: a long answer, a story say, s
 
 Before Mira answers, the model reads her instructions: who she is, what there is in the house, which tools she has. That is many pages. A local model remembers what it read, so every further question goes fast. But when something in the house changes (a new device, a renamed light, a restart of Home Assistant), it has to read everything again. With a local model such as Qwen 30B that takes about half a minute, and whoever asks in that time waits.
 
-With **Always keep a warm slot** (under **Models**, at the model; in `mira.yaml` `warm_slots: true`) the model has two places to remember. On one the previous version lies ready, and Mira answers from there. On the other the model reads the new version while it has nothing else to do. Once it is done, the two places swap. So nobody waits half a minute.
+With **Warm up** (under **Models**, at the model) Mira has the model read at the start and after every change, before anyone asks. Whoever asks within exactly that half minute still waits. This works with every local model, LM Studio too.
+
+With **Always keep a warm slot** (under **Models**, at the model; in `mira.yaml` `warm_slots: true`) the model has two places to remember. On one the previous version lies ready, and Mira answers from there. On the other the model reads the new version while it has nothing else to do. Once it is done, the two places swap. So nobody waits half a minute. Warming up happens by itself here, at the start too.
 
 What you accept for it:
 

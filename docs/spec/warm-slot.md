@@ -1,6 +1,6 @@
 # Always a warm slot for local models – Spec
 
-Status 2026-11-03: built (steps 1 to 3, in 0.15.2), checked on the test machine; the guide explains it under "Several models". Scenarios: [warm-slot.feature](warm-slot.feature).
+Status 2026-11-08: built (steps 1 to 3, in 0.15.2; step 4, the reading at the start, 2026-11-08, not released), checked on the test machine; the guide explains it under "Several models". Scenarios: [warm-slot.feature](warm-slot.feature).
 
 ## Goal
 
@@ -75,7 +75,7 @@ Mira keeps, per such model:
 | A helper's request | Sent with `id_slot` of the spare slot; a running reading is stopped, as for a turn |
 | A turn ends, the model is free | If a new prompt waits, starts reading it again |
 | The reading ends | The new prompt is the served one, its slot the warm slot; the old warm slot is the spare one |
-| Mira starts | Reads the prompt into slot 0 (the warmup of today); until then a turn waits, as today |
+| Mira starts | Reads the prompt into a slot (the warmup of today); until then a turn waits, as today. `warm_slots` alone is enough for this: no `warmup_on_start` is needed (step 4) |
 
 A turn of the layers 6 and 7 (history, the current turn) is unaffected: only the fixed part waits for its slot.
 
@@ -122,6 +122,12 @@ Nothing grows with the number of turns.
    at the end of its block of 2,048 tokens (`--batch-size`), about 4 s here. Smaller blocks would shorten that; not
    done (decision 5). The stopped reading started again on its own and finished in 28.8 s.
 3. **Guide:** setting up the server, what it costs and gives.
+4. **The reading at the start** (built 2026-11-08): seen live on 2026-11-08, a model with `warm_slots` set on the page
+   read nothing after a restart: the start's reading ran only when some model had `warmup_on_start`, which the page
+   cannot set. Now `warm_slots` is enough, as the table above says. When the reading fails, the log says so, as for
+   every reading (`could not read the prompt`), and the first turn reads the prompt itself. A reading's start is
+   logged too (`reading the prompt into a slot`, and `warming a slot` for a warmup without warm slots), so a reading
+   that takes long shows in the log from its start. WS-08.
 
 ## Later
 
