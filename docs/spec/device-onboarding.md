@@ -10,8 +10,8 @@ a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Sc
 A new Zigbee device is added by talking to Mira, without opening Home Assistant or Zigbee2MQTT:
 
 1. Stefan: "Hey Mira, ich hab hier ein neues Zigbee-Gerät." Mira: "Soll ich das Einbinden starten?"
-2. Stefan: "Ja." Mira: "Gut, drück jetzt den Knopf am Gerät oder leg die Batterie ein. Ich sag Bescheid, wenn ich es
-   sehe."
+2. Stefan: "Ja." Mira: "Das Einbinden läuft drei Minuten. Halt den Knopf am Gerät ein paar Sekunden gedrückt, bis
+   es schnell blinkt, oder steck es neu ein. Ich sag Bescheid, wenn ich es sehe."
 3. A minute later, unasked, at the same satellite: "Ich hab's: ein Temperatur- und Feuchtesensor von Aqara. In
    welchen Raum kommt er?" Stefan: "Wohnzimmer."
 4. Mira: "Ist im Wohnzimmer. Ich nenne ihn ‚Temperatursensor Wohnzimmer', passt das?" Stefan: "Ja."
