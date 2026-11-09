@@ -183,8 +183,10 @@ type run struct {
 	open bool
 	// seen: Zigbee2MQTT's info said pairing is open; an info saying it is
 	// closed counts only after that (the retained one comes first).
-	seen    bool
-	joined  map[string]bool
+	seen   bool
+	joined map[string]bool
+	// told: Mira said that a device is being learned (once per run).
+	told    bool
 	defs    map[string]definition
 	devices map[string]string // ieee -> device id, from the registry
 	device  *found
@@ -521,8 +523,15 @@ func (p *Pairing) event(ctx context.Context, r *run, ev bridgeEvent) bool {
 	case "device_joined":
 		r.mu.Lock()
 		r.joined[ieee] = true
+		tell := !r.told
+		r.told = true
 		r.mu.Unlock()
 		p.log.Info("zigbee device joined", "thread", r.thread, "ieee", ieee)
+		// The interview of a battery device can take a minute or two:
+		// without a word the wait feels broken.
+		if tell {
+			p.say(ctx, r, p.t.joining)
+		}
 	case "device_announce":
 		r.mu.Lock()
 		isNew := r.joined[ieee]

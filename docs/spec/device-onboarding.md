@@ -81,7 +81,11 @@ The skill is not on by itself: a household with Zigbee2MQTT switches it on with 
    `status: ok` returns the tool; the model tells the user to press the button. The turn ends.
 2. **The device joins.** Zigbee2MQTT reports `device_joined`, then `device_interview` with `started` and, after up to
    a minute (battery devices are slow), `successful` with the device's definition: vendor, model, description, what
-   it exposes. Mira says nothing at `device_joined`.
+   it exposes. At the first `device_joined` of the run Mira says at the satellite that she sees a device and is
+   getting to know it, that this can take up to two minutes, and to press its button briefly now and then (decided
+   2026-11-09 after the real run: an interview of 70 s without a word felt broken; a battery device answers the
+   interview only while awake). It is a message of the thread like the question, so a reply joins the thread; the
+   question waits until the satellite is free again. A device that leaves and joins again is not said twice.
 3. **Home Assistant has it.** After the interview Zigbee2MQTT publishes its discovery; Home Assistant creates the
    device and its entities and fires `entity_registry_updated` `create` for each. Mira reads the first such entity
    (`config/entity_registry/get_entries`): its `unique_id` begins with the IEEE address of the device that joined, its
@@ -120,6 +124,7 @@ The skill is not on by itself: a household with Zigbee2MQTT switches it on with 
 | Nobody answers the question | The thread expires at its timeout (15 minutes); the device stays in Home Assistant without room and name. Log `thread ended` with `state=expired` |
 | The area or the expose call is refused (the token is no administrator's) | The tool returns Home Assistant's error; Mira says so. Log `could not put the zigbee device into its room` / `could not expose the zigbee device's entities` |
 | The rename answers with an error (Zigbee2MQTT refuses the name) | The tool returns it with how many values were exposed; Mira says so; the room and the exposing stay. Log `could not rename the zigbee device` |
+| The message that a device is being learned cannot be delivered | As every message of a thread: the notifier logs it and sends it privately; the wait goes on |
 | The satellite is busy (music, a call) when the device is found | The announcement is spoken as every announcement of a thread would be there; nothing of its own |
 
 ### Cost
@@ -129,7 +134,7 @@ subscriptions and one registry subscription through Home Assistant while pairing
 the thread ends); one read of the entity registry per entity Home Assistant creates while a device is awaited (a
 device has a handful; other integrations creating entities in those minutes add theirs); one area update; one
 `search/related` and one read of the entity registry for exposing; one expose call; one model round for the question
-and the turns of the dialog. Nothing grows with the number of devices in the house: the subscriptions are filtered to
+and the turns of the dialog; two announcements at the satellite (the device being learned, the question). Nothing grows with the number of devices in the house: the subscriptions are filtered to
 the bridge's topics and to `create` events.
 
 ## State table

@@ -292,6 +292,9 @@ func (e *env) pairNew(t *testing.T) string {
 		"supported": true, "definition": map[string]any{"vendor": "Aqara", "model": "WSDCGQ11LM",
 			"description": "Temperature, humidity and pressure sensor",
 			"exposes":     []map[string]any{{"name": "temperature"}, {"name": "battery", "category": "diagnostic"}}}})
+	if s := e.said(t); s != e.p.t.joining {
+		t.Fatalf("first said %q, want that the device is being learned", s)
+	}
 	return e.said(t)
 }
 
@@ -428,6 +431,9 @@ func TestDV07_TheInterviewFails(t *testing.T) {
 	e.run(t, ToolStart, `{}`)
 	e.ha.bridgeEvent("device_joined", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
 	e.ha.bridgeEvent("device_interview", map[string]any{"friendly_name": ieee, "status": "failed", "ieee_address": ieee})
+	if s := e.said(t); s != e.p.t.joining {
+		t.Fatalf("said %q", s)
+	}
 	if s := e.said(t); s != e.p.t.interviewFailed {
 		t.Fatalf("said %q", s)
 	}
@@ -456,6 +462,24 @@ func TestDV08_AKnownDevicePairedAgain(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("the thread is not done")
 	}
+}
+
+func TestDV11_AJoiningDeviceIsSaidOnce(t *testing.T) {
+	e := newEnv(t)
+	e.run(t, ToolStart, `{}`)
+	e.ha.bridgeEvent("device_joined", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
+	if s := e.said(t); s != e.p.t.joining {
+		t.Fatalf("said %q", s)
+	}
+	// The device leaves and joins again (reset once more): nothing new is said.
+	e.ha.bridgeEvent("device_leave", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
+	e.ha.bridgeEvent("device_joined", map[string]any{"friendly_name": ieee, "ieee_address": ieee})
+	select {
+	case s := <-e.asked:
+		t.Fatalf("said again %q", s)
+	case <-time.After(300 * time.Millisecond):
+	}
+	e.p.ThreadEnded(context.Background(), thread)
 }
 
 func TestDV09_CancellingClosesPairing(t *testing.T) {

@@ -11,7 +11,7 @@ type texts struct {
 	noDevice, unknownRoom, assignFailed, assigned       string
 	finishFailed, renameFailed, finished                string
 	// Said at the satellite by Mira herself.
-	nothingJoined, interviewFailed, known, found string
+	joining, nothingJoined, interviewFailed, known, found string
 	// The facts of a device, for the thread and the question.
 	facts string
 }
@@ -35,6 +35,7 @@ var catalog = map[i18n.Lang]texts{
 		finishFailed:    "Ergebnis: nicht freigegeben, nicht umbenannt. Grund: Home Assistant hat abgelehnt: %s. Sag das dem Nutzer.",
 		renameFailed:    "Ergebnis: %d Werte für Sprache freigegeben, aber nicht umbenannt. Grund: Zigbee2MQTT hat abgelehnt: %s. Der Raum bleibt. Sag das dem Nutzer.",
 		finished:        "Ergebnis: fertig. Das Gerät heißt jetzt %s, ist im Raum %s, und %d Werte sind für Sprache freigegeben. Sag das kurz.",
+		joining:         "Ich sehe ein Gerät, ich lerne es gerade kennen. Das kann bis zu zwei Minuten dauern. Drück ab und zu kurz den Knopf, dann geht's schneller.",
 		nothingJoined:   "Ich habe kein neues Gerät gesehen. Soll ich es nochmal versuchen?",
 		interviewFailed: "Da hat sich ein Gerät gemeldet, aber ich verstehe es nicht. Drück den Knopf am besten nochmal.",
 		known:           "Das Gerät kenne ich schon: %s, im Raum %s.",
@@ -59,6 +60,7 @@ var catalog = map[i18n.Lang]texts{
 		finishFailed:    "Result: not exposed, not renamed. Reason: Home Assistant refused: %s. Tell the user.",
 		renameFailed:    "Result: %d values exposed to voice, but not renamed. Reason: Zigbee2MQTT refused: %s. The room stays. Tell the user.",
 		finished:        "Result: done. The device is now called %s, is in %s, and %d values are exposed to voice. Say so briefly.",
+		joining:         "I see a device and I'm getting to know it. That can take up to two minutes. Press its button briefly now and then, that makes it quicker.",
 		nothingJoined:   "I did not see a new device. Shall I try again?",
 		interviewFailed: "A device came up, but I do not understand it. Best press its button again.",
 		known:           "I know that device already: %s, in %s.",

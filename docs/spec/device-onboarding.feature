@@ -72,3 +72,10 @@ Feature: DV Adding a Zigbee device by voice
     When the thread calls device_assign
     Then the tool returns Home Assistant's error
     And the log says what failed
+
+  @step3
+  Scenario: DV-11 A joining device is said once
+    Given pairing is open for a thread at the Show
+    When a device joins
+    Then Mira says at the Show that she sees a device and is getting to know it, and to press its button now and then
+    And when the same device leaves and joins again, she says nothing more

@@ -32,7 +32,9 @@ die Schritte; Mira wartet zwischendurch selbst auf das Gerät.
    ausdrücklich gesagt, frag kurz: „Soll ich das Einbinden starten?“ Beim Ja:
    `zigbee_pairing_start`. Sag dann nur, was das Ergebnis sagt (Knopf gedrückt
    halten, bis es schnell blinkt, oder neu einstecken), und frag nichts weiter. Die Runde endet.
-2. **Das Gerät ist da.** Mira meldet sich am Satelliten von selbst mit der Frage
+2. **Das Gerät ist da.** Meldet sich ein Gerät an, sagt Mira von selbst, dass sie es
+   kennenlernt; eine Antwort darauf („okay“) braucht nichts, sag höchstens kurz, dass
+   du dich meldest. Ist es fertig, meldet sich Mira am Satelliten von selbst mit der Frage
    nach dem Raum; die Angaben zum Gerät stehen dann im Vorgang. Hat Mira kein
    Gerät gesehen und fragt, ob sie es nochmal versuchen soll: beim Ja wieder
    `zigbee_pairing_start`, beim Nein `thread_cancel`.
