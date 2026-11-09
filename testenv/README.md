@@ -3,7 +3,7 @@
 A throwaway Home Assistant for testing Mira against a real HA without
 touching the house: same version as the house (2026.10.0), demo devices in
 German-named areas, simulated leak/motion/window sensors, and a non-admin user
-`mira` like in the house.
+`mira` for checking what Home Assistant refuses a non-admin.
 
 ```sh
 go run ./cmd/testha up        # start, onboard, seed; writes testenv/.env
@@ -14,8 +14,9 @@ go run ./cmd/testha reset     # delete all state
 ```
 
 - HA: http://localhost:8123, login `admin`, password in `testenv/.env`.
-- `testenv/.env` holds `HA_TOKEN` (user `mira`, not admin), `TESTHA_ADMIN_TOKEN`
-  (for driving tests) and `MIRA_API_TOKEN`.
+- `testenv/.env` holds `TESTHA_ADMIN_TOKEN` (the owner's: the test Mira uses it
+  for Home Assistant and its MCP server, and tests drive with it), `HA_TOKEN`
+  (user `mira`, not admin) and `MIRA_API_TOKEN`.
 - A test Mira runs next to the live one on port 8788:
 
   ```sh

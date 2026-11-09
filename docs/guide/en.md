@@ -986,7 +986,7 @@ If you close the dialog in between, opening it again goes on at the overview.
 If Mira is not under "Discovered": **Add integration** → Mira, and enter its address, such as `http://192.168.1.20:8787`.
 
 Then the integration sets up the rest in Home Assistant by itself:
-- an **access "Mira (Integration)"** in the profile of whoever set Home Assistant up, which Mira uses to talk to Home Assistant. If there is a user "Mira" from before, Mira no longer needs it; you may delete it. Until you confirm "Mira needs a new access" under Repairs, Mira cannot create new tasks and timers;
+- an **access "Mira (Integration)"** in the profile of whoever set Home Assistant up, which Mira uses to talk to Home Assistant;
 - Home Assistant's **MCP server**, if it is missing;
 - **Mira as the conversation agent** of the assistants you ticked.
 

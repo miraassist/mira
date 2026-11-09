@@ -1010,7 +1010,7 @@ Schließt du den Dialog zwischendurch, geht es beim nächsten Öffnen in der Üb
 Steht Mira nicht unter „Entdeckt“: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
 Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
-- einen **Zugang „Mira (Integration)“** im Profil dessen, der Home Assistant eingerichtet hat, mit dem Mira Home Assistant anspricht. Gab es von früher einen Benutzer „Mira“, braucht ihn Mira nicht mehr; du kannst ihn löschen. Bis du unter Reparaturen „Mira braucht einen neuen Zugang“ bestätigst, kann Mira keine neuen Aufgaben und Timer anlegen;
+- einen **Zugang „Mira (Integration)“** im Profil dessen, der Home Assistant eingerichtet hat, mit dem Mira Home Assistant anspricht;
 - den **MCP-Server** von Home Assistant, falls er noch fehlt;
 - **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
 

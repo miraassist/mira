@@ -398,12 +398,15 @@ erDiagram
 
 ## 8. Security
 
-- **Restricted HA user.** Mira has no admin rights in HA. It
-  reads states, registries and the statistics and switches via the
-  Assist tools.
-- **Automations only via the integration.** The commands
-  `mira/automation/*` may only be called by Mira's own HA user. The
-  integration learns it via `/v1/health`. A task may switch and
+- **Mira's access to HA.** Mira talks to Home Assistant with a long-lived
+  token "Mira (Integration)" in the name of HA's owner, with admin rights,
+  made with an admin's consent at the setup. She needs them to save tasks
+  and timers as automations, as HA's automation editor does. What she does
+  in HA is limited by her tools and guards, not by HA's rights: she reads
+  states, registries and the statistics and switches via the Assist tools,
+  which respect the exposure to Assist.
+- **Automations through the integration's check.** The commands
+  `mira/automation/*` are for admins only. A task may switch and
   notify; the proposal names these actions explicitly. Never
   allowed is what Mira only switches with an explicit yes (locks,
   alarm, garage door), as well as scripts, shell commands and restarts. The
@@ -458,7 +461,7 @@ Between Home Assistant and the agent there are two directions, on separate paths
 | Agent → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |
 
 - **Panel:** browser → HA (with HA's login) → integration → agent, with the token and the headers `X-Mira-HA-User` and `X-Mira-HA-Admin`. The agent trusts these headers as soon as the token is correct. So whoever has the token can pose as any HA user: the token is the key to everything.
-- **Rights of the HA user:** No admin means it manages nothing in HA (no users, integrations, exposure list). It can, however, call services on any entity, because HA has no per-entity rights for normal users. The limits are set by Mira's guards and the exposure to Assist, which HA's MCP tools respect. The agent's HA token is thus almost as powerful as a normal account.
+- **Rights of the HA token:** The agent's HA token is an admin's: whoever has it can do in HA what an admin can. Mira herself uses only what her tools offer; the limits are set by her guards and the exposure to Assist, which HA's MCP tools respect. So keep the token (`.env`, the secrets file) like an admin's password.
 - **Encryption:** The agent speaks unencrypted HTTP. The connection to HA is encrypted if `ha.url` starts with `https://`.
 - **Same host** (the default case: the agent as a container next to HA): Everything runs locally. With `server.listen: 127.0.0.1:8787` the agent is not reachable from outside at all, if HA addresses it via `localhost`.
 - **Separate hosts in the LAN:** Token, conversation texts and replies go through the network unencrypted. Whoever can eavesdrop in the LAN sees them. The agent then listens on all interfaces. Without a token there is no access to data. So choose tokens long and random, and restrict port 8787 to HA, where the router or computer allows it.
@@ -473,11 +476,12 @@ Between Home Assistant and the agent there are two directions, on separate paths
 - **Python:** `.venv/bin/python -m pytest` for config flow, conversation,
   entities, sub-entries as well as rules and permissions of the automations.
 - **Test HA:** `go run ./cmd/testha up` starts HA 2026.11 in Docker. It has
-  demo devices, a non-admin user, the integration and
-  `automations.yaml`. Alongside runs a test Mira with `testenv/mira.yaml` on
+  demo devices, the integration, `automations.yaml` and a non-admin user
+  for checking what Home Assistant refuses a non-admin. Alongside runs a test Mira with `testenv/mira.yaml` on
   port 8788. This way whole flows can be checked without touching the house.
 - **After every update of the test HA:** `go run ./cmd/testha compat` checks
-  what Mira relies on in Home Assistant, with Mira's own code and as her user
+  what Mira relies on in Home Assistant, with Mira's own code and the test
+  HA's non-admin token
   ([Compatibility](spec/ha-compat.md)); every check says ok or FAIL with its
   evidence.
 - **End to end at a real satellite:** a flow that plays, speaks and listens is
