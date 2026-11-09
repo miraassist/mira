@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: specified, nothing built; the open questions at the end wait for the maintainer. Scenarios:
+Status 2026-11-10: specified, nothing built. Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal
@@ -26,8 +26,8 @@ The four big families that set up over a Wi-Fi of their own (not Bluetooth, not 
 |---|---|---|---|---|
 | **Shelly** (Gen1) | open, `shelly<model>-<id>` (e.g. `shellyplug-s-A1B2C3`) | `192.168.33.1` | `GET /settings/sta?enabled=1&ssid=<ssid>&key=<password>` | Shelly's API docs (Gen1); assumption for the exact path until tried |
 | **Shelly** (Gen2, Gen3, Gen4: Plus, Pro, Mini) | open by default (Gen3 and later can have a password), `Shelly<Model>-<id>` | `192.168.33.1` | `POST /rpc` `{"method":"WiFi.SetConfig","params":{"config":{"sta":{"ssid":…,"pass":…,"enable":true}}}}`; the answer says whether a restart is needed (`restart_required`) | [Shelly Gen2 API, WiFi](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/WiFi) |
-| **Tasmota** | open, its host name `tasmota-<id>-<nnnn>`, for 3 minutes after the start without a Wi-Fi | `192.168.4.1` | `GET /wi?s1=<ssid>&p1=<password>&save=` (its Wi-Fi manager's form) | Tasmota's source (`xdrv_01_9_webserver.ino`: page `wi`, arguments `s1`, `p1`, `save`; the AP opens with the host name and no passphrase) |
-| **ESPHome** (with `captive_portal`, the default of the ready-made projects) | its fallback hotspot, the name its configuration gives (often "<Name> Fallback Hotspot"), with or without a password, after 1 minute without its Wi-Fi | `192.168.4.1` | `GET` or `POST /wifisave?ssid=<ssid>&psk=<password>` | ESPHome's source (`captive_portal.cpp`, `handle_wifisave`, arguments `ssid`, `psk`) |
+| **Tasmota** | open, its host name `tasmota-<id>-<nnnn>`, for 3 minutes after the start without a Wi-Fi | `192.168.4.1` | With the broker (decision 3): `GET /cm?cmnd=Backlog SSID1 <ssid>; Password1 <password>; MqttHost <host>; MqttUser <user>; MqttPassword <password>` (assumption: the command page answers while the Wi-Fi manager runs; to check in step 1). Its Wi-Fi manager's form `GET /wi?s1=<ssid>&p1=<password>&save=` takes only the Wi-Fi | Tasmota's source (`xdrv_01_9_webserver.ino`: page `wi`, arguments `s1`, `p1`, `save`; the AP opens with the host name and no passphrase) |
+| **ESPHome** (with `captive_portal`, the default of the ready-made projects) | its fallback hotspot, the name its configuration gives (often "<Name> Fallback Hotspot"), after 1 minute without its Wi-Fi; only open ones (decision 4) | `192.168.4.1` | `GET` or `POST /wifisave?ssid=<ssid>&psk=<password>` | ESPHome's source (`captive_portal.cpp`, `handle_wifisave`, arguments `ssid`, `psk`) |
 | **WLED** | `WLED-AP`, password `wled1234` | `4.3.2.1` | `POST /json/cfg` `{"nw":{"ins":[{"ssid":…,"psk":…}]}}` | WLED's source (`const.h`: `DEFAULT_AP_SSID`, `DEFAULT_AP_PASS`; `wled.cpp`: `softAPConfig(4.3.2.1)`; `cfg.cpp`: `nw.ins[].ssid`, `psk`) |
 
 Not possible this way: devices that set up through a maker's cloud (Tuya/Smart Life, Meross, Govee, WiZ, eWeLink's
@@ -38,7 +38,8 @@ that is the later part on Bluetooth).
 - Shelly, ESPHome, WLED announce themselves (Zeroconf); Home Assistant discovers them, and they are
   [found devices](found-devices.md) that wait for a yes. An ESPHome device with an encryption key asks for it: that
   step has a field and is left to Home Assistant's page (found devices, decision on fields).
-- **Tasmota** is found by Home Assistant only through MQTT, and a fresh Tasmota knows no MQTT broker. Open question 3.
+- **Tasmota** is found by Home Assistant only through MQTT: Mira gives it the broker with the Wi-Fi (decision 3), and
+  Home Assistant's Tasmota integration adds it by itself: a new device without a room.
 
 ## How Mira reaches the Wi-Fi
 
@@ -58,7 +59,7 @@ off, as decided; leaving that Wi-Fi would cut Home Assistant off.
 
 **The route.** The device's network is joined so that it never becomes the default route: Home Assistant, the model
 and the home network stay on the cable. When the device's network has the same addresses as the home network
-(`192.168.4.x` at home and a Tasmota), the hand-over is refused (open question 5 has the rare case).
+(`192.168.4.x` at home and a Tasmota), the hand-over is refused, and Mira says why (decision 5).
 
 ## The home Wi-Fi
 
@@ -100,7 +101,7 @@ The rest (confirm, room, name, expose, ignore) are the found devices' tools.
 | The device refuses or does not answer in 10 s | Mira leaves its Wi-Fi; she says the device did not take the Wi-Fi; the thread waits for "nochmal" or "abbrechen". Log `the device did not take the wifi` with its answer |
 | Leaving the device's Wi-Fi or deleting the profile fails | Log `could not leave the device's wifi` with the error, at error level: the machine may stay joined; a repair says so until the next start removes Mira's profiles (they carry Mira's name) |
 | The device is not discovered within 2 minutes | Mira says it did not turn up in the home Wi-Fi: most often a wrong password. Log `wifi device not discovered after the handover`. The thread waits for "nochmal" (the device opens its Wi-Fi again by itself after failing, Tasmota after 3 minutes, ESPHome after 1) or "abbrechen" |
-| Tasmota (open question 3) | As decided there |
+| No MQTT broker set when a Tasmota is found | `wifi_devices` returns that the broker is missing and where it is set; Mira says so and does not hand over the Wi-Fi alone |
 
 ### Cost
 
@@ -128,24 +129,20 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
 - **Home Assistant OS**: not at hand; the Supervisor path is tested against the Supervisor's API as documented, and
   is marked so until someone runs it.
 
-## Open questions (for the maintainer)
+## Decided (2026-11-10)
 
-1. **D-Bus in Go**: a library for the system bus (`github.com/godbus/dbus`, pure Go, widely used) or calling `nmcli`
-   (not in Mira's image, would have to be added). Proposal: the library.
-2. **The container recipe**: the socket mount and a polkit rule (or the group) in the guide's container setup, and
-   in the HA app the Supervisor's role.
-3. **Tasmota and MQTT**: after the Wi-Fi Tasmota needs the MQTT broker to be found by Home Assistant. A: Mira sends
-   the broker too (host, user, password: Mira would need them as a second secret; Home Assistant does not give its
-   MQTT integration's password out). B: Mira says the Tasmota is in the Wi-Fi and the broker is set on its page.
-   C: Tasmota left out.
-4. **ESPHome devices** of other makers often have a fallback Wi-Fi with a password (in their documentation). A: only
-   open ones. B: a short list of known ready-made ones with their passwords.
-5. **The same addresses** at home and in the device's network: refuse (proposal), or nothing.
+| # | Question | Decision |
+|---|---|---|
+| 1 | D-Bus in Go | A library for the system bus (`github.com/godbus/dbus`, pure Go); no `nmcli` |
+| 2 | The set-up | The guide gives the container recipe (the socket mounted in, the group or a polkit rule) and the HA app gets the Supervisor's role it needs |
+| 3 | Tasmota and MQTT | Mira hands over the MQTT broker too: a second setting next to the home Wi-Fi (`mqtt: {host, user, password}`, the password a secret), since Home Assistant does not give its MQTT integration's password out. Tasmota then announces itself to Home Assistant's Tasmota integration, and is a new device without a room ([Found devices](found-devices.md)) |
+| 4 | ESPHome devices with a password on their fallback Wi-Fi | Only open fallback Wi-Fis |
+| 5 | The same addresses at home and in the device's network | The hand-over is refused, and Mira says why |
 
 ## Steps
 
 1. **Check on this machine**: scan, join an open Wi-Fi with never-default, leave, over D-Bus; the route stays on the
-   cable. A real Shelly in setup mode: its Wi-Fi, the hand-over by `WiFi.SetConfig`, its discovery in the test HA.
+   cable. A real Shelly in setup mode: its Wi-Fi, the hand-over by `WiFi.SetConfig`, its discovery in the test HA; a Tasmota in its Wi-Fi manager: does `/cm` with `Backlog` answer (decision 3).
 2. **The Wi-Fi part** in the service: NetworkManager, the Supervisor, the free interface, the four families, the
    home Wi-Fi setting. WL-01 to WL-07.
 3. **The tools and the thread**, handing over to the found devices; end to end with a real device. WL-08 to WL-10.
