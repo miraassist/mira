@@ -28,6 +28,8 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | 4 | Which devices | Both kinds: what Home Assistant **discovered** and waits for a yes for, and a **new device without a room** |
 | 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
 | 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
+| 7 | The room of a Bluetooth device | Asked, as for every device; no proposal from the Bluetooth proxies' signal (decided 2026-11-10) |
+| 8 | A step that asks for the Wi-Fi | A step whose only fields are the Wi-Fi's name and password (a Bluetooth set-up: Improv, a Shelly) is filled from the home Wi-Fi Mira keeps ([Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi) and submitted after the user's yes; the one exception to "a step with fields stays in Home Assistant" (decided 2026-11-10) |
 
 ## The two kinds
 
@@ -91,8 +93,8 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | Tool | What it does step by step | Cost |
 |---|---|---|
 | `devices_found` | Lists what is open: discovered flows that are counted, and new devices without a room since the noticing began, said or not | No call to Home Assistant: the open flows are kept from the subscription, the devices from the structure Mira keeps. Grows with what is open |
-| `device_adopt` (item) | Starts the thread of `geraet-einbinden` at the turn's place (or takes the open one) with the plan. A **device**: notes its facts, ticks the first step, returns "ask for the room". A **discovered flow**: reads its current step (`GET /api/config/config_entries/flow/<flow_id>`) and the step's text in the household's language (`frontend/get_translations`, category `config`, the integration; once per domain); a step without fields is submitted after the user's yes (below); a step with fields is returned as "only in Home Assistant", with where | One or two REST calls, one translation fetch per domain; the turn waits for them (well under a second) |
-| `device_confirm` | For a discovered flow: submits its current step without fields (`POST …/flow/<flow_id>` with `{}`). The next step: another without fields is returned with its text (the model says it, "press the button on the bridge", and waits for "erledigt"); a step with fields as "only in Home Assistant"; an error of the step (`errors`, "the button was not pressed") is said, the step stays; `create_entry` ends the flow: Mira waits up to 10 s for the devices the entry brings (registry `create` events; a signal, the time a safety net). One device: it is the thread's device, the room is next. Several: Mira says how many and that they are in the list; the thread is done. None (an integration without devices): done | One POST, then the wait |
+| `device_adopt` (item) | Starts the thread of `geraet-einbinden` at the turn's place (or takes the open one) with the plan. A **device**: notes its facts, ticks the first step, returns "ask for the room". A **discovered flow**: reads its current step (`GET /api/config/config_entries/flow/<flow_id>`) and the step's text in the household's language (`frontend/get_translations`, category `config`, the integration; once per domain); a step without fields is submitted after the user's yes (below); a step that asks only for the Wi-Fi (decision 8) is filled from the home Wi-Fi after the yes, without the password in the tool's result; any other step with fields is returned as "only in Home Assistant", with where | One or two REST calls, one translation fetch per domain; the turn waits for them (well under a second) |
+| `device_confirm` | For a discovered flow: submits its current step without fields (`POST …/flow/<flow_id>` with `{}`). The next step: another without fields is returned with its text (the model says it, "press the button on the bridge", and waits for "erledigt"); a step that asks only for the Wi-Fi is filled (decision 8); another step with fields as "only in Home Assistant"; an error of the step (`errors`, "the button was not pressed") is said, the step stays; `create_entry` ends the flow: Mira waits up to 10 s for the devices the entry brings (registry `create` events; a signal, the time a safety net). One device: it is the thread's device, the room is next. Several: Mira says how many and that they are in the list; the thread is done. None (an integration without devices): done | One POST, then the wait |
 | `device_assign` (room) | As in the Zigbee dialog: the area of the thread's device | One device registry update |
 | `device_finish` (name) | As in the Zigbee dialog: exposes, then names. A device of Zigbee2MQTT is renamed there; any other gets `name_by_user` (`config/device_registry/update`), its entity ids stay | Like the Zigbee dialog's; for others one update instead of the publish |
 | `device_ignore` (item) | A **discovered flow**: `config_entries/ignore_flow` with its title. A **device**: the label "Mira: ignoriert" (created in the label registry the first time, `config/label_registry/create`), added to the device's labels (`config/device_registry/update`). Ends the thread if it was the thread's | One or two calls |
@@ -106,7 +108,8 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | The said mark cannot be written | Log `could not remember a found device as said`; the item may be said once more after a restart |
 | The flow is gone when the user says yes (added or ignored in Home Assistant meanwhile) | `device_adopt` returns that it is no longer open; Mira says so. Log none: not an error |
 | Home Assistant refuses a step, or its answer is not understood | The tool returns Home Assistant's error; Mira says it, the flow stays open in Home Assistant. Log `could not confirm the discovered device` |
-| A step needs fields | Not an error: Mira says it is set up in Home Assistant, Settings → Devices & services → Discovered, and the thread is done |
+| A step asks for the Wi-Fi, and no home Wi-Fi is set | Mira says the home Wi-Fi is missing and where it is set; the flow stays open |
+| A step needs other fields | Not an error: Mira says it is set up in Home Assistant, Settings → Devices & services → Discovered, and the thread is done |
 | No device comes within 10 s after `create_entry` | Mira says the integration is set up; devices that come later are found like any other. Log `discovered device set up, no device yet` |
 | Ignoring is refused | The tool returns Home Assistant's error; Mira says so; the item stays open. Log `could not ignore the found device` |
 | The area, the expose or the name is refused | As in the Zigbee dialog |
@@ -142,6 +145,9 @@ during the message is an ordinary interruption of a message.
   action starts a discovered flow of three kinds: a confirmation only; a step "press the button" that fails with an
   error until a second test action presses it; a step with a field. Adding it creates a device without an area. A
   second test action creates a device without a flow, as an app would.
+- **A Wi-Fi step**: the fake discovery gets a fourth kind, a step with the fields `ssid` and `password`, as Improv's.
+  Which field names count as the Wi-Fi's is checked against Home Assistant's Improv and Shelly flows (assumption until
+  then: Improv's step `provision` with `ssid` and `password`).
 - **The real run**: a device of another kind at the live house, with the maintainer (a Bluetooth sensor, a Shelly, a
   lamp from the Hue app).
 
@@ -154,3 +160,8 @@ during the message is an ordinary interruption of a message.
 4. **The tools and the skill**: `devices_found`, `device_adopt`, `device_confirm`, `device_ignore`; `device_assign`
    and `device_finish` for any device; the skill's text. FD-06 to FD-12. End to end at the fake Show.
 5. **The real run** and the guide.
+
+## Later
+
+- **Matter**: commissioning with the pairing code said by voice, over Bluetooth of the Home Assistant machine or a
+  device shared from another app: a topic of its own (decided 2026-11-10).
