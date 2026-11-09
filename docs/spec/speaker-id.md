@@ -39,7 +39,7 @@ satellite → Home Assistant (Assist pipeline) → speaker-id :10310 ──audio
 - **The transcript is the upstream's,** unchanged and not delayed: the voice print takes 50 to 100 ms on the CPU and
   runs while the STT works (about a second).
 - **Model:** a speaker embedding model through sherpa-onnx (WeSpeaker ResNet34 to start with, about 25 MB; others
-  of sherpa-onnx's speaker models by setting).
+  of sherpa-onnx's speaker models by setting). Models tried: [speaker-models.md](../../evals/speaker-models.md).
 - **Per utterance** it finds the best and the second-best profile with their scores (cosine, 0 to 1), and
   nothing under one second of speech. **Who that is, is Mira's decision** (below), with her thresholds; the
   service's page shows a decision of its own only to help enrolling.

@@ -2,7 +2,7 @@
 
 Models tried in voice turns on the test Home Assistant without an eval run (docs/spec/evals.md): what they did,
 with the evidence from Mira's log, her chat history and Home Assistant's state history. A model that already fails
-here gets no eval run. The eval results are in the [overview](README.md).
+here gets no eval run. The eval results are in the [overview](README.md). Speaker models for speaker id: [speaker-models.md](speaker-models.md).
 
 | Model | Provider | Tried | Speed | Tools and threads | Verdict |
 |---|---|---|---|---|---|

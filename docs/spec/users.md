@@ -71,7 +71,7 @@ The previous global setting for confidential notices (`confidential_voice: when_
 - **Person X:** only X reads and writes. For this X must be identified via their channel, or the "alone at home" rule applies.
 - No one writes into someone else's memory. "Merk dir für Ben …" becomes a message to Ben (see below). Ben then decides himself whether to have it remembered.
 - In conversation the model sees the house memory and, for a known person, their memory. The nightly compaction runs per owner.
-- A known person always remembers for themselves; into the house only if they say so explicitly.
+- A known person always remembers for themselves; into the house only if they say so explicitly. Addressing Mira in the plural ("Merkt ihr …", "Merkt euch …") is not saying so: it is a slip or a manner of speaking, and the fact stays the person's (decided 2026-11-06, after Flash Lite put such facts into the house).
 - Every fact has an **author**: the person, otherwise the satellite's area ("jemand im Wohnzimmer"). The web UI shows author and time.
 - The house profile is in layer 5 (shared prompt start), the personal profile in layer 7 of the turn, so that the cache stays the same for everyone.
 

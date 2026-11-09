@@ -28,7 +28,7 @@ type texts struct {
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
 		memorySaveDesc:    "Merkt sich dauerhaft eine Tatsache über den Haushalt oder den Nutzer, z.B. Vorlieben, Gewohnheiten, wo etwas steht. Nur speichern, wenn der Nutzer es möchte oder es eindeutig dauerhaft nützlich ist. Ist bekannt, wer spricht, kommt es in dessen persönliches Gedächtnis, sonst ins Gedächtnis des Hauses.",
-		memorySaveHouse:   "true nur, wenn der Nutzer ausdrücklich sagt, dass es für alle im Haus gilt (\"fürs Haus\", \"für alle\"). Sonst weglassen.",
+		memorySaveHouse:   "true nur, wenn der Nutzer ausdrücklich sagt, dass es für alle im Haus gilt (\"fürs Haus\", \"für alle\"). Eine Anrede in der Mehrzahl (\"Merkt ihr\", \"Merkt euch\") sagt das nicht. Sonst weglassen.",
 		memorySavedPerson: "Gemerkt für %s, persönlich (id %s).",
 		personalMark:      " (persönlich)",
 		memorySaveText:    "Die Tatsache als vollständiger Satz.",
@@ -91,7 +91,7 @@ var catalog = map[i18n.Lang]texts{
 	},
 	i18n.EN: {
 		memorySaveDesc:     "Permanently remembers a fact about the household or the user, e.g. preferences, habits, where something is. Only save when the user wants it or it is clearly useful for good. When it is known who is speaking, it goes into their personal memory, otherwise into the house's.",
-		memorySaveHouse:    "true only when the user says explicitly that it is for everyone in the house (\"for the house\", \"for everyone\"). Otherwise leave it out.",
+		memorySaveHouse:    "true only when the user says explicitly that it is for everyone in the house (\"for the house\", \"for everyone\"). Addressing Mira in the plural (\"you all\", \"guys\") does not say so. Otherwise leave it out.",
 		memorySavedPerson:  "Saved in the personal memory of %s (id %s).",
 		personalMark:       " (personal)",
 		memorySaveText:     "The fact as a complete sentence.",
