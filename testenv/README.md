@@ -54,6 +54,15 @@ test HA has the MQTT and Tasmota integrations on it, so the device shows up by
 itself. Home Assistant's Tasmota integration needs the device's topic to
 contain `%prefix%` (the default, `%prefix%/%topic%/`, does).
 
+A fake Zigbee2MQTT bridge, `z2m_fake` (`testenv/z2m_fake`, `z2m_fake:` in the test HA's configuration), speaks on
+that broker as Zigbee2MQTT 2.14 does, with the default base topic `zigbee2mqtt`: the bridge device "Zigbee2MQTT
+Bridge" with its "Permit join" switch, the requests `permit_join`, `device/rename` (with `homeassistant_rename`) and
+`device/remove`, and the events and discovery messages of a device that joins
+([Adding a Zigbee device](../docs/spec/device-onboarding.md)). A device joins with the test action `z2m_fake.join`
+(`kind`: `temperature`, `plug`, `unsupported`, `interview_failed`; `ieee` of a known device to pair it again;
+`interview_seconds`), and only while pairing is open, as a real one; `z2m_fake.remove` takes it out again. The fake
+keeps its devices in `.storage/z2m_fake.devices`.
+
 Entities you add to the test house yourself (a lamp, say) are hidden from Assist by `testha up`. List them in `testenv/.env` to keep them exposed and on the dashboard: `TESTHA_EXPOSE="light.lampe|Wohnzimmer|Farblampe;switch.x|Büro"` (area and name optional).
 
 The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the

@@ -1,0 +1,26 @@
+# Test actions of the fake Zigbee2MQTT (docs/spec/device-onboarding.md); the real bridge has none.
+join:
+  fields:
+    kind:
+      required: true
+      example: temperature
+      selector:
+        select:
+          options: [temperature, plug, unsupported, interview_failed]
+    ieee:
+      example: "0x00158d0001a2b3c4"
+      selector:
+        text:
+    interview_seconds:
+      example: 2
+      selector:
+        number:
+          min: 0
+          max: 120
+remove:
+  fields:
+    device:
+      required: true
+      example: "0x00158d0001a2b3c4"
+      selector:
+        text:

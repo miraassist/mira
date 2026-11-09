@@ -1,0 +1,11 @@
+{
+  "domain": "z2m_fake",
+  "name": "Zigbee2MQTT Fake (test only)",
+  "codeowners": [],
+  "dependencies": ["mqtt"],
+  "documentation": "https://github.com/miraassist/mira/blob/main/testenv/README.md",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

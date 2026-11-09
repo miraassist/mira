@@ -21,6 +21,9 @@ demo:
 # Fake TECHO5 devices, a Show and an Echo (testenv/techo5_fake).
 techo5_fake:
 
+# A fake Zigbee2MQTT bridge on the test broker (testenv/z2m_fake).
+z2m_fake:
+
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 
