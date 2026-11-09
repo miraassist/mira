@@ -27,7 +27,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | 3 | Who may take a device in or ignore it | Anyone at a satellite, as anyone may switch a light ([Adding a Zigbee device](device-onboarding.md), decision 3) |
 | 4 | Which devices | Both kinds: what Home Assistant **discovered** and waits for a yes for, and a **new device without a room** |
 | 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
-| 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new (proposed; open until the maintainer's word) |
+| 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
 
 ## The two kinds
 
