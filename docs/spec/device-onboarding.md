@@ -35,6 +35,21 @@ settings (expose), and the device is called `0x00158d0001a2b3c4` until someone r
 | 9 | Order of the tests | The fake is built from Zigbee2MQTT's documentation first, and everything is built against it; the real run comes at the end and corrects the fake where the real bridge differs |
 | 10 | The adapter for the real run | A USB adapter at the machine of the test HA, Zigbee2MQTT as a container next to the test broker; not before the maintainer is at the machine. Changed 2026-11-09: the real run is made against an existing household installation (Zigbee2MQTT 2.14.2 with its own coordinator and routers) with the service built from this branch, no adapter at the test HA |
 
+### ZHA (decided 2026-11-10)
+
+ZHA, Home Assistant's own Zigbee, comes as a second bridge after the found devices ([Found devices](found-devices.md)).
+From "the device is in Home Assistant" on everything is the same; what differs is opening pairing and the wait: ZHA's
+websocket command `zha/devices/permit` (internal to Home Assistant, not documented; checked by `testha compat` once
+built).
+
+| # | Question | Decision |
+|---|---|---|
+| 11 | How it is tested | The Go tests against ZHA's answers as Home Assistant's source gives them; at the very end the test HA gets ZHA with a USB adapter of its own, and the real run corrects them |
+| 12 | The name | Home Assistant's name of the device (`name_by_user`) **and** its entity ids, as Home Assistant's own rename dialog offers (`sensor.temperatursensor_wohnzimmer_temperature`) |
+| 13 | ZHA and Zigbee2MQTT both in Home Assistant | Mira asks which network |
+| 14 | A known device paired again | Seen in the real run, then specified (as for Zigbee2MQTT) |
+
+
 ## Building blocks
 
 - **The concept: a thread with a plan** ([Threads](threads.md), Plans) of the new skill `geraet-einbinden`, bound to
@@ -191,3 +206,5 @@ during the announcement is an ordinary interruption of an announcement.
 5. **The real run** against a real Zigbee2MQTT (decision 10; run 2026-11-09): a new sensor added by voice (room,
    name, three values exposed), the same sensor paired again (known device). Every row of the state table seen
    again except row 5 and a failed interview; the fake needed no correction.
+6. **ZHA** (decisions 11 to 14), after the found devices: the spec of its signals from Home Assistant's source, the
+   tools on ZHA, the Go tests; at the end the real run with the test HA's own adapter.
