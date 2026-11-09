@@ -1,0 +1,7 @@
+name: liste-fehlt
+description: Eine Liste, die es nicht gibt; Mira sagt das, statt einen Eintrag zu bestätigen
+steps:
+  - say: Setz Schrauben auf die Baumarktliste
+    expect:
+      answer:
+        contains: [Baumarkt, "nicht|kein"]

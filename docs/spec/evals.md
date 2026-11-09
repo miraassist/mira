@@ -121,6 +121,7 @@ From what has been tested by hand so far:
 | Message to a person | |
 | Switch a light, query state | yes |
 | Locked things only after yes (garage door) | yes |
+| A list that does not exist: said, not confirmed (added 2026-11-09, after Mira confirmed an item on a list that did not exist yet) | |
 
 ## Deliberately not
 
