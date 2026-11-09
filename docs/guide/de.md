@@ -668,6 +668,8 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ## Neue Zigbee-Geräte einbinden
 
+▶ [Ein Temperatursensor kommt per Sprache ins Haus: koppeln, Raum, Name](https://youtu.be/K1LEZiy7XTM)
+
 „Ich hab ein neues Zigbee-Gerät.“ Mira fragt, ob sie das Einbinden starten soll, und sagt dir dann, dass du den Knopf am Gerät ein paar Sekunden gedrückt halten sollst, bis es schnell blinkt, oder es neu einstecken. Meldet sich das Gerät an, sagt sie kurz, dass sie es kennenlernt; das kann bei Batteriegeräten bis zu zwei Minuten dauern, ab und zu kurz den Knopf drücken hilft. Sobald das Gerät da ist, meldet sie sich am selben Satelliten von selbst: „Ich hab's: eine Steckdose mit Strommessung von IKEA. In welchen Raum kommt sie?“ – „Wohnzimmer.“ Dann schlägt sie einen Namen vor („Steckdose Wohnzimmer“), und auf dein Ja ist das Gerät fertig: im Raum, umbenannt, und seine Werte sind für Sprache freigegeben, sodass du es gleich steuern oder abfragen kannst.
 
 - Ein Gerät pro Durchgang; für das nächste sagst du wieder, dass du ein neues hast.

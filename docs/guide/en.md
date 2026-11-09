@@ -656,6 +656,8 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ## Adding new Zigbee devices
 
+▶ [A temperature sensor joins the house by voice: pairing, room, name](https://youtu.be/K1LEZiy7XTM)
+
 "I have a new Zigbee device." Mira asks whether to start adding it and then tells you to hold the button on the device for a few seconds until it blinks quickly, or to plug it in again. When the device joins, she says briefly that she is getting to know it; with battery devices that can take up to two minutes, and pressing its button now and then helps. As soon as the device is there, she speaks up at the same satellite by herself: "Got it: a plug with power metering from IKEA. Which room does it go in?" – "Living room." Then she proposes a name ("Plug living room"), and on your yes the device is done: in its room, renamed, and its values exposed to voice, so you can control it or ask about it right away.
 
 - One device at a time; for the next one you say again that you have a new one.

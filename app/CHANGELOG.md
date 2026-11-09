@@ -5,6 +5,9 @@ The app has the version of Mira's release; what changed is in the release notes:
 
 ## 0.20.0
 
+- New skill `geraet-einbinden`: add a Zigbee device by voice. "Ich hab ein neues Zigbee-Gerät" opens pairing in
+  Zigbee2MQTT; once the device is there Mira asks for its room, proposes a name and exposes its values to voice.
+  Needs Zigbee2MQTT connected to Home Assistant; turn the skill on under Capabilities → Skills.
 - A skill's schedule can send its result to one person: `to` names the person (usually from a setting of the skill).
   The message comes at once and only over that person's channels, such as Telegram, and is never read aloud. Good
   for a list with links.
