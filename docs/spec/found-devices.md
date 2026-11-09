@@ -1,0 +1,156 @@
+# Devices Home Assistant found – Spec
+
+Status 2026-11-10: specified, nothing built. Scenarios: [found-devices.feature](found-devices.feature).
+
+## Goal
+
+A device that turns up in Home Assistant is noticed by Mira, and she helps to take it in by voice, however it came:
+paired in the Hue app, flashed with Tasmota, a Shelly in the Wi-Fi, a Bluetooth sensor nearby, a bridge Home
+Assistant discovered. This is the second half of [Adding a Zigbee device](device-onboarding.md): there Mira brings the
+device into its network; here it is in Home Assistant already, or Home Assistant waits for a yes, and what is left is
+the yes, the room, the name and exposing it.
+
+1. Mira, when someone is in the kitchen: "Ich habe ein neues Gerät gefunden: eine Hue-Lampe. Soll ich sie
+   einbinden?" Stefan: "Ja."
+2. Mira: "In welchen Raum kommt sie?" Stefan: "Küche." Mira: "Ich nenne sie ‚Lampe Küche', passt das?" Stefan: "Ja."
+3. Mira: "Fertig: Lampe Küche, in der Küche, und ich kann sie jetzt schalten."
+
+Or: "Nein, das ist vom Nachbarn." Mira: "Gut, ich ignoriere es." She never mentions it again, and Home Assistant
+shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Geräte?" lists it.
+
+## Decided (2026-11-10)
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Reminding when nobody reacts | Mira says a found device **once**. After that only when asked ("Gibt's neue Geräte?"), with everything still open |
+| 2 | Remembering an ignored device that is in Home Assistant already | A label **"Mira: ignoriert"** on the device in Home Assistant: visible there, removed there to undo it. A device Home Assistant discovered and waits for is ignored with **Home Assistant's own ignore** |
+| 3 | Who may take a device in or ignore it | Anyone at a satellite, as anyone may switch a light ([Adding a Zigbee device](device-onboarding.md), decision 3) |
+| 4 | Which devices | Both kinds: what Home Assistant **discovered** and waits for a yes for, and a **new device without a room** |
+| 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
+| 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new (proposed; open until the maintainer's word) |
+
+## The two kinds
+
+| Kind | What it is | How Mira learns of it | Ignoring |
+|---|---|---|---|
+| **Discovered** | A config flow Home Assistant started by itself (Bluetooth, DHCP, Zeroconf, SSDP, USB, MQTT, HomeKit, the Supervisor, an integration's discovery) and that waits under Settings → Devices & services → "Discovered": a Hue Bridge, a Shelly, a BTHome sensor, an ESPHome device | `config_entries/flow/subscribe`: the open flows at once, then each one added and removed | Home Assistant's ignore (`config_entries/ignore_flow`): the flow goes, Home Assistant never offers it again, "Ignored" in its integrations page undoes it |
+| **New without a room** | A device the device registry creates while Mira runs, that has no area: a lamp the Hue app paired, a Tasmota plug, a device a discovered flow just added | the device registry's `create` events (the subscription Mira's structure has) | the label "Mira: ignoriert" on the device |
+
+**Not counted** (no message, not in the list):
+- a flow of Mira's own integration, a flow a user started (source `user`, `import`, `reauth`, `reconfigure`);
+- a device that is disabled, a service (`entry_type: service`), a device without an entity that would be exposed (only
+  configuration and diagnostic ones), a device with the label, a device that got an area by now;
+- a device a Zigbee pairing of `geraet-einbinden` is waiting for: that dialog has it already;
+- what was open already when the noticing ran for the first time: Home Assistant's backlog is not read out. It is
+  marked said at once and is in the list on request.
+
+## Building blocks
+
+- **A message to the house** ([Messages](messages.md)): what is found is said as a message, not as an interruption at
+  a satellite: the notifier says it where someone is, not in quiet hours, and it shows on the page. Several found in
+  one go are one message.
+- **The answer to an announced message** ([Threads](threads.md), Assignment 3a; the turn after an announcement sees
+  the message and its details): "Ja" after the message is the next turn's affair; the message's details name the
+  found devices by their ids, and the skill `geraet-einbinden`.
+- **A thread with a plan, bound to the room** ([Adding a Zigbee device](device-onboarding.md), Building blocks):
+  taking one device in is a thread of `geraet-einbinden` at the satellite where the user said yes, with the steps
+  (confirm in Home Assistant when discovered,) room, name. The tools `device_assign` and `device_finish` are the
+  Zigbee dialog's, for any device.
+- **Home Assistant's own APIs**, nothing rebuilt: its config flows for the yes (the frontend's REST API), its ignore,
+  its label registry and device registry.
+- **Departure:** a thread whose first step is a config flow of Home Assistant. Mira submits only steps that ask for
+  nothing (a confirmation, "press the button on the bridge, then submit"); a step with fields (a password, a key, a
+  choice) is said and left to Home Assistant's page.
+
+## What it does
+
+### Noticing
+
+1. **Watching.** While the skill is on, Mira subscribes to the open config flows (`config_entries/flow/subscribe`)
+   and takes the device registry's `create` events from the subscription her structure has. Handlers only pass the
+   change on.
+2. **Gathering.** A found item waits 60 s after the last one before it is said, so a bridge that brings fifty lamps
+   is one message. A time, because nothing says that a burst is over (a time as the last resort, where no
+   signal exists). For a new device Mira checks at the end of the 60 s that it still has no area and is
+   counted (the list above): one read of the device registry (`config/device_registry/list`).
+3. **Naming.** A discovered flow is named by its `title_placeholders.name`, else by the integration's name
+   (`manifest/get` of its domain, once per domain); a device by its name, with its manufacturer and model as the
+   facts. No model round: the message is a fixed sentence with the names.
+4. **The message.** One message to the house: "Ich habe ein neues Gerät gefunden: <name>. Soll ich es einbinden?",
+   for several "Ich habe <n> neue Geräte gefunden: <a>, <b> und <c>. Soll ich sie einbinden?" (more than three:
+   the first three "und <n> weitere"). Its details name the skill and each found item with its id (`flow:<flow_id>`,
+   `device:<device_id>`) and kind. Each item is marked **said** in Mira's database (by the flow's `unique_id`, else
+   its handler and `discovery_key`; by the device id), so it is never said again, also after a restart.
+5. **The answer.** The next turn sees the message (Assignment 3a). "Ja" opens the skill (`skill_open`), and the model
+   calls `device_adopt` with the item; for several, the skill asks which first, or takes them one by one. "Nein",
+   "ignorieren", "das ist vom Nachbarn": `device_ignore`. No answer: nothing; the message stays on the page as every
+   message does.
+
+### The tools
+
+| Tool | What it does step by step | Cost |
+|---|---|---|
+| `devices_found` | Lists what is open: discovered flows that are counted, and new devices without a room since the noticing began, said or not | No call to Home Assistant: the open flows are kept from the subscription, the devices from the structure Mira keeps. Grows with what is open |
+| `device_adopt` (item) | Starts the thread of `geraet-einbinden` at the turn's place (or takes the open one) with the plan. A **device**: notes its facts, ticks the first step, returns "ask for the room". A **discovered flow**: reads its current step (`GET /api/config/config_entries/flow/<flow_id>`) and the step's text in the household's language (`frontend/get_translations`, category `config`, the integration; once per domain); a step without fields is submitted after the user's yes (below); a step with fields is returned as "only in Home Assistant", with where | One or two REST calls, one translation fetch per domain; the turn waits for them (well under a second) |
+| `device_confirm` | For a discovered flow: submits its current step without fields (`POST …/flow/<flow_id>` with `{}`). The next step: another without fields is returned with its text (the model says it, "press the button on the bridge", and waits for "erledigt"); a step with fields as "only in Home Assistant"; an error of the step (`errors`, "the button was not pressed") is said, the step stays; `create_entry` ends the flow: Mira waits up to 10 s for the devices the entry brings (registry `create` events; a signal, the time a safety net). One device: it is the thread's device, the room is next. Several: Mira says how many and that they are in the list; the thread is done. None (an integration without devices): done | One POST, then the wait |
+| `device_assign` (room) | As in the Zigbee dialog: the area of the thread's device | One device registry update |
+| `device_finish` (name) | As in the Zigbee dialog: exposes, then names. A device of Zigbee2MQTT is renamed there; any other gets `name_by_user` (`config/device_registry/update`), its entity ids stay | Like the Zigbee dialog's; for others one update instead of the publish |
+| `device_ignore` (item) | A **discovered flow**: `config_entries/ignore_flow` with its title. A **device**: the label "Mira: ignoriert" (created in the label registry the first time, `config/label_registry/create`), added to the device's labels (`config/device_registry/update`). Ends the thread if it was the thread's | One or two calls |
+
+### When a step fails
+
+| Fails | Who learns of it |
+|---|---|
+| The subscription to the flows fails | Log `could not watch discovered devices` with the error; the next reconnect tries again. Discovered flows are not noticed meanwhile; new devices still are |
+| The message cannot be delivered | As every message: the notifier logs it and keeps it waiting |
+| The said mark cannot be written | Log `could not remember a found device as said`; the item may be said once more after a restart |
+| The flow is gone when the user says yes (added or ignored in Home Assistant meanwhile) | `device_adopt` returns that it is no longer open; Mira says so. Log none: not an error |
+| Home Assistant refuses a step, or its answer is not understood | The tool returns Home Assistant's error; Mira says it, the flow stays open in Home Assistant. Log `could not confirm the discovered device` |
+| A step needs fields | Not an error: Mira says it is set up in Home Assistant, Settings → Devices & services → Discovered, and the thread is done |
+| No device comes within 10 s after `create_entry` | Mira says the integration is set up; devices that come later are found like any other. Log `discovered device set up, no device yet` |
+| Ignoring is refused | The tool returns Home Assistant's error; Mira says so; the item stays open. Log `could not ignore the found device` |
+| The area, the expose or the name is refused | As in the Zigbee dialog |
+
+### Cost
+
+While the skill is on: one more subscription (the flows); the registry events Mira has already. Per burst of found
+items: one read of the device registry, at most one `manifest/get` per new domain, one message. Per device taken in:
+the calls of the tools above. Nothing on a schedule; nothing grows with the number of devices in the house, only with
+what is found.
+
+## State table
+
+Each row is checked on the test HA before the code waiting for it is built.
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
+|---|---|---|---|---|---|
+| 1 | Open flows at the start | the subscription | one event with every open flow (`type: null`), then the result | `config_entries/flow/subscribe` | 2026-11-10 (a Zeroconf flow of another Mira, `step_id: token`) |
+| 2 | A flow discovered | the device turns up in the network | event `type: added` with the flow | the same subscription | open |
+| 3 | A flow ends | added, ignored or dismissed | event `type: removed` | the same subscription | open |
+| 4 | The step of a flow | – | `GET /api/config/config_entries/flow/<id>`: `type: form`, `step_id`, `data_schema` (empty: no fields), `errors`, `description_placeholders` | REST with the owner's token | 2026-11-10 (`data_schema` with one required field `token`) |
+| 5 | A step submitted | `POST …/flow/<id>` `{}` | the next step, an error in `errors`, or `type: create_entry` with the entry | the POST's answer | open |
+| 6 | Ignored | `config_entries/ignore_flow` | the flow `removed` (row 3); an entry with source `ignore` | the subscription | open |
+| 7 | A device created | an integration adds it | `device_registry_updated` `create` | the subscription of the structure | 2026-11-09 (Zigbee dialog) |
+| 8 | Labelled | `config/label_registry/create`, `config/device_registry/update` with `labels` | the device's `labels` hold the label's id | the update's answer | open (the labels "Mira…" of tasks exist on the test HA) |
+
+Interrupting: "abbrechen" cancels the thread; a flow stays open in Home Assistant, a device as it is. The wake word
+during the message is an ordinary interruption of a message.
+
+## Testing
+
+- **A fake discovery** in the test HA (an addition to `testenv/z2m_fake` or a small integration of its own): a test
+  action starts a discovered flow of three kinds: a confirmation only; a step "press the button" that fails with an
+  error until a second test action presses it; a step with a field. Adding it creates a device without an area. A
+  second test action creates a device without a flow, as an app would.
+- **The real run**: a device of another kind at the live house, with the maintainer (a Bluetooth sensor, a Shelly, a
+  lamp from the Hue app).
+
+## Steps
+
+1. **The fake discovery** in the test HA.
+2. **Check the state table** against it.
+3. **Noticing** in the service: the subscription, the gathering, the count rules, the said marks, the message.
+   FD-01 to FD-05.
+4. **The tools and the skill**: `devices_found`, `device_adopt`, `device_confirm`, `device_ignore`; `device_assign`
+   and `device_finish` for any device; the skill's text. FD-06 to FD-12. End to end at the fake Show.
+5. **The real run** and the guide.
