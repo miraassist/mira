@@ -1,8 +1,8 @@
 # Adding a Zigbee device by voice – Spec
 
-Status 2026-11-09: steps 1 to 4 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
-tools and the wait in the service, the skill, run end to end at the fake Show, the guide; the real run with an
-adapter is open. Scenarios:
+Status 2026-11-09: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
+tools and the wait in the service, the skill, run end to end at the fake Show, the guide, and the real run against
+a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -33,7 +33,7 @@ settings (expose), and the device is called `0x00158d0001a2b3c4` until someone r
 | 7 | Exposing to Assist | Every entity of the device except configuration and diagnostic ones, without asking |
 | 8 | Where the name is changed | In Zigbee2MQTT (`homeassistant_rename`), Home Assistant follows with the device's name and its entity ids, if that works uniformly (checked against the fake, confirmed in the real run). If it does not: only Home Assistant's name of the device (`name_by_user`), the same for every bridge later |
 | 9 | Order of the tests | The fake is built from Zigbee2MQTT's documentation first, and everything is built against it; the real run comes at the end and corrects the fake where the real bridge differs |
-| 10 | The adapter for the real run | A USB adapter at the machine of the test HA, Zigbee2MQTT as a container next to the test broker; not before the maintainer is at the machine |
+| 10 | The adapter for the real run | A USB adapter at the machine of the test HA, Zigbee2MQTT as a container next to the test broker; not before the maintainer is at the machine. Changed 2026-11-09: the real run is made against an existing household installation (Zigbee2MQTT 2.14.2 with its own coordinator and routers) with the service built from this branch, no adapter at the test HA |
 
 ## Building blocks
 
@@ -134,28 +134,29 @@ the bridge's topics and to `create` events.
 
 ## State table
 
-Each row is checked on the test HA, first with the fake, then with a real adapter, before the code waiting for it is
-built.
+Each row is checked on the test HA with the fake before the code waiting for it is built, then again against a real
+Zigbee2MQTT (decision 10): "real" in the last column is Zigbee2MQTT 2.14.2, a real sensor (Aqara WSDCGQ11LM),
+2026-11-09.
 
-| # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked |
 |---|---|---|---|---|---|
-| 1 | Pairing opens | `mqtt.publish` `<base>/bridge/request/permit_join` `{"time":180}` | `<base>/bridge/response/permit_join` `status: ok` (with the request's `transaction`), then `<base>/bridge/info` `permit_join: true` | `mqtt/subscribe` through HA's websocket, with the owner's token; a retained topic comes at once once the subscription is live at the broker | fake 2026-11-09 |
-| 2 | Device joins | Button pressed, battery in | `<base>/bridge/event` `device_joined`, then `device_announce` and `device_interview` `started` | the same subscription | fake 2026-11-09 |
-| 3 | Interview done | – | `device_interview` `successful` with `supported` and `definition` (vendor, model, description, exposes), or `failed` without them | the same subscription | fake 2026-11-09 |
-| 4 | HA has the device | Zigbee2MQTT's discovery after a successful interview | `device_registry_updated` `create`, then `entity_registry_updated` `create` per entity; an entity's `unique_id` is `<ieee>_<property>_<base>`; the device's identifiers hold `zigbee2mqtt_<ieee>`, its `manufacturer` the vendor, `model` the description, `model_id` the model; its name is the IEEE address | a subscription to `entity_registry_updated` while pairing, and `config/entity_registry/get_entries` of the entity | fake 2026-11-09 (the `create` came in the same moment as the interview's `successful`) |
-| 5 | Pairing ends by itself | the time over | `<base>/bridge/info` `permit_join: false` | the same subscription | fake 2026-11-09 |
-| 6 | Pairing closed by Mira | `permit_join` `{"time":0}` | response `status: ok`, `info` `permit_join: false` | the same subscription | fake 2026-11-09 |
-| 7 | Renamed | `<base>/bridge/request/device/rename` with `homeassistant_rename` | response `status: ok`; Home Assistant removes the device and creates it again **with the same id and its area kept**, the entity ids renamed (`sensor.temperatursensor_wohnzimmer_temperature`). An unknown device: `status: error`, `Device '<name>' does not exist` | subscription; HA's registry events | fake 2026-11-09 (Home Assistant's part is real: the fake only publishes what Zigbee2MQTT publishes) |
-| 8 | Device's entities | – | – | `search/related` for the device gives its entity ids (disabled ones not), `config/entity_registry/get_entries` their category; one call each | fake 2026-11-09 |
+| 1 | Pairing opens | `mqtt.publish` `<base>/bridge/request/permit_join` `{"time":180}` | `<base>/bridge/response/permit_join` `status: ok` (with the request's `transaction`), then `<base>/bridge/info` `permit_join: true` | `mqtt/subscribe` through HA's websocket, with the owner's token; a retained topic comes at once once the subscription is live at the broker | fake 2026-11-09; real 2026-11-09 (the response `ok` with the transaction) |
+| 2 | Device joins | Button pressed, battery in | `<base>/bridge/event` `device_joined`, then `device_announce` and `device_interview` `started` | the same subscription | fake 2026-11-09; real 2026-11-09 (`device_joined` about 13 s after pairing opened) |
+| 3 | Interview done | – | `device_interview` `successful` with `supported` and `definition` (vendor, model, description, exposes), or `failed` without them | the same subscription | fake 2026-11-09; real 2026-11-09 (`successful` with vendor and model; `failed` not seen for real) |
+| 4 | HA has the device | Zigbee2MQTT's discovery after a successful interview | `device_registry_updated` `create`, then `entity_registry_updated` `create` per entity; an entity's `unique_id` is `<ieee>_<property>_<base>`; the device's identifiers hold `zigbee2mqtt_<ieee>`, its `manufacturer` the vendor, `model` the description, `model_id` the model; its name is the IEEE address | a subscription to `entity_registry_updated` while pairing, and `config/entity_registry/get_entries` of the entity | fake 2026-11-09 (the `create` came in the same moment as the interview's `successful`); real 2026-11-09 (the entity found about 10 s after the join) |
+| 5 | Pairing ends by itself | the time over | `<base>/bridge/info` `permit_join: false` | the same subscription | fake 2026-11-09; not seen for real |
+| 6 | Pairing closed by Mira | `permit_join` `{"time":0}` | response `status: ok`, `info` `permit_join: false` | the same subscription | fake 2026-11-09; real 2026-11-09 |
+| 7 | Renamed | `<base>/bridge/request/device/rename` with `homeassistant_rename` | response `status: ok`; Home Assistant removes the device and creates it again **with the same id and its area kept**, the entity ids renamed (`sensor.temperatursensor_wohnzimmer_temperature`). An unknown device: `status: error`, `Device '<name>' does not exist` | subscription; HA's registry events | fake 2026-11-09 (Home Assistant's part is real: the fake only publishes what Zigbee2MQTT publishes); real 2026-11-09 (device and entity ids renamed, area kept) |
+| 8 | Device's entities | – | – | `search/related` for the device gives its entity ids (disabled ones not), `config/entity_registry/get_entries` their category; one call each | fake 2026-11-09; real 2026-11-09 (temperature, humidity, pressure exposed; battery and voltage are diagnostic) |
 
 Also seen (2026-11-09): the area update (`config/device_registry/update`) and `homeassistant/expose_entity` work with the
 owner's token. The bridge is a device of `manufacturer` "Zigbee2MQTT", `model` "Bridge"; `mqtt/device/debug_info` of it
 gives its topics, so the base topic is read, not configured. Zigbee2MQTT also gives the bridge a switch "Permit join"
 in Home Assistant; it always opens for 254 s and answers nothing, so Mira publishes the request herself.
 
-Open until the real run: a known device paired again. The fake sends only `device_announce` for it (assumption:
-zigbee-herdsman reports `deviceJoined` only for a new address); Mira then treats a `device_announce` of a known
-address during pairing as that device.
+A known device paired again (real 2026-11-09: the sensor reset while pairing was open): Zigbee2MQTT sends only
+`device_announce` with its name and address; no `device_joined`, no interview, no registry event in Home Assistant.
+The fake does the same; Mira treats a `device_announce` of a known address during pairing as that device.
 
 Interrupting: "abbrechen" at any time cancels the thread; Mira closes pairing (row 6) if it is open. The wake word
 during the announcement is an ordinary interruption of an announcement.
@@ -167,8 +168,9 @@ during the announcement is an ordinary interruption of an announcement.
   Zigbee2MQTT's documentation describes them (decision 9). Kinds: a temperature sensor (battery), a plug (mains), a
   device that fails its interview, a known device paired again. After the real run the fake follows what the real
   bridge sent, as the fake satellites follow the real one ([Fake devices](fake-devices.md)).
-- **The real run**: Zigbee2MQTT in the test environment (a container in `testenv/compose.yaml`, started only when an
-  adapter is configured), on the test broker, with the adapter and real devices.
+- **The real run**: the service built from the branch against a real Zigbee2MQTT with its own coordinator (decision
+  10), with real devices; Mira's log and the bridge's topics (read through a subscription in Home Assistant) side by
+  side.
 
 ## Steps
 
@@ -181,5 +183,6 @@ during the announcement is an ordinary interruption of an announcement.
 4. **The skill `geraet-einbinden`** and the end-to-end run against the fake at the fake Show (built 2026-11-09: a
    plug added, room and name set, three values exposed; "abbrechen" while pairing; a failed interview; a known
    device; nothing joining); the guide.
-5. **The real run** with the adapter and real devices at the test HA (decision 10): every row of the state table
-   seen again, every scenario that real hardware can show; the fake corrected where the real bridge differs.
+5. **The real run** against a real Zigbee2MQTT (decision 10; run 2026-11-09): a new sensor added by voice (room,
+   name, three values exposed), the same sensor paired again (known device). Every row of the state table seen
+   again except row 5 and a failed interview; the fake needed no correction.
