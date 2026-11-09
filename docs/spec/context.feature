@@ -1,4 +1,4 @@
-Feature: The house structure from Home Assistant's prompt (docs/spec/context.md, 1.2)
+Feature: The house structure from Home Assistant's prompt (docs/spec/context.md, 1.2 and 1.3)
 
   Without Home Assistant's prompt Mira does not answer; nothing replaces it.
 
@@ -41,3 +41,32 @@ Feature: The house structure from Home Assistant's prompt (docs/spec/context.md,
     Then Home Assistant shows the repair that Mira does not get the description of the house
     When the problem is gone from the status
     Then the repair is gone
+
+  # docs/spec/context.md, 1.3: when the house changes
+
+  @step1
+  Scenario: HU-01 A list of exposed entities from the integration rebuilds the house at once
+    Given registry changes are gathered for 30 seconds
+    When the integration sends a list of exposed entities
+    Then the house structure is rebuilt at once from the registries
+
+  @step1
+  Scenario: HU-02 A rebuild waiting for registry changes is dropped by the one at once
+    Given a registry change waits for its rebuild
+    When the house structure is rebuilt at once
+    Then the registries are read once
+    And no rebuild follows when the wait is over
+
+  @step1
+  Scenario: HU-03 A failed rebuild keeps the last structure and the next one tries again
+    Given the house structure was built
+    When a rebuild at once cannot read the registries
+    Then the last structure stays and the log names the failed rebuild
+    When the next rebuild at once can read them
+    Then the structure is the new one
+
+  @step2
+  Scenario: HU-04 A new entity reaches the Mira service at once
+    Given Home Assistant exposes new entities on its own
+    When a new entity is created
+    Then the integration sends the list of exposed entities after a moment, with the new entity

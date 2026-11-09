@@ -1,6 +1,6 @@
 # Context – Spec
 
-Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
+Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released; a list of exposed entities rebuilds the house at once (section 1.3), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
 
 The **context** is everything the model sees with a request. Mira does two things with it:
 - **Composition**: what goes into the context window in which order;
@@ -57,6 +57,49 @@ Steps:
 2. **The integration:** the repair text for the source `ha` (`ha_problem`), and it removes `ha_` issues that are gone. Scenario HP-06. Built.
 
 Testable rules: [context.feature](context.feature).
+
+### 1.3 When the house changes
+
+Status 2026-11-09: built (steps 1 and 2), not released.
+
+HA's prompt follows the house: when the house structure (`internal/ha/structure`) is rebuilt and differs, the prompt is
+fetched again ([Mira in Home Assistant](ha-integration.md), exposure). The structure is rebuilt after a change in the
+registries (area, device, entity), 30 s after the last one (`ha.structure_debounce`), so a burst (renaming ten
+entities) costs one rebuild.
+
+What happened (live, 2026-11-09): a shopping list was created in Home Assistant at 08:01:38 and exposed; the
+integration sent the new list of exposed entities at 08:01:44; a voice turn at 08:01:56 asked to put four things on
+the shopping list. The structure was rebuilt only at 08:02:09 and the prompt at 08:02:10, so the turn's prompt knew
+only the other list ("Aufgaben"), and the four things went there without an error.
+
+Decided 2026-11-09:
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | When a list of exposed entities from the integration comes | The structure is rebuilt at once, not after the 30 s; the integration already gathers a burst into one send (1 s). A rebuild still waiting for registry changes is dropped: the one at once reads the registries too |
+| 2 | Changes in the registries | As before: one rebuild 30 s after the last change |
+| 3 | What stays | A turn between the change in Home Assistant and the integration's send still has the old prompt: about a second (the integration's gathering) and the rebuild. Checked on the test HA before decision 4 (2026-11-09): a new list "Baumarkt" created at 09:40:22, the rebuild after the registry change at 09:40:27 found nothing new, because the structure lists only what the integration's list names; the integration sent only with its status check at 09:41:12, the structure and the prompt followed within 40 ms, and a turn at 09:41:13 put the item on the new list |
+| 4 | A new entity (2026-11-09) | Home Assistant exposes a new entity on its own (the default for new entities) without an exposure event, so until now it reached Mira only with the integration's next status check, up to a minute later. The integration now sends the list when the entity registry reports a new entity of any domain, gathered with the other changes (1 s). Checked on the test HA (2026-11-09): a new list created at 11:11:48.34, sent at 11:11:49.35, HA's prompt with it at 11:11:49.41 |
+
+Steps of a send of the integration (`PUT /v1/ui/ha` with `exposed`):
+1. The list is kept in the database, as before. When that fails, the integration gets the error (500) and sends again
+   with its next status check (the fingerprint differs); no rebuild.
+2. The structure is rebuilt at once, in the background: the three registries are read from Home Assistant (areas,
+   devices, entities; three calls over the WebSocket). The send does not wait for it. When a read fails, the last
+   structure stays, the log has "structure rebuild failed" with the error, and the next send or registry change
+   tries again.
+3. When the structure differs, HA's prompt is fetched again (as before: once without a device and once as each
+   satellite, one MCP call each, so it grows with the number of satellites), and with a changed prompt the warm-up
+   runs. A failed fetch keeps the last prompt (1.2).
+
+**Cost:** per send of the integration three registry reads, and the prompt fetches only when the house changed. The
+integration sends after a change of the exposure, the rooms or a satellite, after a new entity, and when the
+fingerprints differ; not on a schedule. A burst of new entities (an integration added with fifty) is one send. No turn
+waits for it.
+
+Steps:
+1. **The service:** a send of the integration rebuilds the structure at once. Scenarios HU-01 to HU-03. Built.
+2. **The integration:** a new entity in the entity registry sends the list (decision 4). Scenario HU-04. Built.
 
 What is not in the context: **states of devices.** The model queries them when needed via tools; the rules require that.
 

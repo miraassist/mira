@@ -25,7 +25,9 @@ func (a *app) setExposed(ctx context.Context, ids []string) error {
 	if err := a.store.SetKV(ctx, kvExposed, string(raw)); err != nil {
 		return err
 	}
-	a.structure.Invalidate()
+	// At once: a turn right after a new list was exposed must see it
+	// (docs/spec/context.md, 1.3).
+	a.structure.Now()
 	return nil
 }
 

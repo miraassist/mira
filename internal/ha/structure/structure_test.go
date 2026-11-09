@@ -2,6 +2,7 @@ package structure
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"slices"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
 func sampleRegistry() Registry {
@@ -125,8 +127,11 @@ func TestFriendlyFromEntityID(t *testing.T) {
 type fakeSource struct {
 	mu    sync.Mutex
 	reg   Registry
+	err   error
 	reads atomic.Int32
 }
+
+func (f *fakeSource) fail(err error) { f.mu.Lock(); f.err = err; f.mu.Unlock() }
 
 // exposed is what the integration would have sent: the registry's list.
 func (f *fakeSource) exposed(context.Context) (map[string]bool, bool) {
@@ -138,6 +143,12 @@ func (f *fakeSource) get() Registry    { f.mu.Lock(); defer f.mu.Unlock(); retur
 
 func (f *fakeSource) Areas(context.Context) ([]haws.Area, error) {
 	f.reads.Add(1)
+	f.mu.Lock()
+	err := f.err
+	f.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 	return f.get().Areas, nil
 }
 func (f *fakeSource) Devices(context.Context) ([]haws.Device, error) { return f.get().Devices, nil }
@@ -357,5 +368,97 @@ func TestSR05_ATurnsAreaIsTheSatelliteEntitysElseItsDevices(t *testing.T) {
 		if got := snap.DeviceArea[device]; got != want {
 			t.Errorf("DeviceArea[%s] = %q, want %q", device, got, want)
 		}
+	}
+}
+
+// startRun builds the structure once and starts the loop; it returns the
+// channel of changed snapshots.
+func startRun(t *testing.T, c *Cache, changed chan Snapshot) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if _, err := c.Rebuild(ctx); err != nil {
+		t.Fatal(err)
+	}
+	<-changed
+	go c.Run(ctx)
+}
+
+func TestHU02_ARebuildWaitingForRegistryChangesIsDroppedByTheOneAtOnce(t *testing.T) {
+	src := &fakeSource{}
+	src.set(sampleRegistry())
+	sub := &fakeSubscriber{}
+	changed := make(chan Snapshot, 4)
+	c := NewCache(Options{Source: src, Exposed: src.exposed, Subscriber: sub, Debounce: 300 * time.Millisecond,
+		OnChange: func(s Snapshot) { changed <- s }})
+	startRun(t, c, changed)
+	deadline := time.Now().Add(2 * time.Second)
+	for !sub.fire("entity_registry_updated") { // a registry change: its rebuild waits
+		if time.Now().After(deadline) {
+			t.Fatal("cache never subscribed to registry events")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	before := src.reads.Load()
+
+	reg := sampleRegistry()
+	reg.Areas[0].Name = "Wohnküche"
+	src.set(reg)
+	c.Now()
+	select {
+	case s := <-changed:
+		if s.AreaNames["kueche"] != "Wohnküche" {
+			t.Fatalf("rebuilt at once without the change: %v", s.AreaNames)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("no rebuild at once")
+	}
+	time.Sleep(500 * time.Millisecond) // past the wait of the registry change
+	if n := src.reads.Load() - before; n != 1 {
+		t.Fatalf("the registries were read %d times, want 1", n)
+	}
+}
+
+func TestHU03_AFailedRebuildKeepsTheLastStructureAndTheNextOneTriesAgain(t *testing.T) {
+	src := &fakeSource{}
+	src.set(sampleRegistry())
+	log, lines := logcap.Logger()
+	changed := make(chan Snapshot, 4)
+	c := NewCache(Options{Source: src, Exposed: src.exposed, Debounce: time.Hour, Logger: log,
+		OnChange: func(s Snapshot) { changed <- s }})
+	startRun(t, c, changed)
+
+	reg := sampleRegistry()
+	reg.Areas[0].Name = "Wohnküche"
+	src.set(reg)
+	src.fail(errors.New("connection lost"))
+	before := src.reads.Load()
+	c.Now()
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(lines.String(), "structure rebuild failed") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no log line of the failed rebuild: %s", lines.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if src.reads.Load() == before {
+		t.Fatal("the rebuild at once did not read the registries")
+	}
+	if !strings.Contains(lines.String(), "connection lost") {
+		t.Errorf("the log line lacks the error: %s", lines.String())
+	}
+	if got := c.Snapshot().AreaNames["kueche"]; got != "Küche" {
+		t.Fatalf("the last structure did not stay: %q", got)
+	}
+
+	src.fail(nil)
+	c.Now()
+	select {
+	case s := <-changed:
+		if s.AreaNames["kueche"] != "Wohnküche" {
+			t.Fatalf("not the new structure: %v", s.AreaNames)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the next rebuild at once did not come")
 	}
 }

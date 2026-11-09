@@ -216,8 +216,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # Mails of IMAP entries named like a mail application (mail.py).
     entry.async_on_unload(async_setup_mail(hass, entry))
 
-    # A change of what Assist sees reaches the agent at once, as does a
-    # satellite switched off or moved to another area, or a ring added: the
+    # A change of what Assist sees reaches the agent at once, as does a new
+    # entity, a satellite switched off or moved to another area, or a ring
+    # added: the
     # rooms come from the registries. Changes in a burst (exposing many
     # entities in one go) are sent once, with what is current then.
     @callback
@@ -233,9 +234,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     @callback
     def _rooms_changed(event: Any) -> None:
         entity = event.data.get("entity_id") or ""
-        if event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED or entity.split(".")[0] in (
-            "assist_satellite",
-            "light",
+        if (
+            event.event_type == dr.EVENT_DEVICE_REGISTRY_UPDATED
+            # A new entity Home Assistant exposes on its own fires no
+            # exposure event: sent at once, not with the next status check
+            # (docs/spec/context.md, 1.3).
+            or event.data.get("action") == "create"
+            or entity.split(".")[0] in ("assist_satellite", "light")
         ):
             resend.async_schedule_call()
 

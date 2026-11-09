@@ -468,6 +468,23 @@ async def test_exposed_entities_reach_the_agent(hass, aioclient_mock, entry):
     assert {"calendar.geheim", "calendar.drei"} <= set(_puts(aioclient_mock)[-1]["exposed"])
 
 
+async def test_hu04_a_new_entity_reaches_the_agent_at_once(hass, aioclient_mock, entry):
+    """Home Assistant exposes a new entity on its own, without an exposure
+    event: the integration sends the list after a moment, not with the next
+    status check (docs/spec/context.md, 1.3)."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json=STATUS)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    sent = len(_puts(aioclient_mock))
+    er.async_get(hass).async_get_or_create("todo", "local_todo", "baumarkt", suggested_object_id="baumarkt")
+    hass.states.async_set("todo.baumarkt", "0", {"friendly_name": "Baumarkt"})
+    await hass.async_block_till_done()
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=RESEND_COOLDOWN + 1), fire_all=True)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(_puts(aioclient_mock)) == sent + 1
+    assert "todo.baumarkt" in _puts(aioclient_mock)[-1]["exposed"]
+
+
 async def test_a_person_sets_their_own_settings(hass, aioclient_mock, entry, hass_client, hass_admin_user):
     """The card "Me": whoever is signed in reads and sets their own person's
     settings, only the fields that are theirs; the admin's stay as they are."""

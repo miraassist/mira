@@ -58,8 +58,10 @@ type Cache struct {
 	mu   sync.RWMutex
 	snap Snapshot
 
-	// dirty signals the debounce loop that a rebuild is due.
+	// dirty signals the debounce loop that a rebuild is due; now that it is
+	// due at once.
 	dirty chan struct{}
+	now   chan struct{}
 }
 
 func NewCache(opts Options) *Cache {
@@ -77,6 +79,7 @@ func NewCache(opts Options) *Cache {
 		exposed:  opts.Exposed,
 		onChange: opts.OnChange,
 		dirty:    make(chan struct{}, 1),
+		now:      make(chan struct{}, 1),
 	}
 }
 
@@ -159,12 +162,36 @@ func (c *Cache) Run(ctx context.Context) error {
 				pending = true
 				timer.Reset(c.debounce)
 			}
+		case <-c.now:
+			// It reads the registries too: a rebuild still waiting is
+			// dropped (docs/spec/context.md, 1.3).
+			if pending && !timer.Stop() {
+				<-timer.C
+			}
+			pending = false
+			c.rebuild(ctx)
 		case <-timer.C:
 			pending = false
-			if _, err := c.Rebuild(ctx); err != nil && ctx.Err() == nil {
-				c.log.Error("structure rebuild failed", "error", err)
-			}
+			c.rebuild(ctx)
 		}
+	}
+}
+
+// rebuild is Rebuild for the loop: a failure keeps the last structure, and
+// the next change tries again.
+func (c *Cache) rebuild(ctx context.Context) {
+	if _, err := c.Rebuild(ctx); err != nil && ctx.Err() == nil {
+		c.log.Error("structure rebuild failed; the last structure stays until the next change", "error", err)
+	}
+}
+
+// Now schedules a rebuild at once, without the debounce: the integration
+// sent a list of exposed entities, already gathered on its side
+// (docs/spec/context.md, 1.3). It does not wait for the rebuild.
+func (c *Cache) Now() {
+	select {
+	case c.now <- struct{}{}:
+	default: // a rebuild at once is already scheduled
 	}
 }
 
