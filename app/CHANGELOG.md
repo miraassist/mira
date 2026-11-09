@@ -12,6 +12,8 @@ The app has the version of Mira's release; what changed is in the release notes:
   The message comes at once and only over that person's channels, such as Telegram, and is never read aloud. Good
   for a list with links.
 - The Messages tab marks such a message "private".
+- A list or device just added in Home Assistant is known to Mira at once, not only up to a minute later.
+- Mira no longer confirms an item on a list that does not exist; she says the list is missing.
 
 ## 0.19.0
 
