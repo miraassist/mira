@@ -480,8 +480,8 @@ Between Home Assistant and the agent there are two directions, on separate paths
   for checking what Home Assistant refuses a non-admin. Alongside runs a test Mira with `testenv/mira.yaml` on
   port 8788. This way whole flows can be checked without touching the house.
 - **After every update of the test HA:** `go run ./cmd/testha compat` checks
-  what Mira relies on in Home Assistant, with Mira's own code and the test
-  HA's non-admin token
+  what Mira relies on in Home Assistant, with Mira's own code and her token,
+  the owner's
   ([Compatibility](spec/ha-compat.md)); every check says ok or FAIL with its
   evidence.
 - **End to end at a real satellite:** a flow that plays, speaks and listens is

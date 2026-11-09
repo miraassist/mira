@@ -33,10 +33,10 @@ one failed. The checks, step 1:
 
 | Id | What Mira relies on | Checked |
 |---|---|---|
-| HC-01 | Home Assistant's MCP server at `/api/mcp/assist` answers Mira's user | Mira's MCP host connects with the token `HA_TOKEN` |
+| HC-01 | Home Assistant's MCP server at `/api/mcp/assist` answers Mira's token (the owner's) | Mira's MCP host connects with the token `TESTHA_ADMIN_TOKEN` |
 | HC-02 | The tools Mira relies on by name are there: `GetLiveContext`, `GetDateTime`, `HassTurnOn`, `HassTurnOff` | in the host's list, with any prefix; `GetLiveContext` and `GetDateTime` are read-only by Home Assistant's own annotation |
 | HC-03 | Home Assistant's prompt is there, the device lines at its end | Mira's prompt cache with the satellites: a text, no problem, and each satellite's own part is less than a tenth of it |
-| HC-04 | The websocket commands the service sends answer Mira's user | the registries (areas, devices, entities, none empty), the states, the actions, the history of one entity and the statistics of one sensor |
+| HC-04 | The websocket commands the service sends answer Mira's token | the registries (areas, devices, entities, none empty), the states, the actions, the history of one entity and the statistics of one sensor |
 | HC-05 | The actions Mira calls exist | `assist_satellite.announce`, `assist_satellite.start_conversation`, `tts.speak`, `media_player.play_media`, `media_player.media_stop`, `notify.send_message`, `light.turn_on`, `light.turn_off` in Home Assistant's actions |
 | HC-06 | The integration loads cleanly | Home Assistant's log since the container's start has no deprecation of the integration's use of Home Assistant ("deprecated", "breaks in", "will stop working") and no failed setup ("Error setting up", "Setup failed", "Error loading"); that the Mira service was not reachable for a while is no matter of compatibility |
 | HC-07 | The OAuth helper can send the secret as HTTP Basic | `LocalOAuth2Implementation` has `token_auth_method` |
@@ -52,5 +52,5 @@ with recorded lines.
 ## Steps
 
 1. **The checks without a model** HC-01 to HC-07, with `testha compat`. Scenarios HC-01 to HC-04. Built.
-2. **The turns** (follow-up with the same conversation id; `start_conversation` as Mira's user and an answer by voice
+2. **The turns** (follow-up with the same conversation id; `start_conversation` with Mira's token and an answer by voice
    at a fake satellite), with the model, switchable off. Not built.

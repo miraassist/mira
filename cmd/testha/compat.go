@@ -19,7 +19,7 @@ import (
 )
 
 // compat checks what Mira relies on against the running test Home Assistant,
-// with Mira's own code and as Mira's user (docs/spec/ha-compat.md).
+// with Mira's own code and with Mira's token, the owner's (docs/spec/ha-compat.md).
 
 // check is the outcome of one check: its id, whether it passed, and what
 // came or was missing.
@@ -53,9 +53,9 @@ var (
 
 func compatCmd(ctx context.Context, dir string) error {
 	e := loadEnv(dir)
-	token := e["HA_TOKEN"]
+	token := e["TESTHA_ADMIN_TOKEN"]
 	if token == "" {
-		return fmt.Errorf("no HA_TOKEN in testenv/.env; run testha up first")
+		return fmt.Errorf("no TESTHA_ADMIN_TOKEN in testenv/.env; run testha up first")
 	}
 	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
 	var results []check
@@ -65,11 +65,11 @@ func compatCmd(ctx context.Context, dir string) error {
 	}})
 	defer host.Close()
 	err := host.Start(ctx)
-	results = append(results, check{id: "HC-01", what: "MCP server answers Mira's user", ok: err == nil, detail: errText(err)})
+	results = append(results, check{id: "HC-01", what: "MCP server answers Mira's token", ok: err == nil, detail: errText(err)})
 
 	c, stop, err := connect(ctx, token)
 	if err != nil {
-		return fmt.Errorf("websocket as Mira's user: %w", err)
+		return fmt.Errorf("websocket with Mira's token: %w", err)
 	}
 	defer stop()
 	ws, snap := checkWebsocket(ctx, c)
@@ -163,7 +163,7 @@ func checkPrompt(ctx context.Context, src assistprompt.Source, satellites []stri
 	return r
 }
 
-// checkWebsocket: HC-04. The commands the service sends answer Mira's user.
+// checkWebsocket: HC-04. The commands the service sends answer Mira's token.
 // It returns the house structure built from the registries, as Mira builds it.
 func checkWebsocket(ctx context.Context, c *haws.Client) (check, structure.Snapshot) {
 	r := check{id: "HC-04", what: "websocket commands of the service"}
