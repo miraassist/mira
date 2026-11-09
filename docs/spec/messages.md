@@ -50,6 +50,8 @@ There are no receiver settings here; the house accepts everything.
 **Delivery:**
 - private: via the person's [channels](channels.md) (HA notify targets), as today for personal and confidential notices;
 - at the satellite (announcement or indicator), **if the person is recognized there**. Today recognized only means: the "alone at home" rule. **What "recognized at the satellite" will mean in future we discuss separately.**
+- **private** (confidentiality `private`, since 2026-11-09): only over the person's channels, at once outside quiet
+  hours, never spoken or shown; for a schedule's list for one person ([A schedule for one person](schedule-receiver.md)).
 
 ## Wording
 

@@ -232,6 +232,10 @@ type Schedule struct {
 	// none) filled in and what Mira knows about them added; the message goes
 	// to that person, not to the house.
 	PerPerson bool `yaml:"per_person"`
+	// To names one person the message goes to, privately over their
+	// channels and never spoken (docs/spec/schedule-receiver.md): a person's
+	// key, name or login, filled with the skill's settings. Empty: the house.
+	To string `yaml:"to"`
 	// Urgent lets the job report importance 3, which goes out at once, in
 	// quiet hours too (an official warning of extreme weather); without it
 	// a job reports at most 2.
@@ -447,6 +451,10 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 			sc.Off = ch.Off
 		}
 		sc.Task = fill(sc.Task, vals, m.Settings)
+		sc.To = strings.TrimSpace(fill(sc.To, vals, m.Settings))
+		if sc.To != "" && sc.PerPerson {
+			return Skill{}, problem("toperperson", i+1)
+		}
 		s.Schedules = append(s.Schedules, sc)
 	}
 	for name := range changes {

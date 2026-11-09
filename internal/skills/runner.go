@@ -86,6 +86,9 @@ var ErrRunning = errors.New("it is running")
 // personal profile (what Mira knows about them, "" if nothing).
 type Person struct {
 	Key, Name, Login, Calendar, Profile string
+	// Channel: the person has a channel of their own, so a private
+	// message reaches them (not only "alone at home is me").
+	Channel bool
 }
 
 type job struct {
@@ -436,6 +439,15 @@ func (r *Runner) runFor(ctx context.Context, sk Skill, index int, p Person) (boo
 func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool, string, error) {
 	t := i18n.Pick(catalog, r.Set.Lang)
 	task := strings.TrimSpace(sk.Schedules[index].Task)
+	// A schedule for one person: found before the job runs, so a wrong name
+	// costs no model call and sends nothing to the house instead.
+	var to string
+	if name := sk.Schedules[index].To; name != "" {
+		var err error
+		if to, err = r.receiver(ctx, name); err != nil {
+			return false, "", err
+		}
+	}
 	if p.Key != "" {
 		cal := p.Calendar
 		if cal == "" {
@@ -478,19 +490,43 @@ func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool,
 	now := r.Set.clock()
 	// One message per job, day (and person): a rerun updates it.
 	dedupe := fmt.Sprintf("skill:%s:%d:%s", sk.Name, index, now.In(r.Set.loc()).Format("2006-01-02"))
-	receiver := store.ReceiverHouse
+	receiver, confidentiality := store.ReceiverHouse, store.ConfidentialityNormal
 	if p.Key != "" {
 		dedupe += ":" + p.Key
 		receiver = p.Key
 	}
+	if to != "" {
+		dedupe += ":" + to
+		receiver, confidentiality = to, store.ConfidentialityPrivate
+	}
 	_, _, err = r.Store.PutMessage(ctx, store.Message{
 		ID: ulid.Make().String(), Source: store.SourceSchedule,
-		DedupeKey:  dedupe,
+		DedupeKey: dedupe, Confidentiality: confidentiality,
 		Importance: res.Importance, Receiver: receiver,
 		Spoken: res.Spoken, Details: strings.TrimSpace(res.Details),
 		ExpiresAt: now.Add(time.Duration(res.ExpiresInHours * float64(time.Hour))),
 	})
 	return err == nil, res.Spoken, err
+}
+
+// receiver finds the person a schedule's to names, by key, name or login,
+// case and spaces aside, among those with a channel of their own.
+func (r *Runner) receiver(ctx context.Context, name string) (string, error) {
+	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+	want := norm(name)
+	var people []Person
+	if r.People != nil {
+		people = r.People(ctx)
+	}
+	for _, p := range people {
+		if !p.Channel {
+			continue
+		}
+		if norm(p.Key) == want || norm(p.Name) == want || (p.Login != "" && norm(p.Login) == want) {
+			return p.Key, nil
+		}
+	}
+	return "", fmt.Errorf("no person %q with a channel of their own", name)
 }
 
 // NextRun is when a schedule runs next; zero while it is off.

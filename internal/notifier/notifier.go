@@ -290,7 +290,7 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 	afterToday := local.Hour()*60+local.Minute() >= esc.After.MinutesOfDay()
 
 	for _, nt := range pending {
-		neverSpoken := nt.Confidential() && n.cfg.ConfidentialVoice == config.ConfidentialVoiceNever
+		neverSpoken := nt.Private() || nt.Confidential() && n.cfg.ConfidentialVoice == config.ConfidentialVoiceNever
 		escalate := nt.Importance >= esc.MinImportance && afterToday &&
 			now.Sub(nt.CreatedAt) >= esc.Grace.Duration()
 		if !neverSpoken && !escalate {
@@ -301,7 +301,10 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 			continue
 		}
 		reason := "escalation"
-		if neverSpoken {
+		switch {
+		case nt.Private():
+			reason = "private"
+		case neverSpoken:
 			reason = "confidential"
 		}
 		n.log.Info("message delivered privately", "message", nt.ID, "reason", reason)
@@ -333,7 +336,7 @@ func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
 			n.log.Error("urgent private delivery failed", "message", nt.ID, "error", privErr)
 		}
 		spoken := false
-		if urgent.Announce && !nt.Confidential() {
+		if urgent.Announce && !nt.Confidential() && !nt.Private() {
 			spoken = n.announceEverywhere(ctx, nt)
 		}
 		if privErr == nil || spoken {
@@ -390,6 +393,9 @@ const (
 // satellite. Nobody knows who that someone is; the person entities only say
 // who is home.
 func (n *Notifier) route(nt store.Message, home map[string]bool) route {
+	if nt.Private() {
+		return routePrivate // never spoken, whoever is in the room
+	}
 	if nt.Receiver != store.ReceiverHouse {
 		if p, ok := n.persons[nt.Receiver]; ok && p.Entity != "" && !home[nt.Receiver] && !home["?"+nt.Receiver] {
 			// The recipient is away: whoever walked in is someone else.

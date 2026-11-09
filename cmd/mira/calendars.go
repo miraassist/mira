@@ -127,7 +127,8 @@ func reachablePeople(persons map[string]config.Person, logins map[string]string,
 		if cal == "" {
 			cal = byName[norm(name)]
 		}
-		out = append(out, skills.Person{Key: key, Name: name, Login: logins[p.Entity], Calendar: cal})
+		out = append(out, skills.Person{Key: key, Name: name, Login: logins[p.Entity], Calendar: cal,
+			Channel: len(p.Channels) > 0})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out

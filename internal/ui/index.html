@@ -523,6 +523,7 @@ const I18N = {
    "dringend"
   ],
   "confidential": "vertraulich",
+  "private_msg": "privat",
   "waiting": "wartet",
   "delivered": "zugestellt",
   "done": "Erledigt",
@@ -1036,6 +1037,7 @@ const I18N = {
    "urgent"
   ],
   "confidential": "confidential",
+  "private_msg": "private",
   "waiting": "waiting",
   "delivered": "delivered",
   "done": "Done",
@@ -1789,7 +1791,7 @@ function messageItems(items, may) {
     tags: badge(T["state_" + shownState(n.state)] + (n.state === "scheduled" && n.deliver_at ? " " + esc(n.deliver_at.slice(5)) : ""), n.state === "pending")
       + (n.state === "pending" && may(n) ? `<button class="secondary" onclick="event.preventDefault(); event.stopPropagation(); ack('${esc(n.id)}')">${T.done}</button>` : "") }, `
       ${n.details ? `<p>${esc(n.details)}</p>` : ""}
-      <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}</p>`)).join("")}</div>`;
+      <p class="hint">${T.importance}: ${T.importance_short[n.importance] || n.importance} · ${esc(T["source_" + n.source] || n.source)} · ${esc(n.created_at)}${n.delivered_via ? " · " + esc(n.delivered_via) : ""}${n.confidentiality === "confidential" ? " · " + T.confidential : ""}${n.confidentiality === "private" ? " · " + T.private_msg : ""}</p>`)).join("")}</div>`;
 }
 // shownState folds delivered and done into one: for the user both mean
 // "heard"; Mira keeps them apart for repeats and follow-up questions.

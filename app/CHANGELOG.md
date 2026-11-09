@@ -3,6 +3,13 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.20.0
+
+- A skill's schedule can send its result to one person: `to` names the person (usually from a setting of the skill).
+  The message comes at once and only over that person's channels, such as Telegram, and is never read aloud. Good
+  for a list with links.
+- The Messages tab marks such a message "private".
+
 ## 0.19.0
 
 - A running plan (a recipe, a quiz) can be ended on the page: tab Plans, "End". Everyone who sees the plans may end

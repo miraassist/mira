@@ -37,10 +37,13 @@ const ReceiverHouse = "house"
 
 // Confidentiality levels. A normal message may be spoken to whoever is in the
 // room; a confidential one only when the notifier's policy says the right
-// person is the one listening, otherwise it goes to a private channel.
+// person is the one listening, otherwise it goes to a private channel. A
+// private one is never spoken: it goes over the receiver's channels only
+// (docs/spec/schedule-receiver.md).
 const (
 	ConfidentialityNormal       = "normal"
 	ConfidentialityConfidential = "confidential"
+	ConfidentialityPrivate      = "private"
 )
 
 type Message struct {
@@ -57,7 +60,8 @@ type Message struct {
 	State        string
 	DeliveredVia string
 	DeliveredAt  time.Time
-	// Confidentiality is ConfidentialityNormal or ConfidentialityConfidential.
+	// Confidentiality is ConfidentialityNormal, ConfidentialityConfidential
+	// or ConfidentialityPrivate.
 	Confidentiality string
 	// Sender is who sent it: "person:<key>", "area:<id>" (someone at a
 	// satellite), or empty for Mira herself (a task, a skill, a reminder).
@@ -86,6 +90,10 @@ type Message struct {
 // listener.
 func (n Message) Confidential() bool { return n.Confidentiality == ConfidentialityConfidential }
 
+// Private reports whether the message goes over the receiver's channels only,
+// never spoken.
+func (n Message) Private() bool { return n.Confidentiality == ConfidentialityPrivate }
+
 // PutMessage inserts a message, or updates the open message with the same dedupe
 // key instead of creating a duplicate. A sensor that flaps therefore produces
 // one row, not many. Returns the stored message and whether it was new.
@@ -105,7 +113,7 @@ func (s *Store) PutMessage(ctx context.Context, n Message) (Message, bool, error
 	switch n.Confidentiality {
 	case "":
 		n.Confidentiality = ConfidentialityNormal
-	case ConfidentialityNormal, ConfidentialityConfidential:
+	case ConfidentialityNormal, ConfidentialityConfidential, ConfidentialityPrivate:
 	default:
 		return Message{}, false, fmt.Errorf("unknown confidentiality %q", n.Confidentiality)
 	}
