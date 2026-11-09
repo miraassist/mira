@@ -654,6 +654,24 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ![Setup → Connections: the app's client ID and secret, the redirect URL to copy, Connect and Disconnect](img/mira-verbindungen-en.png)
 
+## Adding new Zigbee devices
+
+"I have a new Zigbee device." Mira asks whether to start adding it and then tells you to press the button on the device or put in its battery. As soon as the device is there, she speaks up at the same satellite by herself: "Got it: a plug with power metering from IKEA. Which room does it go in?" – "Living room." Then she proposes a name ("Plug living room"), and on your yes the device is done: in its room, renamed, and its values exposed to voice, so you can control it or ask about it right away.
+
+- One device at a time; for the next one you say again that you have a new one.
+- If nothing comes up for three minutes, Mira asks whether to try again. If Zigbee2MQTT does not understand a device, she says so; then press its button again. A device that is already added she recognizes, and names its name and room.
+- "Cancel" ends adding at any time.
+- It works only at a satellite, where Mira speaks up once the device is there.
+
+**Setting up:** adding runs through [Zigbee2MQTT](https://www.zigbee2mqtt.io), connected to Home Assistant over MQTT (the usual setup, with Zigbee2MQTT's Home Assistant integration). Then switch on the skill `geraet-einbinden`: Mira → Capabilities → Skills → geraet-einbinden → **Switch on**. Or in `mira.yaml`:
+
+```yaml
+skills:
+  geraet-einbinden: {}
+```
+
+Other Zigbee integrations (ZHA, deCONZ) and other radios (Matter, Z-Wave) do not work with it yet.
+
 ## Looking things up and hard questions
 
 Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.

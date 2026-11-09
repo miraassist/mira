@@ -666,6 +666,24 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ![Einrichtung → Verbindungen: Client-ID und Secret der App, die Redirect-URL zum Kopieren, Verbinden und Trennen](img/mira-verbindungen-de.png)
 
+## Neue Zigbee-Geräte einbinden
+
+„Ich hab ein neues Zigbee-Gerät.“ Mira fragt, ob sie das Einbinden starten soll, und sagt dir dann, dass du den Knopf am Gerät drücken oder die Batterie einlegen sollst. Sobald das Gerät da ist, meldet sie sich am selben Satelliten von selbst: „Ich hab's: eine Steckdose mit Strommessung von IKEA. In welchen Raum kommt sie?“ – „Wohnzimmer.“ Dann schlägt sie einen Namen vor („Steckdose Wohnzimmer“), und auf dein Ja ist das Gerät fertig: im Raum, umbenannt, und seine Werte sind für Sprache freigegeben, sodass du es gleich steuern oder abfragen kannst.
+
+- Ein Gerät pro Durchgang; für das nächste sagst du wieder, dass du ein neues hast.
+- Meldet sich drei Minuten lang nichts, fragt Mira, ob sie es nochmal versuchen soll. Versteht Zigbee2MQTT ein Gerät nicht, sagt sie es; drück den Knopf dann nochmal. Ein Gerät, das schon eingebunden ist, erkennt sie und nennt seinen Namen und Raum.
+- „Abbrechen“ beendet das Einbinden jederzeit.
+- Das geht nur am Satelliten, weil Mira sich dort meldet, wenn das Gerät da ist.
+
+**Einrichten:** Das Einbinden läuft über [Zigbee2MQTT](https://www.zigbee2mqtt.io), das mit Home Assistant über MQTT verbunden ist (die übliche Einrichtung, mit der Home-Assistant-Anbindung von Zigbee2MQTT). Dann den Skill `geraet-einbinden` einschalten: Mira → Fähigkeiten → Skills → geraet-einbinden → **Einschalten**. Oder in der `mira.yaml`:
+
+```yaml
+skills:
+  geraet-einbinden: {}
+```
+
+Andere Zigbee-Anbindungen (ZHA, deCONZ) und andere Funkarten (Matter, Z-Wave) gehen damit noch nicht.
+
 ## Im Internet nachschauen und schwierige Fragen
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.

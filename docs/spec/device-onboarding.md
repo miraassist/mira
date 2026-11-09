@@ -1,7 +1,8 @@
 # Adding a Zigbee device by voice – Spec
 
-Status 2026-11-09: decided; step 1 built (the fake Zigbee2MQTT), step 2 done (the state table checked against the
-fake); the real adapter at the end. Scenarios:
+Status 2026-11-09: steps 1 to 4 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
+tools and the wait in the service, the skill, run end to end at the fake Show, the guide; the real run with an
+adapter is open. Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -36,9 +37,11 @@ settings (expose), and the device is called `0x00158d0001a2b3c4` until someone r
 
 ## Building blocks
 
-- **The concept: a thread of a skill** ([Threads](threads.md)) of the new skill `geraet-einbinden`, bound to the
-  satellite where it started (a room's thread, as the answering machine's listening). Its fields are the room and the
-  name; the device found is a fact the code writes into the thread, as the answering machine's code writes its plan.
+- **The concept: a thread with a plan** ([Threads](threads.md), Plans) of the new skill `geraet-einbinden`, bound to
+  the room where it started (`bound: room`, as the answering machine's listening). The plan's three steps (the device
+  joins, the room, the name) are ticked by Mira's code, not by the model; the device found is written into the
+  thread's log as a fact (`Note`), so the next turns see it. Departure from fields: the room and the name are no
+  fields a finish waits for, but steps the tools do one by one, each with its own answer.
 - **An announcement of the thread** ([Threads](threads.md), [Answering machine](voicemail.md), "Nächste …" belongs to
   the thread): "Ich hab's …" is the thread's question at its satellite, spoken with
   `assist_satellite.start_conversation`, so the answer "Wohnzimmer" is a direct answer to the thread.
@@ -58,55 +61,76 @@ what was found, how to propose a name. Three tools, built into the service and g
 
 | Tool | Does | Costs |
 |---|---|---|
-| `zigbee_pairing_start` | Finds the Zigbee2MQTT bridge, opens pairing for 3 minutes, binds the wait to the thread | One `mqtt.publish`; one MQTT subscription through Home Assistant while pairing is open |
-| `device_assign` (device, room) | Puts the device into the room | One `config/device_registry/update` |
-| `device_finish` (device, name) | Renames the device in Zigbee2MQTT (Home Assistant follows), exposes its entities to Assist, ends the thread | One `mqtt.publish`; one read of the device's entities; one `homeassistant/expose_entity` |
+| `zigbee_pairing_start` | Only at a satellite. Finds the Zigbee2MQTT bridge, starts the thread (or takes the open one), opens pairing for 3 minutes, binds the wait to the thread | One `mqtt/device/debug_info` of the bridge; three MQTT subscriptions and one registry subscription through Home Assistant; one `mqtt.publish` |
+| `device_assign` (room) | Puts the device the thread found into the room | One `config/device_registry/update` |
+| `device_finish` (name) | Exposes the device's entities to Assist, then renames it in Zigbee2MQTT (Home Assistant follows), ends the thread | One `search/related`, one `config/entity_registry/get_entries`, one `homeassistant/expose_entity`; one `mqtt.publish` |
+
+The skill is not on by itself: a household with Zigbee2MQTT switches it on with a line `geraet-einbinden: {}` under
+`skills` (or on Mira's page), as every skill that needs something in the house.
 
 ### Step by step
 
-1. **Pairing.** On the yes the model calls `zigbee_pairing_start`. Mira finds the bridge (to be checked in step 1:
-   by the bridge device that Zigbee2MQTT creates in Home Assistant, and its base topic, by default `zigbee2mqtt`),
-   subscribes through Home Assistant to `<base>/bridge/event` and `<base>/bridge/response/permit_join`, and publishes
-   `<base>/bridge/request/permit_join` with `{"time": 180}`. The answer `status: ok` returns the tool; the model tells
-   the user to press the button. The turn ends.
+1. **Pairing.** On the yes the model calls `zigbee_pairing_start`. Mira finds the bridge: the device of
+   `manufacturer` "Zigbee2MQTT", `model` "Bridge" among the devices Mira keeps (several: the first by id), and its base
+   topic from its MQTT discovery (`mqtt/device/debug_info`, the state topic `<base>/bridge/state`). She subscribes
+   through Home Assistant to `<base>/bridge/response/#` (the answers, for the thread's whole life), to the entity
+   registry's `create` events, to `<base>/bridge/event` and, last, to `<base>/bridge/info`. Home Assistant subscribes
+   at the broker a moment after it confirms (seen on the test HA 2026-11-09: an answer right after was lost), so Mira
+   waits for the retained info to come: then all of them are live (a signal; 10 s as the safety net). She publishes
+   `<base>/bridge/request/permit_join` with `{"time": 180}` and a `transaction`; the answer with that transaction and
+   `status: ok` returns the tool; the model tells the user to press the button. The turn ends.
 2. **The device joins.** Zigbee2MQTT reports `device_joined`, then `device_interview` with `started` and, after up to
    a minute (battery devices are slow), `successful` with the device's definition: vendor, model, description, what
    it exposes. Mira says nothing at `device_joined`.
 3. **Home Assistant has it.** After the interview Zigbee2MQTT publishes its discovery; Home Assistant creates the
-   device and fires `device_registry_updated` with `action: create`. Mira already subscribes to that event
-   (`internal/ha/structure`). Mira matches the device by its IEEE address in its identifiers. Pairing is closed
-   (`permit_join` with `time: 0`): one device per dialog, the next one is a new "neues Gerät".
-4. **The question.** Mira writes the device into the thread (its id, vendor, model, Zigbee2MQTT's description, the
-   kinds of entities) and runs one model round in the thread, which writes the question ("Ich hab's: … In welchen Raum
-   kommt er?"): the description comes in English from Zigbee2MQTT and is said in the household's language. Mira speaks
-   it as the thread's announcement at the thread's satellite with `start_conversation`.
+   device and its entities and fires `entity_registry_updated` `create` for each. Mira reads the first such entity
+   (`config/entity_registry/get_entries`): its `unique_id` begins with the IEEE address of the device that joined, its
+   `device_id` is the device. The bridge's events and the registry events come over the one connection, in order.
+   With the interview successful and the device known, pairing is closed (`permit_join` with `time: 0`): one device
+   per dialog. The subscriptions to the events, the info and the registry end.
+4. **The question.** Mira writes the device's facts into the thread (vendor, model, Zigbee2MQTT's description, its
+   values) and ticks the first step. The skill's agent `geraet-einbinden.frage` (one model round, no tools) words the
+   question from the facts ("Ich hab's: … In welchen Raum kommt es?"): the description comes in English from
+   Zigbee2MQTT and is said in the household's language. Mira says it as the thread's question at the satellite where
+   the thread began (the notifier, with `start_conversation`), so the answer is a reply to the thread.
 5. **The room.** The answer is a turn of the thread. The model calls `device_assign` with the room's name; Mira
-   resolves it among Home Assistant's areas like every room name, and sets the device's area.
+   resolves it among Home Assistant's areas by name, id or alias, sets the device's area and ticks the step. An unknown
+   room: the tool names the rooms and the model asks.
 6. **The name.** The model proposes a name following the skill (what it is and the room) and asks. On the yes, or
-   with the user's own name, it calls `device_finish`: Mira publishes `<base>/bridge/request/device/rename` with
-   `{"from": "<ieee>", "to": "<name>", "homeassistant_rename": true}`, waits for `status: ok`, and exposes every
-   entity of the device to Assist except those Home Assistant marks as configuration or diagnostic. The thread ends.
+   with the user's own name, it calls `device_finish`: Mira first exposes every entity of the device to Assist except
+   those Home Assistant marks as configuration or diagnostic (disabled ones are not among them); then she publishes
+   `<base>/bridge/request/device/rename` with `{"from": "<ieee>", "to": "<name>", "homeassistant_rename": true}` and
+   waits for `status: ok`. Home Assistant removes the device and its entities and creates them again with the same
+   ids of device and area, the new entity ids, and the expose setting kept (seen on the test HA 2026-11-09), so nothing
+   is read after the rename. The thread ends as done; its subscription to the answers ends with it.
 
 ### When a step fails
 
 | Fails | Who learns of it |
 |---|---|
+| Not at a satellite (Telegram, the app) | The tool returns that this works only at a satellite, where Mira speaks up once the device is there; nothing is opened |
 | No Zigbee2MQTT bridge in Home Assistant | The tool returns the error; Mira says she finds no Zigbee2MQTT in Home Assistant. Log `zigbee bridge not found` |
+| The bridge's topics cannot be read, a subscription fails, or the retained info does not come within 10 s | The tool returns the error; Mira says so. Log `zigbee pairing failed` with the error |
 | `permit_join` answers with an error, or no answer within 10 s | The tool returns Zigbee2MQTT's error (or "no answer"); Mira says so. Log `zigbee pairing failed` with the error |
 | Nothing joins within the 3 minutes (Zigbee2MQTT ends pairing on its own) | Mira announces at the satellite that she saw no device and asks whether to try again; the thread waits for the answer and ends at its timeout |
-| The interview fails, or the device is not supported | Mira announces it ("hat sich gemeldet, ich verstehe es aber nicht") with vendor and model if known; pairing stays open for the rest of the 3 minutes, so a second press of the button can work. Log `zigbee interview failed` |
-| The device is already known (paired again) | No `create` event comes; on its `device_announce` (or an interview's `successful`) during pairing Mira looks the device up by its IEEE address and says it is known, with its name and room. Pairing is closed, the thread ends |
-| Nobody answers the question | The thread expires at its timeout (15 minutes); the device stays without room and name. Log `device onboarding expired` with the device |
-| The area or the expose call is refused (the token is no administrator's) | The tool returns Home Assistant's error; Mira says she may not change devices. Log with the error |
-| The rename answers with an error | The tool returns it; Mira says so and keeps the old name; the room stays set |
+| The interview fails | Mira says at the satellite that a device came up that she does not understand, and to press its button again; pairing stays open for the rest of the 3 minutes. Log `zigbee interview failed`. A device Zigbee2MQTT does not support but interviews (`supported: false`, a generated definition) is added like any other |
+| A device joined, pairing ended, and its interview does not finish within 2 minutes | Mira says the same as for a failed interview. Log `zigbee device did not finish its interview in time` |
+| The device is already known (paired again) | It does not join; on its `device_announce` during pairing Mira finds the device by the name Zigbee2MQTT gives it (Home Assistant's device name) and says it is known, with its name and room. Pairing is closed, the thread ends |
+| The question cannot be worded (the model fails) | Mira asks with a fixed sentence naming vendor and model ("Ich habe ein neues Gerät gefunden: IKEA E2206. In welchen Raum kommt es?"). Log `could not word the question for the device` |
+| Nobody answers the question | The thread expires at its timeout (15 minutes); the device stays in Home Assistant without room and name. Log `thread ended` with `state=expired` |
+| The area or the expose call is refused (the token is no administrator's) | The tool returns Home Assistant's error; Mira says so. Log `could not put the zigbee device into its room` / `could not expose the zigbee device's entities` |
+| The rename answers with an error (Zigbee2MQTT refuses the name) | The tool returns it with how many values were exposed; Mira says so; the room and the exposing stay. Log `could not rename the zigbee device` |
 | The satellite is busy (music, a call) when the device is found | The announcement is spoken as every announcement of a thread would be there; nothing of its own |
 
 ### Cost
 
-Per device: two `mqtt.publish` for pairing, one for the rename, two MQTT subscriptions through Home Assistant for the
-3 minutes of pairing, one area update, one read of the device's entities, one expose call, one model round for the
-question and the turns of the dialog. Nothing grows with the number of devices in the house: the subscriptions are
-filtered to the bridge's topics, the device is matched by its address in one event.
+Per device: one read of the bridge's discovery, two `mqtt.publish` for pairing, one for the rename; three MQTT
+subscriptions and one registry subscription through Home Assistant while pairing is open (the one to the answers until
+the thread ends); one read of the entity registry per entity Home Assistant creates while a device is awaited (a
+device has a handful; other integrations creating entities in those minutes add theirs); one area update; one
+`search/related` and one read of the entity registry for exposing; one expose call; one model round for the question
+and the turns of the dialog. Nothing grows with the number of devices in the house: the subscriptions are filtered to
+the bridge's topics and to `create` events.
 
 ## State table
 
@@ -115,10 +139,10 @@ built.
 
 | # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
 |---|---|---|---|---|---|
-| 1 | Pairing opens | `mqtt.publish` `<base>/bridge/request/permit_join` `{"time":180}` | `<base>/bridge/response/permit_join` `status: ok` (with the request's `transaction`), then `<base>/bridge/info` `permit_join: true` | `mqtt/subscribe` on `<base>/bridge/#` through HA's websocket, with the owner's token; the retained `state`, `info` and `devices` come at once on subscribing | fake 2026-11-09 |
+| 1 | Pairing opens | `mqtt.publish` `<base>/bridge/request/permit_join` `{"time":180}` | `<base>/bridge/response/permit_join` `status: ok` (with the request's `transaction`), then `<base>/bridge/info` `permit_join: true` | `mqtt/subscribe` through HA's websocket, with the owner's token; a retained topic comes at once once the subscription is live at the broker | fake 2026-11-09 |
 | 2 | Device joins | Button pressed, battery in | `<base>/bridge/event` `device_joined`, then `device_announce` and `device_interview` `started` | the same subscription | fake 2026-11-09 |
 | 3 | Interview done | – | `device_interview` `successful` with `supported` and `definition` (vendor, model, description, exposes), or `failed` without them | the same subscription | fake 2026-11-09 |
-| 4 | HA has the device | Zigbee2MQTT's discovery after a successful interview | `device_registry_updated` `create`; the device's identifiers hold `zigbee2mqtt_<ieee>`, its `manufacturer` the vendor, `model` the description, `model_id` the model; its name is the IEEE address | the existing registry subscription | fake 2026-11-09 (the `create` came in the same moment as the interview's `successful`) |
+| 4 | HA has the device | Zigbee2MQTT's discovery after a successful interview | `device_registry_updated` `create`, then `entity_registry_updated` `create` per entity; an entity's `unique_id` is `<ieee>_<property>_<base>`; the device's identifiers hold `zigbee2mqtt_<ieee>`, its `manufacturer` the vendor, `model` the description, `model_id` the model; its name is the IEEE address | a subscription to `entity_registry_updated` while pairing, and `config/entity_registry/get_entries` of the entity | fake 2026-11-09 (the `create` came in the same moment as the interview's `successful`) |
 | 5 | Pairing ends by itself | the time over | `<base>/bridge/info` `permit_join: false` | the same subscription | fake 2026-11-09 |
 | 6 | Pairing closed by Mira | `permit_join` `{"time":0}` | response `status: ok`, `info` `permit_join: false` | the same subscription | fake 2026-11-09 |
 | 7 | Renamed | `<base>/bridge/request/device/rename` with `homeassistant_rename` | response `status: ok`; Home Assistant removes the device and creates it again **with the same id and its area kept**, the entity ids renamed (`sensor.temperatursensor_wohnzimmer_temperature`). An unknown device: `status: error`, `Device '<name>' does not exist` | subscription; HA's registry events | fake 2026-11-09 (Home Assistant's part is real: the fake only publishes what Zigbee2MQTT publishes) |
@@ -152,8 +176,10 @@ during the announcement is an ordinary interruption of an announcement.
 2. **Check the signals against the fake**: every row of the state table seen in the test HA, `mqtt/subscribe`
    through HA's websocket with Mira's token, the bridge found from Home Assistant, the rename followed by Home
    Assistant (decision 8).
-3. **Tools and wait** in the service: the three tools, the bridge's subscription, the match on the registry event,
-   the announcement of the thread, every error path. DV-01 to DV-10.
-4. **The skill `geraet-einbinden`** and the end-to-end run against the fake at the fake Show; the guide.
+3. **Tools and wait** in the service (built 2026-11-09): the three tools, the bridge's subscriptions, the match on
+   the registry event, the announcement of the thread, every error path. DV-01 to DV-10.
+4. **The skill `geraet-einbinden`** and the end-to-end run against the fake at the fake Show (built 2026-11-09: a
+   plug added, room and name set, three values exposed; "abbrechen" while pairing; a failed interview; a known
+   device; nothing joining); the guide.
 5. **The real run** with the adapter and real devices at the test HA (decision 10): every row of the state table
    seen again, every scenario that real hardware can show; the fake corrected where the real bridge differs.

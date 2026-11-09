@@ -127,6 +127,8 @@ skills:
     bundesland: Berlin
   fussball: {}
   geschichte: {}
+  # Adding a Zigbee device through the fake Zigbee2MQTT (testenv/z2m_fake).
+  geraet-einbinden: {}
   kamera: {}
   nachrichten: {}
   pollen: {}

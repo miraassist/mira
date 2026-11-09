@@ -41,6 +41,7 @@ var builtSteps = map[string][]int{
 	"RP": {1, 2},             // docs/spec/random-pick.md, Steps
 	"PE": {1},                // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
 	"PS": {1, 2},             // docs/spec/schedule-receiver.md, Steps
+	"DV": {3},                // docs/spec/device-onboarding.md, Steps
 	"HD": {},                 // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-20 to 22, 27) and Go (HD-23 to 26)
 }
 

@@ -205,6 +205,39 @@ func (m *Manager) Note(ctx context.Context, threadID, text string) error {
 	return err
 }
 
+// Ask says a text of Mira's own code as the thread's question where the
+// thread began, like a question of its finish: a reply there continues the
+// thread (a device found while adding it, docs/spec/device-onboarding.md).
+func (m *Manager) Ask(ctx context.Context, threadID, text string) error {
+	th, err := m.change(ctx, threadID, func(th *store.Thread) error {
+		if !store.ThreadOpen(th.State) {
+			return fmt.Errorf("thread %s has ended", th.ID)
+		}
+		m.logEntry(th, "mira", text)
+		m.extend(th)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	m.tell(ctx, th, text)
+	return nil
+}
+
+// Finish ends a thread as done, from Mira's own code; nothing when it ended
+// already.
+func (m *Manager) Finish(ctx context.Context, threadID string) {
+	th, err := m.opts.Store.GetThread(ctx, threadID)
+	if err != nil {
+		m.log.Warn("could not finish a thread", "thread", threadID, "error", err)
+		return
+	}
+	if !store.ThreadOpen(th.State) {
+		return
+	}
+	m.end(ctx, th, store.ThreadDone)
+}
+
 // PlanText is the plan of the target's thread the turn belongs to or that
 // runs at its places; "" without one.
 func (m *Manager) PlanText(ctx context.Context, inv tools.Invocation, target string) string {

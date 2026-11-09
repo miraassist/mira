@@ -54,6 +54,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/voicemail"
 	"github.com/miraassist/mira/internal/websearch"
+	"github.com/miraassist/mira/internal/zigbee"
 )
 
 // app is the wired agent. Fields are nil for disabled parts.
@@ -67,6 +68,8 @@ type app struct {
 	phonebook *phone.Book
 	// voicemail is the FRITZ!Box's answering machine (skill anrufbeantworter).
 	voicemail *voicemail.Machine
+	// zigbee adds Zigbee devices by voice (docs/spec/device-onboarding.md).
+	zigbee *zigbee.Pairing
 	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
 	clip *clip.Player
 	// timers are the sleep timers; set after the connection to Home
@@ -308,6 +311,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// The answering machine at the satellite (docs/spec/voicemail.md).
 	a.voicemail = a.newVoicemail()
 	internal = append(internal, a.voicemail.Tools()...)
+	// Adding a Zigbee device by voice (docs/spec/device-onboarding.md).
+	a.zigbee = a.newZigbee()
+	internal = append(internal, a.zigbee.Tools()...)
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).
 	bound := map[string]bool{}
@@ -527,6 +533,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Ended: func(ctx context.Context, th store.Thread) {
 			if a.voicemail != nil && th.Target == voicemail.Skill {
 				a.voicemail.ThreadEnded(ctx, th.ID)
+			}
+			// So does a Zigbee pairing it opened.
+			if a.zigbee != nil && th.Target == zigbee.Skill {
+				a.zigbee.ThreadEnded(ctx, th.ID)
 			}
 			// So do the clips a thread played.
 			if a.clip != nil {
