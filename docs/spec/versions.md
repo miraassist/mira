@@ -100,9 +100,9 @@ to the service (today only through the panel proxy); an older integration sends 
 
 | # | Transition | Trigger | Signal | Checked on the test HA |
 |---|---|---|---|---|
-| 1 | The marketplace looks at the repository again | `marketplace/repository/refresh` with the repository's id, admin token | the answer `success` (2.4 s); the update entity follows the repository's new version | 2026-11-10: the command answers; that it finds a *new* release is seen only at the next release |
+| 1 | The marketplace looks at the repository again | `marketplace/repository/refresh` with the repository's id, admin token | the answer `success` (2.4 s); the update entity follows the repository's new version | 2026-11-10: the command answers; at the release of 0.21.0 the test HA's update entity went from v0.20.0 to v0.21.0 2.8 s after it, without a restart |
 | 1b | HACS looks at the repository again (before 2026.11) | `hacs/repository/refresh` | as row 1 | not tried: the test HA runs 2026.11 (from HACS's source) |
-| 2 | A draft release is not offered | the release job with `draft: true` | the update entity keeps the old latest version | open, at the next release |
+| 2 | A draft release is not offered | the release job with `draft: true` | the update entity keeps the old latest version | 0.21.0 went out as a draft and was published by the app job (19:02); the test HA still said v0.20.0 after it, as the marketplace had not looked in between: not seen directly |
 | 3 | The Supervisor reloads the store | `POST /store/reload` | the app's update entity shows the new version | open (the test HA has no Supervisor) |
 
 ## Scenarios
