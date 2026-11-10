@@ -45,6 +45,7 @@ type HA interface {
 	CallService(ctx context.Context, domain, service string, data map[string]any, target *haws.Target) error
 	Subscribe(ctx context.Context, eventType string, handler haws.EventHandler) (func(), error)
 	SubscribeMQTT(ctx context.Context, topic string, handler func(haws.MQTTMessage)) (func(), error)
+	SubscribeRaw(ctx context.Context, cmd map[string]any, handler func(json.RawMessage)) (func(), error)
 }
 
 type Options struct {
@@ -91,8 +92,9 @@ type Pairing struct {
 	t   texts
 	log *slog.Logger
 
-	mu   sync.Mutex
-	runs map[string]*run // by thread id
+	mu    sync.Mutex
+	runs  map[string]*run    // by thread id
+	zruns map[string]*zhaRun // pairings on ZHA, by thread id
 }
 
 func New(o Options) *Pairing {
@@ -108,7 +110,8 @@ func New(o Options) *Pairing {
 	if o.Interview == 0 {
 		o.Interview = 2 * time.Minute
 	}
-	return &Pairing{o: o, t: i18n.Pick(catalog, o.Lang), log: o.Logger.With("component", "zigbee"), runs: map[string]*run{}}
+	return &Pairing{o: o, t: i18n.Pick(catalog, o.Lang), log: o.Logger.With("component", "zigbee"), runs: map[string]*run{},
+		zruns: map[string]*zhaRun{}}
 }
 
 // Tools are the skill's tools.
@@ -116,7 +119,8 @@ func (p *Pairing) Tools() []tools.InternalTool {
 	t := p.t
 	return []tools.InternalTool{
 		{Name: ToolStart, Description: t.startDesc, Skill: Skill,
-			Schema: `{"type":"object","properties":{},"required":[]}`, Run: p.start},
+			Schema: fmt.Sprintf(`{"type":"object","properties":{"network":{"type":"string","enum":["zigbee2mqtt","zha"],"description":%q}},"required":[]}`, t.argNetwork),
+			Run:    p.start},
 	}
 }
 
@@ -396,12 +400,26 @@ func (p *Pairing) start(ctx context.Context, inv tools.Invocation) (string, erro
 	if inv.Channel != config.ChannelVoice || inv.DeviceID == "" {
 		return t.notVoice, nil
 	}
+	var args struct {
+		Network string `json:"network"`
+	}
+	_ = json.Unmarshal(inv.Args, &args)
 	base, err := p.bridge(ctx)
-	if errors.Is(err, errNoBridge) {
+	z2m := err == nil
+	zha, zerr := p.zhaLoaded(ctx)
+	if zerr != nil {
+		p.log.Warn("could not read whether Home Assistant runs ZHA; only Zigbee2MQTT is tried", "error", zerr)
+	}
+	switch {
+	case z2m && zha && args.Network == "":
+		// Both networks: Mira asks which (decision 13).
+		return t.askNetwork, nil
+	case zha && (args.Network == "zha" || !z2m):
+		return p.startZHA(ctx, inv)
+	case errors.Is(err, errNoBridge):
 		p.log.Warn("zigbee bridge not found; nothing paired")
 		return t.noBridge, nil
-	}
-	if err != nil {
+	case err != nil:
 		p.log.Error("zigbee pairing failed: the bridge could not be read", "error", err)
 		return fmt.Sprintf(t.pairingFailed, err), nil
 	}
@@ -707,6 +725,14 @@ func (p *Pairing) entries(ctx context.Context, ids []string) ([]entry, error) {
 func (p *Pairing) Claims(deviceID string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	for _, r := range p.zruns {
+		r.mu.Lock()
+		mine := r.deviceID == deviceID
+		r.mu.Unlock()
+		if mine {
+			return true
+		}
+	}
 	for _, r := range p.runs {
 		r.mu.Lock()
 		for _, id := range r.devices {
@@ -724,6 +750,7 @@ func (p *Pairing) Claims(deviceID string) bool {
 // done); pairing it opened closes.
 func (p *Pairing) ThreadEnded(ctx context.Context, thread string) {
 	p.endRun(ctx, thread)
+	p.endZHA(ctx, thread)
 }
 
 func (p *Pairing) endRun(ctx context.Context, thread string) {

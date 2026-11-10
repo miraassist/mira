@@ -31,3 +31,10 @@ func (c *Client) SubscribeMQTT(ctx context.Context, topic string, handler func(M
 		handler(m)
 	})
 }
+
+// SubscribeRaw issues a subscription command of its own (zha/devices/permit)
+// and passes each event's payload on as it came. The handler runs on the
+// connection's read loop: it only passes the payload on.
+func (c *Client) SubscribeRaw(ctx context.Context, cmd map[string]any, handler func(json.RawMessage)) (func(), error) {
+	return c.subscribeCommand(ctx, cmd, func(ev Event) { handler(ev.Raw) })
+}

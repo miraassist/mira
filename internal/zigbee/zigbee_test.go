@@ -47,6 +47,12 @@ type fakeHA struct {
 	related   []string         // the new device's entities
 	refuse    map[string]error // by command type
 	renameErr string
+	// ZHA: whether Home Assistant runs it, the permits asked for, and the
+	// subscription its messages go to.
+	zha        bool
+	zhaPermits []float64
+	zhaSub     func(json.RawMessage)
+	entityIDs  map[string]string // entity id -> new entity id
 }
 
 func newFakeHA() *fakeHA {
@@ -68,6 +74,17 @@ func (f *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 		return nil, err
 	}
 	switch typ {
+	case "config_entries/get":
+		if f.zha {
+			return json.RawMessage(`[{"domain":"zha","state":"loaded"}]`), nil
+		}
+		return json.RawMessage(`[]`), nil
+	case "config/entity_registry/update":
+		if f.entityIDs == nil {
+			f.entityIDs = map[string]string{}
+		}
+		f.entityIDs[cmd["entity_id"].(string)] = cmd["new_entity_id"].(string)
+		return json.RawMessage(`{}`), nil
 	case "mqtt/device/debug_info":
 		if cmd["device_id"] == bridgeID {
 			return json.RawMessage(`{"entities":[{"entity_id":"binary_sensor.z","discovery_data":{"payload":{"state_topic":"zigbee2mqtt/bridge/state"}}}]}`), nil
@@ -131,6 +148,28 @@ func (f *fakeHA) Subscribe(_ context.Context, eventType string, h haws.EventHand
 		defer f.mu.Unlock()
 		f.events[eventType][n] = nil
 	}, nil
+}
+
+func (f *fakeHA) SubscribeRaw(_ context.Context, cmd map[string]any, h func(json.RawMessage)) (func(), error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if cmd["type"] != "zha/devices/permit" {
+		return nil, fmt.Errorf("unexpected %v", cmd["type"])
+	}
+	f.zhaPermits = append(f.zhaPermits, float64(cmd["duration"].(int)))
+	if cmd["duration"].(int) > 0 {
+		f.zhaSub = h
+	}
+	return func() {}, nil
+}
+
+// zhaSend sends one of ZHA's gateway messages over the permit's subscription.
+func (f *fakeHA) zhaSend(msg map[string]any) {
+	f.mu.Lock()
+	h := f.zhaSub
+	f.mu.Unlock()
+	raw, _ := json.Marshal(msg)
+	h(raw)
 }
 
 func (f *fakeHA) SubscribeMQTT(_ context.Context, topic string, h func(haws.MQTTMessage)) (func(), error) {
@@ -229,9 +268,14 @@ func newEnv(t *testing.T) *env {
 	e.core = devices.NewCore(devices.CoreOptions{Lang: i18n.DE, Logger: logger, HA: e.ha,
 		AreaKeys: func() map[string]string { return map[string]string{"wohnzimmer": "wohnzimmer", "küche": "kueche"} },
 		AreaName: areaName,
-		Thread:   func(context.Context, tools.Invocation) string { return thread },
-		Tick:     tick,
-		End:      func(_ context.Context, th string) { e.ended <- th },
+		DeviceName: func(id string) string {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			return e.devices[id].DisplayName()
+		},
+		Thread: func(context.Context, tools.Invocation) string { return thread },
+		Tick:   tick,
+		End:    func(_ context.Context, th string) { e.ended <- th },
 	})
 	e.p = New(Options{Lang: i18n.DE, Logger: logger, HA: e.ha, Wait: time.Second, Interview: time.Second, Core: e.core,
 		Devices:    func() map[string]haws.Device { return e.devices },

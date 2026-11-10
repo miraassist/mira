@@ -1,8 +1,9 @@
 # Adding a Zigbee device by voice – Spec
 
-Status 2026-11-09: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
+Status 2026-11-10: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
 tools and the wait in the service, the skill, run end to end at the fake Show, the guide, and the real run against
-a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Scenarios:
+a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Step 6, ZHA, built against Home
+Assistant's source; its real run is open. Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -48,6 +49,33 @@ built).
 | 12 | The name | Home Assistant's name of the device (`name_by_user`) **and** its entity ids, as Home Assistant's own rename dialog offers (`sensor.temperatursensor_wohnzimmer_temperature`) |
 | 13 | ZHA and Zigbee2MQTT both in Home Assistant | Mira asks which network |
 | 14 | A known device paired again | Seen in the real run, then specified (as for Zigbee2MQTT) |
+
+How it works (built 2026-11-10, from Home Assistant's source; the real run is open):
+
+1. `zigbee_pairing_start` reads whether Home Assistant runs ZHA (`config_entries/get` of the domain `zha`: an entry
+   `loaded`). With ZHA and a Zigbee2MQTT bridge both, and no `network` named, it opens nothing and returns that Mira
+   asks which network (decision 13); the model calls it again with `network`.
+2. On ZHA Mira subscribes to `zha/devices/permit` with `duration: 180`: Home Assistant permits joining and, while the
+   subscription lasts, sends ZHA's gateway messages over it (`homeassistant/components/zha/websocket_api.py`,
+   `helpers.py`; `zha/application/gateway.py`): `device_joined` (ieee, `pairing_status: PAIRED`),
+   `raw_device_initialized` (manufacturer, model), `device_fully_initialized` with the device's info and its Home
+   Assistant device id (`device_reg_id`). The first `device_joined` is said as for Zigbee2MQTT.
+3. `device_fully_initialized` of a device that joined in this run: a device id Home Assistant had before pairing
+   opened is a known device paired again (said with its name and room; decision 14, an assumption until the real run);
+   a new one is the thread's device. Pairing is closed (`zha/devices/permit` with `duration: 0`, its subscription
+   ended at once), the facts (manufacturer, model) go into the thread, and the question is asked as for
+   Zigbee2MQTT.
+4. The room as for every device; the name: Home Assistant's name of the device (`name_by_user`) and each entity id
+   that begins with the device's old name gets the new name there (`config/entity_registry/update` with
+   `new_entity_id`, one call per entity), as Home Assistant's rename dialog does (decision 12).
+5. ZHA says nothing when pairing ends: after the 180 s Mira says she saw no device (a time, as no signal exists); a
+   device that joined and is not initialised 2 minutes later is said as a failed interview.
+
+Fails: the subscription refused or ZHA not loaded: the tool returns the error, log `zigbee pairing failed on ZHA`;
+closing refused: log `could not close zigbee pairing on ZHA; it ends by itself`; a rename of an entity id refused:
+the tool says it with how many values were exposed, log `could not rename the device's entity ids`. Cost: one
+`config_entries/get` per start; one subscription while pairing; one call to close; per rename one device update and
+one call per entity of the device.
 
 
 ## Building blocks
@@ -207,4 +235,5 @@ during the announcement is an ordinary interruption of an announcement.
    name, three values exposed), the same sensor paired again (known device). Every row of the state table seen
    again except row 5 and a failed interview; the fake needed no correction.
 6. **ZHA** (decisions 11 to 14), after the found devices: the spec of its signals from Home Assistant's source, the
-   tools on ZHA, the Go tests; at the end the real run with the test HA's own adapter.
+   tools on ZHA, the Go tests (built 2026-11-10, DV-12 to DV-17); at the end the real run with the test HA's own
+   adapter (open).
