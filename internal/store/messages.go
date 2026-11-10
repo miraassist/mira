@@ -30,6 +30,9 @@ const (
 	SourceTask      = "task"
 	// SourcePerson is a message one person sends another or the house.
 	SourcePerson = "person"
+	// SourceDevices is Mira's note about devices Home Assistant found
+	// (docs/spec/found-devices.md).
+	SourceDevices = "devices"
 )
 
 // ReceiverHouse is the house as receiver: anyone present may hear the message.

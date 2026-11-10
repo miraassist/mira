@@ -1,6 +1,6 @@
 # Devices Home Assistant found – Spec
 
-Status 2026-11-10: specified, nothing built. Scenarios: [found-devices.feature](found-devices.feature).
+Status 2026-11-10: steps 1 to 4 built (not released): the fake discovery, the state table checked against it, the noticing, the tools and the skill, run end to end at the fake Show; the real run is open. Scenarios: [found-devices.feature](found-devices.feature).
 
 ## Goal
 
@@ -29,7 +29,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
 | 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
 | 7 | The room of a Bluetooth device | Asked, as for every device; no proposal from the Bluetooth proxies' signal (decided 2026-11-10) |
-| 8 | A step that asks for the Wi-Fi | A step whose only fields are the Wi-Fi's name and password (a Bluetooth set-up: Improv, a Shelly) is filled from the home Wi-Fi Mira keeps ([Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi) and submitted after the user's yes; the one exception to "a step with fields stays in Home Assistant" (decided 2026-11-10) |
+| 8 | A step that asks for the Wi-Fi | A step whose only fields are the Wi-Fi's name and password (a Bluetooth set-up: Improv, a Shelly) is filled from the home Wi-Fi Mira keeps (the skill's settings `wlan_ssid` and `wlan_password`; [Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi) and submitted after the user's yes; the one exception to "a step with fields stays in Home Assistant" (decided 2026-11-10) |
 
 ## The two kinds
 
@@ -74,7 +74,9 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 2. **Gathering.** A found item waits 60 s after the last one before it is said, so a bridge that brings fifty lamps
    is one message. A time, because nothing says that a burst is over (a time as the last resort, where no
    signal exists). For a new device Mira checks at the end of the 60 s that it still has no area and is
-   counted (the list above): one read of the device registry (`config/device_registry/list`).
+   counted (the list above): one read of the device registry (`config/device_registry/list`), one of the entities
+   (`config/entity_registry/list_for_display`: which device has an entity without a category that is not hidden) and
+   one of the labels (`config/label_registry/list`: the id of "Mira: ignoriert").
 3. **Naming.** A discovered flow is named by its `title_placeholders.name`, else by the integration's name
    (`manifest/get` of its domain, once per domain); a device by its name, with its manufacturer and model as the
    facts. No model round: the message is a fixed sentence with the names.
@@ -117,7 +119,8 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 ### Cost
 
 While the skill is on: one more subscription (the flows); the registry events Mira has already. Per burst of found
-items: one read of the device registry, at most one `manifest/get` per new domain, one message. Per device taken in:
+items with a new device: three reads (devices, entities, labels; each grows with the house, read once per burst),
+at most one `manifest/get` per new domain, one message. Per device taken in:
 the calls of the tools above. Nothing on a schedule; nothing grows with the number of devices in the house, only with
 what is found.
 
@@ -128,13 +131,13 @@ Each row is checked on the test HA before the code waiting for it is built.
 | # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
 |---|---|---|---|---|---|
 | 1 | Open flows at the start | the subscription | one event with every open flow (`type: null`), then the result | `config_entries/flow/subscribe` | 2026-11-10 (a Zeroconf flow of another Mira, `step_id: token`) |
-| 2 | A flow discovered | the device turns up in the network | event `type: added` with the flow | the same subscription | open |
-| 3 | A flow ends | added, ignored or dismissed | event `type: removed` | the same subscription | open |
+| 2 | A flow discovered | the device turns up in the network | event `type: added` with the flow, its `step_id` and `title_placeholders` | the same subscription | 2026-11-10 (the fake, all four kinds) |
+| 3 | A flow ends | added, ignored or dismissed | event `type: removed` | the same subscription | 2026-11-10 |
 | 4 | The step of a flow | – | `GET /api/config/config_entries/flow/<id>`: `type: form`, `step_id`, `data_schema` (empty: no fields), `errors`, `description_placeholders` | REST with the owner's token | 2026-11-10 (`data_schema` with one required field `token`) |
-| 5 | A step submitted | `POST …/flow/<id>` `{}` | the next step, an error in `errors`, or `type: create_entry` with the entry | the POST's answer | open |
-| 6 | Ignored | `config_entries/ignore_flow` | the flow `removed` (row 3); an entry with source `ignore` | the subscription | open |
+| 5 | A step submitted | `POST …/flow/<id>` `{}` | the next step, an error in `errors` (the same form, `errors: {base: …}`), or `type: create_entry` with the entry (`result.entry_id`); the entry's device is created **before** the answer comes | the POST's answer; the entry's devices from the device registry (`config_entries`) | 2026-11-10 (a button step answered `not_pressed` until pressed, then `create_entry`) |
+| 6 | Ignored | `config_entries/ignore_flow` | the flow `removed` (row 3); an entry with source `ignore` | the subscription | 2026-11-10 |
 | 7 | A device created | an integration adds it | `device_registry_updated` `create` | the subscription of the structure | 2026-11-09 (Zigbee dialog) |
-| 8 | Labelled | `config/label_registry/create`, `config/device_registry/update` with `labels` | the device's `labels` hold the label's id | the update's answer | open (the labels "Mira…" of tasks exist on the test HA) |
+| 8 | Labelled | `config/label_registry/create` (the id is made from the name: `mira_ignoriert`), `config/device_registry/update` with `labels` | the device's `labels` hold the label's id | the update's answer | 2026-11-10 |
 
 Interrupting: "abbrechen" cancels the thread; a flow stays open in Home Assistant, a device as it is. The wake word
 during the message is an ordinary interruption of a message.
@@ -153,8 +156,8 @@ during the message is an ordinary interruption of a message.
 
 ## Steps
 
-1. **The fake discovery** in the test HA.
-2. **Check the state table** against it.
+1. **The fake discovery** in the test HA (`testenv/found_fake`, built 2026-11-10).
+2. **Check the state table** against it (2026-11-10, every row).
 3. **Noticing** in the service: the subscription, the gathering, the count rules, the said marks, the message.
    FD-01 to FD-05.
 4. **The tools and the skill**: `devices_found`, `device_adopt`, `device_confirm`, `device_ignore`; `device_assign`

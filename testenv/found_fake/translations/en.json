@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Set up {name}",
+        "description": "Do you want to set up {name}?"
+      },
+      "link": {
+        "title": "Link {name}",
+        "description": "Press the button on {name}, then submit."
+      },
+      "credentials": {
+        "description": "Enter the key.",
+        "data": {
+          "api_key": "Key"
+        }
+      },
+      "provision": {
+        "description": "Enter your Wi-Fi.",
+        "data": {
+          "ssid": "Wi-Fi name",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "not_pressed": "The button was not pressed."
+    },
+    "abort": {
+      "already_configured": "Already set up."
+    }
+  }
+}

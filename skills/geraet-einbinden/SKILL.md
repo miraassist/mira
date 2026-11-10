@@ -1,9 +1,15 @@
 ---
 name: geraet-einbinden
-description: "Ein neues Zigbee-Gerät einbinden („Ich hab ein neues Zigbee-Gerät“, „Bind eine neue Steckdose ein“): über Zigbee2MQTT anmelden, einem Raum zuordnen, benennen und für Sprache freigeben."
+description: "Neue Geräte einbinden: ein Zigbee-Gerät koppeln („Ich hab ein neues Zigbee-Gerät“), Geräte, die Home Assistant gefunden hat („Gibt's neue Geräte?“, die Antwort auf Miras Nachricht über ein neues Gerät), einem Raum zuordnen, benennen und für Sprache freigeben."
 license: MIT
 metadata:
   mira:
+    settings:
+      wlan_ssid:
+        description: Der Name deines WLANs (2,4 GHz). Damit richtet Mira Geräte ein, die nach dem WLAN fragen.
+      wlan_password:
+        description: Das Passwort deines WLANs. Mira sagt es nie und gibt es nur an Geräte weiter, die du einbindest.
+        secret: true
     target:
       plan: true
       bound: room
@@ -25,19 +31,44 @@ metadata:
 ---
 # Gerät einbinden
 
-Ein neues Zigbee-Gerät kommt über Zigbee2MQTT in Home Assistant. Du führst durch
-die Schritte; Mira wartet zwischendurch selbst auf das Gerät.
+Neue Geräte kommen auf zwei Wegen: Ein **Zigbee-Gerät** koppelt Mira über
+Zigbee2MQTT. Ein Gerät, das **Home Assistant gefunden** hat (eine Bridge im Netz,
+ein Bluetooth-Sensor, eine Lampe aus der App des Herstellers), meldet Mira mit einer
+Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
 
-1. **Anmelden.** Will der Nutzer ein neues Gerät einbinden und hat es noch nicht
-   ausdrücklich gesagt, frag kurz: „Soll ich das Einbinden starten?“ Beim Ja:
+## Zigbee-Gerät koppeln
+
+1. **Anmelden.** Will der Nutzer ein neues Zigbee-Gerät einbinden und hat es noch
+   nicht ausdrücklich gesagt, frag kurz: „Soll ich das Einbinden starten?“ Beim Ja:
    `zigbee_pairing_start`. Sag dann nur, was das Ergebnis sagt (Knopf gedrückt
-   halten, bis es schnell blinkt, oder neu einstecken), und frag nichts weiter. Die Runde endet.
+   halten, bis es schnell blinkt, oder neu einstecken), und frag nichts weiter. Die
+   Runde endet.
 2. **Das Gerät ist da.** Meldet sich ein Gerät an, sagt Mira von selbst, dass sie es
    kennenlernt; eine Antwort darauf („okay“) braucht nichts, sag höchstens kurz, dass
-   du dich meldest. Ist es fertig, meldet sich Mira am Satelliten von selbst mit der Frage
-   nach dem Raum; die Angaben zum Gerät stehen dann im Vorgang. Hat Mira kein
+   du dich meldest. Ist es fertig, meldet sich Mira am Satelliten von selbst mit der
+   Frage nach dem Raum; die Angaben zum Gerät stehen dann im Vorgang. Hat Mira kein
    Gerät gesehen und fragt, ob sie es nochmal versuchen soll: beim Ja wieder
    `zigbee_pairing_start`, beim Nein `thread_cancel`.
+
+## Gefundene Geräte
+
+- **Miras Nachricht** („Ich habe ein neues Gerät gefunden: … Soll ich es
+  einbinden?“) nennt in ihren Details die Kennungen (`flow:…` oder `device:…`).
+  Beim Ja: `device_adopt` mit der Kennung; bei mehreren frag, welches zuerst, oder
+  nimm sie nacheinander. Beim Nein („nein“, „ignorieren“, „das ist vom Nachbarn“):
+  `device_ignore`. Lies die Kennungen nie vor.
+- **„Gibt's neue Geräte?“**: `devices_found`; nenn die Geräte mit Namen und frag,
+  welches eingebunden werden soll.
+- **Ein entdecktes Gerät** (`flow:…`) braucht erst sein Ja in Home Assistant: Das
+  Ergebnis von `device_adopt` sagt, was Home Assistant fragt. Ist es nur eine
+  Bestätigung, ruf gleich `device_confirm` auf. Verlangt es etwas vom Nutzer (den
+  Knopf auf der Bridge drücken), sag es kurz und ruf `device_confirm` nach seinem
+  „erledigt“ auf. Braucht es Angaben, die nur in Home Assistant gehen, sag das; der
+  Vorgang ist dann zu Ende.
+- Danach geht es mit dem Raum weiter.
+
+## Raum und Name
+
 3. **Raum.** Die Antwort ist der Raum: `device_assign` mit dem Raum, wie der
    Nutzer ihn nennt. Gibt es den Raum nicht, nenn die Räume aus dem Ergebnis und
    frag nach.
@@ -50,5 +81,5 @@ die Schritte; Mira wartet zwischendurch selbst auf das Gerät.
 Ein Gerät pro Vorgang. Für das nächste sagt der Nutzer wieder, dass er ein neues
 Gerät hat. Ein Gerät, das schon einen Namen bekommen hat, ist fertig: Sagt der
 Nutzer danach wieder, er hat ein neues Gerät, ist es ein weiteres, und es geht
-bei Schritt 1 los, auch wenn es im Gespräch eben schon um ein Gerät ging. Andere Funkarten (Matter, Z-Wave, WLAN) gehen damit nicht; sag das,
-wenn danach gefragt wird.
+von vorn los, auch wenn es im Gespräch eben schon um ein Gerät ging. Matter und
+Z-Wave gehen damit nicht; sag das, wenn danach gefragt wird.

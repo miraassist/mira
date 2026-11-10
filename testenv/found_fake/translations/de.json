@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "{name} einrichten",
+        "description": "Möchtest du {name} einrichten?"
+      },
+      "link": {
+        "title": "Mit {name} verbinden",
+        "description": "Drück den Knopf auf {name} und dann auf Absenden."
+      },
+      "credentials": {
+        "description": "Gib den Schlüssel ein.",
+        "data": {
+          "api_key": "Schlüssel"
+        }
+      },
+      "provision": {
+        "description": "Gib die Daten deines WLANs ein.",
+        "data": {
+          "ssid": "WLAN-Name",
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "not_pressed": "Der Knopf wurde nicht gedrückt."
+    },
+    "abort": {
+      "already_configured": "Schon eingerichtet."
+    }
+  }
+}

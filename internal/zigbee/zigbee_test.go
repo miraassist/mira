@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -202,6 +203,7 @@ type env struct {
 	ended   chan string
 	logs    *bytes.Buffer
 	devices map[string]haws.Device
+	core    *devices.Core
 	mu      sync.Mutex
 }
 
@@ -215,7 +217,23 @@ func newEnv(t *testing.T) *env {
 		defer logMu.Unlock()
 		return e.logs.Write(b)
 	}), nil))
-	e.p = New(Options{Lang: i18n.DE, Logger: logger, HA: e.ha, Wait: time.Second, Interview: time.Second,
+	areaName := func(id string) string {
+		return map[string]string{"wohnzimmer": "Wohnzimmer", "kueche": "Küche"}[id]
+	}
+	tick := func(_ context.Context, _, match string) error {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		e.ticked = append(e.ticked, match)
+		return nil
+	}
+	e.core = devices.NewCore(devices.CoreOptions{Lang: i18n.DE, Logger: logger, HA: e.ha,
+		AreaKeys: func() map[string]string { return map[string]string{"wohnzimmer": "wohnzimmer", "küche": "kueche"} },
+		AreaName: areaName,
+		Thread:   func(context.Context, tools.Invocation) string { return thread },
+		Tick:     tick,
+		End:      func(_ context.Context, th string) { e.ended <- th },
+	})
+	e.p = New(Options{Lang: i18n.DE, Logger: logger, HA: e.ha, Wait: time.Second, Interview: time.Second, Core: e.core,
 		Devices:    func() map[string]haws.Device { return e.devices },
 		DeviceArea: func() map[string]string { return map[string]string{"old": "kueche"} },
 		AreaKeys:   func() map[string]string { return map[string]string{"wohnzimmer": "wohnzimmer", "küche": "kueche"} },
@@ -251,7 +269,7 @@ var voice = tools.Invocation{Channel: config.ChannelVoice, DeviceID: "show", Are
 
 func (e *env) run(t *testing.T, name string, args string) string {
 	t.Helper()
-	for _, tool := range e.p.Tools() {
+	for _, tool := range append(e.p.Tools(), e.core.Tools()...) {
 		if tool.Name == name {
 			inv := voice
 			inv.Args = json.RawMessage(args)
@@ -365,14 +383,14 @@ func TestDV03_TheQuestionWithoutTheModel(t *testing.T) {
 func TestDV04_TheAnswerNamesTheRoom(t *testing.T) {
 	e := newEnv(t)
 	e.pairNew(t)
-	out := e.run(t, ToolAssign, `{"room":"Wohnzimmer"}`)
+	out := e.run(t, devices.ToolAssign, `{"room":"Wohnzimmer"}`)
 	if !strings.Contains(out, "Wohnzimmer") {
 		t.Fatalf("assign = %q", out)
 	}
 	if len(e.ha.updates) != 1 || e.ha.updates[0]["device_id"] != deviceID || e.ha.updates[0]["area_id"] != "wohnzimmer" {
 		t.Fatalf("updates = %+v", e.ha.updates)
 	}
-	if out := e.run(t, ToolAssign, `{"room":"Dachboden"}`); !strings.Contains(out, "Dachboden") || !strings.Contains(out, "Küche, Wohnzimmer") {
+	if out := e.run(t, devices.ToolAssign, `{"room":"Dachboden"}`); !strings.Contains(out, "Dachboden") || !strings.Contains(out, "Küche, Wohnzimmer") {
 		t.Errorf("unknown room = %q", out)
 	}
 }
@@ -380,8 +398,8 @@ func TestDV04_TheAnswerNamesTheRoom(t *testing.T) {
 func TestDV05_FinishingRenamesAndExposes(t *testing.T) {
 	e := newEnv(t)
 	e.pairNew(t)
-	e.run(t, ToolAssign, `{"room":"Wohnzimmer"}`)
-	out := e.run(t, ToolFinish, `{"name":"Temperatursensor Wohnzimmer"}`)
+	e.run(t, devices.ToolAssign, `{"room":"Wohnzimmer"}`)
+	out := e.run(t, devices.ToolFinish, `{"name":"Temperatursensor Wohnzimmer"}`)
 	if !strings.Contains(out, "Temperatursensor Wohnzimmer") || !strings.Contains(out, "2 Werte") {
 		t.Fatalf("finish = %q", out)
 	}
@@ -407,11 +425,11 @@ func TestDV05_ARefusedRenameKeepsTheRoom(t *testing.T) {
 	e := newEnv(t)
 	e.pairNew(t)
 	e.ha.renameErr = "Friendly name cannot end with a number"
-	out := e.run(t, ToolFinish, `{"name":"Sensor 1"}`)
+	out := e.run(t, devices.ToolFinish, `{"name":"Sensor 1"}`)
 	if !strings.Contains(out, "Friendly name cannot end with a number") || !strings.Contains(out, "2 Werte") {
 		t.Fatalf("finish = %q", out)
 	}
-	if !strings.Contains(e.logs.String(), "could not rename the zigbee device") {
+	if !strings.Contains(e.logs.String(), "could not rename the device") {
 		t.Errorf("log: %s", e.logs)
 	}
 }
@@ -495,11 +513,11 @@ func TestDV10_ARefusedChangeIsSaidNotSwallowed(t *testing.T) {
 	e := newEnv(t)
 	e.pairNew(t)
 	e.ha.refuse["config/device_registry/update"] = errors.New("Unauthorized")
-	out := e.run(t, ToolAssign, `{"room":"Wohnzimmer"}`)
+	out := e.run(t, devices.ToolAssign, `{"room":"Wohnzimmer"}`)
 	if !strings.Contains(out, "Unauthorized") {
 		t.Fatalf("assign = %q", out)
 	}
-	if !strings.Contains(e.logs.String(), "could not put the zigbee device into its room") {
+	if !strings.Contains(e.logs.String(), "could not put the device into its room") {
 		t.Errorf("log: %s", e.logs)
 	}
 }

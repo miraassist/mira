@@ -156,6 +156,29 @@ func TestSubscribeReceivesEvents(t *testing.T) {
 	}
 }
 
+// The open config flows come as a list, not a bus event
+// (docs/spec/found-devices.md, state table row 1).
+func TestSubscribeFlowsTakesAList(t *testing.T) {
+	srv := fakeha.New()
+	defer srv.Close()
+	c, ctx := startClient(t, srv, "test-token")
+	got := make(chan []haws.FlowEvent, 2)
+	if _, err := c.SubscribeFlows(ctx, func(list []haws.FlowEvent) { got <- list }); err != nil {
+		t.Fatalf("SubscribeFlows: %v", err)
+	}
+	srv.PushFlows([]map[string]any{{"type": "added", "flow_id": "f1", "flow": map[string]any{
+		"flow_id": "f1", "handler": "hue", "step_id": "link",
+		"context": map[string]any{"source": "zeroconf", "unique_id": "001788", "title_placeholders": map[string]any{"name": "Hue Bridge"}}}}})
+	select {
+	case list := <-got:
+		if len(list) != 1 || list[0].Type != "added" || list[0].Flow == nil || list[0].Flow.Name() != "Hue Bridge" {
+			t.Fatalf("got %+v", list)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no change of the flows arrived")
+	}
+}
+
 func TestSubscriptionsSurviveReconnect(t *testing.T) {
 	srv := fakeha.New()
 	defer srv.Close()

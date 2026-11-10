@@ -25,6 +25,7 @@ import (
 	"github.com/miraassist/mira/internal/clip"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/devices"
 	"github.com/miraassist/mira/internal/ha/assistprompt"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -68,8 +69,12 @@ type app struct {
 	phonebook *phone.Book
 	// voicemail is the FRITZ!Box's answering machine (skill anrufbeantworter).
 	voicemail *voicemail.Machine
-	// zigbee adds Zigbee devices by voice (docs/spec/device-onboarding.md).
-	zigbee *zigbee.Pairing
+	// devices holds each thread's device of the skill geraet-einbinden;
+	// zigbee adds Zigbee devices by voice (docs/spec/device-onboarding.md);
+	// found notices what Home Assistant found (docs/spec/found-devices.md).
+	devices *devices.Core
+	zigbee  *zigbee.Pairing
+	found   *devices.Found
 	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
 	clip *clip.Player
 	// timers are the sleep timers; set after the connection to Home
@@ -311,9 +316,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// The answering machine at the satellite (docs/spec/voicemail.md).
 	a.voicemail = a.newVoicemail()
 	internal = append(internal, a.voicemail.Tools()...)
-	// Adding a Zigbee device by voice (docs/spec/device-onboarding.md).
+	// Taking devices in by voice: Zigbee (docs/spec/device-onboarding.md)
+	// and what Home Assistant found (docs/spec/found-devices.md).
+	a.devices = a.newDeviceCore()
 	a.zigbee = a.newZigbee()
+	a.found = a.newFound()
+	internal = append(internal, a.devices.Tools()...)
 	internal = append(internal, a.zigbee.Tools()...)
+	internal = append(internal, a.found.Tools()...)
+	if a.devicesOn() && a.ha != nil {
+		a.goRun(ctx, "found-devices", a.found.Run)
+	}
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).
 	bound := map[string]bool{}
@@ -534,9 +547,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			if a.voicemail != nil && th.Target == voicemail.Skill {
 				a.voicemail.ThreadEnded(ctx, th.ID)
 			}
-			// So does a Zigbee pairing it opened.
+			// So does a Zigbee pairing it opened, and its device.
 			if a.zigbee != nil && th.Target == zigbee.Skill {
 				a.zigbee.ThreadEnded(ctx, th.ID)
+				a.devices.Release(th.ID)
+				a.found.ThreadEnded(th.ID)
 			}
 			// So do the clips a thread played.
 			if a.clip != nil {

@@ -1,0 +1,12 @@
+{
+  "domain": "found_fake",
+  "name": "Found devices fake (test only)",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/miraassist/mira/blob/main/testenv/README.md",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

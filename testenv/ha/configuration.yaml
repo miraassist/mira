@@ -24,6 +24,9 @@ techo5_fake:
 # A fake Zigbee2MQTT bridge on the test broker (testenv/z2m_fake).
 z2m_fake:
 
+# Devices Home Assistant finds, faked (testenv/found_fake).
+found_fake:
+
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 

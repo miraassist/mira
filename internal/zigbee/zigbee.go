@@ -20,20 +20,18 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
 
 // Skill is the skill whose tools these are.
-const Skill = "geraet-einbinden"
+const Skill = devices.Skill
 
-// Tool names.
-const (
-	ToolStart  = "zigbee_pairing_start"
-	ToolAssign = "device_assign"
-	ToolFinish = "device_finish"
-)
+// ToolStart opens pairing; the room and the name are the devices core's
+// (device_assign, device_finish).
+const ToolStart = "zigbee_pairing_start"
 
 // Plan steps, matched to tick them (the plan's text in texts.plan).
 var steps = map[i18n.Lang][3]string{
@@ -53,6 +51,8 @@ type Options struct {
 	Lang   i18n.Lang
 	Logger *slog.Logger
 	HA     HA
+	// Core takes the device in once it is there: room, name, exposed.
+	Core *devices.Core
 	// Devices are Home Assistant's devices by id, DeviceArea their areas,
 	// AreaKeys every lower-cased area id, name and alias to the area id, and
 	// AreaName an area's name (the structure Mira keeps).
@@ -117,12 +117,6 @@ func (p *Pairing) Tools() []tools.InternalTool {
 	return []tools.InternalTool{
 		{Name: ToolStart, Description: t.startDesc, Skill: Skill,
 			Schema: `{"type":"object","properties":{},"required":[]}`, Run: p.start},
-		{Name: ToolAssign, Description: t.assignDesc, Skill: Skill,
-			Schema: fmt.Sprintf(`{"type":"object","properties":{"room":{"type":"string","description":%q}},"required":["room"]}`, t.argRoom),
-			Run:    p.assign},
-		{Name: ToolFinish, Description: t.finishDesc, Skill: Skill,
-			Schema: fmt.Sprintf(`{"type":"object","properties":{"name":{"type":"string","description":%q}},"required":["name"]}`, t.argName),
-			Run:    p.finish},
 	}
 }
 
@@ -157,13 +151,6 @@ func (d definition) values() string {
 	return strings.Join(out, ", ")
 }
 
-// found is the device a run found.
-type found struct {
-	ieee, deviceID string
-	def            definition
-	area           string
-}
-
 // run is one thread's pairing: its subscriptions while pairing is open,
 // and the device once it is there.
 type run struct {
@@ -189,7 +176,6 @@ type run struct {
 	told    bool
 	defs    map[string]definition
 	devices map[string]string // ieee -> device id, from the registry
-	device  *found
 }
 
 type input struct {
@@ -619,8 +605,16 @@ func (p *Pairing) found(ctx context.Context, r *run, ieee, deviceID string) {
 	p.closePairing(ctx, r)
 	r.mu.Lock()
 	def := r.defs[ieee]
-	r.device = &found{ieee: ieee, deviceID: deviceID, def: def}
 	r.mu.Unlock()
+	// Renamed in Zigbee2MQTT, so Home Assistant's entity ids follow
+	// (decision 8); over the run's subscription to the answers.
+	p.o.Core.Hold(r.thread, devices.Device{ID: deviceID, Rename: func(ctx context.Context, name string) error {
+		_, err := p.request(ctx, r, "device/rename", map[string]any{"from": ieee, "to": name, "homeassistant_rename": true})
+		if err != nil {
+			return fmt.Errorf("Zigbee2MQTT: %w", err)
+		}
+		return nil
+	}})
 	p.log.Info("zigbee device found", "thread", r.thread, "ieee", ieee, "device", deviceID, "vendor", def.Vendor, "model", def.Model)
 	facts := fmt.Sprintf(p.t.facts, def.Vendor, def.Model, def.Description, def.values())
 	if err := p.o.Note(ctx, r.thread, facts); err != nil {
@@ -707,118 +701,23 @@ func (p *Pairing) entries(ctx context.Context, ids []string) ([]entry, error) {
 	return list, nil
 }
 
-// device is the device the turn's thread found; nil before.
-func (p *Pairing) device(ctx context.Context, inv tools.Invocation) (*run, *found) {
-	thread := p.o.Thread(ctx, inv)
+// Claims reports whether a pairing that runs is waiting for the device or
+// has it: the found devices leave it to this dialog
+// (docs/spec/found-devices.md, what is not counted).
+func (p *Pairing) Claims(deviceID string) bool {
 	p.mu.Lock()
-	r := p.runs[thread]
-	p.mu.Unlock()
-	if r == nil {
-		return nil, nil
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r, r.device
-}
-
-func (p *Pairing) assign(ctx context.Context, inv tools.Invocation) (string, error) {
-	var args struct{ Room string }
-	if err := json.Unmarshal(inv.Args, &args); err != nil || strings.TrimSpace(args.Room) == "" {
-		return "", errors.New("room is required")
-	}
-	t := p.t
-	r, d := p.device(ctx, inv)
-	if d == nil {
-		return t.noDevice, nil
-	}
-	keys := p.o.AreaKeys()
-	area := keys[strings.ToLower(strings.TrimSpace(args.Room))]
-	if area == "" {
-		names := map[string]bool{}
-		for _, id := range keys {
-			names[p.o.AreaName(id)] = true
+	defer p.mu.Unlock()
+	for _, r := range p.runs {
+		r.mu.Lock()
+		for _, id := range r.devices {
+			if id == deviceID {
+				r.mu.Unlock()
+				return true
+			}
 		}
-		list := make([]string, 0, len(names))
-		for n := range names {
-			list = append(list, n)
-		}
-		sort.Strings(list)
-		return fmt.Sprintf(t.unknownRoom, args.Room, strings.Join(list, ", ")), nil
+		r.mu.Unlock()
 	}
-	if _, err := p.o.HA.Call(ctx, map[string]any{"type": "config/device_registry/update", "device_id": d.deviceID, "area_id": area}); err != nil {
-		p.log.Error("could not put the zigbee device into its room", "device", d.deviceID, "area", area, "error", err)
-		return fmt.Sprintf(t.assignFailed, err), nil
-	}
-	r.mu.Lock()
-	d.area = area
-	r.mu.Unlock()
-	p.tick(ctx, r.thread, 1)
-	return fmt.Sprintf(t.assigned, p.o.AreaName(area)), nil
-}
-
-func (p *Pairing) finish(ctx context.Context, inv tools.Invocation) (string, error) {
-	var args struct{ Name string }
-	if err := json.Unmarshal(inv.Args, &args); err != nil || strings.TrimSpace(args.Name) == "" {
-		return "", errors.New("name is required")
-	}
-	name := strings.TrimSpace(args.Name)
-	t := p.t
-	r, d := p.device(ctx, inv)
-	if d == nil {
-		return t.noDevice, nil
-	}
-	// Exposed first: Home Assistant keeps it when the rename makes it
-	// remove and create the entities again (seen on the test HA 2026-11-09).
-	exposed, err := p.expose(ctx, d.deviceID)
-	if err != nil {
-		p.log.Error("could not expose the zigbee device's entities", "device", d.deviceID, "error", err)
-		return fmt.Sprintf(t.finishFailed, err), nil
-	}
-	if _, err := p.request(ctx, r, "device/rename", map[string]any{"from": d.ieee, "to": name, "homeassistant_rename": true}); err != nil {
-		p.log.Error("could not rename the zigbee device", "ieee", d.ieee, "name", name, "error", err)
-		return fmt.Sprintf(t.renameFailed, exposed, err), nil
-	}
-	p.log.Info("zigbee device added", "thread", r.thread, "ieee", d.ieee, "name", name, "area", d.area, "exposed", exposed)
-	p.tick(ctx, r.thread, 2)
-	area := p.o.AreaName(d.area)
-	p.o.End(ctx, r.thread)
-	return fmt.Sprintf(t.finished, name, area, exposed), nil
-}
-
-// expose exposes the device's entities to Assist, but those Home Assistant
-// marks as configuration or diagnostic; it returns how many.
-func (p *Pairing) expose(ctx context.Context, deviceID string) (int, error) {
-	raw, err := p.o.HA.Call(ctx, map[string]any{"type": "search/related", "item_type": "device", "item_id": deviceID})
-	if err != nil {
-		return 0, err
-	}
-	var related struct {
-		Entity []string `json:"entity"`
-	}
-	if err := json.Unmarshal(raw, &related); err != nil {
-		return 0, err
-	}
-	if len(related.Entity) == 0 {
-		return 0, nil
-	}
-	entries, err := p.entries(ctx, related.Entity)
-	if err != nil {
-		return 0, err
-	}
-	var ids []string
-	for _, e := range entries {
-		if e.Category == "" {
-			ids = append(ids, e.EntityID)
-		}
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	if _, err := p.o.HA.Call(ctx, map[string]any{"type": "homeassistant/expose_entity", "assistants": []string{"conversation"},
-		"entity_ids": ids, "should_expose": true}); err != nil {
-		return 0, err
-	}
-	return len(ids), nil
+	return false
 }
 
 // ThreadEnded ends the run of a thread that ended (cancelled, expired,

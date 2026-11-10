@@ -125,6 +125,37 @@ func (s *Server) DropConnections() {
 	}
 }
 
+// flowSubscription marks a subscription to the open config flows.
+const flowSubscription = "\x00config_entries/flow"
+
+// PushFlows sends a change of the open config flows, a list as Home
+// Assistant sends it, to every subscription to them.
+func (s *Server) PushFlows(events any) int {
+	s.mu.Lock()
+	conns := make([]*connState, 0, len(s.conns))
+	for c := range s.conns {
+		conns = append(conns, c)
+	}
+	s.mu.Unlock()
+	sent := 0
+	for _, cs := range conns {
+		cs.mu.Lock()
+		var targets []int
+		for id, want := range cs.subs {
+			if want == flowSubscription {
+				targets = append(targets, id)
+			}
+		}
+		cs.mu.Unlock()
+		for _, id := range targets {
+			if writeJSON(cs.conn, map[string]any{"id": id, "type": "event", "event": events}) == nil {
+				sent++
+			}
+		}
+	}
+	return sent
+}
+
 // PushEvent delivers an event to every subscription that asked for its type.
 // It returns how many subscriptions received it.
 func (s *Server) PushEvent(eventType string, data any) int {
@@ -141,7 +172,7 @@ func (s *Server) PushEvent(eventType string, data any) int {
 		cs.mu.Lock()
 		targets := make([]int, 0, len(cs.subs))
 		for id, want := range cs.subs {
-			if want == "" || want == eventType {
+			if want != flowSubscription && (want == "" || want == eventType) {
 				targets = append(targets, id)
 			}
 		}
@@ -339,6 +370,12 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		eventType, _ := cmd["event_type"].(string)
 		cs.mu.Lock()
 		cs.subs[id] = eventType
+		cs.mu.Unlock()
+		reply(nil)
+	case haws.CmdFlowSubscribe:
+		// Its events are a list, not a bus event (PushFlows).
+		cs.mu.Lock()
+		cs.subs[id] = flowSubscription
 		cs.mu.Unlock()
 		reply(nil)
 	case "subscribe_trigger":

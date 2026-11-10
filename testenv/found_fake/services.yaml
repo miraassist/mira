@@ -1,0 +1,31 @@
+discover:
+  fields:
+    kind:
+      required: true
+      selector:
+        select:
+          options: [confirm, button, fields, wifi]
+    name:
+      selector:
+        text:
+press:
+  fields:
+    uid:
+      required: true
+      selector:
+        text:
+add_device:
+  fields:
+    name:
+      required: true
+      selector:
+        text:
+    manufacturer:
+      selector:
+        text:
+    model:
+      selector:
+        text:
+    entities:
+      selector:
+        text:

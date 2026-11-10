@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -278,9 +279,13 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) error {
 				continue
 			}
 			var ev Event
-			if err := json.Unmarshal(msg.Event, &ev); err != nil {
-				c.log.Warn("undecodable event", "error", err)
-				continue
+			// Some subscriptions send a list (config_entries/flow/subscribe):
+			// only their raw payload is passed on.
+			if trimmed := bytes.TrimSpace(msg.Event); len(trimmed) == 0 || trimmed[0] != '[' {
+				if err := json.Unmarshal(msg.Event, &ev); err != nil {
+					c.log.Warn("undecodable event", "error", err)
+					continue
+				}
 			}
 			ev.Raw = msg.Event
 			sub.handler(ev)
