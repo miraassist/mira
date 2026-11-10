@@ -3,6 +3,21 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.21.0
+
+- Devices Home Assistant found (a bridge, a Shelly in the Wi-Fi, a Bluetooth sensor, a lamp from a maker's app) are
+  said once as a message; on your yes Mira takes them in: room, name, values for voice. "No, that's the neighbour's"
+  ignores one for good. "Any new devices?" lists what still waits.
+- A new Wi-Fi device in its setup mode (Shelly, Tasmota, ESPHome, WLED) is brought into your Wi-Fi by voice, with the
+  Wi-Fi of the machine Mira runs on while it stays on its cable. Enter your Wi-Fi (and for Tasmota the MQTT broker)
+  at the skill `geraet-einbinden`. The app gets the Supervisor's role "manager" for the machine's Wi-Fi.
+- Zigbee devices on ZHA, too; with Zigbee2MQTT and ZHA both, Mira asks which network.
+- While Mira waits for a device, the satellite shows it: a turquoise ring on an Echo Show, the light ring on an Echo.
+- A device's entity ids follow the name Mira gives it.
+- The integration's update and the app's are offered together; Mira asks Home Assistant to look for the other one at
+  once.
+- Errors in the log name what they failed on (the file, the address, the start of an answer that could not be read).
+
 ## 0.20.0
 
 - New skill `geraet-einbinden`: add a Zigbee device by voice. "Ich hab ein neues Zigbee-Gerät" opens pairing in
