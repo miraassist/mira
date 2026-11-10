@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/coder/websocket v1.8.15
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/libp2p/zeroconf/v2 v2.2.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oklog/ulid/v2 v2.1.2

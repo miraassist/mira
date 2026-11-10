@@ -4,7 +4,7 @@ Feature: Bringing a Wi-Fi device into the Wi-Fi by voice (docs/spec/wifi-onboard
   Scenario: WL-01 Without a free Wi-Fi the function is off
     Given the machine's only Wi-Fi interface is connected
     When Mira starts
-    Then the Wi-Fi tools are not offered and mira check names the reason
+    Then the Wi-Fi tools are not offered and the log names the reason
 
   @step2
   Scenario: WL-02 The scan finds devices in setup mode by the name of their Wi-Fi

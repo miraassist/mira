@@ -55,6 +55,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/voicemail"
 	"github.com/miraassist/mira/internal/websearch"
+	"github.com/miraassist/mira/internal/wifi"
 	"github.com/miraassist/mira/internal/zigbee"
 )
 
@@ -75,6 +76,7 @@ type app struct {
 	devices *devices.Core
 	zigbee  *zigbee.Pairing
 	found   *devices.Found
+	wifi    *wifi.Onboarding
 	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
 	clip *clip.Player
 	// timers are the sleep timers; set after the connection to Home
@@ -324,8 +326,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, a.devices.Tools()...)
 	internal = append(internal, a.zigbee.Tools()...)
 	internal = append(internal, a.found.Tools()...)
+	// And Wi-Fi devices into the Wi-Fi (docs/spec/wifi-onboarding.md).
+	a.wifi = a.newWifi()
+	internal = append(internal, a.wifi.Tools()...)
 	if a.devicesOn() && a.ha != nil {
 		a.goRun(ctx, "found-devices", a.found.Run)
+		a.wifi.Start(ctx)
 	}
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).

@@ -15,6 +15,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/wifi"
 	"github.com/miraassist/mira/internal/zigbee"
 )
 
@@ -128,5 +129,29 @@ func (a *app) newFound() *devices.Found {
 		Tick:   func(ctx context.Context, thread, match string) error { return a.threads.TickPlan(ctx, thread, match) },
 		Note:   func(ctx context.Context, thread, text string) error { return a.threads.Note(ctx, thread, text) },
 		End:    func(ctx context.Context, thread string) { a.threads.Finish(ctx, thread) },
+	})
+}
+
+// newWifi brings Wi-Fi devices into the home Wi-Fi
+// (docs/spec/wifi-onboarding.md); the machine's Wi-Fi is looked for only
+// while the skill is on.
+func (a *app) newWifi() *wifi.Onboarding {
+	var radio wifi.Radio
+	off := "the skill geraet-einbinden is off"
+	if a.devicesOn() {
+		radio, off = wifi.Detect()
+	}
+	return wifi.New(wifi.Options{
+		Lang: a.lang, Logger: a.log, Radio: radio, Off: off,
+		Home: func() wifi.Home {
+			return wifi.Home{SSID: a.skillSetting("wlan_ssid"), Password: a.skillSetting("wlan_password"),
+				MQTTHost: a.skillSetting("mqtt_host"), MQTTUser: a.skillSetting("mqtt_user"), MQTTPassword: a.skillSetting("mqtt_password")}
+		},
+		Start:  a.devicePlan,
+		Tick:   func(ctx context.Context, thread, match string) error { return a.threads.TickPlan(ctx, thread, match) },
+		Note:   func(ctx context.Context, thread, text string) error { return a.threads.Note(ctx, thread, text) },
+		Ask:    func(ctx context.Context, thread, text string) error { return a.threads.Ask(ctx, thread, text) },
+		Await:  a.found.Await,
+		Assign: a.found.Assign,
 	})
 }

@@ -107,6 +107,10 @@ type Found struct {
 	flowOf  map[string]string
 	names   map[string]string // integration names by domain
 	trans   map[string]map[string]string
+	// changed is closed and made anew at each change, for Await; recent are
+	// the devices created lately, in order.
+	changed chan struct{}
+	recent  []string
 }
 
 type foundInput struct {
@@ -130,7 +134,8 @@ func NewFound(o FoundOptions) *Found {
 	return &Found{o: o, t: i18n.Pick(foundCatalog, o.Lang), log: o.Logger.With("component", "found-devices"),
 		in: make(chan foundInput, 256), wake: make(chan struct{}, 1),
 		said: map[string]string{}, flows: map[string]haws.Flow{}, pending: map[string]bool{},
-		flowOf: map[string]string{}, names: map[string]string{}, trans: map[string]map[string]string{}}
+		flowOf: map[string]string{}, names: map[string]string{}, trans: map[string]map[string]string{},
+		changed: make(chan struct{})}
 }
 
 func flowKey(f haws.Flow) string {
@@ -216,6 +221,18 @@ func (f *Found) Run(ctx context.Context) error {
 
 // take keeps a change; true when something new waits to be said.
 func (f *Found) take(ctx context.Context, in foundInput) bool {
+	defer func() {
+		f.mu.Lock()
+		close(f.changed)
+		f.changed = make(chan struct{})
+		if in.created != "" {
+			f.recent = append(f.recent, in.created)
+			if len(f.recent) > 256 {
+				f.recent = f.recent[len(f.recent)-256:]
+			}
+		}
+		f.mu.Unlock()
+	}()
 	if in.created != "" {
 		select {
 		case f.wake <- struct{}{}:
@@ -430,8 +447,9 @@ func (f *Found) announce(ctx context.Context) {
 		if kind == "flow" {
 			f.mu.Lock()
 			fl, open := f.flows[id]
+			_, said := f.said[flowKey(fl)]
 			f.mu.Unlock()
-			if !open {
+			if !open || said {
 				continue
 			}
 			items = append(items, item{ref: "flow:" + id, key: flowKey(fl), name: f.flowName(ctx, fl), facts: fl.Handler})
@@ -980,4 +998,79 @@ func (f *Found) ThreadEnded(thread string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.flowOf, thread)
+}
+
+// Await waits up to limit for something Home Assistant finds that a dialog
+// brought into the network (docs/spec/wifi-onboarding.md): an open flow
+// flowOK accepts, or a device created from now on that deviceOK accepts. It
+// returns its reference (flow:<id>, device:<id>) and name; "" when nothing
+// came. The signal is the found devices' subscriptions; the limit a safety
+// net.
+func (f *Found) Await(ctx context.Context, limit time.Duration, flowOK func(haws.Flow) bool,
+	deviceOK func(manufacturer, model, name string) bool) (string, string, error) {
+	f.mu.Lock()
+	start := len(f.recent)
+	f.mu.Unlock()
+	safety := time.NewTimer(limit)
+	defer safety.Stop()
+	for {
+		f.mu.Lock()
+		changed := f.changed
+		var flows []haws.Flow
+		for _, fl := range f.flows {
+			flows = append(flows, fl)
+		}
+		if start > len(f.recent) {
+			start = 0
+		}
+		created := slices.Clone(f.recent[start:])
+		f.mu.Unlock()
+		slices.SortFunc(flows, func(a, b haws.Flow) int { return strings.Compare(a.FlowID, b.FlowID) })
+		for _, fl := range flows {
+			if flowOK != nil && counted(fl) && flowOK(fl) {
+				return "flow:" + fl.FlowID, f.flowName(ctx, fl), nil
+			}
+		}
+		if len(created) > 0 && deviceOK != nil {
+			h, err := f.readHouse(ctx)
+			if err != nil {
+				return "", "", err
+			}
+			for _, id := range created {
+				if d, ok := h.devices[id]; ok && deviceOK(d.Manufacturer, d.Model, d.name()) {
+					return "device:" + id, d.name(), nil
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		case <-safety.C:
+			return "", "", nil
+		case <-changed:
+		}
+	}
+}
+
+// Assign makes what Await found the thread's: a flow waits for
+// device_confirm, a device for its room. It is not said as a find.
+func (f *Found) Assign(ctx context.Context, thread, ref, name string) {
+	kind, id, _ := strings.Cut(ref, ":")
+	if kind == "flow" {
+		f.mu.Lock()
+		fl, open := f.flows[id]
+		f.flowOf[thread] = id
+		delete(f.pending, ref)
+		f.mu.Unlock()
+		if open {
+			f.markSaid(ctx, flowKey(fl), name)
+		}
+		return
+	}
+	f.o.Core.Hold(thread, Device{ID: id})
+	f.mu.Lock()
+	delete(f.pending, ref)
+	f.mu.Unlock()
+	f.markSaid(ctx, deviceKey(id), name)
+	f.tick(ctx, thread)
 }

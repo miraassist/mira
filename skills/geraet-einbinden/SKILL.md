@@ -10,6 +10,13 @@ metadata:
       wlan_password:
         description: Das Passwort deines WLANs. Mira sagt es nie und gibt es nur an Geräte weiter, die du einbindest.
         secret: true
+      mqtt_host:
+        description: Der MQTT-Broker für Tasmota-Geräte (Adresse, wie Home Assistant ihn nutzt). Nur für Tasmota nötig.
+      mqtt_user:
+        description: Der Benutzer am MQTT-Broker für Tasmota-Geräte.
+      mqtt_password:
+        description: Das Passwort am MQTT-Broker für Tasmota-Geräte.
+        secret: true
     target:
       plan: true
       bound: room
@@ -31,8 +38,10 @@ metadata:
 ---
 # Gerät einbinden
 
-Neue Geräte kommen auf zwei Wegen: Ein **Zigbee-Gerät** koppelt Mira über
-Zigbee2MQTT. Ein Gerät, das **Home Assistant gefunden** hat (eine Bridge im Netz,
+Neue Geräte kommen auf drei Wegen: Ein **Zigbee-Gerät** koppelt Mira über
+Zigbee2MQTT oder ZHA. Ein **WLAN-Gerät** im Einrichtungsmodus (Shelly, Tasmota,
+ESPHome, WLED) holt Mira mit dem WLAN ihres Rechners ins Heim-WLAN. Ein Gerät, das
+**Home Assistant gefunden** hat (eine Bridge im Netz,
 ein Bluetooth-Sensor, eine Lampe aus der App des Herstellers), meldet Mira mit einer
 Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
 
@@ -49,6 +58,24 @@ Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
    Frage nach dem Raum; die Angaben zum Gerät stehen dann im Vorgang. Hat Mira kein
    Gerät gesehen und fragt, ob sie es nochmal versuchen soll: beim Ja wieder
    `zigbee_pairing_start`, beim Nein `thread_cancel`.
+
+Gibt es Zigbee2MQTT und ZHA, fragt das Ergebnis von `zigbee_pairing_start`, in
+welches Netz; ruf es dann mit `network` auf.
+
+## WLAN-Gerät ins WLAN holen
+
+- „Ich hab einen neuen Shelly“ (oder Tasmota, WLED, ein ESPHome-Gerät):
+  `wifi_devices`. Nenn, was im Einrichtungsmodus zu sehen ist, und frag, ob du es
+  ins WLAN holen sollst. Ist nichts zu sehen, sag, wie man es in den
+  Einrichtungsmodus bringt (steht im Ergebnis).
+- Beim Ja: `wifi_handover` mit dem WLAN-Namen des Geräts. Sag nur, dass es einen
+  Moment dauert; Mira meldet sich danach von selbst („… ist jetzt im WLAN. Soll ich
+  es einbinden?“). Beim Ja dann `device_confirm`, danach Raum und Name. Fragt sie
+  stattdessen gleich nach dem Raum, geht es mit dem Raum weiter.
+- Das WLAN-Passwort sagst du nie.
+- Hast du `wifi_devices` nicht, geht es gerade nicht: Miras Rechner braucht dafür ein
+  freies WLAN (eins, mit dem er nicht selbst verbunden ist). Sag das; sonst geht es
+  mit der App des Herstellers.
 
 ## Gefundene Geräte
 

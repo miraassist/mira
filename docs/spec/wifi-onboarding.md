@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: specified, nothing built. Scenarios:
+Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. Joining a device's Wi-Fi and the hand-over to a real device are open (step 1, with the maintainer). Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal
@@ -49,7 +49,7 @@ setting:
 
 | Where Mira runs | How | What it needs |
 |---|---|---|
-| **The HA app on Home Assistant OS** | The Supervisor's network API: `GET /network/info` (the interfaces, which one is the primary), `GET /network/interface/<wlan>/accesspoints` (the scan), `POST /network/interface/<wlan>/update` with `wifi: {mode: infrastructure, ssid, auth: open or wpa-psk, psk}` and `ipv4: {method: auto}` to join, and `enabled: false` to leave | `hassio_api: true` in the app's config and the role that may change the network (assumption: `hassio_role: admin`; to check). The Supervisor token is in the app's environment |
+| **The HA app on Home Assistant OS** | (Not tried on a real one: no Home Assistant OS at hand. The Supervisor has no signal for "connected": Mira reads the interface's state once a second, up to 20 s, a poll as nothing reports it; its access points do not say whether a network is open, the families' are taken as known.) The Supervisor's network API: `GET /network/info` (the interfaces, which one is the primary), `GET /network/interface/<wlan>/accesspoints` (the scan), `POST /network/interface/<wlan>/update` with `wifi: {mode: infrastructure, ssid, auth: open or wpa-psk, psk}` and `ipv4: {method: auto}` to join, and `enabled: false` to leave | `hassio_api: true` in the app's config and the role that may change the network (assumption: `hassio_role: admin`; to check). The Supervisor token is in the app's environment |
 | **A container or the binary on a Linux machine with NetworkManager** (the usual desktop and server setup; the live house runs Mira as a container with the host's network) | NetworkManager over D-Bus: the devices and the primary connection, `RequestScan` and the access points (the property `LastScan` changes when a scan is done: a signal), `AddAndActivateConnection` with a profile that never becomes the default route (`ipv4.never-default`, `ipv6.never-default`, `connection.autoconnect: false`), the active connection's state `activated` as the signal it is up, then `Deactivate` and `Delete` of the profile | The system bus: for a container the socket `/run/dbus/system_bus_socket` mounted in; the right to manage networks: on Debian and Ubuntu a user in the group `netdev`, or a polkit rule for Mira's user; a container with the host's network (`network_mode: host`) or a route to the device's address through the host |
 | Anything else (no NetworkManager, macOS, Windows, a container without the bus) | – | The function is off; `mira check` and the skill say why |
 
@@ -64,8 +64,10 @@ and the home network stay on the cable. When the device's network has the same a
 ## The home Wi-Fi
 
 Mira keeps the home Wi-Fi's name and password: **one setting, used here and later for Bluetooth set-ups.** In
-`mira.yaml` under the skill (`geraet-einbinden: {wlan: {ssid: …, password: ${WLAN_PASSWORD}}}`), the password in the
-secrets file like every secret, and on Mira's page under the skill with a password field. It is never said, never
+`mira.yaml` they are the skill's settings `wlan_ssid` and `wlan_password` (`geraet-einbinden: {wlan_ssid: …,
+wlan_password: ${WLAN_PASSWORD}}`; a skill's settings are flat), the password a secret setting, in the secrets file
+like every secret and on Mira's page under the skill with a password field. The broker for Tasmota (decision 3) is
+`mqtt_host`, `mqtt_user` and `mqtt_password`, the same way. It is never said, never
 put into a model's context, never logged; a tool result says "the home Wi-Fi" by its name only.
 
 Before the hand-over Mira checks the scan for the home Wi-Fi: is it there, and on 2.4 GHz (these devices have no
@@ -93,7 +95,7 @@ The rest (confirm, room, name, expose, ignore) are the found devices' tools.
 
 | Fails | Who learns of it |
 |---|---|
-| No free Wi-Fi interface, no NetworkManager, no right to change the network | The skill's tools are not offered for Wi-Fi; asked, Mira says the function needs a free Wi-Fi on Mira's machine. `mira check` names the reason. Log `wifi onboarding off` with the reason once at the start |
+| No free Wi-Fi interface, no NetworkManager, no right to change the network | The skill's Wi-Fi tools are not offered (whether the Wi-Fi is free is read at most once a minute, as tools are offered at every turn); asked, Mira says the function needs a free Wi-Fi on Mira's machine (the skill says so). Log `wifi onboarding off` with the reason at the start, `wifi onboarding not offered` with the reason when the Wi-Fi is in use. Not in `mira check` (built 2026-11-10: the log only) |
 | No home Wi-Fi set | `wifi_devices` returns that the home Wi-Fi is missing and where it is set (Mira's page, the skill); Mira says so |
 | The home Wi-Fi is not seen, or only on 5 GHz | The hand-over is not tried; Mira says why |
 | The scan fails or gets no answer in 15 s | The tool returns the error; Mira says so. Log `wifi scan failed` |
@@ -142,8 +144,12 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
 ## Steps
 
 1. **Check on this machine**: scan, join an open Wi-Fi with never-default, leave, over D-Bus; the route stays on the
-   cable. A real Shelly in setup mode: its Wi-Fi, the hand-over by `WiFi.SetConfig`, its discovery in the test HA; a Tasmota in its Wi-Fi manager: does `/cm` with `Backlog` answer (decision 3).
+   cable (2026-11-10: the API read-only on a desktop whose Wi-Fi is in use: the Wi-Fi device type 2, its state 100,
+   `LastScan`, the access points' `Ssid`, `Frequency`, `WpaFlags`, `RsnFlags`; joining needs a free Wi-Fi and is
+   open). A real Shelly in setup mode: its Wi-Fi, the hand-over by `WiFi.SetConfig`, its discovery in the test HA; a Tasmota in its Wi-Fi manager: does `/cm` with `Backlog` answer (decision 3).
 2. **The Wi-Fi part** in the service: NetworkManager, the Supervisor, the free interface, the four families, the
-   home Wi-Fi setting. WL-01 to WL-07.
-3. **The tools and the thread**, handing over to the found devices; end to end with a real device. WL-08 to WL-10.
+   home Wi-Fi and the MQTT broker settings. WL-01 to WL-07 (built 2026-11-10, `internal/wifi`).
+3. **The tools and the thread**, handing over to the found devices (`Await`: the discovered flow of the family's
+   integration whose id or name holds the device's MAC from its Wi-Fi's name; for Tasmota a new device of the maker
+   "Tasmota"); end to end with a real device (open). WL-08 to WL-10 (built 2026-11-10).
 4. **The guide**: the home Wi-Fi, the container recipe, which devices.

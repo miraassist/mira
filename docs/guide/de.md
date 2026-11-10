@@ -666,25 +666,52 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ![Einrichtung → Verbindungen: Client-ID und Secret der App, die Redirect-URL zum Kopieren, Verbinden und Trennen](img/mira-verbindungen-de.png)
 
-## Neue Zigbee-Geräte einbinden
+## Neue Geräte einbinden
 
 ▶ [Ein Temperatursensor kommt per Sprache ins Haus: koppeln, Raum, Name](https://youtu.be/K1LEZiy7XTM)
 
-„Ich hab ein neues Zigbee-Gerät.“ Mira fragt, ob sie das Einbinden starten soll, und sagt dir dann, dass du den Knopf am Gerät ein paar Sekunden gedrückt halten sollst, bis es schnell blinkt, oder es neu einstecken. Meldet sich das Gerät an, sagt sie kurz, dass sie es kennenlernt; das kann bei Batteriegeräten bis zu zwei Minuten dauern, ab und zu kurz den Knopf drücken hilft. Sobald das Gerät da ist, meldet sie sich am selben Satelliten von selbst: „Ich hab's: eine Steckdose mit Strommessung von IKEA. In welchen Raum kommt sie?“ – „Wohnzimmer.“ Dann schlägt sie einen Namen vor („Steckdose Wohnzimmer“), und auf dein Ja ist das Gerät fertig: im Raum, umbenannt, und seine Werte sind für Sprache freigegeben, sodass du es gleich steuern oder abfragen kannst.
+Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach dem Raum, schlägt einen Namen vor und gibt ihre Werte für Sprache frei, sodass du sie gleich steuern oder abfragen kannst. Das geht auf drei Wegen.
 
+### Zigbee-Geräte
+
+„Ich hab ein neues Zigbee-Gerät.“ Mira fragt, ob sie das Einbinden starten soll, und sagt dir dann, dass du den Knopf am Gerät ein paar Sekunden gedrückt halten sollst, bis es schnell blinkt, oder es neu einstecken. Meldet sich das Gerät an, sagt sie kurz, dass sie es kennenlernt; das kann bei Batteriegeräten bis zu zwei Minuten dauern, ab und zu kurz den Knopf drücken hilft. Sobald das Gerät da ist, meldet sie sich am selben Satelliten von selbst: „Ich hab's: eine Steckdose mit Strommessung von IKEA. In welchen Raum kommt sie?“ – „Wohnzimmer.“ Dann schlägt sie einen Namen vor („Steckdose Wohnzimmer“), und auf dein Ja ist das Gerät fertig.
+
+- Das geht mit [Zigbee2MQTT](https://www.zigbee2mqtt.io) (mit seiner Home-Assistant-Anbindung) und mit ZHA, dem Zigbee von Home Assistant. Gibt es beides, fragt Mira, in welches Netz das Gerät soll.
 - Ein Gerät pro Durchgang; für das nächste sagst du wieder, dass du ein neues hast.
-- Meldet sich drei Minuten lang nichts, fragt Mira, ob sie es nochmal versuchen soll. Versteht Zigbee2MQTT ein Gerät nicht, sagt sie es; drück den Knopf dann nochmal. Ein Gerät, das schon eingebunden ist, erkennt sie und nennt seinen Namen und Raum.
-- „Abbrechen“ beendet das Einbinden jederzeit.
-- Das geht nur am Satelliten, weil Mira sich dort meldet, wenn das Gerät da ist.
+- Meldet sich drei Minuten lang nichts, fragt Mira, ob sie es nochmal versuchen soll. Ein Gerät, das schon eingebunden ist, erkennt sie und nennt seinen Namen und Raum.
+- „Abbrechen“ beendet das Einbinden jederzeit. Das Koppeln geht nur am Satelliten, weil Mira sich dort meldet, wenn das Gerät da ist.
 
-**Einrichten:** Das Einbinden läuft über [Zigbee2MQTT](https://www.zigbee2mqtt.io), das mit Home Assistant über MQTT verbunden ist (die übliche Einrichtung, mit der Home-Assistant-Anbindung von Zigbee2MQTT). Dann den Skill `geraet-einbinden` einschalten: Mira → Fähigkeiten → Skills → geraet-einbinden → **Einschalten**. Oder in der `mira.yaml`:
+### Geräte, die Home Assistant gefunden hat
+
+Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Netz, einen Bluetooth-Sensor, eine Lampe, die du in der App des Herstellers gekoppelt hast. Mira sagt dir das einmal, wenn jemand da ist: „Ich habe ein neues Gerät gefunden: Hue Bridge. Soll ich es einbinden?“ Auf dein Ja führt sie dich durch das, was Home Assistant dafür braucht („Drück den Knopf auf der Bridge“), und dann geht es mit Raum und Name weiter.
+
+- **Nein, ignorieren, das ist vom Nachbarn:** Mira nennt es nie wieder. In Home Assistant steht ein entdecktes Gerät dann unter „Ignoriert“, ein Gerät ohne Raum hat das Label „Mira: ignoriert“; dort machst du es rückgängig.
+- **Keine Antwort:** Mira fragt nicht nochmal. „Gibt's neue Geräte?“ nennt dir alles, was noch wartet.
+- Mehrere auf einmal (eine Bridge mit zwanzig Lampen) kommen in einer Nachricht.
+- Braucht ein Gerät Angaben wie einen Schlüssel oder ein Passwort, sagt Mira dir, dass das in Home Assistant unter Einstellungen → Geräte & Dienste → Entdeckt geht. Nur nach deinem WLAN fragt Mira nicht: Das trägt sie selbst ein, wenn du es ihr gegeben hast (unten).
+
+### WLAN-Geräte
+
+„Ich hab einen neuen Shelly.“ Ein neues WLAN-Gerät öffnet zum Einrichten ein eigenes WLAN. Mira sucht danach mit dem WLAN ihres Rechners, gibt dem Gerät dein WLAN und meldet sich, sobald es in deinem Netz ist: „Shelly Plus 1 ist jetzt im WLAN. Soll ich es einbinden?“ Das geht mit Shelly, Tasmota, WLED und ESPHome-Geräten mit offenem Einrichtungs-WLAN. Geräte, die nur über die App ihres Herstellers eingerichtet werden (Tuya, Smart Life, Meross und ähnliche), gehen damit nicht.
+
+- Dafür braucht Miras Rechner ein **freies WLAN**: eins, mit dem er nicht selbst verbunden ist, weil er per Kabel im Netz hängt. Mira nutzt es nur für die Minute der Übergabe und bleibt am Kabel.
+- Mira sagt dein WLAN-Passwort nie und gibt es nur an das Gerät weiter, das du einbindest.
+- Tasmota findet Home Assistant über MQTT; dafür braucht Mira auch den MQTT-Broker.
+
+### Einrichten
+
+Den Skill `geraet-einbinden` einschalten: Mira → Fähigkeiten → Skills → geraet-einbinden → **Einschalten**. Dort trägst du auch dein WLAN (Name und Passwort) und, für Tasmota, den MQTT-Broker ein. Oder in der `mira.yaml`:
 
 ```yaml
 skills:
-  geraet-einbinden: {}
+  geraet-einbinden:
+    wlan_ssid: MeinWLAN
+    wlan_password: ${WLAN_PASSWORD}
 ```
 
-Andere Zigbee-Anbindungen (ZHA, deCONZ) und andere Funkarten (Matter, Z-Wave) gehen damit noch nicht.
+Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und einen Benutzer, der Netzwerke verwalten darf (unter Debian und Ubuntu die Gruppe `netdev`). Ohne das gehen die anderen beiden Wege trotzdem.
+
+Matter und Z-Wave gehen damit noch nicht.
 
 ## Im Internet nachschauen und schwierige Fragen
 

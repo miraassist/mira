@@ -654,25 +654,52 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ![Setup → Connections: the app's client ID and secret, the redirect URL to copy, Connect and Disconnect](img/mira-verbindungen-en.png)
 
-## Adding new Zigbee devices
+## Adding new devices
 
 ▶ [A temperature sensor joins the house by voice: pairing, room, name](https://youtu.be/K1LEZiy7XTM)
 
-"I have a new Zigbee device." Mira asks whether to start adding it and then tells you to hold the button on the device for a few seconds until it blinks quickly, or to plug it in again. When the device joins, she says briefly that she is getting to know it; with battery devices that can take up to two minutes, and pressing its button now and then helps. As soon as the device is there, she speaks up at the same satellite by herself: "Got it: a plug with power metering from IKEA. Which room does it go in?" – "Living room." Then she proposes a name ("Plug living room"), and on your yes the device is done: in its room, renamed, and its values exposed to voice, so you can control it or ask about it right away.
+Mira adds new devices by voice: she brings them into the network, asks for the room, proposes a name and exposes their values to voice, so you can control them or ask about them right away. There are three ways.
 
+### Zigbee devices
+
+"I have a new Zigbee device." Mira asks whether to start adding it and then tells you to hold the button on the device for a few seconds until it blinks quickly, or to plug it in again. When the device joins, she says briefly that she is getting to know it; with battery devices that can take up to two minutes, and pressing its button now and then helps. As soon as the device is there, she speaks up at the same satellite by herself: "Got it: a plug with power metering from IKEA. Which room does it go in?" – "Living room." Then she proposes a name ("Plug living room"), and on your yes the device is done.
+
+- It works with [Zigbee2MQTT](https://www.zigbee2mqtt.io) (with its Home Assistant integration) and with ZHA, Home Assistant's own Zigbee. With both, Mira asks which network the device goes into.
 - One device at a time; for the next one you say again that you have a new one.
-- If nothing comes up for three minutes, Mira asks whether to try again. If Zigbee2MQTT does not understand a device, she says so; then press its button again. A device that is already added she recognizes, and names its name and room.
-- "Cancel" ends adding at any time.
-- It works only at a satellite, where Mira speaks up once the device is there.
+- If nothing comes up for three minutes, Mira asks whether to try again. A device that is already added she recognizes, and names its name and room.
+- "Cancel" ends adding at any time. Pairing works only at a satellite, where Mira speaks up once the device is there.
 
-**Setting up:** adding runs through [Zigbee2MQTT](https://www.zigbee2mqtt.io), connected to Home Assistant over MQTT (the usual setup, with Zigbee2MQTT's Home Assistant integration). Then switch on the skill `geraet-einbinden`: Mira → Capabilities → Skills → geraet-einbinden → **Switch on**. Or in `mira.yaml`:
+### Devices Home Assistant found
+
+Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a Bluetooth sensor, a lamp you paired in its maker's app. Mira tells you once, when someone is there: "I found a new device: Hue Bridge. Shall I add it?" On your yes she leads you through what Home Assistant needs ("Press the button on the bridge"), and then the room and the name follow.
+
+- **No, ignore it, that's the neighbour's:** Mira never names it again. In Home Assistant a discovered device is then under "Ignored", a device without a room has the label "Mira: ignoriert"; that is where you undo it.
+- **No answer:** Mira does not ask again. "Any new devices?" names everything still waiting.
+- Several at once (a bridge with twenty lamps) come in one message.
+- If a device needs details such as a key or a password, Mira tells you it is done in Home Assistant under Settings → Devices & services → Discovered. Only your Wi-Fi she fills in herself, once you gave it to her (below).
+
+### Wi-Fi devices
+
+"I have a new Shelly." A new Wi-Fi device opens a Wi-Fi of its own for its setup. Mira looks for it with the Wi-Fi of her machine, gives the device your Wi-Fi and speaks up once it is in your network: "Shelly Plus 1 is in the Wi-Fi now. Shall I add it?" This works with Shelly, Tasmota, WLED and ESPHome devices with an open setup Wi-Fi. Devices set up only through their maker's app (Tuya, Smart Life, Meross and the like) do not work this way.
+
+- Mira's machine needs a **free Wi-Fi** for it: one it is not connected with itself, because it is in the network by cable. Mira uses it only for the minute of the hand-over and stays on the cable.
+- Mira never says your Wi-Fi password and gives it only to the device you are adding.
+- Home Assistant finds Tasmota over MQTT; for it Mira needs the MQTT broker too.
+
+### Setting up
+
+Switch on the skill `geraet-einbinden`: Mira → Capabilities → Skills → geraet-einbinden → **Switch on**. There you also enter your Wi-Fi (name and password) and, for Tasmota, the MQTT broker. Or in `mira.yaml`:
 
 ```yaml
 skills:
-  geraet-einbinden: {}
+  geraet-einbinden:
+    wlan_ssid: MyWiFi
+    wlan_password: ${WLAN_PASSWORD}
 ```
 
-Other Zigbee integrations (ZHA, deCONZ) and other radios (Matter, Z-Wave) do not work with it yet.
+When Mira runs as a container, for Wi-Fi devices she needs the machine's network and access to its NetworkManager: `network_mode: host`, the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` and a user allowed to manage networks (on Debian and Ubuntu the group `netdev`). Without it the other two ways still work.
+
+Matter and Z-Wave do not work with it yet.
 
 ## Looking things up and hard questions
 
