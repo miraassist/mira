@@ -17,6 +17,11 @@ ports:
   8787/tcp: 8787
 ports_description:
   8787/tcp: Mira's API; the integration connects here
+# The Supervisor's network API, for bringing a Wi-Fi device into the Wi-Fi
+# with the machine's Wi-Fi (docs/spec/wifi-onboarding.md, decision 2): the
+# smallest role that may use /network is "manager".
+hassio_api: true
+hassio_role: manager
 map:
   - addon_config:rw
 environment:

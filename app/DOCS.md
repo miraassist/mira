@@ -30,3 +30,9 @@ consistent copy.
 - **Reset data** (Configuration tab): turn it on and restart the app. Mira deletes its data (memory, messages,
   settings from Home Assistant, the AI model) and keeps `mira.yaml`; then it pairs again without a code, like a
   new install. It resets once; turn the option off again afterwards.
+
+## Access to the Supervisor
+
+The app may use the Supervisor's network API (the role "manager"): with the skill `geraet-einbinden` Mira brings a
+new Wi-Fi device into your Wi-Fi with the Wi-Fi of the machine Home Assistant runs on, when that Wi-Fi is free (the
+machine is in the network by cable). She uses it only for the minute of the hand-over.
