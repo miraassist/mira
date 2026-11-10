@@ -1,8 +1,8 @@
 Feature: Bringing a Wi-Fi device into the Wi-Fi by voice (docs/spec/wifi-onboarding.md)
 
   @step2
-  Scenario: WL-01 Without a free Wi-Fi the function is off
-    Given the machine's only Wi-Fi interface is connected
+  Scenario: WL-01 Without a usable Wi-Fi the function is off
+    Given the machine's only Wi-Fi interface is connected and Home Assistant is reached over it
     When Mira starts
     Then the Wi-Fi tools are not offered and the log names the reason
 
@@ -55,3 +55,9 @@ Feature: Bringing a Wi-Fi device into the Wi-Fi by voice (docs/spec/wifi-onboard
   Scenario: WL-10 Nothing in setup mode
     When wifi_devices finds no device
     Then Mira says how to put the common ones into setup mode
+
+  @step5
+  Scenario: WL-11 A connected Wi-Fi that Home Assistant does not run over is usable
+    Given the machine's Wi-Fi is connected and Home Assistant is reached over the cable
+    When the Wi-Fi tools are offered
+    Then wifi_devices and wifi_handover are offered, and after the hand-over Mira only leaves the device's Wi-Fi

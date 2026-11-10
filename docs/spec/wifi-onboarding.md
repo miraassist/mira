@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. Joining a device's Wi-Fi and the hand-over to a real device are open (step 1, with the maintainer). Scenarios:
+Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. Joining a device's Wi-Fi and the hand-over to a real device are open (step 1, with the maintainer). Step 5 (a connected Wi-Fi Home Assistant does not run over) is decided, not built. Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal
@@ -53,9 +53,13 @@ setting:
 | **A container or the binary on a Linux machine with NetworkManager** (the usual desktop and server setup; the live house runs Mira as a container with the host's network) | NetworkManager over D-Bus: the devices and the primary connection, `RequestScan` and the access points (the property `LastScan` changes when a scan is done: a signal), `AddAndActivateConnection` with a profile that never becomes the default route (`ipv4.never-default`, `ipv6.never-default`, `connection.autoconnect: false`), the active connection's state `activated` as the signal it is up, then `Deactivate` and `Delete` of the profile | The system bus: for a container the socket `/run/dbus/system_bus_socket` mounted in; the right to manage networks: on Debian and Ubuntu a user in the group `netdev`, or a polkit rule for Mira's user; a container with the host's network (`network_mode: host`) or a route to the device's address through the host |
 | Anything else (no NetworkManager, macOS, Windows, a container without the bus) | – | The function is off; `mira check` and the skill say why |
 
-**Free Wi-Fi.** The function works only with a Wi-Fi interface that is not in use: present, switched on, not
-connected. When the machine is in the network by Wi-Fi (its only way, or the primary connection), the function is
-off, as decided; leaving that Wi-Fi would cut Home Assistant off.
+**A usable Wi-Fi** (decision 6). The function works with a Wi-Fi interface that is present and switched on, and
+either not connected, or connected while Mira's way to Home Assistant runs over another interface (the cable): the
+interface the machine would use to reach Home Assistant's address is read from the routing table (no packet is
+sent). When that way runs over the Wi-Fi, the function is off; leaving that Wi-Fi would cut Home Assistant off.
+Borrowing a connected Wi-Fi drops what runs over it for the minute of the hand-over; afterwards Mira only leaves the
+device's Wi-Fi, and the machine's own connection comes back through NetworkManager's automatic connecting (Mira
+neither restores nor watches it: a connection that does not connect by itself stays off).
 
 **The route.** The device's network is joined so that it never becomes the default route: Home Assistant, the model
 and the home network stay on the cable. When the device's network has the same addresses as the home network
@@ -95,7 +99,8 @@ The rest (confirm, room, name, expose, ignore) are the found devices' tools.
 
 | Fails | Who learns of it |
 |---|---|
-| No free Wi-Fi interface, no NetworkManager, no right to change the network | The skill's Wi-Fi tools are not offered (whether the Wi-Fi is free is read at most once a minute, as tools are offered at every turn); asked, Mira says the function needs a free Wi-Fi on Mira's machine (the skill says so). Log `wifi onboarding off` with the reason at the start, `wifi onboarding not offered` with the reason when the Wi-Fi is in use. Not in `mira check` (built 2026-11-10: the log only) |
+| No usable Wi-Fi interface (none, switched off, or carrying the way to Home Assistant), no NetworkManager, no right to change the network | The skill's Wi-Fi tools are not offered (whether the Wi-Fi is usable is read at most once a minute, as tools are offered at every turn); asked, Mira says the function needs a Wi-Fi on Mira's machine that Home Assistant does not run over (the skill says so). Log `wifi onboarding off` with the reason at the start, `wifi onboarding not offered` with the reason when the Wi-Fi is not usable. Not in `mira check` (built 2026-11-10: the log only) |
+| The routing table cannot be read, or Home Assistant's address not resolved | The Wi-Fi counts as not usable when it is connected; the log line `wifi onboarding not offered` names the error |
 | No home Wi-Fi set | `wifi_devices` returns that the home Wi-Fi is missing and where it is set (Mira's page, the skill); Mira says so |
 | The home Wi-Fi is not seen, or only on 5 GHz | The hand-over is not tried; Mira says why |
 | The scan fails or gets no answer in 15 s | The tool returns the error; Mira says so. Log `wifi scan failed` |
@@ -140,6 +145,7 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
 | 3 | Tasmota and MQTT | Mira hands over the MQTT broker too: a second setting next to the home Wi-Fi (`mqtt: {host, user, password}`, the password a secret), since Home Assistant does not give its MQTT integration's password out. Tasmota then announces itself to Home Assistant's Tasmota integration, and is a new device without a room ([Found devices](found-devices.md)) |
 | 4 | ESPHome devices with a password on their fallback Wi-Fi | Only open fallback Wi-Fis |
 | 5 | The same addresses at home and in the device's network | The hand-over is refused, and Mira says why |
+| 6 | A connected Wi-Fi (2026-11-10) | Usable when Mira's way to Home Assistant runs over another interface; Mira does not restore the machine's own Wi-Fi connection afterwards, NetworkManager's automatic connecting does |
 
 ## Steps
 
@@ -153,3 +159,7 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
    integration whose id or name holds the device's MAC from its Wi-Fi's name; for Tasmota a new device of the maker
    "Tasmota"); end to end with a real device (open). WL-08 to WL-10 (built 2026-11-10).
 4. **The guide**: the home Wi-Fi, the container recipe, which devices.
+5. **A connected Wi-Fi that Home Assistant does not run over** (decision 6): the route to Home Assistant's address
+   decides, for NetworkManager and the Supervisor. WL-11. Open: on Home Assistant OS, Home Assistant is reached
+   over the Supervisor's internal network, never over the Wi-Fi; there the route to Home Assistant says nothing,
+   and the Supervisor's primary interface has to decide (to be discussed before building).
