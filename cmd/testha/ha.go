@@ -97,8 +97,15 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
+// compose runs docker compose on testenv/compose.yaml, and on
+// testenv/compose.local.yaml when there is one (this machine's hardware, a
+// Zigbee stick for ZHA say; not in git).
 func compose(ctx context.Context, dir string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", filepath.Join(dir, "compose.yaml")}, args...)...)
+	files := []string{"compose", "-f", filepath.Join(dir, "compose.yaml")}
+	if local := filepath.Join(dir, "compose.local.yaml"); fileExists(local) {
+		files = append(files, "-f", local)
+	}
+	cmd := exec.CommandContext(ctx, "docker", append(files, args...)...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return cmd.Run()
 }
@@ -313,4 +320,9 @@ func longLivedToken(ctx context.Context, c *haws.Client, name string) (string, e
 // tokenWorks reports whether token is accepted by the REST API.
 func tokenWorks(ctx context.Context, token string) bool {
 	return token != "" && api(ctx, "GET", "/api/", token, nil, nil) == nil
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }

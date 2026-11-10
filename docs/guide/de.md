@@ -694,7 +694,7 @@ Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Ne
 
 „Ich hab einen neuen Shelly.“ Ein neues WLAN-Gerät öffnet zum Einrichten ein eigenes WLAN. Mira sucht danach mit dem WLAN ihres Rechners, gibt dem Gerät dein WLAN und meldet sich, sobald es in deinem Netz ist: „Shelly Plus 1 ist jetzt im WLAN. Soll ich es einbinden?“ Das geht mit Shelly, Tasmota, WLED und ESPHome-Geräten mit offenem Einrichtungs-WLAN. Geräte, die nur über die App ihres Herstellers eingerichtet werden (Tuya, Smart Life, Meross und ähnliche), gehen damit nicht.
 
-- Dafür braucht Miras Rechner ein **freies WLAN**: eins, mit dem er nicht selbst verbunden ist, weil er per Kabel im Netz hängt. Mira nutzt es nur für die Minute der Übergabe und bleibt am Kabel.
+- Dafür braucht Miras Rechner **WLAN und Kabel**: Er hängt per Kabel im Netz, sein WLAN darf frei oder verbunden sein. Mira leiht sich das WLAN für die Minute der Übergabe; danach verbindet sich der Rechner wieder wie vorher. Hängt der Rechner nur am WLAN, geht es nicht.
 - Mira sagt dein WLAN-Passwort nie und gibt es nur an das Gerät weiter, das du einbindest.
 - Tasmota findet Home Assistant über MQTT; dafür braucht Mira auch den MQTT-Broker.
 
@@ -709,7 +709,7 @@ skills:
     wlan_password: ${WLAN_PASSWORD}
 ```
 
-Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und einen Benutzer, der Netzwerke verwalten darf (unter Debian und Ubuntu die Gruppe `netdev`). Ohne das gehen die anderen beiden Wege trotzdem.
+Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und das Recht, Netzwerke zu verwalten: Als `root` (Standard des Containers) hat Mira es; läuft sie als anderer Benutzer, braucht dieser eine polkit-Regel für die Aktionen `org.freedesktop.NetworkManager.*` (die Gruppe `netdev` reicht unter Ubuntu nicht). Ohne das gehen die anderen beiden Wege trotzdem.
 
 Matter und Z-Wave gehen damit noch nicht.
 

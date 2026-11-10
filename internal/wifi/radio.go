@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -25,8 +27,10 @@ type AP struct {
 
 // Radio is the Wi-Fi of the machine Mira runs on.
 type Radio interface {
-	// Free is "" when the radio can be used: a Wi-Fi interface present,
-	// switched on, not connected; else why not.
+	// Free is "" when the radio can be used (docs/spec/wifi-onboarding.md,
+	// decision 6): a Wi-Fi interface present and switched on, and not
+	// connected or connected while Home Assistant is reached over another
+	// interface; else why not.
 	Free(ctx context.Context) string
 	Scan(ctx context.Context) ([]AP, error)
 	// Join joins a network so that it never becomes the default route and
@@ -40,8 +44,10 @@ type Radio interface {
 
 // Detect finds how Mira reaches the Wi-Fi (docs/spec/wifi-onboarding.md, How
 // Mira reaches the Wi-Fi): the Supervisor on Home Assistant OS, else
-// NetworkManager over the system bus; nil and why when neither.
-func Detect() (Radio, string) {
+// NetworkManager over the system bus; nil and why when neither. haURL is
+// Home Assistant's address: a connected Wi-Fi is usable only when the way to
+// it runs over another interface.
+func Detect(haURL string) (Radio, string) {
 	if token := os.Getenv("SUPERVISOR_TOKEN"); token != "" {
 		return &Supervisor{Base: "http://supervisor", Token: token, Client: &http.Client{Timeout: 30 * time.Second}}, ""
 	}
@@ -49,7 +55,7 @@ func Detect() (Radio, string) {
 	if err != nil {
 		return nil, "no system bus (for a container: mount /run/dbus/system_bus_socket): " + err.Error()
 	}
-	nm := &NetworkManager{conn: conn}
+	nm := &NetworkManager{conn: conn, haURL: haURL}
 	if _, err := nm.wifiDevice(); err != nil {
 		conn.Close()
 		return nil, "no NetworkManager with a Wi-Fi interface: " + err.Error()
@@ -81,7 +87,8 @@ const (
 // read-only on a desktop 2026-11-10: DeviceType 2, State 100 when connected,
 // LastScan, the access points' Ssid, Frequency, WpaFlags, RsnFlags).
 type NetworkManager struct {
-	conn *dbus.Conn
+	conn  *dbus.Conn
+	haURL string
 }
 
 func (n *NetworkManager) Kind() string { return "NetworkManager" }
@@ -106,7 +113,7 @@ func (n *NetworkManager) wifiDevice() (dbus.ObjectPath, error) {
 	return "", errors.New("no Wi-Fi interface")
 }
 
-func (n *NetworkManager) Free(context.Context) string {
+func (n *NetworkManager) Free(ctx context.Context) string {
 	d, err := n.wifiDevice()
 	if err != nil {
 		return err.Error()
@@ -116,14 +123,64 @@ func (n *NetworkManager) Free(context.Context) string {
 		return err.Error()
 	}
 	state, _ := v.Value().(uint32)
-	switch {
-	case state == stateDiscon:
-		return ""
-	case state >= 40 && state <= stateActive:
-		return "the machine's Wi-Fi is in use (connected): leaving it would cut the machine off"
-	default:
+	if state < stateDiscon || state > stateActive {
 		return fmt.Sprintf("the machine's Wi-Fi is not available (state %d: switched off or without a driver)", state)
 	}
+	if state == stateDiscon {
+		return ""
+	}
+	name, err := n.prop(d, nmDevice, "Interface")
+	if err != nil {
+		return err.Error()
+	}
+	iface, _ := name.Value().(string)
+	via, err := RouteTo(ctx, n.haURL)
+	return connectedUsable(iface, via, err)
+}
+
+// connectedUsable decides for a connected Wi-Fi interface wifi: usable ("")
+// when the way to Home Assistant (via) runs over another interface.
+func connectedUsable(wifi, via string, err error) string {
+	switch {
+	case err != nil:
+		return "the machine's Wi-Fi is connected, and the way to Home Assistant is not known: " + err.Error()
+	case via == wifi:
+		return "the machine's Wi-Fi is connected and Home Assistant is reached over it: leaving it would cut Home Assistant off"
+	}
+	return ""
+}
+
+// RouteTo is the interface the machine would use to reach the host of
+// rawURL, read from the routing table: a UDP socket is connected to the
+// address (no packet is sent) and its own address names the interface.
+func RouteTo(ctx context.Context, rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return "", fmt.Errorf("Home Assistant's address %q is not understood", rawURL)
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, u.Hostname())
+	if err != nil || len(ips) == 0 {
+		return "", fmt.Errorf("Home Assistant's host %q is not resolved: %v", u.Hostname(), err)
+	}
+	c, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: ips[0].IP, Port: 9})
+	if err != nil {
+		return "", fmt.Errorf("no route to Home Assistant: %w", err)
+	}
+	local := c.LocalAddr().(*net.UDPAddr).IP
+	c.Close()
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, i := range ifaces {
+		addrs, _ := i.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.IP.Equal(local) {
+				return i.Name, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no interface has the address %s", local)
 }
 
 func (n *NetworkManager) Scan(ctx context.Context) ([]AP, error) {
@@ -389,8 +446,11 @@ func (s *Supervisor) Free(ctx context.Context) string {
 	if err != nil {
 		return err.Error()
 	}
-	if i.Connected || i.Primary {
-		return "the machine's Wi-Fi is in use (connected): leaving it would cut the machine off"
+	// Home Assistant OS: Home Assistant is reached over the Supervisor's own
+	// network, never over the Wi-Fi; the primary interface decides
+	// (decision 6).
+	if i.Connected && i.Primary {
+		return "the machine's Wi-Fi is its primary connection: leaving it would cut the machine off"
 	}
 	return ""
 }

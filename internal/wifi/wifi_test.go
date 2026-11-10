@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -336,5 +338,37 @@ func TestSameAddressesAreRefused(t *testing.T) {
 	}
 	if len(radio.joined) != 0 {
 		t.Errorf("joined %v", radio.joined)
+	}
+}
+
+func TestWL11_AConnectedWifiThatHomeAssistantDoesNotRunOverIsUsable(t *testing.T) {
+	// NetworkManager: the route to Home Assistant decides.
+	if why := connectedUsable("wlan0", "eth0", nil); why != "" {
+		t.Errorf("Home Assistant over the cable: not usable: %s", why)
+	}
+	if why := connectedUsable("wlan0", "wlan0", nil); why == "" {
+		t.Error("Home Assistant over the Wi-Fi: usable")
+	}
+	if why := connectedUsable("wlan0", "", errors.New("not resolved")); why == "" {
+		t.Error("the way to Home Assistant unknown: usable")
+	}
+	// The route is read from the routing table.
+	if via, err := RouteTo(context.Background(), "http://127.0.0.1:8123"); err != nil || via == "" {
+		t.Errorf("route to the loopback: %q, %v", via, err)
+	}
+	// The Supervisor: the primary interface decides.
+	for _, c := range []struct {
+		connected, primary, usable bool
+	}{{false, false, true}, {true, false, true}, {true, true, false}} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, `{"result":"ok","data":{"interfaces":[{"interface":"end0","type":"ethernet","connected":true,"primary":%t},{"interface":"wlan0","type":"wireless","enabled":true,"connected":%t,"primary":%t}]}}`,
+				!c.primary, c.connected, c.primary)
+		}))
+		sv := &Supervisor{Base: srv.URL, Token: "t", Client: srv.Client()}
+		why := sv.Free(context.Background())
+		srv.Close()
+		if (why == "") != c.usable {
+			t.Errorf("Supervisor, connected %v primary %v: %q", c.connected, c.primary, why)
+		}
 	}
 }

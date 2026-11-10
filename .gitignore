@@ -20,6 +20,8 @@ __pycache__/
 # Media of known length for the fake devices (docs/spec/fake-devices.md), served at /local/fake/.
 !/testenv/ha/www/fake/
 /testenv/.env
+# This machine's hardware for the test HA (a Zigbee stick), picked up by cmd/testha.
+/testenv/compose.local.yaml
 /testenv/mira.db*
 !/testenv/mira.yaml
 # Local deploy helpers for this installation, not part of the project.

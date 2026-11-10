@@ -74,8 +74,8 @@ welches Netz; ruf es dann mit `network` auf.
   stattdessen gleich nach dem Raum, geht es mit dem Raum weiter.
 - Das WLAN-Passwort sagst du nie.
 - Hast du `wifi_devices` nicht, geht es gerade nicht: Miras Rechner braucht dafür ein
-  freies WLAN (eins, mit dem er nicht selbst verbunden ist). Sag das; sonst geht es
-  mit der App des Herstellers.
+  WLAN, über das er nicht selbst mit Home Assistant verbunden ist (er hängt per Kabel
+  im Netz). Sag das; sonst geht es mit der App des Herstellers.
 
 ## Gefundene Geräte
 

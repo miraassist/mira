@@ -139,7 +139,7 @@ func (a *app) newWifi() *wifi.Onboarding {
 	var radio wifi.Radio
 	off := "the skill geraet-einbinden is off"
 	if a.devicesOn() {
-		radio, off = wifi.Detect()
+		radio, off = wifi.Detect(a.cfg.HA.URL)
 	}
 	return wifi.New(wifi.Options{
 		Lang: a.lang, Logger: a.log, Radio: radio, Off: off,

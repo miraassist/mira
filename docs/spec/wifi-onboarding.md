@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. Joining a device's Wi-Fi and the hand-over to a real device are open (step 1, with the maintainer). Step 5 (a connected Wi-Fi Home Assistant does not run over) is decided, not built. Scenarios:
+Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. Joining a device's Wi-Fi and the hand-over to a real device are open (step 1, with the maintainer). Step 5 (a connected Wi-Fi Home Assistant does not run over) built 2026-11-10. Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal
@@ -50,7 +50,7 @@ setting:
 | Where Mira runs | How | What it needs |
 |---|---|---|
 | **The HA app on Home Assistant OS** | (Not tried on a real one: no Home Assistant OS at hand. The Supervisor has no signal for "connected": Mira reads the interface's state once a second, up to 20 s, a poll as nothing reports it; its access points do not say whether a network is open, the families' are taken as known.) The Supervisor's network API: `GET /network/info` (the interfaces, which one is the primary), `GET /network/interface/<wlan>/accesspoints` (the scan), `POST /network/interface/<wlan>/update` with `wifi: {mode: infrastructure, ssid, auth: open or wpa-psk, psk}` and `ipv4: {method: auto}` to join, and `enabled: false` to leave | `hassio_api: true` in the app's config and the role that may use `/network` (the Supervisor's security middleware: `manager` is the smallest; built 2026-11-10 in `app/config.yaml`). The Supervisor token is in the app's environment |
-| **A container or the binary on a Linux machine with NetworkManager** (the usual desktop and server setup; the live house runs Mira as a container with the host's network) | NetworkManager over D-Bus: the devices and the primary connection, `RequestScan` and the access points (the property `LastScan` changes when a scan is done: a signal), `AddAndActivateConnection` with a profile that never becomes the default route (`ipv4.never-default`, `ipv6.never-default`, `connection.autoconnect: false`), the active connection's state `activated` as the signal it is up, then `Deactivate` and `Delete` of the profile | The system bus: for a container the socket `/run/dbus/system_bus_socket` mounted in; the right to manage networks: on Debian and Ubuntu a user in the group `netdev`, or a polkit rule for Mira's user; a container with the host's network (`network_mode: host`) or a route to the device's address through the host |
+| **A container or the binary on a Linux machine with NetworkManager** (the usual desktop and server setup; the live house runs Mira as a container with the host's network) | NetworkManager over D-Bus: the devices and the primary connection, `RequestScan` and the access points (the property `LastScan` changes when a scan is done: a signal), `AddAndActivateConnection` with a profile that never becomes the default route (`ipv4.never-default`, `ipv6.never-default`, `connection.autoconnect: false`), the active connection's state `activated` as the signal it is up, then `Deactivate` and `Delete` of the profile | The system bus: for a container the socket `/run/dbus/system_bus_socket` mounted in; the right to manage networks: root, or a polkit rule for Mira's user on the actions `org.freedesktop.NetworkManager.*` (checked 2026-11-10 on Ubuntu: the group `netdev` is not enough, its rule covers only changing system connections from a local active session; a scan from a process outside one is refused `not authorized`); a container with the host's network (`network_mode: host`) or a route to the device's address through the host |
 | Anything else (no NetworkManager, macOS, Windows, a container without the bus) | – | The function is off; `mira check` and the skill say why |
 
 **A usable Wi-Fi** (decision 6). The function works with a Wi-Fi interface that is present and switched on, and
@@ -145,7 +145,7 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
 | 3 | Tasmota and MQTT | Mira hands over the MQTT broker too: a second setting next to the home Wi-Fi (`mqtt: {host, user, password}`, the password a secret), since Home Assistant does not give its MQTT integration's password out. Tasmota then announces itself to Home Assistant's Tasmota integration, and is a new device without a room ([Found devices](found-devices.md)) |
 | 4 | ESPHome devices with a password on their fallback Wi-Fi | Only open fallback Wi-Fis |
 | 5 | The same addresses at home and in the device's network | The hand-over is refused, and Mira says why |
-| 6 | A connected Wi-Fi (2026-11-10) | Usable when Mira's way to Home Assistant runs over another interface; Mira does not restore the machine's own Wi-Fi connection afterwards, NetworkManager's automatic connecting does |
+| 6 | A connected Wi-Fi (2026-11-10) | Usable when Mira's way to Home Assistant runs over another interface (on Home Assistant OS: when the Wi-Fi is not the primary interface); Mira does not restore the machine's own Wi-Fi connection afterwards, NetworkManager's automatic connecting does |
 
 ## Steps
 
@@ -159,7 +159,8 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
    integration whose id or name holds the device's MAC from its Wi-Fi's name; for Tasmota a new device of the maker
    "Tasmota"); end to end with a real device (open). WL-08 to WL-10 (built 2026-11-10).
 4. **The guide**: the home Wi-Fi, the container recipe, which devices.
-5. **A connected Wi-Fi that Home Assistant does not run over** (decision 6): the route to Home Assistant's address
-   decides, for NetworkManager and the Supervisor. WL-11. Open: on Home Assistant OS, Home Assistant is reached
-   over the Supervisor's internal network, never over the Wi-Fi; there the route to Home Assistant says nothing,
-   and the Supervisor's primary interface has to decide (to be discussed before building).
+5. **A connected Wi-Fi that Home Assistant does not run over** (decision 6): with NetworkManager the route to Home
+   Assistant's address decides (the interface whose address the machine would send from). On Home Assistant OS,
+   Home Assistant is reached over the Supervisor's internal network, never over the Wi-Fi; there the Supervisor's
+   primary interface decides: a connected Wi-Fi that is not the primary interface is usable (decided 2026-11-10).
+   WL-11 (built 2026-11-10).

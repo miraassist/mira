@@ -682,7 +682,7 @@ Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a
 
 "I have a new Shelly." A new Wi-Fi device opens a Wi-Fi of its own for its setup. Mira looks for it with the Wi-Fi of her machine, gives the device your Wi-Fi and speaks up once it is in your network: "Shelly Plus 1 is in the Wi-Fi now. Shall I add it?" This works with Shelly, Tasmota, WLED and ESPHome devices with an open setup Wi-Fi. Devices set up only through their maker's app (Tuya, Smart Life, Meross and the like) do not work this way.
 
-- Mira's machine needs a **free Wi-Fi** for it: one it is not connected with itself, because it is in the network by cable. Mira uses it only for the minute of the hand-over and stays on the cable.
+- Mira's machine needs **Wi-Fi and a cable** for it: it is in the network by cable, and its Wi-Fi may be free or connected. Mira borrows the Wi-Fi for the minute of the hand-over; afterwards the machine connects again as before. When the machine is in the network by Wi-Fi only, it does not work.
 - Mira never says your Wi-Fi password and gives it only to the device you are adding.
 - Home Assistant finds Tasmota over MQTT; for it Mira needs the MQTT broker too.
 
@@ -697,7 +697,7 @@ skills:
     wlan_password: ${WLAN_PASSWORD}
 ```
 
-When Mira runs as a container, for Wi-Fi devices she needs the machine's network and access to its NetworkManager: `network_mode: host`, the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` and a user allowed to manage networks (on Debian and Ubuntu the group `netdev`). Without it the other two ways still work.
+When Mira runs as a container, for Wi-Fi devices she needs the machine's network and access to its NetworkManager: `network_mode: host`, the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` and the right to manage networks: as `root` (the container's default) Mira has it; running as another user, that user needs a polkit rule for the actions `org.freedesktop.NetworkManager.*` (the group `netdev` is not enough on Ubuntu). Without it the other two ways still work.
 
 Matter and Z-Wave do not work with it yet.
 
