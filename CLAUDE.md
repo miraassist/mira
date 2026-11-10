@@ -45,7 +45,8 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 - **Every error handler leaves a trace** ([Silent fallbacks](docs/spec/fallbacks.md), decision 4): a retry, an
   unexpected answer of a server, a request broken off, an error caught and carried on from writes a log line where
   it happens, with what failed, what it cost and what happens next. An error passed to a caller who logs it needs no
-  line of its own.
+  line of its own. **An error names its input** (decision 5): the file, the URL, the text that did not parse (its
+  start, also a model's answer); only secrets stay out.
 - **Every tool and every step a voice turn waits for says what it does step by step and what it costs**: calls to
   Home Assistant or devices, downloads, subscriptions, waits, and what the turn waits for versus what runs after it.
   Anything that grows with the number of items is named.

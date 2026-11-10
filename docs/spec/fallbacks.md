@@ -26,6 +26,12 @@ is an error, or a decided behaviour with its reason, never a silent substitute.
    happens, with what failed (the status or the error), what it cost (how long the attempt took) and what happens
    next (the next attempt and the wait, the substitute, the end). An error passed to the caller needs no line of its
    own where the caller logs it.
+5. **An error names its input** (2026-11-10, after the live X research job failed twice with "unparseable result:
+   invalid character 'o' looking for beginning of value" and nothing showed what the model had written): an error
+   says what it failed on: the file and its path, the URL with method and status, the text that could not be parsed
+   (its start, up to 300 characters, cut with "…"), the entity, the command. A model's answer is such a text and goes
+   into the log as well: Mira runs in a private home network, her log is the household's. Only secrets (tokens,
+   passwords, keys) stay out.
 
 Decided in the rounds of 2026-11-05 (rows below): rows 4 to 12 as follows; the deprecation found by `testha
 compat` (HC-06) is fixed for Home Assistant 2026.10 and 2026.11 alike. Rows 13 to 20 are decided next.

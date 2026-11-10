@@ -71,7 +71,7 @@ func (c *Client) call(ctx context.Context, method, path string, body, out any) e
 		return ErrNotFound
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("speaker-id: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("speaker-id: %s %s answered HTTP %d", req.Method, req.URL.Redacted(), resp.StatusCode)
 	}
 	if out == nil {
 		return nil

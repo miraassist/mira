@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -555,7 +556,7 @@ func (c *Client) Services(ctx context.Context) (map[string]map[string][]string, 
 		Fields map[string]json.RawMessage `json:"fields"`
 	}
 	if err := json.Unmarshal(raw, &all); err != nil {
-		return nil, fmt.Errorf("decode get_services: %w", err)
+		return nil, fmt.Errorf("decode get_services %q: %w", excerpt.Bytes(raw), err)
 	}
 	out := make(map[string]map[string][]string, len(all))
 	for domain, services := range all {
@@ -652,7 +653,7 @@ func (c *Client) CurrentUser(ctx context.Context) (string, error) {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(raw, &u); err != nil {
-		return "", err
+		return "", fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	return u.ID, nil
 }

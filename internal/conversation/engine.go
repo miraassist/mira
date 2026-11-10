@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/miraassist/mira/internal/agent"
+	"github.com/miraassist/mira/internal/excerpt"
 	"log/slog"
 	"regexp"
 	"slices"
@@ -862,8 +863,19 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 		ContextTokens: model.ContextTokens, Lang: e.lang(ctx),
 	})
 	e.guard.Observe(ts, spec)
-	e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
-		"error", err != nil || isError)
+	if err != nil || isError {
+		// What the tool was given and what it said: without them a failed
+		// call cannot be followed (docs/spec/fallbacks.md, decision 5).
+		detail := text
+		if err != nil {
+			detail = err.Error()
+		}
+		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
+			"error", true, "args", excerpt.Bytes(args), "said", excerpt.Of(detail))
+	} else {
+		e.log.Info("tool done", "session", ts.SessionKey, "tool", name, "ms", time.Since(began).Milliseconds(),
+			"error", false)
+	}
 	switch {
 	case err != nil:
 		record("error")

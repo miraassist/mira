@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"net/http"
 	"slices"
 	"sort"
@@ -290,7 +291,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 	}
 	var notifier map[string]any
 	if err := json.Unmarshal(raw, &notifier); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	notifier["morning_trigger"] = mt
 	notifier["room_mode"] = modes
@@ -312,7 +313,7 @@ func (h *Handler) haSections(in haConfig) (map[string]json.RawMessage, []string,
 func knownPersonFields(raw json.RawMessage) (json.RawMessage, []string, error) {
 	var persons map[string]map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &persons); err != nil {
-		return nil, nil, fmt.Errorf("persons: %w", err)
+		return nil, nil, fmt.Errorf("persons %q: %w", excerpt.Bytes(raw), err)
 	}
 	known, seen := config.PersonFields(), map[string]bool{}
 	for _, p := range persons {

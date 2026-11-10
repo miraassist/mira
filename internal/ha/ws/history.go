@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func (c *Client) History(ctx context.Context, id string, start, end time.Time) (
 		LU float64 `json:"lu"` // seconds since the epoch
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("decode history: %w", err)
+		return nil, fmt.Errorf("decode history %q: %w", excerpt.Bytes(raw), err)
 	}
 	out := make([]Change, 0, len(payload[id]))
 	for _, r := range payload[id] {

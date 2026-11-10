@@ -49,7 +49,7 @@ func (s Secrets) Load() (map[string]string, error) {
 		return map[string]string{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("read secrets: %w", err)
+		return nil, fmt.Errorf("read secrets %s: %w", s.Path, err)
 	}
 	if rest, ok := strings.CutPrefix(string(raw), encPrefix); ok {
 		if s.Key == "" {
@@ -64,7 +64,8 @@ func (s Secrets) Load() (map[string]string, error) {
 		return out, nil
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("read secrets: %w", err)
+		// The file's name, never its content: it holds secrets.
+		return nil, fmt.Errorf("read secrets %s: %w", s.Path, err)
 	}
 	return out, nil
 }

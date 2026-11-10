@@ -116,7 +116,7 @@ func getJSON(ctx context.Context, client *http.Client, u string, header func(*ht
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("the server answers %s", resp.Status)
+		return nil, fmt.Errorf("GET %s: the server answers %s", req.URL.Redacted(), resp.Status)
 	}
 	var out map[string]any
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&out); err != nil {

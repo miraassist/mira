@@ -14,6 +14,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/automation"
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -310,7 +311,7 @@ func (m *Manager) validate(ctx context.Context, config map[string]any, automatio
 		Error string `json:"error"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return err
+		return fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	if !res.Valid {
 		return errors.New(res.Error)
@@ -610,7 +611,7 @@ func (m *Manager) List(ctx context.Context) ([]Item, error) {
 		} `json:"automations"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return out, err
+		return out, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	base := ""
 	if len(res.Automations) > 0 {

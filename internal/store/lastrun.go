@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"time"
 )
 
@@ -44,7 +46,7 @@ func (s *Store) LastRun(ctx context.Context, key string) (r LastRun, ok bool, er
 		return r, false, err
 	}
 	if err := json.Unmarshal([]byte(raw), &r); err != nil {
-		return r, false, err
+		return r, false, fmt.Errorf("%q not understood: %w", excerpt.Of(raw), err)
 	}
 	return r, true, nil
 }

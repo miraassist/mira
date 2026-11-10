@@ -16,6 +16,7 @@ import (
 	"go.starlark.net/starlark"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -104,7 +105,7 @@ func (e *Engine) Try(name, code string) error {
 func (e *Engine) CheckRule(value string) (string, error) {
 	var r Rule
 	if err := json.Unmarshal([]byte(extractJSON(value)), &r); err != nil {
-		return "", fmt.Errorf("no rule as JSON: %w", err)
+		return "", fmt.Errorf("no rule as JSON %q: %w", excerpt.Of(extractJSON(value)), err)
 	}
 	if r.Error != "" {
 		return "", errors.New(r.Error)

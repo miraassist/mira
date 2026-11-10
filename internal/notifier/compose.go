@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -63,7 +64,7 @@ func (n *Notifier) composeWithModel(ctx context.Context, messages []store.Messag
 		IDs  []string `json:"ids"`
 	}
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return "", fmt.Errorf("answer is not JSON: %w", err)
+		return "", fmt.Errorf("answer is not JSON %q: %w", excerpt.Of(raw), err)
 	}
 	if strings.TrimSpace(out.Text) == "" {
 		return "", fmt.Errorf("empty announcement")

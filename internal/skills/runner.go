@@ -12,6 +12,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/schedule"
 	"github.com/miraassist/mira/internal/store"
@@ -475,7 +476,7 @@ func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool,
 	}
 	var res taskResult
 	if err := json.Unmarshal([]byte(raw), &res); err != nil {
-		return false, "", fmt.Errorf("unparseable result: %w", err)
+		return false, "", fmt.Errorf("unparseable result %q: %w", excerpt.Of(raw), err)
 	}
 	res.Spoken = strings.TrimSpace(res.Spoken)
 	if res.Importance <= 0 || res.Spoken == "" {

@@ -3,6 +3,8 @@ package radio
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"strings"
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
@@ -35,7 +37,7 @@ func Search(ha HA) func(ctx context.Context, query string) ([]Station, error) {
 			} `json:"result"`
 		}
 		if err := json.Unmarshal(raw, &res); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 		}
 		var out []Station
 		for _, r := range res.Result {

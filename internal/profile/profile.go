@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -163,7 +164,7 @@ func (c *Compactor) compact(ctx context.Context, owner string) (bool, error) {
 		Profile string `json:"profile"`
 	}
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return false, fmt.Errorf("unparseable profile: %w", err)
+		return false, fmt.Errorf("unparseable profile %q: %w", excerpt.Of(raw), err)
 	}
 	text := clip(strings.TrimSpace(out.Profile), c.opts.MaxChars)
 	if text == "" {

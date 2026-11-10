@@ -153,7 +153,7 @@ func (s *Search) duckDuckGo(ctx context.Context, query string) ([]Result, error)
 		if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 			return nil, ErrBlocked
 		}
-		return nil, fmt.Errorf("search: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("search: GET %s answered HTTP %d", req.URL.Redacted(), resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes))
 	if err != nil {
@@ -184,7 +184,7 @@ func (s *Search) bing(ctx context.Context, query string) ([]Result, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bing: HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("bing: GET %s answered HTTP %d", req.URL.Redacted(), resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPageBytes))
 	if err != nil {
@@ -231,7 +231,7 @@ func (s *Search) Read(ctx context.Context, raw string) (Page, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return Page{}, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return Page{}, fmt.Errorf("GET %s answered HTTP %d", req.URL.Redacted(), resp.StatusCode)
 	}
 	ctype := resp.Header.Get("Content-Type")
 	// JSON (a site's own search API, which a skill names) is read as text.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"regexp"
 	"strings"
 	"time"
@@ -58,7 +59,7 @@ func (s *Service) extract(ctx context.Context, instructions string, m Mail) (ite
 	}
 	var it item
 	if err := json.Unmarshal([]byte(raw), &it); err != nil {
-		return item{}, fmt.Errorf("unreadable answer: %w", err)
+		return item{}, fmt.Errorf("unreadable answer %q: %w", excerpt.Of(raw), err)
 	}
 	return it, nil
 }

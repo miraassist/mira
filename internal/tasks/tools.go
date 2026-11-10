@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -30,7 +31,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 	readID := func(raw json.RawMessage) (string, error) {
 		idArg.ID = ""
 		if err := json.Unmarshal(raw, &idArg); err != nil {
-			return "", err
+			return "", fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 		}
 		return strings.TrimSpace(idArg.ID), nil
 	}

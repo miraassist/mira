@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"time"
 )
 
@@ -37,7 +38,7 @@ func (c *Client) Statistics(ctx context.Context, ids []string, start time.Time, 
 		Max    *float64 `json:"max"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("decode statistics: %w", err)
+		return nil, fmt.Errorf("decode statistics %q: %w", excerpt.Bytes(raw), err)
 	}
 	out := make(map[string][]StatRow, len(payload))
 	for id, rows := range payload {

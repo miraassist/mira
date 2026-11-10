@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"math"
 	"sort"
 	"strings"
@@ -25,11 +26,11 @@ type schema struct {
 func checkSchema(rawSchema, rawValue json.RawMessage) error {
 	var s schema
 	if err := json.Unmarshal(rawSchema, &s); err != nil {
-		return fmt.Errorf("unreadable schema: %w", err)
+		return fmt.Errorf("unreadable schema %q: %w", excerpt.Bytes(rawSchema), err)
 	}
 	var v any
 	if err := json.Unmarshal(rawValue, &v); err != nil {
-		return fmt.Errorf("not JSON: %w", err)
+		return fmt.Errorf("not JSON %q: %w", excerpt.Bytes(rawValue), err)
 	}
 	return s.check("", v)
 }

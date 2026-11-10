@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/phone"
 	"github.com/miraassist/mira/internal/skills"
@@ -40,7 +41,7 @@ func (a *app) readPhonebook(ctx context.Context) (phone.Phonebook, error) {
 	}
 	var pb phone.Phonebook
 	if err := json.Unmarshal(raw, &pb); err != nil {
-		return phone.Phonebook{}, fmt.Errorf("the phone book of Mira FRITZ!Box: %w", err)
+		return phone.Phonebook{}, fmt.Errorf("the phone book of Mira FRITZ!Box %q: %w", excerpt.Bytes(raw), err)
 	}
 	return pb, nil
 }

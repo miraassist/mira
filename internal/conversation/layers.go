@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/structure"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/prompt"
@@ -205,7 +206,7 @@ func (e *Engine) history(ctx context.Context, key string) ([]llm.Message, error)
 		msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID, Name: m.Name}
 		if len(m.ToolCalls) > 0 {
 			if err := json.Unmarshal(m.ToolCalls, &msg.ToolCalls); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(m.ToolCalls), err)
 			}
 		}
 		out = append(out, msg)

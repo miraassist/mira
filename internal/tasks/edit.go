@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/automation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
@@ -66,7 +67,7 @@ func (m *Manager) CheckTask(ctx context.Context, value string) (string, error) {
 		Automations []listed `json:"automations"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return "", err
+		return "", fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	if len(res.Automations) == 0 {
 		return "", errors.New(t.findNoTasks)
@@ -154,7 +155,7 @@ func (f editFinisher) Work(ctx context.Context, th store.Thread) (threads.Result
 		Config map[string]any `json:"config"`
 	}
 	if err := json.Unmarshal(raw, &task); err != nil {
-		return threads.Result{}, err
+		return threads.Result{}, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	before := withoutID(task.Config)
 	// As a draft gets it: otherwise an unchanged task would differ.

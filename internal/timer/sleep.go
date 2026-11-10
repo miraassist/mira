@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/ha/automation"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/tools"
@@ -249,7 +250,7 @@ func (c *controller) all(ctx context.Context) ([]Timer, error) {
 		Timers []Timer `json:"timers"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	return res.Timers, nil
 }

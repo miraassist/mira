@@ -12,6 +12,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
@@ -109,7 +110,7 @@ func (m *Manager) Assess(ctx context.Context, r Request) (Verdict, error) {
 	}
 	var v Verdict
 	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return Verdict{}, fmt.Errorf("unparseable verdict: %w", err)
+		return Verdict{}, fmt.Errorf("unparseable verdict %q: %w", excerpt.Of(raw), err)
 	}
 	v.Importance = min(max(v.Importance, 0), 3)
 	v.Spoken, v.Details = strings.TrimSpace(v.Spoken), strings.TrimSpace(v.Details)
@@ -174,7 +175,7 @@ func (m *Manager) Decide(ctx context.Context, r Request) (Decision, error) {
 	}
 	var d Decision
 	if err := json.Unmarshal([]byte(raw), &d); err != nil {
-		return Decision{}, fmt.Errorf("unparseable decision: %w", err)
+		return Decision{}, fmt.Errorf("unparseable decision %q: %w", excerpt.Of(raw), err)
 	}
 	d.Reason = strings.TrimSpace(d.Reason)
 	m.log.Info("decided", "task", key, "answer", d.Answer)
