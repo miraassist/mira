@@ -1,6 +1,6 @@
 # Bringing a Wi-Fi device into the Wi-Fi by voice – Spec
 
-Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. A Tasmota bulb taken in end to end 2026-11-10 (step 1); a Shelly is open. Step 5 (a connected Wi-Fi Home Assistant does not run over) built 2026-11-10. Scenarios:
+Status 2026-11-10: steps 2 and 3 built against fakes (not released): NetworkManager and the Supervisor, the four families, the tools and the thread handing over to the found devices; NetworkManager's API checked read-only on a desktop. A Tasmota bulb, a Shelly 1 (Gen1) and a Shelly Plus 1PM Mini (Gen2) taken in end to end 2026-11-10 (step 1); ESPHome and WLED are open. Step 5 (a connected Wi-Fi Home Assistant does not run over) built 2026-11-10. Scenarios:
 [wifi-onboarding.feature](wifi-onboarding.feature).
 
 ## Goal
@@ -24,7 +24,7 @@ The four big families that set up over a Wi-Fi of their own (not Bluetooth, not 
 
 | Family | Its Wi-Fi in setup mode | Address | Handing over the home Wi-Fi | Source |
 |---|---|---|---|---|
-| **Shelly** (Gen1) | open, `shelly<model>-<id>` (e.g. `shellyplug-s-A1B2C3`) | `192.168.33.1` | `GET /settings/sta?enabled=1&ssid=<ssid>&key=<password>` | Shelly's API docs (Gen1); assumption for the exact path until tried |
+| **Shelly** (Gen1) | open, `shelly<model>-<id>` (e.g. `shellyplug-s-A1B2C3`) | `192.168.33.1` | `GET /settings/sta?enabled=1&ssid=<ssid>&key=<password>` | Shelly's API docs (Gen1); checked 2026-11-10 with a Shelly 1 |
 | **Shelly** (Gen2, Gen3, Gen4: Plus, Pro, Mini) | open by default (Gen3 and later can have a password), `Shelly<Model>-<id>` | `192.168.33.1` | `POST /rpc` `{"method":"WiFi.SetConfig","params":{"config":{"sta":{"ssid":…,"pass":…,"enable":true}}}}`; the answer says whether a restart is needed (`restart_required`) | [Shelly Gen2 API, WiFi](https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/WiFi) |
 | **Tasmota** | open, its host name `tasmota-<id>-<nnnn>`, for 3 minutes after the start without a Wi-Fi | `192.168.4.1` | With the broker (decision 3): `GET /cm?cmnd=Backlog SSID1 <ssid>; Password1 <password>; MqttHost <host>; MqttUser <user>; MqttPassword <password>` (the command page answers while the Wi-Fi manager runs: checked 2026-11-10 with Tasmota 10.1.0). Its Wi-Fi manager's form `GET /wi?s1=<ssid>&p1=<password>&save=` takes only the Wi-Fi | Tasmota's source (`xdrv_01_9_webserver.ino`: page `wi`, arguments `s1`, `p1`, `save`; the AP opens with the host name and no passphrase) |
 | **ESPHome** (with `captive_portal`, the default of the ready-made projects) | its fallback hotspot, the name its configuration gives (often "<Name> Fallback Hotspot"), after 1 minute without its Wi-Fi; only open ones (decision 4) | `192.168.4.1` | `GET` or `POST /wifisave?ssid=<ssid>&psk=<password>` | ESPHome's source (`captive_portal.cpp`, `handle_wifisave`, arguments `ssid`, `psk`) |
@@ -155,7 +155,13 @@ runs when nobody asks: no scanning on a schedule (a device in setup mode reports
    open). A real Shelly in setup mode: its Wi-Fi, the hand-over by `WiFi.SetConfig`, its discovery in the test HA; a Tasmota in its Wi-Fi manager: does `/cm` with `Backlog` answer (decision 3).
    2026-11-10, a Tasmota bulb (Tasmota 10.1.0) end to end at the Show: scan 3.7 s, joining its Wi-Fi and the hand-over
    9 s, `/cm` with `Backlog` answers in the Wi-Fi manager (decision 3 holds), the device in Home Assistant (Tasmota
-   over MQTT) 18 s later; the profile deleted, the route on the cable throughout. A Shelly is open.
+   over MQTT) 18 s later; the profile deleted, the route on the cable throughout. A Shelly 1 (Gen1) end to end at the
+   Show: the hand-over by `/settings/sta` 13 s, its discovery 7 s later (the test HA hears the announcement through
+   `testenv/zeroconf_relay.py`, [Found devices](found-devices.md), Testing), confirmed, room and name, its entity ids
+   renamed (`switch.shelly_wohnzimmer`). A Shelly Plus 1PM Mini (Gen2, firmware 1.0.3) reset to the factory: the
+   hand-over by `WiFi.SetConfig` 13 s, "nochmal" after "not discovered" handed it over again (a Shelly of Gen2 keeps
+   its own Wi-Fi open after joining the home Wi-Fi, `ap.enable` true by default), discovered at once, confirmed, room
+   and name, entity ids renamed (`switch.kuhlschrank`).
 2. **The Wi-Fi part** in the service: NetworkManager, the Supervisor, the free interface, the four families, the
    home Wi-Fi and the MQTT broker settings. WL-01 to WL-07 (built 2026-11-10, `internal/wifi`).
 3. **The tools and the thread**, handing over to the found devices (`Await`: the discovered flow of the family's

@@ -37,6 +37,7 @@ var builtSteps = map[string][]int{
 	"HP": {1},                // docs/spec/context.md, 1.2; step 2 is tested in pytest
 	"HU": {1},                // docs/spec/context.md, 1.3; step 2 is tested in pytest
 	"FD": {3, 4},             // docs/spec/found-devices.md, Steps
+	"WA": {3},                // docs/spec/waiting-indicator.md, Steps
 	"WL": {2, 3, 5},          // docs/spec/wifi-onboarding.md, Steps
 	"HC": {1},                // docs/spec/ha-compat.md
 	"FB": {1, 2, 5},          // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest

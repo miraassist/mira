@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"io"
 	"net"
 	"net/http"
@@ -413,7 +414,7 @@ func (s *Supervisor) call(ctx context.Context, method, path string, body any, ou
 		Data   json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &env); err != nil {
-		return err
+		return fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	return json.Unmarshal(env.Data, out)
 }

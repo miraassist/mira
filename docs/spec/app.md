@@ -64,8 +64,10 @@ with the repair from [Versions](versions.md) when the two drift apart.
   repository's contents for it). Only then does Home Assistant see the update.
 - The other three places of the one version (`cmd/mira/main.go`, `const.py`, `manifest.json`) stay as they are: the
   release commit raises them, the workflow refuses a tag that does not match.
-- The integration from HACS and the app from the store are still two updates, but both are offered at the same
-  time, in Home Assistant, with one click each. The repair from [Versions](versions.md) reminds of the second.
+- The integration from HACS and the app from the store are still two updates, each offered when its own checker
+  sees it (HACS refreshing the repository, the Supervisor reloading the store), not necessarily at the same time
+  (seen 2026-11-10: the app first, the integration only after a restart of Home Assistant). The repair from
+  [Versions](versions.md) reminds of the second; the order is in [System](../system.md), Release and updates.
 
 ## Testing
 

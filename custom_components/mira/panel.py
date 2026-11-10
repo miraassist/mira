@@ -51,7 +51,7 @@ PANEL_ICON = "mdi:face-woman-shimmer"
 PAGE = "/api/mira/panel/ui"
 # The agent's page and its files; nothing else goes through the open view.
 PAGE_FILES = re.compile(
-    r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/guide/(de|en)|ui/guide/img/[\w.-]+"
+    r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/videos/[\w-]+\.mp4|ui/guide/(de|en)|ui/guide/img/[\w.-]+"
 )
 API = "v1/ui/"
 # What a user who is no admin may call: their memory, changing a fact, the

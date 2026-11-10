@@ -50,6 +50,12 @@ type Options struct {
 	Assign func(ctx context.Context, thread, ref, name string)
 	// HTTP talks to the device (10 s); Base overrides a family's address
 	// (tests); Addrs are the machine's own addresses (the same-subnet check).
+	// Waiting shows at the thread's satellite that Mira waits for the device
+	// (docs/spec/waiting-indicator.md); nil shows nothing.
+	Waiting interface {
+		Start(ctx context.Context, thread string)
+		Stop(ctx context.Context, thread string)
+	}
 	HTTP     *http.Client
 	Base     func(Family) string
 	Addrs    func() []net.Addr
@@ -289,6 +295,9 @@ func (w *Onboarding) run(ctx context.Context, thread string, f Family, ssid stri
 		w.busy = false
 		w.mu.Unlock()
 	}()
+	if w.o.Waiting != nil {
+		w.o.Waiting.Start(ctx, thread)
+	}
 	joined, err := w.o.Radio.Join(ctx, ssid, f.APPassword)
 	if err != nil {
 		w.log.Error("could not join the device's wifi", "device", ssid, "error", err)
@@ -357,7 +366,11 @@ func (w *Onboarding) step() string {
 	return stepName[i18n.DE]
 }
 
+// ask says what ends the wait, so the wait stops first.
 func (w *Onboarding) ask(ctx context.Context, thread, text string) {
+	if w.o.Waiting != nil {
+		w.o.Waiting.Stop(ctx, thread)
+	}
 	if err := w.o.Ask(ctx, thread, text); err != nil {
 		w.log.Error("could not say the wifi thread's announcement", "thread", thread, "error", err)
 	}

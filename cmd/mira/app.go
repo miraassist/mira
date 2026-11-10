@@ -28,6 +28,7 @@ import (
 	"github.com/miraassist/mira/internal/devices"
 	"github.com/miraassist/mira/internal/ha/assistprompt"
 	"github.com/miraassist/mira/internal/ha/structure"
+	"github.com/miraassist/mira/internal/ha/updates"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/history"
 	"github.com/miraassist/mira/internal/hooks"
@@ -54,6 +55,7 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/voicemail"
+	"github.com/miraassist/mira/internal/waiting"
 	"github.com/miraassist/mira/internal/websearch"
 	"github.com/miraassist/mira/internal/wifi"
 	"github.com/miraassist/mira/internal/zigbee"
@@ -77,6 +79,7 @@ type app struct {
 	zigbee  *zigbee.Pairing
 	found   *devices.Found
 	wifi    *wifi.Onboarding
+	waiting *waiting.Waiting
 	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
 	clip *clip.Player
 	// timers are the sleep timers; set after the connection to Home
@@ -321,6 +324,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Taking devices in by voice: Zigbee (docs/spec/device-onboarding.md)
 	// and what Home Assistant found (docs/spec/found-devices.md).
 	a.devices = a.newDeviceCore()
+	a.waiting = a.newWaiting()
 	a.zigbee = a.newZigbee()
 	a.found = a.newFound()
 	internal = append(internal, a.devices.Tools()...)
@@ -555,6 +559,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			}
 			// So does a Zigbee pairing it opened, and its device.
 			if a.zigbee != nil && th.Target == zigbee.Skill {
+				a.waiting.Stop(ctx, th.ID)
 				a.zigbee.ThreadEnded(ctx, th.ID)
 				a.devices.Release(th.ID)
 				a.found.ThreadEnded(th.ID)
@@ -1211,7 +1216,17 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
 		Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log}).Register(mux)
 	mux.Handle("/", api)
-	return mux
+	// An integration older than this service: ask Home Assistant to look
+	// for its update at once (docs/spec/versions.md, Both updates offered
+	// together).
+	var watch *updates.Watcher
+	if a.ha != nil {
+		watch = &updates.Watcher{Version: version, HA: a.ha, Log: a.log.With("component", "updates")}
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		watch.Seen(r.Context(), r.Header.Get(ui.HeaderIntegration))
+		mux.ServeHTTP(w, r)
+	})
 }
 
 // uiEntities lists the known entities for autocompletion.

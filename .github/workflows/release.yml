@@ -5,7 +5,10 @@ name: Release
 # the image goes to ghcr.io/<owner>/mira (amd64, arm64). Once the image is
 # there, the Home Assistant app (app/config.yaml) gets the version, so Home
 # Assistant never offers an update whose image does not exist yet
-# (docs/spec/app.md).
+# (docs/spec/app.md). The release is a draft until then and is published
+# last, so the integration's update and the app's come out together
+# (docs/spec/versions.md, Both updates offered together); a failed image or
+# app job leaves it a draft, and nothing is offered.
 on:
   push:
     tags: ["v*"]
@@ -57,6 +60,7 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          draft: true
 
   image:
     name: Container image
@@ -111,3 +115,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "App: version $version"
           git push origin main
+      - name: Publish the release, now that the app has its version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"

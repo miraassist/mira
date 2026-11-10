@@ -178,3 +178,15 @@ async def test_proxy_says_the_integrations_version(hass, aioclient_mock, entry, 
     await client.get("/api/mira/panel/ui")
     _, _, _, headers = aioclient_mock.mock_calls[-1]
     assert headers["X-Mira-Integration"] == VERSION
+
+
+async def test_waiting_video_passes_without_login(hass, aioclient_mock, entry, hass_client_no_auth):
+    """A satellite fetches the waiting video (docs/spec/waiting-indicator.md) as it fetches the sounds."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.get(f"{AGENT_URL}/ui/videos/wait-de.mp4", content=b"mp4", headers={"Content-Type": "video/mp4"})
+    client = await hass_client_no_auth()
+    resp = await client.get("/api/mira/panel/ui/videos/wait-de.mp4")
+    assert resp.status == 200
+    assert await resp.read() == b"mp4"
+    resp = await client.get("/api/mira/panel/ui/videos/../v1/status")
+    assert resp.status == 404

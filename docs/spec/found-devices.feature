@@ -81,3 +81,9 @@ Feature: Devices Home Assistant found (docs/spec/found-devices.md)
     When the user answers "Ja"
     Then Mira says Home Assistant's error
     And the log says what failed
+
+  @step4
+  Scenario: FD-13 The entity ids follow the new name
+    Given a new device "Tasmota" with the entity "light.tasmota"
+    When it is taken in and named "Lampe Wohnzimmer"
+    Then its entity is "light.lampe_wohnzimmer"

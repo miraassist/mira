@@ -63,8 +63,8 @@ How it works (built 2026-11-10, from Home Assistant's source; the real run is op
 3. `device_fully_initialized` of a device that joined in this run: a device id Home Assistant had before pairing
    opened is a known device paired again (said with its name and room; decision 14, an assumption until the real run);
    a new one is the thread's device. Pairing is closed (`zha/devices/permit` with `duration: 0`, its subscription
-   ended at once), the facts (manufacturer, model) go into the thread, and the question is asked as for
-   Zigbee2MQTT.
+   ended at once), and the question is asked as for Zigbee2MQTT, the facts (manufacturer, model) going into the
+   thread with it.
 4. The room as for every device; the name: Home Assistant's name of the device (`name_by_user`) and each entity id
    that begins with the device's old name gets the new name there (`config/entity_registry/update` with
    `new_entity_id`, one call per entity), as Home Assistant's rename dialog does (decision 12).
@@ -135,10 +135,13 @@ The skill is not on by itself: a household with Zigbee2MQTT switches it on with 
    `device_id` is the device. The bridge's events and the registry events come over the one connection, in order.
    With the interview successful and the device known, pairing is closed (`permit_join` with `time: 0`): one device
    per dialog. The subscriptions to the events, the info and the registry end.
-4. **The question.** Mira writes the device's facts into the thread (vendor, model, Zigbee2MQTT's description, its
-   values) and ticks the first step. The skill's agent `geraet-einbinden.frage` (one model round, no tools) words the
-   question from the facts ("Ich hab's: … In welchen Raum kommt es?"): the description comes in English from
-   Zigbee2MQTT and is said in the household's language. Mira says it as the thread's question at the satellite where
+4. **The question.** The skill's agent `geraet-einbinden.frage` (one model round, no tools) words the
+   question from the device's facts (vendor, model, Zigbee2MQTT's description, its values); right before the question
+   is asked Mira writes the facts into the thread and ticks the first step. Not earlier: a turn that answers "I am
+   getting to know it" meanwhile would see the device and ask for the room itself, and the room would be asked twice
+   (seen 2026-11-10 with ZHA, the device ready 12 s after joining). Mira's question is the only one ("Ich hab's: …
+   In welchen Raum kommt es?"): the description comes in English from Zigbee2MQTT and is said in the household's
+   language. Mira says it as the thread's question at the satellite where
    the thread began (the notifier, with `start_conversation`), so the answer is a reply to the thread.
 5. **The room.** The answer is a turn of the thread. The model calls `device_assign` with the room's name; Mira
    resolves it among Home Assistant's areas by name, id or alias, sets the device's area and ticks the step. An unknown
@@ -235,5 +238,7 @@ during the announcement is an ordinary interruption of an announcement.
    name, three values exposed), the same sensor paired again (known device). Every row of the state table seen
    again except row 5 and a failed interview; the fake needed no correction.
 6. **ZHA** (decisions 11 to 14), after the found devices: the spec of its signals from Home Assistant's source, the
-   tools on ZHA, the Go tests (built 2026-11-10, DV-12 to DV-17); at the end the real run with the test HA's own
-   adapter (open).
+   tools on ZHA, the Go tests (built 2026-11-10, DV-12 to DV-18); the real run with the test HA's own adapter
+   (2026-11-10, a Sonoff Dongle Plus with an Aqara sensor at the Show: "which network", pairing open and closed, the
+   sensor ready 12 s after joining, room and name, its entity ids renamed; the room was asked twice, DV-18 fixes it;
+   a known device paired again is not tried yet, decision 14 stays an assumption).

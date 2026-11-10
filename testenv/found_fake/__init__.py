@@ -8,11 +8,18 @@ button), `fields` (a step with a key) and `wifi` (a step with the fields `ssid` 
 `password`, as Improv's). Adding it creates one device without an area, with a
 measuring entity and a diagnostic one. `found_fake.add_device` creates a device
 without a flow, as a maker's app would.
+
+`found_fake.zeroconf` hands one real device's Zeroconf announcement to a real
+integration (`domain`), as Home Assistant's zeroconf would: the test HA runs in a
+bridge network on purpose and hears no announcement of the LAN. The script
+`testenv/zeroconf_relay.py` listens on this machine for exactly one device and calls
+it (docs/spec/wifi-onboarding.md, Testing).
 """
 
 from __future__ import annotations
 
 import logging
+from ipaddress import ip_address
 from typing import Any
 
 import voluptuous as vol
@@ -23,6 +30,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, Supp
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import ulid as ulid_util
 
@@ -60,6 +68,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                          call.data.get("model") or "Fake Lamp", call.data.get("entities", "measure"))
         return {"device_id": device.id, "uid": uid}
 
+    async def zeroconf(call: ServiceCall) -> ServiceResponse:
+        stype = call.data.get("type") or "_http._tcp.local."
+        name = call.data["name"]
+        info = ZeroconfServiceInfo(
+            ip_address=ip_address(call.data["host"]), ip_addresses=[ip_address(call.data["host"])],
+            port=call.data.get("port") or 80, hostname=f"{name}.local.", type=stype,
+            name=f"{name}.{stype}", properties=call.data.get("properties") or {},
+        )
+        _LOGGER.info("zeroconf discovery of %s at %s handed to %s", name, call.data["host"], call.data["domain"])
+        result = await hass.config_entries.flow.async_init(call.data["domain"], context={"source": "zeroconf"}, data=info)
+        return {"flow_id": result.get("flow_id"), "type": str(result.get("type")), "reason": result.get("reason")}
+
+    hass.services.async_register(DOMAIN, "zeroconf", zeroconf, schema=vol.Schema({
+        vol.Required("domain"): str, vol.Required("name"): str, vol.Required("host"): str,
+        vol.Optional("port"): int, vol.Optional("type"): str, vol.Optional("properties"): dict}),
+        supports_response=SupportsResponse.ONLY)
     hass.services.async_register(DOMAIN, "discover", discover,
                                  schema=vol.Schema({vol.Required("kind"): vol.In(KINDS), vol.Optional("name"): str}),
                                  supports_response=SupportsResponse.ONLY)

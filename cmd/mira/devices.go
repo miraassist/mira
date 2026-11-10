@@ -15,6 +15,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/waiting"
 	"github.com/miraassist/mira/internal/wifi"
 	"github.com/miraassist/mira/internal/zigbee"
 )
@@ -83,9 +84,38 @@ func (a *app) newDeviceCore() *devices.Core {
 	})
 }
 
+// newWaiting shows at a thread's satellite that Mira waits for a device
+// (docs/spec/waiting-indicator.md).
+func (a *app) newWaiting() *waiting.Waiting {
+	if a.ha == nil {
+		return nil
+	}
+	return waiting.New(waiting.Options{
+		Lang: a.lang, Logger: a.log, HA: a.ha,
+		Device: func(ctx context.Context, thread string) string {
+			th, err := a.store.GetThread(ctx, thread)
+			if err != nil {
+				a.log.Warn("could not read the thread for its satellite; the wait is not shown", "thread", thread, "error", err)
+				return ""
+			}
+			return th.Device
+		},
+		Node:      a.deviceNode,
+		Satellite: func(deviceID string) string { return a.deviceEntity(deviceID, "assist_satellite") },
+		HasAction: func(ctx context.Context, domain, service string) bool {
+			return a.hasAction(ctx, domain, service)
+		},
+		BaseURL: a.haAddress,
+	})
+}
+
 func (a *app) newZigbee() *zigbee.Pairing {
+	var w zigbee.Waiter
+	if a.waiting != nil {
+		w = a.waiting
+	}
 	return zigbee.New(zigbee.Options{
-		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices,
+		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices, Waiting: w,
 		Devices:    func() map[string]haws.Device { return a.structure.Snapshot().Devices },
 		DeviceArea: func() map[string]string { return a.structure.Snapshot().DeviceArea },
 		AreaKeys:   func() map[string]string { return a.structure.Snapshot().AreaKeys },
@@ -141,7 +171,7 @@ func (a *app) newWifi() *wifi.Onboarding {
 	if a.devicesOn() {
 		radio, off = wifi.Detect(a.cfg.HA.URL)
 	}
-	return wifi.New(wifi.Options{
+	o := wifi.Options{
 		Lang: a.lang, Logger: a.log, Radio: radio, Off: off,
 		Home: func() wifi.Home {
 			return wifi.Home{SSID: a.skillSetting("wlan_ssid"), Password: a.skillSetting("wlan_password"),
@@ -153,5 +183,9 @@ func (a *app) newWifi() *wifi.Onboarding {
 		Ask:    func(ctx context.Context, thread, text string) error { return a.threads.Ask(ctx, thread, text) },
 		Await:  a.found.Await,
 		Assign: a.found.Assign,
-	})
+	}
+	if a.waiting != nil {
+		o.Waiting = a.waiting
+	}
+	return wifi.New(o)
 }

@@ -14,6 +14,8 @@ from urllib.parse import quote
 
 import aiohttp
 
+from .const import VERSION
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -102,7 +104,10 @@ class MiraClient:
     def __init__(self, session: aiohttp.ClientSession, url: str, token: str) -> None:
         self._session = session
         self._url = url.rstrip("/")
-        self._headers = {"Authorization": f"Bearer {token}"}
+        # The integration's version with every request: a newer service asks
+        # Home Assistant to look for the integration's update at once
+        # (docs/spec/versions.md, Both updates offered together).
+        self._headers = {"Authorization": f"Bearer {token}", "X-Mira-Integration": VERSION}
 
     async def _request(self, method: str, path: str, timeout: float, **kwargs: Any) -> Any:
         try:

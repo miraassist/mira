@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/miraassist/mira/internal/excerpt"
 	"io"
 	"net/http"
 	"net/url"
@@ -153,7 +154,7 @@ func shellyRPC(ctx context.Context, c *http.Client, base string, h Home) error {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return fmt.Errorf("the device's answer is not understood: %w", err)
+		return fmt.Errorf("the device's answer is not understood %q: %w", excerpt.Bytes(body), err)
 	}
 	if out.Error != nil {
 		return fmt.Errorf("the device refused: %s", out.Error.Message)
@@ -167,7 +168,7 @@ func shellyRPC(ctx context.Context, c *http.Client, base string, h Home) error {
 }
 
 // shellyGen1Settings: Gen1, /settings/sta (shelly-api-docs.shelly.cloud,
-// gen1; the path an assumption until tried).
+// gen1; checked 2026-11-10 with a Shelly 1).
 func shellyGen1Settings(ctx context.Context, c *http.Client, base string, h Home) error {
 	q := url.Values{"enabled": {"1"}, "ssid": {h.SSID}, "key": {h.Password}}
 	_, err := get(ctx, c, base+"/settings/sta?"+q.Encode())

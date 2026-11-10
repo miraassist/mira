@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -207,7 +208,9 @@ func (c *Core) finish(ctx context.Context, inv tools.Invocation) (string, error)
 	// The entity ids begin with the device's name before the rename.
 	old := ""
 	if h.d.RenameEntities && c.o.DeviceName != nil {
-		old = c.o.DeviceName(h.d.ID)
+		if old = c.o.DeviceName(h.d.ID); old == "" {
+			c.log.Warn("the device's entity ids are not renamed: its name before is not known", "device", h.d.ID)
+		}
 	}
 	if err := c.rename(ctx, h.d, name); err != nil {
 		c.log.Error("could not rename the device", "device", h.d.ID, "name", name, "error", err)
@@ -283,7 +286,7 @@ func (c *Core) entries(ctx context.Context, deviceID string) ([]entry, error) {
 		Entity []string `json:"entity"`
 	}
 	if err := json.Unmarshal(raw, &related); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	if len(related.Entity) == 0 {
 		return nil, nil
@@ -294,7 +297,7 @@ func (c *Core) entries(ctx context.Context, deviceID string) ([]entry, error) {
 	}
 	var out map[string]*entry
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	var list []entry
 	for id, e := range out {

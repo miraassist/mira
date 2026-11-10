@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -335,7 +336,7 @@ func (f *Found) readHouse(ctx context.Context) (house, error) {
 	}
 	var list []registry
 	if err := json.Unmarshal(raw, &list); err != nil {
-		return h, err
+		return h, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	for _, d := range list {
 		h.devices[d.ID] = d
@@ -352,7 +353,7 @@ func (f *Found) readHouse(ctx context.Context) (house, error) {
 		} `json:"entities"`
 	}
 	if err := json.Unmarshal(raw, &ents); err != nil {
-		return h, err
+		return h, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	for _, e := range ents.Entities {
 		if e.DeviceID != "" && e.Category == nil && !e.Hidden {
@@ -375,7 +376,7 @@ func (f *Found) ignoreLabel(ctx context.Context, create bool) (string, error) {
 		Name string `json:"name"`
 	}
 	if err := json.Unmarshal(raw, &labels); err != nil {
-		return "", err
+		return "", fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	for _, l := range labels {
 		if l.Name == IgnoreLabel {
@@ -393,7 +394,7 @@ func (f *Found) ignoreLabel(ctx context.Context, create bool) (string, error) {
 		ID string `json:"label_id"`
 	}
 	if err := json.Unmarshal(raw, &l); err != nil {
-		return "", err
+		return "", fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	return l.ID, nil
 }
@@ -695,7 +696,7 @@ func (f *Found) adopt(ctx context.Context, inv tools.Invocation) (string, error)
 		if err != nil {
 			return "", err
 		}
-		f.o.Core.Hold(thread, Device{ID: id})
+		f.o.Core.Hold(thread, Device{ID: id, RenameEntities: true})
 		facts := fmt.Sprintf(t.facts, d.name(), d.Manufacturer, d.Model)
 		f.note(ctx, thread, facts)
 		f.tick(ctx, thread)
@@ -885,7 +886,7 @@ func (f *Found) confirm(ctx context.Context, inv tools.Invocation) (string, erro
 		return t.setUpNoDevice, nil
 	case 1:
 		d := list[0]
-		f.o.Core.Hold(thread, Device{ID: d.ID})
+		f.o.Core.Hold(thread, Device{ID: d.ID, RenameEntities: true})
 		facts := fmt.Sprintf(t.facts, d.name(), d.Manufacturer, d.Model)
 		f.note(ctx, thread, facts)
 		f.tick(ctx, thread)
@@ -915,7 +916,7 @@ func (f *Found) entryDevices(ctx context.Context, entryID string) ([]registry, e
 		}
 		var all []registry
 		if err := json.Unmarshal(raw, &all); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 		}
 		var list []registry
 		for _, d := range all {
@@ -1067,7 +1068,7 @@ func (f *Found) Assign(ctx context.Context, thread, ref, name string) {
 		}
 		return
 	}
-	f.o.Core.Hold(thread, Device{ID: id})
+	f.o.Core.Hold(thread, Device{ID: id, RenameEntities: true})
 	f.mu.Lock()
 	delete(f.pending, ref)
 	f.mu.Unlock()

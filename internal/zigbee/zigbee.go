@@ -21,6 +21,7 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/devices"
+	"github.com/miraassist/mira/internal/excerpt"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/tools"
@@ -75,6 +76,9 @@ type Options struct {
 	// Question writes the question for a device found, from its facts, in
 	// the household's language (one model round, the skill's agent).
 	Question func(ctx context.Context, facts string) (string, error)
+	// Waiting shows at the thread's satellite that Mira waits for the device
+	// (docs/spec/waiting-indicator.md); nil shows nothing.
+	Waiting Waiter
 
 	// Seconds pairing stays open (180); Wait for an answer of Zigbee2MQTT
 	// (10 s); Interview, how long a device that joined in the last moment
@@ -84,6 +88,12 @@ type Options struct {
 	Seconds   int
 	Wait      time.Duration
 	Interview time.Duration
+}
+
+// Waiter shows a wait at a thread's satellite and stops it.
+type Waiter interface {
+	Start(ctx context.Context, thread string)
+	Stop(ctx context.Context, thread string)
 }
 
 // Pairing is the adding of devices, one run per thread.
@@ -256,7 +266,7 @@ func (p *Pairing) debugInfo(ctx context.Context, deviceID string) ([]discovered,
 		} `json:"entities"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	var list []discovered
 	for _, e := range out.Entities {
@@ -453,6 +463,7 @@ func (p *Pairing) start(ctx context.Context, inv tools.Invocation) (string, erro
 	p.runs[thread] = r
 	p.mu.Unlock()
 	p.log.Info("zigbee pairing open", "thread", thread, "seconds", p.o.Seconds, "base", base)
+	p.waitStart(ctx, thread)
 	go func() {
 		defer r.unsubscribe(false)
 		p.watch(runCtx, r)
@@ -635,17 +646,26 @@ func (p *Pairing) found(ctx context.Context, r *run, ieee, deviceID string) {
 	}})
 	p.log.Info("zigbee device found", "thread", r.thread, "ieee", ieee, "device", deviceID, "vendor", def.Vendor, "model", def.Model)
 	facts := fmt.Sprintf(p.t.facts, def.Vendor, def.Model, def.Description, def.values())
-	if err := p.o.Note(ctx, r.thread, facts); err != nil {
-		p.log.Warn("could not note the device in its thread", "thread", r.thread, "error", err)
-	}
-	p.tick(ctx, r.thread, 0)
 	question, err := p.o.Question(ctx, facts)
 	if err != nil || strings.TrimSpace(question) == "" {
 		// docs/spec/device-onboarding.md: the fixed question, with vendor and model.
 		p.log.Warn("could not word the question for the device; asking with vendor and model", "error", err)
 		question = fmt.Sprintf(p.t.found, def.Vendor, def.Model)
 	}
+	p.noteFound(ctx, r.thread, facts)
 	p.say(ctx, r, question)
+}
+
+// noteFound writes the device's facts into the thread and ticks its first
+// step, right before the question is asked: a turn that answers the
+// "getting to know it" meanwhile does not see the device yet and does not ask
+// for the room itself (docs/spec/device-onboarding.md, step 4; with ZHA the
+// device was ready 12 s after joining, 2026-11-10).
+func (p *Pairing) noteFound(ctx context.Context, thread, facts string) {
+	if err := p.o.Note(ctx, thread, facts); err != nil {
+		p.log.Warn("could not note the device in its thread", "thread", thread, "error", err)
+	}
+	p.tick(ctx, thread, 0)
 }
 
 // closePairing ends pairing at Zigbee2MQTT if this run opened it.
@@ -663,8 +683,31 @@ func (p *Pairing) closePairing(ctx context.Context, r *run) {
 }
 
 func (p *Pairing) say(ctx context.Context, r *run, text string) {
+	p.waitDone(ctx, r.thread, text)
 	if err := p.o.Ask(ctx, r.thread, text); err != nil {
 		p.log.Error("could not say the zigbee thread's announcement", "thread", r.thread, "error", err)
+	}
+}
+
+// waitStart shows that Mira waits for the device at the thread's satellite.
+func (p *Pairing) waitStart(ctx context.Context, thread string) {
+	if p.o.Waiting != nil {
+		p.o.Waiting.Start(ctx, thread)
+	}
+}
+
+func (p *Pairing) waitStop(ctx context.Context, thread string) {
+	if p.o.Waiting != nil {
+		p.o.Waiting.Stop(ctx, thread)
+	}
+}
+
+// waitDone ends the wait before Mira says anything that ends it: everything
+// but "I am getting to know it" (the device found or known, nothing joined,
+// a failed interview).
+func (p *Pairing) waitDone(ctx context.Context, thread, text string) {
+	if text != p.t.joining {
+		p.waitStop(ctx, thread)
 	}
 }
 
@@ -706,7 +749,7 @@ func (p *Pairing) entries(ctx context.Context, ids []string) ([]entry, error) {
 	}
 	var out map[string]*entry
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	var list []entry
 	for id, e := range out {
@@ -749,6 +792,7 @@ func (p *Pairing) Claims(deviceID string) bool {
 // ThreadEnded ends the run of a thread that ended (cancelled, expired,
 // done); pairing it opened closes.
 func (p *Pairing) ThreadEnded(ctx context.Context, thread string) {
+	p.waitStop(ctx, thread)
 	p.endRun(ctx, thread)
 	p.endZHA(ctx, thread)
 }

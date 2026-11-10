@@ -26,7 +26,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | 2 | Remembering an ignored device that is in Home Assistant already | A label **"Mira: ignoriert"** on the device in Home Assistant: visible there, removed there to undo it. A device Home Assistant discovered and waits for is ignored with **Home Assistant's own ignore** |
 | 3 | Who may take a device in or ignore it | Anyone at a satellite, as anyone may switch a light ([Adding a Zigbee device](device-onboarding.md), decision 3) |
 | 4 | Which devices | Both kinds: what Home Assistant **discovered** and waits for a yes for, and a **new device without a room** |
-| 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
+| 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`), and its entity ids follow the new name as with ZHA (`light.tasmota` becomes `light.lampe_wohnzimmer`; decided 2026-11-10 after the Tasmota run); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
 | 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
 | 7 | The room of a Bluetooth device | Asked, as for every device; no proposal from the Bluetooth proxies' signal (decided 2026-11-10) |
 | 8 | A step that asks for the Wi-Fi | A step whose only fields are the Wi-Fi's name and password (a Bluetooth set-up: Improv, a Shelly) is filled from the home Wi-Fi Mira keeps (the skill's settings `wlan_ssid` and `wlan_password`; [Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi) and submitted after the user's yes; the one exception to "a step with fields stays in Home Assistant" (decided 2026-11-10) |
@@ -98,7 +98,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | `device_adopt` (item) | Starts the thread of `geraet-einbinden` at the turn's place (or takes the open one) with the plan. A **device**: notes its facts, ticks the first step, returns "ask for the room". A **discovered flow**: reads its current step (`GET /api/config/config_entries/flow/<flow_id>`) and the step's text in the household's language (`frontend/get_translations`, category `config`, the integration; once per domain); a step without fields is submitted after the user's yes (below); a step that asks only for the Wi-Fi (decision 8) is filled from the home Wi-Fi after the yes, without the password in the tool's result; any other step with fields is returned as "only in Home Assistant", with where | One or two REST calls, one translation fetch per domain; the turn waits for them (well under a second) |
 | `device_confirm` | For a discovered flow: submits its current step without fields (`POST …/flow/<flow_id>` with `{}`). The next step: another without fields is returned with its text (the model says it, "press the button on the bridge", and waits for "erledigt"); a step that asks only for the Wi-Fi is filled (decision 8); another step with fields as "only in Home Assistant"; an error of the step (`errors`, "the button was not pressed") is said, the step stays; `create_entry` ends the flow: Mira waits up to 10 s for the devices the entry brings (registry `create` events; a signal, the time a safety net). One device: it is the thread's device, the room is next. Several: Mira says how many and that they are in the list; the thread is done. None (an integration without devices): done | One POST, then the wait |
 | `device_assign` (room) | As in the Zigbee dialog: the area of the thread's device | One device registry update |
-| `device_finish` (name) | As in the Zigbee dialog: exposes, then names. A device of Zigbee2MQTT is renamed there; any other gets `name_by_user` (`config/device_registry/update`), its entity ids stay | Like the Zigbee dialog's; for others one update instead of the publish |
+| `device_finish` (name) | As in the Zigbee dialog: exposes, then names. A device of Zigbee2MQTT is renamed there; any other gets `name_by_user` (`config/device_registry/update`), and each entity id that begins with the device's name before gets the new name instead (`config/entity_registry/update` with `new_entity_id`, as Home Assistant's own rename of a device offers; the name before unknown: a log line, the ids stay) | Like the Zigbee dialog's; for others one update instead of the publish, plus one read of the device's entities and one update per entity that is renamed |
 | `device_ignore` (item) | A **discovered flow**: `config_entries/ignore_flow` with its title. A **device**: the label "Mira: ignoriert" (created in the label registry the first time, `config/label_registry/create`), added to the device's labels (`config/device_registry/update`). Ends the thread if it was the thread's | One or two calls |
 
 ### When a step fails
@@ -151,6 +151,14 @@ during the message is an ordinary interruption of a message.
 - **A Wi-Fi step**: the fake discovery gets a fourth kind, a step with the fields `ssid` and `password`, as Improv's.
   Which field names count as the Wi-Fi's is checked against Home Assistant's Improv and Shelly flows (assumption until
   then: Improv's step `provision` with `ssid` and `password`).
+- **A real device's Zeroconf announcement** (2026-11-10): the test HA runs in a bridge network and hears no
+  announcement of the LAN, on purpose (it would find the whole house). `found_fake.zeroconf` hands one announcement
+  to a real integration (`domain`, `name`, `host`, `port`, `type`), as Home Assistant's zeroconf would;
+  `testenv/zeroconf_relay.py` listens on the machine (`avahi-browse`, pushed, no polling) for exactly the one device a
+  test names (a part of its name, its MAC) and calls it once when the device announces itself in the home network:
+  only on the interface of the default route (joined to the device's own Wi-Fi, the machine hears it there too), and
+  not what avahi had cached before the start (a device reset since stays there until its record expires). For the Wi-Fi hand-over of a Shelly
+  ([Wi-Fi onboarding](wifi-onboarding.md)).
 - **The real run**: a device of another kind at the live house, with the maintainer (a Bluetooth sensor, a Shelly, a
   lamp from the Hue app).
 
@@ -161,7 +169,7 @@ during the message is an ordinary interruption of a message.
 3. **Noticing** in the service: the subscription, the gathering, the count rules, the said marks, the message.
    FD-01 to FD-05.
 4. **The tools and the skill**: `devices_found`, `device_adopt`, `device_confirm`, `device_ignore`; `device_assign`
-   and `device_finish` for any device; the skill's text. FD-06 to FD-12. End to end at the fake Show.
+   and `device_finish` for any device; the skill's text. FD-06 to FD-13. End to end at the fake Show.
 5. **The real run** and the guide.
 
 ## Later

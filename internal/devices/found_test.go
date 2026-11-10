@@ -38,6 +38,7 @@ type fakeHA struct {
 	ignored   map[string]string
 	updates   []map[string]any
 	exposed   []string
+	renamed   []string // old->new entity ids
 	refuse    map[string]error
 	// onSubmit creates the entry's devices, as Home Assistant does before it
 	// answers.
@@ -118,6 +119,9 @@ func (f *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 			out[id] = e
 		}
 		return json.Marshal(out)
+	case "config/entity_registry/update":
+		f.renamed = append(f.renamed, cmd["entity_id"].(string)+"->"+cmd["new_entity_id"].(string))
+		return json.RawMessage(`{}`), nil
 	case "homeassistant/expose_entity":
 		f.exposed = append(f.exposed, cmd["entity_ids"].([]string)...)
 		return json.RawMessage(`null`), nil
@@ -276,7 +280,15 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 	thread := func(context.Context, tools.Invocation) string { return foundThread }
 	e.core = NewCore(CoreOptions{Lang: i18n.DE, Logger: logger, HA: ha,
 		AreaKeys: func() map[string]string { return map[string]string{"küche": "kueche"} },
-		AreaName: func(string) string { return "Küche" }, Thread: thread, Tick: tick, End: end})
+		AreaName: func(string) string { return "Küche" }, Thread: thread, Tick: tick, End: end,
+		DeviceName: func(id string) string {
+			ha.mu.Lock()
+			defer ha.mu.Unlock()
+			if d := ha.devices[id]; d != nil {
+				return d.Name
+			}
+			return ""
+		}})
 	e.f = NewFound(FoundOptions{Lang: i18n.DE, Logger: logger, HA: ha, Core: e.core, KV: kv,
 		Post: func(_ context.Context, spoken, details string) error {
 			e.posts <- [2]string{spoken, details}
@@ -633,4 +645,22 @@ func TestFoundTextsComplete(t *testing.T) {
 			t.Errorf("%s: texts missing", lang)
 		}
 	}
+}
+
+func TestFD13_TheEntityIdsFollowTheNewName(t *testing.T) {
+	e := newFoundEnv(t, nil, nil)
+	e.ha.addDevice("tasmota", "Tasmota", "e1", true)
+	e.post(t)
+	e.run(t, ToolAdopt, `{"item":"device:tasmota"}`)
+	e.run(t, ToolAssign, `{"room":"Küche"}`)
+	if out := e.run(t, ToolFinish, `{"name":"Lampe Küche"}`); !strings.Contains(out, "Lampe Küche") {
+		t.Fatalf("finish = %q", out)
+	}
+	e.ha.locked(func() {
+		slices.Sort(e.ha.renamed)
+		want := "sensor.tasmota_signal->sensor.lampe_kuche_signal,sensor.tasmota_temperature->sensor.lampe_kuche_temperature"
+		if got := strings.Join(e.ha.renamed, ","); got != want {
+			t.Errorf("renamed = %s, want %s", got, want)
+		}
+	})
 }

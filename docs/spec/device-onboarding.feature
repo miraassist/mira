@@ -116,3 +116,10 @@ Feature: DV Adding a Zigbee device by voice
     Given pairing is open on ZHA
     When the thread is cancelled
     Then Mira permits for 0 seconds
+
+  @step6
+  Scenario: DV-18 The device's facts reach the thread with the question
+    Given a device joined and Mira said she is getting to know it
+    When the device is ready
+    Then the thread holds no facts of it while the question is worded
+    And the facts go into the thread right before the question is asked

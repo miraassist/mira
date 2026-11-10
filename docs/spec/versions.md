@@ -55,6 +55,56 @@ fine.
 The repair does not prevent anything; the rule above keeps the two working while they are apart, the repair says
 how to end it.
 
+## Both updates offered together (decided 2026-11-10, built 2026-11-10, not released)
+
+**Goal:** the user sees the update of the integration and of the HA app at the same time, installs both and restarts
+Home Assistant once. Seen 2026-11-10: a user updated the app, the repair said the integration was older, and its
+update was offered only after a restart of Home Assistant; then a second restart.
+
+**Why it happens** (Home Assistant 2026.11, `homeassistant/components/marketplace/base.py`): the marketplace checks
+installed custom repositories every 48 hours and at every start of Home Assistant (with a GitHub account connected;
+without one not at all on a schedule). The Supervisor reloads the app store on its own schedule. The release itself
+adds a gap: the GitHub release (the integration) is out minutes before the app's version follows the image
+([System](../system.md), Release and updates).
+
+**What changes:**
+
+1. **The release comes out last.** The release job makes the GitHub release as a draft; the app job, after the image
+   and the app's version, publishes it. Integration and app become visible in the same minute. (A draft is not seen
+   by the marketplace: assumption, checked at the first release with it.) If the image or the app job fails, the
+   release stays a draft: nothing is offered, the workflow's run shows why.
+2. **Mira asks the marketplace to look again.** When the integration is older than the service (by major or minor,
+   as the repair), the Mira service calls `marketplace/repository/refresh` for its repository (the id from
+   `marketplace/repositories/list`, the entry with `full_name` `miraassist/mira`), once per version of the service,
+   with the owner's token (the command is for admins). Before Home Assistant 2026.11, HACS has the same:
+   `hacs/repositories/list` and `hacs/repository/refresh` (admin, `update_repository(force=True)`, then its update
+   entity; HACS's source, `websocket/repository.py`; its schedule is the same 48 hours): Mira asks the marketplace
+   first and HACS when Home Assistant does not know the marketplace's command. The update of the integration then
+   shows within seconds, without a restart. Cost: two websocket calls, once per update and start of the service; the list is the whole catalog of integrations
+   (some 5,000 entries on the test HA), read once. Fails (neither command, not
+   an admin, GitHub's rate limit): a log line `could not ask for the integration's update` with the error; the repair
+   stays as it is and the update comes at the next check.
+3. **The other way round** (the integration newer than the service: the app's update not offered yet): the
+   integration asks the Supervisor to reload the store (`store.reload()` of Home Assistant's Supervisor client,
+   `POST /store/reload`), once per start of the integration, only on Home Assistant OS. Fails: a log line `Could not
+   ask the Supervisor for the app's update` with the error; the update comes at the Supervisor's next check. Not
+   tried yet (row 3).
+
+Built: the release workflow (draft, published by the app job), `internal/ha/updates` (the service, on every request
+with `X-Mira-Integration`), the integration's header with every request and the store reload in its coordinator.
+Tests: `internal/ha/updates` (the marketplace, HACS, neither, the same version), `tests/ha/test_versions.py` (the
+header, the reload once, no reload without Home Assistant OS).
+
+**How the service learns the integration's version:** the integration sends `X-Mira-Integration` with every request
+to the service (today only through the panel proxy); an older integration sends none, then nothing is asked.
+
+| # | Transition | Trigger | Signal | Checked on the test HA |
+|---|---|---|---|---|
+| 1 | The marketplace looks at the repository again | `marketplace/repository/refresh` with the repository's id, admin token | the answer `success` (2.4 s); the update entity follows the repository's new version | 2026-11-10: the command answers; that it finds a *new* release is seen only at the next release |
+| 1b | HACS looks at the repository again (before 2026.11) | `hacs/repository/refresh` | as row 1 | not tried: the test HA runs 2026.11 (from HACS's source) |
+| 2 | A draft release is not offered | the release job with `draft: true` | the update entity keeps the old latest version | open, at the next release |
+| 3 | The Supervisor reloads the store | `POST /store/reload` | the app's update entity shows the new version | open (the test HA has no Supervisor) |
+
 ## Scenarios
 
 - **VE-01** A newer integration sends a person field the agent does not know: the sync goes through, the field is

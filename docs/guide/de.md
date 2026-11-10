@@ -670,7 +670,11 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ▶ [Ein Temperatursensor kommt per Sprache ins Haus: koppeln, Raum, Name](https://youtu.be/K1LEZiy7XTM)
 
-Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach dem Raum, schlägt einen Namen vor und gibt ihre Werte für Sprache frei, sodass du sie gleich steuern oder abfragen kannst. Das geht auf drei Wegen.
+▶ [Ein Shelly kommt per Sprache ins WLAN: übergeben, Raum, Name](https://youtu.be/SyKFBLzfPkY)
+
+Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach dem Raum, schlägt einen Namen vor und gibt ihre Werte für Sprache frei, sodass du sie gleich steuern oder abfragen kannst. Der Name gilt auch für die Entitäten in Home Assistant: Aus `switch.shelly1pmmini_348518e056a8` wird `switch.kuhlschrank`. Das geht auf drei Wegen.
+
+**Während Mira wartet**, bis ein Gerät da ist, zeigt ihr Satellit das an: Auf einem Echo Show läuft ein türkiser Ring in einer Minute ab, darunter „Ich warte auf dein Gerät …“; auf einem Echo läuft der Lichtring türkis ab, ohne Ton. Ist die Minute um und Mira wartet noch, beginnt er von vorn. Er hört auf, sobald Mira sich meldet oder du „abbrechen“ sagst. Spricht Mira oder sagst du das Aktivierungswort, hält der Ring an und läuft danach weiter.
 
 ### Zigbee-Geräte
 
@@ -692,8 +696,13 @@ Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Ne
 
 ### WLAN-Geräte
 
-„Ich hab einen neuen Shelly.“ Ein neues WLAN-Gerät öffnet zum Einrichten ein eigenes WLAN. Mira sucht danach mit dem WLAN ihres Rechners, gibt dem Gerät dein WLAN und meldet sich, sobald es in deinem Netz ist: „Shelly Plus 1 ist jetzt im WLAN. Soll ich es einbinden?“ Das geht mit Shelly, Tasmota, WLED und ESPHome-Geräten mit offenem Einrichtungs-WLAN. Geräte, die nur über die App ihres Herstellers eingerichtet werden (Tuya, Smart Life, Meross und ähnliche), gehen damit nicht.
+„Ich hab einen neuen Shelly.“ Ein neues WLAN-Gerät öffnet zum Einrichten ein eigenes WLAN. Mira sucht danach mit dem WLAN ihres Rechners, gibt dem Gerät dein WLAN und meldet sich, sobald es in deinem Netz ist: „Shelly Plus 1 ist jetzt im WLAN. Soll ich es einbinden?“ Dann geht es mit Raum und Name weiter wie bei jedem Gerät.
 
+![Am Echo Show: Mira holt einen Shelly ins WLAN, der Ring zeigt, dass sie wartet, danach hat das Gerät Raum und Namen](img/geraet-wlan-de.png)
+
+- **Damit geht es:** Shelly (alle Generationen), Tasmota, WLED und ESPHome-Geräte mit offenem Einrichtungs-WLAN. Ausprobiert sind Shelly und Tasmota.
+- **Damit nicht:** Geräte, die nur über die App ihres Herstellers eingerichtet werden (Tuya, Smart Life, Meross und ähnliche). Ist ein Gerät schon in deinem WLAN, findet Home Assistant es selbst, und Mira meldet es dir wie oben.
+- **Nicht im Einrichtungsmodus?** Mira sagt dir, wie du ihn startest: Ein neuer Shelly ist es schon, sonst den Knopf 10 Sekunden halten; ein frisches Tasmota drei Minuten nach dem Einstecken.
 - Dafür braucht Miras Rechner **WLAN und Kabel**: Er hängt per Kabel im Netz, sein WLAN darf frei oder verbunden sein. Mira leiht sich das WLAN für die Minute der Übergabe; danach verbindet sich der Rechner wieder wie vorher. Hängt der Rechner nur am WLAN, geht es nicht.
 - Mira sagt dein WLAN-Passwort nie und gibt es nur an das Gerät weiter, das du einbindest.
 - Tasmota findet Home Assistant über MQTT; dafür braucht Mira auch den MQTT-Broker.
@@ -707,7 +716,13 @@ skills:
   geraet-einbinden:
     wlan_ssid: MeinWLAN
     wlan_password: ${WLAN_PASSWORD}
+    # nur für Tasmota:
+    mqtt_host: 192.168.1.10
+    mqtt_user: mqtt
+    mqtt_password: ${MQTT_PASSWORD}
 ```
+
+Auf einem Echo Show schaltet Mira für den Ring die Video-Wiedergabe ein, wenn sie aus ist („Video“ beim Gerät in Home Assistant).
 
 Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und das Recht, Netzwerke zu verwalten: Als `root` (Standard des Containers) hat Mira es; läuft sie als anderer Benutzer, braucht dieser eine polkit-Regel für die Aktionen `org.freedesktop.NetworkManager.*` (die Gruppe `netdev` reicht unter Ubuntu nicht). Ohne das gehen die anderen beiden Wege trotzdem.
 
@@ -1067,6 +1082,35 @@ Und sonst:
 **Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der das Koppeln abschließt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code. Setze Miras Daten dann zurück (siehe oben) und richte sie neu ein.
 
 Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstellungen) gibt es die Datei `mira.yaml`, siehe [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). Was du in der Integration einstellst, gilt vor der Datei.
+
+### Mira aktualisieren
+
+Mira besteht aus zwei Teilen, die beide aus demselben Release kommen: der **Integration** in Home Assistant und dem **Mira-Service** (die App oder dein Container). Beide haben dieselbe Version.
+
+- **Integration und App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; sonst hilft ein Neustart von Home Assistant.
+- **Eigener Container:** `docker pull ghcr.io/miraassist/mira` und den Container mit demselben `docker run` neu anlegen (bei Compose: `docker compose pull && docker compose up -d`). Deine Daten liegen im Volume und bleiben.
+- **Bis beide gleich sind**, steht unter Einstellungen → Reparaturen, welcher Teil älter ist. Mira arbeitet in der Zeit weiter.
+
+**Updates für den Container in Home Assistant sehen:** [What's Up Docker (WUD)](https://getwud.github.io/wud/) beobachtet deine Container und meldet neue Versionen. Mit seinem MQTT-Auslöser erscheint ein Update für Mira unter Einstellungen → Updates wie bei der App. Neben Mira, auf demselben Rechner:
+
+```yaml
+services:
+  wud:
+    image: getwud/wud
+    container_name: wud
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WUD_TRIGGER_MQTT_HA_URL=mqtt://<dein-broker>:1883
+      - WUD_TRIGGER_MQTT_HA_USER=<benutzer>
+      - WUD_TRIGGER_MQTT_HA_PASSWORD=<passwort>
+      - WUD_TRIGGER_MQTT_HA_HASS_ENABLED=true
+```
+
+Mira selbst bekommt das Label `wud.watch.digest=true` (beim `docker run`: `--label wud.watch.digest=true`), weil ihr Image ohne Versionsnummer läuft. WUD vergleicht dann das Image und meldet, wenn es ein neues gibt. Alles Weitere, auch das Aktualisieren aus WUD heraus, steht in der Anleitung von WUD.
 
 ### Backup und Wiederherstellen
 

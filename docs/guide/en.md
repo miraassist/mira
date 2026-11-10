@@ -658,7 +658,11 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ▶ [A temperature sensor joins the house by voice: pairing, room, name](https://youtu.be/K1LEZiy7XTM)
 
-Mira adds new devices by voice: she brings them into the network, asks for the room, proposes a name and exposes their values to voice, so you can control them or ask about them right away. There are three ways.
+▶ [A Shelly joins the Wi-Fi by voice: hand-over, room, name](https://youtu.be/SyKFBLzfPkY)
+
+Mira adds new devices by voice: she brings them into the network, asks for the room, proposes a name and exposes their values to voice, so you can control them or ask about them right away. The name goes for the entities in Home Assistant too: `switch.shelly1pmmini_348518e056a8` becomes `switch.fridge`. There are three ways.
+
+**While Mira waits** for a device to be there, her satellite shows it: on an Echo Show a turquoise ring runs down in a minute, with "Waiting for your device …" under it; on an Echo the light ring runs down in turquoise, without a sound. When the minute is over and Mira still waits, it starts again. It stops as soon as Mira speaks up or you say "cancel". When Mira speaks or you say the wake word, the ring pauses and goes on afterwards.
 
 ### Zigbee devices
 
@@ -680,8 +684,13 @@ Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a
 
 ### Wi-Fi devices
 
-"I have a new Shelly." A new Wi-Fi device opens a Wi-Fi of its own for its setup. Mira looks for it with the Wi-Fi of her machine, gives the device your Wi-Fi and speaks up once it is in your network: "Shelly Plus 1 is in the Wi-Fi now. Shall I add it?" This works with Shelly, Tasmota, WLED and ESPHome devices with an open setup Wi-Fi. Devices set up only through their maker's app (Tuya, Smart Life, Meross and the like) do not work this way.
+"I have a new Shelly." A new Wi-Fi device opens a Wi-Fi of its own for its setup. Mira looks for it with the Wi-Fi of her machine, gives the device your Wi-Fi and speaks up once it is in your network: "Shelly Plus 1 is in the Wi-Fi now. Shall I add it?" Then the room and the name follow as for every device.
 
+![Mira's waiting ring on an Echo Show: "Waiting for your device …"](img/geraet-wlan-en.png)
+
+- **Works with:** Shelly (all generations), Tasmota, WLED and ESPHome devices with an open setup Wi-Fi. Tried are Shelly and Tasmota.
+- **Not with:** devices set up only through their maker's app (Tuya, Smart Life, Meross and the like). A device already in your Wi-Fi is found by Home Assistant itself, and Mira tells you as above.
+- **Not in setup mode?** Mira tells you how to start it: a new Shelly is in it already, else hold its button for 10 seconds; a fresh Tasmota for three minutes after plugging it in.
 - Mira's machine needs **Wi-Fi and a cable** for it: it is in the network by cable, and its Wi-Fi may be free or connected. Mira borrows the Wi-Fi for the minute of the hand-over; afterwards the machine connects again as before. When the machine is in the network by Wi-Fi only, it does not work.
 - Mira never says your Wi-Fi password and gives it only to the device you are adding.
 - Home Assistant finds Tasmota over MQTT; for it Mira needs the MQTT broker too.
@@ -695,7 +704,13 @@ skills:
   geraet-einbinden:
     wlan_ssid: MyWiFi
     wlan_password: ${WLAN_PASSWORD}
+    # Tasmota only:
+    mqtt_host: 192.168.1.10
+    mqtt_user: mqtt
+    mqtt_password: ${MQTT_PASSWORD}
 ```
+
+On an Echo Show Mira switches video playback on for the ring when it is off ("Video" at the device in Home Assistant).
 
 When Mira runs as a container, for Wi-Fi devices she needs the machine's network and access to its NetworkManager: `network_mode: host`, the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` and the right to manage networks: as `root` (the container's default) Mira has it; running as another user, that user needs a polkit rule for the actions `org.freedesktop.NetworkManager.*` (the group `netdev` is not enough on Ubuntu). Without it the other two ways still work.
 
@@ -1043,6 +1058,35 @@ Otherwise:
 **Security while setting up:** A new Mira pairs with the first Home Assistant that completes pairing, without a code. So set it up in your own home network, not in a guest or shared network. Had someone beaten you to it, you would notice at once: your dialog would ask for a code. Reset Mira's data then (see above) and set it up anew.
 
 For advanced setups (several models, more MCP servers, skills with settings) there is the file `mira.yaml`; see [mira.example.yaml](https://github.com/miraassist/mira/blob/main/mira.example.yaml). What you set in the integration wins over the file.
+
+### Updating Mira
+
+Mira has two parts, both from the same release: the **integration** in Home Assistant and the **Mira service** (the app or your container). Both carry the same version.
+
+- **Integration and app:** Settings → Updates shows both. Update the integration first, then the app (it restarts itself), then restart Home Assistant once. If one of the two is not offered yet, Mira makes Home Assistant look again at once; otherwise a restart of Home Assistant helps.
+- **Your own container:** `docker pull ghcr.io/miraassist/mira` and create the container again with the same `docker run` (with Compose: `docker compose pull && docker compose up -d`). Your data is in the volume and stays.
+- **Until both match**, Settings → Repairs says which part is older. Mira keeps working meanwhile.
+
+**Seeing the container's updates in Home Assistant:** [What's Up Docker (WUD)](https://getwud.github.io/wud/) watches your containers and reports new versions. With its MQTT trigger an update for Mira shows under Settings → Updates like the app's. Next to Mira, on the same machine:
+
+```yaml
+services:
+  wud:
+    image: getwud/wud
+    container_name: wud
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WUD_TRIGGER_MQTT_HA_URL=mqtt://<your-broker>:1883
+      - WUD_TRIGGER_MQTT_HA_USER=<user>
+      - WUD_TRIGGER_MQTT_HA_PASSWORD=<password>
+      - WUD_TRIGGER_MQTT_HA_HASS_ENABLED=true
+```
+
+Mira herself gets the label `wud.watch.digest=true` (with `docker run`: `--label wud.watch.digest=true`), as her image runs without a version number. WUD then compares the image and reports when there is a new one. Everything else, updating from WUD too, is in WUD's documentation.
 
 ### Backup and restore
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/devices"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -66,7 +67,7 @@ func (p *Pairing) zhaLoaded(ctx context.Context) (bool, error) {
 		State string `json:"state"`
 	}
 	if err := json.Unmarshal(raw, &entries); err != nil {
-		return false, err
+		return false, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	for _, e := range entries {
 		if e.State == "loaded" {
@@ -107,6 +108,7 @@ func (p *Pairing) startZHA(ctx context.Context, inv tools.Invocation) (string, e
 	p.zruns[thread] = r
 	p.mu.Unlock()
 	p.log.Info("zigbee pairing open", "thread", thread, "seconds", p.o.Seconds, "network", "zha")
+	p.waitStart(ctx, thread)
 	go func() {
 		defer cancel()
 		p.watchZHA(runCtx, r)
@@ -194,15 +196,12 @@ func (p *Pairing) zhaMessage(ctx context.Context, r *zhaRun, m zhaMessage) bool 
 		// ids follow (decision 12).
 		p.o.Core.Hold(r.thread, devices.Device{ID: info.DeviceRegID, RenameEntities: true})
 		facts := fmt.Sprintf(p.t.zhaFacts, info.Manufacturer, info.Model)
-		if err := p.o.Note(ctx, r.thread, facts); err != nil {
-			p.log.Warn("could not note the device in its thread", "thread", r.thread, "error", err)
-		}
-		p.tick(ctx, r.thread, 0)
 		question, err := p.o.Question(ctx, facts)
 		if err != nil || strings.TrimSpace(question) == "" {
 			p.log.Warn("could not word the question for the device; asking with vendor and model", "error", err)
 			question = fmt.Sprintf(p.t.found, info.Manufacturer, info.Model)
 		}
+		p.noteFound(ctx, r.thread, facts)
 		p.sayTo(ctx, r.thread, question)
 		return true
 	}
@@ -228,6 +227,7 @@ func (p *Pairing) closeZHA(ctx context.Context, r *zhaRun) {
 }
 
 func (p *Pairing) sayTo(ctx context.Context, thread, text string) {
+	p.waitDone(ctx, thread, text)
 	if err := p.o.Ask(ctx, thread, text); err != nil {
 		p.log.Error("could not say the zigbee thread's announcement", "thread", thread, "error", err)
 	}

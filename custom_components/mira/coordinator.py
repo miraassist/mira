@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.hassio import is_hassio
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .access import owner, renew_access, token_state
@@ -66,6 +67,8 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._synced = False
         # From /v1/health at setup; a newer agent says it in /v1/status too.
         self.agent_version = agent_version
+        # The Supervisor was asked once to look for the app's update.
+        self._store_reloaded = False
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -124,6 +127,28 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             translation_key="version_agent_older" if theirs < ours else "version_agent_newer",
             translation_placeholders={"integration": VERSION, "agent": str(agent).lstrip("v")},
         )
+        if theirs < ours:
+            self._ask_for_the_app_update()
+
+    def _ask_for_the_app_update(self) -> None:
+        """On Home Assistant OS, the Supervisor reloads its app store once, so
+        the HA app's update shows now and not at its next check
+        (docs/spec/versions.md, Both updates offered together)."""
+        if self._store_reloaded or not is_hassio(self.hass):
+            return
+        self._store_reloaded = True
+        self.hass.async_create_task(self._reload_store())
+
+    async def _reload_store(self) -> None:
+        # Imported here: the Supervisor exists only on Home Assistant OS.
+        from homeassistant.components.hassio import get_supervisor_client
+
+        try:
+            await get_supervisor_client(self.hass).store.reload()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Could not ask the Supervisor for the app's update (%s); it comes at its next check", err)
+            return
+        _LOGGER.info("Asked the Supervisor to look for the app's update (integration %s)", VERSION)
 
     def _show_problems(self, problems: list[dict[str, Any]]) -> None:
         """What did not start at the agent (a skill with a wrong setting, an

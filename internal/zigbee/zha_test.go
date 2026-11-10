@@ -145,3 +145,44 @@ func TestDV17_CancellingClosesZHAPairing(t *testing.T) {
 		t.Fatalf("permits = %v, want pairing closed", got)
 	}
 }
+
+func TestDV18_TheDevicesFactsReachTheThreadWithTheQuestion(t *testing.T) {
+	// ZHA
+	e := zhaEnv(t)
+	notesWhileWording := -1
+	e.p.o.Question = func(_ context.Context, facts string) (string, error) {
+		e.mu.Lock()
+		notesWhileWording = len(e.notes)
+		e.mu.Unlock()
+		return "Ich hab's: " + facts, nil
+	}
+	e.run(t, ToolStart, `{}`)
+	e.mu.Lock()
+	e.devices["zha-dev"] = haws.Device{ID: "zha-dev", Name: "LUMI lumi.weather"}
+	e.mu.Unlock()
+	e.zhaJoin(t, "zha-dev")
+	e.said(t) // getting to know it
+	e.said(t) // the question
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if notesWhileWording != 0 || len(e.notes) != 1 {
+		t.Errorf("ZHA: notes while the question was worded = %d, after = %d; want 0 and 1", notesWhileWording, len(e.notes))
+	}
+}
+
+func TestDV18_TheDevicesFactsReachTheThreadWithTheQuestionZ2M(t *testing.T) {
+	e := newEnv(t)
+	notesWhileWording := -1
+	e.p.o.Question = func(_ context.Context, facts string) (string, error) {
+		e.mu.Lock()
+		notesWhileWording = len(e.notes)
+		e.mu.Unlock()
+		return "Ich hab's: " + facts, nil
+	}
+	e.pairNew(t)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if notesWhileWording != 0 || len(e.notes) != 1 {
+		t.Errorf("Zigbee2MQTT: notes while the question was worded = %d, after = %d; want 0 and 1", notesWhileWording, len(e.notes))
+	}
+}

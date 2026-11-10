@@ -29,3 +29,28 @@ add_device:
     entities:
       selector:
         text:
+zeroconf:
+  fields:
+    domain:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    host:
+      required: true
+      selector:
+        text:
+    port:
+      selector:
+        number:
+          min: 1
+          max: 65535
+    type:
+      selector:
+        text:
+    properties:
+      selector:
+        object:

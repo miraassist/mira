@@ -32,6 +32,7 @@ import (
 	"github.com/miraassist/mira/internal/memfile"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/waiting"
 )
 
 //go:embed index.html
@@ -144,6 +145,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui/guide/img/{name}", h.guideFile)
 	h.mux.HandleFunc("GET /ui/js/{name}", h.script)
 	h.mux.HandleFunc("GET /ui/sounds/{name}", h.sound)
+	h.mux.HandleFunc("GET /ui/videos/{name}", h.video)
 	h.mux.HandleFunc("GET /ui/", h.page)
 	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
 	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
@@ -254,6 +256,20 @@ func (h *Handler) sound(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Cache-Control", "max-age=86400")
 	http.ServeContent(w, r, name+".mp3", time.Time{}, bytes.NewReader(data))
+}
+
+// video serves the waiting videos to the satellites
+// (docs/spec/waiting-indicator.md), as the sounds.
+func (h *Handler) video(w http.ResponseWriter, r *http.Request) {
+	name, ok := strings.CutSuffix(r.PathValue("name"), ".mp4")
+	data, found := waiting.Video(name)
+	if !ok || !found {
+		writeError(w, http.StatusNotFound, "no such video")
+		return
+	}
+	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	http.ServeContent(w, r, name+".mp4", time.Time{}, bytes.NewReader(data))
 }
 
 func (h *Handler) icon(w http.ResponseWriter, _ *http.Request) {
