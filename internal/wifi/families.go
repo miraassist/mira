@@ -175,8 +175,8 @@ func shellyGen1Settings(ctx context.Context, c *http.Client, base string, h Home
 }
 
 // tasmotaBacklog: the Wi-Fi and the MQTT broker in one command (Tasmota's
-// command page; that it answers while the Wi-Fi manager runs is an
-// assumption until tried, docs/spec/wifi-onboarding.md, step 1).
+// command page; it answers while the Wi-Fi manager runs: checked 2026-11-10
+// with Tasmota 10.1.0, docs/spec/wifi-onboarding.md, step 1).
 func tasmotaBacklog(ctx context.Context, c *http.Client, base string, h Home) error {
 	cmd := fmt.Sprintf("Backlog SSID1 %s; Password1 %s; MqttHost %s; MqttUser %s; MqttPassword %s",
 		h.SSID, h.Password, h.MQTTHost, h.MQTTUser, h.MQTTPassword)
