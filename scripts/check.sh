@@ -34,7 +34,9 @@ step staticcheck
 go run "honnef.co/go/tools/cmd/staticcheck@$staticcheck_version" ./...
 
 step "go test -race"
-go test -race ./... | grep -v '^?'
+# A small deadline: a hanging test must not cost Go's default of 10 minutes
+# per package; the panic names the test that stands (CLAUDE.md, Releasing).
+go test -race -timeout 120s ./... | grep -v '^?'
 
 step ruff
 uvx "ruff@$ruff_version" check custom_components tests

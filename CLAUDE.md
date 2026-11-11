@@ -47,6 +47,11 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
   it happens, with what failed, what it cost and what happens next. An error passed to a caller who logs it needs no
   line of its own. **An error names its input** (decision 5): the file, the URL, the text that did not parse (its
   start, also a model's answer); only secrets stay out.
+- **A retry classifies the error first** ([Retries](docs/spec/retry.md)): only a retryable error (a lost
+  connection, a timeout, a 429, a 5xx) is tried again; a fatal one (no channel, a refused token, a wrong request) ends
+  at once with its trace. Every retry is bounded, its wait fits the error and the other side (exponential, linear or
+  fixed; a wait the server names is kept) and overloads neither; the spec names the retryable and fatal errors, the
+  bound, the wait and what happens on giving up. `internal/retry` is the building block.
 - **Every tool and every step a voice turn waits for says what it does step by step and what it costs**: calls to
   Home Assistant or devices, downloads, subscriptions, waits, and what the turn waits for versus what runs after it.
   Anything that grows with the number of items is named.
@@ -84,4 +89,7 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
   change raises the version of the service and of the integration.
 - **The guide is updated before a release**: new pages, new skills, screenshots.
 - **`scripts/check.sh` before every push** (Go tests with the scenario check, pytest, hassfest).
+- **Every test run gets a small deadline** (`go test -timeout`): 120 s with `-race` (`scripts/check.sh`, CI) and
+  60 s without (release), never Go's default of ten minutes per package. Hunting a hanging test, `-timeout 20s`
+  names it in the panic's header after twenty seconds.
 - Push and tags only to `origin` (miraassist).

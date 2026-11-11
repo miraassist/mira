@@ -21,7 +21,8 @@ jobs:
       - run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       # Coverage over all tests (a package is also covered by the tests of
       # the packages that use it); shown in the run's summary, no threshold.
-      - run: go test -race -coverpkg=./... -coverprofile=coverage.out ./...
+      # -timeout: a hanging test fails in two minutes, not in Go's ten.
+      - run: go test -race -timeout 120s -coverpkg=./... -coverprofile=coverage.out ./...
       - name: coverage
         run: go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
 
