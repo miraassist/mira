@@ -42,6 +42,21 @@ Feature: The house structure from Home Assistant's prompt (docs/spec/context.md,
     When the problem is gone from the status
     Then the repair is gone
 
+  @step3
+  Scenario: HP-07 A scheduled job waits for Home Assistant's prompt
+    Given Home Assistant's prompt was never fetched
+    When a job of the scheduler starts
+    Then it waits for the prompt
+    When the prompt comes
+    Then the job runs
+
+  @step3
+  Scenario: HP-08 A job that waited in vain runs and fails as before
+    Given Home Assistant's prompt was never fetched
+    When a job of the scheduler waits the whole wait and the prompt does not come
+    Then the log names the wait and the job runs
+    And it fails as every job without the prompt, with its last run failed
+
   # docs/spec/context.md, 1.3: when the house changes
 
   @step1

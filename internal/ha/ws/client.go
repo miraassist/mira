@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/miraassist/mira/internal/excerpt"
+	"github.com/miraassist/mira/internal/retry"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -136,14 +137,17 @@ func websocketURL(base string) (string, error) {
 }
 
 // Run keeps the connection up until ctx is cancelled. It returns only when
-// ctx ends; connection failures are retried with backoff.
+// ctx ends; connection failures are retried with waits doubling from
+// ReconnectMin to ReconnectMax, anew after a connection that worked
+// (docs/spec/retry.md, row 5). A refused token ends it.
 func (c *Client) Run(ctx context.Context) error {
-	backoff := c.minBackoff
+	p := retry.Policy{First: c.minBackoff, Max: c.maxBackoff, Growth: retry.Exponential}
+	failed := 0
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		err := c.session(ctx)
+		connected, err := c.session(ctx)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -151,34 +155,37 @@ func (c *Client) Run(ctx context.Context) error {
 			// A bad token will not fix itself; retrying forever only hides it.
 			return err
 		}
-		c.log.Warn("home assistant connection lost, reconnecting", "error", err, "in", backoff)
+		if connected {
+			failed = 0
+		}
+		failed++
+		wait := p.Wait(failed)
+		c.log.Warn("home assistant connection lost, reconnecting", "error", err, "in", wait, "attempt", failed)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(backoff):
-		}
-		if backoff *= 2; backoff > c.maxBackoff {
-			backoff = c.maxBackoff
+		case <-time.After(wait):
 		}
 	}
 }
 
 var errAuthFailed = errors.New("home assistant rejected the access token")
 
-// session runs one connection from dial to disconnect.
-func (c *Client) session(ctx context.Context) error {
+// session runs one connection from dial to disconnect; connected says
+// whether it got as far as a working connection.
+func (c *Client) session(ctx context.Context) (connected bool, err error) {
 	dialCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	conn, _, err := websocket.Dial(dialCtx, c.url, &websocket.DialOptions{HTTPClient: c.httpClient})
 	cancel()
 	if err != nil {
-		return fmt.Errorf("dial %s: %w", c.url, err)
+		return false, fmt.Errorf("dial %s: %w", c.url, err)
 	}
 	// Registry listings are large; the default read limit is too small.
 	conn.SetReadLimit(32 << 20)
 	defer conn.CloseNow()
 
 	if err := c.authenticate(ctx, conn); err != nil {
-		return err
+		return false, err
 	}
 
 	c.mu.Lock()
@@ -223,7 +230,7 @@ func (c *Client) session(ctx context.Context) error {
 		delete(c.pending, id)
 	}
 	c.mu.Unlock()
-	return err
+	return true, err
 }
 
 func (c *Client) authenticate(ctx context.Context, conn *websocket.Conn) error {
@@ -323,16 +330,24 @@ func (c *Client) Connected() bool {
 // Call sends a command and waits for its result, and for a connection first
 // if there is none.
 func (c *Client) Call(ctx context.Context, command map[string]any) (json.RawMessage, error) {
+	return c.CallFor(ctx, command, c.callTimeout)
+}
+
+// CallFor is Call with a bound of its own, for the few commands that take
+// longer than any other: Matter's commissioning (about 30 s without a device
+// in reach, docs/spec/device-onboarding.md, state table M4 and M8) and the
+// Show's QR scan, which runs for the seconds it was given.
+func (c *Client) CallFor(ctx context.Context, command map[string]any, timeout time.Duration) (json.RawMessage, error) {
 	if err := c.WaitReady(ctx); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrNotConnected, err)
 	}
-	return c.callNow(ctx, command)
+	return c.callNow(ctx, command, timeout)
 }
 
 // callNow is Call without waiting for a connection: with none, it fails
 // immediately.
-func (c *Client) callNow(ctx context.Context, command map[string]any) (json.RawMessage, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.callTimeout)
+func (c *Client) callNow(ctx context.Context, command map[string]any, timeout time.Duration) (json.RawMessage, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	c.sendMu.Lock()
@@ -421,7 +436,7 @@ func (c *Client) subscribeCommand(ctx context.Context, cmd map[string]any, handl
 		}
 		unsubCtx, done := context.WithTimeout(context.Background(), 2*time.Second)
 		defer done()
-		_, _ = c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": current})
+		_, _ = c.callNow(unsubCtx, map[string]any{"type": CmdUnsubscribeEvents, "subscription": current}, c.callTimeout)
 	}
 	return cancel, nil
 }
@@ -612,6 +627,20 @@ func (e *Error) Error() string {
 func (e *Error) Is(target error) bool {
 	return target == ErrNotFound && e.Code == "not_found" || target == ErrNotAdmin && e.Code == "unauthorized"
 }
+
+// fatalCodes are refusals another attempt cannot change: the action or
+// entity is not there, the request is wrong, the user may not
+// (docs/spec/retry.md, row 1).
+var fatalCodes = map[string]bool{
+	"not_found": true, "invalid_format": true, "service_validation_error": true, "unauthorized": true,
+	"not_allowed": true, "unknown_command": true, "not_supported": true, "template_error": true,
+}
+
+// Retryable says whether the same command may succeed later
+// (internal/retry): an error inside Home Assistant (`home_assistant_error`,
+// a channel that is down, say), `unknown_error` or `timeout` may; a refusal
+// of the command itself may not.
+func (e *Error) Retryable() bool { return !fatalCodes[e.Code] }
 
 // CodeOf is the code of Home Assistant's refusal in err, "" for any other
 // error.

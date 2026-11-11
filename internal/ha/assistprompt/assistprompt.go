@@ -64,6 +64,10 @@ type Cache struct {
 	opts Options
 	log  *slog.Logger
 
+	// ready is closed as soon as there is a prompt: what waits for it is
+	// woken by the signal, not by asking again (docs/spec/context.md, 1.2).
+	ready chan struct{}
+
 	mu      sync.RWMutex
 	base    string
 	tails   map[string]string // by device; "" is the version without one
@@ -78,7 +82,23 @@ func New(opts Options) *Cache {
 	if opts.Interval == 0 {
 		opts.Interval = 5 * time.Minute
 	}
-	return &Cache{opts: opts, log: opts.Logger.With("component", "assist-prompt"), tails: map[string]string{}}
+	return &Cache{opts: opts, log: opts.Logger.With("component", "assist-prompt"), tails: map[string]string{},
+		ready: make(chan struct{})}
+}
+
+// Ready returns once there is a prompt, or with ctx's error when it ends
+// first. A job of the scheduler waits for it instead of failing at Mira's
+// start (docs/spec/context.md, 1.2).
+func (c *Cache) Ready(ctx context.Context) error {
+	if c.Text() != "" {
+		return nil
+	}
+	select {
+	case <-c.ready:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Text is layer 4: what every version of the prompt has in common, or "" if
@@ -195,6 +215,13 @@ func (c *Cache) Refresh(ctx context.Context) (bool, error) {
 		}
 	}
 	c.base, c.tails, c.fetched = base, tails, true
+	if base != "" && c.ready != nil {
+		select {
+		case <-c.ready: // already open
+		default:
+			close(c.ready)
+		}
+	}
 	c.mu.Unlock()
 	if changed {
 		c.log.Info("assist prompt updated", "chars", len(base), "first", first)

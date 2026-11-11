@@ -46,15 +46,37 @@ Decided 2026-11-05: HA's prompt is part 1's house structure, and nothing replace
 
 - **A turn without HA's prompt** answers with a fixed sentence and calls no model: "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt." (in English: "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why."). Every channel, voice and Telegram alike.
 - **A repair** appears in Home Assistant once a fetch of the prompt has failed and there is none: the problem `prompt` of the source `ha` in `GET /v1/status`, with the reason (Home Assistant's answer, or that its MCP server is not reachable). It goes away when the prompt comes. Before the first fetch (at startup, while the MCP server connects) there is no problem yet, only the sentence.
-- **A background job** (assessing, skill schedules, helpers) fails like a failed model call; it does not run with less.
+- **A background job** (assessing, helpers) fails like a failed model call; it does not run with less. A job of Mira's scheduler waits for the prompt first (next rule but one).
 - **The warm-up** warms nothing then and logs it.
 - **A short outage keeps the last prompt** (as before, `internal/ha/assistprompt`): the text is Home Assistant's own, only not fetched again; a failed fetch does not empty part 1. Only a prompt that was never fetched counts as missing.
+- **A scheduled job waits for the prompt** (2026-11-11, TODO C24): a job of Mira's scheduler (a skill's schedule or
+  her own) that starts while the prompt was never fetched waits for it, at most 5 minutes, and then runs. The wait
+  ends the moment the prompt comes (the cache's signal, no polling). So a job at 18:00 that falls into the start of
+  Mira and Home Assistant (a reboot of the machine, seen on the test HA 2026-11-10: abfall, briefing and warnungen
+  all failed at 18:00 after a restart at 17:59:55) still runs that evening. An assessment from a Home Assistant
+  automation (`mira.assess`, `mira.decide`) does **not** wait: Home Assistant waits synchronously for its answer.
+- **When Home Assistant comes back,** its MCP server is connected at once and the prompt fetched again: every
+  connection of the WebSocket after Mira's own first round of connects (`mcp.Start`, which the start does itself)
+  wakes the server `ha` (`mcp.Host.Wake`: a server that is connected stays as it is, an
+  unreachable one is tried at once and its waits start anew). Without it the prompt waits for the next of the
+  growing waits between connection attempts ([Retries](retry.md), row 6: from 30 s up to 30 minutes). Cost: one
+  connection attempt per connection of Home Assistant.
 - **Interface:** the source `ha` is new. An older integration shows it with the text of a skill's problem and does not remove it when the prompt comes back (it removes only `skill_`, `agent_` and `hook_` issues); service and integration are released together, so this is the nuisance of a mixed update only.
 - **Cost:** nothing new; the prompt is fetched as before. A turn without it costs no model call.
+
+| Fails | Who learns of it |
+|---|---|
+| The prompt does not come within the 5 minutes | Log warning `home assistant's prompt did not come; the job runs and fails` with the job and the wait; the job then runs and fails as before, with its log error `scheduled task failed` and its last run `failed` on the page. A job that waited longer than a second and then ran writes `the job waited for home assistant's prompt` with the milliseconds |
+| The connection attempt of the wake fails | As every failed attempt of an MCP server: its warning and the next attempt by its policy ([Retries](retry.md), row 6) |
 
 Steps:
 1. **The service:** the own block and the setting go, the fixed sentence, the problem, background jobs and warm-up fail. Scenarios HP-01 to HP-05. Built.
 2. **The integration:** the repair text for the source `ha` (`ha_problem`), and it removes `ha_` issues that are gone. Scenario HP-06. Built.
+3. **A job waits for the prompt, and the prompt comes back at once** (TODO C24): `assistprompt.Ready`, the wake of
+   Home Assistant's MCP server on every connection, the scheduler's wait of 5 minutes. Scenarios HP-07 and HP-08
+   (built 2026-11-11). The wake has no scenario of its own: it is checked on the test HA (2026-11-11: Mira started
+   while Home Assistant was down, its connection came at 14:18:52.578, the server was woken 42 ms later, the prompt
+   was there in the same millisecond, and the job that had waited 9 s ran).
 
 Testable rules: [context.feature](context.feature).
 

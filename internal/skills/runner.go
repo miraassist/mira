@@ -33,6 +33,12 @@ const (
 	urgentTaskImportance = 3
 )
 
+// PromptWait is how long a job waits for Home Assistant's prompt when it is
+// missing (docs/spec/context.md, 1.2): long enough for Mira and Home
+// Assistant starting together, short enough that an evening job is still an
+// evening job.
+const PromptWait = 5 * time.Minute
+
 type Runner struct {
 	Set    *Set
 	Tasker Tasker
@@ -43,6 +49,12 @@ type Runner struct {
 	// System are Mira's own jobs (rebuilding the profiles): listed with
 	// the skills' schedules, changed in time, never switched off.
 	System []*SystemJob
+	// Ready returns once Mira can run a job at all: Home Assistant's prompt
+	// is there. A job that starts while it is missing waits for it instead
+	// of failing (docs/spec/context.md, 1.2).
+	Ready func(ctx context.Context) error
+	// ReadyWait is how long a job waits for it; PromptWait when zero.
+	ReadyWait time.Duration
 
 	mu      sync.Mutex
 	changed map[string]bool // jobs whose next run is to be taken anew
@@ -352,6 +364,7 @@ func (r *Runner) log() *slog.Logger {
 func (r *Runner) run(ctx context.Context, j job, log *slog.Logger) {
 	r.setState(j, StateRunning)
 	defer r.setState(j, "")
+	r.waitReady(ctx, j, log)
 	if j.sys != nil {
 		started := r.Set.clock()
 		text, err := j.sys.Run(ctx)
@@ -367,6 +380,32 @@ func (r *Runner) run(ctx context.Context, j job, log *slog.Logger) {
 		log.Error("scheduled task failed", "skill", j.skill.Name, "error", err)
 	} else {
 		log.Info("scheduled task done", "skill", j.skill.Name, "message", queued)
+	}
+}
+
+// waitReady lets a job wait for Home Assistant's prompt while it is
+// missing, at most ReadyWait. After that the job runs all the same and
+// fails as every job without the prompt (docs/spec/context.md, 1.2).
+func (r *Runner) waitReady(ctx context.Context, j job, log *slog.Logger) {
+	if r.Ready == nil {
+		return
+	}
+	wait := r.ReadyWait
+	if wait == 0 {
+		wait = PromptWait
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	started := time.Now()
+	err := r.Ready(waitCtx)
+	waited := time.Since(started)
+	switch {
+	case ctx.Err() != nil: // Mira is shutting down
+	case err != nil:
+		log.Warn("home assistant's prompt did not come; the job runs and fails", "job", j.key(),
+			"waited", wait.String())
+	case waited > time.Second:
+		log.Info("the job waited for home assistant's prompt", "job", j.key(), "ms", waited.Milliseconds())
 	}
 }
 
