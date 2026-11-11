@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant.components.homeassistant.exposed_entities import async_listen_entity_updates
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_TOKEN, CONF_URL, Platform
-from homeassistant.core import CoreState, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
+from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -33,6 +33,7 @@ from .const import (
     CONF_PIPELINES_BEFORE,
     CONF_SIDEBAR,
     DOMAIN,
+    EVENT_STARTED,
     VERSION,
 )
 from .coordinator import MiraCoordinator
@@ -206,6 +207,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
         await coordinator.async_request_refresh()
 
     entry.async_on_unload(async_at_started(hass, _refresh))
+
+    # The agent restarted: it has none of the settings from Home Assistant
+    # until they are sent again; send them now, not at the next poll
+    # (docs/spec/editing.md, decision 10). Another agent's start is not ours.
+    @callback
+    def _agent_started(event: Event) -> None:
+        if event.data.get("id") != entry.unique_id:
+            return
+        _LOGGER.debug("The agent started (version %s); sending its settings", event.data.get("version"))
+        # Not the debounced request: one shortly before would hold it back.
+        hass.async_create_task(coordinator.async_refresh())
+
+    entry.async_on_unload(hass.bus.async_listen(EVENT_STARTED, _agent_started))
     # A satellite without an area is a repair (docs/spec/satellites-rooms.md);
     # once started, when every satellite is registered.
     entry.async_on_unload(async_at_started(hass, sync_area_repairs))

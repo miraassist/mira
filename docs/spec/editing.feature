@@ -139,3 +139,29 @@ Feature: BE Editing models, agents and skills on Mira's page
     Then the file has the persona under prompt and the web search at the top
     And Mira reads the file and runs with both
     And saved back empty, the file has no prompt
+
+  @step3
+  Scenario: BE-22 Mira says she started
+    Given Mira starts
+    When she is connected to Home Assistant and her HTTP API listens
+    Then she fires mira_started with her id and version, once
+    But not before the API listens
+    And a reconnect later fires nothing
+
+  @step3
+  Scenario: BE-23 An event Home Assistant refuses is logged and left to the poll
+    Given Home Assistant refuses fire_event
+    When Mira is connected
+    Then the log has a warning naming the error and the poll
+
+  @step3
+  Scenario: BE-24 The integration sends its settings on mira_started
+    Given the integration set up with its Mira
+    When mira_started comes with that Mira's id
+    Then it sends persons, rooms and satellites at once
+
+  @step3
+  Scenario: BE-25 Another Mira's start is left alone
+    Given the integration set up with its Mira
+    When mira_started comes with another id
+    Then it sends nothing

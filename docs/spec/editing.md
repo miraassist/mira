@@ -111,12 +111,27 @@ The integration sends Mira's settings on HA's persons and satellites (`PUT /v1/u
 These settings live in Home Assistant, on the persons and satellites; Mira writes them nowhere:
 
 - **Mira holds them in memory only.** They are laid over the file while she runs.
-- **After a restart of Mira** she has none of them until the integration sends again. While she has none since her
-  start, she reports an **empty fingerprint** in `/v1/status` (`exposed_hash: ""`). The integration compares the
-  fingerprint on every poll (every minute) and sends everything again when it differs (ha-integration.md). So the
-  settings are back within a minute; until then the persons and rooms from HA are missing.
-  - Why a poll: it is the integration's existing status poll, the only way Mira reaches the integration; nothing
-    new is polled, and the integration needs no change, so an older integration does the same.
+- **After a restart of Mira** she has none of them until the integration sends again. Until then the notifier knows
+  no satellite and no person's channel: a thread's message went privately or was lost (seen 2026-11-09, test HA), a
+  private message found no channel (2026-11-10: 53 s). So, decision 10:
+  1. **The signal.** Once, after her start, when she is connected to Home Assistant and her HTTP API listens (both:
+     fired before the API listened, the integration's request found no Mira, seen on the test HA 2026-11-11), she
+     fires the event `mira_started` (`fire_event`, data `id`: her id as `/v1/health` gives it, `version`). Cost: one
+     call.
+  2. **The integration** listens to `mira_started` (`hass.bus.async_listen`, filtered to the event type at the
+     source); one whose `id` is its entry's agent sends the settings at once (`PUT /v1/ui/ha`, as on its poll) and
+     reads the status. An event of another Mira (another id) is left alone.
+  3. **The safety net** stays as it was: while she has none since her start, Mira reports an **empty fingerprint** in
+     `/v1/status` (`exposed_hash: ""`); the integration compares it on every poll (every minute) and sends everything
+     again when it differs (ha-integration.md). It covers an older integration (no listener), an older Mira (no
+     event), and a token that may not fire events (a non-admin's, before Mira worked with the owner's: Home
+     Assistant answers `unauthorized`, checked on the test HA 2026-11-11).
+  4. **Fails:** the event cannot be fired → log warning `could not tell Home Assistant that Mira started; the
+     integration sends its settings at its next poll` with the error; sending fails at the integration → its debug
+     line as on the poll (`Sending watchers, persons and rooms waits for the agent`) and the poll tries again.
+  5. Checked on the test HA (2026-11-11): the owner's token fires `mira_started`, a subscriber on another connection
+     gets it at once. Run through after a restart of the test Mira: API listening 09:40:49.176, event 09:40:49.177,
+     the settings from Home Assistant 09:40:49.202 (25 ms; before: up to a minute, 53 s on 2026-11-10).
 - **While the integration manages them,** the page refuses `persons` and `satellites`; a notifier saved on the page or
   in the options keeps the file's own `morning_trigger`, `room_mode` and `indicators` in the file and runs with the
   ones from Home Assistant.
@@ -157,12 +172,17 @@ nothing of this.
 9. **Settings sections in the file, nothing in the database** (2026-10-30): the page and the options write the
    sections into mira.yaml; what Home Assistant sends Mira holds in memory and gets again after her restart through
    the empty fingerprint. The overlay in the database and its "Back to mira.yaml" are gone; nothing is carried over.
+10. **Mira says she started** (2026-11-11, TODO C23): after her start she fires `mira_started` and the integration
+    sends its settings at once instead of at its next poll (up to a minute); the poll stays as the safety net. An event
+    and not a copy in the database: Home Assistant stays the one truth of these settings (decision 9).
 
 ## Steps
 
 1. Models, agents and skills edited in the file (built, 0.7.0).
 2. The settings sections in the file; what Home Assistant sends in memory, fetched again after a restart (built
    2026-10-30).
+3. `mira_started` (decision 10): Mira fires it, the integration sends at once. BE-22 to BE-25 (built 2026-11-11; BE-24
+   and BE-25 in pytest).
 
 ## Open
 
