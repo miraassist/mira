@@ -2,7 +2,7 @@
 # test carries the number in its name (TestDV01_…). The tags @stepN say in which step of the spec ("Steps") the
 # scenario gets built.
 
-Feature: DV Adding a Zigbee device by voice
+Feature: DV Adding a device by voice: Zigbee and Matter
 
   @step3
   Scenario: DV-01 Pairing opens through Zigbee2MQTT
@@ -123,3 +123,68 @@ Feature: DV Adding a Zigbee device by voice
     When the device is ready
     Then the thread holds no facts of it while the question is worded
     And the facts go into the thread right before the question is asked
+
+  # Matter over Wi-Fi (docs/spec/device-onboarding.md, Matter over Wi-Fi)
+
+  @step7
+  Scenario: DV-20 The code is scanned at a satellite with a camera
+    Given the satellite's node has the action qr_scan
+    When the user starts adding a Matter device
+    Then Mira scans for the code and commissions it with what the camera read
+    And the turn says the device may be plugged in now
+
+  @step7
+  Scenario: DV-21 A satellite without a camera asks for the digits
+    Given the satellite's node has no action qr_scan
+    When the user starts adding a Matter device
+    Then Mira asks for the eleven digits next to the QR code
+    And nothing is commissioned yet
+
+  @step7
+  Scenario: DV-22 A scan that reads nothing is said and tried again
+    Given the satellite's node has the action qr_scan
+    When the scan reads no code
+    Then Mira asks to hold it steadier and to scan again
+
+  @step7
+  Scenario: DV-23 A code that does not check out is refused before anything is sent
+    Given a code of eleven digits whose check digit is wrong
+    When it is passed to Mira
+    Then she says it does not fit and asks for it again
+    And no commissioning is started
+
+  @step7
+  Scenario: DV-24 Without Matter or without the Wi-Fi nothing starts
+    Given Home Assistant has no loaded Matter entry, or the skill has no Wi-Fi settings
+    When the user starts adding a Matter device
+    Then Mira says what is missing and starts no thread's commissioning
+
+  @step7
+  Scenario: DV-25 An attempt without a device is repeated while the window lasts
+    Given a commissioning that answers that no device was found
+    When the window is not over
+    Then Mira starts the next attempt and says nothing
+
+  @step7
+  Scenario: DV-26 The device Home Assistant creates is the thread's
+    Given a commissioning is running
+    When Home Assistant creates a device it did not have
+    Then Mira stops the wait, holds the device and asks for its room at the satellite
+
+  @step7
+  Scenario: DV-27 Nothing within the window is said with the offer to try again
+    Given a commissioning that finds no device
+    When the window is over
+    Then Mira stops the wait and asks whether to try again
+
+  @step7
+  Scenario: DV-28 Another error of the commissioning ends it at once
+    Given a commissioning that fails with another error
+    When the answer comes
+    Then Mira stops the wait, says the error and does not try again
+
+  @step7
+  Scenario: DV-29 The found devices leave the device of a running commissioning alone
+    Given a commissioning is running
+    When Home Assistant creates its device
+    Then the noticing of found devices does not count it

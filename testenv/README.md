@@ -59,7 +59,7 @@ A fake Zigbee2MQTT bridge, `z2m_fake` (`testenv/z2m_fake`, `z2m_fake:` in the te
 that broker as Zigbee2MQTT 2.14 does, with the default base topic `zigbee2mqtt`: the bridge device "Zigbee2MQTT
 Bridge" with its "Permit join" switch, the requests `permit_join`, `device/rename` (with `homeassistant_rename`) and
 `device/remove`, and the events and discovery messages of a device that joins
-([Adding a Zigbee device](../docs/spec/device-onboarding.md)). A device joins with the test action `z2m_fake.join`
+([Adding a device](../docs/spec/device-onboarding.md)). A device joins with the test action `z2m_fake.join`
 (`kind`: `temperature`, `plug`, `unsupported`, `interview_failed`; `ieee` of a known device to pair it again;
 `interview_seconds`), and only while pairing is open, as a real one; `z2m_fake.remove` takes it out again. The fake
 keeps its devices in `.storage/z2m_fake.devices`.

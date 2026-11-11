@@ -42,9 +42,18 @@ models:
     privacy: cloud
     reasoning_effort: low
     context_tokens: 272000
+  # 2026-11-11: trying Gemini Flash Lite for the voice turns (the rounds on
+  # Flash took 9 to 22 s in the Matter run).
+  flashlite:
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-lite-latest"
+    privacy: cloud
+    reasoning_effort: low
+    context_tokens: 1048576
 # Every agent of the flows on smart; delegate stays on main.
 agents:
-  conversation.voice: {model: chatgpt} # 2026-11-08: ChatGPT subscription trial (before: Gemini; DeepSeek repeated text next to tools)
+  conversation.voice: {model: flashlite} # 2026-11-11: Flash Lite im Test, ob die Sprach-Turns kürzer werden
   conversation.telegram: {model: smart}
   skill.task: {model: smart}
   notify.compose: {model: smart}
@@ -127,8 +136,11 @@ skills:
     bundesland: Berlin
   fussball: {}
   geschichte: {}
-  # Adding a Zigbee device through the fake Zigbee2MQTT (testenv/z2m_fake).
-  geraet-einbinden: {}
+  # Adding a device through the fake Zigbee2MQTT (testenv/z2m_fake), ZHA, and
+  # Matter; the Wi-Fi comes from testenv/.env, never from this file.
+  geraet-einbinden:
+    wlan_ssid: ${WLAN_SSID}
+    wlan_password: ${WLAN_PASSWORD}
   kamera: {}
   nachrichten: {}
   pollen: {}

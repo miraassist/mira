@@ -178,7 +178,10 @@ func seed(ctx context.Context, admin *haws.Client, token string, extras []extra)
 	if err := ensureDashboard(ctx, admin, extras); err != nil {
 		return fmt.Errorf("dashboard: %w", err)
 	}
-	return ensureMCPServer(ctx, token)
+	if err := ensureMCPServer(ctx, token); err != nil {
+		return err
+	}
+	return ensureMatter(ctx, token)
 }
 
 func disableDiscovered(ctx context.Context, admin *haws.Client) error {
@@ -309,6 +312,39 @@ func ensureMCPServer(ctx context.Context, token string) error {
 	}
 	if flow.Type != "create_entry" {
 		return fmt.Errorf("mcp_server setup ended with %q", flow.Type)
+	}
+	return nil
+}
+
+// ensureMatter sets up Home Assistant's Matter integration against the
+// Matter server of testenv/compose.yaml (the container mira-test-matter on
+// the host's network). Home Assistant reaches it as host.docker.internal;
+// commissioning a device is the server's job, not Home Assistant's.
+func ensureMatter(ctx context.Context, token string) error {
+	var entries []struct {
+		Domain string `json:"domain"`
+	}
+	if err := api(ctx, "GET", "/api/config/config_entries/entry", token, nil, &entries); err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.Domain == "matter" {
+			return nil
+		}
+	}
+	var flow struct {
+		FlowID string `json:"flow_id"`
+		Type   string `json:"type"`
+	}
+	if err := api(ctx, "POST", "/api/config/config_entries/flow", token, map[string]any{"handler": "matter"}, &flow); err != nil {
+		return err
+	}
+	if err := api(ctx, "POST", "/api/config/config_entries/flow/"+flow.FlowID, token,
+		map[string]any{"url": "ws://host.docker.internal:5580/ws"}, &flow); err != nil {
+		return err
+	}
+	if flow.Type != "create_entry" {
+		return fmt.Errorf("matter setup ended with %q", flow.Type)
 	}
 	return nil
 }

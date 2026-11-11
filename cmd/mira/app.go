@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -36,6 +37,7 @@ import (
 	"github.com/miraassist/mira/internal/language"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mailcal"
+	"github.com/miraassist/mira/internal/matter"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/oauth"
@@ -77,7 +79,10 @@ type app struct {
 	// found notices what Home Assistant found (docs/spec/found-devices.md).
 	devices *devices.Core
 	zigbee  *zigbee.Pairing
+	matter  *matter.Onboarding
 	found   *devices.Found
+	// started says once that Mira started (docs/spec/editing.md, decision 10).
+	started startSignal
 	wifi    *wifi.Onboarding
 	waiting *waiting.Waiting
 	// clip plays clip_play's clips at the satellites (docs/spec/music-quiz.md).
@@ -144,9 +149,13 @@ type app struct {
 	// serviceCache keeps Home Assistant's actions (lookup.go).
 	serviceCache serviceCache
 	assist       *assistprompt.Cache
-	mcp          *mcp.Host
-	oauth        *oauth.Manager
-	engine       *conversation.Engine
+	// mcpStarted says the first round of connects (mcp.Start) is through:
+	// only then does a connection of Home Assistant wake its MCP server, so
+	// the start does not connect it twice (docs/spec/context.md, 1.2).
+	mcpStarted atomic.Bool
+	mcp        *mcp.Host
+	oauth      *oauth.Manager
+	engine     *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
 	// page saved into it since, and what Home Assistant sent, held in
@@ -296,6 +305,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		// Not fatal: the agent still talks, and Run keeps retrying.
 		a.log.Error("no mcp server reachable; the agent has no house tools until one comes up", "error", err)
 	}
+	// From here a connection of Home Assistant wakes its server.
+	a.mcpStarted.Store(true)
 	a.goRun(ctx, "mcp", a.mcp.Run)
 
 	if _, err := a.assist.Refresh(ctx); err != nil {
@@ -326,9 +337,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.devices = a.newDeviceCore()
 	a.waiting = a.newWaiting()
 	a.zigbee = a.newZigbee()
+	a.matter = a.newMatter()
 	a.found = a.newFound()
 	internal = append(internal, a.devices.Tools()...)
 	internal = append(internal, a.zigbee.Tools()...)
+	internal = append(internal, a.matter.Tools()...)
 	internal = append(internal, a.found.Tools()...)
 	// And Wi-Fi devices into the Wi-Fi (docs/spec/wifi-onboarding.md).
 	a.wifi = a.newWifi()
@@ -388,6 +401,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, websearch.New(websearch.Options{Lang: a.lang, Logger: a.log,
 		Enabled: func() bool { return a.liveConfig().WebSearch.Enabled }}).Tools()...)
 	internal = append(internal, tools.MessagesRead(a.lang, a.readMessages))
+	internal = append(internal, tools.MessagesList(a.lang, a.openMessages))
 	// Questions about the past, from Home Assistant's recorder
 	// (docs/spec/history.md).
 	if a.ha != nil {
@@ -561,6 +575,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			if a.zigbee != nil && th.Target == zigbee.Skill {
 				a.waiting.Stop(ctx, th.ID)
 				a.zigbee.ThreadEnded(ctx, th.ID)
+				a.matter.End(ctx, th.ID)
 				a.devices.Release(th.ID)
 				a.found.ThreadEnded(th.ID)
 			}
@@ -625,16 +640,36 @@ func (a *app) startHA(ctx context.Context) error {
 	a.ha, err = haws.New(haws.Options{
 		URL: a.cfg.HA.URL, Token: a.cfg.HA.Token, Logger: a.log,
 		// Registry changes may have happened while the connection was down.
-		OnConnect: func(context.Context) {
+		OnConnect: func(ctx context.Context) {
 			a.structure.Invalidate()
 			if t := a.timers.Load(); t != nil {
 				t.Poke()
 			}
+			a.started.up(ctx, true, false)
+			// Home Assistant's MCP server is down while it restarts: a
+			// connection tries it at once, so layer 4 is back without
+			// waiting for the next of its growing waits
+			// (docs/spec/context.md, 1.2). Until mcp.Start is through, the
+			// start does the connecting. Not on this loop: connecting
+			// talks to Home Assistant.
+			if !a.mcpStarted.Load() {
+				return
+			}
+			go func() {
+				ctx := context.WithoutCancel(ctx)
+				if a.mcp != nil {
+					a.mcp.Wake(ctx, haServer)
+				}
+				if a.assist != nil {
+					a.assist.Trigger(ctx)
+				}
+			}()
 		},
 	})
 	if err != nil {
 		return err
 	}
+	a.started.fire = func(ctx context.Context) { fireStarted(ctx, a.ha, a.instanceID(), version, a.log) }
 	a.structure = structure.NewCache(structure.Options{
 		Source: a.ha, Subscriber: a.ha, Exposed: a.exposed,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
@@ -796,7 +831,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 
 	// One scheduler for the skills' schedules and Mira's own: one job after
 	// the other (docs/spec/schedules.md).
-	a.runner = &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.briefingPeople}
+	// A job that starts while Home Assistant's prompt is missing waits for
+	// it instead of failing (docs/spec/context.md, 1.2).
+	a.runner = &skills.Runner{Set: a.skills, Tasker: a.engine, Store: a.store, Logger: a.log, People: a.briefingPeople,
+		Ready: a.assist.Ready}
 	if cfg.Memory.ProfileSchedule != "" {
 		compactor := a.profileCompactor()
 		job, err := skills.NewSystemJob(profileJob, "Profile aus den Erinnerungen neu bauen", cfg.Memory.ProfileSchedule,
@@ -854,12 +892,17 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	if cfg.Server.Token == "" {
 		a.log.Warn("server.token is empty: the HTTP API accepts unauthenticated requests")
 	}
-	go func() {
+	if ln, err := net.Listen("tcp", cfg.Server.Listen); err != nil {
+		errs <- fmt.Errorf("http: %w", err)
+	} else {
+		go func() {
+			if err := httpServer.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errs <- fmt.Errorf("http: %w", err)
+			}
+		}()
 		a.log.Info("http api listening", "addr", cfg.Server.Listen)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs <- fmt.Errorf("http: %w", err)
-		}
-	}()
+		a.started.up(ctx, false, true)
+	}
 
 	a.log.Info("mira is up", "version", version)
 	var runErr error
@@ -967,28 +1010,52 @@ func builtinTargets() []string {
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
 // for the satellite's room, on Telegram what waits for that person.
-func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
+// messageNotifier is the notifier for the message tools; not running (the
+// chat command) it is made here: reading needs no loop.
+func (a *app) messageNotifier() *notifier.Notifier {
 	a.proactiveMu.Lock()
-	n := a.notifier
-	if n == nil {
-		// Not running (the chat command): reading out needs no loop.
-		n = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
+	defer a.proactiveMu.Unlock()
+	if a.notifier == nil {
+		a.notifier = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
 			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Languages: a.langs})
-		a.notifier = n
 	}
-	a.proactiveMu.Unlock()
-	area, device := "", inv.DeviceID
+	return a.notifier
+}
+
+// asker is where the message tools' asker is: a voice turn's room and
+// satellite, and the person whose messages they may read elsewhere.
+func (a *app) asker(ctx context.Context, inv tools.Invocation) (area, device, receiver string, err error) {
+	device = inv.DeviceID
 	if inv.Channel == config.ChannelVoice {
 		sess, err := a.store.GetSession(ctx, inv.SessionKey)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return "", err
+			return "", "", "", err
 		}
 		area = sess.AreaID
 		if device == "" {
 			device = sess.DeviceID
 		}
 	}
-	text, err := n.ReadOut(ctx, area, device, tools.ReceiverFor("", inv, a.persons()))
+	return area, device, tools.ReceiverFor("", inv, a.persons()), nil
+}
+
+// openMessages serves messages_list (docs/spec/messages.md, Who sees which
+// open messages).
+func (a *app) openMessages(ctx context.Context, inv tools.Invocation) ([]store.Message, error) {
+	area, _, receiver, err := a.asker(ctx, inv)
+	if err != nil {
+		return nil, err
+	}
+	return a.messageNotifier().Open(ctx, area, receiver)
+}
+
+func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
+	n := a.messageNotifier()
+	area, device, receiver, err := a.asker(ctx, inv)
+	if err != nil {
+		return "", err
+	}
+	text, err := n.ReadOut(ctx, area, device, receiver)
 	if err != nil || a.voicemail == nil || !a.voicemailOn() {
 		return text, err
 	}

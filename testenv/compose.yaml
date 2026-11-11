@@ -69,5 +69,27 @@ services:
       - "3399:3000"
     restart: "no"
 
+  # Matter server for the test HA (docs/spec/device-onboarding.md): Home
+  # Assistant's own Matter integration talks to it over its WebSocket
+  # (ws://host.docker.internal:5580/ws). It needs the host's network
+  # (IPv6 and mDNS reach the device directly) and the host's Bluetooth, over
+  # which a factory-new Matter device is commissioned before it joins the
+  # Wi-Fi. It commissions only what it is told to, so the host network does
+  # not set up anything of the real house by itself.
+  matter-server:
+    container_name: mira-test-matter
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    network_mode: host
+    security_opt:
+      - apparmor=unconfined
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - matter-data:/data
+      - /run/dbus:/run/dbus:ro
+    command: ["--storage-path", "/data", "--bluetooth-adapter", "0"]
+    restart: "no"
+
 volumes:
   mosquitto-data:
+  matter-data:

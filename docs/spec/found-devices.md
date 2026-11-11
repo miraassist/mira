@@ -6,7 +6,7 @@ Status 2026-11-10: steps 1 to 4 built (not released): the fake discovery, the st
 
 A device that turns up in Home Assistant is noticed by Mira, and she helps to take it in by voice, however it came:
 paired in the Hue app, flashed with Tasmota, a Shelly in the Wi-Fi, a Bluetooth sensor nearby, a bridge Home
-Assistant discovered. This is the second half of [Adding a Zigbee device](device-onboarding.md): there Mira brings the
+Assistant discovered. This is the second half of [Adding a device](device-onboarding.md): there Mira brings the
 device into its network; here it is in Home Assistant already, or Home Assistant waits for a yes, and what is left is
 the yes, the room, the name and exposing it.
 
@@ -24,7 +24,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 |---|---|---|
 | 1 | Reminding when nobody reacts | Mira says a found device **once**. After that only when asked ("Gibt's neue Geräte?"), with everything still open |
 | 2 | Remembering an ignored device that is in Home Assistant already | A label **"Mira: ignoriert"** on the device in Home Assistant: visible there, removed there to undo it. A device Home Assistant discovered and waits for is ignored with **Home Assistant's own ignore** |
-| 3 | Who may take a device in or ignore it | Anyone at a satellite, as anyone may switch a light ([Adding a Zigbee device](device-onboarding.md), decision 3) |
+| 3 | Who may take a device in or ignore it | Anyone at a satellite, as anyone may switch a light ([Adding a device](device-onboarding.md), decision 3) |
 | 4 | Which devices | Both kinds: what Home Assistant **discovered** and waits for a yes for, and a **new device without a room** |
 | 5 | Exposing, naming | As for a Zigbee device: every entity except configuration and diagnostic ones; Home Assistant's name of the device (`name_by_user`), and its entity ids follow the new name as with ZHA (`light.tasmota` becomes `light.lampe_wohnzimmer`; decided 2026-11-10 after the Tasmota run); a device of Zigbee2MQTT is renamed there (`homeassistant_rename`), so its entity ids follow |
 | 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
@@ -54,7 +54,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 - **The answer to an announced message** ([Threads](threads.md), Assignment 3a; the turn after an announcement sees
   the message and its details): "Ja" after the message is the next turn's affair; the message's details name the
   found devices by their ids, and the skill `geraet-einbinden`.
-- **A thread with a plan, bound to the room** ([Adding a Zigbee device](device-onboarding.md), Building blocks):
+- **A thread with a plan, bound to the room** ([Adding a device](device-onboarding.md), Building blocks):
   taking one device in is a thread of `geraet-einbinden` at the satellite where the user said yes, with the steps
   (confirm in Home Assistant when discovered,) room, name. The tools `device_assign` and `device_finish` are the
   Zigbee dialog's, for any device.

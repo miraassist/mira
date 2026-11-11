@@ -1,9 +1,11 @@
-# Adding a Zigbee device by voice – Spec
+# Adding a device by voice: Zigbee and Matter – Spec
 
-Status 2026-11-10: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
+Status 2026-11-11: steps 1 to 5 built (not released): the fake Zigbee2MQTT, the state table checked against it, the
 tools and the wait in the service, the skill, run end to end at the fake Show, the guide, and the real run against
 a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Step 6, ZHA, built against Home
-Assistant's source; its real run is open. Scenarios:
+Assistant's source; its real run is open. Step 7, Matter over Wi-Fi, is built (2026-11-11, DV-20 to DV-29): its
+state table checked at the test HA with a Tapo plug, and run through Mira end to end at the real Show (the QR code
+scanned) and at an Echo (the digits read out). Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -76,6 +78,116 @@ closing refused: log `could not close zigbee pairing on ZHA; it ends by itself`;
 the tool says it with how many values were exposed, log `could not rename the device's entity ids`. Cost: one
 `config_entries/get` per start; one subscription while pairing; one call to close; per rename one device update and
 one call per entity of the device.
+
+### Matter over Wi-Fi (decided 2026-11-11)
+
+Matter is the third network of the same thread, after Zigbee2MQTT and ZHA. From "the device is in Home Assistant"
+on everything is the same (room, name, exposing). What differs is the start: a Matter device is not opened for
+pairing, it is **commissioned with its setup code** — the QR code or the eleven digits next to it, both on the
+device and on its sticker. The user holds that in their hand, so Mira asks for the code first and the device is
+plugged in after.
+
+1. Stefan: "Ich hab ein neues Matter-Gerät." Mira (at a Show): "Halt den QR-Code vor die Kamera, ich lese ihn."
+2. Mira: "Hab ihn. Steck das Gerät jetzt ein." The wait is shown at the satellite
+   ([Showing that Mira waits](waiting-indicator.md)).
+3. A minute later, unasked, at the same satellite: "Ich hab's: eine Steckdose von TP-Link. In welchen Raum kommt
+   sie?" — and on from there as for every device.
+
+At a satellite without a camera (an Echo) step 1 is: "Lies mir die elf Ziffern neben dem QR-Code vor."
+
+| # | Question | Decision |
+|---|---|---|
+| 15 | Which Matter devices | **Matter over Wi-Fi** now. Thread needs a border router and comes later; the steps after commissioning are the same for both |
+| 16 | Where the code comes from | At a satellite whose node has the action `qr_scan` (TECHO5 firmware 0.94, the Show's camera) Mira scans it, for **20 seconds** (long enough to hold a sticker in front of the camera, short enough that nobody waits); every other satellite has the user read the eleven digits. Mira decides by the action, not by the device's kind |
+| 17 | The code is checked before it is used | The eleven digits carry a check digit (Verhoeff, as Matter's specification prescribes and the `chip` library computes). A code that does not check out is said and asked for again; nothing is sent to the device (decision 4A of 2026-11-11) |
+| 18 | When Mira commissions | Right after the code: she hands the Wi-Fi to the Matter server and starts the commissioning, which looks for the device over Bluetooth and over the network, so the user can plug it in while it runs. A device Home Assistant sees as commissionable meanwhile (its Zeroconf discovery `_matterc._udp`) only tells Mira it is there; it starts nothing of its own |
+| 19 | The Wi-Fi | The home Wi-Fi Mira already keeps, the skill's settings `wlan_ssid` and `wlan_password` ([Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi). Without them the dialog does not start, and Mira says what is missing |
+| 20 | A failed scan | Mira asks once to hold the code steadier and scans again; after that she offers the eleven digits (decision 3A of 2026-11-11) |
+| 21 | The found devices do not get in the way | The device the commissioning brings is the thread's, as for a Zigbee pairing: the noticing of [Found devices](found-devices.md) leaves out a device a running dialog waits for |
+| 22 | The wait and the repeat | While the commissioning runs, the wait is shown at the satellite ([Showing that Mira waits](waiting-indicator.md)), as for a Zigbee pairing. One attempt gives up after about 30 seconds when no device answers (state table M8), so Mira starts it again, as long as the window lasts: **three minutes**, as pairing lasts for Zigbee, with two seconds between two attempts (an attempt that fails at once, with no Bluetooth say, must not become a hot loop). Then the wait stops and Mira asks at the satellite whether to try again, as she does when nothing joins a Zigbee pairing |
+
+How it works:
+
+1. **The code.** The model calls `matter_pairing_start`. Only at a satellite. Mira reads whether Home Assistant runs
+   Matter (`config_entries/get` of the domain `matter`: an entry `loaded`) and whether the Wi-Fi settings are there,
+   starts the thread and answers how the code is to come: scanning (the satellite's node has `qr_scan`) or reading.
+   The turn ends with Mira's sentence.
+   - **Scanning:** the tool calls `esphome.<node>_qr_scan` with `seconds` and waits for its answer (the action
+     answers with what the camera read; state table row 1). The turn waits for it: the user is holding the code in
+     front of the camera.
+   - **Reading:** the digits come as the next turn's text; the model passes them to `matter_code` as it heard them
+     ("eins zwei drei …" is the speech recogniser's affair). Mira keeps only the digits, checks their number and the
+     check digit (decision 17).
+2. **The Wi-Fi and the commissioning.** With a code that checks out Mira sets the Wi-Fi at the Matter server once
+   (`matter/set_wifi_credentials` with `network_name` and `password`) and starts `matter/commission` with the code
+   and `network_only: false`, so the server also looks over Bluetooth: a factory-new Wi-Fi device has no network yet
+   and can only be reached that way. The call runs as long as the commissioning takes, so it is **not** the turn's:
+   Mira answers "Steck das Gerät jetzt ein" at once, shows the wait at the satellite
+   ([Showing that Mira waits](waiting-indicator.md)) and holds the call in the thread. An attempt without a device
+   in reach ends by itself after about 30 seconds; Mira starts the next one, until the device is there or the three
+   minutes are over (decision 22).
+3. **The device.** When the commissioning succeeds, the Matter server adds the node, Home Assistant creates the
+   device and its entities and fires `device_registry_updated` `create`. Mira reads the device from Home Assistant's
+   **registry** (`config/device_registry/list`), not from the structure she keeps: that one is rebuilt 30 s after a
+   registry change (`ha.structure_debounce`), so a device seconds old has no vendor and no model there and the
+   question would be asked about nothing (seen 2026-11-11 at the Show: the question came as "Ich hab's:" with
+   nothing in it, and the model invented a device). Mira takes that device, stops the wait,
+   writes the facts into the thread and asks the question as for a Zigbee device (the skill's agent
+   `geraet-einbinden.frage`, one model round).
+4. **Room, name, exposing.** `device_assign` and `device_finish`, unchanged.
+
+Fails:
+
+| Fails | Who learns of it |
+|---|---|
+| Home Assistant runs no Matter (no entry, or not `loaded`) | The tool returns it; Mira says she finds no Matter in Home Assistant. Log `matter not available` |
+| The Wi-Fi settings are missing | The tool returns it; Mira says that she needs the home Wi-Fi's name and password under the skill's settings. Log `matter onboarding without wi-fi settings` |
+| The scan reads nothing within its seconds | Mira asks once to hold it steadier and scans again; after that she offers the digits (decision 20). Log `qr scan found no code` with the satellite |
+| The satellite has no camera and the user reads nothing | The thread waits for the next turn and ends at its timeout, as every thread |
+| The digits do not check out | Mira says the code does not fit and asks for it again, at most twice; then she offers to scan or to end. Log `matter code refused` with the number of digits (never the code itself: it is the device's key) |
+| `set_wifi_credentials` fails | The tool returns the error; Mira says it. Log `could not give the matter server the wi-fi` |
+| An attempt finds no device (the usual case while nobody has plugged it in) | Mira starts the next attempt and says nothing: the wait at the satellite shows that she is waiting. Log `matter commissioning found no device, trying again` with the attempt, at debug level after the first |
+| The commissioning fails for another reason (a wrong code, the device already in another fabric) | Mira stops the wait, says at the satellite what the server reported and asks whether to try again with a new code. Log `matter commissioning failed` with the error |
+| No device within the three minutes | Mira stops the wait and says she did not find the device **and what helps**: reset it once more, hold the button until it blinks, then say so (2026-11-11: a device that had been commissioned before advertised nothing until it was reset again, and no attempt could find it). The thread waits for the answer and ends at its timeout. Log `matter commissioning gave up` with the number of attempts |
+| "Abbrechen" while the commissioning runs | The thread is cancelled and the wait stops; the call to Home Assistant is let go. A device that is commissioned all the same turns up as a found device ([Found devices](found-devices.md)). Log `matter commissioning cancelled` |
+| Home Assistant refuses the command (the token is no administrator's) | The tool returns Home Assistant's error; Mira says so |
+
+Cost: one `config_entries/get` per start; at a Show one action call for the scan (the turn waits for it, with its
+`seconds` as the bound); one `set_wifi_credentials` and one `commission` per attempt, the latter held open while the
+commissioning runs; the device registry subscription Mira's structure has anyway, and one read of the device
+registry for the device found; then what every device costs (one
+area update, one `search/related`, one entity read, one expose call, one model round for the question).
+
+#### State table (Matter)
+
+Checked at the test HA with the Matter server of `testenv/compose.yaml` (container `mira-test-matter`, host network,
+the host's Bluetooth) and a Tapo Matter plug; built only when every row is checked.
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|---|
+| M1 | The Show reads a code | `esphome.show_qr_scan` with `seconds` | the action's answer (`return_response`): `{"code": "MT:…"}`, the raw content of the QR code; it answers as soon as it has read it, not at the end of its seconds | the call's answer, which the turn waits for | 2026-11-11 (real Show, firmware 0.94: the sticker read after 6.5 s of 20) |
+| M2 | The Show reads nothing | the time is up | the action **fails**: `Failed to execute the action call qr_scan on show: qr scan: no code was read` | the call's error | 2026-11-11 (real Show: the error after exactly the 20 s) |
+| M3 | The Wi-Fi is set | `matter/set_wifi_credentials` with `network_name` and `password` | `success: true`, no result | the call's answer | 2026-11-11 (test HA, answer in the same millisecond) |
+| M4 | Commissioning runs | `matter/commission` with the code, `network_only: false` | the command answers only when it is over: `success: true` after the node is set up (26 s with the plug in reach), or its error (M8) | the call, held in the thread, never in the turn | 2026-11-11 (sent 15:21:27.749, answered 15:21:53.680; the registry's `create` came 0.2 s before the answer) |
+| M5 | The device is plugged in and found | the device advertises over Bluetooth | the Matter server commissions it and interviews it; its log: `Commissioned Node ID: 2`, `Matter commissioning of Node ID 2 successful`, `Interviewing node`, `Subscription succeeded`, `Commissioning of Node ID 2 completed` (0.5 s from the first line to the last) | — (the server's business) | 2026-11-11 (a Tapo plug, factory new, over the host's Bluetooth) |
+| M6 | Home Assistant has the device | the node added | `device_registry_updated` `create` with the device id, 0.3 s after the server finished | the subscription Mira's structure has | 2026-11-11 (15:21:53.187 the server, 15:21:53.48 the event) |
+| M7 | A commissionable device on the network | the device advertises `_matterc._udp` | Home Assistant would open a discovery flow of the domain `matter` | `config_entries/flow/subscribe` ([Found devices](found-devices.md)) | 2026-11-11: **not seen**. A factory-new Wi-Fi device has no network and is found over Bluetooth only; the subscription showed no `matter` flow during the whole run. The signal is no part of the flow (decision 18) |
+| M8 | Commissioning fails | no device in reach (the plug was not plugged in yet) | the command answers `success: false`, `error.code "1"`, `message "Commission with code failed for node <n>"`, after about 30 s (the server: `Commissionable node discovery over BLE failed … Timeout`, `Discovery timed out`, `Secure Pairing Failed`) | the call's error | 2026-11-11 (the first attempt, 15:19:24 to 15:19:54) |
+
+What the found devices did with it (2026-11-11, the same run): Mira noticed the new device without a room and ran
+the dialog of [Found devices](found-devices.md) through to the end — `device added … name="Steckdose Wohnzimmer
+zwei" area=wohnzimmer`, the thread `done`. The second half needs nothing of its own for Matter.
+
+Testing it again: a plug that is commissioned belongs to this fabric and gives no setup code of its own away. Before
+a new run it is reset to the factory (the plug's button held until it blinks), and the node is removed in Home
+Assistant; its setup code stays the one on its sticker.
+
+What is known already (2026-11-11, the test HA): `esphome.show_qr_scan` exists with the required field `seconds` and
+an optional response; `matter/commission` takes `code` and `network_only` (its default is `true`, which looks on the
+network only); `matter/set_wifi_credentials` takes `network_name` and `password`; Home Assistant's Matter integration
+discovers `_matterc._udp` and `_matter._tcp` and brings a Bluetooth proxy of its own (`ble_proxy.py`,
+`matter-ble-proxy`). The Matter server is set up by `testha` (`ensureMatter`) against
+`ws://host.docker.internal:5580/ws`.
 
 
 ## Building blocks
@@ -242,3 +354,10 @@ during the announcement is an ordinary interruption of an announcement.
    (2026-11-10, a Sonoff Dongle Plus with an Aqara sensor at the Show: "which network", pairing open and closed, the
    sensor ready 12 s after joining, room and name, its entity ids renamed; the room was asked twice, DV-18 fixes it;
    a known device paired again is not tried yet, decision 14 stays an assumption).
+7. **Matter over Wi-Fi** (decisions 15 to 22, built 2026-11-11): the rows M1 to M8 of the state table checked at the
+   test HA with a Tapo plug; the tools `matter_pairing_start` and `matter_code` with the wait and every error path,
+   the skill's dialog for both ways of the code. Run end to end at the real Show (the code scanned) and at an Echo
+   (the digits read out, 17:48: code accepted, the device 26 s later, room and name, the thread done). Three faults
+   the runs brought out are fixed and tested: Mira stayed silent when she gave up (a context cancelled too early),
+   the device's facts were empty (read from the structure that lags 30 s instead of the registry), and the model
+   changed the name the user had just confirmed (a rule in the skill). Scenarios DV-20 to DV-29.

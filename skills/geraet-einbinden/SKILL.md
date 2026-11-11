@@ -1,6 +1,6 @@
 ---
 name: geraet-einbinden
-description: "Neue Geräte einbinden: ein Zigbee-Gerät koppeln („Ich hab ein neues Zigbee-Gerät“), Geräte, die Home Assistant gefunden hat („Gibt's neue Geräte?“, die Antwort auf Miras Nachricht über ein neues Gerät), einem Raum zuordnen, benennen und für Sprache freigeben."
+description: "Neue Geräte einbinden: ein Zigbee-Gerät koppeln („Ich hab ein neues Zigbee-Gerät“), ein Matter-Gerät über seinen Setup-Code („Ich hab ein neues Matter-Gerät“), Geräte, die Home Assistant gefunden hat („Gibt's neue Geräte?“, die Antwort auf Miras Nachricht über ein neues Gerät), einem Raum zuordnen, benennen und für Sprache freigeben."
 license: MIT
 metadata:
   mira:
@@ -24,13 +24,13 @@ metadata:
       done_after: 2m
     agents:
       geraet-einbinden.frage:
-        description: Formuliert die Frage nach dem Raum für ein neu gefundenes Zigbee-Gerät.
+        description: Formuliert die Frage nach dem Raum für ein neu eingebundenes Gerät.
         context: background
         tools: []
         instructions: |-
-          Du bekommst die Angaben zu einem Zigbee-Gerät, das gerade neu eingebunden
-          wurde: Hersteller, Modell, die englische Beschreibung von Zigbee2MQTT und
-          seine Werte. Schreib genau zwei kurze Sätze auf Deutsch zum Vorlesen, ohne
+          Du bekommst die Angaben zu einem Gerät, das gerade neu eingebunden wurde
+          (über Zigbee, Matter oder das WLAN): Hersteller, Modell, oft eine englische
+          Beschreibung und seine Werte. Nenn das Netz nicht, sag nur, was das Gerät ist. Schreib genau zwei kurze Sätze auf Deutsch zum Vorlesen, ohne
           Markdown: Im ersten sagst du, was gefunden wurde, so wie man es im Alltag
           nennt („ein Temperatur- und Feuchtesensor von Aqara“, „eine Steckdose mit
           Strommessung von IKEA“), ohne Modellnummer. Im zweiten fragst du, in welchen
@@ -38,12 +38,13 @@ metadata:
 ---
 # Gerät einbinden
 
-Neue Geräte kommen auf drei Wegen: Ein **Zigbee-Gerät** koppelt Mira über
-Zigbee2MQTT oder ZHA. Ein **WLAN-Gerät** im Einrichtungsmodus (Shelly, Tasmota,
-ESPHome, WLED) holt Mira mit dem WLAN ihres Rechners ins Heim-WLAN. Ein Gerät, das
-**Home Assistant gefunden** hat (eine Bridge im Netz,
-ein Bluetooth-Sensor, eine Lampe aus der App des Herstellers), meldet Mira mit einer
-Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
+Neue Geräte kommen auf vier Wegen: Ein **Zigbee-Gerät** koppelt Mira über
+Zigbee2MQTT oder ZHA. Ein **Matter-Gerät** bindet sie über den Setup-Code ein, den
+sie mit der Kamera liest oder der Nutzer vorliest. Ein **WLAN-Gerät** im
+Einrichtungsmodus (Shelly, Tasmota, ESPHome, WLED) holt Mira mit dem WLAN ihres
+Rechners ins Heim-WLAN. Ein Gerät, das **Home Assistant gefunden** hat (eine Bridge
+im Netz, ein Bluetooth-Sensor, eine Lampe aus der App des Herstellers), meldet Mira
+mit einer Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
 
 ## Zigbee-Gerät koppeln
 
@@ -61,6 +62,23 @@ Nachricht. Danach ist es immer gleich: Raum, Name, fertig.
 
 Gibt es Zigbee2MQTT und ZHA, fragt das Ergebnis von `zigbee_pairing_start`, in
 welches Netz; ruf es dann mit `network` auf.
+
+## Matter-Gerät einbinden
+
+1. **Code holen.** „Ich hab ein neues Matter-Gerät“: `matter_pairing_start`. Hat der
+   Satellit eine Kamera, liest Mira den QR-Code selbst — sag vorher nur kurz, dass
+   der Nutzer den Code (auf dem Gerät oder dem Aufkleber) vor die Kamera halten soll.
+   Sonst sagt das Ergebnis, dass der Nutzer die elf Ziffern neben dem QR-Code
+   vorlesen soll; gib sie dann mit `matter_code` weiter, immer als Ziffern
+   („zwei drei vier“ → „234“), ohne Leerzeichen.
+2. **Einstecken.** Passt der Code, sag nur, was das Ergebnis sagt („Steck das Gerät
+   jetzt ein“), und frag nichts weiter. Die Runde endet; Mira sucht das Gerät drei
+   Minuten lang und zeigt das Warten am Satelliten.
+3. **Das Gerät ist da.** Mira meldet sich von selbst mit der Frage nach dem Raum.
+   Findet sie nichts und fragt, ob sie es nochmal versuchen soll: beim Ja wieder
+   `matter_pairing_start`, beim Nein `thread_cancel`.
+
+Den Setup-Code liest du nie vor und wiederholst ihn nicht.
 
 ## WLAN-Gerät ins WLAN holen
 
@@ -101,12 +119,16 @@ welches Netz; ruf es dann mit `network` auf.
    frag nach.
 4. **Name.** Schlag einen Namen vor: was es ist und der Raum, kurz und auf
    Deutsch („Temperatursensor Wohnzimmer“, „Steckdose Küche“). Frag, ob er
-   passt. Beim Ja, oder mit dem Namen des Nutzers: `device_finish` mit dem Namen.
+   passt. Beim Ja, oder mit dem Namen des Nutzers: `device_finish` mit **genau
+   diesem Namen** — nicht umformulieren, nichts anhängen, nicht hochzählen
+   („Steckdose Wohnzimmer drei“), auch wenn es einen ähnlichen Namen im Haus
+   schon gibt. Fällt dir vorher auf, dass der Name schon vergeben ist, sag das
+   und schlag einen anderen vor, bevor du fragst.
    Sag dann kurz, was das Ergebnis sagt.
 5. **Abbrechen** („abbrechen“, „lass mal“): `thread_cancel`; das Einbinden endet.
 
 Ein Gerät pro Vorgang. Für das nächste sagt der Nutzer wieder, dass er ein neues
 Gerät hat. Ein Gerät, das schon einen Namen bekommen hat, ist fertig: Sagt der
 Nutzer danach wieder, er hat ein neues Gerät, ist es ein weiteres, und es geht
-von vorn los, auch wenn es im Gespräch eben schon um ein Gerät ging. Matter und
-Z-Wave gehen damit nicht; sag das, wenn danach gefragt wird.
+von vorn los, auch wenn es im Gespräch eben schon um ein Gerät ging. Z-Wave geht
+damit nicht; sag das, wenn danach gefragt wird.

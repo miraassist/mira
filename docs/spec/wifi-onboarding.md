@@ -16,7 +16,7 @@ that with the Wi-Fi of the machine she runs on, while that machine is in the net
    WLAN. In welchen Raum kommt er?"
 
 This is the first half (into the network) for Wi-Fi devices, as pairing is for Zigbee
-([Adding a Zigbee device](device-onboarding.md)); the second half is the found devices'.
+([Adding a device](device-onboarding.md)); the second half is the found devices'.
 
 ## What is known (2026-11-10)
 

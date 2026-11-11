@@ -13,6 +13,7 @@ import (
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/devices"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/matter"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/waiting"
@@ -141,6 +142,39 @@ func (a *app) newZigbee() *zigbee.Pairing {
 	})
 }
 
+// newMatter adds Matter devices over Wi-Fi by voice
+// (docs/spec/device-onboarding.md, Matter over Wi-Fi).
+func (a *app) newMatter() *matter.Onboarding {
+	var w matter.Waiter
+	if a.waiting != nil {
+		w = a.waiting
+	}
+	return matter.New(matter.Options{
+		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices, Waiting: w,
+		Wifi:      func() (string, string) { return a.skillSetting("wlan_ssid"), a.skillSetting("wlan_password") },
+		Node:      a.deviceNode,
+		HasAction: func(ctx context.Context, domain, service string) bool { return a.hasAction(ctx, domain, service) },
+		Devices:   func() map[string]haws.Device { return a.structure.Snapshot().Devices },
+		Start:     a.devicePlan,
+		Thread:    a.deviceThread,
+		Tick:      func(ctx context.Context, thread, match string) error { return a.threads.TickPlan(ctx, thread, match) },
+		Note:      func(ctx context.Context, thread, text string) error { return a.threads.Note(ctx, thread, text) },
+		Ask:       func(ctx context.Context, thread, text string) error { return a.threads.Ask(ctx, thread, text) },
+		Question: func(ctx context.Context, facts string) (string, error) {
+			if a.agents == nil {
+				return "", errors.New("no agents")
+			}
+			input, _ := json.Marshal(map[string]string{"input": facts})
+			res, err := a.agents.CallByName(ctx, zigbeeQuestion, input,
+				agent.CallContext{Origin: agent.FromCode, Rights: agent.AllRights, Lang: string(a.lang)})
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(res.Text), nil
+		},
+	})
+}
+
 func (a *app) newFound() *devices.Found {
 	return devices.NewFound(devices.FoundOptions{
 		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices, KV: a.store,
@@ -152,7 +186,7 @@ func (a *app) newFound() *devices.Found {
 			})
 			return err
 		},
-		Claims: []func(string) bool{a.zigbee.Claims},
+		Claims: []func(string) bool{a.zigbee.Claims, a.matter.Claims},
 		Wifi:   func() (string, string) { return a.skillSetting("wlan_ssid"), a.skillSetting("wlan_password") },
 		Start:  a.devicePlan,
 		Thread: a.deviceThread,
