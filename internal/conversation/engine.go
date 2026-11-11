@@ -690,7 +690,8 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		heard = pass.spoken()
 	}
 	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) && !e.stillPlaying(req.DeviceID) &&
-		(expectsReply(heard) || ts.ConfirmationRequested() || calledTool(added, tools.ToolKeepListening))
+		(expectsReply(heard) || ts.ConfirmationRequested() || ts.WaitsForUser() ||
+			calledTool(added, tools.ToolKeepListening))
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,

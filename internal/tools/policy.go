@@ -184,7 +184,32 @@ type TurnState struct {
 	webContentSeen        bool
 	pendingUsed           bool
 	confirmationRequested bool
+	// waitsForUser: a tool of this turn asked the user for something the
+	// flow cannot go on without, so the satellite keeps listening however
+	// the model words it (docs/spec/keep-listening.md).
+	waitsForUser bool
 }
+
+// WaitForUser is called by a tool whose answer asks the user for something:
+// the satellite then listens again after the turn, whether or not the model
+// ends its sentence with a question mark (docs/spec/keep-listening.md,
+// decision 1).
+func (t *TurnState) WaitForUser() {
+	if t != nil {
+		t.waitsForUser = true
+	}
+}
+
+// DialogEnded is called by a tool that ends the dialog (a finisher, a
+// cancel): it clears what WaitForUser asked for (decision 4).
+func (t *TurnState) DialogEnded() {
+	if t != nil {
+		t.waitsForUser = false
+	}
+}
+
+// WaitsForUser reports whether a tool of this turn waits for the user's word.
+func (t *TurnState) WaitsForUser() bool { return t != nil && t.waitsForUser }
 
 // ConfirmationRequested reports whether this turn parked a critical call and
 // therefore ends waiting for the user's yes or no.

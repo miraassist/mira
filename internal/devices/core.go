@@ -173,6 +173,9 @@ func (c *Core) assign(ctx context.Context, inv tools.Invocation) (string, error)
 			list = append(list, n)
 		}
 		sort.Strings(list)
+		// The room comes again: the satellite keeps listening
+		// (docs/spec/keep-listening.md).
+		tools.TurnOf(ctx).WaitForUser()
 		return fmt.Sprintf(t.unknownRoom, args.Room, strings.Join(list, ", ")), nil
 	}
 	if _, err := c.o.HA.Call(ctx, map[string]any{"type": "config/device_registry/update", "device_id": h.d.ID, "area_id": area}); err != nil {
@@ -229,6 +232,7 @@ func (c *Core) finish(ctx context.Context, inv tools.Invocation) (string, error)
 	c.tick(ctx, thread, c.steps().Name)
 	c.Release(thread)
 	c.o.End(ctx, thread)
+	tools.TurnOf(ctx).DialogEnded() // the device is in: nothing is awaited
 	return fmt.Sprintf(t.finished, name, c.o.AreaName(area), exposed), nil
 }
 

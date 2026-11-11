@@ -423,6 +423,7 @@ func (p *Pairing) start(ctx context.Context, inv tools.Invocation) (string, erro
 	switch {
 	case z2m && zha && args.Network == "":
 		// Both networks: Mira asks which (decision 13).
+		tools.TurnOf(ctx).WaitForUser() // which network comes from the user
 		return t.askNetwork, nil
 	case zha && (args.Network == "zha" || !z2m):
 		return p.startZHA(ctx, inv)

@@ -983,3 +983,19 @@ func TestASatellitesTurnWithoutItsPartDoesNotRun(t *testing.T) {
 		t.Errorf("model called %d times", n)
 	}
 }
+
+// KL-02 a question still keeps the satellite listening (docs/spec/keep-listening.md).
+func TestKL02_AQuestionKeepsTheSatelliteListening(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Wie viele Wörter sollen es sein?"})
+	if resp := h.say(t, config.ChannelVoice, "v1", "Vokabeln bitte"); !resp.ContinueConversation {
+		t.Errorf("a question must keep listening: %+v", resp)
+	}
+}
+
+// KL-04 an answer that only states something ends the turn.
+func TestKL04_AnAnswerThatStatesSomethingEndsTheTurn(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Im Wohnzimmer sind es 21 Grad."})
+	if resp := h.say(t, config.ChannelVoice, "v1", "Wie warm ist es?"); resp.ContinueConversation {
+		t.Errorf("nothing is awaited, the satellite must stop: %+v", resp)
+	}
+}

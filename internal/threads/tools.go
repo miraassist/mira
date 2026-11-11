@@ -77,7 +77,12 @@ func (m *Manager) Tools() []tools.InternalTool {
 		},
 		{
 			Name: ToolCancel, Description: t.cancelDesc, Schema: empty,
-			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Cancel(ctx, inv) },
+			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+				// The dialog is over: nothing is awaited
+				// (docs/spec/keep-listening.md, decision 4).
+				tools.TurnOf(ctx).DialogEnded()
+				return m.Cancel(ctx, inv)
+			},
 		},
 	}
 	// The plan tool is there only when a target has a plan.
