@@ -288,6 +288,49 @@ func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (
 	return text, nil
 }
 
+// maxOpen bounds what Open returns.
+const maxOpen = 20
+
+// Open is what messages_list shows (docs/spec/messages.md, Who sees which
+// open messages): the open messages, waiting or heard, that the asker may
+// hear. At a satellite in area, those that would be spoken there; in a
+// person's own chat (receiver set, area empty) the house's and the person's;
+// otherwise the house's. Reminders are not among them; at most maxOpen, the
+// most important first.
+func (n *Notifier) Open(ctx context.Context, area, receiver string) ([]store.Message, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	all, err := n.store.ListMessages(ctx, store.MessageFilter{
+		States: []string{store.MessagePending, store.MessageDelivered}, MinImportance: n.cfg.MinImportance,
+	})
+	if err != nil || len(all) == 0 {
+		return nil, err
+	}
+	var home map[string]bool
+	if area != "" {
+		home = n.whoIsHome(ctx)
+	}
+	var out []store.Message
+	for _, nt := range all {
+		if nt.Source == store.SourceReminder {
+			continue
+		}
+		var may bool
+		if area != "" {
+			may = n.route(nt, home) == routeVoice && !n.heldAt(nt, area)
+		} else {
+			may = nt.Receiver == store.ReceiverHouse || receiver != "" && receiver != store.ReceiverHouse && nt.Receiver == receiver
+		}
+		if may {
+			out = append(out, nt)
+		}
+		if len(out) == maxOpen {
+			break
+		}
+	}
+	return out, nil
+}
+
 // forReceiver is what a person may read on Telegram: everything pending for
 // the household or for them, confidential ones included (the chat is
 // private).

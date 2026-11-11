@@ -121,31 +121,6 @@ func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 			},
 		},
 		{
-			Name:        ToolMessagesList,
-			Description: t.messagesListDesc,
-			Schema:      `{"type":"object","properties":{}}`,
-			ReadOnly:    true,
-			Run: func(ctx context.Context, inv Invocation) (string, error) {
-				messages, err := st.ListMessages(ctx, store.MessageFilter{
-					States: []string{store.MessagePending, store.MessageDelivered}, Limit: 20})
-				if err != nil {
-					return "", err
-				}
-				if len(messages) == 0 {
-					return t.noMessages, nil
-				}
-				var b strings.Builder
-				for _, n := range messages {
-					fmt.Fprintf(&b, t.messageLine, n.ID, n.Importance, n.State, n.Spoken)
-					if n.Details != "" {
-						fmt.Fprintf(&b, t.messageDetails, n.Details)
-					}
-					b.WriteByte('\n')
-				}
-				return strings.TrimRight(b.String(), "\n"), nil
-			},
-		},
-		{
 			Name:        ToolMessageAck,
 			Description: t.messageAckDesc,
 			Schema:      `{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}`,

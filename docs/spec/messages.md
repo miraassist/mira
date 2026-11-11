@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-10-16: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-11: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -53,6 +53,30 @@ There are no receiver settings here; the house accepts everything.
 - **private** (confidentiality `private`, since 2026-11-09): only over the person's channels, at once outside quiet
   hours, never spoken or shown; for a schedule's list for one person ([A schedule for one person](schedule-receiver.md)).
 
+## Who sees which open messages
+
+The tool `messages_list` ("Welche Nachrichten sind offen?", and for quitting one with `message_ack`) shows the same
+choice as reading out (`messages_read`), where the asker is (2026-11-11; before, it listed the 20 newest open
+messages of the whole house with their text to everyone, private ones of other persons included):
+
+- **At a satellite** (a voice turn with its room): the open messages that would be spoken in that room by the
+  rules of the announcements: the house's; a person's only while the routes allow it (not while that person is away
+  with a person entity; a confidential one as `notifier.confidential_voice` says); **never a private one**; not one
+  held in its own room (`notifier.own_message_hold`). Open means waiting or heard, not yet done or expired.
+- **In a person's own chat** (Telegram): the house's and the person's own, confidential and private ones included
+  (the chat is private).
+- **Elsewhere** (a turn with neither a room nor a person, an agent's run): the house's only.
+- Reminders are not listed (`reminder_list` lists them); the importance below `notifier.min_importance` neither, as
+  for reading out. At most 20, the most important first.
+
+What it does and costs: one query of Mira's database; at a satellite, when any message is open, the person
+entities' states once (Home Assistant's states, as for an announcement). The turn waits for both.
+
+| Fails | Who learns of it |
+|---|---|
+| The database cannot be read | The tool's error; Mira says she cannot see the messages now |
+| A person entity's state cannot be read | That person counts as not alone and away-unknown, as for an announcement: their confidential messages are not listed (errs towards privacy); no line of its own (the announcement's rule) |
+
 ## Wording
 
 Mira names the sender if it is a human:
@@ -97,6 +121,13 @@ Telegram runs via HA's integration `telegram_bot`; Mira's own bot is dropped ([C
 
 - Reminders are absorbed into messages (message with delivery time).
 - **No read receipt** for the sender ("Anna hat es gehört"): out of respect for the receiver's privacy.
+
+- **`messages_list` shows what the asker may hear** (2026-11-11, see Who sees which open messages).
+
+## Steps
+
+1. **Who sees which open messages**: `messages_list` by the asker's room or own chat, as reading out. MS-01 to
+   MS-06 (built 2026-11-11).
 
 ## Open
 
