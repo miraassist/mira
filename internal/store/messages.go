@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -17,7 +18,8 @@ const (
 	MessageAcked     = "acked"
 	MessageExpired   = "expired"
 	MessageCancelled = "cancelled"
-	// MessageFailed is given up after MaxDeliveryAttempts.
+	// MessageFailed is given up: a fatal error, or the attempts used up
+	// (docs/spec/retry.md).
 	MessageFailed = "failed"
 )
 
@@ -81,8 +83,12 @@ type Message struct {
 	// with several satellites it is spoken there (docs/spec/satellites-rooms.md).
 	OriginDevice string
 	SessionKey   string
-	// Attempts counts failed deliveries of a scheduled message.
+	// Attempts counts failed deliveries: of a scheduled message, or of a
+	// private one (docs/spec/retry.md).
 	Attempts int
+	// RetryAt is when a failed private delivery is tried next; zero for
+	// at once.
+	RetryAt time.Time
 	// ThreadID is the thread ("Vorgang") the message belongs to, if any: a
 	// reply to it continues that thread, and the message is withdrawn when
 	// the thread ends.
@@ -186,21 +192,22 @@ func (s *Store) GetMessage(ctx context.Context, id string) (Message, error) {
 const messageSelect = `
 SELECT id, source, dedupe_key, importance, receiver, spoken, details,
        created_at, updated_at, expires_at, state, delivered_via, delivered_at, confidentiality, thread_id,
-       sender, deliver_at, area_id, session_key, attempts, origin_area, origin_device
+       sender, deliver_at, area_id, session_key, attempts, origin_area, origin_device, retry_at
 FROM messages`
 
 type scannable interface{ Scan(...any) error }
 
 func scanMessage(row scannable) (Message, error) {
 	var n Message
-	var created, updated, expires, delivered, deliverAt string
+	var created, updated, expires, delivered, deliverAt, retryAt string
 	err := row.Scan(&n.ID, &n.Source, &n.DedupeKey, &n.Importance, &n.Receiver, &n.Spoken, &n.Details,
 		&created, &updated, &expires, &n.State, &n.DeliveredVia, &delivered, &n.Confidentiality, &n.ThreadID,
-		&n.Sender, &deliverAt, &n.AreaID, &n.SessionKey, &n.Attempts, &n.OriginArea, &n.OriginDevice)
+		&n.Sender, &deliverAt, &n.AreaID, &n.SessionKey, &n.Attempts, &n.OriginArea, &n.OriginDevice, &retryAt)
 	if err != nil {
 		return Message{}, err
 	}
 	n.CreatedAt, n.UpdatedAt, n.DeliverAt = parseTime(created), parseTime(updated), parseTime(deliverAt)
+	n.RetryAt = parseTime(retryAt)
 	n.ExpiresAt, n.DeliveredAt = parseTime(expires), parseTime(delivered)
 	return n, nil
 }
@@ -276,6 +283,27 @@ WHERE id = ? AND state = ?`, MessageDelivered, via, now, now, id, MessagePending
 		return ErrNotFound
 	}
 	return nil
+}
+
+// PrivateDeliveryFailed counts a failed private delivery of a pending
+// message (docs/spec/retry.md, row 1): it is tried again at retryAt, or,
+// with a zero retryAt, given up as failed. It returns the attempts so far.
+func (s *Store) PrivateDeliveryFailed(ctx context.Context, id string, retryAt time.Time) (int, error) {
+	state, at := MessagePending, ""
+	if retryAt.IsZero() {
+		state = MessageFailed
+	} else {
+		at = formatTime(retryAt)
+	}
+	var attempts int
+	err := s.db.QueryRowContext(ctx, `
+UPDATE messages SET attempts = attempts + 1, retry_at = ?, state = ?, updated_at = ?
+WHERE id = ? AND state = ? RETURNING attempts`,
+		at, state, formatTime(s.now()), id, MessagePending).Scan(&attempts)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return attempts, err
 }
 
 // SetMessageState moves a message to acked or expired.

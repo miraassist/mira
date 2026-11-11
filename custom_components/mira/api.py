@@ -41,6 +41,15 @@ class ToolCallPart:
 class MiraError(Exception):
     """The agent could not be reached or answered with an error."""
 
+    # Whether the same request may succeed later: the agent not reached, or
+    # a 5xx or 429 (docs/spec/retry.md); set where it is raised.
+    retryable = False
+
+
+def _transient(error: MiraError) -> MiraError:
+    error.retryable = True
+    return error
+
 
 class MiraAuthError(MiraError):
     """The agent rejected the token."""
@@ -135,10 +144,13 @@ class MiraClient:
                     except ValueError, aiohttp.ContentTypeError:
                         pass
                     error = MiraNotFound if resp.status == 404 else MiraError
-                    raise error(f"{method} {path}: HTTP {resp.status}{reason}")
+                    refused = error(f"{method} {path}: HTTP {resp.status}{reason}")
+                    if resp.status >= 500 or resp.status == 429:
+                        _transient(refused)
+                    raise refused
                 return await resp.json()
         except (aiohttp.ClientError, TimeoutError) as err:
-            raise MiraError(f"{method} {path}: {err!r}") from err
+            raise _transient(MiraError(f"{method} {path}: {err!r}")) from err
 
     async def pairing(self) -> dict[str, Any]:
         """Open: the agent's id, and whether it waits for a code or a setup.

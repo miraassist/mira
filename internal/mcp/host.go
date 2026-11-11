@@ -29,6 +29,7 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/retry"
 )
 
 // ErrUnknownTool is returned for a name no connected server offers.
@@ -106,7 +107,34 @@ type Connections interface {
 
 // ErrNoConnection: a server with token: oauth whose skill is not connected;
 // it is not tried.
-var ErrNoConnection = errors.New("the skill is not connected")
+var ErrNoConnection = retry.Fatal(errors.New("the skill is not connected"))
+
+// TokenRefused is a server's 401 or 403: its token is refused, and only a
+// change of its connection or config can help (docs/spec/retry.md, row 6).
+type TokenRefused struct {
+	Status int
+	URL    string
+}
+
+func (e *TokenRefused) Error() string {
+	return fmt.Sprintf("%s refused the token (%d %s)", e.URL, e.Status, http.StatusText(e.Status))
+}
+
+// Retryable says no: the same token is refused again.
+func (e *TokenRefused) Retryable() bool { return false }
+
+// refusals turns a 401 or 403 into a TokenRefused, which the SDK passes on
+// to the caller as the error of the request.
+type refusals struct{ next http.RoundTripper }
+
+func (r refusals) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := r.next.RoundTrip(req)
+	if err == nil && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+		resp.Body.Close()
+		return nil, &TokenRefused{Status: resp.StatusCode, URL: req.URL.Redacted()}
+	}
+	return resp, err
+}
 
 // deviceMeta is the key Home Assistant's MCP server reads the requesting
 // satellite from.
@@ -134,6 +162,10 @@ type server struct {
 	session *sdk.ClientSession
 	tools   []Tool // last known, kept while disconnected
 	lastErr error
+	// failed counts the failed connects since it last worked; next is when
+	// Run tries again (docs/spec/retry.md, row 6).
+	failed int
+	next   time.Time
 	// missing are the tools the configuration names that the server does
 	// not have.
 	missing []string
@@ -225,9 +257,7 @@ func (h *Host) Start(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := h.connectServer(ctx, s); err != nil && !errors.Is(err, ErrNoConnection) {
-				h.log.Warn("mcp server unreachable", "server", s.cfg.Name, "error", err)
-			}
+			_ = h.connectServer(ctx, s) // a failure is logged where it is kept
 		}()
 	}
 	wg.Wait()
@@ -250,7 +280,10 @@ func (h *Host) Start(ctx context.Context) error {
 	return fmt.Errorf("none of %d mcp servers is reachable", tried)
 }
 
-// Run retries unreachable servers until ctx ends.
+// Run retries unreachable servers until ctx ends, each with waits doubling
+// from the retry interval up to 30 minutes; one whose token is refused, or
+// whose skill is not connected, waits for its connection to change
+// (Reconnect, a new config). docs/spec/retry.md, row 6.
 func (h *Host) Run(ctx context.Context) error {
 	t := time.NewTicker(h.retry)
 	defer t.Stop()
@@ -265,12 +298,19 @@ func (h *Host) Run(ctx context.Context) error {
 			h.Refresh(ctx)
 		case <-t.C:
 			changed := false
+			now := time.Now()
 			for _, s := range h.servers {
 				if s.connected() {
 					continue
 				}
+				s.mu.Lock()
+				// A dropped session has no error: tried at once.
+				due := (s.lastErr == nil || retry.Retryable(s.lastErr)) && !now.Before(s.next)
+				s.mu.Unlock()
+				if !due {
+					continue
+				}
 				if err := h.connectServer(ctx, s); err != nil {
-					h.log.Debug("mcp server still unreachable", "server", s.cfg.Name, "error", err)
 					continue
 				}
 				h.log.Info("mcp server reconnected", "server", s.cfg.Name)
@@ -280,6 +320,40 @@ func (h *Host) Run(ctx context.Context) error {
 				h.rebuild()
 			}
 		}
+	}
+}
+
+// policy is the waits between connects of a server (docs/spec/retry.md,
+// row 6).
+func (h *Host) policy() retry.Policy {
+	return retry.Policy{First: h.retry, Max: 30 * time.Minute, Growth: retry.Exponential}
+}
+
+// failedConnect keeps a failed connect of s and logs it: a warning at the
+// first failure and when the error changes, an error once for a refused
+// token, nothing for a skill without connection (its page says so).
+func (h *Host) failedConnect(s *server, err error) {
+	s.mu.Lock()
+	before := s.lastErr
+	s.lastErr = err
+	s.failed++
+	wait := h.policy().Wait(s.failed)
+	s.next = time.Now().Add(wait)
+	failed := s.failed
+	s.mu.Unlock()
+	switch {
+	case errors.Is(err, ErrNoConnection):
+	case !retry.Retryable(err):
+		if before == nil || before.Error() != err.Error() {
+			h.log.Error("mcp server refused the token; not tried again until its connection changes",
+				"server", s.cfg.Name, "error", err)
+		}
+	case before == nil || before.Error() != err.Error():
+		h.log.Warn("mcp server unreachable, trying again", "server", s.cfg.Name, "attempt", failed,
+			"wait", wait.String(), "error", err)
+	default:
+		h.log.Debug("mcp server still unreachable", "server", s.cfg.Name, "attempt", failed,
+			"wait", wait.String(), "error", err)
 	}
 }
 
@@ -316,23 +390,19 @@ func (h *Host) connectServer(ctx context.Context, s *server) error {
 	defer cancel()
 	session, err := h.connect(cctx, client, s.cfg)
 	if err != nil {
-		s.mu.Lock()
-		s.lastErr = err
-		s.mu.Unlock()
+		h.failedConnect(s, err)
 		return err
 	}
 	tools, unlisted, err := h.listTools(cctx, s.cfg, session)
 	if err != nil {
 		_ = session.Close()
-		s.mu.Lock()
-		s.lastErr = err
-		s.mu.Unlock()
+		h.failedConnect(s, err)
 		return err
 	}
 	s.mu.Lock()
 	s.session = session
 	s.tools, s.missing, s.unlisted = tools, missingTools(s.cfg, tools), unlisted
-	s.lastErr = nil
+	s.lastErr, s.failed, s.next = nil, 0, time.Time{}
 	s.mu.Unlock()
 	h.log.Info("mcp server connected", "server", s.cfg.Name, "tools", len(tools))
 
@@ -799,8 +869,35 @@ func (h *Host) dial(ctx context.Context, client *sdk.Client, cfg config.MCPServe
 	if h.conns == nil || !h.conns.Connected(cfg.Skill) {
 		return nil, ErrNoConnection
 	}
-	hc := &http.Client{Transport: h.conns.Transport(cfg.Skill, http.DefaultTransport)}
+	hc := &http.Client{Transport: refusals{h.conns.Transport(cfg.Skill, http.DefaultTransport)}}
 	return client.Connect(ctx, &sdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: hc}, nil)
+}
+
+// Wake tries a server that is unreachable at once and lets its waits start
+// anew; one that is connected keeps its session, and one whose error is
+// fatal (a refused token) is left alone until its connection or config
+// changes (docs/spec/retry.md, row 6). Home Assistant's connection wakes its
+// server, so the prompt is there again without waiting for the next of the
+// growing waits (docs/spec/context.md, 1.2).
+func (h *Host) Wake(ctx context.Context, name string) {
+	s := h.byName[name]
+	if s == nil || s.connected() {
+		return
+	}
+	s.mu.Lock()
+	fatal := s.lastErr != nil && !retry.Retryable(s.lastErr)
+	if !fatal {
+		s.failed, s.next = 0, time.Time{}
+	}
+	s.mu.Unlock()
+	if fatal {
+		return
+	}
+	if err := h.connectServer(ctx, s); err != nil {
+		return // kept and logged by failedConnect
+	}
+	h.log.Info("mcp server reconnected", "server", s.cfg.Name, "reason", "home assistant connected")
+	h.rebuild()
 }
 
 // Reconnect connects a skill's server anew after its connection changed:
@@ -816,11 +913,9 @@ func (h *Host) Reconnect(ctx context.Context, name string) {
 		_ = s.session.Close()
 		s.session = nil
 	}
-	s.tools, s.missing, s.lastErr = nil, nil, nil
+	s.tools, s.missing, s.lastErr, s.failed, s.next = nil, nil, nil, 0, time.Time{}
 	s.mu.Unlock()
-	if err := h.connectServer(ctx, s); err != nil && !errors.Is(err, ErrNoConnection) {
-		h.log.Warn("mcp server unreachable", "server", name, "error", err)
-	}
+	_ = h.connectServer(ctx, s) // a failure is logged where it is kept
 	h.rebuild()
 }
 
@@ -829,9 +924,9 @@ func DialTransport(ctx context.Context, client *sdk.Client, cfg config.MCPServer
 	var transport sdk.Transport
 	switch cfg.Transport {
 	case config.TransportHTTP:
-		hc := &http.Client{}
+		hc := &http.Client{Transport: refusals{http.DefaultTransport}}
 		if cfg.Token != "" {
-			hc.Transport = bearer{token: cfg.Token, next: http.DefaultTransport}
+			hc.Transport = refusals{bearer{token: cfg.Token, next: http.DefaultTransport}}
 		}
 		transport = &sdk.StreamableClientTransport{Endpoint: cfg.URL, HTTPClient: hc}
 	case config.TransportStdio:

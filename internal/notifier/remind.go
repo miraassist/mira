@@ -2,11 +2,11 @@ package notifier
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -21,7 +21,8 @@ func (n *Notifier) Remind(ctx context.Context, m store.Message) error {
 	defer n.mu.Unlock()
 
 	ctx = n.forMessage(ctx, m)
-	if m.Source == store.SourceReminder {
+	// A reminder tried again already carries its words (released before).
+	if m.Source == store.SourceReminder && m.Attempts == 0 {
 		m.Spoken = fmt.Sprintf(textsFor(n.langOf(ctx)).reminder, strings.TrimRight(strings.TrimSpace(m.Spoken), "."))
 	}
 	if err := n.store.ReleaseScheduled(ctx, m.ID, m.Spoken); err != nil {
@@ -71,9 +72,13 @@ func (n *Notifier) deliverAsked(ctx context.Context, nt store.Message, areaID st
 	return n.sendPrivate(ctx, nt)
 }
 
+// reminderPolicy bounds the attempts of a reminder (docs/spec/retry.md,
+// row 2): it is for now, so 15, 30, 45, 60 s apart.
+var reminderPolicy = retry.Policy{Attempts: 5, First: 15 * time.Second, Growth: retry.Linear}
+
 // DueMessages delivers every scheduled message that is due. A failed
-// delivery is retried on the next call, and given up after
-// store.MaxDeliveryAttempts.
+// delivery with a retryable error is scheduled again as reminderPolicy
+// says; a fatal one is given up at once.
 func (n *Notifier) DueMessages(ctx context.Context) {
 	for _, m := range n.due(ctx) {
 		n.remindOne(ctx, m)
@@ -114,8 +119,20 @@ func (n *Notifier) due(ctx context.Context) []store.Message {
 
 func (n *Notifier) remindOne(ctx context.Context, m store.Message) {
 	if err := n.Remind(ctx, m); err != nil {
-		gaveUp, ferr := n.store.DeliveryFailed(ctx, m.ID)
-		n.log.Error("scheduled message delivery failed", "message", m.ID, "gave_up", gaveUp, "error", errors.Join(err, ferr))
+		failed := m.Attempts + 1
+		next, stop := reminderPolicy.Next(n.clock(), failed, err)
+		if _, ferr := n.store.DeliveryFailed(ctx, m.ID, next); ferr != nil {
+			n.log.Error("could not keep the failed delivery of a scheduled message", "message", m.ID, "error", ferr)
+		}
+		switch {
+		case stop == nil:
+			n.log.Warn("scheduled message delivery failed, trying again", "message", m.ID, "attempt", failed,
+				"of", reminderPolicy.Attempts, "wait", next.Sub(n.clock()).String(), "error", err)
+		case retry.Retryable(err):
+			n.log.Error("scheduled message delivery given up", "message", m.ID, "attempts", failed, "error", err)
+		default:
+			n.log.Error("scheduled message delivery failed", "message", m.ID, "fatal", true, "error", err)
+		}
 		return
 	}
 	n.log.Info("scheduled message delivered", "message", m.ID, "area", m.AreaID, "receiver", m.Receiver)

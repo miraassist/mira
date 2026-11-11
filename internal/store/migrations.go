@@ -408,6 +408,12 @@ CREATE TABLE oauth_tokens (
 );
 `,
 	},
+	{
+		// When a failed private delivery is tried next (docs/spec/retry.md,
+		// row 1); '' for none.
+		name: "0026_messages_retry_at",
+		stmt: `ALTER TABLE messages ADD COLUMN retry_at TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

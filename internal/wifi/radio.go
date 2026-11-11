@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/miraassist/mira/internal/excerpt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/godbus/dbus/v5"
+
+	"github.com/miraassist/mira/internal/excerpt"
 )
 
 // AP is a Wi-Fi network a scan saw.
@@ -382,6 +384,15 @@ func (n *NetworkManager) Tidy(ctx context.Context) error {
 type Supervisor struct {
 	Base, Token string
 	Client      *http.Client
+	// Log gets the warnings; slog's default without one.
+	Log *slog.Logger
+}
+
+func (s *Supervisor) log() *slog.Logger {
+	if s.Log != nil {
+		return s.Log
+	}
+	return slog.Default().With("component", "wifi")
 }
 
 func (s *Supervisor) Kind() string { return "Supervisor" }
@@ -497,9 +508,16 @@ func (s *Supervisor) Join(ctx context.Context, ssid, password string) (any, erro
 	}
 	j := svJoined{iface: i.Interface}
 	deadline := time.Now().Add(20 * time.Second)
+	warned := false
 	for time.Now().Before(deadline) {
-		if now, err := s.wireless(ctx); err == nil && now.Connected {
+		now, err := s.wireless(ctx)
+		if err == nil && now.Connected {
 			return j, nil
+		}
+		if err != nil && !warned {
+			// Asked again each second within the 20 s (docs/spec/retry.md, row 12).
+			s.log().Warn("the Supervisor did not answer while joining the device's Wi-Fi; asking again", "ssid", ssid, "error", err)
+			warned = true
 		}
 		select {
 		case <-ctx.Done():

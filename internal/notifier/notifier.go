@@ -27,6 +27,7 @@ import (
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/telemetry"
 )
@@ -237,11 +238,9 @@ func (n *Notifier) OnPresenceAt(ctx context.Context, area, sat string) (Outcome,
 
 	var out Outcome
 	for _, nt := range private {
-		if err := n.sendPrivate(ctx, nt); err != nil {
-			n.log.Error("private delivery failed", "message", nt.ID, "error", err)
-			continue
+		if n.deliverPrivate(ctx, nt) {
+			out.Private = append(out.Private, nt.ID)
 		}
-		out.Private = append(out.Private, nt.ID)
 	}
 	if len(voice) == 0 {
 		if out.Skipped = "nothing for this room"; len(out.Private) > 0 {
@@ -296,8 +295,7 @@ func (n *Notifier) Tick(ctx context.Context) ([]string, error) {
 		if !neverSpoken && !escalate {
 			continue
 		}
-		if err := n.sendPrivate(ctx, nt); err != nil {
-			n.log.Error("private delivery failed", "message", nt.ID, "error", err)
+		if !n.deliverPrivate(ctx, nt) {
 			continue
 		}
 		reason := "escalation"
@@ -327,21 +325,31 @@ func (n *Notifier) deliverUrgent(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	var sent []string
+	now := n.clock()
 	for _, nt := range pending {
 		if nt.Importance < urgent.MinImportance {
 			continue
 		}
-		privErr := n.sendPrivate(ctx, nt)
-		if privErr != nil {
-			n.log.Error("urgent private delivery failed", "message", nt.ID, "error", privErr)
+		// The private part waits for its next attempt (docs/spec/retry.md,
+		// row 1); the announcement does not.
+		due := nt.RetryAt.IsZero() || !now.Before(nt.RetryAt)
+		privErr := errNotDue
+		if due {
+			privErr = n.sendPrivate(ctx, nt)
 		}
 		spoken := false
 		if urgent.Announce && !nt.Confidential() && !nt.Private() {
 			spoken = n.announceEverywhere(ctx, nt)
 		}
-		if privErr == nil || spoken {
+		switch {
+		case privErr == nil || spoken:
+			if due && privErr != nil {
+				n.log.Error("urgent private delivery failed; the message was spoken", "message", nt.ID, "error", privErr)
+			}
 			n.log.Warn("urgent message delivered", "message", nt.ID, "spoken", spoken, "private", privErr == nil)
 			sent = append(sent, nt.ID)
+		case due:
+			n.privateFailed(ctx, nt, now, privErr)
 		}
 	}
 	return sent, nil
@@ -721,6 +729,50 @@ func (n *Notifier) deviceID(_ context.Context, entityID string) string {
 
 // sendPrivate delivers a message to its recipients over the first private
 // channel that works for each of them.
+// privatePolicy bounds the attempts of a private delivery
+// (docs/spec/retry.md, row 1): 1, 2, 4 … 256 minutes apart, about 8.5 hours
+// in all; the message's expiry ends it earlier.
+var privatePolicy = retry.Policy{Attempts: 10, First: time.Minute, Growth: retry.Exponential}
+
+// deliverPrivate sends a message over its receiver's channels once its next
+// attempt is due, and keeps a failure: tried again later when the error is
+// retryable, failed when it is fatal or the attempts are used up. It reports
+// whether the message was delivered.
+func (n *Notifier) deliverPrivate(ctx context.Context, nt store.Message) bool {
+	now := n.clock()
+	if !nt.RetryAt.IsZero() && now.Before(nt.RetryAt) {
+		return false
+	}
+	err := n.sendPrivate(ctx, nt)
+	if err == nil {
+		return true
+	}
+	n.privateFailed(ctx, nt, now, err)
+	return false
+}
+
+// errNotDue stands for a private delivery whose next attempt has not come.
+var errNotDue = errors.New("the next attempt has not come")
+
+// privateFailed keeps a failed private delivery and logs it: tried again
+// later, given up, or failed for good.
+func (n *Notifier) privateFailed(ctx context.Context, nt store.Message, now time.Time, err error) {
+	failed := nt.Attempts + 1
+	next, stop := privatePolicy.Next(now, failed, err)
+	if _, serr := n.store.PrivateDeliveryFailed(ctx, nt.ID, next); serr != nil {
+		n.log.Error("could not keep the failed private delivery; it is tried at the next tick", "message", nt.ID, "error", serr)
+	}
+	switch {
+	case stop == nil:
+		n.log.Warn("private delivery failed, trying again", "message", nt.ID, "attempt", failed,
+			"of", privatePolicy.Attempts, "next", next.In(n.loc).Format("15:04"), "error", err)
+	case retry.Retryable(err):
+		n.log.Error("private delivery given up", "message", nt.ID, "attempts", failed, "error", err)
+	default:
+		n.log.Error("private delivery failed", "message", nt.ID, "fatal", true, "error", err)
+	}
+}
+
 func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 	text := nt.Spoken
 	if nt.Details != "" {
@@ -737,7 +789,7 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 
 	var used []string
 	if len(recipients) == 0 {
-		return errors.New("no private channel: no persons")
+		return retry.Fatal(errors.New("no private channel: no persons"))
 	}
 	var errs []error
 	for _, id := range recipients {
@@ -749,7 +801,10 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 		used = append(used, via)
 	}
 	if len(used) == 0 {
-		return errors.Join(errs...)
+		return retry.Join(errs...)
+	}
+	if len(errs) > 0 {
+		n.log.Warn("private delivery partly failed", "message", nt.ID, "via", strings.Join(used, ","), "error", errors.Join(errs...))
 	}
 	n.tel.RecordMessageDelivery(ctx, used[0], 1)
 	return n.store.MarkDelivered(ctx, nt.ID, strings.Join(dedupe(used), ","))
@@ -761,10 +816,10 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, error) {
 	p, ok := n.persons[personID]
 	if !ok {
-		return "", fmt.Errorf("unknown person")
+		return "", retry.Fatal(fmt.Errorf("unknown person"))
 	}
 	if len(p.Channels) == 0 {
-		return "", errors.New("no private channel configured")
+		return "", retry.Fatal(errors.New("no private channel configured"))
 	}
 	// A channel that is a notify entity is sent to as one; the others are
 	// legacy notify services.
@@ -791,7 +846,7 @@ func (n *Notifier) sendTo(ctx context.Context, personID, text string) (string, e
 		}
 		return ch, nil
 	}
-	return "", errors.Join(errs...)
+	return "", retry.Join(errs...)
 }
 
 func dedupe(in []string) []string {

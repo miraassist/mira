@@ -1,14 +1,17 @@
 """Config flow: the connection test decides between entry and error."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
+import aiohttp
+import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mira.access import TOKEN_NAME, keep_rejoin, rejoin_token
-from custom_components.mira.api import rejoin_key
+from custom_components.mira.api import MiraAuthError, rejoin_key
+from custom_components.mira.config_flow import MiraConfigFlow
 from custom_components.mira.const import (
     CONF_AGENT_TOKEN,
     CONF_IMPORTED,
@@ -291,3 +294,39 @@ async def test_options_set_timeout(hass, entry):
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_TIMEOUT: 30})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_TIMEOUT] == 30
+
+
+# Retries: docs/spec/retry.md, step 6.
+
+
+async def test_RY50_setup_does_not_wait_on_a_refused_token(hass):
+    flow = MiraConfigFlow()
+    flow.hass = hass
+    client = Mock()
+    client.health = AsyncMock(side_effect=MiraAuthError("token rejected"))
+    with (
+        patch.object(flow, "_client", return_value=client),
+        patch("custom_components.mira.config_flow.asyncio.sleep", AsyncMock()),
+        pytest.raises(MiraAuthError),
+    ):
+        await flow._wait_ready()
+    assert client.health.await_count == 1
+
+
+async def test_RY51_setup_waits_for_a_service_that_restarts(hass, aioclient_mock):
+    flow = MiraConfigFlow()
+    flow.hass = hass
+    flow._url, flow._token = AGENT_URL, "t"
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", exc=aiohttp.ClientConnectionError())
+    calls = 0
+
+    async def tick(_):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            aioclient_mock.clear_requests()
+            aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok"})
+
+    with patch("custom_components.mira.config_flow.asyncio.sleep", side_effect=tick):
+        await flow._wait_ready()
+    assert calls == 3

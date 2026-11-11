@@ -65,6 +65,16 @@ func (f *fakeHA) CallService(_ context.Context, domain, service string, data map
 		if service == "send_message" && target != nil && len(target.EntityID) > 0 {
 			channel = target.EntityID[0]
 		}
+		f.private.mu.Lock()
+		err := f.private.fail[channel]
+		if f.private.tries == nil {
+			f.private.tries = map[string]int{}
+		}
+		f.private.tries[channel]++
+		f.private.mu.Unlock()
+		if err != nil {
+			return err
+		}
 		f.private.add(channel, data["message"].(string))
 		return nil
 	}
@@ -153,6 +163,10 @@ func (f *fakeHA) servicesCalled() []string {
 type fakePrivate struct {
 	mu   sync.Mutex
 	sent map[string][]string
+	// fail, when it holds a channel, is that channel's error; tries counts
+	// the attempts on it.
+	fail  map[string]error
+	tries map[string]int
 }
 
 func (f *fakePrivate) add(channel, text string) {
@@ -162,6 +176,7 @@ func (f *fakePrivate) add(channel, text string) {
 }
 
 type env struct {
+	cfg config.Config
 	n   *Notifier
 	st  *store.Store
 	ha  *fakeHA
@@ -189,7 +204,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	e := &env{t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
+	e := &env{cfg: cfg, t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
 	e.ha = &fakeHA{states: map[string]haws.State{}, private: e.tg}
 	e.ha.set("assist_satellite.bad", "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.set("assist_satellite.kueche", "idle", map[string]any{"supported_features": float64(1)})

@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/telemetry"
 )
 
@@ -25,6 +28,34 @@ import (
 type Error struct {
 	StatusCode int
 	Body       string
+	// Wait is the wait the server named (Retry-After, or Google's
+	// RetryInfo.retryDelay in the body); zero for none.
+	Wait time.Duration
+}
+
+// RetryAfter is the wait the server named (internal/retry keeps it).
+func (e *Error) RetryAfter() time.Duration { return e.Wait }
+
+var retryDelayRE = regexp.MustCompile(`"retryDelay"\s*:\s*"([0-9.]+)s"`)
+
+// namedWait reads the wait a server names for a 429 or 503: the header
+// Retry-After (seconds or a date), else Google's retryDelay in the body
+// (docs/spec/retry.md, decision 5).
+func namedWait(h http.Header, body string, now time.Time) time.Duration {
+	if v := strings.TrimSpace(h.Get("Retry-After")); v != "" {
+		if secs, err := strconv.ParseFloat(v, 64); err == nil && secs > 0 {
+			return time.Duration(secs * float64(time.Second))
+		}
+		if at, err := http.ParseTime(v); err == nil && at.After(now) {
+			return at.Sub(now)
+		}
+	}
+	if m := retryDelayRE.FindStringSubmatch(body); m != nil {
+		if secs, err := strconv.ParseFloat(m[1], 64); err == nil && secs > 0 {
+			return time.Duration(secs * float64(time.Second))
+		}
+	}
+	return 0
 }
 
 func (e *Error) Error() string {
@@ -211,8 +242,9 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	var lastErr error
-	for attempt := 0; ; attempt++ {
+	var began time.Time
+	var resp *ChatResponse
+	err = retry.DoBy(ctx, waitsFor(c.retries+1), func(ctx context.Context) error {
 		// A streamed answer is retried only while nothing of it was passed
 		// on: what was said cannot be taken back.
 		passed := false
@@ -220,26 +252,41 @@ func (c *Client) do(ctx context.Context, req ChatRequest, onText func(string)) (
 		if onText != nil {
 			pass = func(text string) { passed = true; onText(text) }
 		}
-		began := time.Now()
-		resp, err := c.once(ctx, body, pass)
-		if err == nil {
-			return resp, nil
+		began = time.Now()
+		r, err := c.once(ctx, body, pass)
+		switch {
+		case err == nil:
+			resp = r
+			return nil
+		case passed || !retryable(err):
+			return retry.Fatal(err)
 		}
-		lastErr = err
-		if passed || attempt >= c.retries || !retryable(err) || ctx.Err() != nil {
-			return nil, lastErr
-		}
-		// Linear backoff: the server is local, a long wait helps nobody.
-		delay := time.Duration(attempt+1) * 250 * time.Millisecond
+		return err
+	}, func(failed int, wait time.Duration, err error) {
 		// A retry is never silent (docs/spec/fallbacks.md, FB-13).
-		c.log.Warn("model call failed, trying again", "model", c.model, "host", c.host(), "attempt", attempt+1,
+		c.log.Warn("model call failed, trying again", "model", c.model, "host", c.host(), "attempt", failed,
 			"status", errorType(err), "error", err, "attempt_ms", time.Since(began).Milliseconds(),
-			"wait_ms", delay.Milliseconds())
-		select {
-		case <-ctx.Done():
-			return nil, lastErr
-		case <-time.After(delay):
+			"wait_ms", wait.Milliseconds())
+	})
+	var long *retry.WaitTooLong
+	if errors.As(err, &long) {
+		return nil, fmt.Errorf("model %s at %s busy: %w", c.model, c.host(), err)
+	}
+	return resp, err
+}
+
+// waitsFor chooses the waits by the error (docs/spec/retry.md, row 3): a
+// 429 asks to slow down, so 1 s, then 2 s, unless the server named its
+// wait; a 5xx or a failed connection 250 ms, then 500 ms.
+func waitsFor(attempts int) func(error) retry.Policy {
+	slow := retry.Policy{Attempts: attempts, First: time.Second, Max: 30 * time.Second, Growth: retry.Exponential}
+	quick := retry.Policy{Attempts: attempts, First: 250 * time.Millisecond, Max: 30 * time.Second, Growth: retry.Linear}
+	return func(err error) retry.Policy {
+		var e *Error
+		if errors.As(err, &e) && e.StatusCode == http.StatusTooManyRequests {
+			return slow
 		}
+		return quick
 	}
 }
 
@@ -268,7 +315,11 @@ func (c *Client) once(ctx context.Context, body []byte, onText func(string)) (*C
 		return nil, fmt.Errorf("read llm response: %w", err)
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode > 299 {
-		return nil, &Error{StatusCode: httpResp.StatusCode, Body: string(raw)}
+		e := &Error{StatusCode: httpResp.StatusCode, Body: string(raw)}
+		if e.StatusCode == http.StatusTooManyRequests || e.StatusCode == http.StatusServiceUnavailable {
+			e.Wait = namedWait(httpResp.Header, e.Body, time.Now())
+		}
+		return nil, e
 	}
 
 	var out ChatResponse

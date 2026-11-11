@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-// MaxDeliveryAttempts bounds retries of a scheduled message that cannot be
-// delivered.
-const MaxDeliveryAttempts = 5
-
 // ScheduleMessage stores a message to be delivered at m.DeliverAt (a
 // reminder). Until then it is scheduled and does not count as waiting.
 func (s *Store) ScheduleMessage(ctx context.Context, m Message) (Message, error) {
@@ -76,23 +72,24 @@ func (s *Store) moveScheduled(ctx context.Context, q string, args ...any) error 
 	return nil
 }
 
-// DeliveryFailed counts a failed delivery of a released scheduled message:
-// it is scheduled again for the next try, or given up after
-// MaxDeliveryAttempts. It reports whether it was given up.
-func (s *Store) DeliveryFailed(ctx context.Context, id string) (bool, error) {
+// DeliveryFailed counts a failed delivery of a released scheduled message
+// (docs/spec/retry.md, row 2): it is scheduled again for next, or, with a
+// zero next, given up as failed. It returns the attempts so far.
+func (s *Store) DeliveryFailed(ctx context.Context, id string, next time.Time) (int, error) {
+	state, at := MessageScheduled, ""
+	if next.IsZero() {
+		state = MessageFailed
+	} else {
+		at = formatTime(next)
+	}
 	var attempts int
 	err := s.db.QueryRowContext(ctx, `
-UPDATE messages SET attempts = attempts + 1,
-                    state = CASE WHEN attempts + 1 >= ? THEN ? ELSE ? END,
-                    updated_at = ?
+UPDATE messages SET attempts = attempts + 1, state = ?,
+                    deliver_at = CASE WHEN ? = '' THEN deliver_at ELSE ? END, updated_at = ?
 WHERE id = ? AND state IN (?, ?) RETURNING attempts`,
-		MaxDeliveryAttempts, MessageFailed, MessageScheduled, formatTime(s.now()),
-		id, MessagePending, MessageScheduled).Scan(&attempts)
+		state, at, at, formatTime(s.now()), id, MessagePending, MessageScheduled).Scan(&attempts)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, ErrNotFound
+		return 0, ErrNotFound
 	}
-	if err != nil {
-		return false, err
-	}
-	return attempts >= MaxDeliveryAttempts, nil
+	return attempts, err
 }

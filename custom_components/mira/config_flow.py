@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import logging
 import secrets
 from typing import Any
 
@@ -66,6 +67,8 @@ CODE_SCHEMA = vol.Schema({vol.Required("code"): str})
 
 # How long the agent may take to start anew after setup.
 SETUP_WAIT = 60
+
+_LOGGER = logging.getLogger(__name__)
 
 # The guide's setup section, linked from the first form.
 GUIDE = "https://github.com/miraassist/mira/blob/main/docs/guide/{}.md#{}"
@@ -633,12 +636,19 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return self.async_create_entry(title="Mira", data={**data, CONF_PIPELINES: self._pipelines or []})
 
     async def _wait_ready(self) -> None:
-        """The agent starts anew with what it got; wait until it runs."""
-        for _ in range(SETUP_WAIT):
+        """The agent starts anew with what it got; wait until it runs.
+
+        Only an agent not reached yet is asked again; a refused token or
+        another answer ends the wait at once (docs/spec/retry.md, row 11).
+        """
+        for attempt in range(SETUP_WAIT):
             await asyncio.sleep(1)
             try:
                 health = await self._client().health()
-            except MiraError:
+            except MiraError as err:
+                if not err.retryable:
+                    raise
+                _LOGGER.debug("Mira not reached yet (attempt %d of %d): %s", attempt + 1, SETUP_WAIT, err)
                 continue
             if health.get("status") != "setup":
                 return
