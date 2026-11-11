@@ -41,11 +41,18 @@ metadata:
             sind; gibt es mehr als 8, hol die nächsten mit page 2, 3, … Je Treffer
             stehen id, Titel, Datum (created) und in __search_hit__.highlights eine
             Fundstelle aus dem Text.
+          - Nummern (Vertrag, Rechnung, Kunde, Kennzeichen) und feste Wendungen suchst
+            du in Anführungszeichen: query "\"4711-0815-2024-01\"". Ohne sie zählt
+            jeder Teil der Nummer einzeln, und es kommen Hunderte Treffer.
           - Die Fundstelle reicht oft schon: Steht dort der gesuchte Betrag oder die
             Frist („Auftrag Summe € 374,95“), nimm ihn von dort und notiere dir je
             Dokument id, Datum und Betrag. Lies ein Dokument mit
             paperless__get_document_content nur, wenn die Fundstelle es nicht klar sagt
             oder offen ist, ob es überhaupt passt.
+          - Hast du ein Dokument, das zum Ziel passt, antworte damit. Was in den
+            Dokumenten nicht steht (wem etwas gehört, wer mit „der Sohn“ gemeint
+            ist), findest du auch mit weiteren Suchen nicht: nenne den Fund und sag,
+            was offen bleibt, statt weiterzusuchen.
           - Der Text ist aus einem Scan erkannt und kann Fehler haben. Ist ein Betrag
             unklar erkannt, sag das.
           - Zählen und Zusammenrechnen, in dieser Reihenfolge: Schreib zuerst die

@@ -1,0 +1,10 @@
+# Everything on Qwen3.8-Flash-Next (ISTA-DASLab GSQ-RCO IQ2_XS) served by Strata on this host's Radeon 890M
+# (gfx1150, local engine build): --mmap-experts, expert cache 16254 slots, 32K context, thinking off.
+models:
+  main:
+    endpoint: "http://localhost:8099/v1"
+    model: "qwen3.8-flash-next-iq2_xs"
+    privacy: local
+    reasoning_effort: none
+    temperature: 0.3
+    timeout: 5m
