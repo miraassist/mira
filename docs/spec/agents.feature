@@ -632,3 +632,19 @@ Feature: AG Agents
     Given a thread bound to the person, started by Anna in a private area
     When Anna speaks in the living room, recognised
     Then she does not see it there
+
+  @step11
+  Scenario: AG-116 A run without an answer says what came back
+    Given an agent whose last round the model answers with a tool call and no text
+    When the run ends
+    Then it fails with "the model gave no answer", the tool's name and the finish reason
+    And the empty answer is in the run's steps
+    And a run whose model answers empty text says "empty text"
+
+  @step12
+  Scenario: AG-117 The last round says it is the last
+    Given an agent with 1 tool round whose model calls a tool in it
+    When the run comes to its last request
+    Then that request has tool_choice none and, last, the sentence that the rounds are used up
+    And the sentence is not in the run's steps
+    And the answer to it is the run's answer

@@ -1,6 +1,6 @@
 # Agents – Spec
 
-Status 2026-10-23: built, steps 1 to 10.
+Status 2026-11-11: built, steps 1 to 12.
 
 The testable rules are numbered scenarios in [agents.feature](agents.feature); each Go test for one carries the
 number in its name (`TestAG07_…`).
@@ -257,6 +257,10 @@ Every run writes one uniform line `agent done`: agent, call ID, ID of the callin
 model, duration, model calls, tokens. Through the call IDs a whole tree of calls can be followed. Lines that say what
 a run achieved (such as `mail read`) stay in addition.
 
+A run that ends without an answer (`the model gave no answer`) says what came back instead (Decided 41): tool calls
+after its last round (their names), empty text, only thinking (its start), and the model's finish reason. The empty
+answer is kept in the run's steps like every answer.
+
 ## Runtime
 
 ### Running
@@ -385,6 +389,8 @@ per agent come in addition.
 9. **Run view:** the stored runs on Mira's page (see Run view).
 10. **Agents in the conversation:** the switch `conversation` for YAML agents; a skill's agents with the tools of
     its MCP server; `max_rounds` per YAML agent.
+11. **No answer names what came back** (Decided 41): the error and the run's steps. AG-116 (built 2026-11-11).
+12. **The last round says it is the last** (Decided 42). AG-117 (built 2026-11-11).
 
 ## Model choice
 
@@ -551,6 +557,16 @@ From that:
 40. **Answer where asked:** a voice turn waits up to 10 seconds for a thread's agents, so a quick result comes in
     the same answer; a later one is spoken at the satellite the thread began at, also for a person's thread
     (2026-10-24, after a recipe's plan went to Telegram while the user stood at the Show).
+41. **No answer names what came back** (2026-11-11, after a Paperless research on the live Mira used up its 20 rounds
+    and ended in "the model gave no answer" twice, with nothing to tell why): the error says whether the model asked
+    for tools after its last round, gave empty text or only thinking, and its finish reason
+    ([Silent fallbacks](fallbacks.md), decision 5).
+42. **The last round says it is the last** (2026-11-11): when an agent's tool rounds are used up, the last request
+    sends `tool_choice: none` and, after the run's messages, a sentence that the rounds are used up and the answer is
+    due now, with what was found and what is still open. Checked against Gemini (`gemini-flash-latest`) with the
+    stored steps of the live run: with `tool_choice: none` alone, and with no tools at all, it called a tool again
+    twice and gave no text; with the sentence it answered. The sentence is not kept in the run's steps. The
+    conversation keeps its own last round ([Silent fallbacks](fallbacks.md), row 4).
 
 ## Open questions
 

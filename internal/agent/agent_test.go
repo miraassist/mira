@@ -35,6 +35,8 @@ type step struct {
 	text  string
 	hang  bool
 	err   error // the model fails
+	// finish is the finish reason the model gives.
+	finish string
 }
 
 // model is a scripted model; it counts calls and how many ran at once.
@@ -79,7 +81,7 @@ func (m *model) Chat(ctx context.Context, req llm.ChatRequest) (*llm.ChatRespons
 			return nil, ctx.Err()
 		}
 	}
-	return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant, Content: s.text, ToolCalls: s.calls}}},
+	return &llm.ChatResponse{Choices: []llm.Choice{{Message: llm.Message{Role: llm.RoleAssistant, Content: s.text, ToolCalls: s.calls}, FinishReason: s.finish}},
 		Usage: llm.Usage{PromptTokens: 100, CompletionTokens: 10}}, nil
 }
 
@@ -945,5 +947,98 @@ models:
 	clients["main"].steps = []step{{err: errors.New("lm studio is down")}}
 	if res, err := rt.Call(context.Background(), Spec{Name: "b", Profile: Isolated}, "x", CallContext{}); err != nil || res.Model != "smart" {
 		t.Errorf("without privacy: %+v, %v", res, err)
+	}
+}
+
+// Retries of an agent's model call: docs/spec/retry.md, step 4.
+
+func TestRY33_AnAgentDoesNotTryAgainAModelThatRefused(t *testing.T) {
+	e := setup(t)
+	spec := Spec{Name: "a", Profile: Isolated, Limits: Limits{AttemptTimeout: time.Second, Retries: 1}}
+	e.main.steps = []step{{err: &llm.Error{StatusCode: 400, Body: "bad request"}}, {text: "zweiter Versuch"}}
+	res, err := e.rt.Call(context.Background(), spec, "x", CallContext{})
+	if err == nil || res.ModelCalls != 1 {
+		t.Errorf("%+v %v", res, err)
+	}
+}
+
+func TestRY34_AnAgentTriesAgainAModelThatHung(t *testing.T) {
+	e := setup(t)
+	spec := Spec{Name: "a", Profile: Isolated, Limits: Limits{AttemptTimeout: 30 * time.Millisecond, Retries: 1}}
+	e.main.steps = []step{{hang: true}, {text: "zweiter Versuch"}}
+	res, err := e.rt.Call(context.Background(), spec, "x", CallContext{})
+	if err != nil || res.Text != "zweiter Versuch" || res.ModelCalls != 2 {
+		t.Errorf("%+v %v", res, err)
+	}
+	if lines := e.logLines(t, "model call failed, trying again"); len(lines) != 1 || !strings.Contains(lines[0], "reason=hung") {
+		t.Errorf("log: %q", lines)
+	}
+}
+
+// AG-116 A run without an answer says what came back
+func TestAG116_ARunWithoutAnAnswerSaysWhatCameBack(t *testing.T) {
+	e := setup(t)
+	// Given an agent whose last round the model answers with a tool call and no text
+	spec := worker()
+	spec.Limits.MaxRounds = 1
+	e.main.steps = []step{{calls: []llm.ToolCall{call("look", "{}")}},
+		{calls: []llm.ToolCall{call("look", "{}")}, finish: "tool_calls"}}
+	// When the run ends
+	res, _ := e.rt.Call(context.Background(), spec, "x", async)
+	run := e.waitDelivered(t)
+	// Then it fails with "the model gave no answer", the tool's name and the finish reason
+	for _, want := range []string{"the model gave no answer", "tool calls after its last of 1 rounds (look)", "finish reason tool_calls"} {
+		if !strings.Contains(run.Error, want) {
+			t.Errorf("error %q lacks %q", run.Error, want)
+		}
+	}
+	// And the empty answer is in the run's steps
+	steps, err := e.st.AgentSteps(context.Background(), res.CallID)
+	if err != nil || len(steps) == 0 || steps[len(steps)-1].Kind != stepAnswer {
+		t.Errorf("steps %+v, %v", steps, err)
+	}
+
+	// And a run whose model answers empty text says "empty text"
+	e.main.steps = []step{{text: "<think>hm</think>", finish: "stop"}}
+	_, err = e.rt.Call(context.Background(), background("b", AllRights), "x", CallContext{Rights: AllRights})
+	if !errors.Is(err, ErrNoAnswer) || !strings.Contains(err.Error(), `only thinking "<think>hm</think>", finish reason stop`) {
+		t.Errorf("err = %v", err)
+	}
+	e.main.steps = []step{{}}
+	_, err = e.rt.Call(context.Background(), background("b", AllRights), "x", CallContext{Rights: AllRights})
+	if err == nil || !strings.HasSuffix(err.Error(), "the model gave no answer: empty text") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// AG-117 The last round says it is the last
+func TestAG117_TheLastRoundSaysItIsTheLast(t *testing.T) {
+	e := setup(t)
+	// Given an agent with 1 tool round whose model calls a tool in it
+	spec := worker()
+	spec.Limits.MaxRounds = 1
+	e.main.steps = []step{{calls: []llm.ToolCall{call("look", "{}")}}, {text: "Gefunden: der Antrag."}}
+	res, _ := e.rt.Call(context.Background(), spec, "x", async)
+	run := e.waitDelivered(t)
+	// When the run comes to its last request
+	req := e.main.reqs[1]
+	// Then that request has tool_choice none and, last, the sentence that the rounds are used up
+	last := req.Messages[len(req.Messages)-1]
+	if req.ToolChoice != "none" || last.Role != llm.RoleUser || !strings.Contains(last.Content, "Werkzeug-Runden sind aufgebraucht") {
+		t.Fatalf("tool_choice %q, last message %+v", req.ToolChoice, last)
+	}
+	if first := e.main.reqs[0]; first.ToolChoice != nil || strings.Contains(first.Messages[len(first.Messages)-1].Content, "aufgebraucht") {
+		t.Errorf("the first round already says it is the last: %v %+v", first.ToolChoice, first.Messages[len(first.Messages)-1])
+	}
+	// And the sentence is not in the run's steps
+	steps, _ := e.st.AgentSteps(context.Background(), res.CallID)
+	for _, st := range steps {
+		if strings.Contains(string(st.Body), "aufgebraucht") {
+			t.Errorf("step %s keeps the sentence", st.Kind)
+		}
+	}
+	// And the answer to it is the run's answer
+	if run.Output != "Gefunden: der Antrag." || run.Status != string(Done) {
+		t.Errorf("run %+v", run)
 	}
 }

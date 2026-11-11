@@ -17,9 +17,11 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/prompt"
+	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -351,7 +353,12 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 		if len(ex.offered) > 0 {
 			req.Tools = ex.offered
 			if ex.round >= ex.maxRounds {
+				// tool_choice none alone is not kept by every model (Gemini
+				// calls a tool anyway): the last round says so too
+				// (Decided 42). Only in this request, not in the run's steps.
 				req.ToolChoice = "none"
+				req.Messages = append(ex.msgs[:len(ex.msgs):len(ex.msgs)],
+					llm.Message{Role: llm.RoleUser, Content: ex.t.lastRound})
 			}
 		} else if len(ex.b.Tools) > 0 {
 			req.Tools, req.ToolChoice = ex.b.Tools, "none"
@@ -381,11 +388,13 @@ func (r *Runtime) loop(ctx context.Context, ex *execution) (Status, error) {
 		}
 		msg := out.Message()
 		msg.Role = llm.RoleAssistant
+		raw := msg.Content
 		msg.Content = stripThinking(msg.Content)
 		if len(msg.ToolCalls) == 0 || ex.round >= ex.maxRounds {
 			text := strings.TrimSpace(msg.Content)
 			if text == "" {
-				return Failed, ErrNoAnswer
+				ex.saved.add(ctx, stepAnswer, msg)
+				return Failed, noAnswer(msg, raw, out.FinishReason(), ex.maxRounds)
 			}
 			if len(spec.Output) > 0 {
 				text = extractJSON(text)
@@ -628,23 +637,20 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 }
 
 // chat makes one model call within the model's slots, tried again after the
-// limits when it fails or hangs.
+// limits only when it hung (docs/spec/retry.md, row 4): every other error
+// the model client has classified and retried already.
 func (r *Runtime) chat(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, lim Limits, res *Result) (*llm.ChatResponse, error) {
-	var err error
-	for attempt := 0; attempt <= lim.Retries; attempt++ {
-		var out *llm.ChatResponse
-		out, err = r.attempt(ctx, client, model, parallel, req, lim.AttemptTimeout, res)
-		if err == nil {
-			return out, nil
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if attempt < lim.Retries {
-			r.log.Warn("model call failed, trying again", "model", model, "error", err)
-		}
+	var out *llm.ChatResponse
+	p := retry.Policy{Attempts: lim.Retries + 1, Growth: retry.Fixed}
+	err := retry.Do(ctx, p, func(ctx context.Context) error {
+		o, err := r.attempt(ctx, client, model, parallel, req, lim.AttemptTimeout, res)
+		out = o
+		return err
+	}, retry.Warn(r.log, "model call", p, "model", model, "reason", "hung"))
+	if err != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	return nil, err
+	return out, err
 }
 
 func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, parallel int, req llm.ChatRequest, timeout time.Duration, res *Result) (*llm.ChatResponse, error) {
@@ -660,6 +666,7 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, par
 		return nil, err
 	}
 	defer release()
+	parent := ctx
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -670,7 +677,11 @@ func (r *Runtime) attempt(ctx context.Context, client Chatter, model string, par
 	res.ModelCalls++
 	res.ModelTime += time.Since(began)
 	if err != nil {
-		return nil, err
+		if timeout > 0 && errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil {
+			// The model hung past the attempt's time: worth another attempt.
+			return nil, retry.Transient(fmt.Errorf("no answer within %s: %w", timeout, err))
+		}
+		return nil, retry.Fatal(err)
 	}
 	llm.Count(ctx, model, time.Since(began), out)
 	res.PromptTokens += out.Usage.PromptTokens
@@ -716,6 +727,29 @@ func (r *Runtime) logRun(spec Spec, cc CallContext, res Result, took time.Durati
 }
 
 var thinkBlock = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
+// noAnswer is ErrNoAnswer with what came back instead (Decided 41): tool
+// calls after the last round, empty text or only thinking, and the finish
+// reason.
+func noAnswer(msg llm.Message, raw, finish string, rounds int) error {
+	var what string
+	switch {
+	case len(msg.ToolCalls) > 0:
+		names := make([]string, len(msg.ToolCalls))
+		for i, c := range msg.ToolCalls {
+			names[i] = c.Function.Name
+		}
+		what = fmt.Sprintf("tool calls after its last of %d rounds (%s)", rounds, strings.Join(names, ", "))
+	case strings.TrimSpace(raw) != "":
+		what = fmt.Sprintf("only thinking %q", excerpt.Of(strings.TrimSpace(raw)))
+	default:
+		what = "empty text"
+	}
+	if finish != "" {
+		what += ", finish reason " + finish
+	}
+	return fmt.Errorf("%w: %s", ErrNoAnswer, what)
+}
 
 func stripThinking(s string) string { return strings.TrimSpace(thinkBlock.ReplaceAllString(s, "")) }
 
