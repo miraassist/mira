@@ -672,7 +672,9 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ▶ [Ein Shelly kommt per Sprache ins WLAN: übergeben, Raum, Name](https://youtu.be/SyKFBLzfPkY)
 
-Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach dem Raum, schlägt einen Namen vor und gibt ihre Werte für Sprache frei, sodass du sie gleich steuern oder abfragen kannst. Der Name gilt auch für die Entitäten in Home Assistant: Aus `switch.shelly1pmmini_348518e056a8` wird `switch.kuhlschrank`. Das geht auf drei Wegen.
+▶ [Eine Matter-Steckdose per Sprache: QR-Code scannen, einstecken, Raum, Name](https://youtu.be/xO_4xwkGXZo)
+
+Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach dem Raum, schlägt einen Namen vor und gibt ihre Werte für Sprache frei, sodass du sie gleich steuern oder abfragen kannst. Der Name gilt auch für die Entitäten in Home Assistant: Aus `switch.shelly1pmmini_348518e056a8` wird `switch.kuhlschrank`. Das geht auf vier Wegen.
 
 **Während Mira wartet**, bis ein Gerät da ist, zeigt ihr Satellit das an: Auf einem Echo Show läuft ein türkiser Ring in einer Minute ab, darunter „Ich warte auf dein Gerät …“; auf einem Echo läuft der Lichtring türkis ab, ohne Ton. Ist die Minute um und Mira wartet noch, beginnt er von vorn. Er hört auf, sobald Mira sich meldet oder du „abbrechen“ sagst. Spricht Mira oder sagst du das Aktivierungswort, hält der Ring an und läuft danach weiter.
 
@@ -684,6 +686,19 @@ Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach de
 - Ein Gerät pro Durchgang; für das nächste sagst du wieder, dass du ein neues hast.
 - Meldet sich drei Minuten lang nichts, fragt Mira, ob sie es nochmal versuchen soll. Ein Gerät, das schon eingebunden ist, erkennt sie und nennt seinen Namen und Raum.
 - „Abbrechen“ beendet das Einbinden jederzeit. Das Koppeln geht nur am Satelliten, weil Mira sich dort meldet, wenn das Gerät da ist.
+
+### Matter-Geräte
+
+„Ich hab ein neues Matter-Gerät.“ Ein Matter-Gerät bringt seinen Setup-Code mit: den QR-Code auf dem Gerät oder dem Aufkleber und daneben elf Ziffern. Steht Mira an einem Echo Show, liest sie den QR-Code mit dessen Kamera: „Halt den Code vor die Kamera.“ An einem Gerät ohne Kamera liest du ihr die elf Ziffern vor; sie prüft sie sofort und sagt es dir, wenn eine Ziffer nicht passt.
+
+![Der Echo Show liest den QR-Code eines Matter-Geräts](img/geraet-matter.png)
+
+Passt der Code, sagt Mira: „Steck das Gerät jetzt ein.“ Sie sucht es drei Minuten lang über Bluetooth, gibt ihm dein WLAN und meldet sich, sobald es da ist – dann geht es mit Raum und Name weiter wie bei jedem Gerät.
+
+- **Damit geht es:** Matter-Geräte über WLAN. Thread-Geräte brauchen einen Border Router; die kommen später.
+- **Das Gerät muss einrichtbar sein:** fabrikneu oder zurückgesetzt. Findet Mira nichts, sagt sie dir das und was hilft: den Knopf gedrückt halten, bis es blinkt, und ihr dann Bescheid sagen.
+- **Nah genug:** Der Rechner, auf dem Mira läuft, spricht das Gerät über Bluetooth an. Steht es zu weit weg, findet sie es nicht.
+- Dafür braucht Home Assistant die **Matter-Integration** mit seinem Matter-Server; dein WLAN trägt Mira beim Skill ein (unten).
 
 ### Geräte, die Home Assistant gefunden hat
 
@@ -726,7 +741,7 @@ Auf einem Echo Show schaltet Mira für den Ring die Video-Wiedergabe ein, wenn s
 
 Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und das Recht, Netzwerke zu verwalten: Als `root` (Standard des Containers) hat Mira es; läuft sie als anderer Benutzer, braucht dieser eine polkit-Regel für die Aktionen `org.freedesktop.NetworkManager.*` (die Gruppe `netdev` reicht unter Ubuntu nicht). Ohne das gehen die anderen beiden Wege trotzdem.
 
-Matter und Z-Wave gehen damit noch nicht.
+Z-Wave geht damit noch nicht.
 
 ## Im Internet nachschauen und schwierige Fragen
 

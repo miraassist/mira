@@ -660,7 +660,9 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ▶ [A Shelly joins the Wi-Fi by voice: hand-over, room, name](https://youtu.be/SyKFBLzfPkY)
 
-Mira adds new devices by voice: she brings them into the network, asks for the room, proposes a name and exposes their values to voice, so you can control them or ask about them right away. The name goes for the entities in Home Assistant too: `switch.shelly1pmmini_348518e056a8` becomes `switch.fridge`. There are three ways.
+▶ [A Matter plug by voice: the QR code scanned, plugged in, room, name](https://youtu.be/xO_4xwkGXZo)
+
+Mira adds new devices by voice: she brings them into the network, asks for the room, proposes a name and exposes their values to voice, so you can control them or ask about them right away. The name goes for the entities in Home Assistant too: `switch.shelly1pmmini_348518e056a8` becomes `switch.fridge`. There are four ways.
 
 **While Mira waits** for a device to be there, her satellite shows it: on an Echo Show a turquoise ring runs down in a minute, with "Waiting for your device …" under it; on an Echo the light ring runs down in turquoise, without a sound. When the minute is over and Mira still waits, it starts again. It stops as soon as Mira speaks up or you say "cancel". When Mira speaks or you say the wake word, the ring pauses and goes on afterwards.
 
@@ -672,6 +674,19 @@ Mira adds new devices by voice: she brings them into the network, asks for the r
 - One device at a time; for the next one you say again that you have a new one.
 - If nothing comes up for three minutes, Mira asks whether to try again. A device that is already added she recognizes, and names its name and room.
 - "Cancel" ends adding at any time. Pairing works only at a satellite, where Mira speaks up once the device is there.
+
+### Matter devices
+
+"Ich hab ein neues Matter-Gerät." A Matter device brings its setup code with it: the QR code on the device or its sticker, and eleven digits beside it. At an Echo Show Mira reads the QR code with its camera ("hold the code up to the camera"). At a device without a camera you read the eleven digits out; she checks them at once and tells you when a digit does not fit.
+
+![The Echo Show reads the QR code of a Matter device](img/geraet-matter.png)
+
+With a code that fits Mira says: "Plug the device in now." She looks for it over Bluetooth for three minutes, gives it your Wi-Fi and speaks up as soon as it is there — then it goes on with room and name as every device does.
+
+- **What works:** Matter devices over Wi-Fi. Thread devices need a border router; they come later.
+- **The device must be ready to be added:** factory new or reset. If Mira finds nothing, she says so and what helps: hold its button until it blinks, then tell her.
+- **Close enough:** the machine Mira runs on talks to the device over Bluetooth. Too far away and she does not find it.
+- Home Assistant needs its **Matter integration** with its Matter server for this; your Wi-Fi goes to the skill's settings (below).
 
 ### Devices Home Assistant found
 
@@ -714,7 +729,7 @@ On an Echo Show Mira switches video playback on for the ring when it is off ("Vi
 
 When Mira runs as a container, for Wi-Fi devices she needs the machine's network and access to its NetworkManager: `network_mode: host`, the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` and the right to manage networks: as `root` (the container's default) Mira has it; running as another user, that user needs a polkit rule for the actions `org.freedesktop.NetworkManager.*` (the group `netdev` is not enough on Ubuntu). Without it the other two ways still work.
 
-Matter and Z-Wave do not work with it yet.
+Z-Wave does not work with it yet.
 
 ## Looking things up and hard questions
 

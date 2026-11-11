@@ -4,7 +4,7 @@ DOMAIN = "mira"
 # The version of the code that runs: Home Assistant imports an integration
 # once, at start, so after files are replaced only a restart changes it.
 # Kept equal to manifest.json.
-VERSION = "0.21.0"
+VERSION = "0.22.0"
 
 CONF_PERSONA = "persona"
 # Mira's own web search, switched at the agent (docs/spec/web-search.md).
@@ -36,3 +36,8 @@ BROKEN_TEXT = {
     "de": "Da ist etwas schiefgegangen.",
     "en": "Something went wrong.",
 }
+
+# Fired by the agent once it is connected after its start: the integration
+# sends its settings at once instead of at its next poll
+# (docs/spec/editing.md, decision 10).
+EVENT_STARTED = "mira_started"

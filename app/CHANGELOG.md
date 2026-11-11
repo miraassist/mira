@@ -3,6 +3,29 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.22.0
+
+- **Matter devices by voice.** "Ich hab ein neues Matter-Gerät": at an Echo Show Mira reads the QR code with its
+  camera, at every other satellite you read the eleven digits beside it out (she checks them before she uses them).
+  Then she looks for the device over Bluetooth, gives it your Wi-Fi and asks for its room and name as for every
+  device. Home Assistant needs its Matter integration; Matter over Wi-Fi, Thread comes later.
+- **Mira keeps listening when she asked you for something** — for the setup code, the room, which Zigbee network —
+  however she words it. Until now the satellite listened on only when her sentence ended with a question mark.
+- **A message that cannot be delivered no longer tries for ever.** Mira tells apart what may heal (Home Assistant not
+  reachable, a channel that is down) from what will not (no channel, an unknown person): the first is tried again
+  with growing waits and given up after ten attempts, the second ends at once and the message is "nicht zustellbar"
+  on the Messages tab. The same rule holds for reminders, for model calls (a model that asks to wait is waited for)
+  and for the connections to Home Assistant and to a skill's MCP server, whose token, when refused, is not tried
+  again until something changes.
+- **"Welche Nachrichten sind offen?" now shows what you may hear** — what would be read out where you are, your own
+  in your chat, never another person's private ones.
+- **After a restart Mira knows her satellites and persons at once** instead of up to a minute later: she tells Home
+  Assistant that she started, and the integration sends its settings right away.
+- **A scheduled job that falls into a restart waits for Home Assistant** (up to five minutes) instead of failing;
+  when Home Assistant comes back, Mira asks it for the house description at once.
+- **A helper that answers nothing says why** (what it asked for instead, whether it only thought), and its last
+  round is told that it is the last, so a long research ends with an answer instead of silence.
+
 ## 0.21.0
 
 - Devices Home Assistant found (a bridge, a Shelly in the Wi-Fi, a Bluetooth sensor, a lamp from a maker's app) are
