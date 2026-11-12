@@ -263,6 +263,13 @@ type foundEnv struct {
 	wifi   [2]string
 	mu     sync.Mutex
 	cancel context.CancelFunc
+	// The threads as the real ones behave (docs/spec/messages.md, decisions
+	// 27, 28): each found item's own thread "house:<item>", open until it
+	// ends; current is the turn's thread; started counts threads of the room
+	// (the way for an item found before the update).
+	open    map[string]bool
+	current string
+	started int
 }
 
 func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
@@ -286,8 +293,21 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 		e.ticked = append(e.ticked, match)
 		return nil
 	}
-	end := func(_ context.Context, th string) { e.ended <- th }
-	thread := func(context.Context, tools.Invocation) string { return foundThread }
+	e.open = map[string]bool{}
+	end := func(_ context.Context, th string) {
+		e.mu.Lock()
+		delete(e.open, strings.TrimPrefix(th, "house:"))
+		e.mu.Unlock()
+		e.ended <- th
+	}
+	thread := func(context.Context, tools.Invocation) string {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		if e.current == "" {
+			return foundThread
+		}
+		return e.current
+	}
 	e.core = NewCore(CoreOptions{Lang: i18n.DE, Logger: logger, HA: ha,
 		AreaKeys: func() map[string]string { return map[string]string{"küche": "kueche"} },
 		AreaName: func(string) string { return "Küche" }, Thread: thread, Tick: tick, End: end,
@@ -311,12 +331,38 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 			if !strings.Contains(plan, "Einbinden") {
 				t.Errorf("plan = %q", plan)
 			}
+			e.mu.Lock()
+			e.open[item] = true
+			e.mu.Unlock()
 			return "house:" + item, nil
+		},
+		TakeItem: func(_ context.Context, _ tools.Invocation, item string) (string, bool, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if !e.open[item] {
+				return "", false, nil
+			}
+			e.current = "house:" + item
+			return e.current, true, nil
+		},
+		ItemThread: func(_ context.Context, item string) string {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if e.open[item] {
+				return "house:" + item
+			}
+			return ""
 		},
 		Wifi: func() (string, string) { return e.wifi[0], e.wifi[1] },
 		// A Zigbee dialog waits for the device "zb".
 		Claims: []func(string) bool{func(id string) bool { return id == "zb" }},
-		Start:  func(context.Context, tools.Invocation, string) (string, error) { return foundThread, nil },
+		Start: func(context.Context, tools.Invocation, string) (string, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			e.started++
+			e.current = foundThread
+			return foundThread, nil
+		},
 		Thread: thread, Tick: tick, End: end,
 		Note:   func(context.Context, string, string) error { return nil },
 		Gather: 30 * time.Millisecond, EntryWait: 200 * time.Millisecond,
@@ -502,7 +548,8 @@ func TestFD06_ANewDeviceIsTakenInRoomNameExposed(t *testing.T) {
 	if strings.Join(e.ticked, ",") != "Einbinden,Raum,Name" {
 		t.Errorf("ticked = %v", e.ticked)
 	}
-	if th := <-e.ended; th != foundThread {
+	e.tookItsThread(t, "device:d1")
+	if th := <-e.ended; th != "house:device:d1" {
 		t.Errorf("ended %s", th)
 	}
 }
@@ -543,6 +590,7 @@ func TestFD07_ADiscoveredDeviceWithAConfirmationOnly(t *testing.T) {
 	if out := e.run(t, ToolAdopt, `{"item":"flow:f1"}`); !strings.Contains(out, "device_confirm gleich") {
 		t.Fatalf("adopt = %q", out)
 	}
+	e.tookItsThread(t, "flow:f1")
 	out := e.run(t, ToolConfirm, `{}`)
 	if !strings.Contains(out, "Shelly Plus 1") || !strings.Contains(out, "Raum") {
 		t.Fatalf("confirm = %q", out)
@@ -567,6 +615,7 @@ func TestFD08_AStepThatNeedsTheButtonPressed(t *testing.T) {
 	if !strings.Contains(out, "Drück den Knopf auf der Bridge") {
 		t.Fatalf("adopt = %q", out)
 	}
+	e.tookItsThread(t, "flow:f1")
 	// Not pressed: Home Assistant answers with the form and its error.
 	e.ha.locked(func() {
 		e.ha.onSubmit["f1"] = func() haws.FlowStep {
@@ -599,7 +648,8 @@ func TestFD09_AStepWithFieldsIsLeftToHomeAssistant(t *testing.T) {
 			t.Errorf("submitted %v", e.ha.submitted)
 		}
 	})
-	if th := <-e.ended; th != foundThread {
+	e.tookItsThread(t, "flow:f1")
+	if th := <-e.ended; th != "house:flow:f1" {
 		t.Errorf("ended %s", th)
 	}
 }
@@ -705,4 +755,15 @@ func TestFD13_TheEntityIdsFollowTheNewName(t *testing.T) {
 			t.Errorf("renamed = %s, want %s", got, want)
 		}
 	})
+}
+
+// tookItsThread: the adoption took the item's own thread from the house
+// (docs/spec/messages.md, decision 28), it started none of the room.
+func (e *foundEnv) tookItsThread(t *testing.T, item string) {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.started != 0 || e.current != "house:"+item {
+		t.Errorf("adopted with %q (threads of the room started: %d), want the house's thread of %s", e.current, e.started, item)
+	}
 }
