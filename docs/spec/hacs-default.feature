@@ -3,7 +3,8 @@
 # scenario gets built. Steps 1 and 2 are the integration's, tested in pytest; step 3 is tested in pytest (the
 # integration) and Go (the service, TestHD23_…).
 #
-# Groups: HD-0x the model's source · HD-1x the mail calendar's repair · HD-2x an admin's access and automations
+# Groups: HD-0x the model's source · HD-1x the mail calendar's repair · HD-2x an admin's access and automations ·
+# HD-3x the access the admin gives · HD-4x deleting only what Mira created. Steps 5 in pytest, 6 in Go.
 
 Feature: HD HACS default catalog
 
@@ -109,3 +110,96 @@ Feature: HD HACS default catalog
     When the integration starts, or the service reports that Home Assistant refuses its token
     Then the integration makes a new token for the owner and sends it to the service
     And the log says that the old one was revoked
+
+  # --- The admin's access (second review) ----------------------------------------------------------------------
+  # HD-20, HD-21 and HD-27 are retired with step 5, HD-24 with step 6; HD-32 (a login) was dropped before it was built.
+# None of these numbers is used again.
+
+  @step5
+  Scenario: HD-30 The setup makes no token on its own
+    Given an admin sets Mira up and chooses "Start using Mira"
+    Then the form "Access for Mira" asks for a token
+    And the integration makes no token
+
+  @step5
+  Scenario: HD-31 A pasted token is checked
+    When the admin pastes a token Home Assistant does not know, one that is not long-lived, or one of a non-admin
+    Then the form shows invalid_token, token_not_long_lived or token_not_admin, and nothing is sent to the service
+    When the admin pastes a long-lived token of an active admin
+    Then the service gets that token, and the entry keeps only its id
+
+  @step5
+  Scenario: HD-33 A revoked token raises a repair, nothing is made anew
+    Given Mira's token is revoked, or its user is deactivated or no longer an admin
+    When the status poll runs
+    Then the repair "Mira has no access any more" is raised, fixable
+    And no token is made
+
+  @step5
+  Scenario: HD-34 The repair takes a new access the same way
+    Given the repair "Mira has no access any more"
+    When an admin submits a valid token in it
+    Then the service gets the token with POST /v1/setup and the repair is gone
+    When the admin submits something the checks refuse
+    Then the repair's form shows the same error as the setup, and the repair stays
+
+  @step5
+  Scenario: HD-35 The repair goes when the token is valid again
+    Given the repair "Mira has no access any more" because the token's user is no longer an admin
+    When the user is an admin again and the status poll runs
+    Then the repair is gone
+
+  @step5
+  Scenario: HD-36 Without access, what Home Assistant refuses fails as before
+    Given the token's user is no longer an admin
+    When the model saves a task or a timer
+    Then the tool says Mira needs an access again under Settings → Repairs
+    And the repair "Mira has no access any more" is there once, not twice
+
+  @step5
+  Scenario: HD-37 The token the integration made is revoked at the update
+    Given an install whose entry keeps the owner's token "Mira (Integration)" the integration made
+    When the integration starts after the update
+    Then that token is revoked, the log says so, and the repair "Mira has no access any more" is raised
+
+  @step5
+  Scenario: HD-38 Removing Mira revokes nothing
+    Given Mira works with a token the admin pasted
+    When the integration is removed
+    Then the token stays in the admin's profile
+
+  # --- Deleting only what Mira created ---------------------------------------------------------------------------
+
+  @step6
+  Scenario: HD-40 A new task or timer is recorded as Mira's
+    When the service saves a new task or a timer and Home Assistant accepts it
+    Then its id is in the table own_automations with its kind
+    When the service saves a change to a household task
+    Then no row is written
+
+  @step6
+  Scenario: HD-41 Only automations with a row are deleted
+    Given an automation labelled "Mira" without a row in own_automations
+    When the model deletes it
+    Then the tool says it is not one of Mira's tasks, and nothing is deleted
+    When the model deletes a task with a row
+    Then the service calls DELETE /api/config/automation/config/<id> and the row goes
+
+  @step6
+  Scenario: HD-42 A finished timer without a row stays
+    Given a finished timer labelled "Mira: einmalig" without a row
+    When the service starts or the timer's state changes
+    Then it is not deleted, and the start's log names it once
+
+  @step6
+  Scenario: HD-43 A failed record leaves a trace
+    Given Home Assistant accepted a new task but the row cannot be written
+    Then the log warns with the id and the database error
+    And the tool says the task is saved
+
+  @step6
+  Scenario: HD-44 Tasks and timers from before are taken over once
+    Given automations labelled "Mira" and "Mira: einmalig" and an empty table own_automations
+    When the service starts
+    Then each gets a row, and the log says how many
+    And a failure leaves the table empty, warns, and is tried again at the next start

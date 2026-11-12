@@ -1,6 +1,8 @@
 # HACS default catalog – spec
 
-Status 2026-11-08: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and run on the test HA, not released; decision 4 (the zip) built, takes effect with the next release.
+Status 2026-11-12: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and released (0.18.0), decision 4
+(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done, steps 4 to 6
+not built.
 
 ## Goal
 
@@ -61,6 +63,27 @@ Each one changes behaviour the specs describe; this spec says how, and which spe
      log says why (no release without the zip). The asset missing at a release that says `zip_release` → HACS
      refuses that version ("Download of mira.zip was not completed") and the user stays on the installed one; the
      HACS check of hacs/default flags it as well.
+
+The second review (2026-11-12) accepts decisions 1 and 3 and objects to how decision 2 gets its token: the
+integration mints a ten-year token of the owner, whichever admin sets up, and makes it anew when it is revoked; and
+Mira's rule "delete only what carries her label" rests on a label anyone can set. The precedent is
+`homeassistant-ai/ha-mcp`, approved by the same reviewer for the catalog (hacs/default#13222, 2026-11-04): an MCP
+server for language models with an admin's token, whose tools write and delete any automation; its first submission
+(#8968) was refused for minting an admin token, and accepted once the admin supplies it (its
+`server_credentials.py`). Decisions 5 to 7 follow that precedent and keep decision 2's tasks as real automations.
+
+5. **The admin gives Mira the token, and that is all** (2026-11-12): at setup the admin pastes a long-lived token of
+   an admin; the integration mints and issues no token. Giving Mira admin rights is a deliberate act of the admin.
+   ha-mcp offers a second way (a login for which it issues a token); Mira does not: one way is simpler. Replaces
+   decision 2's "a long-lived token of the owner, made with an admin's consent"; the rest of decision 2 stays.
+6. **No access, a repair** (2026-11-12): when the token does not work or no longer does (unknown, revoked, its user
+   deactivated or no longer an admin), a repair asks for a new token, unless it is already there. Nothing is made
+   anew in the background. Mira has no mode of her own for it: what Home Assistant refuses fails on the error paths
+   that exist (section 3), and one notices it when using her. Replaces the row "The token is revoked in the owner's profile" of section 3.
+7. **Mira deletes only what she created, by its id in her own storage** (2026-11-12): the service keeps the ids of
+   the automations it created, tasks and timers, in its database. Deleting by the tool and cleaning up finished
+   timers touch only those. The labels stay as markers for lists and the editor, no longer as a permission.
+   Changing a household task stays as decision 2 says (its labels kept, Mira's checks on what is new or changed).
 
 ## 1. The model's source
 
@@ -207,11 +230,110 @@ log; everything else works. The reason: keeping the old commands would keep the 
 | C3 | A config flow (also one started by discovery) and a repair flow know the admin who submits | 2026-11-07: **no.** A config flow's context has only `source` (and `entry_id` when reconfiguring), a repair flow's only `issue_id` (HA's source: `get_context` in `components/config/config_entries.py`, `components/repairs/websocket_api.py`); the flow's code never sees the user. Hence the owner's token (decision 2) |
 | C4 | The same calls with a non-admin token are refused with 401, so step 2's error is clear | 2026-11-07: yes. POST, GET and DELETE with the non-admin token: 401, nothing written |
 
+## 4. The admin's access and Mira's own automations (second review)
+
+### The access the admin gives
+
+1. **Setup:** "Start using Mira" (the overview's last choice) opens a form "Access for Mira" / „Zugang für Mira“
+   with one field, the token (hidden). Its text (the wording of Home Assistant's menus as check C8 finds it):
+   - de: „Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in
+     Home Assistant nur ein Administrator. Klicke dafür in deinem Profil unter Sicherheit → Langlebige
+     Zugriffstoken auf „Token erstellen“, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira
+     fragt dann unter Reparaturen nach einem neuen.“
+   - en: "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home
+     Assistant only an administrator may do that. In your profile under Security → Long-lived access tokens, click
+     "Create token", name it for example "Mira", and paste it here. You can revoke it there at any time; Mira then asks
+     for a new one under Repairs."
+   Submitting checks the token (2), then pairs as today (`POST /v1/pair` or `/v1/setup` with the token).
+2. **The check**, in Home Assistant's memory (no call): Home Assistant knows the token, it is long-lived, its user is
+   active and an admin. The entry keeps only the token's id (`agent_token_id`), never the token.
+3. **At each status poll** the integration checks the token by its id the same way. Does it fail:
+   - the repair "Mira has no access any more" / „Mira hat keinen Zugang mehr“ (fixable, error) with the same text and
+     field as the setup; submitting checks the token as in 2, sends it with `POST /v1/setup`, and the repair goes;
+   - nothing else: what Home Assistant refuses fails on the paths that exist. A task or timer says „Mira braucht erst
+     wieder einen Zugang: Einstellungen → Reparaturen.“ (section 3, `ErrNotAdmin`); a revoked token is the problem of
+     the source `ha` in `/v1/status`, as today.
+   Home Assistant keeps one repair per id, so raising it at every poll while it is open adds none.
+   The repair goes by itself when the token works again (its user is an admin again).
+4. **Removing** the integration revokes nothing: the token is the admin's, made in their profile, and removed there
+   (decided 2026-11-12). The guide says so.
+5. **An agent with Home Assistant's token in its own file** (`ha.token`, no pairing): unchanged, section 3, item 4.
+
+Error texts of the form and the repair (de / en):
+
+| Key | Text |
+|---|---|
+| `invalid_token` | „Dieses Token kennt Home Assistant nicht.“ / "Home Assistant does not know this token." |
+| `token_not_long_lived` | „Das ist kein langlebiges Zugriffstoken.“ / "This is not a long-lived access token." |
+| `token_not_admin` | „Dieses Token gehört keinem Administrator.“ / "This token does not belong to an administrator." |
+
+| Step | Fails | Who learns of it |
+|---|---|---|
+| 1, 2 | The check refuses | The form shows the error above; nothing is sent. A log line at debug with the check that failed (never the token) |
+| 1, 3 | Sending the token to the service fails | As today: the form says why; nothing half set up |
+| 3 | The token's user is deleted | Home Assistant removes the user's tokens: as revoked |
+
+**Existing installs:** after this step there are no tokens the integration made. The owner's token "Mira
+(Integration)" it made (0.18.0 to 0.22.x) is revoked at the integration's first start after the update, with a log
+line; the check of 3 then fails and the repair asks for a token (decided 2026-11-12). The old user "Mira"'s token is no admin's: the check of 3 fails, the repair comes; the old repair "Mira
+needs a new access" and its code go.
+
+**Cost:** setup, repair and each poll: one lookup in memory.
+
+### Deleting only what Mira created
+
+1. The service's database gets a table `own_automations`: the automation's id, its kind (`task`, `once`) and when it
+   was created. A row is written when `POST /api/config/automation/config/<id>` succeeded for a **new** task or a
+   timer (before the reload and the label: a failed label leaves an automation that is still Mira's). Changing a
+   household task writes none.
+2. **Deleting** by the tool: the id must have a row, else the tool's error "That is not one of Mira's tasks."
+   as today; the label is not consulted. After `DELETE` succeeded the row goes.
+3. **Cleaning up finished timers**: the state subscription and `mira/once/list` stay as they are (they find the
+   timers by their label); a finished timer is deleted only when it has a row. A labelled timer without a row stays,
+   with one log line per timer at the service's start ("a timer labelled 'Mira: einmalig' was not created by Mira,
+   left alone", with its id).
+4. Rows of automations deleted elsewhere (the editor) stay; they cost nothing and point nowhere. A later delete of
+   such an id gets Home Assistant's "not found", which the tool says as today.
+5. `mira/automation/label` stays (it marks, it permits nothing); listing Mira's tasks stays by label.
+
+**Existing tasks and timers** (created before this, labelled, without rows): at the service's first start with
+the table, every automation labelled "Mira" or "Mira: einmalig" gets a row once, with a log line of how many
+(decided 2026-11-12). A failure leaves the table empty and is tried at the next start, with a log warning.
+
+| Step | Fails | Who learns of it |
+|---|---|---|
+| 1 | The row cannot be written after a successful save | The automation exists, Mira cannot delete it later: a log warning with the id and the database error; the tool says the task is saved (it is) |
+| 2 | The row cannot be read | The tool's error with the database error; a log line; nothing deleted |
+| 2 | The row cannot be removed after a successful delete | A log warning with the id; harmless (item 4) |
+
+**Cost:** one insert per created automation, one lookup and one delete per deletion; at the start one read of the
+timers' rows (at most ten per person and room).
+
+### Older and newer versions
+
+The interface between the integration and the service does not change: the token goes as today with `pair` or
+`setup`. The table is the service's own (a migration of its database, no data carried over).
+
+### Answered questions
+
+Decided 2026-11-12: the owner's token the integration made is revoked at the update; removing revokes nothing;
+existing tasks and timers are taken over once; without access Mira has no mode of her own, a repair is raised
+(decision 6).
+
+### Checks on the test HA before building
+
+| # | What | Checked |
+|---|---|---|
+| C5 | A long-lived token made in an admin's profile and pasted works for everything the service does (websocket, the automation config API, Home Assistant's MCP server) | 2026-11-12: yes. The test Mira runs with exactly such a token since 2026-11-07 (`/v1/status` without problems, tasks and timers saved and deleted) |
+| C7 | Deactivating or deleting a user removes its tokens; taking away admin keeps the token | 2026-11-12: from Home Assistant's source (`AuthManager.async_deactivate_user`, `async_remove_user` remove the user's refresh tokens). Home Assistant's own permission checks are not tried again here; the integration's check reads `is_admin` at each poll, tested in pytest |
+| C8 | The wording of Home Assistant's menus for long-lived tokens, de and en (the frontend's translations), for the texts above | 2026-11-12: from the frontend's translations of the test HA: de „Sicherheit“ → „Langlebige Zugriffstoken“ → „Token erstellen“; en \"Security\" → \"Long-lived access tokens\" → \"Create token\"; the texts above use them |
+
 ## Documentation
 
 - The guide (de/en): the model choice without "From Home Assistant"; for mail skills ("Pakete", own mail skills), the
   repair to confirm instead of "Mira creates the calendar"; Mira's admin access, why, and where it is revoked; the
-  old user "Mira" may be deleted.
+  old user "Mira" may be deleted. Since decision 5: making the token in the profile and pasting it, with a picture;
+  what happens when it is revoked.
 - Once built, [Setup](setup.md), [Models](models.md), [Mail calendar](mail-calendar.md), [Parcels](parcels.md),
   [Tasks](tasks.md), [Scheduled actions](scheduled-actions.md), [Watching states](ha-integration.md) and
   [System](../system.md) say the new behaviour and point here.
@@ -233,4 +355,10 @@ log; everything else works. The reason: keeping the old commands would keep the 
    Not run on the test HA: the setup's consent and the repair for the new access (its entry was set up before
    tokens were kept; pytest only).
 4. **Release and review:** guide, versions of the service and the integration, release with notes, then the review
-   is requested again on the pull request.
+   is requested again on the pull request. Done with 0.18.0 (2026-11-07).
+5. **The access the admin gives** (decisions 5 and 6): the setup's form, the
+   token's check, the poll's check, its repair and Mira stopping; removing, existing installs. Scenarios HD-30, HD-31 and HD-33 to HD-38, in pytest (HD-32, a login, dropped). Retires HD-20, HD-21 and HD-27 (their tests go).
+6. **Deleting only what Mira created** (decision 7): the service's table, deleting, cleaning up timers; existing
+   automations taken over once. Scenarios HD-40 to HD-44, in Go. Retires HD-24.
+7. **Release and review:** guide, versions, release with notes; then the comment on the pull request with the
+   release's link, and the review requested again.
