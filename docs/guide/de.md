@@ -707,6 +707,7 @@ Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Ne
 - **Nein, ignorieren, das ist vom Nachbarn:** Mira nennt es nie wieder. In Home Assistant steht ein entdecktes Gerät dann unter „Ignoriert“, ein Gerät ohne Raum hat das Label „Mira: ignoriert“; dort machst du es rückgängig.
 - **Keine Antwort:** Mira fragt nicht nochmal. „Gibt's neue Geräte?“ nennt dir alles, was noch wartet.
 - Mehrere auf einmal (eine Bridge mit zwanzig Lampen) kommen in einer Nachricht.
+- Bluetooth-Beacons, die die iBeacon-Integration nur im Vorbeifahren sieht (etwa ein Blitzerwarner im Auto auf der Straße), nennt Mira nicht.
 - Braucht ein Gerät Angaben wie einen Schlüssel oder ein Passwort, sagt Mira dir, dass das in Home Assistant unter Einstellungen → Geräte & Dienste → Entdeckt geht. Nur nach deinem WLAN fragt Mira nicht: Das trägt sie selbst ein, wenn du es ihr gegeben hast (unten).
 
 ### WLAN-Geräte

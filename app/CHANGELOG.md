@@ -3,6 +3,12 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.22.1
+
+- **Fewer "neues Gerät gefunden".** Home Assistant's iBeacon integration makes a device for every Bluetooth beacon it
+  sees once, also the one in a car driving by (a speed camera warner, a driving log plug). Mira no longer reports
+  those. Other Bluetooth integrations (Bermuda, Private BLE Device) only make devices you chose, and stay as they are.
+
 ## 0.22.0
 
 - **Matter devices by voice.** "Ich hab ein neues Matter-Gerät": at an Echo Show Mira reads the QR code with its

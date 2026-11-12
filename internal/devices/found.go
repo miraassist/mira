@@ -40,6 +40,11 @@ const (
 	keyStarted = "found.started"
 )
 
+// passingBy are integrations that make a device for whatever passes by:
+// their entities count as diagnostic ones, so such a device is not counted
+// (docs/spec/found-devices.md, decision 9).
+var passingBy = map[string]bool{"ibeacon": true}
+
 // notDiscovered are the sources of flows nobody discovered: a user started
 // them, or Home Assistant itself for its own reasons.
 var notDiscovered = map[string]bool{"user": true, "import": true, "reauth": true, "reconfigure": true,
@@ -320,7 +325,8 @@ func (d registry) name() string {
 }
 
 // house is what is read of Home Assistant to count new devices: the device
-// registry, which devices have an entity that would be exposed, and the id
+// registry, which devices have an entity that would be exposed (not one of an
+// integration in passingBy), and the id
 // of the label "Mira: ignoriert" ("" before it exists). Three calls.
 type house struct {
 	devices   map[string]registry
@@ -348,6 +354,7 @@ func (f *Found) readHouse(ctx context.Context) (house, error) {
 	var ents struct {
 		Entities []struct {
 			DeviceID string `json:"di"`
+			Platform string `json:"pl"`
 			Category *int   `json:"ec"`
 			Hidden   bool   `json:"hb"`
 		} `json:"entities"`
@@ -356,7 +363,7 @@ func (f *Found) readHouse(ctx context.Context) (house, error) {
 		return h, fmt.Errorf("%q not understood: %w", excerpt.Bytes(raw), err)
 	}
 	for _, e := range ents.Entities {
-		if e.DeviceID != "" && e.Category == nil && !e.Hidden {
+		if e.DeviceID != "" && e.Category == nil && !e.Hidden && !passingBy[e.Platform] {
 			h.measuring[e.DeviceID] = true
 		}
 	}

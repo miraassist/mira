@@ -1,6 +1,6 @@
 # Devices Home Assistant found – Spec
 
-Status 2026-11-10: steps 1 to 4 built (not released): the fake discovery, the state table checked against it, the noticing, the tools and the skill, run end to end at the fake Show; the real run is open. Scenarios: [found-devices.feature](found-devices.feature).
+Status 2026-11-12: steps 1 to 4 built and released (0.21.0); decision 9 (the iBeacon filter) released in 0.22.1. Built: the fake discovery, the state table checked against it, the noticing, the tools and the skill, run end to end at the fake Show; the real run is open. Scenarios: [found-devices.feature](found-devices.feature).
 
 ## Goal
 
@@ -30,6 +30,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 | 6 | Where it lives | In the skill `geraet-einbinden`: noticing runs only while the skill is on. A household that never turned it on hears nothing new |
 | 7 | The room of a Bluetooth device | Asked, as for every device; no proposal from the Bluetooth proxies' signal (decided 2026-11-10) |
 | 8 | A step that asks for the Wi-Fi | A step whose only fields are the Wi-Fi's name and password (a Bluetooth set-up: Improv, a Shelly) is filled from the home Wi-Fi Mira keeps (the skill's settings `wlan_ssid` and `wlan_password`; [Wi-Fi onboarding](wifi-onboarding.md), the home Wi-Fi) and submitted after the user's yes; the one exception to "a step with fields stays in Home Assistant" (decided 2026-11-10) |
+| 9 | Beacons that pass by | A device of the **iBeacon integration** (`ibeacon`, "iBeacon Tracker") is not counted: it makes a device for every named Bluetooth beacon it sees once, also for the car driving by (a speed camera warner, a driving log plug); seen in the live house 2026-11-12, 33 such devices in three days. Its entities count as diagnostic ones, so the device has nothing that would be exposed. Other Bluetooth integrations are not filtered: Bermuda makes devices only for those its user chose, Private BLE Device only for those added by hand (decided 2026-11-12) |
 
 ## The two kinds
 
@@ -42,6 +43,7 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 - a flow of Mira's own integration, a flow a user started (source `user`, `import`, `reauth`, `reconfigure`);
 - a device that is disabled, a service (`entry_type: service`), a device without an entity that would be exposed (only
   configuration and diagnostic ones), a device with the label, a device that got an area by now;
+- a device of the iBeacon integration (decision 9): its entities count as diagnostic ones;
 - a device a Zigbee pairing of `geraet-einbinden` is waiting for: that dialog has it already;
 - what was open already when the noticing ran for the first time: Home Assistant's backlog is not read out. It is
   marked said at once and is in the list on request.

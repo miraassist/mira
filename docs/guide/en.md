@@ -695,6 +695,7 @@ Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a
 - **No, ignore it, that's the neighbour's:** Mira never names it again. In Home Assistant a discovered device is then under "Ignored", a device without a room has the label "Mira: ignoriert"; that is where you undo it.
 - **No answer:** Mira does not ask again. "Any new devices?" names everything still waiting.
 - Several at once (a bridge with twenty lamps) come in one message.
+- Bluetooth beacons the iBeacon integration only sees passing by (such as a speed camera warner in a car on the street), Mira does not name.
 - If a device needs details such as a key or a password, Mira tells you it is done in Home Assistant under Settings → Devices & services → Discovered. Only your Wi-Fi she fills in herself, once you gave it to her (below).
 
 ### Wi-Fi devices

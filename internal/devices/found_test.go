@@ -25,6 +25,7 @@ import (
 type fakeDevice struct {
 	registry
 	measuring bool
+	platform  string // the integration of its entities; "" for hue
 }
 
 type fakeHA struct {
@@ -68,9 +69,13 @@ func (f *fakeHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, e
 	case "config/entity_registry/list_for_display":
 		var ents []map[string]any
 		for id, d := range f.devices {
-			ents = append(ents, map[string]any{"ei": "sensor." + id + "_signal", "di": id, "ec": 1})
+			pl := d.platform
+			if pl == "" {
+				pl = "hue"
+			}
+			ents = append(ents, map[string]any{"ei": "sensor." + id + "_signal", "di": id, "pl": pl, "ec": 1})
 			if d.measuring {
-				ents = append(ents, map[string]any{"ei": "sensor." + id + "_temperature", "di": id})
+				ents = append(ents, map[string]any{"ei": "sensor." + id + "_temperature", "di": id, "pl": pl})
 			}
 		}
 		return json.Marshal(map[string]any{"entities": ents})
@@ -200,9 +205,14 @@ func (f *fakeHA) discover(id, handler, name, stepID string, fields ...string) {
 
 // addDevice creates a device in the registry and fires its create event.
 func (f *fakeHA) addDevice(id, name, entry string, measuring bool) {
+	f.addDeviceOf("", id, name, entry, measuring)
+}
+
+// addDeviceOf adds a device whose entities come from the integration platform.
+func (f *fakeHA) addDeviceOf(platform, id, name, entry string, measuring bool) {
 	f.mu.Lock()
 	f.devices[id] = &fakeDevice{registry: registry{ID: id, Name: name, Manufacturer: "Signify", Model: "LCA001",
-		ConfigEntries: []string{entry}}, measuring: measuring}
+		ConfigEntries: []string{entry}}, measuring: measuring, platform: platform}
 	subs := slices.Clone(f.devSubs)
 	f.mu.Unlock()
 	data, _ := json.Marshal(map[string]string{"action": "create", "device_id": id})
@@ -419,6 +429,25 @@ func TestFD04_WhatDoesNotCountIsNotSaid(t *testing.T) {
 	// Mira's own integration.
 	e.ha.discover("f9", "mira", "Mira", "token", "token")
 	e.noPost(t)
+}
+
+// As the iBeacon integration made them in the live house (2026-11-12): a
+// device tracker and an estimated distance, no area.
+func TestFD14_ABeaconPassingByIsNotSaid(t *testing.T) {
+	e := newFoundEnv(t, nil, nil)
+	e.ha.addDeviceOf("ibeacon", "b1", "Ooono F646", "ib", true)
+	e.ha.addDevice("d1", "Hue Lampe", "e1", true)
+	p := e.post(t)
+	if p[0] != "Ich habe ein neues Gerät gefunden: Hue Lampe. Soll ich es einbinden?" {
+		t.Fatalf("spoken = %q", p[0])
+	}
+	if strings.Contains(p[1], "Ooono") {
+		t.Errorf("the beacon is in the details: %q", p[1])
+	}
+	e.noPost(t)
+	if out := e.run(t, ToolFound, `{}`); strings.Contains(out, "Ooono") {
+		t.Errorf("the beacon is listed: %q", out)
+	}
 }
 
 func TestFD05_TheBacklogIsNotReadOut(t *testing.T) {

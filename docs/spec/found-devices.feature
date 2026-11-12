@@ -87,3 +87,10 @@ Feature: Devices Home Assistant found (docs/spec/found-devices.md)
     Given a new device "Tasmota" with the entity "light.tasmota"
     When it is taken in and named "Lampe Wohnzimmer"
     Then its entity is "light.lampe_wohnzimmer"
+
+  @step3
+  Scenario: FD-14 A beacon passing by is not said
+    When the iBeacon integration creates a device without an area for a beacon it saw
+    And 60 seconds pass without another find
+    Then no message is sent
+    And a new device of another integration in the same burst is said
