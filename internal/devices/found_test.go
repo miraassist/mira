@@ -300,9 +300,18 @@ func newFoundEnv(t *testing.T, kv *memKV, ha *fakeHA) *foundEnv {
 			return ""
 		}})
 	e.f = NewFound(FoundOptions{Lang: i18n.DE, Logger: logger, HA: ha, Core: e.core, KV: kv,
-		Post: func(_ context.Context, spoken, details string) error {
+		Post: func(_ context.Context, thread, spoken, details string) error {
+			if !strings.HasPrefix(thread, "house:") {
+				t.Errorf("an entry without its thread: %q", thread)
+			}
 			e.posts <- [2]string{spoken, details}
 			return nil
+		},
+		StartHouse: func(_ context.Context, _, plan, item string) (string, error) {
+			if !strings.Contains(plan, "Einbinden") {
+				t.Errorf("plan = %q", plan)
+			}
+			return "house:" + item, nil
 		},
 		Wifi: func() (string, string) { return e.wifi[0], e.wifi[1] },
 		// A Zigbee dialog waits for the device "zb".
@@ -378,7 +387,7 @@ func TestFD01_ADiscoveredDeviceIsSaidOnceAsAMessageToTheHouse(t *testing.T) {
 	e := newFoundEnv(t, nil, nil)
 	e.ha.discover("f1", "hue", "Hue Bridge", "link")
 	p := e.post(t)
-	if p[0] != "Ich habe ein neues Gerät gefunden: Hue Bridge. Soll ich es einbinden?" {
+	if p[0] != "Neues Gerät gefunden: Hue Bridge" {
 		t.Fatalf("spoken = %q", p[0])
 	}
 	if !strings.Contains(p[1], "flow:f1: Hue Bridge") || !strings.Contains(p[1], "geraet-einbinden") {
@@ -387,14 +396,18 @@ func TestFD01_ADiscoveredDeviceIsSaidOnceAsAMessageToTheHouse(t *testing.T) {
 	waitFor(t, func() bool { return strings.Contains(e.kv.get(keySaid), "flow:hue:u-f1") })
 }
 
+// Since 2026-11-12 (docs/spec/messages.md, decision 28) each device is an
+// entry with its own thread; the store gathers the entries of a burst into
+// one unheard device message (MS-32).
 func TestFD02_ABurstOfNewDevicesIsOneMessage(t *testing.T) {
 	e := newFoundEnv(t, nil, nil)
 	for i := 1; i <= 5; i++ {
 		e.ha.addDevice(fmt.Sprintf("d%d", i), fmt.Sprintf("Lampe %d", i), "e1", true)
 	}
-	p := e.post(t)
-	if p[0] != "Ich habe 5 neue Geräte gefunden: Lampe 1, Lampe 2, Lampe 3 und 2 weitere. Soll ich sie einbinden?" {
-		t.Fatalf("spoken = %q", p[0])
+	for i := 1; i <= 5; i++ {
+		if p := e.post(t); p[0] != fmt.Sprintf("Neues Gerät gefunden: Lampe %d", i) {
+			t.Fatalf("entry %d = %q", i, p[0])
+		}
 	}
 	e.noPost(t)
 }
@@ -438,7 +451,7 @@ func TestFD14_ABeaconPassingByIsNotSaid(t *testing.T) {
 	e.ha.addDeviceOf("ibeacon", "b1", "Ooono F646", "ib", true)
 	e.ha.addDevice("d1", "Hue Lampe", "e1", true)
 	p := e.post(t)
-	if p[0] != "Ich habe ein neues Gerät gefunden: Hue Lampe. Soll ich es einbinden?" {
+	if p[0] != "Neues Gerät gefunden: Hue Lampe" {
 		t.Fatalf("spoken = %q", p[0])
 	}
 	if strings.Contains(p[1], "Ooono") {
@@ -670,7 +683,7 @@ func TestFD12_ARefusedStepIsSaidNotSwallowed(t *testing.T) {
 
 func TestFoundTextsComplete(t *testing.T) {
 	for lang, x := range foundCatalog {
-		if x.foundOne == "" || x.ignoreFailed == "" || x.plan == "" {
+		if x.entryLine == "" || x.ignoreFailed == "" || x.plan == "" {
 			t.Errorf("%s: texts missing", lang)
 		}
 	}

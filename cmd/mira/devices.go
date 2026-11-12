@@ -15,6 +15,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/matter"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/waiting"
 	"github.com/miraassist/mira/internal/wifi"
@@ -178,14 +179,9 @@ func (a *app) newMatter() *matter.Onboarding {
 func (a *app) newFound() *devices.Found {
 	return devices.NewFound(devices.FoundOptions{
 		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices, KV: a.store,
-		Post: func(ctx context.Context, spoken, details string) error {
-			_, _, err := a.store.PutMessage(ctx, store.Message{
-				ID: ulid.Make().String(), Kind: store.KindDevice, Source: store.SourceDevices,
-				DedupeKey: "devices:" + ulid.Make().String(), Importance: 2, Receiver: store.ReceiverHouse,
-				Spoken: spoken, Details: details, ExpiresAt: time.Now().Add(24 * time.Hour),
-			})
-			return err
-		},
+		// A found device's own thread at the house and its entry
+		// (docs/spec/messages.md, decisions 27, 28).
+		Post: a.foundPost, StartHouse: a.foundStartHouse, TakeItem: a.foundTakeItem, ItemThread: a.foundItemThread,
 		Claims: []func(string) bool{a.zigbee.Claims, a.matter.Claims},
 		Wifi:   func() (string, string) { return a.skillSetting("wlan_ssid"), a.skillSetting("wlan_password") },
 		Start:  a.devicePlan,
@@ -222,4 +218,55 @@ func (a *app) newWifi() *wifi.Onboarding {
 		o.Waiting = a.waiting
 	}
 	return wifi.New(o)
+}
+
+// foundKeep is how long a found device's thread and entry wait from when
+// Mira finds it (docs/spec/messages.md, decision 11); foundItem is the
+// thread's field naming the device.
+const (
+	foundKeep = 24 * time.Hour
+	foundItem = "item"
+)
+
+// foundPost puts a found device's entry into the house's device message,
+// leading to its thread.
+func (a *app) foundPost(ctx context.Context, thread, spoken, details string) error {
+	_, _, err := a.store.PutMessage(ctx, store.Message{
+		ID: ulid.Make().String(), Kind: store.KindDevice, Source: store.SourceDevices,
+		DedupeKey: "devices:" + thread, Importance: 2, Receiver: store.ReceiverHouse,
+		Spoken: spoken, Details: details, ThreadID: thread, ExpiresAt: time.Now().Add(foundKeep),
+	})
+	return err
+}
+
+// foundStartHouse starts a found device's own thread at the house, for a
+// day from now.
+func (a *app) foundStartHouse(ctx context.Context, request, plan, item string) (string, error) {
+	if a.threads == nil {
+		return "", errors.New("no threads")
+	}
+	th, err := a.threads.StartAt(ctx, threads.Begin{Target: devices.Skill, Request: request, Plan: plan,
+		Deadline: time.Now().Add(foundKeep), Fields: map[string]string{foundItem: item}})
+	return th.ID, err
+}
+
+// foundTakeItem takes a found device's thread up for the turn; it moves into
+// the turn's room.
+func (a *app) foundTakeItem(ctx context.Context, inv tools.Invocation, item string) (string, bool, error) {
+	if a.threads == nil {
+		return "", false, nil
+	}
+	return a.threads.TakeItem(ctx, inv, devices.Skill, foundItem, item)
+}
+
+// foundItemThread is a found device's thread, wherever it is; "" without one.
+func (a *app) foundItemThread(ctx context.Context, item string) string {
+	if a.threads == nil {
+		return ""
+	}
+	id, err := a.threads.ItemThread(ctx, devices.Skill, foundItem, item)
+	if err != nil {
+		a.log.Warn("could not find a found device's thread; it ends at its expiry", "item", item, "error", err)
+	}
+	return id
 }

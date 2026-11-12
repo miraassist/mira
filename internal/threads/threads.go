@@ -189,6 +189,9 @@ func (m *Manager) roomBound(target string) bool {
 // when known, else the room, a private area always).
 func (m *Manager) startPlace(ctx context.Context, inv tools.Invocation, target string) (place, area string) {
 	place, area = m.place(ctx, inv)
+	if sk, ok := m.targets[target]; ok && sk.Target != nil && sk.Target.Bound == skills.BoundHouse {
+		return store.PlaceHouse, area
+	}
 	if m.roomBound(target) {
 		if a := areaOf(m.withTurnArea(ctx, inv)); a != "" {
 			return "area:" + a, a
@@ -352,11 +355,18 @@ func (m *Manager) save(ctx context.Context, th *store.Thread) error {
 // extend sets when a thread expires after being worked on now.
 func (m *Manager) extend(th *store.Thread) {
 	sk := m.targets[th.Target]
+	was := th.ExpiresAt
 	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
 	if !th.Deadline.IsZero() {
 		// Its starter's expiry, until a turn takes it up (decision 11).
 		th.ExpiresAt = th.Deadline
 	}
+	// Taking it up, or a step in it, never shortens it (docs/spec/messages.md,
+	// decision 26) ...
+	if was.After(th.ExpiresAt) {
+		th.ExpiresAt = was
+	}
+	// ... only a done plan ends sooner.
 	if sk.Target.Plan {
 		if c := planOf(*th); c.DoneAt != nil {
 			th.ExpiresAt = c.DoneAt.Add(sk.Target.DoneAfterDuration())

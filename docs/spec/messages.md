@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: steps 2 to 4 built 2026-11-12 (not released), step 5 not built. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12 (not released). Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -199,7 +199,7 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | `reply` | what comes back to a request: a thread's question or proposal, the result of a helper that ran on after the turn | the thread it comes from, if any | said at once where it was asked, else sent privately; an answer to it goes on in that thread |
 | `postfach` | a mail or document with things to do ([Mira's inbox](inbox.md)) | **one per mail**, of the person; plan and expiry by `inbox.read` | the skill `postfach` |
 | `voicemail` | new recordings and missed calls on the answering machine | **one**, of the house; plan by the code | the skill `anrufbeantworter` |
-| `device` | a device Home Assistant found ([Found devices](found-devices.md)) | **one**, of the house; plan by the code | the skill `geraet-einbinden` |
+| `device` | a device Home Assistant found ([Found devices](found-devices.md)) | **one per device**, of the house until taken up in a room (decisions 27, 28); plan by the code | the skill `geraet-einbinden` |
 
 **Decided:**
 
@@ -230,6 +230,9 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 23 | The answering machine's thread is the house's (decided 2026-11-12, step 4) | The code starts it when no turn exists, so no room is its own; a turn in any room continues the same plan. `voicemail_list` finds or starts the house's thread and takes it up for the turn; "Nächste …" still joins the next turn at that satellite to it |
 | 24 | The answering machine announced on entry (decided 2026-11-12, step 4) | As every message: where a room announces on entry, the `voicemail` message is said there ("Auf dem Anrufbeantworter: Oma, heute 14:12"); elsewhere the ring and the screen show it |
 | 25 | New recordings when Mira starts (decided 2026-11-12, step 4) | Taken as a rise: when the watch on the box's sensor starts and its count is above 0, Mira reads the list and keeps the thread and the message as for a recording that came. Reading again adds nothing twice (the entries are keyed by the recording) |
+| 26 | Taking up never shortens (decided 2026-11-12, step 5) | A thread's expiry only grows: taking it up, or any step in it, gives the later of its expiry and its type's timeout from now. Only a done plan ends sooner (its `done_after`). A mail's thread taken up keeps 3 days, the answering machine's its 5 days, a found device's its day |
+| 27 | A thread of the house taken up in a room (decided 2026-11-12, step 5; decision 13's transition) | A target says where its threads belong: `bound: house` stays the house's wherever it is taken up (the answering machine, decision 23); `bound: room` started by the code at the house moves to the room of the turn that takes it up (`thread_take`, or a tool of its skill that takes it), with its satellite, and a log line names the move. It is the room's from then on |
+| 28 | A found device's thread (decided 2026-11-12, step 5) | One thread per found device, as one per mail (decision 7): the list lives in the `device` message, one entry per device, and each entry leads to the device's own thread of `geraet-einbinden` with its plan (add, room, name). The code starts it at the house when the device is found (decision 27 moves it into the room that takes it up); `device_adopt` takes it; `device_ignore` ends it, and its entry leaves |
 
 ### What it does, step by step
 
@@ -243,9 +246,10 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 2. **A mail or document with things to do comes into a person's inbox**: `inbox.read` writes its plan, its entry's
    line and its expiry ([Mira's inbox](inbox.md), changed separately); the code starts the person's thread for it and
    puts the entry into the person's unheard `postfach` message, or a new one.
-3. **A device is found** ([Found devices](found-devices.md)): no open thread of the house: the code starts it with
-   the found device in its plan; else adds it. Expiry: 1 day from now (decision 11). The entry goes into the house's unheard
-   `device` message.
+3. **A device is found** ([Found devices](found-devices.md)): the code starts the device's own thread of
+   `geraet-einbinden` at the house, with its plan (add, room, name); expiry 1 day from now (decision 11). Its entry
+   goes into the house's unheard `device` message, or a new one (decision 28). Taken up, the thread moves into the
+   room that takes it up (decision 27).
 4. **A simple text comes** (a task, a person, an automation): an entry of the receiver's unheard `simple` message,
    or a new message.
 5. **The ring and the screen** show what waits by the kinds of the waiting messages (teal, answering machine amber,
@@ -306,7 +310,9 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
    written by `inbox.read`). MS-12 to MS-15.
 4. **The answering machine as a kind**: the house's thread on a new recording, extended, 5 days from now, the
    indicators by kind. MS-16 to MS-20, MS-34 (the start, decision 25).
-5. **Found devices as a kind**: the house's thread on a found device, extended, 1 day. MS-31 to MS-33.
+5. **Found devices as a kind**: a thread per found device at the house, 1 day, its entry in the `device` message;
+   taken up, it moves into the room (decision 27); taking up never shortens (decision 26). MS-31 to MS-33, MS-35,
+   MS-36.
 
 ## Open
 

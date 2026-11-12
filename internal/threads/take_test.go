@@ -119,7 +119,8 @@ func TestAThreadOfTheHouseKeepsItsDeadlineUntilTakenUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := e.st.GetThread(ctx, th.ID)
-	if !got.Deadline.IsZero() || !got.ExpiresAt.Equal(e.now.Add(72*time.Hour)) {
+	// Taking up never shortens (decision 26): its 5 days stay.
+	if !got.Deadline.IsZero() || !got.ExpiresAt.Equal(deadline) {
 		t.Fatalf("taken up: deadline %v, expires %v", got.Deadline, got.ExpiresAt)
 	}
 }
@@ -148,5 +149,65 @@ func TestMS15_AMailsThreadExpiresWhenInboxReadSays(t *testing.T) {
 	m, _ := e.st.GetMessage(ctx, "m1")
 	if len(m.Entries) != 1 || m.Entries[0].ThreadID != "other" || m.State != store.MessagePending {
 		t.Fatalf("message = %+v", m)
+	}
+}
+
+func devicesEnv(t *testing.T) *env {
+	t.Helper()
+	e := setup(t)
+	loaded, problems := skills.Load([]string{"../../skills"}, map[string]map[string]any{"geraet-einbinden": nil})
+	if len(problems) > 0 || len(loaded) != 1 {
+		t.Fatalf("skill geraet-einbinden: %+v", problems)
+	}
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: loaded, Clock: func() time.Time { return e.now }})
+	return e
+}
+
+func TestMS33_AfterADayTheFoundDeviceIsGone(t *testing.T) {
+	e := devicesEnv(t)
+	ctx := context.Background()
+	th, err := e.m.StartAt(ctx, Begin{Target: "geraet-einbinden", Request: "Hue Lampe",
+		Plan: "# Neues Gerät\n- [ ] Einbinden", Deadline: e.now.Add(24 * time.Hour), Fields: map[string]string{"item": "device:d1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.st.PutMessage(ctx, store.Message{ID: "m1", Kind: store.KindDevice, Receiver: store.ReceiverHouse, Spoken: "Hue Lampe", ThreadID: th.ID})
+	e.now = e.now.Add(23 * time.Hour)
+	e.m.expire(ctx)
+	if got, _ := e.st.GetThread(ctx, th.ID); !store.ThreadOpen(got.State) {
+		t.Fatal("gone before its day")
+	}
+	e.now = e.now.Add(2 * time.Hour)
+	e.m.expire(ctx)
+	if got, _ := e.st.GetThread(ctx, th.ID); got.State != store.ThreadExpired {
+		t.Fatalf("thread = %s", got.State)
+	}
+	if m, _ := e.st.GetMessage(ctx, "m1"); m.State != store.MessageExpired {
+		t.Fatalf("message = %s", m.State)
+	}
+}
+
+func TestMS36_TakingUpNeverShortens(t *testing.T) {
+	e := devicesEnv(t) // geraet-einbinden: 15 minutes
+	ctx := context.Background()
+	day := e.now.Add(24 * time.Hour)
+	th, err := e.m.StartAt(ctx, Begin{Target: "geraet-einbinden", Request: "Hue Lampe",
+		Plan: "# Neues Gerät\n- [ ] Einbinden\n- [ ] Raum", Deadline: day})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.m.Take(ctx, e.annasTurn(t), th.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.st.GetThread(ctx, th.ID); !got.ExpiresAt.Equal(day) {
+		t.Fatalf("taken up: expires %s, want %s", got.ExpiresAt, day)
+	}
+	// Two days later a step gives its type's timeout from then.
+	e.now = e.now.Add(48 * time.Hour)
+	if err := e.m.TickPlan(ctx, th.ID, "Einbinden"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.st.GetThread(ctx, th.ID); !got.ExpiresAt.Equal(e.now.Add(15 * time.Minute)) {
+		t.Fatalf("after a step: expires %s", got.ExpiresAt)
 	}
 }

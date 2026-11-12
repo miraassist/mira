@@ -122,6 +122,10 @@ called `skill_open`: it gets the skill's tools. A skill with a target that Mira 
 with `skill_open` before any thread runs: its tools start the thread themselves (`voicemail_list`). Targets without
 tools of their own (`kochen`) are not offered there.
 
+A target may be bound to **the house** (`bound: house`, decided 2026-11-12): its threads are the house's wherever
+they are taken up (the answering machine). A thread of a room-bound target that Mira's code started at the house moves
+into the room that takes it up ([Messages](messages.md), decision 27).
+
 A tool of Mira's may belong to **several skills** (decided 2026-11-12): it comes with any of them, and with none of
 them it is not offered. So one tool serves several flows (`calendar_create` for the inbox now, later others) instead
 of a copy per skill.

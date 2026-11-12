@@ -6,7 +6,7 @@ metadata:
   mira:
     target:
       plan: true
-      bound: room
+      bound: house
       timeout: 24h
       done_after: 5m
 ---

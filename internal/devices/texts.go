@@ -42,8 +42,8 @@ var coreCatalog = map[i18n.Lang]coreTexts{
 
 // foundTexts are what the found devices say and their tools return.
 type foundTexts struct {
-	// The message to the house.
-	foundOne, foundMany, and, andMore, details string
+	// An entry of the house's device message, one per device.
+	entryLine, details string
 	// The tools.
 	argItem, foundDesc, adoptDesc, confirmDesc, ignoreDesc     string
 	waitsForYes, noRoom, listFailed, nothingOpen, openList     string
@@ -54,10 +54,7 @@ type foundTexts struct {
 
 var foundCatalog = map[i18n.Lang]foundTexts{
 	i18n.DE: {
-		foundOne:  "Ich habe ein neues Gerät gefunden: %s. Soll ich es einbinden?",
-		foundMany: "Ich habe %d neue Geräte gefunden: %s. Soll ich sie einbinden?",
-		and:       " und ",
-		andMore:   " und %d weitere",
+		entryLine: "Neues Gerät gefunden: %s",
 		details:   "Skill geraet-einbinden. Gefunden (für device_adopt oder device_ignore):",
 
 		argItem:     "Was gefunden wurde, wie es in der Nachricht oder in devices_found steht: flow:<id> oder device:<id>.",
@@ -89,10 +86,7 @@ var foundCatalog = map[i18n.Lang]foundTexts{
 		ignoreFailed:  "Ergebnis: nicht ignoriert. Grund: Home Assistant hat abgelehnt: %s. Sag das dem Nutzer.",
 	},
 	i18n.EN: {
-		foundOne:  "I found a new device: %s. Shall I add it?",
-		foundMany: "I found %d new devices: %s. Shall I add them?",
-		and:       " and ",
-		andMore:   " and %d more",
+		entryLine: "New device found: %s",
 		details:   "Skill geraet-einbinden. Found (for device_adopt or device_ignore):",
 
 		argItem:     "What was found, as the message or devices_found names it: flow:<id> or device:<id>.",

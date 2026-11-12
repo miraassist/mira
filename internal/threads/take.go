@@ -26,6 +26,7 @@ func (m *Manager) Take(ctx context.Context, inv tools.Invocation, id string) (st
 		return "", err
 	default:
 		if store.ThreadOpen(th.State) && contains(places, th.Place) {
+			th = m.toRoom(ctx, inv, th)
 			m.link(ctx, inv.SessionKey, th)
 			m.log.Info("thread taken up", "thread", th.ID, "target", th.Target, "session", inv.SessionKey)
 			return t.headerCurrent + "\n" + m.describe(th, m.lang(ctx)), nil

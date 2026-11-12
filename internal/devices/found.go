@@ -71,9 +71,16 @@ type FoundOptions struct {
 	HA     FoundHA
 	Core   *Core
 	KV     KV
-	// Post leaves a message to the house: spoken where someone is, shown on
-	// the page (docs/spec/messages.md).
-	Post func(ctx context.Context, spoken, details string) error
+	// Post puts a found device's entry into the house's device message,
+	// leading to its thread (docs/spec/messages.md, decision 28).
+	Post func(ctx context.Context, thread, spoken, details string) error
+	// StartHouse starts a found device's own thread at the house with its
+	// plan; item is its reference (flow:<id>, device:<id>). TakeItem takes
+	// that thread up for a turn (it moves into the turn's room); false
+	// without one. ItemThread finds it; "" without one.
+	StartHouse func(ctx context.Context, request, plan, item string) (string, error)
+	TakeItem   func(ctx context.Context, inv tools.Invocation, item string) (string, bool, error)
+	ItemThread func(ctx context.Context, item string) string
 	// Claims: a dialog that brings a device into its network (a Zigbee
 	// pairing) has it; it is not counted.
 	Claims []func(deviceID string) bool
@@ -480,48 +487,37 @@ func (f *Found) announce(ctx context.Context) {
 	if len(items) == 0 {
 		return
 	}
-	spoken, details := f.message(items)
-	if err := f.o.Post(ctx, spoken, details); err != nil {
-		f.log.Error("could not leave the message about found devices", "error", err)
-		return
-	}
-	f.mu.Lock()
+	// Each its own thread at the house and its entry (decision 28): an entry
+	// without its thread would lead nowhere.
+	said := 0
 	for _, it := range items {
+		thread, err := f.o.StartHouse(ctx, it.name, f.t.plan, it.ref)
+		if err != nil {
+			f.log.Error("could not start a found device's thread; it is not said", "item", it.ref, "name", it.name, "error", err)
+			continue
+		}
+		spoken, details := f.entry(it)
+		if err := f.o.Post(ctx, thread, spoken, details); err != nil {
+			f.log.Error("could not leave the entry of a found device; its thread waits without it", "item", it.ref,
+				"thread", thread, "error", err)
+		}
+		f.mu.Lock()
 		f.said[it.key] = it.name
+		f.mu.Unlock()
+		said++
 	}
-	f.mu.Unlock()
 	f.saveSaid(ctx)
-	f.log.Info("found devices said", "count", len(items))
+	f.log.Info("found devices said", "count", said)
 }
 
-func (f *Found) message(items []item) (string, string) {
+// entry is a found device's entry: its line and the details for the tools.
+func (f *Found) entry(it item) (string, string) {
 	t := f.t
-	var spoken string
-	if len(items) == 1 {
-		spoken = fmt.Sprintf(t.foundOne, items[0].name)
-	} else {
-		names := make([]string, 0, 3)
-		for i, it := range items {
-			if i == 3 {
-				break
-			}
-			names = append(names, it.name)
-		}
-		list := strings.Join(names[:len(names)-1], ", ") + t.and + names[len(names)-1]
-		if len(items) > 3 {
-			list = strings.Join(names, ", ") + fmt.Sprintf(t.andMore, len(items)-3)
-		}
-		spoken = fmt.Sprintf(t.foundMany, len(items), list)
+	details := fmt.Sprintf("%s\n- %s: %s", t.details, it.ref, it.name)
+	if it.facts != "" {
+		details += " (" + it.facts + ")"
 	}
-	var b strings.Builder
-	b.WriteString(t.details)
-	for _, it := range items {
-		fmt.Fprintf(&b, "\n- %s: %s", it.ref, it.name)
-		if it.facts != "" {
-			fmt.Fprintf(&b, " (%s)", it.facts)
-		}
-	}
-	return spoken, b.String()
+	return fmt.Sprintf(t.entryLine, it.name), details
 }
 
 func (f *Found) saveSaid(ctx context.Context) {
@@ -681,6 +677,36 @@ func (f *Found) note(ctx context.Context, thread, text string) {
 	}
 }
 
+// threadFor is the thread a found item is taken in with: its own, started
+// at the house when it was found, taken up and moved into the turn's room
+// (decisions 27, 28); one found before that has none, and gets a thread of
+// the room as before.
+func (f *Found) threadFor(ctx context.Context, inv tools.Invocation, item string) (string, error) {
+	if f.o.TakeItem != nil {
+		thread, ok, err := f.o.TakeItem(ctx, inv, item)
+		if err != nil {
+			return "", err
+		}
+		if ok {
+			return thread, nil
+		}
+	}
+	return f.o.Start(ctx, inv, f.t.plan)
+}
+
+// endItem ends a found item's own thread, unless it is the one just ended.
+func (f *Found) endItem(ctx context.Context, item, ended string) {
+	if f.o.ItemThread == nil {
+		return
+	}
+	if thread := f.o.ItemThread(ctx, item); thread != "" && thread != ended {
+		f.mu.Lock()
+		delete(f.flowOf, thread)
+		f.mu.Unlock()
+		f.o.End(ctx, thread)
+	}
+}
+
 func (f *Found) adopt(ctx context.Context, inv tools.Invocation) (string, error) {
 	kind, id, err := parseItem(inv)
 	if err != nil {
@@ -699,7 +725,7 @@ func (f *Found) adopt(ctx context.Context, inv tools.Invocation) (string, error)
 		if !ok || d.AreaID != "" || (h.ignore != "" && slices.Contains(d.Labels, h.ignore)) {
 			return t.notOpen, nil
 		}
-		thread, err := f.o.Start(ctx, inv, t.plan)
+		thread, err := f.threadFor(ctx, inv, deviceKey(id))
 		if err != nil {
 			return "", err
 		}
@@ -716,7 +742,7 @@ func (f *Found) adopt(ctx context.Context, inv tools.Invocation) (string, error)
 	if !open {
 		return t.notOpen, nil
 	}
-	thread, err := f.o.Start(ctx, inv, t.plan)
+	thread, err := f.threadFor(ctx, inv, "flow:"+id)
 	if err != nil {
 		return "", err
 	}
@@ -967,9 +993,12 @@ func (f *Found) ignore(ctx context.Context, inv tools.Invocation) (string, error
 		f.mu.Lock()
 		mine := f.flowOf[thread] == id
 		f.mu.Unlock()
+		ended := ""
 		if mine {
 			f.finishFlow(ctx, thread)
+			ended = thread
 		}
+		f.endItem(ctx, "flow:"+id, ended)
 		f.log.Info("found device ignored", "flow", id, "name", name)
 		return fmt.Sprintf(t.ignored, name), nil
 	}
@@ -988,10 +1017,13 @@ func (f *Found) ignore(ctx context.Context, inv tools.Invocation) (string, error
 			_, err = f.o.HA.Call(ctx, map[string]any{"type": "config/device_registry/update", "device_id": id, "labels": labels})
 			if err == nil {
 				f.markSaid(ctx, deviceKey(id), d.name())
+				ended := ""
 				if f.o.Core.Holds(id) {
 					f.o.Core.Release(thread)
 					f.o.End(ctx, thread)
+					ended = thread
 				}
+				f.endItem(ctx, deviceKey(id), ended)
 				f.log.Info("found device ignored", "device", id, "name", d.name())
 				return fmt.Sprintf(t.ignored, d.name()), nil
 			}

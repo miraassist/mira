@@ -104,3 +104,67 @@ func (m *Manager) HousePlanText(ctx context.Context, target string) string {
 	}
 	return planOf(th).Plan
 }
+
+// toRoom moves a thread Mira's code started at the house into the room of
+// the turn that takes it up, when its target is bound to the room
+// (docs/spec/messages.md, decision 27); a target bound to the house, or a
+// turn without a room (a chat), leaves it the house's.
+func (m *Manager) toRoom(ctx context.Context, inv tools.Invocation, th store.Thread) store.Thread {
+	if th.Place != store.PlaceHouse || !m.roomBound(th.Target) {
+		return th
+	}
+	turn := m.withTurnArea(ctx, inv)
+	area := areaOf(turn)
+	if area == "" {
+		m.log.Info("a thread of the house taken up without a room; it stays the house's", "thread", th.ID, "target", th.Target)
+		return th
+	}
+	moved, err := m.change(ctx, th.ID, func(t *store.Thread) error {
+		t.Place, t.Area, t.Device = "area:"+area, area, deviceOf(turn)
+		return nil
+	})
+	if err != nil {
+		m.log.Warn("could not move a thread of the house into the room taking it up; it stays the house's", "thread", th.ID,
+			"area", area, "error", err)
+		return th
+	}
+	m.log.Info("thread moved from the house into the room taking it up", "thread", th.ID, "target", th.Target, "area", area,
+		"device", moved.Device)
+	return moved
+}
+
+// TakeItem takes up the open thread of a target whose field holds value (a
+// found device's thread by its item), at the house or at the turn's places:
+// it moves into the turn's room (decision 27) and becomes the turn's own.
+// False when there is none.
+func (m *Manager) TakeItem(ctx context.Context, inv tools.Invocation, target, field, value string) (string, bool, error) {
+	open, err := m.openAt(ctx, append(m.turnPlaces(ctx, inv), store.PlaceHouse))
+	if err != nil {
+		return "", false, err
+	}
+	for _, th := range open {
+		if th.Target != target || th.Fields[field] != value {
+			continue
+		}
+		th = m.toRoom(ctx, inv, th)
+		m.link(ctx, inv.SessionKey, th)
+		m.log.Info("thread taken up", "thread", th.ID, "target", target, "session", inv.SessionKey)
+		return th.ID, true, nil
+	}
+	return "", false, nil
+}
+
+// ItemThread is the open thread of a target whose field holds value,
+// wherever it is; "" without one.
+func (m *Manager) ItemThread(ctx context.Context, target, field, value string) (string, error) {
+	open, err := m.opts.Store.OpenThreads(ctx, "")
+	if err != nil {
+		return "", err
+	}
+	for _, th := range open {
+		if th.Target == target && th.Fields[field] == value {
+			return th.ID, nil
+		}
+	}
+	return "", nil
+}

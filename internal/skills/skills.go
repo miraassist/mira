@@ -122,7 +122,8 @@ type Target struct {
 	Timeout string `yaml:"timeout"`
 	timeout time.Duration
 	// Bound is what a thread of the target is bound to: "person" (the
-	// default) or "room" (docs/spec/threads.md, Assignment).
+	// default), "room" (docs/spec/threads.md, Assignment) or "house"
+	// (docs/spec/messages.md, decision 27).
 	Bound string `yaml:"bound"`
 	// DoneAfter keeps a plan whose steps are all done open that long, for
 	// "wait, not done yet"; default 30m.
@@ -132,6 +133,10 @@ type Target struct {
 
 // Bound to the room, rather than the person.
 const BoundRoom = "room"
+
+// BoundHouse: the house's, wherever a thread is taken up
+// (docs/spec/messages.md, decision 27).
+const BoundHouse = "house"
 
 // DoneAfterDuration is DoneAfter parsed, 30 minutes by default.
 func (t Target) DoneAfterDuration() time.Duration {
@@ -496,7 +501,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 			}
 			t.timeout = d
 		}
-		if t.Bound != "" && t.Bound != "person" && t.Bound != BoundRoom {
+		if t.Bound != "" && t.Bound != "person" && t.Bound != BoundRoom && t.Bound != BoundHouse {
 			return Skill{}, problem("targetbound", t.Bound)
 		}
 		if t.DoneAfter != "" {

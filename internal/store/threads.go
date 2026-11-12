@@ -116,7 +116,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, state = excluded.state,
 	request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
-	calls = excluded.calls, deadline = excluded.deadline, version = threads.version + 1
+	calls = excluded.calls, deadline = excluded.deadline, area = excluded.area, device = excluded.device,
+	version = threads.version + 1
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
 		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area, t.Device,

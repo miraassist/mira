@@ -191,20 +191,33 @@ Feature: Messages
     Then its entry leaves the message at once; when the other ends too, the message is done and withdrawn
 
   @step5
-  Scenario: MS-31 A found device starts the house's thread and message
+  Scenario: MS-31 A found device starts its own thread at the house and an entry
     Given no device message waits
     When Home Assistant finds a device
-    Then the code starts the house's thread with the device in its plan, expiring in 1 day, and a device message to
-      the house has its entry
+    Then the code starts a thread of geraet-einbinden at the house for it, with the plan add, room, name, expiring in
+      1 day, and a device message to the house has its entry leading to that thread
 
   @step5
-  Scenario: MS-32 A further device extends them
-    Given the device message is unheard
+  Scenario: MS-32 A further device gets a thread of its own
+    Given the device message is unheard with one entry
     When another device is found
-    Then the plan gains it, the message gets an entry, and the thread expires 1 day after this one
+    Then it gets a thread of its own, and the same message gets a second entry leading to it
 
   @step5
-  Scenario: MS-33 After a day the found devices are gone
-    Given the house's device thread was not taken up
+  Scenario: MS-33 After a day the found device is gone
+    Given a found device's thread was not taken up
     When its expiry passes
-    Then the thread ends, its entries leave the message, and the message is withdrawn
+    Then the thread ends, its entry leaves the message, and the message is withdrawn when it was the last
+
+  @step5
+  Scenario: MS-35 Taken up, the device's thread moves into the room
+    Given a found device's thread at the house
+    When a turn in the kitchen adopts the device (device_adopt) or takes up its thread
+    Then the thread is the kitchen's, with the turn's satellite, and a log line names the move
+    And a thread of the answering machine (bound to the house) taken up in the kitchen stays the house's
+
+  @step5
+  Scenario: MS-36 Taking up never shortens
+    Given a thread of the house with 1 day left whose type's timeout is 15 minutes
+    When a turn takes it up
+    Then it still expires in 1 day; a step in it 2 days later would give its type's timeout from then

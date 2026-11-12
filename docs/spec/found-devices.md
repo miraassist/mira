@@ -2,6 +2,13 @@
 
 Status 2026-11-12: steps 1 to 4 built and released (0.21.0); decision 9 (the iBeacon filter) released in 0.22.1. Built: the fake discovery, the state table checked against it, the noticing, the tools and the skill, run end to end at the fake Show; the real run is open. Scenarios: [found-devices.feature](found-devices.feature).
 
+
+Changed 2026-11-12 by [Messages](messages.md), step 5 (decisions 27, 28): what is found is no longer one message
+naming the burst. Each found device gets its own thread of `geraet-einbinden` at the house (plan add, room, name; 1 day)
+and an entry in the house's `device` message; `device_adopt` takes that thread up and moves it into the room,
+`device_ignore` ends it. A device listed by `devices_found` without such a thread (found before the update) is adopted as
+before, with a thread of the room.
+
 ## Goal
 
 A device that turns up in Home Assistant is noticed by Mira, and she helps to take it in by voice, however it came:
