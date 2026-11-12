@@ -9,6 +9,7 @@ import (
 
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 // A schedule for one person: docs/spec/schedule-receiver.md, step 2.
@@ -43,7 +44,7 @@ func loadReceiverSkill(t *testing.T, skill, to string) ([]Skill, []Problem) {
 
 func receiverRunner(t *testing.T, sk Skill, tasker Tasker) (*Runner, *store.Store) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

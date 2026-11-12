@@ -3,7 +3,6 @@ package conversation_test
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -146,7 +146,7 @@ func TestST05_UebrigensComesAsTheLastPiece(t *testing.T) {
 	model := fakellm.New(fakellm.Step{Content: "Gern geschehen."})
 	defer model.Close()
 	cfg := config.Default()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

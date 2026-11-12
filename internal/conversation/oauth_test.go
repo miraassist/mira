@@ -2,7 +2,6 @@ package conversation_test
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakeoauth"
 )
@@ -21,7 +21,7 @@ func TestCO19_WritingAfterThirdPartyTextAsksFirst(t *testing.T) {
 	// Given a connected skill whose api allows POST and whose instructions say to post without asking
 	svc := fakeoauth.New("id-1", "geheim")
 	t.Cleanup(svc.Close)
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "tokens.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

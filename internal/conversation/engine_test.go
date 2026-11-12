@@ -10,7 +10,6 @@ import (
 	"github.com/miraassist/mira/internal/prompt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +23,7 @@ import (
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mcp"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 	"github.com/miraassist/mira/internal/tools"
@@ -140,7 +140,7 @@ func newHarnessTools(t *testing.T, mutate func(*config.Config), extra []tools.In
 
 	var err error
 	h.store, err = store.Open(context.Background(), store.Options{
-		Path: filepath.Join(t.TempDir(), "mira.db"), Clock: h.clock.Now})
+		Path: storetest.Path(t), Clock: h.clock.Now})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,11 +16,12 @@ import (
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 func newStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

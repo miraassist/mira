@@ -15,6 +15,7 @@ import (
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -238,7 +239,7 @@ func newRuleThreads(t *testing.T, f fixture) *ruleThreads {
 	if _, ok := list[0].Agents["regel.schreiben"]; !ok {
 		t.Fatalf("agents: %v", list[0].Agents)
 	}
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

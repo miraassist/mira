@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 type fakeMail struct{ got mailcal.Mail }
@@ -33,7 +33,7 @@ func TestMail(t *testing.T) {
 		t.Errorf("without mail: %d", code)
 	}
 
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

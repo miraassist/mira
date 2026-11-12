@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 // Schedules on Mira's page (docs/spec/schedules.md): names and mira.yaml.
@@ -156,7 +157,7 @@ func TestZP06_a_change_holds_at_once(t *testing.T) {
 
 func openStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

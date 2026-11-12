@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
 	"github.com/miraassist/mira/internal/testsupport/fakeoauth"
 	"github.com/miraassist/mira/internal/tools"
@@ -81,7 +81,7 @@ func newEnv(t *testing.T) *env {
 	e.mcpSrv.Authorize = e.svc.Valid
 	e.mcpSrv.AddTool("suche", "Sucht.", `{"type":"object","properties":{}}`, true, func(map[string]any) (string, bool) { return "gefunden", false })
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

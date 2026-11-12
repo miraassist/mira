@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 type fakeAssessor struct {
@@ -28,7 +28,7 @@ func (f *fakeAssessor) AssessIsolated(_ context.Context, _, instruction string, 
 func setup(t *testing.T, answer string) (*Compactor, *store.Store, *fakeAssessor, *int) {
 	t.Helper()
 	now := time.Date(2026, 10, 15, 3, 30, 0, 0, time.UTC)
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return now }})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

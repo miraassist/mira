@@ -3,16 +3,16 @@ package language
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 func newResolver(t *testing.T, server func(context.Context) (string, error)) *Resolver {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

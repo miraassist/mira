@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 type call struct {
@@ -229,7 +229,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	e.ha.set("person.ben", "home", nil)
 
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return e.now }})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return e.now }})
 	if err != nil {
 		t.Fatal(err)
 	}

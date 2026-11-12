@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 // answerModel answers with its text, or waits until the call ends when it
@@ -42,7 +42,7 @@ func (m *answerModel) Chat(ctx context.Context, _ llm.ChatRequest) (*llm.ChatRes
 // (text in, JSON out).
 func agentServer(t *testing.T, m *answerModel) (*httptest.Server, chan store.AgentRun) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

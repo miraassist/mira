@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +15,7 @@ import (
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 func f(v float64) *float64 { return &v }
@@ -137,7 +137,7 @@ func setup(t *testing.T) *env {
 	e := &env{now: time.Date(2026, 10, 15, 3, 20, 0, 0, time.UTC), model: &fakeModel{},
 		ha: &fakeHA{automations: map[string]map[string]any{}}}
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return e.now }})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return e.now }})
 	if err != nil {
 		t.Fatal(err)
 	}

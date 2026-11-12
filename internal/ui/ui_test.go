@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/miraassist/mira/docs"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/tasks"
 )
 
@@ -59,7 +59,7 @@ func (f *fakeConfig) ReleaseHA()      { f.managed = false }
 
 func setup(t *testing.T) (*httptest.Server, *fakeConfig, *store.Store) {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -573,7 +573,7 @@ func TestPageShowsTheIntegrationsVersion(t *testing.T) {
 // phoneServer serves the page with news waiting on the answering machine.
 func phoneServer(t *testing.T, news *PhoneNews) func(path string) *PhoneNews {
 	t.Helper()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

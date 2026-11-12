@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,12 +10,13 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 func reminderTools(t *testing.T) (map[string]InternalTool, *store.Store, time.Time) {
 	t.Helper()
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return now }})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestReminderTextsComplete(t *testing.T) {
 // receiver's setting whose messages they take (docs/spec/messages.md).
 func TestMessageSend(t *testing.T) {
 	now := time.Date(2026, 10, 15, 18, 0, 0, 0, time.UTC)
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return now }})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

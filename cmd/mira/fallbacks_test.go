@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/logcap"
 )
 
@@ -38,7 +38,7 @@ func TestFB24_a_secrets_file_that_cannot_be_read_while_editing_is_in_the_log(t *
 // The kept list of what Assist sees is no JSON: it counts as not sent, and
 // the log says so.
 func TestFB25_a_kept_list_that_cannot_be_read_is_in_the_log(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

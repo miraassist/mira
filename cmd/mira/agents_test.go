@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -22,6 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/notifier"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakeha"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/testsupport/fakemcp"
@@ -66,7 +66,7 @@ func deliveryApp(t *testing.T, script ...fakellm.Step) (*app, *fakeha.Server, *f
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

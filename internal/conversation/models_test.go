@@ -2,7 +2,6 @@ package conversation_test
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/testsupport/fakellm"
 	"github.com/miraassist/mira/internal/tools"
 
@@ -63,7 +63,7 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 		t.Fatal(err)
 	}
 
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestAG72_TheDelegateAgentExistsWithoutAnEntry(t *testing.T) {
 func TestTurnWaitsForTheExposureList(t *testing.T) {
 	model := fakellm.New(fakellm.Step{Content: "must not be asked"})
 	defer model.Close()
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

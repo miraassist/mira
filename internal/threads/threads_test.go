@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -56,7 +56,7 @@ func setup(t *testing.T) *env {
 	t.Helper()
 	e := &env{fin: &fakeFinisher{async: true}, sent: make(chan store.Message, 8), now: time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC)}
 	var err error
-	e.st, err = store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "db"), Clock: func() time.Time { return e.now }})
+	e.st, err = store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: func() time.Time { return e.now }})
 	if err != nil {
 		t.Fatal(err)
 	}

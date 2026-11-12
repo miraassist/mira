@@ -2,18 +2,18 @@ package tools
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 func TestMemoryHasOwners(t *testing.T) {
 	ctx := context.Background()
-	st, err := store.Open(ctx, store.Options{Path: filepath.Join(t.TempDir(), "db")})
+	st, err := store.Open(ctx, store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}

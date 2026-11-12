@@ -21,6 +21,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/tools"
 
 	"gopkg.in/yaml.v3"
@@ -171,7 +172,7 @@ func setup(t *testing.T) *env {
 	t.Helper()
 	e := &env{main: &model{}, smart: &model{}, cfg: config.Default(), logs: &syncBuffer{}, ran: map[string]int{},
 		now: time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC), delivered: make(chan store.AgentRun, 20)}
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db"), Clock: e.clock})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t), Clock: e.clock})
 	if err != nil {
 		t.Fatal(err)
 	}

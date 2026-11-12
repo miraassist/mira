@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -16,11 +17,43 @@ type testClock struct{ t time.Time }
 func (c *testClock) Now() time.Time      { return c.t }
 func (c *testClock) Add(d time.Duration) { c.t = c.t.Add(d) }
 
+// The migrations are applied once per test process; each test gets a copy
+// (as storetest does for the other packages, which this package cannot
+// import).
+var (
+	templateOnce sync.Once
+	templateDB   []byte
+	templateErr  error
+)
+
+func templatePath(t *testing.T) string {
+	t.Helper()
+	templateOnce.Do(func() {
+		path := filepath.Join(t.TempDir(), "template.db")
+		s, err := Open(context.Background(), Options{Path: path})
+		if err != nil {
+			templateErr = err
+			return
+		}
+		if templateErr = s.Close(); templateErr == nil {
+			templateDB, templateErr = os.ReadFile(path)
+		}
+	})
+	if templateErr != nil {
+		t.Fatalf("the template database: %v", templateErr)
+	}
+	path := filepath.Join(t.TempDir(), "test.db")
+	if err := os.WriteFile(path, templateDB, 0o600); err != nil {
+		t.Fatalf("copying the template database to %s: %v", path, err)
+	}
+	return path
+}
+
 func newStore(t *testing.T) (*Store, *testClock) {
 	t.Helper()
 	clk := &testClock{t: time.Date(2026, 3, 1, 8, 0, 0, 0, time.UTC)}
 	s, err := Open(context.Background(), Options{
-		Path:  filepath.Join(t.TempDir(), "test.db"),
+		Path:  templatePath(t),
 		Clock: clk.Now,
 	})
 	if err != nil {

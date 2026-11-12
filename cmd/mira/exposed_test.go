@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,12 +9,13 @@ import (
 	"github.com/miraassist/mira/internal/ha/structure"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/store/storetest"
 )
 
 // The integration computes the same fingerprint (tests/ha/test_reconcile.py
 // has this value): sha256 of the sorted ids joined by newlines.
 func TestExposedHashMatchesTheIntegration(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func (r *registryReads) Entities(context.Context) ([]haws.Entity, error) {
 }
 
 func TestHU01_AListOfExposedEntitiesFromTheIntegrationRebuildsTheHouseAtOnce(t *testing.T) {
-	st, err := store.Open(context.Background(), store.Options{Path: filepath.Join(t.TempDir(), "mira.db")})
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
