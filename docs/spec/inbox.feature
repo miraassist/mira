@@ -233,11 +233,11 @@ Feature: IN Mira's inbox in Paperless
     And a log line names the 25
 
   @step9
-  Scenario: IN-41 An expiry that does not fit
-    Given the reading answers the expiry "2019-01-01"
+  Scenario: IN-41 An expiry that does not fit, or none
+    Given the reading answers the expiry "2019-01-01", or none
     When the document is read
-    Then the thread expires after the target's timeout of 3 days
-    And a log line names the value
+    Then the thread expires 24 hours after the reading (Messages, decision 11)
+    And for "2019-01-01" a log line names the value
 
   @step9
   Scenario: IN-42 Without a person the plan goes to the house as a message

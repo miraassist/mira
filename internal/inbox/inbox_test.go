@@ -689,21 +689,24 @@ func TestIN40_AtMost20StepsTheRestNamed(t *testing.T) {
 	}
 }
 
-func TestIN41_AnExpiryThatDoesNotFit(t *testing.T) {
-	for _, e := range []string{"2019-01-01", "morgen", "2031-01-01"} {
+func TestIN41_AnExpiryThatDoesNotFitOrNone(t *testing.T) {
+	for _, e := range []string{"2019-01-01", "morgen", "2031-01-01", ""} {
 		b := newBed(t)
 		b.reading(reading{Summary: "Brief", Plan: []string{"Termin"}, Line: "Brief", Expires: e})
 		b.s.Read(context.Background(), 5444, "anna")
-		if !b.asked[0].Deadline.IsZero() {
-			t.Fatalf("%s: deadline %s", e, b.asked[0].Deadline)
+		if got := b.asked[0].Deadline; !got.Equal(now.Add(24 * time.Hour)) {
+			t.Fatalf("%q: deadline %s", e, got)
 		}
-		if !strings.Contains(b.log.String(), "expiry does not fit") || !strings.Contains(b.log.String(), e) {
-			t.Errorf("%s: no log line naming it:\n%s", e, b.log)
+		if logged := strings.Contains(b.log.String(), "expiry does not fit"); logged != (e != "") {
+			t.Errorf("%q: log line %v:\n%s", e, logged, b.log)
 		}
 	}
-	// The thread's type's timeout is then its expiry: three days.
-	if d := postfachSkill(t).Target.TimeoutDuration(); d != 72*time.Hour {
-		t.Fatalf("timeout = %s", d)
+	// A time is taken as it is (the deadline to answer, tomorrow 12:00).
+	b := newBed(t)
+	b.reading(reading{Summary: "Brief", Plan: []string{"Rückmeldung"}, Line: "Brief", Expires: "2026-11-11 12:00"})
+	b.s.Read(context.Background(), 5444, "anna")
+	if got := b.asked[0].Deadline; !got.Equal(time.Date(2026, 11, 11, 12, 0, 0, 0, berlin)) {
+		t.Fatalf("deadline %s", got)
 	}
 }
 

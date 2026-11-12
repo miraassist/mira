@@ -43,6 +43,9 @@ const (
 	maxText  = 20000
 	maxSteps = 20
 	maxStep  = 200
+	// defaultExpiry is a mail's thread's expiry when the reading names none
+	// (docs/spec/messages.md, decision 11).
+	defaultExpiry = 24 * time.Hour
 )
 
 // Doc is what lands in the inbox as the inbox needs it: a document of
@@ -348,7 +351,7 @@ Antworte nur mit einem JSON-Objekt:
 - summary: was das Dokument ist, kurz ("Elternbrief der Grundschule")
 - plan: die Schritte, je einer pro Sache, die die Person tun oder entscheiden muss; leer, wenn nichts zu tun ist. Jeder Schritt nennt alles, was man dafür braucht: einen Termin mit Wochentag, Datum, Uhrzeit und Ort ("Elternabend, Mi 3.12.2026 19:30, Aula"), eine Frist mit ihrem Tag, einen Rückruf mit Name und Nummer, eine Auswahl aus Vorschlägen als ein Schritt, der alle Vorschläge nennt
 - line: eine Zeile für die Nachricht an die Person, höchstens 120 Zeichen ("Elternbrief der Grundschule: drei Termine")
-- expires: der Tag als YYYY-MM-DD, nach dem der Plan nichts mehr nützt (der letzte Termin oder die Frist); leer, wenn es keinen gibt
+- expires: bis wann der Plan nützt: die Frist für eine Antwort, sonst der Beginn des ersten Termins; als YYYY-MM-DD HH:MM, oder YYYY-MM-DD für das Ende dieses Tages; leer, wenn das Dokument keine Frist und keinen Termin nennt
 Rechne relative Angaben vom Datum des Dokuments aus. Was das Dokument nicht hergibt, lässt du weg. Erfinde nichts.`
 
 // Read reads one Paperless document and acts on what it finds; every
@@ -487,7 +490,7 @@ func (s *Service) read(ctx context.Context, doc Doc, text string) (reading, erro
 
 // check takes the reading's plan, line and expiry as the code relies on
 // them (docs/spec/inbox.md, section 7): at most maxSteps steps of at most
-// maxStep characters, the line cut to 120, an expiry from today to a year
+// maxStep characters, the line cut to 120, an expiry from now to a year
 // ahead. The days in the steps are not checked here: the calendar's
 // building block checks what is entered.
 func (s *Service) check(rd reading, doc Doc) (steps []string, deadline time.Time) {
@@ -506,15 +509,24 @@ func (s *Service) check(rd reading, doc Doc) (steps []string, deadline time.Time
 		s.log.Info("the plan has more steps than kept", "key", doc.Key, "steps", n, "kept", maxSteps)
 		steps = append(steps[:maxSteps], fmt.Sprintf(s.t.more, n-maxSteps))
 	}
+	// The expiry (docs/spec/messages.md, decision 11): a time, or a day
+	// until its end; without one, or one that does not fit, 24 hours.
 	loc := s.o.Location
-	today := midnight(s.o.Clock().In(loc))
+	now := s.o.Clock().In(loc)
+	deadline = now.Add(defaultExpiry)
 	if e := strings.TrimSpace(rd.Expires); e != "" {
-		day, err := time.ParseInLocation("2006-01-02", e, loc)
+		at, err := time.ParseInLocation("2006-01-02 15:04", e, loc)
+		if err != nil {
+			var day time.Time
+			if day, err = time.ParseInLocation("2006-01-02", e, loc); err == nil {
+				at = day.AddDate(0, 0, 1)
+			}
+		}
 		switch {
-		case err != nil, day.Before(today), day.After(today.AddDate(1, 0, 0)):
-			s.log.Info("the plan's expiry does not fit; the thread keeps its type's timeout", "key", doc.Key, "expires", e)
+		case err != nil, at.Before(now), at.After(now.AddDate(1, 0, 0)):
+			s.log.Info("the plan's expiry does not fit; the thread expires in 24 hours", "key", doc.Key, "expires", e)
 		default:
-			deadline = day.AddDate(0, 0, 1)
+			deadline = at
 		}
 	}
 	return steps, deadline

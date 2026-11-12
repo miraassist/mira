@@ -123,3 +123,30 @@ func TestAThreadOfTheHouseKeepsItsDeadlineUntilTakenUp(t *testing.T) {
 		t.Fatalf("taken up: deadline %v, expires %v", got.Deadline, got.ExpiresAt)
 	}
 }
+
+func TestMS15_AMailsThreadExpiresWhenInboxReadSays(t *testing.T) {
+	e := postfachEnv(t)
+	ctx := context.Background()
+	deadline := e.now.Add(26 * time.Hour) // tomorrow 12:00, the deadline to answer
+	th, err := e.m.StartAt(ctx, Begin{Target: "postfach", Person: "anna", Request: "Rückmeldung zum Ausflug",
+		Plan: "Rückmeldung zum Ausflug\n- [ ] Rückmeldung bis morgen 12:00", Deadline: deadline})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.st.PutMessage(ctx, store.Message{ID: "m1", Kind: store.KindPostfach, Receiver: "anna", Spoken: "Ausflug", ThreadID: th.ID})
+	e.st.PutMessage(ctx, store.Message{ID: "m2", Kind: store.KindPostfach, Receiver: "anna", Spoken: "Elternbrief", ThreadID: "other"})
+	e.now = deadline.Add(-time.Minute)
+	e.m.expire(ctx)
+	if got, _ := e.st.GetThread(ctx, th.ID); got.State == store.ThreadExpired {
+		t.Fatal("expired before its deadline")
+	}
+	e.now = deadline.Add(time.Minute)
+	e.m.expire(ctx)
+	if got, _ := e.st.GetThread(ctx, th.ID); got.State != store.ThreadExpired || planOf(got).DoneAt != nil {
+		t.Fatalf("thread = %s", got.State)
+	}
+	m, _ := e.st.GetMessage(ctx, "m1")
+	if len(m.Entries) != 1 || m.Entries[0].ThreadID != "other" || m.State != store.MessagePending {
+		t.Fatalf("message = %+v", m)
+	}
+}

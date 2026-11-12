@@ -346,7 +346,7 @@ conversation's model works the plan with the tools that exist; appointments are 
 | `summary` | what the document is, short ("Elternbrief der Grundschule"); for the log and the plan's head |
 | `plan` | the steps, one per line, each a thing for the person to do or decide, with every fact it needs: an appointment with day, time and place; a deadline with its day; a callback with the name and the number; a choice among proposals as one step that names them. Empty when there is nothing to do |
 | `line` | the message's line ("Elternbrief der Grundschule: drei Termine"), at most 120 characters |
-| `expires` | `YYYY-MM-DD`: the day after which the plan is no longer of use (the last date it names, a deadline); empty for none |
+| `expires` | when the plan is no longer of use, by [Messages](messages.md) decision 11: the deadline to answer, else the first appointment; `YYYY-MM-DD HH:MM`, or `YYYY-MM-DD` for the end of that day; empty for none |
 
 The skill's instructions for the reading (`inbox.extract` in `skills/postfach/SKILL.md`) say what a step is and how it
 is worded. The plan is German like every plan; dates as the plan's reader says them ("Mi 3.12. 19:30").
@@ -355,8 +355,9 @@ is worded. The plan is German like every plan; dates as the plan's reader says t
 - `plan`: at most **20 steps** (more: the first 20, and a last step "N weitere im Dokument"; log line), each at most 200
   characters (cut, log line).
 - `line`: cut to 120 characters; empty: the summary.
-- `expires`: a valid date, not before today and at most a year ahead; otherwise the target's timeout (3 days) and a log
-  line with the value.
+- `expires`: a valid time or day, not before now and at most a year ahead. Empty: 24 hours from now (Messages,
+  decision 11). Anything else: 24 hours too, and a log line with the value. Taking the thread up extends it by its
+  type's timeout (3 days), as for every thread.
 - The days in the steps are not checked by code: the calendar's building block checks what is entered.
 
 **Asking** (replaces the plan of step 3, the fixed question and `inbox_enter`):
