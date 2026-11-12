@@ -348,11 +348,17 @@ var inPlan = regexp.MustCompile(`\(id ([^)]+)\)`)
 // those it held already (ticked once heard), never the whole history.
 // Asking again keeps what was heard in this thread and adds what came.
 func (m *Machine) planned(ctx context.Context, inv tools.Invocation, all []Message) []Message {
-	had := map[string]bool{}
+	text := ""
 	if m.o.PlanText != nil {
-		for _, match := range inPlan.FindAllStringSubmatch(m.o.PlanText(ctx, inv), -1) {
-			had[match[1]] = true
-		}
+		text = m.o.PlanText(ctx, inv)
+	}
+	return plannedIn(text, all)
+}
+
+func plannedIn(planText string, all []Message) []Message {
+	had := map[string]bool{}
+	for _, match := range inPlan.FindAllStringSubmatch(planText, -1) {
+		had[match[1]] = true
 	}
 	var out []Message
 	for _, x := range all {
@@ -633,9 +639,10 @@ func (m *Machine) News(ctx context.Context) (News, error) {
 	return News{Messages: len(msgs), Missed: len(calls)}, nil
 }
 
-// NewsLine is what "Gibt es Neues?" adds about the answering machine; ""
-// when nothing is new there. When it cannot be read, it says so
-// (docs/spec/fallbacks.md, FB-03).
+// NewsLine is what "Gibt es Neues?" adds about the answering machine: the
+// missed calls (the recordings are a message of their own,
+// docs/spec/messages.md, decision 19); "" when none are new. When it cannot
+// be read, it says so (docs/spec/fallbacks.md, FB-03).
 func (m *Machine) NewsLine(ctx context.Context) string {
 	news, err := m.News(ctx)
 	switch {
@@ -643,10 +650,10 @@ func (m *Machine) NewsLine(ctx context.Context) string {
 		return m.t.missing
 	case err != nil:
 		return fmt.Sprintf(m.t.newsFailed, err)
-	case news.Messages+news.Missed == 0:
+	case news.Missed == 0:
 		return ""
 	}
-	return fmt.Sprintf(m.t.newsLine, news.Messages, news.Missed)
+	return fmt.Sprintf(m.t.newsLine, news.Missed)
 }
 
 func (m *Machine) failed(err error) string {
@@ -655,3 +662,35 @@ func (m *Machine) failed(err error) string {
 	}
 	return fmt.Sprintf(m.t.boxFailed, err)
 }
+
+// Recording is a new recording as the house's message names it.
+type Recording struct {
+	ID, Line string
+	At       time.Time
+}
+
+// Arrived reads the box after its count rose (docs/spec/messages.md, step
+// 4): the plan of the house's thread (planText is the plan it has, "" for
+// none), the new recordings with their lines ("Oma, heute 14:12") and when
+// the newest came. 1 action of Mira FRITZ!Box (get_messages).
+func (m *Machine) Arrived(ctx context.Context, planText string) (plan string, recs []Recording, err error) {
+	all, err := m.messages(ctx, false)
+	if err != nil {
+		return "", nil, err
+	}
+	planned := plannedIn(planText, all)
+	for _, x := range all {
+		if !x.New {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, x.Date)
+		recs = append(recs, Recording{ID: x.ID, Line: x.Name + ", " + m.when(x.Date), At: at})
+	}
+	if len(planned) == 0 {
+		return "", recs, nil
+	}
+	return m.plan(planned), recs, nil
+}
+
+// Request is what the house's listening thread is about.
+func (m *Machine) Request() string { return m.t.planRequest }

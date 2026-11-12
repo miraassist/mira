@@ -10,7 +10,7 @@ type texts struct {
 	noMissed, missedHead, missedLine                      string
 	notVoice, noSpeaker, unknown, playing, title, deleted string
 	source                                                string
-	playingMany, next, planHead                           string
+	playingMany, next, planHead, planRequest              string
 	today, yesterday                                      string
 	missing, boxFailed, newsLine, onlyNewest              string
 	newsFailed                                            string // %s = why
@@ -39,6 +39,7 @@ var catalog = map[i18n.Lang]texts{
 		playingMany:  "Ergebnis: %d Nachrichten spielen am Satelliten nacheinander, direkt nach deiner Antwort; vor jeder weiteren sagt der Satellit selbst, von wem sie ist. Die erste ist von %s (%s). Sag jetzt nur kurz, wie viele es sind und von wem und wann die erste ist, und sonst nichts, keine Frage.",
 		next:         "Nächste: von %s, %s.",
 		planHead:     "# Anrufbeantworter",
+		planRequest:  "Neue Nachrichten auf dem Anrufbeantworter",
 		title:        "Nachricht von %s",
 		source:       "Anrufbeantworter",
 		deleted:      "Ergebnis: Die Nachricht ist gelöscht.",
@@ -47,7 +48,7 @@ var catalog = map[i18n.Lang]texts{
 		missing:      "Die Integration Mira FRITZ!Box fehlt. Installiere sie über den Marketplace und richte sie ein; dann liest Mira dort den Anrufbeantworter.",
 		boxFailed:    "Ergebnis: Der Anrufbeantworter ließ sich nicht lesen (%s).",
 		onlyNewest:   " Nenn dem Nutzer nur die neuesten %d (die ersten unten) mit Absender und Zeit und sag, dass es %d weitere gibt; abspielen geht jede.",
-		newsLine:     "Auf dem Anrufbeantworter: %d neue Nachrichten, %d neue verpasste Anrufe. Einzelheiten und Abspielen mit dem Skill anrufbeantworter.",
+		newsLine:     "Verpasste Anrufe: %d neue. Einzelheiten mit dem Skill anrufbeantworter.",
 		newsFailed:   "Der Anrufbeantworter ließ sich nicht lesen (%s); ob dort Neues ist, ist unbekannt.",
 	},
 	i18n.EN: {
@@ -72,6 +73,7 @@ var catalog = map[i18n.Lang]texts{
 		playingMany:  "Result: %d messages play at the satellite one after the other, right after your answer; before each further one the satellite says itself whom it is from. The first is from %s (%s). Now say only briefly how many there are and from whom and when the first is, nothing else, no question.",
 		next:         "Next: from %s, %s.",
 		planHead:     "# Answering machine",
+		planRequest:  "New messages on the answering machine",
 		title:        "Message from %s",
 		source:       "Answering machine",
 		deleted:      "Result: the message is deleted.",
@@ -80,7 +82,7 @@ var catalog = map[i18n.Lang]texts{
 		missing:      "The integration Mira FRITZ!Box is missing. Install it through the Marketplace and set it up; Mira then reads the answering machine there.",
 		boxFailed:    "Result: the answering machine could not be read (%s).",
 		onlyNewest:   " Tell the user only the newest %d (the first below) with caller and time, and that there are %d more; any of them can be played.",
-		newsLine:     "On the answering machine: %d new messages, %d new missed calls. Details and playing with the skill anrufbeantworter.",
+		newsLine:     "Missed calls: %d new. Details with the skill anrufbeantworter.",
 		newsFailed:   "The answering machine could not be read (%s); whether there is anything new is unknown.",
 	},
 }

@@ -133,11 +133,22 @@ func (n *Notifier) syncIndicators(ctx context.Context) {
 			continue // speaking restores it when the text ends
 		}
 		list := w.in(area)
+		// The colour by kind (docs/spec/messages.md, decision 22): the
+		// answering machine's message is amber, anything else Mira's; the
+		// box's sensors are amber where no message is, and red.
+		mira, voicemail := 0, 0
+		for _, m := range list {
+			if m.Kind == store.KindVoicemail {
+				voicemail++
+			} else {
+				mira++
+			}
+		}
 		want := ""
 		switch {
-		case len(list) > 0:
+		case mira > 0:
 			want = indicatorMira
-		case phone.Messages > 0:
+		case voicemail > 0 || phone.Messages > 0:
 			want = indicatorVoicemail
 		case phone.Missed > 0:
 			want = indicatorMissed

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // A satellite without an indicator light may show waiting messages on its
@@ -37,6 +38,9 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 		// message with three counts three.
 		count := 0
 		for _, m := range w.in(area) {
+			if m.Kind == store.KindVoicemail {
+				continue // the answering machine's hint counts it (syncPhoneScreens)
+			}
 			count += max(1, len(m.Entries))
 		}
 		if count == n.screenCount[sat] {

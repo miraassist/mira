@@ -1097,8 +1097,8 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (tools.Rea
 	if a.voicemail == nil || !a.voicemailOn() {
 		return r, nil
 	}
-	// After Mira's own messages, the answering machine's news (until it is a
-	// message of its own, docs/spec/messages.md, step 4).
+	// After Mira's own messages, the missed calls: the recordings are a
+	// message of their own (docs/spec/messages.md, decision 19).
 	if line := a.voicemail.NewsLine(ctx); line != "" {
 		r.Text = strings.TrimSpace(r.Text + "\n" + line)
 	}

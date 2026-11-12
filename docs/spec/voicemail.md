@@ -116,7 +116,9 @@ ids end in `_new_messages` and `_missed_calls`. A change of either updates the i
   It gets the new count once the playing ends (decision 10, step 4).
 - **In every room**: the answering machine belongs to the house, like a message to the house. Quiet hours hold back
   nothing here: a light and a screen hint wake no one.
-- **"Gibt es Neues?"** names the answering machine too, after Mira's own messages.
+- **"Gibt es Neues?"** names the answering machine too, after Mira's own messages. Since 2026-11-12 the recordings
+  are a message of their own ([Messages](messages.md), step 4), so this line names only the missed calls (decision 19
+  there).
 
 ### On Mira's page
 
@@ -146,6 +148,11 @@ as cooking or vocabulary, a list of steps worked through, with a "current" one. 
 ([Plans](threads.md#plans-long-processes-step-by-step)); nothing new besides two general rules for threads (below).
 
 ### The thread
+
+Changed 2026-11-12 by [Messages](messages.md), step 4 (decisions 19 to 23): the thread is **the house's**, started by
+the code when a recording comes (its expiry the newest recording plus 5 days), found and taken up by `voicemail_list`;
+its type's timeout is one day; the box's count going to 0 makes its plan done. What follows describes it before that
+change where it differs.
 
 - **Target**: the skill `anrufbeantworter` gets `metadata.mira.target: {plan: true, bound: room, timeout: 15m,
   done_after: 5m}`. Bound to the room ([Threads](threads.md), Assignment): the messages play at that satellite and

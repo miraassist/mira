@@ -54,23 +54,32 @@ func (a *app) newVoicemail() *voicemail.Machine {
 		Announce: a.announceNext,
 		// Listening is a thread with a plan (step 4); the threads are built
 		// after the tools, so they are looked up when used.
+		// The thread is the house's (docs/spec/messages.md, decision 23):
+		// voicemail_list finds or starts it and takes it up for the turn.
 		Plan: func(ctx context.Context, inv tools.Invocation, text string) (string, error) {
 			if a.threads == nil {
 				return "", nil
 			}
-			return a.threads.SetPlan(ctx, inv, voicemail.Skill, voicemail.Skill, text)
+			return a.threads.TakeHousePlan(ctx, inv, voicemail.Skill, a.voicemail.Request(), text)
 		},
 		PlanThread: func(ctx context.Context, inv tools.Invocation) string {
 			if a.threads == nil {
 				return ""
 			}
-			return a.threads.PlanThread(ctx, inv, voicemail.Skill)
+			th, ok, err := a.threads.HouseThread(ctx, voicemail.Skill)
+			if err != nil {
+				a.log.Warn("could not find the answering machine's thread; nothing is ticked", "error", err)
+			}
+			if !ok {
+				return ""
+			}
+			return th.ID
 		},
 		PlanText: func(ctx context.Context, inv tools.Invocation) string {
 			if a.threads == nil {
 				return ""
 			}
-			return a.threads.PlanText(ctx, inv, voicemail.Skill)
+			return a.threads.HousePlanText(ctx, voicemail.Skill)
 		},
 		Tick: func(ctx context.Context, threadID, match string) error {
 			if a.threads == nil {
@@ -336,16 +345,97 @@ func (a *app) watchPhone(ctx context.Context, n *notifier.Notifier) {
 		a.phoneMu.Unlock()
 	}()
 	a.log.Info("watching the answering machine", "sensors", []string{msgID, missedID})
+	count := func() int { s, _ := w.State(msgID); n, _ := strconv.Atoi(s.State); return n }
+	before := count()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-changed:
 			sync, done := context.WithTimeout(ctx, 30*time.Second)
+			// A recording came, or all are heard (docs/spec/messages.md,
+			// step 4): the house's thread and message first, then the ring.
+			switch now := count(); {
+			case now > before:
+				a.voicemailArrived(sync, now)
+			case now == 0 && before > 0:
+				a.voicemailHeard(sync)
+			}
+			before = count()
 			n.SyncIndicators(sync)
 			done()
 		}
 	}
+}
+
+// voicemailArrived keeps the house's answering machine thread and message
+// when the box's count rose (docs/spec/messages.md, step 4): it reads the
+// box's list, writes the plan (starting the thread when none is open; its
+// expiry the newest recording plus 5 days) and puts each new recording as an
+// entry of the house's voicemail message, keyed by the recording.
+func (a *app) voicemailArrived(ctx context.Context, count int) {
+	if a.voicemail == nil || a.threads == nil {
+		return
+	}
+	plan, recs, err := a.voicemail.Arrived(ctx, a.threads.HousePlanText(ctx, voicemail.Skill))
+	if err != nil {
+		a.log.Warn("could not read the answering machine's list when a recording came; no thread and no message, the ring shows the count",
+			"count", count, "error", err)
+		return
+	}
+	if len(recs) == 0 || plan == "" {
+		a.log.Info("the answering machine's count rose, but the box lists no new recording", "count", count)
+		return
+	}
+	newest := recs[0].At
+	for _, r := range recs {
+		if r.At.After(newest) {
+			newest = r.At
+		}
+	}
+	th, created, err := a.threads.HousePlan(ctx, voicemail.Skill, a.voicemail.Request(), plan, newest.Add(voicemailKeep))
+	if err != nil {
+		// No entry either: it would lead nowhere (docs/spec/messages.md, Errors).
+		a.log.Error("could not start or extend the answering machine's thread; no message", "recordings", len(recs), "error", err)
+		return
+	}
+	for _, r := range recs {
+		if _, _, err := a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindVoicemail,
+			Source: store.SourceVoicemail, DedupeKey: "voicemail:" + r.ID, Importance: 1, Receiver: store.ReceiverHouse,
+			Spoken: r.Line, ThreadID: th.ID, ExpiresAt: th.ExpiresAt}); err != nil {
+			a.log.Warn("could not add a recording to the answering machine's message; the thread keeps it", "recording", r.ID,
+				"line", r.Line, "error", err)
+		}
+	}
+	a.log.Info("answering machine thread kept", "thread", th.ID, "started", created, "recordings", len(recs), "expires", th.ExpiresAt)
+}
+
+// voicemailKeep is how long the answering machine's thread waits after the
+// newest recording until a turn takes it up (docs/spec/messages.md,
+// decision 11).
+const voicemailKeep = 5 * 24 * time.Hour
+
+// voicemailHeard is the box's count gone to 0: every recording is heard
+// (docs/spec/messages.md, decision 21). The house's thread's plan is done,
+// so it stays the minutes a done plan stays, and its entries leave the
+// message at once.
+func (a *app) voicemailHeard(ctx context.Context) {
+	if a.threads == nil {
+		return
+	}
+	th, ok, err := a.threads.HouseDone(ctx, voicemail.Skill)
+	if err != nil {
+		a.log.Warn("could not mark the answering machine's thread done; it ends at its expiry", "error", err)
+	}
+	if !ok {
+		return
+	}
+	n, err := a.store.WithdrawThreadMessages(ctx, th.ID)
+	if err != nil {
+		a.log.Warn("could not take the heard recordings out of the message; it waits until the thread ends", "thread", th.ID, "error", err)
+		return
+	}
+	a.log.Info("answering machine heard: plan done, entries withdrawn", "thread", th.ID, "entries", n)
 }
 
 // phonePage is what waits on the answering machine for Mira's page: the

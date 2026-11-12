@@ -37,6 +37,9 @@ const (
 	// SourceDevices is Mira's note about devices Home Assistant found
 	// (docs/spec/found-devices.md).
 	SourceDevices = "devices"
+	// SourceVoicemail is a recording on the answering machine
+	// (docs/spec/messages.md, step 4).
+	SourceVoicemail = "voicemail"
 )
 
 // Kinds of messages (docs/spec/messages.md, Kinds of messages). Every message

@@ -79,3 +79,23 @@ func TestMS11_AMessageOfAnEndedThreadIsNotReadOut(t *testing.T) {
 		t.Errorf("log:\n%s", e.logged())
 	}
 }
+
+// docs/spec/messages.md, step 4 (decision 22).
+func TestMS19_TheRingShowsTheKindsOfWhatWaits(t *testing.T) {
+	news := PhoneNews{}
+	e := phoneEnv(t, &news)
+	e.message("v1", 1, func(m *store.Message) {
+		m.Kind, m.Source, m.Receiver, m.ThreadID = store.KindVoicemail, store.SourceVoicemail, store.ReceiverHouse, "th1"
+	})
+	e.n.SyncIndicators(context.Background())
+	lights := e.lightCalls()
+	if len(lights) != 1 || fmtColour(lights[0].Data["rgb_color"]) != "[255 160 0]" {
+		t.Fatalf("only the answering machine waits: %+v", lights)
+	}
+	// Something else waits too: Mira's colour.
+	e.message("n1", 1, nil)
+	e.n.SyncIndicators(context.Background())
+	if lights = e.lightCalls(); len(lights) != 2 || fmtColour(lights[1].Data["rgb_color"]) != "[32 201 176]" {
+		t.Fatalf("with another message: %+v", lights)
+	}
+}

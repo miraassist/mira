@@ -7,7 +7,7 @@ metadata:
     target:
       plan: true
       bound: room
-      timeout: 15m
+      timeout: 24h
       done_after: 5m
 ---
 # Anrufbeantworter

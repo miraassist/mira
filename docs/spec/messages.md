@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: steps 2 and 3 built 2026-11-12 (not released), steps 4 and 5 not built. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: steps 2 to 4 built 2026-11-12 (not released), step 5 not built. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -223,15 +223,21 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 16 | What comes back at once | A kind `reply` (decided 2026-11-12): a thread's question or proposal, the result of a helper that ran on after its turn (Agents, decision 27). It does not wait, so it is not gathered; it is a message all the same: stored, announced (an answer to it finds its thread through the announcement), sent privately when it cannot be said, listed on the page. Its entry names the thread it comes from; a helper's result has none (the run has ended when it is said; a question about it has the message's text and details) |
 | 17 | The kind from fields that say it | Where a caller has fields that say it (a task's verdict, a skill's schedule, `mira.send_message`, `notify.send_message`), the kind comes from them by one rule: private → `private`, confidential → `confidential`, importance 3 → `urgent`, else `simple` (decided 2026-11-12). This translates fields that are there; it reads nothing into a missing one |
 | 18 | Rules per entry in a gathered message (decided 2026-11-12) | The importance threshold (`notifier.min_importance`) holds per entry: an entry below it counts as not there: it is neither announced nor read out, nor does it light the ring (as a message below it today). The own room's hold (`own_message_hold`) holds per entry: in the room it came from, the entry stays out of what is said for the hold; with none left, the message does not count there. "At most three per announcement" counts messages: a gathered message is one, with all its entries, worded as one text. Done (`message_ack`) is per entry: `messages_list` shows the entries with their ids, `message_ack` takes one out; the last one ends the message |
+| 19 | Missed calls (decided 2026-11-12, step 4) | Stay as they are: no entry and no step of a plan, since there is nothing to work through. The ring shows them red by the box's sensor, and `messages_read` names them in one line ([Voicemail](voicemail.md), decision 6). Decision 6's "missed calls go into the `voicemail` message" is withdrawn |
+| 20 | The answering machine's thread taken up (decided 2026-11-12, step 4) | Its type's timeout becomes one day (was 15 minutes): taken up and left, it stays a day, while the recordings are still new at the box. Not taken up, it keeps the newest recording plus 5 days (decision 11) |
+| 21 | The box's count goes to 0 (decided 2026-11-12, step 4) | Everything is heard: the thread's plan counts as done (every step ticked), so it stays open the 5 minutes a done plan stays ("nochmal" still works), and its entries leave the message at once |
+| 22 | The ring's colour by kind (decided 2026-11-12, step 4) | Only `voicemail` waiting: amber, as before; anything else waiting: Mira's colour. The box's sensor stays the way to amber where no message is (the box's list could not be read) and the only way to red (missed calls) |
+| 23 | The answering machine's thread is the house's (decided 2026-11-12, step 4) | The code starts it when no turn exists, so no room is its own; a turn in any room continues the same plan. `voicemail_list` finds or starts the house's thread and takes it up for the turn; "Nächste …" still joins the next turn at that satellite to it |
 
 ### What it does, step by step
 
 1. **A recording comes** (the answering machine's sensor `_new_messages` rises; Mira already subscribes to it for the
-   indicators). Mira reads the box's list (the actions of `voicemail_list`). No open thread: the code starts the
-   house's thread with the plan of the new recordings and the missed calls; else it adds them to the plan. Its expiry
-   becomes the newest recording plus 5 days. Each new recording is an entry of the house's unheard `voicemail`
-   message, or of a new one (decision 4). The count going to 0 ends the thread (heard at the box or in another way),
-   and with it its entries (decision 12).
+   indicators). Mira reads the box's list (the action `get_messages` of `voicemail_list`). No open thread: the code
+   starts the house's thread with the plan of the new recordings; else it adds them to the plan (missed calls are no
+   steps, decision 19). Its expiry becomes the newest recording plus 5 days. Each new recording is an entry of the
+   house's unheard `voicemail` message, or of a new one (decision 4), keyed by the recording, so reading again adds
+   nothing twice. The count going to 0 (heard at the box or through Mira) makes the plan done and takes its entries
+   out at once (decisions 12 and 21).
 2. **A mail or document with things to do comes into a person's inbox**: `inbox.read` writes its plan, its entry's
    line and its expiry ([Mira's inbox](inbox.md), changed separately); the code starts the person's thread for it and
    puts the entry into the person's unheard `postfach` message, or a new one.
@@ -241,7 +247,8 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 4. **A simple text comes** (a task, a person, an automation): an entry of the receiver's unheard `simple` message,
    or a new message.
 5. **The ring and the screen** show what waits by the kinds of the waiting messages (teal, answering machine amber,
-   as today); the box's sensors only trigger step 1.
+   as today); the box's sensors trigger step 1 and stay the way to amber when the list could not be read, and to red
+   for missed calls (decision 22).
 6. **"Hab ich neue Nachrichten?", "Was gibt's?"**: the model calls `messages_read`. The tool gives each message with
    its kind and entries; the `simple` one worded as one text; an entry with a thread with the thread's id and skill.
    Its instruction: only `simple`: read it out; else name what waits and ask what first.
