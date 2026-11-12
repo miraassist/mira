@@ -257,11 +257,11 @@ Good to know:
 
 ### Mira's inbox
 
-What you give the tag **"Mira"** in Paperless, Mira reads, and she asks whether to add the appointments in it to your calendar. She reads only those documents, no others.
+What you give the tag **"Mira"** in Paperless, Mira reads, and she writes down what there is to do in it: appointments, deadlines, calls to return. Then she asks you about it. She reads only those documents, no others.
 
 - The letter from school comes by post. You scan it with the Paperless app and give it the tag "Mira".
-- Shortly after, on Telegram or at a satellite where Mira recognizes you: "In your post: a letter from the primary school. I found 3 appointments: parents' evening, Thu 3.12. 19:30, hall; Christmas party, Sat 19.12. 15:00; no school, Tue 22.12. (all day). Shall I add them?"
-- "The first two." Mira adds them to your calendar. "The parents' evening is at 8 pm" changes the time first.
+- Shortly after, on Telegram or at a satellite where Mira recognizes you: "In your post: a letter from the primary school, three appointments." When you ask, she reads them out: parents' evening, Thu 3.12. 19:30, hall; Christmas party, Sat 19.12. 15:00; no school, Tue 22.12., all day.
+- "Add the first two." Mira adds them to your calendar. "The parents' evening is at 8 pm" adds it at the new time. A deadline she adds if you want; a call to return she tells you, with the number.
 
 Paperless already reads your mailboxes and files the attachments. With a **mail rule** or its automatic matching you give documents the tag "Mira" there too, for example everything from the school. Then Mira reads along by herself.
 

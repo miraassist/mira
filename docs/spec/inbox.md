@@ -1,6 +1,6 @@
 # Mira's inbox – Spec
 
-Status 2026-11-12: steps 1 to 4 and 6 to 8 built (not released); step 8 changed the same day to knowing a mail by its hash (decision 24); of step 5 the guide's text is written, the end-to-end test is open. Scenarios: [inbox.feature](inbox.feature).
+Status 2026-11-12: steps 1 to 4 and 6 to 8 built (not released); step 8 changed the same day to knowing a mail by its hash (decision 24); of step 5 the guide's text is written, the end-to-end test is open. Step 9 (the model writes the plan, entering through the calendar's tool; decision 28) built the same day (not released). Scenarios: [inbox.feature](inbox.feature).
 First source: Paperless-ngx; first kind of finding: appointments.
 
 ## Goal
@@ -28,7 +28,7 @@ in a school mail. Mira reads every date out before entering anything, so the use
 |---|---|---|
 | 1 | What Mira reads | Only her inbox: what the user puts there. How it is built does not matter (alias, own mailbox, mail filter, Paperless tag) |
 | 2 | Acting | Ask first, act on the yes. Nothing goes into a calendar without the question |
-| 3 | First kind | Appointments. Deadlines, invoices, reminders to pay and callbacks later |
+| 3 | First kind | Appointments. Deadlines, invoices, reminders to pay and callbacks later. Widened 2026-11-12 (decision 28): the plan holds every thing to do the reading finds; Mira enters appointments, the rest she names |
 | 4 | First source | Paperless: uploading is possible at once (app, browser, mail), and the text recognition (OCR) is done |
 | 5 | The inbox in Paperless | The tag "Mira", set when uploading or later |
 | 6 | Whom Mira asks | The owner of the document in Paperless, mapped to a person |
@@ -70,9 +70,12 @@ The inbox adds a way in. What happens after it uses what exists:
 - **Isolated reading with a fixed schema** from the [mail calendar](mail-calendar.md), section 3: a model call without
   house, tools, memory or history; the skill's instructions; a schema; a check in code. Here the schema has a list of
   findings instead of one entry.
-- **A thread with a plan** ([Threads](threads.md), Plans), bound to the person: the findings are the plan's steps. Mira's
-  code writes the plan, as for the answering machine ([Voicemail](voicemail.md), step 4). The answer comes from
-  whichever channel the person uses (Assignment, rule 3c).
+- **A thread with a plan** ([Threads](threads.md), Plans), bound to the person. **A model writes the plan** (step 9,
+  decision 28): the reading `inbox.read` writes it, as a helper agent writes the plan in `kochen` and the conversation's
+  model in `vokabeln`. Mira's code only checks it and starts the thread with it. The answer comes from whichever channel
+  the person uses (Assignment, rule 3c).
+- **The calendar's building block and its tool `calendar_create`** ([Calendar](calendar.md), Adding): the same as the
+  skill `termin` and the mail calendar enter through.
 - **Messages of a thread** ([Messages](messages.md)): the question is a message of the thread to the person, delivered by
   the person's settings (quiet hours, channels). When the thread ends, its message is withdrawn.
 - **The person's calendar by convention** ([Calendar](calendar.md), Personal calendars): named like the person or their
@@ -85,8 +88,9 @@ Departures, each with its reason:
 - **The core calls the MCP server itself**, not a model: reading a document's text and removing a tag are fixed steps.
   The skill's `read_only` and its `tools` list stay as they are for the conversation and the agents. The core uses
   only the tools named in step 2 and step 4.
-- **Entering is a tool of the core** (decision 21): the model chooses which findings, the code enters them from
-  the checked data. The model never copies a date.
+- **The answering machine's plan is written by code, the inbox's by a model** (decision 28): the answering machine's
+  plan is hard facts from an interface (caller, time, length); a mail or letter is free text in which a model finds
+  what to do, and the same model words the steps.
 
 ## What it does
 
@@ -113,6 +117,8 @@ Cost: nothing but taking the request; the queue is in memory. If Mira stops befo
 on it, and the catch-up (step 4) finds it.
 
 ### 2. Reading (step 2)
+
+Step 9 changes the reading's answer (3 and 4 below) and asking (section 3): see section 7.
 
 For one queued document:
 
@@ -161,6 +167,8 @@ Cost per document: 1 MCP call for the text, 1 model call (up to 20,000 character
 is in a voice turn.
 
 ### 3. Asking (step 3)
+
+Step 9 replaces the plan written by code, the fixed question and `inbox_enter`: see section 7.
 
 - **Without a person or a calendar** (decision 22): the message with the findings and the question, nothing more; the
   document is marked read.
@@ -326,6 +334,66 @@ sender, subject, date and text stayed the same for every report of the same mail
 `664601f692bf`), as did a hash of the text alone. In the real test on Dovecot (2026-11-12), moving the last mail out
 made Mira ask about the one before again, and a new mail on the position of a mail whose thread was open was dropped.
 
+### 7. The model writes the plan (step 9)
+
+Decided 2026-11-12 (decision 28). The reading's model writes the plan, the message's line and the thread's expiry; the
+conversation's model works the plan with the tools that exist; appointments are entered through the calendar's tool.
+
+**The reading's answer** (replaces the table of step 2):
+
+| Field | Meaning |
+|---|---|
+| `summary` | what the document is, short ("Elternbrief der Grundschule"); for the log and the plan's head |
+| `plan` | the steps, one per line, each a thing for the person to do or decide, with every fact it needs: an appointment with day, time and place; a deadline with its day; a callback with the name and the number; a choice among proposals as one step that names them. Empty when there is nothing to do |
+| `line` | the message's line ("Elternbrief der Grundschule: drei Termine"), at most 120 characters |
+| `expires` | `YYYY-MM-DD`: the day after which the plan is no longer of use (the last date it names, a deadline); empty for none |
+
+The skill's instructions for the reading (`inbox.extract` in `skills/postfach/SKILL.md`) say what a step is and how it
+is worded. The plan is German like every plan; dates as the plan's reader says them ("Mi 3.12. 19:30").
+
+**The check in code** (replaces 4 of step 2): only what the code itself relies on.
+- `plan`: at most **20 steps** (more: the first 20, and a last step "N weitere im Dokument"; log line), each at most 200
+  characters (cut, log line).
+- `line`: cut to 120 characters; empty: the summary.
+- `expires`: a valid date, not before today and at most a year ahead; otherwise the target's timeout (3 days) and a log
+  line with the value.
+- The days in the steps are not checked by code: the calendar's building block checks what is entered.
+
+**Asking** (replaces the plan of step 3, the fixed question and `inbox_enter`):
+1. With a non-empty plan and a person: the code starts the person's thread of the target `postfach` with the plan
+   (head: the summary, the source: "Paperless 5444" or "Mail von <sender>, <date>") and the expiry, as today through the
+   threads' way for code ([Threads](threads.md), the same storage as `thread_plan`).
+2. The message to the person is the line (until [Messages](messages.md) step 3 makes it an entry of the `postfach`
+   message). At the satellite the next turn joins the thread, as today; in it the plan and the skill's prose are in the
+   context.
+3. **The conversation's model works the plan** by the skill's prose, with the tools that exist:
+   - an appointment: `calendar_create` with the facts of the step and the source as `description`, then
+     `thread_plan check` with the note "eingetragen";
+   - a change ("der Elternabend ist um 20 Uhr"): the changed value goes into `calendar_create`; the plan is not rewritten;
+   - a choice among proposals: the model asks which one, enters it, ticks the step;
+   - a deadline: entered as an appointment for the whole day when the person wants it, not offered by itself
+     (decided 2026-11-12);
+   - an entry that was wrong ("nein, der war falsch") right after it was entered: through the skill
+     `termin-absagen`, with its question back, as for every event (decided 2026-11-12); `calendar_create` keeps nothing
+     to take back;
+   - a callback, anything Mira cannot do: the model says it; the person ticks it ("hab ich erledigt") or leaves it;
+   - "nichts davon", "nein": `thread_cancel`.
+4. Without a person (decision 22): no thread; a message with the line and the plan's steps, to the house.
+
+**Errors** (beside those of steps 2 and 3, which stay):
+
+| What fails | What happens | Who learns of it |
+|---|---|---|
+| The answer has no `plan` field or is no JSON | as an answer that is no valid JSON (step 2) | as there |
+| An entry fails | that step stays open | the tool's answer; the model says it |
+
+**What it costs:** the reading as before (1 model call, a few hundred characters more out for the plan's wording). In
+the answer's turn per appointment: `calendar_create` (1 read of the calendars, 1 call to Home Assistant) and
+`thread_plan` (1 database write); the turn waits for them. One step after the other: N appointments, N of each.
+
+**What goes away:** the findings as fields (`kind`, `title`, `day`, `start`, `end`, `location`, `for`), their check in
+code, the plan written by code, the fixed question "Soll ich sie eintragen?", the tool `inbox_enter` and its texts.
+
 ## Open
 
 - **Before step 3: a message sent into a Telegram chat must be in that chat's history.** Checked 2026-11-11 in the code:
@@ -351,7 +419,8 @@ Decided 2026-11-11 from this list:
 | 19 | Marking read | The tag "Mira gelesen"; the maintainer gives Mira's Paperless user the rights. The guide names them |
 | 20 | A link to the document | Not for now |
 | 22 | No person, or no calendar | When the owner maps to no person, or the person has no calendar by convention ([Calendar](calendar.md)): no thread, only a message with the findings and the question "Was soll ich damit machen?", to the house or to the person. The answer ("nichts", "sag es Anna", "trag es mir ein") is a normal turn after it, not the inbox's: Mira acts with her usual tools (`termin`, messages). Writing into another person's calendar needs rights, which are not built now. The message therefore carries every finding in full (title, day, time, place, the document's title and number), so the next turn has what it needs |
-| 21 | How findings are entered | Mira's own tool `inbox_enter` from the checked data, not the skill `termin`: the further kinds (deadline, invoice, callback) will act differently, and the data stay as they were checked |
+| 21 | How findings are entered | Replaced 2026-11-12 by decision 28. It was Mira's own tool `inbox_enter` from data checked by code, so the model would never copy a date. That mixed code and model in one flow: the code wrote the plan and checked the fields, the model only picked numbers, and a third way to enter an event grew beside the skill `termin` and the mail calendar |
+| 28 | Who writes the plan, and how it is entered | 2026-11-12: agentic before code. The reading's model writes the plan, the message's line and the expiry, as in `kochen` and `vokabeln`; the code only checks what it relies on (counts, lengths, the expiry). The conversation's model works the plan with the tools that exist; appointments go through the calendar's one building block and its tool `calendar_create` ([Calendar](calendar.md), Adding), which checks the dates. The plan may hold any thing to do (deadlines, callbacks), not only appointments (decision 3 widened) |
 
 ## Steps
 
@@ -366,6 +435,10 @@ Decided 2026-11-11 from this list:
    IN-30.
 8. Knowing a mail again by its hash (changed 2026-11-12 from marking it with `imap.seen`); the guide's recipe for the
    mailbox (folder "Mira", search "ALL", the limit). IN-33 to IN-38.
+9. The model writes the plan (section 7, decision 28): the reading's new answer, the check, the thread with the
+   model's plan and its expiry, the skill's prose with `calendar_create`; `inbox_enter` removed; the evals 14 to 21 on
+   it. Needs the calendar's building block and tool ([Calendar](calendar.md), steps 1 and 2). IN-39 to IN-44; IN-07, IN-13 to
+   IN-15 and IN-17 dropped; IN-09 and IN-16 are replaced by IN-40 and IN-42 and dropped too.
 
 Later, each with a spec of its own: further kinds (deadline, invoice, reminder to pay, callback) and their actions;
 photos over Telegram (`telegram_attachment` with caption and

@@ -19,7 +19,6 @@ import (
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/skills"
-	"github.com/miraassist/mira/internal/tools"
 )
 
 var berlin = func() *time.Location {
@@ -145,12 +144,6 @@ func newBed(t *testing.T) *bed {
 			}
 			return "", false
 		},
-		Calendar: func(_ context.Context, person string) (string, error) {
-			if person == "anna" {
-				return "calendar.anna", nil
-			}
-			return "", nil
-		},
 		Ask:   func(_ context.Context, q Question) error { b.asked = append(b.asked, q); return nil },
 		Tell:  func(_ context.Context, r, text string) error { b.told = append(b.told, told{r, text}); return nil },
 		Open:  func(_ context.Context, key string) bool { return b.open[key] },
@@ -175,13 +168,23 @@ func newBed(t *testing.T) *bed {
 	return b
 }
 
-func (b *bed) answer(summary string, findings ...Finding) {
-	raw, _ := json.Marshal(reading{Summary: summary, Findings: findings})
+// answer is the reading's answer: the summary, the plan's steps, the
+// summary as the line, no expiry.
+func (b *bed) answer(summary string, steps ...string) {
+	b.reading(reading{Summary: summary, Plan: steps, Line: summary})
+}
+
+func (b *bed) reading(rd reading) {
+	if rd.Plan == nil {
+		rd.Plan = []string{}
+	}
+	raw, _ := json.Marshal(rd)
 	b.model.answer = string(raw)
 }
 
-func appt(title, day, start string) Finding {
-	return Finding{Kind: KindAppointment, Title: title, Day: day, Start: start}
+// appt is a step of the plan as the model words it.
+func appt(title, day, start string) string {
+	return strings.TrimSpace(title + ", " + day + " " + start)
 }
 
 func post(t *testing.T, s http.Handler, token, body string) *httptest.ResponseRecorder {
@@ -267,23 +270,6 @@ func TestIN06_OwnerBecomesThePerson(t *testing.T) {
 	}
 }
 
-func TestIN07_OnlyCheckedFindingsAreKept(t *testing.T) {
-	b := newBed(t)
-	b.answer("Elternbrief", appt("Elternabend", "2026-12-03", "19:30"), appt("Feier", "2031-13-40", ""),
-		appt("Ausflug", "2026-12-12", "25:00"))
-	b.s.Read(context.Background(), 5444, "anna")
-	if len(b.asked) != 1 {
-		t.Fatalf("asked = %+v", b.asked)
-	}
-	got := b.asked[0].Findings
-	if len(got) != 2 || got[0].Start != "19:30" || got[1].Title != "Ausflug" || got[1].Start != "" {
-		t.Fatalf("findings = %+v", got)
-	}
-	if !strings.Contains(b.log.String(), "a finding is dropped") {
-		t.Errorf("no log line for the dropped finding:\n%s", b.log)
-	}
-}
-
 func TestIN08_ALongTextIsCutAndSaid(t *testing.T) {
 	b := newBed(t)
 	b.pl.texts[5444] = strings.Repeat("x", 50000)
@@ -297,23 +283,6 @@ func TestIN08_ALongTextIsCutAndSaid(t *testing.T) {
 	}
 	if !strings.Contains(b.log.String(), "length=50000") {
 		t.Errorf("the log does not name the length:\n%s", b.log)
-	}
-}
-
-func TestIN09_AtMost20Findings(t *testing.T) {
-	b := newBed(t)
-	var fs []Finding
-	for i := 1; i <= 25; i++ {
-		fs = append(fs, appt(fmt.Sprintf("Termin %d", i), fmt.Sprintf("2026-12-%02d", i), ""))
-	}
-	b.answer("Terminliste", fs...)
-	b.s.Read(context.Background(), 5444, "anna")
-	q := b.asked[0]
-	if len(q.Findings) != 20 || strings.Count(q.Plan, "- [ ]") != 20 {
-		t.Fatalf("findings %d, plan:\n%s", len(q.Findings), q.Plan)
-	}
-	if !strings.Contains(q.Text, "5 weitere") {
-		t.Fatalf("text = %s", q.Text)
 	}
 }
 
@@ -368,30 +337,6 @@ func TestIN12_AnAnswerThatIsNoJSONNamesItsStart(t *testing.T) {
 
 // --- step 3 -------------------------------------------------------------------
 
-func TestIN13_FindingsBecomeAPlanAndAQuestion(t *testing.T) {
-	b := newBed(t)
-	b.answer("Elternbrief der Grundschule", appt("Elternabend", "2026-12-03", "19:30"),
-		Finding{Kind: KindAppointment, Title: "schulfrei", Day: "2026-12-22"})
-	b.s.Read(context.Background(), 5444, "anna")
-	if len(b.asked) != 1 {
-		t.Fatalf("asked = %+v", b.asked)
-	}
-	q := b.asked[0]
-	if q.Person != "anna" || strings.Count(q.Plan, "- [ ]") != 2 || !strings.Contains(q.Plan, "Paperless 5444") {
-		t.Fatalf("question = %+v", q)
-	}
-	for _, want := range []string{"2 Termine", "Elternabend, Do 3.12.2026 19:30", "schulfrei, Di 22.12.2026 (ganztägig)", "Soll ich sie eintragen?"} {
-		if !strings.Contains(q.Text, want) {
-			t.Errorf("text lacks %q: %s", want, q.Text)
-		}
-	}
-	// The target binds the thread to the person: skills/postfach.
-	sk := postfachSkill(t)
-	if sk.Target == nil || !sk.Target.Plan || sk.Target.Bound != "person" || sk.Inbox == nil {
-		t.Fatalf("skill postfach: %+v", sk.Target)
-	}
-}
-
 func postfachSkill(t *testing.T) skills.Skill {
 	t.Helper()
 	loaded, problems := skills.Load([]string{"../../skills"}, map[string]map[string]any{Target: nil})
@@ -407,141 +352,6 @@ func postfachSkill(t *testing.T) skills.Skill {
 	return skills.Skill{}
 }
 
-type toolBed struct {
-	*bed
-	thread  Thread
-	created []Entry
-	ticked  []int
-	cals    []Calendar
-	fail    map[string]bool
-}
-
-func newToolBed(t *testing.T, findings ...Finding) *toolBed {
-	raw, _ := json.Marshal(findings)
-	tb := &toolBed{bed: newBed(t), fail: map[string]bool{},
-		thread: Thread{ID: "th1", Person: "anna", Fields: map[string]string{FieldDoc: "paperless:5444", FieldTitle: "Elternbrief", FieldRef: "Paperless 5444", FieldFindings: string(raw)}},
-		cals: []Calendar{{Entity: "calendar.anna", Name: "Anna", Writable: true, Of: "anna"},
-			{Entity: "calendar.ben", Name: "Ben", Writable: true, Of: "ben"},
-			{Entity: "calendar.familie", Name: "Familie", Writable: true}}}
-	return tb
-}
-
-func (tb *toolBed) run(t *testing.T, args string) string {
-	t.Helper()
-	tool := tb.s.Tools(ToolOptions{
-		Thread: func(context.Context, tools.Invocation) (Thread, bool) { return tb.thread, tb.thread.ID != "" },
-		Calendars: func(context.Context) ([]Calendar, error) {
-			return tb.cals, nil
-		},
-		Create: func(_ context.Context, entity string, e Entry) error {
-			if tb.fail[e.Summary] {
-				return errors.New("HA refused the event")
-			}
-			tb.created = append(tb.created, e)
-			return nil
-		},
-		Tick: func(_ context.Context, _ tools.Invocation, step int, note string) error {
-			if note != "eingetragen" {
-				t.Errorf("note = %q", note)
-			}
-			tb.ticked = append(tb.ticked, step)
-			return nil
-		},
-	})[0]
-	out, err := tool.Run(context.Background(), tools.Invocation{Name: ToolEnter, Args: json.RawMessage(args)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return out
-}
-
-func TestIN14_EnteringTakesTheCheckedData(t *testing.T) {
-	tb := newToolBed(t, Finding{Kind: KindAppointment, Title: "Elternabend", Day: "2026-12-03", Start: "19:30", Location: "Aula"})
-	out := tb.run(t, `{"steps": [1]}`)
-	if len(tb.created) != 1 {
-		t.Fatalf("created = %+v, out = %s", tb.created, out)
-	}
-	e := tb.created[0]
-	want := time.Date(2026, 12, 3, 19, 30, 0, 0, berlin)
-	if e.Summary != "Elternabend" || !e.Start.Equal(want) || !e.End.Equal(want.Add(time.Hour)) || e.Location != "Aula" ||
-		e.Description != "aus Paperless 5444: Elternbrief" {
-		t.Fatalf("entry = %+v", e)
-	}
-	if len(tb.ticked) != 1 || tb.ticked[0] != 1 || !strings.Contains(out, "Kalender: Anna") {
-		t.Fatalf("ticked %v, out %s", tb.ticked, out)
-	}
-}
-
-func TestIN15_SomeStepsAndAChange(t *testing.T) {
-	tb := newToolBed(t, appt("Elternabend", "2026-12-03", "19:30"), appt("Feier", "2026-12-19", "15:00"), appt("Ausflug", "2027-01-15", ""))
-	out := tb.run(t, `{"steps": [1, 2], "changes": [{"step": 2, "start": "20:00"}]}`)
-	if len(tb.created) != 2 || tb.created[1].Start.Hour() != 20 || tb.created[0].Start.Hour() != 19 {
-		t.Fatalf("created = %+v, out %s", tb.created, out)
-	}
-	if len(tb.ticked) != 2 {
-		t.Fatalf("ticked = %v", tb.ticked)
-	}
-	tb.created, tb.ticked = nil, nil
-	if out := tb.run(t, `{"steps": [3], "changes": [{"step": 3, "start": "27:99"}]}`); len(tb.created) != 0 || !strings.Contains(out, "passt nicht") {
-		t.Fatalf("a broken change was entered: %s", out)
-	}
-}
-
-func TestIN16_WithoutAPersonOrACalendarOnlyTheMessage(t *testing.T) {
-	b := newBed(t)
-	b.answer("Elternbrief", appt("Elternabend", "2026-12-03", "19:30"), appt("Feier", "2026-12-19", "15:00"))
-	b.s.Read(context.Background(), 5444, "scanner")
-	if len(b.asked) != 0 || len(b.told) != 1 || b.told[0].receiver != "house" {
-		t.Fatalf("asked %+v, told %+v", b.asked, b.told)
-	}
-	for _, want := range []string{"Elternabend, Do 3.12.2026 19:30", "Feier, Sa 19.12.2026 15:00", "Was soll ich damit machen?"} {
-		if !strings.Contains(b.told[0].text, want) {
-			t.Errorf("message lacks %q: %s", want, b.told[0].text)
-		}
-	}
-	if got := b.pl.addedTag[5444]; len(got) != 1 || got[0] != 621 {
-		t.Fatalf("not marked read: %v", got)
-	}
-	if strings.Count(b.told[0].text, "Elternbrief") != 1 {
-		t.Errorf("the title is named twice: %s", b.told[0].text)
-	}
-
-	// A person without a calendar: the message goes to them.
-	b2 := newBed(t)
-	b2.s.o.Calendar = func(context.Context, string) (string, error) { return "", nil }
-	b2.answer("Elternbrief", appt("Elternabend", "2026-12-03", "19:30"))
-	b2.s.Read(context.Background(), 5444, "anna")
-	if len(b2.asked) != 0 || len(b2.told) != 1 || b2.told[0].receiver != "anna" {
-		t.Fatalf("asked %+v, told %+v", b2.asked, b2.told)
-	}
-
-	// The tool writes into the person's or the house's calendar, never
-	// another person's.
-	tb := newToolBed(t, appt("Elternabend", "2026-12-03", "19:30"))
-	if out := tb.run(t, `{"steps": [1], "calendar": "Ben"}`); len(tb.created) != 0 || !strings.Contains(out, "anderen Person") {
-		t.Fatalf("entered into Ben's: %s", out)
-	}
-	tb.cals = tb.cals[1:]
-	if out := tb.run(t, `{"steps": [1]}`); len(tb.created) != 0 || !strings.Contains(out, "keinen eigenen Kalender") {
-		t.Fatalf("without a calendar: %s", out)
-	}
-	if out := tb.run(t, `{"steps": [1], "calendar": "Familie"}`); len(tb.created) != 1 {
-		t.Fatalf("the house's calendar refused: %s", out)
-	}
-}
-
-func TestIN17_AFailedEntryLeavesItsStepOpen(t *testing.T) {
-	tb := newToolBed(t, appt("Elternabend", "2026-12-03", "19:30"), appt("Feier", "2026-12-19", "15:00"))
-	tb.fail["Feier"] = true
-	out := tb.run(t, `{"steps": [1, 2]}`)
-	if len(tb.created) != 1 || len(tb.ticked) != 1 || tb.ticked[0] != 1 {
-		t.Fatalf("created %+v, ticked %v", tb.created, tb.ticked)
-	}
-	if !strings.Contains(out, "Schritt 2 nicht eingetragen: HA refused the event") {
-		t.Fatalf("out = %s", out)
-	}
-}
-
 func TestIN18_TheQuestionWaitsThreeDays(t *testing.T) {
 	sk := postfachSkill(t)
 	if d := sk.Target.TimeoutDuration(); d != 72*time.Hour {
@@ -555,12 +365,12 @@ func TestIN18_TheQuestionWaitsThreeDays(t *testing.T) {
 // --- step 4 -------------------------------------------------------------------
 
 func TestIN19_AfterReadingMarkedReadTagStays(t *testing.T) {
-	for name, answer := range map[string][]Finding{"with": {appt("Elternabend", "2026-12-03", "19:30")}, "without": nil} {
+	for name, answer := range map[string][]string{"with": {appt("Elternabend", "2026-12-03", "19:30")}, "without": nil} {
 		b := newBed(t)
 		b.answer("Elternbrief", answer...)
 		b.s.Read(context.Background(), 5444, "anna")
 		if got := b.pl.addedTag[5444]; len(got) != 1 || got[0] != 621 {
-			t.Fatalf("%s findings: tags added %v", name, got)
+			t.Fatalf("%s steps: tags added %v", name, got)
 		}
 	}
 }
@@ -824,5 +634,108 @@ func TestIN37_MailsReadThatCannotBeLookedUpOrKept(t *testing.T) {
 		if !strings.Contains(b.log.String(), want) {
 			t.Errorf("log lacks %q:\n%s", want, b.log)
 		}
+	}
+}
+
+// --- step 9: the model writes the plan -----------------------------------------
+
+func TestIN39_TheReadingsPlanBecomesTheThreadsPlan(t *testing.T) {
+	b := newBed(t)
+	steps := []string{"Elternabend, Do 3.12.2026 19:30, Aula", "Weihnachtsfeier, Sa 19.12.2026 15:00", "schulfrei, Di 22.12.2026 (ganztägig)"}
+	b.reading(reading{Summary: "Elternbrief der Grundschule", Plan: steps, Line: "Elternbrief: drei Termine", Expires: "2026-12-19"})
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 1 {
+		t.Fatalf("asked = %+v", b.asked)
+	}
+	q := b.asked[0]
+	want := "Elternbrief der Grundschule (Paperless 5444): Elternbrief\n- [ ] " + strings.Join(steps, "\n- [ ] ")
+	if q.Person != "anna" || q.Plan != want {
+		t.Fatalf("plan:\n%s\nwant:\n%s", q.Plan, want)
+	}
+	if !q.Deadline.Equal(time.Date(2026, 12, 20, 0, 0, 0, 0, berlin)) {
+		t.Fatalf("deadline = %s", q.Deadline)
+	}
+	if q.Text != "Elternbrief: drei Termine" {
+		t.Fatalf("text = %q", q.Text)
+	}
+	// The target binds the thread to the person: skills/postfach.
+	sk := postfachSkill(t)
+	if sk.Target == nil || !sk.Target.Plan || sk.Target.Bound != "person" || sk.Inbox == nil {
+		t.Fatalf("skill postfach: %+v", sk.Target)
+	}
+}
+
+func TestIN40_AtMost20StepsTheRestNamed(t *testing.T) {
+	b := newBed(t)
+	var steps []string
+	for i := 1; i <= 25; i++ {
+		steps = append(steps, fmt.Sprintf("Termin %d, 2026-12-%02d", i, i))
+	}
+	b.answer("Terminliste", steps...)
+	b.s.Read(context.Background(), 5444, "anna")
+	q := b.asked[0]
+	if n := strings.Count(q.Plan, "- [ ]"); n != 21 || !strings.HasSuffix(q.Plan, "- [ ] 5 weitere im Dokument") {
+		t.Fatalf("%d steps, plan:\n%s", n, q.Plan)
+	}
+	if !strings.Contains(b.log.String(), "steps=25") {
+		t.Errorf("the log does not name the 25:\n%s", b.log)
+	}
+	// A step longer than 200 characters is cut, with a log line.
+	b = newBed(t)
+	b.answer("Brief", strings.Repeat("y", 300))
+	b.s.Read(context.Background(), 5444, "anna")
+	if n := strings.Count(b.asked[0].Plan, "y"); n != maxStep || !strings.Contains(b.log.String(), "a step of the plan is cut") {
+		t.Fatalf("%d characters kept", n)
+	}
+}
+
+func TestIN41_AnExpiryThatDoesNotFit(t *testing.T) {
+	for _, e := range []string{"2019-01-01", "morgen", "2031-01-01"} {
+		b := newBed(t)
+		b.reading(reading{Summary: "Brief", Plan: []string{"Termin"}, Line: "Brief", Expires: e})
+		b.s.Read(context.Background(), 5444, "anna")
+		if !b.asked[0].Deadline.IsZero() {
+			t.Fatalf("%s: deadline %s", e, b.asked[0].Deadline)
+		}
+		if !strings.Contains(b.log.String(), "expiry does not fit") || !strings.Contains(b.log.String(), e) {
+			t.Errorf("%s: no log line naming it:\n%s", e, b.log)
+		}
+	}
+	// The thread's type's timeout is then its expiry: three days.
+	if d := postfachSkill(t).Target.TimeoutDuration(); d != 72*time.Hour {
+		t.Fatalf("timeout = %s", d)
+	}
+}
+
+func TestIN42_WithoutAPersonThePlanGoesToTheHouse(t *testing.T) {
+	b := newBed(t)
+	b.reading(reading{Summary: "Elternbrief", Plan: []string{"Elternabend, Do 3.12.2026 19:30", "Feier, Sa 19.12.2026 15:00"},
+		Line: "Elternbrief: zwei Termine"})
+	b.s.Read(context.Background(), 5444, "scanner")
+	if len(b.asked) != 0 || len(b.told) != 1 || b.told[0].receiver != "house" {
+		t.Fatalf("asked %+v, told %+v", b.asked, b.told)
+	}
+	for _, want := range []string{"Elternbrief: zwei Termine", "Elternabend, Do 3.12.2026 19:30", "Feier, Sa 19.12.2026 15:00", "Was soll ich damit machen?"} {
+		if !strings.Contains(b.told[0].text, want) {
+			t.Errorf("message lacks %q: %s", want, b.told[0].text)
+		}
+	}
+	if got := b.pl.addedTag[5444]; len(got) != 1 || got[0] != 621 {
+		t.Fatalf("not marked read: %v", got)
+	}
+}
+
+func TestIN43_AnEmptyPlanStartsNothing(t *testing.T) {
+	b := newBed(t)
+	b.answer("Werbung des Sportvereins")
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 0 || len(b.told) != 0 {
+		t.Fatalf("asked %+v, told %+v", b.asked, b.told)
+	}
+	if !strings.Contains(b.log.String(), "nothing to act on") || !strings.Contains(b.log.String(), "Werbung des Sportvereins") {
+		t.Errorf("log:\n%s", b.log)
+	}
+	if got := b.pl.addedTag[5444]; len(got) != 1 {
+		t.Fatalf("not marked read: %v", got)
 	}
 }

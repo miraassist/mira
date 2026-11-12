@@ -127,7 +127,7 @@ From what has been tested by hand so far:
 ## Mira's inbox (added 2026-11-12)
 
 Scenarios 14 to 21 test the models of [Mira's inbox](inbox.md): the reading of a mail (`inbox.read`) and the answer in
-its thread (the main model with `inbox_enter`). The way in (IMAP, the integration, knowing a mail again) is tested by
+its thread (the main model with `calendar_create`; until 2026-11-12 `inbox_enter`). The way in (IMAP, the integration, knowing a mail again) is tested by
 the Go tests and was checked against a real Dovecot mailbox; the evals leave it out.
 
 Decided 2026-11-12:

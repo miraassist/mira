@@ -1,6 +1,6 @@
 # Calendars and to-do lists – spec
 
-Status 2026-10-17: built in 0.6.19. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
+Status 2026-11-12: built in 0.6.19; steps 1 and 2 (one building block and the tool `calendar_create`) built 2026-11-12, not released. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
 
 ## Principle
 

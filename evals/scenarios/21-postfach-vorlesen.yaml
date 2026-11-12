@@ -18,6 +18,6 @@ steps:
     expect:
       behaviour:
         must: [tool:messages_read]
-        must_not: [tool:inbox_enter]
+        must_not: [tool:calendar_create]
       answer:
         contains: ["8:00|8 Uhr|acht Uhr", "14:30|14 Uhr 30|halb drei", "10:15|10 Uhr 15|viertel nach zehn"]

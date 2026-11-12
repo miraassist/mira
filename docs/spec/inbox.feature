@@ -45,12 +45,7 @@ Feature: IN Mira's inbox in Paperless
     When the webhook names the owner "anna"
     Then the document is read for Anna
 
-  @step2
-  Scenario: IN-07 The reading takes the findings that pass the check
-    Given the text of a school letter with three dates, and the model answers three appointments
-    And one of them has the day "2031-13-40"
-    When the document is read
-    Then two findings are kept and the broken one is dropped with a log line
+  # IN-07 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
   @step2
   Scenario: IN-08 A long text is cut and the cut is said
@@ -60,12 +55,7 @@ Feature: IN Mira's inbox in Paperless
     And the message to the person says that only the beginning was read
     And the log names the length
 
-  @step2
-  Scenario: IN-09 At most 20 findings
-    Given the model answers 25 appointments that pass the check
-    When the document is read
-    Then the plan has 20 steps
-    And the message says that there were 5 more
+  # IN-09 was dropped on 2026-11-12 with step 9, replaced by IN-40.
 
   @step2
   Scenario: IN-10 An unreachable MCP server is tried again, then left to the catch-up
@@ -89,42 +79,15 @@ Feature: IN Mira's inbox in Paperless
     Then the log line carries the first 200 characters of the answer
     And the person gets a message that the document could not be read
 
-  @step3
-  Scenario: IN-13 Findings become a plan and a question to the person
-    Given two findings in the letter "Elternbrief" for Anna
-    When the reading is done
-    Then a thread of the inbox's target is started for Anna, bound to her
-    And its plan has one open step per finding
-    And a message of the thread asks Anna whether to enter them
+  # IN-13 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
-  @step3
-  Scenario: IN-14 Entering takes the checked data, not the model's words
-    Given the plan's step 1 is "Elternabend, 3.12. 19:30, Aula"
-    When the model calls inbox_enter with steps [1]
-    Then the calendar entry has exactly that title, day, time and place
-    And step 1 is ticked with the note "eingetragen"
+  # IN-14 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
-  @step3
-  Scenario: IN-15 Some steps, and a change
-    Given a plan with three steps
-    When the model calls inbox_enter with steps [1, 2] and for step 2 the start "20:00"
-    Then two entries are made, the second at 20:00 after the same check as the reading
-    And step 3 stays open
+  # IN-15 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
-  @step3
-  Scenario: IN-16 Without a person or a calendar there is only the message
-    Given the owner "scanner" maps to no person, or Anna has no calendar by convention
-    When a document with two findings has been read
-    Then no thread is started
-    And a message to the house, or to Anna, names both findings in full and asks what to do with them
-    And the document is marked read
+  # IN-16 was dropped on 2026-11-12 with step 9, replaced by IN-42.
 
-  @step3
-  Scenario: IN-17 A failed entry leaves its step open
-    Given HA refuses the entry of step 2
-    When the model calls inbox_enter with steps [1, 2]
-    Then step 1 is entered and ticked, step 2 stays open
-    And the tool's answer names the failure of step 2
+  # IN-17 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
   @step3
   Scenario: IN-18 An unanswered question ends without entries
@@ -253,3 +216,45 @@ Feature: IN Mira's inbox in Paperless
     Given 101 mails of entry E and one of entry F have been read
     When Mira starts again
     Then the 100 latest of E and the one of F are known, the first of E is not
+
+  @step9
+  Scenario: IN-39 The reading's plan becomes the thread's plan
+    Given the reading answers the summary "Elternbrief der Grundschule", a plan with three steps, the line "Elternbrief: drei Termine" and the expiry "2026-12-19"
+    When the document of Anna is read
+    Then a thread of the target postfach is started for Anna with exactly these three steps, under the summary and the source
+    And its expiry is the end of 2026-12-19
+    And Anna's message is the line
+
+  @step9
+  Scenario: IN-40 At most 20 steps, the rest named
+    Given the reading answers a plan with 25 steps
+    When the document is read
+    Then the plan has the first 20 steps and a last one "5 weitere im Dokument"
+    And a log line names the 25
+
+  @step9
+  Scenario: IN-41 An expiry that does not fit
+    Given the reading answers the expiry "2019-01-01"
+    When the document is read
+    Then the thread expires after the target's timeout of 3 days
+    And a log line names the value
+
+  @step9
+  Scenario: IN-42 Without a person the plan goes to the house as a message
+    Given the owner "scanner" maps to no person
+    When a document whose plan has two steps is read
+    Then no thread is started
+    And a message to the house carries the line and both steps
+    And the document is marked read
+
+  @step9
+  Scenario: IN-43 An empty plan starts nothing
+    Given the reading answers an empty plan
+    When the document is read
+    Then no thread and no message, only a log line with the summary
+    And the document is marked read
+
+  @step9
+  Scenario: IN-44 The skill postfach enters through calendar_create
+    Given a turn with the skill postfach open
+    Then the tool calendar_create is offered and inbox_enter is not

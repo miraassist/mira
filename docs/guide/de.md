@@ -261,11 +261,11 @@ Gut zu wissen:
 
 ### Miras Postfach
 
-Was du in Paperless mit dem Tag **„Mira“** versiehst, liest Mira und fragt nach, ob sie die Termine darin eintragen soll. Nur diese Dokumente liest sie, keine anderen.
+Was du in Paperless mit dem Tag **„Mira“** versiehst, liest Mira und schreibt auf, was darin zu tun ist: Termine, Fristen, Rückrufe. Dann fragt sie dich danach. Nur diese Dokumente liest sie, keine anderen.
 
 - Der Elternbrief kommt mit der Post. Du scannst ihn mit der Paperless-App und gibst ihm den Tag „Mira“.
-- Kurz darauf, per Telegram oder am Satelliten, wenn Mira dich dort erkennt: „In deiner Post: Elternbrief der Grundschule. Ich habe 3 Termine gefunden: Elternabend, Do 3.12. 19:30, Aula; Weihnachtsfeier, Sa 19.12. 15:00; schulfrei, Di 22.12. (ganztägig). Soll ich sie eintragen?“
-- „Die ersten beiden.“ Mira trägt sie in deinen Kalender ein. „Der Elternabend ist um 20 Uhr“ ändert die Uhrzeit vorher.
+- Kurz darauf, per Telegram oder am Satelliten, wenn Mira dich dort erkennt: „In deiner Post: Elternbrief der Grundschule, drei Termine.“ Auf Nachfrage liest sie sie vor: Elternabend, Do 3.12. 19:30, Aula; Weihnachtsfeier, Sa 19.12. 15:00; schulfrei, Di 22.12., ganztägig.
+- „Trag die ersten beiden ein.“ Mira trägt sie in deinen Kalender ein. „Der Elternabend ist um 20 Uhr“ trägt ihn mit der neuen Uhrzeit ein. Eine Frist trägt sie ein, wenn du willst; einen Rückruf mit Nummer sagt sie dir.
 
 Paperless liest schon deine Postfächer und legt die Anhänge ab. Mit einer **Mail-Regel** oder der automatischen Zuweisung gibst du dort auch Dokumenten den Tag „Mira“, etwa allem von der Schule. Dann liest Mira von selbst mit.
 

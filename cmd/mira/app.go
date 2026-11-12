@@ -370,16 +370,23 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.goRun(ctx, "found-devices", a.found.Run)
 		a.wifi.Start(ctx)
 	}
-	// Mira's inbox in Paperless (docs/spec/inbox.md); its tool comes with
-	// the skill postfach.
+	// Home Assistant's calendars, read the way Mira decides
+	// (docs/spec/calendar.md).
+	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
+		Calendars: a.calendarList, Delete: a.deleteEvent, Owner: a.calendarOwner, Act: a.callAction, Logger: a.log})
+	internal = append(internal, a.calendarTools()...)
+	// Mira's inbox in Paperless (docs/spec/inbox.md); it enters through
+	// calendar_create, which comes with the skill postfach.
 	a.inbox = a.newInbox(cfg, all)
-	internal = append(internal, a.inboxTools()...)
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).
 	bound := map[string]bool{}
 	for _, t := range internal {
 		if t.Skill != "" {
 			bound[t.Skill] = true
+		}
+		for _, sk := range t.Skills {
+			bound[sk] = true
 		}
 	}
 	var loaded, targets, usable []skills.Skill
@@ -408,14 +415,6 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for _, sk := range loaded {
 		a.log.Info("skill enabled", "skill", sk.Name, "schedules", len(sk.Schedules))
 	}
-	// Home Assistant's calendars, read the way Mira decides
-	// (docs/spec/calendar.md).
-	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
-		Calendars: a.calendarList, Delete: a.deleteEvent, Owner: a.calendarOwner, Act: a.callAction, Logger: a.log})
-	internal = append(internal, a.calendar.Tool(a.lang))
-	// One tool to enter an event, for the skills that name it
-	// (docs/spec/calendar.md, Adding).
-	internal = append(internal, a.calendar.CreateTool(a.lang, inbox.Target))
 	// Mails that announce something with a time, kept in a calendar
 	// (docs/spec/mail-calendar.md); the mail skills say what to read.
 	if apps := mailApps(loaded); len(apps) > 0 {
@@ -1716,4 +1715,11 @@ func (a *app) allProblems() []haconv.Problem {
 		out = append(out, haconv.Problem{Source: "skill", Name: st.Skill, Text: p.Text(a.lang)})
 	}
 	return out
+}
+
+// calendarTools are calendar_events for every turn and calendar_create, the
+// one tool to enter an event, for the skills that name it
+// (docs/spec/calendar.md, Adding): the inbox.
+func (a *app) calendarTools() []tools.InternalTool {
+	return []tools.InternalTool{a.calendar.Tool(a.lang), a.calendar.CreateTool(a.lang, inbox.Target)}
 }

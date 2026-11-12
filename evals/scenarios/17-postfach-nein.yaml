@@ -19,4 +19,4 @@ steps:
         - calendar_empty: { calendar: calendar.anna, day: "+10", title: Vorspiel }
         - calendar_empty: { calendar: calendar.anna, day: "+17", title: Vorspiel }
       behaviour:
-        must_not: [tool:inbox_enter]
+        must_not: [tool:calendar_create]

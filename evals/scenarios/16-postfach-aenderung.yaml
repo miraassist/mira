@@ -18,4 +18,4 @@ steps:
         - event_exists: { calendar: calendar.anna, day: "+9", start: "20:00", title: Elternabend }
         - calendar_empty: { calendar: calendar.anna, day: "+9", start: "19:30", title: Elternabend }
       behaviour:
-        must: [tool:inbox_enter]
+        must: [tool:calendar_create]

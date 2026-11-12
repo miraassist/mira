@@ -16,11 +16,10 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/inbox"
-	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
-	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/threads"
 )
 
 // Mira's inbox (docs/spec/inbox.md): Paperless's webhook brings a document
@@ -55,7 +54,7 @@ func (a *app) newInbox(cfg config.Config, loaded []skills.Skill) *inbox.Service 
 		return nil
 	}
 	o := inbox.Options{Model: a.inboxRead(),
-		Extract: postfach.Inbox.Extract, Person: a.inboxPerson, Calendar: a.inboxCalendar,
+		Extract: postfach.Inbox.Extract, Person: a.inboxPerson,
 		Ask: a.inboxAsk, Tell: a.inboxTell, House: store.ReceiverHouse,
 		Learn: a.inboxLearn, Owner: a.inboxOwner,
 		Open: func(ctx context.Context, key string) bool {
@@ -122,31 +121,6 @@ func (a *app) inboxKeep(ctx context.Context, entry, hash string) error {
 	return a.store.SetKV(ctx, kvInboxMails, string(raw))
 }
 
-// inboxTools is inbox_enter, wired to the threads and the calendars.
-func (a *app) inboxTools() []tools.InternalTool {
-	if a.inbox == nil {
-		return nil
-	}
-	return a.inbox.Tools(inbox.ToolOptions{
-		Thread: func(ctx context.Context, inv tools.Invocation) (inbox.Thread, bool) {
-			th, ok := a.threads.TurnThreadOf(ctx, inv, inbox.Target)
-			if !ok {
-				return inbox.Thread{}, false
-			}
-			return inbox.Thread{ID: th.ID, Person: th.Person, Fields: th.Fields}, true
-		},
-		Calendars: a.inboxCalendars,
-		Create: func(ctx context.Context, entity string, e inbox.Entry) error {
-			return mailCalendar{a}.Create(ctx, entity, mailcal.Entry{Summary: e.Summary, Description: e.Description,
-				Location: e.Location, Day: e.Day, Start: e.Start, End: e.End})
-		},
-		Tick: func(ctx context.Context, inv tools.Invocation, step int, note string) error {
-			_, err := a.threads.PlanNote(ctx, inv, "check", "", step, note)
-			return err
-		},
-	})
-}
-
 func (a *app) inboxRead() isolatedAgent {
 	return isolatedAgent{a: a, name: "inbox.read", origin: agent.FromCode, limits: mailLimits}
 }
@@ -174,19 +148,6 @@ func personByOwner(owner string, persons map[string]config.Person, logins map[st
 	return "", false
 }
 
-// inboxCalendars are the calendars with whose they are by convention.
-func (a *app) inboxCalendars(ctx context.Context) ([]inbox.Calendar, error) {
-	cals, err := a.calendarList(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]inbox.Calendar, 0, len(cals))
-	for _, c := range cals {
-		out = append(out, inbox.Calendar{Entity: c.Entity, Name: c.Name, Writable: c.Writable, Of: a.calendarOwner(ctx, c.Name)})
-	}
-	return out, nil
-}
-
 // calendarOwner is the person whose calendar this name is by convention
 // (docs/spec/calendar.md, Personal calendars): named like their login or
 // their person, case and spaces aside; "" for none.
@@ -195,33 +156,16 @@ func (a *app) calendarOwner(ctx context.Context, name string) string {
 	return key
 }
 
-// inboxCalendar is the person's own writable calendar by convention.
-func (a *app) inboxCalendar(ctx context.Context, person string) (string, error) {
-	cals, err := a.inboxCalendars(ctx)
-	if err != nil {
-		return "", err
-	}
-	for _, c := range cals {
-		if c.Of == person && c.Writable {
-			return c.Entity, nil
-		}
-	}
-	return "", nil
-}
-
-// inboxAsk starts the person's inbox thread with the findings and leaves its
+// inboxAsk starts the person's inbox thread with the reading's plan and leaves its
 // question as a message of the thread: delivered by the person's settings,
 // withdrawn when the thread ends.
 func (a *app) inboxAsk(ctx context.Context, q inbox.Question) error {
 	if a.threads == nil {
 		return errors.New("no threads")
 	}
-	raw, err := json.Marshal(q.Findings)
-	if err != nil {
-		return err
-	}
-	th, err := a.threads.StartFor(ctx, inbox.Target, q.Person, q.Summary, q.Plan, map[string]string{
-		inbox.FieldDoc: q.Doc.Key, inbox.FieldTitle: q.Doc.Title, inbox.FieldRef: q.Doc.Ref, inbox.FieldFindings: string(raw)})
+	th, err := a.threads.StartAt(ctx, threads.Begin{Target: inbox.Target, Person: q.Person, Request: q.Summary,
+		Plan: q.Plan, Deadline: q.Deadline, Fields: map[string]string{
+			inbox.FieldDoc: q.Doc.Key, inbox.FieldTitle: q.Doc.Title, inbox.FieldRef: q.Doc.Ref}})
 	if err != nil {
 		return err
 	}

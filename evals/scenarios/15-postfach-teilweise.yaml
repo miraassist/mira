@@ -22,4 +22,4 @@ steps:
         - calendar_empty: { calendar: calendar.anna, day: "+13", title: Turnier }
         - calendar_empty: { calendar: calendar.anna, day: "+20", title: Saison }
       behaviour:
-        must: [tool:inbox_enter]
+        must: [tool:calendar_create]
