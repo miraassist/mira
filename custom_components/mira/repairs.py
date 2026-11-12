@@ -1,7 +1,7 @@
 """The repairs a user fixes in Home Assistant: restoring Mira's data after a
 restore of Home Assistant (docs/spec/backup.md), creating a mail entry's
-calendar, and the owner's token for an agent that still has the old user
-"Mira"'s (docs/spec/hacs-default.md)."""
+calendar, and a token an admin gives Mira when hers does not work
+(docs/spec/hacs-default.md, 4)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 
-from .access import owner, renew_access
+from .access import HA_TOKEN_SCHEMA, check_token, give_token
 from .api import MiraError
 from .backup import ISSUE_RESTORE, async_discard, async_restore
 from .const import DOMAIN
@@ -82,25 +82,32 @@ class CalendarFlow(RepairsFlow):
 
 
 class AccessFlow(RepairsFlow):
-    """The owner's token for the agent, on an admin's word."""
+    """A token an admin pastes for Mira, checked as at the setup."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> data_entry_flow.FlowResult:
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> data_entry_flow.FlowResult:
-        if user_input is None:
-            return self.async_show_form(
-                step_id="confirm", description_placeholders={"owner": (await owner(self.hass)).name}
-            )
-        entries = [e for e in self.hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
-        if not entries:
-            return await self.async_step_failed(reason="Mira is not connected")
-        try:
-            await renew_access(self.hass, entries[0], entries[0].runtime_data.client)
-        except (MiraError, RuntimeError) as err:
-            return await self.async_step_failed(reason=str(err))
-        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ACCESS)
-        return self.async_create_entry(data={})
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            refresh, error = check_token(self.hass, user_input["token"])
+            if error:
+                errors["token"] = error
+            else:
+                entries = [
+                    e for e in self.hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED
+                ]
+                if not entries:
+                    return await self.async_step_failed(reason="Mira is not connected")
+                try:
+                    await give_token(
+                        self.hass, entries[0], entries[0].runtime_data.client, user_input["token"], refresh
+                    )
+                except (MiraError, RuntimeError) as err:
+                    return await self.async_step_failed(reason=str(err))
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ACCESS)
+                return self.async_create_entry(data={})
+        return self.async_show_form(step_id="confirm", data_schema=HA_TOKEN_SCHEMA, errors=errors)
 
     async def async_step_failed(
         self, user_input: dict[str, Any] | None = None, reason: str = ""

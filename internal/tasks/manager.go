@@ -320,12 +320,12 @@ func (m *Manager) validate(ctx context.Context, config map[string]any, automatio
 }
 
 // haError is what the user hears of Home Assistant refusing: without an
-// admin's token, where to give Mira the new access; a task saved without
+// admin's token, where to give Mira an access again; a task saved without
 // its label, that it is not among Mira's.
 func (m *Manager) haError(err error) error {
 	switch {
 	case errors.Is(err, haws.ErrNotAdmin):
-		m.log.Warn("home assistant refused mira's token for a task; the repair for the new access is open", "error", err)
+		m.log.Warn("home assistant refused mira's token for a task; the repair for an access is open", "error", err)
 		return errors.New(m.texts().needAccess)
 	case errors.Is(err, automation.ErrNotLabelled):
 		return errors.New(m.texts().notLabelled)

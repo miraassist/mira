@@ -51,7 +51,7 @@ var builtSteps = map[string][]int{
 	"MS": {1, 2, 3, 4, 5},          // docs/spec/messages.md
 	"KL": {1, 2},                   // docs/spec/keep-listening.md, Steps
 	"CA": {1, 2},                   // docs/spec/calendar.md, Steps
-	"HD": {},                       // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-20 to 22, 27) and Go (HD-23 to 26)
+	"HD": {},                       // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-22) and Go (HD-23 to 26), step 5 in pytest (HD-30 to 38)
 }
 
 var (

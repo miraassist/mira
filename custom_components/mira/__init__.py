@@ -20,13 +20,12 @@ from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
-from .access import hand_back, keep_rejoin, revoke_agent_token, use_mira_in
+from .access import hand_back, keep_rejoin, use_mira_in
 from .agents import async_register_agent_services
 from .api import MiraClient, MiraError
 from .automations import async_register_commands
 from .backup import async_offer_restore
 from .const import (
-    CONF_AGENT_TOKEN,
     CONF_IMPORTED,
     CONF_PIPELINE_AGENT,
     CONF_PIPELINES,
@@ -339,12 +338,12 @@ async def _use_in_assistants(hass: HomeAssistant, entry: MiraConfigEntry) -> Non
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
-    """Hand persons and rooms back to the agent's web UI, the assistants
-    back to Home Assistant's own agent, and withdraw the token the
-    integration made for the agent. An agent that was paired lets go as well. This Home Assistant
+    """Hand persons and rooms back to the agent's web UI, and the assistants
+    back to Home Assistant's own agent. The token an admin gave Mira stays:
+    it is the admin's, removed in their profile (docs/spec/hacs-default.md,
+    4). An agent that was paired lets go as well. This Home Assistant
     keeps the token, to pair again without a code: as proof after the
     agent let go, or as it is if the agent was away and never did."""
-    revoke_agent_token(hass, entry.data.get(CONF_AGENT_TOKEN))
     await hand_back(hass, entry.data.get(CONF_PIPELINE_AGENT), entry.data.get(CONF_PIPELINES_BEFORE) or {})
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
     try:

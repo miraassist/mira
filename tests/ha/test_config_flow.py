@@ -9,7 +9,7 @@ from homeassistant.const import CONF_TOKEN, CONF_URL
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.mira.access import TOKEN_NAME, keep_rejoin, rejoin_token
+from custom_components.mira.access import keep_rejoin, rejoin_token
 from custom_components.mira.api import MiraAuthError, rejoin_key
 from custom_components.mira.config_flow import MiraConfigFlow
 from custom_components.mira.const import (
@@ -17,10 +17,12 @@ from custom_components.mira.const import (
     CONF_IMPORTED,
     CONF_PIPELINES,
     CONF_TIMEOUT,
+    CONF_TOKEN_GIVEN,
     DOMAIN,
 )
 
 from .conftest import AGENT_ID, AGENT_URL
+from .test_access import admin_token
 
 
 async def _start(hass):
@@ -96,19 +98,25 @@ async def _to(hass, result, step):
     return await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": step})
 
 
-async def _finish(hass, result):
-    """The summary's "Pair"."""
+async def _finish(hass, result, token=None):
+    """The summary's "Start using Mira", then a token pasted: one of the
+    owner's made in the profile unless given."""
     assert result["type"] is FlowResultType.MENU and result["step_id"] == "summary", result
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "finish", result
+    if token is None:
+        _, token = await admin_token(hass, await hass.auth.async_get_owner())
     with patch("custom_components.mira.config_flow.ensure_mcp_server", AsyncMock()) as mcp:
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"token": token})
     return result, mcp
 
 
-async def test_HD20_new_agent_is_paired_with_the_owners_token_only_at_the_end(hass, aioclient_mock, hass_owner_user):
+async def test_HD30_new_agent_is_paired_with_the_pasted_token_only_at_the_end(hass, aioclient_mock, hass_owner_user):
     """A new agent: the AI model from a server of one's own, tried at once;
-    nothing is paired and no token made before the summary's "Pair", which
-    then pairs and sets up in one call, with a token of the owner the
-    summary names (docs/spec/hacs-default.md, 3). No user is made."""
+    nothing is paired and no token made before "Start using Mira", which
+    asks for a token, then pairs and sets up in one call with it
+    (docs/spec/hacs-default.md, 4). The integration makes no token and no
+    user."""
     _new_agent(aioclient_mock)
     aioclient_mock.post(f"{AGENT_URL}/v1/setup/probe", json={"status": "ok"})
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", json={"token": "agent-token"})
@@ -131,19 +139,33 @@ async def test_HD20_new_agent_is_paired_with_the_owners_token_only_at_the_end(ha
     llm = {"kind": "custom", "base_url": "http://192.168.1.30:11434/v1", "model": "qwen3", "api_key": ""}
     assert _calls(aioclient_mock, "/v1/setup/probe") == [{"llm": llm}]
     assert not _calls(aioclient_mock, "/v1/pair")
-    assert hass_owner_user.name in result["description_placeholders"]["access"]
     users = await hass.auth.async_get_users()
+    refresh, token = await admin_token(hass, hass_owner_user)
+    before = set(hass_owner_user.refresh_tokens)
 
-    result, mcp = await _finish(hass, result)
+    result, mcp = await _finish(hass, result, token)
     assert result["type"] is FlowResultType.CREATE_ENTRY, result
     mcp.assert_awaited_once()
     data = result["data"]
     assert data[CONF_TOKEN] == "agent-token" and data[CONF_IMPORTED]
+    assert data[CONF_AGENT_TOKEN] == refresh.id and data[CONF_TOKEN_GIVEN]
+    assert token not in str(data)
     assert await hass.auth.async_get_users() == users
+    assert set(hass_owner_user.refresh_tokens) == before
     (pair,) = _calls(aioclient_mock, "/v1/pair")
-    assert pair["code"] == "" and pair["llm"] == llm
-    refresh = hass.auth.async_validate_access_token(pair["ha_token"])
-    assert refresh is not None and refresh.user.id == hass_owner_user.id and refresh.id == data[CONF_AGENT_TOKEN]
+    assert pair["code"] == "" and pair["llm"] == llm and pair["ha_token"] == token
+
+
+async def test_HD31_the_setup_refuses_a_token_that_cannot_be_miras(hass, aioclient_mock, hass_owner_user):
+    """A wrong token stays in the form with its error; nothing is paired."""
+    await keep_rejoin(hass, AGENT_ID, "secret")
+    _paired_agent(aioclient_mock, rejoin=False)
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_URL: AGENT_URL})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"token": "not a token"})
+    assert result["step_id"] == "finish" and result["errors"] == {"token": "invalid_token"}
+    assert not _calls(aioclient_mock, "/v1/pair") and not _calls(aioclient_mock, "/v1/setup")
 
 
 async def test_HD02_provider_asks_only_for_the_key_and_says_what_failed(hass, aioclient_mock, hass_owner_user):
@@ -196,7 +218,7 @@ async def test_HD01_another_integrations_key_is_never_read(hass, aioclient_mock,
 async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock, hass_owner_user):
     """An agent paired before keeps its model; the code is used when
     pairing, and a wrong one sends back to the summary, which offers to
-    enter it again. The token made for it is withdrawn again."""
+    enter it again."""
     aioclient_mock.get(f"{AGENT_URL}/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": False, "model": "qwen3"})
     aioclient_mock.post(f"{AGENT_URL}/v1/pair", status=403)
     result = await _start(hass)
@@ -210,7 +232,6 @@ async def test_agent_paired_before_takes_a_code_at_the_end(hass, aioclient_mock,
     result, _ = await _finish(hass, result)
     assert result["step_id"] == "summary" and "pair" in result["menu_options"]
     assert result["description_placeholders"]["error"]
-    assert not [t for t in hass_owner_user.refresh_tokens.values() if t.client_name == TOKEN_NAME]
 
 
 def _paired_agent(aioclient_mock, rejoin=True):

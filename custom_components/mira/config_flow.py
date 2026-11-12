@@ -26,14 +26,13 @@ from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHan
 from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
 from .access import (
+    HA_TOKEN_SCHEMA,
     assistants,
+    check_token,
     ensure_mcp_server,
     forget_rejoin,
     ha_url,
-    make_owner_token,
-    owner,
     rejoin_token,
-    revoke_agent_token,
 )
 from .api import MiraAuthError, MiraBadCode, MiraClient, MiraError, MiraInvalidConfig, proof, rejoin_key
 from .const import (
@@ -44,6 +43,7 @@ from .const import (
     CONF_PIPELINES,
     CONF_SIDEBAR,
     CONF_TIMEOUT,
+    CONF_TOKEN_GIVEN,
     CONF_WEB_SEARCH,
     DEFAULT_TIMEOUT,
     DOMAIN,
@@ -88,7 +88,6 @@ WORDS = {
         "missing": "fehlt noch",
         "bad_code": "Der Kopplungscode stimmt nicht oder ist schon verbraucht. Er steht im Protokoll von Mira; gib ihn neu ein.",
         "failed": "Das Koppeln hat nicht geklappt: {error}",
-        "access": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit „Mira jetzt nutzen“ bekommt Mira dafür einen Zugang im Namen von {owner}, der Home Assistant eingerichtet hat; er steht in dessen Profil unter Sicherheit und kann dort jederzeit widerrufen werden.",
     },
     "en": {
         "custom": "Own server (enter its address)",
@@ -100,7 +99,6 @@ WORDS = {
         "missing": "still missing",
         "bad_code": "The pairing code is wrong or used up. It is in Mira's log; enter it again.",
         "failed": "Pairing did not work: {error}",
-        "access": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With “Start using Mira”, Mira gets an access for it in the name of {owner}, who set Home Assistant up; it is in their profile under Security and can be revoked there at any time.",
     },
 }
 
@@ -592,21 +590,25 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
             menu_options=options,
             description_placeholders={
                 "status": "\n".join(lines),
-                "access": words["access"].format(owner=(await owner(self.hass)).name),
                 "error": f"\n\n**{self._error}**" if self._error else "",
             },
         )
 
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Pair: the owner's token for Mira (the admin consented with this
-        click), HA's MCP server, and the agent paired and set up in one call;
-        it starts anew and is waited for."""
+        """ "Start using Mira": the admin pastes an admin's long-lived token
+        for her (docs/spec/hacs-default.md, 4); checked, then HA's MCP server,
+        and the agent paired and set up in one call; it starts anew and is
+        waited for. The integration makes no token."""
+        if user_input is None:
+            return self.async_show_form(step_id="finish", data_schema=HA_TOKEN_SCHEMA)
+        refresh, error = check_token(self.hass, user_input["token"])
+        if error:
+            return self.async_show_form(step_id="finish", data_schema=HA_TOKEN_SCHEMA, errors={"token": error})
+        ha_token = user_input["token"].strip()
         words = _words(self.hass)
         self._error = ""
-        refresh_id = None
         try:
             await ensure_mcp_server(self.hass)
-            refresh_id, ha_token = await make_owner_token(self.hass)
             if self._token:
                 await self._client().setup(ha_url(self.hass), ha_token, self._llm)
             else:
@@ -623,12 +625,10 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         except (MiraError, RuntimeError, TimeoutError) as err:
             self._error = words["failed"].format(error=err)
         if self._error:
-            if refresh_id:
-                revoke_agent_token(self.hass, refresh_id)
             return await self.async_step_summary()
         if self.unique_id:
             await forget_rejoin(self.hass, self.unique_id)
-        self._data = {CONF_IMPORTED: True, CONF_AGENT_TOKEN: refresh_id}
+        self._data = {CONF_IMPORTED: True, CONF_AGENT_TOKEN: refresh.id, CONF_TOKEN_GIVEN: True}
         return self._create()
 
     def _create(self) -> ConfigFlowResult:

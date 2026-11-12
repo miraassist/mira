@@ -4,7 +4,7 @@
 # integration) and Go (the service, TestHD23_…).
 #
 # Groups: HD-0x the model's source · HD-1x the mail calendar's repair · HD-2x an admin's access and automations ·
-# HD-3x the access the admin gives · HD-4x deleting only what Mira created. Steps 5 in pytest, 6 in Go.
+# HD-3x the access the admin gives · HD-4x deleting only what Mira created. Step 5 in pytest, step 6 in Go.
 
 Feature: HD HACS default catalog
 
@@ -56,21 +56,6 @@ Feature: HD HACS default catalog
   # --- An admin's access and automations -------------------------------------------------------------------
 
   @step3
-  Scenario: HD-20 The setup gives Mira the owner's token, no user of her own
-    Given an admin sets Mira up, the setup names the owner, and the admin submits "Start using Mira"
-    Then the integration makes a long-lived token "Mira" for Home Assistant's owner and sends it to the service
-    And no Home Assistant user is created
-
-  @step3
-  Scenario: HD-21 An existing install is asked for the new access
-    Given an install whose service holds the token of the old user "Mira"
-    When the integration starts
-    Then the repair "Mira needs a new access" is raised, fixable
-    When an admin submits it
-    Then the service gets a token of the owner, the old token "Mira agent" is revoked and the repair is gone
-    And the old user "Mira" stays
-
-  @step3
   Scenario: HD-22 Reading automation data needs an admin
     Given a non-admin user's websocket connection
     When it sends mira/automation/list, mira/automation/get, mira/automation/validate, mira/once/list or mira/agent/done
@@ -103,13 +88,6 @@ Feature: HD HACS default catalog
     When the model saves a task or a timer
     Then the tool's error tells to confirm the repair under Settings → Repairs
     And the log has the command and Home Assistant's answer
-
-  @step3
-  Scenario: HD-27 A revoked token is made anew
-    Given Mira's token is revoked in the owner's profile
-    When the integration starts, or the service reports that Home Assistant refuses its token
-    Then the integration makes a new token for the owner and sends it to the service
-    And the log says that the old one was revoked
 
   # --- The admin's access (second review) ----------------------------------------------------------------------
   # HD-20, HD-21 and HD-27 are retired with step 5, HD-24 with step 6; HD-32 (a login) was dropped before it was built.

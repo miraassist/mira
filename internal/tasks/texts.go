@@ -231,7 +231,7 @@ JSON-Objekt:
 		triedVerdict: "Probelauf: Wichtigkeit %d. %s",
 		triedDecided: "Probelauf: Antwort %v. %s",
 		notMira:      "Das ist keine Aufgabe von Mira.",
-		needAccess:   "Dafür braucht Mira erst einen neuen Zugang: Einstellungen → Reparaturen.",
+		needAccess:   "Mira braucht erst wieder einen Zugang: Einstellungen → Reparaturen.",
 		notLabelled:  "Die Aufgabe ist gespeichert, aber nicht als Miras markiert; sie steht deshalb nicht in Miras Aufgaben.",
 	},
 	i18n.EN: {
@@ -329,7 +329,7 @@ JSON object:
 		triedVerdict: "Dry run: importance %d. %s",
 		triedDecided: "Dry run: answer %v. %s",
 		notMira:      "That is not one of Mira's tasks.",
-		needAccess:   "Mira first needs a new access for that: Settings → Repairs.",
+		needAccess:   "Mira needs an access again first: Settings → Repairs.",
 		notLabelled:  "The task is saved but not marked as Mira's, so it does not show among Mira's tasks.",
 	},
 }

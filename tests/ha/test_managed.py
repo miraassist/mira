@@ -24,6 +24,7 @@ from custom_components.mira.const import CONF_IMPORTED, DOMAIN
 from custom_components.mira.managed import notify_targets
 
 from .conftest import AGENT_ID, AGENT_URL
+from .test_access import admin_token
 
 STATUS = {"pending_messages": 0, "quiet_mode": False}
 
@@ -291,7 +292,8 @@ async def test_panel_edits_the_same_settings(hass, aioclient_mock, entry, hass_c
 
 async def test_discovery_asks_only_to_add(hass, aioclient_mock, hass_owner_user):
     """A discovered agent that was never paired (here with its model kept):
-    one click, a summary, "Pair"; nothing is sent before that."""
+    one click, a summary, "Start using Mira" with a token pasted; nothing is
+    sent before that."""
     aioclient_mock.get(
         "http://192.168.1.20:8787/v1/pair", json={"id": AGENT_ID, "pairs": True, "open": True, "model": "qwen3"}
     )
@@ -305,8 +307,10 @@ async def test_discovery_asks_only_to_add(hass, aioclient_mock, hass_owner_user)
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["step_id"] == "summary"
     assert not any(c[0] == "POST" for c in aioclient_mock.mock_calls)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
+    _, token = await admin_token(hass, hass_owner_user)
     with patch("custom_components.mira.config_flow.ensure_mcp_server", AsyncMock()):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "finish"})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"token": token})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_URL] == "http://192.168.1.20:8787" and result["data"][CONF_TOKEN] == "secret"
     assert result["result"].unique_id == AGENT_ID

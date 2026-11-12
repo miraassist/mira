@@ -13,7 +13,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.hassio import is_hassio
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .access import owner, renew_access, token_state
+from .access import revoke_made_token, token_works
 from .api import MiraClient, MiraError, MiraInvalidConfig
 from .const import CONF_AGENT_TOKEN, CONF_IMPORTED, DOMAIN, VERSION
 from .mail import show_missing_calendars
@@ -24,8 +24,8 @@ _LOGGER = logging.getLogger(__name__)
 # The repair when the agent and this integration are not the same version
 # (major.minor; a patch apart is fine): docs/spec/versions.md.
 ISSUE_VERSION = "version_mismatch"
-# The repair while the agent still holds the token of the old user "Mira"
-# (docs/spec/hacs-default.md, 3).
+# The repair while the token an admin gave Mira does not work, or none was
+# given yet (docs/spec/hacs-default.md, 4).
 ISSUE_ACCESS = "new_access"
 
 
@@ -83,33 +83,33 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return status
 
     async def _check_access(self) -> None:
-        """The token the integration made for the agent (docs/spec/hacs-default.md):
-        revoked, a new one of the owner; still the old user "Mira"'s, a
-        repair asking for the new access; the owner's, nothing to do."""
-        state = token_state(self.hass, self.config_entry.data.get(CONF_AGENT_TOKEN))
-        if state == "old":
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                ISSUE_ACCESS,
-                is_fixable=True,
-                is_persistent=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_ACCESS,
-                translation_placeholders={"owner": (await owner(self.hass)).name},
-            )
+        """The token an admin gave Mira (docs/spec/hacs-default.md, 4): one
+        that does not work (revoked, its user inactive or no admin), or the
+        owner's token the integration made itself before, which is revoked
+        here, raises the repair asking for a token; nothing is made. An
+        agent with Home Assistant's token in its own file has no id here:
+        nothing to check."""
+        refresh_id = self.config_entry.data.get(CONF_AGENT_TOKEN)
+        if not refresh_id:
             return
-        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ACCESS)
-        if state != "gone":
+        revoke_made_token(self.hass, self.config_entry)
+        if token_works(self.hass, refresh_id):
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ACCESS)
             return
-        try:
-            await renew_access(self.hass, self.config_entry, self.client)
-        except (MiraError, RuntimeError) as err:
+        if ir.async_get(self.hass).async_get_issue(DOMAIN, ISSUE_ACCESS) is None:
             _LOGGER.warning(
-                "Mira's token was revoked; a new one could not be sent to her (%s), trying at the next poll", err
+                "Mira's token does not work (revoked, or its user is inactive or no admin); "
+                "the repair asks an admin for a new one"
             )
-            return
-        _LOGGER.info("Made a new token for Mira, the old one was revoked")
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            ISSUE_ACCESS,
+            is_fixable=True,
+            is_persistent=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=ISSUE_ACCESS,
+        )
 
     def _show_version(self, agent: Any) -> None:
         """A repair while the agent and this integration are not the same

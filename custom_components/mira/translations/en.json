@@ -66,13 +66,21 @@
       },
       "summary": {
         "title": "Set up Mira",
-        "description": "{status}\n\n{access}{error}",
+        "description": "{status}{error}",
         "menu_options": {
           "model_source": "Choose the AI model (LLM)",
           "assistants": "Use Mira in",
           "pair": "Enter the pairing code",
           "finish": "Start using Mira"
         }
+      },
+      "finish": {
+        "title": "Access for Mira",
+        "description": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
+        "data": {
+          "token": "Token"
+        },
+        "submit": "Start using Mira"
       }
     },
     "error": {
@@ -84,7 +92,10 @@
       "model_bad_key": "The provider refused the key. Check it and enter it again.{error}",
       "model_no_model": "The server does not know this model, or it is not loaded.{error}",
       "model_no_tools": "The model answered, but does not use tools. Mira needs that to switch and look things up; please choose another model.{error}",
-      "model_server_error": "The server answered with an error.{error}"
+      "model_server_error": "The server answered with an error.{error}",
+      "invalid_token": "Home Assistant does not know this token.",
+      "token_not_long_lived": "This is not a long-lived access token.",
+      "token_not_admin": "This token does not belong to an administrator."
     },
     "abort": {
       "already_configured": "This agent is already configured.",
@@ -489,17 +500,25 @@
       }
     },
     "new_access": {
-      "title": "Mira needs a new access",
+      "title": "Mira has no access any more",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Give Mira the new access?",
-            "description": "Mira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. With Submit, Mira gets an access for it in the name of {owner}, who set Home Assistant up; it is in their profile under Security and can be revoked there at any time. Mira restarts for a moment.\n\nUntil then everything else works as before; only new tasks and timers wait for it."
+            "title": "Give Mira a new access",
+            "description": "Mira's access to Home Assistant does not work any more: the token was revoked, or its user is no longer an administrator. Until you give her a new one, what Home Assistant refuses fails, such as new tasks and timers.\n\nMira creates your tasks and timers as automations, the way one does in the automation editor. In Home Assistant only an administrator may do that. In your profile under **Security → Long-lived access tokens**, click **Create token**, name it for example “Mira”, and paste it here. You can revoke it there at any time; Mira then asks for a new one under Repairs.",
+            "data": {
+              "token": "Token"
+            }
           },
           "failed": {
             "title": "Mira did not take the new access",
             "description": "{reason}\n\nNothing was changed; you can try again."
           }
+        },
+        "error": {
+          "invalid_token": "Home Assistant does not know this token.",
+          "token_not_long_lived": "This is not a long-lived access token.",
+          "token_not_admin": "This token does not belong to an administrator."
         }
       }
     },

@@ -64,7 +64,7 @@ func TestHD26_WithoutTheNewAccessSavingSaysWhatToDo(t *testing.T) {
 	e.m.log = slog.New(slog.NewTextHandler(&logs, nil))
 	e.ha.notAdmin = true
 	err := e.m.SaveAutomation(context.Background(), "mira_wasser", waterTask)
-	if err == nil || err.Error() != "Dafür braucht Mira erst einen neuen Zugang: Einstellungen → Reparaturen." {
+	if err == nil || err.Error() != "Mira braucht erst wieder einen Zugang: Einstellungen → Reparaturen." {
 		t.Fatalf("error: %v", err)
 	}
 	if !strings.Contains(logs.String(), "could not save an automation") || !strings.Contains(logs.String(), "401") {

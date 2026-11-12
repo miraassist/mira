@@ -13,8 +13,11 @@ CONF_OWN_HOLD = "own_message_hold"
 CONF_TIMEOUT = "timeout"
 # Set once the agent's persons and rooms were imported as settings on HA's persons and satellites.
 CONF_IMPORTED = "imported"
-# The refresh token the integration made for the agent (access.py).
+# The id of the token an admin gave the agent (access.py); never the token.
 CONF_AGENT_TOKEN = "agent_token_id"
+# Set when that token was pasted by an admin (since 0.23); entries without it
+# may hold the owner's token the integration made itself before.
+CONF_TOKEN_GIVEN = "agent_token_given"
 # Assistants (Assist pipelines) to get Mira as their conversation agent
 # once its entity exists, and that entity, to hand them back on removal.
 CONF_PIPELINES = "pipelines"

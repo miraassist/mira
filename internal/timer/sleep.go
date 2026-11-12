@@ -172,10 +172,10 @@ func (c *controller) save(ctx context.Context, build map[string]any) error {
 }
 
 // failed is the tool's answer when Home Assistant refused: without an
-// admin's token, where to give Mira the new access.
+// admin's token, where to give Mira an access again.
 func (c *controller) failed(err error) string {
 	if errors.Is(err, haws.ErrNotAdmin) {
-		c.log.Warn("home assistant refused mira's token for a timer; the repair for the new access is open", "error", err)
+		c.log.Warn("home assistant refused mira's token for a timer; the repair for an access is open", "error", err)
 		return c.t.needAccess
 	}
 	return fmt.Sprintf(c.t.failed, err)

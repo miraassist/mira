@@ -1,8 +1,8 @@
 # HACS default catalog – spec
 
 Status 2026-11-12: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and released (0.18.0), decision 4
-(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done, steps 4 to 6
-not built.
+(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done; step 5 built, step 6 not
+built.
 
 ## Goal
 
@@ -358,6 +358,10 @@ existing tasks and timers are taken over once; without access Mira has no mode o
    is requested again on the pull request. Done with 0.18.0 (2026-11-07).
 5. **The access the admin gives** (decisions 5 and 6): the setup's form, the
    token's check, the poll's check, its repair and Mira stopping; removing, existing installs. Scenarios HD-30, HD-31 and HD-33 to HD-38, in pytest (HD-32, a login, dropped). Retires HD-20, HD-21 and HD-27 (their tests go).
+   Built 2026-11-12. Run on the test HA: the entry given a token id that does not exist, the repair came after the
+   start (fixable, error) with one log warning; its form refused "not a token" with `invalid_token`. Not run there:
+   submitting a valid token in the repair and the setup's form (the test Mira's `mira.yaml` is in the repository and
+   `/v1/setup` would write the token into it; pytest only).
 6. **Deleting only what Mira created** (decision 7): the service's table, deleting, cleaning up timers; existing
    automations taken over once. Scenarios HD-40 to HD-44, in Go. Retires HD-24.
 7. **Release and review:** guide, versions, release with notes; then the comment on the pull request with the

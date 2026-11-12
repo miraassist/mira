@@ -66,13 +66,21 @@
       },
       "summary": {
         "title": "Mira einrichten",
-        "description": "{status}\n\n{access}{error}",
+        "description": "{status}{error}",
         "menu_options": {
           "model_source": "KI-Modell (LLM) wählen",
           "assistants": "Mira verwenden in",
           "pair": "Kopplungscode eingeben",
           "finish": "Mira jetzt nutzen"
         }
+      },
+      "finish": {
+        "title": "Zugang für Mira",
+        "description": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
+        "data": {
+          "token": "Token"
+        },
+        "submit": "Mira jetzt nutzen"
       }
     },
     "error": {
@@ -84,7 +92,10 @@
       "model_bad_key": "Der Anbieter hat den Schlüssel abgelehnt. Prüfe ihn und gib ihn noch einmal ein.{error}",
       "model_no_model": "Der Server kennt dieses Modell nicht, oder es ist nicht geladen.{error}",
       "model_no_tools": "Das Modell antwortet, benutzt aber keine Werkzeuge. Die braucht Mira zum Schalten und Nachschauen; bitte wähle ein anderes Modell.{error}",
-      "model_server_error": "Der Server hat mit einem Fehler geantwortet.{error}"
+      "model_server_error": "Der Server hat mit einem Fehler geantwortet.{error}",
+      "invalid_token": "Dieses Token kennt Home Assistant nicht.",
+      "token_not_long_lived": "Das ist kein langlebiges Zugriffstoken.",
+      "token_not_admin": "Dieses Token gehört keinem Administrator."
     },
     "abort": {
       "already_configured": "Dieser Agent ist bereits eingerichtet.",
@@ -489,17 +500,25 @@
       }
     },
     "new_access": {
-      "title": "Mira braucht einen neuen Zugang",
+      "title": "Mira hat keinen Zugang mehr",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Mira den neuen Zugang geben?",
-            "description": "Mira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Mit Absenden bekommt Mira dafür einen Zugang im Namen von {owner}, der Home Assistant eingerichtet hat; er steht in dessen Profil unter Sicherheit und kann dort jederzeit widerrufen werden. Mira startet dafür kurz neu.\n\nBis dahin geht alles andere wie bisher; nur neue Aufgaben und Timer warten darauf."
+            "title": "Mira einen neuen Zugang geben",
+            "description": "Miras Zugang zu Home Assistant funktioniert nicht mehr: Das Token wurde widerrufen, oder sein Benutzer ist kein Administrator mehr. Bis du ihr ein neues gibst, schlägt fehl, was Home Assistant ablehnt, zum Beispiel neue Aufgaben und Timer.\n\nMira legt eure Aufgaben und Timer als Automationen an, so wie man es im Automationseditor tut. Das darf in Home Assistant nur ein Administrator. Klicke dafür in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“ und füge es hier ein. Du kannst es dort jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen.",
+            "data": {
+              "token": "Token"
+            }
           },
           "failed": {
             "title": "Mira hat den neuen Zugang nicht übernommen",
             "description": "{reason}\n\nEs wurde nichts geändert; du kannst es noch einmal versuchen."
           }
+        },
+        "error": {
+          "invalid_token": "Dieses Token kennt Home Assistant nicht.",
+          "token_not_long_lived": "Das ist kein langlebiges Zugriffstoken.",
+          "token_not_admin": "Dieses Token gehört keinem Administrator."
         }
       }
     },

@@ -1,30 +1,33 @@
 """What the agent needs from Home Assistant, set up by the integration
-(docs/spec/setup.md, docs/spec/hacs-default.md): a long-lived token of Home
-Assistant's owner, given with an admin's consent in the setup, and Home
-Assistant's MCP server with the Assist API. Then nobody has to make a token
-by hand, or know the MCP server integration."""
+(docs/spec/setup.md, docs/spec/hacs-default.md): a long-lived token of an
+admin that the admin pastes at the setup, and Home Assistant's MCP server
+with the Assist API. The integration never makes a token itself."""
 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
-from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, User
+import voluptuous as vol
+from homeassistant.auth.models import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN, RefreshToken
 from homeassistant.config_entries import SOURCE_USER, ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import selector
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.storage import Store
 
-from .const import CONF_AGENT_TOKEN
+from .const import CONF_AGENT_TOKEN, CONF_TOKEN_GIVEN
 
 _LOGGER = logging.getLogger(__name__)
 
-# The owner's token for Mira, by this name in the owner's profile. Tokens of
-# the user "Mira" that installs before 0.18 made are named OLD_TOKEN_NAME.
-TOKEN_NAME = "Mira (Integration)"
-OLD_TOKEN_NAME = "Mira agent"
+# The owner's token the integration made itself before 0.23, by this name in
+# the owner's profile: revoked at the first start after the update
+# (docs/spec/hacs-default.md, 4).
+MADE_TOKEN_NAME = "Mira (Integration)"
 MCP_DOMAIN = "mcp_server"
-TOKEN_LIFETIME = timedelta(days=3650)
+# The token field of the setup and of the repair, hidden as a password.
+HA_TOKEN_SCHEMA = vol.Schema(
+    {vol.Required("token"): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD))}
+)
 # Home Assistant's own conversation agent.
 HA_AGENT = "conversation.home_assistant"
 # The tokens of agents this Home Assistant removed, by agent id: it pairs
@@ -35,62 +38,50 @@ HA_AGENT = "conversation.home_assistant"
 REJOIN_STORE = "mira.rejoin"
 
 
-async def owner(hass: HomeAssistant) -> User:
-    """Home Assistant's owner: the admin who set it up, exactly one."""
-    return next(u for u in await hass.auth.async_get_users() if u.is_owner)
+def check_token(hass: HomeAssistant, token: str) -> tuple[RefreshToken | None, str]:
+    """A token an admin pasted: its refresh token, or why it cannot be
+    Mira's (the form's error key). Looked up in Home Assistant's memory."""
+    refresh = hass.auth.async_validate_access_token(token.strip())
+    if refresh is None:
+        return None, "invalid_token"
+    if refresh.token_type != TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN:
+        return None, "token_not_long_lived"
+    if not refresh.user.is_admin:
+        return None, "token_not_admin"
+    return refresh, ""
 
 
-async def make_owner_token(hass: HomeAssistant) -> tuple[str, str]:
-    """A fresh long-lived token of the owner for Mira; an older one of Mira
-    goes. Returns (refresh token id, access token)."""
-    user = await owner(hass)
-    for token in list(user.refresh_tokens.values()):
-        if token.client_name == TOKEN_NAME:
-            hass.auth.async_remove_refresh_token(token)
-    refresh = await hass.auth.async_create_refresh_token(
-        user,
-        client_name=TOKEN_NAME,
-        token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,
-        access_token_expiration=TOKEN_LIFETIME,
+def token_works(hass: HomeAssistant, refresh_token_id: str) -> bool:
+    """Whether the token Mira was given still works: it exists, its user is
+    active and an admin."""
+    refresh = hass.auth.async_get_refresh_token(refresh_token_id)
+    return refresh is not None and refresh.user.is_active and refresh.user.is_admin
+
+
+def revoke_made_token(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """The owner's token the integration made itself before 0.23 goes: no
+    token made by the integration stays. True when one was revoked."""
+    refresh_id = entry.data.get(CONF_AGENT_TOKEN)
+    if not refresh_id or entry.data.get(CONF_TOKEN_GIVEN):
+        return False
+    refresh = hass.auth.async_get_refresh_token(refresh_id)
+    if refresh is None or refresh.client_name != MADE_TOKEN_NAME:
+        return False
+    hass.auth.async_remove_refresh_token(refresh)
+    _LOGGER.info(
+        "Revoked the token %r the integration made for Mira before; an admin gives Mira a token under Repairs",
+        MADE_TOKEN_NAME,
     )
-    return refresh.id, hass.auth.async_create_access_token(refresh)
+    return True
 
 
-def token_state(hass: HomeAssistant, refresh_token_id: str | None) -> str:
-    """What became of the token the integration made: "owner" (as it should
-    be), "old" (the user "Mira"'s, before 0.18), "gone" (revoked), or ""
-    (none made here: an agent with Home Assistant's token in its own file)."""
-    if not refresh_token_id:
-        return ""
-    token = hass.auth.async_get_refresh_token(refresh_token_id)
-    if token is None:
-        return "gone"
-    return "owner" if token.user.is_owner else "old"
-
-
-async def renew_access(hass: HomeAssistant, entry: ConfigEntry, client) -> None:
-    """A new owner's token for the agent, sent to it (it starts anew); the
-    one before goes. Raises MiraError when the agent refuses it: then the new
-    token is withdrawn again and the old one stays."""
-    before = entry.data.get(CONF_AGENT_TOKEN)
-    refresh_id, token = await make_owner_token(hass)
-    try:
-        await client.setup(ha_url(hass), token, None)
-    except Exception:
-        revoke_agent_token(hass, refresh_id)
-        raise
-    hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_AGENT_TOKEN: refresh_id})
-    if before != refresh_id:
-        revoke_agent_token(hass, before)
-
-
-def revoke_agent_token(hass: HomeAssistant, refresh_token_id: str | None) -> None:
-    """Withdraw the token Mira had."""
-    if not refresh_token_id:
-        return
-    token = hass.auth.async_get_refresh_token(refresh_token_id)
-    if token is not None:
-        hass.auth.async_remove_refresh_token(token)
+async def give_token(hass: HomeAssistant, entry: ConfigEntry, client, token: str, refresh: RefreshToken) -> None:
+    """The token an admin gave, sent to the agent (it starts anew) and its
+    id kept. Raises MiraError when the agent refuses it."""
+    await client.setup(ha_url(hass), token.strip(), None)
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, CONF_AGENT_TOKEN: refresh.id, CONF_TOKEN_GIVEN: True}
+    )
 
 
 async def ensure_mcp_server(hass: HomeAssistant) -> None:

@@ -82,7 +82,7 @@ var catalog = map[i18n.Lang]texts{
 		title:         "Schlaf-Timer %s",
 		failed:        "Ergebnis: kein Timer. Grund: Anlegen fehlgeschlagen: %s.",
 		badAction:     "Unbekannte action; erlaubt sind set, list, extend, cancel.",
-		needAccess:    "Ergebnis: kein Timer. Grund: Dafür braucht Mira erst einen neuen Zugang: Einstellungen → Reparaturen.",
+		needAccess:    "Ergebnis: kein Timer. Grund: Mira braucht erst wieder einen Zugang: Einstellungen → Reparaturen.",
 	},
 	i18n.EN: {
 		sleepDesc:     "Sleep timer: after the time the playback in the room stops (audiobook, radio, music), and on request the light goes off too. action: set (default) sets it (\"sleep timer 30 minutes\", \"turn the music off in half an hour\"; an existing one in the room is replaced), list shows the open ones with the time left, extend extends (\"ten more minutes\"), cancel cancels. Runs in Home Assistant, even when Mira is off. Not for kitchen timers that count down: Home Assistant's timer tools (HassStartTimer and the others) are for that.",
@@ -105,7 +105,7 @@ var catalog = map[i18n.Lang]texts{
 		title:         "Sleep timer %s",
 		failed:        "Result: no timer. Reason: setting it failed: %s.",
 		badAction:     "Unknown action; allowed are set, list, extend, cancel.",
-		needAccess:    "Result: no timer. Reason: Mira first needs a new access for that: Settings → Repairs.",
+		needAccess:    "Result: no timer. Reason: Mira needs an access again first: Settings → Repairs.",
 	},
 }
 
