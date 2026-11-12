@@ -302,6 +302,18 @@ func (m *Manager) link(ctx context.Context, sessionKey string, th store.Thread) 
 		m.log.Warn("could not link the turn to its thread", "thread", th.ID, "error", err)
 	}
 	m.openSkill(ctx, sessionKey, th.Target)
+	if !th.Deadline.IsZero() {
+		// Taken up: from now on its type's timeout counts, as for every
+		// thread (docs/spec/messages.md, decision 11).
+		if _, err := m.change(ctx, th.ID, func(t *store.Thread) error {
+			t.Deadline = time.Time{}
+			m.extend(t)
+			return nil
+		}); err != nil {
+			m.log.Warn("could not extend a thread taken up; it keeps its starter's expiry", "thread", th.ID,
+				"expires", th.Deadline, "error", err)
+		}
+	}
 }
 
 // openSkill opens a thread's skill for a turn, so it has the skill's tools.
@@ -341,6 +353,10 @@ func (m *Manager) save(ctx context.Context, th *store.Thread) error {
 func (m *Manager) extend(th *store.Thread) {
 	sk := m.targets[th.Target]
 	th.ExpiresAt = m.opts.Clock().Add(sk.Target.TimeoutDuration())
+	if !th.Deadline.IsZero() {
+		// Its starter's expiry, until a turn takes it up (decision 11).
+		th.ExpiresAt = th.Deadline
+	}
 	if sk.Target.Plan {
 		if c := planOf(*th); c.DoneAt != nil {
 			th.ExpiresAt = c.DoneAt.Add(sk.Target.DoneAfterDuration())
@@ -731,7 +747,7 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 		}
 		receiver = tools.ReceiverFor("", tools.Invocation{SessionKey: th.Place, Channel: config.ChannelTelegram}, persons)
 	}
-	n := store.Message{ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
+	n := store.Message{ID: ulid.Make().String(), Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
 		Importance: 2, Receiver: receiver, Spoken: text, Details: m.summary(th), ThreadID: th.ID,
 		ExpiresAt: th.ExpiresAt, OriginDevice: th.Device}
 	if err := m.opts.Deliver(ctx, n, area); err != nil {
@@ -799,6 +815,9 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 		return "", errors.New(m.texts().noThread)
 	}
 	m.end(ctx, th, store.ThreadCancelled)
+	if open := m.stillOpen(ctx, th); open != "" {
+		return m.texts().cancelled + " " + open, nil
+	}
 	return m.texts().cancelled, nil
 }
 

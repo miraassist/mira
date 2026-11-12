@@ -177,15 +177,35 @@ func (m *Manager) SetPlan(ctx context.Context, inv tools.Invocation, target, req
 // (docs/spec/inbox.md, step 3: a document's findings). It returns the
 // thread; nothing is said yet (see Ask).
 func (m *Manager) StartFor(ctx context.Context, target, person, request, plan string, fields map[string]string) (store.Thread, error) {
+	if person == "" {
+		return store.Thread{}, errors.New("a thread started by Mira's code needs a person")
+	}
+	return m.StartAt(ctx, Begin{Target: target, Person: person, Request: request, Plan: plan, Fields: fields})
+}
+
+// Begin is a plan thread Mira's code starts: of a person, or of the house
+// when Person is empty; Deadline is its own expiry until a turn takes it up
+// (docs/spec/messages.md, decision 11), zero for its type's timeout.
+type Begin struct {
+	Target, Person, Request, Plan string
+	Fields                        map[string]string
+	Deadline                      time.Time
+}
+
+// StartAt starts a plan thread from Mira's code (decisions 11 and 13).
+func (m *Manager) StartAt(ctx context.Context, b Begin) (store.Thread, error) {
+	target, person, request, plan, fields := b.Target, b.Person, b.Request, b.Plan, b.Fields
 	sk, ok := m.targets[target]
 	if !ok || !sk.Target.Plan {
 		return store.Thread{}, fmt.Errorf(m.texts().noTarget, target)
 	}
-	if person == "" {
-		return store.Thread{}, errors.New("a thread started by Mira's code needs a person")
+	place := store.PlaceHouse
+	if person != "" {
+		place = "person:" + person
 	}
-	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: "person:" + person,
-		Person: person, State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: fields}
+	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place,
+		Person: person, State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: fields,
+		Deadline: b.Deadline}
 	if th.Fields == nil {
 		th.Fields = map[string]string{}
 	}
@@ -421,6 +441,9 @@ func (m *Manager) PlanNote(ctx context.Context, inv tools.Invocation, action, te
 	}
 	if became {
 		m.done(ctx, th)
+		if open := m.stillOpen(ctx, th); open != "" {
+			return m.planStatus(th) + "\n" + open, nil
+		}
 	}
 	return m.planStatus(th), nil
 }

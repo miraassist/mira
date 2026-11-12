@@ -17,7 +17,7 @@ func TestMessagesReadKeepsTheFactsExact(t *testing.T) {
 		i18n.DE: {"Uhrzeit", "Orte", "Beträge", "Fristen", "Namen", "genau so", "mehreren Terminen"},
 		i18n.EN: {"times", "places", "amounts", "deadlines", "names", "exactly", "several appointments"},
 	} {
-		tool := MessagesRead(lang, func(context.Context, Invocation) (string, error) { return msg, nil })
+		tool := MessagesRead(lang, func(context.Context, Invocation) (Reading, error) { return Reading{Text: msg}, nil })
 		out, err := tool.Run(context.Background(), Invocation{})
 		if err != nil {
 			t.Fatal(err)
@@ -30,5 +30,29 @@ func TestMessagesReadKeepsTheFactsExact(t *testing.T) {
 				t.Errorf("%s: the instruction does not name %q: %q", lang, w, out)
 			}
 		}
+	}
+}
+
+// docs/spec/messages.md, MS-10: with entries that go on in a skill, the model
+// says what waits and asks what to start with; each lead with its thread.
+func TestMS10_DifferentKindsAreNamedAndTheUserChooses(t *testing.T) {
+	tool := MessagesRead(i18n.DE, func(context.Context, Invocation) (Reading, error) {
+		return Reading{Text: "Der Gasverbrauch ist hoch.", Leads: []Lead{
+			{Line: "Elternbrief, 2 Termine", Skill: "postfach", Thread: "t1"},
+			{Line: "Oma, heute 14:12", Skill: "anrufbeantworter"}}}, nil
+	})
+	out, err := tool.Run(context.Background(), Invocation{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"womit du anfangen sollst", "thread_take", "- Elternbrief, 2 Termine (Skill postfach, Vorgang t1)",
+		"- Oma, heute 14:12 (Skill anrufbeantworter)", "Der Gasverbrauch ist hoch."} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lacks %q:\n%s", want, out)
+		}
+	}
+	nothing := MessagesRead(i18n.DE, func(context.Context, Invocation) (Reading, error) { return Reading{}, nil })
+	if out, _ := nothing.Run(context.Background(), Invocation{}); out != "Keine neuen Nachrichten." {
+		t.Errorf("nothing: %q", out)
 	}
 }

@@ -670,7 +670,7 @@ func TestMQ09_NoListeningWhileAClipPlays(t *testing.T) {
 func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Der Wechselrichter meldet Fehlercode zweiundvierzig."})
 	ctx := context.Background()
-	n, _, err := h.store.PutMessage(ctx, store.Message{ID: "inv", Source: store.SourceHATrigger, Importance: 2,
+	n, _, err := h.store.PutMessage(ctx, store.Message{ID: "inv", Kind: store.KindSimple, Source: store.SourceHATrigger, Importance: 2,
 		Spoken: "Der Wechselrichter meldet einen Fehler.", Details: "Status fault, Fehlercode 42, seit 03:00.",
 		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
 	if err != nil {
@@ -696,7 +696,7 @@ func TestFollowUpAfterAnnouncementSeesDetailsAndAcknowledges(t *testing.T) {
 func TestFollowUpWindowExpires(t *testing.T) {
 	h := newHarness(t, fakellm.Step{Content: "Hallo."})
 	ctx := context.Background()
-	h.store.PutMessage(ctx, store.Message{ID: "inv", Source: store.SourceHATrigger, Importance: 2, Spoken: "x", Details: "Fehlercode 42",
+	h.store.PutMessage(ctx, store.Message{ID: "inv", Kind: store.KindSimple, Source: store.SourceHATrigger, Importance: 2, Spoken: "x", Details: "Fehlercode 42",
 		ExpiresAt: h.clock.Now().Add(24 * time.Hour)})
 	h.store.MarkDelivered(ctx, "inv", "voice:kueche")
 	h.store.RecordAnnouncement(ctx, store.Announcement{ID: "a1", DeviceID: "sat-kueche", Channel: "voice", MessageIDs: []string{"inv"}})

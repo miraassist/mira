@@ -208,6 +208,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	if err != nil {
 		return nil, err
 	}
+	// Messages of the form before kinds are dropped, not carried over
+	// (docs/spec/messages.md, decision 15).
+	if n, err := a.store.DropOldFormMessages(ctx); err != nil {
+		a.log.Warn("could not drop the messages of the old form; they stay and are delivered as before", "error", err)
+	} else if n > 0 {
+		a.log.Info("messages of the form before kinds dropped at the update", "messages", n)
+	}
 	// The config as it runs: the file; what Home Assistant sends comes
 	// after the start. Read from the start, by the web search switch too.
 	a.live = cfg
@@ -1071,21 +1078,29 @@ func (a *app) openMessages(ctx context.Context, inv tools.Invocation) ([]store.M
 	return a.messageNotifier().Open(ctx, area, receiver)
 }
 
-func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (string, error) {
+func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (tools.Reading, error) {
 	n := a.messageNotifier()
 	area, device, receiver, err := a.asker(ctx, inv)
 	if err != nil {
-		return "", err
+		return tools.Reading{}, err
 	}
-	text, err := n.ReadOut(ctx, area, device, receiver)
-	if err != nil || a.voicemail == nil || !a.voicemailOn() {
-		return text, err
+	got, err := n.ReadOut(ctx, area, device, receiver)
+	if err != nil {
+		return tools.Reading{}, err
 	}
-	// After Mira's own messages, the answering machine's news.
+	r := tools.Reading{Text: got.Text}
+	for _, ld := range got.Leads {
+		r.Leads = append(r.Leads, tools.Lead{Line: ld.Line, Skill: ld.Skill, Thread: ld.Thread})
+	}
+	if a.voicemail == nil || !a.voicemailOn() {
+		return r, nil
+	}
+	// After Mira's own messages, the answering machine's news (until it is a
+	// message of its own, docs/spec/messages.md, step 4).
 	if line := a.voicemail.NewsLine(ctx); line != "" {
-		text = strings.TrimSpace(text + "\n" + line)
+		r.Text = strings.TrimSpace(r.Text + "\n" + line)
 	}
-	return text, nil
+	return r, nil
 }
 
 func (a *app) goProactive(ctx context.Context, name string, fn func(context.Context) error) {

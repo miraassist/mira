@@ -87,11 +87,11 @@ With **Mira: Agent** (`mira.agent`) an automation starts one of Mira's agents, f
 
 Mira speaks up when something happens: a leak sensor goes off, the washing machine is done, the bins are collected tomorrow, a task finds something unusual. How she tells you depends on the room and the importance.
 
-> 🎬 **Recording to follow:** the LED ring pulses, you ask "Do you have a notification?", Mira reads it out.
+> 🎬 **Recording to follow:** the LED ring pulses, you ask "Do I have new messages?", Mira reads it out.
 
 Per satellite you set:
 
-- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "Mira · 1 message waiting" instead as soon as something new arrives, and takes it away when everything was heard; Mira finds that out by herself. Then ask: **"Do you have a notification?"** or "Anything new?".
+- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "Mira · 1 message waiting" instead as soon as something new arrives, and takes it away when everything was heard; Mira finds that out by herself. Then ask: **"Do I have new messages?"** or "Anything new?". Mira tells you everything that waits; when different things wait (mail, the answering machine, a new device), she asks what to start with and then goes through them with you one after the other.
 - **Announce on entry**: when a motion sensor notices someone entering the room, Mira says by herself what is pending; the first motion after quiet hours starts with "Good morning". Without a motion sensor, or switched off, she does not speak up on her own.
 
 Several messages become one announcement, the most important first and with times where they help ("tonight at three …").

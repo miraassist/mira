@@ -33,8 +33,12 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 	}
 	for sat, action := range n.screens {
 		area := n.areaOf(sat)
-		list := w.in(area)
-		count := len(list)
+		// What one perceives as messages are the entries: a gathered
+		// message with three counts three.
+		count := 0
+		for _, m := range w.in(area) {
+			count += max(1, len(m.Entries))
+		}
 		if count == n.screenCount[sat] {
 			continue
 		}

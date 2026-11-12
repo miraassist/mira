@@ -17,6 +17,7 @@ const (
 	ToolCancel  = "thread_cancel"
 	ToolUndo    = "thread_undo"
 	ToolPlan    = "thread_plan"
+	ToolTake    = "thread_take"
 )
 
 // Tools are the thread tools; none without a target. The list of targets
@@ -74,6 +75,19 @@ func (m *Manager) Tools() []tools.InternalTool {
 		{
 			Name: ToolConfirm, Description: t.confirmDesc, Schema: empty, AskAfterWeb: true,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Confirm(ctx, inv) },
+		},
+		{
+			Name: ToolTake, Description: t.takeDesc,
+			Schema: fmt.Sprintf(`{"type":"object","properties":{"id":{"type":"string","description":%q}},"required":["id"]}`, t.takeIDDesc),
+			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+				var a struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal(inv.Args, &a); err != nil {
+					return "", err
+				}
+				return m.Take(ctx, inv, strings.TrimSpace(a.ID))
+			},
 		},
 		{
 			Name: ToolCancel, Description: t.cancelDesc, Schema: empty,

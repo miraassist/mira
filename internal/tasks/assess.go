@@ -139,8 +139,8 @@ func (m *Manager) Assess(ctx context.Context, r Request) (Verdict, error) {
 			receiver = store.ReceiverHouse
 		}
 		n, _, err := m.opts.Store.PutMessage(ctx, store.Message{
-			ID: ulid.Make().String(), Source: store.SourceTask, DedupeKey: dedupe,
-			Importance: v.Importance, Receiver: receiver, Confidentiality: r.Confidentiality,
+			ID: ulid.Make().String(), Kind: store.KindFor(v.Importance, r.Confidentiality), Source: store.SourceTask,
+			DedupeKey: dedupe, Importance: v.Importance, Receiver: receiver,
 			Spoken: v.Spoken, Details: details, ExpiresAt: m.opts.Clock().Add(expiry),
 		})
 		if err != nil {

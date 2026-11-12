@@ -187,7 +187,7 @@ func (a *app) resultMessage(ctx context.Context, rec store.AgentRun, d agent.Del
 	if nf == nil {
 		return fmt.Errorf("no notifier is running")
 	}
-	return nf.Tell(ctx, store.Message{ID: ulid.Make().String(), Source: store.SourceTask,
+	return nf.Tell(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindReply, Source: store.SourceTask,
 		DedupeKey: "agent:" + rec.CallID, Importance: 2, Receiver: receiver, Spoken: spoken,
 		Details: about, OriginDevice: d.Device}, d.Area)
 }

@@ -3,7 +3,6 @@ package notifier
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -183,6 +182,25 @@ type env struct {
 	tg  *fakePrivate
 	now time.Time
 	t   *testing.T
+	log *syncBuffer
+}
+
+// syncBuffer is a log writers of several goroutines may share.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (e *env) logged() string {
+	e.log.mu.Lock()
+	defer e.log.mu.Unlock()
+	return e.log.b.String()
 }
 
 func at(hhmm string) time.Time {
@@ -204,7 +222,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	e := &env{cfg: cfg, t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
+	e := &env{log: &syncBuffer{}, cfg: cfg, t: t, now: at("03:00"), tg: &fakePrivate{sent: map[string][]string{}}}
 	e.ha = &fakeHA{states: map[string]haws.State{}, private: e.tg}
 	e.ha.set("assist_satellite.bad", "idle", map[string]any{"supported_features": float64(3)})
 	e.ha.set("assist_satellite.kueche", "idle", map[string]any{"supported_features": float64(1)})
@@ -220,7 +238,7 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	entities, _ := e.ha.Entities(context.Background())
 	snap := structure.Build(structure.Registry{Entities: entities})
 	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
-		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(e.log, nil)),
 		Structure: func() structure.Snapshot { return snap }})
 	e.n.speakPause = 0
 	return e
@@ -232,6 +250,9 @@ func (e *env) message(id string, importance int, mutate func(*store.Message)) {
 		Spoken: "Hinweis " + id, Details: "Details " + id, ExpiresAt: e.now.Add(48 * time.Hour)}
 	if mutate != nil {
 		mutate(&n)
+	}
+	if n.Kind == "" {
+		n.Kind = store.KindFor(n.Importance, n.Confidentiality)
 	}
 	if _, _, err := e.st.PutMessage(context.Background(), n); err != nil {
 		e.t.Fatal(err)
@@ -376,13 +397,16 @@ func TestCooldownPerArea(t *testing.T) {
 	}
 }
 
+// Messages that are not gathered (here replies) are bundled, the most
+// important three; a gathered message counts as one (decision 18).
 func TestBundlingTakesTheMostImportantThree(t *testing.T) {
 	e := newEnv(t, nil)
-	e.message("n1", 1, nil)
-	e.message("n2", 3, nil)
-	e.message("n3", 2, nil)
-	e.message("n4", 1, nil)
-	e.message("n5", 2, nil)
+	reply := func(m *store.Message) { m.Kind = store.KindReply }
+	e.message("n1", 1, reply)
+	e.message("n2", 3, reply)
+	e.message("n3", 2, reply)
+	e.message("n4", 1, reply)
+	e.message("n5", 2, reply)
 	e.now = at("12:00")
 	out := e.presence("bad")
 	if got := strings.Join(out.Announced, ","); got != "n2,n3,n5" {

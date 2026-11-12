@@ -21,6 +21,8 @@ type texts struct {
 	fieldByAgent, planByAgent, agentStarted, agentFilled, agentFailedLog  string
 	agentAsk, agentPlanFailed, agentPlanReady                             string
 	planNoteDesc, noteOnlyCheck, noteTooLong                              string
+	takeDesc, takeIDDesc, notYours, openLine, noneOpen, stillOpen         string
+	waitingLine                                                           string
 	stateHint                                                             map[string]string
 }
 
@@ -32,6 +34,13 @@ var catalog = map[i18n.Lang]texts{
 		fieldsDesc:       "Feldname -> Wert, nur die neuen oder geänderten.",
 		confirmDesc:      "Schließt den Vorgang ab, der auf ein Ja wartet, wenn der Nutzer zustimmt (auch wenn es im zusätzlichen Kontext steht). Danach nur kurz bestätigen.",
 		cancelDesc:       "Bricht den laufenden oder hier wartenden Vorgang ab, wenn der Nutzer ihn nicht mehr will.",
+		takeDesc:         "Nimmt einen Vorgang auf, den der Nutzer gewählt hat (aus messages_read oder den wartenden Vorgängen): Ab dann gilt jedes Werkzeug eines Vorgangs für diesen, bis er fertig ist. Eins nach dem anderen.",
+		takeIDDesc:       "Die id des Vorgangs.",
+		notYours:         "Diesen Vorgang kann ich hier nicht aufnehmen. Offen für dich:",
+		openLine:         "\n- %s (%s): %s",
+		noneOpen:         "Für dich ist kein Vorgang offen.",
+		stillOpen:        "Noch offen: %s. Biete das Nächste an.",
+		waitingLine:      "Wartet noch (Einzelheiten mit messages_read): %s",
 		noTarget:         "kein Ziel %q",
 		noThread:         "hier läuft kein Vorgang; eröffne einen mit thread_start",
 		nothingToConfirm: "der Vorgang wartet auf kein Ja; fülle mit thread_fill, was fehlt",
@@ -110,6 +119,13 @@ var catalog = map[i18n.Lang]texts{
 		fieldsDesc:       "field name -> value, only new or changed ones.",
 		confirmDesc:      "Finishes the thread that waits for a yes, when the user agrees (also if it is in the additional context). Then confirm only briefly.",
 		cancelDesc:       "Cancels the current thread or the one waiting here when the user no longer wants it.",
+		takeDesc:         "Takes up a thread the user chose (from messages_read or the waiting threads): from then on every thread tool acts on it until it ends. One after the other.",
+		takeIDDesc:       "The thread's id.",
+		notYours:         "I cannot take up that thread here. Open for you:",
+		openLine:         "\n- %s (%s): %s",
+		noneOpen:         "No thread is open for you.",
+		stillOpen:        "Still open: %s. Offer the next one.",
+		waitingLine:      "Still waiting (details with messages_read): %s",
 		noTarget:         "no target %q",
 		noThread:         "no thread runs here; open one with thread_start",
 		nothingToConfirm: "the thread waits for no yes; fill what is missing with thread_fill",

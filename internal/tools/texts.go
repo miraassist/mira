@@ -20,6 +20,7 @@ type texts struct {
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                                  string // reminderSaved: time, id
 	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled          string
 	messagesReadDesc, messagesNothing, messagesReadOut                                            string
+	messagesChoose, leadLine, leadLineNoThread, messagesAlso                                      string // leadLine: line, skill, thread
 
 	denyStoreFailed   string
 	needsConfirmation string // %s = summary of the call, %s = the hook's reason with a space, or nothing
@@ -82,9 +83,13 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Löscht eine offene Erinnerung anhand ihrer id (aus reminder_list).",
 		noSuchReminder:     "keine offene Erinnerung mit dieser id",
 		reminderCancelled:  "Erinnerung gelöscht.",
-		messagesReadDesc:   "Liest die wartenden Benachrichtigungen für diesen Raum oder diese Person vor und markiert sie als gehört. Rufe es auf, wenn der Nutzer fragt: \"Hast du eine Benachrichtigung?\", \"Gibt es was Neues?\", \"Was gibt's?\".",
-		messagesNothing:    "Keine neuen Benachrichtigungen.",
-		messagesReadOut:    "Sag dem Nutzer diese Benachrichtigungen vollständig. In eigenen Worten ist gut, aber Datum und Uhrzeit, Orte, Beträge, Fristen und Namen sagst du genau so, wie sie hier stehen; nichts davon weglassen oder zusammenfassen, auch nicht bei mehreren Terminen: ",
+		messagesReadDesc:   "Liest die wartenden Nachrichten für diesen Raum oder diese Person und markiert sie als gehört. Ruf es immer zuerst auf, wenn der Nutzer nach Neuem fragt (\"Hab ich neue Nachrichten?\", \"Gibt es was Neues?\", \"Was gibt's?\"), auch wenn es um Post, den Anrufbeantworter oder neue Geräte gehen könnte: Es sagt, was wartet, und wie es weitergeht.",
+		messagesNothing:    "Keine neuen Nachrichten.",
+		messagesChoose:     "Es wartet etwas, das mit einem Skill weitergeht. Sag dem Nutzer kurz, was wartet, und frag, womit du anfangen sollst. Wählt er etwas, nimm seinen Vorgang mit thread_take (die id steht dabei) und mach in dem Skill weiter; ohne Vorgang öffne den Skill. Eins nach dem anderen.\n",
+		leadLine:           "- %s (Skill %s, Vorgang %s)\n",
+		leadLineNoThread:   "- %s (Skill %s)\n",
+		messagesAlso:       "Dazu diese Nachrichten zum Vorlesen; Datum und Uhrzeit, Orte, Beträge, Fristen und Namen genau so, wie sie hier stehen: ",
+		messagesReadOut:    "Sag dem Nutzer diese Nachrichten vollständig. In eigenen Worten ist gut, aber Datum und Uhrzeit, Orte, Beträge, Fristen und Namen sagst du genau so, wie sie hier stehen; nichts davon weglassen oder zusammenfassen, auch nicht bei mehreren Terminen: ",
 
 		denyStoreFailed:   "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt.",
 		needsConfirmation: "NICHT AUSGEFÜHRT – Nachfrage nötig (%s). %sFrage den Nutzer jetzt kurz, ob du es tun sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
@@ -143,9 +148,13 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelDesc: "Deletes an open reminder by its id (from reminder_list).",
 		noSuchReminder:     "no open reminder with this id",
 		reminderCancelled:  "Reminder deleted.",
-		messagesReadDesc:   "Reads out the waiting notifications for this room or person and marks them as heard. Call it when the user asks: \"Do you have a notification?\", \"Anything new?\", \"What's up?\".",
-		messagesNothing:    "No new notifications.",
-		messagesReadOut:    "Tell the user these notifications completely. Your own words are fine, but dates and times, places, amounts, deadlines and names you say exactly as they stand here; leave none of them out and do not sum them up, also not with several appointments: ",
+		messagesReadDesc:   "Reads the waiting messages for this room or person and marks them as heard. Always call it first when the user asks for news (\"Do I have new messages?\", \"Anything new?\", \"What's up?\"), also when it might be about mail, the answering machine or new devices: it says what waits and how it goes on.",
+		messagesNothing:    "No new messages.",
+		messagesChoose:     "Something waits that goes on in a skill. Tell the user briefly what waits and ask what to start with. When they choose, take its thread with thread_take (the id is given) and go on in the skill; without a thread, open the skill. One after the other.\n",
+		leadLine:           "- %s (skill %s, thread %s)\n",
+		leadLineNoThread:   "- %s (skill %s)\n",
+		messagesAlso:       "Besides, these messages to read out; dates and times, places, amounts, deadlines and names exactly as they stand here: ",
+		messagesReadOut:    "Tell the user these messages completely. Your own words are fine, but dates and times, places, amounts, deadlines and names you say exactly as they stand here; leave none of them out and do not sum them up, also not with several appointments: ",
 
 		denyStoreFailed:   "Denied: the confirmation could not be recorded. The action was not performed.",
 		needsConfirmation: "NOT PERFORMED – question needed (%s). %sAsk the user briefly now whether you should do it, and end your answer with that question. Only when they agree in the next step, call the tool again with the same arguments.",

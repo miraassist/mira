@@ -30,7 +30,9 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 	var asked []string
 	waiting := "Übrigens: Heute hast du einen Zahnarzttermin."
 	internal := append(tools.Internal(i18n.DE, st, nil),
-		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (string, error) { return "Nichts.", nil }))
+		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (tools.Reading, error) {
+			return tools.Reading{Text: "Nichts."}, nil
+		}))
 	e := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
 		Tools: tools.NewRegistry(nil, internal...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),

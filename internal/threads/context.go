@@ -27,6 +27,16 @@ func (m *Manager) Context(ctx context.Context, sess store.Session, place string,
 	if !m.HasTargets() {
 		return "", false
 	}
+	text, foreign = m.threadsInContext(ctx, sess, place, followedUp, announced)
+	// One line of what still waits to be taken up, not the threads in full
+	// (docs/spec/messages.md, decision 10).
+	if line := m.waitingLine(ctx, place); line != "" {
+		text = strings.TrimSpace(text + "\n\n" + line)
+	}
+	return text, foreign
+}
+
+func (m *Manager) threadsInContext(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (text string, foreign bool) {
 	t := m.texts()
 	threadIDs := []string{announced}
 	for _, id := range followedUp {

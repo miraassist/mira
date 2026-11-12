@@ -146,7 +146,7 @@ func TestMessageDedupeKeepsOneOpenRow(t *testing.T) {
 	s, clk := newStore(t)
 	exp := clk.Now().Add(12 * time.Hour)
 
-	first, created, err := s.PutMessage(ctx, Message{
+	first, created, err := s.PutMessage(ctx, Message{Kind: KindSimple,
 		ID: "n1", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 2, Spoken: "Der Wechselrichter meldet einen Fehler.", ExpiresAt: exp,
 	})
@@ -155,7 +155,7 @@ func TestMessageDedupeKeepsOneOpenRow(t *testing.T) {
 	}
 
 	// The sensor flaps: same dedupe key, new id offered.
-	second, created, err := s.PutMessage(ctx, Message{
+	second, created, err := s.PutMessage(ctx, Message{Kind: KindSimple,
 		ID: "n2", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 3, Spoken: "Der Wechselrichter meldet weiterhin einen Fehler.", ExpiresAt: exp,
 	})
@@ -184,7 +184,7 @@ func TestMessageDedupeKeepsOneOpenRow(t *testing.T) {
 	if err := s.SetMessageState(ctx, first.ID, MessageAcked); err != nil {
 		t.Fatalf("SetMessageState: %v", err)
 	}
-	_, created, err = s.PutMessage(ctx, Message{
+	_, created, err = s.PutMessage(ctx, Message{Kind: KindSimple,
 		ID: "n3", Source: SourceHATrigger, DedupeKey: "inverter:fault",
 		Importance: 2, Spoken: "Erneut ein Fehler.", ExpiresAt: exp,
 	})
@@ -197,7 +197,7 @@ func TestMessageDeliveryAndExpiry(t *testing.T) {
 	ctx := context.Background()
 	s, clk := newStore(t)
 
-	if _, _, err := s.PutMessage(ctx, Message{
+	if _, _, err := s.PutMessage(ctx, Message{Kind: KindSimple,
 		ID: "n1", Source: SourceExternal, Importance: 2, Spoken: "Hallo",
 		ExpiresAt: clk.Now().Add(1 * time.Hour),
 	}); err != nil {
@@ -237,7 +237,7 @@ func TestListMessagesOrdersByImportanceThenAge(t *testing.T) {
 
 	mustPut := func(id string, imp int) {
 		t.Helper()
-		if _, _, err := s.PutMessage(ctx, Message{ID: id, Source: SourceExternal, Importance: imp, Spoken: id, ExpiresAt: exp}); err != nil {
+		if _, _, err := s.PutMessage(ctx, Message{ID: id, Kind: KindReply, Source: SourceExternal, Importance: imp, Spoken: id, ExpiresAt: exp}); err != nil {
 			t.Fatalf("put %s: %v", id, err)
 		}
 		clk.Add(time.Second)
@@ -397,7 +397,7 @@ func TestOnMessage(t *testing.T) {
 	s, _ := newStore(t)
 	got := make(chan struct{}, 2)
 	s.OnMessage(func() { got <- struct{}{} })
-	if _, _, err := s.PutMessage(context.Background(), Message{ID: "m1", Spoken: "x"}); err != nil {
+	if _, _, err := s.PutMessage(context.Background(), Message{Kind: KindSimple, ID: "m1", Spoken: "x"}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -414,7 +414,7 @@ func TestResetForEval(t *testing.T) {
 	ctx := context.Background()
 	s.SaveFact(ctx, Fact{ID: "a", Text: "Anna mag Tee.", Owner: "anna"})
 	s.SetKV(ctx, "language.last", "de")
-	if _, _, err := s.PutMessage(ctx, Message{ID: "m", Source: "test", Receiver: ReceiverHouse, Spoken: "x", Importance: 1}); err != nil {
+	if _, _, err := s.PutMessage(ctx, Message{Kind: KindSimple, ID: "m", Source: "test", Receiver: ReceiverHouse, Spoken: "x", Importance: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ResetForEval(ctx); err != nil {

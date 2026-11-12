@@ -13,7 +13,7 @@ import (
 
 func (e *env) reminder(id string, due time.Time, area, receiver string) {
 	e.t.Helper()
-	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: id, Source: store.SourceReminder, Importance: 2,
+	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: id, Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
 		DeliverAt: due, Spoken: "Müll rausbringen", AreaID: area, Receiver: receiver}); err != nil {
 		e.t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestTellWaitsForIdleSatellite(t *testing.T) {
 		}
 		e.ha.set(sat, "idle", nil)
 	}()
-	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+	err := e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche")
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestFB09_AStartConversationThatRunsOutOfTimeCountsAsSpokenOnlyWhenTheSatell
 		e.ha.set(sat, "idle", map[string]any{"supported_features": float64(3)})
 		e.ha.speaks = speaks
 		e.ha.callErr = fmt.Errorf("call_service timed out: %w", context.DeadlineExceeded)
-		if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 			Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 			t.Fatal(err)
 		}
@@ -131,7 +131,7 @@ func TestTellLetsTheSatelliteFinishSpeaking(t *testing.T) {
 	e.ha.set("media_player.kueche", "playing", nil)
 	done := make(chan time.Time, 1)
 	go func() {
-		e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 			Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche")
 		done <- time.Now()
 	}()
@@ -205,7 +205,7 @@ func TestFB11_AMessageForABusySatelliteWaitsUntilItIsIdle(t *testing.T) {
 	e.ha.set(sat, "responding", map[string]any{"supported_features": float64(1)})
 	done := make(chan error, 1)
 	go func() {
-		done <- e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+		done <- e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 			Importance: 2, Receiver: "ben", Spoken: "Mein Vorschlag."}, "kueche")
 	}()
 	select {

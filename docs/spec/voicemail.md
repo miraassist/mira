@@ -31,8 +31,9 @@ the integration Mira FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraa
 ## The skill `anrufbeantworter`
 
 A skill (German) without settings; it needs Mira FRITZ!Box and shows a problem without it, as `telefon` does. Its
-description makes the model open it on "Habe ich neue Nachrichten?", "Spiel die Nachricht von Oma ab", "Wer hat
-angerufen?", "Lösch die Nachricht".
+description makes the model open it on "Was ist auf dem Anrufbeantworter?", "Spiel die Nachricht von Oma ab", "Wer
+hat angerufen?", "Lösch die Nachricht". "Habe ich neue Nachrichten?" is `messages_read`'s since 2026-11-12
+([Messages](messages.md), Kinds of messages): it names the answering machine among what waits.
 
 Its tools (Mira's own, calling the integration's actions):
 

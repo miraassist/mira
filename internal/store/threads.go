@@ -25,6 +25,10 @@ const (
 	ThreadExpired   = "expired"
 )
 
+// PlaceHouse is the place of a thread of the house (docs/spec/messages.md,
+// decision 13): the same wherever it is taken up.
+const PlaceHouse = "house"
+
 // ThreadOpen reports whether a thread in this state may still continue.
 func ThreadOpen(state string) bool {
 	switch state {
@@ -63,6 +67,10 @@ type Thread struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	ExpiresAt time.Time
+	// Deadline is the expiry its starter set (docs/spec/messages.md,
+	// decision 11): until a turn takes the thread up, it expires then;
+	// zero for its type's timeout.
+	Deadline time.Time
 	// Version counts the changes; PutThread writes only over the version it
 	// was read with.
 	Version int
@@ -103,15 +111,16 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 		calls = []byte("{}")
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, state = excluded.state,
 	request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
-	calls = excluded.calls, version = threads.version + 1
+	calls = excluded.calls, deadline = excluded.deadline, version = threads.version + 1
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
-		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area, t.Device)
+		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area, t.Device,
+		formatTime(t.Deadline))
 	if err != nil {
 		return err
 	}
@@ -129,13 +138,13 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
-	var fields, log, content, created, updated, expires, calls string
+	var fields, log, content, created, updated, expires, calls, deadline string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device); err != nil {
+		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device, &deadline); err != nil {
 		return Thread{}, err
 	}
 	// A row that does not read is an error, not an empty thread.
@@ -149,6 +158,7 @@ func scanThread(row scannable) (Thread, error) {
 	}
 	t.Content = json.RawMessage(content)
 	t.CreatedAt, t.UpdatedAt, t.ExpiresAt = parseTime(created), parseTime(updated), parseTime(expires)
+	t.Deadline = parseTime(deadline)
 	return t, nil
 }
 

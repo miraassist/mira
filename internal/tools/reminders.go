@@ -100,7 +100,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 					// "Send that to my phone": no "you ask me to tell you".
 					spoken = text + "."
 				}
-				m := store.Message{ID: ulid.Make().String(), Source: store.SourcePerson, Sender: senderOf(inv),
+				m := store.Message{ID: ulid.Make().String(), Kind: store.KindSimple, Source: store.SourcePerson, Sender: senderOf(inv),
 					Importance: 1, Receiver: receiver, Spoken: spoken, SessionKey: inv.SessionKey,
 					OriginArea: inv.Area, OriginDevice: inv.DeviceID, ExpiresAt: o.Clock().Add(7 * 24 * time.Hour)}
 				if a.At != "" || a.InMinutes != 0 {
@@ -112,7 +112,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 					if due.Before(now.Add(-time.Minute)) {
 						return "", errors.New(t.reminderPast)
 					}
-					m.DeliverAt, m.Importance, m.ExpiresAt = due, 2, time.Time{}
+					m.Kind, m.DeliverAt, m.Importance, m.ExpiresAt = store.KindReminder, due, 2, time.Time{}
 					if _, err := o.Store.ScheduleMessage(ctx, m); err != nil {
 						return "", err
 					}
@@ -161,7 +161,7 @@ func Reminders(o ReminderOptions) []InternalTool {
 						return "", fmt.Errorf(t.unknownReceiver, a.For)
 					}
 				}
-				m := store.Message{ID: ulid.Make().String(), Source: store.SourceReminder, Importance: 2,
+				m := store.Message{ID: ulid.Make().String(), Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
 					Spoken: strings.TrimSpace(a.Text), DeliverAt: due, SessionKey: inv.SessionKey,
 					Receiver: receiver}
 				if m.Receiver != store.ReceiverHouse && m.Receiver != inv.Person {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 
@@ -13,8 +14,8 @@ import (
 
 // In a room with mode "indicate", messages are not spoken when someone comes
 // in. The room's indicator light (the LED ring of an Echo, a lamp) shows
-// that something is waiting, and the user asks for it: "Hast du eine
-// Benachrichtigung?". Nobody is spoken to unasked, and the wake word makes
+// that something is waiting, and the user asks for it: "Hab ich neue
+// Nachrichten?". Nobody is spoken to unasked, and the wake word makes
 // sure the satellite is listening when Mira answers.
 
 // waiting returns the messages that would be spoken in area.
@@ -54,26 +55,39 @@ func (w waitingNow) in(area string) []store.Message {
 		if nt.Source == store.SourceReminder {
 			continue // spoken at its time, never waits
 		}
-		if n.route(nt, home) == routeVoice && !n.heldAt(nt, area) {
-			out = append(out, nt)
+		if n.route(nt, home) != routeVoice {
+			continue
+		}
+		if m, ok := n.unheld(nt, area); ok {
+			out = append(out, m)
 		}
 	}
 	return out
 }
 
-// heldAt reports whether a message does not count as waiting in area yet: it
-// was left there, and whoever left it is standing there
-// (notifier.own_message_hold, counted from when it became due).
-func (n *Notifier) heldAt(nt store.Message, area string) bool {
+// unheld is the message without the entries that do not count as waiting
+// in area yet: they were left there, and whoever left them is standing there
+// (notifier.own_message_hold, counted from when they became due; per entry,
+// docs/spec/messages.md, decision 18), and whether any is left.
+func (n *Notifier) unheld(nt store.Message, area string) (store.Message, bool) {
 	hold := n.cfg.OwnMessageHold.Duration()
-	if hold <= 0 || nt.OriginArea == "" || nt.OriginArea != area {
-		return false
+	if hold <= 0 {
+		return nt, true
 	}
-	ref := nt.CreatedAt
-	if !nt.DeliverAt.IsZero() {
-		ref = nt.DeliverAt
+	held := func(origin string, created time.Time) bool {
+		if origin == "" || origin != area {
+			return false
+		}
+		ref := created
+		if !nt.DeliverAt.IsZero() {
+			ref = nt.DeliverAt
+		}
+		return n.clock().Before(ref.Add(hold))
 	}
-	return n.clock().Before(ref.Add(hold))
+	if len(nt.Entries) == 0 {
+		return nt, !held(nt.OriginArea, nt.CreatedAt)
+	}
+	return nt.Only(func(e store.Entry) bool { return !held(e.OriginArea, e.CreatedAt) })
 }
 
 // What an indicator shows, by rank: Mira's own messages, then the
@@ -238,14 +252,32 @@ func (n *Notifier) SyncIndicators(ctx context.Context) {
 	n.syncIndicators(ctx)
 }
 
-// ReadOut is the answer to "Hast du eine Benachrichtigung?": the messages
-// waiting for area (asked by voice) or for receiver (asked on Telegram), as
-// one text to say, marked delivered. It returns "" when nothing waits.
+// Reading is what waits for the asker (docs/spec/messages.md, Kinds of
+// messages, step 6): the messages to read out, worded as one text, and the
+// entries of kinds with a skill, each a thread to take up.
+type Reading struct {
+	Text  string
+	Leads []Lead
+}
+
+// Lead is an entry of a kind with a skill: what it is, the skill that goes
+// on with it and its thread ("" when it has none yet).
+type Lead struct {
+	Kind, Skill, Thread, Line string
+}
+
+// Empty reports whether nothing waits.
+func (r Reading) Empty() bool { return r.Text == "" && len(r.Leads) == 0 }
+
+// ReadOut is the answer to "Hab ich neue Nachrichten?": the messages
+// waiting for area (asked by voice) or for receiver (asked on Telegram),
+// marked delivered: those of kinds without a skill worded as one text, the
+// entries of the others as leads. Nothing waiting is an empty Reading.
 //
 // Read out by voice, it counts as an announcement on that satellite, so a
 // follow-up question ("Was genau?") gets the details as after any other.
 // device is the satellite's device the turn came from.
-func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (string, error) {
+func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (Reading, error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -257,9 +289,36 @@ func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (
 		list, err = n.forReceiver(ctx, receiver)
 	}
 	if err != nil || len(list) == 0 {
-		return "", err
+		return Reading{}, err
 	}
-	text := n.compose(ctx, list)
+	var said []store.Message
+	var r Reading
+	for _, m := range list {
+		skill := store.KindSkill(m.Kind)
+		if skill == "" {
+			said = append(said, m)
+			continue
+		}
+		for _, e := range m.Entries {
+			if e.ThreadID != "" {
+				// Its entries leave when a thread ends; one that stayed (that
+				// failed) leads nowhere and is not read out
+				// (docs/spec/messages.md, Errors).
+				if th, err := n.store.GetThread(ctx, e.ThreadID); err != nil || !store.ThreadOpen(th.State) {
+					n.log.Warn("an entry of a thread that has ended; not read out, marked done", "message", m.ID,
+						"entry", e.ID, "thread", e.ThreadID, "error", err)
+					if err := n.store.AckEntry(ctx, e.ID); err != nil {
+						n.log.Warn("could not mark the entry done", "entry", e.ID, "error", err)
+					}
+					continue
+				}
+			}
+			r.Leads = append(r.Leads, Lead{Kind: m.Kind, Skill: skill, Thread: e.ThreadID, Line: e.Text})
+		}
+	}
+	if len(said) > 0 {
+		r.Text = n.compose(ctx, said)
+	}
 	via := "telegram"
 	if area != "" {
 		via = "voice:" + area
@@ -268,7 +327,7 @@ func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (
 	for i, nt := range list {
 		ids[i] = nt.ID
 		if err := n.store.MarkDelivered(ctx, nt.ID, via); err != nil && !errors.Is(err, store.ErrNotFound) {
-			return "", err
+			return Reading{}, err
 		}
 	}
 	if device == "" {
@@ -279,13 +338,13 @@ func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (
 			ID: ulid.Make().String(), DeviceID: device, AreaID: area,
 			Channel: "voice", MessageIDs: ids,
 		}); err != nil {
-			return "", err
+			return Reading{}, err
 		}
 	}
 	n.tel.RecordMessageDelivery(ctx, "asked", len(ids))
 	n.log.Info("messages read out on request", "area", area, "receiver", receiver, "messages", len(ids))
 	n.syncIndicators(ctx)
-	return text, nil
+	return r, nil
 }
 
 // maxOpen bounds what Open returns.
@@ -306,6 +365,7 @@ func (n *Notifier) Open(ctx context.Context, area, receiver string) ([]store.Mes
 	if err != nil || len(all) == 0 {
 		return nil, err
 	}
+	all = n.important(all)
 	var home map[string]bool
 	if area != "" {
 		home = n.whoIsHome(ctx)
@@ -317,7 +377,8 @@ func (n *Notifier) Open(ctx context.Context, area, receiver string) ([]store.Mes
 		}
 		var may bool
 		if area != "" {
-			may = n.route(nt, home) == routeVoice && !n.heldAt(nt, area)
+			nt, may = n.unheld(nt, area)
+			may = may && n.route(nt, home) == routeVoice
 		} else {
 			may = nt.Receiver == store.ReceiverHouse || receiver != "" && receiver != store.ReceiverHouse && nt.Receiver == receiver
 		}

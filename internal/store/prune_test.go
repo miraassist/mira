@@ -11,7 +11,7 @@ func TestPruneFinishedKeepsWhatIsOpen(t *testing.T) {
 	s, clock := newStore(t)
 	ctx := context.Background()
 	put := func(id string) {
-		if _, _, err := s.PutMessage(ctx, Message{ID: id, Source: SourceExternal, DedupeKey: id, Importance: 1, Spoken: id}); err != nil {
+		if _, _, err := s.PutMessage(ctx, Message{ID: id, Kind: KindReply, Source: SourceExternal, DedupeKey: id, Importance: 1, Spoken: id}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,6 +1,6 @@
 ---
 name: anrufbeantworter
-description: "Der Anrufbeantworter und verpasste Anrufe: „Habe ich neue Nachrichten?“, „Wer hat angerufen?“, „Spiel die Nachricht von Oma ab“, „Lösch die Nachricht“."
+description: "Der Anrufbeantworter und verpasste Anrufe: „Was ist auf dem Anrufbeantworter?“, „Wer hat angerufen?“, „Spiel die Nachricht von Oma ab“, „Lösch die Nachricht“. Auf „Hab ich neue Nachrichten?“ zuerst messages_read."
 license: MIT
 metadata:
   mira:

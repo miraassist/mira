@@ -231,7 +231,7 @@ func (a *app) inboxAsk(ctx context.Context, q inbox.Question) error {
 	if err := a.threads.Note(ctx, th.ID, q.Text); err != nil {
 		a.log.Warn("could not note the inbox question in its thread", "thread", th.ID, "error", err)
 	}
-	_, _, err = a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Source: store.SourceTask,
+	_, _, err = a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindPostfach, Source: store.SourceTask,
 		DedupeKey: "inbox:" + th.ID, Importance: 1, Receiver: q.Person, Spoken: q.Text, ThreadID: th.ID,
 		ExpiresAt: th.ExpiresAt})
 	return err
@@ -239,7 +239,7 @@ func (a *app) inboxAsk(ctx context.Context, q inbox.Question) error {
 
 // inboxTell leaves a message of the inbox for a person or the house.
 func (a *app) inboxTell(ctx context.Context, receiver, text string) error {
-	_, _, err := a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Source: store.SourceTask,
+	_, _, err := a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindSimple, Source: store.SourceTask,
 		DedupeKey: "inbox:" + ulid.Make().String(), Importance: 1, Receiver: receiver, Spoken: text,
 		ExpiresAt: time.Now().Add(72 * time.Hour)})
 	return err

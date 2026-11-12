@@ -93,7 +93,7 @@ Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmasc
 
 Pro Satellit stellst du ein:
 
-- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen „Mira · 1 Nachricht wartet“ ein, sobald etwas Neues kommt, und nimmt es weg, wenn alles gehört ist; das erkennt Mira von selbst. Frag dann: **„Hast du eine Benachrichtigung?“** oder „Gibt es was Neues?“.
+- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen „Mira · 1 Nachricht wartet“ ein, sobald etwas Neues kommt, und nimmt es weg, wenn alles gehört ist; das erkennt Mira von selbst. Frag dann: **„Hab ich neue Nachrichten?“** oder „Gibt es was Neues?“. Mira sagt dir alles, was wartet; wartet Verschiedenes (Post, der Anrufbeantworter, ein neues Gerät), fragt sie, womit sie anfangen soll, und geht es dann eins nach dem anderen mit dir durch.
 - **Beim Hereinkommen ansagen**: Merkt ein Bewegungsmelder, dass jemand den Raum betritt, sagt Mira von selbst an, was ansteht; die erste Bewegung nach der Ruhezeit beginnt mit „Guten Morgen“. Ohne Bewegungsmelder oder ausgeschaltet spricht sie dich nicht von sich aus an.
 
 Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).

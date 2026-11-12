@@ -107,7 +107,7 @@ func TestSR23_ASensorSetOnTwoSatellitesSpeaksAtThePrimary(t *testing.T) {
 
 func TestSR24_AReminderComesAtTheSatelliteItWasAskedAt(t *testing.T) {
 	e := roomsEnv(t)
-	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Source: store.SourceReminder, Importance: 2,
+	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
 		DeliverAt: e.now, Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-essen", Receiver: store.ReceiverHouse}); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestSR24_AReminderComesAtTheSatelliteItWasAskedAt(t *testing.T) {
 func TestSR25_AReminderFromASatelliteThatLeftTheRoomComesAtThePrimary(t *testing.T) {
 	e := roomsEnv(t)
 	// asked at the hallway satellite, which is no longer in the bath
-	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Source: store.SourceReminder, Importance: 2,
+	if _, err := e.st.ScheduleMessage(context.Background(), store.Message{ID: "r1", Kind: store.KindReminder, Source: store.SourceReminder, Importance: 2,
 		DeliverAt: e.now, Spoken: "Tee", AreaID: "bad", OriginDevice: "dev-flur", Receiver: store.ReceiverHouse}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestSR25_AReminderFromASatelliteThatLeftTheRoomComesAtThePrimary(t *testing
 
 func TestSR26_AMessageToTheRoomComesAtThePrimary(t *testing.T) {
 	e := roomsEnv(t)
-	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Post ist da."}, "bad"); err != nil {
 		t.Fatal(err)
 	}

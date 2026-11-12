@@ -147,7 +147,7 @@ func TestBE19_NoSourceNoReset(t *testing.T) {
 func TestMessagesAndMemory(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
-	st.PutMessage(ctx, store.Message{ID: "n1", Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
+	st.PutMessage(ctx, store.Message{ID: "n1", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 2, Spoken: "Test", ExpiresAt: time.Now().Add(time.Hour)})
 	st.SaveFact(ctx, store.Fact{ID: "f1", Text: "Ben trinkt Kaffee."})
 
 	if code, body := call(t, srv, "GET", "/v1/ui/messages", "secret", ""); code != 200 || !strings.Contains(body, `"spoken":"Test"`) {
@@ -434,7 +434,7 @@ func TestMessagesArePaged(t *testing.T) {
 	ctx := context.Background()
 	for i := 0; i < 25; i++ {
 		id := fmt.Sprintf("n%02d", i)
-		st.PutMessage(ctx, store.Message{ID: id, Source: store.SourceExternal, DedupeKey: id, Importance: 1,
+		st.PutMessage(ctx, store.Message{ID: id, Kind: store.KindReply, Source: store.SourceExternal, DedupeKey: id, Importance: 1,
 			Receiver: store.ReceiverHouse, Spoken: "Meldung " + id})
 	}
 	st.SetMessageState(ctx, "n00", store.MessageAcked)
@@ -517,9 +517,9 @@ func TestMessagesByViewer(t *testing.T) {
 	srv, _, st := setup(t)
 	ctx := context.Background()
 	later := time.Now().Add(time.Hour)
-	st.PutMessage(ctx, store.Message{ID: "m-house", Source: store.SourceExternal, Importance: 1, Spoken: "Post ist da", ExpiresAt: later})
-	st.PutMessage(ctx, store.Message{ID: "m-anna", Source: store.SourceExternal, Importance: 1, Receiver: "anna", Spoken: "Anna: Zahnarzt", ExpiresAt: later})
-	st.PutMessage(ctx, store.Message{ID: "m-ben", Source: store.SourceExternal, Importance: 1, Receiver: "ben", Spoken: "Ben: Chorprobe", ExpiresAt: later})
+	st.PutMessage(ctx, store.Message{ID: "m-house", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Spoken: "Post ist da", ExpiresAt: later})
+	st.PutMessage(ctx, store.Message{ID: "m-anna", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Receiver: "anna", Spoken: "Anna: Zahnarzt", ExpiresAt: later})
+	st.PutMessage(ctx, store.Message{ID: "m-ben", Kind: store.KindSimple, Source: store.SourceExternal, Importance: 1, Receiver: "ben", Spoken: "Ben: Chorprobe", ExpiresAt: later})
 
 	_, body := asHA(t, srv, "GET", "/v1/ui/messages", "u-anna", false, "")
 	if !strings.Contains(body, "Post ist da") || strings.Contains(body, "Zahnarzt") || strings.Contains(body, "Chorprobe") {

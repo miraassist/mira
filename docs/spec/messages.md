@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; steps 2 to 4 (kinds of messages) specified 2026-11-12, not built. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: step 2 built 2026-11-12 (not released), steps 3 to 5 not built. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -196,6 +196,7 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | `urgent` | importance 3 | none | announced at once, also in quiet hours, escalated until heard |
 | `private` | only for the person's channels | none | sent over the person's channels, never spoken or shown |
 | `confidential` | for one person, spoken only under the conditions of `notifier.confidential_voice` | none | spoken when those hold, else over the person's channels |
+| `reply` | what comes back to a request: a thread's question or proposal, the result of a helper that ran on after the turn | the thread it comes from, if any | said at once where it was asked, else sent privately; an answer to it goes on in that thread |
 | `postfach` | a mail or document with things to do ([Mira's inbox](inbox.md)) | **one per mail**, of the person; plan and expiry by `inbox.read` | the skill `postfach` |
 | `voicemail` | new recordings and missed calls on the answering machine | **one**, of the house; plan by the code | the skill `anrufbeantworter` |
 | `device` | a device Home Assistant found ([Found devices](found-devices.md)) | **one**, of the house; plan by the code | the skill `geraet-einbinden` |
@@ -218,6 +219,10 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 12 | An ended thread's entries | When a thread ends (done, cancelled or expired), its entries leave their message at once; a message without entries is done and withdrawn. The ring shows only what still waits |
 | 13 | A thread of the house | Threads get the place "the house". A thread of the house is the same wherever it is taken up. Should it later move to the room it is taken up in, that is a transition of its own, named in a spec, with a log line; never a side effect |
 | 14 | Who writes an entry's text | Who writes the plan: `inbox.read` for a mail, the code for a recording or a found device (facts of the box, of Home Assistant), the sender for `simple`. The conversation's model words "what first?" from these lines |
+| 15 | Messages waiting at the update | The messages waiting in the old form are dropped when the update starts (one log line with their number); the release notes say so. No migration into entries (decided 2026-11-12) |
+| 16 | What comes back at once | A kind `reply` (decided 2026-11-12): a thread's question or proposal, the result of a helper that ran on after its turn (Agents, decision 27). It does not wait, so it is not gathered; it is a message all the same: stored, announced (an answer to it finds its thread through the announcement), sent privately when it cannot be said, listed on the page. Its entry names the thread it comes from; a helper's result has none (the run has ended when it is said; a question about it has the message's text and details) |
+| 17 | The kind from fields that say it | Where a caller has fields that say it (a task's verdict, a skill's schedule, `mira.send_message`, `notify.send_message`), the kind comes from them by one rule: private → `private`, confidential → `confidential`, importance 3 → `urgent`, else `simple` (decided 2026-11-12). This translates fields that are there; it reads nothing into a missing one |
+| 18 | Rules per entry in a gathered message (decided 2026-11-12) | The importance threshold (`notifier.min_importance`) holds per entry: an entry below it is neither announced nor lights the ring; it is said on "Was gibt's?". The own room's hold (`own_message_hold`) holds per entry: in the room it came from, the entry stays out of what is said for the hold; with none left, the message does not count there. "At most three per announcement" counts messages: a gathered message is one, with all its entries, worded as one text. Done (`message_ack`) is per entry: `messages_list` shows the entries with their ids, `message_ack` takes one out; the last one ends the message |
 
 ### What it does, step by step
 

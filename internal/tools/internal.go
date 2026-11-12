@@ -131,7 +131,7 @@ func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 				if err := decode(inv.Args, &a); err != nil {
 					return "", err
 				}
-				if err := st.SetMessageState(ctx, a.ID, store.MessageAcked); errors.Is(err, store.ErrNotFound) {
+				if err := st.AckEntry(ctx, a.ID); errors.Is(err, store.ErrNotFound) {
 					return "", errors.New(t.noSuchMessage)
 				} else if err != nil {
 					return "", err

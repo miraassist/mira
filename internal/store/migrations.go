@@ -414,6 +414,37 @@ CREATE TABLE oauth_tokens (
 		name: "0026_messages_retry_at",
 		stmt: `ALTER TABLE messages ADD COLUMN retry_at TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Kinds of messages (docs/spec/messages.md, Kinds of messages): a
+		// message is a container of entries; its row keeps what is read
+		// most (text, importance, expiry), worked out from its entries.
+		// Threads of the house, and a thread's own expiry set by who started
+		// it (deadline; '' for its type's timeout).
+		name: "0027_message_kinds",
+		stmt: `
+ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT '';
+CREATE TABLE message_entries (
+    id              TEXT PRIMARY KEY,
+    message_id      TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    text            TEXT NOT NULL,
+    details         TEXT NOT NULL DEFAULT '',
+    sender          TEXT NOT NULL DEFAULT '',
+    source          TEXT NOT NULL DEFAULT '',
+    importance      INTEGER NOT NULL DEFAULT 0,
+    expires_at      TEXT NOT NULL DEFAULT '',
+    dedupe_key      TEXT NOT NULL DEFAULT '',
+    thread_id       TEXT NOT NULL DEFAULT '',
+    origin_area     TEXT NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE INDEX idx_message_entries_message ON message_entries(message_id);
+CREATE INDEX idx_message_entries_thread ON message_entries(thread_id);
+CREATE INDEX idx_message_entries_key ON message_entries(dedupe_key);
+CREATE INDEX idx_messages_kind ON messages(kind, receiver, state);
+ALTER TABLE threads ADD COLUMN deadline TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

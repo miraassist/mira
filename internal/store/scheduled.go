@@ -57,8 +57,14 @@ func (s *Store) ReleaseScheduled(ctx context.Context, id, spoken string) error {
 	if strings.TrimSpace(spoken) == "" {
 		return fmt.Errorf("release %s: no text", id)
 	}
-	return s.moveScheduled(ctx, `UPDATE messages SET state = ?, spoken = ?, updated_at = ? WHERE id = ? AND state = ?`,
-		MessagePending, spoken, formatTime(s.now()), id, MessageScheduled)
+	if err := s.moveScheduled(ctx, `UPDATE messages SET state = ?, spoken = ?, updated_at = ? WHERE id = ? AND state = ?`,
+		MessagePending, spoken, formatTime(s.now()), id, MessageScheduled); err != nil {
+		return err
+	}
+	// A reminder has one entry: it says what the message says.
+	_, err := s.db.ExecContext(ctx, `UPDATE message_entries SET text = ?, updated_at = ? WHERE message_id = ?`,
+		spoken, formatTime(s.now()), id)
+	return err
 }
 
 func (s *Store) moveScheduled(ctx context.Context, q string, args ...any) error {

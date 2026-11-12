@@ -33,14 +33,39 @@ var composeSchema = json.RawMessage(`{"type":"object","properties":{"text":{"typ
 func (n *Notifier) compose(ctx context.Context, messages []store.Message) string {
 	now := n.clock().In(n.loc)
 	morning := n.goodMorning(now)
-	if len(messages) > 1 && n.composer != nil {
-		if text, err := n.composeWithModel(ctx, messages, now, morning); err == nil {
+	// A gathered message is said with all its entries, worded as one text
+	// (docs/spec/messages.md, decision 18): each entry is one item here,
+	// under its message's id.
+	items := entriesOf(messages)
+	if len(items) > 1 && n.composer != nil {
+		if text, err := n.composeWithModel(ctx, items, now, morning); err == nil {
 			return text
 		} else {
 			n.log.Warn("model could not word the announcement, using the fixed form", "error", err)
 		}
 	}
-	return n.fixed(ctx, messages, now, morning)
+	return n.fixed(ctx, items, now, morning)
+}
+
+// entriesOf lists each entry of the messages as an item of its own, with
+// the message's id; a message without entries (of the form before kinds)
+// is one item.
+func entriesOf(messages []store.Message) []store.Message {
+	var out []store.Message
+	for _, m := range messages {
+		if len(m.Entries) == 0 {
+			out = append(out, m)
+			continue
+		}
+		for _, e := range m.Entries {
+			item := m
+			item.Entries = nil
+			item.Spoken, item.Details, item.Importance = e.Text, e.Details, e.Importance
+			item.CreatedAt, item.Source, item.Sender = e.CreatedAt, e.Source, e.Sender
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func (n *Notifier) composeWithModel(ctx context.Context, messages []store.Message, now time.Time, morning bool) (string, error) {

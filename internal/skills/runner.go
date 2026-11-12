@@ -540,8 +540,8 @@ func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool,
 		receiver, confidentiality = to, store.ConfidentialityPrivate
 	}
 	_, _, err = r.Store.PutMessage(ctx, store.Message{
-		ID: ulid.Make().String(), Source: store.SourceSchedule,
-		DedupeKey: dedupe, Confidentiality: confidentiality,
+		ID: ulid.Make().String(), Kind: store.KindFor(res.Importance, confidentiality), Source: store.SourceSchedule,
+		DedupeKey:  dedupe,
 		Importance: res.Importance, Receiver: receiver,
 		Spoken: res.Spoken, Details: strings.TrimSpace(res.Details),
 		ExpiresAt: now.Add(time.Duration(res.ExpiresInHours * float64(time.Hour))),

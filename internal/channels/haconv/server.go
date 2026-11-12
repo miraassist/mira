@@ -598,9 +598,9 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 		source = store.SourceTask
 	}
 	n, created, err := s.opts.Store.PutMessage(r.Context(), store.Message{
-		ID: ulid.Make().String(), Source: source, DedupeKey: req.DedupeKey,
-		Importance: req.Importance, Receiver: req.Receiver, Spoken: strings.TrimSpace(req.Text),
-		Details: req.Details, ExpiresAt: time.Now().Add(ttl), Confidentiality: req.Confidentiality,
+		ID: ulid.Make().String(), Kind: store.KindFor(req.Importance, req.Confidentiality), Source: source,
+		DedupeKey: req.DedupeKey, Importance: req.Importance, Receiver: req.Receiver, Spoken: strings.TrimSpace(req.Text),
+		Details: req.Details, ExpiresAt: time.Now().Add(ttl),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

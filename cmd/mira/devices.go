@@ -180,8 +180,8 @@ func (a *app) newFound() *devices.Found {
 		Lang: a.lang, Logger: a.log, HA: a.ha, Core: a.devices, KV: a.store,
 		Post: func(ctx context.Context, spoken, details string) error {
 			_, _, err := a.store.PutMessage(ctx, store.Message{
-				ID: ulid.Make().String(), Source: store.SourceDevices, DedupeKey: "devices:" + ulid.Make().String(),
-				Importance: 2, Receiver: store.ReceiverHouse, Confidentiality: store.ConfidentialityNormal,
+				ID: ulid.Make().String(), Kind: store.KindDevice, Source: store.SourceDevices,
+				DedupeKey: "devices:" + ulid.Make().String(), Importance: 2, Receiver: store.ReceiverHouse,
 				Spoken: spoken, Details: details, ExpiresAt: time.Now().Add(24 * time.Hour),
 			})
 			return err

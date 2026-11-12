@@ -228,8 +228,8 @@ func (n *Notifier) OnPresenceAt(ctx context.Context, area, sat string) (Outcome,
 	for _, nt := range pending {
 		switch n.route(nt, home) {
 		case routeVoice:
-			if !n.heldAt(nt, area) {
-				voice = append(voice, nt)
+			if m, ok := n.unheld(nt, area); ok {
+				voice = append(voice, m)
 			}
 		case routePrivate:
 			private = append(private, nt)
@@ -384,9 +384,23 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 func (n *Notifier) pending(ctx context.Context) ([]store.Message, error) {
-	return n.store.ListMessages(ctx, store.MessageFilter{
+	msgs, err := n.store.ListMessages(ctx, store.MessageFilter{
 		States: []string{store.MessagePending}, MinImportance: n.cfg.MinImportance,
 	})
+	return n.important(msgs), err
+}
+
+// important keeps of each message the entries at or above the importance
+// threshold (docs/spec/messages.md, decision 18): an entry below it counts as
+// not there for announcing, the ring and reading out.
+func (n *Notifier) important(msgs []store.Message) []store.Message {
+	var out []store.Message
+	for _, nt := range msgs {
+		if m, ok := nt.Only(func(e store.Entry) bool { return e.Importance >= n.cfg.MinImportance }); ok {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 type route int
@@ -516,8 +530,8 @@ Regeln:
 		importance:     "Wichtigkeit",
 		whenToday:      "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
 		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: ",
-		screenOne:    "1 Nachricht wartet – frag: „Hast du eine Benachrichtigung?“",
-		screenMany:   "%d Nachrichten warten – frag: „Hast du eine Benachrichtigung?“",
+		screenOne:    "1 Nachricht wartet – frag: „Hab ich neue Nachrichten?“",
+		screenMany:   "%d Nachrichten warten – frag: „Hab ich neue Nachrichten?“",
 		screenHeard:  "Alles gehört",
 		phoneMessage: "1 Nachricht auf dem Anrufbeantworter", phoneMessages: "%d Nachrichten auf dem Anrufbeantworter",
 		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe"},
@@ -537,8 +551,8 @@ Rules:
 		importance:     "importance",
 		whenToday:      "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
 		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: ",
-		screenOne:    "1 message waiting – ask: \"Do you have a notification?\"",
-		screenMany:   "%d messages waiting – ask: \"Do you have a notification?\"",
+		screenOne:    "1 message waiting – ask: \"Do I have new messages?\"",
+		screenMany:   "%d messages waiting – ask: \"Do I have new messages?\"",
 		screenHeard:  "All heard",
 		phoneMessage: "1 message on the answering machine", phoneMessages: "%d messages on the answering machine",
 		phoneMissed: "1 missed call", phoneMisseds: "%d missed calls"},

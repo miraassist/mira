@@ -77,7 +77,8 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	}
 
 	e.message("n2", 2, nil)
-	text, err := e.n.ReadOut(context.Background(), "kueche", "", "")
+	read, err := e.n.ReadOut(context.Background(), "kueche", "", "")
+	text := read.Text
 	if err != nil || !strings.Contains(text, "Hinweis n2") {
 		t.Fatalf("read out: %q %v", text, err)
 	}
@@ -88,8 +89,8 @@ func TestIndicateShowsInsteadOfSpeaking(t *testing.T) {
 	if last := lights[len(lights)-1]; last.Service != "turn_off" {
 		t.Errorf("ring still on: %+v", lights)
 	}
-	if text, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); text != "" {
-		t.Errorf("read twice: %q", text)
+	if r, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); !r.Empty() {
+		t.Errorf("read twice: %+v", r)
 	}
 }
 
@@ -122,7 +123,8 @@ func TestReadOutForPerson(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("mine", 1, func(n *store.Message) { n.Receiver = "ben"; n.Confidentiality = store.ConfidentialityConfidential })
 	e.message("other", 1, func(n *store.Message) { n.Receiver = "anna" })
-	text, err := e.n.ReadOut(context.Background(), "", "", "ben")
+	read, err := e.n.ReadOut(context.Background(), "", "", "ben")
+	text := read.Text
 	if err != nil || !strings.Contains(text, "Hinweis mine") || strings.Contains(text, "other") {
 		t.Errorf("read out: %q %v", text, err)
 	}
@@ -159,7 +161,7 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 	e := indicateEnv(t)
 	e.n.speakingStart = time.Second
 	sat := e.n.primary("kueche")
-	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Source: store.SourceTask, DedupeKey: "p1",
+	if err := e.n.Tell(context.Background(), store.Message{ID: "p1", Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "p1",
 		Importance: 2, Receiver: store.ReceiverHouse, Spoken: "Mein Vorschlag."}, "kueche"); err != nil {
 		t.Fatal(err)
 	}
@@ -238,8 +240,8 @@ func TestOwnMessageHold(t *testing.T) {
 	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "" {
 		t.Errorf("afterword in the sender's room: %q", got)
 	}
-	if text, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); text != "" {
-		t.Errorf("read out in the sender's room: %q", text)
+	if r, _ := e.n.ReadOut(context.Background(), "kueche", "", ""); !r.Empty() {
+		t.Errorf("read out in the sender's room: %+v", r)
 	}
 	// Another room hears it at once; a message left there is held back there.
 	e.message("n2", 1, func(n *store.Message) { n.OriginArea, n.CreatedAt = "bad", e.now })
