@@ -34,8 +34,11 @@ type HA interface {
 }
 
 type Options struct {
-	Lang   i18n.Lang
-	HA     HA
+	Lang i18n.Lang
+	HA   HA
+	// Own is Mira's note of the automations she created: a timer is
+	// deleted only when noted (docs/spec/hacs-default.md, decision 7).
+	Own    automation.Own
 	Logger *slog.Logger
 	// Watch follows the states of these automations and calls changed on
 	// every change, without blocking; stop ends it. Without it, a timer is
@@ -149,6 +152,11 @@ type controller struct {
 	t     texts
 	log   *slog.Logger
 	pokes chan struct{}
+	// Only Run's tidy touches these: whether the timers from before Mira's
+	// own note were taken over, and the finished timers she did not create,
+	// logged once each.
+	takenOver bool
+	leftAlone map[string]bool
 }
 
 func (c *controller) clock(t time.Time) string { return t.In(c.o.Location).Format("15:04") }

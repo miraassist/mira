@@ -69,13 +69,6 @@ Feature: HD HACS default catalog
     And the integration has written no file
 
   @step3
-  Scenario: HD-24 Only Mira's automations are deleted
-    When the model deletes an automation without the label "Mira" or "Mira: einmalig"
-    Then the tool says it is not one of Mira's tasks, and nothing is deleted
-    When it deletes one with the label "Mira"
-    Then the service calls DELETE /api/config/automation/config/<id>
-
-  @step3
   Scenario: HD-25 A finished timer goes when it has run
     Given a timer's automation labelled "Mira: einmalig"
     When its last_triggered is set and it is no longer running
@@ -179,5 +172,5 @@ Feature: HD HACS default catalog
   Scenario: HD-44 Tasks and timers from before are taken over once
     Given automations labelled "Mira" and "Mira: einmalig" and an empty table own_automations
     When the service starts
-    Then each gets a row, and the log says how many
-    And a failure leaves the table empty, warns, and is tried again at the next start
+    Then each gets a row before anything is tidied, and the log says how many
+    And a failure records nothing, tidies nothing, warns, and is tried again at the next look

@@ -2,13 +2,16 @@ package timer
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/miraassist/mira/internal/ha/automation"
 )
 
-// Tidying up (docs/spec/hacs-default.md, 3): a timer's automation goes once
-// it has run and is no longer running. The signal is its state, from a
+// Tidying up (docs/spec/hacs-default.md, 3 and 4): a timer's automation
+// goes once it has run and is no longer running, if Mira created it (her own
+// note, decision 7); before the first tidy the automations labelled as hers
+// from before the note are taken over once. The signal is its state, from a
 // subscription filtered to the timers' entities: the run sets last_triggered,
 // its end sets the running count back to 0. At the start (and after every
 // reconnect: Poke) the timers are looked at once, for what ran while Mira
@@ -56,6 +59,13 @@ func (s *Timers) Run(ctx context.Context) error {
 // tidy deletes the timers that ran and are finished, and returns the
 // entities of the others, sorted; false when the timers cannot be read.
 func (c *controller) tidy(ctx context.Context) ([]string, bool) {
+	if !c.takenOver {
+		if err := automation.TakeOver(ctx, c.o.HA, c.o.Own, c.log); err != nil {
+			c.log.Warn("could not take over mira's automations from before; nothing is tidied, trying again at the next change or reconnect", "error", err)
+			return nil, false
+		}
+		c.takenOver = true
+	}
 	timers, err := c.all(ctx)
 	if err != nil {
 		c.log.Warn("could not read the timers to tidy them up; trying again at the next change or reconnect", "error", err)
@@ -65,8 +75,18 @@ func (c *controller) tidy(ctx context.Context) ([]string, bool) {
 	for _, tm := range timers {
 		if tm.Ran && tm.Running == 0 {
 			// A failure is logged in Delete; the next look tries again.
-			if err := automation.Delete(ctx, c.o.HA, c.log, tm.ID); err == nil {
+			err := automation.Delete(ctx, c.o.HA, c.o.Own, c.log, tm.ID)
+			switch {
+			case err == nil:
 				c.log.Info("finished timer removed", "timer", tm.Title, "automation", tm.ID)
+			case errors.Is(err, automation.ErrNotOwn):
+				if !c.leftAlone[tm.ID] {
+					c.log.Info("a timer labelled 'Mira: einmalig' was not created by mira, left alone", "automation", tm.ID)
+					if c.leftAlone == nil {
+						c.leftAlone = map[string]bool{}
+					}
+					c.leftAlone[tm.ID] = true
+				}
 			}
 			continue
 		}

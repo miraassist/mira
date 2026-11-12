@@ -141,7 +141,7 @@ func (c *controller) sleepCancel(ctx context.Context, inv tools.Invocation, id s
 	if tm == nil {
 		return answer, err
 	}
-	if err := automation.Delete(ctx, c.o.HA, c.log, tm.ID); err != nil {
+	if err := automation.Delete(ctx, c.o.HA, c.o.Own, c.log, tm.ID); err != nil {
 		return c.failed(err), nil
 	}
 	c.Poke()
@@ -164,7 +164,7 @@ func (c *controller) save(ctx context.Context, build map[string]any) error {
 		c.log.Warn("the integration's answer to building a timer cannot be read", "answer", string(raw), "error", err)
 		return fmt.Errorf("unexpected answer of the integration: %s", raw)
 	}
-	if err := automation.Save(ctx, c.o.HA, c.log, built.ID, built.Config, automation.LabelOnce); err != nil {
+	if err := automation.Save(ctx, c.o.HA, c.o.Own, c.log, built.ID, built.Config, automation.LabelOnce); err != nil {
 		return err
 	}
 	c.Poke()

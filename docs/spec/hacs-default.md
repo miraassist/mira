@@ -1,8 +1,7 @@
 # HACS default catalog – spec
 
 Status 2026-11-12: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and released (0.18.0), decision 4
-(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done; step 5 built, step 6 not
-built.
+(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done; steps 5 and 6 built.
 
 ## Goal
 
@@ -296,9 +295,11 @@ needs a new access" and its code go.
    such an id gets Home Assistant's "not found", which the tool says as today.
 5. `mira/automation/label` stays (it marks, it permits nothing); listing Mira's tasks stays by label.
 
-**Existing tasks and timers** (created before this, labelled, without rows): at the service's first start with
-the table, every automation labelled "Mira" or "Mira: einmalig" gets a row once, with a log line of how many
-(decided 2026-11-12). A failure leaves the table empty and is tried at the next start, with a log warning.
+**Existing tasks and timers** (created before this, labelled, without rows): at the service's first look at the
+timers with the table (its start, before anything is tidied), every automation labelled "Mira" or "Mira: einmalig"
+(`mira/automation/list`, `mira/once/list`) gets a row once, and a mark in the table `kv` that it is done, in one
+transaction; a log line says how many (decided 2026-11-12). A failure records nothing, tidies nothing, warns, and is
+tried again at the next look (a change of a timer or a reconnect).
 
 | Step | Fails | Who learns of it |
 |---|---|---|
@@ -364,5 +365,9 @@ existing tasks and timers are taken over once; without access Mira has no mode o
    `/v1/setup` would write the token into it; pytest only).
 6. **Deleting only what Mira created** (decision 7): the service's table, deleting, cleaning up timers; existing
    automations taken over once. Scenarios HD-40 to HD-44, in Go. Retires HD-24.
+   Built 2026-11-13: the table `own_automations` (migration 0028), `automation.Save`, `Delete` and `TakeOver`.
+   Run on the test HA: at the start the one task labelled "Mira" was taken over (`count=1`); a sleep timer of one
+   minute set at the fake Show was noted as `once`, ran, and was removed by its state change a minute later, its
+   row gone. Not run there: deleting a labelled automation Mira did not create (Go only).
 7. **Release and review:** guide, versions, release with notes; then the comment on the pull request with the
    release's link, and the review requested again.

@@ -3,6 +3,7 @@ package tasks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -11,7 +12,8 @@ import (
 )
 
 // The tasks are saved and deleted through Home Assistant's automation config
-// API with the owner's token (docs/spec/hacs-default.md, 3).
+// API with the admin's token Mira was given; she deletes only what she
+// created (docs/spec/hacs-default.md, 3 and 4).
 
 var waterTask = map[string]any{
 	"alias":    "Wasser",
@@ -44,16 +46,66 @@ func TestHD23_ATaskIsSavedThroughHomeAssistantsAPI(t *testing.T) {
 	}
 }
 
-// HD-24 Only Mira's automations are deleted
-func TestHD24_OnlyMirasAutomationsAreDeleted(t *testing.T) {
+// HD-40 A new task or timer is recorded as Mira's
+func TestHD40_ANewTaskIsRecordedAsMiras(t *testing.T) {
 	e := setup(t)
-	e.ha.automations["mira_wasser"] = waterTask // listed by the integration: labelled "Mira"
-	err := e.m.Delete(context.Background(), "abendlicht")
-	if err == nil || err.Error() != "Das ist keine Aufgabe von Mira." {
-		t.Errorf("deleted a household automation: %v", err)
+	ctx := context.Background()
+	if err := e.m.SaveAutomation(ctx, "mira_wasser", waterTask); err != nil {
+		t.Fatal(err)
 	}
-	if err := e.m.Delete(context.Background(), "mira_wasser"); err != nil || e.ha.automations["mira_wasser"] != nil {
+	if mine, err := e.st.IsOwnAutomation(ctx, "mira_wasser"); err != nil || !mine {
+		t.Errorf("new task not noted: %v %v", mine, err)
+	}
+	// A household task changed by Mira keeps its labels and is not hers.
+	if err := automation.Save(ctx, e.ha, e.st, e.m.log, "abendlicht", waterTask, automation.Keep); err != nil {
+		t.Fatal(err)
+	}
+	if mine, _ := e.st.IsOwnAutomation(ctx, "abendlicht"); mine {
+		t.Error("a household task was noted as Mira's")
+	}
+}
+
+// HD-41 Only automations with a row are deleted
+func TestHD41_OnlyAutomationsWithARowAreDeleted(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	// Labelled "Mira" (listed by the integration), but not created by her.
+	e.ha.automations["abendlicht"] = waterTask
+	err := e.m.Delete(ctx, "abendlicht")
+	if err == nil || err.Error() != "Das ist keine Aufgabe von Mira." || e.ha.automations["abendlicht"] == nil {
+		t.Errorf("deleted an automation Mira did not create: %v", err)
+	}
+	if err := e.m.SaveAutomation(ctx, "mira_wasser", waterTask); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.Delete(ctx, "mira_wasser"); err != nil || e.ha.automations["mira_wasser"] != nil {
 		t.Errorf("Mira's task: %v %v", err, e.ha.automations)
+	}
+	if mine, _ := e.st.IsOwnAutomation(ctx, "mira_wasser"); mine {
+		t.Error("the row stays after the delete")
+	}
+}
+
+// failingOwn cannot write its rows.
+type failingOwn struct{ automation.Own }
+
+func (failingOwn) RecordOwnAutomation(context.Context, string, string) error {
+	return errors.New("database is locked")
+}
+
+// HD-43 A failed record leaves a trace
+func TestHD43_AFailedRecordLeavesATrace(t *testing.T) {
+	e := setup(t)
+	var logs bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&logs, nil))
+	if err := automation.Save(context.Background(), e.ha, failingOwn{e.st}, log, "mira_wasser", waterTask, automation.LabelTask); err != nil {
+		t.Fatalf("the task is saved, the tool must say so: %v", err)
+	}
+	if e.ha.automations["mira_wasser"] == nil {
+		t.Error("not saved")
+	}
+	if l := logs.String(); !strings.Contains(l, "not noted as Mira's") || !strings.Contains(l, "automation=mira_wasser") || !strings.Contains(l, "database is locked") {
+		t.Errorf("log: %s", l)
 	}
 }
 

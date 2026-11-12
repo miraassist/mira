@@ -445,6 +445,17 @@ CREATE INDEX idx_messages_kind ON messages(kind, receiver, state);
 ALTER TABLE threads ADD COLUMN deadline TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		// The automations Mira created herself, tasks and timers: she deletes
+		// only these (docs/spec/hacs-default.md, decision 7).
+		name: "0028_own_automations",
+		stmt: `
+CREATE TABLE own_automations (
+    id         TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

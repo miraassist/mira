@@ -225,7 +225,7 @@ func (f editFinisher) Commit(ctx context.Context, th store.Thread) (string, erro
 	if err := m.validate(ctx, e.After, e.ID); err != nil {
 		return "", m.haError(err)
 	}
-	if err := automation.Save(ctx, m.opts.HA, m.log, e.ID, e.After, automation.Keep); err != nil {
+	if err := automation.Save(ctx, m.opts.HA, m.opts.Store, m.log, e.ID, e.After, automation.Keep); err != nil {
 		return "", m.haError(err)
 	}
 	m.log.Info("task edited", "automation", e.ID, "person", th.Person, "change", e.Summary)

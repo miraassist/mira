@@ -440,7 +440,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Sleep timer: one-time automations in Home Assistant (docs/spec/scheduled-actions.md),
 	// tidied away by Mira once they ran (docs/spec/hacs-default.md, 3).
 	timers := timer.New(timer.Options{
-		Lang: a.lang, HA: a.ha, Logger: a.log,
+		Lang: a.lang, HA: a.ha, Own: a.store, Logger: a.log,
 		Watch: func(ctx context.Context, entities []string, changed func()) (func(), error) {
 			w, err := a.ha.WatchStates(ctx, haws.StateFilter{EntityIDs: entities}, changed)
 			if err != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ func TestTextsComplete(t *testing.T) {
 // fakeHA plays the integration (build, list, label) and Home Assistant's
 // automation config API, keeping the timers.
 type fakeHA struct {
+	own     *fakeOwn
 	timers  []Timer
 	saved   []map[string]any // the build commands
 	pending map[string]Timer // built, not yet saved
@@ -41,6 +43,8 @@ func (f *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage,
 	case "mira/once/list":
 		raw, _ := json.Marshal(map[string]any{"timers": f.timers})
 		return raw, nil
+	case "mira/automation/list":
+		return json.RawMessage(`{"automations":[]}`), nil
 	case "mira/once/build":
 		f.saved = append(f.saved, cmd)
 		tm := Timer{Title: cmd["title"].(string), Due: cmd["due"].(string), Owner: cmd["owner"].(string), Area: cmd["area"].(string), Kind: cmd["kind"].(string)}
@@ -95,12 +99,57 @@ func (f *fakeHA) DeleteAutomationConfig(_ context.Context, id string) error {
 	return errors.New("not found")
 }
 
+// fakeOwn is Mira's note of the automations she created.
+type fakeOwn struct {
+	ids        map[string]string
+	takenOver  bool
+	failRecord error
+}
+
+func newOwn(ids ...string) *fakeOwn {
+	o := &fakeOwn{ids: map[string]string{}}
+	for _, id := range ids {
+		o.ids[id] = "once"
+	}
+	return o
+}
+
+func (o *fakeOwn) RecordOwnAutomation(_ context.Context, id, kind string) error {
+	if o.failRecord != nil {
+		return o.failRecord
+	}
+	if _, ok := o.ids[id]; !ok {
+		o.ids[id] = kind
+	}
+	return nil
+}
+
+func (o *fakeOwn) IsOwnAutomation(_ context.Context, id string) (bool, error) {
+	_, ok := o.ids[id]
+	return ok, nil
+}
+
+func (o *fakeOwn) ForgetOwnAutomation(_ context.Context, id string) error {
+	delete(o.ids, id)
+	return nil
+}
+
+func (o *fakeOwn) OwnAutomationsTakenOver(context.Context) (bool, error) { return o.takenOver, nil }
+
+func (o *fakeOwn) TakeOverOwnAutomations(_ context.Context, ids map[string]string) error {
+	for id, kind := range ids {
+		o.ids[id] = kind
+	}
+	o.takenOver = true
+	return nil
+}
+
 var now = time.Date(2026, 10, 18, 22, 5, 0, 0, time.UTC)
 
 func setup() (map[string]tools.InternalTool, *fakeHA) {
-	ha := &fakeHA{}
+	ha := &fakeHA{own: newOwn()}
 	list := Tools(Options{
-		Lang: i18n.DE, HA: ha, Clock: func() time.Time { return now }, Location: time.UTC,
+		Lang: i18n.DE, HA: ha, Own: ha.own, Clock: func() time.Time { return now }, Location: time.UTC,
 		Players: func(area string) []string {
 			return map[string][]string{"wohnzimmer": {"media_player.show_speaker"}}[area]
 		},
@@ -252,6 +301,7 @@ func TestSeveralTimersAreAskedAbout(t *testing.T) {
 		{ID: "a", Title: "Schlaf-Timer Wohnzimmer", Owner: "anna", Area: "wohnzimmer", Due: now.Add(10 * time.Minute).Format(time.RFC3339), Kind: "sleep"},
 		{ID: "b", Title: "Schlaf-Timer Bad", Owner: "anna", Area: "bad", Due: now.Add(20 * time.Minute).Format(time.RFC3339), Kind: "sleep"},
 	}
+	ha.own.ids["a"], ha.own.ids["b"] = "once", "once"
 	out := run(t, by[ToolSleep], anna, `{"action":"cancel"}`)
 	if !strings.Contains(out, "mehrere Schlaf-Timer") || !strings.Contains(out, "a (") || len(ha.timers) != 2 {
 		t.Errorf("ask: %q %+v", out, ha.timers)
@@ -276,7 +326,7 @@ func TestHD25_AFinishedTimerGoesWhenItHasRun(t *testing.T) {
 	}}
 	watched := make(chan []string, 4)
 	var changed func()
-	timers := New(Options{Lang: i18n.DE, HA: ha, Clock: func() time.Time { return now },
+	timers := New(Options{Lang: i18n.DE, HA: ha, Own: newOwn(), Clock: func() time.Time { return now },
 		Watch: func(_ context.Context, ids []string, fn func()) (func(), error) {
 			changed = fn
 			watched <- ids
@@ -304,5 +354,77 @@ func TestHD25_AFinishedTimerGoesWhenItHasRun(t *testing.T) {
 	}
 	if !slices.Equal(ha.deleted, []string{"done", "fading"}) {
 		t.Errorf("deleted: %v", ha.deleted)
+	}
+}
+
+// tidyOnce runs one look at the timers, as at the start.
+func tidyOnce(o Options) ([]string, bool, *controller) {
+	c := New(o).c
+	ids, ok := c.tidy(context.Background())
+	return ids, ok, c
+}
+
+// HD-42 A finished timer without a row stays
+func TestHD42_AFinishedTimerWithoutARowStays(t *testing.T) {
+	ha := &fakeHA{timers: []Timer{{ID: "fremd", EntityID: "automation.fremd", Ran: true}}}
+	own := newOwn()
+	own.takenOver = true
+	var logs strings.Builder
+	o := Options{Lang: i18n.DE, HA: ha, Own: own, Logger: slog.New(slog.NewTextHandler(&logs, nil))}
+	c := New(o).c
+	for range 3 {
+		if _, ok := c.tidy(context.Background()); !ok {
+			t.Fatal("not tidied")
+		}
+	}
+	if len(ha.deleted) != 0 || len(ha.timers) != 1 {
+		t.Errorf("deleted a timer Mira did not create: %v", ha.deleted)
+	}
+	if n := strings.Count(logs.String(), "was not created by mira, left alone"); n != 1 || !strings.Contains(logs.String(), "automation=fremd") {
+		t.Errorf("logged %d times: %s", n, logs.String())
+	}
+}
+
+// HD-44 Tasks and timers from before are taken over once
+func TestHD44_TasksAndTimersFromBeforeAreTakenOverOnce(t *testing.T) {
+	ha := &fakeHA{timers: []Timer{{ID: "alt", EntityID: "automation.alt", Ran: true}}}
+	own := newOwn()
+	var logs strings.Builder
+	o := Options{Lang: i18n.DE, HA: ha, Own: own, Logger: slog.New(slog.NewTextHandler(&logs, nil))}
+
+	// Home Assistant cannot be read: nothing is taken over, nothing tidied.
+	ha.fail = errors.New("not connected")
+	if _, ok, _ := tidyOnce(o); ok || own.takenOver || len(own.ids) != 0 {
+		t.Fatalf("taken over without the lists: %v %v", own.takenOver, own.ids)
+	}
+	if !strings.Contains(logs.String(), "could not take over") {
+		t.Errorf("log: %s", logs.String())
+	}
+
+	ha.fail = nil
+	if _, ok, _ := tidyOnce(o); !ok {
+		t.Fatal("not tidied")
+	}
+	if !own.takenOver || !slices.Equal(ha.deleted, []string{"alt"}) {
+		t.Errorf("the timer from before: taken over %v, deleted %v", own.takenOver, ha.deleted)
+	}
+	if !strings.Contains(logs.String(), "took over the automations labelled as mira's from before") || !strings.Contains(logs.String(), "count=1") {
+		t.Errorf("log: %s", logs.String())
+	}
+
+	// Once: a timer labelled later is not taken over.
+	ha.timers = []Timer{{ID: "spaeter", EntityID: "automation.spaeter", Ran: true}}
+	tidyOnce(o)
+	if slices.Contains(ha.deleted, "spaeter") {
+		t.Errorf("taken over again: %v", ha.deleted)
+	}
+}
+
+// HD-40 A new task or timer is recorded as Mira's
+func TestHD40_ANewTimerIsRecordedAsMiras(t *testing.T) {
+	by, ha := setup()
+	run(t, by[ToolSleep], anna, `{"minutes":30}`)
+	if len(ha.timers) != 1 || ha.own.ids[ha.timers[0].ID] != "once" {
+		t.Errorf("timer %v, noted %v", ha.timers, ha.own.ids)
 	}
 }

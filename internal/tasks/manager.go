@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -282,13 +281,13 @@ func (m *Manager) fieldsText(fields map[string]string) string {
 }
 
 // SaveAutomation creates one of Mira's automations: checked once more by
-// the integration, saved through Home Assistant's automation config API and
-// labelled "Mira" (docs/spec/hacs-default.md, 3).
+// the integration, saved through Home Assistant's automation config API,
+// noted as hers and labelled "Mira" (docs/spec/hacs-default.md, 3 and 4).
 func (m *Manager) SaveAutomation(ctx context.Context, id string, config map[string]any) error {
 	if err := m.validate(ctx, config, ""); err != nil {
 		return m.haError(err)
 	}
-	if err := automation.Save(ctx, m.opts.HA, m.log, id, config, automation.LabelTask); err != nil {
+	if err := automation.Save(ctx, m.opts.HA, m.opts.Store, m.log, id, config, automation.LabelTask); err != nil {
 		return m.haError(err)
 	}
 	m.log.Info("task saved", "automation", id)
@@ -653,17 +652,14 @@ func (m *Manager) homeURL(ctx context.Context) string {
 	return ""
 }
 
-// Delete deletes one of Mira's automations; only one labelled "Mira" (the
-// review of the HACS catalog: never any other automation).
+// Delete deletes one of Mira's automations: only one she created, by her
+// own note of it, never by its label (docs/spec/hacs-default.md, decision 7).
 func (m *Manager) Delete(ctx context.Context, id string) error {
-	items, err := m.List(ctx)
-	if err != nil {
-		return m.haError(err)
-	}
-	if !slices.ContainsFunc(items, func(it Item) bool { return it.ID == id }) {
+	err := automation.Delete(ctx, m.opts.HA, m.opts.Store, m.log, id)
+	if errors.Is(err, automation.ErrNotOwn) {
 		return errors.New(m.texts().notMira)
 	}
-	if err := automation.Delete(ctx, m.opts.HA, m.log, id); err != nil {
+	if err != nil {
 		return m.haError(err)
 	}
 	m.log.Info("task deleted", "automation", id)
