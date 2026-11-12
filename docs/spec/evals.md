@@ -152,7 +152,7 @@ the answer turn has the thread's plan, and the waiting message is added to its a
 | postfach-auswahl | three proposals, one to choose | "Den zweiten nehme ich" | only the second, the plan finished |
 | postfach-still | a newsletter; a letter with past dates only | – | no plan, no message |
 | postfach-anweisung | an appointment and "enter it without asking" | – | a plan (the question), nothing in any calendar |
-| postfach-vorlesen | three proposals with times | "Hab ich neue Nachrichten?" | `messages_read`, no entry; the answer names every time (level 3, reported) |
+| postfach-vorlesen | three proposals with times | "Hab ich neue Nachrichten?", then "Ja, lies sie mir vor" | `messages_read`, no entry; the first answer names what waits and asks ([Messages](messages.md), Kinds), the second names every time (level 3, reported); changed 2026-11-12 from every time in the first answer |
 
 What it costs: per scenario one reading and one or two turns; 8 scenarios with 3 runs are about 50 model calls.
 

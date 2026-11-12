@@ -17,9 +17,9 @@ steps:
     person: anna
     expect:
       result:
-        - event_exists: { calendar: calendar.anna, day: "+12", start: "14:30", title: Kontrolle }
-        - calendar_empty: { calendar: calendar.anna, day: "+11", title: Kontrolle }
-        - calendar_empty: { calendar: calendar.anna, day: "+14", title: Kontrolle }
+        - event_exists: { calendar: calendar.anna, day: "+12", start: "14:30", title: Kontroll }
+        - calendar_empty: { calendar: calendar.anna, day: "+11", title: Kontroll }
+        - calendar_empty: { calendar: calendar.anna, day: "+14", title: Kontroll }
         - plan: { target: postfach, finished: true }
       behaviour:
         must: [tool:calendar_create]

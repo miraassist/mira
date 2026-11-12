@@ -1,5 +1,5 @@
 name: postfach-vorlesen
-description: Terminvorschläge aus dem Postfach vorlesen lassen; jede Uhrzeit wird genannt
+description: Terminvorschläge aus dem Postfach; Mira nennt, was wartet, und liest auf Nachfrage jede Uhrzeit vor
 steps:
   - mail:
       from: praxis@kieferorthopaedie.example
@@ -18,6 +18,13 @@ steps:
     expect:
       behaviour:
         must: [tool:messages_read]
+        must_not: [tool:calendar_create]
+      answer:
+        contains: ["Kaya|Kieferorthop|Kontroll"]
+  - say: Ja, lies sie mir vor
+    person: anna
+    expect:
+      behaviour:
         must_not: [tool:calendar_create]
       answer:
         contains: ["8:00|8 Uhr|acht Uhr", "14:30|14 Uhr 30|halb drei", "10:15|10 Uhr 15|viertel nach zehn"]
