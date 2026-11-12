@@ -215,7 +215,7 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 8 | Asking | The model always asks for all messages first (`messages_read`). Only `simple`: the model words them as one text (`notify.compose`, as for an announcement today) and reads it out. More than that: Mira says what waits, entry by entry where they lead to threads of their own, and asks what first ("Ein Elternbrief mit zwei Terminen, Terminvorschläge der Praxis und drei Nachrichten auf dem Anrufbeantworter. Womit soll ich anfangen?"). The answer chooses the thread |
 | 9 | Taking up a thread | A new tool `thread_take(id)` makes a thread the turn's own (the one every thread tool then acts on). The ids come with `messages_read` and with the threads in the context. One at a time: the chosen thread is worked through; nobody jumps between threads |
 | 10 | What is still waiting | When a thread ends, the tool that ended it names the open entries of the same receiver ("Noch offen: Terminvorschläge der Praxis"), and the model offers the next. In every turn of the person (or at a satellite, of the house) one line says what waits ("Wartet noch: 2 Mails, 1 neues Gerät") |
-| 11 | Expiry | A thread has its own expiry, set by whoever starts it. A mail's by `inbox.read` with its plan (until the deadline to answer, until the first appointment, else 24 hours); the answering machine's by the code: the newest recording plus 5 days (whoever has not listened by then looks at the box); a found device's by the code: 1 day. Taking up a thread extends it by its type's timeout, as today |
+| 11 | Expiry | A thread has its own expiry, set by whoever starts it. A mail's by `inbox.read` with its plan (until the deadline to answer, until the first appointment, else 24 hours); the answering machine's by the code: 5 days from when Mira starts or extends the thread (whoever has not listened by then looks at the box); a found device's by the code: 1 day from when Mira starts or extends it. Changed 2026-11-12: an expiry counts from when Mira starts or extends the thread, never from a date the thing carries (a recording's, a mail's, a document's); the dates `inbox.read` names are deadlines in the content, not its date. Taking up a thread extends it by its type's timeout, as today |
 | 12 | An ended thread's entries | When a thread ends (done, cancelled or expired), its entries leave their message at once; a message without entries is done and withdrawn. The ring shows only what still waits |
 | 13 | A thread of the house | Threads get the place "the house". A thread of the house is the same wherever it is taken up. Should it later move to the room it is taken up in, that is a transition of its own, named in a spec, with a log line; never a side effect |
 | 14 | Who writes an entry's text | Who writes the plan: `inbox.read` for a mail, the code for a recording or a found device (facts of the box, of Home Assistant), the sender for `simple`. The conversation's model words "what first?" from these lines |
@@ -224,17 +224,19 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 17 | The kind from fields that say it | Where a caller has fields that say it (a task's verdict, a skill's schedule, `mira.send_message`, `notify.send_message`), the kind comes from them by one rule: private → `private`, confidential → `confidential`, importance 3 → `urgent`, else `simple` (decided 2026-11-12). This translates fields that are there; it reads nothing into a missing one |
 | 18 | Rules per entry in a gathered message (decided 2026-11-12) | The importance threshold (`notifier.min_importance`) holds per entry: an entry below it counts as not there: it is neither announced nor read out, nor does it light the ring (as a message below it today). The own room's hold (`own_message_hold`) holds per entry: in the room it came from, the entry stays out of what is said for the hold; with none left, the message does not count there. "At most three per announcement" counts messages: a gathered message is one, with all its entries, worded as one text. Done (`message_ack`) is per entry: `messages_list` shows the entries with their ids, `message_ack` takes one out; the last one ends the message |
 | 19 | Missed calls (decided 2026-11-12, step 4) | Stay as they are: no entry and no step of a plan, since there is nothing to work through. The ring shows them red by the box's sensor, and `messages_read` names them in one line ([Voicemail](voicemail.md), decision 6). Decision 6's "missed calls go into the `voicemail` message" is withdrawn |
-| 20 | The answering machine's thread taken up (decided 2026-11-12, step 4) | Its type's timeout becomes one day (was 15 minutes): taken up and left, it stays a day, while the recordings are still new at the box. Not taken up, it keeps the newest recording plus 5 days (decision 11) |
+| 20 | The answering machine's thread taken up (decided 2026-11-12, step 4) | Its type's timeout becomes one day (was 15 minutes): taken up and left, it stays a day, while the recordings are still new at the box. Not taken up, it keeps the 5 days from when Mira last started or extended it (decision 11) |
 | 21 | The box's count goes to 0 (decided 2026-11-12, step 4) | Everything is heard: the thread's plan counts as done (every step ticked), so it stays open the 5 minutes a done plan stays ("nochmal" still works), and its entries leave the message at once |
 | 22 | The ring's colour by kind (decided 2026-11-12, step 4) | Only `voicemail` waiting: amber, as before; anything else waiting: Mira's colour. The box's sensor stays the way to amber where no message is (the box's list could not be read) and the only way to red (missed calls) |
 | 23 | The answering machine's thread is the house's (decided 2026-11-12, step 4) | The code starts it when no turn exists, so no room is its own; a turn in any room continues the same plan. `voicemail_list` finds or starts the house's thread and takes it up for the turn; "Nächste …" still joins the next turn at that satellite to it |
+| 24 | The answering machine announced on entry (decided 2026-11-12, step 4) | As every message: where a room announces on entry, the `voicemail` message is said there ("Auf dem Anrufbeantworter: Oma, heute 14:12"); elsewhere the ring and the screen show it |
+| 25 | New recordings when Mira starts (decided 2026-11-12, step 4) | Taken as a rise: when the watch on the box's sensor starts and its count is above 0, Mira reads the list and keeps the thread and the message as for a recording that came. Reading again adds nothing twice (the entries are keyed by the recording) |
 
 ### What it does, step by step
 
 1. **A recording comes** (the answering machine's sensor `_new_messages` rises; Mira already subscribes to it for the
    indicators). Mira reads the box's list (the action `get_messages` of `voicemail_list`). No open thread: the code
    starts the house's thread with the plan of the new recordings; else it adds them to the plan (missed calls are no
-   steps, decision 19). Its expiry becomes the newest recording plus 5 days. Each new recording is an entry of the
+   steps, decision 19). Its expiry becomes 5 days from now (decision 11). Each new recording is an entry of the
    house's unheard `voicemail` message, or of a new one (decision 4), keyed by the recording, so reading again adds
    nothing twice. The count going to 0 (heard at the box or through Mira) makes the plan done and takes its entries
    out at once (decisions 12 and 21).
@@ -242,7 +244,7 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
    line and its expiry ([Mira's inbox](inbox.md), changed separately); the code starts the person's thread for it and
    puts the entry into the person's unheard `postfach` message, or a new one.
 3. **A device is found** ([Found devices](found-devices.md)): no open thread of the house: the code starts it with
-   the found device in its plan; else adds it. Expiry: 1 day from the newest. The entry goes into the house's unheard
+   the found device in its plan; else adds it. Expiry: 1 day from now (decision 11). The entry goes into the house's unheard
    `device` message.
 4. **A simple text comes** (a task, a person, an automation): an entry of the receiver's unheard `simple` message,
    or a new message.
@@ -302,8 +304,8 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
    MS-25, MS-26 to MS-30.
 3. **The inbox as a kind**: a thread per mail, the entry, the expiry by `inbox.read` (after the inbox's plan is
    written by `inbox.read`). MS-12 to MS-15.
-4. **The answering machine as a kind**: the house's thread on a new recording, extended, newest plus 5 days, the
-   indicators by kind. MS-16 to MS-20.
+4. **The answering machine as a kind**: the house's thread on a new recording, extended, 5 days from now, the
+   indicators by kind. MS-16 to MS-20, MS-34 (the start, decision 25).
 5. **Found devices as a kind**: the house's thread on a found device, extended, 1 day. MS-31 to MS-33.
 
 ## Open

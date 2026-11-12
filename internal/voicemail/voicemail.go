@@ -664,15 +664,12 @@ func (m *Machine) failed(err error) string {
 }
 
 // Recording is a new recording as the house's message names it.
-type Recording struct {
-	ID, Line string
-	At       time.Time
-}
+type Recording struct{ ID, Line string }
 
 // Arrived reads the box after its count rose (docs/spec/messages.md, step
 // 4): the plan of the house's thread (planText is the plan it has, "" for
-// none), the new recordings with their lines ("Oma, heute 14:12") and when
-// the newest came. 1 action of Mira FRITZ!Box (get_messages).
+// none) and the new recordings with their lines ("Oma, heute 14:12").
+// 1 action of Mira FRITZ!Box (get_messages).
 func (m *Machine) Arrived(ctx context.Context, planText string) (plan string, recs []Recording, err error) {
 	all, err := m.messages(ctx, false)
 	if err != nil {
@@ -683,8 +680,7 @@ func (m *Machine) Arrived(ctx context.Context, planText string) (plan string, re
 		if !x.New {
 			continue
 		}
-		at, _ := time.Parse(time.RFC3339, x.Date)
-		recs = append(recs, Recording{ID: x.ID, Line: x.Name + ", " + m.when(x.Date), At: at})
+		recs = append(recs, Recording{ID: x.ID, Line: x.Name + ", " + m.when(x.Date)})
 	}
 	if len(planned) == 0 {
 		return "", recs, nil

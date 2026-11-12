@@ -94,18 +94,19 @@ func (b *vmBed) voicemailMessages(t *testing.T) []store.Message {
 
 func TestMS16_ARecordingStartsTheHousesThreadAndMessage(t *testing.T) {
 	b := voicemailKindApp(t)
-	at := b.now.Add(-time.Minute)
-	b.box.record("0:13", "Oma", at)
+	// A recording of last week: the expiry counts from now, never from its
+	// date (decision 11).
+	b.box.record("0:13", "Oma", b.now.Add(-7*24*time.Hour))
 	b.a.voicemailArrived(context.Background(), 1)
 	th, ok := b.houseThread(t)
 	if !ok || th.Place != store.PlaceHouse || !strings.Contains(planText(th), "Oma") || !strings.Contains(planText(th), "(id 0:13)") {
 		t.Fatalf("thread = %+v", th)
 	}
-	if !near(th.ExpiresAt, at.Add(5*24*time.Hour)) {
-		t.Fatalf("expires %s, want %s", th.ExpiresAt, at.Add(5*24*time.Hour))
+	if !near(th.ExpiresAt, time.Now().Add(5*24*time.Hour)) {
+		t.Fatalf("expires %s", th.ExpiresAt)
 	}
 	ms := b.voicemailMessages(t)
-	if len(ms) != 1 || len(ms[0].Entries) != 1 || ms[0].Entries[0].ThreadID != th.ID || !strings.HasPrefix(ms[0].Entries[0].Text, "Oma, heute") {
+	if len(ms) != 1 || len(ms[0].Entries) != 1 || ms[0].Entries[0].ThreadID != th.ID || !strings.HasPrefix(ms[0].Entries[0].Text, "Oma, ") {
 		t.Fatalf("messages = %+v", ms)
 	}
 }
@@ -124,7 +125,7 @@ func TestMS17_AFurtherRecordingExtendsThem(t *testing.T) {
 	if th.ID != first.ID || strings.Count(planText(th), "- [ ]") != 2 {
 		t.Fatalf("thread %s (first %s), plan:\n%s", th.ID, first.ID, planText(th))
 	}
-	if !near(th.ExpiresAt, later.Add(5*24*time.Hour)) {
+	if !near(th.ExpiresAt, time.Now().Add(5*24*time.Hour)) {
 		t.Fatalf("expires %s", th.ExpiresAt)
 	}
 	ms := b.voicemailMessages(t)
@@ -178,3 +179,27 @@ func planText(th store.Thread) string {
 // near: the same time, give or take a second (the database keeps
 // milliseconds, a recording's date seconds).
 func near(a, b time.Time) bool { d := a.Sub(b); return d > -time.Second && d < time.Second }
+
+func TestMS34_NewRecordingsWhenMiraStarts(t *testing.T) {
+	b := voicemailKindApp(t)
+	ctx := context.Background()
+	// Unheard for over a week (as the test box's own): one message with two
+	// entries all the same, and a thread that waits 5 days from now.
+	b.box.record("0:12", "Ben", b.now.Add(-10*24*time.Hour))
+	b.box.record("0:13", "Oma", b.now.Add(-8*24*time.Hour))
+	b.a.voicemailCounted(ctx, -1, 2)
+	b.a.voicemailCounted(ctx, -1, 2) // the watch starts again
+	th, ok := b.houseThread(t)
+	if !ok || strings.Count(planText(th), "- [ ]") != 2 {
+		t.Fatalf("thread %v:\n%s", ok, planText(th))
+	}
+	if ms := b.voicemailMessages(t); len(ms) != 1 || len(ms[0].Entries) != 2 {
+		t.Fatalf("messages = %+v", ms)
+	}
+	// Nothing new at the start: nothing.
+	b2 := voicemailKindApp(t)
+	b2.a.voicemailCounted(ctx, -1, 0)
+	if _, ok := b2.houseThread(t); ok {
+		t.Fatal("a thread without recordings")
+	}
+}

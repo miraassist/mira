@@ -106,7 +106,7 @@ Feature: Messages
   Scenario: MS-17 A further recording extends them
     Given the voicemail message is unheard
     When another recording comes
-    Then the plan gains it, the message gets an entry, and the thread expires 5 days after this recording; there is
+    Then the plan gains it, the message gets an entry, and the thread expires 5 days after Mira learned of it; there is
       still one thread and one message
 
   @step4
@@ -124,6 +124,12 @@ Feature: Messages
   Scenario: MS-20 The box cannot be read
     Given the box's list cannot be read when a recording comes
     Then no message and no thread are made, the ring still shows the count, and a log line names the error
+
+  @step4
+  Scenario: MS-34 New recordings when Mira starts
+    Given the box's count of new recordings is 2 when Mira starts watching it
+    Then the house's thread and its voicemail message are kept as for a recording that came
+    And watching again adds no entry twice
 
   @step2
   Scenario: MS-21 A further simple text while the message is unheard

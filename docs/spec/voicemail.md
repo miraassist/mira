@@ -150,7 +150,7 @@ as cooking or vocabulary, a list of steps worked through, with a "current" one. 
 ### The thread
 
 Changed 2026-11-12 by [Messages](messages.md), step 4 (decisions 19 to 23): the thread is **the house's**, started by
-the code when a recording comes (its expiry the newest recording plus 5 days), found and taken up by `voicemail_list`;
+the code when a recording comes (its expiry 5 days from when Mira starts or extends it), found and taken up by `voicemail_list`;
 its type's timeout is one day; the box's count going to 0 makes its plan done. What follows describes it before that
 change where it differs.
 
