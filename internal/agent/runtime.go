@@ -600,7 +600,7 @@ func (r *Runtime) runTool(ctx context.Context, me *run, call llm.ToolCall, t tex
 		return r.callSub(ctx, sub, call.Function.Arguments, t)
 	}
 	spec, ok := r.o.Tools.Lookup(name)
-	if !ok || (spec.Skill != "" && spec.Skill != me.cc.Skill) {
+	if !ok || (spec.Skilled() && !spec.Within([]string{me.cc.Skill})) {
 		// A skill's tool only for a run of that skill.
 		return fmt.Sprintf(t.unknownTool, name)
 	}

@@ -29,16 +29,17 @@ metadata:
           description: Kalender (Name). Steht im Gedächtnis ein Standard-Kalender der Person, nimm ihn; sonst "standard"
           check: calendar_writable
       finish:
-        action: calendar.create_event
+        action: calendar.create
         omit_empty: true
         data:
           entity_id: "{{ calendar }}"
-          summary: "{{ title }}"
-          start_date_time: "{{ start }}"
-          end_date_time: "{{ end }}"
-          start_date: "{{ day }}"
-          end_date: "{{ day_after }}"
+          title: "{{ title }}"
+          start: "{{ start }}"
+          end: "{{ end }}"
+          day: "{{ day }}"
+          day_after: "{{ day_after }}"
           location: "{{ location }}"
+          person: "{{ person }}"
       undo:
         action: calendar.delete_created
         omit_empty: true

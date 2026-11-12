@@ -180,22 +180,19 @@ func (a *app) inboxCalendars(ctx context.Context) ([]inbox.Calendar, error) {
 	if err != nil {
 		return nil, err
 	}
-	logins := a.logins(ctx)
-	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
-	owner := map[string]string{}
-	for key, p := range a.persons() {
-		if l := norm(logins[p.Entity]); l != "" {
-			owner[l] = key
-		}
-		if n := norm(p.Name); n != "" {
-			owner[n] = key
-		}
-	}
 	out := make([]inbox.Calendar, 0, len(cals))
 	for _, c := range cals {
-		out = append(out, inbox.Calendar{Entity: c.Entity, Name: c.Name, Writable: c.Writable, Of: owner[norm(c.Name)]})
+		out = append(out, inbox.Calendar{Entity: c.Entity, Name: c.Name, Writable: c.Writable, Of: a.calendarOwner(ctx, c.Name)})
 	}
 	return out, nil
+}
+
+// calendarOwner is the person whose calendar this name is by convention
+// (docs/spec/calendar.md, Personal calendars): named like their login or
+// their person, case and spaces aside; "" for none.
+func (a *app) calendarOwner(ctx context.Context, name string) string {
+	key, _ := personByOwner(name, a.persons(), a.logins(ctx))
+	return key
 }
 
 // inboxCalendar is the person's own writable calendar by convention.

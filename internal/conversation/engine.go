@@ -17,7 +17,6 @@ import (
 	"github.com/miraassist/mira/internal/excerpt"
 	"log/slog"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -822,7 +821,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 	record := func(outcome string) { e.tel.RecordToolCall(ctx, server, name, outcome) }
 
 	spec, ok := e.tools.Lookup(name)
-	if ok && spec.Skill != "" {
+	if ok && spec.Skilled() {
 		// A skill's tool exists for the conversation only once it opened
 		// the skill, and never one only for the skill's agents.
 		open, err := e.store.SessionSkills(ctx, ts.SessionKey)
@@ -830,7 +829,7 @@ func (e *Engine) runTool(ctx context.Context, ts *tools.TurnState, call llm.Tool
 			// docs/spec/fallbacks.md, row 26.
 			e.log.Warn("could not read the skills the conversation opened; the skill's tool counts as unknown", "session", ts.SessionKey, "tool", name, "error", err)
 		}
-		ok = slices.Contains(open, spec.Skill) && !spec.AgentsOnly
+		ok = spec.Within(open) && !spec.AgentsOnly
 	}
 	if !ok {
 		record("unknown")

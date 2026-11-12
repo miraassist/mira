@@ -37,6 +37,9 @@ type Spec struct {
 	// Skill is the skill whose MCP server offers the tool: it is in no list
 	// until that skill is opened (docs/spec/skill-mcp.md).
 	Skill string
+	// Skills: a tool of Mira's that comes with any of these skills
+	// (docs/spec/threads.md, Tools of a turn in a thread).
+	Skills []string
 	// AgentsOnly: a skill's tool that only its agents and schedules get, never
 	// the conversation.
 	AgentsOnly bool
@@ -102,6 +105,9 @@ type InternalTool struct {
 	// Skill: the tool comes with that skill, as its MCP tools (a skill's agent
 	// for the conversation, docs/spec/agents.md).
 	Skill string
+	// Skills: the tool comes with any of these skills, and with none of them
+	// it is not offered (docs/spec/threads.md: a tool of several skills).
+	Skills []string
 	// Background: a skill's tool that its agents and schedules get too, as
 	// its MCP tools (a skill's web API tool, docs/spec/oauth.md).
 	Background bool
@@ -193,7 +199,7 @@ func (r *Registry) Specs(readOnly bool) []Spec {
 	var out []Spec
 	for _, t := range r.internalTools() {
 		// A skill's tools come only with the skill.
-		if (readOnly && !t.ReadOnly) || !t.on() || t.Skill != "" {
+		if (readOnly && !t.ReadOnly) || !t.on() || t.skilled() {
 			continue
 		}
 		out = append(out, internalSpec(t))
@@ -247,6 +253,7 @@ func internalSpec(t InternalTool) Spec {
 		Internal:    true,
 		AskAfterWeb: t.AskAfterWeb,
 		Skill:       t.Skill,
+		Skills:      t.Skills,
 		PlaysAfter:  t.PlaysAfter,
 	}
 }
@@ -261,7 +268,7 @@ func (r *Registry) SkillDefs(skills ...string) []prompt.ToolDef {
 	var out []prompt.ToolDef
 	var own []InternalTool
 	for _, t := range r.internalTools() {
-		if t.Background && slices.Contains(skills, t.Skill) && t.on() {
+		if t.Background && t.within(skills) && t.on() {
 			own = append(own, t)
 		}
 	}
@@ -290,7 +297,7 @@ func (r *Registry) ConversationSkillDefs(skills ...string) []prompt.ToolDef {
 	var out []prompt.ToolDef
 	var agents []InternalTool
 	for _, t := range r.internalTools() {
-		if t.Skill != "" && slices.Contains(skills, t.Skill) && t.on() {
+		if t.within(skills) && t.on() {
 			agents = append(agents, t)
 		}
 	}
@@ -362,4 +369,28 @@ func clip(s string, inv Invocation) string {
 	}
 	slog.Warn("tool result cut", "tool", inv.Name, "chars", len(s), "kept", cut, "context_tokens", inv.ContextTokens)
 	return s[:cut] + "\n" + fmt.Sprintf(i18n.Pick(cutNotes, inv.Lang), cut, len(s))
+}
+
+// skilled: the tool comes only with a skill.
+func (t InternalTool) skilled() bool { return t.Skill != "" || len(t.Skills) > 0 }
+
+// within: the tool comes with one of these skills.
+func (t InternalTool) within(skills []string) bool {
+	return internalSpec(t).Within(skills)
+}
+
+// Skilled: the tool comes only with a skill (one, or one of several).
+func (s Spec) Skilled() bool { return s.Skill != "" || len(s.Skills) > 0 }
+
+// Within: the tool comes with one of these open skills.
+func (s Spec) Within(open []string) bool {
+	if s.Skill != "" && slices.Contains(open, s.Skill) {
+		return true
+	}
+	for _, sk := range s.Skills {
+		if sk != "" && slices.Contains(open, sk) {
+			return true
+		}
+	}
+	return false
 }

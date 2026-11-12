@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/skills"
 )
@@ -77,8 +78,17 @@ func (c mailCalendar) Events(ctx context.Context, entity string, from, to time.T
 	return out, nil
 }
 
+// Create enters a new entry through the calendar's building block
+// calendar.create (docs/spec/calendar.md, Adding), as Mira's own code: no
+// person, so any writable calendar.
 func (c mailCalendar) Create(ctx context.Context, entity string, e mailcal.Entry) error {
-	_, err := c.a.ha.Call(ctx, map[string]any{"type": "calendar/event/create", "entity_id": entity, "event": haEvent(e)})
+	ev := calendar.NewEvent{Title: e.Summary, Location: e.Location, Description: e.Description, Calendar: entity}
+	if e.Start.IsZero() {
+		ev.Day = e.Day
+	} else {
+		ev.Start, ev.End = e.Start, e.End
+	}
+	_, err := c.a.calendar.Create(ctx, ev)
 	return err
 }
 

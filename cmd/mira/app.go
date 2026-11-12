@@ -411,8 +411,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Home Assistant's calendars, read the way Mira decides
 	// (docs/spec/calendar.md).
 	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
-		Calendars: a.calendarList, Delete: a.deleteEvent, Logger: a.log})
+		Calendars: a.calendarList, Delete: a.deleteEvent, Owner: a.calendarOwner, Act: a.callAction, Logger: a.log})
 	internal = append(internal, a.calendar.Tool(a.lang))
+	// One tool to enter an event, for the skills that name it
+	// (docs/spec/calendar.md, Adding).
+	internal = append(internal, a.calendar.CreateTool(a.lang, inbox.Target))
 	// Mails that announce something with a time, kept in a calendar
 	// (docs/spec/mail-calendar.md); the mail skills say what to read.
 	if apps := mailApps(loaded); len(apps) > 0 {

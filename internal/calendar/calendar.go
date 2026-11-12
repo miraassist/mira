@@ -53,7 +53,12 @@ type Options struct {
 	Calendars func(ctx context.Context) ([]Info, error)
 	// Delete removes an event (WebSocket calendar/event/delete); an empty
 	// recurrenceID removes a whole series.
-	Delete   func(ctx context.Context, entity, uid, recurrenceID string) error
+	Delete func(ctx context.Context, entity, uid, recurrenceID string) error
+	// Act calls a Home Assistant action (calendar.create_event).
+	Act func(ctx context.Context, domain, service string, data map[string]any) error
+	// Owner is the person whose calendar a calendar's name is by convention
+	// (docs/spec/calendar.md, Personal calendars); "" for none.
+	Owner    func(ctx context.Context, name string) string
 	Lang     i18n.Lang
 	Location *time.Location
 	Clock    func() time.Time
@@ -436,6 +441,11 @@ type texts struct {
 	toolDesc, fromDesc, toDesc, calendarDesc, queryDesc, detailsDesc string
 	noCalendars, unknownCalendar, whichCalendar, unknownEvent        string
 	confirmDelete, confirmDeleteAll, deleted                         string
+
+	createDesc, createTitleDesc, createStartDesc, createEndDesc, createDayDesc, createDayAfterDesc string
+	createLocationDesc, createDescriptionDesc, createCalendarDesc                                  string
+	createNoTitle, createTooLong, createBoth, createNoDate, createEndBefore, createBadDate         string
+	createNoCalendar, createNotThat, createDone, createPast, createRefused, createFailed           string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -453,6 +463,28 @@ var catalog = map[i18n.Lang]texts{
 		confirmDelete:    "Den Termin %s absagen?",
 		confirmDeleteAll: "Den Serientermin %s absagen, alle Termine der Serie?",
 		deleted:          "Abgesagt: %s. Sag es dem Nutzer kurz.",
+
+		createDesc:            "Trägt einen Termin in einen Kalender ein. Entweder start (mit Uhrzeit) oder day (ganztägig), nie beides.",
+		createTitleDesc:       "Titel, kurz, ohne Datum, z. B. Elternabend",
+		createStartDesc:       "Beginn als YYYY-MM-DD HH:MM; bei einem ganztägigen Termin leer",
+		createEndDesc:         "Ende als YYYY-MM-DD HH:MM; ohne Angabe eine Stunde nach Beginn",
+		createDayDesc:         "Nur ganztägig: der Tag als YYYY-MM-DD",
+		createDayAfterDesc:    "Nur ganztägig über mehrere Tage: der Tag nach dem letzten Tag als YYYY-MM-DD",
+		createLocationDesc:    "Ort, falls bekannt",
+		createDescriptionDesc: "Woher der Termin stammt, z. B. aus Paperless: Elternbrief (5444)",
+		createCalendarDesc:    "Kalender (Name), nur wenn der Nutzer einen nennt oder im Gedächtnis ein Standard steht; sonst leer",
+		createNoTitle:         "Der Termin braucht einen Titel.",
+		createTooLong:         "%s ist länger als %d Zeichen: %q",
+		createBoth:            "Entweder start (mit Uhrzeit) oder day (ganztägig), nicht beides.",
+		createNoDate:          "Es fehlt start (mit Uhrzeit) oder day (ganztägig).",
+		createEndBefore:       "Das Ende %s liegt nicht nach dem Beginn %s.",
+		createBadDate:         "%s %q ist kein Datum wie %s.",
+		createNoCalendar:      "Es gibt keinen Kalender, in den ich für diese Person eintragen darf.",
+		createNotThat:         "In den Kalender %q kann ich nicht eintragen. Möglich: %s",
+		createDone:            "Eingetragen: %s. Sag dem Nutzer genau das.",
+		createPast:            "Der Termin liegt in der Vergangenheit.",
+		createRefused:         "Nicht eingetragen: %s",
+		createFailed:          "Nicht eingetragen, Home Assistant hat abgelehnt: %v",
 	},
 	i18n.EN: {
 		toolDesc:         "Reads events from the household's calendars, briefly, by day, each with a label like t3 (to cancel it). Only name events this tool returned.",
@@ -468,6 +500,28 @@ var catalog = map[i18n.Lang]texts{
 		confirmDelete:    "Cancel the event %s?",
 		confirmDeleteAll: "Cancel the recurring event %s, every event of the series?",
 		deleted:          "Cancelled: %s. Tell the user briefly.",
+
+		createDesc:            "Enters an event into a calendar. Either start (with a time) or day (all day), never both.",
+		createTitleDesc:       "Title, short, without a date, e.g. parents' evening",
+		createStartDesc:       "Start as YYYY-MM-DD HH:MM; empty for an all-day event",
+		createEndDesc:         "End as YYYY-MM-DD HH:MM; without it one hour after the start",
+		createDayDesc:         "All day only: the day as YYYY-MM-DD",
+		createDayAfterDesc:    "All day over several days only: the day after the last day as YYYY-MM-DD",
+		createLocationDesc:    "Location, if known",
+		createDescriptionDesc: "Where the event comes from, e.g. from Paperless: school letter (5444)",
+		createCalendarDesc:    "Calendar (name), only when the user names one or memory holds a default; otherwise empty",
+		createNoTitle:         "The event needs a title.",
+		createTooLong:         "%s is longer than %d characters: %q",
+		createBoth:            "Either start (with a time) or day (all day), not both.",
+		createNoDate:          "start (with a time) or day (all day) is missing.",
+		createEndBefore:       "The end %s is not after the start %s.",
+		createBadDate:         "%s %q is no date like %s.",
+		createNoCalendar:      "There is no calendar I may write to for this person.",
+		createNotThat:         "I cannot write to the calendar %q. Possible: %s",
+		createDone:            "Entered: %s. Tell the user exactly that.",
+		createPast:            "The event is in the past.",
+		createRefused:         "Not entered: %s",
+		createFailed:          "Not entered, Home Assistant refused: %v",
 	},
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/miraassist/mira/internal/calendar"
 	"github.com/miraassist/mira/internal/trace"
 )
 
@@ -14,12 +15,17 @@ import (
 type haActions struct{ a *app }
 
 // core is a building block of the core a skill's action may name where Home
-// Assistant has no action (docs/spec/skill-actions.md): the undo of termin.
+// Assistant has no action or Mira checks before it (docs/spec/skill-actions.md):
+// the finish and the undo of termin (docs/spec/calendar.md).
 func (h haActions) core(action string) func(context.Context, map[string]any) error {
 	switch action {
 	case "calendar.delete_created":
 		if h.a.calendar != nil {
 			return h.a.calendar.DeleteCreated
+		}
+	case calendar.ActionCreate:
+		if h.a.calendar != nil {
+			return h.a.calendar.CreateAction
 		}
 	}
 	return nil
@@ -78,4 +84,11 @@ func (h haActions) Place(ctx context.Context, area, device string) map[string]st
 // spell it; "" when unknown.
 func (a *app) nodeOf(_ context.Context, entity string) string {
 	return a.deviceNode(a.entityDevice(entity))
+}
+
+// callAction calls a Home Assistant action, for the calendar's building
+// block calendar.create.
+func (a *app) callAction(ctx context.Context, domain, service string, data map[string]any) error {
+	trace.Add(ctx, trace.Action, domain+"."+service, "")
+	return a.ha.CallService(ctx, domain, service, data, nil)
 }
