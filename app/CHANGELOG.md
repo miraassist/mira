@@ -3,6 +3,22 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.23.0
+
+- **Mira's inbox.** Documents you tag "Mira" in Paperless and mails of an IMAP device "Postfach <login>" reach Mira.
+  She reads them, tells their owner what they ask for (appointments, deadlines, callbacks, a choice among proposals)
+  and enters the appointments you choose into your calendar.
+- **Messages gather.** While a message is unheard, what comes after joins it instead of making a message of its own:
+  the mails, the answering machine's recordings, the devices found. "Habe ich neue Nachrichten?" says what waits and
+  asks what to start with. On an Echo the ring is amber for the answering machine.
+- **You give Mira her access yourself.** At the setup you paste a long-lived token of an administrator (your
+  profile → Security → Long-lived access tokens → Create token); the integration no longer makes one. If the token
+  is revoked, the repair "Mira hat keinen Zugang mehr" asks for a new one. After this update the token
+  "Mira (Integration)" the integration made before is revoked, and the repair comes once: paste a token there.
+- **Mira deletes only the tasks and timers she created herself**, by her own record, no longer whatever carries her
+  label. Those from before are taken over once.
+- Messages from before this version are not kept.
+
 ## 0.22.1
 
 - **Fewer "neues Gerät gefunden".** Home Assistant's iBeacon integration makes a device for every Bluetooth beacon it

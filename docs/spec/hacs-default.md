@@ -1,7 +1,7 @@
 # HACS default catalog – spec
 
 Status 2026-11-12: decisions 1 to 4 taken, checks C1 to C4 done; steps 1 to 3 built and released (0.18.0), decision 4
-(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done; steps 5 and 6 built.
+(the zip) built and released. Second review (2026-11-12): decisions 5 to 7 taken, checks C5, C7 and C8 done; steps 5 and 6 built, released with 0.23.0.
 
 ## Goal
 

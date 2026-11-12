@@ -1124,14 +1124,13 @@ docker run -d --name mira --restart unless-stopped --network host --user nonroot
 
   Dann das Modell aus der Liste. Mira probiert es gleich aus und fragt den Anbieter, wie viel Kontext das Modell hat; das steht danach auf ihrer Seite unter Modelle. Sagt der Anbieter es nicht (OpenAI), trägst du es dort ein.
 - **Mira verwenden in**: die Assistenten, in denen Mira antwortet; der bevorzugte ist schon angehakt.
-- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt. Darüber steht, warum Mira einen Zugang mit Admin-Rechten bekommt: Sie legt eure Aufgaben und Timer als Automationen an, und das darf in Home Assistant nur ein Administrator. Der Zugang läuft im Namen dessen, der Home Assistant eingerichtet hat, und steht in dessen Profil unter Sicherheit. Mit dem Klick bist du einverstanden. Fertig.
+- **Mira jetzt nutzen**: erscheint, sobald nichts mehr fehlt, und fragt nach einem **Zugang für Mira**. Mira legt eure Aufgaben und Timer als Automationen an, und das darf in Home Assistant nur ein Administrator. Den Zugang gibst du ihr selbst: Klicke in deinem Profil unter **Sicherheit → Langlebige Zugriffstoken** auf **Token erstellen**, nenne es zum Beispiel „Mira“, kopiere es und füge es im Dialog ein. Es muss einem Administrator gehören. Fertig.
 
 Schließt du den Dialog zwischendurch, geht es beim nächsten Öffnen in der Übersicht weiter.
 
 Steht Mira nicht unter „Entdeckt“: **Integration hinzufügen** → Mira, und die Adresse eingeben, etwa `http://192.168.1.20:8787`.
 
 Dabei richtet die Integration alles Übrige in Home Assistant selbst ein:
-- einen **Zugang „Mira (Integration)“** im Profil dessen, der Home Assistant eingerichtet hat, mit dem Mira Home Assistant anspricht;
 - den **MCP-Server** von Home Assistant, falls er noch fehlt;
 - **Mira als Gesprächsagent** in den Assistenten, die du angehakt hast.
 
@@ -1148,6 +1147,9 @@ Der Dialog sagt, was nicht stimmt, und du kannst es gleich dort korrigieren:
   - Läuft LM Studio auf einem anderen Rechner, schalte dort „Serve on Local Network“ ein.
   - Ollama hört von Haus aus nur auf seinen eigenen Rechner (`OLLAMA_HOST=0.0.0.0` ändert das).
 - **„Das Modell benutzt keine Werkzeuge“**: Wähle ein anderes Modell. Mira braucht Werkzeuge zum Schalten und Nachschauen.
+- **„Dieses Token kennt Home Assistant nicht“**: Das Token ist nicht vollständig kopiert oder schon widerrufen. Erstelle ein neues und füge es ein.
+- **„Das ist kein langlebiges Zugriffstoken“**: Das Token muss unter **Langlebige Zugriffstoken** erstellt sein.
+- **„Dieses Token gehört keinem Administrator“**: Erstelle das Token im Profil eines Administrators.
 
 Und sonst:
 - **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (siehe Schritt 3).
@@ -1155,6 +1157,7 @@ Und sonst:
   - Entfernst du die Integration und fügst sie im selben Home Assistant wieder hinzu, brauchst du keinen Code.
   - Gibt es keinen Code, weil das alte Home Assistant nicht mehr existiert: Setze Miras Daten zurück, mit `docker exec mira /app/mira reset` und einem Neustart (`docker restart mira`), bei der Home-Assistant-App mit der Option **Daten zurücksetzen** im Tab **Konfiguration** und einem Neustart der App. Gedächtnis und Nachrichten sind dann weg, die `mira.yaml` bleibt.
 - **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **KI-Modell (LLM)**.
+- **Reparatur „Mira hat keinen Zugang mehr“?** Miras Token wurde widerrufen, oder sein Benutzer ist kein Administrator mehr. Bis du ihr ein neues gibst, klappt nicht, was Home Assistant ablehnt, zum Beispiel neue Aufgaben und Timer. Öffne die Reparatur unter **Einstellungen → System → Reparaturen** und füge ein neues Token ein, wie beim Einrichten.
 
 **Sicherheit beim Einrichten:** Eine neue Mira koppelt sich mit dem ersten Home Assistant, der das Koppeln abschließt, ohne Code. Richte sie deshalb im eigenen Heimnetz ein, nicht in einem Gästenetz oder geteilten Netz. Hätte dir jemand zuvorgekommen, merkst du es sofort: Dein Dialog fragt dann nach einem Code. Setze Miras Daten dann zurück (siehe oben) und richte sie neu ein.
 
@@ -1203,7 +1206,7 @@ Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → Syst
 
 - **Zwei Schlüssel:**
   - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Hinzufügen, du siehst ihn nie.
-  - Mira spricht Home Assistant mit einem **Zugang im Namen dessen an, der Home Assistant eingerichtet hat**, also mit Admin-Rechten. Du siehst ihn in seinem Profil unter Sicherheit und kannst ihn dort widerrufen; dann legt die Integration beim nächsten Abgleich einen neuen an. Wer Mira ganz abklemmen will, entfernt die Integration.
+  - Mira spricht Home Assistant mit dem **Token an, das du ihr beim Einrichten gegeben hast**, also mit den Rechten des Administrators, dem es gehört. Die Integration legt selbst nie ein Token an. Du kannst es in dem Profil, in dem du es erstellt hast, unter Sicherheit jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen. Entfernst du die Integration, bleibt das Token, bis du es dort löschst.
   - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
 - **Was Mira in HA tut:** nur, was ihre Werkzeuge anbieten: Geräte schalten und eure Aufgaben und Timer als Automationen speichern, so wie der Automationseditor; sie löscht nur ihre eigenen. Benutzer, Integrationen und Einstellungen verwaltet sie nicht. Läuft Mira mit einem Token aus ihrer `mira.yaml` (`ha.token`), muss es für Aufgaben und Timer ein Admin-Token sein. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
 - **Läuft Mira auf demselben Rechner wie Home Assistant** (der Normalfall), bleibt alles auf diesem Rechner.
