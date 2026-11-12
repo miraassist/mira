@@ -35,6 +35,12 @@ type Mail struct {
 	Subject string    `json:"subject"`
 	Date    time.Time `json:"date"`
 	Text    string    `json:"text"`
+	// ImapEntry and UID name the mail in Home Assistant's IMAP integration;
+	// optional, an older integration sends neither (docs/spec/inbox.md,
+	// step 6). The inbox knows a mail by ImapEntry and its hash; UID is the
+	// mail's position in its folder and only logged (decision 24).
+	ImapEntry string `json:"imap_entry,omitempty"`
+	UID       string `json:"uid,omitempty"`
 }
 
 // Event is a calendar entry as the calendar reports it.
@@ -395,6 +401,16 @@ var (
 // plain turns a mail's text into plain text: HTML without its markup,
 // whitespace collapsed, cut to a size a model reads well.
 func plain(text string) string {
+	text = Plain(text)
+	if r := []rune(text); len(r) > maxText {
+		text = string(r[:maxText]) + " …"
+	}
+	return text
+}
+
+// Plain is a mail's text as plain text: HTML without its markup, whitespace
+// collapsed; not cut.
+func Plain(text string) string {
 	if strings.Contains(text, "<") && strings.Contains(strings.ToLower(text), "</") {
 		text = reBlocks.ReplaceAllString(text, " ")
 		text = reBreaks.ReplaceAllString(text, "\n")
@@ -403,11 +419,7 @@ func plain(text string) string {
 	}
 	text = reSpaces.ReplaceAllString(text, " ")
 	text = reLines.ReplaceAllString(text, "\n\n")
-	text = strings.TrimSpace(text)
-	if r := []rune(text); len(r) > maxText {
-		text = string(r[:maxText]) + " …"
-	}
-	return text
+	return strings.TrimSpace(text)
 }
 
 const maxText = 12000

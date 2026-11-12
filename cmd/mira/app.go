@@ -34,6 +34,7 @@ import (
 	"github.com/miraassist/mira/internal/history"
 	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/inbox"
 	"github.com/miraassist/mira/internal/language"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/mailcal"
@@ -107,6 +108,8 @@ type app struct {
 	calendar *calendar.Calendar
 	// mail keeps the mail calendars (mail.go); nil without a mail skill.
 	mail *mailcal.Service
+	// inbox is Mira's inbox in Paperless (docs/spec/inbox.md); nil when off.
+	inbox *inbox.Service
 	// pairing: Home Assistant pairs with a code (the token is the agent's
 	// own).
 	pairing bool
@@ -153,9 +156,12 @@ type app struct {
 	// only then does a connection of Home Assistant wake its MCP server, so
 	// the start does not connect it twice (docs/spec/context.md, 1.2).
 	mcpStarted atomic.Bool
-	mcp        *mcp.Host
-	oauth      *oauth.Manager
-	engine     *conversation.Engine
+	// toolsChanged is knocked on when the MCP host's tools change (a server
+	// came); the inbox waits on it for its server (docs/spec/inbox.md, step 4).
+	toolsChanged chan struct{}
+	mcp          *mcp.Host
+	oauth        *oauth.Manager
+	engine       *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
 	// page saved into it since, and what Home Assistant sent, held in
@@ -251,6 +257,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			servers = append(servers, *sk.MCP)
 		}
 	}
+	a.toolsChanged = make(chan struct{}, 1)
 	// The skills' connections (docs/spec/oauth.md): a change connects or
 	// drops the skill's server at once.
 	a.oauth, err = oauth.New(ctx, oauth.Options{Store: a.store, Secrets: config.DefaultSecrets(), Skills: all,
@@ -275,6 +282,12 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		OnChange: func(tools []mcp.Tool) {
 			a.log.Info("tool list changed", "tools", len(tools))
+			// The inbox catches up once its server is there
+			// (docs/spec/inbox.md, step 4).
+			select {
+			case a.toolsChanged <- struct{}{}:
+			default:
+			}
 			a.warmup("tools_changed")
 			// Also after a reconnect: the prompt may have changed meanwhile.
 			if a.assist != nil {
@@ -350,6 +363,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		a.goRun(ctx, "found-devices", a.found.Run)
 		a.wifi.Start(ctx)
 	}
+	// Mira's inbox in Paperless (docs/spec/inbox.md); its tool comes with
+	// the skill postfach.
+	a.inbox = a.newInbox(cfg, all)
+	internal = append(internal, a.inboxTools()...)
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).
 	bound := map[string]bool{}
@@ -828,6 +845,10 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	if a.mail != nil {
 		a.goRun(ctx, "mail", a.mail.Run)
 	}
+	if a.inbox != nil {
+		a.goRun(ctx, "inbox", a.inbox.Run)
+		a.goRun(ctx, "inbox-catch-up", a.inboxCatchUp)
+	}
 
 	// One scheduler for the skills' schedules and Mira's own: one job after
 	// the other (docs/spec/schedules.md).
@@ -1005,7 +1026,8 @@ func (a *app) haUser(ctx context.Context) string {
 
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
-	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel"}
+	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel",
+		"postfach"}
 }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
@@ -1229,6 +1251,12 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	}
 	if a.mail != nil {
 		opts.Mail = a.mail
+	}
+	if a.inbox != nil {
+		opts.MailInbox = a.inbox
+		if a.inbox.PaperlessOn() {
+			opts.Inbox = a.inbox
+		}
 	}
 	api := haconv.New(opts)
 	var compact func(context.Context) (bool, error)

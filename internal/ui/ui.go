@@ -142,7 +142,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("GET /ui", h.page)
 	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
 	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
-	h.mux.HandleFunc("GET /ui/guide/img/{name}", h.guideFile)
+	h.mux.HandleFunc("GET /ui/guide/img/{name...}", h.guideFile)
 	h.mux.HandleFunc("GET /ui/js/{name}", h.script)
 	h.mux.HandleFunc("GET /ui/sounds/{name}", h.sound)
 	h.mux.HandleFunc("GET /ui/videos/{name}", h.video)

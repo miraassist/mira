@@ -12,6 +12,9 @@ metadata:
         description: Der API-Token deines Paperless-Benutzers. Mira sieht die Dokumente, die dieser Benutzer sieht.
         required: true
         secret: true
+      inbox_token:
+        description: "Optional: ein eigenes Kennwort für Miras Postfach. Ein Workflow in Paperless schickt damit Dokumente mit dem Tag Mira an Mira (Anleitung im Guide). Ohne es ist das Postfach aus."
+        secret: true
     mcp:
       transport: http
       url: "{{ url }}"

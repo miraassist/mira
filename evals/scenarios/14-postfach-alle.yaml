@@ -1,0 +1,22 @@
+name: postfach-alle
+description: Mail mit zwei Terminen ins Postfach, Anna sagt ja zu beiden
+steps:
+  - mail:
+      from: sekretariat@grundschule.example
+      subject: Elternbrief Klasse 3b
+      text: |
+        Liebe Eltern,
+        der Elternabend der Klasse 3b ist am {{+8}} um 19:30 Uhr in der Aula.
+        Das Laternenfest feiern wir am {{+15}} um 17 Uhr auf dem Schulhof.
+        Viele Grüße, Frau Berger
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Ja, trag beide ein
+    person: anna
+    expect:
+      result:
+        - event_exists: { calendar: calendar.anna, day: "+8", start: "19:30", title: Elternabend }
+        - event_exists: { calendar: calendar.anna, day: "+15", start: "17:00", title: Laterne }
+      behaviour:
+        must: [tool:inbox_enter]

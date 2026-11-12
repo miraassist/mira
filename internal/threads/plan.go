@@ -172,6 +172,60 @@ func (m *Manager) SetPlan(ctx context.Context, inv tools.Invocation, target, req
 	return th.ID, nil
 }
 
+// StartFor starts, from Mira's own code and outside any turn, a plan thread
+// of the target bound to a person, with its plan and fields written
+// (docs/spec/inbox.md, step 3: a document's findings). It returns the
+// thread; nothing is said yet (see Ask).
+func (m *Manager) StartFor(ctx context.Context, target, person, request, plan string, fields map[string]string) (store.Thread, error) {
+	sk, ok := m.targets[target]
+	if !ok || !sk.Target.Plan {
+		return store.Thread{}, fmt.Errorf(m.texts().noTarget, target)
+	}
+	if person == "" {
+		return store.Thread{}, errors.New("a thread started by Mira's code needs a person")
+	}
+	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: "person:" + person,
+		Person: person, State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: fields}
+	if th.Fields == nil {
+		th.Fields = map[string]string{}
+	}
+	m.logEntry(&th, "mira", th.Request)
+	c := planContent{Plan: strings.TrimSpace(plan)}
+	setPlan(&th, c)
+	if err := m.save(ctx, &th); err != nil {
+		return store.Thread{}, err
+	}
+	m.log.Info("thread started", "thread", th.ID, "target", target, "place", th.Place, "by", "code")
+	return th, nil
+}
+
+// TurnThreadOf is the open thread of the target the turn belongs to or that
+// runs at its places, with its fields; false without one.
+func (m *Manager) TurnThreadOf(ctx context.Context, inv tools.Invocation, target string) (store.Thread, bool) {
+	th, err := m.current(ctx, inv)
+	if err != nil || th.Target != target {
+		return store.Thread{}, false
+	}
+	return th, true
+}
+
+// OpenWith reports whether an open thread of the target has the field with
+// this value (an inbox thread of a document); an error reading the threads
+// counts as none, with a log line.
+func (m *Manager) OpenWith(ctx context.Context, target, field, value string) bool {
+	open, err := m.opts.Store.OpenThreads(ctx, "")
+	if err != nil {
+		m.log.Warn("could not read the open threads; taken as none", "target", target, "error", err)
+		return false
+	}
+	for _, th := range open {
+		if th.Target == target && th.Fields[field] == value {
+			return true
+		}
+	}
+	return false
+}
+
 // PlanThread is the id of the target's plan thread the turn belongs to or
 // that runs at its place; "" without one.
 func (m *Manager) PlanThread(ctx context.Context, inv tools.Invocation, target string) string {

@@ -56,6 +56,9 @@ type Skill struct {
 	// entry named like the skill go into a calendar of that name
 	// (docs/spec/mail-calendar.md).
 	Mail *Mail
+	// Inbox, when set, is how Mira reads what lands in her inbox
+	// (docs/spec/inbox.md): the reading's instructions.
+	Inbox *Inbox
 	// Agents are the agents the skill describes (metadata.mira.agents), by
 	// name, with the settings filled into description and instructions
 	// (docs/spec/agents.md, Factory).
@@ -85,6 +88,12 @@ type Mail struct {
 	// Done is a short sign the core puts before the title of an entry
 	// that is done ("●"); the calendar's short line shows it first.
 	Done string `yaml:"done"`
+}
+
+// Inbox is a skill's part in Mira's inbox: how to read a document. The
+// schema and the checks are the core's.
+type Inbox struct {
+	Extract string `yaml:"extract"`
 }
 
 // Target is a goal definition (docs/spec/threads.md). Checks and Finish
@@ -315,6 +324,7 @@ type frontmatter struct {
 			Schedules []Schedule           `yaml:"schedules"`
 			Target    *Target              `yaml:"target"`
 			Mail      *Mail                `yaml:"mail"`
+			Inbox     *Inbox               `yaml:"inbox"`
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
@@ -506,6 +516,14 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		mail.Extract = fill(strings.TrimSpace(mail.Extract), vals, m.Settings)
 		mail.Done = strings.TrimSpace(mail.Done)
 		s.Mail = &mail
+	}
+	if m.Inbox != nil {
+		if strings.TrimSpace(m.Inbox.Extract) == "" {
+			return Skill{}, problem("inboxextract")
+		}
+		inbox := *m.Inbox
+		inbox.Extract = fill(strings.TrimSpace(inbox.Extract), vals, m.Settings)
+		s.Inbox = &inbox
 	}
 	names := make([]string, 0, len(m.Agents))
 	for name := range m.Agents {

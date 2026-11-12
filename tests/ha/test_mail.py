@@ -81,7 +81,48 @@ async def test_new_mails_of_a_mail_entry_reach_the_agent(hass, aioclient_mock, e
         "subject": "Paket",
         "date": "2026-10-20T08:00:00+02:00",
         "text": "Ihr Paket kommt morgen.",
+        "imap_entry": pakete.entry_id,
+        "uid": "7",
     }
+
+
+async def test_IN26_inbox_mails_go_on_with_imap_entry_and_uid_and_need_no_calendar(hass, aioclient_mock, entry):
+    """docs/spec/inbox.md, step 6: the agent names its inbox in inbox_apps."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/health", json={"status": "ok", "id": AGENT_ID, "ha_user_id": AGENT_USER})
+    aioclient_mock.get(
+        f"{AGENT_URL}/v1/status",
+        json={"pending_messages": 0, "quiet_mode": False, "mail_apps": ["pakete"], "inbox_apps": ["postfach"]},
+    )
+    aioclient_mock.post(f"{AGENT_URL}/v1/mail", status=202, json={"queued": True})
+    imap = MockConfigEntry(domain="imap", title="anna@example.com")
+    imap.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=imap.entry_id, identifiers={("imap", imap.entry_id)}, name="Postfach anna"
+    )
+
+    async def fetch(call):
+        return {
+            "text": "Elternabend am 3.12.",
+            "sender": "schule@example.org",
+            "subject": "Elternbrief",
+            "date": "2026-11-09T08:00:00+01:00",
+            "uid": call.data["uid"],
+        }
+
+    hass.services.async_register("imap", "fetch", fetch, supports_response=SupportsResponse.ONLY)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    hass.bus.async_fire("imap_content", {"entry_id": imap.entry_id, "uid": "12", "initial": True})
+    await hass.async_block_till_done()
+
+    sent = _mails(aioclient_mock)
+    assert len(sent) == 1
+    assert sent[0][2]["entry"] == "Postfach anna"
+    assert sent[0][2]["imap_entry"] == imap.entry_id and sent[0][2]["uid"] == "12"
+    # No repair asks for a calendar "Postfach anna".
+    issues = ir.async_get(hass).issues
+    assert not [key for key in issues if "postfach" in key[1].lower()], issues
 
 
 # --- A missing calendar is a repair (docs/spec/hacs-default.md, decision 3) ---

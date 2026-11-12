@@ -31,6 +31,8 @@ type ResultCheck struct {
 	MessageFor    *MessageCheck `yaml:"message_for"`
 	EntityState   *StateCheck   `yaml:"entity_state"`
 	TaskExists    *TaskCheck    `yaml:"task_exists"`
+	Plan          *PlanCheck    `yaml:"plan"`
+	NoMessage     *NoMessage    `yaml:"no_message"`
 }
 
 type EventCheck struct {
@@ -116,7 +118,11 @@ func (r RunResult) summary() string {
 	for _, s := range r.Steps {
 		times = append(times, fmt.Sprintf("%.1fs", s.Seconds))
 	}
-	return fmt.Sprintf("%s (%s)", state, strings.Join(times, ", "))
+	answer := ""
+	if !r.AnswerOK {
+		answer = "; answer: " + strings.Join(r.Answers, "; ")
+	}
+	return fmt.Sprintf("%s (%s)%s", state, strings.Join(times, ", "), answer)
 }
 
 func (r *evalRun) runScenario(ctx context.Context, sc Scenario, run int) RunResult {
@@ -139,6 +145,22 @@ func (r *evalRun) runScenario(ctx context.Context, sc Scenario, run int) RunResu
 	conv := fmt.Sprintf("eval-%s-%d-%d", sc.Name, run, time.Now().Unix())
 	answerOK := true
 	for i, step := range sc.Steps {
+		if step.Mail != nil {
+			started := time.Now()
+			err := r.sendMail(ctx, *step.Mail)
+			res.Steps = append(res.Steps, StepResult{Say: "Mail: " + fillDays(step.Mail.Subject),
+				Seconds: time.Since(started).Seconds()})
+			if err != nil {
+				fail("step %d: %v", i+1, err)
+				break
+			}
+			for _, c := range step.Expect.Result {
+				if f := r.checkResult(ctx, c); f != "" {
+					fail("step %d: %s", i+1, f)
+				}
+			}
+			continue
+		}
 		if step.At == "" && step.Channel == "" {
 			// The fake Show (testenv/techo5_fake): evals run without hardware.
 			step.At = "schlafzimmer"
@@ -413,6 +435,10 @@ func (r *evalRun) checkResult(ctx context.Context, c ResultCheck) string {
 		if !strings.Contains(strings.ToLower(tpl), strings.ToLower(c.TaskExists.Contains)) {
 			return fmt.Sprintf("no task like %q (have %s)", c.TaskExists.Contains, tpl)
 		}
+	case c.Plan != nil:
+		return r.checkPlan(ctx, *c.Plan)
+	case c.NoMessage != nil:
+		return r.checkNoMessage(ctx, *c.NoMessage)
 	default:
 		return "empty result check"
 	}

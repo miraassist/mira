@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/docs"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
 )
@@ -300,6 +302,34 @@ func TestGuideFilesInRanges(t *testing.T) {
 	if resp.StatusCode != http.StatusPartialContent || resp.Header.Get("Content-Type") != "image/png" ||
 		!strings.HasPrefix(resp.Header.Get("Content-Range"), "bytes 0-7/") || resp.ContentLength != 8 {
 		t.Errorf("%d %q %q %d", resp.StatusCode, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Range"), resp.ContentLength)
+	}
+}
+
+// A picture in a folder below img is served as a picture; nothing outside
+// img is.
+func TestGuideFilesInFolders(t *testing.T) {
+	srv, _, _ := setup(t)
+	for path, want := range map[string]string{
+		"/ui/guide/img/paperless/tags.png":     "200 image/png",
+		"/ui/guide/img/paperless/%2e%2e/x.png": "404",
+	} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		got := strconv.Itoa(resp.StatusCode)
+		if resp.StatusCode == 200 {
+			got += " " + resp.Header.Get("Content-Type")
+		}
+		if got != want {
+			t.Errorf("%s: %s, want %s", path, got, want)
+		}
+	}
+	for _, name := range []string{"../de.md", "paperless/../../de.md", "/etc/passwd"} {
+		if _, err := docs.GuideFile(name); err == nil {
+			t.Errorf("GuideFile(%q) served a file outside img", name)
+		}
 	}
 }
 

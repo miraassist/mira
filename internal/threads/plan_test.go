@@ -414,3 +414,39 @@ func TestMQ11_ASongIsTickedWithItsResult(t *testing.T) {
 		t.Errorf("a refused note changed the plan:\n%s", got)
 	}
 }
+
+// Mira's code starts a plan thread for a person outside any turn (the inbox,
+// docs/spec/inbox.md, step 3): bound to the person, with its plan and fields;
+// the person's next turn finds it, and OpenWith finds it by a field.
+func TestStartForAPerson(t *testing.T) {
+	e := setup(t)
+	loaded, problems := skills.Load([]string{"../../skills"}, map[string]map[string]any{"postfach": nil})
+	if len(problems) > 0 || len(loaded) != 1 {
+		t.Fatalf("skill postfach: %+v", problems)
+	}
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: loaded, Clock: func() time.Time { return e.now }})
+	ctx := context.Background()
+	th, err := e.m.StartFor(ctx, "postfach", "anna", "Elternbrief", "Elternbrief\n- [ ] Elternabend\n- [ ] Feier",
+		map[string]string{"doc": "5444"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Place != "person:anna" || th.Person != "anna" || !th.ExpiresAt.Equal(e.now.Add(72*time.Hour)) {
+		t.Fatalf("thread = %+v", th)
+	}
+	if !e.m.OpenWith(ctx, "postfach", "doc", "5444") || e.m.OpenWith(ctx, "postfach", "doc", "1") {
+		t.Fatal("OpenWith")
+	}
+	inv, _ := e.turn(t, "telegram:anna")
+	inv.Person, inv.Place = "anna", "person:anna"
+	got, ok := e.m.TurnThreadOf(ctx, inv, "postfach")
+	if !ok || got.ID != th.ID || got.Fields["doc"] != "5444" {
+		t.Fatalf("the person's turn: %+v %v", got, ok)
+	}
+	if out, err := e.m.PlanNote(ctx, inv, "check", "", 2, "eingetragen"); err != nil || !strings.Contains(out, "1 von 2") {
+		t.Fatalf("check: %q %v", out, err)
+	}
+	if _, err := e.m.StartFor(ctx, "postfach", "", "x", "y", nil); err == nil {
+		t.Fatal("a thread without a person")
+	}
+}

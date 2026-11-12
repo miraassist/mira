@@ -1,0 +1,28 @@
+name: postfach-still
+description: Mails ohne Termin oder nur mit Vergangenem ins Postfach; Mira bleibt still
+steps:
+  - mail:
+      from: newsletter@moebelhaus.example
+      subject: Nur diese Woche 20 % auf alle Sofas
+      text: |
+        Liebe Kundin, lieber Kunde,
+        entdecken Sie unsere neuen Sofas! Nur diese Woche 20 % Rabatt auf alles.
+        Ihr Möbelhaus-Team
+    expect:
+      result:
+        - plan: { target: postfach, not: true }
+        - no_message: { receiver: anna }
+        - no_message: { receiver: house }
+  - mail:
+      from: sekretariat@grundschule.example
+      subject: Rückblick auf das Sommerfest
+      text: |
+        Liebe Eltern,
+        vielen Dank für Ihre Hilfe beim Sommerfest am 5. Juli. Bei der Tombola am 5. Juli kamen 830 Euro zusammen.
+        Dieser Brief wurde am 12. Juli verschickt.
+        Viele Grüße, die Schulleitung
+    expect:
+      result:
+        - plan: { target: postfach, not: true }
+        - no_message: { receiver: anna }
+        - no_message: { receiver: house }

@@ -656,6 +656,23 @@ func (h *Host) Call(ctx context.Context, qualified string, args json.RawMessage)
 	if _, ok := h.Lookup(qualified); !ok {
 		return Result{}, fmt.Errorf("%w: %s", ErrUnknownTool, qualified)
 	}
+	return h.callOn(ctx, s, qualified, toolName, args)
+}
+
+// CallServer calls a tool of a server by the server's own tool name, also one
+// its configuration does not offer to the model (tools): for Mira's own code
+// with fixed steps, never for a model (the inbox reads a document and marks
+// it read, docs/spec/inbox.md).
+func (h *Host) CallServer(ctx context.Context, serverName, toolName string, args json.RawMessage) (Result, error) {
+	s, ok := h.byName[serverName]
+	if !ok {
+		return Result{}, fmt.Errorf("%w: %s", ErrUnknownTool, serverName+prompt.ServerSeparator+toolName)
+	}
+	return h.callOn(ctx, s, serverName+prompt.ServerSeparator+toolName, toolName, args)
+}
+
+func (h *Host) callOn(ctx context.Context, s *server, qualified, toolName string, args json.RawMessage) (Result, error) {
+	serverName := s.cfg.Name
 	s.mu.Lock()
 	session := s.session
 	s.mu.Unlock()

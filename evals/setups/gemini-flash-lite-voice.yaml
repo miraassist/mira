@@ -1,0 +1,19 @@
+# Gemini Flash (cloud), the voice turns on Gemini Flash Lite, as the test Mira
+# runs since 2026-11-11. The key comes from the environment.
+models:
+  main:
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-latest"
+    privacy: cloud
+    reasoning_effort: low
+    timeout: 2m
+  flashlite:
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
+    token: ${GEMINI_API_TOKEN}
+    model: "gemini-flash-lite-latest"
+    privacy: cloud
+    reasoning_effort: low
+    timeout: 2m
+agents:
+  conversation.voice: {model: flashlite}

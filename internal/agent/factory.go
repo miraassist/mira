@@ -74,7 +74,7 @@ var Callable = []string{"delegate", "skill.task", "notify.compose"}
 // codeAgents are the agents of the code; a YAML agent may not take their
 // names.
 var codeAgents = []string{"conversation.voice", "conversation.telegram", "delegate", "skill.task", "notify.compose",
-	"mail.read", "mail.match", "tasks.assess", "tasks.decide", "tasks.plan", "profile.compact"}
+	"mail.read", "mail.match", "inbox.read", "tasks.assess", "tasks.decide", "tasks.plan", "profile.compact"}
 
 // OwnNames are Mira's own agents, in a fixed order.
 func OwnNames() []string { return slices.Clone(codeAgents) }

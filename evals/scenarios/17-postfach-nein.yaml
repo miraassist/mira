@@ -1,0 +1,22 @@
+name: postfach-nein
+description: Mail mit zwei Terminen ins Postfach, Anna will keinen
+steps:
+  - mail:
+      from: info@musikschule.example
+      subject: Vorspielabende
+      text: |
+        Liebe Familien,
+        unsere Vorspielabende finden am {{+10}} und am {{+17}}, jeweils um 18 Uhr im Saal der Musikschule statt.
+        Herzliche Grüße, die Musikschule
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Nein, keinen davon
+    person: anna
+    expect:
+      result:
+        - plan: { target: postfach, not: true }
+        - calendar_empty: { calendar: calendar.anna, day: "+10", title: Vorspiel }
+        - calendar_empty: { calendar: calendar.anna, day: "+17", title: Vorspiel }
+      behaviour:
+        must_not: [tool:inbox_enter]

@@ -355,6 +355,9 @@ func notLocal(cfg config.Config, sk skills.Skill) (agentName, model, privacy str
 	if sk.Mail != nil {
 		used = append(used, "mail.read", "mail.match")
 	}
+	if sk.Inbox != nil {
+		used = append(used, "inbox.read")
+	}
 	if t := sk.Target; t != nil {
 		if t.Agent != "" {
 			used = append(used, t.Agent)

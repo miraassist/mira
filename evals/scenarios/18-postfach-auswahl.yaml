@@ -1,0 +1,25 @@
+name: postfach-auswahl
+description: Mail mit drei Terminvorschlägen ins Postfach, Anna wählt einen, dann ist der Vorgang fertig
+steps:
+  - mail:
+      from: praxis@kieferorthopaedie.example
+      subject: Terminvorschläge für die Kontrolle
+      text: |
+        Guten Tag,
+        für die Kontrolle bei Dr. Kaya können wir Ihnen einen der folgenden Termine anbieten:
+        {{+11}} um 8:00 Uhr, {{+12}} um 14:30 Uhr oder {{+14}} um 10:15 Uhr.
+        Bitte wählen Sie einen davon.
+        Ihre Praxis Dr. Kaya
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Den zweiten nehme ich
+    person: anna
+    expect:
+      result:
+        - event_exists: { calendar: calendar.anna, day: "+12", start: "14:30", title: Kontrolle }
+        - calendar_empty: { calendar: calendar.anna, day: "+11", title: Kontrolle }
+        - calendar_empty: { calendar: calendar.anna, day: "+14", title: Kontrolle }
+        - plan: { target: postfach, finished: true }
+      behaviour:
+        must: [tool:inbox_enter]

@@ -84,7 +84,7 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelled:  "Erinnerung gelöscht.",
 		messagesReadDesc:   "Liest die wartenden Benachrichtigungen für diesen Raum oder diese Person vor und markiert sie als gehört. Rufe es auf, wenn der Nutzer fragt: \"Hast du eine Benachrichtigung?\", \"Gibt es was Neues?\", \"Was gibt's?\".",
 		messagesNothing:    "Keine neuen Benachrichtigungen.",
-		messagesReadOut:    "Sag dem Nutzer diese Benachrichtigungen, sinngemäß und vollständig: ",
+		messagesReadOut:    "Sag dem Nutzer diese Benachrichtigungen vollständig. In eigenen Worten ist gut, aber Datum und Uhrzeit, Orte, Beträge, Fristen und Namen sagst du genau so, wie sie hier stehen; nichts davon weglassen oder zusammenfassen, auch nicht bei mehreren Terminen: ",
 
 		denyStoreFailed:   "Abgelehnt: Die Bestätigung konnte nicht vorgemerkt werden. Die Aktion wurde nicht ausgeführt.",
 		needsConfirmation: "NICHT AUSGEFÜHRT – Nachfrage nötig (%s). %sFrage den Nutzer jetzt kurz, ob du es tun sollst, und beende deine Antwort mit dieser Frage. Erst wenn er im nächsten Schritt zustimmt, rufe das Werkzeug mit denselben Argumenten erneut auf.",
@@ -145,7 +145,7 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelled:  "Reminder deleted.",
 		messagesReadDesc:   "Reads out the waiting notifications for this room or person and marks them as heard. Call it when the user asks: \"Do you have a notification?\", \"Anything new?\", \"What's up?\".",
 		messagesNothing:    "No new notifications.",
-		messagesReadOut:    "Tell the user these notifications, faithfully and completely: ",
+		messagesReadOut:    "Tell the user these notifications completely. Your own words are fine, but dates and times, places, amounts, deadlines and names you say exactly as they stand here; leave none of them out and do not sum them up, also not with several appointments: ",
 
 		denyStoreFailed:   "Denied: the confirmation could not be recorded. The action was not performed.",
 		needsConfirmation: "NOT PERFORMED – question needed (%s). %sAsk the user briefly now whether you should do it, and end your answer with that question. Only when they agree in the next step, call the tool again with the same arguments.",

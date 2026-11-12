@@ -365,6 +365,31 @@ table.facts { display:table; } td.fact-actions { min-width:160px; }
 .guide aside.note { border-radius:8px; border-left-color:var(--tone); background:color-mix(in oklch,var(--tone) 8%,var(--panel)); }
 .guide figure img,.guide figure video { border-radius:8px; box-shadow:none; }
 .guide h3 { font-size:17px; }
+/* The guide's chapters beside it (narrow: a fold above it); the chapter read
+   now is marked, its sections open under it. */
+.guide-wrap { display:grid; grid-template-columns:minmax(0,1fr) 240px; gap:24px; align-items:start; }
+.guide-toc { position:sticky; top:16px; max-height:calc(100vh - 32px); overflow-y:auto; font-size:13px; padding:4px 0; }
+/* The summary holds the way back to the overview; wide it is that alone. */
+.guide-toc > summary { display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none; padding:0 10px 10px; cursor:default; }
+.guide-toc > summary::-webkit-details-marker { display:none; }
+.guide-toc > summary .toc-title { display:none; }
+#view .guide-toc a.toc-home { padding:0; border:0; font-weight:500; color:var(--muted); }
+#view .guide-toc a.toc-home:hover { color:var(--text); }
+.guide-toc ul { list-style:none; margin:0; padding:0; }
+.guide-toc ul ul { display:none; padding-left:12px; margin:2px 0 6px; }
+.guide-toc li.current > ul { display:block; }
+#view .guide-toc a { display:block; padding:4px 10px; border-left:2px solid var(--line); color:var(--muted); text-decoration:none; line-height:1.35; }
+#view .guide-toc a:hover { color:var(--text); }
+#view .guide-toc a.current { color:var(--tone); border-left-color:var(--tone); font-weight:600; }
+@media(max-width:900px) {
+  .guide-wrap { grid-template-columns:minmax(0,1fr); gap:12px; }
+  .guide-toc { order:-1; top:0; z-index:5; max-height:none; overflow:visible; border:1px solid var(--line); border-radius:9px; background:var(--panel); padding:0; }
+  .guide-toc > summary { cursor:pointer; padding:12px 14px; font-weight:600; font-size:14px; }
+  .guide-toc > summary .toc-title { display:inline; }
+  .guide-toc > summary .toc-title::after { content:" ▾"; color:var(--muted); }
+  .guide-toc[open] > summary .toc-title::after { content:" ▴"; }
+  .guide-toc[open] > ul { max-height:60vh; overflow-y:auto; padding:0 6px 10px; }
+}
 .msg { border-radius:8px; } :is(dialog#dlg,dialog.mira-dialog) { border-radius:12px; }
 :is(dialog#dlg,dialog.mira-dialog) form::before { display:none; }
 .restart-bar { border-radius:10px; }
@@ -642,6 +667,7 @@ const I18N = {
   "mode_announce": "ansagen",
   "mode_indicate": "nur anzeigen",
   "tab_guide": "Anleitung",
+  "guide_toc": "Kapitel",
   "tab_plans": "Pläne",
   "plans_hint": "Was du gerade mit Mira Schritt für Schritt machst, etwa ein Rezept. Hier siehst du, wo ihr steht; weiter geht es im Gespräch (\"weiter\", \"nochmal\", \"zurück\").",
   "no_plans": "Gerade läuft kein Plan. Sag Mira zum Beispiel „Lass uns Pfannkuchen backen“.",
@@ -855,6 +881,7 @@ const I18N = {
     "skill.task": "Führt die Zeitpläne der Skills aus, etwa das Briefing.",
     "notify.compose": "Formuliert Ansagen und Nachrichten.",
     "mail.read": "Liest neue Mails und holt die Angaben heraus.",
+    "inbox.read": "Liest Dokumente aus Miras Postfach und holt die Termine heraus.",
     "mail.match": "Ordnet eine Mail einem Kalendereintrag zu.",
     "tasks.assess": "Beurteilt bei einer Aufgabe, ob sich Melden lohnt.",
     "tasks.decide": "Entscheidet bei einer Aufgabe, was zu tun ist.",
@@ -868,6 +895,7 @@ const I18N = {
     "skill.task": "von den Zeitplänen der Skills",
     "notify.compose": "von Mira, wenn sie etwas ansagt",
     "mail.read": "von der Mail-Integration",
+    "inbox.read": "von Paperless (Miras Postfach)",
     "mail.match": "von der Mail-Integration",
     "tasks.assess": "von den Aufgaben (Automationen)",
     "tasks.decide": "von den Aufgaben (Automationen)",
@@ -1157,6 +1185,7 @@ const I18N = {
   "mode_announce": "announce",
   "mode_indicate": "indicate only",
   "tab_guide": "Guide",
+  "guide_toc": "Chapters",
   "tab_plans": "Plans",
   "plans_hint": "What you are doing with Mira step by step right now, such as a recipe. Here you see where you are; it goes on in conversation (\"next\", \"again\", \"back\").",
   "no_plans": "No plan is running. Tell Mira, for example, \"Let's make pancakes\".",
@@ -1367,6 +1396,7 @@ const I18N = {
     "skill.task": "Runs the skills' schedules, the briefing for one.",
     "notify.compose": "Words announcements and messages.",
     "mail.read": "Reads new mails and takes out the details.",
+    "inbox.read": "Reads documents from Mira's inbox and takes out the appointments.",
     "mail.match": "Matches a mail to a calendar entry.",
     "tasks.assess": "Judges for a task whether it is worth a word.",
     "tasks.decide": "Decides for a task what to do.",
@@ -1380,6 +1410,7 @@ const I18N = {
     "skill.task": "from the skills' schedules",
     "notify.compose": "from Mira when she announces something",
     "mail.read": "from the mail integration",
+    "inbox.read": "from Paperless (Mira's inbox)",
     "mail.match": "from the mail integration",
     "tasks.assess": "from the tasks (automations)",
     "tasks.decide": "from the tasks (automations)",
@@ -2738,11 +2769,66 @@ async function chapterLine(page) {
   const link = await guideLink(begins);
   if (link && el.isConnected && tab === page) { el.innerHTML = link; el.hidden = false; }
 }
+// guideWatch stops the marking of the chapter being read; one at a time.
+let guideWatch = null;
+const guideNarrow = () => matchMedia("(max-width: 900px)").matches;
+// guideToc lists the guide's chapters with their sections, beside the guide.
+function guideToc() {
+  const nav = $("#guide-toc"), heads = [...$("#guide").querySelectorAll('[id^="chapter-"],[id^="section-"]')];
+  let html = "", open = false;
+  for (const h of heads) {
+    const link = `<a href="#guide" data-to="${h.id}">${esc(h.textContent)}</a>`;
+    if (h.id.startsWith("chapter-")) {
+      if (open) html += "</ul></li>";
+      html += `<li data-chapter="${h.id}">${link}<ul>`;
+      open = true;
+    } else if (open) html += `<li>${link}</li>`;
+  }
+  if (open) html += "</ul></li>";
+  nav.innerHTML = `<summary><span class="toc-title">${esc(T.guide_toc)}</span><a class="toc-home" href="#home">← ${esc(T.tab_home)}</a></summary><ul>${html}</ul>`;
+  nav.open = !guideNarrow();
+  nav.onclick = e => {
+    if (e.target.closest("a.toc-home")) { e.preventDefault(); go("home"); return; }
+    // Wide, the list is always open: the summary does not fold it.
+    if (e.target.closest("summary") && !guideNarrow()) { e.preventDefault(); return; }
+    const a = e.target.closest("a[data-to]");
+    if (!a) return;
+    e.preventDefault();
+    document.getElementById(a.dataset.to)?.scrollIntoView({ block: "start" });
+    if (guideNarrow()) nav.open = false;
+  };
+  // The heading read now is the last one above the upper third, looked at
+  // on each scroll (one frame at a time); a jump to the end counts too.
+  if (guideWatch) guideWatch();
+  let frame = 0;
+  const onScroll = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; mark(); }); };
+  guideWatch = () => removeEventListener("scroll", onScroll);
+  const mark = () => {
+    if (!nav.isConnected) { guideWatch(); guideWatch = null; return; }
+    const line = innerHeight / 3;
+    let at = null;
+    for (const h of heads) { if (h.getBoundingClientRect().top < line) at = h; else break; }
+    let chapter = at;
+    for (let i = at ? heads.indexOf(at) : -1; i >= 0; i--) if (heads[i].id.startsWith("chapter-")) { chapter = heads[i]; break; }
+    nav.querySelectorAll(".current").forEach(el => el.classList.remove("current"));
+    if (!at) return;
+    nav.querySelector(`li[data-chapter="${chapter.id}"]`)?.classList.add("current");
+    const a = nav.querySelector(`a[data-to="${at.id}"]`);
+    a?.classList.add("current");
+    if (a && !guideNarrow()) {
+      const r = a.getBoundingClientRect(), n = nav.getBoundingClientRect();
+      if (r.top < n.top || r.bottom > n.bottom) nav.scrollTop += r.top - n.top - n.height / 3;
+    }
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  mark();
+}
 async function guide() {
-  $("#view").innerHTML = `<section class="card guide" id="guide">${T.loading}</section>`;
+  $("#view").innerHTML = `<div class="guide-wrap"><section class="card guide" id="guide">${T.loading}</section><details class="guide-toc" id="guide-toc"></details></div>`;
   try {
     const res = await fetch(url("/ui/guide/" + lang));
     $("#guide").innerHTML = markdown(await res.text());
+    guideToc();
     if (guideAt !== null) {
       const h = document.getElementById(guideAt);
       guideAt = null;
@@ -2799,7 +2885,15 @@ function markdown(md) {
     }
     // A recording is "▶ [caption](https://….mp4#t=start,end)": a plain link on GitHub, a player here.
     if ((m = line.match(/^▶\s+\[([^\]]*)\]\((https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
-    if ((m = line.match(/^!\[([^\]]*)\]\((img\/[\w.-]+|https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) { flush(); out.push(media(m[1], m[2])); continue; }
+    if ((m = line.match(/^(\s*)!\[([^\]]*)\]\((img\/(?:[\w-]+\/)*[\w.-]+|https:\/\/[^\s)]+\.(?:mp4|webm)(?:#t=[\d:.,]+)?)\)$/))) {
+      // A picture indented under a list item belongs to that item: the
+      // list goes on and keeps its numbers.
+      if (m[1] && list && !para.length && out[out.length - 1].endsWith("</li>")) {
+        out[out.length - 1] = out[out.length - 1].slice(0, -5) + media(m[2], m[3]) + "</li>";
+        continue;
+      }
+      flush(); out.push(media(m[2], m[3])); continue;
+    }
     if ((m = line.match(/^>\s?(.*)/))) { if (!quote.length) flush(); quote.push(m[1]); continue; }
     if (line.startsWith("|")) { if (!table) { flush(); table = []; } table.push(line); continue; }
     if ((m = line.match(/^\s*[-*]\s+(.*)/))) { item("ul", m[1]); continue; }

@@ -61,6 +61,20 @@ async def test_page_files_without_login_and_nothing_else(hass, aioclient_mock, e
     assert resp.status == 404
 
 
+async def test_guide_pictures_in_folders(hass, aioclient_mock, entry, hass_client_no_auth):
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.get(
+        f"{AGENT_URL}/ui/guide/img/paperless/tags.png", content=b"png", headers={"Content-Type": "image/png"}
+    )
+    client = await hass_client_no_auth()
+    resp = await client.get("/api/mira/panel/ui/guide/img/paperless/tags.png")
+    assert resp.status == 200
+    assert await resp.read() == b"png"
+    # A folder is a name, never a way out of the guide's pictures.
+    resp = await client.get("/api/mira/panel/ui/guide/img/%2e%2e/%2e%2e/v1/ui/memory")
+    assert resp.status == 404
+
+
 async def test_api_through_proxy_with_agent_token(hass, aioclient_mock, entry, hass_client):
     await _setup(hass, aioclient_mock, entry)
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/memory/f1", json={"ok": True})

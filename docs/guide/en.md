@@ -186,13 +186,17 @@ Speaker recognition is **optional**. Without it Mira works as before; **Enroll t
 
 Skills are extra abilities the setup switches on. Mira opens a skill only when a question needs it.
 
-**Waste**: Mira knows your waste collector's calendar. It is a calendar in Home Assistant (for example through the "Remote Calendar" integration with your collector's iCal link); in `mira.yaml` the skill `abfall` names it.
+### Waste
+
+Mira knows your waste collector's calendar. It is a calendar in Home Assistant (for example through the "Remote Calendar" integration with your collector's iCal link); in `mira.yaml` the skill `abfall` names it.
 
 - "When is the residual waste collected?" – "What gets collected next week?"
 - On the evening before, Mira reminds you on her own: "The recycling is collected tomorrow."
 - If the collection is today, she says so in case the bin still has to go out.
 
-**Briefing**: a short overview of what is coming, in three or four sentences.
+### Briefing
+
+A short overview of what is coming, in three or four sentences.
 
 - In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow, and without the waste collection: the skill **Waste** reminds you of that on the evening before. To be reminded of the bins in the evening, turn it on as well.
 - **Your own briefing:** if Mira can reach you personally (your phone or Telegram under "Configure → Persons", or "alone at home is me"), you also get a message of your own in the morning. It has your appointments for today if you have a calendar of your own (one named like your Home Assistant login or like you as a person; with the login `stefan`, "Stefan"), and two headlines on your topics if Mira knows them: "Remember that I'm interested in football and electric cars." With neither, nothing comes.
@@ -200,7 +204,9 @@ Skills are extra abilities the setup switches on. Mira opens a skill only when a
 - When the briefings come is set under **Capabilities → Schedules** (see "Schedules").
 - In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
 
-**Parcels** (skill `pakete`): Mira reads the shipping mails of the parcel services and knows when which parcel comes.
+### Parcels
+
+Mira reads the shipping mails of the parcel services and knows when which parcel comes (skill `pakete`).
 
 - "When is my parcel coming?" – "Is anything coming today?" – "Has the parcel from Amazon arrived?"
 - In the briefing: "Your parcel from Amazon comes today between 10 and 12."
@@ -216,7 +222,9 @@ If the calendar "Pakete" (or "Pakete stefan") is missing, Settings → Repairs s
 
 Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `agents` for `mail.read` and `mail.match` (`{ model: main }`). Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
 
-**Paperless**: Mira searches your documents in [Paperless-ngx](https://docs.paperless-ngx.com/) and reads out what you want to know.
+### Paperless
+
+Mira searches your documents in [Paperless-ngx](https://docs.paperless-ngx.com/) and reads out what you want to know.
 
 - "Search my documents for the chimney sweep's invoice and tell me the amount."
 - "Search Paperless for the tax office's notice. By when do I have to pay?"
@@ -242,14 +250,65 @@ How to set it up:
    Set the token as the environment variable `PAPERLESS_TOKEN` for Mira. Then restart Mira.
 
 Good to know:
-- Mira can only **search and read** in Paperless, never change or delete anything.
+- Mira can only **search and read** in Paperless, never change or delete anything. The one exception is her inbox (below): there she sets the tag "Mira gelesen".
 - What the documents say counts as **third-party text**, like a web page: Mira follows no instructions in it and asks before she keeps or passes on anything from it.
 - The documents' text goes to the helper's model, the main model; only the result enters the conversation. A local model keeps it in the house (see "Several models").
 - Mira searches best with one distinctive word (the sender, the matter). The text is recognized from scans; if an amount is unclear, Mira says so.
 
+### Mira's inbox
+
+What you give the tag **"Mira"** in Paperless, Mira reads, and she asks whether to add the appointments in it to your calendar. She reads only those documents, no others.
+
+- The letter from school comes by post. You scan it with the Paperless app and give it the tag "Mira".
+- Shortly after, on Telegram or at a satellite where Mira recognizes you: "In your post: a letter from the primary school. I found 3 appointments: parents' evening, Thu 3.12. 19:30, hall; Christmas party, Sat 19.12. 15:00; no school, Tue 22.12. (all day). Shall I add them?"
+- "The first two." Mira adds them to your calendar. "The parents' evening is at 8 pm" changes the time first.
+
+Paperless already reads your mailboxes and files the attachments. With a **mail rule** or its automatic matching you give documents the tag "Mira" there too, for example everything from the school. Then Mira reads along by herself.
+
+How to set it up (the skill **Paperless** above already runs; Paperless needs workflows with a webhook action):
+
+1. In Paperless, under **Tags**, create two tags: **"Mira"** and **"Mira gelesen"**. Set the **matching to "None"** on both, so Paperless never sets them by itself, and under **Permissions** let the Paperless user Mira works with **view** them.
+   ![The two tags Mira and Mira gelesen in Paperless, matching "None"](img/paperless/tags.png)
+2. Under **Workflows**, create a workflow "Mira" with two **triggers**: "Document Added" and "Document Updated". On both, under **Advanced filters**: "Has any of these tags: Mira" and "Does not have these tags: Mira gelesen".
+   ![A trigger of the workflow Mira with the two tag filters](img/paperless/workflow.png)
+3. As the first **action**, an **Assignment**: under **Assign edit permissions**, Mira's user. So Mira may mark exactly the documents in her inbox as read, and no others.
+   ![The Assignment action with edit permissions for the user mira](img/paperless/workflow-permissions.png)
+4. As the second **action**, a **Webhook**: as the URL Mira's address with `/v1/inbox/paperless`, "Use parameters for webhook body" and "Send webhook payload as JSON" on, three parameters `doc_id` = `{{doc_id}}`, `title` = `{{doc_title}}`, `owner` = `{{owner_username}}`, and a header `Authorization` = `Bearer ` followed by a password you make up.
+   ![The Webhook action with the address, the three parameters and the header Authorization](img/paperless/webhook.png)
+5. Enter the same password at Mira in the skill **Paperless** as the **inbox token**, in `mira.yaml` like this:
+   ```yaml
+   skills:
+     paperless: { url: http://localhost:3000/mcp, token: ${PAPERLESS_TOKEN}, inbox_token: ${MIRA_INBOX_TOKEN} }
+   ```
+   Then restart Mira.
+6. Try it: give a document with an appointment the tag "Mira".
+
+Good to know:
+- Mira asks the person the document **belongs to** in Paperless: their Paperless user name is their login name or their name in Home Assistant. If it belongs to none of them, or the person has no calendar of their own, Mira only sends a message with the appointments and asks what to do with them. She never adds anything to another person's calendar.
+- After reading, Mira sets the tag **"Mira gelesen"**; "Mira" stays, so you see in Paperless what went through her inbox. For Mira to read a document again, remove "Mira gelesen".
+- If Mira finds nothing to do, she says nothing. The question waits three days for your answer.
+- If Mira could not be reached when the webhook came, she catches the document up at her next start, if she knows its owner from an earlier document; otherwise just set the tag "Mira" again.
+- The document's text goes to the model that reads it (`inbox.read` under `agents`). A local model keeps it in the house.
+- If Paperless runs with `PAPERLESS_WEBHOOKS_ALLOW_INTERNAL_REQUESTS=false` or a list of allowed ports, Mira's address must be allowed there.
+
+### Mira's inbox for mails
+
+Without Paperless it works with a mail folder too. What lands in that folder, Mira reads as above and asks about the appointments; she does not read attachments here, those go through Paperless.
+
+1. In your mailbox, create a folder **"Mira"**. Move there what Mira should read: by hand, with a filter rule (for example everything from the school) or with a forward to an address of its own.
+2. In Home Assistant, add the **IMAP** integration with this mailbox. Enter **"Mira"** as the **folder** and **`ALL`** as the **search**. With the default search "UnSeen UnDeleted" Home Assistant never reports a mail you already read and then moved. If Home Assistant says "Selected folder is invalid", the mail server keeps the folder under the inbox: then enter "INBOX/Mira", on some servers "INBOX.Mira".
+3. Rename the new **device** to **"Postfach" and your login name**, such as "Postfach anna". "Postfach" alone belongs to the house: then Mira only sends a message with the appointments.
+
+Good to know:
+- Mira remembers the last 100 mails she has read and does not ask about any of them a second time, even when you tidy up the folder. The mail itself stays in the folder as it is.
+- A mail that comes while Mira is not running is not caught up; after Mira's start Home Assistant reports only the last one. Whoever wants to miss nothing takes the way through Paperless.
+- Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
+
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
-**More bundled skills.** They run once you list them in `mira.yaml` under `skills`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
+### More bundled skills
+
+They run once you list them in `mira.yaml` under `skills`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
 
 | Skill | What you ask | Setting |
 |---|---|---|
@@ -272,7 +331,9 @@ Good to know:
 
 The quiz, the music quiz and vocabulary run like cooking, step by step: you simply answer, and Mira knows which question is next. In the music quiz Mira does not listen while the song plays: say "Mira" and then your answer; "again", "next", "What's the score?" and "stop" work too.
 
-**Asking a camera.** For "Who is at the door?" a script in Home Assistant looks at the picture. Create it (Settings → Automations & scenes → Scripts → new script → edit in YAML), expose it to Assist and enter its name as `skript` for the skill `kamera`. It needs an AI task (`ai_task`) in Home Assistant, for instance via Google Gemini or OpenAI; the picture goes to their model.
+### Asking a camera
+
+For "Who is at the door?" a script in Home Assistant looks at the picture. Create it (Settings → Automations & scenes → Scripts → new script → edit in YAML), expose it to Assist and enter its name as `skript` for the skill `kamera`. It needs an AI task (`ai_task`) in Home Assistant, for instance via Google Gemini or OpenAI; the picture goes to their model.
 
 ```yaml
 alias: Kamera fragen

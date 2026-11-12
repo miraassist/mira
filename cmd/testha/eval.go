@@ -68,15 +68,17 @@ type SetupFact struct {
 	Text  string `yaml:"text"`
 }
 
-// Step is one thing said. At is the area of the satellite it is said at;
-// otherwise Person on Channel (telegram).
+// Step is one thing said. At is the area of the satellite it is said at,
+// with Person as who speaks there; otherwise Person on Channel (telegram). A step with Mail says nothing: it
+// puts a mail into Mira's inbox and waits until it is read.
 type Step struct {
-	Say        string  `yaml:"say"`
-	At         string  `yaml:"at"`
-	Person     string  `yaml:"person"`
-	Channel    string  `yaml:"channel"`
-	MaxSeconds float64 `yaml:"max_seconds"`
-	Expect     Expect  `yaml:"expect"`
+	Mail       *StepMail `yaml:"mail"`
+	Say        string    `yaml:"say"`
+	At         string    `yaml:"at"`
+	Person     string    `yaml:"person"`
+	Channel    string    `yaml:"channel"`
+	MaxSeconds float64   `yaml:"max_seconds"`
+	Expect     Expect    `yaml:"expect"`
 }
 
 // Time limits at which a turn fails for the user: the integration's answer
@@ -446,12 +448,34 @@ func (r *evalRun) say(ctx context.Context, s Step, conversation string) (turn, e
 			return turn{}, fmt.Errorf("no satellite in area %q (have %v)", s.At, keys(r.devices))
 		}
 		body["device_id"] = dev
+		if s.Person != "" {
+			// Who speaks at the satellite: without a voice the eval names the
+			// person's Home Assistant user, as the HA app does.
+			user, err := r.haUserOf(ctx, s.Person)
+			if err != nil {
+				return turn{}, err
+			}
+			body["user_id"] = user
+		}
 	}
 	var t turn
 	started := time.Now()
 	err := r.agent(ctx, "POST", "/v1/conversation", body, &t)
 	t.Took = time.Since(started)
 	return t, err
+}
+
+// haUserOf is the Home Assistant user of a person (person.<name>).
+func (r *evalRun) haUserOf(ctx context.Context, person string) (string, error) {
+	var user string
+	tpl := fmt.Sprintf(`{{ state_attr('person.%s', 'user_id') or '' }}`, person)
+	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": tpl}, &user); err != nil {
+		return "", err
+	}
+	if user = strings.TrimSpace(user); user == "" {
+		return "", fmt.Errorf("person.%s has no Home Assistant user", person)
+	}
+	return user, nil
 }
 
 func (r *evalRun) agent(ctx context.Context, method, path string, body, out any) error {

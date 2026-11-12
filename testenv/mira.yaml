@@ -121,6 +121,8 @@ skills:
   paperless:
     url: http://localhost:3399/mcp
     token: ${PAPERLESS_API_TOKEN:-}
+    # Mira's inbox (docs/spec/inbox.md): the token Paperless's workflow sends.
+    inbox_token: ${MIRA_INBOX_TOKEN:-}
   abfall:
     calendar: calendar.abfuhrtermine
     types: [Restabfall, Wertstoff, Bioabfall, Altpapier]

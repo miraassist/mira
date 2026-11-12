@@ -74,7 +74,10 @@ def async_setup_mail(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
         if not data.get("initial"):
             return
         coordinator = entry.runtime_data.coordinator
-        apps = list((coordinator.data or {}).get("mail_apps") or [])
+        data_ = coordinator.data or {}
+        # The mail calendar's applications and Mira's inbox ("Postfach anna",
+        # docs/spec/inbox.md, step 6); an older agent names no inbox_apps.
+        apps = list(data_.get("mail_apps") or []) + list(data_.get("inbox_apps") or [])
         imap = hass.config_entries.async_get_entry(str(data.get("entry_id", "")))
         name = device_name(hass, imap.entry_id) if imap else ""
         if imap is None or not app_of(name, apps):
@@ -95,6 +98,9 @@ def async_setup_mail(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
                     "subject": str(mail.get("subject") or data.get("subject") or ""),
                     "date": _date(mail.get("date")),
                     "text": str(mail.get("text") or ""),
+                    # Optional: the service knows an inbox mail by its entry (the uid is only logged).
+                    "imap_entry": imap.entry_id,
+                    "uid": str(data.get("uid") or ""),
                 }
             )
         except MiraError as err:

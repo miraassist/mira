@@ -1,0 +1,25 @@
+name: postfach-teilweise
+description: Mail mit drei Terminen ins Postfach, Anna will nur den ersten
+steps:
+  - mail:
+      from: trainer@tsv.example
+      subject: Termine der Jugendmannschaft
+      text: |
+        Hallo zusammen,
+        hier die nächsten Termine:
+        - Elterntreffen am {{+6}} um 18 Uhr im Vereinsheim
+        - Turnier am {{+13}} ab 9 Uhr in der Sporthalle Nord
+        - Saisonabschluss am {{+20}} um 16 Uhr am Vereinsheim
+        Sportliche Grüße, Tom
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Nur den ersten
+    person: anna
+    expect:
+      result:
+        - event_exists: { calendar: calendar.anna, day: "+6", start: "18:00", title: Eltern }
+        - calendar_empty: { calendar: calendar.anna, day: "+13", title: Turnier }
+        - calendar_empty: { calendar: calendar.anna, day: "+20", title: Saison }
+      behaviour:
+        must: [tool:inbox_enter]

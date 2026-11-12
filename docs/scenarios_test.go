@@ -22,34 +22,35 @@ var builtSteps = map[string][]int{
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, // docs/spec/agents.md, Switching over in steps
 	"BE": {2},                                     // docs/spec/editing.md, Steps; step 1 predates the map; step 3 in Go (BE-22, 23) and pytest (BE-24, 25)
 	"HK": {1, 2},
-	"HW": {1, 2, 3},          // docs/spec/hooks.md, Steps
-	"MO": {1, 2, 3, 4, 5, 7}, // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
-	"SM": {1, 2},             // docs/spec/skill-mcp.md
-	"SP": {3},                // docs/spec/speaker-id.md
-	"BK": {1},                // docs/spec/backup.md; steps 2 and 3 are tested in pytest
-	"RA": {2, 3, 4},          // docs/spec/radio.md, Steps
-	"SR": {2, 4},             // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
-	"ST": {2, 3, 4, 6, 8, 9}, // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10)
-	"WS": {2, 4},             // docs/spec/warm-slot.md, Steps
-	"VL": {1, 2},             // docs/spec/history.md, Steps
-	"ZP": {1, 2, 3},          // docs/spec/schedules.md, Steps
-	"CO": {2, 4},             // docs/spec/oauth.md; step 3 is tested in pytest
-	"HP": {1, 3},             // docs/spec/context.md, 1.2; step 2 is tested in pytest
-	"HU": {1},                // docs/spec/context.md, 1.3; step 2 is tested in pytest
-	"FD": {3, 4},             // docs/spec/found-devices.md, Steps
-	"WA": {3},                // docs/spec/waiting-indicator.md, Steps
-	"WL": {2, 3, 5},          // docs/spec/wifi-onboarding.md, Steps
-	"HC": {1},                // docs/spec/ha-compat.md
-	"FB": {1, 2, 5},          // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest
-	"MQ": {1},                // docs/spec/music-quiz.md, Steps
-	"RP": {1, 2},             // docs/spec/random-pick.md, Steps
-	"PE": {1},                // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
-	"PS": {1, 2},             // docs/spec/schedule-receiver.md, Steps
-	"DV": {3, 6, 7},          // docs/spec/device-onboarding.md, Steps
-	"RY": {1, 2, 3, 4, 5},    // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)
-	"MS": {1},                // docs/spec/messages.md
-	"KL": {1, 2},             // docs/spec/keep-listening.md, Steps
-	"HD": {},                 // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-20 to 22, 27) and Go (HD-23 to 26)
+	"HW": {1, 2, 3},             // docs/spec/hooks.md, Steps
+	"MO": {1, 2, 3, 4, 5, 7},    // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
+	"SM": {1, 2},                // docs/spec/skill-mcp.md
+	"SP": {3},                   // docs/spec/speaker-id.md
+	"BK": {1},                   // docs/spec/backup.md; steps 2 and 3 are tested in pytest
+	"RA": {2, 3, 4},             // docs/spec/radio.md, Steps
+	"SR": {2, 4},                // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
+	"ST": {2, 3, 4, 6, 8, 9},    // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10)
+	"WS": {2, 4},                // docs/spec/warm-slot.md, Steps
+	"VL": {1, 2},                // docs/spec/history.md, Steps
+	"ZP": {1, 2, 3},             // docs/spec/schedules.md, Steps
+	"CO": {2, 4},                // docs/spec/oauth.md; step 3 is tested in pytest
+	"HP": {1, 3},                // docs/spec/context.md, 1.2; step 2 is tested in pytest
+	"HU": {1},                   // docs/spec/context.md, 1.3; step 2 is tested in pytest
+	"FD": {3, 4},                // docs/spec/found-devices.md, Steps
+	"WA": {3},                   // docs/spec/waiting-indicator.md, Steps
+	"IN": {1, 2, 3, 4, 6, 7, 8}, // docs/spec/inbox.md, Steps; step 5 (the guide, an end-to-end test) has no scenarios; IN-26's integration side in pytest
+	"WL": {2, 3, 5},             // docs/spec/wifi-onboarding.md, Steps
+	"HC": {1},                   // docs/spec/ha-compat.md
+	"FB": {1, 2, 5},             // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest
+	"MQ": {1},                   // docs/spec/music-quiz.md, Steps
+	"RP": {1, 2},                // docs/spec/random-pick.md, Steps
+	"PE": {1},                   // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
+	"PS": {1, 2},                // docs/spec/schedule-receiver.md, Steps
+	"DV": {3, 6, 7},             // docs/spec/device-onboarding.md, Steps
+	"RY": {1, 2, 3, 4, 5},       // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)
+	"MS": {1},                   // docs/spec/messages.md
+	"KL": {1, 2},                // docs/spec/keep-listening.md, Steps
+	"HD": {},                    // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-20 to 22, 27) and Go (HD-23 to 26)
 }
 
 var (

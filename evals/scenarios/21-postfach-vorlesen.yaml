@@ -1,0 +1,23 @@
+name: postfach-vorlesen
+description: Terminvorschläge aus dem Postfach vorlesen lassen; jede Uhrzeit wird genannt
+steps:
+  - mail:
+      from: praxis@kieferorthopaedie.example
+      subject: Terminvorschläge für die Kontrolle
+      text: |
+        Guten Tag,
+        für die Kontrolle bei Dr. Kaya können wir Ihnen einen der folgenden Termine anbieten:
+        {{+11}} um 8:00 Uhr, {{+12}} um 14:30 Uhr oder {{+14}} um 10:15 Uhr.
+        Bitte wählen Sie einen davon.
+        Ihre Praxis Dr. Kaya
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Hab ich neue Nachrichten?
+    person: anna
+    expect:
+      behaviour:
+        must: [tool:messages_read]
+        must_not: [tool:inbox_enter]
+      answer:
+        contains: ["8:00|8 Uhr|acht Uhr", "14:30|14 Uhr 30|halb drei", "10:15|10 Uhr 15|viertel nach zehn"]

@@ -66,6 +66,13 @@ type Options struct {
 	// that the integration last sent ("" if none), so it can see whether
 	// the agent has the current one.
 	ExposedHash func(ctx context.Context) string
+	// Inbox takes Paperless's webhooks (docs/spec/inbox.md) at InboxPath,
+	// checking its own token; nil answers 404 there.
+	Inbox http.Handler
+	// MailInbox takes the mails of the inbox's IMAP devices ("Postfach
+	// anna") at /v1/mail and answers at once; nil passes none
+	// (docs/spec/inbox.md, step 6).
+	MailInbox MailInbox
 	// Mail is the mail calendar (docs/spec/mail-calendar.md); nil turns
 	// POST /v1/mail off.
 	Mail Mail
@@ -88,12 +95,27 @@ type RefusedError interface {
 	Refused() bool
 }
 
+// InboxPath is where Paperless's webhook posts (inbox.Path).
+const InboxPath = "/v1/inbox/paperless"
+
 // Mail takes the mails the integration passes on.
 type Mail interface {
 	// AppNames are the mail applications, for /v1/status (mail_apps).
 	AppNames() []string
 	Handle(ctx context.Context, m mailcal.Mail) (mailcal.Outcome, error)
 }
+
+// MailInbox is Mira's inbox for mails.
+type MailInbox interface {
+	// Owns says whether a mail of this IMAP device is the inbox's.
+	Owns(entry string) bool
+	// EnqueueMail queues a mail for reading; false when it is queued or
+	// asked about already.
+	EnqueueMail(ctx context.Context, m mailcal.Mail) bool
+}
+
+// MailInboxApp is the inbox's name in /v1/status (inbox_apps).
+const MailInboxApp = "postfach"
 
 // Problem is something that did not start: a skill with a wrong setting.
 type Problem struct {
@@ -151,6 +173,16 @@ func New(opts Options) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The inbox has a token of its own, and only it opens it; the service's
+	// token does not (docs/spec/inbox.md, step 1).
+	if r.URL.Path == InboxPath {
+		if s.opts.Inbox == nil {
+			writeError(w, http.StatusNotFound, "the inbox is off: the skill paperless has no inbox_token")
+			return
+		}
+		s.opts.Inbox.ServeHTTP(w, r)
+		return
+	}
 	if s.opts.Token != "" {
 		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if subtle.ConstantTimeCompare([]byte(got), []byte(s.opts.Token)) != 1 {
@@ -448,19 +480,34 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		apps = append(apps, s.opts.Mail.AppNames()...)
 	}
 	status["mail_apps"] = apps
+	// The inbox needs no calendar, so it has a list of its own: the
+	// integration's repair for a missing calendar stays with mail_apps
+	// (docs/spec/inbox.md, step 6).
+	inboxApps := []string{}
+	if s.opts.MailInbox != nil {
+		inboxApps = append(inboxApps, MailInboxApp)
+	}
+	status["inbox_apps"] = inboxApps
 	writeJSON(w, http.StatusOK, status)
 }
 
 // mail takes one mail of an IMAP entry and keeps its calendar entry. The
 // answer says what the mail did; it waits for the model.
 func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
-	if s.opts.Mail == nil {
-		writeError(w, http.StatusNotFound, "no mail calendar")
-		return
-	}
 	var m mailcal.Mail
 	if err := decode(r, &m); err != nil || strings.TrimSpace(m.Entry) == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"entry", "sender", "subject", "date", "text"}`)
+		return
+	}
+	// A mail of the inbox is answered at once and read afterwards
+	// (docs/spec/inbox.md, step 6).
+	if s.opts.MailInbox != nil && s.opts.MailInbox.Owns(m.Entry) {
+		queued := s.opts.MailInbox.EnqueueMail(context.WithoutCancel(r.Context()), m)
+		writeJSON(w, http.StatusAccepted, map[string]bool{"queued": queued})
+		return
+	}
+	if s.opts.Mail == nil {
+		writeError(w, http.StatusNotFound, "no mail calendar")
 		return
 	}
 	// Reading and matching, each tried twice at most (mailcal.Options).

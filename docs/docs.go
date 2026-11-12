@@ -5,7 +5,7 @@ package docs
 import (
 	"embed"
 	"fmt"
-	"path"
+	"io/fs"
 )
 
 //go:embed guide/*.md guide/img
@@ -21,9 +21,10 @@ func Guide(lang string) ([]byte, error) {
 	return b, nil
 }
 
-// GuideFile returns a picture or recording of the guide (guide/img/<name>).
+// GuideFile returns a picture or recording of the guide (guide/img/<name>);
+// name may hold folders below img ("paperless/tags.png"), never "..".
 func GuideFile(name string) ([]byte, error) {
-	if name == "" || path.Base(name) != name {
+	if name == "" || !fs.ValidPath(name) {
 		return nil, fmt.Errorf("bad name %q", name)
 	}
 	return guide.ReadFile("guide/img/" + name)

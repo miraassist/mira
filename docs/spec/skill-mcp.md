@@ -88,6 +88,10 @@ skills:
 - `web_content: true` makes what the server returns third-party text, as for any MCP server: after it, Mira asks
   before keeping or passing anything on, and critical actions are locked.
 - `read_only` decides, as for any MCP server, whether background work may use the tools at all.
+- **Mira's own code** may use a skill's server too, over the same connection, for fixed steps without a model: the
+  inbox reads a document and marks it read through the skill paperless's server ([Inbox](inbox.md), decision 23). It
+  calls the server's tools by their own names (`CallServer` of the MCP host), also ones the skill's `tools` list does
+  not name; that list stays what the model and the skill's agents get.
 - The rights of agents apply as for every tool (agents.md, Rights).
 
 ## Decided

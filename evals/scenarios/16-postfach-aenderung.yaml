@@ -1,0 +1,21 @@
+name: postfach-aenderung
+description: Mail mit einem Termin ins Postfach, Anna trägt ihn mit anderer Uhrzeit ein
+steps:
+  - mail:
+      from: sekretariat@gymnasium.example
+      subject: Einladung zum Elternabend
+      text: |
+        Sehr geehrte Eltern,
+        wir laden Sie herzlich zum Elternabend der Klasse 7c am {{+9}} um 19:30 Uhr in Raum 204 ein.
+        Mit freundlichen Grüßen, die Klassenleitung
+    expect:
+      result:
+        - plan: { target: postfach }
+  - say: Ja, aber der Elternabend ist um 20 Uhr
+    person: anna
+    expect:
+      result:
+        - event_exists: { calendar: calendar.anna, day: "+9", start: "20:00", title: Elternabend }
+        - calendar_empty: { calendar: calendar.anna, day: "+9", start: "19:30", title: Elternabend }
+      behaviour:
+        must: [tool:inbox_enter]
