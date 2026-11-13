@@ -136,6 +136,9 @@ type app struct {
 	// watch brings Mira's blueprints into Home Assistant
 	// (docs/spec/device-watch.md).
 	watch *watch.Blueprints
+	// watchWaiter follows the devices whose watch offer waits for their next
+	// run.
+	watchWaiter *watch.Waiter
 	// threads runs threads ("Vorgänge"): concerns over several turns.
 	threads *threads.Manager
 	// people are Home Assistant's persons (people.go).
@@ -528,9 +531,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
 	a.watch = watch.New(watch.Options{HA: a.ha, Lang: a.lang, Logger: a.log})
+	profiler := watch.NewProfiler(watch.ProfilerOptions{Recorder: a.ha, Lang: a.lang, Logger: a.log})
 	a.tasks = tasks.New(tasks.Options{
 		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot, Watch: a.watch,
-		Profiler:   watch.NewProfiler(watch.ProfilerOptions{Recorder: a.ha, Lang: a.lang, Logger: a.log}),
+		Profiler:   profiler,
 		Model:      a.tasksAssess(),
 		Decider:    a.tasksDecide(),
 		Planner:    a.tasksPlan(),
@@ -544,6 +548,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 	})
 	internal = append(internal, a.tasks.Tools()...)
+	// A watch offer waits for a device's next run (docs/spec/device-watch.md,
+	// step 8): watch_wait with the skill aufgabe, the yes and the no with the
+	// offer's.
+	a.watchWaiter = watch.NewWaiter(watch.WaiterOptions{HA: a.ha, Profiler: profiler, Offers: watchOffers{a},
+		Decline: a.store.DeclineWatch, Watched: a.tasks.Watched, Lang: a.lang, Logger: a.log})
+	internal = append(internal, a.watchWaiter.WaitTool(a.tasks.Sensor))
+	internal = append(internal, a.watchWaiter.Tools()...)
 	checks := map[string]threads.Check{}
 	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang)}
 	checks["entities"] = a.tasks.CheckEntities
@@ -598,6 +609,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		Cancel:   func(id string) bool { return a.agents.Cancel(id) },
 		Dispatch: a.dispatchForThread,
+		// A watch offer is started by watch_wait only.
+		CodeStarted: []string{watch.OfferSkill},
 		// The answering machine's recordings stop with their thread.
 		Ended: func(ctx context.Context, th store.Thread) {
 			if a.voicemail != nil && th.Target == voicemail.Skill {
@@ -614,6 +627,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			// So do the clips a thread played.
 			if a.clip != nil {
 				a.clip.StopThread(ctx, th.ID)
+			}
+			// A watch offer's device is not followed any more.
+			if a.watchWaiter != nil && th.Target == watch.OfferSkill {
+				a.watchWaiter.Ended(offerOf(th))
 			}
 		},
 		// A done plan stops its clip: the last song of a quiz does not play
@@ -806,6 +823,18 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		}
 		_ = a.watch.Ready(ctx)
 		return nil
+	})
+	// The watch offers that wait for a device's next run are followed again
+	// (docs/spec/device-watch.md, step 8).
+	a.goRun(ctx, "watch-offers", func(ctx context.Context) error {
+		if a.threads == nil || !a.threads.HasTarget(watch.OfferSkill) {
+			return nil
+		}
+		if err := a.ha.WaitReady(ctx); err != nil {
+			return nil
+		}
+		a.watchWaiter.Resume(ctx)
+		return a.watchWaiter.Run(ctx)
 	})
 	// A rule written, changed or deleted in hooks/ applies without a restart
 	// (docs/spec/hooks-writing.md, Reloading).
@@ -1052,7 +1081,7 @@ func (a *app) haUser(ctx context.Context) string {
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
 	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel",
-		"postfach"}
+		"postfach", "ueberwachung-anbieten"}
 }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits

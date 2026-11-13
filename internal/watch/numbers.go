@@ -26,7 +26,7 @@ type numberTexts struct {
 
 var numberCatalog = map[i18n.Lang]numberTexts{
 	i18n.DE: {
-		few:        "für den Blueprint %s reicht der Verlauf von %s noch nicht (in den Zuständen der letzten %[3]d Tage %[4]d ganze Läufe, Zustände seit %[5]s): Mira wartet auf den nächsten Lauf, statt Zahlen zu raten",
+		few:        "für den Blueprint %s reicht der Verlauf von %s noch nicht (in den Zuständen der letzten %[3]d Tage %[4]d ganze Läufe, Zustände seit %[5]s): Mira wartet auf den nächsten Lauf (watch_wait), statt Zahlen zu raten",
 		maxOn:      "max_on (%v min) muss länger sein als der längste normale Lauf von %s (%d min), sonst meldet sich Mira bei jedem langen Lauf",
 		maxOff:     "max_off (%v min) muss länger sein als die längste normale Pause von %s (%d min), sonst meldet sich Mira bei jeder langen Pause",
 		maxMinutes: "max_minutes (%v min) muss länger sein als der längste Lauf von %s (%d min)",
@@ -34,7 +34,7 @@ var numberCatalog = map[i18n.Lang]numberTexts{
 		heat:       "heat_above (%v W) muss unter der Spitze jedes Laufs von %s liegen (die niedrigste: %.0f W), sonst meldet sich Mira nach einem normalen Lauf",
 	},
 	i18n.EN: {
-		few:        "for the blueprint %s the history of %s is not enough yet (%[3]d days of states, %[4]d whole runs, states since %[5]s): Mira waits for the next run instead of guessing numbers",
+		few:        "for the blueprint %s the history of %s is not enough yet (%[3]d days of states, %[4]d whole runs, states since %[5]s): Mira waits for the next run (watch_wait) instead of guessing numbers",
 		maxOn:      "max_on (%v min) must be longer than the longest normal run of %s (%d min), else Mira tells of every long run",
 		maxOff:     "max_off (%v min) must be longer than the longest normal pause of %s (%d min), else Mira tells of every long pause",
 		maxMinutes: "max_minutes (%v min) must be longer than the longest run of %s (%d min)",

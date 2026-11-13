@@ -97,6 +97,17 @@ func (p *Profiler) Profile(ctx context.Context, entity string) (Profile, error) 
 	return p.Numbers(ctx, entity, stats[entity], KindNone)
 }
 
+// ProfileAs is a power sensor's device profile with its kind given (the
+// kind of the blueprint a watch offer waits for): the statistics for its
+// peak, the states for its numbers.
+func (p *Profiler) ProfileAs(ctx context.Context, entity string, kind Kind) (Profile, error) {
+	stats, err := p.statistics(ctx, []string{entity}, p.opts.Clock().AddDate(0, 0, -StatsDays))
+	if err != nil {
+		return Profile{}, fmt.Errorf("the statistics of %s: %w", entity, err)
+	}
+	return p.Numbers(ctx, entity, stats[entity], kind)
+}
+
 // Numbers is the device profile from statistics already read: the kind,
 // unless given, and the numbers from the states of the last StatesDays
 // days.

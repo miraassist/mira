@@ -92,6 +92,7 @@ is used in a spec; a term that is not here is not a term yet.
 | group helper | Gruppen-Helfer | Home Assistant's group entity with fixed members ("Fenster Gast offen") | domain `group` config entries, e.g. `binary_sensor.fenster_gast_offen` | group (alone) |
 | device class | device class | What an entity is within its domain (window, door, motion, …), in Home Assistant's UI "Anzeigen als" | `device_class`, `original_device_class` | device type, Gerätetyp |
 | candidate | Kandidat | A device a blueprint could watch | computed, not stored: the tool `watch_candidates` lists them on request | suggestion |
+| watch offer | Angebot (eines Wächters) | Mira's promise to take a device into the watching after its next run, and the offer after it: a thread of the house that waits for the run, then for the yes | target `ueberwachung-anbieten` (a skill of its own), tools `watch_wait`, `watch_accept`, `watch_decline`; `internal/watch` (`Waiter`) | suggestion |
 | device profile | Geräteprofil | A device's usual behaviour: its kind (daily routine, cycle, device run) and its numbers | computed, not stored: `internal/watch` (`Profile`, `Profiler`), the tool `device_profile` | profile (alone), habit, baseline |
 | daily routine | Tagesablauf | On at the same times every day | blueprint `daily_routine` | schedule |
 | cycle | Takt | On and off again and again all day | blueprint `duty_cycle` | — |

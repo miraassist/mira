@@ -325,7 +325,34 @@ func (m *Manager) SaveDraft(ctx context.Context, id string, d Draft) error {
 	if d.Rendered != nil {
 		checked = d.Rendered
 	}
-	return m.save(ctx, id, checked, d.Automation)
+	if err := m.save(ctx, id, checked, d.Automation); err != nil {
+		return err
+	}
+	m.forgetDeclines(ctx, d)
+	return nil
+}
+
+// forgetDeclines deletes the declines of the entities a watch just saved
+// watches with its blueprint: the user made it by voice all the same
+// (docs/spec/device-watch.md, decision 21). A failure is logged; the watch
+// is saved, and the device is not offered again either way (it is watched).
+func (m *Manager) forgetDeclines(ctx context.Context, d Draft) {
+	if d.Blueprint == "" {
+		return
+	}
+	for _, v := range d.Inputs {
+		id, ok := v.(string)
+		if !ok || !strings.Contains(id, ".") || strings.Contains(id, " ") {
+			continue
+		}
+		gone, err := m.opts.Store.UndeclineWatch(ctx, id, d.Blueprint)
+		switch {
+		case err != nil:
+			m.log.Warn("could not forget a declined watch; the watch is saved, the row stays", "entity", id, "blueprint", d.Blueprint, "error", err)
+		case gone:
+			m.log.Info("declined watch forgotten: made by voice all the same", "entity", id, "blueprint", d.Blueprint)
+		}
+	}
 }
 
 // save lets the integration check checked, then saves config.

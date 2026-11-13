@@ -44,3 +44,14 @@ func (s *Store) WatchDeclines(ctx context.Context) ([]WatchDecline, error) {
 	}
 	return out, rows.Err()
 }
+
+// UndeclineWatch forgets a declined watch: the user made it by voice all the
+// same (decision 21). Nothing when it was not declined; true when a row went.
+func (s *Store) UndeclineWatch(ctx context.Context, entityID, blueprint string) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM watch_declined WHERE entity_id = ? AND blueprint = ?`, entityID, blueprint)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}

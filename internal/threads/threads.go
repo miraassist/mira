@@ -103,6 +103,10 @@ type Options struct {
 	// runs on its behalf outside it: the answering machine's recordings stop
 	// with their thread.
 	Ended func(ctx context.Context, th store.Thread)
+	// CodeStarted are the targets whose threads only Mira's code starts
+	// (a watch offer, docs/spec/device-watch.md, decision 57): thread_start
+	// refuses them.
+	CodeStarted []string
 	// Done is told once when a thread's plan became done, every step
 	// ticked, while the thread stays open for what comes after (a quiz's
 	// clip stops then, docs/spec/music-quiz.md, decision 9).
@@ -147,6 +151,12 @@ func New(opts Options) *Manager {
 // HasTargets reports whether any target is defined; without one there are
 // no thread tools.
 func (m *Manager) HasTargets() bool { return len(m.targets) > 0 }
+
+// HasTarget reports whether the target is defined (its skill is on).
+func (m *Manager) HasTarget(name string) bool {
+	_, ok := m.targets[name]
+	return ok
+}
 
 func (m *Manager) texts() texts { return i18n.Pick(catalog, m.opts.Lang) }
 
@@ -409,6 +419,10 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	sk, ok := m.targets[target]
 	if !ok {
 		return "", fmt.Errorf(m.texts().noTarget, target)
+	}
+	if contains(m.opts.CodeStarted, target) {
+		m.log.Info("thread_start refused: Mira's code starts this target", "target", target)
+		return "", fmt.Errorf(m.texts().codeStarted, target)
 	}
 	place, _ := m.startPlace(ctx, inv, target)
 	if open, err := m.openAt(ctx, m.turnPlaces(ctx, inv)); err == nil {

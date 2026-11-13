@@ -8,6 +8,7 @@ import (
 type texts struct {
 	startDesc, requestDesc, fillDesc, fieldsDesc, confirmDesc, cancelDesc string
 	noTarget, noThread, nothingToConfirm, unknownField, notInEnum         string
+	codeStarted                                                           string
 	checkFailed, started, working, workFailed, askUser, proposeUser       string
 	cancelled, yesLogged, memorySaved                                     string
 	noAction, notHere, actionProposal, actionDone, undoDesc               string
@@ -42,6 +43,7 @@ var catalog = map[i18n.Lang]texts{
 		stillOpen:        "Noch offen: %s. Biete das Nächste an.",
 		waitingLine:      "Wartet noch (Einzelheiten mit messages_read): %s",
 		noTarget:         "kein Ziel %q",
+		codeStarted:      "einen Vorgang %q legt Mira selbst an, nicht thread_start; für die Antwort auf ihre Nachricht nimm die Werkzeuge des Skills %[1]s",
 		noThread:         "hier läuft kein Vorgang; eröffne einen mit thread_start",
 		nothingToConfirm: "der Vorgang wartet auf kein Ja; fülle mit thread_fill, was fehlt",
 		unknownField:     "unbekanntes Feld %s",
@@ -127,6 +129,7 @@ var catalog = map[i18n.Lang]texts{
 		stillOpen:        "Still open: %s. Offer the next one.",
 		waitingLine:      "Still waiting (details with messages_read): %s",
 		noTarget:         "no target %q",
+		codeStarted:      "a thread %q only Mira starts herself, not thread_start; for the answer to her message take the tools of the skill %[1]s",
 		noThread:         "no thread runs here; open one with thread_start",
 		nothingToConfirm: "the thread waits for no yes; fill what is missing with thread_fill",
 		unknownField:     "unknown field %s",

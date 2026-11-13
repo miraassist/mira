@@ -320,3 +320,29 @@ func TestWatchIsChangedWithItsBlueprint(t *testing.T) {
 		t.Errorf("substitutes: %d", len(bp.substs))
 	}
 }
+
+// CW-36 A declined offer: "Pass doch auf …" makes the watch all the same and
+// forgets the decline (the offer's half: cmd/mira, TestCW36_ADeclinedOffer).
+func TestCW36_MakingTheWatchByVoiceForgetsTheDecline(t *testing.T) {
+	e, _ := watchSetup(t)
+	ctx := context.Background()
+	if err := e.st.DeclineWatch(ctx, "sensor.wasserzaehler", "water_runs_on"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.DeclineWatch(ctx, "sensor.wasserzaehler", "water_never_rests"); err != nil {
+		t.Fatal(err)
+	}
+	e.model.answers = []string{waterWatch}
+	d, err := e.m.DraftAutomation(ctx, "Pass doch aufs Wasser auf", nil, Origin{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, _ := json.Marshal(d)
+	if _, err := e.m.Finisher().Commit(ctx, store.Thread{Content: content}); err != nil {
+		t.Fatal(err)
+	}
+	declines, err := e.st.WatchDeclines(ctx)
+	if err != nil || len(declines) != 1 || declines[0].Blueprint != "water_never_rests" {
+		t.Errorf("declines = %+v %v", declines, err)
+	}
+}

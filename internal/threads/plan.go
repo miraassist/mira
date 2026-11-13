@@ -279,6 +279,26 @@ func (m *Manager) Note(ctx context.Context, threadID, text string) error {
 	return err
 }
 
+// SetFields writes fields of a thread from Mira's own code, as its start
+// does (the device a watch offer waits for, and its numbers after the run,
+// docs/spec/device-watch.md, step 8); a thread that ended is not written.
+func (m *Manager) SetFields(ctx context.Context, threadID string, fields map[string]string) error {
+	_, err := m.change(ctx, threadID, func(th *store.Thread) error {
+		if !store.ThreadOpen(th.State) {
+			return fmt.Errorf("thread %s has ended", th.ID)
+		}
+		if th.Fields == nil {
+			th.Fields = map[string]string{}
+		}
+		for k, v := range fields {
+			th.Fields[k] = v
+			m.logEntry(th, "mira", k+": "+v)
+		}
+		return nil
+	})
+	return err
+}
+
 // Ask says a text of Mira's own code as the thread's question where the
 // thread began, like a question of its finish: a reply there continues the
 // thread (a device found while adding it, docs/spec/device-onboarding.md).

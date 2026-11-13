@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 7 built 2026-11-13 (decisions 22 to 49 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 8 built 2026-11-13 (decisions 22 to 57 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -71,11 +71,19 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 42 | How the model names the sensor to `device_profile` | By its id **or a name** Home Assistant knows for it (display name, alias, device name), found among the power sensors in W Mira may see, as the field check `entities` finds one; several of the same length: the error lists them. Without it the model guessed ids at the test Mira (`sensor.stromverbrauch` for `sensor.power_consumption`). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 43 | A daily routine's times the user corrects | Taken as the user says them: the code checks only that they read (decision 23), not that they lie within what the device profile saw (the user knows the device's timer; "the code checks they lie within what the device profile saw" holds for the numbers of a cycle and a device run, step 7). Without a routine in the profile the user's times are taken the same way (CW-17). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 44 | What the profile says is missing for a daily routine | "für einen Wächter seines Tagesablaufs fehlen die Zeiten", also when it found another kind or none: the model then asks the user for the times (the skill's prose). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
-| 45 | Which numbers of a cycle and a device run the code takes (step 7, "The tool `device_profile`") | The code reads the device profile with the blueprint's kind (one read of the states) and refuses, back to the planner as every refusal of A3: a profile without enough (the answer says Mira waits for the next run), `max_on` or `max_off` not longer than the longest run or pause seen, `max_minutes` not longer than the longest run, `off_for` not longer than the longest pause within a run, `heat_above` not below the lowest peak of a run. Nothing above: the user may give a higher bound. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 45 | Which numbers of a cycle and a device run the code takes (step 7, "The tool `device_profile`") | The code reads the device profile with the blueprint's kind (one read of the states) and refuses, back to the planner as every refusal of A3: a profile without enough (the answer names `watch_wait`), `max_on` or `max_off` not longer than the longest run or pause seen, `max_minutes` not longer than the longest run, `off_for` not longer than the longest pause within a run, `heat_above` not below the lowest peak of a run. Nothing above: the user may give a higher bound. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 46 | How a device run is followed (rows 14, 15) | **One run of the automation per run of the device** (`mode: single`, `max_exceeded: silent`; the assumption holds), with one detail found on the test HA: Home Assistant's `numeric_state` fires only on a crossing (an entity already within the range when the trigger is set up is not armed, `homeassistant/triggers/numeric_state.py`), so every wait is set up while the power is on the other side: while on, a wait for the power below `on_above`, above `heat_above` or the bound; while in a pause, a wait for the power above `on_above` with a timeout of `off_for`, whose end ends the run. No `for` within the run. A run that is on when the automation is loaded is not followed (the next is), as decision 31; a crossing above during a run leaves a trace "failed_single" in Home Assistant's traces, nothing in the log. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 47 | A cycle's "off" | `numeric_state` with `below: on_above`: a power exactly at `on_above` is neither on nor off (the spec said "at or below"); a cycle that is off when the watch is loaded is told only after it ran once (a crossing), as decision 31. Accepted. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 48 | Two entries of one blueprint | One input `message` (decision 24) whose template chooses by the trigger (`trigger.id` of the cycle) or the run's variable `what` (device run); the importance by the trigger, decision 18. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 49 | The selectors of blueprints 5 and 6 | `duty_cycle`: `on_above` 0–5000 W (default 5), `max_on` 1–1440 min, `max_off` 1–2880 min (no defaults: the numbers come from the device profile). `device_run`: `on_above` 0–5000 W (default 5), `off_for` 1–240 min (default 30, the profile's join of a programme's pauses), `max_minutes` 5–1440 min (no default), `heat_above` 0–5000 W (default 0: no check; "optional" of the spec). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 50 | Where the target `ueberwachung-anbieten` lives (decision 19: "in the skill `aufgabe`") | In a **skill of its own**, `skills/ueberwachung-anbieten` (on by default as `aufgabe`): a skill holds one target and the target is the skill's name. A **plan** target bound to the house (as the answering machine's), timeout 720 h (30 days); its fields `device`, `blueprint` and, after the run, `numbers` are the thread's fields written by the code (as a found device's `item`; one new method `threads.SetFields`), its plan "wait for the next run / offer the watch". Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 51 | How Mira promises (decision 14) | The tool **`watch_wait`** with the skill `aufgabe`: the model calls it when `device_profile` says runs are missing (the skill's prose); the code starts the offer's thread and subscribes (as `voicemail_list` starts its thread), not `thread_start`. A device whose offer waits already is said, not started twice; a profile that is enough says to make the watch now. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 52 | What the yes and the no do (decisions 11, 19) | The yes is `watch_accept`: the offer's thread ends as done, and a thread of `aufgabe` starts in the turn with its fields from the offer (`watch` the sensor, `measure` the blueprint and the numbers, `reaction` message); its drafting proposes the watch with its values (decision 29) and that yes saves it: two yeses, the offer's and the values'. The no is `watch_decline`: a row of `watch_declined`, the thread cancelled (its entry leaves). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 53 | When a run counts as ended, and what follows | The subscription: `numeric_state` below 5 W (`on_above`'s default) for 30 minutes for a device run (the profile's join), 1 minute for a cycle or a daily routine. Then the device profile with the offer's kind; not enough: a log line, it waits for the next run; a device that Mira's watches watch meanwhile: the offer ends, with a log line; enough: the numbers, the entry, no more subscription. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 54 | The offer's entry | Kind `simple`, receiver the house, importance 1, source `task`, `dedupe_key` `watch-offer:<thread>`, the thread's expiry; spoken "Die Spülmaschine ist gelaufen. Wie versprochen: Soll ich es jetzt überwachen?", the details the device profile and the tools of the yes and the no. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 55 | Which subscription | Home Assistant's own `subscribe_trigger` (filtered at the source; admins only: Mira works with the owner's token, [HACS default](hacs-default.md)); not the service's `SubscribeTrigger`, which follows state triggers over `subscribe_entities` and knows no `numeric_state` with `for`. Refused (a token without admin): a log line naming the device; the thread waits and is followed again at the next start. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 56 | When the decline is forgotten (decision 21) | When a watch made from a blueprint is saved: the rows of the entities among its inputs with that blueprint. A failure is logged; the watch is saved all the same. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 57 | A thread of the offer started by the model | `thread_start` refuses the target `ueberwachung-anbieten` (a list of targets only Mira's code starts, `threads.Options.CodeStarted`), naming the skill whose tools answer; an offer without a device ends at the service's start, with a log line. Found at the test Mira: after "Hab ich neue Nachrichten?" the voice model called `thread_start` for the offer instead of answering with its tools, which made an empty offer. The tools `watch_accept` and `watch_decline` take the device (`device`), which the entry's details name. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -96,7 +104,7 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | Saving (`automation.Save`, table `own_automations`) | Saves the automation `{use_blueprint: {path, input}}` with `POST /api/config/automation/config/<id>`, reload, label, row of kind `task` | None | A watch is a task; Home Assistant takes a blueprint's automation through the same call (checked 2026-11-13) |
 | `mira/automation/validate` (integration) | Checks the **rendered** automation (the forbidden actions, as today) | None; the service sends the rendered config | No change of the interface between integration and service |
 | `mira.send_message` (integration) | The blueprint's action: `text` with the facts, `importance`, `dedupe_key`, `expires_in`, `task: "{{ this.attributes.id }}"` | None | Already there for tasks |
-| Threads (`internal/threads`, table `threads`) | The promise to wait for a run and the offer after it (decisions 11, 15): a thread of the house, its entry in a message, its yes drafting the watch | A target for the offer, in the skill `aufgabe` (new target, no new code of threads); an expiry of 30 days, as threads of the house already have an expiry of their own ([Messages](messages.md)) | A promise across turns is what a thread is; the offer comes the known way, as a found device |
+| Threads (`internal/threads`, table `threads`) | The promise to wait for a run and the offer after it (decisions 11, 15): a thread of the house, its entry in a message, its yes drafting the watch | A target for the offer in a skill of its own, `ueberwachung-anbieten` (decision 50: a skill holds one target); an expiry of 30 days, as threads of the house already have an expiry of their own ([Messages](messages.md)); one method for the code to write the fields of a thread it started (`SetFields`: the numbers after the run) | A promise across turns is what a thread is; the offer comes the known way, as a found device |
 | Messages, kind `simple` | A watch's text is an entry of the receiver's `simple` message | None | An entry is a text, as a task's; nothing to work through over several turns: the follow-up ("mach's aus") is the next turn of the same conversation, with Home Assistant's tools, no thread |
 | **New: the blueprints** (`internal/watch`, blueprints embedded in the service) | The blueprint files; making sure Home Assistant has them; the catalog the planner sees (name, description, inputs) | New package | No building block holds blueprints. In the service, since the code and the model that fill a blueprint's inputs must match its version |
 | **New: table `watch_declined`** (`internal/store`, a migration) | The devices whose offer the user declined, per blueprint | New table | A list of Mira's own with no place in Home Assistant (decision 21); by the rule of [Database](../database.md), a list gets a table, not keys of `kv` |
@@ -261,14 +269,25 @@ The model gets the numbers and proposes the inputs in words; the code checks the
 
 ### Waiting for the next run (decision 14)
 
-The promise is a thread of the house (decision 15), waiting; its fields name the device and the blueprint. The
-service follows only the power sensors of such threads
-(`subscribe_trigger` with a numeric state trigger on their power, filtered at the source); when a run ended (`off_for`
-after being above `on_above`), the device profile is computed again; with enough, the thread's entry comes (decision 11) and the
-thread waits for the yes. At start the service subscribes again for every waiting thread. A thread that expires
-before the device ran ends its subscription with a log line (the device and the days waited); nothing is said, as
-for every expired thread. Asked in conversation, Mira says it: "Die Spülmaschine nehm ich in die Überwachung, wenn sie das nächste Mal
-gelaufen ist."
+The promise is a thread of the house (decision 15), waiting; its fields name the device and the blueprint
+(decisions 50, 51). The model makes it with the tool `watch_wait` (skill `aufgabe`) when `device_profile` says runs
+are missing, and says it: "Die Spülmaschine nehm ich in die Überwachung, wenn sie das nächste Mal gelaufen ist."
+Step by step:
+
+1. `watch_wait` with the power sensor (id or name, as `device_profile`): the device profile (a state, two reads of the
+   recorder); a profile that is enough or no candidate is said instead, an offer that waits already is said.
+2. The thread of `ueberwachung-anbieten` at the house, its plan and fields, expiring in 30 days; the subscription
+   (`subscribe_trigger` with a `numeric_state` trigger on the power, below 5 W for 30 minutes for a device run, 1
+   minute else, filtered at the source; decisions 53, 55). Its handler only passes the entity on.
+3. When a run ended: the device profile again with the offer's kind; with enough, its numbers into the thread's
+   field, the entry of the house's simple message leading to the thread (decision 54), no more subscription; the
+   thread waits for the yes. Not enough: it waits for the next run.
+4. The yes (`watch_accept`): the offer ends, a thread of `aufgabe` drafts the watch in the turn (decision 52). The no
+   (`watch_decline`): the device is kept as declined, the thread ends.
+
+At start the service subscribes again for every waiting thread (an entity Home Assistant no longer has ends its
+thread). A thread that expires before the device ran ends its subscription with a log line (the device and the days
+waited); nothing is said, as for every expired thread.
 
 ## What it does, step by step
 
@@ -336,7 +355,10 @@ starts anew (its trigger `automation_reloaded`).
   its slower machine is not measured, no token of the house is used).
 - **A cycle's or a device run's draft:** besides the above, one read of the sensor's states of the last ten days for
   the code's check (decision 45), as for a device profile.
-- **A waiting candidate:** one trigger subscription per waiting entity; nothing else until its run ends.
+- **A waiting candidate:** `watch_wait` reads one device profile (as `device_profile`) and starts a thread (a database
+  write); then one trigger subscription per waiting entity, nothing else until its run ends; then one device profile,
+  and with enough a few database writes (the numbers, the entry). At the service's start one state per waiting entity
+  (is it still there?) and its subscription. The yes: the drafting of a watch, as above; the no: a database write.
 - Grows with: the number of watches (one automation each), not with the house's size.
 
 ## Errors
@@ -353,7 +375,16 @@ starts anew (its trigger `automation_reloaded`).
 | Device profile | Not enough history | Not an error: the answer says what is missing; the candidate waits (decision 14) |
 | Request | The states of the entities Mira may see, Mira's automations or the declined rows cannot be read | The tool's error with what failed and Home Assistant's answer (or the database's); the model says it cannot list the candidates now |
 | Request | The one statistics call is refused | Decision 41: a log warning with the number of sensors and the answer; the answer names the power sensors as not read, with the answer; the water meters are listed |
-| Waiting | The subscription for a waiting entity fails or the entity is gone | A log line with the entity; the thread stays waiting and the subscription is tried again at the next start; for a gone entity the thread ends, with a log line |
+| Waiting | `watch_wait`: the sensor is not one Mira may see, not a power sensor in W, or its device profile cannot be read | The tool's error naming the sensor and Home Assistant's answer, as `device_profile`; nothing is started |
+| Waiting | The offer's thread cannot be started | The tool's error naming the sensor and the database's answer |
+| Waiting | The subscription for a waiting entity fails or the entity is gone | A log line with the entity; the thread stays waiting and the subscription is tried again at the next start; for a gone entity (at the start) the thread ends, with a log line |
+| Waiting | After a run the device profile cannot be computed, or is still not enough | A log line with the entity (and the answer); the thread waits for the next run |
+| Waiting | After a run the thread cannot be written, or the entry cannot be added | A log line with the entity and the thread; not written: the next run tries again; no entry: the thread waits with its numbers, found on the Plans tab ([Messages](messages.md), errors) |
+| Waiting | A run's end comes while 16 others wait to be handled | A log line with the entity; it is dropped, the next run counts (the subscription's handler never blocks) |
+| Waiting | The thread expires before the device ran | Its subscription ends with a log line (the device, the days waited); nothing is said |
+| Offer | `watch_decline`: the decline cannot be written | The tool's error naming the device, the blueprint and the database's answer; the thread stays |
+| Offer | `watch_accept` while the thread still waits for the run | The tool's answer says so; nothing changes |
+| A5 | The decline of a watch made by voice cannot be deleted | A log warning with the entity and the blueprint; the watch is saved |
 | — | A blueprint's device is gone (deleted, renamed) | Home Assistant's own: the automation's trigger finds no entity; its repair / the automation's state "unavailable". Mira's task list shows the automation as today; nothing of Mira's own |
 
 ## Checks on the test HA
@@ -375,7 +406,7 @@ starts anew (its trigger `automation_reloaded`).
 | 13 | Blueprint 5 | the fake fridge (`watch_fake.cycle`, 80 s on, 80 s off; `max_on` 1, `max_off` 1) | the trace: one entry 60 s after on ("had run for 1 minutes", importance 1), one 60 s after off ("had not run", importance 2), to the second; not again while it stays off | 2026-11-13, 2026.11.1 |
 | 14 | Blueprint 6: a run too long | the fake dishwasher (`watch_fake.program` `200:80, 30:0, 200:80`; `off_for` 1, `max_minutes` 5, `heat_above` 1500) | one run of the automation for the device run (the crossing after the pause: a trace "failed_single"); the entry at 5 minutes, to the second | 2026-11-13, 2026.11.1 |
 | 15 | Blueprint 6: a run without heat | the same run, ending; then a run with 60 s at 2000 W | the entry 60 s (`off_for`) after the power dropped, "a run of 7 minutes, but did not heat"; after the run with heat no entry | 2026-11-13, 2026.11.1 |
-| 16 | The end of a waiting candidate's run reaches the service | `subscribe_trigger` with a numeric state trigger on the fake plug, its power dropping | the trigger's event | open |
+| 16 | The end of a waiting candidate's run reaches the service | `subscribe_trigger` with `numeric_state` below 5 for 5 s on the fake aquarium plug (admin token); the plug 5 s at 60 W | the trigger's event 5 s after the drop, with `from_state` 60.0 and `to_state` 0.0 | 2026-11-13, 2026.11.1 |
 
 Rows 6 to 12 are checked before the step that builds on them.
 
@@ -434,5 +465,15 @@ Rows 6 to 12 are checked before the step that builds on them.
    the fake Show (the fridge's past from `watch_fake.past`, 20 minutes on, 40 off): "Pass auf den Kühlschrank auf" –
    "Ich behalte den Kühlschrank im Auge und melde mich, wenn er länger als 25 Minuten läuft oder länger als 50
    Minuten pausiert. Soll ich das so einrichten?" – "Ja": saved from `duty_cycle` (`max_on` 25, `max_off` 50).
-8. **Waiting for the next run:** the thread of the promise, the subscription, the offer after the run; row 16.
+8. **Waiting for the next run:** the thread of the promise, the subscription, the offer after the run; row 16. Built
+   2026-11-13 (decisions 50 to 57): the skill `ueberwachung-anbieten`, `watch.Waiter` with the tools `watch_wait`,
+   `watch_accept`, `watch_decline`, the offers' threads and entries (`cmd/mira/watchoffers.go`), the decline forgotten
+   when a watch is saved; CW-30 and CW-36 in Go; row 16 checked. At the test Mira by the conversation API with the
+   fake Show (the dishwasher's past from `watch_fake.past` with `peak_every`, no run in its states): "Pass auf die
+   Spülmaschine auf" – "Die Spülmaschine nehm ich in die Überwachung, wenn sie das nächste Mal gelaufen ist."
+   (`device_profile`, `watch_wait`, the started `aufgabe` thread cancelled); a restart of the service followed it
+   again; a run of 8 minutes (`watch_fake.program`) ended, and 30 minutes after it, to the second, the offer came as
+   an entry; "Hab ich neue Nachrichten?" – "Die Spülmaschine ist fertig. Soll ich sie in Zukunft für dich
+   überwachen?" – "Ja, gerne": `watch_accept` drafted the watch, saved after the proposal's yes from `device_run`
+   (`max_minutes` 30, `heat_above` 1500 for a run of 8 minutes at up to 2000 W), deleted by voice after.
 9. **The guide**, German and English: watching, the blueprints, asking for candidates, pausing.

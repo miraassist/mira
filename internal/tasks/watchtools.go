@@ -116,3 +116,13 @@ func (m *Manager) checkNumbers(ctx context.Context, b watch.Blueprint, inputs ma
 	}
 	return watch.CheckNumbers(b, inputs, pr, m.opts.Lang, m.opts.Location)
 }
+
+// Watched are the entities Mira's watches watch with one of her blueprints
+// (decision 39): a waiting offer of one of them ends.
+func (m *Manager) Watched(ctx context.Context) (map[string]bool, error) {
+	items, err := m.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return watchedEntities(items), nil
+}

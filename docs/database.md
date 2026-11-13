@@ -174,7 +174,7 @@ erDiagram
 | `found_said` | The found devices and discoveries already said, each once ([Found devices](spec/found-devices.md)) | the found-devices noticing | the noticing |
 | `inbox_read` | The mails the inbox read, the last 100 per IMAP entry ([Inbox](spec/inbox.md)) | the inbox | the inbox |
 | `inbox_owners` | Paperless owner numbers learned from the webhooks, with their user names ([Inbox](spec/inbox.md)) | the inbox | the inbox |
-| `watch_declined` | The device watches the user declined, per sensor and blueprint: not offered again ([Device watch](spec/device-watch.md), decision 21) | the offer's thread when the user says no (step 8 of the spec) | the candidates on request (`watch_candidates`) |
+| `watch_declined` | The device watches the user declined, per sensor and blueprint: not offered again ([Device watch](spec/device-watch.md), decision 21) | `watch_decline`, the user's no to a watch offer; a watch saved by voice deletes its rows | the candidates on request (`watch_candidates`) |
 | `kv` | Single values and described families of keys (section "The key-value table") | several | several |
 | `schema_migrations` | The migrations applied | the store at start | the store at start |
 
