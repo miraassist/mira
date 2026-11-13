@@ -218,7 +218,8 @@ Wasser auf" deletes the automation (Mira's own, by its row). The blueprint stays
 
 At step A2 the changed blueprint is saved over the old (`allow_override`). Home Assistant applies it to the
 automations that use it at their next reload: the service reloads exactly those (`search/related` with
-`automation_blueprint` gives their ids; one `automation.reload` per id). A running wait of blueprint 2 starts anew.
+`automation_blueprint` gives their entities, e.g. `automation.wasser_lauft_dauernd`; the automation's id is the
+attribute `id` of its state; one `automation.reload` per id). A running wait of blueprint 2 starts anew.
 
 ## What it costs
 
@@ -269,7 +270,8 @@ automations that use it at their next reload: the service reloads exactly those 
 | 8 | Blueprint 2 starts its window when loaded and at Home Assistant's start | reload / restart of the test HA | a running run in the trace | open |
 | 10 | Blueprint 4 | a fake plug's power leaving its window | the entry after the tolerance | open |
 | 11 | The entry reaches Mira | the automation's `mira.send_message` with `task` | a `simple` entry with the task as sender | open (as for tasks today) |
-| 12 | A changed blueprint reaches its automations | `blueprint/save` with `allow_override`, `search/related`, reload by id | the trace of the next run shows the new version | open |
+| 12 | A changed blueprint reaches its automations | `blueprint/save` with `allow_override`, `search/related`, reload by id | `overrides_existing: true`; `search/related` answers `{"automation": [entity ids]}` (checked 2026-11-13, 2026.11.1); the trace of the next run shows the new version: open |
+| 12a | A blueprint in use cannot be deleted | `blueprint/delete` while an automation uses it | error `home_assistant_error` "Blueprint in use" | 2026-11-13, 2026.11.1 |
 | 13 | Blueprint 5 | a fake plug on longer than `max_on`, off longer than `max_off` (shortened) | one entry each | open |
 | 14 | Blueprint 6: a run too long | a fake plug's run longer than `max_minutes` | the entry | open |
 | 15 | Blueprint 6: a run without heat | a fake plug's run ending without a peak above `heat_above` | the entry after `off_for` | open |
