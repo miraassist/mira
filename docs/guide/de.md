@@ -85,6 +85,54 @@ Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten**
 
 Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer Automation, etwa `delegate` mit der Eingabe `{"input": "Plane ein Menü für Samstag."}`. Ohne weitere Angaben wartet die Automation bis zu 60 Sekunden auf die Antwort; mit `response_variable` liest du sie. Mit dem Modus **async** geht es sofort weiter: Das Ergebnis kommt dann als Ereignis `mira_agent_done`, auf das eine Automation warten kann, oder mit **Zustellung: message** als Nachricht von Mira. **Mira: Agent-Ergebnis** liest einen Lauf über seine Aufruf-ID, **Mira: Agent abbrechen** beendet ihn.
 
+### Wächter: Mira passt auf deine Geräte auf
+
+Für vieles im Haus braucht Mira keine eigene Regel von dir: Sie weiß, wie ein Gerät sich normalerweise verhält, und meldet sich, wenn es davon abweicht. Dafür hat sie fertige **Wächter**:
+
+- **Wasser läuft ohne Pause**, etwa ein offener Hahn im Garten oder ein geplatzter Schlauch.
+- **Der Wasserzähler steht nie still**: ein tropfender Hahn oder eine Spülung, die nachläuft.
+- **Ein Gerät mit festem Tagesablauf** wie das Aquariumlicht oder eine Pumpe, das plötzlich zu anderen Zeiten an oder aus ist.
+- **Ein Gerät, das den ganzen Tag an- und ausgeht**, wie Kühlschrank oder Gefriertruhe: Es läuft viel zu lange am Stück (Tür offen?) oder gar nicht mehr (Strom weg?).
+- **Ein Gerät mit Programmen** wie Spülmaschine oder Waschmaschine: Es läuft länger als sonst oder ist fertig, ohne aufgeheizt zu haben.
+
+Mira braucht dafür nur, was Home Assistant ohnehin misst: einen Wasserzähler oder eine Steckdose mit Strommessung (in Watt) am Gerät.
+
+> **Du:** Pass auf, ob bei uns Wasser dauernd läuft.
+>
+> **Mira:** Mach ich: Läuft der Wasserzähler eine halbe Stunde ohne Pause, sag ich Bescheid. Passt das?
+>
+> **Du:** Ja.
+
+Die Zahlen rät Mira nicht. Sie schaut sich an, wie das Gerät in den letzten Tagen gelaufen ist, und schlägt dir daraus etwas vor:
+
+> **Du:** Achte aufs Aquarium.
+>
+> **Mira:** Das Aquariumlicht läuft jeden Tag von etwa 7:40 bis 11:40 und von 14:20 bis 21:00, mit rund 50 Watt. Soll ich mich melden, wenn es davon abweicht?
+>
+> **Du:** Fast, nachmittags geht es erst um halb drei an.
+>
+> **Mira:** Dann von 7:40 bis 11:40 und von 14:30 bis 21:00. Soll ich das so einrichten?
+
+Beim Kühlschrank nennt sie dir, wie lange er höchstens am Stück läuft und pausiert, und meldet sich erst, wenn es deutlich länger ist. Kennt sie ein Gerät noch zu wenig, etwa eine Spülmaschine, die in den letzten Tagen nicht gelaufen ist, wartet sie:
+
+> **Du:** Pass auf die Spülmaschine auf.
+>
+> **Mira:** Die Spülmaschine nehm ich in die Überwachung, wenn sie das nächste Mal gelaufen ist.
+
+Nach dem nächsten Spülgang meldet sie sich mit einer Nachricht und fragt, ob sie die Spülmaschine jetzt überwachen soll. Sagst du **„Ja“**, nennt sie dir ihren Vorschlag; sagst du **„Nein, lass mal“**, bietet sie das Gerät nicht wieder an. Willst du es später doch, reicht „Pass doch auf die Spülmaschine auf“. Läuft das Gerät einen Monat lang nicht, vergisst sie das Angebot.
+
+**Was könnte Mira überwachen?** Frag sie einfach: „Gibt's Geräte, die du überwachen könntest?“ Sie schaut sich die Wasserzähler und Strommessungen im Haus an und nennt dir, was sie an welchem Gerät im Blick behalten würde. Was sie schon überwacht oder was du abgelehnt hast, nennt sie nicht noch einmal. Das dauert ein paar Sekunden.
+
+Meldet sich ein Wächter, ist das eine ganz normale Nachricht von Mira, wie im nächsten Abschnitt beschrieben, etwa „Seit einer halben Stunde läuft Wasser, der Zähler steht bei 81.240 Litern“. Du kannst gleich darauf antworten: „Ben ist in der Badewanne.“
+
+Ein Wächter ist eine Aufgabe wie jede andere und steht in der Liste der Aufgaben:
+
+- „Pass erstmal nicht aufs Wasser auf“ schaltet ihn aus, zum Beispiel wenn der Garten gewässert wird; „Pass wieder aufs Wasser auf“ schaltet ihn wieder an.
+- „Pass nicht mehr aufs Wasser auf“ löscht ihn.
+- Ändern geht wie bei jeder Aufgabe: „Beim Wasser-Wächter nimm eine Stunde statt einer halben.“
+
+Die Wächter selbst sind **Blueprints** in Home Assistant: fertige, geprüfte Vorlagen für Automationen. Du findest sie unter **Einstellungen → Automationen & Szenen → Blueprints**, ihr Name beginnt mit „Mira:“. Mira bringt sie selbst mit und hält sie aktuell; ändere sie dort nicht, eine neue Version von Mira überschreibt sie. Jeder Wächter, den du einrichtest, ist eine Automation aus so einem Blueprint, mit dem Label „Mira“.
+
 ## Mira meldet sich von selbst
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.

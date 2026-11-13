@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 8 built 2026-11-13 (decisions 22 to 57 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 9 built 2026-11-13 (decisions 22 to 57 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -475,5 +475,14 @@ Rows 6 to 12 are checked before the step that builds on them.
    again; a run of 8 minutes (`watch_fake.program`) ended, and 30 minutes after it, to the second, the offer came as
    an entry; "Hab ich neue Nachrichten?" – "Die Spülmaschine ist fertig. Soll ich sie in Zukunft für dich
    überwachen?" – "Ja, gerne": `watch_accept` drafted the watch, saved after the proposal's yes from `device_run`
-   (`max_minutes` 30, `heat_above` 1500 for a run of 8 minutes at up to 2000 W), deleted by voice after.
-9. **The guide**, German and English: watching, the blueprints, asking for candidates, pausing.
+   (`max_minutes` 30, `heat_above` 1500 for a run of 8 minutes at up to 2000 W), deleted by voice after. Waiting
+   again, after the next run's offer: "Nein, lass mal" – "Ich biete dir die Spülmaschine nicht mehr an." (`watch_decline`,
+   the row in `watch_declined`, the thread cancelled); "Gibt's Geräte, die du überwachen könntest?" named the water
+   meter, the aquarium and the fridge, not the dishwasher (declined 1); "Pass doch auf die Spülmaschine auf, ob sie
+   zu lange läuft oder nicht aufheizt" made the watch from `device_run` after the proposal's yes and forgot the
+   decline (log line), deleted by voice after. Open for the maintainer (the test Mira's voice model Flash Lite): after
+   `watch_accept` it once answered nothing ("Ich bin damit nicht ganz fertig geworden"), the proposal came on asking;
+   "Pass doch auf die Spülmaschine auf" alone was once drafted as "tell me when it is done" and confirmed without the
+   user's yes; the planner asked the user for the heating watts instead of taking them from the profile.
+9. **The guide**, German and English: watching, the blueprints, asking for candidates, pausing. Built 2026-11-13
+   (`docs/guide/de.md`, `en.md`, "Mira passt aufs Haus auf").

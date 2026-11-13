@@ -83,6 +83,54 @@ Your own automations can use Mira the same way: the actions **Mira: Assess** (`m
 
 With **Mira: Agent** (`mira.agent`) an automation starts one of Mira's agents, for example `delegate` with the input `{"input": "Plan a menu for Saturday."}`. Without further settings the automation waits up to 60 seconds for the answer; read it with `response_variable`. With the mode **async** it goes on at once: the result then comes as the event `mira_agent_done`, which an automation can wait for, or with **Delivery: message** as a message from Mira. **Mira: Agent result** reads a run by its call id, **Mira: Cancel agent** ends it.
 
+### Watches: Mira looks after your devices
+
+For much in the house Mira needs no rule from you: she knows how a device usually behaves and speaks up when it does something else. For this she has ready-made **watches**:
+
+- **Water runs without a pause**, say a tap left open in the garden or a burst hose.
+- **The water meter never stands still**: a dripping tap or a toilet that keeps running.
+- **A device with a fixed daily routine** like the aquarium's light or a pump, suddenly on or off at other times.
+- **A device that switches on and off all day**, like a fridge or a freezer: it runs far too long in one go (door open?) or not at all any more (power gone?).
+- **A device with programmes** like a dishwasher or a washing machine: it runs longer than usual, or finishes without having heated.
+
+All Mira needs is what Home Assistant measures anyway: a water meter, or a plug with power measuring (in watts) on the device.
+
+> **You:** Keep an eye on whether water keeps running.
+>
+> **Mira:** Will do: if the water meter runs for half an hour without a pause, I'll tell you. All right?
+>
+> **You:** Yes.
+
+Mira does not guess the numbers. She looks at how the device ran in the last days and proposes something from that:
+
+> **You:** Watch the aquarium.
+>
+> **Mira:** The aquarium's light is on every day from about 7:40 to 11:40 and from 14:20 to 21:00, at around 50 watts. Shall I tell you when it does something else?
+>
+> **You:** Almost, in the afternoon it only comes on at half past two.
+>
+> **Mira:** Then from 7:40 to 11:40 and from 14:30 to 21:00. Shall I set it up like that?
+
+For the fridge she tells you how long it runs and pauses at most, and speaks up only when it is clearly longer. If she knows a device too little yet, say a dishwasher that has not run in the last days, she waits:
+
+> **You:** Watch the dishwasher.
+>
+> **Mira:** I'll take the dishwasher into the watching after its next run.
+
+After the next wash she leaves you a message and asks whether she should watch the dishwasher now. Say **"Yes"** and she tells you her proposal; say **"No, leave it"** and she does not offer the device again. If you want it later after all, "Do watch the dishwasher" is enough. If the device does not run for a month, she forgets the offer.
+
+**What could Mira watch?** Just ask her: "Are there devices you could watch?" She looks at the house's water meters and power measurements and tells you what she would keep an eye on for which device. What she watches already, or what you declined, she does not name again. It takes a few seconds.
+
+When a watch speaks up, it is an ordinary message from Mira, as the next section describes, for example "Water has been running for half an hour, the meter reads 81,240 litres". You can answer right away: "Ben is in the bath."
+
+A watch is a task like any other and is in the list of tasks:
+
+- "Stop watching the water for now" switches it off, for example while the garden is watered; "Watch the water again" switches it back on.
+- "Don't watch the water any more" deletes it.
+- Changing it works as for any task: "For the water watch, take an hour instead of half an hour."
+
+The watches themselves are **blueprints** in Home Assistant: ready-made, checked templates for automations. You find them under **Settings → Automations & scenes → Blueprints**; their names begin with "Mira:". Mira brings them herself and keeps them up to date; do not change them there, a new version of Mira overwrites them. Every watch you set up is an automation made from such a blueprint, with the label "Mira".
+
 ## Mira speaks up on her own
 
 Mira speaks up when something happens: a leak sensor goes off, the washing machine is done, the bins are collected tomorrow, a task finds something unusual. How she tells you depends on the room and the importance.
