@@ -131,7 +131,7 @@ A watch is a task like any other and is in the list of tasks:
 
 The watches themselves are **blueprints** in Home Assistant: ready-made, checked templates for automations. You find them under **Settings → Automations & scenes → Blueprints**; their names begin with "Mira:". Mira brings them herself and keeps them up to date; do not change them there, a new version of Mira overwrites them. Every watch you set up is an automation made from such a blueprint, with the label "Mira".
 
-### Watches for groups: all lights, windows and doors
+### Watches for groups: all lights, windows and doors, batteries
 
 Some things are not about one device but a whole group: a light that stays on somewhere for ages, a window open while nobody is home. Mira has ready-made watches for this too:
 
@@ -175,6 +175,18 @@ Which sensors belong to it you say in your own words: all of the house, only cer
       data:
         message: "Still open: {{ check.open | map(attribute='name') | join(', ') }}"
 ```
+
+**Batteries and reachability.** Two watches for groups look after the devices themselves: once a day (normally at 9 in the morning) Mira looks at every battery in the house and at every device Home Assistant can no longer reach, and tells you what she finds.
+
+> **You:** Tell me when a battery runs low.
+>
+> **Mira:** Will do: every morning at 9 I'll look at the batteries and tell you which are below 20 percent. Already low: smoke detector in the hall. All right?
+
+> **You:** Let me know when a device can't be reached any more.
+>
+> **Mira:** Will do: every morning at 9 I'll tell you which devices have not been reachable for at least an hour.
+
+Mira names the devices by their names, say "Battery low: smoke detector hall (12 %)". As long as a battery stays low or a device stays away, she says so again every day, until you change the battery, the device is back or you leave it out. Phones, cars, robot vacuums and whatever else is charged rather than changed she leaves out by herself and tells you so in her proposal. A device you switch off on purpose you leave out like this: "Leave out the plug in the garage." After Home Assistant restarts, Mira waits for the set time again before she names a device; a restart brings no flood of messages.
 
 These watches are tasks like all others too: "Stop watching the windows for now" switches one off, say on holiday while someone looks after the plants; your own "We're on holiday" script can do the same.
 

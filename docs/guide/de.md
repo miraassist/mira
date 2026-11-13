@@ -133,7 +133,7 @@ Ein Wächter ist eine Aufgabe wie jede andere und steht in der Liste der Aufgabe
 
 Die Wächter selbst sind **Blueprints** in Home Assistant: fertige, geprüfte Vorlagen für Automationen. Du findest sie unter **Einstellungen → Automationen & Szenen → Blueprints**, ihr Name beginnt mit „Mira:“. Mira bringt sie selbst mit und hält sie aktuell; ändere sie dort nicht, eine neue Version von Mira überschreibt sie. Jeder Wächter, den du einrichtest, ist eine Automation aus so einem Blueprint, mit dem Label „Mira“.
 
-### Wächter für Gruppen: alle Lichter, Fenster und Türen
+### Wächter für Gruppen: alle Lichter, Fenster und Türen, Batterien
 
 Manches betrifft nicht ein Gerät, sondern eine ganze Gruppe: ein Licht, das irgendwo ewig brennt, ein Fenster, das offen ist, während niemand da ist. Auch dafür hat Mira fertige Wächter:
 
@@ -177,6 +177,18 @@ Welche Sensoren dazugehören, sagst du in deinen Worten: alle im Haus, nur in be
       data:
         message: "Noch offen: {{ check.open | map(attribute='name') | join(', ') }}"
 ```
+
+**Batterien und Erreichbarkeit.** Zwei Wächter für Gruppen kümmern sich um die Geräte selbst: Mira schaut einmal am Tag (normalerweise um 9 Uhr) nach allen Batterien im Haus und nach allen Geräten, die Home Assistant nicht mehr erreicht, und sagt dir, was sie findet.
+
+> **Du:** Sag mir, wenn eine Batterie leer wird.
+>
+> **Mira:** Mach ich: Ich schau jeden Morgen um 9 nach den Batterien und sag dir, welche unter 20 Prozent sind. Schon jetzt schwach: Rauchmelder Flur. Passt das?
+
+> **Du:** Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist.
+>
+> **Mira:** Mach ich: Jeden Morgen um 9 sag ich dir, welche Geräte seit mindestens einer Stunde nicht erreichbar sind.
+
+Mira nennt die Geräte mit ihrem Namen, etwa „Batterie fast leer: Rauchmelder Flur (12 %)“. Solange eine Batterie schwach ist oder ein Gerät weg bleibt, sagt sie es jeden Tag wieder, bis du die Batterie wechselst, das Gerät wieder da ist oder du es auslässt. Handys, Autos, Saugroboter und anderes, das geladen statt gewechselt wird, lässt sie von sich aus weg und sagt dir das im Vorschlag. Ein Gerät, das du absichtlich ausschaltest, lässt du so aus: „Die Steckdose in der Garage lass weg.“ Nach einem Neustart von Home Assistant wartet Mira mit einem Gerät, bis die eingestellte Zeit wieder um ist; ein Neustart bringt also keine Flut von Meldungen.
 
 Auch diese Wächter sind Aufgaben wie alle anderen: „Pass erstmal nicht auf die Fenster auf“ schaltet einen aus, etwa im Urlaub, wenn jemand nach den Pflanzen schaut; dein eigenes Skript „Wir sind im Urlaub“ kann dasselbe tun.
 

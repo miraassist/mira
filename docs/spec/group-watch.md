@@ -2,7 +2,7 @@
 
 Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 5 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. The battery watch and the availability watch (decisions 36 to 47,
-taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 and 7 built 2026-11-13. It builds on the
+taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 to 8 built 2026-11-13, not released. It builds on the
 [Device watch](device-watch.md). Scenarios: [group-watch.feature](group-watch.feature).
 
 ## Goal
@@ -420,4 +420,5 @@ Each row is checked before the step that builds on it.
    sensor, "Nein, lass das, abbrechen" cancelled it. Open for the maintainer (Flash Lite): "Überwach die Steckdose in
    der Garage wieder" switched a task on instead of calling `watch_exception`, a second wording ran out of tool
    rounds; the label was taken off by hand.
-8. **The guide**, German and English: the two watches in "Wächter für Gruppen".
+8. **The guide**, German and English: the two watches in "Wächter für Gruppen". Built 2026-11-13 (`docs/guide/de.md`, `en.md`: "Batterien und
+   Erreichbarkeit" in "Wächter für Gruppen", its title with the batteries).
