@@ -31,6 +31,7 @@ is used in a spec; a term that is not here is not a term yet.
 | satellite | Satellit | A voice device in a room | HA `assist_satellite.*`, `sessions.device_id` | speaker (for the satellite), Echo |
 | room | Raum | An area where Mira has satellites (Wohnzimmer, Küche): a turn's room, announcements, the ring and the screen, the morning announcement, radio and sleep timer, a room's language, threads and messages | `ui.Room`, the integration's `rooms`; its key is the area's `area_id` (`sessions.area_id`, `messages.area_id`, `threads.area`) | zone |
 | area | Bereich | Any area of Home Assistant, with or without a satellite (also Garten, Garage): the house's structure in the prompt, the area a new device goes into, a task or a target found by its area, the outside lighting of a watch | `area`, `area_id`, `internal/ha/structure` | room (for an area without a satellite) |
+| floor | Etage | A floor of Home Assistant, holding areas (Keller-, Erd-, Dachgeschoss) | `floor_id`, the floor registry | level, storey |
 | person | Person | A member of the household, a Home Assistant person | receiver `person:<id>`, `threads.person` | user (except HA's login), member |
 | house | Haus | Everyone at once: a receiver or place that is nobody's alone | receiver/place `house` | home, household (as receiver) |
 | channel | Kanal | A way Mira speaks or writes: voice, Telegram, the companion app | `internal/channels`, `sessions.channel` | transport |
@@ -87,6 +88,9 @@ is used in a spec; a term that is not here is not a term yet.
 | watch | Wächter (one); Überwachung (the feature) | A blueprint applied to the house: a task made from a blueprint; a device watch or a group watch | an automation with `use_blueprint`, `own_automations` kind `task` | monitor, sentinel |
 | device watch | Gerätewächter | A watch over one device against its own normal, learned from its history (its device profile): a water meter, a fridge, a dishwasher | blueprints `water_runs_on`, `water_never_rests`, `daily_routine`, `duty_cycle`, `device_run` | consumption watch |
 | group watch | Gruppenwächter | A watch over a group of sensors against a rule for a situation the user says: lights left on, windows open, motion while nobody is home | blueprint `left_on` (planned) | — |
+| watch group | Wächtergruppe | The sensors a group watch watches: a selection by device class, area or floor (combinable), or a group helper; without what carries the label "Mira: nicht überwachen" (not for a group helper) | blueprint inputs (planned) | group (alone) |
+| group helper | Gruppen-Helfer | Home Assistant's group entity with fixed members ("Fenster Gast offen") | domain `group` config entries, e.g. `binary_sensor.fenster_gast_offen` | group (alone) |
+| device class | device class | What an entity is within its domain (window, door, motion, …), in Home Assistant's UI "Anzeigen als" | `device_class`, `original_device_class` | device type, Gerätetyp |
 | candidate | Kandidat | A device a blueprint could watch | — (computed) | suggestion |
 | device profile | Geräteprofil | A device's usual behaviour: its kind (daily routine, cycle, device run) and its numbers | — (computed, not stored) | profile (alone), habit, baseline |
 | daily routine | Tagesablauf | On at the same times every day | blueprint `daily_routine` | schedule |
@@ -107,3 +111,4 @@ is used in a spec; a term that is not here is not a term yet.
 9. A **room** is an area where Mira has satellites; an **area** is any area of Home Assistant.
 10. Two kinds of watch: the **device watch** and the **group watch**; "consumption watch" is not used.
 11. Mira's fixed ways of watching are **blueprints** ("Blueprint" in German too, as in Home Assistant); "pattern" and "Muster" are not used.
+12. A group watch watches a **watch group**: a selection by device class, area or floor, or a group helper; "group" alone is not used. The **floor** is Home Assistant's floor.
