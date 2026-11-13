@@ -25,6 +25,7 @@ type texts struct {
 	conditionsAre, judgesItself, noCondition                               string
 	blueprintValues, valuesChange                                          string
 	groupMembers, groupExcluded, andMore, noMembers, labelFailed           string
+	alreadyLow, alreadyLost                                                string
 	condBetween, condAfter, condBefore, condAbove, condBelow, condTemplate string
 	proposal, planFailed                                                   string
 	confirmed, tryObservation, cannot                                      string
@@ -190,6 +191,8 @@ JSON-Objekt:
 		conditionsAre:    "Bedingung: %s.",
 		blueprintValues:  "Werte: %s.",
 		groupMembers:     "Heute sind das %d: %s.",
+		alreadyLow:       "Schon jetzt schwach: %s.",
+		alreadyLost:      "Schon jetzt nicht erreichbar: %s.",
 		groupExcluded:    "Ausgenommen: %s; bekommt das Label „Mira: nicht überwachen“ und ist dann in keinem Wächter mehr.",
 		andMore:          "und %d weitere",
 		noMembers:        "die Auswahl ergibt heute keinen einzigen Sensor (%s); es gibt dort nichts davon",
@@ -295,6 +298,8 @@ JSON object:
 		conditionsAre:    "Condition: %s.",
 		blueprintValues:  "Values: %s.",
 		groupMembers:     "Today these are %d: %s.",
+		alreadyLow:       "Already low: %s.",
+		alreadyLost:      "Already not reachable: %s.",
 		groupExcluded:    "Left out: %s; it gets the label \"Mira: don't watch\" and is then in no watch.",
 		andMore:          "and %d more",
 		noMembers:        "the selection gives not a single sensor today (%s); there is none of them there",

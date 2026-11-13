@@ -76,10 +76,16 @@ func (h *groupHouse) RenderTemplate(_ context.Context, tpl string, vars map[stri
 		places = append(places, h.floors[f]...)
 	}
 	classes := vars["classes"].([]string)
+	domains, _ := vars["domain"].([]string)
+	if one, ok := vars["domain"].(string); ok {
+		domains = []string{one}
+	}
+	onlyUnavailable, _ := vars["only_unavailable"].(bool)
 	for _, id := range sortedKeys(h.entities) {
 		mb := h.entities[id]
 		domain, _, _ := strings.Cut(id, ".")
-		if domain != vars["domain"] || len(classes) > 0 && !slices.Contains(classes, h.classes[id]) ||
+		if !slices.Contains(domains, domain) || len(classes) > 0 && !slices.Contains(classes, h.classes[id]) ||
+			onlyUnavailable && mb.State != "unavailable" ||
 			slices.Contains(h.labelled[id], watch.LabelDontWatch) && strings.Contains(tpl, "label_entities") {
 			continue
 		}
@@ -103,9 +109,18 @@ func groupSetup(t *testing.T) (*env, *groupHouse, *bytes.Buffer) {
 			"binary_sensor.haustur":      {ID: "binary_sensor.haustur", Name: "Haustür", State: "off", Area: "flur"},
 			"binary_sensor.fenster_buro": {ID: "binary_sensor.fenster_buro", Name: "Fenster Büro", State: "off", Area: "buro"},
 			"binary_sensor.bewegung_bad": {ID: "binary_sensor.bewegung_bad", Name: "Bewegung Bad", State: "off", Area: "bad"},
+			// Batteries and devices (docs/spec/group-watch.md, decisions 36 to 48).
+			"sensor.handy_anna_batterie":          {ID: "sensor.handy_anna_batterie", Name: "Handy Anna Batterie", State: "15", Area: "", Device: "Handy Anna"},
+			"sensor.rauchmelder_batterie":         {ID: "sensor.rauchmelder_batterie", Name: "Rauchmelder Flur Batterie", State: "12", Area: "flur", Device: "Rauchmelder Flur"},
+			"binary_sensor.wassermelder_batterie": {ID: "binary_sensor.wassermelder_batterie", Name: "Wassermelder Keller Batterie", State: "off", Area: "flur", Device: "Wassermelder Keller"},
+			"switch.steckdose_garage":             {ID: "switch.steckdose_garage", Name: "Steckdose Garage", State: "unavailable", Area: "flur", Device: "Steckdose Garage"},
+			"sensor.steckdose_garage_signal":      {ID: "sensor.steckdose_garage_signal", Name: "Steckdose Garage Signal", State: "unavailable", Area: "flur", Device: "Steckdose Garage"},
+			"sensor.klima_bad_feuchte":            {ID: "sensor.klima_bad_feuchte", Name: "Klima Bad Feuchte", State: "55", Area: "bad", Device: "Klima Bad"},
+			"sensor.rest":                         {ID: "sensor.rest", Name: "Rest", State: "unavailable", Area: "bad", Device: "Klima Bad", Restored: true},
 		},
 		classes: map[string]string{"binary_sensor.fenster_bad": "window", "binary_sensor.haustur": "door",
-			"binary_sensor.fenster_buro": "window", "binary_sensor.bewegung_bad": "motion"},
+			"binary_sensor.fenster_buro": "window", "binary_sensor.bewegung_bad": "motion",
+			"sensor.handy_anna_batterie": "battery", "sensor.rauchmelder_batterie": "battery", "binary_sensor.wassermelder_batterie": "battery"},
 		floors:   map[string][]string{"erdgeschoss": {"kuche", "bad", "flur"}, "dachgeschoss": {"buro"}},
 		labelled: map[string][]string{},
 	}
@@ -389,5 +404,128 @@ func TestGW20_MiraCheckAndNothingOpen(t *testing.T) {
 	}
 	if msgs, _ := e.st.ListMessages(context.Background(), store.MessageFilter{IncludeExpired: true}); len(msgs) != 0 {
 		t.Errorf("messages: %v", msgs)
+	}
+}
+
+// GW-27 Sag mir, wenn eine Batterie leer wird
+func TestGW27_SagMirWennEineBatterieLeerWird(t *testing.T) {
+	e, h, _ := groupSetup(t)
+	// When the user says "Sag mir, wenn eine Batterie leer wird"
+	e.model.answers = []string{`{"title":"Batterien","summary":"Ich schau jeden Morgen um 9 nach den Batterien und sag dir, welche unter 20 Prozent sind, das Handy nicht.","blueprint":"battery_low","inputs":{},"exclude":["sensor.handy_anna_batterie"]}`}
+	d, err := e.m.DraftAutomation(context.Background(), "Sag mir, wenn eine Batterie leer wird",
+		map[string]string{"watch": "Gruppe: Batterien"}, Origin{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// And the proposal named how many batteries it watches, by device, and the one already low
+	text := e.m.ProposalText(d)
+	for _, want := range []string{"Heute sind das 2: Rauchmelder Flur, Wassermelder Keller.", "Schon jetzt schwach: Rauchmelder Flur (12 %).",
+		"Ausgenommen: Handy Anna Batterie;", "unter 20 %", "um 09:00"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("proposal lacks %q: %s", want, text)
+		}
+	}
+	// And agrees to the proposal
+	if err := confirm(t, e, d); err != nil {
+		t.Fatal(err)
+	}
+	// Then an automation with use_blueprint "mira/battery_low.yaml" is saved as a task
+	path, input := savedUse(t, e)
+	if path != "mira/battery_low.yaml" || !strings.HasPrefix(fmt.Sprint(input["message"]), "Batterie fast leer: ") {
+		t.Errorf("saved %s %v", path, input)
+	}
+	// And the phone the planner proposed as an exception carries the label
+	if !slices.Contains(h.labelled["sensor.handy_anna_batterie"], watch.LabelDontWatch) {
+		t.Errorf("labels %v", h.labelled)
+	}
+}
+
+// GW-28 Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist
+func TestGW28_SagBescheidWennEinGeratNichtMehrErreichbarIst(t *testing.T) {
+	e, _, _ := groupSetup(t)
+	// When the user says "Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist"
+	e.model.answers = []string{`{"title":"Erreichbarkeit","summary":"Ich sag dir jeden Morgen um 9, welche Geräte seit einer Stunde nicht erreichbar sind.","blueprint":"unreachable","inputs":{"at":"9:00"}}`}
+	d, err := e.m.DraftAutomation(context.Background(), "Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist",
+		map[string]string{"watch": "Gruppe: Geräte, die nicht erreichbar sind"}, Origin{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// And the proposal named how many devices it watches and the one not reachable today (the
+	// restored left-over and the entities without a device are none)
+	text := e.m.ProposalText(d)
+	for _, want := range []string{"Heute sind das 5: Handy Anna, Klima Bad, Rauchmelder Flur, Steckdose Garage, Wassermelder Keller.",
+		"Schon jetzt nicht erreichbar: Steckdose Garage.", "Stunden 1 h"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("proposal lacks %q: %s", want, text)
+		}
+	}
+	if err := confirm(t, e, d); err != nil {
+		t.Fatal(err)
+	}
+	// Then an automation with use_blueprint "mira/unreachable.yaml" is saved as a task
+	path, input := savedUse(t, e)
+	if path != "mira/unreachable.yaml" || input["at"] != "09:00:00" || !strings.HasPrefix(fmt.Sprint(input["message"]), "Nicht erreichbar: ") {
+		t.Errorf("saved %s %v", path, input)
+	}
+}
+
+// GW-29 The planner sees only the devices lost today
+func TestGW29_ThePlannerSeesOnlyTheDevicesLostToday(t *testing.T) {
+	e, _, _ := groupSetup(t)
+	e.model.answers = []string{`{"title":"x","summary":"x","blueprint":"battery_low","inputs":{}}`}
+	// When a group watch is drafted
+	if _, err := e.m.DraftAutomation(context.Background(), "Sag mir, wenn eine Batterie leer wird", map[string]string{"watch": "Gruppe: Batterien"}, Origin{}); err != nil {
+		t.Fatal(err)
+	}
+	ins := e.model.instructions[0]
+	// Then the planner's catalog lists every battery with its value
+	if !strings.Contains(ins, "Batterien (id, Name, Gerät, Bereich, Wert): ") ||
+		!strings.Contains(ins, "sensor.rauchmelder_batterie (Rauchmelder Flur Batterie, Rauchmelder Flur, flur, 12)") ||
+		!strings.Contains(ins, "sensor.handy_anna_batterie (Handy Anna Batterie, Handy Anna, , 15)") {
+		t.Errorf("batteries:\n%s", ins)
+	}
+	// And of the devices only the entities unavailable today
+	i := strings.Index(ins, "Geräte (Erreichbarkeit): heute nicht erreichbar")
+	if i < 0 {
+		t.Fatalf("no devices line:\n%s", ins)
+	}
+	line, _, _ := strings.Cut(ins[i:], "\n")
+	if !strings.Contains(line, "switch.steckdose_garage (Steckdose Garage, Steckdose Garage, flur)") ||
+		!strings.Contains(line, "sensor.steckdose_garage_signal") || strings.Contains(line, "klima_bad_feuchte") || strings.Contains(line, "sensor.rest") {
+		t.Errorf("devices: %s", line)
+	}
+	// The planner learns to propose what is charged as an exception.
+	if !strings.Contains(ins, "was geladen statt gewechselt wird") || !strings.Contains(ins, "- battery_low:") || !strings.Contains(ins, "- unreachable:") {
+		t.Errorf("catalog:\n%s", ins)
+	}
+}
+
+// GW-30 Ist alles zu? takes no batteries
+func TestGW30_IstAllesZuTakesNoBatteries(t *testing.T) {
+	e, _, _ := groupSetup(t)
+	// When house_check is asked for the batteries or the devices
+	for _, scope := range []string{"batteries", "devices"} {
+		_, err := toolNamed(t, e.m, ToolHouseCheck).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"scope":"` + scope + `"}`)})
+		// Then it refuses them as a kind there is not, naming the kinds there are
+		if err == nil || !strings.Contains(err.Error(), `eine Art "`+scope+`" gibt es hier nicht; die Arten: openings, lights, motion`) {
+			t.Errorf("%s: %v", scope, err)
+		}
+	}
+}
+
+// GW-31 An exception among the devices
+func TestGW31_AnExceptionAmongTheDevices(t *testing.T) {
+	e, h, _ := groupSetup(t)
+	// Given the fake plug in the garage is not reachable
+	// When the user says "Überwach die Steckdose in der Garage nicht mehr"
+	out, err := toolNamed(t, e.m, ToolWatchException).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"entity":"switch.steckdose_garage","watch":false}`)})
+	// Then its entity carries the label "Mira: nicht überwachen"
+	if err != nil || !slices.Contains(h.labelled["switch.steckdose_garage"], watch.LabelDontWatch) || !strings.Contains(out, "Steckdose Garage") {
+		t.Errorf("%q %v %v", out, err, h.labelled)
+	}
+	// By its words: the plug's two entities both match; the tool names both.
+	_, err = toolNamed(t, e.m, ToolWatchException).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"entity":"Steckdose Garage Signal","watch":false}`)})
+	if err != nil || !slices.Contains(h.labelled["sensor.steckdose_garage_signal"], watch.LabelDontWatch) {
+		t.Errorf("%v %v", err, h.labelled)
 	}
 }

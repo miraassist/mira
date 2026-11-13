@@ -144,6 +144,9 @@ type Draft struct {
 	// and of the entities left out, for the proposal (A4).
 	Members  []string `json:"members,omitempty"`
 	Excluded []string `json:"excluded,omitempty"`
+	// Breaking are the members of a battery or availability watch that
+	// break its rule today, named as its entry would (decision 45).
+	Breaking []string `json:"breaking,omitempty"`
 }
 
 // ErrQuestion ends drafting with a question back to the user.
@@ -722,6 +725,13 @@ func (m *Manager) ProposalText(d Draft) string {
 		if len(d.Members) > 0 {
 			parts = append(parts, fmt.Sprintf(t.groupMembers, len(d.Members), namesUpTo(d.Members, t.andMore)))
 		}
+		if len(d.Breaking) > 0 {
+			already := t.alreadyLow
+			if d.Blueprint == "unreachable" {
+				already = t.alreadyLost
+			}
+			parts = append(parts, fmt.Sprintf(already, namesUpTo(d.Breaking, t.andMore)))
+		}
 		if len(d.Excluded) > 0 {
 			parts = append(parts, fmt.Sprintf(t.groupExcluded, strings.Join(d.Excluded, ", ")))
 		}
@@ -1113,12 +1123,26 @@ func (m *Manager) checkGroup(ctx context.Context, d *Draft, b watch.Blueprint, i
 		out[id] = true
 		excluded = append(excluded, mb.Name)
 	}
-	var names []string
+	var kept []watch.Member
 	for _, mb := range members {
 		if !out[mb.ID] {
-			names = append(names, mb.Name)
+			kept = append(kept, mb)
 		}
 	}
+	// The batteries and the devices by device (decision 40), with the ones
+	// that break the rule today (decision 45).
+	names := watch.Labels(sel.Scope, kept)
+	below, ok := inputs["below"].(float64)
+	if !ok {
+		below = 20
+		if in, has := b.Input("below"); has {
+			below, _ = in.Default.(float64)
+			if n, isInt := in.Default.(int); isInt {
+				below = float64(n)
+			}
+		}
+	}
+	d.Breaking = watch.Breaking(sel.Scope, kept, below)
 	if len(names) == 0 {
 		where := []string{sel.Scope.Name}
 		for _, f := range sel.Floors {

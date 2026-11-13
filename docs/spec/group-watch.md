@@ -2,7 +2,7 @@
 
 Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 5 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. The battery watch and the availability watch (decisions 36 to 47,
-taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 to 8 not built yet. It builds on the
+taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 and 7 built 2026-11-13. It builds on the
 [Device watch](device-watch.md). Scenarios: [group-watch.feature](group-watch.feature).
 
 ## Goal
@@ -400,5 +400,24 @@ Each row is checked before the step that builds on it.
    15 and 18 checked.
 7. **Drafting them:** the scopes batteries and devices in the code, the catalog, the proposal's counts by device and
    "Schon jetzt …", the exceptions, `house_check` refusing them, the skill's prose; GW-27 to GW-31 in Go; each made
-   by voice at the test Mira, triggered, read out.
+   by voice at the test Mira, triggered, read out. Built 2026-11-13: the members' devices and `restored` in the render, the devices' members only
+   with a device and not restored, the proposal by device (sorted) with "Schon jetzt schwach / nicht erreichbar: …"
+   (`watch.Labels`, `watch.Breaking`), the planner's catalog with every battery and its value and only the devices'
+   unavailable entities (`OnlyUnavailable`), the prose for both in the catalog and in `aufgabe`. GW-27 to GW-31 in
+   Go. At the test Mira by voice at the fake Show (Flash Lite): "Sag mir, wenn eine Batterie leer wird" – "Ich
+   prüfe jeden Morgen um 9 Uhr die Batterien … Schon jetzt schwach sind der Rauchmelder im Flur, der Außensensor und
+   der Wassermelder im Keller"; "Ja, aber schau jeden Tag schon um 23:40 Uhr nach" – a new proposal, "Ja" saved it;
+   "Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist" – the proposal named the fake plug and the Matter plug as
+   not reachable; "Die Steckdose in der Garage lass weg, und schau jeden Tag um 23:42 Uhr nach" set the label on both
+   of the plug's entities and saved the watch in the same turn, without a yes (Flash Lite confirmed a changed
+   proposal by itself, as in step 2); "… reichen mir drei Minuten statt einer Stunde" was refused for an unknown
+   voice (changing a task needs a known person) and done as Anna over the chat channel of the conversation API. At
+   23:40 the battery watch's entry "Batterie fast leer: Fake Rauchmelder Flur (12 %), Outside Temperature (12 %) und
+   Fake Wassermelder Keller.", at 23:42 the availability watch's "Nicht erreichbar: Fake Klima Garten und Steckdose
+   Wohnzimmer." (the labelled plug left out); "Hab ich neue Nachrichten?" read both ("… der Wassermelder im Keller
+   meldet sich ebenfalls": the model's wording of a low battery). "Pass erstmal nicht auf die Batterien auf" switched
+   the battery watch off (`task_enable`); "Sag mir, wenn im Keller eine Batterie leer wird" proposed the cellar's leak
+   sensor, "Nein, lass das, abbrechen" cancelled it. Open for the maintainer (Flash Lite): "Überwach die Steckdose in
+   der Garage wieder" switched a task on instead of calling `watch_exception`, a second wording ran out of tool
+   rounds; the label was taken off by hand.
 8. **The guide**, German and English: the two watches in "Wächter für Gruppen".

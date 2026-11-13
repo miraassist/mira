@@ -97,12 +97,15 @@ type Selection struct {
 	// WithLabelled finds every entity of the scope in the house, the
 	// labelled ones too (an exception to be taken back); not a watch group.
 	WithLabelled bool
+	// OnlyUnavailable renders only the members that are unavailable now
+	// (the planner's list of the devices, decision 45).
+	OnlyUnavailable bool
 }
 
 func (s Selection) variables() map[string]any {
 	classes := s.Classes()
 	return map[string]any{"domain": s.Scope.domainVariable(), "classes": classes, "areas": nonNil(s.Areas),
-		"floors": nonNil(s.Floors), "group": s.Group}
+		"floors": nonNil(s.Floors), "group": s.Group, "only_unavailable": s.OnlyUnavailable}
 }
 
 // Classes are the scope's device classes, never nil.
@@ -156,6 +159,21 @@ type Member struct {
 	Name  string `json:"name"`
 	State string `json:"state"`
 	Area  string `json:"area"`
+	// Device is the name of its device (the user's name, else its own);
+	// empty without a device.
+	Device string `json:"device,omitempty"`
+	// Restored is Home Assistant's mark of a state no integration provides
+	// now (decision 38).
+	Restored bool `json:"restored,omitempty"`
+}
+
+// Label is how a member is named where its scope names devices (decision
+// 40): its device, else its own name.
+func (m Member) Label() string {
+	if m.Device != "" {
+		return m.Device
+	}
+	return m.Name
 }
 
 // Readable says whether the member's state can be read (decision: an
@@ -221,7 +239,7 @@ const everyEntityOfScope = `{%- set ns = namespace(members=[]) -%}
 {%- endfor -%}`
 
 // membersOutput turns the selection's members into JSON.
-const membersOutput = `[{%- for s in ns.members -%}{"id": {{ s.entity_id | tojson }}, "name": {{ s.name | tojson }}, "state": {{ s.state | tojson }}, "area": {{ (area_name(s.entity_id) or '') | tojson }}}{{ ", " if not loop.last }}{%- endfor -%}]`
+const membersOutput = `[{%- for s in ns.members if not only_unavailable or s.state == 'unavailable' -%}{"id": {{ s.entity_id | tojson }}, "name": {{ s.name | tojson }}, "state": {{ s.state | tojson }}, "area": {{ (area_name(s.entity_id) or '') | tojson }}, "device": {{ (device_attr(s.entity_id, 'name_by_user') or device_attr(s.entity_id, 'name') or '') | tojson }}, "restored": {{ (s.attributes.get('restored', false) == true) | tojson }}}{{ ", " if not loop.last }}{%- endfor -%}]`
 
 // SelectionTemplate is the selection shared by the group blueprints and
 // the check: with the variables domain, classes, areas, floors and group it
@@ -290,11 +308,85 @@ func (w *Blueprints) Members(ctx context.Context, sel Selection) ([]Member, erro
 			"group", sel.Group, "error", err)
 		return nil, err
 	}
+	if sel.Scope.Name == ScopeDevices {
+		// The availability watch's members belong to a device and are
+		// provided by an integration (decision 38).
+		out = slices.DeleteFunc(out, func(m Member) bool { return m.Device == "" || m.Restored })
+	}
 	return out, nil
+}
+
+// Breaking names the members that break a battery or availability watch's
+// rule now, as its entry would (decision 40), for the proposal (decision 45):
+// a battery below below percent (by device, with its percentage) or
+// reporting low; a device whose members are all unavailable by its name,
+// else an unavailable member by its own. Nil for other scopes.
+func Breaking(scope Scope, members []Member, below float64) []string {
+	var out []string
+	seen := map[string]bool{}
+	switch scope.Name {
+	case ScopeBatteries:
+		for _, m := range members {
+			domain, _, _ := strings.Cut(m.ID, ".")
+			pct, isNumber := number(m.State)
+			low := domain == "binary_sensor" && m.State == "on" || domain == "sensor" && isNumber && pct < below
+			if !low || m.Device != "" && seen[m.Device] {
+				continue
+			}
+			seen[m.Device] = m.Device != ""
+			name := m.Label()
+			if domain == "sensor" {
+				name = fmt.Sprintf("%s (%.0f %%)", name, pct)
+			}
+			out = append(out, name)
+		}
+	case ScopeDevices:
+		up := map[string]bool{}
+		for _, m := range members {
+			if m.State != "unavailable" {
+				up[m.Device] = true
+			}
+		}
+		for _, m := range members {
+			switch {
+			case m.State != "unavailable":
+			case up[m.Device]:
+				out = append(out, m.Name)
+			case !seen[m.Device]:
+				seen[m.Device] = true
+				out = append(out, m.Device)
+			}
+		}
+	}
+	return out
+}
+
+// Labels are the members' names as the proposal says them: by device where
+// the scope names devices (each once, sorted: they come from several
+// domains), else by their own names.
+func Labels(scope Scope, members []Member) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range members {
+		name := m.Name
+		if scope.ByDevice() {
+			name = m.Label()
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+		}
+		out = append(out, name)
+	}
+	if scope.ByDevice() {
+		sort.Strings(out)
+	}
+	return out
 }
 
 type groupTexts struct {
 	intro, house, floor, groupHelper, members              string
+	devices, batteries, none                               string
 	scopes                                                 map[string]string
 	unknownArea, unknownFloor, unknownGroup, groupAndPlace string
 	noLimit, belowAbove                                    string
@@ -302,24 +394,30 @@ type groupTexts struct {
 
 var groupCatalog = map[i18n.Lang]groupTexts{
 	i18n.DE: {
-		intro:       "\n\nWächter für Gruppen: Die Wächtergruppe ist eine Auswahl über das, was Home Assistant kennt; die Art (Lichter, Fenster und Türen, Bewegungsmelder, Temperaturen) bestimmt der Blueprint. Wähle sie mit areas (Liste von Bereichs-ids) und floors (Liste von Etagen-ids): zusammen alles in diesen Bereichen und auf diesen Etagen, ohne beide das ganze Haus; oder mit group (die id eines Gruppen-Helfers, dann ohne areas und floors). Was das Label „Mira: nicht überwachen“ trägt, ist in keiner Wächtergruppe. Was der Nutzer ausnimmt („die Terrasse nicht“), genau das; sagt er bei Lichtern nichts dazu, als Vorschlag die Außenbeleuchtung (nach Bereich und Name: Terrasse, Garten, Einfahrt …) und die Anzeigen der Sprachgeräte (LED-Ring, Bildschirm): gib ihre ids im Feld \"exclude\" deiner Antwort an (nur Mitglieder der Wächtergruppe, nicht bei group); sie bekommen beim Ja das Label und sind dann in keinem Wächter, und dein summary nennt sie. Nennt der Nutzer etwas, das es nicht gibt (eine Etage, einen Bereich), antworte {\"error\": was es gibt}.",
+		intro:       "\n\nWächter für Gruppen: Die Wächtergruppe ist eine Auswahl über das, was Home Assistant kennt; die Art (Lichter, Fenster und Türen, Bewegungsmelder, Temperaturen) bestimmt der Blueprint. Wähle sie mit areas (Liste von Bereichs-ids) und floors (Liste von Etagen-ids): zusammen alles in diesen Bereichen und auf diesen Etagen, ohne beide das ganze Haus; oder mit group (die id eines Gruppen-Helfers, dann ohne areas und floors). Was das Label „Mira: nicht überwachen“ trägt, ist in keiner Wächtergruppe. Was der Nutzer ausnimmt („die Terrasse nicht“), genau das; sagt er bei Lichtern nichts dazu, als Vorschlag die Außenbeleuchtung (nach Bereich und Name: Terrasse, Garten, Einfahrt …) und die Anzeigen der Sprachgeräte (LED-Ring, Bildschirm): gib ihre ids im Feld \"exclude\" deiner Antwort an (nur Mitglieder der Wächtergruppe, nicht bei group); sie bekommen beim Ja das Label und sind dann in keinem Wächter, und dein summary nennt sie. Nennt der Nutzer etwas, das es nicht gibt (eine Etage, einen Bereich), antworte {\"error\": was es gibt}. Batterien und Geräte (Erreichbarkeit) sind Wächtergruppen ohne group: bei Batterien schlag als Ausnahme vor, was geladen statt gewechselt wird (Handys, Tablets, Autos, Saugroboter, E-Bikes, Uhren), mit ihren ids in exclude; bei Geräten nimm von selbst nichts aus, und will der Nutzer ein Gerät nicht, gib alle ids dieses Geräts aus der Liste an.",
 		house:       "\nEtagen und Bereiche des Hauses:",
 		floor:       "\n- Etage %s (%s): %s",
 		groupHelper: "\nGruppen-Helfer: %s",
 		members:     "\nIm ganzen Haus heute, %s (id, Name, Bereich): %s",
-		scopes:      map[string]string{"lights": "Lichter", "openings": "Fenster und Türen", "motion": "Bewegungsmelder", "temperatures": "Temperaturen"},
+		batteries:   "\nIm ganzen Haus heute, Batterien (id, Name, Gerät, Bereich, Wert): %s",
+		devices:     "\nGeräte (Erreichbarkeit): heute nicht erreichbar (id, Name, Gerät, Bereich): %s",
+		none:        "keins",
+		scopes:      map[string]string{"lights": "Lichter", "openings": "Fenster und Türen", "motion": "Bewegungsmelder", "temperatures": "Temperaturen", ScopeBatteries: "Batterien", ScopeDevices: "Geräte"},
 		unknownArea: "einen Bereich %q gibt es nicht; die Bereiche: %s", unknownFloor: "eine Etage %q gibt es nicht; die Etagen: %s",
 		unknownGroup:  "%q ist kein Gruppen-Helfer für diesen Wächter; die Gruppen-Helfer: %s",
 		groupAndPlace: "entweder group oder areas und floors, nicht beides",
 		noLimit:       "gib below oder above an (oder beide)", belowAbove: "below (%v) muss unter above (%v) liegen",
 	},
 	i18n.EN: {
-		intro:       "\n\nWatches for groups: the watch group is a selection over what Home Assistant knows; its kind (lights, windows and doors, motion sensors, temperatures) is the blueprint's. Choose it with areas (a list of area ids) and floors (a list of floor ids): together everything in these areas and on these floors, without both the whole house; or with group (the id of a group helper, then without areas and floors). What carries the label \"Mira: don't watch\" is in no watch group. What the user leaves out (\"not the terrace\"), exactly that; when the user says nothing about it for lights, as a proposal the outside lighting (by area and name: terrace, garden, driveway …) and the voice devices' indicators (an LED ring, a screen): give their ids in the field \"exclude\" of your answer (only members of the watch group, not with group); on the yes they get the label and are then in no watch, and your summary names them. When the user names something that does not exist (a floor, an area), answer {\"error\": what there is}.",
+		intro:       "\n\nWatches for groups: the watch group is a selection over what Home Assistant knows; its kind (lights, windows and doors, motion sensors, temperatures) is the blueprint's. Choose it with areas (a list of area ids) and floors (a list of floor ids): together everything in these areas and on these floors, without both the whole house; or with group (the id of a group helper, then without areas and floors). What carries the label \"Mira: don't watch\" is in no watch group. What the user leaves out (\"not the terrace\"), exactly that; when the user says nothing about it for lights, as a proposal the outside lighting (by area and name: terrace, garden, driveway …) and the voice devices' indicators (an LED ring, a screen): give their ids in the field \"exclude\" of your answer (only members of the watch group, not with group); on the yes they get the label and are then in no watch, and your summary names them. When the user names something that does not exist (a floor, an area), answer {\"error\": what there is}. Batteries and devices (availability) are watch groups without group: for batteries propose as exceptions what is charged rather than changed (phones, tablets, cars, robot vacuums, e-bikes, watches), with their ids in exclude; for devices leave nothing out by yourself, and when the user does not want a device, give every id of that device from the list.",
 		house:       "\nFloors and areas of the house:",
 		floor:       "\n- floor %s (%s): %s",
 		groupHelper: "\nGroup helpers: %s",
 		members:     "\nIn the whole house today, %s (id, name, area): %s",
-		scopes:      map[string]string{"lights": "lights", "openings": "windows and doors", "motion": "motion sensors", "temperatures": "temperatures"},
+		batteries:   "\nIn the whole house today, batteries (id, name, device, area, value): %s",
+		devices:     "\nDevices (availability): not reachable today (id, name, device, area): %s",
+		none:        "none",
+		scopes:      map[string]string{"lights": "lights", "openings": "windows and doors", "motion": "motion sensors", "temperatures": "temperatures", ScopeBatteries: "batteries", ScopeDevices: "devices"},
 		unknownArea: "there is no area %q; the areas: %s", unknownFloor: "there is no floor %q; the floors: %s",
 		unknownGroup:  "%q is no group helper for this watch; the group helpers: %s",
 		groupAndPlace: "either group or areas and floors, not both",
@@ -374,15 +472,34 @@ func (w *Blueprints) GroupCatalog(ctx context.Context, list []Blueprint) string 
 		fmt.Fprintf(&b, t.groupHelper, strings.Join(g, ", "))
 	}
 	for _, scope := range Scopes {
-		members, err := w.Members(ctx, Selection{Scope: scope})
+		// The devices: only the ones unreachable today, the whole list is
+		// thousands of entities in a real house (decision 45).
+		members, err := w.Members(ctx, Selection{Scope: scope, OnlyUnavailable: scope.Name == ScopeDevices})
 		if err != nil {
 			return ""
 		}
 		var list []string
 		for _, mb := range members {
-			list = append(list, fmt.Sprintf("%s (%s, %s)", mb.ID, mb.Name, mb.Area))
+			switch scope.Name {
+			case ScopeBatteries:
+				list = append(list, fmt.Sprintf("%s (%s, %s, %s, %s)", mb.ID, mb.Name, mb.Device, mb.Area, mb.State))
+			case ScopeDevices:
+				list = append(list, fmt.Sprintf("%s (%s, %s, %s)", mb.ID, mb.Name, mb.Device, mb.Area))
+			default:
+				list = append(list, fmt.Sprintf("%s (%s, %s)", mb.ID, mb.Name, mb.Area))
+			}
 		}
-		fmt.Fprintf(&b, t.members, t.scopes[scope.Name], strings.Join(list, "; "))
+		switch scope.Name {
+		case ScopeBatteries:
+			fmt.Fprintf(&b, t.batteries, strings.Join(list, "; "))
+		case ScopeDevices:
+			if len(list) == 0 {
+				list = []string{t.none}
+			}
+			fmt.Fprintf(&b, t.devices, strings.Join(list, "; "))
+		default:
+			fmt.Fprintf(&b, t.members, t.scopes[scope.Name], strings.Join(list, "; "))
+		}
 	}
 	return b.String()
 }
