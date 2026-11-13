@@ -21,8 +21,8 @@ The difference to the device watch: there one device is held against its own nor
 a group is held against a rule the user says. The ground is the same: Mira's blueprints, drafting through the skill
 `aufgabe`, a watch is a task, its entry a message's.
 
-Not here: cameras (for now), alarms (smoke, gas, leak: the devices or a coupled system do that), battery health and
-availability ("Wie geht's dem Haus?", decision 19).
+Not here: cameras (for now), alarms (smoke, gas, leak: the devices or a coupled system do that), a battery or
+availability watch (later group watches, decision 19).
 
 ## Decisions (2026-11-13)
 
@@ -46,7 +46,7 @@ availability ("Wie geht's dem Haus?", decision 19).
 | 16 | Triggering a check from Home Assistant | An action of the integration, **`mira.check`**: an automation or a script calls it, the service computes the check and puts an entry for the receiver; the result also comes back as the action's response. "Ist alles zu?" in a conversation takes the same way in the code. A new action and route, optional at the interface: an older service answers 404, and the action says so |
 | 17 | What "Ist alles zu?" checks | The openings (decision 8), the label included |
 | 18 | Temperatures | A group watch too: `sensor` of `temperature`, by area or floor; the rule "below or above a value for minutes" ("Keller unter 5 Grad"). Sensors that do not measure a room (a freezer's, a radiator's) are left out by the label or by choosing areas |
-| 19 | Later | Battery health and availability (a radio problem, a value unchanged for long, a smoke detector not reachable) belong to "Wie geht's dem Haus?", a spec of its own, together with the state of every watch; never as an alarm. Not here |
+| 19 | Later | A **battery watch** (a battery low) and an **availability watch** (a sensor not reachable, a radio problem, a value unchanged for long) are further group watches, specified later as an extension of this spec; never as an alarm. "Wie geht's dem Haus?" comes after them, a spec of its own that builds on the watches |
 | 20 | How an entry reaches every person while nobody is home (decision 12) | A new receiver value **`persons`** of `mira.send_message`: every person with a channel gets the entry privately. New at the interface: an older service refuses the value with its error (the automation's trace shows it), an older integration passes the text on unchanged |
 
 ## Who does what
