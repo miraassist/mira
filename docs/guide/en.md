@@ -131,6 +131,53 @@ A watch is a task like any other and is in the list of tasks:
 
 The watches themselves are **blueprints** in Home Assistant: ready-made, checked templates for automations. You find them under **Settings → Automations & scenes → Blueprints**; their names begin with "Mira:". Mira brings them herself and keeps them up to date; do not change them there, a new version of Mira overwrites them. Every watch you set up is an automation made from such a blueprint, with the label "Mira".
 
+### Watches for groups: all lights, windows and doors
+
+Some things are not about one device but a whole group: a light that stays on somewhere for ages, a window open while nobody is home. Mira has ready-made watches for this too:
+
+- **Lights left on**: a lamp has been on for hours (if you like, only while nobody is home).
+- **Open while nobody is home**: a window or a door is open and everyone is out.
+- **Open at night** and **open too long**.
+- **Motion while nobody is home** and **motion at night**.
+- **Too cold or too warm**, say in the cellar.
+
+> **You:** Let me know if a window is open and nobody's home.
+>
+> **Mira:** Will do: all windows and doors. I'll send it to your phones.
+
+While nobody is at home, Mira sends such a message to each of you on your phone (over the channels you set for the persons). Otherwise she says it in the house, like any message.
+
+Which sensors belong to it you say in your own words: all of the house, only certain rooms ("in the cellar") or a floor ("all windows on the top floor"). Mira knows the floors and rooms from Home Assistant. If you made a **group** in Home Assistant, say "Guest room windows", you can name that as well. A window added later is in at once. For "at night" Mira asks from when to when:
+
+> **You:** Tell me about motion in the garden at night.
+>
+> **Mira:** From when to when is night?
+>
+> **You:** 11 pm to 6.
+>
+> **Mira:** Will do.
+
+**Exceptions.** For lamps Mira leaves out the outside lighting (terrace, garden, driveway) and the voice devices' light rings and screens by herself, and says so in her proposal. To leave something else out, just say it: "Tell me when a light is on for ages somewhere, but not the terrace." What you leave out gets the label **"Mira: don't watch"** in Home Assistant and is then in no group watch. You can also set or remove the label in Home Assistant yourself (at the entity under **Settings → Devices & services → Entities**), or tell Mira: "Watch the terrace again."
+
+**Is everything closed?** Just ask Mira before you leave or go to bed: "Is everything closed?", "Is a window open upstairs?", "Is a light still on anywhere?" She looks at the same windows and doors (or lamps) as her watches and tells you what is open, for example "Everything is closed except the bathroom window". If a sensor does not report, she says that too.
+
+**From an automation.** The same check is the action **"Mira: Check"** (`mira.check`) for your own automations and scripts, for example when you leave the house or in a "Good night" script. If something is open you get a message from Mira; the list also comes back as the action's response for your automation to work with:
+
+```yaml
+- action: mira.check
+  data:
+    scope: openings  # windows and doors; lights for lamps
+    floors: [upstairs] # optional, else the whole house
+  response_variable: check
+- if: "{{ check.open | count > 0 }}"
+  then:
+    - action: notify.mobile_app_your_phone
+      data:
+        message: "Still open: {{ check.open | map(attribute='name') | join(', ') }}"
+```
+
+These watches are tasks like all others too: "Stop watching the windows for now" switches one off, say on holiday while someone looks after the plants; your own "We're on holiday" script can do the same.
+
 ## Mira speaks up on her own
 
 Mira speaks up when something happens: a leak sensor goes off, the washing machine is done, the bins are collected tomorrow, a task finds something unusual. How she tells you depends on the room and the importance.

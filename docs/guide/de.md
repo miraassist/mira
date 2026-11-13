@@ -133,6 +133,53 @@ Ein Wächter ist eine Aufgabe wie jede andere und steht in der Liste der Aufgabe
 
 Die Wächter selbst sind **Blueprints** in Home Assistant: fertige, geprüfte Vorlagen für Automationen. Du findest sie unter **Einstellungen → Automationen & Szenen → Blueprints**, ihr Name beginnt mit „Mira:“. Mira bringt sie selbst mit und hält sie aktuell; ändere sie dort nicht, eine neue Version von Mira überschreibt sie. Jeder Wächter, den du einrichtest, ist eine Automation aus so einem Blueprint, mit dem Label „Mira“.
 
+### Wächter für Gruppen: alle Lichter, Fenster und Türen
+
+Manches betrifft nicht ein Gerät, sondern eine ganze Gruppe: ein Licht, das irgendwo ewig brennt, ein Fenster, das offen ist, während niemand da ist. Auch dafür hat Mira fertige Wächter:
+
+- **Licht bleibt an**: eine Lampe brennt seit Stunden (auf Wunsch nur, wenn niemand zu Hause ist).
+- **Offen, während niemand da ist**: ein Fenster oder eine Tür ist offen, und alle sind weg.
+- **Nachts offen** und **zu lange offen**.
+- **Bewegung, während niemand da ist** und **Bewegung nachts**.
+- **Zu kalt oder zu warm**, etwa im Keller.
+
+> **Du:** Gib mir Bescheid, wenn ein Fenster offen ist und keiner da ist.
+>
+> **Mira:** Mach ich: alle Fenster und Türen. Ich schick's euch aufs Handy.
+
+Ist niemand zu Hause, schickt Mira so eine Nachricht jedem von euch einzeln aufs Handy (über die Kanäle, die du bei den Personen eingestellt hast). Sonst sagt sie es im Haus, wie jede Nachricht.
+
+Welche Sensoren dazugehören, sagst du in deinen Worten: alle im Haus, nur in bestimmten Räumen („im Keller“) oder auf einer Etage („alle Fenster im Dachgeschoss“). Die Etagen und Räume kennt Mira aus Home Assistant. Hast du in Home Assistant eine **Gruppe** angelegt, etwa „Fenster Gästezimmer“, kannst du auch die nennen. Kommt später ein neues Fenster dazu, ist es gleich mit dabei. Für „nachts“ fragt Mira nach, von wann bis wann:
+
+> **Du:** Melde Bewegung im Garten nachts.
+>
+> **Mira:** Von wann bis wann ist nachts?
+>
+> **Du:** 23 bis 6.
+>
+> **Mira:** Mach ich.
+
+**Ausnahmen.** Bei den Lampen lässt Mira die Außenbeleuchtung (Terrasse, Garten, Einfahrt) und die Leuchtringe und Bildschirme der Sprachgeräte von sich aus weg und sagt dir das im Vorschlag. Willst du etwas anderes auslassen, sag es: „Sag Bescheid, wenn irgendwo Licht ewig an ist, aber die Terrasse nicht.“ Was du auslässt, bekommt in Home Assistant das Label **„Mira: nicht überwachen“** und ist dann in keinem Wächter für Gruppen mehr. Du kannst das Label in Home Assistant auch selbst setzen oder entfernen (bei der Entität unter **Einstellungen → Geräte & Dienste → Entitäten**), oder Mira sagen: „Überwach die Terrasse wieder.“
+
+**Ist alles zu?** Frag Mira einfach, bevor du gehst oder ins Bett: „Ist alles zu?“, „Ist oben ein Fenster offen?“, „Brennt irgendwo noch Licht?“ Sie schaut über dieselben Fenster und Türen (oder Lampen) wie ihre Wächter und sagt dir, was offen ist, etwa „Bis auf das Fenster im Bad ist alles zu“. Meldet sich ein Sensor nicht, sagt sie auch das.
+
+**Aus einer Automation.** Dieselbe Prüfung gibt es als Aktion **„Mira: Prüfen“** (`mira.check`) für deine eigenen Automationen und Skripte, zum Beispiel beim Verlassen des Hauses oder in einem Skript „Gute Nacht“. Ist etwas offen, bekommt ihr eine Nachricht von Mira; die Liste kommt auch als Antwort der Aktion zurück, mit der deine Automation weiterarbeiten kann:
+
+```yaml
+- action: mira.check
+  data:
+    scope: openings        # Fenster und Türen; lights für Lampen
+    floors: [dachgeschoss] # optional, sonst das ganze Haus
+  response_variable: check
+- if: "{{ check.open | count > 0 }}"
+  then:
+    - action: notify.mobile_app_dein_handy
+      data:
+        message: "Noch offen: {{ check.open | map(attribute='name') | join(', ') }}"
+```
+
+Auch diese Wächter sind Aufgaben wie alle anderen: „Pass erstmal nicht auf die Fenster auf“ schaltet einen aus, etwa im Urlaub, wenn jemand nach den Pflanzen schaut; dein eigenes Skript „Wir sind im Urlaub“ kann dasselbe tun.
+
 ## Mira meldet sich von selbst
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.

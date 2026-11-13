@@ -1,6 +1,6 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 4 built 2026-11-13 (decisions 21 and on taken while building,
+Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 5 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
 [group-watch.feature](group-watch.feature).
 
@@ -299,4 +299,5 @@ Each row is checked before the step that builds on it.
    offen."; with the office's fake window unavailable – "Das Fenster im Bad ist noch offen, und das Bürofenster meldet
    sich nicht."; a script with `mira.check` and `response_variable` as in row 11, GW-21 against the service of step 3
    at the test HA.
-5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation.
+5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation. Built
+   2026-11-13 (`docs/guide/de.md`, `en.md`, "Wächter für Gruppen" after the device watches).
