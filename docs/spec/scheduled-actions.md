@@ -2,7 +2,7 @@
 
 Status 2026-10-18: built in 0.6.45. Decided with the user: The state and the scheduler live in
 **Home Assistant**; reminders stay with Mira for now. One-off automations carry their own **label**; the
-**cleanup is done by the integration** (since 0.18 by the agent: [HACS default catalog](hacs-default.md), 3).
+**cleanup is done by the integration** (since 0.18 by the service: [HACS default catalog](hacs-default.md), 3).
 
 ## Target
 
@@ -99,9 +99,9 @@ mode: single
 - **"Already ran?"** the integration reads from the automation itself: `last_triggered` and the number of running
   runs (`current`). Ran and still executing (e.g. while fading out) is not finished.
 
-## Cleanup by the agent
+## Cleanup by the service
 
-Since 0.18 the agent tidies up ([HACS default catalog](hacs-default.md), 3): when a timer's state changes (a
+Since 0.18 the service tidies up ([HACS default catalog](hacs-default.md), 3): when a timer's state changes (a
 subscription filtered to the timers' entities), at its start and after every reconnect. Before, the integration did it
 every minute.
 
@@ -118,17 +118,17 @@ editor is not meant for that. Extending and cancelling happen in the conversatio
 
 ## Creating, changing, cancelling
 
-The integration builds and checks, the agent saves (since 0.18, [HACS default catalog](hacs-default.md), 3):
+The integration builds and checks, the service saves (since 0.18, [HACS default catalog](hacs-default.md), 3):
 
 - **`mira/once/build`** (admins only): checks (`check_actions`, rejecting when in doubt), sets variables, returns the
-  automation; the agent saves it through Home Assistant's automation config API, reloads it and has it labelled.
+  automation; the service saves it through Home Assistant's automation config API, reloads it and has it labelled.
   Limit: **at most ten open timers per person and room**. No others, neither in time nor in duration.
 - **Critical actions** (locks, alarm system, garage door, entities with the label "Mira: nachfragen") are
   **forbidden** in scheduled actions: A confirmation from this evening should open nothing at three in the night.
-- **`mira/once/list`** (admins only): filtered by label and variables. Cancelling: the agent deletes through the API.
+- **`mira/once/list`** (admins only): filtered by label and variables. Cancelling: the service deletes through the API.
 - **Extending** rewrites `at`, the date condition and `mira_due`.
 
-## Tools in the agent
+## Tools in the service
 
 First only the case one really needs (no model writes actions):
 

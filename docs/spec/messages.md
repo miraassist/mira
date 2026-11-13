@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-12: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11, not released; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12 (not released). Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-13: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12; steps 1 to 5 released in 0.23.0. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -48,7 +48,7 @@ There are no receiver settings here; the house accepts everything.
 - If the receiver does not accept, Mira tells the sender so honestly ("Ben nimmt gerade keine Nachrichten an") and stores nothing.
 
 **Delivery:**
-- private: via the person's [channels](channels.md) (HA notify targets), as today for personal and confidential notices;
+- private: via the person's [channels](channels.md) (HA notify targets), as today for personal and confidential messages;
 - at the satellite (announcement or indicator), **if the person is recognized there**. Today recognized only means: the "alone at home" rule. **What "recognized at the satellite" will mean in future we discuss separately.**
 - **private** (confidentiality `private`, since 2026-11-09): only over the person's channels, at once outside quiet
   hours, never spoken or shown; for a schedule's list for one person ([A schedule for one person](schedule-receiver.md)).
@@ -155,7 +155,7 @@ its **entries**; an entry may lead to a **thread**, and the user takes up one th
 Text, sender, importance, confidentiality, expiry, the key against duplicates and the thread **move from the message
 to its entries**. The delivery fields (`deliver_at`, the room asked in, retries) stay with the message.
 
-**Entry** (new): one thing that came into a message: a mail, a recording, a found device, a task's notice.
+**Entry** (new): one thing that came into a message: a mail, a recording, a found device, a task's text.
 
 | Field | Meaning |
 |---|---|
@@ -163,7 +163,7 @@ to its entries**. The delivery fields (`deliver_at`, the room asked in, retries)
 | `sender` | a person, a room, or Mira (a task, a skill) |
 | `importance`, `confidentiality`, `details` | as a message has them today |
 | `expires` | for an entry without a thread; one with a thread ends with its thread |
-| `key` | against duplicates: an entry with the same key replaces the one before (a task that updates its notice) |
+| `key` | against duplicates: an entry with the same key replaces the one before (a task that updates its text) |
 | `thread` | optional: the thread this entry leads to |
 
 An entry belongs to exactly one message. A message reaches its threads through its entries, so **a message may lead
@@ -191,7 +191,7 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 
 | Kind | What it is | Thread | Taken up |
 |---|---|---|---|
-| `simple` | texts: a task's notice, "Sag Anna …" (the sender named), a device's fault | none | worded by the model and read out |
+| `simple` | texts: a task's text, "Sag Anna …" (the sender named), a device's fault | none | worded by the model and read out |
 | `reminder` | due at a time ("Erinnere mich in 10 Minuten") | none | announced when due, in the room it was asked in, or sent privately |
 | `urgent` | importance 3 | none | announced at once, also in quiet hours, escalated until heard |
 | `private` | only for the person's channels | none | sent over the person's channels, never spoken or shown |

@@ -1,8 +1,8 @@
-// Package config loads and validates the agent's YAML configuration.
+// Package config loads and validates the service's YAML configuration.
 //
 // Secrets are never stored in the file itself; they are referenced as ${ENV}
 // and expanded at load time. Load always returns a fully defaulted Config, so
-// the rest of the agent can read fields without nil or zero checks.
+// the rest of the service can read fields without nil or zero checks.
 package config
 
 import (
@@ -67,7 +67,7 @@ type Agents struct {
 	MaxDepth int `yaml:"max_depth"`
 	// Defined are the YAML agents by name, as written: each is read and
 	// checked on its own when Mira starts, so a mistake in one leaves it out
-	// instead of stopping the agent. Entries for Mira's own agents are here
+	// instead of stopping the service. Entries for Mira's own agents are here
 	// too (only model and privacy).
 	Defined map[string]yaml.Node `yaml:"-"`
 	// models and privacy are what each entry names, for ModelFor and
@@ -160,10 +160,10 @@ func (t *AgentTools) UnmarshalYAML(n *yaml.Node) error {
 
 type Server struct {
 	Listen string `yaml:"listen"`
-	// Token authenticates the HA integration against the agent. Empty disables
+	// Token authenticates the HA integration against the service. Empty disables
 	// the check, which is only sensible for local development.
 	Token string `yaml:"token"`
-	// Announce makes the agent discoverable by mDNS (_mira._tcp), so Home
+	// Announce makes the service discoverable by mDNS (_mira._tcp), so Home
 	// Assistant offers it under "Discovered".
 	Announce bool `yaml:"announce"`
 	// Name is the announced name.
@@ -314,7 +314,7 @@ func (c Config) Main() LLM { return c.Models[MainModel] }
 
 // ModelFor names the model of an agent: what its entry under agents says
 // (Mira's own agents: docs/spec/models.md), else main; a name no model
-// has is main too (the agent's entry reports it).
+// has is main too (the service's entry reports it).
 func (c Config) ModelFor(agent string) string {
 	if name := c.Agents.models[agent]; name != "" {
 		if _, ok := c.Models[name]; ok {
@@ -446,7 +446,7 @@ type Sessions struct {
 	KeepTurns int `yaml:"keep_turns"`
 }
 
-// Person is someone the agent can address personally. The key in the
+// Person is someone the service can address personally. The key in the
 // persons map is the receiver id messages use.
 //
 // With Home Assistant every HA person is a person (docs/spec/users.md):
@@ -637,7 +637,7 @@ type Telemetry struct {
 	LogLevel       string `yaml:"log_level"`
 }
 
-// Default returns the configuration the agent runs with when the YAML says
+// Default returns the configuration the service runs with when the YAML says
 // nothing. Every Load result starts from this.
 // WebSearch is Mira's own web search (docs/spec/web-search.md); the
 // integration switches it in its options.
@@ -958,7 +958,7 @@ func (c Config) Validate() error {
 	if c.Store.Path == "" {
 		add("store.path must not be empty")
 	}
-	// Without both, the agent waits to be set up by the integration
+	// Without both, the service waits to be set up by the integration
 	// (docs/spec/setup.md); one without the other is a mistake.
 	if (c.HA.URL == "") != (c.HA.Token == "") {
 		add("ha.url and ha.token come together: Mira works through Home Assistant")

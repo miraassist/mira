@@ -8,8 +8,8 @@ import (
 )
 
 // A reset deletes Mira's data and keeps the config (mira.yaml, secrets):
-// afterwards the agent is like a new one and pairs without a code
-// (docs/spec/setup.md). It is asked for on the agent's machine, never
+// afterwards the service is like a new one and pairs without a code
+// (docs/spec/setup.md). It is asked for on the service's machine, never
 // over the network: by mira reset (a mark next to the database), or as a
 // Home Assistant app by the option reset_data. Either takes effect at the
 // next start, before the database is opened.

@@ -1,6 +1,6 @@
-"""The conversation entity: hands every turn to the agent, nothing else.
+"""The conversation entity: hands every turn to the service, nothing else.
 
-No LLM API, no tools, no prompt here. The agent owns all of that; this entity
+No LLM API, no tools, no prompt here. The service owns all of that; this entity
 forwards text, conversation id, satellite device id and language, and speaks
 what comes back, while it is written (docs/spec/streaming.md).
 """
@@ -35,14 +35,14 @@ async def async_setup_entry(
 
 
 class MiraConversationEntity(conversation.ConversationEntity, conversation.AbstractConversationAgent):
-    """Forwards Assist turns to the Mira agent."""
+    """Forwards Assist turns to the Mira service."""
 
     _attr_has_entity_name = True
     _attr_name = None
-    # The answer goes into the chat log while the agent writes it, so a
+    # The answer goes into the chat log while the service writes it, so a
     # satellite can speak before it is complete.
     _attr_supports_streaming = True
-    # The agent controls the house itself, through its own MCP connection.
+    # The service controls the house itself, through its own MCP connection.
     _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
     def __init__(self, entry: MiraConfigEntry) -> None:
@@ -73,7 +73,7 @@ class MiraConversationEntity(conversation.ConversationEntity, conversation.Abstr
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         # The chat session's id is stable across a follow-up, which is what
-        # keeps the agent's session (and its prompt cache) together.
+        # keeps the service's session (and its prompt cache) together.
         conversation_id = chat_log.conversation_id
         timeout = self.entry.options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
         lang = (user_input.language or "en").split("-")[0]
@@ -103,7 +103,7 @@ class MiraConversationEntity(conversation.ConversationEntity, conversation.Abstr
                         reply = part
                         continue
                     if isinstance(part, ToolCallPart) and part.result is not None:
-                        # The agent ran the tool itself: an external call's
+                        # The service ran the tool itself: an external call's
                         # result, for the debug view.
                         open_message = False
                         yield {
@@ -130,7 +130,7 @@ class MiraConversationEntity(conversation.ConversationEntity, conversation.Abstr
                         said.append(part)
                         yield {"content": part}
             except MiraError as err:
-                _LOGGER.warning("Mira agent did not answer: %s", err)
+                _LOGGER.warning("Mira service did not answer: %s", err)
                 # Part of the answer was said: a short sentence ends it.
                 if said:
                     text = BROKEN_TEXT.get(lang, BROKEN_TEXT["en"])
@@ -143,7 +143,7 @@ class MiraConversationEntity(conversation.ConversationEntity, conversation.Abstr
                 yield {"content": text}
                 return
             if reply is not None and not said and reply.text:
-                # An older agent answers whole.
+                # An older service answers whole.
                 said.append(reply.text)
                 if not open_message:
                     yield {"role": "assistant"}

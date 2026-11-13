@@ -25,7 +25,7 @@ type Options struct {
 	ServiceName string
 	Version     string
 	// OTLPEndpoint is a gRPC endpoint such as "localhost:4317". Empty disables
-	// export; the agent still runs, it just records nothing.
+	// export; the service still runs, it just records nothing.
 	OTLPEndpoint string
 	LogLevel     string
 	// CaptureContent enables recording prompt and completion text on spans.
@@ -33,7 +33,7 @@ type Options struct {
 	CaptureContent bool
 }
 
-// Provider owns the OTel pipeline and the agent's instruments.
+// Provider owns the OTel pipeline and the service's instruments.
 type Provider struct {
 	Tracer trace.Tracer
 	Logger *slog.Logger
@@ -127,7 +127,7 @@ func (p *Provider) initInstruments(m metric.Meter) error {
 		return err
 	}
 	if p.toolCalls, err = m.Int64Counter(MetricToolCalls,
-		metric.WithDescription("Tool invocations by the agent")); err != nil {
+		metric.WithDescription("Tool invocations by the service")); err != nil {
 		return err
 	}
 	if p.prefixRebuilds, err = m.Int64Counter(MetricPrefixRebuilds,

@@ -8,7 +8,7 @@ A **channel** is a way through which Mira reaches or hears someone. Each channel
 - **only send**: it is enough to deliver a message; or
 - **hold a conversation**: it sends and receives, so also turns.
 
-The agent knows only this model: "incoming text from channel X, conversation Y, person Z" and "answer/message to channel X, target Y". Which events, actions or APIs are behind it, it does not know.
+The service knows only this model: "incoming text from channel X, conversation Y, person Z" and "answer/message to channel X, target Y". Which events, actions or APIs are behind it, it does not know.
 
 ## The channels
 

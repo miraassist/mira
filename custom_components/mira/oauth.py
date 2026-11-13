@@ -4,8 +4,8 @@ Home Assistant does the login: Mira's config flow, started with the source
 "connect" from the panel's Connections page, builds the login's address with
 Home Assistant's OAuth helper (its fixed redirect over my.home-assistant.io,
 the state it signs, PKCE), receives the redirect and exchanges the code. It
-hands the tokens to the agent once and ends without a config entry; from then
-on the agent keeps and renews them.
+hands the tokens to the service once and ends without a config entry; from then
+on the service keeps and renews them.
 
 Sending the client secret as HTTP Basic, which X wants, needs the helper of
 Home Assistant 2026.11 or newer (token_auth_method); before, Connect is not
@@ -77,7 +77,7 @@ class ConnectSteps:
 
     async def async_step_auth(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Home Assistant's step. On the redirect the code is exchanged and
-        the tokens go to the agent before the redirect's page answers: that
+        the tokens go to the service before the redirect's page answers: that
         page closes the window, and the Connections page reads the state
         when it gets the focus back. Then the flow moves on by itself, since
         no dialog of the frontend does it (checked: a flow at external_done
@@ -102,7 +102,7 @@ class ConnectSteps:
             pass  # someone else moved it on
 
     async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
-        """The tokens go to the agent; Home Assistant keeps nothing."""
+        """The tokens go to the service; Home Assistant keeps nothing."""
         skill = (self._login or {}).get("skill", "")
         entry = _loaded(self.hass)
         if entry is None:
@@ -155,7 +155,7 @@ class MiraOAuthStartView(HomeAssistantView):
         except MiraInvalidConfig as err:
             return web.json_response({"error": str(err)}, status=422)
         except MiraError as err:
-            return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+            return web.json_response({"error": f"Mira not reachable: {err}"}, status=502)
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": SOURCE_CONNECT}, data={"login": login}
         )

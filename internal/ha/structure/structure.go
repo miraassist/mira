@@ -23,7 +23,7 @@ type Registry struct {
 	Exposed map[string]bool
 }
 
-// Snapshot is the lookups the rest of the agent needs from the registries.
+// Snapshot is the lookups the rest of the service needs from the registries.
 type Snapshot struct {
 	// AreaNames maps area id to its display name.
 	AreaNames map[string]string

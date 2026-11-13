@@ -24,46 +24,46 @@ The integration runs in HA with admin rights. During setup it does what is manua
 
 - **Mira's access** (since 0.18, [HACS default catalog](hacs-default.md), 3): a long-lived token "Mira (Integration)" of Home Assistant's owner, made when an admin submits "Start using Mira" after a paragraph that says why Mira needs admin rights. No user of her own; an earlier user "Mira" stays without a function and may be deleted.
 - **HA's MCP server:** If the integration "Model Context Protocol Server" with Assist as API is missing, it sets it up.
-- **Handover to the agent:** It sends it the HA address (HA's internal address) and token (`POST /v1/setup`). The agent stores both in its database and connects.
+- **Handover to the service:** It sends it the HA address (HA's internal address) and token (`POST /v1/setup`). The service stores both in its database and connects.
 - **Removing:** If one removes the integration, it revokes the token.
 
-After that, the agent's config contains nothing about HA anymore (`ha.url`, `ha.token`, the MCP entry for HA).
+After that, the service's config contains nothing about HA anymore (`ha.url`, `ha.token`, the MCP entry for HA).
 
 ## 2. Pairing instead of typing a token
 
-- **First start** without a token in the config: The agent generates a random access token (`server.token`) and stores it in its database.
+- **First start** without a token in the config: The service generates a random access token (`server.token`) and stores it in its database.
 - **Overview first, pairing last.** After "Mira found" the overview comes right away. Its text shows what is chosen and what is still missing; below it the branches "Choose the AI model (LLM)", "Use Mira in" (the assistants; the preferred one is preselected) and "Start using Mira". Each branch returns to the overview. HA dialogs have no back button; the overview replaces it. "Start using Mira" appears only when nothing is missing anymore.
-  - Before that nothing changes, neither on the agent nor in HA: no user, no token, no pairing. An aborted dialog leaves nothing half set up. HA keeps a discovered dialog open when closing and calls the step without input again when reopening. By this the integration recognizes the reopening and shows the overview instead of being stuck in a sub-form (such as the key of a provider chosen by mistake).
-  - So that the dialog can list and try out models beforehand, the agent answers `/v1/setup/providers`, `/v1/setup/models` and `/v1/setup/probe` without a token, but only as long as it has never been paired.
-  - "Start using Mira" creates user and token, switches on HA's MCP server and then sends HA address, token and model in **one** call (`POST /v1/pair`). The agent stores everything, hands out its access token and restarts, or it does nothing at all. If it goes wrong, the integration revokes the token again.
-- **Without a code the first time:** An agent that has never been paired pairs with the first Home Assistant that completes "Start using Mira".
+  - Before that nothing changes, neither on the service nor in HA: no user, no token, no pairing. An aborted dialog leaves nothing half set up. HA keeps a discovered dialog open when closing and calls the step without input again when reopening. By this the integration recognizes the reopening and shows the overview instead of being stuck in a sub-form (such as the key of a provider chosen by mistake).
+  - So that the dialog can list and try out models beforehand, the service answers `/v1/setup/providers`, `/v1/setup/models` and `/v1/setup/probe` without a token, but only as long as it has never been paired.
+  - "Start using Mira" creates user and token, switches on HA's MCP server and then sends HA address, token and model in **one** call (`POST /v1/pair`). The service stores everything, hands out its access token and restarts, or it does nothing at all. If it goes wrong, the integration revokes the token again.
+- **Without a code the first time:** A service that has never been paired pairs with the first Home Assistant that completes "Start using Mira".
   - **Why that is enough:** An attacker in the home network would have to strike between container start and setup. He would not go unnoticed: The owner's dialog then asks for a code. The guide says: set up in your own home network, not in the guest network.
   - A code in the mDNS entry deliberately does not exist: Any device in the network could read it.
-- **Removing releases:** If one removes the integration, it reports this to the agent (`POST /v1/unpair`). It makes a new token, forgets the HA access, keeps the model and waits for setup again; the summary then shows "AI model: stays …".
-  - **Only the same Home Assistant without a code** (hardened 2026-10-27): The household's memory stays in the agent, so it does not open up to anyone. On unpair it keeps a rejoin key, HMAC-SHA256 under the old token (`setup.RejoinKey`). The integration keeps the token in HA's storage (`mira.rejoin`, outside the entry, which removing deletes), also when the agent was away and did not let go.
+- **Removing releases:** If one removes the integration, it reports this to the service (`POST /v1/unpair`). It makes a new token, forgets the HA access, keeps the model and waits for setup again; the summary then shows "AI model: stays …".
+  - **Only the same Home Assistant without a code** (hardened 2026-10-27): The household's memory stays in the service, so it does not open up to anyone. On unpair it keeps a rejoin key, HMAC-SHA256 under the old token (`setup.RejoinKey`). The integration keeps the token in HA's storage (`mira.rejoin`, outside the entry, which removing deletes), also when the service was away and did not let go.
   - Adding the integration again, `GET /v1/pair` says `rejoin: true`; the integration finds the old token and sends its key with `POST /v1/pair` (`rejoin`) instead of a code. The old token itself does not go over the network. The key works once.
-  - Was the agent away when the integration was removed, it never let go and still holds the old token: adding Mira again, the integration finds the kept token works (`/v1/health`) and uses it as it is, with `POST /v1/setup`, no code.
-  - Any other Home Assistant, or this one after a full reinstall, needs the pairing code (below). The model stays and the model branch is not offered, as with a code: the agent lists models only to its token.
-  - An agent unpaired before 0.11.0 stays open without a code, as it was.
-- **Pairing with another Home Assistant, with a code** (since 0.11.0): Unpair makes a **pairing code** of twelve characters (`ABCD-EFGH-JKMN`, no 0/O/1/I/L) and writes it into the agent's log, at unpair and at every start while it waits. Whoever reads the log has the agent's machine, which is what the code proves. It holds until used; five wrong tries spend it. The agent's page only says where to find it, never the code. The overview shows it as missing, with the branch "Enter the pairing code"; it is used at "Start using Mira", and if it is wrong, the overview says so. The agent keeps the model; it can be changed afterwards under Configure.
+  - Was the service away when the integration was removed, it never let go and still holds the old token: adding Mira again, the integration finds the kept token works (`/v1/health`) and uses it as it is, with `POST /v1/setup`, no code.
+  - Any other Home Assistant, or this one after a full reinstall, needs the pairing code (below). The model stays and the model branch is not offered, as with a code: the service lists models only to its token.
+  - A service unpaired before 0.11.0 stays open without a code, as it was.
+- **Pairing with another Home Assistant, with a code** (since 0.11.0): Unpair makes a **pairing code** of twelve characters (`ABCD-EFGH-JKMN`, no 0/O/1/I/L) and writes it into the service's log, at unpair and at every start while it waits. Whoever reads the log has the service's machine, which is what the code proves. It holds until used; five wrong tries spend it. The service's page only says where to find it, never the code. The overview shows it as missing, with the branch "Enter the pairing code"; it is used at "Start using Mira", and if it is wrong, the overview says so. The service keeps the model; it can be changed afterwards under Configure.
   - `mira pair` and its six-digit code of 15 minutes are gone: a code exists only after an unpair.
-- **Reset** (since 0.11.0): without a code, because the Home Assistant that had the agent is gone without removing it, the way back is a reset on the agent's machine, never over the network (anyone in it could otherwise wipe the household's memory and take the agent):
+- **Reset** (since 0.11.0): without a code, because the Home Assistant that had the service is gone without removing it, the way back is a reset on the service's machine, never over the network (anyone in it could otherwise wipe the household's memory and take the service):
   - `mira reset` (`docker exec mira /app/mira reset`) leaves a mark next to the database; the next start (`docker restart mira`) deletes the database and keeps `mira.yaml` and the secrets file. As a Home Assistant app, the option `reset_data` does the same at the app's next start, once until it is turned off and on again.
-  - The database holds the memory, messages, task logs and what the integration set up, the model and its key included; afterwards the agent is like a new one and pairs without a code. Voices enrolled for speaker recognition live in the speaker-id service and stay.
-- **A new address:** An agent announces itself by mDNS with its id. If the entry's address no longer answers and the agent shows up at another, the integration follows it, without asking the user. Since the id is readable by anyone, the agent must first show it holds the entry's token (hardened 2026-10-27):
-  - The integration sends a random nonce to `POST /v1/prove` at the new address. The agent answers with HMAC-SHA256 under its token (`setup.Proof`); the integration computes the same and moves only on a match. The token itself never goes to the new address before that.
-  - An agent before 0.11.0 has no such route and is not followed: anyone could answer as it does. After updating the agent, it moves again by itself.
-  - The user id Mira's automations run under comes from the integration, which made the user at pairing. The agent's `/v1/health` only fills it for an entry that has none.
+  - The database holds the memory, messages, task logs and what the integration set up, the model and its key included; afterwards the service is like a new one and pairs without a code. Voices enrolled for speaker recognition live in the speaker-id service and stay.
+- **A new address:** A service announces itself by mDNS with its id. If the entry's address no longer answers and the service shows up at another, the integration follows it, without asking the user. Since the id is readable by anyone, the service must first show it holds the entry's token (hardened 2026-10-27):
+  - The integration sends a random nonce to `POST /v1/prove` at the new address. The service answers with HMAC-SHA256 under its token (`setup.Proof`); the integration computes the same and moves only on a match. The token itself never goes to the new address before that.
+  - A service before 0.11.0 has no such route and is not followed: anyone could answer as it does. After updating the service, it moves again by itself.
+  - The user id Mira's automations run under comes from the integration, which made the user at pairing. The service's `/v1/health` only fills it for an entry that has none.
 - **As before:** If a token is in the config (`server.token`), that one applies, without pairing. So existing installations stay unchanged.
 
-## 3. Agent without a config file
+## 3. Service without a config file
 
 - **AI model (LLM) in the form:** Meant is the LLM Mira thinks with; it is not called "language model", that gets confused in HA with speech recognition. The dialog only asks where it comes from, and assumes the most common case: a cloud provider, no expensive hardware.
   - **From Home Assistant:** gone since 0.18: another integration's key is not read ([HACS default catalog](hacs-default.md), decision 1).
   - **Provider:** OpenAI, Google Gemini, OpenRouter, Mistral with a fixed address; only the key is asked.
-  - **Own server:** address (as seen from the agent) and optionally a key. A category "local" with LM Studio, Ollama, llama.cpp deliberately does not exist, and the agent does not scan the network.
-  - The model is chosen from the list the agent queries at this address (`/v1/models`).
-  - **Trial run:** Before saving, the agent sends a real small request with a tool. It must be answered and call the tool. Errors come back with a reason and appear understandably in the form: not reachable, key rejected, model unknown or not loaded, model without tools. A local model gets loaded right away in the process.
+  - **Own server:** address (as seen from the service) and optionally a key. A category "local" with LM Studio, Ollama, llama.cpp deliberately does not exist, and the service does not scan the network.
+  - The model is chosen from the list the service queries at this address (`/v1/models`).
+  - **Trial run:** Before saving, the service sends a real small request with a tool. It must be answered and call the tool. Errors come back with a reason and appear understandably in the form: not reachable, key rejected, model unknown or not loaded, model without tools. A local model gets loaded right away in the process.
   - It can be changed later under Configure → AI model (LLM).
 - **Defaults for everything else:**
   - port 8787 on all interfaces;
@@ -90,7 +90,7 @@ The database path has a default that fits almost all installations:
 
 ## Existing installations
 
-- **With config file:** An installation with `server.token`, `ha.url` and `ha.token` in `mira.yaml` keeps running unchanged. The integration sets up no new user as long as the agent reports that it already has HA access (`/v1/health`).
+- **With config file:** An installation with `server.token`, `ha.url` and `ha.token` in `mira.yaml` keeps running unchanged. The integration sets up no new user as long as the service reports that it already has HA access (`/v1/health`).
 - **Switching over:** Whoever wants the new way takes the entries out of the file and pairs anew.
 
 ## Deliberately not

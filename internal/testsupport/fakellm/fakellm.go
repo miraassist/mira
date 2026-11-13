@@ -2,7 +2,7 @@
 //
 // Besides returning canned answers and tool calls, it imitates llama.cpp's
 // prompt cache: per slot it remembers the last prompt it saw and reports the
-// common prefix as cached tokens. That makes the agent's cache invariants
+// common prefix as cached tokens. That makes the service's cache invariants
 // testable without a GPU — a request whose stable layers changed shows up as a
 // cache miss here exactly as it would on the real server.
 package fakellm

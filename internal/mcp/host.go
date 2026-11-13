@@ -1,4 +1,4 @@
-// Package mcp is the agent's MCP host: it connects to every configured MCP
+// Package mcp is the service's MCP host: it connects to every configured MCP
 // server, aggregates their tools under "<server>__<tool>" names and executes
 // calls the model makes.
 //
@@ -248,7 +248,7 @@ func New(opts Options) *Host {
 }
 
 // Start connects to every server once. Unreachable servers are logged and
-// left to Run; the agent must come up even when the search server is down.
+// left to Run; the service must come up even when the search server is down.
 // It returns an error only if no server could be reached at all while some
 // were configured.
 func (h *Host) Start(ctx context.Context) error {

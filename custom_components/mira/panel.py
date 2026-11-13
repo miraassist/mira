@@ -1,9 +1,9 @@
 """Mira's web UI inside Home Assistant: a sidebar panel that shows the
-agent's page through Home Assistant's own server.
+service's page through Home Assistant's own server.
 
 The page's files come through an open view (they hold no data, and the
 agent serves them without a token as well); its API calls come through
-an authenticated view that adds the agent's token and says who is signed
+an authenticated view that adds the service's token and says who is signed
 in. So the page works over HA's HTTPS and from away, with HA's login.
 
 Everyone sees the house's memory and messages and their own; the rest of
@@ -49,7 +49,7 @@ from .oauth import MiraOAuthStartView, MiraOAuthView
 PANEL_URL_PATH = "mira"
 PANEL_ICON = "mdi:face-woman-shimmer"
 PAGE = "/api/mira/panel/ui"
-# The agent's page and its files; nothing else goes through the open view.
+# The service's page and its files; nothing else goes through the open view.
 PAGE_FILES = re.compile(
     r"ui/?|ui/icon\.png|ui/js/[\w.-]+\.js|ui/sounds/[\w-]+\.mp3|ui/videos/[\w-]+\.mp4|ui/guide/(de|en)|ui/guide/img/(?:[\w-]+/)*[\w.-]+"
 )
@@ -57,7 +57,7 @@ API = "v1/ui/"
 # What a user who is no admin may call: their memory, changing a fact, the
 # memory as a file, the house's messages and their own (marking their own
 # done), following the running plans and ending one (docs/spec/plan-end.md),
-# who they are, and their own voice (the card "Ich"). The agent lets them have only their own and the house's.
+# who they are, and their own voice (the card "Ich"). The service lets them have only their own and the house's.
 NON_ADMIN_LIST = "v1/ui/memory"
 NON_ADMIN_PLANS = "v1/ui/plans"
 NON_ADMIN_PLAN = re.compile(r"v1/ui/plans/[\w-]+")
@@ -68,7 +68,7 @@ NON_ADMIN_IMPORT = "v1/ui/memory/import"
 NON_ADMIN_ACK = re.compile(r"v1/ui/messages/[\w-]+/ack")
 NON_ADMIN_FACT = re.compile(r"v1/ui/memory/(?!compact$|export$|import$)[\w-]+")
 NON_ADMIN_VOICE = re.compile(r"v1/ui/voice/[\w-]+(/enroll|/heard|/assign)?")
-# Who is signed in, for the agent (internal/ui: HeaderHAUser, HeaderHAAdmin).
+# Who is signed in, for the service (internal/ui: HeaderHAUser, HeaderHAAdmin).
 HEADER_USER = "X-Mira-HA-User"
 HEADER_ADMIN = "X-Mira-HA-Admin"
 # This integration's version, for the page's footer (internal/ui: HeaderIntegration).
@@ -78,13 +78,13 @@ HEADER_INTEGRATION = "X-Mira-Integration"
 REQUEST_PASSED = ("Range", "If-Range")
 PASSED = ("Content-Type", "Cache-Control", "Accept-Ranges", "Content-Range", "Content-Security-Policy")
 TIMEOUT = aiohttp.ClientTimeout(total=60)
-# How often and how long to wait for an agent that is restarting.
+# How often and how long to wait for a service that is restarting.
 CONNECT_TRIES = 4
 CONNECT_WAIT = 1.0
 
 _LOGGER = logging.getLogger(__name__)
 
-# Shown in the panel while the agent cannot be reached; reloads itself.
+# Shown in the panel while the service cannot be reached; reloads itself.
 WAITING_PAGE = """<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width">
 <style>body{font-family:Roboto,system-ui,sans-serif;color:#555;display:flex;align-items:center;
@@ -136,7 +136,7 @@ def _agent(hass: HomeAssistant) -> tuple[str, str] | None:
 async def _forward(
     hass: HomeAssistant, request: web.Request, path: str, with_token: bool, extra: dict[str, str] | None = None
 ) -> web.Response:
-    """Pass the request on to the agent and its answer back."""
+    """Pass the request on to the service and its answer back."""
     agent = _agent(hass)
     if agent is None:
         return web.json_response({"error": "Mira is not set up"}, status=503)
@@ -148,7 +148,7 @@ async def _forward(
         headers["Authorization"] = f"Bearer {token}"
     headers.update(extra or {})
     body = await request.read() if request.can_read_body else None
-    # The agent may be restarting just now (an update, a container restart):
+    # The service may be restarting just now (an update, a container restart):
     # wait a moment for it rather than showing a connection error. Only a
     # connection that was never made is tried again, so nothing runs twice.
     last: Exception | None = None
@@ -174,7 +174,7 @@ async def _forward(
         except (aiohttp.ClientError, TimeoutError) as err:
             last = err
             break
-    _LOGGER.debug("Mira agent not reachable: %s", last)
+    _LOGGER.debug("Mira service not reachable: %s", last)
     # The page says this in Mira's words and tries again by itself.
     return web.json_response({"error": "unreachable", "unreachable": True}, status=503)
 
@@ -193,7 +193,7 @@ def _allowed(method: str, path: str) -> bool:
 
 
 class MiraPanelView(HomeAssistantView):
-    """The agent's page and its files, without login like at the agent."""
+    """The service's page and its files, without login like at the service."""
 
     url = "/api/mira/panel/{path:.*}"
     name = "api:mira:panel"
@@ -210,7 +210,7 @@ class MiraPanelView(HomeAssistantView):
 
 
 class MiraProxyView(HomeAssistantView):
-    """The page's API calls, for signed-in users, with the agent's token."""
+    """The page's API calls, for signed-in users, with the service's token."""
 
     url = "/api/mira/proxy/{path:.*}"
     name = "api:mira:proxy"
@@ -233,7 +233,7 @@ class MiraProxyView(HomeAssistantView):
 
 class MiraSettingsView(HomeAssistantView):
     """Mira's settings on Home Assistant's persons and satellites, for the
-    panel's forms: read them, and save them after the agent checked them.
+    panel's forms: read them, and save them after the service checked them.
     They are stored on the persons and satellites (managed.py), the same as
     the integration's options do. Admins only."""
 
@@ -301,7 +301,7 @@ class MiraSettingsView(HomeAssistantView):
         except (ValueError, MiraInvalidConfig) as err:
             return web.json_response({"error": str(err)}, status=422)
         except MiraError as err:
-            return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+            return web.json_response({"error": f"Mira not reachable: {err}"}, status=502)
         return web.json_response({"saved": True})
 
 
@@ -344,7 +344,7 @@ class MiraMySettingsView(HomeAssistantView):
         except (ValueError, MiraInvalidConfig) as err:
             return web.json_response({"error": str(err)}, status=422)
         except MiraError as err:
-            return web.json_response({"error": f"Mira agent not reachable: {err}"}, status=502)
+            return web.json_response({"error": f"Mira not reachable: {err}"}, status=502)
         return web.json_response({"saved": True})
 
 

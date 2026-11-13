@@ -47,17 +47,17 @@ how to answer questions about it is said by one **skill** per application (`pake
 IMAP entry with device "Pakete" (search)
   → HA: event imap_content (new mail)
   → Mira integration: device name matches a mail skill? fetch full text (imap.fetch)
-  → agent POST /v1/mail: device name, sender, subject, date, text
+  → service POST /v1/mail: device name, sender, subject, date, text
   → agent: isolated reading (skill instructions, fixed schema), check fields
   → agent: create, change or delete the entry in the calendar if the mail is newer
 ```
 
 - Mira's own HA user may not subscribe to `imap_content` (admins only); the **integration** listens to it. Which
-  applications exist, the agent reports in `/v1/status` (`mail_apps`); other entries the integration does not
+  applications exist, the service reports in `/v1/status` (`mail_apps`); other entries the integration does not
   pass on.
 - Events on deleting a mail (`initial: false`) it ignores.
-- The agent processes the mails of one calendar one after the other.
-- The agent turns HTML mails into text before the reading.
+- The service processes the mails of one calendar one after the other.
+- The service turns HTML mails into text before the reading.
 - **Missed mails** (if two mails arrive at once with polling instead of push, HA probably reports only the last one):
   not fetched afterwards for now; observe in testing.
 

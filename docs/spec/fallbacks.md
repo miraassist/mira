@@ -47,7 +47,7 @@ compat` (HC-06) is fixed for Home Assistant 2026.10 and 2026.11 alike. Rows 13 t
   answers with the fixed sentence of a missing house description ([Context](context.md), 1.2).
 - **Row 7:** when the calendar list cannot be read, the mail is an error back to the integration, not "no calendar";
   the log names it. The integration sends a mail once (on IMAP's event for a new mail); after an error it logs a
-  warning ("The agent could not read the mail of …") and the mail does not come again. Sending it again is not
+  warning ("The service could not read the mail of …") and the mail does not come again. Sending it again is not
   decided.
 - **Row 8:** the language stays as it is, now written down in [Languages](language.md): a language Home Assistant
   sends that Mira does not speak is replaced by the person's last one, an unreadable server language by German; both

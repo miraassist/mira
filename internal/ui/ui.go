@@ -1,5 +1,5 @@
-// Package ui is the agent's small web interface: a single page that edits
-// the config sections the agent allows (notifier, persons,
+// Package ui is the service's small web interface: a single page that edits
+// the config sections the service allows (notifier, persons,
 // satellites), shows open messages and the memory.
 //
 // The page itself is static and holds no data. Everything goes through the
@@ -48,7 +48,7 @@ type Entity struct {
 	Area string `json:"area,omitempty"`
 }
 
-// Config is what the agent exposes to the UI.
+// Config is what the service exposes to the UI.
 type Config interface {
 	// Section returns a section as JSON, as Mira runs with it.
 	Section(name string) (json.RawMessage, error)
@@ -119,7 +119,7 @@ type Options struct {
 	// Phone is what waits on the answering machine, for the start page and
 	// the messages page (docs/spec/voicemail.md); nil without it.
 	Phone func(ctx context.Context) (PhoneNews, error)
-	// Version is the agent's version, shown in the page header.
+	// Version is the service's version, shown in the page header.
 	Version string
 	Logger  *slog.Logger
 }
@@ -541,7 +541,7 @@ func (h *Handler) ackMessage(w http.ResponseWriter, r *http.Request) {
 
 // Headers the Home Assistant integration's proxy sets on the page's calls:
 // the signed-in HA user and whether they are an admin. They come with the
-// agent's token, so only the integration can set them.
+// service's token, so only the integration can set them.
 const (
 	HeaderHAUser  = "X-Mira-HA-User"
 	HeaderHAAdmin = "X-Mira-HA-Admin"
@@ -553,7 +553,7 @@ const (
 const HeaderIntegration = "X-Mira-Integration"
 
 // viewer is who looks at the page. Inside Home Assistant everyone, admins
-// too, sees the house's memory and their own only; with the agent's token
+// too, sees the house's memory and their own only; with the service's token
 // alone (the page on its own) the operator sees all.
 type viewer struct {
 	limited bool

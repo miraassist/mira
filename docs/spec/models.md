@@ -172,15 +172,15 @@ conversation (they leave their error in their run, as before).
 ## Providers
 
 Mira knows the common cloud providers with an OpenAI-compatible API, each with its address: OpenAI, Google Gemini,
-OpenRouter, Mistral, Anthropic. The list lives only in the agent (`internal/llm/providers.go`). The integration's setup
-takes it from the agent (`GET /v1/setup/providers`, open like `/v1/setup/models` until the first pairing), and so does
+OpenRouter, Mistral, Anthropic. The list lives only in the service (`internal/llm/providers.go`). The integration's setup
+takes it from the service (`GET /v1/setup/providers`, open like `/v1/setup/models` until the first pairing), and so does
 the model form on Mira's page. A new provider is one line there; no integration release is needed.
 
 ## What the integration sets
 
 The integration's setup is unchanged: it picks one model (a provider or an own server; "from Home Assistant" went in
 0.18, [HACS default catalog](hacs-default.md)) and
-sends it to the agent. The agent keeps it as **`main`**, the setup form's kind giving `privacy` (provider → `cloud`,
+sends it to the service. The service keeps it as **`main`**, the setup form's kind giving `privacy` (provider → `cloud`,
 own server → `local`). What the integration sets wins over `mira.yaml` for
 `main`, as today for `llm`. Further models come from `mira.yaml`.
 

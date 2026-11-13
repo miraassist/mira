@@ -4,7 +4,7 @@
 // Layer 5 is part of the cached prefix of every channel, so it changes at
 // most once a night: the job runs on a cron schedule (default 03:30, inside
 // the quiet hours), and the profile is only replaced when the model's text
-// really differs. A replaced profile breaks the cache once; the agent warms
+// really differs. A replaced profile breaks the cache once; the service warms
 // it up again right after.
 package profile
 

@@ -41,22 +41,22 @@ type Options struct {
 	Token        string
 	Conversation Conversation
 	Store        *store.Store
-	// Checks are run by /v1/health. A failing check makes the agent
+	// Checks are run by /v1/health. A failing check makes the service
 	// "degraded", not down: it still answers, just with less.
 	Checks  map[string]HealthCheck
 	Version string
-	// InstanceID identifies this agent; the integration uses it as the
+	// InstanceID identifies this service; the integration uses it as the
 	// config entry's unique id.
 	InstanceID string
 	Logger     *slog.Logger
 	// Persons returns the valid personal receivers of a message. A function,
-	// because the web UI can change them while the agent runs.
+	// because the web UI can change them while the service runs.
 	Persons func() map[string]config.Person
 	// TurnTimeout bounds one conversation request.
 	TurnTimeout time.Duration
 	// Tasks serves mira.assess and mira.decide.
 	Tasks Tasks
-	// HAUser returns the agent's Home Assistant user id, which the
+	// HAUser returns the service's Home Assistant user id, which the
 	// integration lets manage Mira's automations; "" when unknown.
 	HAUser func(ctx context.Context) string
 	// Problems are what did not start and why, in plain words; the
@@ -64,7 +64,7 @@ type Options struct {
 	Problems func() []Problem
 	// ExposedHash is a fingerprint of the list of entities exposed to Assist
 	// that the integration last sent ("" if none), so it can see whether
-	// the agent has the current one.
+	// the service has the current one.
 	ExposedHash func(ctx context.Context) string
 	// Inbox takes Paperless's webhooks (docs/spec/inbox.md) at InboxPath,
 	// checking its own token; nil answers 404 there.
@@ -83,7 +83,7 @@ type Options struct {
 	// puts one in place (docs/spec/backup.md); nil turns them off.
 	Backup func(ctx context.Context, w io.Writer) error
 	// Logins are the skills' connections (docs/spec/oauth.md); nil for an
-	// agent without them, whose /v1/oauth is then missing.
+	// service without them, whose /v1/oauth is then missing.
 	Logins  Logins
 	Restore func(ctx context.Context, r io.Reader) (any, error)
 }
@@ -350,10 +350,10 @@ func (s *Server) conversation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.log.Error("conversation failed", "error", err)
 		if lines.started() {
-			lines.write(map[string]string{"error": "the agent could not answer"})
+			lines.write(map[string]string{"error": "the service could not answer"})
 			return
 		}
-		writeError(w, http.StatusBadGateway, "the agent could not answer")
+		writeError(w, http.StatusBadGateway, "the service could not answer")
 		return
 	}
 	out := conversationResponse{
@@ -469,7 +469,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Problems != nil {
 		problems = append(problems, s.opts.Problems()...)
 	}
-	// version lets the integration say when it and the agent do not match
+	// version lets the integration say when it and the service do not match
 	// (docs/spec/versions.md).
 	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems, "version": s.opts.Version}
 	if s.opts.ExposedHash != nil {

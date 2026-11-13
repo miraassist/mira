@@ -43,7 +43,7 @@ Each one changes behaviour the specs describe; this spec says how, and which spe
    Reverses the decision of 2026-10-14 ("Mira stays a non-admin user"). Changes [Setup](setup.md), section 1
    (Mira's HA user), [Tasks](tasks.md) (websocket commands), [Scheduled actions](scheduled-actions.md) (saving and
    cleanup), [Watching states](ha-integration.md) (the exposure list "only an admin can read") and
-   [System](../system.md) (agent → integration).
+   [System](../system.md) (service → integration).
 3. **A missing mail calendar is a repair the admin confirms** (2026-11-06): the integration no longer creates it on
    its own. Changes [Mail calendar](mail-calendar.md), section 1, and [Parcels](parcels.md), Setup.
 4. **The integration comes as a zip at every release, so its downloads are counted** (2026-11-08). Without it HACS
@@ -160,7 +160,7 @@ exposure.
    sends it with `POST /v1/setup`, and revokes the old user's token "Mira agent". Until then Mira runs as before;
    only saving and deleting a task or timer fails (below).
 3. **Removing** the integration revokes the token, as today.
-4. **An agent with Home Assistant's token in its own file** (`ha.token` in `mira.yaml`, no pairing): the integration
+4. **A service with Home Assistant's token in its own file** (`ha.token` in `mira.yaml`, no pairing): the integration
    made no token and does nothing. For tasks and timers that token must be an admin's; the guide says so. Without
    it, saving says what the tool's error says below.
 
@@ -256,7 +256,7 @@ log; everything else works. The reason: keeping the old commands would keep the 
    The repair goes by itself when the token works again (its user is an admin again).
 4. **Removing** the integration revokes nothing: the token is the admin's, made in their profile, and removed there
    (decided 2026-11-12). The guide says so.
-5. **An agent with Home Assistant's token in its own file** (`ha.token`, no pairing): unchanged, section 3, item 4.
+5. **A service with Home Assistant's token in its own file** (`ha.token`, no pairing): unchanged, section 3, item 4.
 
 Error texts of the form and the repair (de / en):
 

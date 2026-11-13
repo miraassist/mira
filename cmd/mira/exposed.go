@@ -14,7 +14,7 @@ import (
 
 // kvExposed is what Home Assistant exposes to Assist, as the Mira
 // integration last sent it (docs/spec/ha-integration.md). It is kept, so it
-// holds across restarts of the agent until the integration sends anew.
+// holds across restarts of the service until the integration sends anew.
 const kvExposed = "ha_exposed"
 
 func (a *app) setExposed(ctx context.Context, ids []string) error {
@@ -55,7 +55,7 @@ func (a *app) exposed(ctx context.Context) (map[string]bool, bool) {
 
 // exposedHash is a fingerprint of the kept list, for /v1/status: the
 // integration compares it with its own and sends the list again when they
-// differ (a late-discovered device, an agent that started with an empty
+// differ (a late-discovered device, a service that started with an empty
 // database). "" until the integration sent its settings since the start:
 // Mira holds them in memory only, and the empty fingerprint makes it send
 // them again. The integration computes the same: sha256 of the sorted ids

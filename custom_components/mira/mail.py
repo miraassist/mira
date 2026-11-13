@@ -1,5 +1,5 @@
 """The mail calendar (docs/spec/mail-calendar.md): passes the mails of IMAP
-entries named like a mail application on to the agent, and keeps the
+entries named like a mail application on to the service, and keeps the
 calendars they are written into.
 
 Mira's own Home Assistant user may not listen to imap_content (admins only),
@@ -76,7 +76,7 @@ def async_setup_mail(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
         coordinator = entry.runtime_data.coordinator
         data_ = coordinator.data or {}
         # The mail calendar's applications and Mira's inbox ("Postfach anna",
-        # docs/spec/inbox.md, step 6); an older agent names no inbox_apps.
+        # docs/spec/inbox.md, step 6); an older service names no inbox_apps.
         apps = list(data_.get("mail_apps") or []) + list(data_.get("inbox_apps") or [])
         imap = hass.config_entries.async_get_entry(str(data.get("entry_id", "")))
         name = device_name(hass, imap.entry_id) if imap else ""
@@ -104,7 +104,7 @@ def async_setup_mail(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
                 }
             )
         except MiraError as err:
-            _LOGGER.warning("The agent could not read the mail of %s: %s", name, err)
+            _LOGGER.warning("The service could not read the mail of %s: %s", name, err)
             return
         _LOGGER.debug("Mail of %s: %s", name, out)
 
@@ -112,7 +112,7 @@ def async_setup_mail(hass: HomeAssistant, entry: ConfigEntry) -> CALLBACK_TYPE:
 
 
 def _date(value: Any) -> str | None:
-    """The mail's date with its offset, or None (the agent then takes now)."""
+    """The mail's date with its offset, or None (the service then takes now)."""
     if not value:
         return None
     try:

@@ -24,20 +24,20 @@ import (
 
 // Handler serves pairing and setup (docs/spec/setup.md):
 //
-//	GET  /v1/pair          open: the agent's id, whether it pairs without a
+//	GET  /v1/pair          open: the service's id, whether it pairs without a
 //	                       code (never paired) or a code waits, its model
 //	POST /v1/pair          open: {code, rejoin, ha_url, ha_token, llm} ->
 //	                       {token}; pairs and sets up in one step, then
 //	                       restarts; the first time code is "", after an
 //	                       unpair the same Home Assistant sends rejoin
-//	POST /v1/unpair        token: Home Assistant lets go; the agent restarts
+//	POST /v1/unpair        token: Home Assistant lets go; the service restarts
 //	POST /v1/setup         token: {ha_url, ha_token, llm}; a trial request
-//	                       to the model first, then the agent restarts
+//	                       to the model first, then the service restarts
 //	POST /v1/setup/models  token, or open while never paired:
 //	                       {base_url, api_key} -> the models there
 //	POST /v1/setup/probe   token, or open while never paired: {llm}; the
 //	                       trial request alone
-//	POST /v1/prove         open: {nonce} -> {proof}; shows the agent has
+//	POST /v1/prove         open: {nonce} -> {proof}; shows the service has
 //	                       the token without sending it, before Home
 //	                       Assistant follows it to a new address
 //
@@ -47,18 +47,18 @@ import (
 // In setup mode (nothing set up yet) it also serves a page saying what to do.
 type Handler struct {
 	Store   *store.Store
-	Token   string // the token the agent runs with
+	Token   string // the token the service runs with
 	ID      string
 	Version string
-	// Pairing is allowed when the token was made by the agent, not
+	// Pairing is allowed when the token was made by the service, not
 	// written into mira.yaml.
 	Pairing bool
-	// SetupMode: Home Assistant or the model is missing; the agent waits.
+	// SetupMode: Home Assistant or the model is missing; the service waits.
 	SetupMode bool
 	// Model: the model set (in the file or by setup); Home Assistant then
 	// need not ask for one.
 	Model string
-	// Restart applies new settings: the agent starts anew.
+	// Restart applies new settings: the service starts anew.
 	Restart func()
 	HTTP    *http.Client
 	Clock   func() time.Time
@@ -139,13 +139,13 @@ func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // authOrOpen lets the setup form choose a model before pairing: open while
-// the agent was never paired (pairing comes last, with everything chosen),
+// the service was never paired (pairing comes last, with everything chosen),
 // else with the token.
 func (h *Handler) authOrOpen(next http.HandlerFunc) http.HandlerFunc {
 	authed := h.auth(next)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.open(r.Context()) {
-			// These routes make the agent send requests to an address the
+			// These routes make the service send requests to an address the
 			// caller names, so the few that are open are rationed.
 			if !h.gate.enter(h.now()) {
 				writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many requests; wait a minute"})
@@ -167,7 +167,7 @@ func (h *Handler) pending(ctx context.Context) bool {
 	return err == nil && code != ""
 }
 
-// open: the agent was never paired, so the first pairing needs no code.
+// open: the service was never paired, so the first pairing needs no code.
 func (h *Handler) open(ctx context.Context) bool {
 	if !h.Pairing {
 		return false
@@ -203,7 +203,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 	if !h.Pairing {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this agent's token is set in mira.yaml; enter it instead of a code"})
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this service's token is set in mira.yaml; enter it instead of a code"})
 		return
 	}
 	var req struct {
@@ -247,7 +247,7 @@ func (h *Handler) pair(w http.ResponseWriter, r *http.Request) {
 }
 
 // prove answers a nonce with an HMAC under the token. Home Assistant
-// computes the same with the token it keeps; an agent that merely announces
+// computes the same with the token it keeps; a service that merely announces
 // the same id cannot.
 func (h *Handler) prove(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -290,7 +290,7 @@ func (h *Handler) probeOnly(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) unpair(w http.ResponseWriter, r *http.Request) {
 	if !h.Pairing {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "this agent's token is set in mira.yaml"})
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this service's token is set in mira.yaml"})
 		return
 	}
 	code, err := Unpair(r.Context(), h.Store)

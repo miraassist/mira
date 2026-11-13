@@ -1,4 +1,4 @@
-"""The Mira integration: forwards Assist conversations to the Mira agent."""
+"""The Mira integration: forwards Assist conversations to the Mira service."""
 
 from __future__ import annotations
 
@@ -114,12 +114,12 @@ type MiraConfigEntry = ConfigEntry[MiraData]
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register Mira's actions for automations (mira.send_message,
     mira.assess, mira.decide, mira.agent and its result and cancel) and the
-    commands the agent manages its automations with."""
+    commands the service manages its automations with."""
 
     def loaded() -> MiraConfigEntry:
         entries = [e for e in hass.config_entries.async_entries(DOMAIN) if e.state is ConfigEntryState.LOADED]
         if not entries:
-            raise ServiceValidationError("No Mira agent is set up")
+            raise ServiceValidationError("Mira is not set up")
         return entries[0]
 
     async def send_message(call: ServiceCall) -> ServiceResponse:
@@ -127,18 +127,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         try:
             result = await entry.runtime_data.client.send_message(dict(call.data))
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent did not accept the message: {err}") from err
+            raise HomeAssistantError(f"Mira did not accept the message: {err}") from err
         await entry.runtime_data.coordinator.async_request_refresh()
         return result
 
     async def assess(call: ServiceCall) -> ServiceResponse:
         """Mira judges what happened against the goal and, if it is worth
-        it, says it: importance, wording and delivery are the agent's."""
+        it, says it: importance, wording and delivery are the service's."""
         entry = loaded()
         try:
             result = await entry.runtime_data.client.assess(dict(call.data))
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent could not assess: {err}") from err
+            raise HomeAssistantError(f"Mira could not assess: {err}") from err
         await entry.runtime_data.coordinator.async_request_refresh()
         return result
 
@@ -148,7 +148,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         try:
             return await loaded().runtime_data.client.decide(dict(call.data))
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent could not decide: {err}") from err
+            raise HomeAssistantError(f"Mira could not decide: {err}") from err
 
     hass.services.async_register(
         DOMAIN,
@@ -177,17 +177,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     health = await _adopt(hass, entry, client)
     # The device shows the running integration code's version (VERSION; new
     # code needs a restart of Home Assistant, a reload is not enough) and
-    # the agent's from /v1/health.
+    # the service's from /v1/health.
     dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.entry_id)},
         name="Mira",
         manufacturer="Mira",
         entry_type=dr.DeviceEntryType.SERVICE,
-        sw_version=f"Integration {VERSION} · Agent {health.get('version', '?')}",
+        sw_version=f"Integration {VERSION} · Mira {health.get('version', '?')}",
     )
     coordinator = MiraCoordinator(hass, entry, client, agent_version=health.get("version"))
-    # Not first_refresh: an agent that is down at boot must not take the
+    # Not first_refresh: a service that is down at boot must not take the
     # conversation entity with it. That entity speaks an error instead of
     # leaving the satellite silent; the sensor and switch go unavailable.
     await coordinator.async_refresh()
@@ -199,7 +199,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     entry.async_on_unload(entry.add_update_listener(_async_reload))
 
     # Once Home Assistant has started, compare at once what Assist sees with
-    # what the agent has, without waiting for the next poll.
+    # what the service has, without waiting for the next poll.
     # A coroutine function: HA runs a plain lambda in the executor and never
     # awaits the coroutine it returns.
     async def _refresh(_hass: HomeAssistant) -> None:
@@ -207,14 +207,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
 
     entry.async_on_unload(async_at_started(hass, _refresh))
 
-    # The agent restarted: it has none of the settings from Home Assistant
+    # The service restarted: it has none of the settings from Home Assistant
     # until they are sent again; send them now, not at the next poll
-    # (docs/spec/editing.md, decision 10). Another agent's start is not ours.
+    # (docs/spec/editing.md, decision 10). Another service's start is not ours.
     @callback
     def _agent_started(event: Event) -> None:
         if event.data.get("id") != entry.unique_id:
             return
-        _LOGGER.debug("The agent started (version %s); sending its settings", event.data.get("version"))
+        _LOGGER.debug("The service started (version %s); sending its settings", event.data.get("version"))
         # Not the debounced request: one shortly before would hold it back.
         hass.async_create_task(coordinator.async_refresh())
 
@@ -229,7 +229,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> bool
     # Mails of IMAP entries named like a mail application (mail.py).
     entry.async_on_unload(async_setup_mail(hass, entry))
 
-    # A change of what Assist sees reaches the agent at once, as does a new
+    # A change of what Assist sees reaches the service at once, as does a new
     # entity, a satellite switched off or moved to another area, or a ring
     # added: the
     # rooms come from the registries. Changes in a burst (exposing many
@@ -276,22 +276,22 @@ def _send_exposed(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
     if not entry.data.get(CONF_IMPORTED) or hass.state is not CoreState.running:
         # While Home Assistant starts, its entities register one after the
         # other; a list sent now would be short. The status poll compares
-        # the agent's fingerprint with ours once it runs (coordinator.py).
+        # the service's fingerprint with ours once it runs (coordinator.py).
         return
 
     async def send() -> None:
         try:
             await entry.runtime_data.client.set_managed_config(await async_config(hass, entry))
         except (MiraError, ValueError) as err:
-            _LOGGER.warning("Could not tell the agent what Assist sees: %s", err)
+            _LOGGER.warning("Could not tell the service what Assist sees: %s", err)
 
     hass.async_create_task(send())
 
 
 async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient) -> dict[str, Any]:
     """Give an entry from before agents had ids its id, and import the
-    agent's person and room settings onto HA's persons and satellites once. Both wait for
-    the next start if the agent is down now."""
+    service's person and room settings onto HA's persons and satellites once. Both wait for
+    the next start if the service is down now."""
     try:
         health = await client.health()
     except MiraError as err:
@@ -314,7 +314,7 @@ async def _adopt(hass: HomeAssistant, entry: MiraConfigEntry, client: MiraClient
     try:
         agent = await client.managed_config()
     except MiraError as err:
-        _LOGGER.info("Importing persons and rooms waits for the agent: %s", err)
+        _LOGGER.info("Importing persons and rooms waits for the service: %s", err)
         return health
     import_settings(hass, agent)
     hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_IMPORTED: True})
@@ -338,24 +338,24 @@ async def _use_in_assistants(hass: HomeAssistant, entry: MiraConfigEntry) -> Non
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: MiraConfigEntry) -> None:
-    """Hand persons and rooms back to the agent's web UI, and the assistants
+    """Hand persons and rooms back to the service's web UI, and the assistants
     back to Home Assistant's own agent. The token an admin gave Mira stays:
     it is the admin's, removed in their profile (docs/spec/hacs-default.md,
-    4). An agent that was paired lets go as well. This Home Assistant
+    4). A service that was paired lets go as well. This Home Assistant
     keeps the token, to pair again without a code: as proof after the
-    agent let go, or as it is if the agent was away and never did."""
+    service let go, or as it is if the service was away and never did."""
     await hand_back(hass, entry.data.get(CONF_PIPELINE_AGENT), entry.data.get(CONF_PIPELINES_BEFORE) or {})
     client = MiraClient(async_get_clientsession(hass), entry.data[CONF_URL], entry.data[CONF_TOKEN])
     try:
         await client.release_managed_config()
     except MiraError as err:
-        _LOGGER.warning("The agent still thinks Home Assistant manages its persons and rooms: %s", err)
+        _LOGGER.warning("The service still thinks Home Assistant manages its persons and rooms: %s", err)
     try:
         await client.unpair()
     except MiraError as err:
-        # An agent with its token in mira.yaml, or one that is down: the
+        # A service with its token in mira.yaml, or one that is down: the
         # token kept below still holds then.
-        _LOGGER.debug("The agent did not let go: %s", err)
+        _LOGGER.debug("The service did not let go: %s", err)
     if entry.unique_id:
         await keep_rejoin(hass, entry.unique_id, entry.data[CONF_TOKEN])
 

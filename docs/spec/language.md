@@ -23,7 +23,7 @@ The language determines Mira's own texts: her rules and the channel style in the
   Assistant with a turn, the person's last language is taken; as HA's server language, German. An unreadable server
   language is German until it can be read. Each case has its log line.
 - **The person is only known if they are unambiguous**: via Telegram, in the chat of the HA app, at the satellite by the "alone at home" rule. No further recognition logic is added.
-- The agent reads the server language via HA's WebSocket (`get_config`), without admin rights.
+- The service reads the server language via HA's WebSocket (`get_config`), without admin rights.
 
 ## Last spoken: persistent
 

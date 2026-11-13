@@ -98,9 +98,9 @@
       "token_not_admin": "This token does not belong to an administrator."
     },
     "abort": {
-      "already_configured": "This agent is already configured.",
-      "no_id": "The agent did not announce an id; update it.",
-      "not_proven": "A Mira agent announced itself at a new address but could not show it is yours. The address stays as it is.",
+      "already_configured": "This Mira is already configured.",
+      "no_id": "Mira did not announce an id; update Mira.",
+      "not_proven": "A Mira announced itself at a new address but could not show it is yours. The address stays as it is.",
       "setup_failed": "Setting up did not work: {error}",
       "connected": "Connected. Mira keeps the connection.",
       "connect_failed": "Mira could not take the connection; see the log."
@@ -199,7 +199,7 @@
       }
     },
     "error": {
-      "invalid_config": "The agent refused it: {error}",
+      "invalid_config": "Mira refused it: {error}",
       "cannot_connect": "Could not reach Mira at this address.",
       "setup_failed": "Setting up did not work: {error}",
       "model_unreachable": "Mira cannot reach this address. Check it as Mira sees it; a server on another machine must accept connections from the network.{error}",
@@ -209,7 +209,7 @@
       "model_server_error": "The server answered with an error.{error}"
     },
     "abort": {
-      "not_loaded": "The Mira agent entry is not loaded.",
+      "not_loaded": "The Mira entry is not loaded.",
       "no_persons": "There are no persons in Home Assistant yet.",
       "no_satellites": "There is no Assist satellite with an area."
     }
@@ -239,7 +239,7 @@
   "services": {
     "send_message": {
       "name": "Send message",
-      "description": "Queue a message. The agent announces it on a satellite when someone is in a room, or sends it privately.",
+      "description": "Queue a message. Mira announces it on a satellite when someone is in a room, or sends it privately.",
       "fields": {
         "text": {
           "name": "Text",
@@ -259,7 +259,7 @@
         },
         "confidentiality": {
           "name": "Confidentiality",
-          "description": "Confidential messages are only spoken when the agent policy allows it, otherwise sent privately."
+          "description": "Confidential messages are only spoken when Mira's setting allows it, otherwise sent privately."
         },
         "dedupe_key": {
           "name": "Dedupe key",
@@ -309,7 +309,7 @@
         },
         "confidentiality": {
           "name": "Confidentiality",
-          "description": "Confidential messages are only spoken when the agent policy allows it."
+          "description": "Confidential messages are only spoken when Mira's setting allows it."
         },
         "dedupe_key": {
           "name": "Dedupe key",

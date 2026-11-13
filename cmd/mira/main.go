@@ -1,6 +1,6 @@
-// Command mira is the household agent.
+// Command mira is the household assistant.
 //
-//	mira [-config mira.yaml] run          start the agent (default)
+//	mira [-config mira.yaml] run          start the service (default)
 //	mira [-config mira.yaml] chat TEXT    one turn through the full stack, printed
 //	mira [-config mira.yaml] check        validate the config and probe every dependency
 //	mira [-config mira.yaml] pair         a new pairing code for Home Assistant
@@ -51,7 +51,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// mira.yaml is optional: without it the integration sets the agent up
+	// mira.yaml is optional: without it the integration sets the service up
 	// (docs/spec/setup.md).
 	p, err := prepare(ctx, *configPath)
 	if err != nil {

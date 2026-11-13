@@ -9,9 +9,9 @@ are entity registry options under the "mira" domain, the way Assist stores
   indicate, the indicator light. The room is the satellite's area.
 They are edited in the integration's options ("Configure").
 
-On every change the integration sends all of it to the agent (PUT
+On every change the integration sends all of it to the service (PUT
 /v1/ui/ha), which then shows it read-only in its web UI. On the first setup,
-what the agent already has is imported. The agent's own format, the one in
+what the service already has is imported. The service's own format, the one in
 mira.yaml, is built here.
 
 Tasks are automations labelled "Mira"
@@ -89,7 +89,7 @@ def satellite_area(hass: HomeAssistant, entity_id: str) -> str:
 
 
 def person_key(hass: HomeAssistant, entity_id: str) -> str:
-    """The HA person's own id, which the agent keys persons by."""
+    """The HA person's own id, which the service keys persons by."""
     entry = er.async_get(hass).async_get(entity_id)
     if entry and entry.unique_id:
         return entry.unique_id
@@ -171,7 +171,7 @@ def ring_of(hass: HomeAssistant, satellite: str) -> str:
 
 
 def room_to_agent(area: str, satellite: str, data: dict[str, Any], ring: str = "") -> dict[str, Any]:
-    """A room as the agent has it. Without a setting its indicator is the
+    """A room as the service has it. Without a setting its indicator is the
     satellite's own ring, found (docs/spec/ha-integration.md)."""
     presence = data.get("presence") or []
     if isinstance(presence, str):
@@ -186,7 +186,7 @@ def room_to_agent(area: str, satellite: str, data: dict[str, Any], ring: str = "
 
 
 def import_settings(hass: HomeAssistant, agent: dict[str, Any]) -> None:
-    """What the agent has now, as settings on HA's persons and satellites."""
+    """What the service has now, as settings on HA's persons and satellites."""
     registry = er.async_get(hass)
     have = person_settings(hass)
     for person in (agent.get("persons") or {}).values():
@@ -271,7 +271,7 @@ def build_config(
     persons: dict[str, dict[str, Any]] | None = None,
     satellites: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Person and satellite settings in the agent's format. persons and
+    """Person and satellite settings in the service's format. persons and
     satellites (entity id: settings) are applied first, to check a form
     before it is saved."""
     persons_in = person_settings(hass) | (persons or {})
@@ -304,7 +304,7 @@ async def async_config(
     persons: dict[str, dict[str, Any]] | None = None,
     satellites: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """build_config plus the persons' login names (what the agent may not
+    """build_config plus the persons' login names (what the service may not
     read itself)."""
     return build_config(hass, entry, persons, satellites) | {"logins": await person_logins(hass)}
 
@@ -312,7 +312,7 @@ async def async_config(
 async def person_logins(hass: HomeAssistant) -> dict[str, str]:
     """The login name of each person's Home Assistant user, by person
     entity. A calendar named like it is the person's (docs/spec/calendar.md).
-    Only an admin may read users, which the agent's user is not."""
+    Only an admin may read users, which the service's user is not."""
     out: dict[str, str] = {}
     for state in hass.states.async_all("person"):
         user_id = state.attributes.get("user_id")
@@ -326,14 +326,14 @@ async def person_logins(hass: HomeAssistant) -> dict[str, str]:
 
 
 def exposed_hash(ids: list[str]) -> str:
-    """The fingerprint of the list, as the agent computes it for /v1/status:
+    """The fingerprint of the list, as the service computes it for /v1/status:
     sha256 of the sorted ids joined by newlines."""
     return hashlib.sha256("\n".join(sorted(ids)).encode()).hexdigest()
 
 
 def exposed_entities(hass: HomeAssistant) -> list[str]:
     """What Home Assistant exposes to Assist, decided the way it does
-    itself. The agent's own user may not read that list (it is no admin), so
+    itself. The service's own user may not read that list (it is no admin), so
     the integration hands it over: it is the line for everything Mira reads
     by herself (docs/spec/ha-integration.md)."""
     return sorted(e for e in hass.states.async_entity_ids() if async_should_expose(hass, "conversation", e))
@@ -388,7 +388,7 @@ async def save_settings(
     persons: dict[str, dict[str, Any]] | None = None,
     satellites: dict[str, dict[str, Any]] | None = None,
 ) -> None:
-    """Check the settings with the agent, then store them on the persons and
+    """Check the settings with the service, then store them on the persons and
     satellites. Raises ValueError or the client's errors; nothing is stored
     then. A person's voice threshold that is left out stays as it was: the
     integration's own form does not have it."""

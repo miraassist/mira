@@ -1,16 +1,16 @@
-# The agent as a Home Assistant app
+# The service as a Home Assistant app
 
 Status 2026-10-26: built, not yet tried on Home Assistant OS (see Testing). Home Assistant calls apps "apps" now (the official repository is
-`home-assistant/apps`); this document uses its words: app, app store. See also [Versions](versions.md) (why the agent and the
+`home-assistant/apps`); this document uses its words: app, app store. See also [Versions](versions.md) (why the service and the
 integration drift apart) and [Setup](setup.md).
 
 ## Goal
 
-On Home Assistant OS and Supervised installs, the agent comes as an app: installed from Home Assistant's app
+On Home Assistant OS and Supervised installs, the service comes as an app: installed from Home Assistant's app
 store, updated there, with the same release as the integration. Whoever updates the integration in HACS sees the
 app's update next to it; the two stay together without anyone editing an image tag.
 
-Not for Home Assistant as a container (no Supervisor, no apps): there the agent stays a container of its own,
+Not for Home Assistant as a container (no Supervisor, no apps): there the service stays a container of its own,
 with the repair from [Versions](versions.md) when the two drift apart.
 
 ## What an app is made of
@@ -29,7 +29,7 @@ with the repair from [Versions](versions.md) when the two drift apart.
 
 - **Folders:** the database in the app's own `/data` (kept across updates, in Home Assistant's backups);
   `mira.yaml` in the app's config folder (`addon_config`), so it can be read and edited like any other config
-  file. The agent reads both paths from its environment already (`MIRA_CONFIG`, `MIRA_DATA`, set by the
+  file. The service reads both paths from its environment already (`MIRA_CONFIG`, `MIRA_DATA`, set by the
   Dockerfile); the app sets them to its folders in `config.yaml`. The image stays the same for container and
   app.
 - **One image, run as root:** Supervisor gives an app folders owned by root and starts the container as the
@@ -40,9 +40,9 @@ with the repair from [Versions](versions.md) when the two drift apart.
 - **Options in the app's page:** as few as possible: the setup goes through the integration as today (model,
   pairing). [Fewer settings, one place.] One option, **Reset data** (`reset_data`, since 0.11.0): the app has no
   terminal for `mira reset`, so the option does it at the next start, once until turned off and on again
-  ([Setup](setup.md), Reset). The agent reads it from Supervisor's `/data/options.json`. The pairing code for
+  ([Setup](setup.md), Reset). The service reads it from Supervisor's `/data/options.json`. The pairing code for
   another Home Assistant is in the app's log.
-- **Home Assistant from inside:** the agent keeps the token from the integration's setup, as today: since 0.18 the
+- **Home Assistant from inside:** the service keeps the token from the integration's setup, as today: since 0.18 the
   owner's, given with an admin's consent ([HACS default catalog](hacs-default.md)). Not the app's Supervisor token:
   that one reaches the Supervisor too, which Mira does not need.
 - **Finding it:** for now the address is typed once: **Add integration** → **Mira**, `http://localhost:8787`

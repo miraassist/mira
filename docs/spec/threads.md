@@ -2,7 +2,7 @@
 
 What the model sees of the conversation (the thread carries the concern, the history only the back-reference, the same for voice and chat) is described in [Context](context.md).
 
-Status 2026-10-15: built (agent 0.4.0). Applies to [tasks](tasks.md) and upcoming concerns
+Status 2026-10-15: built (service 0.4.0). Applies to [tasks](tasks.md) and upcoming concerns
 such as calendar or messages to others ([users](users.md)).
 
 ## Why
@@ -14,7 +14,7 @@ A concern often runs across several short conversations. An example:
 3. Mira, as an announcement: "Mein Vorschlag … Soll ich so vorgehen?" You: "Ja."
 
 Home Assistant turns this into three separate conversations. Until now, the
-answer each time saw only the announced notice, not the history before it. Live,
+answer each time saw only the announced message, not the history before it. Live,
 the light got lost along the way: "Licht zu ungewöhnlicher Zeit" became
 "etwas Ungewöhnliches".
 
@@ -58,7 +58,7 @@ opened ─► collecting ─► waiting for you ─┬─► collecting …     
    - If something is missing, the model asks, and the thread waits for you.
 3. **Work.** As soon as all fields are there, the code starts the
    target's work step. If the target needs a yes, this becomes a
-   proposal. Proposal and question back are notices **of the thread**.
+   proposal. Proposal and question back are messages **of the thread**.
 4. **Finish.** There are three ways:
    - On the yes, the model calls `thread_confirm`. The finish runs
      (the automation is created), and the thread is done.
@@ -68,7 +68,7 @@ opened ─► collecting ─► waiting for you ─┬─► collecting …     
      with `thread_fill`.
 5. **End.** A thread is done, cancelled (you say so, the
    model calls `thread_cancel`) or expired (timeout without an
-   answer). Its open notices are withdrawn in the process. So an old
+   answer). Its open messages are withdrawn in the process. So an old
    proposal never ends up later in the "Übrigens".
 
 ## Assignment: which turn belongs to which thread?
@@ -327,6 +327,6 @@ in the conversation; the one thing the page does is end a plan ("Beenden", [Endi
   - `fields` (JSON), `log` (JSON), `content` (JSON),
   - `created_at`, `updated_at`, `expires_at`.
 - **`notices`:** new column `thread_id`. When a thread ends, its
-  open notices are withdrawn.
+  open messages are withdrawn.
 - The table `tasks` (proposals) is dropped. The draft is now the
   content of the thread.

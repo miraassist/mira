@@ -21,7 +21,7 @@ file is migrated. `mira.yaml` is not (see the gaps).
   recorded there, and applies every missing one in order, before anything else uses the database.
 - **One transaction per step.** A step and its line in `schema_migrations` (name, time applied) are written
   together: a step is applied completely or not at all.
-- **A failing step stops the start.** The step is rolled back, the agent does not start and logs the step's name
+- **A failing step stops the start.** The step is rolled back, the service does not start and logs the step's name
   and the error. The steps before it stay applied.
 - **Tested:** opening a database twice applies every step once (`store_test.go`); every other test starts with a
   database migrated from empty.
@@ -33,7 +33,7 @@ The same mechanism as Prisma's or goose's migrations, without a library and with
 | Steps | What changed | Data |
 |---|---|---|
 | 0001–0007 | the first tables: sessions, memory, notices, key-value, confirmations, reminders | new |
-| 0008–0009 | tasks of the agent's own | new |
+| 0008–0009 | tasks of the service's own | new |
 | 0010 | assessments of tasks | **existing tasks deleted** (test data, docs/spec/tasks.md) |
 | 0011 | threads ("Vorgänge") | **table tasks dropped**: tasks became Home Assistant automations |
 | 0012 | memory per owner, profiles per owner | kept: the house's profile copied into the new table, then the old one dropped |
@@ -47,19 +47,19 @@ migration (everything is test)"). Since 0012 the steps carry what is there over.
 
 ## What happens when
 
-- **Update** (a newer agent on an older database): the missing steps are applied at start. Seen on 2026-10-26 with
-  the live agent from 0.7.0 to 0.9.0.
-- **Going back** (an older agent on a newer database): the older agent finds steps in `schema_migrations` it does
+- **Update** (a newer service on an older database): the missing steps are applied at start. Seen on 2026-10-26 with
+  the live service from 0.7.0 to 0.9.0.
+- **Going back** (an older service on a newer database): the older service finds steps in `schema_migrations` it does
   not know and ignores them; it runs against tables and columns it did not expect. Nothing stops it or warns.
-- **A failed step:** the agent does not start; the database stays at the last good step.
-- **Backup:** none by the agent. Whoever runs it backs up the data folder (as done by hand before the live update,
+- **A failed step:** the service does not start; the database stays at the last good step.
+- **Backup:** none by the service. Whoever runs it backs up the data folder (as done by hand before the live update,
   `~/mira-live/backup-0.7.0`); an add-on would be in Home Assistant's backups.
 
 ## Gaps (open, not decided)
 
-1. **A copy before migrating:** before applying missing steps, the agent copies the database (`VACUUM INTO
+1. **A copy before migrating:** before applying missing steps, the service copies the database (`VACUUM INTO
    mira.db.bak-<version>`), so an update can be undone without a manual backup.
-2. **Refusing a newer database:** an agent that finds steps it does not know stops with a clear message instead of
+2. **Refusing a newer database:** a service that finds steps it does not know stops with a clear message instead of
    running against an unexpected schema.
 3. **Carrying data over as the rule:** since 0.9.0 is out through HACS there are users; a step must convert what
    is there, not discard it. Today this is practice since 0012, not a written rule.

@@ -18,7 +18,7 @@ knowledge brought in as a file.
   facts of that section; an owner without a section in the file stays as it is. Whoever wants to merge does it in a
   text editor before importing (decided 2026-10-25).
 - **Who may export and import what** follows the page as it is ([users.md](users.md), Memory): inside Home
-  Assistant everyone, admins too, the house's memory and their own; the page on its own (agent token) and the command
+  Assistant everyone, admins too, the house's memory and their own; the page on its own (service's token) and the command
   line every memory.
 - **The profiles** (the nightly summary per owner) are not part of the file: they are made from the facts.
 

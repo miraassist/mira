@@ -1,4 +1,4 @@
-// Package ws is the agent's direct WebSocket connection to Home Assistant.
+// Package ws is the service's direct WebSocket connection to Home Assistant.
 //
 // It is used for everything the MCP server does not cover: reading the area,
 // device and entity registries, subscribing to events and entity states, and
@@ -19,7 +19,7 @@ const (
 	typePong         = "pong"
 )
 
-// Command names used by the agent.
+// Command names used by the service.
 const (
 	CmdAreaRegistryList   = "config/area_registry/list"
 	CmdDeviceRegistryList = "config/device_registry/list"
@@ -106,7 +106,7 @@ func (e Entity) DisplayName() string {
 	return e.OriginalName
 }
 
-// Usable reports whether the entity is something the agent should ever see:
+// Usable reports whether the entity is something the service should ever see:
 // disabled, hidden and diagnostic entities are noise in the house structure.
 func (e Entity) Usable() bool {
 	return e.DisabledBy == "" && e.HiddenBy == "" && e.EntityCat == ""
@@ -142,7 +142,7 @@ type Event struct {
 	Raw json.RawMessage `json:"-"`
 }
 
-// TriggerVariables is the part of a state trigger's variables the agent
+// TriggerVariables is the part of a state trigger's variables the service
 // reads: variables.trigger.{entity_id, from_state, to_state}.
 type TriggerVariables struct {
 	Trigger struct {

@@ -345,7 +345,7 @@ var namePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // Load finds every enabled skill in dirs (the first folder of that name
 // wins) and checks it against its settings. A skill that is enabled but
-// missing or broken is left out and comes back as a Problem: the agent must
+// missing or broken is left out and comes back as a Problem: the service must
 // start anyway, and the problem is shown to whoever enabled the skill.
 func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, []Problem) {
 	var out []Skill

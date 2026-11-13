@@ -27,7 +27,7 @@ const (
 // Delegator hands a task to a stronger model and returns its answer.
 type Delegator func(ctx context.Context, task string) (string, error)
 
-// Internal returns the agent's own tools. The set is the same for every
+// Internal returns the service's own tools. The set is the same for every
 // channel, so prompt layer 3 is too.
 func Internal(l i18n.Lang, st *store.Store, delegate Delegator) []InternalTool {
 	t := textsFor(l)

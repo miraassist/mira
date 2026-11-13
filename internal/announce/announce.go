@@ -1,9 +1,9 @@
-// Package announce makes the agent findable on the local network: it
+// Package announce makes the service findable on the local network: it
 // announces the service _mira._tcp by mDNS, and the Mira integration in
-// Home Assistant lists every agent it hears under "Discovered".
+// Home Assistant lists every service it hears under "Discovered".
 //
-// The TXT record carries the agent's instance id, so Home Assistant
-// recognises an agent it already knows even when its address changes.
+// The TXT record carries the service's instance id, so Home Assistant
+// recognises a service it already knows even when its address changes.
 package announce
 
 import (
@@ -33,7 +33,7 @@ type Options struct {
 	Logger *slog.Logger
 }
 
-// Run announces the agent until ctx ends.
+// Run announces the service until ctx ends.
 func Run(ctx context.Context, opts Options) error {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -72,7 +72,7 @@ var virtualPrefixes = []string{"docker", "br-", "veth", "virbr", "cni", "flannel
 // announcable says whether an address is one Home Assistant should be pointed
 // at: a plain IPv4 address of the local network. IPv6 addresses are left out
 // on purpose: most are temporary privacy addresses that change by the day, so
-// an entry that kept one lost the agent when it expired. The agent
+// an entry that kept one lost the service when it expired. The service
 // announces once at start; an address that lives only hours would not do.
 func announcable(ip net.IP) bool {
 	return ip.To4() != nil && !ip.IsLinkLocalUnicast() && !ip.IsLoopback()

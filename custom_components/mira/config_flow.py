@@ -1,7 +1,7 @@
 """Config flow for Mira (docs/spec/setup.md).
 
-The agent announces itself by mDNS (_mira._tcp), so Home Assistant offers it
-under "Discovered". A new agent pairs without a code, gets Home Assistant's
+The service announces itself by mDNS (_mira._tcp), so Home Assistant offers it
+under "Discovered". A new service pairs without a code, gets Home Assistant's
 access and an AI model, and becomes the assistants' conversation agent. Mira's settings for a person
 or a satellite are set under "Configure" and stored on that person or
 satellite; see managed.py.
@@ -65,7 +65,7 @@ USER_SCHEMA = vol.Schema({vol.Required(CONF_URL, default="http://localhost:8787"
 TOKEN_SCHEMA = vol.Schema({vol.Required(CONF_TOKEN): str})
 CODE_SCHEMA = vol.Schema({vol.Required("code"): str})
 
-# How long the agent may take to start anew after setup.
+# How long the service may take to start anew after setup.
 SETUP_WAIT = 60
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ _LOGGER = logging.getLogger(__name__)
 # The guide's setup section, linked from the first form.
 GUIDE = "https://github.com/miraassist/mira/blob/main/docs/guide/{}.md#{}"
 
-# What the agent says went wrong with a model, as the form's error.
+# What the service says went wrong with a model, as the form's error.
 MODEL_ERRORS = {"unreachable", "bad_key", "no_model", "no_tools", "server_error"}
 
 # The few words the model choice needs that name no product.
@@ -108,14 +108,14 @@ def _words(hass: HomeAssistant) -> dict[str, str]:
 
 
 def _model_error(err: MiraError, errors: dict[str, str], placeholders: dict[str, str]) -> None:
-    """The agent's reason as the form's error, its detail below."""
+    """The service's reason as the form's error, its detail below."""
     reason = getattr(err, "reason", "")
     errors["base"] = f"model_{reason}" if reason in MODEL_ERRORS else "setup_failed"
     placeholders["error"] = f"\n\n`{err}`"
 
 
 def _best_host(info: ZeroconfServiceInfo) -> str:
-    """The agent's address to use: a plain IPv4 one of those it announced,
+    """The service's address to use: a plain IPv4 one of those it announced,
     else whatever Home Assistant found first."""
     for ip in info.ip_addresses:
         if ip.version == 4 and not ip.is_link_local and not ip.is_loopback:
@@ -126,7 +126,7 @@ def _best_host(info: ZeroconfServiceInfo) -> str:
 class ModelSteps:
     """Choosing the AI model (LLM): where it comes from (an AI integration
     Home Assistant has, a cloud provider, or a server of one's own), then a
-    model from what it offers. The agent tries it with a real request
+    model from what it offers. The service tries it with a real request
     before it keeps it. Used by the setup and by the options; _use_model
     does the rest."""
 
@@ -212,7 +212,7 @@ class ModelSteps:
         )
 
     async def async_step_model_server(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """A server of one's own: its address as the agent sees it, maybe a key."""
+        """A server of one's own: its address as the service sees it, maybe a key."""
         if user_input is None and (back := await self._reopened("model_server")):
             return back
         assert self._source
@@ -258,7 +258,7 @@ class ModelSteps:
         return self._server_form(errors, placeholders)
 
     async def async_step_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The model from the list; the agent tries it before keeping it."""
+        """The model from the list; the service tries it before keeping it."""
         if user_input is None and (back := await self._reopened("model")):
             return back
         assert self._source
@@ -295,10 +295,10 @@ class ModelSteps:
 
 
 class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain=DOMAIN):
-    """Find the agent, then an overview that says what is chosen and what
+    """Find the service, then an overview that says what is chosen and what
     is missing, with its branches: the AI model, the assistants Mira
     answers in, "Pair". Every branch comes back to it, also when its
-    dialog was closed and opened again. Nothing is done at the agent or in
+    dialog was closed and opened again. Nothing is done at the service or in
     Home Assistant before "Pair", so a setup broken off leaves nothing
     behind (docs/spec/setup.md)."""
 
@@ -307,13 +307,13 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
     DOMAIN = DOMAIN
 
     _url: str = ""
-    # The agent's token: entered (mira.yaml) or handed out when pairing.
+    # The service's token: entered (mira.yaml) or handed out when pairing.
     _token: str = ""
-    # A pairing code, for an agent that was paired before.
+    # A pairing code, for a service that was paired before.
     _code: str | None = None
-    # Instead of a code: the agent let go of this Home Assistant before.
+    # Instead of a code: the service let go of this Home Assistant before.
     _rejoin: str = ""
-    # The model the agent has already, if any.
+    # The model the service has already, if any.
     _agent_model: str = ""
     _llm: dict[str, Any] | None = None
     _pipelines: list[str] | None = None
@@ -339,7 +339,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return None
 
     async def _answers(self, url: str) -> bool:
-        """Whether an agent answers at this address."""
+        """Whether a service answers at this address."""
         try:
             await MiraClient(async_get_clientsession(self.hass), url, "").pairing()
         except MiraError:
@@ -347,8 +347,8 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return True
 
     async def _proves(self, url: str, token: str) -> bool:
-        """Whether the agent at this address holds the token, shown without
-        sending it. An agent before 0.11.0 cannot show it and stays where it
+        """Whether the service at this address holds the token, shown without
+        sending it. A service before 0.11.0 cannot show it and stays where it
         was; updating it lets it move."""
         nonce = secrets.token_hex(16)
         try:
@@ -371,7 +371,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return self._client()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The agent's address, when it was not found on the network."""
+        """The service's address, when it was not found on the network."""
         errors: dict[str, str] = {}
         if user_input is not None:
             self._url = user_input[CONF_URL].rstrip("/")
@@ -383,7 +383,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
                 try:
                     await self._client().health()
                 except MiraAuthError:
-                    pass  # an agent from before pairing: it wants its token
+                    pass  # a service from before pairing: it wants its token
                 except MiraError:
                     errors["base"] = "cannot_connect"
             if not errors:
@@ -404,7 +404,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return GUIDE.format("en", "setup")
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> ConfigFlowResult:
-        """An agent announced itself on the network."""
+        """A service announced itself on the network."""
         agent_id = discovery_info.properties.get("id")
         if not agent_id:
             return self.async_abort(reason="no_id")
@@ -420,7 +420,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         known = next((e for e in self._async_current_entries(include_ignore=False) if e.unique_id == agent_id), None)
         if known is not None and (ipv6 or await self._answers(known.data[CONF_URL])):
             return self.async_abort(reason="already_configured")
-        # The id is announced openly: the agent at the new address must show
+        # The id is announced openly: the service at the new address must show
         # it holds the entry's token before the token is sent there.
         if known is not None and not await self._proves(url, known.data.get(CONF_TOKEN, "")):
             return self.async_abort(reason="not_proven")
@@ -443,8 +443,8 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return await self._step_auth(status, discovered=True)
 
     async def _step_auth(self, status: dict[str, Any] | None, discovered: bool) -> ConfigFlowResult:
-        """An agent that pairs: the first time a click (for a discovered
-        one), later a code; an agent whose token is in its mira.yaml, or
+        """A service that pairs: the first time a click (for a discovered
+        one), later a code; a service whose token is in its mira.yaml, or
         from before pairing, wants that token."""
         if not status or not status.get("pairs"):
             return await self.async_step_token()
@@ -452,13 +452,13 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         agent_id = str(status.get("id") or "")
         old = None if status.get("open") else await rejoin_token(self.hass, agent_id)
         if old and status.get("rejoin"):
-            # This Home Assistant let go of the agent: it shows the key of
+            # This Home Assistant let go of the service: it shows the key of
             # the old token and needs no code.
             self._rejoin = rejoin_key(old)
             if discovered:
                 return await self.async_step_confirm()
         elif old and await self._token_works(old):
-            # The agent was away when this Home Assistant removed it, so it
+            # The service was away when this Home Assistant removed it, so it
             # never let go: the token it had still holds.
             self._token = old
             if discovered:
@@ -470,14 +470,14 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return await self.async_step_summary()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """A new agent was found; nothing happens yet."""
+        """A new service was found; nothing happens yet."""
         if user_input is not None:
             return await self.async_step_summary()
         self._set_confirm_only()
         return self.async_show_form(step_id="confirm", description_placeholders={"url": self._url})
 
     async def async_step_pair(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The agent was paired with another Home Assistant: the code from
+        """The service was paired with another Home Assistant: the code from
         its log, written when that one let go. It is used,
         and checked, only when pairing at the end."""
         if user_input is None and (back := await self._reopened("pair")):
@@ -491,7 +491,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         )
 
     async def async_step_token(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """The token, for an agent whose token is set in its mira.yaml."""
+        """The token, for a service whose token is set in its mira.yaml."""
         errors: dict[str, str] = {}
         if user_input is not None:
             self._token = user_input[CONF_TOKEN]
@@ -550,7 +550,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         )
 
     def _pairs_or_sets_up(self) -> bool:
-        """Whether "Pair" still has to happen: always, unless the agent is
+        """Whether "Pair" still has to happen: always, unless the service is
         set up by its mira.yaml and was added with its token."""
         return not self._token or bool(self._agent_model) or self._llm is not None or self._code is not None
 
@@ -597,7 +597,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
     async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """ "Start using Mira": the admin pastes an admin's long-lived token
         for her (docs/spec/hacs-default.md, 4); checked, then HA's MCP server,
-        and the agent paired and set up in one call; it starts anew and is
+        and the service paired and set up in one call; it starts anew and is
         waited for. The integration makes no token."""
         if user_input is None:
             return self.async_show_form(step_id="finish", data_schema=HA_TOKEN_SCHEMA)
@@ -619,7 +619,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         except MiraBadCode:
             self._error = words["bad_code"]
             if self._rejoin:
-                # The agent does not know this Home Assistant any more:
+                # The service does not know this Home Assistant any more:
                 # the code from its log, then.
                 self._rejoin, self._code = "", ""
         except (MiraError, RuntimeError, TimeoutError) as err:
@@ -636,9 +636,9 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
         return self.async_create_entry(title="Mira", data={**data, CONF_PIPELINES: self._pipelines or []})
 
     async def _wait_ready(self) -> None:
-        """The agent starts anew with what it got; wait until it runs.
+        """The service starts anew with what it got; wait until it runs.
 
-        Only an agent not reached yet is asked again; a refused token or
+        Only a service not reached yet is asked again; a refused token or
         another answer ends the wait at once (docs/spec/retry.md, row 11).
         """
         for attempt in range(SETUP_WAIT):
@@ -652,7 +652,7 @@ class MiraConfigFlow(ConnectSteps, ModelSteps, AbstractOAuth2FlowHandler, domain
                 continue
             if health.get("status") != "setup":
                 return
-        raise TimeoutError("the agent did not start within a minute")
+        raise TimeoutError("the service did not start within a minute")
 
     @staticmethod
     @callback
@@ -692,8 +692,8 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
     satellite, filled with what is set now. The settings are stored on the
     persons and satellites themselves (managed.py)."""
 
-    # The persona and the web search switch as the agent had them when the
-    # form opened; None without the agent.
+    # The persona and the web search switch as the service had them when the
+    # form opened; None without the service.
     _general: dict[str, Any] | None = None
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -713,9 +713,9 @@ class MiraOptionsFlow(ModelSteps, OptionsFlow):
         return self.async_create_entry(data=dict(self.config_entry.options))
 
     async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        # The persona and the web search switch live at the agent, like
+        # The persona and the web search switch live at the service, like
         # everything it is asked for per request; the entry keeps only what
-        # the integration itself needs. Without the agent those fields are
+        # the integration itself needs. Without the service those fields are
         # left out, so nothing is overwritten blindly.
         runtime = getattr(self.config_entry, "runtime_data", None)
         client = runtime.client if runtime else None

@@ -74,7 +74,7 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
                 text=text,
                 conversation_id=str(chat),
                 device_id=None,
-                # Telegram has no Assist pipeline: the agent takes the
+                # Telegram has no Assist pipeline: the service takes the
                 # language the person last spoke (docs/spec/language.md).
                 language="",
                 agent_id="",
@@ -85,7 +85,7 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
             )
             parts, mode = reply.html or [reply.text], "html"
         except MiraError as err:
-            _LOGGER.warning("Mira agent did not answer on Telegram: %s", err)
+            _LOGGER.warning("Mira service did not answer on Telegram: %s", err)
             lang = (hass.config.language or "en").split("-")[0]
             parts, mode = [ERROR_TEXT.get(lang, ERROR_TEXT["en"])], None
         for part in parts:
@@ -105,7 +105,7 @@ def async_setup_telegram(hass: HomeAssistant, entry: Any) -> CALLBACK_TYPE:
         try:
             await entry.runtime_data.client.reset_conversation("telegram", str(chat))
         except MiraError as err:
-            _LOGGER.warning("Mira agent could not start a new conversation: %s", err)
+            _LOGGER.warning("Mira service could not start a new conversation: %s", err)
             return
         lang = (hass.config.language or "en").split("-")[0]
         await _call(hass, "send_message", {"entity_id": target[1], "message": NEW_TEXT.get(lang, NEW_TEXT["en"])})

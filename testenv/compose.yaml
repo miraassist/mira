@@ -5,7 +5,7 @@ name: mira-testenv
 services:
   homeassistant:
     container_name: mira-test-ha
-    image: ghcr.io/home-assistant/home-assistant:2026.11.0
+    image: ghcr.io/home-assistant/home-assistant:2026.11.1
     # Bridge network on purpose: in the host network HA discovers the real
     # house (Cast, ESPHome, ...) and sets some of it up by itself.
     ports:

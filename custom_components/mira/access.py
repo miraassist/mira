@@ -1,4 +1,4 @@
-"""What the agent needs from Home Assistant, set up by the integration
+"""What the service needs from Home Assistant, set up by the integration
 (docs/spec/setup.md, docs/spec/hacs-default.md): a long-lived token of an
 admin that the admin pastes at the setup, and Home Assistant's MCP server
 with the Assist API. The integration never makes a token itself."""
@@ -32,7 +32,7 @@ HA_TOKEN_SCHEMA = vol.Schema(
 HA_AGENT = "conversation.home_assistant"
 # The tokens of agents this Home Assistant removed, by agent id: it pairs
 # with them again without a code (docs/spec/setup.md), by the key of
-# the token after the agent let go, or with the token itself if the agent
+# the token after the service let go, or with the token itself if the service
 # was away and never did. The store outlives the entry, which removing
 # deletes.
 REJOIN_STORE = "mira.rejoin"
@@ -76,8 +76,8 @@ def revoke_made_token(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def give_token(hass: HomeAssistant, entry: ConfigEntry, client, token: str, refresh: RefreshToken) -> None:
-    """The token an admin gave, sent to the agent (it starts anew) and its
-    id kept. Raises MiraError when the agent refuses it."""
+    """The token an admin gave, sent to the service (it starts anew) and its
+    id kept. Raises MiraError when the service refuses it."""
     await client.setup(ha_url(hass), token.strip(), None)
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, CONF_AGENT_TOKEN: refresh.id, CONF_TOKEN_GIVEN: True}
@@ -93,12 +93,12 @@ async def ensure_mcp_server(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {"llm_hass_api": ["assist"]})
     if result.get("type") != "create_entry":
         raise RuntimeError(f"setting up Home Assistant's MCP server ended with {result.get('type')}")
-    _LOGGER.info("Set up Home Assistant's MCP server for the Mira agent")
+    _LOGGER.info("Set up Home Assistant's MCP server for the Mira service")
 
 
 def ha_url(hass: HomeAssistant) -> str:
-    """The address the agent reaches Home Assistant at: the internal one.
-    Never the external one: the agent's token would go out to it."""
+    """The address the service reaches Home Assistant at: the internal one.
+    Never the external one: the service's token would go out to it."""
     try:
         return get_url(hass, allow_external=False, allow_cloud=False, prefer_external=False)
     except NoURLAvailableError as err:
@@ -119,7 +119,7 @@ def assistants(hass: HomeAssistant) -> dict[str, tuple[str, bool]]:
 
 async def use_mira_in(hass: HomeAssistant, pipeline_ids: list[str], entity_id: str) -> dict[str, str]:
     """Make Mira the conversation agent of these assistants; returns, per
-    assistant changed, the agent it had before."""
+    assistant changed, the service it had before."""
     if not pipeline_ids or "assist_pipeline" not in hass.config.components:
         return {}
     from homeassistant.components.assist_pipeline import async_get_pipelines, async_update_pipeline
@@ -134,8 +134,8 @@ async def use_mira_in(hass: HomeAssistant, pipeline_ids: list[str], entity_id: s
 
 
 async def hand_back(hass: HomeAssistant, entity_id: str | None, before: dict[str, str]) -> None:
-    """Assistants that still use Mira get the agent they had before, or
-    Home Assistant's own when that one is gone, so none points at an agent
+    """Assistants that still use Mira get the service they had before, or
+    Home Assistant's own when that one is gone, so none points at a service
     that no longer exists."""
     if not entity_id or "assist_pipeline" not in hass.config.components:
         return
@@ -157,14 +157,14 @@ def _rejoin_store(hass: HomeAssistant) -> Store[dict[str, str]]:
 
 async def keep_rejoin(hass: HomeAssistant, agent_id: str, token: str) -> None:
     """The entry is removed: its token proves later that this Home
-    Assistant is the one the agent was paired with."""
+    Assistant is the one the service was paired with."""
     store = _rejoin_store(hass)
     tokens = await store.async_load() or {}
     await store.async_save({**tokens, agent_id: token})
 
 
 async def rejoin_token(hass: HomeAssistant, agent_id: str) -> str | None:
-    """The old token of an agent this Home Assistant let go, if any."""
+    """The old token of a service this Home Assistant let go, if any."""
     return (await _rejoin_store(hass).async_load() or {}).get(agent_id)
 
 

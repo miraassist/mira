@@ -22,7 +22,7 @@ var haSections = []string{"persons", "satellites"}
 
 // Room is one area as the integration sees it: its satellite with Mira's
 // settings on it (docs/spec/ha-integration.md): the motion sensors and whether
-// motion there starts the morning announcement. The agent stores it as
+// motion there starts the morning announcement. The service stores it as
 // satellites plus notifier.morning_trigger.
 type Room struct {
 	Area      string   `json:"area"`

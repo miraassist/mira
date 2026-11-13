@@ -1,5 +1,5 @@
 // Package telemetry wires OpenTelemetry tracing and metrics and defines the
-// attribute names the agent uses.
+// attribute names the service uses.
 //
 // LLM spans follow the GenAI semantic conventions; everything specific to
 // Mira (prompt cache behaviour, channels, messages) lives under the "mira."

@@ -2,9 +2,9 @@
 
 Status 2026-10-16. Also applies to the [tasks](tasks.md).
 
-Built (agent 0.5.0, integration 0.4.0): identity, "alone at home" rule,
+Built (service 0.5.0, integration 0.4.0): identity, "alone at home" rule,
 memory and profile per owner with author. Built (0.5.7): persons
-come from Home Assistant. Open: tasks, notices, reminders and
+come from Home Assistant. Open: tasks, messages, reminders and
 histories per owner, messages to others.
 
 ## Principle
@@ -14,7 +14,7 @@ One Mira, two kinds of scopes:
 - the **house scope**, shared by everyone;
 - one **personal scope** per person.
 
-Memory, tasks, notices, reminders and conversation histories have an **owner**: `house` or a person.
+Memory, tasks, messages, reminders and conversation histories have an **owner**: `house` or a person.
 
 There are no separate agents. The house knowledge (structure, devices) stays one.
 
@@ -22,7 +22,7 @@ There are no separate agents. The house knowledge (structure, devices) stays one
 |---|---|---|
 | Memory (facts, profile) | household facts | own facts, own profile |
 | Tasks | "Achte auf den Wasserverbrauch" | "Sag **mir** Bescheid, wenn …" |
-| Notices | announcement in the room, indicator, "Übrigens" | privately via the person's channels, at the satellite only under the "alone at home" rule |
+| Messages | announcement in the room, indicator, "Übrigens" | privately via the person's channels, at the satellite only under the "alone at home" rule |
 | Reminders | in the room | on the private channel |
 | speaks on its own in the house | yes | only under the "alone at home" rule |
 
@@ -56,14 +56,14 @@ To check when building: satellite conversations arrive without a user.
 
 If a person's switch is on and, according to their person entity, they are the only person at home, **the satellites count as this person**:
 - Mira then reads and writes their memory;
-- reads out their confidential notices and may bring them up on her own;
+- reads out their confidential messages and may bring them up on her own;
 - creates their personal tasks.
 
 If no one or more than one person is at home, the satellites are anonymous.
 
 Limit: guests without a person entity do not count. If Anna is at home with a guest, she counts as alone. That is the price of convenience, which is why the switch is per person and off by default.
 
-The previous global setting for confidential notices (`confidential_voice: when_alone`) is absorbed into this switch.
+The previous global setting for confidential messages (`confidential_voice: when_alone`) is absorbed into this switch.
 
 ## Memory
 
@@ -87,7 +87,7 @@ Own spec: [Messages](messages.md). In short: the notices become messages with se
 - `mira.assess` and `mira.decide` get `owner` (default `house`):
   - It determines which memory goes along (house, for persons also their own).
   - It determines how delivery happens (house: room; person: privately or under the "alone at home" rule).
-- `audience` stays for house tasks that should reach only one person.
+- `receiver` stays for house tasks that should reach only one person.
 
 ## Permissions
 
@@ -96,6 +96,6 @@ Mira keeps switching with her own HA user. Whether a command is allowed is decid
 ## Data model (sketch)
 
 - `owner` (house or person ID from HA) on: facts, profile (one per owner), tasks, reminders, sessions.
-- Notices: `owner`/`audience` as before, plus `sender`.
+- Messages: `owner`/`receiver` as before, plus `sender`.
 - Persons: the HA person (ID, entity, name, user) plus Mira's settings `telegram_user_id`, `notify`, `alone_is_me` and later `accept_messages` (all, persons, none).
 - So far everything is test: data is not migrated. Old keys (for instance `anna` instead of `anna_schmidt`) are simply left behind.

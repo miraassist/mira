@@ -3,7 +3,7 @@
 mira.agent calls an agent, synchronously with its answer for the
 automation's response_variable, or asynchronously with a call id;
 mira.agent_result reads a run, mira.agent_cancel ends one. When an
-asynchronous run is done, the agent sends mira/agent/done and the
+asynchronous run is done, the service sends mira/agent/done and the
 integration fires the event mira_agent_done: Mira's own user may not fire
 events, and no other user can forge it this way.
 """
@@ -53,19 +53,19 @@ def async_register_agent_services(hass: HomeAssistant, loaded: Callable[[], Conf
         try:
             return await loaded().runtime_data.client.agent(dict(call.data))
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent could not run {call.data['agent']}: {err}") from err
+            raise HomeAssistantError(f"Mira could not run {call.data['agent']}: {err}") from err
 
     async def agent_result(call: ServiceCall) -> ServiceResponse:
         try:
             return await loaded().runtime_data.client.agent_result(call.data["call_id"])
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent has no such run: {err}") from err
+            raise HomeAssistantError(f"Mira has no such run: {err}") from err
 
     async def agent_cancel(call: ServiceCall) -> ServiceResponse:
         try:
             return await loaded().runtime_data.client.agent_cancel(call.data["call_id"])
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent could not cancel the run: {err}") from err
+            raise HomeAssistantError(f"Mira could not cancel the run: {err}") from err
 
     hass.services.async_register(
         DOMAIN, SERVICE_AGENT, agent, schema=AGENT_SCHEMA, supports_response=SupportsResponse.OPTIONAL

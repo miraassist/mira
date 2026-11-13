@@ -751,11 +751,11 @@ With a code that fits Mira says: "Plug the device in now." She looks for it over
 
 ### Devices Home Assistant found
 
-Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a Bluetooth sensor, a lamp you paired in its maker's app. Mira tells you once, when someone is there: "I found a new device: Hue Bridge. Shall I add it?" On your yes she leads you through what Home Assistant needs ("Press the button on the bridge"), and then the room and the name follow.
+Home Assistant finds a lot by itself: a Hue Bridge or a Shelly in the network, a Bluetooth sensor, a lamp you paired in its maker's app. Mira puts each new device into her message, as she does with mail and recordings on the answering machine: the ring lights up, the screen shows that a message waits. Then ask "Do I have new messages?", and Mira names what she found: "New device found: Hue Bridge". If you want it added, she leads you through what Home Assistant needs ("Press the button on the bridge"), and then the room and the name follow.
 
 - **No, ignore it, that's the neighbour's:** Mira never names it again. In Home Assistant a discovered device is then under "Ignored", a device without a room has the label "Mira: ignoriert"; that is where you undo it.
-- **No answer:** Mira does not ask again. "Any new devices?" names everything still waiting.
-- Several at once (a bridge with twenty lamps) come in one message.
+- **Not taken up:** the device waits in the message for a day; after that Mira no longer names it by herself. "Any new devices?" names everything still waiting.
+- Several at once (a bridge with twenty lamps) are in the same message, each device on its own.
 - Bluetooth beacons the iBeacon integration only sees passing by (such as a speed camera warner in a car on the street), Mira does not name.
 - If a device needs details such as a key or a password, Mira tells you it is done in Home Assistant under Settings → Devices & services → Discovered. Only your Wi-Fi she fills in herself, once you gave it to her (below).
 
@@ -918,7 +918,7 @@ Before Mira deletes something, she asks:
 
 ## In Home Assistant
 
-- **Device "Mira"** with the **Quiet mode** switch, the **Pending messages** sensor and the **Compact profile** button; the versions of integration and agent are in the device info.
+- **Device "Mira"** with the **Quiet mode** switch, the **Pending messages** sensor and the **Compact profile** button; the versions of the integration and of Mira are in the device info.
 - Mira is a conversation agent: choose her for your satellites under Settings → Voice assistants.
 - Automations can give Mira messages: with HA's own action `notify.send_message` to **Mira House** or **Mira ‹person›** (one notify entity for the house and one per person), or with `mira.send_message` when they need more (importance, confidential, expiry).
 - **Mira in the sidebar** (see above). Switch it off in the integration's options; anyone can also hide it in just their own sidebar.

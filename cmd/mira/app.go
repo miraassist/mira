@@ -64,7 +64,7 @@ import (
 	"github.com/miraassist/mira/internal/zigbee"
 )
 
-// app is the wired agent. Fields are nil for disabled parts.
+// app is the wired service. Fields are nil for disabled parts.
 type app struct {
 	cfg config.Config
 	// configPath is the mira.yaml the page edits (edit.go); empty for the
@@ -110,7 +110,7 @@ type app struct {
 	mail *mailcal.Service
 	// inbox is Mira's inbox in Paperless (docs/spec/inbox.md); nil when off.
 	inbox *inbox.Service
-	// pairing: Home Assistant pairs with a code (the token is the agent's
+	// pairing: Home Assistant pairs with a code (the token is the service's
 	// own).
 	pairing bool
 	// models are the further models by name (config.Models).
@@ -141,7 +141,7 @@ type app struct {
 	speaker *speakerid.Client
 	// runCtx is run's context, for restarts from background work.
 	runCtx context.Context
-	// haUserID is the agent's Home Assistant user, read once (haUser).
+	// haUserID is the service's Home Assistant user, read once (haUser).
 	haUserMu sync.Mutex
 	haUserID string
 	// notifier is the running notifier, replaced when the UI restarts it;
@@ -254,7 +254,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		}
 	}
 	// A skill that cannot start is left out and reported (log, and the
-	// integration shows it as a repair); the agent starts all the same.
+	// integration shows it as a repair); the service starts all the same.
 	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
 	// A skill may bring its MCP server (docs/spec/skill-mcp.md): it is
 	// connected as the others, its tools come only with the skill.
@@ -322,8 +322,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 
 	if err := a.mcp.Start(ctx); err != nil {
-		// Not fatal: the agent still talks, and Run keeps retrying.
-		a.log.Error("no mcp server reachable; the agent has no house tools until one comes up", "error", err)
+		// Not fatal: the service still talks, and Run keeps retrying.
+		a.log.Error("no mcp server reachable; the service has no house tools until one comes up", "error", err)
 	}
 	// From here a connection of Home Assistant wakes its server.
 	a.mcpStarted.Store(true)
@@ -659,7 +659,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 }
 
 // startHA connects the WebSocket client and builds the house structure once
-// before the first turn. HA being down is not fatal: the agent starts with an
+// before the first turn. HA being down is not fatal: the service starts with an
 // empty layer 4 and fills it when the connection comes up.
 func (a *app) startHA(ctx context.Context) error {
 	var err error
@@ -891,12 +891,12 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	a.runCtx = ctx
 	a.goRun(ctx, "people", a.watchPeople)
 	a.goRun(ctx, "services", a.watchServices)
-	// The eval runner's agent announces nothing: the test Mira next to it
+	// The eval runner's service announces nothing: the test Mira next to it
 	// does that, and an eval must not speak on a real device.
 	if !cfg.Server.Eval {
 		a.startProactive(ctx)
 	}
-	// Asynchronous runs that were running when the agent stopped go on;
+	// Asynchronous runs that were running when the service stopped go on;
 	// threads that were working start their work anew.
 	if err := a.agents.Resume(ctx); err != nil {
 		a.log.Error("could not take up the asynchronous runs", "error", err)
@@ -955,7 +955,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	return runErr
 }
 
-// instanceID is the agent's stable id, or "" if the store cannot give one.
+// instanceID is the service's stable id, or "" if the store cannot give one.
 func (a *app) instanceID() string {
 	id, err := a.store.InstanceID(context.Background())
 	if err != nil {
@@ -964,7 +964,7 @@ func (a *app) instanceID() string {
 	return id
 }
 
-// announce makes the agent discoverable by Home Assistant. A failure only
+// announce makes the service discoverable by Home Assistant. A failure only
 // costs discovery; the integration can still be set up by address.
 func (a *app) announce(ctx context.Context) {
 	if announce.Loopback(a.cfg.Server.Listen) {
@@ -1017,7 +1017,7 @@ func (a *app) startProactive(parent context.Context) {
 	a.goProactive(ctx, "notifier", func(ctx context.Context) error { return n.Run(ctx, a.ha) })
 }
 
-// haUser is the agent's Home Assistant user id, asked once: the integration
+// haUser is the service's Home Assistant user id, asked once: the integration
 // lets only this user manage Mira's automations.
 func (a *app) haUser(ctx context.Context) string {
 	a.haUserMu.Lock()
@@ -1025,7 +1025,7 @@ func (a *app) haUser(ctx context.Context) string {
 	if a.haUserID == "" {
 		id, err := a.ha.CurrentUser(ctx)
 		if err != nil {
-			a.log.Warn("could not read the agent's Home Assistant user", "error", err)
+			a.log.Warn("could not read the service's Home Assistant user", "error", err)
 			return ""
 		}
 		a.haUserID = id
@@ -1442,7 +1442,7 @@ func runSkill(parent context.Context, cfg config.Config, name string, index int)
 	if !ok {
 		return fmt.Errorf("skill %s is not on (skills.%s in mira.yaml)", name, name)
 	}
-	// Home Assistant's persons, as the running agent has them, for
+	// Home Assistant's persons, as the running service has them, for
 	// schedules that run per person.
 	if _, err := a.people.refresh(ctx, a.ha); err != nil {
 		a.log.Warn("could not read the persons from home assistant", "error", err)

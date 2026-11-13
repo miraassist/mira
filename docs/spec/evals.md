@@ -4,7 +4,7 @@ Status 2026-10-17: built in 0.6.19 (runner `go run ./cmd/testha eval`, 12 scenar
 
 ## What for
 
-"Does Mira run with Qwen?", "With Kimi?", "With the new Gemini?" That can only be answered by trying it out. Models and providers change constantly. An **eval set** plays fixed scenarios end to end, with a real agent, real model and real test HA, only without voice (no speech recognition, no speech output), and says per model setup what works.
+"Does Mira run with Qwen?", "With Kimi?", "With the new Gemini?" That can only be answered by trying it out. Models and providers change constantly. An **eval set** plays fixed scenarios end to end, with a real service, real model and real test HA, only without voice (no speech recognition, no speech output), and says per model setup what works.
 
 A run costs money and time. It therefore does not run in CI, but on call: before a release, with a new model, with a new setup.
 
@@ -32,11 +32,11 @@ If Mira is too slow, she is not usable. Time therefore belongs in the result, li
 
 - **Hard, co-decides:** the limit from which it is broken for the user. With voice that is the integration's answer timeout (default 15 s): After that the satellite says an error message. With Telegram it is 60 s. A step above it counts as **not passed**, no matter what is in HA afterwards. The limits come from the configuration, not from the scenario.
 - **Soft, is reported:** per step the median and maximum of the response time over the 3 runs. With voice rated as **good** (up to 3 s), **usable** (up to 8 s) or **slow** (above).
-- **Split up:** how much of it went to the model (rounds, tokens) and how much to tools and HA, from the agent's log.
+- **Split up:** how much of it went to the model (rounds, tokens) and how much to tools and HA, from the service's log.
 - **Background separately:** What runs in the background (the draft of a task) is measured as time until the proposal and does not count toward the response time.
 - **Exception:** A separate limit in the scenario (`max_seconds` on a step) exists only rarely, e.g. for a web search.
 
-**Warmup:** The runner waits until the agent's warmup is finished, and then sends one turn per channel that does not count. So the fixed beginning of the prompt is in the cache with a local model. Only after that is measured. All 3 runs count; if the first is slower, one should see that.
+**Warmup:** The runner waits until the service's warmup is finished, and then sends one turn per channel that does not count. So the fixed beginning of the prompt is in the cache with a local model. Only after that is measured. All 3 runs count; if the first is slower, one should see that.
 
 ## Scenarios
 
@@ -77,7 +77,7 @@ A setup is a small file in `evals/setups/` with `models` and, if needed, the age
 `mira.yaml`, without keys. It replaces the test config's models, and the test config's entries that only name a
 model.
 
-**Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval agent gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name; a skill whose
+**Secrets**: The runner reads only `testenv/.env`, never the `.env` of a real installation. The eval service gets only a few harmless base variables (`PATH`, `HOME`, `LANG`, `TZ`) and exactly the variables its config requires as `${…}`. If one is missing in `testenv/.env`, the runner aborts with its name; a skill whose
 settings need a missing variable is left out of the run instead, and the report names it with the variable (decided
 2026-11-05: the X skill's secret lives in the test Mira's secrets file, written by the page, and stopped the whole run
 although no scenario uses X). Model keys for evals (e.g. `GEMINI_API_TOKEN`) therefore belong in `testenv/.env`. Examples: `gemini-flash.yaml`, `qwen-lokal.yaml`, `kimi.yaml`. A setup describes what really runs in the house, mixed too: voice local, difficult tasks in the cloud.
@@ -89,10 +89,10 @@ go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario term
 ```
 
 - `--scenario` with a report: the scenarios measured again replace theirs in the setup's last report, the others
-  stay; the report notes which were measured again and when (decided 2026-11-05). `--keep` keeps the eval agent's
+  stay; the report notes which were measured again and when (decided 2026-11-05). `--keep` keeps the eval service's
   database and log, to look into a failure.
-- The run starts **its own agent** with the test configuration, the setup and a fresh database. That is not the running test Mira, so that nothing from before has an effect.
-- It sends the steps to `/v1/conversation`, as the integration does. Then it checks result and trace: the trace from a log the agent writes per turn in eval mode (tool calls, threads, actions).
+- The run starts **its own service** with the test configuration, the setup and a fresh database. That is not the running test Mira, so that nothing from before has an effect.
+- It sends the steps to `/v1/conversation`, as the integration does. Then it checks result and trace: the trace from a log the service writes per turn in eval mode (tool calls, threads, actions).
 - It measures per step the response time (see "Time"), per scenario tokens and, where the provider has prices, the costs.
 
 ## Results in the repo
@@ -140,7 +140,7 @@ Decided 2026-11-12:
 | 4 | Checks | `plan: {target, finished, not}` reads the running plans (`/v1/ui/plans`); `no_message: {receiver}` wants no message for a receiver; the calendar checks take a title, because the test calendars may hold the maintainer's own entries |
 | 5 | Core scenarios | None for now; decided after the first full run |
 
-**What differs from the house:** the eval agent announces nothing, so the question is not heard before the answer:
+**What differs from the house:** the eval service announces nothing, so the question is not heard before the answer:
 the answer turn has the thread's plan, and the waiting message is added to its answer ("Übrigens: In deiner Post …").
 
 | Scenario | Mail | Answer | Expected |

@@ -98,9 +98,9 @@
       "token_not_admin": "Dieses Token gehört keinem Administrator."
     },
     "abort": {
-      "already_configured": "Dieser Agent ist bereits eingerichtet.",
-      "no_id": "Der Agent hat keine ID angekündigt; bitte aktualisieren.",
-      "not_proven": "Ein Mira-Agent hat sich unter einer neuen Adresse gemeldet, konnte aber nicht zeigen, dass er deiner ist. Die Adresse bleibt, wie sie ist.",
+      "already_configured": "Diese Mira ist bereits eingerichtet.",
+      "no_id": "Mira hat keine ID angekündigt; bitte Mira aktualisieren.",
+      "not_proven": "Eine Mira hat sich unter einer neuen Adresse gemeldet, konnte aber nicht zeigen, dass sie deine ist. Die Adresse bleibt, wie sie ist.",
       "setup_failed": "Die Einrichtung hat nicht geklappt: {error}",
       "connected": "Verbunden. Mira behält die Verbindung.",
       "connect_failed": "Mira konnte die Verbindung nicht übernehmen; siehe Protokoll."
@@ -199,7 +199,7 @@
       }
     },
     "error": {
-      "invalid_config": "Der Agent hat es abgelehnt: {error}",
+      "invalid_config": "Mira hat es abgelehnt: {error}",
       "cannot_connect": "Mira ist unter dieser Adresse nicht erreichbar.",
       "setup_failed": "Das Einrichten hat nicht geklappt: {error}",
       "model_unreachable": "Mira erreicht diese Adresse nicht. Prüfe sie aus Sicht von Mira; ein Server auf einem anderen Rechner muss Verbindungen aus dem Netz annehmen.{error}",
@@ -259,7 +259,7 @@
         },
         "confidentiality": {
           "name": "Vertraulichkeit",
-          "description": "Vertrauliche Nachrichten werden nur gesprochen, wenn die Richtlinie des Agenten es erlaubt, sonst privat geschickt."
+          "description": "Vertrauliche Nachrichten werden nur gesprochen, wenn Miras Einstellung es erlaubt, sonst privat geschickt."
         },
         "dedupe_key": {
           "name": "Dedupe-Schlüssel",

@@ -16,7 +16,7 @@ import (
 )
 
 // A mail into Mira's inbox in an eval (docs/spec/evals.md, The inbox): the
-// runner posts it to the eval agent's /v1/mail as the integration does, and
+// runner posts it to the eval service's /v1/mail as the integration does, and
 // waits until the inbox has read it. IMAP and the integration stay out: the
 // eval tests the models, not the way in.
 
@@ -54,7 +54,7 @@ func fillDays(s string) string {
 	})
 }
 
-// sendMail posts the step's mail to the eval agent and waits for the
+// sendMail posts the step's mail to the eval service and waits for the
 // inbox's log line that it is done with it. The mail's date is now, so a
 // run never meets the mail of an earlier run among the mails read.
 func (r *evalRun) sendMail(ctx context.Context, sm StepMail) error {

@@ -14,13 +14,13 @@ from homeassistant.helpers import label_registry as lr
 # Mira's tasks: automations labelled with it (automations.py).
 LABEL_TASKS = "mira"
 # "Mira: nachfragen": Mira switches such an entity only after a yes; tasks
-# never switch it. The agent reads it from the entity registry itself.
+# never switch it. The service reads it from the entity registry itself.
 LABEL_CONFIRM = "mira_confirm"
 # "Mira: einmalig": an automation that runs once and is then removed by the
 # integration (once.py). Not a task, so it is not in the task list.
 LABEL_ONCE = "mira_once"
 # "Mira: privater Bereich": an area whose conversations, threads and plans
-# stay there, even for a known person. The agent reads it from the area
+# stay there, even for a known person. The service reads it from the area
 # registry itself.
 LABEL_PRIVATE = "mira_private"
 

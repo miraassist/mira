@@ -17,8 +17,8 @@ What already exists in Home Assistant, Mira does not create again. She attaches 
 **Rule of thumb:** A property that is either there or not is a **label** (visible and settable in HA's normal UI, filterable). A setting with a value is an **option on the entity**. Own lists only for what does not exist in HA (quiet hours, escalation …).
 
 Reading and writing:
-- **Writing** happens through the integration (admin): forms under Devices & services → Mira → **Configure**. The agent checks every input before it is stored.
-- **Reading** labels is done directly by the agent: its HA user (no admin) may read the entity and label registries, and it gets notified of changes. Person and satellite settings are sent by the integration to the agent on every change, as before.
+- **Writing** happens through the integration (admin): forms under Devices & services → Mira → **Configure**. The service checks every input before it is stored.
+- **Reading** labels is done directly by the service: its HA user (no admin) may read the entity and label registries, and it gets notified of changes. Person and satellite settings are sent by the integration to the service on every change, as before.
 - A deleted entity takes its options with it; nothing is left behind.
 
 **Watching states:** Mira reads states only as Home Assistant filters them, and watches instead of asking again:
@@ -63,21 +63,21 @@ Almost everything that is a "room" today is a property of the satellite:
 What Mira may see is determined by HA's "Expose to Assist". HA's own tools via MCP respect that themselves. Mira's own parts, however, talk to HA directly and must keep the same boundary: reading calendars, the checks of calendar and list, the catalog for task drafts, the house structure's name lookup and the guard.
 
 - **The integration supplies the list.** On every sync (`PUT /v1/ui/ha`) it sends, alongside persons and satellites, `exposed`: the IDs of all entities that HA exposes to Assist. It determines this the same way HA itself does (`async_should_expose`). If an exposure changes or a new entity appears (Home Assistant exposes it on its own, without an exposure event), it sends again, a burst of changes once.
-- **The agent stores the list** persistently and treats it as authoritative, and rebuilds the house structure at once, so HA's prompt knows a newly exposed entity before the next turn ([Context](context.md), 1.3).
+- **The service stores the list** persistently and treats it as authoritative, and rebuilds the house structure at once, so HA's prompt knows a newly exposed entity before the next turn ([Context](context.md), 1.3).
 - **The list is taken as it is** (decided 2026-11-01): what the user exposed counts, also an entity Home Assistant
   marks as diagnostic or configuration (the GitHub integration's stars, for example) or hides. Mira filters nothing
   away from it; before, her own structure block (gone since 2026-11-05) silently left out such entities.
 - **Without this list nothing counts as exposed,** and Mira does not act.
-  - The agent does not ask HA itself: the exposure list can only be read by an admin. Since 0.18 Mira's token is the owner's ([HACS default catalog](hacs-default.md)), but the integration's push stays the one way; there is no fallback to entity options or to "everything".
+  - The service does not ask HA itself: the exposure list can only be read by an admin. Since 0.18 Mira's token is the owner's ([HACS default catalog](hacs-default.md)), but the integration's push stays the one way; there is no fallback to entity options or to "everything".
   - Without the list the house plan is empty, as is the selection for tasks, calendars and lists.
   - Without the list, Mira answers a conversation with: "Ich warte noch auf die Verbindung mit Home Assistant …" She calls no tool and does not ask the model. Otherwise HA's MCP server would switch whatever is exposed there, while the guard does not know these names in the empty plan.
-  - This only concerns the period before the integration's first sync. After that the agent keeps the list across restarts too.
+  - This only concerns the period before the integration's first sync. After that the service keeps the list across restarts too.
 - **Login names:** With the settings, the integration sends the login name of each person's HA user (`logins`), because only an admin may read it. It determines which calendar belongs to a person ([Calendar](calendar.md)).
 - **The list stays correct when either of the two restarts** (since 0.6.50):
-  - The agent reports a **fingerprint** of its list in `/v1/status` (`exposed_hash`: sha256 of the sorted IDs, joined by line breaks; empty as long as it has not received the integration's settings since its start). The integration computes the same from HA and compares on **every poll** (every minute), after HA has started and on every change of exposure. If it differs, it sends the list again. This covers a device discovered later (MQTT, discovery), a missed send and an agent that starts with an empty database.
-  - **While HA is starting, nothing is sent** (state "running" only after the start event). During startup the entities register one after another; a list from the first seconds would be short and would replace the complete one at the agent (this happened: 14 instead of 185). Until then the agent keeps the stored list.
-  - An agent that does not report the fingerprint (older) is served only once, as before.
-  - **Restarting the agent** (for instance after a configuration change): the list stays in its database, but the settings on persons and satellites it holds in memory only ([Editing](editing.md#what-home-assistant-sends), 2026-10-30). It reports the empty fingerprint until the integration sent them again, within a minute.
+  - The service reports a **fingerprint** of its list in `/v1/status` (`exposed_hash`: sha256 of the sorted IDs, joined by line breaks; empty as long as it has not received the integration's settings since its start). The integration computes the same from HA and compares on **every poll** (every minute), after HA has started and on every change of exposure. If it differs, it sends the list again. This covers a device discovered later (MQTT, discovery), a missed send and a service that starts with an empty database.
+  - **While HA is starting, nothing is sent** (state "running" only after the start event). During startup the entities register one after another; a list from the first seconds would be short and would replace the complete one at the service (this happened: 14 instead of 185). Until then the service keeps the stored list.
+  - A service that does not report the fingerprint (older) is served only once, as before.
+  - **Restarting the service** (for instance after a configuration change): the list stays in its database, but the settings on persons and satellites it holds in memory only ([Editing](editing.md#what-home-assistant-sends), 2026-10-30). It reports the empty fingerprint until the integration sent them again, within a minute.
 - **Why not derive it from what Mira sees:** HA's Assist prompt and `GetLiveContext` only give names, no IDs, and leave out calendars entirely. A privacy boundary must not guess by names.
 
 ## Asking before switching

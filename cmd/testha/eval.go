@@ -23,7 +23,7 @@ import (
 )
 
 // The eval runner (docs/spec/evals.md): it plays fixed scenarios end to end
-// against its own agent, with a real model and the test HA, and reports per
+// against its own service, with a real model and the test HA, and reports per
 // model setup what works and how fast.
 
 // Scenario is one file in evals/scenarios/.
@@ -101,7 +101,7 @@ type evalRun struct {
 	client    *http.Client
 	agentLog  string
 	version   string
-	// keep leaves the eval agent's folder (database, log) in place.
+	// keep leaves the eval service's folder (database, log) in place.
 	keep bool
 	// leftOut are the skills left out of the run because a variable their
 	// settings need is not in testenv/.env, with that variable.
@@ -115,7 +115,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	runs := fs.Int("runs", runsDefault, "runs per scenario")
 	keep := fs.Bool("no-report", false, "do not write a report")
 	overview := fs.Bool("overview", false, "only renew evals/README.md from the stored results")
-	keepAgent := fs.Bool("keep", false, "keep the eval agent's database and log, to look into a failure")
+	keepAgent := fs.Bool("keep", false, "keep the eval service's database and log, to look into a failure")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 	server["announce"] = false
 	cfg["server"] = server
 	cfg["store"] = map[string]any{"path": filepath.Join(tmp, "eval.db")}
-	// The eval agent announces nothing on its own: the test Mira does that.
+	// The eval service announces nothing on its own: the test Mira does that.
 	delete(cfg, "notifier")
 	out, err := yaml.Marshal(cfg)
 	if err != nil {
@@ -357,15 +357,15 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		}
 		if time.Now().After(deadline) {
 			stop()
-			return nil, fmt.Errorf("the eval agent did not come up; log: %s", r.agentLog)
+			return nil, fmt.Errorf("the eval service did not come up; log: %s", r.agentLog)
 		}
 		time.Sleep(time.Second)
 	}
-	fmt.Printf("eval agent %s on %s, setup %s\n", r.version, r.agentURL, r.setupName)
+	fmt.Printf("eval service %s on %s, setup %s\n", r.version, r.agentURL, r.setupName)
 	return stop, nil
 }
 
-// prepare hands the eval agent the satellites and person settings the
+// prepare hands the eval service the satellites and person settings the
 // integration gave the test Mira, finds the satellites' devices, and warms
 // the model: a turn per channel that does not count.
 func (r *evalRun) prepare(ctx context.Context) error {
@@ -375,7 +375,7 @@ func (r *evalRun) prepare(ctx context.Context) error {
 		return fmt.Errorf("read the test Mira's settings from Home Assistant: %w", err)
 	}
 	// The test Mira's settings do not carry what Assist sees (the integration
-	// sends that list itself); without it the eval agent switches nothing.
+	// sends that list itself); without it the eval service switches nothing.
 	exposed, err := r.exposed(ctx)
 	if err != nil {
 		return fmt.Errorf("read what Assist sees: %w", err)
@@ -386,7 +386,7 @@ func (r *evalRun) prepare(ctx context.Context) error {
 	}
 	settings["exposed"] = exposed
 	if err := r.agent(ctx, "PUT", "/v1/ui/ha", settings, nil); err != nil {
-		return fmt.Errorf("hand the settings to the eval agent: %w", err)
+		return fmt.Errorf("hand the settings to the eval service: %w", err)
 	}
 	var tpl string
 	if err := r.ha(ctx, "POST", "/api/template", map[string]any{"template": `{% for s in states.assist_satellite %}{{ area_id(s.entity_id) }}={{ device_id(s.entity_id) }};{% endfor %}`}, &tpl); err != nil {
@@ -403,7 +403,7 @@ func (r *evalRun) prepare(ctx context.Context) error {
 	}
 	fmt.Print("warmup …")
 	started := time.Now()
-	// The agent takes the list of what Assist sees on its next rebuild of
+	// The service takes the list of what Assist sees on its next rebuild of
 	// the house (structure_debounce); until then it answers that it waits
 	// for Home Assistant, without asking the model. That costs nothing.
 	for area := range r.devices {
@@ -417,7 +417,7 @@ func (r *evalRun) prepare(ctx context.Context) error {
 				break
 			}
 			if time.Now().After(deadline) {
-				return fmt.Errorf("the eval agent never learned what Assist sees")
+				return fmt.Errorf("the eval service never learned what Assist sees")
 			}
 			time.Sleep(time.Second)
 		}
@@ -527,7 +527,7 @@ func (r *evalRun) call(ctx context.Context, method, url, token string, body, out
 
 var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)`)
 
-// agentEnv is the eval agent's whole environment: a few harmless basics
+// agentEnv is the eval service's whole environment: a few harmless basics
 // and exactly the variables its config refers to, from testenv/.env only.
 // Nothing else reaches it, least of all the live instance's secrets.
 func (r *evalRun) agentEnv(config string) ([]string, error) {
@@ -587,7 +587,7 @@ func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
 	return out
 }
 
-// printLogTail shows the end of the eval agent's log, for a failure.
+// printLogTail shows the end of the eval service's log, for a failure.
 func (r *evalRun) printLogTail() {
 	raw, err := os.ReadFile(r.agentLog)
 	if err != nil {
@@ -597,7 +597,7 @@ func (r *evalRun) printLogTail() {
 	if len(lines) > 25 {
 		lines = lines[len(lines)-25:]
 	}
-	fmt.Println("--- eval agent log ---\n" + strings.Join(lines, "\n"))
+	fmt.Println("--- eval service log ---\n" + strings.Join(lines, "\n"))
 }
 
 func keys[V any](m map[string]V) []string {

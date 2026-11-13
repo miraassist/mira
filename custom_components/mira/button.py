@@ -29,4 +29,4 @@ class CompactProfileButton(MiraEntity, ButtonEntity):
         try:
             await self.coordinator.client.compact_profile()
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent could not compact the profile: {err}") from err
+            raise HomeAssistantError(f"Mira could not compact the profile: {err}") from err

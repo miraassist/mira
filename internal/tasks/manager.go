@@ -631,7 +631,7 @@ func (m *Manager) List(ctx context.Context) ([]Item, error) {
 }
 
 // homeURL is where a browser finds Home Assistant: its external or internal
-// URL, else the address Mira uses, which may be localhost for an agent next
+// URL, else the address Mira uses, which may be localhost for a service next
 // to it.
 func (m *Manager) homeURL(ctx context.Context) string {
 	var cfg struct {

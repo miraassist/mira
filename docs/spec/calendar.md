@@ -1,6 +1,6 @@
 # Calendars and to-do lists – spec
 
-Status 2026-11-12: built in 0.6.19; steps 1 and 2 (one building block and the tool `calendar_create`) built 2026-11-12, not released. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
+Status 2026-11-13: built in 0.6.19; steps 1 and 2 (one building block and the tool `calendar_create`) built 2026-11-12, released in 0.23.0. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
 
 ## Principle
 
@@ -120,7 +120,7 @@ This is the main use case: "Trag mir Freitag um 15 Uhr Zahnarzt ein." It is a sk
 
 ## Personal calendars: convention instead of setting
 
-An exposed calendar that is named like the **login name** of a person's HA user or like the **person** themselves (case and leading/trailing spaces do not matter) is that person's calendar: "Stefan" belongs to the person "Stefan Rinke" with the login `stefan`, "Ben" belongs to Ben. A first name alone does not count (HA has no field for it). Only an admin may read the login name; the integration therefore sends it with the settings (`logins`, person → login), the agent keeps it (`ha_logins`). There is no setting for this. It is used by skill schedules with `per_person: true` (they run per person who receives a personal message, and get that person's calendar, if there is one, and their personal profile; `cmd/mira/calendars.go`, `reachablePeople`) and by the briefing on request.
+An exposed calendar that is named like the **login name** of a person's HA user or like the **person** themselves (case and leading/trailing spaces do not matter) is that person's calendar: "Stefan" belongs to the person "Stefan Rinke" with the login `stefan`, "Ben" belongs to Ben. A first name alone does not count (HA has no field for it). Only an admin may read the login name; the integration therefore sends it with the settings (`logins`, person → login), the service keeps it (`ha_logins`). There is no setting for this. It is used by skill schedules with `per_person: true` (they run per person who receives a personal message, and get that person's calendar, if there is one, and their personal profile; `cmd/mira/calendars.go`, `reachablePeople`) and by the briefing on request.
 
 ## Which calendar: ask and remember
 

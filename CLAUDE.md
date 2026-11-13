@@ -27,8 +27,10 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
   the private TODO list, unless it blocks the flow.
 - **Evidence or "assumption".** A cause is named with its evidence (a log line, the state history, a pipeline run);
   without one it is called an assumption.
-- **Terms**: the Mira service, the HA app, the integration; a *turn* (one conversation as Home Assistant conducts it)
-  and a *thread* ("Vorgang", a concern across turns). "The agent" means one of Mira's helpers, never the service.
+- **Terms**: the [Glossary](docs/glossary.md) is binding, in English and German, for the maintainer and for me: one
+  word per thing, the counterpart in code and database named. A new term goes into the glossary before a spec uses
+  it. In short: the Mira service, the HA app, the integration; a *turn* (one conversation as Home Assistant conducts
+  it) and a *thread* ("Vorgang", a concern across turns). "The agent" means one of Mira's helpers, never the service.
 
 ## Specs first
 

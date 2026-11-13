@@ -88,7 +88,7 @@ func (inv Invocation) Author() string {
 	return ""
 }
 
-// InternalTool is a tool implemented inside the agent.
+// InternalTool is a tool implemented inside the service.
 type InternalTool struct {
 	Name        string
 	Description string

@@ -32,7 +32,7 @@ Division: **HA is the senses, Mira is mind and voice.**
 
 ## Actions
 
-All actions are provided by the Mira integration. They call the agent via its API.
+All actions are provided by the Mira integration. They call the service via its API.
 
 ### `mira.assess`: judge and report if needed
 
@@ -44,7 +44,7 @@ All actions are provided by the Mira integration. They call the agent via its AP
 | `memory` | no | `relevant` (default), `profile` or `none` (see "Context"). |
 | `cooldown` | no | For example `6h`. Within this time the same automation only reports if the importance rises. |
 | `notify` | no | Default `true`. With `false` there is only the judgment, no message (dry run). |
-| `audience`, `confidentiality`, `dedupe_key`, `expires_in` | no | As with `send_message`. |
+| `receiver`, `confidentiality`, `dedupe_key`, `expires_in` | no | As with `send_message`. |
 
 **Flow**
 1. Mira builds an **isolated** call, that is, without the house prompt. It contains:
@@ -79,7 +79,7 @@ A native condition (`condition: mira`) is not possible: HA checks conditions syn
 
 ### `mira.send_message`: report without judgment (already exists)
 
-`text`, `importance`, `details`, `audience`, `confidentiality`, `dedupe_key`, `expires_in` → message. For cases in which the judgment is fixed, such as a water leak sensor.
+`text`, `importance`, `details`, `receiver`, `confidentiality`, `dedupe_key`, `expires_in` → message. For cases in which the judgment is fixed, such as a water leak sensor.
 
 ## Views (`data[].view`)
 
@@ -110,7 +110,7 @@ Size of a call: about 500 to 1,500 tokens. Hourly evaluation of a task costs rou
 
 ## Creating in the conversation
 
-Since agent 0.4.0, creating is a [thread](threads.md) with the target
+Since service 0.4.0, creating is a [thread](threads.md) with the target
 `aufgabe` (skill `skills/aufgabe`): fields watch, when, measure, reaction;
 if a measure is missing, Mira asks; the proposal belongs to the thread, the
 yes is `thread_confirm`. The flow below is the original draft.
@@ -131,7 +131,7 @@ Further tools:
 
 ## Integration
 
-- **Saving and deleting** (since 0.18, [HACS default catalog](hacs-default.md), 3): the agent, with the owner's token, through Home Assistant's automation config API as the editor does (`POST`/`DELETE /api/config/automation/config/<id>`), then `automation.reload` with the id; it deletes only automations labelled "Mira".
+- **Saving and deleting** (since 0.18, [HACS default catalog](hacs-default.md), 3): the service, with the owner's token, through Home Assistant's automation config API as the editor does (`POST`/`DELETE /api/config/automation/config/<id>`), then `automation.reload` with the id; it deletes only automations labelled "Mira".
 - **Websocket commands**, for admins only (`require_admin`):
   - `mira/automation/validate`;
   - `mira/automation/label` (puts the label "Mira" on a saved task);

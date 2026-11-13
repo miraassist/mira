@@ -11,7 +11,7 @@ At a satellite Mira is talking to someone anonymous, unless the "alone at home" 
 Müll" at the kitchen Show becomes a reminder for the person who said it, even with the whole family at home.
 
 A recognized voice counts exactly as the "alone at home" rule does: the person's memory, their personal tasks,
-reminders and notices. Nothing more. A voice is a probability, not a login.
+reminders and messages. Nothing more. A voice is a probability, not a login.
 
 ## Not part of it
 
@@ -91,7 +91,7 @@ Anything else (below the threshold, too close to the second, satellites that dis
 a service that is down or slow: on to 3. The question to the service has a short
 timeout (300 ms) and never holds up the turn.
 
-- **Asked by the agent itself,** not by the HA integration: the agent has the turn's text and decides who speaks
+- **Asked by the service itself,** not by the HA integration: the service has the turn's text and decides who speaks
   already, so the integration and `converse` stay as they are.
 - **Setting** in `mira.yaml`, without which nothing changes:
 
@@ -112,7 +112,7 @@ timeout (300 ms) and never holds up the turn.
 
 ## The speaker stays in a running conversation
 
-Status 2026-10-26: built (in the agent, after `identify`; scenarios SP-11 to SP-13 as tests).
+Status 2026-10-26: built (in the service, after `identify`; scenarios SP-11 to SP-13 as tests).
 
 **What goes wrong today.** In a running conversation Mira often keeps listening after her answer (a question back,
 the next word of a vocabulary test); the next request comes without a wake word. Such an answer is short ("Dog",
@@ -152,7 +152,7 @@ The order in `identify` at a satellite becomes:
 - **What it costs:** somebody else who answers in Anna's conversation without being recognized speaks as Anna for
   that turn. That is what the conversation was until a moment ago, at the same satellite, and the "alone at home"
   rule takes the same risk for longer; what is personal is named, so a mix-up is noticed.
-- **Where:** in the agent, which keeps the session and its `conversation_id` already; the integration and the
+- **Where:** in the service, which keeps the session and its `conversation_id` already; the integration and the
   service stay as they are. The engine remembers, per conversation id, whose conversation Mira's last answer left
   listening at which satellite (for at most a voice session's time) and applies the rule after `identify`: a
   signed-in user and a recognized voice keep what `identify` said; "alone at home" and nobody give way.

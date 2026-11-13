@@ -1,7 +1,7 @@
 // Package llm talks to an OpenAI-compatible chat completions endpoint.
 //
 // The target is llama.cpp's server, whose prompt cache is a core concern of
-// this agent: requests carry an explicit slot id and cache_prompt, and the
+// this service: requests carry an explicit slot id and cache_prompt, and the
 // server's timings block is read back to see how much of the prompt was
 // actually reused. Both extensions are optional so the same client works
 // against LM Studio, vLLM or the OpenAI API.

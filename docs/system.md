@@ -9,12 +9,12 @@ for tasks and the user concept the specs under
 
 ## 1. Overview
 
-Mira is a household agent for Home Assistant. It consists of two parts:
+Mira is a household assistant for Home Assistant. It consists of two parts:
 
-- **Mira agent** (Go, `cmd/mira`): conversation, memory, assessments, delivery
+- **Mira service** (Go, `cmd/mira`): conversation, memory, assessments, delivery
   of messages, web UI. Runs as its own process next to Home Assistant.
 - **Mira integration** (Python, `custom_components/mira`): connects HA with
-  the agent. It provides Mira as a conversation agent for Assist,
+  the service. It provides Mira as a conversation agent for Assist,
   offers Mira's actions for automations (`mira.assess`, `mira.decide`,
   `mira.send_message`) and manages Mira's automations.
 
@@ -36,7 +36,7 @@ flowchart LR
         MCPHA[MCP server<br/>/api/mcp/assist]
         WS[WebSocket API<br/>states, registries, statistics]
     end
-    subgraph Agent[Mira agent]
+    subgraph Service[Mira service]
         API[HTTP API /v1<br/>haconv]
         ENG[Conversation engine<br/>conversation]
         TASKS[Tasks<br/>tasks]
@@ -161,7 +161,7 @@ Important:
   Ideas for further skills (scenes, briefing, cooking, stories, quiz, learning): [Skill ideas](spec/skill-ideas.md).
   Further tools and skills (history, weather, music, camera, lists): [Plan](spec/skills-plan.md).
   Checking whether Mira works with a model setup: [Evals](spec/evals.md).
-  How to set up Mira (pairing, language model in the form, agent without config file): [Setup](spec/setup.md).
+  How to set up Mira (pairing, language model in the form, service without config file): [Setup](spec/setup.md).
 - **Speaking while written.** A voice answer goes to Home Assistant piece by piece while the model writes it, and
   Mira's tool calls with it, so a short sentence of the model before a longer task is spoken at once
   ([Streaming](spec/streaming.md)).
@@ -319,83 +319,15 @@ Further rules:
 
 ## 7. Data
 
-```mermaid
-erDiagram
-    sessions ||--o{ messages : "contains"
-    messages }o--o| announcements : "announced in"
-    assessments }o--|| HA_AUTOMATION : "assessments of"
-    tasks ||--o| HA_AUTOMATION : "becomes after yes"
-    memory_facts }o--|| memory_profile : "condensed into"
-    reminders }o--o| messages : "becomes due as"
+Mira's tables, their relations, what each holds, who writes and reads it and how long it is kept: [Database](database.md),
+the one place for the schema.
 
-    sessions {
-        text key PK
-        text channel
-        text area_id
-    }
-    messages {
-        int id PK
-        text session_key
-        text role
-        text content
-    }
-    messages {
-        text id PK
-        text source
-        text dedupe_key
-        int importance
-        text audience
-        text state
-    }
-    announcements {
-        text id PK
-        text device_id
-        text area_id
-        text message_ids
-    }
-    tasks {
-        text id PK
-        text goal
-        text plan
-        text origin
-    }
-    assessments {
-        text id PK
-        text task
-        text kind
-        int importance
-        text spoken
-        text message_id
-    }
-    memory_facts {
-        text id PK
-        text text
-    }
-    memory_profile {
-        int id PK
-        text text
-    }
-    reminders {
-        text id PK
-        text due_at
-        text text
-        text audience
-    }
-    HA_AUTOMATION {
-        text id PK "mira_..."
-        text label "Mira"
-    }
-```
-
-- `tasks` contains only **open proposals**. After the yes the task lives as an
-  automation in HA (`automations.yaml`), and the proposal is deleted.
-- `assessments` is the log of assessments per task. The key is the
-  ID of the automation. Mira uses it as the task's memory, the UI shows
-  it.
-- Configuration: the basis is `mira.yaml`. The database holds
-  changes from the web UI per section on top of it. Persons and rooms can
-  instead be managed by the HA integration, then the Mira UI only shows
-  them.
+- Configuration: `mira.yaml` is the one truth; Mira's page writes it, secrets go into the secrets file
+  ([Editing](spec/editing.md)). The one exception: Home Assistant's address and token and the main model, as the
+  integration's setup sent them, are kept in the database and laid over `mira.yaml` at start
+  ([Database](database.md), The key-value table).
+- A task lives as an automation in Home Assistant; Mira keeps only which automations are her own (`own_automations`)
+  and the log of a task's assessments (`assessments`).
 
 ## 8. Security
 
@@ -447,25 +379,25 @@ erDiagram
   not after a redirect), only `http`/`https`, at most 2 MB.
 - **Secrets** are only in `.env`, for example tokens or the calendar URL
   with address. They reach no model.
-- **Integration and agent** only talk to each other with a bearer token.
+- **Integration and service** only talk to each other with a bearer token.
 
 ### Connections
 
-Between Home Assistant and the agent there are two directions, on separate paths:
+Between Home Assistant and the service there are two directions, on separate paths:
 
 | Direction | Path | Protection |
 |---|---|---|
-| Integration → agent | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The agent creates the token on first start; the integration fetches it on first adding without a code. Removing the integration releases the agent (`/v1/unpair`, new token); only the same Home Assistant pairs again without a code, with a key derived from the old token it keeps; another one needs the pairing code the agent writes into its log at unpair (12 characters, 5 attempts). `mira reset` or the app's option `reset_data` deletes the database on the agent's machine; then it pairs like a new one. If `server.token` is set in `mira.yaml`, that one applies, without pairing. Agent and integration may be different versions for a while: a new field is optional in both directions, and a repair says which one to update ([Versions](spec/versions.md)) |
-| Agent → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token "Mira (Integration)" of Home Assistant's owner, made with an admin's consent at the setup ([HACS default catalog](spec/hacs-default.md)); automations are saved through Home Assistant's automation config API, as its editor does |
-| Agent → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`, `mira/once/*`, `mira/agent/done`): checking, reading, labelling | admins only (`require_admin`) |
-| Agent → a skill's service (optional) | HTTPS: the skill's MCP server and web API with the connection's token, the service's token address to renew it ([Connections](spec/oauth.md)) | The token goes only to the addresses the skill names; the tokens are in Mira's database, sealed like the secrets file. Home Assistant does the login and hands them over once (`GET /v1/oauth/<skill>`, `PUT /v1/oauth/<skill>/token`, with the bearer token) |
-| Agent → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |
+| Integration → service | HTTP with JSON: `/v1/conversation` (every turn from Assist and Telegram), `/v1/assess`, `/v1/decide`, `/v1/messages`, `/v1/status`, `/v1/ui/ha` (persons, satellites, exposure), the panel proxy | Bearer token (`server.token`), checked in constant time on every request. Without a token only `/ui`, the guide, `/v1/health` and pairing (`/v1/pair`) are reachable, without data. The service creates the token on first start; the integration fetches it on first adding without a code. Removing the integration releases the service (`/v1/unpair`, new token); only the same Home Assistant pairs again without a code, with a key derived from the old token it keeps; another one needs the pairing code the service writes into its log at unpair (12 characters, 5 attempts). `mira reset` or the app's option `reset_data` deletes the database on the service's machine; then it pairs like a new one. If `server.token` is set in `mira.yaml`, that one applies, without pairing. Service and integration may be different versions for a while: a new field is optional in both directions, and a repair says which one to update ([Versions](spec/versions.md)) |
+| Service → Home Assistant | WebSocket API, MCP over HTTP (`/api/mcp/assist`, in voice conversations with the satellite's device id), REST (calendar, core settings) | Long-lived token "Mira (Integration)" of Home Assistant's owner, made with an admin's consent at the setup ([HACS default catalog](spec/hacs-default.md)); automations are saved through Home Assistant's automation config API, as its editor does |
+| Service → integration | via HA: the integration's own WebSocket commands (`mira/automation/*`, `mira/once/*`, `mira/agent/done`): checking, reading, labelling | admins only (`require_admin`) |
+| Service → a skill's service (optional) | HTTPS: the skill's MCP server and web API with the connection's token, the service's token address to renew it ([Connections](spec/oauth.md)) | The token goes only to the addresses the skill names; the tokens are in Mira's database, sealed like the secrets file. Home Assistant does the login and hands them over once (`GET /v1/oauth/<skill>`, `PUT /v1/oauth/<skill>/token`, with the bearer token) |
+| Service → speaker-id (optional) | HTTP with JSON: `/api/match` each satellite turn, `/api/heard`, `/api/profiles`, `/api/assign`, `/api/delete` for enrolling | Bearer token (`speaker_id.token` = the service's `SPEAKER_TOKEN`), checked in constant time. The page never talks to the service; Mira checks whose voice a user may enroll or delete (their own, an admin anyone's) |
 
-- **Panel:** browser → HA (with HA's login) → integration → agent, with the token and the headers `X-Mira-HA-User` and `X-Mira-HA-Admin`. The agent trusts these headers as soon as the token is correct. So whoever has the token can pose as any HA user: the token is the key to everything.
-- **Rights of the HA token:** The agent's HA token is an admin's: whoever has it can do in HA what an admin can. Mira herself uses only what her tools offer; the limits are set by her guards and the exposure to Assist, which HA's MCP tools respect. So keep the token (`.env`, the secrets file) like an admin's password.
-- **Encryption:** The agent speaks unencrypted HTTP. The connection to HA is encrypted if `ha.url` starts with `https://`.
-- **Same host** (the default case: the agent as a container next to HA): Everything runs locally. With `server.listen: 127.0.0.1:8787` the agent is not reachable from outside at all, if HA addresses it via `localhost`.
-- **Separate hosts in the LAN:** Token, conversation texts and replies go through the network unencrypted. Whoever can eavesdrop in the LAN sees them. The agent then listens on all interfaces. Without a token there is no access to data. So choose tokens long and random, and restrict port 8787 to HA, where the router or computer allows it.
+- **Panel:** browser → HA (with HA's login) → integration → service, with the token and the headers `X-Mira-HA-User` and `X-Mira-HA-Admin`. The service trusts these headers as soon as the token is correct. So whoever has the token can pose as any HA user: the token is the key to everything.
+- **Rights of the HA token:** The service's HA token is an admin's: whoever has it can do in HA what an admin can. Mira herself uses only what her tools offer; the limits are set by her guards and the exposure to Assist, which HA's MCP tools respect. So keep the token (`.env`, the secrets file) like an admin's password.
+- **Encryption:** The service speaks unencrypted HTTP. The connection to HA is encrypted if `ha.url` starts with `https://`.
+- **Same host** (the default case: the service as a container next to HA): Everything runs locally. With `server.listen: 127.0.0.1:8787` the service is not reachable from outside at all, if HA addresses it via `localhost`.
+- **Separate hosts in the LAN:** Token, conversation texts and replies go through the network unencrypted. Whoever can eavesdrop in the LAN sees them. The service then listens on all interfaces. Without a token there is no access to data. So choose tokens long and random, and restrict port 8787 to HA, where the router or computer allows it.
 
 ## 9. Testing
 

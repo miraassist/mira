@@ -41,7 +41,7 @@ type Server struct {
 	states   []haws.State
 
 	calls []ServiceCall
-	// commands are the integration's commands ("mira/…") the agent sent.
+	// commands are the integration's commands ("mira/…") the service sent.
 	commands []map[string]any
 	// conns holds live connections so events can be pushed and so a test can
 	// drop the connection to exercise reconnect handling.
@@ -379,7 +379,7 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		cs.mu.Unlock()
 		reply(nil)
 	case "subscribe_trigger":
-		// Admin-only in Home Assistant; the agent runs as a restricted user.
+		// Admin-only in Home Assistant; the service runs as a restricted user.
 		fail("unauthorized", "Unauthorized")
 	case haws.CmdSubscribeEntities:
 		strs := func(v any) []string {

@@ -16,8 +16,8 @@ import (
 // with an event shaped like the one subscribe_trigger delivers.
 //
 // It does not use subscribe_trigger: Home Assistant allows that command to
-// admins only, and the agent runs as a restricted user. subscribe_entities is
-// open to every user and is filtered to the watched entities, so the agent
+// admins only, and the service runs as a restricted user. subscribe_entities is
+// open to every user and is filtered to the watched entities, so the service
 // still does not see every state change in the house.
 //
 // Only state changes fire, not attribute changes. A change that happened

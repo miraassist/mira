@@ -763,11 +763,11 @@ Passt der Code, sagt Mira: „Steck das Gerät jetzt ein.“ Sie sucht es drei M
 
 ### Geräte, die Home Assistant gefunden hat
 
-Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Netz, einen Bluetooth-Sensor, eine Lampe, die du in der App des Herstellers gekoppelt hast. Mira sagt dir das einmal, wenn jemand da ist: „Ich habe ein neues Gerät gefunden: Hue Bridge. Soll ich es einbinden?“ Auf dein Ja führt sie dich durch das, was Home Assistant dafür braucht („Drück den Knopf auf der Bridge“), und dann geht es mit Raum und Name weiter.
+Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Netz, einen Bluetooth-Sensor, eine Lampe, die du in der App des Herstellers gekoppelt hast. Mira legt jedes neue Gerät in ihre Nachricht, wie Post und Aufnahmen vom Anrufbeantworter: Der Ring leuchtet, der Bildschirm zeigt, dass eine Nachricht wartet. Frag dann „Hab ich neue Nachrichten?“, und Mira nennt dir, was sie gefunden hat: „Neues Gerät gefunden: Hue Bridge“. Willst du es einbinden, führt sie dich durch das, was Home Assistant dafür braucht („Drück den Knopf auf der Bridge“), und dann geht es mit Raum und Name weiter.
 
 - **Nein, ignorieren, das ist vom Nachbarn:** Mira nennt es nie wieder. In Home Assistant steht ein entdecktes Gerät dann unter „Ignoriert“, ein Gerät ohne Raum hat das Label „Mira: ignoriert“; dort machst du es rückgängig.
-- **Keine Antwort:** Mira fragt nicht nochmal. „Gibt's neue Geräte?“ nennt dir alles, was noch wartet.
-- Mehrere auf einmal (eine Bridge mit zwanzig Lampen) kommen in einer Nachricht.
+- **Nicht aufgegriffen:** Das Gerät wartet einen Tag in der Nachricht, danach nennt Mira es nicht mehr von selbst. „Gibt's neue Geräte?“ nennt dir alles, was noch wartet.
+- Mehrere auf einmal (eine Bridge mit zwanzig Lampen) stehen in derselben Nachricht, jedes Gerät für sich.
 - Bluetooth-Beacons, die die iBeacon-Integration nur im Vorbeifahren sieht (etwa ein Blitzerwarner im Auto auf der Straße), nennt Mira nicht.
 - Braucht ein Gerät Angaben wie einen Schlüssel oder ein Passwort, sagt Mira dir, dass das in Home Assistant unter Einstellungen → Geräte & Dienste → Entdeckt geht. Nur nach deinem WLAN fragt Mira nicht: Das trägt sie selbst ein, wenn du es ihr gegeben hast (unten).
 
@@ -942,7 +942,7 @@ Bevor Mira etwas löscht, fragt sie nach:
 
 ## In Home Assistant
 
-- **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Wartende Nachrichten** und der Taste **Profil verdichten**; die Versionen von Integration und Agent stehen in den Geräte-Informationen.
+- **Gerät „Mira“** mit dem Schalter **Ruhemodus**, dem Sensor **Wartende Nachrichten** und der Taste **Profil verdichten**; die Versionen der Integration und von Mira stehen in den Geräte-Informationen.
 - Mira ist ein Gesprächsagent: Unter Einstellungen → Sprachassistenten wählst du sie für deine Satelliten aus.
 - Automationen können Mira Nachrichten geben: mit HAs eigener Aktion `notify.send_message` an **Mira Haus** oder **Mira ‹Person›** (je eine notify-Entität fürs Haus und pro Person), oder mit `mira.send_message`, wenn es mehr braucht (Wichtigkeit, vertraulich, Ablauf).
 - **Mira im Seitenmenü** (siehe oben). Ausschalten in den Optionen der Integration; jeder kann sie auch nur in seinem eigenen Seitenmenü ausblenden.

@@ -1,4 +1,4 @@
-"""HTTP client for the Mira agent."""
+"""HTTP client for the Mira service."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _minutes(value: Any) -> int | None:
-    """The minutes of a duration the agent writes like "10m", "1h30m" or "0s"."""
+    """The minutes of a duration the service writes like "10m", "1h30m" or "0s"."""
     parts = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", str(value or ""))
     if not parts or not any(parts.groups()):
         return None
@@ -30,7 +30,7 @@ def _minutes(value: Any) -> int | None:
 
 @dataclass
 class ToolCallPart:
-    """A tool call of the agent's turn, as it starts (result None) or ended."""
+    """A tool call of the service's turn, as it starts (result None) or ended."""
 
     id: str
     name: str
@@ -39,9 +39,9 @@ class ToolCallPart:
 
 
 class MiraError(Exception):
-    """The agent could not be reached or answered with an error."""
+    """The service could not be reached or answered with an error."""
 
-    # Whether the same request may succeed later: the agent not reached, or
+    # Whether the same request may succeed later: the service not reached, or
     # a 5xx or 429 (docs/spec/retry.md); set where it is raised.
     retryable = False
 
@@ -52,7 +52,7 @@ def _transient(error: MiraError) -> MiraError:
 
 
 class MiraAuthError(MiraError):
-    """The agent rejected the token."""
+    """The service rejected the token."""
 
 
 class MiraBadCode(MiraError):
@@ -60,12 +60,12 @@ class MiraBadCode(MiraError):
 
 
 class MiraNotFound(MiraError):
-    """The agent does not have that path: an older agent than this
+    """The service does not have that path: an older service than this
     integration (docs/spec/versions.md)."""
 
 
 class MiraInvalidConfig(MiraError):
-    """The agent refused a config change; the message says why. For the
+    """The service refused a config change; the message says why. For the
     model, reason is one of unreachable, bad_key, no_model, no_tools,
     server_error."""
 
@@ -76,7 +76,7 @@ class MiraInvalidConfig(MiraError):
 
 @dataclass
 class AgentReply:
-    """The agent's answer to one turn."""
+    """The service's answer to one turn."""
 
     text: str
     conversation_id: str
@@ -86,19 +86,19 @@ class AgentReply:
 
 
 def proof(token: str, nonce: str) -> str:
-    """What an agent with this token answers to the nonce, as
+    """What a service with this token answers to the nonce, as
     internal/setup.Proof computes it."""
     return hmac.new(token.encode(), f"mira-prove:{nonce}".encode(), hashlib.sha256).hexdigest()
 
 
 def rejoin_key(token: str) -> str:
-    """What the Home Assistant that let go of an agent shows to pair again
+    """What the Home Assistant that let go of a service shows to pair again
     without a code, as internal/setup.RejoinKey computes it."""
     return hmac.new(token.encode(), b"mira-rejoin", hashlib.sha256).hexdigest()
 
 
 def _reply(data: dict[str, Any], conversation_id: str | None) -> AgentReply:
-    """The agent's answer to one turn, from its JSON."""
+    """The service's answer to one turn, from its JSON."""
     return AgentReply(
         text=str(data.get("text", "")),
         conversation_id=str(data.get("conversation_id") or conversation_id or ""),
@@ -108,7 +108,7 @@ def _reply(data: dict[str, Any], conversation_id: str | None) -> AgentReply:
 
 
 class MiraClient:
-    """Talks to the agent's /v1 API. The integration never does more than this."""
+    """Talks to the service's /v1 API. The integration never does more than this."""
 
     def __init__(self, session: aiohttp.ClientSession, url: str, token: str) -> None:
         self._session = session
@@ -135,7 +135,7 @@ class MiraClient:
                     body = await resp.json(content_type=None) or {}
                     raise MiraInvalidConfig(str(body.get("error", "invalid config")), str(body.get("reason", "")))
                 if resp.status >= 400:
-                    # The agent says why; the user reads it in the automation's trace.
+                    # The service says why; the user reads it in the automation's trace.
                     reason = ""
                     try:
                         body = await resp.json(content_type=None)
@@ -153,20 +153,20 @@ class MiraClient:
             raise _transient(MiraError(f"{method} {path}: {err!r}")) from err
 
     async def pairing(self) -> dict[str, Any]:
-        """Open: the agent's id, and whether it waits for a code or a setup.
-        An agent from before pairing has no such route (MiraError)."""
+        """Open: the service's id, and whether it waits for a code or a setup.
+        A service from before pairing has no such route (MiraError)."""
         return await self._request("GET", "/v1/pair", 10)
 
     async def prove(self, nonce: str) -> str:
-        """Open: the agent's answer to a nonce, an HMAC under its token
-        (proof()). An agent before 0.11.0 has no such route."""
+        """Open: the service's answer to a nonce, an HMAC under its token
+        (proof()). A service before 0.11.0 has no such route."""
         body = await self._request("POST", "/v1/prove", 10, json={"nonce": nonce})
         return str(body["proof"])
 
     async def pair(self, code: str, ha_url: str, ha_token: str, llm: dict[str, Any] | None, rejoin: str = "") -> str:
-        """Pair and set up in one step: the agent keeps Home Assistant's
+        """Pair and set up in one step: the service keeps Home Assistant's
         access and the model, hands out its token and starts anew. The
-        first time, while the agent was never paired, without a code; the
+        first time, while the service was never paired, without a code; the
         Home Assistant that let go of it with the rejoin key instead."""
         payload: dict[str, Any] = {"code": code, "ha_url": ha_url, "ha_token": ha_token, "llm": llm}
         if rejoin:
@@ -175,12 +175,12 @@ class MiraClient:
         return str(body["token"])
 
     async def probe(self, llm: dict[str, Any]) -> None:
-        """A trial request to the model, through the agent (a local model
+        """A trial request to the model, through the service (a local model
         may have to load first, hence the long wait)."""
         await self._request("POST", "/v1/setup/probe", 200, json={"llm": llm})
 
     async def providers(self) -> dict[str, tuple[str, str]]:
-        """The cloud providers the agent knows: key → (name, address). An
+        """The cloud providers the service knows: key → (name, address). An
         agent older than the list (before 0.8.0) knows none: then only a
         model of one's own can be set up."""
         try:
@@ -190,17 +190,17 @@ class MiraClient:
         return {str(p["key"]): (str(p["name"]), str(p["base_url"])) for p in body.get("providers") or []}
 
     async def models(self, base_url: str, api_key: str) -> list[str]:
-        """The models a model server offers, asked through the agent."""
+        """The models a model server offers, asked through the service."""
         body = await self._request("POST", "/v1/setup/models", 20, json={"base_url": base_url, "api_key": api_key})
         return list(body.get("models") or [])
 
     async def unpair(self) -> None:
-        """Home Assistant lets go of the agent: it makes a new token and
+        """Home Assistant lets go of the service: it makes a new token and
         waits to be paired again."""
         await self._request("POST", "/v1/unpair", 10)
 
     async def setup(self, ha_url: str | None, ha_token: str | None, llm: dict[str, Any] | None) -> None:
-        """Hand the agent Home Assistant's access and the model; it tries
+        """Hand the service Home Assistant's access and the model; it tries
         the model with a real request first (a local one may have to load,
         hence the long wait), and starts anew afterwards."""
         body: dict[str, Any] = {}
@@ -279,7 +279,7 @@ class MiraClient:
         channel: str = "voice",
         person: str = "",
     ) -> AgentReply:
-        """Forward one user message and return the agent's answer."""
+        """Forward one user message and return the service's answer."""
         data = await self._request(
             "POST",
             "/v1/conversation",
@@ -311,7 +311,7 @@ class MiraClient:
     ) -> AsyncIterator[str | ToolCallPart | AgentReply]:
         """Forward one voice message and yield the answer while it is written:
         each piece as a str, each tool call as it starts and ends, then the
-        whole answer as an AgentReply (docs/spec/streaming.md). An older agent
+        whole answer as an AgentReply (docs/spec/streaming.md). An older service
         answers whole: then only the AgentReply comes."""
         body = {
             "text": text,
@@ -365,19 +365,19 @@ class MiraClient:
         return await self._request("GET", "/v1/status", 10)
 
     async def set_quiet_mode(self, enabled: bool) -> None:
-        """Switch the agent's quiet mode."""
+        """Switch the service's quiet mode."""
         await self._request("PUT", "/v1/quiet_mode", 10, json={"enabled": enabled})
 
     async def send_message(self, message: dict[str, Any]) -> dict[str, Any]:
-        """Queue a message; the agent decides when and where it is delivered."""
+        """Queue a message; the service decides when and where it is delivered."""
         return await self._request("POST", "/v1/messages", 10, json=message)
 
     async def assess(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Let the agent judge an observation and queue a message if it is worth one."""
+        """Let the service judge an observation and queue a message if it is worth one."""
         return await self._request("POST", "/v1/assess", 60, json=request)
 
     async def decide(self, request: dict[str, Any]) -> dict[str, Any]:
-        """Ask the agent a yes/no question about the house; no message."""
+        """Ask the service a yes/no question about the house; no message."""
         return await self._request("POST", "/v1/decide", 60, json=request)
 
     async def agent(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -403,7 +403,7 @@ class MiraClient:
         return await self._request("POST", "/v1/ui/memory/compact", 180)
 
     async def general(self) -> dict[str, Any]:
-        """What the options' "General" sets at the agent: the persona and
+        """What the options' "General" sets at the service: the persona and
         whether the web search is on."""
         sections = await self._request("GET", "/v1/ui/config", 10) or {}
         search = (sections.get("web_search") or {}).get("value") or {}
@@ -412,13 +412,13 @@ class MiraClient:
             "persona": str((sections.get("persona") or {}).get("value") or ""),
             "web_search": bool(search.get("enabled", True)),
             # The whole section, since it is replaced as a whole; the hold in
-            # minutes, None when this agent does not know it.
+            # minutes, None when this service does not know it.
             "notifier": notifier if isinstance(notifier, dict) else None,
             "own_message_hold": _minutes(notifier.get("own_message_hold")) if isinstance(notifier, dict) else None,
         }
 
     async def set_general(self, changes: dict[str, Any]) -> None:
-        """Change the persona and/or the web search switch; the agent checks
+        """Change the persona and/or the web search switch; the service checks
         them first (MiraInvalidConfig)."""
         body: dict[str, Any] = {}
         if "persona" in changes:
@@ -433,12 +433,12 @@ class MiraClient:
     async def oauth_login(self, skill: str) -> dict[str, Any]:
         """What a skill's login at a service starts with, client secret
         included (docs/spec/oauth.md). MiraNotFound for a skill without one, or
-        an agent from before connections; MiraInvalidConfig while client id or
+        a service from before connections; MiraInvalidConfig while client id or
         secret is missing."""
         return await self._request("GET", f"/v1/oauth/{quote(skill, safe='')}", 10)
 
     async def put_oauth_token(self, skill: str, token: dict[str, Any]) -> None:
-        """Hand the tokens of a finished login to the agent, once."""
+        """Hand the tokens of a finished login to the service, once."""
         body = {
             k: token[k]
             for k in ("access_token", "refresh_token", "token_type", "scope", "expires_in", "expires_at")
@@ -447,7 +447,7 @@ class MiraClient:
         await self._request("PUT", f"/v1/oauth/{quote(skill, safe='')}/token", 10, json=body)
 
     async def managed_config(self) -> dict[str, Any]:
-        """Watchers, persons and rooms as the agent has them now."""
+        """Watchers, persons and rooms as the service has them now."""
         return await self._request("GET", "/v1/ui/ha", 10)
 
     async def set_managed_config(self, config: dict[str, Any]) -> dict[str, Any]:
@@ -455,5 +455,5 @@ class MiraClient:
         return await self._request("PUT", "/v1/ui/ha", 20, json=config)
 
     async def release_managed_config(self) -> None:
-        """Hand watchers, persons and rooms back to the agent's own web UI."""
+        """Hand watchers, persons and rooms back to the service's own web UI."""
         await self._request("DELETE", "/v1/ui/ha", 10)

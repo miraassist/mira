@@ -45,7 +45,7 @@ now change what is there and add new ones, without opening a file on the server.
 - **Provider instead of address:** a list of the common cloud providers (OpenAI, Google Gemini, OpenRouter, Mistral,
   Anthropic) and, last, "Own server". A provider sets the address; only "Own server" shows the address field, also for
   local models. Privacy follows the choice (provider → cloud, own server → local) and can still be changed. Editing a
-  model finds its provider by the address. The list is the agent's one list (docs/spec/models.md, Providers).
+  model finds its provider by the address. The list is the service's one list (docs/spec/models.md, Providers).
 - **Model:** once the server is known (and the token, where one is needed), the page asks its `/models` and offers
   what it names as a list. When the server names nothing, the model stays a text field with a hint.
 - **Check:** when a model is chosen, Mira tries it with a real request, as the setup in Home Assistant does. A refused
@@ -119,7 +119,7 @@ These settings live in Home Assistant, on the persons and satellites; Mira write
      fires the event `mira_started` (`fire_event`, data `id`: her id as `/v1/health` gives it, `version`). Cost: one
      call.
   2. **The integration** listens to `mira_started` (`hass.bus.async_listen`, filtered to the event type at the
-     source); one whose `id` is its entry's agent sends the settings at once (`PUT /v1/ui/ha`, as on its poll) and
+     source); one whose `id` is its entry's service sends the settings at once (`PUT /v1/ui/ha`, as on its poll) and
      reads the status. An event of another Mira (another id) is left alone.
   3. **The safety net** stays as it was: while she has none since her start, Mira reports an **empty fingerprint** in
      `/v1/status` (`exposed_hash: ""`); the integration compares it on every poll (every minute) and sends everything
@@ -128,7 +128,7 @@ These settings live in Home Assistant, on the persons and satellites; Mira write
      Assistant answers `unauthorized`, checked on the test HA 2026-11-11).
   4. **Fails:** the event cannot be fired → log warning `could not tell Home Assistant that Mira started; the
      integration sends its settings at its next poll` with the error; sending fails at the integration → its debug
-     line as on the poll (`Sending watchers, persons and rooms waits for the agent`) and the poll tries again.
+     line as on the poll (`Sending watchers, persons and rooms waits for the service`) and the poll tries again.
   5. Checked on the test HA (2026-11-11): the owner's token fires `mira_started`, a subscriber on another connection
      gets it at once. Run through after a restart of the test Mira: API listening 09:40:49.176, event 09:40:49.177,
      the settings from Home Assistant 09:40:49.202 (25 ms; before: up to a minute, 53 s on 2026-11-10).

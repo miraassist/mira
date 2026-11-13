@@ -8,7 +8,7 @@ Home Assistant was down runs as soon as it is back, and never twice. The due
 time, the owner and the room stand in the automation's variables. Not a
 task: it does not carry the label "Mira".
 
-The agent saves and deletes it through Home Assistant's automation config
+The service saves and deletes it through Home Assistant's automation config
 API, and removes it once it has run (docs/spec/hacs-default.md). Here, for
 admins only, it gets the automation built and checked (build) and reads the
 open ones (list). A timer may not switch what needs an explicit yes (locks,
@@ -117,7 +117,7 @@ async def check(
     automation_id: str | None,
 ) -> dict[str, Any]:
     """The automation of a new timer, or of one replaced (extended), checked
-    like a task; the agent saves it. Returns its id and config."""
+    like a task; the service saves it. Returns its id and config."""
     when = dt_util.parse_datetime(due)
     if when is None or when.tzinfo is None:
         raise HomeAssistantError("due must be a date and time with a time zone")

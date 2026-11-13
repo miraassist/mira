@@ -88,7 +88,7 @@ type Response struct {
 	// FallbackFrom is the model that failed when Model is its fallback.
 	FallbackFrom string
 	// ModelCalls and ModelTime are the turn's calls to the model and the
-	// time they took, for the agent's log line.
+	// time they took, for the service's log line.
 	ModelCalls int
 	ModelTime  time.Duration
 	// Trace is what happened in the turn, in eval mode only.

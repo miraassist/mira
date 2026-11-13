@@ -14,7 +14,7 @@ import (
 // split back is unambiguous.
 const ServerSeparator = "__"
 
-// ToolDef is a tool as the agent knows it, before it is rendered for the
+// ToolDef is a tool as the service knows it, before it is rendered for the
 // model. Internal tools leave Server empty.
 type ToolDef struct {
 	Server      string
@@ -80,7 +80,7 @@ func BuildTools(defs []ToolDef) ([]llm.Tool, error) {
 
 // renderTools is the textual form of layer 3 used for hashing. The tools
 // themselves travel in the request's tools field, where the server's chat
-// template renders them; this is only the agent's own stable view of them.
+// template renders them; this is only the service's own stable view of them.
 func renderTools(tools []llm.Tool) string {
 	var b strings.Builder
 	for _, t := range tools {

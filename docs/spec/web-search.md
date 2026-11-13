@@ -47,8 +47,8 @@ Both tools have the same two markings as the previous MCP server for search:
 
 - **Where:** In the integration's options under **General**, switch **Web search**, default: on.
 - **How:**
-  - The integration sends the switch as config section `web_search` to the agent (`PUT /v1/ui/config`), like the personality.
-  - The agent stores it in its database. The tools disappear or appear immediately, without a restart.
+  - The integration sends the switch as config section `web_search` to the service (`PUT /v1/ui/config`), like the personality.
+  - The service stores it in its database. The tools disappear or appear immediately, without a restart.
 - **`mira.yaml`:** `web_search: {enabled: false}` changes the default. What is set in HA takes precedence.
 - **Without the built-in search:** Another search is added as an MCP server (`mcp_servers`, with `read_only` and `web_content`). Using both at the same time works, but rarely makes sense.
 

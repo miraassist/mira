@@ -21,7 +21,7 @@ async def async_setup_entry(
 
 
 class QuietModeSwitch(MiraEntity, SwitchEntity):
-    """The agent's quiet mode."""
+    """The service's quiet mode."""
 
     _attr_icon = "mdi:volume-off"
 
@@ -39,5 +39,5 @@ class QuietModeSwitch(MiraEntity, SwitchEntity):
         try:
             await self.coordinator.client.set_quiet_mode(enabled)
         except MiraError as err:
-            raise HomeAssistantError(f"Mira agent did not accept quiet mode: {err}") from err
+            raise HomeAssistantError(f"Mira did not accept quiet mode: {err}") from err
         self.coordinator.async_set_updated_data({**(self.coordinator.data or {}), "quiet_mode": enabled})

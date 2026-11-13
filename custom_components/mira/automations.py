@@ -4,13 +4,13 @@ A Mira task ("Achte auf den Wasserverbrauch") is an ordinary automation:
 Home Assistant's triggers and conditions decide when, Mira's actions
 (mira.assess, mira.send_message) decide what is worth saying and say it. The
 automation is the source of truth; it carries the label "Mira" and is edited
-in Home Assistant's automation editor. The agent only keeps a reference.
+in Home Assistant's automation editor. The service only keeps a reference.
 
-The agent works with the token of Home Assistant's owner, given with an
+The service works with the token of Home Assistant's owner, given with an
 admin's consent at the setup (docs/spec/hacs-default.md). It saves and
 deletes automations itself, through Home Assistant's automation config API,
 the one the editor uses; the integration writes no automation file. These
-websocket commands, for admins only, are what the agent cannot do there: the
+websocket commands, for admins only, are what the service cannot do there: the
 check of what a task may call, reading the tasks with their labels, and
 labelling one. A task may switch and notify (the radio, a push to the phone)
 – the user hears exactly which actions before saying yes – but not what the
@@ -486,7 +486,7 @@ async def _ws_validate(hass: HomeAssistant, connection: websocket_api.ActiveConn
 @websocket_api.require_admin
 @callback
 def _ws_label(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """Label an automation the agent just saved as Mira's task ("Mira") or
+    """Label an automation the service just saved as Mira's task ("Mira") or
     timer ("Mira: einmalig"), found by its id in the entity registry."""
     entity_id = er.async_get(hass).async_get_entity_id("automation", "automation", msg["automation_id"])
     if entity_id is None:
@@ -525,6 +525,6 @@ async def _ws_list(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
 
 @callback
 def async_register_commands(hass: HomeAssistant) -> None:
-    """Register the agent's automation commands."""
+    """Register the service's automation commands."""
     for command in (_ws_validate, _ws_label, _ws_list, _ws_get):
         websocket_api.async_register_command(hass, command)

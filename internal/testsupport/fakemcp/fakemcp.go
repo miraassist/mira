@@ -1,8 +1,8 @@
 // Package fakemcp is a real MCP server over Streamable HTTP with tools the
-// test defines. Calls are recorded so a test can check what the agent did.
+// test defines. Calls are recorded so a test can check what the service did.
 //
 // HA and Search build servers that look like Home Assistant's MCP server and
-// a web search server, which is what most agent tests need.
+// a web search server, which is what most service tests need.
 package fakemcp
 
 import (
@@ -208,7 +208,7 @@ func (s *Server) ResetCalls() {
 }
 
 // The schema Home Assistant uses for its intent tools, reduced to what the
-// agent's policy looks at.
+// service's policy looks at.
 const intentSchema = `{"type":"object","properties":{"name":{"type":"string"},"area":{"type":"string"},"floor":{"type":"string"},"domain":{"type":"array","items":{"type":"string"}},"device_class":{"type":"array","items":{"type":"string"}}}}`
 
 // HA builds a server shaped like Home Assistant's MCP server: GetLiveContext
