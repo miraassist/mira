@@ -1,6 +1,6 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 20); step 1 built 2026-11-13 (decisions 21 and on taken while building,
+Status 2026-11-13: specified (decisions 1 to 20); steps 1 and 2 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
 [group-watch.feature](group-watch.feature).
 
@@ -56,6 +56,9 @@ availability watch (later group watches, decision 19).
 | 25 | The inputs' bounds | `hours` 0.05 to 72 (step 0.05; the lower bound lets the test HA run it in minutes), `delay` 0 to 120 minutes, `minutes` 1 to 1440, `below` and `above` −40 to 60 °C, both optional (empty), at least one given and `below` under `above` (the code's check); `night_start`, `night_end` times without default. `group` is an entity of the blueprint's domain; the code checks it is a group helper (an entity with the attribute `entity_id`) of that domain, and not given with areas or floors. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 26 | Indicator lights | The satellites' indicator lights (an LED ring, a screen) are lights too and in "all lights" (found on the test HA: `light.*_led_ring`, `light.show_screen`); the planner proposes them as exceptions as it does the outside lights (a ring lit for hours while messages wait would otherwise be told as left on). Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 27 | Home Assistant and an unknown label | `config/entity_registry/update` takes a label id that does not exist without a word (checked on the test HA, 2026-11-13): before it sets the label, the code reads the label registry, and a missing label (an older integration) is the error of A3. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 28 | When an exception gets its label (A3) | **On the yes to the proposal**, not before it: the planner names the exceptions in its draft (`exclude`, the ids; for lights it proposes the outside lights and the indicators when the user says nothing about them), the proposal names them ("Ausgenommen: …; bekommt das Label „Mira: nicht überwachen“ und ist dann in keinem Wächter mehr") and the members left today, and the yes sets each label (A3's command) before the watch is saved; one label that cannot be set ends it: nothing is saved, the user hears which exception and Home Assistant's answer. Reason: one yes for the watch and its exceptions, and the planner, which sees the members, picks the entities, not the conversation. Outside a drafting ("Überwach die Terrasse nicht mehr", "… wieder", D) the tool **`watch_exception`** (skill `aufgabe`, entity by id or by the words of its name among the members of every scope, labelled ones included) sets or removes the label. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 29 | How the conversation hands a watch group to the drafting | The field `watch` of `aufgabe` holds it in words, written "Gruppe: …" ("Gruppe: Fenster und Türen im Dachgeschoss"); the field check `entities` takes such a value as it is, and the drafting checks the selection against Home Assistant (A2). With such a value (or for a change of a group watch) the planner gets the house's floors with their areas, the group helpers and the members of each scope over the whole house (one render each, A4's costs); otherwise only the catalog of the blueprints. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 30 | A selection without members (A4) | Ends the drafting at once with the reason (no second draft: another draft cannot add a sensor); the thread ends as one the house cannot do, the user hears it, nothing is saved, a log line names the selection. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -250,7 +253,25 @@ Each row is checked before the step that builds on it.
    it, as rows 2 and 3 need it. GW-01 to GW-03 in pytest (`tests/ha/test_group_watch.py`, with every group
    blueprint loading as an automation); rows 1 to 3 checked.
 2. **Drafting a group watch:** the catalog's selection inputs, the label tool, the proposal with today's members; the
-   skill's prose; the label in `labels.py`.
+   skill's prose; the label in `labels.py`. Built 2026-11-13 (decisions 26 to 30): the planner's group catalog (the
+   house's floors, areas, group helpers and members), the code's check of the selection and the exceptions, the
+   proposal with today's members and the exceptions, the labels set on the yes (`watch.SetLabel`), the tool
+   `watch_exception`, the field `watch` with "Gruppe: …", the skill's prose. GW-04 to GW-07 in Go. At the test Mira by
+   voice at the fake Show: "Gib mir Bescheid, wenn ein Fenster offen ist und keiner da ist" – the proposal "Heute sind
+   das 9: Fenster Bad, …" – "Ja, passt" saved it from `open_while_away`; "Sag Bescheid, wenn irgendwo Licht ewig an ist,
+   aber die Terrasse nicht" proposed all lights but the terrace (the planner then did not yet see the members it
+   did not know, so the indicator lights stayed in; since then the planner gets them); on "nimm auch den Garten und
+   die Leuchtringe … raus" all but the terrace, the garden and the indicators; saved, with their labels (see the
+   open point below); "Überwach den Garten wieder" took the label off (`watch_exception`); "Sag Bescheid,
+   wenn im Keller Bewegung ist, während keiner zu Hause ist" – "Im Keller gibt es gar keinen Bewegungsmelder" (the
+   planner, seeing the members), nothing saved; with the label deleted in Home Assistant "Überwach die Terrasse nicht
+   mehr" – "… das passende Label fehlt. Die Mira-Integration braucht dafür ein Update" (the log names the entity).
+   GW-07's refusal (a token without admin) in Go only: the test Mira works with the owner's token. Open for the
+   maintainer (the test Mira's voice model Flash Lite): a broken front matter of `aufgabe` (fixed while building)
+   first sent the wish to the skills `regel` and `aufgabe-aendern`; after a changed proposal it once confirmed in the
+   same turn without the user's yes, which set labels on two indicator lights of the real devices' entries in the
+   test HA (taken off again at once); "Überwach die Terrasse nicht mehr" once deleted the lights' watch
+   (`task_delete`) and once went to `aufgabe-aendern`; with `smart` it asked and called `watch_exception`.
 3. **The fakes and the runs:** the receiver `persons` (decision 20); floors, openings, motion, temperatures, persons home and away; rows 4 to 9; each
    blueprint end to end (entry, read out, follow-up).
 4. **"Ist alles zu?":** the tool `house_check`, the route `/v1/check`, the action `mira.check`; rows 10 and 11.

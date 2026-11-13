@@ -66,6 +66,12 @@ func New(opts Options) *Blueprints {
 // Assistant classifies itself (ws.Error.Retryable); refuse marks every
 // refusal as fatal, for a command whose refusals are about its request.
 func (w *Blueprints) call(ctx context.Context, what, path string, cmd map[string]any, refuse bool) (json.RawMessage, error) {
+	return w.callAbout(ctx, what, "blueprint", path, cmd, refuse)
+}
+
+// callAbout is call for a command about something else than a blueprint
+// (an entity): key names it in the log.
+func (w *Blueprints) callAbout(ctx context.Context, what, key, value string, cmd map[string]any, refuse bool) (json.RawMessage, error) {
 	var out json.RawMessage
 	err := retry.Do(ctx, w.policy, func(ctx context.Context) error {
 		raw, err := w.opts.HA.Call(ctx, cmd)
@@ -78,7 +84,7 @@ func (w *Blueprints) call(ctx context.Context, what, path string, cmd map[string
 		}
 		out = raw
 		return nil
-	}, retry.Warn(w.log, what, w.policy, "blueprint", path))
+	}, retry.Warn(w.log, what, w.policy, key, value))
 	return out, err
 }
 

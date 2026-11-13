@@ -194,14 +194,19 @@ func TestMembersRendered(t *testing.T) {
 // floors, areas and group helpers, read once.
 func TestGroupCatalog(t *testing.T) {
 	h, _ := json.Marshal(testHouse)
-	tpl := &fakeTemplates{answers: []json.RawMessage{h}}
+	tpl := &fakeTemplates{answers: []json.RawMessage{h, json.RawMessage(`[{"id": "light.terrasse", "name": "Terrasse", "state": "off", "area": "Garten"}]`),
+		json.RawMessage(`[]`), json.RawMessage(`[]`), json.RawMessage(`[]`)}}
 	w := groupTest(t, tpl)
-	cat := w.Catalog(context.Background())
+	cat := w.Catalog(context.Background(), true)
 	for _, want := range []string{"Wächtergruppe", "exclude", "Etage Dachgeschoss (dachgeschoss): Büro (buro)", "Garten (garten)",
 		"Gruppen-Helfer: Fenster Gast (binary_sensor.fenster_gast)", "- left_on:", "areas (Liste von Bereichs-ids, optional)",
-		"night_start (Uhrzeit HH:MM)", "below (Zahl -40–60 °C, optional)"} {
+		"night_start (Uhrzeit HH:MM)", "below (Zahl -40–60 °C, optional)", "Im ganzen Haus heute, Lichter (id, Name, Bereich): light.terrasse (Terrasse, Garten)"} {
 		if !strings.Contains(cat, want) {
 			t.Errorf("catalog lacks %q:\n%s", want, cat)
 		}
+	}
+	// Without a watch group in the wish the house is not read.
+	if cat := w.Catalog(context.Background(), false); strings.Contains(cat, "Etage Dachgeschoss") || !strings.Contains(cat, "left_on") || len(tpl.templates) != 5 {
+		t.Errorf("%d renders: %s", len(tpl.templates), cat)
 	}
 }

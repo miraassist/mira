@@ -144,8 +144,10 @@ func num(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
 // Catalog is what the planner learns of the blueprints that are ready: name,
 // what it watches, its inputs with their bounds and defaults, and how to
-// answer with one. Empty when none is ready.
-func (w *Blueprints) Catalog(ctx context.Context) string {
+// answer with one. Empty when none is ready. With house (a wish for a watch
+// group, or a change of a group watch) it holds the house's floors, areas,
+// group helpers and the watch groups' members too (GroupCatalog).
+func (w *Blueprints) Catalog(ctx context.Context, house bool) string {
 	t := w.texts()
 	list := w.Available(ctx)
 	if len(list) == 0 {
@@ -153,7 +155,9 @@ func (w *Blueprints) Catalog(ctx context.Context) string {
 	}
 	var b strings.Builder
 	b.WriteString(t.catalog)
-	b.WriteString(w.GroupCatalog(ctx, list))
+	if house {
+		b.WriteString(w.GroupCatalog(ctx, list))
+	}
 	for _, bp := range list {
 		fmt.Fprintf(&b, "\n- %s: %s. Inputs:", bp.Name, t.about[bp.Name])
 		for _, in := range bp.Inputs {

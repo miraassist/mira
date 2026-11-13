@@ -136,6 +136,14 @@ type Draft struct {
 	// Rendered is the automation Home Assistant rendered from the
 	// blueprint (A4): what the integration checks and the proposal reads.
 	Rendered map[string]any `json:"rendered,omitempty"`
+	// Exclude are the entities of a group watch's watch group the planner
+	// leaves out (docs/spec/group-watch.md, A3): on the yes they get the
+	// label "Mira: nicht überwachen" before the watch is saved.
+	Exclude []string `json:"exclude,omitempty"`
+	// Members and Excluded are the names of the watch group's members today
+	// and of the entities left out, for the proposal (A4).
+	Members  []string `json:"members,omitempty"`
+	Excluded []string `json:"excluded,omitempty"`
 }
 
 // ErrQuestion ends drafting with a question back to the user.
@@ -188,7 +196,7 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 	// What Mira knows may hold the measure the request leaves open: with it
 	// the planner builds a fixed condition instead of asking back.
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
-	instruction += m.blueprints(ctx)
+	instruction += m.blueprints(ctx, IsWatchGroup(fields["watch"]))
 	instruction += m.originText(from)
 	instruction += m.fieldsText(fields)
 	d, err := m.draft(ctx, instruction, goal, "")
@@ -229,6 +237,10 @@ func (m *Manager) draft(ctx context.Context, instruction, goal, automationID str
 		if err == nil {
 			return d, nil
 		}
+		var cannot ErrCannot
+		if errors.As(err, &cannot) {
+			return Draft{}, cannot // a watch group without members: drafting again does not help
+		}
 		if attempt == 1 {
 			return Draft{}, fmt.Errorf("%w: %w", errNoValid, err)
 		}
@@ -238,12 +250,13 @@ func (m *Manager) draft(ctx context.Context, instruction, goal, automationID str
 }
 
 // blueprints is the catalog of Mira's blueprints for the planner; empty
-// without them.
-func (m *Manager) blueprints(ctx context.Context) string {
+// without them. For a watch group (house) it holds what the house has for
+// one (docs/spec/group-watch.md, A2).
+func (m *Manager) blueprints(ctx context.Context, house bool) string {
 	if m.opts.Watch == nil {
 		return ""
 	}
-	return m.opts.Watch.Catalog(ctx)
+	return m.opts.Watch.Catalog(ctx, house)
 }
 
 // originText tells the planner where and from whom the task came, so "here"
@@ -319,8 +332,19 @@ func (m *Manager) SaveAutomation(ctx context.Context, id string, config map[stri
 
 // SaveDraft saves a confirmed draft as a task: a blueprint's draft is
 // checked as Home Assistant rendered it and saved as {use_blueprint}
-// (docs/spec/device-watch.md, A5).
+// (docs/spec/device-watch.md, A5). A group watch's exceptions get their
+// label first (docs/spec/group-watch.md, A3); one that cannot be set ends
+// it with the entity and Home Assistant's answer, and nothing is saved.
 func (m *Manager) SaveDraft(ctx context.Context, id string, d Draft) error {
+	for i, entity := range d.Exclude {
+		if err := m.opts.Watch.SetLabel(ctx, entity, true); err != nil {
+			name := entity
+			if i < len(d.Excluded) {
+				name = d.Excluded[i]
+			}
+			return fmt.Errorf(m.texts().labelFailed, name, entity, m.haError(err))
+		}
+	}
 	checked := d.Automation
 	if d.Rendered != nil {
 		checked = d.Rendered
@@ -478,6 +502,13 @@ func (m *Manager) checkBlueprint(ctx context.Context, d *Draft, name string, inp
 	if err := m.checkNumbers(ctx, b, full); err != nil {
 		return err
 	}
+	if b.Group() {
+		if err := m.checkGroup(ctx, d, b, full); err != nil {
+			return err
+		}
+	} else if len(d.Exclude) > 0 {
+		return errors.New("exclude only with a watch group")
+	}
 	rendered, err := m.opts.Watch.Substitute(ctx, b, full)
 	if err != nil {
 		return err
@@ -518,6 +549,33 @@ func (m *Manager) blueprintValues(config map[string]any) []string {
 				continue
 			}
 			v = in.Default
+		}
+		if watch.Empty(v) {
+			continue
+		}
+		switch in.Kind {
+		case "area":
+			var names []string
+			for _, a := range listOf(v) {
+				if n := m.opts.Snapshot().AreaNames[a]; n != "" {
+					a = n
+				}
+				names = append(names, a)
+			}
+			v = strings.Join(names, ", ")
+		case "floor":
+			v = strings.Join(listOf(v), ", ")
+		case "time":
+			if s, ok := v.(string); ok && len(s) == 8 {
+				v = s[:5]
+			}
+		case "boolean":
+			if b, ok := v.(bool); ok {
+				v = m.texts().no
+				if b {
+					v = m.texts().yes
+				}
+			}
 		}
 		out = append(out, strings.TrimSpace(fmt.Sprintf("%s %v %s", m.opts.Watch.Label(in.Name), v, in.Unit)))
 	}
@@ -661,6 +719,12 @@ func (m *Manager) ProposalText(d Draft) string {
 	// blueprint's, rendered by Home Assistant.
 	if values := m.blueprintValues(d.Automation); d.Rendered != nil && len(values) > 0 {
 		parts = append(parts, fmt.Sprintf(t.blueprintValues, strings.Join(values, ", ")))
+		if len(d.Members) > 0 {
+			parts = append(parts, fmt.Sprintf(t.groupMembers, len(d.Members), namesUpTo(d.Members, t.andMore)))
+		}
+		if len(d.Excluded) > 0 {
+			parts = append(parts, fmt.Sprintf(t.groupExcluded, strings.Join(d.Excluded, ", ")))
+		}
 		return fmt.Sprintf(t.proposal, d.Title, strings.Join(parts, " "))
 	}
 	if automation := d.Automation; automation != nil {
@@ -983,4 +1047,93 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// listOf is a list input as saved: a list of strings.
+func listOf(v any) []string {
+	var out []string
+	switch x := v.(type) {
+	case []string:
+		out = x
+	case []any:
+		for _, e := range x {
+			out = append(out, fmt.Sprint(e))
+		}
+	case string:
+		out = []string{x}
+	}
+	return out
+}
+
+// namesUpTo names up to 15 of the names, the rest as a count.
+func namesUpTo(names []string, andMore string) string {
+	const most = 15
+	if len(names) <= most {
+		return strings.Join(names, ", ")
+	}
+	return strings.Join(names[:most], ", ") + " " + fmt.Sprintf(andMore, len(names)-most)
+}
+
+// checkGroup is a group watch's selection (docs/spec/group-watch.md, A2 to
+// A4): Home Assistant's floors, areas and group helpers, the code's check
+// of what the inputs name, the members Home Assistant renders today and the
+// planner's exceptions among them. A selection without members ends
+// drafting (ErrCannot): it is said, nothing is saved.
+func (m *Manager) checkGroup(ctx context.Context, d *Draft, b watch.Blueprint, inputs map[string]any) error {
+	house, err := m.opts.Watch.House(ctx)
+	if err != nil {
+		return err
+	}
+	sel, err := m.opts.Watch.CheckSelection(b, inputs, house)
+	if err != nil {
+		return err
+	}
+	members, err := m.opts.Watch.Members(ctx, sel)
+	if err != nil {
+		return err
+	}
+	byID := map[string]watch.Member{}
+	for _, mb := range members {
+		byID[mb.ID] = mb
+	}
+	var excluded []string
+	out := map[string]bool{}
+	for _, id := range d.Exclude {
+		mb, ok := byID[id]
+		switch {
+		case sel.Group != "":
+			return errors.New("exclude is not for a group helper: the user chooses its members in Home Assistant")
+		case !ok:
+			var ids []string
+			for _, x := range members {
+				ids = append(ids, x.ID)
+			}
+			return fmt.Errorf("%s in exclude is no member of the watch group; its members: %s", id, strings.Join(ids, ", "))
+		}
+		out[id] = true
+		excluded = append(excluded, mb.Name)
+	}
+	var names []string
+	for _, mb := range members {
+		if !out[mb.ID] {
+			names = append(names, mb.Name)
+		}
+	}
+	if len(names) == 0 {
+		where := []string{sel.Scope.Name}
+		for _, f := range sel.Floors {
+			where = append(where, house.FloorName(f))
+		}
+		for _, a := range sel.Areas {
+			where = append(where, house.AreaName(a))
+		}
+		if sel.Group != "" {
+			where = append(where, sel.Group)
+		}
+		m.log.Info("a watch group without members is not drafted", "blueprint", b.Name, "scope", sel.Scope.Name,
+			"areas", sel.Areas, "floors", sel.Floors, "group", sel.Group)
+		return ErrCannot{fmt.Sprintf(m.texts().noMembers, strings.Join(where, ", "))}
+	}
+	d.Members, d.Excluded = names, excluded
+	return nil
 }

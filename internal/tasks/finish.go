@@ -23,6 +23,12 @@ var entityPattern = regexp.MustCompile(`\b[a-z_]+\.[a-z0-9_]+\b`)
 // every id it names must exist. The value comes back with the ids of the
 // entities found, so the planner works with ids.
 func (m *Manager) CheckEntities(ctx context.Context, value string) (string, error) {
+	// A watch group (docs/spec/group-watch.md) is a selection, not entities:
+	// "Gruppe: alle Fenster im Dachgeschoss". The drafting checks it against
+	// Home Assistant's floors, areas and group helpers.
+	if IsWatchGroup(value) {
+		return value, nil
+	}
 	states, err := m.exposedStates(ctx)
 	if err != nil {
 		return "", err
@@ -105,4 +111,15 @@ func (f automationFinisher) Commit(ctx context.Context, th store.Thread) (string
 		return "", err
 	}
 	return fmt.Sprintf(f.m.texts().confirmed, d.Title), nil
+}
+
+// IsWatchGroup says whether a value of the field "watch" names a watch group
+// ("Gruppe: …", "Group: …") instead of entities.
+func IsWatchGroup(value string) bool {
+	head, _, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return false
+	}
+	head = strings.ToLower(strings.TrimSpace(head))
+	return head == "gruppe" || head == "group"
 }

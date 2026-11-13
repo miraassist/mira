@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -71,6 +72,9 @@ type Selection struct {
 	Scope         Scope
 	Areas, Floors []string
 	Group         string
+	// WithLabelled finds every entity of the scope in the house, the
+	// labelled ones too (an exception to be taken back); not a watch group.
+	WithLabelled bool
 }
 
 func (s Selection) variables() map[string]any {
@@ -185,6 +189,13 @@ const houseTemplate = `{"floors": [{%- for f in floors() -%}{"id": {{ f | tojson
 "areas": { {%- for a in areas() -%}{{ a | tojson }}: {{ area_name(a) | tojson }}{{ ", " if not loop.last }}{%- endfor -%} },
 "groups": [{%- for s in states if s.attributes.entity_id is defined and s.domain in ['light', 'binary_sensor', 'sensor'] -%}{"id": {{ s.entity_id | tojson }}, "name": {{ s.name | tojson }}, "device_class": {{ (s.attributes.device_class or '') | tojson }}}{{ ", " if not loop.last }}{%- endfor -%}]}`
 
+// everyEntityOfScope is every entity of a scope in the house, labelled or
+// not, without group helpers: where an exception is found to be taken back.
+const everyEntityOfScope = `{%- set ns = namespace(members=[]) -%}
+{%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined -%}
+{%- set ns.members = ns.members + [s] -%}
+{%- endfor -%}`
+
 // membersOutput turns the selection's members into JSON.
 const membersOutput = `[{%- for s in ns.members -%}{"id": {{ s.entity_id | tojson }}, "name": {{ s.name | tojson }}, "state": {{ s.state | tojson }}, "area": {{ (area_name(s.entity_id) or '') | tojson }}}{{ ", " if not loop.last }}{%- endfor -%}]`
 
@@ -203,7 +214,7 @@ func SelectionTemplate() string {
 // result it could parse as a list or an object, else the string.
 func decodeResult(raw json.RawMessage, v any) error {
 	var text string
-	if json.Unmarshal(raw, &text) == nil {
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] == '"' && json.Unmarshal(trimmed, &text) == nil {
 		raw = json.RawMessage(text)
 	}
 	if err := json.Unmarshal(raw, v); err != nil {
@@ -246,7 +257,11 @@ func (w *Blueprints) House(ctx context.Context) (House, error) {
 // one render_template with the shared selection.
 func (w *Blueprints) Members(ctx context.Context, sel Selection) ([]Member, error) {
 	var out []Member
-	if err := w.render(ctx, "rendering a watch group", SelectionTemplate()+"\n"+membersOutput, sel.variables(), &out); err != nil {
+	tpl := SelectionTemplate()
+	if sel.WithLabelled {
+		tpl = everyEntityOfScope
+	}
+	if err := w.render(ctx, "rendering a watch group", tpl+"\n"+membersOutput, sel.variables(), &out); err != nil {
 		w.log.Warn("could not render a watch group", "scope", sel.Scope.Name, "areas", sel.Areas, "floors", sel.Floors,
 			"group", sel.Group, "error", err)
 		return nil, err
@@ -255,27 +270,32 @@ func (w *Blueprints) Members(ctx context.Context, sel Selection) ([]Member, erro
 }
 
 type groupTexts struct {
-	intro, house, floor, groupHelper                       string
+	intro, house, floor, groupHelper, members              string
+	scopes                                                 map[string]string
 	unknownArea, unknownFloor, unknownGroup, groupAndPlace string
 	noLimit, belowAbove                                    string
 }
 
 var groupCatalog = map[i18n.Lang]groupTexts{
 	i18n.DE: {
-		intro:       "\n\nWächter für Gruppen: Die Wächtergruppe ist eine Auswahl über das, was Home Assistant kennt; die Art (Lichter, Fenster und Türen, Bewegungsmelder, Temperaturen) bestimmt der Blueprint. Wähle sie mit areas (Liste von Bereichs-ids) und floors (Liste von Etagen-ids): zusammen alles in diesen Bereichen und auf diesen Etagen, ohne beide das ganze Haus; oder mit group (die id eines Gruppen-Helfers, dann ohne areas und floors). Was das Label „Mira: nicht überwachen“ trägt, ist in keiner Wächtergruppe. Nimmt der Nutzer etwas aus („die Terrasse nicht“), und bei Lichtern die Außenbeleuchtung (nach Bereich und Name: Terrasse, Garten, Einfahrt …) und die Anzeigen der Sprachgeräte (LED-Ring, Bildschirm) als Vorschlag: gib die ids im Feld \"exclude\" deiner Antwort an (nur Mitglieder der Wächtergruppe, nicht bei group); sie bekommen das Label und sind dann in keinem Wächter, und dein summary sagt das. Nennt der Nutzer etwas, das es nicht gibt (eine Etage, einen Bereich), antworte {\"error\": was es gibt}.",
+		intro:       "\n\nWächter für Gruppen: Die Wächtergruppe ist eine Auswahl über das, was Home Assistant kennt; die Art (Lichter, Fenster und Türen, Bewegungsmelder, Temperaturen) bestimmt der Blueprint. Wähle sie mit areas (Liste von Bereichs-ids) und floors (Liste von Etagen-ids): zusammen alles in diesen Bereichen und auf diesen Etagen, ohne beide das ganze Haus; oder mit group (die id eines Gruppen-Helfers, dann ohne areas und floors). Was das Label „Mira: nicht überwachen“ trägt, ist in keiner Wächtergruppe. Was der Nutzer ausnimmt („die Terrasse nicht“), genau das; sagt er bei Lichtern nichts dazu, als Vorschlag die Außenbeleuchtung (nach Bereich und Name: Terrasse, Garten, Einfahrt …) und die Anzeigen der Sprachgeräte (LED-Ring, Bildschirm): gib ihre ids im Feld \"exclude\" deiner Antwort an (nur Mitglieder der Wächtergruppe, nicht bei group); sie bekommen beim Ja das Label und sind dann in keinem Wächter, und dein summary nennt sie. Nennt der Nutzer etwas, das es nicht gibt (eine Etage, einen Bereich), antworte {\"error\": was es gibt}.",
 		house:       "\nEtagen und Bereiche des Hauses:",
 		floor:       "\n- Etage %s (%s): %s",
 		groupHelper: "\nGruppen-Helfer: %s",
+		members:     "\nIm ganzen Haus heute, %s (id, Name, Bereich): %s",
+		scopes:      map[string]string{"lights": "Lichter", "openings": "Fenster und Türen", "motion": "Bewegungsmelder", "temperatures": "Temperaturen"},
 		unknownArea: "einen Bereich %q gibt es nicht; die Bereiche: %s", unknownFloor: "eine Etage %q gibt es nicht; die Etagen: %s",
 		unknownGroup:  "%q ist kein Gruppen-Helfer für diesen Wächter; die Gruppen-Helfer: %s",
 		groupAndPlace: "entweder group oder areas und floors, nicht beides",
 		noLimit:       "gib below oder above an (oder beide)", belowAbove: "below (%v) muss unter above (%v) liegen",
 	},
 	i18n.EN: {
-		intro:       "\n\nWatches for groups: the watch group is a selection over what Home Assistant knows; its kind (lights, windows and doors, motion sensors, temperatures) is the blueprint's. Choose it with areas (a list of area ids) and floors (a list of floor ids): together everything in these areas and on these floors, without both the whole house; or with group (the id of a group helper, then without areas and floors). What carries the label \"Mira: don't watch\" is in no watch group. When the user leaves something out (\"not the terrace\"), and for lights the outside lighting (by area and name: terrace, garden, driveway …) and the voice devices' indicators (an LED ring, a screen) as a proposal: give the ids in the field \"exclude\" of your answer (only members of the watch group, not with group); they get the label and are then in no watch, and your summary says so. When the user names something that does not exist (a floor, an area), answer {\"error\": what there is}.",
+		intro:       "\n\nWatches for groups: the watch group is a selection over what Home Assistant knows; its kind (lights, windows and doors, motion sensors, temperatures) is the blueprint's. Choose it with areas (a list of area ids) and floors (a list of floor ids): together everything in these areas and on these floors, without both the whole house; or with group (the id of a group helper, then without areas and floors). What carries the label \"Mira: don't watch\" is in no watch group. What the user leaves out (\"not the terrace\"), exactly that; when the user says nothing about it for lights, as a proposal the outside lighting (by area and name: terrace, garden, driveway …) and the voice devices' indicators (an LED ring, a screen): give their ids in the field \"exclude\" of your answer (only members of the watch group, not with group); on the yes they get the label and are then in no watch, and your summary names them. When the user names something that does not exist (a floor, an area), answer {\"error\": what there is}.",
 		house:       "\nFloors and areas of the house:",
 		floor:       "\n- floor %s (%s): %s",
 		groupHelper: "\nGroup helpers: %s",
+		members:     "\nIn the whole house today, %s (id, name, area): %s",
+		scopes:      map[string]string{"lights": "lights", "openings": "windows and doors", "motion": "motion sensors", "temperatures": "temperatures"},
 		unknownArea: "there is no area %q; the areas: %s", unknownFloor: "there is no floor %q; the floors: %s",
 		unknownGroup:  "%q is no group helper for this watch; the group helpers: %s",
 		groupAndPlace: "either group or areas and floors, not both",
@@ -286,9 +306,11 @@ var groupCatalog = map[i18n.Lang]groupTexts{
 func (w *Blueprints) groupTexts() groupTexts { return i18n.Pick(groupCatalog, w.opts.Lang) }
 
 // GroupCatalog is what the planner learns of watch groups besides the
-// blueprints: how to choose one, the house's floors and areas and its group
-// helpers. Empty when no group blueprint is ready or the house cannot be
-// read (logged by House).
+// blueprints: how to choose one, the house's floors and areas, its group
+// helpers, and the members of each scope's watch group over the whole house
+// (the ones it may leave out; one render each). Empty when no group
+// blueprint is ready or the house cannot be read (logged by House and
+// Members).
 func (w *Blueprints) GroupCatalog(ctx context.Context, list []Blueprint) string {
 	if !slices.ContainsFunc(list, Blueprint.Group) {
 		return ""
@@ -326,6 +348,17 @@ func (w *Blueprints) GroupCatalog(ctx context.Context, list []Blueprint) string 
 			g = append(g, x.Name+" ("+x.ID+")")
 		}
 		fmt.Fprintf(&b, t.groupHelper, strings.Join(g, ", "))
+	}
+	for _, scope := range Scopes {
+		members, err := w.Members(ctx, Selection{Scope: scope})
+		if err != nil {
+			return ""
+		}
+		var list []string
+		for _, mb := range members {
+			list = append(list, fmt.Sprintf("%s (%s, %s)", mb.ID, mb.Name, mb.Area))
+		}
+		fmt.Fprintf(&b, t.members, t.scopes[scope.Name], strings.Join(list, "; "))
 	}
 	return b.String()
 }
@@ -384,4 +417,67 @@ func (w *Blueprints) CheckSelection(b Blueprint, inputs map[string]any, h House)
 		}
 	}
 	return sel, nil
+}
+
+// ErrNoLabel is the label "Mira: nicht überwachen" missing in Home
+// Assistant: an integration older than the group watch.
+var ErrNoLabel = errors.New("home assistant has no label mira_dont_watch: the Mira integration needs an update")
+
+// SetLabel puts the label "Mira: nicht überwachen" on an entity (on), or
+// takes it off (docs/spec/group-watch.md, A3 and D): the label registry
+// first (Home Assistant takes an unknown label id without a word, decision
+// 27), then the entity's labels from the entity registry, then the update
+// with the label added or removed. A refusal (a token without admin) ends at
+// once, a lost connection is tried again (Retries); a failure is logged with
+// the entity and Home Assistant's answer.
+func (w *Blueprints) SetLabel(ctx context.Context, entity string, on bool) error {
+	err := w.setLabel(ctx, entity, on)
+	if err != nil {
+		w.log.Warn("could not change the label mira_dont_watch of an entity", "entity", entity, "set", on, "error", err)
+	}
+	return err
+}
+
+func (w *Blueprints) setLabel(ctx context.Context, entity string, on bool) error {
+	raw, err := w.callAbout(ctx, "reading the labels", "entity", entity, map[string]any{"type": "config/label_registry/list"}, false)
+	if err != nil {
+		return err
+	}
+	var labels []struct {
+		LabelID string `json:"label_id"`
+	}
+	if err := json.Unmarshal(raw, &labels); err != nil {
+		return fmt.Errorf("config/label_registry/list answered %q: %w", excerpt.Bytes(raw), err)
+	}
+	if !slices.ContainsFunc(labels, func(l struct {
+		LabelID string `json:"label_id"`
+	}) bool {
+		return l.LabelID == LabelDontWatch
+	}) {
+		return ErrNoLabel
+	}
+	raw, err = w.callAbout(ctx, "reading an entity's labels", "entity", entity, map[string]any{"type": "config/entity_registry/get", "entity_id": entity}, false)
+	if err != nil {
+		return err
+	}
+	var entry struct {
+		Labels []string `json:"labels"`
+	}
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		return fmt.Errorf("config/entity_registry/get of %s answered %q: %w", entity, excerpt.Bytes(raw), err)
+	}
+	has := slices.Contains(entry.Labels, LabelDontWatch)
+	if has == on {
+		return nil
+	}
+	next := slices.DeleteFunc(slices.Clone(entry.Labels), func(l string) bool { return l == LabelDontWatch })
+	if on {
+		next = append(next, LabelDontWatch)
+	}
+	_, err = w.callAbout(ctx, "setting an entity's labels", "entity", entity, map[string]any{"type": "config/entity_registry/update",
+		"entity_id": entity, "labels": nonNil(next)}, false)
+	if err == nil {
+		w.log.Info("label mira_dont_watch changed", "entity", entity, "set", on)
+	}
+	return err
 }

@@ -24,6 +24,7 @@ type texts struct {
 	draftForbidden, alsoSwitches                                           string
 	conditionsAre, judgesItself, noCondition                               string
 	blueprintValues, valuesChange                                          string
+	groupMembers, groupExcluded, andMore, noMembers, labelFailed           string
 	condBetween, condAfter, condBefore, condAbove, condBelow, condTemplate string
 	proposal, planFailed                                                   string
 	confirmed, tryObservation, cannot                                      string
@@ -188,6 +189,11 @@ JSON-Objekt:
 		alsoSwitches:     "Dabei schaltet sie außerdem: %s.",
 		conditionsAre:    "Bedingung: %s.",
 		blueprintValues:  "Werte: %s.",
+		groupMembers:     "Heute sind das %d: %s.",
+		groupExcluded:    "Ausgenommen: %s; bekommt das Label „Mira: nicht überwachen“ und ist dann in keinem Wächter mehr.",
+		andMore:          "und %d weitere",
+		noMembers:        "die Auswahl ergibt heute keinen einzigen Sensor (%s); es gibt dort nichts davon",
+		labelFailed:      "Die Ausnahme %s (%s) konnte ich nicht setzen, der Wächter ist nicht gespeichert: %v",
 		valuesChange:     "Werte bisher: %s; neu: %s.",
 		judgesItself:     "Ob es sich lohnt, entscheide ich jedes Mal selbst; eine feste Bedingung gibt es nicht.",
 		noCondition:      "Ohne weitere Bedingung.",
@@ -288,6 +294,11 @@ JSON object:
 		alsoSwitches:     "It also switches: %s.",
 		conditionsAre:    "Condition: %s.",
 		blueprintValues:  "Values: %s.",
+		groupMembers:     "Today these are %d: %s.",
+		groupExcluded:    "Left out: %s; it gets the label \"Mira: don't watch\" and is then in no watch.",
+		andMore:          "and %d more",
+		noMembers:        "the selection gives not a single sensor today (%s); there is none of them there",
+		labelFailed:      "I could not set the exception %s (%s); the watch is not saved: %v",
 		valuesChange:     "Values so far: %s; now: %s.",
 		judgesItself:     "Whether it is worth it, I decide each time myself; there is no fixed condition.",
 		noCondition:      "No further condition.",

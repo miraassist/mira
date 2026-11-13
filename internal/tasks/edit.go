@@ -17,6 +17,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/watch"
 )
 
 // Changing the household's tasks in the conversation
@@ -181,7 +182,9 @@ func (f editFinisher) Work(ctx context.Context, th store.Thread) (threads.Result
 	goal := fmt.Sprintf(t.editIntro, name, change)
 	current, _ := json.MarshalIndent(before, "", "  ")
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
-	instruction += m.blueprints(ctx)
+	name0, _, isWatch := blueprintOf(Draft{Automation: before})
+	b0, _ := watch.ByName(name0)
+	instruction += m.blueprints(ctx, isWatch && b0.Group())
 	instruction += m.originText(from)
 	instruction += fmt.Sprintf(t.editRules, current)
 

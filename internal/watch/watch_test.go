@@ -204,7 +204,7 @@ func TestCW04_SavingABlueprintIsRefused(t *testing.T) {
 	// And no watch is drafted from that blueprint: the catalog leaves it
 	// out and the check refuses it.
 	ha.saveErrs = []error{refusal}
-	cat := w.Catalog(context.Background())
+	cat := w.Catalog(context.Background(), true)
 	if strings.Contains(cat, "daily_routine") || !strings.Contains(cat, "water_runs_on") {
 		t.Errorf("catalog: %s", cat)
 	}
