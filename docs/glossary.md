@@ -88,6 +88,9 @@ is used in a spec; a term that is not here is not a term yet.
 | watch | Wächter (one); Überwachung (the feature) | A blueprint applied to the house: a task made from a blueprint; a device watch or a group watch | an automation with `use_blueprint`, `own_automations` kind `task` | monitor, sentinel |
 | device watch | Gerätewächter | A watch over one device against its own normal, learned from its history (its device profile): a water meter, a fridge, a dishwasher | blueprints `water_runs_on`, `water_never_rests`, `daily_routine`, `duty_cycle`, `device_run` | consumption watch |
 | group watch | Gruppenwächter | A watch over a group of sensors against a rule for a situation the user says: lights left on, windows open, motion while nobody is home | blueprint `left_on` (planned) | — |
+| battery watch | Batteriewächter | A group watch over the house's batteries: once a day it names every battery below its limit or reported low | blueprint `battery_low`, scope `batteries` | battery monitor |
+| availability watch | Erreichbarkeitswächter | A group watch over the house's devices: once a day it names every device (or entity of one) that is unreachable | blueprint `unreachable`, scope `devices` | offline watch |
+| unreachable | nicht erreichbar | An entity of a device in the state `unavailable` while its integration provides it (not `restored`), for the watch's hours | the availability watch's rule ([Group watch](spec/group-watch.md), decision 38) | offline, dead (for a device) |
 | watch group | Wächtergruppe | The sensors a group watch watches: a selection by device class, area or floor (combinable), or a group helper; without what carries the label "Mira: nicht überwachen" (not for a group helper) | blueprint inputs (planned) | group (alone) |
 | group helper | Gruppen-Helfer | Home Assistant's group entity with fixed members ("Fenster Gast offen") | domain `group` config entries, e.g. `binary_sensor.fenster_gast_offen` | group (alone) |
 | device class | device class | What an entity is within its domain (window, door, motion, …), in Home Assistant's UI "Anzeigen als" | `device_class`, `original_device_class` | device type, Gerätetyp |
@@ -113,3 +116,4 @@ is used in a spec; a term that is not here is not a term yet.
 10. Two kinds of watch: the **device watch** and the **group watch**; "consumption watch" is not used.
 11. Mira's fixed ways of watching are **blueprints** ("Blueprint" in German too, as in Home Assistant); "pattern" and "Muster" are not used.
 12. A group watch watches a **watch group**: a selection by device class, area or floor, or a group helper; "group" alone is not used. The **floor** is Home Assistant's floor.
+13. The **battery watch** and the **availability watch** are group watches; a device whose entities are `unavailable` is **unreachable** ("nicht erreichbar"). Added 2026-11-13 without the maintainer, to be confirmed.

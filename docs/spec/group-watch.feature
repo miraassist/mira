@@ -134,3 +134,73 @@ Feature: Group watch (docs/spec/group-watch.md)
     Given the service has no route /v1/check
     When a script calls mira.check
     Then the action fails with "Mira kann das erst nach einem Update"
+
+  @step6
+  Scenario: GW-22 A battery runs low
+    Given a watch "battery_low" below 20 % at 09:00
+    And a fake smoke detector's battery at 12 % and a fake leak sensor reporting its battery low
+    When it is 09:00
+    Then one entry names both devices by their names, the smoke detector with 12 %
+    And a battery at 50 % is not named
+
+  @step6
+  Scenario: GW-23 Once a day while it lasts
+    Given a watch "battery_low" and a fake battery at 12 %
+    When the check names it at 09:00
+    Then the next day at 09:00 it is named again
+    And once the battery is at 100 %, or carries the label, no entry comes
+
+  @step6
+  Scenario: GW-24 A device is not reachable
+    Given a watch "unreachable" with 1 hour at 09:00
+    And the fake plug in the garage lost since 07:30
+    When it is 09:00
+    Then the entry names the plug's device
+    And with only one of its entities lost, the entry names that entity
+
+  @step6
+  Scenario: GW-25 Not unreachable
+    Given a watch "unreachable" with 1 hour at 09:00
+    When at 09:00 a fake device has been lost for 20 minutes, another entity is unknown, a third is restored
+    And an entity without a device is unavailable
+    Then no entry comes
+
+  @step6
+  Scenario: GW-26 A restart floods nothing
+    Given a watch "unreachable" with 1 hour at 09:00 and a fake device lost for days
+    When Home Assistant restarts at 08:30
+    Then nothing is told at the restart
+    And the check at 09:00 does not name the device
+    And the check the next day names it
+
+  @step7
+  Scenario: GW-27 Sag mir, wenn eine Batterie leer wird
+    When the user says "Sag mir, wenn eine Batterie leer wird"
+    And agrees to the proposal
+    Then an automation with use_blueprint "mira/battery_low.yaml" is saved as a task
+    And the proposal named how many batteries it watches, by device, and the one already low
+    And the phone the planner proposed as an exception carries the label
+
+  @step7
+  Scenario: GW-28 Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist
+    When the user says "Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist"
+    And agrees to the proposal
+    Then an automation with use_blueprint "mira/unreachable.yaml" is saved as a task
+    And the proposal named how many devices it watches and the one not reachable today
+
+  @step7
+  Scenario: GW-29 The planner sees only the devices lost today
+    When a group watch is drafted
+    Then the planner's catalog lists every battery with its value
+    And of the devices only the entities unavailable today
+
+  @step7
+  Scenario: GW-30 Ist alles zu? takes no batteries
+    When house_check is asked for the batteries or the devices
+    Then it refuses them as a kind there is not, naming the kinds there are
+
+  @step7
+  Scenario: GW-31 An exception among the devices
+    Given the fake plug in the garage is not reachable
+    When the user says "Überwach die Steckdose in der Garage nicht mehr"
+    Then its entity carries the label "Mira: nicht überwachen"

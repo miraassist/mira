@@ -1,8 +1,9 @@
 # Group watch – Spec
 
 Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 5 built 2026-11-13 (decisions 21 and on taken while building,
-to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
-[group-watch.feature](group-watch.feature).
+to be confirmed by the maintainer), not released. The battery watch and the availability watch (decisions 36 to 47,
+taken without the maintainer, to be confirmed) specified 2026-11-13, steps 6 to 8 not built yet. It builds on the
+[Device watch](device-watch.md). Scenarios: [group-watch.feature](group-watch.feature).
 
 ## Goal
 
@@ -22,8 +23,21 @@ The difference to the device watch: there one device is held against its own nor
 a group is held against a rule the user says. The ground is the same: Mira's blueprints, drafting through the skill
 `aufgabe`, a watch is a task, its entry a message's.
 
-Not here: cameras (for now), alarms (smoke, gas, leak: the devices or a coupled system do that), a battery or
-availability watch (later group watches, decision 19).
+Two more group watches look after the house's devices themselves (decision 19, specified as decisions 36 to 47): the
+**battery watch** tells the batteries that run low, the **availability watch** the devices Home Assistant cannot
+reach. Both look once a day and name every member that breaks the rule then (decision 37); neither is an alarm.
+
+- "Sag mir, wenn eine Batterie leer wird." – "Mach ich: Ich schau jeden Morgen um 9 nach den 12 Batterien, die Handys
+  und das Auto nicht, und sag dir, welche unter 20 Prozent sind. Schon jetzt schwach: Rauchmelder Flur (12 %). Passt
+  das?"
+- "Sag Bescheid, wenn ein Gerät nicht mehr erreichbar ist." – "Mach ich: Jeden Morgen um 9 sag ich dir, welche der 40
+  Geräte seit mindestens einer Stunde nicht erreichbar sind. Schon jetzt nicht erreichbar: Steckdose Garage."
+
+The availability watch is the deliberate counterpart of decision 23: in every other group watch `unavailable` and
+`unknown` never break a rule; here `unavailable` is the rule.
+
+Not here: cameras (for now), alarms (smoke, gas, leak: the devices or a coupled system do that). "Wie geht's dem
+Haus?" is a later spec of its own that builds on the watches; "Ist alles zu?" (C) takes neither new kind (decision 46).
 
 ## Decisions (2026-11-13)
 
@@ -64,6 +78,19 @@ availability watch (later group watches, decision 19).
 | 33 | The tool `house_check` | Offered in **every turn**, without a skill ("Ist alles zu?" is asked at any time); read only. Scopes `openings` (default), `lights` ("Brennt irgendwo noch Licht?") and `motion`; areas and floors by name or id. Temperatures have no "open" and are no scope of a check. Its answer names what is open with its area, how many were checked, and what does not report, which the model is told to say too (Flash Lite left it out at first). Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 34 | The check's entry (C2) | Kind `simple`, importance 1, for the receiver (house or a person; another value is the caller's error), key `check:<scope>` (a second check while it is unheard replaces it), expiry 12 hours, text "Noch offen: Fenster Bad (Bad)." and, when some do not report, "Meldet sich nicht: …". Nothing open: no entry, also when some do not report. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 35 | Errors of `/v1/check` | A scope, area, floor or receiver that does not exist: 400 with what there is; Home Assistant failing to render: 502 with its answer and a log line; the integration's action raises them as `check_failed` with the service's reason, a 404 (an older service) as `check_needs_update` ("Mira kann das erst nach einem Update."). Not tried again (Retries). Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 36 | What a battery is (battery watch) | A `sensor` of device class `battery` (Home Assistant's percentage) below `below` (default 20 %), or a `binary_sensor` of device class `battery` that is `on` (Home Assistant: "low"). Both domains form one watch group, the scope **batteries**. Rechargeable batteries report the same class (phones, tablets, cars, robot vacuums, e-bikes); they are left out by the label, which the planner proposes for them as for the outside lights (decision 45). Read on the maintainer's house (read only, 2026-11-13): 46 percentage sensors and 12 low-battery sensors of radio devices, 7 phones, a car and a robot vacuum; none below 37 % that day. (taken while building, to be confirmed by the maintainer) |
+| 37 | Once a day, not once per streak | Both watches **look once a day at `at`** (default 09:00, a time trigger) and name every member that breaks the rule then; while it lasts, it is named again the next day (the dedupe key replaces an entry not yet heard), until the battery is changed, the device is back, or the member carries the label. Reasons: a low battery and a lost device are lasting states of single members, not events; a template trigger fires once per streak of the whole group (decision 3), and in a real house some battery is low or some device is unreachable for weeks, so a second one would never be told; a watch cannot remember whom it told, since `this` is empty in a trigger after the automation is saved or reloaded (checks, row 13), and a per-member streak by `last_changed` would name a battery again at every percent it loses. The time trigger also fires nothing at a restart or a reload (decision 39), and costs one render a day instead of a template over every sensor rendered up to once a second. A departure from "push, not polling" for this reason; Home Assistant's own community blueprints for batteries look once a day the same way. (taken while building, to be confirmed by the maintainer) |
+| 38 | When a device is unreachable (availability watch) | An entity counts as **unreachable** when its state is `unavailable` for at least `hours` (default 1), by its `last_changed`. `unknown` does not count (a value not there yet is no lost device). A state with the attribute `restored` does not count: no integration provides the entity now (an entity left over from a removed device or integration, or an integration that did not load); Home Assistant shows both on its own pages, and the left-overs would otherwise fill the entry every day (the test HA has seven). Known gap: a device that is already off when its integration starts can leave its integration unloaded and its entities `restored`. Members are only entities that belong to a **device** (Home Assistant's device registry), of the domains `sensor`, `binary_sensor`, `switch`, `light`, `cover`, `climate`, `lock`, `fan`, `valve`: the scope **devices**; media players (off by design), helpers and templates (no device) are none. (taken while building, to be confirmed by the maintainer) |
+| 39 | A restart or a reload | A restart gives every entity a new `last_changed` (checks, row 15), a reload of an integration keeps it for an entity that stays `unavailable` (row 16). Nothing fires at either (decision 37); entities that are unavailable for a few seconds or minutes while Home Assistant starts or an integration reloads are available again by the check, and a restart within `hours` before the check hides a lost device for that day only (named the next day). No flood, no extra entry. (taken while building, to be confirmed by the maintainer) |
+| 40 | How one entry names many | **By device**: the battery watch names a member's device (its name given by the user, else its name), each device once, with the percentage where it has one ("Rauchmelder Flur (12 %), Wassermelder Keller"); an entity without a device by its own name. The availability watch names a device whose member entities are all `unavailable` by the device's name, otherwise (only some of its entities are lost: a broken probe) each unreachable entity by its own name. Never an entity id. (taken while building, to be confirmed by the maintainer) |
+| 41 | The selection of the two | The whole house by default, narrowed by areas and floors as every watch group (decision 22), minus the label. **No group helper**: a fixed list is not how one thinks of batteries or devices, and the label covers the exceptions. (taken while building, to be confirmed by the maintainer) |
+| 42 | One selection over several domains | The shared selection (decision 21) takes `domain` as one domain or a list (the batteries: `sensor` and `binary_sensor`; the devices: nine). The macro's text changes, so every group blueprint gets `mira-version: 2` and is replaced as in the device watch (its step D). (taken while building, to be confirmed by the maintainer) |
+| 43 | Receiver and entry | As every group blueprint (decision 24): `persons` while `zone.home` is 0, else the house; kind `simple`, importance 1, key `watch:<automation id>`, expiry 12 hours. (taken while building, to be confirmed by the maintainer) |
+| 44 | The inputs' bounds | Battery: `below` 1 to 90 % (default 20), `at` (default 09:00). Availability: `hours` 0.05 to 72 (default 1; the lower bound lets the test HA run it in minutes), `at` (default 09:00). Both: `areas`, `floors`. (taken while building, to be confirmed by the maintainer) |
+| 45 | The proposal and the planner | The proposal names how many batteries or devices the watch holds today (by device, decision 40) and those that already break the rule ("Schon jetzt schwach: …", "Schon jetzt nicht erreichbar: …"). The planner sees every battery with its value and proposes as exceptions what is charged rather than changed (phones, tablets, cars, robot vacuums, e-bikes, watches); for the devices it sees only the entities unreachable today (in a real house the whole list is thousands of entities) and proposes nothing by itself. (taken while building, to be confirmed by the maintainer) |
+| 46 | "Ist alles zu?" | `house_check` and `mira.check` keep their scopes (openings, lights, motion): batteries and devices are refused there as the temperatures are. "Wie geht's dem Haus?" builds on these watches later, in a spec of its own. (taken while building, to be confirmed by the maintainer) |
+| 47 | Exceptions | The label on an entity, as everywhere (decision 5). A device is out of the availability watch when each of its member entities carries the label: the planner's `exclude` names them all (the ones it sees unreachable), `watch_exception` sets it on one entity at a time and finds the members of the two new scopes too. (taken while building, to be confirmed by the maintainer) |
+| 48 | Made in conversation | As every group watch (decision 29): the field `watch` of `aufgabe` holds "Gruppe: Batterien" or "Gruppe: Geräte, die nicht erreichbar sind"; the time is not asked (09:00 unless the user says one), nor the percentage or the hours. (taken while building, to be confirmed by the maintainer) |
 
 ## Who does what
 
@@ -80,7 +107,7 @@ availability watch (later group watches, decision 19).
 
 | Building block | Used for | Change | Reason |
 |---|---|---|---|
-| Mira's blueprints (`internal/watch`, from the [Device watch](device-watch.md)) | The seven rules as blueprints; made ready, versioned and replaced as there | Seven more blueprints, one shared selection | The same building block; a group watch is only another kind of blueprint |
+| Mira's blueprints (`internal/watch`, from the [Device watch](device-watch.md)) | The nine rules as blueprints; made ready, versioned and replaced as there | Nine more blueprints, one shared selection (over one domain or several, decision 42) | The same building block; a group watch is only another kind of blueprint |
 | Tasks, drafting (skill `aufgabe`, from the device watch) | A group watch is a task made from a blueprint | The catalog names the selection's inputs; the skill's prose says how a selection is said | One way to make a task |
 | Saving (`automation.Save`, `own_automations`) | Saves the automation from the blueprint | None | As in the device watch |
 | `mira/automation/validate` (integration) | Checks the rendered automation | None | As in the device watch |
@@ -91,7 +118,7 @@ availability watch (later group watches, decision 19).
 | Home Assistant's templates (`render_template`, one subscription answered once) | "Ist alles zu?": the same selection, rendered by Home Assistant | None | The check and the watch compute the group the same way; nothing fetches every state to filter here |
 | **New: the action `mira.check`** (integration) and the route `POST /v1/check` (service) | Triggering a check from an automation or a script (decision 16) | New action, new route; the fields optional both ways | Home Assistant's way to call Mira; an older service answers 404 |
 | **New: the tool `house_check`** (service) | "Ist alles zu?" in a conversation, on the same code as `/v1/check` | New tool | The model must not compute the group itself (decision 13) |
-| Fake devices (test HA) | Floors; windows, doors, motion and temperature sensors in areas with floors; persons home and away | Extended | The test HA has windows and motion sensors, but no floors, no temperature sensors in rooms and no way to empty `zone.home` on purpose |
+| Fake devices (test HA) | Floors; windows, doors, motion and temperature sensors in areas with floors; persons home and away; batteries and devices that can be lost (step 6) | Extended | The test HA has windows and motion sensors, but no floors, no temperature sensors in rooms and no way to empty `zone.home` on purpose; its batteries (the demo's, the fake Zigbee2MQTT's) cannot be set, and no device can be lost on purpose |
 
 ## The blueprints
 
@@ -101,9 +128,10 @@ to every person (decision 20), with `dedupe_key: watch:<automation id>` and `exp
 
 ### The selection (shared by all)
 
-- **Inputs:** `areas` (areas, optional), `floors` (floors, optional), `group` (a group helper, optional). The device
-  classes are fixed by each blueprint. The label id is fixed (`mira_dont_watch`).
-- **Members:** with `group`: its members (`expand`). Otherwise the entities of the blueprint's domain whose
+- **Inputs:** `areas` (areas, optional), `floors` (floors, optional), `group` (a group helper, optional; not for the
+  battery and the availability watch, decision 41). The domain (one or a list, decision 42) and the device classes are
+  fixed by each blueprint. The label id is fixed (`mira_dont_watch`).
+- **Members:** with `group`: its members (`expand`). Otherwise the entities of the blueprint's domains whose
   `device_class` is one of its classes, in one of `areas` or on one of `floors` if given, without the entities carrying
   the label (`label_entities('mira_dont_watch')`) and without group helpers (an entity with the attribute `entity_id`).
 - **Template:** one macro used by every blueprint's trigger and by the check. Home Assistant renders a trigger's
@@ -154,7 +182,28 @@ to every person (decision 20), with `dedupe_key: watch:<automation id>` and `exp
   not count.
 - **Entry:** "{names}: {value} °C, {unter/über} {limit} °C." Importance 1.
 
-Once per streak for all (decision 3): the trigger fires again only after no member broke the rule.
+Once per streak for these seven (decision 3): the trigger fires again only after no member broke the rule.
+
+### 8. Batteries low (`battery_low`, the battery watch)
+
+- **Inputs:** the selection (areas, floors) over the scope batteries (`sensor` and `binary_sensor` of `battery`),
+  `below` (%, default 20), `at` (time, default 09:00).
+- **Trigger:** the time `at`, every day (decision 37).
+- **Rule:** a `sensor` member whose state is a number below `below`, or a `binary_sensor` member `on`; `unavailable`
+  and `unknown` do not count (that is the availability watch's).
+- **Entry:** "Batterie fast leer: {devices}." with the percentage where there is one (decision 40). Importance 1. No
+  member low: no entry.
+
+### 9. Devices not reachable (`unreachable`, the availability watch)
+
+- **Inputs:** the selection (areas, floors) over the scope devices (decision 38), `hours` (default 1), `at` (time,
+  default 09:00).
+- **Trigger:** the time `at`, every day (decision 37).
+- **Rule:** a member that belongs to a device, is `unavailable` and not `restored`, with its `last_changed` at least
+  `hours` ago (decision 38).
+- **Entry:** "Nicht erreichbar: {devices or entities}." (decision 40). Importance 1. None: no entry.
+
+Both: once a day while it lasts (decision 37), not once per streak.
 
 ## What it does, step by step
 
@@ -194,6 +243,21 @@ Once per streak for all (decision 3): the trigger fires again only after no memb
 As every task, as in the device watch. The label stays when a watch is deleted: it is the user's exception in Home
 Assistant, removed there or on the user's word ("überwach die Terrasse wieder").
 
+### E. The battery and the availability watch
+
+1. **Making** (as A): "Sag mir, wenn eine Batterie leer wird" fills `watch` with "Gruppe: Batterien", "Sag Bescheid,
+   wenn ein Gerät nicht mehr erreichbar ist" with "Gruppe: Geräte, die nicht erreichbar sind" (decision 48). The
+   planner gets the catalog with the two blueprints, the batteries with their values, the devices unreachable today
+   (decision 45), chooses `battery_low` or `unreachable`, and for the batteries proposes the rechargeable ones in
+   `exclude`.
+2. **Check and proposal** (A4): the code renders the members once, counts them by device and names those that break
+   the rule today; the proposal: "Heute sind das 12: … Schon jetzt schwach: Rauchmelder Flur (12 %). Ausgenommen: …".
+3. **On yes:** the exceptions' labels, then saved as a task (A5).
+4. **Telling:** at `at` Home Assistant's time trigger runs the automation; the variable `breaking` renders the
+   selection and the rule once; with none, a condition ends the run without an entry; else `mira.send_message` with
+   the names (decision 40) for the receiver (decision 43). Read out, the model words it.
+5. **Changing, switching off, deleting:** as D. "Die Handys nicht" is an exception (decision 47).
+
 ## What it costs
 
 - **Per watch in Home Assistant:** one automation with a template trigger. Home Assistant renders it on every change
@@ -207,6 +271,15 @@ Assistant, removed there or on the user's word ("überwach die Terrasse wieder")
   ended; milliseconds. For `mira.check` one HTTP request from the integration to the service, and an entry if
   something is open.
 - **An entry:** one `mira.send_message`, as every task's.
+- **The battery and the availability watch in Home Assistant:** one time trigger each; nothing between the checks.
+  At `at`, one render of the selection and the rule over the domains (the batteries: every `sensor` and
+  `binary_sensor` is read for its class; the devices: every entity of nine domains, and for each one in a device its
+  device), once a day. Grows with the number of entities of those domains; on the test HA the devices' render over
+  407 entities took about 20 ms (checks, row 17).
+- **Making one** (the turn waits, as A): one render of the house, one of the members of the scope, one for the planner's
+  catalog per scope; for the devices the members' render returns every entity of a device in the nine domains (in a
+  house of thousands of entities some hundred kilobytes, one render), the catalog's only the unreachable ones.
+  `watch_exception` renders every scope's members once, the devices' included.
 
 ## Retries
 
@@ -227,7 +300,13 @@ trace shows the error.
 | C1 | `render_template` fails or does not answer within 5 s | The tool's error with Home Assistant's answer; the model says it could not check; a log line with the template's start |
 | C2 | `/v1/check` is missing (an older service) | The action raises an error: "Mira kann das erst nach einem Update"; the automation's trace shows it |
 | C2 | The service cannot render | The action's error with the service's answer; the trace shows it |
-| — | A member is `unavailable` or `unknown` | It does not count as breaking a rule; "Ist alles zu?" names it as not readable ("Das Fenster im Bad meldet sich nicht") |
+| — | A member is `unavailable` or `unknown` | It does not count as breaking a rule; "Ist alles zu?" names it as not readable ("Das Fenster im Bad meldet sich nicht"). Except in the availability watch, whose rule `unavailable` is (decision 38) |
+| E2 | The house has no battery or no device in the selection | As A4: the proposal says so, nothing is saved, a log line names the selection |
+| E2 | Rendering the members fails | As A4: the planner's draft ends with Home Assistant's answer; a log line with the scope and the template's start |
+| E4 | Home Assistant is down at `at` | No check that day; the next day's names it (Home Assistant's time trigger does not catch up). Nobody learns of the missed one: the next check is the answer |
+| E4 | The template fails to render at `at` (a broken Home Assistant) | The automation's trace and Home Assistant's log show the error; no entry |
+| E4 | `mira.send_message` fails | As B1 |
+| C1, C2 | `house_check` or `mira.check` asked for batteries or devices | Refused as an unknown scope (decision 46), with the scopes there are |
 
 ## Checks on the test HA
 
@@ -244,6 +323,14 @@ trace shows the error.
 | 9 | Too cold | a fake temperature below the value for the (shortened) time; how long the template takes over all sensors | the trace fires; the render time | 2026-11-13, 2026.11.1: the entry 1 minute after 4 °C, to the second; the template over the test HA's 179 sensors rendered in 3 to 11 ms (`render_template`, the round trip included); Home Assistant renders a template over a whole domain at most once a second |
 | 10 | `render_template` once | the check's template | the first answer, then the subscription ends | 2026-11-13, 2026.11.1: the first answer after 2 ms, `unsubscribe_events` answered with success, no event after it; `house_check` at the test Mira 3 to 4 ms |
 | 11 | `mira.check` from a script | a script with `response_variable` | the list in the response, the entry | 2026-11-13, 2026.11.1: the script's response `{"scope": "openings", "open": [Fenster Bad], "checked": 9, "message_id": …}` in 25 ms, the entry for the house; all closed: `open` empty, no entry; with the service of step 3 (no route): "Mira can do this only after an update of the Mira service" |
+
+| 12 | The selection over two domains (batteries) | the shared selection with `domain` a list, `sensor` and `binary_sensor` of `battery`; `device_attr` for the names | the batteries with their devices' names | 2026-11-13, 2026.11.1: the test HA's five battery sensors (the demo's, the fake Zigbee2MQTT's), each with its device's name ("Outside Temperature", "Klimasensor Bad"), rendered in 8 ms; the openings with `domain` a string as before (9) |
+| 13 | A watch remembering whom it told | a template trigger reading `this` | `this` in the trigger after the automation is saved | 2026-11-13, 2026.11.1: an automation saved over the config API with a template trigger `{{ this is not none and … }}` did not fire when the window opened (`this` is empty: the triggers are attached before the automation's state is written); switched off and on, it fired. Hence decision 37 |
+| 14 | The daily check | a watch with `at` a minute ahead, a fake battery low, a fake device lost | the trace at `at`, the entry naming the device | open (step 6) |
+| 15 | A restart | Home Assistant restarted with an entity `unavailable` before and after | the entity's `last_changed` | 2026-11-13, 2026.11.1: the test HA's Matter plug (offline) had `last_changed` 3 s after the container started; again with the fake device lost over a restart: step 6 |
+| 16 | A reload of an integration | the Matter entry reloaded, its plug `unavailable` before and after | the plug's `last_changed` | 2026-11-13, 2026.11.1: kept (21:36:47 before and after the reload at 21:59) |
+| 17 | Who is a device, and the cost | the devices' selection over the nine domains | members with a device, the `unavailable` ones, `restored`, the render time | 2026-11-13, 2026.11.1: 407 entities, 371 with a device; 8 `unavailable` among them, 7 of them `restored` (left-overs of the found-devices fake and a duplicate of the Show's switch), the Matter plug not; 20 to 22 ms |
+| 18 | A device lost, and one of its entities lost | the fake device's entities all `unavailable`, then only one | the entry names the device, then the entity | open (step 6) |
 
 Each row is checked before the step that builds on it.
 
@@ -301,3 +388,11 @@ Each row is checked before the step that builds on it.
    at the test HA.
 5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation. Built
    2026-11-13 (`docs/guide/de.md`, `en.md`, "Wächter für Gruppen" after the device watches).
+6. **The battery and the availability watch in Home Assistant:** the shared selection over a list of domains
+   (decision 42, every group blueprint to version 2), the blueprints `battery_low` and `unreachable`, the fakes'
+   batteries and a device that can be lost (with a device, [Fake devices](fake-devices.md)); rows 14, 15 (with the
+   fake) and 18. GW-22 to GW-26 in pytest.
+7. **Drafting them:** the scopes batteries and devices in the code, the catalog, the proposal's counts by device and
+   "Schon jetzt …", the exceptions, `house_check` refusing them, the skill's prose; GW-27 to GW-31 in Go; each made
+   by voice at the test Mira, triggered, read out.
+8. **The guide**, German and English: the two watches in "Wächter für Gruppen".
