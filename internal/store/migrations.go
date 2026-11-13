@@ -505,6 +505,18 @@ CREATE TABLE inbox_owners (
 );`,
 		fn: carryOverKV,
 	},
+	{
+		// The devices whose watch the user declined, per blueprint
+		// (docs/spec/device-watch.md, decision 21).
+		name: "0031_watch_declined",
+		stmt: `
+CREATE TABLE watch_declined (
+    entity_id   TEXT NOT NULL,
+    blueprint   TEXT NOT NULL,
+    declined_at TEXT NOT NULL,
+    PRIMARY KEY (entity_id, blueprint)
+);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

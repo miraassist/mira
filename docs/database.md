@@ -148,6 +148,11 @@ erDiagram
         text owner PK "Paperless's number"
         text user
     }
+    watch_declined {
+        text entity_id PK "the device's sensor"
+        text blueprint PK "its name: daily_routine"
+        text declined_at
+    }
 ```
 
 ## The tables
@@ -169,6 +174,7 @@ erDiagram
 | `found_said` | The found devices and discoveries already said, each once ([Found devices](spec/found-devices.md)) | the found-devices noticing | the noticing |
 | `inbox_read` | The mails the inbox read, the last 100 per IMAP entry ([Inbox](spec/inbox.md)) | the inbox | the inbox |
 | `inbox_owners` | Paperless owner numbers learned from the webhooks, with their user names ([Inbox](spec/inbox.md)) | the inbox | the inbox |
+| `watch_declined` | The device watches the user declined, per sensor and blueprint: not offered again ([Device watch](spec/device-watch.md), decision 21) | the offer's thread when the user says no (step 8 of the spec) | the candidates on request (`watch_candidates`) |
 | `kv` | Single values and described families of keys (section "The key-value table") | several | several |
 | `schema_migrations` | The migrations applied | the store at start | the store at start |
 
@@ -192,6 +198,7 @@ Mira removes what has long been finished. Nothing open is ever removed.
 | `found_said` | a device or discovery Home Assistant no longer has, when the noticing starts | at once |
 | `inbox_read` | the oldest of an IMAP entry beyond its last 100 | at once |
 | `inbox_owners` | never; one row per Paperless owner | – |
+| `watch_declined` | a row, when the watch is made by voice all the same (step 8 of [Device watch](spec/device-watch.md)) | at once |
 | `kv` | never; each key is overwritten; the keys and what they grow with: section "The key-value table" | – |
 
 ## The key-value table

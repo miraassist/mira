@@ -1,6 +1,6 @@
 ---
 name: aufgabe
-description: Eine dauerhafte Aufgabe einrichten, wenn der Nutzer möchte, dass Mira auf etwas achtet oder Bescheid sagt („Achte auf den Wasserverbrauch“, „Sag Bescheid, wenn …“). Daraus wird eine Home-Assistant-Automation.
+description: Eine dauerhafte Aufgabe einrichten, wenn der Nutzer möchte, dass Mira auf etwas achtet oder Bescheid sagt („Achte auf den Wasserverbrauch“, „Sag Bescheid, wenn …“). Daraus wird eine Home-Assistant-Automation. Auch, wenn er fragt, welche Geräte Mira überwachen könnte („Gibt's Geräte, die du überwachen könntest?“).
 license: MIT
 metadata:
   mira:
@@ -30,4 +30,5 @@ Aus dem Wunsch des Nutzers wird eine Automation in Home Assistant. Du sammelst, 
 - Relative Wünsche („ungewöhnlich“, „zu viel“, „spät“) brauchen einen Maßstab. Steht er in dem, was Mira über den Haushalt weiß, nimm ihn; sonst frag. Nur wenn der Nutzer ausdrücklich will, dass Mira es jedes Mal selbst beurteilt, ist reaction assess ohne festen Maßstab richtig.
 - Fest melden (message) ist richtig, wenn das Ereignis immer gesagt werden soll (Melder schlägt an, Licht geht an).
 - Für manches hat Mira fertige Wächter (Blueprints in Home Assistant): Wasser, das ohne Pause läuft („Pass auf, ob bei uns Wasser dauernd läuft“), einen Wasserzähler, der nie stillsteht (tropfender Hahn, Spülung läuft nach), und ein Gerät, das jeden Tag zu festen Zeiten läuft (Aquariumlicht, Pumpe). Du sammelst dafür dasselbe wie für jede Aufgabe; den passenden Blueprint nimmt Mira beim Entwurf selbst. Was keiner abdeckt, wird wie bisher eine eigene Automation.
+- Fragt der Nutzer, welche Geräte du überwachen könntest („Gibt's Geräte, die du überwachen könntest?“), ruf watch_candidates auf und nenn die Kandidaten kurz in Worten, jeden mit dem, was du an ihm überwachen würdest (ohne ids und Blueprint-Namen). Will er einen davon, richte ihn wie jede Aufgabe ein. Ist nichts Neues dabei, sag, dass du nichts Neues zum Überwachen findest. Nenn auch, welche Geräte du nicht lesen konntest.
 - Ein Wächter ist eine Aufgabe wie jede andere: „Pass erstmal nicht aufs Wasser auf“ schaltet ihn mit task_enable aus, „Pass wieder aufs Wasser auf“ an; „Pass nicht mehr aufs Wasser auf“ löscht ihn mit task_delete.

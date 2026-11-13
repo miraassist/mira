@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 4 built 2026-11-13 (decisions 22 to 37 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 5 built 2026-11-13 (decisions 22 to 41 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -64,6 +64,10 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 35 | What the device profile does with a state that is not a number | `unavailable` or `unknown` changes nothing: the state before it holds, as decision 26 for the blueprint. A run cut by the start of the states, or still on at their end, is not counted (its length is unknown). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 36 | Who gets the device profile | The model, as the tool `device_profile`, which comes with the skill `aufgabe` (offered in a turn that opened it, as the answering machine's tools come with theirs): the model proposes a daily routine's times from it in conversation (step 6). For an entity Mira may see (exposed to Assist) only. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 37 | The house's hours and days | The hours of the statistics and the days of a daily routine are taken in the service's time zone, as the tasks' views take them (`time.Local`; the HA app runs in Home Assistant's). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 38 | Candidates of a blueprint not built yet | Only blueprints **ready** in Home Assistant are offered (as decision 28 for the planner): until step 7 brings `duty_cycle` and `device_run`, a cycle or a device run is no candidate on request. CW-32's plug has a daily routine instead of a cycle (step 7 adds the cycle and the device run to the list). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 39 | What counts as watched, what as declined | **Watched**: an entity among the inputs of one of Mira's automations (`mira/automation/list`) made from a `mira/` blueprint: it is not offered again with any blueprint. **Declined**: per entity and blueprint (decision 21): a water meter declined for "never rests" is still offered for "runs on". Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 40 | How the request reaches the model | The tool `watch_candidates`, with the skill `aufgabe` as `device_profile` (decision 36); the skill's description names the question, so the model opens the skill for it, and its prose says how to answer (in words, without ids and blueprint names; the sensors not read too). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 41 | A sensor that cannot be read on request (CW-35) | All power sensors are read in one call (decision 13's costs): Home Assistant answers an id it has no statistics of with nothing, not with a refusal (checked on the test HA, 2026-11-13); such a sensor, and a candidate whose states are refused, is logged and named in the answer, the others are listed. A refusal of the one call names all power sensors as not read, with Home Assistant's answer; the water meters are listed. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -302,11 +306,17 @@ starts anew (its trigger `automation_reloaded`).
   270 to 3,000). Computed in the service, milliseconds. Measured on the test HA (2026-11-13, the fake plug with 90 days
   of statistics and 2,900 states): 30 ms for both reads; the maintainer's recorder reads the states of one plug in 20
   to 140 ms (read-only, its database directly).
-- **"Gibt's Geräte, die du überwachen könntest?"** (the turn waits): one read of the hourly statistics of the last 30
-  days for all power sensors of the house in one call (`statistic_ids` as a list), the kinds computed from it, the
-  states of the last ten days only for the candidates. Grows with the number of power sensors (the maintainer's house:
-  about 130, so about 94,000 hourly rows). How long the turn waits for it is measured on the maintainer's house (read
-  only) before step 5 is built; assumption: a few seconds.
+- **"Gibt's Geräte, die du überwachen könntest?"** (the turn waits; the tool `watch_candidates`): the states of the
+  entities Mira may see (one `get_states` filtered to them, as for drafting), Mira's automations
+  (`mira/automation/list`), the declined rows, one read of the hourly statistics of the last 30 days for all power
+  sensors in W Mira may see in one call (`statistic_ids` as a list), the kinds computed from it, then the states of
+  the last ten days of each candidate whose blueprint is ready (one `history/history_during_period` each). Grows with
+  the number of power sensors (the statistics) and of candidates (one read of states each). Measured 2026-11-13: the
+  maintainer's recorder reads the statistics of the last 30 days of its 157 sensors in W (63,764 rows) in 0.2 s
+  (read-only, its database directly; an i5-4590T); the test HA answers the same call over the WebSocket for 119
+  sensors with 30 days each (85,680 rows) in 0.24 to 0.87 s (a fast machine); the states of one plug take 20 to
+  140 ms. So on the maintainer's house about 1 to 3 seconds (an estimate from these parts: Home Assistant's own work on
+  its slower machine is not measured, no token of the house is used).
 - **A waiting candidate:** one trigger subscription per waiting entity; nothing else until its run ends.
 - Grows with: the number of watches (one automation each), not with the house's size.
 
@@ -322,6 +332,8 @@ starts anew (its trigger `automation_reloaded`).
 | D | Saving the changed blueprint fails | A log warning with the path and the answer; the old blueprint stays in use; tried again at the next start or drafting |
 | Device profile | The recorder refuses or answers with nothing for the entity | The tool's error with the entity and Home Assistant's answer; for the request a log line, and the answer names the sensors it could not read |
 | Device profile | Not enough history | Not an error: the answer says what is missing; the candidate waits (decision 14) |
+| Request | The states of the entities Mira may see, Mira's automations or the declined rows cannot be read | The tool's error with what failed and Home Assistant's answer (or the database's); the model says it cannot list the candidates now |
+| Request | The one statistics call is refused | Decision 41: a log warning with the number of sensors and the answer; the answer names the power sensors as not read, with the answer; the water meters are listed |
 | Waiting | The subscription for a waiting entity fails or the entity is gone | A log line with the entity; the thread stays waiting and the subscription is tried again at the next start; for a gone entity the thread ends, with a log line |
 | — | A blueprint's device is gone (deleted, renamed) | Home Assistant's own: the automation's trigger finds no entity; its repair / the automation's state "unavailable". Mira's task list shows the automation as today; nothing of Mira's own |
 
@@ -374,7 +386,16 @@ Rows 6 to 12 are checked before the step that builds on them.
    a daily routine) gave its windows, 9 of 9 days; a plug never on "no candidate"; a sensor without statistics the
    error naming it.
 5. **Offering on request:** "Gibt's Geräte, die du überwachen könntest?": the candidates of all blueprints (water meters,
-   power sensors by their kind), without the ones watched or declined.
+   power sensors by their kind), without the ones watched or declined. Built 2026-11-13 (decisions 38 to 41): the tool
+   `watch_candidates` (`internal/tasks`, with the skill `aufgabe`), the table `watch_declined` (migration
+   `0031_watch_declined`, read here, written by step 8), the skill's prose; CW-32 to CW-35 in Go; the cost measured
+   (section "What it costs"). At the test Mira by the conversation API with the fake Show: "Gibt's Geräte, die du
+   überwachen könntest?" named the water meter and the aquarium plug (whose past `watch_fake.past` wrote), not the
+   plugs never on; with the plug declined (a row written by hand) only the water meter; with the water meter then
+   watched ("sag Bescheid, wenn das Wasser eine halbe Stunde ohne Pause läuft", made from `water_runs_on`) "Ich finde
+   im Moment keine neuen Geräte"; the watch deleted by voice after. The model opened the skill by starting a thread of
+   `aufgabe` for the question (it then took the yes for the water meter in the same thread). CW-35 ran in Go only:
+   the test HA has no power sensor without statistics.
 6. **Daily routine from the device profile:** the model proposes the windows; the user corrects them.
 7. **Cycle and device run:** the two blueprints, the fakes, rows 13 to 15.
 8. **Waiting for the next run:** the thread of the promise, the subscription, the offer after the run; row 16.

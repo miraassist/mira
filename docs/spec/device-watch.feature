@@ -174,7 +174,7 @@ Feature: Device watch (docs/spec/device-watch.md)
 
   @step5
   Scenario: CW-32 Mira lists the candidates of the house
-    Given the house has a water meter and a fake plug with a cycle
+    Given the house has a water meter and a fake plug with a daily routine
     When the user says "Gibt's Geräte, die du überwachen könntest?"
     Then Mira names the water meter and the plug with what she would watch on each
 

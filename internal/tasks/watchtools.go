@@ -43,10 +43,21 @@ func (m *Manager) Sensor(ctx context.Context, id string) (watch.Sensor, error) {
 }
 
 // watchTools are the watch's tools, with the skill that makes tasks:
-// device_profile. None without blueprints or a profiler.
+// device_profile and watch_candidates. None without blueprints or a
+// profiler.
 func (m *Manager) watchTools() []tools.InternalTool {
 	if m.opts.Watch == nil || m.opts.Profiler == nil {
 		return nil
 	}
-	return []tools.InternalTool{m.opts.Profiler.Tool(m.Sensor)}
+	t := m.candidateTexts()
+	return []tools.InternalTool{
+		m.opts.Profiler.Tool(m.Sensor),
+		{
+			Name: ToolWatchCandidates, Description: t.desc, ReadOnly: true, Skill: watch.Skill,
+			Schema: `{"type":"object","properties":{}}`,
+			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+				return m.Candidates(ctx)
+			},
+		},
+	}
 }

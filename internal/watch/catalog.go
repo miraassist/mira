@@ -233,3 +233,7 @@ func (w *Blueprints) Label(input string) string {
 	}
 	return input
 }
+
+// About says what a blueprint watches, in the house's language, as the
+// planner's catalog says it.
+func (w *Blueprints) About(name string) string { return w.texts().about[name] }
