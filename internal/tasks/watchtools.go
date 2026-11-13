@@ -3,6 +3,8 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
@@ -11,8 +13,13 @@ import (
 )
 
 var notSeen = map[i18n.Lang]string{
-	i18n.DE: "%s gehört nicht zu den Entitäten, die Mira sehen darf",
-	i18n.EN: "%s is not among the entities Mira may see",
+	i18n.DE: "%q nennt keinen Leistungssensor in W unter den Entitäten, die Mira sehen darf (nach id oder Name)",
+	i18n.EN: "%q names no power sensor in W among the entities Mira may see (by id or name)",
+}
+
+var severalSeen = map[i18n.Lang]string{
+	i18n.DE: "%q passt auf mehrere Leistungssensoren: %s; nimm die id",
+	i18n.EN: "%q fits several power sensors: %s; take the id",
 }
 
 // sensorOf is what the watch's tools know of a state.
@@ -24,22 +31,52 @@ func sensorOf(s haws.State) watch.Sensor {
 	return watch.Sensor{ID: s.EntityID, Name: s.FriendlyName(), DeviceClass: str("device_class"), Unit: str("unit_of_measurement")}
 }
 
-// Sensor looks up an entity Mira may see (exposed to Assist), for the
-// device profile.
-func (m *Manager) Sensor(ctx context.Context, id string) (watch.Sensor, error) {
-	if !m.opts.Snapshot().ExposedEntities[id] {
-		return watch.Sensor{}, fmt.Errorf(i18n.Pick(notSeen, m.opts.Lang), id)
-	}
-	states, err := m.opts.Source.GetStates(ctx, haws.StateFilter{EntityIDs: []string{id}})
+// Sensor finds the entity the device profile is asked for among the ones
+// Mira may see (exposed to Assist): by its id, else by a name Home
+// Assistant knows for a power sensor in W (display name, alias, device
+// name), as the field check "entities" finds one; the longest name wins.
+func (m *Manager) Sensor(ctx context.Context, given string) (watch.Sensor, error) {
+	states, err := m.exposedStates(ctx)
 	if err != nil {
-		return watch.Sensor{}, fmt.Errorf("the state of %s: %w", id, err)
+		return watch.Sensor{}, fmt.Errorf("the states of the entities Mira may see: %w", err)
 	}
 	for _, s := range states {
-		if s.EntityID == id {
+		if s.EntityID == given {
 			return sensorOf(s), nil
 		}
 	}
-	return watch.Sensor{}, fmt.Errorf("the state of %s: home assistant answered without it", id)
+	text := strings.ToLower(strings.ReplaceAll(given, "_", " "))
+	names := m.opts.Snapshot().EntityNames
+	var found []watch.Sensor
+	longest := 0
+	for _, s := range states {
+		sensor := sensorOf(s)
+		if !strings.HasPrefix(s.EntityID, "sensor.") || !sensor.Power() {
+			continue
+		}
+		for _, n := range append([]string{strings.ToLower(sensor.Name)}, names[s.EntityID]...) {
+			if len(n) < 3 || n == s.EntityID || !strings.Contains(text, n) {
+				continue
+			}
+			switch {
+			case len(n) > longest:
+				found, longest = []watch.Sensor{sensor}, len(n)
+			case len(n) == longest && !slices.ContainsFunc(found, func(f watch.Sensor) bool { return f.ID == sensor.ID }):
+				found = append(found, sensor)
+			}
+		}
+	}
+	switch len(found) {
+	case 0:
+		return watch.Sensor{}, fmt.Errorf(i18n.Pick(notSeen, m.opts.Lang), given)
+	case 1:
+		return found[0], nil
+	}
+	var list []string
+	for _, f := range found {
+		list = append(list, f.Name+" ("+f.ID+")")
+	}
+	return watch.Sensor{}, fmt.Errorf(i18n.Pick(severalSeen, m.opts.Lang), given, strings.Join(list, ", "))
 }
 
 // watchTools are the watch's tools, with the skill that makes tasks:

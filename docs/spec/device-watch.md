@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 5 built 2026-11-13 (decisions 22 to 41 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 6 built 2026-11-13 (decisions 22 to 44 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -68,6 +68,9 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 39 | What counts as watched, what as declined | **Watched**: an entity among the inputs of one of Mira's automations (`mira/automation/list`) made from a `mira/` blueprint: it is not offered again with any blueprint. **Declined**: per entity and blueprint (decision 21): a water meter declined for "never rests" is still offered for "runs on". Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 40 | How the request reaches the model | The tool `watch_candidates`, with the skill `aufgabe` as `device_profile` (decision 36); the skill's description names the question, so the model opens the skill for it, and its prose says how to answer (in words, without ids and blueprint names; the sensors not read too). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 41 | A sensor that cannot be read on request (CW-35) | All power sensors are read in one call (decision 13's costs): Home Assistant answers an id it has no statistics of with nothing, not with a refusal (checked on the test HA, 2026-11-13); such a sensor, and a candidate whose states are refused, is logged and named in the answer, the others are listed. A refusal of the one call names all power sensors as not read, with Home Assistant's answer; the water meters are listed. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 42 | How the model names the sensor to `device_profile` | By its id **or a name** Home Assistant knows for it (display name, alias, device name), found among the power sensors in W Mira may see, as the field check `entities` finds one; several of the same length: the error lists them. Without it the model guessed ids at the test Mira (`sensor.stromverbrauch` for `sensor.power_consumption`). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 43 | A daily routine's times the user corrects | Taken as the user says them: the code checks only that they read (decision 23), not that they lie within what the device profile saw (the user knows the device's timer; "the code checks they lie within what the device profile saw" holds for the numbers of a cycle and a device run, step 7). Without a routine in the profile the user's times are taken the same way (CW-17). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 44 | What the profile says is missing for a daily routine | "für einen Wächter seines Tagesablaufs fehlen die Zeiten", also when it found another kind or none: the model then asks the user for the times (the skill's prose). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -240,7 +243,7 @@ a sensor that is not a power sensor in W, the recorder's refusal or an answer wi
 naming the sensor and Home Assistant's answer); decision 17 for the reads (a refusal is not tried again, a lost
 connection is).
 
-The model gets the numbers and proposes the inputs in words; the code checks they lie within what the device profile saw.
+The model gets the numbers and proposes the inputs in words; the code checks they lie within what the device profile saw (a cycle's and a device run's, step 7; a daily routine's times are the user's, decision 43).
 
 ### Waiting for the next run (decision 14)
 
@@ -396,7 +399,17 @@ Rows 6 to 12 are checked before the step that builds on them.
    im Moment keine neuen Geräte"; the watch deleted by voice after. The model opened the skill by starting a thread of
    `aufgabe` for the question (it then took the yes for the water meter in the same thread). CW-35 ran in Go only:
    the test HA has no power sensor without statistics.
-6. **Daily routine from the device profile:** the model proposes the windows; the user corrects them.
+6. **Daily routine from the device profile:** the model proposes the windows; the user corrects them. Built 2026-11-13
+   (decisions 42 to 44): the skill's prose (`device_profile` for a device with fixed times, the times in words, the
+   correction taken, the times into `measure`; without a routine: say so and ask for the times, no `assess` instead),
+   `device_profile` by name; CW-16 and CW-17 in Go. At the test Mira (the fake plug's past from `watch_fake.past`):
+   "Achte aufs Aquarium" – "Das Aquarium läuft laut Profil täglich von 7:40 bis 11:40 und von 14:20 bis 21:00 Uhr.
+   Soll ich mich melden, wenn es davon abweicht?" – "Fast, nachmittags geht es erst um halb drei an." – the proposal
+   with 14:30, saved from `daily_routine` with the windows `07:40-11:40, 14:30-21:00`, deleted by voice after. CW-17
+   ("Pass auf, ob der Stromverbrauch seinen Tagesablauf einhält", a sensor at a constant 100 W): with the model
+   `smart` "Für den Stromverbrauch konnte ich keinen festen Tagesablauf erkennen. Zu welchen Uhrzeiten …?", the times
+   given then drafted `daily_routine` with `08:00-18:00`; with the test Mira's voice model Flash Lite the model ignored
+   the prose twice and drafted a task that judges itself (`assess`): open for the maintainer (the voice model).
 7. **Cycle and device run:** the two blueprints, the fakes, rows 13 to 15.
 8. **Waiting for the next run:** the thread of the promise, the subscription, the offer after the run; row 16.
 9. **The guide**, German and English: watching, the blueprints, asking for candidates, pausing.

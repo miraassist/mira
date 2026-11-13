@@ -100,7 +100,7 @@ without a device, exposed to Assist by `testha up`:
   0, set at once and at every full minute. The routine lives in memory: a restart of the test HA ends it.
 - **The plug's past** for its device profile: `watch_fake.past` (`windows`, empty for never on; `watts`, default 50;
   `days`, default 10; `stats_days`, default 90) writes into the test HA's recorder the plug's states every 5 minutes
-  of the last `days` days before its first recorded state, and its hourly statistics (mean, min, max) of the last
+  (on the full 5 minutes) of the last `days` days before its first recorded state, and its hourly statistics (mean, min, max) of the last
   `stats_days` days (`async_import_statistics`), both following the windows. The states go straight into the
   recorder's tables (Home Assistant has no action for a past state); for the test HA only.
 

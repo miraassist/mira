@@ -35,19 +35,19 @@ type toolTexts struct {
 var toolCatalog = map[i18n.Lang]toolTexts{
 	i18n.DE: {
 		desc:     "Geräteprofil eines Leistungssensors (device_class power, in W) aus seinem Verlauf: ob das Gerät einen Tagesablauf hat (jeden Tag zu festen Zeiten an, z. B. Aquariumlicht), im Takt läuft (an und aus den ganzen Tag, z. B. Kühlschrank) oder Geräteläufe hat (ein Programm ab und zu, z. B. Spülmaschine), mit den Zahlen: die Zeiten eines Tagesablaufs, Läufe und Pausen, und ob sie für einen Wächter reichen. Liest die Statistik der letzten 90 Tage und die Zustände der letzten 10 Tage.",
-		entity:   "Die id des Leistungssensors, z. B. sensor.aquarium_leistung",
+		entity:   "Die id des Leistungssensors (z. B. sensor.aquarium_leistung) oder sein Name",
 		notPower: "%s (%s) ist kein Leistungssensor in W (device_class %q, Einheit %q): ein Geräteprofil gibt es nur dafür",
 	},
 	i18n.EN: {
 		desc:     "Device profile of a power sensor (device_class power, in W) from its history: whether the device follows a daily routine (on at fixed times every day, e.g. an aquarium's light), runs in a cycle (on and off all day, e.g. a fridge) or has device runs (a programme now and then, e.g. a dishwasher), with the numbers: a daily routine's times, runs and pauses, and whether they are enough for a watch. Reads the statistics of the last 90 days and the states of the last 10 days.",
-		entity:   "The power sensor's id, e.g. sensor.aquarium_power",
+		entity:   "The power sensor's id (e.g. sensor.aquarium_power) or its name",
 		notPower: "%s (%s) is not a power sensor in W (device_class %q, unit %q): a device profile is only made for one",
 	},
 }
 
 // Tool is device_profile: find looks up an entity Mira may see (exposed to
-// Assist) and fails with why it cannot. Its error names the sensor and Home
-// Assistant's answer (the spec's error table).
+// Assist) by its id or name and fails with why it cannot. Its error names
+// the sensor and Home Assistant's answer (the spec's error table).
 func (p *Profiler) Tool(find func(ctx context.Context, id string) (Sensor, error)) tools.InternalTool {
 	t := i18n.Pick(toolCatalog, p.opts.Lang)
 	return tools.InternalTool{

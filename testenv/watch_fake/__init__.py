@@ -116,7 +116,9 @@ async def _write_past(hass: HomeAssistant, entity_id: str, windows_text: str, wa
                 raise ValueError(f"{entity_id} has no recorded state yet")
             first = session.query(func.min(States.last_updated_ts)).filter(States.metadata_id == metadata_id).scalar()
             end = first if first is not None else now.timestamp()
-            t, n = now - timedelta(days=days), 0
+            # On the full 5 minutes, as a plug that reports every 5 minutes.
+            t, n = (now - timedelta(days=days)).replace(second=0, microsecond=0), 0
+            t -= timedelta(minutes=t.minute % 5)
             while t.timestamp() < end:
                 ts = t.timestamp()
                 value = watts if _on(windows, dt_util.as_local(t)) else 0.0

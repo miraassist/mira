@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -256,5 +257,93 @@ func TestCW35_ASensorThatCannotBeRead(t *testing.T) {
 	}
 	if !strings.Contains(log.String(), "could not read the statistics of the power sensors") {
 		t.Errorf("log:\n%s", log.String())
+	}
+}
+
+// profileTool runs device_profile with an entity's id or name.
+func profileTool(t *testing.T, m *Manager, entity string) (string, error) {
+	t.Helper()
+	for _, tool := range m.Tools() {
+		if tool.Name == watch.ToolDeviceProfile {
+			args, _ := json.Marshal(map[string]string{"entity": entity})
+			return tool.Run(context.Background(), tools.Invocation{Args: args})
+		}
+	}
+	t.Fatal("no tool device_profile")
+	return "", nil
+}
+
+// CW-16 Mira proposes the daily routine from the history
+func TestCW16_MiraProposesTheDailyRoutineFromTheHistory(t *testing.T) {
+	// Given the fake plug's power was above 5 W from 07:40 to 11:40 and from 14:20 to 21:00 for the last days
+	e := candidateSetup(t, io.Discard)
+	// When the user says "Achte aufs Aquarium"
+	// Then Mira proposes the two windows in words: the device profile gives
+	// them, by the plug's id or its name.
+	for _, given := range []string{"sensor.aquarium_leistung", "Aquarium", "sensor.aquarium"} {
+		out, err := profileTool(t, e.m, given)
+		if err != nil {
+			t.Fatalf("%s: %v", given, err)
+		}
+		if !strings.Contains(out, "Aquarium (sensor.aquarium_leistung): Tagesablauf") || !strings.Contains(out, "07:40-11:40, 14:20-21:00") ||
+			!strings.Contains(out, "meist 50 W") {
+			t.Errorf("%s: %s", given, out)
+		}
+	}
+	// And the user's correction of a time goes into the windows: the thread's
+	// measure reaches the planner, whose windows are saved.
+	corrected := "07:40-11:40, 14:30-21:00"
+	e.model.answers = []string{`{"title":"Aquarium","summary":"Ich melde mich, wenn das Aquarium von seinen Zeiten abweicht.","blueprint":"daily_routine","inputs":{"power":"sensor.aquarium_leistung","windows":"` + corrected + `"}}`}
+	d, err := e.m.DraftAutomation(context.Background(), "Achte aufs Aquarium", map[string]string{
+		"watch": "sensor.aquarium_leistung", "when": "täglich zu den Zeiten", "measure": corrected, "reaction": "message"}, Origin{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(e.model.instructions[0], "measure: "+corrected) {
+		t.Errorf("the planner did not get the corrected times:\n%s", e.model.instructions[0])
+	}
+	if d.Blueprint != "daily_routine" || d.Inputs["windows"] != corrected {
+		t.Errorf("draft: %s %v", d.Blueprint, d.Inputs)
+	}
+	if !strings.Contains(e.m.ProposalText(d), corrected) {
+		t.Errorf("proposal: %s", e.m.ProposalText(d))
+	}
+}
+
+// CW-17 No daily routine in the history
+func TestCW17_NoDailyRoutineInTheHistory(t *testing.T) {
+	// Given the plug's power shows no recurring times
+	e := candidateSetup(t, io.Discard)
+	// On for an hour now and then, at another time each day.
+	irregular := func(t time.Time) bool { return (t.YearDay()*7+t.Hour())%11 == 0 }
+	e.src.stats["sensor.aquarium_leistung"], e.src.history["sensor.aquarium_leistung"] = plugPast(e.now, 50, irregular)
+	// When the user asks Mira to watch its daily routine
+	out, err := profileTool(t, e.m, "sensor.aquarium_leistung")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Then Mira says she finds no routine and asks for the times: the
+	// profile says there is none, and the skill tells her to ask.
+	if !strings.Contains(out, "Kein Tagesablauf") || !strings.Contains(out, "fehlen die Zeiten") || strings.Contains(out, "Genug") {
+		t.Errorf("profile: %s", out)
+	}
+	// The same when the hours look like a routine but the days do not follow.
+	e.src.stats["sensor.aquarium_leistung"], _ = plugPast(e.now, 50, func(t time.Time) bool { return onAt(t, "07:40-11:40") })
+	if out, err := profileTool(t, e.m, "sensor.aquarium_leistung"); err != nil || !strings.Contains(out, "keine wiederkehrenden Zeiten") {
+		t.Errorf("profile: %s, %v", out, err)
+	}
+	skill, err := os.ReadFile("../../skills/aufgabe/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(skill), "Findet das Profil keinen Tagesablauf oder zu wenige Tage, sag das und frag nach den Zeiten, bevor du etwas einträgst") {
+		t.Error("the skill does not tell Mira to ask for the times")
+	}
+	// A name that fits no power sensor, and a sensor that is not one.
+	if _, err := profileTool(t, e.m, "Kaffeemaschine"); err == nil || !strings.Contains(err.Error(), "Kaffeemaschine") {
+		t.Errorf("error: %v", err)
+	}
+	if _, err := profileTool(t, e.m, "sensor.solar_leistung"); err == nil || !strings.Contains(err.Error(), "kein Leistungssensor in W") {
+		t.Errorf("error: %v", err)
 	}
 }
