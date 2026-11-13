@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,17 +19,17 @@ import (
 	"github.com/miraassist/mira/internal/store"
 )
 
-// prepared is the config as the agent runs with it: mira.yaml, if there is
+// prepared is the config as the service runs with it: mira.yaml, if there is
 // one, with what the integration set up laid over it
 // (docs/spec/setup.md).
 type prepared struct {
 	cfg config.Config
-	// pairing: the token is the agent's own, so Home Assistant pairs (the
+	// pairing: the token is the service's own, so Home Assistant pairs (the
 	// first time without a code). A token in mira.yaml is entered instead.
 	pairing bool
 	// open: never paired, so the first pairing needs no code.
 	open bool
-	// ready: Home Assistant and a model are set; otherwise the agent
+	// ready: Home Assistant and a model are set; otherwise the service
 	// waits to be set up.
 	ready    bool
 	hasModel bool
@@ -65,6 +66,11 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 	if err != nil {
 		return prepared{}, err
 	}
+	if covered := setup.Covered(cfg, s); len(covered) > 0 {
+		// docs/spec/kv-cleanup.md, decision 9: what the integration set
+		// wins; the log says which settings of mira.yaml it covers.
+		slog.Info("setup covers mira.yaml: the integration's values are used", "settings", strings.Join(covered, ", "))
+	}
 	p.cfg = setup.Apply(cfg, s)
 	if err := p.cfg.Validate(); err != nil {
 		return prepared{}, err
@@ -85,10 +91,10 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 	return p, nil
 }
 
-// errNotSetUp is for commands that need a set-up agent.
+// errNotSetUp is for commands that need a set-up service.
 var errNotSetUp = errors.New("Mira is not set up yet: add Mira in Home Assistant (Settings → Devices & services)")
 
-// restart starts the agent anew with what setup saved: the same program,
+// restart starts the service anew with what setup saved: the same program,
 // arguments and environment.
 func restart() {
 	exe, err := os.Executable()
@@ -122,7 +128,7 @@ func logPairing(log *slog.Logger, p prepared) {
 }
 
 // runSetupMode serves only what setup needs until the integration has set
-// the agent up; then it starts anew.
+// the service up; then it starts anew.
 func runSetupMode(ctx context.Context, p prepared) error {
 	log := slog.Default()
 	st, err := store.Open(ctx, store.Options{Path: p.cfg.Store.Path})

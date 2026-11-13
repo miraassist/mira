@@ -36,7 +36,7 @@ func TestHP07_AScheduledJobWaitsForHomeAssistantsPrompt(t *testing.T) {
 		t.Fatal("the job ran without Home Assistant's prompt")
 	case <-time.After(50 * time.Millisecond):
 	}
-	if _, ok, err := st.LastRun(context.Background(), "schedule:plan:morgen"); ok || err != nil {
+	if _, ok, err := st.LastRun(context.Background(), store.RunKey{Skill: "plan", Schedule: "morgen"}); ok || err != nil {
 		t.Errorf("a last run while waiting (%v)", err)
 	}
 
@@ -47,7 +47,7 @@ func TestHP07_AScheduledJobWaitsForHomeAssistantsPrompt(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("the job did not run after the prompt came")
 	}
-	if run := lastRun(t, st, "schedule:plan:morgen"); run.Status != store.RunDone || run.Text != "Heute ist Markt." {
+	if run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "morgen"}); run.Status != store.RunDone || run.Text != "Heute ist Markt." {
 		t.Errorf("run: %+v", run)
 	}
 }
@@ -68,7 +68,7 @@ func TestHP08_AJobThatWaitedInVainRunsAndFails(t *testing.T) {
 	if waited < 20*time.Millisecond {
 		t.Errorf("the job waited only %s", waited)
 	}
-	run := lastRun(t, st, "schedule:plan:morgen")
+	run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "morgen"})
 	if run.Status != store.RunFailed || !strings.Contains(run.Error, "prompt is missing") {
 		t.Errorf("run: %+v", run)
 	}

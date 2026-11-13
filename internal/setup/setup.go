@@ -1,4 +1,4 @@
-// Package setup lets the Mira integration set the agent up
+// Package setup lets the Mira integration set the service up
 // (docs/spec/setup.md): pairing instead of typing a token (the first
 // time without a code, later with one), and the Home Assistant access and the language model sent from Home
 // Assistant instead of written into mira.yaml. What it gets is kept in the
@@ -59,7 +59,7 @@ type LLM struct {
 
 // Settings is what setup keeps.
 type Settings struct {
-	// Token is the agent's access token when mira.yaml has none; made at
+	// Token is the service's access token when mira.yaml has none; made at
 	// the first start.
 	Token string
 	// Paired: Home Assistant has the token. Open: it never had, so the
@@ -158,6 +158,35 @@ func Apply(cfg config.Config, s Settings) config.Config {
 	return cfg
 }
 
+// Covered are the settings of mira.yaml that Apply replaces with a
+// different value from the setup, by name (docs/spec/kv-cleanup.md,
+// decision 9): the caller says them in the log, never their values.
+func Covered(cfg config.Config, s Settings) []string {
+	var out []string
+	if s.HAURL != "" && s.HAToken != "" {
+		if cfg.HA.URL != "" && strings.TrimRight(cfg.HA.URL, "/") != strings.TrimRight(s.HAURL, "/") {
+			out = append(out, "ha.url")
+		}
+		if cfg.HA.Token != "" && cfg.HA.Token != s.HAToken {
+			out = append(out, "ha.token")
+		}
+	}
+	if l := s.LLM; l != nil {
+		if m, ok := cfg.Models[config.MainModel]; ok {
+			if m.BaseURL != "" && strings.TrimRight(m.BaseURL, "/") != strings.TrimRight(l.BaseURL, "/") {
+				out = append(out, "models.main.endpoint")
+			}
+			if m.Model != "" && m.Model != l.Model {
+				out = append(out, "models.main.model")
+			}
+			if m.APIKey != "" && m.APIKey != l.APIKey {
+				out = append(out, "models.main.token")
+			}
+		}
+	}
+	return out
+}
+
 func hasServer(cfg config.Config, name string) bool {
 	for _, s := range cfg.MCPServers {
 		if s.Name == name {
@@ -167,7 +196,7 @@ func hasServer(cfg config.Config, name string) bool {
 	return false
 }
 
-// Ready reports whether the agent can run: Home Assistant is reachable and
+// Ready reports whether the service can run: Home Assistant is reachable and
 // a language model is set, in the file or by setup.
 func Ready(cfg config.Config, fileHasLLM bool, s Settings) bool {
 	return cfg.HA.URL != "" && cfg.HA.Token != "" && (fileHasLLM || s.LLM != nil)
@@ -238,9 +267,9 @@ var ErrBadCode = errors.New("wrong or used up code")
 
 // Pair pairs and sets up in one step: Home Assistant's access and maybe a
 // model are kept, and the token is handed out, or nothing happens at all.
-// So no agent is left paired but unusable when a setup is broken off.
+// So no service is left paired but unusable when a setup is broken off.
 //
-// An agent that was never paired needs no code: whoever pairs first wins,
+// A service that was never paired needs no code: whoever pairs first wins,
 // and the owner notices, because their own pairing then asks for a code.
 // Later the code Unpair wrote into the log is needed; a wrong one counts,
 // five spend it. The Home Assistant that let go needs none: it shows the
@@ -272,7 +301,7 @@ func Pair(ctx context.Context, st *store.Store, code, rejoin string, haURL, haTo
 	return get(ctx, st, keyToken)
 }
 
-// checkCode lets a pairing through: without a code while the agent was
+// checkCode lets a pairing through: without a code while the service was
 // never paired, else with the pending code.
 func checkCode(ctx context.Context, st *store.Store, code string) error {
 	paired, err := get(ctx, st, keyPaired)
@@ -328,12 +357,12 @@ func RejoinKey(token string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Unpair is for when Home Assistant lets go of the agent (the integration
+// Unpair is for when Home Assistant lets go of the service (the integration
 // is removed): a new token, so the old one is worth nothing, and Home
-// Assistant's access forgotten. The agent stays paired: the household's
+// Assistant's access forgotten. The service stays paired: the household's
 // memory is still in it. The same Home Assistant pairs again without a
 // code, with the rejoin key; any other needs the code returned here, which
-// the agent writes into its log. The model stays.
+// the service writes into its log. The model stays.
 func Unpair(ctx context.Context, st *store.Store) (string, error) {
 	old, err := get(ctx, st, keyToken)
 	if err != nil {

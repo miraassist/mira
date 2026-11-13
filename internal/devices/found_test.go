@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -222,8 +223,29 @@ func (f *fakeHA) addDeviceOf(platform, id, name, entry string, measuring bool) {
 }
 
 type memKV struct {
-	mu sync.Mutex
-	m  map[string]string
+	mu   sync.Mutex
+	m    map[string]string
+	said map[string]string
+}
+
+func (k *memKV) FoundSaid(context.Context) (map[string]string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return maps.Clone(k.said), nil
+}
+
+func (k *memKV) SetFoundSaid(_ context.Context, said map[string]string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.said = maps.Clone(said)
+	return nil
+}
+
+// saidKeys are the said keys, sorted and joined.
+func (k *memKV) saidKeys() string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return strings.Join(slices.Sorted(maps.Keys(k.said)), " ")
 }
 
 func (k *memKV) GetKV(_ context.Context, key string) (string, error) {
@@ -439,7 +461,7 @@ func TestFD01_ADiscoveredDeviceIsSaidOnceAsAMessageToTheHouse(t *testing.T) {
 	if !strings.Contains(p[1], "flow:f1: Hue Bridge") || !strings.Contains(p[1], "geraet-einbinden") {
 		t.Errorf("details = %q", p[1])
 	}
-	waitFor(t, func() bool { return strings.Contains(e.kv.get(keySaid), "flow:hue:u-f1") })
+	waitFor(t, func() bool { return strings.Contains(e.kv.saidKeys(), "flow:hue:u-f1") })
 }
 
 // Since 2026-11-12 (docs/spec/messages.md, decision 28) each device is an
@@ -515,9 +537,9 @@ func TestFD05_TheBacklogIsNotReadOut(t *testing.T) {
 	ha.discover("f2", "shelly", "Shelly Plus 1", "confirm")
 	e := newFoundEnv(t, &memKV{m: map[string]string{}}, ha)
 	e.noPost(t)
-	if !strings.Contains(e.kv.get(keySaid), "flow:hue:u-f1") || !strings.Contains(e.kv.get(keySaid), "flow:shelly:u-f2") ||
+	if !strings.Contains(e.kv.saidKeys(), "flow:hue:u-f1") || !strings.Contains(e.kv.saidKeys(), "flow:shelly:u-f2") ||
 		e.kv.get(keyStarted) == "" {
-		t.Fatalf("said = %s", e.kv.get(keySaid))
+		t.Fatalf("said = %s", e.kv.saidKeys())
 	}
 	out := e.run(t, ToolFound, `{}`)
 	if !strings.Contains(out, "Hue Bridge") || !strings.Contains(out, "Shelly Plus 1") {
@@ -766,4 +788,18 @@ func (e *foundEnv) tookItsThread(t *testing.T, item string) {
 	if e.started != 0 || e.current != "house:"+item {
 		t.Errorf("adopted with %q (threads of the room started: %d), want the house's thread of %s", e.current, e.started, item)
 	}
+}
+
+// docs/spec/kv-cleanup.md, step 2: a said device or flow Home Assistant no
+// longer has is forgotten when the noticing starts; the others stay said.
+func TestKV05_AGoneDeviceIsForgottenTheOthersStaySaid(t *testing.T) {
+	ha := newFakeHA()
+	ha.addDevice("d1", "Hue Lampe", "e1", true)
+	ha.discover("f1", "hue", "Hue Bridge", "link")
+	kv := &memKV{m: map[string]string{keyStarted: "2026-11-10T00:00:00Z"}, said: map[string]string{
+		"device:d1": "Hue Lampe", "device:gone": "Alte Lampe", "flow:hue:u-f1": "Hue Bridge", "flow:hue:u-old": "Alte Bridge",
+	}}
+	e := newFoundEnv(t, kv, ha)
+	waitFor(t, func() bool { return e.kv.saidKeys() == "device:d1 flow:hue:u-f1" })
+	e.noPost(t)
 }

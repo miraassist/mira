@@ -10,18 +10,11 @@ package language
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
-)
-
-const (
-	keyLast   = "language.last"
-	keyArea   = "language.area."
-	keyPerson = "language.person."
 )
 
 type Options struct {
@@ -66,7 +59,7 @@ func (r *Resolver) Turn(ctx context.Context, sent, area, person string) i18n.Lan
 // ForArea is the language last spoken at the satellite of an area.
 func (r *Resolver) ForArea(ctx context.Context, area string) i18n.Lang {
 	if area != "" {
-		if l, ok := r.get(ctx, keyArea+area); ok {
+		if l, ok := r.get(ctx, store.LanguageArea, area); ok {
 			return l
 		}
 	}
@@ -77,7 +70,7 @@ func (r *Resolver) ForArea(ctx context.Context, area string) i18n.Lang {
 // who spoke.
 func (r *Resolver) ForPerson(ctx context.Context, person string) i18n.Lang {
 	if person != "" {
-		if l, ok := r.get(ctx, keyPerson+person); ok {
+		if l, ok := r.get(ctx, store.LanguagePerson, person); ok {
 			return l
 		}
 	}
@@ -88,7 +81,7 @@ func (r *Resolver) ForPerson(ctx context.Context, person string) i18n.Lang {
 // person; before anyone spoke, Home Assistant's server language, and the
 // default language while that cannot be read.
 func (r *Resolver) Last(ctx context.Context) i18n.Lang {
-	if l, ok := r.get(ctx, keyLast); ok {
+	if l, ok := r.get(ctx, store.LanguageLast, ""); ok {
 		return l
 	}
 	return r.start(ctx)
@@ -115,12 +108,13 @@ func (r *Resolver) start(ctx context.Context) i18n.Lang {
 	return l
 }
 
-func (r *Resolver) get(ctx context.Context, key string) (i18n.Lang, bool) {
-	v, err := r.store.GetKV(ctx, key)
+func (r *Resolver) get(ctx context.Context, scope, id string) (i18n.Lang, bool) {
+	v, ok, err := r.store.Language(ctx, scope, id)
 	if err != nil {
-		if !errors.Is(err, store.ErrNotFound) {
-			r.log.Warn("could not read the last language", "key", key, "error", err)
-		}
+		r.log.Warn("could not read the last language", "scope", scope, "id", id, "error", err)
+		return "", false
+	}
+	if !ok {
 		return "", false
 	}
 	l, err := i18n.Parse(v)
@@ -128,19 +122,20 @@ func (r *Resolver) get(ctx context.Context, key string) (i18n.Lang, bool) {
 }
 
 func (r *Resolver) remember(ctx context.Context, l i18n.Lang, area, person string) {
-	keys := []string{keyLast}
+	type scoped struct{ scope, id string }
+	keys := []scoped{{store.LanguageLast, ""}}
 	if area != "" {
-		keys = append(keys, keyArea+area)
+		keys = append(keys, scoped{store.LanguageArea, area})
 	}
 	if person != "" {
-		keys = append(keys, keyPerson+person)
+		keys = append(keys, scoped{store.LanguagePerson, person})
 	}
 	for _, k := range keys {
-		if cur, ok := r.get(ctx, k); ok && cur == l {
+		if cur, ok := r.get(ctx, k.scope, k.id); ok && cur == l {
 			continue
 		}
-		if err := r.store.SetKV(ctx, k, string(l)); err != nil {
-			r.log.Warn("could not remember the language", "key", k, "error", err)
+		if err := r.store.SetLanguage(ctx, k.scope, k.id, string(l)); err != nil {
+			r.log.Warn("could not remember the language", "scope", k.scope, "id", k.id, "error", err)
 		}
 	}
 }

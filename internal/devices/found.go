@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -33,12 +34,10 @@ const (
 // IgnoreLabel is the label of a device Mira was told to ignore (decision 2).
 const IgnoreLabel = "Mira: ignoriert"
 
-// Keys in Mira's database: what was said (each found item once, decision 1)
-// and whether the noticing ever ran (the backlog is not read out).
-const (
-	keySaid    = "found.said"
-	keyStarted = "found.started"
-)
+// keyStarted marks in Mira's database whether the noticing ever ran (the
+// backlog is not read out). What was said (each found item once, decision
+// 1) is the table found_said.
+const keyStarted = "found.started"
 
 // passingBy are integrations that make a device for whatever passes by:
 // their entities count as diagnostic ones, so such a device is not counted
@@ -59,10 +58,13 @@ type FoundHA interface {
 	SubmitFlow(ctx context.Context, flowID string, data map[string]any) (haws.FlowStep, error)
 }
 
-// KV is where the said marks are kept (Mira's database).
+// KV is where the marks are kept (Mira's database): whether the noticing
+// ran, and what was said (docs/spec/kv-cleanup.md).
 type KV interface {
 	GetKV(ctx context.Context, key string) (string, error)
 	SetKV(ctx context.Context, key, value string) error
+	FoundSaid(ctx context.Context) (map[string]string, error)
+	SetFoundSaid(ctx context.Context, said map[string]string) error
 }
 
 type FoundOptions struct {
@@ -112,14 +114,15 @@ type Found struct {
 	in   chan foundInput
 	wake chan struct{}
 
-	mu      sync.Mutex
-	said    map[string]string // key -> name, said once
-	started bool              // the noticing ran before
-	flows   map[string]haws.Flow
-	pending map[string]bool // keys waiting for the gathering: flow:<id>, device:<id>
-	flowOf  map[string]string
-	names   map[string]string // integration names by domain
-	trans   map[string]map[string]string
+	mu       sync.Mutex
+	said     map[string]string // key -> name, said once
+	started  bool              // the noticing ran before
+	snapshot bool              // the flows' first list (all open flows) came
+	flows    map[string]haws.Flow
+	pending  map[string]bool // keys waiting for the gathering: flow:<id>, device:<id>
+	flowOf   map[string]string
+	names    map[string]string // integration names by domain
+	trans    map[string]map[string]string
 	// changed is closed and made anew at each change, for Await; recent are
 	// the devices created lately, in order.
 	changed chan struct{}
@@ -167,11 +170,12 @@ func counted(f haws.Flow) bool {
 
 // Run watches the open flows and the device registry until ctx ends.
 func (f *Found) Run(ctx context.Context) error {
-	if raw, err := f.o.KV.GetKV(ctx, keySaid); err == nil {
-		if err := json.Unmarshal([]byte(raw), &f.said); err != nil {
-			f.log.Warn("could not read which found devices were said; they may be said once more", "error", err)
-		}
+	if said, err := f.o.KV.FoundSaid(ctx); err != nil {
+		f.log.Warn("could not read which found devices were said; they may be said once more", "error", err)
+	} else if said != nil {
+		f.said = said
 	}
+	f.forgetGoneDevices(ctx)
 	if v, err := f.o.KV.GetKV(ctx, keyStarted); err == nil && v != "" {
 		f.started = true
 	}
@@ -262,6 +266,23 @@ func (f *Found) take(ctx context.Context, in foundInput) bool {
 	newOnes := false
 	f.mu.Lock()
 	initial := false
+	if !f.snapshot {
+		// The first list is every open flow: a said flow not in it is
+		// gone, and forgotten (docs/spec/kv-cleanup.md, step 2).
+		f.snapshot = true
+		open := map[string]bool{}
+		for _, ev := range in.flows {
+			if ev.Flow != nil {
+				open[flowKey(*ev.Flow)] = true
+			}
+		}
+		for k := range f.said {
+			if strings.HasPrefix(k, "flow:") && !open[k] {
+				delete(f.said, k)
+				initial = true
+			}
+		}
+	}
 	for _, ev := range in.flows {
 		switch ev.Type {
 		case "removed":
@@ -522,10 +543,54 @@ func (f *Found) entry(it item) (string, string) {
 
 func (f *Found) saveSaid(ctx context.Context) {
 	f.mu.Lock()
-	raw, _ := json.Marshal(f.said)
+	said := maps.Clone(f.said)
 	f.mu.Unlock()
-	if err := f.o.KV.SetKV(ctx, keySaid, string(raw)); err != nil {
+	if err := f.o.KV.SetFoundSaid(ctx, said); err != nil {
 		f.log.Warn("could not remember a found device as said; it may be said once more after a restart", "error", err)
+	}
+}
+
+// forgetGoneDevices forgets the said devices Home Assistant no longer has,
+// so the list does not grow without end (docs/spec/kv-cleanup.md, step 2).
+func (f *Found) forgetGoneDevices(ctx context.Context) {
+	f.mu.Lock()
+	n := 0
+	for k := range f.said {
+		if strings.HasPrefix(k, "device:") {
+			n++
+		}
+	}
+	f.mu.Unlock()
+	if n == 0 {
+		return
+	}
+	raw, err := f.o.HA.Call(ctx, map[string]any{"type": "config/device_registry/list"})
+	if err != nil {
+		f.log.Warn("could not read the devices to forget the gone ones; they stay said", "error", err)
+		return
+	}
+	var all []registry
+	if err := json.Unmarshal(raw, &all); err != nil {
+		f.log.Warn("could not read the devices to forget the gone ones; they stay said",
+			"answer", excerpt.Bytes(raw), "error", err)
+		return
+	}
+	have := make(map[string]bool, len(all))
+	for _, d := range all {
+		have[deviceKey(d.ID)] = true
+	}
+	var gone []string
+	f.mu.Lock()
+	for k := range f.said {
+		if strings.HasPrefix(k, "device:") && !have[k] {
+			delete(f.said, k)
+			gone = append(gone, k)
+		}
+	}
+	f.mu.Unlock()
+	if len(gone) > 0 {
+		f.log.Info("found devices forgotten, home assistant no longer has them", "count", len(gone))
+		f.saveSaid(ctx)
 	}
 }
 

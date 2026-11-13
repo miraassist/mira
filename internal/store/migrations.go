@@ -7,10 +7,12 @@ import (
 )
 
 // migration is one forward-only schema step. Never edit a shipped statement;
-// append a new migration instead.
+// append a new migration instead. fn, if set, runs after stmt in the same
+// transaction: for rows that need Go to be carried over.
 type migration struct {
 	name string
 	stmt string
+	fn   func(ctx context.Context, tx *sql.Tx) error
 }
 
 var migrations = []migration{
@@ -456,6 +458,53 @@ CREATE TABLE own_automations (
     created_at TEXT NOT NULL
 );`,
 	},
+	{
+		// Keys no code reads any more (docs/spec/kv-cleanup.md, step 1).
+		name: "0029_kv_dead_keys",
+		stmt: `
+DELETE FROM kv WHERE key GLOB 'ui_config:*' OR key = 'ui_managed_by_ha' OR key = 'telegram.offset'
+    OR key GLOB 'feed_seen:*';`,
+	},
+	{
+		// The lists that were kept as keys of kv get tables; their rows are
+		// carried over (docs/spec/kv-cleanup.md, step 2).
+		name: "0030_kv_tables",
+		stmt: `
+CREATE TABLE schedule_runs (
+    skill      TEXT NOT NULL,
+    schedule   TEXT NOT NULL,
+    person     TEXT NOT NULL DEFAULT '',
+    started_at TEXT NOT NULL,
+    ended_at   TEXT NOT NULL,
+    status     TEXT NOT NULL,
+    text       TEXT NOT NULL DEFAULT '',
+    error      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (skill, schedule, person)
+);
+CREATE TABLE languages (
+    scope      TEXT NOT NULL,
+    id         TEXT NOT NULL DEFAULT '',
+    language   TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (scope, id)
+);
+CREATE TABLE found_said (
+    key     TEXT PRIMARY KEY,
+    name    TEXT NOT NULL,
+    said_at TEXT NOT NULL
+);
+CREATE TABLE inbox_read (
+    entry   TEXT NOT NULL,
+    hash    TEXT NOT NULL,
+    read_at TEXT NOT NULL,
+    PRIMARY KEY (entry, hash)
+);
+CREATE TABLE inbox_owners (
+    owner TEXT PRIMARY KEY,
+    user  TEXT NOT NULL
+);`,
+		fn: carryOverKV,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -491,6 +540,11 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		err := s.withTx(ctx, func(tx *sql.Tx) error {
 			if _, err := tx.ExecContext(ctx, m.stmt); err != nil {
 				return fmt.Errorf("apply migration %s: %w", m.name, err)
+			}
+			if m.fn != nil {
+				if err := m.fn(ctx, tx); err != nil {
+					return fmt.Errorf("apply migration %s: %w", m.name, err)
+				}
 			}
 			_, err := tx.ExecContext(ctx,
 				`INSERT INTO schema_migrations(name, applied_at) VALUES (?, ?)`,

@@ -121,6 +121,33 @@ erDiagram
         text value
         text updated_at
     }
+    schedule_runs {
+        text skill PK
+        text schedule PK
+        text person PK "'' for the house"
+        text started_at
+        text ended_at
+        text status
+    }
+    languages {
+        text scope PK "area, person, last"
+        text id PK
+        text language
+    }
+    found_said {
+        text key PK "device:<id>, flow:<handler>:<unique id>"
+        text name
+        text said_at
+    }
+    inbox_read {
+        text entry PK "the IMAP entry"
+        text hash PK
+        text read_at
+    }
+    inbox_owners {
+        text owner PK "Paperless's number"
+        text user
+    }
 ```
 
 ## The tables
@@ -137,7 +164,12 @@ erDiagram
 | `agent_runs`, `agent_run_steps` | Runs of Mira's helpers with their steps and cost ([Agents](spec/agents.md)) | the agent runtime | the page "Agents", a run taken up after a restart |
 | `memory_facts` (+ `memory_facts_fts`) | What Mira remembers, per owner (the house or a person), with a full-text index | the memory tools, the page "Memory" | the memory tools, the profile rebuild |
 | `memory_profiles` | The profile per owner, built from the facts at night | the profile rebuild | every prompt |
-| `kv` | Small settings and states by key: setup and pairing, quiet mode, exposed entities, the last run of each schedule (`schedule:<skill>:<name>[:<person>]`, [Schedules](spec/schedules.md)) | several | several |
+| `schedule_runs` | A schedule's last run, per person for a per-person one ([Schedules](spec/schedules.md)) | the skills' runner | the page "Schedule" |
+| `languages` | The language last spoken per room and person, and at all ([Language](spec/language.md)) | the language of a turn | every turn without a language of its own |
+| `found_said` | The found devices and discoveries already said, each once ([Found devices](spec/found-devices.md)) | the found-devices noticing | the noticing |
+| `inbox_read` | The mails the inbox read, the last 100 per IMAP entry ([Inbox](spec/inbox.md)) | the inbox | the inbox |
+| `inbox_owners` | Paperless owner numbers learned from the webhooks, with their user names ([Inbox](spec/inbox.md)) | the inbox | the inbox |
+| `kv` | Single values and described families of keys (section "The key-value table") | several | several |
 | `schema_migrations` | The migrations applied | the store at start | the store at start |
 
 ## What is kept, and for how long
@@ -155,7 +187,31 @@ Mira removes what has long been finished. Nothing open is ever removed.
 | `confirmations` | with their session, or when the next turn takes or drops them | at once |
 | `agent_runs` with their steps | ended | 60 minutes |
 | `memory_facts`, `memory_profiles` | never by Mira: what she remembers is removed by the user (page "Memory", "forget") | – |
-| `kv` | never; each key is overwritten, so it does not grow (a removed person leaves the last run of their schedules) | – |
+| `schedule_runs` | a person's rows, when their per-person schedule runs and they are no longer among its persons | at once |
+| `languages` | never; one row per room and person | – |
+| `found_said` | a device or discovery Home Assistant no longer has, when the noticing starts | at once |
+| `inbox_read` | the oldest of an IMAP entry beyond its last 100 | at once |
+| `inbox_owners` | never; one row per Paperless owner | – |
+| `kv` | never; each key is overwritten; the keys and what they grow with: section "The key-value table" | – |
+
+## The key-value table
+
+Decided 2026-11-13 ([Cleaning up the key-value table](spec/kv-cleanup.md)): `kv` holds single values, and families of
+keys with a prefix **when this table describes them**; a key that is not here is not written. A list with parts in its
+key or a JSON list in its value gets a table of its own. A test (`docs`, KV-02) checks that every key the code
+writes is here.
+
+| Key | What | Written by | Read by | Grows |
+|---|---|---|---|---|
+| `instance_id` | Mira's fixed id: Home Assistant knows the Mira service by it, whatever its address | the store, once | the mDNS announcement and the API | no |
+| `quiet_mode` | The switch "Ruhemodus" | the integration's switch (`PUT /v1/quiet_mode`) | the notifier, the API | no |
+| `found.started` | The found-devices noticing ran once: what Home Assistant had found before is not read out | `internal/devices` | `internal/devices` | no |
+| `own_automations.taken_over` | The automations labelled "Mira" from before the table `own_automations` were taken over, once | the store | the store | no |
+| `ha_exposed` | **A copy of Home Assistant:** the entities exposed to Assist, as the integration last sent them; kept so it holds across a restart until the integration sends again | the integration, through the API | the house's context | with the house |
+| `ha_logins` | **A copy of Home Assistant:** person → login name, as the integration last sent them, for the calendars | the integration | calendars | with the persons |
+| `setup.token` | Mira's API token when `mira.yaml` has none, made at the first start | `internal/setup` | the API | no |
+| `setup.paired`, `setup.code`, `setup.code_tries`, `setup.rejoin` | The state of the pairing with Home Assistant ([Setup](spec/setup.md)) | `internal/setup` | `internal/setup`; a backup's restore keeps the live ones | no |
+| `setup.ha_url`, `setup.ha_token`, `setup.llm` | Home Assistant's address and token and the main model, as the integration sent them. **The one exception to "`mira.yaml` is the one truth":** they are laid over `mira.yaml` at start, because the integration sets them, not the user, they belong to the pairing, and a setup must not fail on a `mira.yaml` that cannot be written. Where they cover a different value of `mira.yaml`, the start's log says which setting (`setup covers mira.yaml`) | `internal/setup` (`/v1/setup`) | the start | no |
 
 A Telegram session keeps its session row; its history does not grow without end, since compaction folds old turns
 into a summary and drops them ([Context](spec/context.md), section 5).

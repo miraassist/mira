@@ -127,16 +127,12 @@ func (j job) cron() schedule.Cron {
 
 // LastRunKey is where a schedule's last run is kept: by its name, else its
 // place in the skill; per person for a per_person one.
-func LastRunKey(skill string, sc Schedule, index int, person string) string {
+func LastRunKey(skill string, sc Schedule, index int, person string) store.RunKey {
 	name := sc.Name
 	if name == "" {
 		name = fmt.Sprintf("#%d", index+1)
 	}
-	key := "schedule:" + skill + ":" + name
-	if person != "" {
-		key += ":" + person
-	}
-	return key
+	return store.RunKey{Skill: skill, Schedule: name, Person: person}
 }
 
 // jobs are the schedules that are on, as they are now; with all, the off
@@ -373,7 +369,7 @@ func (r *Runner) run(ctx context.Context, j job, log *slog.Logger) {
 			run.Status, run.Error = store.RunFailed, err.Error()
 			log.Error("scheduled task failed", "job", j.key(), "error", err)
 		}
-		r.keep(ctx, SystemSkill+":"+j.sys.Name, run)
+		r.keep(ctx, store.RunKey{Skill: SystemSkill, Schedule: j.sys.Name}, run)
 		return
 	}
 	if queued, err := r.RunJob(ctx, j.skill, j.index); err != nil {
@@ -409,17 +405,36 @@ func (r *Runner) waitReady(ctx context.Context, j job, log *slog.Logger) {
 	}
 }
 
-// keep stores a last run under schedule:<key>; a failure to keep it is
-// only logged.
-func (r *Runner) keep(ctx context.Context, key string, run store.LastRun) {
+// forgetGone deletes the last runs of persons no longer among a per-person
+// schedule's persons (docs/spec/kv-cleanup.md, step 2). Without any person
+// (none known, or Home Assistant not read) nothing goes.
+func (r *Runner) forgetGone(ctx context.Context, sk Skill, index int, people []Person) {
+	if r.Store == nil || len(people) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(people))
+	for _, p := range people {
+		keys = append(keys, p.Key)
+	}
+	k := LastRunKey(sk.Name, sk.Schedules[index], index, "")
+	n, err := r.Store.PruneLastRuns(context.WithoutCancel(ctx), k.Skill, k.Schedule, keys)
+	switch {
+	case err != nil:
+		r.log().Warn("could not forget the last runs of persons gone; they stay on the page", "skill", k.Skill,
+			"schedule", k.Schedule, "error", err)
+	case n > 0:
+		r.log().Info("last runs of persons gone forgotten", "skill", k.Skill, "schedule", k.Schedule, "count", n)
+	}
+}
+
+// keep stores a last run; a failure to keep it is only logged.
+func (r *Runner) keep(ctx context.Context, key store.RunKey, run store.LastRun) {
 	if r.Store == nil {
 		return
 	}
-	if !strings.HasPrefix(key, "schedule:") {
-		key = "schedule:" + key
-	}
 	if err := r.Store.SetLastRun(context.WithoutCancel(ctx), key, run); err != nil {
-		r.log().Warn("could not keep the last run", "job", key, "error", err)
+		r.log().Warn("could not keep the last run", "skill", key.Skill, "schedule", key.Schedule,
+			"person", key.Person, "error", err)
 	}
 }
 
@@ -453,6 +468,7 @@ func (r *Runner) RunJob(ctx context.Context, sk Skill, index int) (bool, error) 
 		}
 		queued = queued || q
 	}
+	r.forgetGone(ctx, sk, index, people)
 	return queued, errors.Join(errs...)
 }
 

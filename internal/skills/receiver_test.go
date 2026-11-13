@@ -101,7 +101,7 @@ func TestPS06_AnUnknownPersonInToFailsTheRun(t *testing.T) {
 		if len(tasker.seen) != 0 || len(pendingMessages(t, st)) != 0 {
 			t.Errorf("%s: ran %d times, messages %+v", to, len(tasker.seen), pendingMessages(t, st))
 		}
-		run, _, _ := st.LastRun(context.Background(), "schedule:posts:morgen")
+		run, _, _ := st.LastRun(context.Background(), store.RunKey{Skill: "posts", Schedule: "morgen"})
 		if run.Status != store.RunFailed {
 			t.Errorf("%s: last run = %+v", to, run)
 		}

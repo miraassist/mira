@@ -53,7 +53,8 @@ func (s schedules) List(ctx context.Context) ([]ui.ScheduleItem, error) {
 			if sc.Name != "" {
 				it.State = r.State(name, sc.Name)
 			}
-			last, err := s.lastRuns(ctx, skills.LastRunKey(name, sc, i, ""))
+			k := skills.LastRunKey(name, sc, i, "")
+			last, err := s.lastRuns(ctx, k.Skill, k.Schedule)
 			if err != nil {
 				return nil, err
 			}
@@ -83,7 +84,7 @@ func (s schedules) List(ctx context.Context) ([]ui.ScheduleItem, error) {
 		if next := r.NextSystemRun(sj); !next.IsZero() {
 			it.Next = next.Format("2006-01-02 15:04")
 		}
-		last, err := s.lastRuns(ctx, "schedule:"+skills.SystemSkill+":"+sj.Name)
+		last, err := s.lastRuns(ctx, skills.SystemSkill, sj.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -101,16 +102,14 @@ func scheduleItem(skill string, sc skills.Schedule) ui.ScheduleItem {
 }
 
 // lastRuns are a schedule's last run, and per person its persons'.
-func (s schedules) lastRuns(ctx context.Context, key string) ([]ui.LastRun, error) {
-	runs, err := s.a.store.LastRuns(ctx, key)
+func (s schedules) lastRuns(ctx context.Context, skill, schedule string) ([]ui.LastRun, error) {
+	runs, err := s.a.store.LastRuns(ctx, skill, schedule)
 	if err != nil {
 		return nil, err
 	}
 	keys := make([]string, 0, len(runs))
 	for k := range runs {
-		if k == key || strings.HasPrefix(k, key+":") {
-			keys = append(keys, k)
-		}
+		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	persons := s.a.persons()
@@ -119,7 +118,7 @@ func (s schedules) lastRuns(ctx context.Context, key string) ([]ui.LastRun, erro
 		r := runs[k]
 		l := ui.LastRun{Started: r.Started.In(time.Local).Format("2006-01-02 15:04"), Status: r.Status, Text: r.Text, Error: r.Error,
 			Seconds: int(r.Ended.Sub(r.Started).Seconds())}
-		if p := strings.TrimPrefix(k, key+":"); p != k {
+		if p := k; p != "" {
 			l.Person = p
 			if pp, ok := persons[p]; ok && pp.Name != "" {
 				l.Person = pp.Name

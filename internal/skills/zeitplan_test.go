@@ -174,7 +174,7 @@ func (f *answerTasker) RunTask(context.Context, string, string) (string, error) 
 	return f.answer, f.err
 }
 
-func lastRun(t *testing.T, st *store.Store, key string) store.LastRun {
+func lastRun(t *testing.T, st *store.Store, key store.RunKey) store.LastRun {
 	t.Helper()
 	run, ok, err := st.LastRun(context.Background(), key)
 	if err != nil || !ok {
@@ -191,18 +191,18 @@ func TestZP10_a_run_keeps_its_result(t *testing.T) {
 	if _, err := r.RunJob(context.Background(), sk, 0); err != nil {
 		t.Fatal(err)
 	}
-	run := lastRun(t, st, "schedule:plan:morgen")
+	run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "morgen"})
 	if run.Status != store.RunDone || run.Text != "Heute ist Markt." || run.Started.IsZero() || run.Ended.IsZero() {
 		t.Errorf("done: %+v", run)
 	}
 	tasker.answer = `{"importance":0,"spoken":""}`
 	r.RunJob(context.Background(), sk, 0)
-	if run := lastRun(t, st, "schedule:plan:morgen"); run.Status != store.RunNothing || run.Text != "" {
+	if run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "morgen"}); run.Status != store.RunNothing || run.Text != "" {
 		t.Errorf("nothing: %+v", run)
 	}
 	tasker.err = errors.New("model down")
 	r.RunJob(context.Background(), sk, 0)
-	if run := lastRun(t, st, "schedule:plan:morgen"); run.Status != store.RunFailed || run.Error != "model down" {
+	if run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "morgen"}); run.Status != store.RunFailed || run.Error != "model down" {
 		t.Errorf("failed: %+v", run)
 	}
 }
@@ -227,10 +227,10 @@ func TestZP11_a_per_person_schedule_keeps_one_last_run_per_person(t *testing.T) 
 	if _, err := r.RunJob(context.Background(), sk, 2); err != nil {
 		t.Fatal(err)
 	}
-	if run := lastRun(t, st, "schedule:plan:persoenlich:anna"); run.Status != store.RunNothing {
+	if run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "persoenlich", Person: "anna"}); run.Status != store.RunNothing {
 		t.Errorf("anna: %+v", run)
 	}
-	if run := lastRun(t, st, "schedule:plan:persoenlich:ben"); run.Status != store.RunDone || run.Text != "Ben, du hast frei." {
+	if run := lastRun(t, st, store.RunKey{Skill: "plan", Schedule: "persoenlich", Person: "ben"}); run.Status != store.RunDone || run.Text != "Ben, du hast frei." {
 		t.Errorf("ben: %+v", run)
 	}
 }
@@ -258,7 +258,7 @@ func TestZP12_miras_own_schedule_keeps_its_last_run(t *testing.T) {
 	}
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if run, ok, _ := st.LastRun(context.Background(), "schedule:mira:profile"); ok {
+		if run, ok, _ := st.LastRun(context.Background(), store.RunKey{Skill: "mira", Schedule: "profile"}); ok {
 			if run.Status != store.RunDone || run.Text != "2 Profile neu gebaut" {
 				t.Errorf("last run: %+v", run)
 			}

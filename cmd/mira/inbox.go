@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -77,48 +76,17 @@ func (a *app) newInbox(cfg config.Config, loaded []skills.Skill) *inbox.Service 
 	return inbox.New(o)
 }
 
-// kvInboxMails keeps the hashes of the mails the inbox has read, the last
-// mailsKept per IMAP entry, oldest first (docs/spec/inbox.md, decision 24).
-const kvInboxMails = "inbox_mails"
-
+// mailsKept: the inbox keeps the hashes of the mails it read, the last
+// mailsKept per IMAP entry (docs/spec/inbox.md, decision 24; the table
+// inbox_read).
 const mailsKept = 100
 
-func (a *app) inboxMails(ctx context.Context) (map[string][]string, error) {
-	out := map[string][]string{}
-	raw, err := a.store.GetKV(ctx, kvInboxMails)
-	if errors.Is(err, store.ErrNotFound) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, fmt.Errorf("the mails read %q: %w", excerpt.Of(raw), err)
-	}
-	return out, nil
-}
-
 func (a *app) inboxKnown(ctx context.Context, entry, hash string) (bool, error) {
-	mails, err := a.inboxMails(ctx)
-	if err != nil {
-		return false, err
-	}
-	return slices.Contains(mails[entry], hash), nil
+	return a.store.InboxRead(ctx, entry, hash)
 }
 
 func (a *app) inboxKeep(ctx context.Context, entry, hash string) error {
-	mails, err := a.inboxMails(ctx)
-	if err != nil {
-		return err
-	}
-	kept := slices.DeleteFunc(mails[entry], func(h string) bool { return h == hash })
-	kept = append(kept, hash)
-	if len(kept) > mailsKept {
-		kept = kept[len(kept)-mailsKept:]
-	}
-	mails[entry] = kept
-	raw, _ := json.Marshal(mails)
-	return a.store.SetKV(ctx, kvInboxMails, string(raw))
+	return a.store.KeepInboxRead(ctx, entry, hash, mailsKept)
 }
 
 func (a *app) inboxRead() isolatedAgent {
@@ -300,46 +268,21 @@ func (p paperlessMCP) Unread(ctx context.Context, tagInbox, tagRead int) ([]int,
 	}
 }
 
-// kvInboxOwners keeps the owners learned from the webhooks: Paperless's owner
-// number to user name (docs/spec/inbox.md, decision 18).
-const kvInboxOwners = "inbox_owners"
-
-func (a *app) inboxOwners(ctx context.Context) (map[string]string, error) {
-	out := map[string]string{}
-	raw, err := a.store.GetKV(ctx, kvInboxOwners)
-	if errors.Is(err, store.ErrNotFound) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil, fmt.Errorf("the learned owners %q: %w", excerpt.Of(raw), err)
-	}
-	return out, nil
-}
+// The owners learned from the webhooks: Paperless's owner number to user
+// name (docs/spec/inbox.md, decision 18; the table inbox_owners).
 
 func (a *app) inboxLearn(ctx context.Context, owner int, name string) error {
-	owners, err := a.inboxOwners(ctx)
-	if err != nil {
-		return err
-	}
 	key := strconv.Itoa(owner)
-	if owners[key] == name {
+	if cur, ok, err := a.store.InboxOwner(ctx, key); err != nil {
+		return err
+	} else if ok && cur == name {
 		return nil
 	}
-	owners[key] = name
-	raw, _ := json.Marshal(owners)
-	return a.store.SetKV(ctx, kvInboxOwners, string(raw))
+	return a.store.SetInboxOwner(ctx, key, name)
 }
 
 func (a *app) inboxOwner(ctx context.Context, owner int) (string, bool, error) {
-	owners, err := a.inboxOwners(ctx)
-	if err != nil {
-		return "", false, err
-	}
-	name, ok := owners[strconv.Itoa(owner)]
-	return name, ok, nil
+	return a.store.InboxOwner(ctx, strconv.Itoa(owner))
 }
 
 // inboxCatchUp catches the inbox up once its MCP server is connected: at

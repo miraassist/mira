@@ -10,15 +10,14 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-// Keys used by the agent. Kept here so nothing drifts apart.
+// Keys used by the service. Kept here so nothing drifts apart.
 const (
-	KeyQuietMode      = "quiet_mode"
-	KeyTelegramOffset = "telegram.offset"
-	KeyInstanceID     = "instance_id"
+	KeyQuietMode  = "quiet_mode"
+	KeyInstanceID = "instance_id"
 )
 
-// InstanceID returns the agent's stable id, created on first use. Home
-// Assistant recognises the agent by it, whatever its address.
+// InstanceID returns the service's stable id, created on first use. Home
+// Assistant recognises the service by it, whatever its address.
 func (s *Store) InstanceID(ctx context.Context) (string, error) {
 	id, err := s.GetKV(ctx, KeyInstanceID)
 	if err != ErrNotFound {
@@ -153,10 +152,11 @@ func (s *Store) DeleteKV(ctx context.Context, key string) error {
 // ResetForEval empties every table but the schema's, the key-value
 // settings and the connections' tokens: conversations, threads, memory,
 // messages, judgements. Only the
-// eval runner's own agent calls it, between scenarios.
+// eval runner's own service calls it, between scenarios.
 func (s *Store) ResetForEval(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table'
-		AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND name NOT IN ('schema_migrations', 'kv', 'oauth_tokens')`)
+		AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND name NOT IN ('schema_migrations', 'kv', 'oauth_tokens',
+		'schedule_runs', 'languages', 'found_said', 'inbox_read', 'inbox_owners')`)
 	if err != nil {
 		return err
 	}

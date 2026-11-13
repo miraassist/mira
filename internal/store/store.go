@@ -1,4 +1,4 @@
-// Package store is the agent's SQLite persistence: sessions and their
+// Package store is the service's SQLite persistence: sessions and their
 // transcripts, long-term memory, the message queue and a small key/value area.
 //
 // One file, migrations in code. Every write goes through this package so the
@@ -75,7 +75,7 @@ func Open(ctx context.Context, opts Options) (*Store, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	// SQLite tolerates one writer. Serialising here is simpler and faster than
-	// retrying SQLITE_BUSY all over the agent.
+	// retrying SQLITE_BUSY all over the service.
 	db.SetMaxOpenConns(1)
 	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON`); err != nil {
 		db.Close()
