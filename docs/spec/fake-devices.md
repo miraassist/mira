@@ -113,6 +113,29 @@ configuration) brings four sensors, without a device, exposed to Assist by `test
   (`async_import_statistics`), both following the windows or the cycle. The states go straight into the
   recorder's tables (Home Assistant has no action for a past state); for the test HA only.
 
+### The watched group (`watch_fake`, for the [Group watch](group-watch.md))
+
+The fake house a group watch watches, made by `watch_fake` at its setup (test only):
+
+- **Floors and areas:** Kellergeschoss (Keller), Erdgeschoss (Wohnzimmer, Küche, Flur, Bad, Garage), Dachgeschoss
+  (Schlafzimmer, Büro); Garten and Terrasse without a floor. Made when missing; an area that has a floor keeps it.
+- **Openings:** `binary_sensor.fake_fenster_wohnzimmer`, `_kuche`, `_schlafzimmer`, `_buro` (windows),
+  `binary_sensor.fake_kellerfenster` (window, Keller), `binary_sensor.fake_haustur` (door, Flur),
+  `binary_sensor.fake_gartentur` (door, Wohnzimmer), `binary_sensor.fake_garagentor` (garage door).
+- **Motion:** `binary_sensor.fake_bewegung_garten` (motion, Garten), `binary_sensor.fake_prasenz_buro` (presence).
+- **Temperatures:** `sensor.fake_temperatur_keller` (12 °C), `sensor.fake_temperatur_wohnzimmer` (21 °C).
+- **Lights:** `light.fake_licht_kuche`, `_schlafzimmer`, `_terrasse`, `_garten`, each in its area; switched as every
+  light.
+- Each entity goes into its area unless it has one. `watch_fake.set` (`entity_id`, `state`: `on`, `off`, a
+  temperature, `unavailable`, `unknown`) sets any of them.
+- **Group helpers** (the test HA's `configuration.yaml`): `binary_sensor.fake_fenster_gast` (the windows of the
+  bedroom and the office) and the light group `light.fake_lichter_aussen` (terrace and garden).
+- **Phones:** `notify.fake_handy_anna` and `notify.fake_handy_ben`, legacy notify services as a companion app's; what
+  each was sent is kept in `sensor.fake_handy_anna` / `_ben` (the count; the last ten in the attribute `messages`).
+  Anna's and Ben's channels in `testenv/mira.yaml`.
+- Nobody home: the dashboard's switches "Sim zu Hause …" (`input_boolean.sim_da_*`) move the persons' trackers;
+  with all off, `zone.home` is 0.
+
 As every fake's time (a playback's length, speaking), the meter's and the routine's is the fake's own: Mira and the
 blueprints only see the state change. The blueprints' runs are tested in pytest with these fakes and the time moved
 on (`tests/ha/test_watch_blueprints.py`, CW-11 to CW-15, CW-26 to CW-29), and on the test HA with shortened
@@ -147,3 +170,6 @@ turn at the conversation agent.
 5. **The watched devices** (`watch_fake`): the water meter and the plug's power, for the device watch (built
    2026-11-13 with its step 3; tested with the blueprints in pytest, CW-11 to CW-15); the fridge's and the
    dishwasher's plugs and the past of a cycle and of device runs with its step 7 (CW-26 to CW-29).
+6. **The watched group** (`watch_fake`): floors and areas, openings, motion, temperatures, lights, two group helpers and
+   the persons' phones, for the group watch (built 2026-11-13 with its step 1; tested with its blueprints in pytest,
+   GW-01 to GW-03, GW-08 to GW-16).

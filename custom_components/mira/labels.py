@@ -23,6 +23,10 @@ LABEL_ONCE = "mira_once"
 # stay there, even for a known person. The service reads it from the area
 # registry itself.
 LABEL_PRIVATE = "mira_private"
+# "Mira: nicht überwachen": an entity no group watch watches, and "Ist alles
+# zu?" leaves out (docs/spec/group-watch.md, decision 5). The service sets it
+# on the user's word; the blueprints' selection reads it by its id.
+LABEL_DONT_WATCH = "mira_dont_watch"
 
 # id: (seed name, icon, color, {language: (name, description)})
 _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
@@ -57,6 +61,15 @@ _LABELS: dict[str, tuple[str, str, str, dict[str, tuple[str, str]]]] = {
         {
             "de": ("Mira: privater Bereich", "Gespräche und Pläne aus diesem Bereich bleiben hier."),
             "en": ("Mira: private area", "Conversations and plans from this area stay here."),
+        },
+    ),
+    LABEL_DONT_WATCH: (
+        "mira_dont_watch",
+        "mdi:eye-off-outline",
+        "grey",
+        {
+            "de": ("Mira: nicht überwachen", "Mira lässt das in ihren Wächtern für Gruppen aus."),
+            "en": ("Mira: don't watch", "Mira leaves this out of her group watches."),
         },
     ),
 }

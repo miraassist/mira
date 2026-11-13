@@ -235,7 +235,7 @@ async def test_labels_by_id_in_home_assistants_language(hass):
     ensure_labels(hass)
     assert labels.async_get_label(LABEL_CONFIRM).name == "Vorsicht"
     assert labels.async_get_label(LABEL_PRIVATE).name == "Mira: privater Bereich"
-    assert len(labels.labels) == 4  # Mira, Mira: nachfragen, Mira: einmalig, Mira: privater Bereich
+    assert len(labels.labels) == 5  # Mira, nachfragen, einmalig, privater Bereich, nicht überwachen
 
 
 async def test_a_task_may_not_switch_what_is_labelled_confirm(hass):

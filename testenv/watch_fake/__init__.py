@@ -18,6 +18,10 @@ switches on and off again and again, and a dishwasher's (`sensor.fake_spulmaschi
 which `watch_fake.program` runs through its steps ("600:80, 1200:2000, 300:0, 1800:80":
 seconds and watts each), then 0 W. `power`, `routine`, `cycle`, `program` and `past` take
 the plug's `entity_id` (default: the aquarium's for `power`, `routine` and `past`).
+
+The watched group (house.py), for Mira's group watch: floors and areas, windows and doors, motion sensors,
+temperatures and lights in them, and a phone per person. `watch_fake.set` sets one of them (`entity_id`, `state`:
+on, off, a temperature, unavailable or unknown).
 """
 
 from __future__ import annotations
@@ -32,6 +36,8 @@ from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
+from .house import PHONES, ensure_structure
+
 DOMAIN = "watch_fake"
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
@@ -43,7 +49,8 @@ WINDOWS = vol.Match(r"^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if DOMAIN not in config:
         return True
-    devices: dict = hass.data.setdefault(DOMAIN, {})
+    devices: dict = hass.data.setdefault(DOMAIN, {"settable": []})
+    ensure_structure(hass)
 
     async def water_run(call: ServiceCall) -> None:
         devices["meter"].run(call.data["litres"], call.data["every"], call.data.get("for"))
@@ -129,7 +136,30 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             }
         ),
     )
-    hass.async_create_task(async_load_platform(hass, Platform.SENSOR, DOMAIN, {}, config))
+    async def set_state(call: ServiceCall) -> None:
+        for entity in devices["settable"]:
+            if entity.entity_id == call.data["entity_id"]:
+                entity.set_state(call.data["state"])
+                return
+        raise vol.Invalid(f"{call.data['entity_id']} is none of the fake house's entities")
+
+    hass.services.async_register(
+        DOMAIN,
+        "set",
+        set_state,
+        vol.Schema(
+            {
+                vol.Required("entity_id"): cv.entity_id,
+                vol.Required("state"): vol.Any("on", "off", "unavailable", "unknown", vol.Match(r"^-?\d+(\.\d+)?$")),
+            }
+        ),
+    )
+    for platform in (Platform.SENSOR, Platform.BINARY_SENSOR, Platform.LIGHT):
+        hass.async_create_task(async_load_platform(hass, platform, DOMAIN, {}, config))
+    for _name, phone in PHONES:
+        hass.async_create_task(
+            async_load_platform(hass, Platform.NOTIFY, DOMAIN, {"name": phone, "phone": phone}, config)
+        )
     return True
 
 

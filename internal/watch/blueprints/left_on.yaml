@@ -1,0 +1,117 @@
+blueprint:
+  name: "Mira: lights left on"
+  description: >-
+    Tells Mira when a light of the watch group has been on for the hours (optionally only while nobody is home). The watch group: the house's entities of the domain and device classes
+    below, in the areas and on the floors if given, without what carries the label "Mira: nicht überwachen"
+    (mira_dont_watch) and without group helpers; or the members of a group helper. Once per streak: it is told
+    again only after no member broke the rule. Brought and updated by the Mira service; a change made here is
+    overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    areas:
+      name: Areas
+      description: Only the members in these areas (together with the floors); none for the whole house.
+      default: []
+      selector:
+        area:
+          multiple: true
+    floors:
+      name: Floors
+      description: Only the members on these floors (together with the areas); none for the whole house.
+      default: []
+      selector:
+        floor:
+          multiple: true
+    group:
+      name: Group helper
+      description: A group helper instead of areas and floors; its members are watched, labelled or not.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: light
+    hours:
+      name: Hours
+      description: How many hours a light is on before Mira is told.
+      default: 3
+      selector:
+        number:
+          min: 0.05
+          max: 72
+          step: 0.05
+          unit_of_measurement: h
+          mode: box
+    only_away:
+      name: Only while nobody is home
+      default: false
+      selector:
+        boolean:
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "{{ breaking | join(', ') }} on for {{ hours }} hours."
+      selector:
+        text:
+          multiline: true
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  domain: light
+  classes: []
+  areas: !input areas
+  floors: !input floors
+  group: !input group
+  hours: !input hours
+  only_away: !input only_away
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {%- set ns = namespace(members=[]) -%}
+      {%- if group -%}
+      {%- set ns.members = expand(group) -%}
+      {%- else -%}
+      {%- set skip = label_entities('mira_dont_watch') -%}
+      {%- set places = namespace(areas=areas | list) -%}
+      {%- for f in floors -%}
+      {%- set places.areas = places.areas + floor_areas(f) -%}
+      {%- endfor -%}
+      {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+      {%- set ns.members = ns.members + [s] -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {{ ns.members | selectattr('state', 'eq', 'on') | selectattr('last_changed', 'le', now() - timedelta(hours=hours)) | list | count > 0 and (not only_away or states('zone.home') | int(1) == 0) }}
+
+variables:
+  breaking: >-
+    {%- set ns = namespace(members=[]) -%}
+    {%- if group -%}
+    {%- set ns.members = expand(group) -%}
+    {%- else -%}
+    {%- set skip = label_entities('mira_dont_watch') -%}
+    {%- set places = namespace(areas=areas | list) -%}
+    {%- for f in floors -%}
+    {%- set places.areas = places.areas + floor_areas(f) -%}
+    {%- endfor -%}
+    {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {{ ns.members | selectattr('state', 'eq', 'on') | selectattr('last_changed', 'le', now() - timedelta(hours=hours)) | map(attribute='name') | list }}
+
+conditions:
+  - condition: template
+    value_template: "{{ breaking | count > 0 }}"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 1
+      receiver: "{{ 'persons' if states('zone.home') | int(1) == 0 else 'house' }}"
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

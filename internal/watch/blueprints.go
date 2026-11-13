@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed blueprints/*.yaml
+//go:embed blueprints/*.yaml blueprints/selection.jinja
 var files embed.FS
 
 // Folder is where Mira's blueprints live in Home Assistant's blueprints of
@@ -28,17 +28,24 @@ const Folder = "mira/"
 // it in the house's language, never the planner.
 const MessageInput = "message"
 
+// GroupInput is the input of a group watch that names a group helper
+// (docs/spec/group-watch.md, The selection).
+const GroupInput = "group"
+
 // Input is one named input of a blueprint, as its selector bounds it.
 type Input struct {
 	Name string
-	// Kind is "entity", "number" or "text".
+	// Kind is "entity", "number", "text", "boolean", "time", "area" or
+	// "floor" (both lists), or "group" (the group helper of a group watch).
 	Kind string
 	// Domain and DeviceClass bound an entity.
 	Domain, DeviceClass string
 	// Min, Max and Unit bound a number.
 	Min, Max float64
 	Unit     string
-	// Default is the value Home Assistant takes when the input is not given.
+	// Default is the value Home Assistant takes when the input is not given;
+	// nil with HasDefault for an input that may stay empty (a group watch's
+	// lower or upper temperature).
 	Default    any
 	HasDefault bool
 }
@@ -51,8 +58,16 @@ type Blueprint struct {
 	// changed blueprint gets a higher one.
 	Version int
 	Inputs  []Input
+	// Domain and Classes are a group watch's (docs/spec/group-watch.md): the
+	// domain and device classes of its watch group, from its
+	// trigger_variables. Empty for a device watch.
+	Domain  string
+	Classes []string
 	yaml    string
 }
+
+// Group says whether the blueprint is a group watch's.
+func (b Blueprint) Group() bool { return b.Domain != "" }
 
 // Path is the blueprint's path as Home Assistant lists it.
 func (b Blueprint) Path() string { return Folder + b.Name + ".yaml" }
@@ -125,6 +140,10 @@ func parse(name string, raw []byte) (Blueprint, error) {
 			Domain      string `yaml:"domain"`
 			Input       yaml.Node
 		} `yaml:"blueprint"`
+		TriggerVariables struct {
+			Domain  string   `yaml:"domain"`
+			Classes []string `yaml:"classes"`
+		} `yaml:"trigger_variables"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return Blueprint{}, err
@@ -132,7 +151,8 @@ func parse(name string, raw []byte) (Blueprint, error) {
 	if doc.Blueprint.Domain != "automation" {
 		return Blueprint{}, fmt.Errorf("domain %q, not automation", doc.Blueprint.Domain)
 	}
-	b := Blueprint{Name: name, Version: VersionOf(doc.Blueprint.Description), yaml: string(raw)}
+	b := Blueprint{Name: name, Version: VersionOf(doc.Blueprint.Description), yaml: string(raw),
+		Domain: doc.TriggerVariables.Domain, Classes: doc.TriggerVariables.Classes}
 	if b.Version == 0 {
 		return Blueprint{}, fmt.Errorf("no mira-version in its description")
 	}
@@ -142,16 +162,23 @@ func parse(name string, raw []byte) (Blueprint, error) {
 	}
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		var spec struct {
-			Default  any                  `yaml:"default"`
+			Default  yaml.Node            `yaml:"default"`
 			Selector map[string]yaml.Node `yaml:"selector"`
 		}
 		if err := node.Content[i+1].Decode(&spec); err != nil {
 			return Blueprint{}, fmt.Errorf("input %s: %w", node.Content[i].Value, err)
 		}
-		in := Input{Name: node.Content[i].Value, Default: spec.Default}
-		// A default of null in YAML is no default; Mira's blueprints have none.
-		in.HasDefault = spec.Default != nil
-		if sel, ok := spec.Selector["entity"]; ok {
+		in := Input{Name: node.Content[i].Value}
+		// A default given as null (or empty) is a default: Home Assistant
+		// takes the input as empty.
+		if in.HasDefault = spec.Default.Kind != 0; in.HasDefault && spec.Default.Tag != "!!null" {
+			if err := spec.Default.Decode(&in.Default); err != nil {
+				return Blueprint{}, fmt.Errorf("input %s: %w", in.Name, err)
+			}
+		}
+		if _, ok := spec.Selector["entity"]; ok && in.Name == GroupInput && b.Group() {
+			in.Kind = "group"
+		} else if sel, ok := spec.Selector["entity"]; ok {
 			var e struct {
 				Filter []struct {
 					Domain      string `yaml:"domain"`
@@ -178,6 +205,14 @@ func parse(name string, raw []byte) (Blueprint, error) {
 			in.Min, in.Max, in.Unit = n.Min, n.Max, n.Unit
 		} else if _, ok := spec.Selector["text"]; ok {
 			in.Kind = "text"
+		} else if _, ok := spec.Selector["boolean"]; ok {
+			in.Kind = "boolean"
+		} else if _, ok := spec.Selector["time"]; ok {
+			in.Kind = "time"
+		} else if _, ok := spec.Selector["area"]; ok {
+			in.Kind = "area"
+		} else if _, ok := spec.Selector["floor"]; ok {
+			in.Kind = "floor"
 		} else {
 			return Blueprint{}, fmt.Errorf("input %s: a selector Mira does not know", in.Name)
 		}

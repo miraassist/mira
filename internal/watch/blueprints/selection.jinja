@@ -1,0 +1,13 @@
+{%- set ns = namespace(members=[]) -%}
+{%- if group -%}
+{%- set ns.members = expand(group) -%}
+{%- else -%}
+{%- set skip = label_entities('mira_dont_watch') -%}
+{%- set places = namespace(areas=areas | list) -%}
+{%- for f in floors -%}
+{%- set places.areas = places.areas + floor_areas(f) -%}
+{%- endfor -%}
+{%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+{%- set ns.members = ns.members + [s] -%}
+{%- endfor -%}
+{%- endif -%}

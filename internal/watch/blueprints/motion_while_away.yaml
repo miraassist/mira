@@ -1,0 +1,99 @@
+blueprint:
+  name: "Mira: motion while nobody is home"
+  description: >-
+    Tells Mira when nobody is home and a motion sensor of the watch group detects motion. The watch group: the house's entities of the domain and device classes
+    below, in the areas and on the floors if given, without what carries the label "Mira: nicht überwachen"
+    (mira_dont_watch) and without group helpers; or the members of a group helper. Once per streak: it is told
+    again only after no member broke the rule. Brought and updated by the Mira service; a change made here is
+    overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    areas:
+      name: Areas
+      description: Only the members in these areas (together with the floors); none for the whole house.
+      default: []
+      selector:
+        area:
+          multiple: true
+    floors:
+      name: Floors
+      description: Only the members on these floors (together with the areas); none for the whole house.
+      default: []
+      selector:
+        floor:
+          multiple: true
+    group:
+      name: Group helper
+      description: A group helper instead of areas and floors; its members are watched, labelled or not.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "Motion at {{ breaking | join(', ') }}, though nobody is home."
+      selector:
+        text:
+          multiline: true
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  domain: binary_sensor
+  classes: [motion, occupancy, presence]
+  areas: !input areas
+  floors: !input floors
+  group: !input group
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {%- set ns = namespace(members=[]) -%}
+      {%- if group -%}
+      {%- set ns.members = expand(group) -%}
+      {%- else -%}
+      {%- set skip = label_entities('mira_dont_watch') -%}
+      {%- set places = namespace(areas=areas | list) -%}
+      {%- for f in floors -%}
+      {%- set places.areas = places.areas + floor_areas(f) -%}
+      {%- endfor -%}
+      {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+      {%- set ns.members = ns.members + [s] -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {{ states('zone.home') | int(1) == 0 and ns.members | selectattr('state', 'eq', 'on') | list | count > 0 }}
+
+variables:
+  breaking: >-
+    {%- set ns = namespace(members=[]) -%}
+    {%- if group -%}
+    {%- set ns.members = expand(group) -%}
+    {%- else -%}
+    {%- set skip = label_entities('mira_dont_watch') -%}
+    {%- set places = namespace(areas=areas | list) -%}
+    {%- for f in floors -%}
+    {%- set places.areas = places.areas + floor_areas(f) -%}
+    {%- endfor -%}
+    {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {{ ns.members | selectattr('state', 'eq', 'on') | map(attribute='name') | list }}
+
+conditions:
+  - condition: template
+    value_template: "{{ breaking | count > 0 }}"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 2
+      receiver: "{{ 'persons' if states('zone.home') | int(1) == 0 else 'house' }}"
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

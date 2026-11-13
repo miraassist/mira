@@ -1,7 +1,8 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 20), not built; it builds on the [Device watch](device-watch.md) (its
-steps 1 and 2 first). Scenarios: [group-watch.feature](group-watch.feature).
+Status 2026-11-13: specified (decisions 1 to 20); step 1 built 2026-11-13 (decisions 21 and on taken while building,
+to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
+[group-watch.feature](group-watch.feature).
 
 ## Goal
 
@@ -48,6 +49,13 @@ availability watch (later group watches, decision 19).
 | 18 | Temperatures | A group watch too: `sensor` of `temperature`, by area or floor; the rule "below or above a value for minutes" ("Keller unter 5 Grad"). Sensors that do not measure a room (a freezer's, a radiator's) are left out by the label or by choosing areas |
 | 19 | Later | A **battery watch** (a battery low) and an **availability watch** (a sensor not reachable, a radio problem, a value unchanged for long) are further group watches, specified later as an extension of this spec; never as an alarm. "Wie geht's dem Haus?" comes after them, a spec of its own that builds on the watches |
 | 20 | How an entry reaches every person while nobody is home (decision 12) | A new receiver value **`persons`** of `mira.send_message`: every person with a channel gets the entry privately. New at the interface: an older service refuses the value with its error (the automation's trace shows it), an older integration passes the text on unchanged |
+| 21 | One macro for the selection (The selection) | **One template text**, `internal/watch/blueprints/selection.jinja`, copied word for word into every group blueprint twice (its trigger and the variable `breaking`, the members that break the rule, which the entry names) and rendered with the same variables by the check; a Go test keeps the copies identical. Reason: Home Assistant's own way to share a macro (`custom_templates/`) cannot be written over its WebSocket API, and a blueprint's `trigger_variables` take no template over states. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 22 | Areas and floors together; who is a member | Areas and floors together are a **union**: everything in the areas and on the floors (an entity's area is its own or its device's). A member is any entity Home Assistant has of the domain and class, not only the ones exposed to Assist (decision 4: a selection over what Home Assistant knows). Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 23 | What breaks a rule | Only `on` (lights, openings, motion) and a number (temperatures): `unavailable`, `unknown` never do (Errors, last row). The entry names the members that break the rule when the automation runs (the variable `breaking`, computed again); a condition ends the run without an entry when none is left (a window closed between the trigger and the run). Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 24 | Receiver of every group blueprint | `persons` while `zone.home` is 0 (decision 20), else the house: for all seven blueprints, as "The blueprints" says; `zone.home` not a number counts as somebody home. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 25 | The inputs' bounds | `hours` 0.05 to 72 (step 0.05; the lower bound lets the test HA run it in minutes), `delay` 0 to 120 minutes, `minutes` 1 to 1440, `below` and `above` −40 to 60 °C, both optional (empty), at least one given and `below` under `above` (the code's check); `night_start`, `night_end` times without default. `group` is an entity of the blueprint's domain; the code checks it is a group helper (an entity with the attribute `entity_id`) of that domain, and not given with areas or floors. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 26 | Indicator lights | The satellites' indicator lights (an LED ring, a screen) are lights too and in "all lights" (found on the test HA: `light.*_led_ring`, `light.show_screen`); the planner proposes them as exceptions as it does the outside lights (a ring lit for hours while messages wait would otherwise be told as left on). Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 27 | Home Assistant and an unknown label | `config/entity_registry/update` takes a label id that does not exist without a word (checked on the test HA, 2026-11-13): before it sets the label, the code reads the label registry, and a missing label (an older integration) is the error of A3. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -218,8 +226,8 @@ trace shows the error.
 | # | Transition | Trigger | Signal | Checked |
 |---|---|---|---|---|
 | 1 | The selection as a template | `label_entities()`, `floors()`, `floor_entities()`, a filter by `attributes.device_class` | the fakes' windows and motion sensors | 2026-11-13, 2026.11.1 (no floors yet) |
-| 2 | A floor and an area narrow the selection | fake windows on two floors | only the floor's | open |
-| 3 | The label takes a member out, at once | `config/entity_registry/update` with the label | the template's result without it; a running watch does not fire for it | open |
+| 2 | A floor and an area narrow the selection | fake windows on two floors | only the floor's | 2026-11-13, 2026.11.1: the floor's two windows; floor and area together their union; a group helper its two windows; a light group is no member of "all lights" |
+| 3 | The label takes a member out, at once | `config/entity_registry/update` with the label | the template's result without it; a running watch does not fire for it | 2026-11-13, 2026.11.1: the next render is without it (the group helper's members keep it); refused for a token without admin (`unauthorized`); an unknown label id is taken without a word (decision 27). The running watch: step 3 |
 | 4 | `zone.home` goes to 0 and back | the fake persons leave and come | the zone's state 0, then 1 | open |
 | 5 | Open while nobody is home | a fake window open, the persons leave | the trace fires after `delay` | open |
 | 6 | Open at night, motion at night | a fake window open or motion in the (shortened) night window | the trace fires | open |
@@ -234,7 +242,13 @@ Each row is checked before the step that builds on it.
 ## Steps
 
 1. **The selection and the blueprints:** the shared macro, the seven blueprints embedded with the device watch's;
-   rows 1 to 3.
+   rows 1 to 3. Built 2026-11-13 (decisions 21 to 25): `internal/watch/blueprints/selection.jinja` and the seven
+   blueprints, their texts in German and English, the selectors area, floor, time, boolean and the group helper read
+   by the code, the code's check of the selection (`CheckSelection`), the members and the house's floors, areas and
+   group helpers rendered by Home Assistant (`render_template` once, `ws.RenderTemplate`); the fake house of
+   `watch_fake` (floors, openings, motion, temperatures, lights, phones; [Fake devices](fake-devices.md)) came with
+   it, as rows 2 and 3 need it. GW-01 to GW-03 in pytest (`tests/ha/test_group_watch.py`, with every group
+   blueprint loading as an automation); rows 1 to 3 checked.
 2. **Drafting a group watch:** the catalog's selection inputs, the label tool, the proposal with today's members; the
    skill's prose; the label in `labels.py`.
 3. **The fakes and the runs:** the receiver `persons` (decision 20); floors, openings, motion, temperatures, persons home and away; rows 4 to 9; each

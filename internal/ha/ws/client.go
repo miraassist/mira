@@ -497,7 +497,14 @@ func (c *Client) issueSubscribe(ctx context.Context, sub *subscription) (int, er
 			c.mu.Lock()
 			delete(c.subs, id)
 			c.mu.Unlock()
-			return 0, fmt.Errorf("subscribe failed: %s", errorText(msg.Error))
+			// Home Assistant's refusal with its code, so a caller can tell a
+			// refusal (a template that does not parse, a token without admin)
+			// from a lost connection.
+			refusal := &Error{Command: fmt.Sprint(sub.command["type"]), Message: "unknown error"}
+			if msg.Error != nil {
+				refusal.Code, refusal.Message = msg.Error.Code, msg.Error.Message
+			}
+			return 0, fmt.Errorf("subscribe failed: %w", refusal)
 		}
 		return id, nil
 	case <-ctx.Done():

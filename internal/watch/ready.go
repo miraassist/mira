@@ -25,9 +25,13 @@ type HA interface {
 var Policy = retry.Policy{Attempts: 3, First: time.Second, Growth: retry.Exponential}
 
 type Options struct {
-	HA     HA
-	Lang   i18n.Lang
-	Logger *slog.Logger
+	HA HA
+	// Templates renders a group watch's selection and the house's floors,
+	// areas and group helpers (docs/spec/group-watch.md); without it no
+	// group watch is drafted.
+	Templates Templates
+	Lang      i18n.Lang
+	Logger    *slog.Logger
 	// Policy replaces the package's Policy (tests: no waits).
 	Policy *retry.Policy
 }

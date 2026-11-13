@@ -530,7 +530,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, a.clip.Tools()...)
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
-	a.watch = watch.New(watch.Options{HA: a.ha, Lang: a.lang, Logger: a.log})
+	a.watch = watch.New(watch.Options{HA: a.ha, Templates: a.ha, Lang: a.lang, Logger: a.log})
 	profiler := watch.NewProfiler(watch.ProfilerOptions{Recorder: a.ha, Lang: a.lang, Logger: a.log})
 	a.tasks = tasks.New(tasks.Options{
 		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot, Watch: a.watch,

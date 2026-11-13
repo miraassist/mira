@@ -78,7 +78,7 @@ func newTest(ha *fakeHA) (*Blueprints, *bytes.Buffer) {
 }
 
 func TestBlueprintsParse(t *testing.T) {
-	if len(All) != 5 {
+	if len(All) != 12 {
 		t.Fatalf("blueprints: %d", len(All))
 	}
 	b, ok := ByName("water_runs_on")

@@ -1,0 +1,135 @@
+blueprint:
+  name: "Mira: too cold or too warm"
+  description: >-
+    Tells Mira when a temperature of the watch group is below or above its limit, for the minutes. The watch group: the house's entities of the domain and device classes
+    below, in the areas and on the floors if given, without what carries the label "Mira: nicht überwachen"
+    (mira_dont_watch) and without group helpers; or the members of a group helper. Once per streak: it is told
+    again only after no member broke the rule. Brought and updated by the Mira service; a change made here is
+    overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    areas:
+      name: Areas
+      description: Only the members in these areas (together with the floors); none for the whole house.
+      default: []
+      selector:
+        area:
+          multiple: true
+    floors:
+      name: Floors
+      description: Only the members on these floors (together with the areas); none for the whole house.
+      default: []
+      selector:
+        floor:
+          multiple: true
+    group:
+      name: Group helper
+      description: A group helper instead of areas and floors; its members are watched, labelled or not.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+    below:
+      name: Below
+      description: Too cold below this many degrees; empty for no lower limit.
+      default:
+      selector:
+        number:
+          min: -40
+          max: 60
+          step: 0.5
+          unit_of_measurement: °C
+          mode: box
+    above:
+      name: Above
+      description: Too warm above this many degrees; empty for no upper limit.
+      default:
+      selector:
+        number:
+          min: -40
+          max: 60
+          step: 0.5
+          unit_of_measurement: °C
+          mode: box
+    minutes:
+      name: Minutes
+      description: How many minutes it holds before Mira is told.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "{% for b in breaking %}{{ b.name }}: {{ b.value }} °C, {{ 'below' if b.low else 'above' }} {{ below if b.low else above }} °C. {% endfor %}"
+      selector:
+        text:
+          multiline: true
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  domain: sensor
+  classes: [temperature]
+  areas: !input areas
+  floors: !input floors
+  group: !input group
+  below: !input below
+  above: !input above
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {%- set ns = namespace(members=[]) -%}
+      {%- if group -%}
+      {%- set ns.members = expand(group) -%}
+      {%- else -%}
+      {%- set skip = label_entities('mira_dont_watch') -%}
+      {%- set places = namespace(areas=areas | list) -%}
+      {%- for f in floors -%}
+      {%- set places.areas = places.areas + floor_areas(f) -%}
+      {%- endfor -%}
+      {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+      {%- set ns.members = ns.members + [s] -%}
+      {%- endfor -%}
+      {%- endif -%}
+      {%- set out = namespace(any=false) -%} {%- for s in ns.members if is_number(s.state) -%} {%- if (below is not none and s.state | float < below) or (above is not none and s.state | float > above) -%}{%- set out.any = true -%}{%- endif -%} {%- endfor -%} {{ out.any }}
+    for:
+      minutes: !input minutes
+
+variables:
+  breaking: >-
+    {%- set ns = namespace(members=[]) -%}
+    {%- if group -%}
+    {%- set ns.members = expand(group) -%}
+    {%- else -%}
+    {%- set skip = label_entities('mira_dont_watch') -%}
+    {%- set places = namespace(areas=areas | list) -%}
+    {%- for f in floors -%}
+    {%- set places.areas = places.areas + floor_areas(f) -%}
+    {%- endfor -%}
+    {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- set out = namespace(list=[]) -%} {%- for s in ns.members if is_number(s.state) -%} {%- if below is not none and s.state | float < below -%}{%- set out.list = out.list + [{'name': s.name, 'value': s.state | float, 'low': true}] -%}{%- elif above is not none and s.state | float > above -%}{%- set out.list = out.list + [{'name': s.name, 'value': s.state | float, 'low': false}] -%}{%- endif -%} {%- endfor -%} {{ out.list }}
+
+conditions:
+  - condition: template
+    value_template: "{{ breaking | count > 0 }}"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 1
+      receiver: "{{ 'persons' if states('zone.home') | int(1) == 0 else 'house' }}"
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

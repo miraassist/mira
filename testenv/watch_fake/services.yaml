@@ -149,3 +149,16 @@ program:
       example: "600:80, 1200:2000, 300:0, 1800:80"
       selector:
         text:
+set:
+  fields:
+    entity_id:
+      required: true
+      example: binary_sensor.fake_fenster_wohnzimmer
+      selector:
+        entity:
+          integration: watch_fake
+    state:
+      required: true
+      example: "on"
+      selector:
+        text:

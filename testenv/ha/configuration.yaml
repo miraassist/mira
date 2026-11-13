@@ -110,3 +110,17 @@ template:
         unique_id: mira_test_fenster_bad
         device_class: window
         state: "{{ is_state('input_boolean.sim_fenster_bad', 'on') }}"
+
+# Group helpers over the fake house of watch_fake, for Mira's group watch: two windows of the top floor, and
+# the outside lights as a light group (docs/spec/fake-devices.md, The watched group).
+binary_sensor:
+  - platform: group
+    name: Fake Fenster Gast
+    unique_id: watch_fake_group_guest_windows
+    device_class: window
+    entities: [binary_sensor.fake_fenster_schlafzimmer, binary_sensor.fake_fenster_buro]
+light:
+  - platform: group
+    name: Fake Lichter Außen
+    unique_id: watch_fake_group_outside_lights
+    entities: [light.fake_licht_terrasse, light.fake_licht_garten]

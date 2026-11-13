@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorStateClass
-from homeassistant.const import UnitOfPower, UnitOfVolume
+from homeassistant.components.sensor import RestoreSensor, SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later, async_track_time_change, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import DOMAIN
+from .house import PHONES, TEMPERATURES, place
 
 
 async def async_setup_platform(
@@ -26,7 +27,60 @@ async def async_setup_platform(
         "dishwasher": FakePlug("Fake Spülmaschine Leistung", "watch_fake_dishwasher_power"),
     }
     hass.data[DOMAIN].update(meter=meter, **plugs)
-    add([meter, *plugs.values()])
+    temperatures = [FakeTemperature(*row) for row in TEMPERATURES]
+    hass.data[DOMAIN]["settable"].extend(temperatures)
+    phones = {unique_id: FakePhone(name, unique_id) for name, unique_id in PHONES}
+    hass.data[DOMAIN]["phones"] = phones
+    add([meter, *plugs.values(), *temperatures, *phones.values()])
+
+
+class FakePhone(SensorEntity):
+    """What reached a person's phone (notify.py): the number of messages, the last ten in `messages`."""
+
+    _attr_should_poll = False
+    _attr_native_value = 0
+
+    def __init__(self, name: str, unique_id: str) -> None:
+        self._attr_name = name
+        self._attr_unique_id = unique_id
+        self._messages: list[str] = []
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"messages": list(self._messages)}
+
+    @callback
+    def receive(self, message: str) -> None:
+        self._messages = [*self._messages, message][-10:]
+        self._attr_native_value = int(self._attr_native_value or 0) + 1
+        self.async_write_ha_state()
+
+
+class FakeTemperature(RestoreSensor):
+    """A room's temperature in °C, set with watch_fake.set (a number, unavailable or unknown)."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_should_poll = False
+
+    def __init__(self, name: str, unique_id: str, area: str, celsius: float) -> None:
+        self._attr_name = name
+        self._attr_unique_id = unique_id
+        self._attr_native_value = celsius
+        self._area = area
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        place(self.hass, self.entity_id, self._area)
+        if (last := await self.async_get_last_sensor_data()) and last.native_value is not None:
+            self._attr_native_value = float(last.native_value)
+
+    @callback
+    def set_state(self, state: str) -> None:
+        self._attr_available = state != "unavailable"
+        self._attr_native_value = None if state in ("unavailable", "unknown") else float(state)
+        self.async_write_ha_state()
 
 
 class FakeMeter(RestoreSensor):
