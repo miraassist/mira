@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -316,5 +317,35 @@ func TestST18_AnEndedTurnIsNoConversationError(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	if strings.Contains(logs.String(), "conversation failed") {
 		t.Errorf("logged as an error:\n%s", logs)
+	}
+}
+
+// receiver "persons": a private message of the house, each call its own;
+// refused while no person has a channel (docs/spec/group-watch.md, decision 20).
+func TestMessageForEveryPerson(t *testing.T) {
+	srv, _, _ := setup(t)
+	if code, body := do(t, srv, "POST", "/v1/messages", "secret", `{"text":"x","receiver":"persons"}`); code != 400 ||
+		!strings.Contains(fmt.Sprint(body["error"]), "no person has a channel") {
+		t.Errorf("without channels: %d %v", code, body)
+	}
+	st2, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st2.Close() })
+	srv2 := httptest.NewServer(New(Options{Token: "secret", Store: st2, Version: "test",
+		Persons: func() map[string]config.Person {
+			return map[string]config.Person{"ben": {Channels: []string{"notify.ben"}}, "anna": {}}
+		}}))
+	t.Cleanup(srv2.Close)
+	body := `{"text":"Niemand ist zu Hause, aber das Fenster ist offen.","receiver":"persons","importance":2,"dedupe_key":"watch:mira_x","task":"mira_x"}`
+	code, r := do(t, srv2, "POST", "/v1/messages", "secret", body)
+	code2, r2 := do(t, srv2, "POST", "/v1/messages", "secret", body)
+	if code != 201 || code2 != 201 || r["id"] == r2["id"] {
+		t.Fatalf("%d %v / %d %v", code, r, code2, r2)
+	}
+	n, _ := st2.GetMessage(context.Background(), r["id"].(string))
+	if n.Kind != store.KindPrivate || n.Receiver != store.ReceiverHouse || n.Importance != 2 || n.Source != store.SourceTask {
+		t.Errorf("message %+v", n)
 	}
 }

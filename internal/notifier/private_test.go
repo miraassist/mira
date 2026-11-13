@@ -71,3 +71,20 @@ func TestPS04_AnUrgentPrivateMessageIsNotAnnounced(t *testing.T) {
 		t.Errorf("an urgent private message was announced: %+v", e.ha.calls)
 	}
 }
+
+// A private message of the house goes to every person with a channel and
+// skips the persons without one (docs/spec/group-watch.md, decision 20).
+func TestAPrivateMessageOfTheHouseGoesToEveryPersonWithAChannel(t *testing.T) {
+	e := newEnv(t, func(c *config.Config) {
+		c.Persons["anna"] = config.Person{Entity: "person.anna", Channels: []string{"notify.anna"}}
+		c.Persons["martin"] = config.Person{Entity: "person.martin"}
+	})
+	e.message("fenster", 2, private(store.ReceiverHouse))
+	e.now = at("08:00")
+	if sent := e.tick(); len(sent) != 1 || len(e.tg.sent["notify.ben"]) != 1 || len(e.tg.sent["notify.anna"]) != 1 {
+		t.Fatalf("sent = %v, channels = %v", sent, e.tg.sent)
+	}
+	if strings.Contains(e.logged(), "partly failed") {
+		t.Errorf("a person without a channel counted as failed: %s", e.logged())
+	}
+}

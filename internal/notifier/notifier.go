@@ -794,16 +794,21 @@ func (n *Notifier) sendPrivate(ctx context.Context, nt store.Message) error {
 	}
 	var recipients []string
 	if nt.Receiver == store.ReceiverHouse {
-		for id := range n.persons {
-			recipients = append(recipients, id)
+		// The house privately: every person with a channel
+		// (docs/spec/group-watch.md, decision 20).
+		for id, p := range n.persons {
+			if len(p.Channels) > 0 {
+				recipients = append(recipients, id)
+			}
 		}
+		sort.Strings(recipients)
 	} else {
 		recipients = []string{nt.Receiver}
 	}
 
 	var used []string
 	if len(recipients) == 0 {
-		return retry.Fatal(errors.New("no private channel: no persons"))
+		return retry.Fatal(errors.New("no private channel: no person has one"))
 	}
 	var errs []error
 	for _, id := range recipients {

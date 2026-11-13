@@ -99,9 +99,8 @@ mcp_servers:
     url: "http://${HA_HOST}/api/mcp/assist"
     token: ${TESTHA_ADMIN_TOKEN}
 persons:
-  # Their phones: the fake's notify services (testenv/watch_fake), which keep what they were sent.
-  anna: {entity: person.anna, channels: [notify.fake_handy_anna]}
-  ben: {entity: person.ben, channels: [notify.fake_handy_ben]}
+  anna: {entity: person.anna}
+  ben: {entity: person.ben}
 # The speaker-id service on this machine (services/speaker-id); its token is
 # SPEAKER_ID_TOKEN in testenv/.env.
 speaker_id:

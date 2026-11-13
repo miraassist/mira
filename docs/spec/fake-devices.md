@@ -132,7 +132,7 @@ The fake house a group watch watches, made by `watch_fake` at its setup (test on
   bedroom and the office) and the light group `light.fake_lichter_aussen` (terrace and garden).
 - **Phones:** `notify.fake_handy_anna` and `notify.fake_handy_ben`, legacy notify services as a companion app's; what
   each was sent is kept in `sensor.fake_handy_anna` / `_ben` (the count; the last ten in the attribute `messages`).
-  Anna's and Ben's channels in `testenv/mira.yaml`.
+  Anna's and Ben's channels are set in the test HA's Mira integration (Mira's page, Persons), as every person's.
 - Nobody home: the dashboard's switches "Sim zu Hause …" (`input_boolean.sim_da_*`) move the persons' trackers;
   with all off, `zone.home` is 0.
 

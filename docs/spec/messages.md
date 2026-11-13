@@ -10,7 +10,7 @@ There is **one** term for everything Mira passes on to someone: what today is a 
 
 Not part of it is the **broadcast** ("Sag allen, das Essen ist fertig"). It is a loudspeaker, not a delivery: now or never, to no one in particular, not stored, without receiver settings. HA brings it as a tool (`HassBroadcast`), Mira already has it via HA's MCP. At most later: name the sender and respect quiet hours.
 
-Not for now: "to everyone individually", i.e. the same message over each person's private channel.
+"To everyone individually", the same message over each person's private channel, only as the receiver `persons` of `mira.send_message` ([Group watch](group-watch.md), decision 20): a private message of the house, sent over the channels of every person that has one.
 
 ## The message
 

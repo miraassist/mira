@@ -106,6 +106,12 @@ func confidentialityOf(kind string) string {
 // ReceiverHouse is the house as receiver: anyone present may hear the message.
 const ReceiverHouse = "house"
 
+// ReceiverPersons is the receiver a caller of /v1/messages gives for "every
+// person, privately" (docs/spec/group-watch.md, decision 20): the entry is
+// stored as a private message of the house, which goes out over the
+// channels of every person that has one. Never stored as a receiver.
+const ReceiverPersons = "persons"
+
 // Confidentiality levels. A normal message may be spoken to whoever is in the
 // room; a confidential one only when the notifier's policy says the right
 // person is the one listening, otherwise it goes to a private channel. A

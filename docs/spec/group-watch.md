@@ -1,6 +1,6 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 20); steps 1 and 2 built 2026-11-13 (decisions 21 and on taken while building,
+Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 3 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
 [group-watch.feature](group-watch.feature).
 
@@ -59,6 +59,8 @@ availability watch (later group watches, decision 19).
 | 28 | When an exception gets its label (A3) | **On the yes to the proposal**, not before it: the planner names the exceptions in its draft (`exclude`, the ids; for lights it proposes the outside lights and the indicators when the user says nothing about them), the proposal names them ("Ausgenommen: …; bekommt das Label „Mira: nicht überwachen“ und ist dann in keinem Wächter mehr") and the members left today, and the yes sets each label (A3's command) before the watch is saved; one label that cannot be set ends it: nothing is saved, the user hears which exception and Home Assistant's answer. Reason: one yes for the watch and its exceptions, and the planner, which sees the members, picks the entities, not the conversation. Outside a drafting ("Überwach die Terrasse nicht mehr", "… wieder", D) the tool **`watch_exception`** (skill `aufgabe`, entity by id or by the words of its name among the members of every scope, labelled ones included) sets or removes the label. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 29 | How the conversation hands a watch group to the drafting | The field `watch` of `aufgabe` holds it in words, written "Gruppe: …" ("Gruppe: Fenster und Türen im Dachgeschoss"); the field check `entities` takes such a value as it is, and the drafting checks the selection against Home Assistant (A2). With such a value (or for a change of a group watch) the planner gets the house's floors with their areas, the group helpers and the members of each scope over the whole house (one render each, A4's costs); otherwise only the catalog of the blueprints. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 30 | A selection without members (A4) | Ends the drafting at once with the reason (no second draft: another draft cannot add a sensor); the thread ends as one the house cannot do, the user hears it, nothing is saved, a log line names the selection. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 31 | The receiver `persons` in the service (decision 20) | `mira.send_message` with `receiver: persons` is stored as a **private message of the house**, which goes out over the channels of every person that has one (a person without a channel is passed over, not a failure); no person with a channel: refused (400, "receiver persons: no person has a channel", a log line with the text), so the automation's trace shows it. Each call is sent: the dedupe key is not used for it (a key would only find an entry already sent). The integration passes the value on unchanged. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 32 | A member on when the watch is loaded | A template trigger fires when its template **turns** true: a member already on (or a streak running) when the watch is saved or Home Assistant starts is not told, the next streak is (as the device watch's decision 31). Found on the test HA: the demo's `binary_sensor.movement_backyard` is on for good, so "motion while nobody is home" over the whole test house never turned true; a sensor stuck on keeps such a watch quiet until it goes off. Accepted; the label takes such a sensor out. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -231,12 +233,12 @@ trace shows the error.
 | 1 | The selection as a template | `label_entities()`, `floors()`, `floor_entities()`, a filter by `attributes.device_class` | the fakes' windows and motion sensors | 2026-11-13, 2026.11.1 (no floors yet) |
 | 2 | A floor and an area narrow the selection | fake windows on two floors | only the floor's | 2026-11-13, 2026.11.1: the floor's two windows; floor and area together their union; a group helper its two windows; a light group is no member of "all lights" |
 | 3 | The label takes a member out, at once | `config/entity_registry/update` with the label | the template's result without it; a running watch does not fire for it | 2026-11-13, 2026.11.1: the next render is without it (the group helper's members keep it); refused for a token without admin (`unauthorized`); an unknown label id is taken without a word (decision 27). The running watch: step 3 |
-| 4 | `zone.home` goes to 0 and back | the fake persons leave and come | the zone's state 0, then 1 | open |
-| 5 | Open while nobody is home | a fake window open, the persons leave | the trace fires after `delay` | open |
-| 6 | Open at night, motion at night | a fake window open or motion in the (shortened) night window | the trace fires | open |
-| 7 | Open too long, lights left on | a fake window or light on for the (shortened) time | the trace fires once per streak | open |
-| 8 | Motion while nobody is home | fake motion with nobody home | the trace fires | open |
-| 9 | Too cold | a fake temperature below the value for the (shortened) time; how long the template takes over all sensors | the trace fires; the render time | open |
+| 4 | `zone.home` goes to 0 and back | the fake persons leave and come | the zone's state 0, then 1 | 2026-11-13, 2026.11.1: "Sim zu Hause Anna" off, `zone.home` 1 → 0 at once; on, 0 → 1 |
+| 5 | Open while nobody is home | a fake window open, the persons leave | the trace fires after `delay` | 2026-11-13, 2026.11.1: 5 minutes after the house became empty, to the second; again 5 minutes after the window was closed and opened (a new streak) |
+| 6 | Open at night, motion at night | a fake window open or motion in the (shortened) night window | the trace fires | 2026-11-13, 2026.11.1: a night window around now; the window's entry 1 minute (`delay`) after it opened, to the second; the garden's motion at once |
+| 7 | Open too long, lights left on | a fake window or light on for the (shortened) time | the trace fires once per streak | 2026-11-13, 2026.11.1: open 1 minute, light 0.05 h: each at the first full minute after the time (the template's render each minute, as the device watch's row 6); not again while they stayed on; a labelled light on for the time: no trace (row 3) |
+| 8 | Motion while nobody is home | fake motion with nobody home | the trace fires | 2026-11-13, 2026.11.1: at once, the entry at both fake phones about 6 seconds later (the notifier's tick); over the whole house only once the demo's motion sensor, on for good, was left out (decision 32) |
+| 9 | Too cold | a fake temperature below the value for the (shortened) time; how long the template takes over all sensors | the trace fires; the render time | 2026-11-13, 2026.11.1: the entry 1 minute after 4 °C, to the second; the template over the test HA's 179 sensors rendered in 3 to 11 ms (`render_template`, the round trip included); Home Assistant renders a template over a whole domain at most once a second |
 | 10 | `render_template` once | the check's template | the first answer, then the subscription ends | open |
 | 11 | `mira.check` from a script | a script with `response_variable` | the list in the response, the entry | open |
 
@@ -273,6 +275,18 @@ Each row is checked before the step that builds on it.
    test HA (taken off again at once); "Überwach die Terrasse nicht mehr" once deleted the lights' watch
    (`task_delete`) and once went to `aufgabe-aendern`; with `smart` it asked and called `watch_exception`.
 3. **The fakes and the runs:** the receiver `persons` (decision 20); floors, openings, motion, temperatures, persons home and away; rows 4 to 9; each
-   blueprint end to end (entry, read out, follow-up).
+   blueprint end to end (entry, read out, follow-up). Built 2026-11-13 (decisions 31 and 32): the receiver `persons`
+   in the service (`/v1/messages`, the notifier's private delivery of the house to every person with a channel); the
+   fakes came with step 1 (persons home and away are the test HA's "Sim zu Hause" switches; Anna's and Ben's channels
+   the fake phones, set on Mira's page in the test HA). GW-08 to GW-16 in pytest (`tests/ha/test_group_watch.py`, the
+   time moved on); rows 3 to 9 checked. End to end at the test HA and the test Mira: the watch "Fenster bei
+   Abwesenheit" made by voice in step 2 told "Niemand ist zu Hause, aber Fake Fenster Küche ist offen." to both fake
+   phones 5 minutes after Anna left; motion while nobody is home in the garden reached both phones; the night,
+   too-long, left-on and too-cold watches put their entries for the house, and "Hab ich neue Nachrichten?" at the fake
+   Show said "Vorhin um 22:28 Uhr gab es Bewegung im Garten, und im Keller ist die Temperatur mit 4 Grad zu niedrig.
+   Außerdem ist hier im Schlafzimmer das Fenster noch offen und das Licht brennt auch noch."; "Mach's aus" switched the
+   bedroom's fake light off (`HassTurnOff`); a watch switched off (GW-16) told nothing. The test HA's Telegram chat of
+   the person Admin got the first private entry before the test persons' phones were set; it was taken off Admin for
+   the runs and set back after.
 4. **"Ist alles zu?":** the tool `house_check`, the route `/v1/check`, the action `mira.check`; rows 10 and 11.
 5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation.

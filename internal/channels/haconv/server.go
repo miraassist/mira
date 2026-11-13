@@ -20,6 +20,7 @@ import (
 	"github.com/miraassist/mira/internal/channels/telegram"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
+	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
@@ -570,7 +571,26 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "confidentiality must be normal or confidential")
 		return
 	}
-	if a := req.Receiver; a != "" && a != store.ReceiverHouse {
+	// "persons": every person with a channel, privately (docs/spec/group-watch.md,
+	// decision 20). Without one, nobody would get it: refused, so the
+	// automation's trace shows it.
+	persons := req.Receiver == store.ReceiverPersons
+	if persons {
+		n := 0
+		if s.opts.Persons != nil {
+			for _, p := range s.opts.Persons() {
+				if len(p.Channels) > 0 {
+					n++
+				}
+			}
+		}
+		if n == 0 {
+			s.log.Warn("a message for every person was refused: no person has a channel", "text", excerpt.Of(req.Text), "task", req.Task)
+			writeError(w, http.StatusBadRequest, "receiver persons: no person has a channel")
+			return
+		}
+	}
+	if a := req.Receiver; a != "" && a != store.ReceiverHouse && !persons {
 		var persons map[string]config.Person
 		if s.opts.Persons != nil {
 			persons = s.opts.Persons()
@@ -597,11 +617,18 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 	if req.Task != "" {
 		source = store.SourceTask
 	}
-	n, created, err := s.opts.Store.PutMessage(r.Context(), store.Message{
+	msg := store.Message{
 		ID: ulid.Make().String(), Kind: store.KindFor(req.Importance, req.Confidentiality), Source: source,
 		DedupeKey: req.DedupeKey, Importance: req.Importance, Receiver: req.Receiver, Spoken: strings.TrimSpace(req.Text),
 		Details: req.Details, ExpiresAt: time.Now().Add(ttl),
-	})
+	}
+	if persons {
+		// A private message of the house goes out over every person's
+		// channels at once; each call is sent, none replaces the last (a
+		// key would only find one already sent).
+		msg.Kind, msg.Receiver, msg.DedupeKey = store.KindPrivate, store.ReceiverHouse, ""
+	}
+	n, created, err := s.opts.Store.PutMessage(r.Context(), msg)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
