@@ -1,6 +1,6 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 19), not built; it builds on the [Device watch](device-watch.md) (its
+Status 2026-11-13: specified (decisions 1 to 20), not built; it builds on the [Device watch](device-watch.md) (its
 steps 1 and 2 first). Scenarios: [group-watch.feature](group-watch.feature).
 
 ## Goal
@@ -47,6 +47,7 @@ availability watch (later, decision 19).
 | 17 | What "Ist alles zu?" checks | The openings (decision 8), the label included |
 | 18 | Temperatures | A group watch too: `sensor` of `temperature`, by area or floor; the rule "below or above a value for minutes" ("Keller unter 5 Grad"). Sensors that do not measure a room (a freezer's, a radiator's) are left out by the label or by choosing areas |
 | 19 | Later | A battery and availability watch (a smoke detector not reachable, a battery low) as a later extension, never as an alarm. Not here |
+| 20 | How an entry reaches every person while nobody is home (decision 12) | A new receiver value **`persons`** of `mira.send_message`: every person with a channel gets the entry privately. New at the interface: an older service refuses the value with its error (the automation's trace shows it), an older integration passes the text on unchanged |
 
 ## Who does what
 
@@ -67,7 +68,7 @@ availability watch (later, decision 19).
 | Tasks, drafting (skill `aufgabe`, from the device watch) | A group watch is a task made from a blueprint | The catalog names the selection's inputs; the skill's prose says how a selection is said | One way to make a task |
 | Saving (`automation.Save`, `own_automations`) | Saves the automation from the blueprint | None | As in the device watch |
 | `mira/automation/validate` (integration) | Checks the rendered automation | None | As in the device watch |
-| `mira.send_message` (integration) | The blueprints' action | None, or one receiver value (Open 1) | Already there for tasks |
+| `mira.send_message` (integration) and the notifier (service) | The blueprints' action | The receiver value `persons` (decision 20): the service delivers the entry privately to every person with a channel | Already there for tasks; one value more, no new field |
 | Messages, kind `simple` | A watch's entry | None | As in the device watch |
 | Mira's labels (`custom_components/mira/labels.py`) | The label "Mira: nicht überwachen", created by the integration under a fixed id (`mira_dont_watch`) in Home Assistant's language, as Mira's other labels | One more label | Labels are created there, known by their ids, never their names |
 | Home Assistant's entity registry (`config/entity_registry/update`, admin) | Setting the label on an entity on the user's word | None (an existing command) | Home Assistant's own place for a label |
@@ -80,7 +81,7 @@ availability watch (later, decision 19).
 
 All are `domain: automation` under `mira/` of Home Assistant, made ready and replaced as in the device watch (its
 section D). Each entry names the members that break the rule (their names), goes to the house, or while nobody is home
-to every person (Open 1), with `dedupe_key: watch:<automation id>` and `expires_in: 12h`.
+to every person (decision 20), with `dedupe_key: watch:<automation id>` and `expires_in: 12h`.
 
 ### The selection (shared by all)
 
@@ -158,7 +159,7 @@ Once per streak for all (decision 3): the trigger fires again only after no memb
 ### B. Telling
 
 1. Home Assistant's trigger fires; the automation calls `mira.send_message` with the members' names.
-2. The entry goes to the house, or while `zone.home` is at 0 to every person privately (Open 1).
+2. The entry goes to the house, or while `zone.home` is at 0 to every person privately (decision 20).
 3. Read out, the model words it; "mach's aus", "mach's zu" (where a member can be switched) is the next turn.
 
 ### C. "Ist alles zu?" and `mira.check`
@@ -236,16 +237,7 @@ Each row is checked before the step that builds on it.
    rows 1 to 3.
 2. **Drafting a group watch:** the catalog's selection inputs, the label tool, the proposal with today's members; the
    skill's prose; the label in `labels.py`.
-3. **The fakes and the runs:** floors, openings, motion, temperatures, persons home and away; rows 4 to 9; each
+3. **The fakes and the runs:** the receiver `persons` (decision 20); floors, openings, motion, temperatures, persons home and away; rows 4 to 9; each
    blueprint end to end (entry, read out, follow-up).
 4. **"Ist alles zu?":** the tool `house_check`, the route `/v1/check`, the action `mira.check`; rows 10 and 11.
 5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation.
-
-## Open
-
-1. **How an entry reaches every person while nobody is home** (decision 12): `mira.send_message` has one receiver
-   (the house or a person), and the blueprint does not know the persons.
-   - a new receiver value `persons` (every person with a channel, privately); a new value at the interface, an
-     older service refuses it with its error;
-   - or a rule of the notifier: an entry for the house while `zone.home` is at 0 goes privately to every person
-     (for every message of the house, not only a watch's).
