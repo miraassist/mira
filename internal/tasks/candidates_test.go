@@ -76,9 +76,10 @@ func power(id, name, unit string) haws.State {
 }
 
 // candidateSetup is watchSetup with the house's power sensors: two plugs with
-// a daily routine (an aquarium, a pump), a fridge in a cycle (its blueprint
-// is not there yet), a router always on, a solar power in kW and a plug Mira
-// may not see; and the device profile reading them.
+// a daily routine (an aquarium, a pump), a fridge in a cycle, a dishwasher
+// with a device run now and then (one in the last ten days), a router always
+// on, a solar power in kW and a plug Mira may not see; and the device
+// profile reading them.
 func candidateSetup(t *testing.T, log io.Writer) *env {
 	t.Helper()
 	e, _ := watchSetup(t)
@@ -86,6 +87,7 @@ func candidateSetup(t *testing.T, log io.Writer) *env {
 		power("sensor.aquarium_leistung", "Aquarium", "W"),
 		power("sensor.pumpe_leistung", "Teichpumpe", "W"),
 		power("sensor.kuehlschrank_leistung", "Kühlschrank", "W"),
+		power("sensor.spuelmaschine_leistung", "Spülmaschine", "W"),
 		power("sensor.router_leistung", "Router", "W"),
 		power("sensor.solar_leistung", "Solar", "kW"),
 		power("sensor.verborgen_leistung", "Verborgen", "W"))
@@ -98,13 +100,18 @@ func candidateSetup(t *testing.T, log io.Writer) *env {
 	past("sensor.pumpe_leistung", 80, func(t time.Time) bool { return onAt(t, "06:00-08:00") })
 	past("sensor.kuehlschrank_leistung", 45, func(t time.Time) bool { return t.Minute() < 20 })
 	past("sensor.router_leistung", 10, func(time.Time) bool { return true })
+	// A run of two hours every five days, the last one three days ago.
+	past("sensor.spuelmaschine_leistung", 2000, func(t time.Time) bool {
+		d := e.now.Sub(t)
+		return d >= 0 && int(d/(24*time.Hour))%5 == 3 && t.In(berlin).Hour() >= 19 && t.In(berlin).Hour() < 21
+	})
 	past("sensor.verborgen_leistung", 50, func(t time.Time) bool { return onAt(t, "07:40-11:40") })
 	snap := e.m.opts.Snapshot()
 	exposed := map[string]bool{}
 	for k, v := range snap.ExposedEntities {
 		exposed[k] = v
 	}
-	for _, id := range []string{"sensor.aquarium_leistung", "sensor.pumpe_leistung", "sensor.kuehlschrank_leistung", "sensor.router_leistung", "sensor.solar_leistung"} {
+	for _, id := range []string{"sensor.aquarium_leistung", "sensor.pumpe_leistung", "sensor.kuehlschrank_leistung", "sensor.spuelmaschine_leistung", "sensor.router_leistung", "sensor.solar_leistung"} {
 		exposed[id] = true
 	}
 	snap.ExposedEntities = exposed
@@ -140,7 +147,7 @@ func watchWater(e *env) {
 // CW-32 Mira lists the candidates of the house
 func TestCW32_MiraListsTheCandidatesOfTheHouse(t *testing.T) {
 	// Given the house has a water meter and a fake plug with a daily routine
-	// (decision 38: the cycle's blueprint comes with step 7)
+	// (and, since step 7, a fridge in a cycle and a dishwasher)
 	e := candidateSetup(t, io.Discard)
 	// When the user says "Gibt's Geräte, die du überwachen könntest?"
 	out, err := candidatesTool(t, e.m)
@@ -152,21 +159,22 @@ func TestCW32_MiraListsTheCandidatesOfTheHouse(t *testing.T) {
 		"Wasserzähler Keller (sensor.wasserzaehler): water_", "water_runs_on: Wasser läuft ohne Pause", "water_never_rests: Wasser ruht nie",
 		"Aquarium (sensor.aquarium_leistung): Tagesablauf: an über 5 W (meist 50 W) jeden Tag zu diesen Zeiten: 07:40-11:40, 14:20-21:00",
 		"Teichpumpe (sensor.pumpe_leistung): Tagesablauf", "(Blueprint daily_routine)",
+		"Kühlschrank (sensor.kuehlschrank_leistung): Takt: in den letzten 10 Tagen", "meist 20 min, der längste 20 min; Pausen meist 40 min", "(Blueprint duty_cycle)",
+		"Spülmaschine (sensor.spuelmaschine_leistung): Gerätelauf: Spitze 2000 W", "120 min, Spitze 2000 W", "(Blueprint device_run)",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
 	}
-	// Not the fridge (no blueprint for a cycle yet), the router, the sensor
-	// in kW, the one Mira may not see.
-	for _, not := range []string{"kuehlschrank", "router", "solar", "verborgen", "Nicht lesbar"} {
+	// Not the router, the sensor in kW, the one Mira may not see.
+	for _, not := range []string{"router", "solar", "verborgen", "Nicht lesbar"} {
 		if strings.Contains(out, not) {
 			t.Errorf("%q named in:\n%s", not, out)
 		}
 	}
 	// One read of the statistics for all power sensors in W Mira may see;
 	// states only of the candidates.
-	if len(e.src.statCalls) != 1 || len(e.src.statCalls[0]) != 4 || slices.Contains(e.src.statCalls[0], "sensor.solar_leistung") {
+	if len(e.src.statCalls) != 1 || len(e.src.statCalls[0]) != 5 || slices.Contains(e.src.statCalls[0], "sensor.solar_leistung") {
 		t.Errorf("statistics read: %v", e.src.statCalls)
 	}
 }
@@ -198,8 +206,9 @@ func TestCW34_NoCandidates(t *testing.T) {
 	// Given every candidate of the house is watched or declined
 	e := candidateSetup(t, io.Discard)
 	watchWater(e)
-	for _, id := range []string{"sensor.aquarium_leistung", "sensor.pumpe_leistung"} {
-		if err := e.st.DeclineWatch(context.Background(), id, "daily_routine"); err != nil {
+	for id, b := range map[string]string{"sensor.aquarium_leistung": "daily_routine", "sensor.pumpe_leistung": "daily_routine",
+		"sensor.kuehlschrank_leistung": "duty_cycle", "sensor.spuelmaschine_leistung": "device_run"} {
+		if err := e.st.DeclineWatch(context.Background(), id, b); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -252,7 +261,7 @@ func TestCW35_ASensorThatCannotBeRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "sensor.wasserzaehler") || !strings.Contains(out, "die 4 Leistungssensoren") || !strings.Contains(out, "Invalid statistic_id") {
+	if !strings.Contains(out, "sensor.wasserzaehler") || !strings.Contains(out, "die 5 Leistungssensoren") || !strings.Contains(out, "Invalid statistic_id") {
 		t.Errorf("answer:\n%s", out)
 	}
 	if !strings.Contains(log.String(), "could not read the statistics of the power sensors") {
@@ -345,5 +354,26 @@ func TestCW17_NoDailyRoutineInTheHistory(t *testing.T) {
 	}
 	if _, err := profileTool(t, e.m, "sensor.solar_leistung"); err == nil || !strings.Contains(err.Error(), "kein Leistungssensor in W") {
 		t.Errorf("error: %v", err)
+	}
+}
+
+// A cycle's numbers are checked against the device profile before Home
+// Assistant is asked: a longest run the fridge reaches every hour goes back
+// to the planner with the reason.
+func TestCycleNumbersAreCheckedAgainstTheProfile(t *testing.T) {
+	e := candidateSetup(t, io.Discard)
+	e.model.answers = []string{
+		`{"title":"Kühlschrank","summary":"Ich sag Bescheid.","blueprint":"duty_cycle","inputs":{"power":"sensor.kuehlschrank_leistung","max_on":15,"max_off":120}}`,
+		`{"title":"Kühlschrank","summary":"Ich sag Bescheid.","blueprint":"duty_cycle","inputs":{"power":"sensor.kuehlschrank_leistung","max_on":60,"max_off":120}}`,
+	}
+	d, err := e.m.DraftAutomation(context.Background(), "Pass auf den Kühlschrank auf", nil, Origin{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(e.model.instructions) != 2 || !strings.Contains(e.model.instructions[1], "max_on (15 min) muss länger sein als der längste normale Lauf von sensor.kuehlschrank_leistung (20 min)") {
+		t.Errorf("the planner did not get the reason:\n%v", e.model.instructions)
+	}
+	if d.Blueprint != "duty_cycle" || d.Inputs["max_on"] != 60.0 {
+		t.Errorf("draft: %+v", d)
 	}
 }

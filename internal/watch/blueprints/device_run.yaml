@@ -1,0 +1,155 @@
+blueprint:
+  name: "Mira: device run"
+  description: >-
+    Tells Mira when a device that runs a programme now and then (a dishwasher, a washing machine) runs longer than
+    usual, or ends a run without heating. A run starts above the on limit and ends after the off time below it;
+    one run of the automation follows one run of the device. Brought and updated by the Mira service; a change
+    made here is overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    power:
+      name: Power
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: power
+    on_above:
+      name: On above
+      description: Above this many watts a run starts.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: W
+          mode: box
+    off_for:
+      name: Off time
+      description: This many minutes below the on limit end a run (longer than the programme's own pauses).
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+          mode: box
+    max_minutes:
+      name: Longest run
+      description: A run longer than this many minutes is not normal.
+      selector:
+        number:
+          min: 5
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    heat_above:
+      name: Heating above
+      description: A run without a peak above this many watts did not heat; 0 for no check.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: W
+          mode: box
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: >-
+        {% if what == 'long' %}At {{ now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} had been
+        running for {{ max_minutes }} minutes, longer than usual.{% else %}At {{ now().strftime('%H:%M') }} {{
+        state_attr(power, 'friendly_name') }} finished a run of {{ minutes }} minutes, but did not heat (never above {{
+        heat_above }} W).{% endif %}
+      selector:
+        text:
+          multiline: true
+
+# One run of the automation per run of the device: a crossing above on_above
+# while it runs (a programme's own pauses) is no new run.
+mode: single
+max_exceeded: silent
+
+variables:
+  power: !input power
+  on_above: !input on_above
+  off_for: !input off_for
+  max_minutes: !input max_minutes
+  heat_above: !input heat_above
+  started: "{{ now().timestamp() }}"
+  heated: "{{ heat_above == 0 or states(power) | float(0) > heat_above }}"
+  told: false
+  ended: false
+  what: ""
+  minutes: 0
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input power
+    above: !input on_above
+
+# Every wait is set up while the power is on the other side of what it
+# waits for (Home Assistant's numeric_state fires on a crossing only): while
+# on, for the power to drop below on_above, to rise above heat_above, or the
+# bound; while in a pause, for the power to rise again, else the pause of
+# off_for ends the run.
+actions:
+  - repeat:
+      until: "{{ ended }}"
+      sequence:
+        - variables:
+            heated: "{{ heated or states(power) | float(0) > heat_above }}"
+            left: "{{ [max_minutes * 60 - (now().timestamp() - started | float), 0] | max }}"
+        - if: "{{ states(power) | float(0) > on_above }}"
+          then:
+            - wait_for_trigger:
+                - trigger: numeric_state
+                  entity_id: !input power
+                  below: !input on_above
+                  id: "off"
+                - trigger: numeric_state
+                  entity_id: !input power
+                  above: !input heat_above
+                  id: heat
+              timeout:
+                seconds: "{{ left if not told else 86400 * 7 }}"
+              continue_on_timeout: true
+            - variables:
+                heated: "{{ heated or (wait.trigger is not none and wait.trigger.id == 'heat') }}"
+            - if: "{{ wait.trigger is none and not told }}"
+              then:
+                - variables:
+                    told: true
+                    what: long
+                - action: mira.send_message
+                  data:
+                    text: !input message
+                    importance: 1
+                    receiver: house
+                    dedupe_key: "watch:{{ this.attributes.id }}"
+                    expires_in: 12h
+                    task: "{{ this.attributes.id }}"
+          else:
+            - wait_for_trigger:
+                - trigger: numeric_state
+                  entity_id: !input power
+                  above: !input on_above
+              timeout:
+                minutes: !input off_for
+              continue_on_timeout: true
+            - variables:
+                ended: "{{ wait.trigger is none }}"
+  - variables:
+      minutes: "{{ ((now().timestamp() - started | float) / 60 - off_for) | round(0) | int }}"
+      what: cold
+  - if: "{{ not heated }}"
+    then:
+      - action: mira.send_message
+        data:
+          text: !input message
+          importance: 1
+          receiver: house
+          dedupe_key: "watch:{{ this.attributes.id }}"
+          expires_in: 12h
+          task: "{{ this.attributes.id }}"

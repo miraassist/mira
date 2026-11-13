@@ -218,3 +218,92 @@ async def test_CW15_an_unavailable_plug_is_no_deviation(hass, house, freezer):
     hass.states.async_set(PLUG, "unavailable")
     await minutes(hass, freezer, 30)
     assert calls == []
+
+
+FRIDGE = "sensor.fake_kuhlschrank_leistung"
+DISHWASHER = "sensor.fake_spulmaschine_leistung"
+
+
+async def test_CW26_a_fridge_runs_without_a_pause(hass, house, freezer):
+    calls = house
+    # Given a watch "duty_cycle" on a fake plug with max_on 120 minutes
+    await watch(hass, "duty_cycle", power=FRIDGE, max_on=120, max_off=240)
+    # Its normal cycle tells nothing: 20 minutes on, 40 off, for five hours.
+    await act(hass, "cycle", entity_id=FRIDGE, watts=45, on=20 * 60, off=40 * 60)
+    await minutes(hass, freezer, 5 * 60)
+    assert calls == []
+    # When the plug's power stays above 5 W for 120 minutes
+    await act(hass, "power", entity_id=FRIDGE, watts=45)
+    await minutes(hass, freezer, 119)
+    assert calls == []
+    await minutes(hass, freezer, 1)
+    # Then a simple message says it runs without a pause
+    assert len(calls) == 1
+    data = entry(calls[0])
+    assert data["importance"] == 1
+    assert "Kühlschrank Leistung had run for 120 minutes without a pause (45.0 W)" in data["text"]
+    # Once per streak.
+    await minutes(hass, freezer, 120)
+    assert len(calls) == 1
+
+
+async def test_CW27_a_fridge_does_not_run_any_more(hass, house, freezer):
+    calls = house
+    # Given a watch "duty_cycle" on a fake plug with max_off 240 minutes
+    await watch(hass, "duty_cycle", power=FRIDGE, max_on=120, max_off=240)
+    await act(hass, "power", entity_id=FRIDGE, watts=45)
+    await minutes(hass, freezer, 20)
+    # When the plug's power stays at 0 W for 240 minutes
+    await act(hass, "power", entity_id=FRIDGE, watts=0)
+    await minutes(hass, freezer, 239)
+    assert calls == []
+    await minutes(hass, freezer, 1)
+    # Then a simple message says it does not run any more
+    assert len(calls) == 1
+    data = entry(calls[0])
+    # (decision 18: a cycle that does not run any more matters more)
+    assert data["importance"] == 2
+    assert "had not run for 240 minutes" in data["text"]
+
+
+async def test_CW28_a_device_runs_too_long(hass, house, freezer):
+    calls = house
+    # Given a watch "device_run" on a fake plug with max_minutes 180
+    await watch(hass, "device_run", power=DISHWASHER, off_for=30, max_minutes=180, heat_above=1500)
+    # When a run lasts 180 minutes (with a pause of 20 minutes in it)
+    await act(hass, "program", entity_id=DISHWASHER, steps="3600:2000, 1200:0, 9000:80")
+    await minutes(hass, freezer, 179)
+    assert calls == []
+    await minutes(hass, freezer, 1)
+    # Then a simple message says it runs longer than usual
+    assert len(calls) == 1
+    data = entry(calls[0])
+    assert data["importance"] == 1
+    assert "had been running for 180 minutes, longer than usual" in data["text"]
+    # It heated: its end (at 230 minutes, and 30 minutes off) tells nothing
+    # more, and the next run is watched anew.
+    await minutes(hass, freezer, 90)
+    assert hass.states.get(DISHWASHER).state == "0.0"
+    assert len(calls) == 1
+    assert hass.states.get("automation.wachter").attributes["current"] == 0
+
+
+async def test_CW29_a_device_run_ends_without_heating(hass, house, freezer):
+    calls = house
+    # Given a watch "device_run" on a fake plug with heat_above 1500 W
+    await watch(hass, "device_run", power=DISHWASHER, off_for=30, max_minutes=180, heat_above=1500)
+    # A run that heats tells nothing.
+    await act(hass, "program", entity_id=DISHWASHER, steps="600:80, 1800:2000, 1200:0, 1800:80")
+    await minutes(hass, freezer, 120)
+    assert calls == []
+    assert hass.states.get("automation.wachter").attributes["current"] == 0
+    # When a run ends without a peak above 1500 W
+    await act(hass, "program", entity_id=DISHWASHER, steps="600:80, 1200:0, 1800:80")
+    await minutes(hass, freezer, 60 + 29)
+    assert calls == []
+    await minutes(hass, freezer, 1)
+    # Then a simple message says it finished without heating
+    assert len(calls) == 1
+    data = entry(calls[0])
+    assert data["importance"] == 1
+    assert "finished a run of 60 minutes, but did not heat (never above 1500" in data["text"]

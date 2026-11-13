@@ -448,6 +448,9 @@ func (m *Manager) checkBlueprint(ctx context.Context, d *Draft, name string, inp
 	if err != nil {
 		return err
 	}
+	if err := m.checkNumbers(ctx, b, full); err != nil {
+		return err
+	}
 	rendered, err := m.opts.Watch.Substitute(ctx, b, full)
 	if err != nil {
 		return err

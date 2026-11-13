@@ -10,7 +10,14 @@ follow a daily routine: `watts` within `windows` ("07:40-11:40, 14:20-21:00"), e
 0, set at once and at every full minute. The fake's time is its own, as a device's.
 `watch_fake.past` gives the plug a past, as a plug that has run for months: states every 5
 minutes of the last `days` days before its first recorded state, and hourly statistics of
-the last `stats_days` days, both following `windows` (empty: never on) with `watts`.
+the last `stats_days` days, both following `windows` (empty: never on) with `watts`, or
+`cycle` ("20:40": minutes on and off) with `watts`; `peak_every` hours adds to the
+statistics an hour with a run of `peak` watts (a device run now and then).
+Two more plugs: a fridge's (`sensor.fake_kuhlschrank_leistung`), which `watch_fake.cycle`
+switches on and off again and again, and a dishwasher's (`sensor.fake_spulmaschine_leistung`),
+which `watch_fake.program` runs through its steps ("600:80, 1200:2000, 300:0, 1800:80":
+seconds and watts each), then 0 W. `power`, `routine`, `cycle`, `program` and `past` take
+the plug's `entity_id` (default: the aquarium's for `power`, `routine` and `past`).
 """
 
 from __future__ import annotations
@@ -28,6 +35,8 @@ from homeassistant.util import dt as dt_util
 DOMAIN = "watch_fake"
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
+STEPS = vol.Match(r"^\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?(\s*,\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?)*\s*$")
+CYCLE = vol.Match(r"^\s*\d+\s*:\s*\d+\s*$")
 WINDOWS = vol.Match(r"^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})*\s*$")
 
 
@@ -42,15 +51,28 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def water_stop(call: ServiceCall) -> None:
         devices["meter"].stop()
 
+    def plug(call: ServiceCall, default: str):
+        wanted = call.data.get("entity_id")
+        for key in ("plug", "fridge", "dishwasher"):
+            if devices[key].entity_id == wanted or (wanted is None and key == default):
+                return devices[key]
+        raise vol.Invalid(f"{wanted} is none of the fake plugs")
+
     async def power(call: ServiceCall) -> None:
-        devices["plug"].set_power(call.data["watts"])
+        plug(call, "plug").set_power(call.data["watts"])
 
     async def routine(call: ServiceCall) -> None:
-        devices["plug"].follow(call.data["windows"], call.data["watts"])
+        plug(call, "plug").follow(call.data["windows"], call.data["watts"])
+
+    async def cycle(call: ServiceCall) -> None:
+        plug(call, "fridge").cycle(call.data["watts"], call.data["on"], call.data["off"])
+
+    async def program(call: ServiceCall) -> None:
+        steps = [(float(sec), float(w)) for sec, w in (part.split(":") for part in call.data["steps"].split(","))]
+        plug(call, "dishwasher").program(steps)
 
     async def past(call: ServiceCall) -> None:
-        await _write_past(hass, devices["plug"].entity_id, call.data["windows"], call.data["watts"],
-                          call.data["days"], call.data["stats_days"])
+        await _write_past(hass, plug(call, "plug").entity_id, call.data)
 
     hass.services.async_register(
         DOMAIN,
@@ -65,20 +87,42 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ),
     )
     hass.services.async_register(DOMAIN, "water_stop", water_stop, vol.Schema({}))
-    hass.services.async_register(DOMAIN, "power", power, vol.Schema({vol.Required("watts"): vol.Coerce(float)}))
+    entity = {vol.Optional("entity_id"): cv.entity_id}
+    hass.services.async_register(
+        DOMAIN, "power", power, vol.Schema({**entity, vol.Required("watts"): vol.Coerce(float)})
+    )
     hass.services.async_register(
         DOMAIN,
         "routine",
         routine,
-        vol.Schema({vol.Required("windows"): WINDOWS, vol.Optional("watts", default=50): vol.Coerce(float)}),
+        vol.Schema({**entity, vol.Required("windows"): WINDOWS, vol.Optional("watts", default=50): vol.Coerce(float)}),
     )
+    seconds = vol.All(vol.Coerce(float), vol.Range(min=1))
+    hass.services.async_register(
+        DOMAIN,
+        "cycle",
+        cycle,
+        vol.Schema(
+            {
+                **entity,
+                vol.Optional("watts", default=45): vol.Coerce(float),
+                vol.Required("on"): seconds,
+                vol.Required("off"): seconds,
+            }
+        ),
+    )
+    hass.services.async_register(DOMAIN, "program", program, vol.Schema({**entity, vol.Required("steps"): STEPS}))
     hass.services.async_register(
         DOMAIN,
         "past",
         past,
         vol.Schema(
             {
+                **entity,
                 vol.Optional("windows", default=""): vol.Any("", WINDOWS),
+                vol.Optional("cycle", default=""): vol.Any("", CYCLE),
+                vol.Optional("peak_every", default=0): vol.All(vol.Coerce(int), vol.Range(min=0, max=24 * 30)),
+                vol.Optional("peak", default=2000): vol.Coerce(float),
                 vol.Optional("watts", default=50): vol.Coerce(float),
                 vol.Optional("days", default=10): vol.All(vol.Coerce(int), vol.Range(min=1, max=30)),
                 vol.Optional("stats_days", default=90): vol.All(vol.Coerce(int), vol.Range(min=1, max=365)),
@@ -94,8 +138,18 @@ def _on(windows: list[tuple[int, int]], local: datetime) -> bool:
     return any(s <= minute < e if s <= e else (minute >= s or minute < e) for s, e in windows)
 
 
-async def _write_past(hass: HomeAssistant, entity_id: str, windows_text: str, watts: float, days: int, stats_days: int) -> None:
+def _cycle_on(cycle: tuple[int, int], at: datetime) -> bool:
+    """On within a cycle of `on` minutes on and `off` minutes off, counted from midnight UTC."""
+    on, off = cycle
+    minute = int(at.timestamp() // 60)
+    return minute % (on + off) < on
+
+
+async def _write_past(hass: HomeAssistant, entity_id: str, data: dict) -> None:
     """Write the plug's past into the recorder (the test HA only): states and hourly statistics."""
+    windows_text, watts, days, stats_days = data["windows"], data["watts"], data["days"], data["stats_days"]
+    cycle = tuple(int(x) for x in data["cycle"].split(":")) if data["cycle"].strip() else None
+    peak_every, peak = data["peak_every"], data["peak"]
     from homeassistant.components.recorder import get_instance
     from homeassistant.components.recorder.db_schema import States, StatesMeta
     from homeassistant.components.recorder.models import StatisticMeanType
@@ -106,6 +160,10 @@ async def _write_past(hass: HomeAssistant, entity_id: str, windows_text: str, wa
     from .sensor import _window
 
     windows = [_window(w) for w in windows_text.split(",")] if windows_text.strip() else []
+
+    def on_at(t: datetime) -> bool:
+        return _cycle_on(cycle, t) if cycle else _on(windows, dt_util.as_local(t))
+
     instance = get_instance(hass)
     now = dt_util.now()
 
@@ -121,7 +179,7 @@ async def _write_past(hass: HomeAssistant, entity_id: str, windows_text: str, wa
             t -= timedelta(minutes=t.minute % 5)
             while t.timestamp() < end:
                 ts = t.timestamp()
-                value = watts if _on(windows, dt_util.as_local(t)) else 0.0
+                value = watts if on_at(t) else 0.0
                 session.add(States(metadata_id=metadata_id, state=str(value), last_updated_ts=ts, last_reported_ts=ts, origin_idx=0))
                 t += timedelta(minutes=5)
                 n += 1
@@ -131,13 +189,17 @@ async def _write_past(hass: HomeAssistant, entity_id: str, windows_text: str, wa
     hour = now.replace(minute=0, second=0, microsecond=0)
     statistics = []
     start = hour - timedelta(days=stats_days)
+    n = 0
     while start < hour - timedelta(hours=1):
-        on = [_on(windows, dt_util.as_local(start + timedelta(minutes=m))) for m in range(60)]
+        on = [on_at(start + timedelta(minutes=m)) for m in range(60)]
         share = sum(on) / 60
-        statistics.append(
-            {"start": start, "mean": watts * share, "min": watts if all(on) else 0.0, "max": watts if any(on) else 0.0}
-        )
+        row = {"start": start, "mean": watts * share, "min": watts if all(on) else 0.0, "max": watts if any(on) else 0.0}
+        if peak_every and n % peak_every == 0:
+            # An hour with a device run in it.
+            row = {"start": start, "mean": peak / 2, "min": 0.0, "max": peak}
+        statistics.append(row)
         start += timedelta(hours=1)
+        n += 1
     async_import_statistics(
         hass,
         {

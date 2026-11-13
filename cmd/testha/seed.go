@@ -57,8 +57,10 @@ var house = map[string]struct{ area, name string }{
 	"media_player.fake_echo_speaker": {"Bad", "Fake Echo Lautsprecher"},
 	// The watched devices (testenv/watch_fake) for Mira's device watch
 	// (docs/spec/fake-devices.md, The watched devices).
-	"sensor.fake_wasserzahler":      {"Keller", "Wasserzähler"},
-	"sensor.fake_aquarium_leistung": {"Wohnzimmer", "Aquarium Leistung"},
+	"sensor.fake_wasserzahler":          {"Keller", "Wasserzähler"},
+	"sensor.fake_aquarium_leistung":     {"Wohnzimmer", "Aquarium Leistung"},
+	"sensor.fake_kuhlschrank_leistung":  {"Küche", "Kühlschrank Leistung"},
+	"sensor.fake_spulmaschine_leistung": {"Küche", "Spülmaschine Leistung"},
 }
 
 // fakeDevices puts the fake TECHO5 devices into their rooms, next to the real

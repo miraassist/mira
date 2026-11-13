@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-13: steps 1–5 built (step 5: the watched devices); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-13: steps 1–5 built (step 5: the watched devices, extended with the device watch's step 7); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -87,8 +87,8 @@ are not in the contract): `techo5_fake.wake_word` (`device`, the node: `fake_sho
 ### The watched devices (`testenv/watch_fake`)
 
 For Mira's device watch ([Device watch](device-watch.md)): the test HA has no water meter and no plug whose power
-follows a day. The fake integration `watch_fake` (`watch_fake:` in the test HA's configuration) brings two sensors,
-without a device, exposed to Assist by `testha up`:
+follows a day, a cycle or a programme. The fake integration `watch_fake` (`watch_fake:` in the test HA's
+configuration) brings four sensors, without a device, exposed to Assist by `testha up`:
 
 - **A water meter** `sensor.fake_wasserzahler` (device class `water`, state class `total_increasing`, litres; keeps its
   value over a restart). It changes only while water runs: `watch_fake.water_run` (`litres`, default 10; `every`
@@ -98,15 +98,25 @@ without a device, exposed to Assist by `testha up`:
   `watch_fake.power` (`watts`) sets it and ends a routine; `watch_fake.routine` (`windows`, e.g.
   `07:40-11:40, 14:20-21:00`; `watts`, default 50) lets it follow a daily routine: `watts` within the windows, else
   0, set at once and at every full minute. The routine lives in memory: a restart of the test HA ends it.
-- **The plug's past** for its device profile: `watch_fake.past` (`windows`, empty for never on; `watts`, default 50;
-  `days`, default 10; `stats_days`, default 90) writes into the test HA's recorder the plug's states every 5 minutes
-  (on the full 5 minutes) of the last `days` days before its first recorded state, and its hourly statistics (mean, min, max) of the last
-  `stats_days` days (`async_import_statistics`), both following the windows. The states go straight into the
+- **A fridge's plug** `sensor.fake_kuhlschrank_leistung` (Küche): `watch_fake.cycle` (`watts`, default 45; `on` and
+  `off` seconds) switches it on and off again and again, starting on, until `watch_fake.power` sets it.
+- **A dishwasher's plug** `sensor.fake_spulmaschine_leistung` (Küche): `watch_fake.program` (`steps`, seconds and
+  watts each, e.g. `600:80, 1200:2000, 300:0, 1800:80`) runs a programme through its steps, then 0 W.
+- `watch_fake.power`, `routine`, `cycle`, `program` and `past` take the plug's `entity_id` (default the aquarium's for
+  `power`, `routine` and `past`, the fridge's for `cycle`, the dishwasher's for `program`). The cycle and the
+  programme live in memory, as the routine.
+- **A plug's past** for its device profile: `watch_fake.past` (`windows`, empty for never on, or `cycle`, minutes on
+  and off as `20:40`; `watts`, default 50; `days`, default 10; `stats_days`, default 90; `peak_every` hours, default
+  0, and `peak` watts, default 2000: an hour of a device run in the statistics every so many hours) writes into the
+  test HA's recorder the plug's states every 5 minutes (on the full 5 minutes) of the last `days` days before its
+  first recorded state, and its hourly statistics (mean, min, max) of the last `stats_days` days
+  (`async_import_statistics`), both following the windows or the cycle. The states go straight into the
   recorder's tables (Home Assistant has no action for a past state); for the test HA only.
 
 As every fake's time (a playback's length, speaking), the meter's and the routine's is the fake's own: Mira and the
 blueprints only see the state change. The blueprints' runs are tested in pytest with these fakes and the time moved
-on (`tests/ha/test_watch_blueprints.py`, CW-11 to CW-15), and on the test HA with shortened durations.
+on (`tests/ha/test_watch_blueprints.py`, CW-11 to CW-15, CW-26 to CW-29), and on the test HA with shortened
+durations.
 
 ### The fake OAuth service (`internal/testsupport/fakeoauth`)
 
@@ -135,4 +145,5 @@ turn at the conversation agent.
 4. **A voice turn** (`techo5_fake.say`) and speaking by the length of the text (FG-15 to FG-17), tested in pytest; the
    answering machine's "all messages, one after the other" played through with it at the test HA.
 5. **The watched devices** (`watch_fake`): the water meter and the plug's power, for the device watch (built
-   2026-11-13 with its step 3; tested with the blueprints in pytest, CW-11 to CW-15).
+   2026-11-13 with its step 3; tested with the blueprints in pytest, CW-11 to CW-15); the fridge's and the
+   dishwasher's plugs and the past of a cycle and of device runs with its step 7 (CW-26 to CW-29).

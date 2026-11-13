@@ -8,7 +8,7 @@ from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, Se
 from homeassistant.const import UnitOfPower, UnitOfVolume
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
+from homeassistant.helpers.event import async_call_later, async_track_time_change, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import DOMAIN
@@ -19,9 +19,14 @@ async def async_setup_platform(
 ) -> None:
     if discovery_info is None:
         return
-    meter, plug = FakeMeter(), FakePlug()
-    hass.data[DOMAIN].update(meter=meter, plug=plug)
-    add([meter, plug])
+    meter = FakeMeter()
+    plugs = {
+        "plug": FakePlug("Fake Aquarium Leistung", "watch_fake_plug_power"),
+        "fridge": FakePlug("Fake Kühlschrank Leistung", "watch_fake_fridge_power"),
+        "dishwasher": FakePlug("Fake Spülmaschine Leistung", "watch_fake_dishwasher_power"),
+    }
+    hass.data[DOMAIN].update(meter=meter, **plugs)
+    add([meter, *plugs.values()])
 
 
 class FakeMeter(RestoreSensor):
@@ -74,20 +79,21 @@ class FakeMeter(RestoreSensor):
 
 
 class FakePlug(RestoreSensor):
-    """A plug's power: set by hand, or following a daily routine."""
+    """A plug's power: set by hand, following a daily routine, switching in a cycle, or running a programme."""
 
-    _attr_name = "Fake Aquarium Leistung"
-    _attr_unique_id = "watch_fake_plug_power"
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_should_poll = False
 
-    def __init__(self) -> None:
+    def __init__(self, name: str, unique_id: str) -> None:
+        self._attr_name = name
+        self._attr_unique_id = unique_id
         self._attr_native_value = 0.0
         self._unsub: CALLBACK_TYPE | None = None
         self._windows: list[tuple[int, int]] = []
         self._watts = 0.0
+        self._steps: list[tuple[float, float]] = []
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -111,6 +117,35 @@ class FakePlug(RestoreSensor):
         self._watts = watts
         self._unsub = async_track_time_change(self.hass, self._tick, second=0)
         self._tick()
+
+    @callback
+    def cycle(self, watts: float, on: float, off: float) -> None:
+        """Switch on (watts) for `on` seconds and off (0) for `off` seconds, again and again, starting on."""
+        self.program([(on, watts), (off, 0.0)], repeat=True)
+
+    @callback
+    def program(self, steps: list[tuple[float, float]], repeat: bool = False) -> None:
+        """Run a programme: each step's watts for its seconds, then 0 W (or again from the start)."""
+        self._end_routine()
+        self._steps = list(steps)
+        self._step(0, repeat)
+
+    @callback
+    def _step(self, index: int, repeat: bool) -> None:
+        if index >= len(self._steps):
+            if not repeat:
+                self._unsub = None
+                self._set(0.0)
+                return
+            index = 0
+        seconds, watts = self._steps[index]
+        self._set(watts)
+
+        @callback
+        def _next(_now: datetime) -> None:
+            self._step(index + 1, repeat)
+
+        self._unsub = async_call_later(self.hass, seconds, _next)
 
     @callback
     def _end_routine(self) -> None:

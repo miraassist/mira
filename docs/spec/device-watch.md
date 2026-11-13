@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 6 built 2026-11-13 (decisions 22 to 44 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 7 built 2026-11-13 (decisions 22 to 49 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -71,6 +71,11 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 42 | How the model names the sensor to `device_profile` | By its id **or a name** Home Assistant knows for it (display name, alias, device name), found among the power sensors in W Mira may see, as the field check `entities` finds one; several of the same length: the error lists them. Without it the model guessed ids at the test Mira (`sensor.stromverbrauch` for `sensor.power_consumption`). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 43 | A daily routine's times the user corrects | Taken as the user says them: the code checks only that they read (decision 23), not that they lie within what the device profile saw (the user knows the device's timer; "the code checks they lie within what the device profile saw" holds for the numbers of a cycle and a device run, step 7). Without a routine in the profile the user's times are taken the same way (CW-17). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 44 | What the profile says is missing for a daily routine | "für einen Wächter seines Tagesablaufs fehlen die Zeiten", also when it found another kind or none: the model then asks the user for the times (the skill's prose). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 45 | Which numbers of a cycle and a device run the code takes (step 7, "The tool `device_profile`") | The code reads the device profile with the blueprint's kind (one read of the states) and refuses, back to the planner as every refusal of A3: a profile without enough (the answer says Mira waits for the next run), `max_on` or `max_off` not longer than the longest run or pause seen, `max_minutes` not longer than the longest run, `off_for` not longer than the longest pause within a run, `heat_above` not below the lowest peak of a run. Nothing above: the user may give a higher bound. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 46 | How a device run is followed (rows 14, 15) | **One run of the automation per run of the device** (`mode: single`, `max_exceeded: silent`; the assumption holds), with one detail found on the test HA: Home Assistant's `numeric_state` fires only on a crossing (an entity already within the range when the trigger is set up is not armed, `homeassistant/triggers/numeric_state.py`), so every wait is set up while the power is on the other side: while on, a wait for the power below `on_above`, above `heat_above` or the bound; while in a pause, a wait for the power above `on_above` with a timeout of `off_for`, whose end ends the run. No `for` within the run. A run that is on when the automation is loaded is not followed (the next is), as decision 31; a crossing above during a run leaves a trace "failed_single" in Home Assistant's traces, nothing in the log. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 47 | A cycle's "off" | `numeric_state` with `below: on_above`: a power exactly at `on_above` is neither on nor off (the spec said "at or below"); a cycle that is off when the watch is loaded is told only after it ran once (a crossing), as decision 31. Accepted. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 48 | Two entries of one blueprint | One input `message` (decision 24) whose template chooses by the trigger (`trigger.id` of the cycle) or the run's variable `what` (device run); the importance by the trigger, decision 18. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 49 | The selectors of blueprints 5 and 6 | `duty_cycle`: `on_above` 0–5000 W (default 5), `max_on` 1–1440 min, `max_off` 1–2880 min (no defaults: the numbers come from the device profile). `device_run`: `on_above` 0–5000 W (default 5), `off_for` 1–240 min (default 30, the profile's join of a programme's pauses), `max_minutes` 5–1440 min (no default), `heat_above` 0–5000 W (default 0: no check; "optional" of the spec). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -95,7 +100,7 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | Messages, kind `simple` | A watch's text is an entry of the receiver's `simple` message | None | An entry is a text, as a task's; nothing to work through over several turns: the follow-up ("mach's aus") is the next turn of the same conversation, with Home Assistant's tools, no thread |
 | **New: the blueprints** (`internal/watch`, blueprints embedded in the service) | The blueprint files; making sure Home Assistant has them; the catalog the planner sees (name, description, inputs) | New package | No building block holds blueprints. In the service, since the code and the model that fill a blueprint's inputs must match its version |
 | **New: table `watch_declined`** (`internal/store`, a migration) | The devices whose offer the user declined, per blueprint | New table | A list of Mira's own with no place in Home Assistant (decision 21); by the rule of [Database](../database.md), a list gets a table, not keys of `kv` |
-| Fake devices (test HA) | A water meter and a power plug with a daily routine to drive the blueprints | Extended | The test HA has no water meter; [Fake devices](fake-devices.md) gets them |
+| Fake devices (test HA) | A water meter, a power plug with a daily routine, a fridge's plug in a cycle and a dishwasher's plug with a programme to drive the blueprints | Extended | The test HA has no water meter; [Fake devices](fake-devices.md) gets them |
 | **New: the device profile** (in `internal/watch`, a tool for the drafting) | A device's kind (daily routine, cycle, run) and its numbers | New | No building block computes it: `state_history` condenses for reading (12 periods), a fridge has hundreds of runs in ten days |
 | Recorder of Home Assistant (`history/history_during_period`, `recorder/statistics_during_period`) | The device profile's data: the states of the last days, the hourly statistics of months | None | Home Assistant's own, read for one entity at a time |
 
@@ -164,29 +169,38 @@ For a device whose power follows the same times every day (an aquarium's light, 
 
 For a device that switches on and off all day (a fridge, a freezer, a pump with a pressure switch).
 
-- **Inputs:** `power` (sensor, device class `power`), `on_above` (watts, default 5), `max_on` (minutes: longer on is
-  not normal), `max_off` (minutes: longer off is not normal).
-- **Triggers:** the power above `on_above` for `max_on` ("läuft seit {max_on} Minuten ohne Pause – Tür offen?"); the
-  power at or below `on_above` for `max_off` ("läuft seit {max_off} Minuten nicht mehr – Strom weg oder defekt?").
-  Plain numeric state triggers.
+- **Inputs:** `power` (sensor, device class `power`), `on_above` (watts, default 5), `max_on` (minutes, 1 to 1440:
+  longer on is not normal), `max_off` (minutes, 1 to 2880: longer off is not normal); decision 49.
+- **Triggers:** the power above `on_above` for `max_on` ("läuft seit {max_on} Minuten ohne Pause – Tür offen?",
+  importance 1); the power below `on_above` for `max_off` ("läuft seit {max_off} Minuten nicht mehr – Strom weg oder
+  defekt?", importance 2, decision 18). Plain numeric state triggers, each once per crossing (decision 47); one input
+  `message` for both (decision 48).
+- **Entry:** "Um {time} Uhr lief {name} seit {max_on} Minuten ohne Pause ({power} W). Ist eine Tür offen?" or "Um {time}
+  Uhr lief {name} seit {max_off} Minuten nicht mehr. Ist der Strom weg oder ist es defekt?"
 - **Numbers from the device profile:** the longest normal run and pause of the last days with a margin, proposed by the model
-  in words. Example (the maintainer's freezer, 2026-11-03 to 13, its plug reporting about every 5 minutes): 127 runs
+  in words; the code refuses numbers a normal run or pause reaches (decision 45). Example (the maintainer's freezer, 2026-11-03 to 13, its plug reporting about every 5 minutes): 127 runs
   of 55 to 80 minutes, about every two hours; the fridge 262 runs, most 15 to 20 minutes, once 200 minutes.
 
 ### 6. Device run (`device_run`)
 
 For a device that runs a programme now and then (a dishwasher, a washing machine, a dryer).
 
-- **Inputs:** `power`, `on_above` (watts: a run starts), `off_for` (minutes at or below `on_above` that end a run:
-  longer than the programme's own pauses), `max_minutes` (a run longer than this is not normal), `heat_above`
-  (watts, optional: a run without a peak above it did not heat).
-- **Entries:** "{name} läuft schon {max_minutes} Minuten, länger als sonst." "{name} ist fertig, hat aber nicht
-  aufgeheizt."
-- **Way:** tried on the test HA before it is written down (check rows 14 and 15). Assumption: one automation run per
-  device run (`mode: single`, waiting for the heat, the end and the bound) can do it.
+- **Inputs:** `power`, `on_above` (watts, default 5: a run starts), `off_for` (minutes, 1 to 240, default 30, below
+  `on_above` that end a run: longer than the programme's own pauses), `max_minutes` (5 to 1440: a run longer than this
+  is not normal), `heat_above` (watts, default 0 for no check: a run without a peak above it did not heat); decision 49.
+- **Entries** (importance 1): "Um {time} Uhr lief {name} schon {max_minutes} Minuten, länger als sonst." "Um {time} Uhr
+  war {name} nach {minutes} Minuten fertig, hat aber nicht aufgeheizt (nie über {heat_above} W)." One input `message`
+  for both (decision 48).
+- **Way** (tried on the test HA, rows 14 and 15; decision 46): one automation run per device run, `mode: single`.
+  The trigger: the power above `on_above`. The run repeats, while on: wait for the power below `on_above`, above
+  `heat_above` (it heated) or the bound (`max_minutes` from the start: the first entry, once); while in a pause: wait
+  for the power above `on_above`, at most `off_for`, after which the run ended. At its end without heat the second
+  entry. Each wait is set up while the power is on the other side of what it waits for (Home Assistant's
+  `numeric_state` fires on a crossing only).
 - **Numbers from the device profile:** duration, longest pause within a run and peak of the runs of the last days; the
   hourly statistics only find it as a candidate (the maintainer's dishwasher: 174 runs since 2022 with an hourly
-  peak above 500 W; one run in the last ten days, 120 minutes, 1883 W).
+  peak above 500 W; one run in the last ten days, 120 minutes, 1883 W). The code refuses numbers a normal run reaches
+  (decision 45).
 
 ## The device profile
 
@@ -243,7 +257,7 @@ a sensor that is not a power sensor in W, the recorder's refusal or an answer wi
 naming the sensor and Home Assistant's answer); decision 17 for the reads (a refusal is not tried again, a lost
 connection is).
 
-The model gets the numbers and proposes the inputs in words; the code checks they lie within what the device profile saw (a cycle's and a device run's, step 7; a daily routine's times are the user's, decision 43).
+The model gets the numbers and proposes the inputs in words; the code checks they lie beyond what the device profile saw as normal (a cycle's and a device run's, decision 45: one read of the states; a daily routine's times are the user's, decision 43).
 
 ### Waiting for the next run (decision 14)
 
@@ -320,6 +334,8 @@ starts anew (its trigger `automation_reloaded`).
   sensors with 30 days each (85,680 rows) in 0.24 to 0.87 s (a fast machine); the states of one plug take 20 to
   140 ms. So on the maintainer's house about 1 to 3 seconds (an estimate from these parts: Home Assistant's own work on
   its slower machine is not measured, no token of the house is used).
+- **A cycle's or a device run's draft:** besides the above, one read of the sensor's states of the last ten days for
+  the code's check (decision 45), as for a device profile.
 - **A waiting candidate:** one trigger subscription per waiting entity; nothing else until its run ends.
 - Grows with: the number of watches (one automation each), not with the house's size.
 
@@ -356,9 +372,9 @@ starts anew (its trigger `automation_reloaded`).
 | 11 | The entry reaches Mira | the automation's `mira.send_message` with `task` | a `simple` entry of the house's message, source `task`, `dedupe_key` `watch:<id>`; the next entry of the same watch replaces it; read out at the fake Show ("Hab ich neue Nachrichten?") | 2026-11-13, 2026.11.1 |
 | 12 | A changed blueprint reaches its automations | `blueprint/save` with `allow_override` (decision 22: nothing else) | `overrides_existing: true`; Home Assistant reloads the automations at once (a running wait of blueprint 2 starts anew: "event 'automation_reloaded'"); the trace of the next run shows the new version (importance 1 instead of 2); the service's start then saves its version back ("blueprint updated", from 0 to 1) | 2026-11-13, 2026.11.1 |
 | 12a | A blueprint in use cannot be deleted | `blueprint/delete` while an automation uses it | error `home_assistant_error` "Blueprint in use" | 2026-11-13, 2026.11.1 |
-| 13 | Blueprint 5 | a fake plug on longer than `max_on`, off longer than `max_off` (shortened) | one entry each | open |
-| 14 | Blueprint 6: a run too long | a fake plug's run longer than `max_minutes` | the entry | open |
-| 15 | Blueprint 6: a run without heat | a fake plug's run ending without a peak above `heat_above` | the entry after `off_for` | open |
+| 13 | Blueprint 5 | the fake fridge (`watch_fake.cycle`, 80 s on, 80 s off; `max_on` 1, `max_off` 1) | the trace: one entry 60 s after on ("had run for 1 minutes", importance 1), one 60 s after off ("had not run", importance 2), to the second; not again while it stays off | 2026-11-13, 2026.11.1 |
+| 14 | Blueprint 6: a run too long | the fake dishwasher (`watch_fake.program` `200:80, 30:0, 200:80`; `off_for` 1, `max_minutes` 5, `heat_above` 1500) | one run of the automation for the device run (the crossing after the pause: a trace "failed_single"); the entry at 5 minutes, to the second | 2026-11-13, 2026.11.1 |
+| 15 | Blueprint 6: a run without heat | the same run, ending; then a run with 60 s at 2000 W | the entry 60 s (`off_for`) after the power dropped, "a run of 7 minutes, but did not heat"; after the run with heat no entry | 2026-11-13, 2026.11.1 |
 | 16 | The end of a waiting candidate's run reaches the service | `subscribe_trigger` with a numeric state trigger on the fake plug, its power dropping | the trigger's event | open |
 
 Rows 6 to 12 are checked before the step that builds on them.
@@ -410,6 +426,13 @@ Rows 6 to 12 are checked before the step that builds on them.
    `smart` "Für den Stromverbrauch konnte ich keinen festen Tagesablauf erkennen. Zu welchen Uhrzeiten …?", the times
    given then drafted `daily_routine` with `08:00-18:00`; with the test Mira's voice model Flash Lite the model ignored
    the prose twice and drafted a task that judges itself (`assess`): open for the maintainer (the voice model).
-7. **Cycle and device run:** the two blueprints, the fakes, rows 13 to 15.
+7. **Cycle and device run:** the two blueprints, the fakes, rows 13 to 15. Built 2026-11-13 (decisions 45 to 49):
+   `duty_cycle` and `device_run` in `internal/watch/blueprints` with their texts, the code's check of their numbers
+   against the device profile (`CheckNumbers`), so the candidates and the device profile now offer cycles and device
+   runs; the fakes' fridge and dishwasher (`watch_fake.cycle`, `watch_fake.program`, `watch_fake.past` with a cycle
+   and device runs); CW-26 to CW-29 in pytest; rows 13 to 15 checked. At the test Mira by the conversation API with
+   the fake Show (the fridge's past from `watch_fake.past`, 20 minutes on, 40 off): "Pass auf den Kühlschrank auf" –
+   "Ich behalte den Kühlschrank im Auge und melde mich, wenn er länger als 25 Minuten läuft oder länger als 50
+   Minuten pausiert. Soll ich das so einrichten?" – "Ja": saved from `duty_cycle` (`max_on` 25, `max_off` 50).
 8. **Waiting for the next run:** the thread of the promise, the subscription, the offer after the run; row 16.
 9. **The guide**, German and English: watching, the blueprints, asking for candidates, pausing.

@@ -1,0 +1,90 @@
+blueprint:
+  name: "Mira: cycle"
+  description: >-
+    Tells Mira when a device that switches on and off all day (a fridge, a freezer) runs longer than its longest
+    normal run, or is off longer than its longest normal pause. Brought and updated by the Mira service; a change
+    made here is overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    power:
+      name: Power
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: power
+    on_above:
+      name: On above
+      description: Above this many watts the device counts as on.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: W
+          mode: box
+    max_on:
+      name: Longest run
+      description: After this many minutes on without a pause Mira is told.
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    max_off:
+      name: Longest pause
+      description: After this many minutes off Mira is told.
+      selector:
+        number:
+          min: 1
+          max: 2880
+          unit_of_measurement: min
+          mode: box
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: >-
+        {% if trigger.id == 'on' %}At {{ now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} had run
+        for {{ max_on }} minutes without a pause ({{ states(power) }} W). Is a door open?{% else %}At {{
+        now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} had not run for {{ max_off }} minutes. Is
+        the power gone, or is it broken?{% endif %}
+      selector:
+        text:
+          multiline: true
+
+mode: single
+
+variables:
+  power: !input power
+  max_on: !input max_on
+  max_off: !input max_off
+
+# Plain numeric state triggers, each once per crossing: on for longer than
+# max_on, off (below on_above) for longer than max_off.
+triggers:
+  - trigger: numeric_state
+    entity_id: !input power
+    above: !input on_above
+    for:
+      minutes: !input max_on
+    id: "on"
+  - trigger: numeric_state
+    entity_id: !input power
+    below: !input on_above
+    for:
+      minutes: !input max_off
+    id: "off"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      # A cycle that does not run any more (a fridge without power) matters
+      # more than one that runs on (decision 18).
+      importance: "{{ 2 if trigger.id == 'off' else 1 }}"
+      receiver: house
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

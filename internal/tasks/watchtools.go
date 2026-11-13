@@ -98,3 +98,21 @@ func (m *Manager) watchTools() []tools.InternalTool {
 		},
 	}
 }
+
+// checkNumbers checks a cycle's and a device run's numbers against the
+// device profile of its power sensor (docs/spec/device-watch.md, decision
+// 45): one read of its states of the last days. Without a profiler nothing
+// is checked; a sensor whose states cannot be read refuses the draft with
+// Home Assistant's answer.
+func (m *Manager) checkNumbers(ctx context.Context, b watch.Blueprint, inputs map[string]any) error {
+	kind := watch.KindOfBlueprint(b.Name)
+	if kind == watch.KindNone || m.opts.Profiler == nil {
+		return nil
+	}
+	entity, _ := inputs["power"].(string)
+	pr, err := m.opts.Profiler.Numbers(ctx, entity, nil, kind)
+	if err != nil {
+		return err
+	}
+	return watch.CheckNumbers(b, inputs, pr, m.opts.Lang, m.opts.Location)
+}
