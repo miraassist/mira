@@ -1,6 +1,7 @@
 """Mira's group watch in Home Assistant as docs/spec/group-watch.md says: the shared selection
-(GW-01 to GW-03) and the seven blueprints (GW-08 to GW-16), loaded from internal/watch/blueprints as
-the service saves them, over the fake house of testenv/watch_fake, with the time moved on."""
+(GW-01 to GW-03), the seven blueprints (GW-08 to GW-16) and the battery and the availability watch
+(GW-22 to GW-26), loaded from internal/watch/blueprints as the service saves them, over the fake house
+of testenv/watch_fake, with the time moved on."""
 
 from __future__ import annotations
 
@@ -155,6 +156,8 @@ GROUP_BLUEPRINTS = {
     "motion_while_away": {},
     "motion_at_night": {"night_start": "23:00:00", "night_end": "06:00:00"},
     "temperature_out_of_range": {"below": 5},
+    "battery_low": {},
+    "unreachable": {},
 }
 
 
@@ -394,3 +397,147 @@ async def test_GW16_a_watch_switched_off_says_nothing(hass, house, freezer):
     await minutes(hass, freezer, 5)
     # Then no entry comes
     assert house == []
+
+
+async def until(hass: HomeAssistant, freezer, hour: int, minute: int = 0) -> None:
+    """Jump to the next hour:minute and a second (a time trigger fires once on the way)."""
+    now = dt_util.now()
+    target = now.replace(hour=hour, minute=minute, second=1, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    freezer.move_to(target)
+    async_fire_time_changed(hass, target)
+    await settle()
+    await hass.async_block_till_done()
+
+
+async def reachable(hass: HomeAssistant, device: str, on: bool) -> None:
+    await hass.services.async_call("watch_fake", "reachable", {"device": device, "reachable": on}, blocking=True)
+    await settle()
+
+
+async def test_GW22_a_battery_runs_low(hass, house, freezer):
+    # The fake devices' entities belong to their devices.
+    entities = er.async_get(hass)
+    assert entities.async_get("sensor.fake_rauchmelder_flur_batterie").device_id is not None
+    # Given a watch "battery_low" below 20 % at 09:00 (here 21:30)
+    await watch(hass, "battery_low", below=20, at="21:30:00")
+    # And a fake smoke detector's battery at 12 % and a fake leak sensor reporting its battery low
+    await put(hass, "sensor.fake_rauchmelder_flur_batterie", "12")
+    await put(hass, "binary_sensor.fake_wassermelder_keller_batterie", "on")
+    await put(hass, "sensor.fake_klima_garten_batterie", "50")
+    assert house == []
+    # When it is 09:00
+    await until(hass, freezer, 21, 30)
+    # Then one entry names both devices by their names, the smoke detector with 12 %
+    [entry] = entries(house)
+    assert entry["text"] == "Fake Rauchmelder Flur (12 %), Fake Wassermelder Keller"
+    assert entry["receiver"] == "house" and entry["importance"] == 1
+    # And a battery at 50 % is not named (nor an unavailable one: that is the availability watch's)
+    await put(hass, "sensor.fake_rauchmelder_flur_batterie", "unavailable")
+    await until(hass, freezer, 21, 30)
+    assert house[-1].data["text"] == "Fake Wassermelder Keller"
+
+
+async def test_GW22_by_area_and_while_nobody_is_home(hass, house, freezer):
+    await watch(hass, "battery_low", areas=["garten"], below=80, at="21:30:00")
+    await put(hass, "sensor.fake_rauchmelder_flur_batterie", "12")
+    await nobody_home(hass)
+    await until(hass, freezer, 21, 30)
+    [entry] = entries(house)
+    assert entry["text"] == "Fake Klima Garten (70 %)" and entry["receiver"] == "persons"
+
+
+async def test_GW23_once_a_day_while_it_lasts(hass, house, freezer):
+    # Given a watch "battery_low" and a fake battery at 12 %
+    await watch(hass, "battery_low", at="21:30:00")
+    await put(hass, "sensor.fake_klima_garten_batterie", "12")
+    # When the check names it at 09:00
+    await until(hass, freezer, 21, 30)
+    assert [e["text"] for e in entries(house)] == ["Fake Klima Garten (12 %)"]
+    # Nothing between the checks, though the battery drops on
+    await put(hass, "sensor.fake_klima_garten_batterie", "11")
+    await minutes(hass, freezer, 60)
+    assert len(house) == 1
+    # Then the next day at 09:00 it is named again
+    await until(hass, freezer, 21, 30)
+    assert [e["text"] for e in entries(house)][1:] == ["Fake Klima Garten (11 %)"]
+    # And once the battery is at 100 %, or carries the label, no entry comes
+    await put(hass, "sensor.fake_klima_garten_batterie", "100")
+    await until(hass, freezer, 21, 30)
+    assert len(house) == 2
+    await put(hass, "sensor.fake_klima_garten_batterie", "10")
+    label(hass, "sensor.fake_klima_garten_batterie")
+    await until(hass, freezer, 21, 30)
+    assert len(house) == 2
+
+
+async def test_GW24_a_device_is_not_reachable(hass, house, freezer):
+    # Given a watch "unreachable" with 1 hour at 09:00 (here 21:30)
+    await watch(hass, "unreachable", hours=1, at="21:30:00")
+    # And the fake plug in the garage lost since 07:30 (here 20:00)
+    await reachable(hass, "Fake Steckdose Garage", False)
+    assert hass.states.get("switch.fake_steckdose_garage").state == "unavailable"
+    # When it is 09:00
+    await until(hass, freezer, 21, 30)
+    # Then the entry names the plug's device
+    [entry] = entries(house)
+    assert entry["text"] == "Fake Steckdose Garage" and entry["receiver"] == "house" and entry["importance"] == 1
+    # And with only one of its entities lost, the entry names that entity
+    await reachable(hass, "Fake Steckdose Garage", True)
+    await put(hass, "sensor.fake_steckdose_garage_signal", "unavailable")
+    await until(hass, freezer, 21, 30)
+    assert house[-1].data["text"] == "Fake Steckdose Garage Signal"
+    # Two devices lost: both, each once.
+    await reachable(hass, "Fake Wassermelder Keller", False)
+    await reachable(hass, "Fake Steckdose Garage", False)
+    await until(hass, freezer, 21, 30)
+    assert house[-1].data["text"] == "Fake Steckdose Garage, Fake Wassermelder Keller"
+
+
+async def test_GW25_not_unreachable(hass, house, freezer):
+    # Given a watch "unreachable" with 1 hour at 09:00 (here 21:30)
+    await watch(hass, "unreachable", hours=1, at="21:30:00")
+    # A third is restored: an entity of a device no integration provides (left over), unavailable for long
+    entities = er.async_get(hass)
+    garden = entities.async_get("sensor.fake_klima_garten_batterie").device_id
+    entities.async_get_or_create("sensor", "watch_fake", "left_over", device_id=garden, suggested_object_id="fake_rest")
+    hass.states.async_set("sensor.fake_rest", "unavailable", {"restored": True})
+    # Another entity is unknown
+    await put(hass, "sensor.fake_klima_garten_luftfeuchtigkeit", "unknown")
+    # And an entity without a device is unavailable
+    await put(hass, "binary_sensor.fake_fenster_kuche", "unavailable")
+    # When at 09:00 a fake device has been lost for 20 minutes
+    await until(hass, freezer, 21, 10)
+    await reachable(hass, "Fake Wassermelder Keller", False)
+    await until(hass, freezer, 21, 30)
+    # Then no entry comes
+    assert house == []
+    # The next day the leak sensor's device is named, nothing else.
+    await until(hass, freezer, 21, 30)
+    assert [e["text"] for e in entries(house)] == ["Fake Wassermelder Keller"]
+
+
+async def test_GW26_a_restart_floods_nothing(hass, house, freezer):
+    # Given a watch "unreachable" with 1 hour at 09:00 (here 21:30) and a fake device lost for days
+    await watch(hass, "unreachable", hours=1, at="21:30:00")
+    await reachable(hass, "Fake Steckdose Garage", False)
+    await until(hass, freezer, 21, 30)
+    await until(hass, freezer, 21, 30)
+    assert len(house) == 2
+    # When Home Assistant restarts at 08:30 (here 21:00): its states are written anew (checked on the test HA,
+    # row 15), the lost device's as unavailable again
+    await until(hass, freezer, 21, 0)
+    for entity_id in ("switch.fake_steckdose_garage", "sensor.fake_steckdose_garage_signal"):
+        old = hass.states.get(entity_id)
+        hass.states.async_remove(entity_id)
+        hass.states.async_set(entity_id, old.state, old.attributes)
+    await settle()
+    # Then nothing is told at the restart
+    assert len(house) == 2
+    # And the check at 09:00 does not name the device
+    await until(hass, freezer, 21, 30)
+    assert len(house) == 2
+    # And the check the next day names it
+    await until(hass, freezer, 21, 30)
+    assert len(house) == 3 and house[-1].data["text"] == "Fake Steckdose Garage"

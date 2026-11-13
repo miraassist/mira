@@ -5,7 +5,7 @@ blueprint:
     below, in the areas and on the floors if given, without what carries the label "Mira: nicht überwachen"
     (mira_dont_watch) and without group helpers; or the members of a group helper. Once per streak: it is told
     again only after no member broke the rule. Brought and updated by the Mira service; a change made here is
-    overwritten. mira-version: 1
+    overwritten. mira-version: 2
   domain: automation
   author: Mira
   input:
@@ -95,8 +95,10 @@ triggers:
       {%- for f in floors -%}
       {%- set places.areas = places.areas + floor_areas(f) -%}
       {%- endfor -%}
-      {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+      {%- for d in ([domain] if domain is string else domain) -%}
+      {%- for s in states[d] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
       {%- set ns.members = ns.members + [s] -%}
+      {%- endfor -%}
       {%- endfor -%}
       {%- endif -%}
       {%- set out = namespace(any=false) -%} {%- for s in ns.members if is_number(s.state) -%} {%- if (below is not none and s.state | float < below) or (above is not none and s.state | float > above) -%}{%- set out.any = true -%}{%- endif -%} {%- endfor -%} {{ out.any }}
@@ -114,8 +116,10 @@ variables:
     {%- for f in floors -%}
     {%- set places.areas = places.areas + floor_areas(f) -%}
     {%- endfor -%}
-    {%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- for d in ([domain] if domain is string else domain) -%}
+    {%- for s in states[d] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
     {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
     {%- endfor -%}
     {%- endif -%}
     {%- set out = namespace(list=[]) -%} {%- for s in ns.members if is_number(s.state) -%} {%- if below is not none and s.state | float < below -%}{%- set out.list = out.list + [{'name': s.name, 'value': s.state | float, 'low': true}] -%}{%- elif above is not none and s.state | float > above -%}{%- set out.list = out.list + [{'name': s.name, 'value': s.state | float, 'low': false}] -%}{%- endif -%} {%- endfor -%} {{ out.list }}

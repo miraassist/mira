@@ -5,13 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import RestoreSensor, SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback, AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later, async_track_time_change, async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import DOMAIN
+from .devices import entities_of
 from .house import PHONES, TEMPERATURES, place
 
 
@@ -33,6 +35,13 @@ async def async_setup_platform(
     hass.data[DOMAIN]["phones"] = phones
     add([meter, *plugs.values(), *temperatures, *phones.values()])
 
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddConfigEntryEntitiesCallback) -> None:
+    """The fake devices' entities of the battery and the availability watch (devices.py)."""
+    entities = entities_of("sensor")
+    hass.data[DOMAIN]["devices"].extend(entities)
+    add(entities)
 
 class FakePhone(SensorEntity):
     """What reached a person's phone (notify.py): the number of messages, the last ten in `messages`."""

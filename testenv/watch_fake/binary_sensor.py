@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback, AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import DOMAIN
+from .devices import entities_of
 from .house import MOTION, OPENINGS, place
 
 
@@ -20,6 +22,13 @@ async def async_setup_platform(
     hass.data[DOMAIN]["settable"].extend(sensors)
     add(sensors)
 
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddConfigEntryEntitiesCallback) -> None:
+    """The fake devices' entities of the battery and the availability watch (devices.py)."""
+    entities = entities_of("binary_sensor")
+    hass.data[DOMAIN]["devices"].extend(entities)
+    add(entities)
 
 class FakeBinary(BinarySensorEntity, RestoreEntity):
     """A window, a door or a motion sensor: on, off, or not readable."""

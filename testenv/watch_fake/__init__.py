@@ -22,6 +22,11 @@ the plug's `entity_id` (default: the aquarium's for `power`, `routine` and `past
 The watched group (house.py), for Mira's group watch: floors and areas, windows and doors, motion sensors,
 temperatures and lights in them, and a phone per person. `watch_fake.set` sets one of them (`entity_id`, `state`:
 on, off, a temperature, unavailable or unknown).
+
+The devices (devices.py), for the battery and the availability watch: batteries, a leak sensor and a plug that
+belong to devices, under the config entry "Fake Geräte" that watch_fake makes for itself (an import flow).
+`watch_fake.set` sets their entities too; `watch_fake.reachable` (`device`: its name or key, `reachable`) loses a
+whole device or brings it back.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import voluptuous as vol
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
@@ -41,6 +47,7 @@ from .house import PHONES, ensure_structure
 DOMAIN = "watch_fake"
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
+DEVICE_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
 STEPS = vol.Match(r"^\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?(\s*,\s*\d+(\.\d+)?\s*:\s*\d+(\.\d+)?)*\s*$")
 CYCLE = vol.Match(r"^\s*\d+\s*:\s*\d+\s*$")
 WINDOWS = vol.Match(r"^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})*\s*$")
@@ -49,7 +56,7 @@ WINDOWS = vol.Match(r"^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}(\s*,\s*\d{1,2}:\d{2}
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if DOMAIN not in config:
         return True
-    devices: dict = hass.data.setdefault(DOMAIN, {"settable": []})
+    devices: dict = hass.data.setdefault(DOMAIN, {"settable": [], "devices": []})
     ensure_structure(hass)
 
     async def water_run(call: ServiceCall) -> None:
@@ -137,7 +144,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ),
     )
     async def set_state(call: ServiceCall) -> None:
-        for entity in devices["settable"]:
+        for entity in devices["settable"] + devices["devices"]:
             if entity.entity_id == call.data["entity_id"]:
                 entity.set_state(call.data["state"])
                 return
@@ -154,6 +161,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             }
         ),
     )
+    async def reachable(call: ServiceCall) -> None:
+        wanted = call.data["device"]
+        found = [e for e in devices["devices"] if wanted in (e.key, e.device_info["name"])]
+        if not found:
+            names = sorted({e.device_info["name"] for e in devices["devices"]})
+            raise vol.Invalid(f"{wanted} is none of the fake devices: {', '.join(names)}")
+        for entity in found:
+            entity.set_reachable(call.data["reachable"])
+
+    hass.services.async_register(
+        DOMAIN,
+        "reachable",
+        reachable,
+        vol.Schema({vol.Required("device"): cv.string, vol.Required("reachable"): cv.boolean}),
+    )
+    if not hass.config_entries.async_entries(DOMAIN):
+        hass.async_create_task(hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_IMPORT}, data={}))
     for platform in (Platform.SENSOR, Platform.BINARY_SENSOR, Platform.LIGHT):
         hass.async_create_task(async_load_platform(hass, platform, DOMAIN, {}, config))
     for _name, phone in PHONES:
@@ -161,6 +185,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             async_load_platform(hass, Platform.NOTIFY, DOMAIN, {"name": phone, "phone": phone}, config)
         )
     return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """The fake devices (devices.py)."""
+    hass.data.setdefault(DOMAIN, {"settable": [], "devices": []})["devices"].clear()
+    await hass.config_entries.async_forward_entry_setups(entry, DEVICE_PLATFORMS)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    return await hass.config_entries.async_unload_platforms(entry, DEVICE_PLATFORMS)
 
 
 def _on(windows: list[tuple[int, int]], local: datetime) -> bool:

@@ -46,8 +46,10 @@ func groupTest(t *testing.T, tpl *fakeTemplates) *Blueprints {
 }
 
 // Every group blueprint holds the shared selection twice (its trigger and
-// the members it names), word for word, and its domain and classes are one
-// of the scopes; its inputs areas, floors and group are read as such.
+// the members it names), word for word, the two with a daily check once (the
+// members it names; decision 37), and its domains and classes are one of the
+// scopes; its inputs areas, floors and group are read as such (no group for
+// the two, decision 41).
 func TestGroupBlueprintsShareTheSelection(t *testing.T) {
 	sel := strings.Join(strings.Fields(SelectionTemplate()), " ")
 	var group []string
@@ -56,13 +58,28 @@ func TestGroupBlueprintsShareTheSelection(t *testing.T) {
 			continue
 		}
 		group = append(group, b.Name)
-		if n := strings.Count(strings.Join(strings.Fields(b.YAML()), " "), sel); n != 2 {
+		scope, ok := ScopeOf(b)
+		if !ok {
+			t.Errorf("%s: domains %v, classes %v is no scope", b.Name, b.Domains, b.Classes)
+		}
+		want := 2
+		if scope.ByDevice() {
+			want = 1
+		}
+		if n := strings.Count(strings.Join(strings.Fields(b.YAML()), " "), sel); n != want {
 			t.Errorf("%s holds the selection %d times", b.Name, n)
 		}
-		if _, ok := ScopeOf(b); !ok {
-			t.Errorf("%s: domain %s, classes %v is no scope", b.Name, b.Domain, b.Classes)
+		inputs := map[string]string{"areas": "area", "floors": "floor", GroupInput: "group"}
+		if scope.ByDevice() {
+			delete(inputs, GroupInput)
+			if _, ok := b.Input(GroupInput); ok {
+				t.Errorf("%s has a group helper", b.Name)
+			}
+			if at, _ := b.Input("at"); at.Kind != "time" || at.Default != "09:00:00" {
+				t.Errorf("%s.at: %+v", b.Name, at)
+			}
 		}
-		for name, kind := range map[string]string{"areas": "area", "floors": "floor", GroupInput: "group"} {
+		for name, kind := range inputs {
 			if in, ok := b.Input(name); !ok || in.Kind != kind || !in.HasDefault {
 				t.Errorf("%s.%s: %+v", b.Name, name, in)
 			}
@@ -72,7 +89,7 @@ func TestGroupBlueprintsShareTheSelection(t *testing.T) {
 			t.Errorf("%s: the entry's receiver or key", b.Name)
 		}
 	}
-	want := []string{"left_on", "motion_at_night", "motion_while_away", "open_at_night", "open_too_long", "open_while_away", "temperature_out_of_range"}
+	want := []string{"battery_low", "left_on", "motion_at_night", "motion_while_away", "open_at_night", "open_too_long", "open_while_away", "temperature_out_of_range", "unreachable"}
 	if !slices.Equal(group, want) {
 		t.Errorf("group blueprints %v", group)
 	}
@@ -195,7 +212,7 @@ func TestMembersRendered(t *testing.T) {
 func TestGroupCatalog(t *testing.T) {
 	h, _ := json.Marshal(testHouse)
 	tpl := &fakeTemplates{answers: []json.RawMessage{h, json.RawMessage(`[{"id": "light.terrasse", "name": "Terrasse", "state": "off", "area": "Garten"}]`),
-		json.RawMessage(`[]`), json.RawMessage(`[]`), json.RawMessage(`[]`)}}
+		json.RawMessage(`[]`), json.RawMessage(`[]`), json.RawMessage(`[]`), json.RawMessage(`[]`), json.RawMessage(`[]`)}}
 	w := groupTest(t, tpl)
 	cat := w.Catalog(context.Background(), true)
 	for _, want := range []string{"Wächtergruppe", "exclude", "Etage Dachgeschoss (dachgeschoss): Büro (buro)", "Garten (garten)",
@@ -206,7 +223,7 @@ func TestGroupCatalog(t *testing.T) {
 		}
 	}
 	// Without a watch group in the wish the house is not read.
-	if cat := w.Catalog(context.Background(), false); strings.Contains(cat, "Etage Dachgeschoss") || !strings.Contains(cat, "left_on") || len(tpl.templates) != 5 {
+	if cat := w.Catalog(context.Background(), false); strings.Contains(cat, "Etage Dachgeschoss") || !strings.Contains(cat, "left_on") || len(tpl.templates) != 7 {
 		t.Errorf("%d renders: %s", len(tpl.templates), cat)
 	}
 }

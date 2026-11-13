@@ -2,6 +2,7 @@
   "domain": "watch_fake",
   "name": "Watched devices fake (test only)",
   "codeowners": [],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/miraassist/mira/blob/main/docs/spec/fake-devices.md",
   "integration_type": "hub",

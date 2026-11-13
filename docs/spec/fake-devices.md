@@ -135,6 +135,16 @@ The fake house a group watch watches, made by `watch_fake` at its setup (test on
   Anna's and Ben's channels are set in the test HA's Mira integration (Mira's page, Persons), as every person's.
 - Nobody home: the dashboard's switches "Sim zu Hause …" (`input_boolean.sim_da_*`) move the persons' trackers;
   with all off, `zone.home` is 0.
+- **Devices** (for the battery and the availability watch): unlike the rest of the fake house these entities
+  belong to devices, under the config entry "Fake Geräte" that `watch_fake` makes for itself at its setup; each
+  device is in its area. "Fake Rauchmelder Flur" (`sensor.fake_rauchmelder_flur_batterie`, battery 90 %), "Fake
+  Wassermelder Keller" (`binary_sensor.fake_wassermelder_keller_batterie`, battery low off, and
+  `binary_sensor.fake_wassermelder_keller_wasser`, moisture), "Fake Klima Garten"
+  (`sensor.fake_klima_garten_batterie`, 70 %, and `sensor.fake_klima_garten_luftfeuchtigkeit`), "Fake Steckdose
+  Garage" (`switch.fake_steckdose_garage` and `sensor.fake_steckdose_garage_signal`). `watch_fake.set` sets any of
+  their entities (a percentage, `on`, `off`, `unavailable`, `unknown`); `watch_fake.reachable` (`device`: its name
+  or key, `reachable`) loses a whole device (every entity `unavailable`) or brings it back. A lost device stays
+  lost over a restart of Home Assistant, as a device without a battery would.
 
 As every fake's time (a playback's length, speaking), the meter's and the routine's is the fake's own: Mira and the
 blueprints only see the state change. The blueprints' runs are tested in pytest with these fakes and the time moved

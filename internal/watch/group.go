@@ -29,21 +29,43 @@ type Templates interface {
 	RenderTemplate(ctx context.Context, template string, variables map[string]any) (json.RawMessage, error)
 }
 
-// Scope is a kind of watch group: a domain and its device classes
-// (decision 8); no classes for every entity of the domain.
+// Scope is a kind of watch group: its domains (one, or several: decision
+// 42) and their device classes (decision 8); no classes for every entity of
+// the domains.
 type Scope struct {
 	Name    string
-	Domain  string
+	Domains []string
 	Classes []string
 }
 
-// Scopes are the watch groups at the start (decision 8). Every group
+// Scopes are the watch groups (decisions 8, 36 and 38). Every group
 // blueprint's trigger_variables name one of them.
 var Scopes = []Scope{
-	{Name: "lights", Domain: "light"},
-	{Name: "openings", Domain: "binary_sensor", Classes: []string{"window", "door", "opening", "garage_door"}},
-	{Name: "motion", Domain: "binary_sensor", Classes: []string{"motion", "occupancy", "presence"}},
-	{Name: "temperatures", Domain: "sensor", Classes: []string{"temperature"}},
+	{Name: "lights", Domains: []string{"light"}},
+	{Name: "openings", Domains: []string{"binary_sensor"}, Classes: []string{"window", "door", "opening", "garage_door"}},
+	{Name: "motion", Domains: []string{"binary_sensor"}, Classes: []string{"motion", "occupancy", "presence"}},
+	{Name: "temperatures", Domains: []string{"sensor"}, Classes: []string{"temperature"}},
+	{Name: ScopeBatteries, Domains: []string{"sensor", "binary_sensor"}, Classes: []string{"battery"}},
+	{Name: ScopeDevices, Domains: []string{"sensor", "binary_sensor", "switch", "light", "cover", "climate", "lock", "fan", "valve"}},
+}
+
+// The scopes of the battery and the availability watch: their members are
+// named by device (decision 40).
+const (
+	ScopeBatteries = "batteries"
+	ScopeDevices   = "devices"
+)
+
+// ByDevice says whether the scope's members are named by their devices.
+func (s Scope) ByDevice() bool { return s.Name == ScopeBatteries || s.Name == ScopeDevices }
+
+// domainVariable is the scope's domains as the shared selection takes them:
+// one domain, or a list.
+func (s Scope) domainVariable() any {
+	if len(s.Domains) == 1 {
+		return s.Domains[0]
+	}
+	return s.Domains
 }
 
 // ScopeByName is the scope of that name.
@@ -59,7 +81,7 @@ func ScopeByName(name string) (Scope, bool) {
 // ScopeOf is the scope of a group blueprint.
 func ScopeOf(b Blueprint) (Scope, bool) {
 	for _, s := range Scopes {
-		if s.Domain == b.Domain && slices.Equal(s.Classes, b.Classes) {
+		if slices.Equal(s.Domains, b.Domains) && slices.Equal(s.Classes, b.Classes) {
 			return s, true
 		}
 	}
@@ -79,7 +101,7 @@ type Selection struct {
 
 func (s Selection) variables() map[string]any {
 	classes := s.Classes()
-	return map[string]any{"domain": s.Scope.Domain, "classes": classes, "areas": nonNil(s.Areas),
+	return map[string]any{"domain": s.Scope.domainVariable(), "classes": classes, "areas": nonNil(s.Areas),
 		"floors": nonNil(s.Floors), "group": s.Group}
 }
 
@@ -192,8 +214,10 @@ const houseTemplate = `{"floors": [{%- for f in floors() -%}{"id": {{ f | tojson
 // everyEntityOfScope is every entity of a scope in the house, labelled or
 // not, without group helpers: where an exception is found to be taken back.
 const everyEntityOfScope = `{%- set ns = namespace(members=[]) -%}
-{%- for s in states[domain] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined -%}
+{%- for d in ([domain] if domain is string else domain) -%}
+{%- for s in states[d] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined -%}
 {%- set ns.members = ns.members + [s] -%}
+{%- endfor -%}
 {%- endfor -%}`
 
 // membersOutput turns the selection's members into JSON.
@@ -395,11 +419,11 @@ func (w *Blueprints) CheckSelection(b Blueprint, inputs map[string]any, h House)
 	}
 	if sel.Group != "" {
 		if !slices.ContainsFunc(h.Groups, func(g GroupHelper) bool {
-			return g.ID == sel.Group && g.Domain() == b.Domain && (len(b.Classes) == 0 || slices.Contains(b.Classes, g.DeviceClass) || g.DeviceClass == "")
+			return g.ID == sel.Group && slices.Contains(b.Domains, g.Domain()) && (len(b.Classes) == 0 || slices.Contains(b.Classes, g.DeviceClass) || g.DeviceClass == "")
 		}) {
 			var names []string
 			for _, g := range h.Groups {
-				if g.Domain() == b.Domain {
+				if slices.Contains(b.Domains, g.Domain()) {
 					names = append(names, g.Name+" ("+g.ID+")")
 				}
 			}
@@ -536,7 +560,9 @@ func (w *Blueprints) HouseCheck(ctx context.Context, req CheckRequest) (CheckRes
 		name = "openings"
 	}
 	scope, ok := ScopeByName(name)
-	if !ok || scope.Name == "temperatures" {
+	// Temperatures have no "open"; batteries and devices are the daily
+	// watches' (decision 46).
+	if !ok || !slices.Contains([]string{"openings", "lights", "motion"}, scope.Name) {
 		return CheckResult{}, ErrBadCheck{fmt.Sprintf(t.unknownScope, name)}
 	}
 	sel := Selection{Scope: scope}

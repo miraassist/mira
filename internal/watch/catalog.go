@@ -40,6 +40,8 @@ var catalog = map[i18n.Lang]texts{
 			"motion_while_away":        "Bewegung, während niemand zu Hause ist (Wächtergruppe aus Bewegungs- und Präsenzmeldern)",
 			"motion_at_night":          "Bewegung nachts (Bewegungs- und Präsenzmelder): zwischen night_start und night_end (Uhrzeiten HH:MM)",
 			"temperature_out_of_range": "zu kalt oder zu warm (Wächtergruppe aus Temperatursensoren): eine Temperatur liegt minutes Minuten unter below oder über above °C (mindestens eins von beiden)",
+			"battery_low":              "Batterien (Wächtergruppe aus allen Batterien des Hauses: Sensoren in Prozent und Melder für schwache Batterie): einmal am Tag um at (Uhrzeit HH:MM) eine Meldung mit allen, die unter below Prozent liegen oder schwach melden, je Gerät; solange eine schwach bleibt, jeden Tag wieder",
+			"unreachable":              "Geräte, die nicht erreichbar sind (Wächtergruppe aus den Entitäten der Geräte des Hauses): einmal am Tag um at (Uhrzeit HH:MM) eine Meldung mit allen Geräten, die seit hours Stunden nicht verfügbar sind; solange eins weg bleibt, jeden Tag wieder",
 			"device_run":               "Gerätelauf eines Geräts, das ab und zu ein Programm fährt (Spülmaschine, Waschmaschine): ein Lauf beginnt über on_above Watt und endet nach off_for Minuten darunter (länger als die Pausen im Programm); läuft er länger als max_minutes, eine Meldung; endet er ohne Spitze über heat_above Watt (0: nicht prüfen), eine Meldung, dass es nicht aufgeheizt hat; die Zahlen aus device_profile",
 		},
 		labels: map[string]string{
@@ -48,7 +50,7 @@ var catalog = map[i18n.Lang]texts{
 			"max_on": "längster Lauf", "max_off": "längste Pause", "off_for": "Ende nach", "max_minutes": "längster Lauf",
 			"heat_above": "Heizen ab",
 			"areas":      "Bereiche", "floors": "Etagen", "group": "Gruppen-Helfer", "hours": "Stunden", "only_away": "nur wenn niemand da ist",
-			"delay": "Verzögerung", "night_start": "Nacht ab", "night_end": "Nacht bis", "minutes": "Minuten", "below": "unter", "above": "über",
+			"delay": "Verzögerung", "night_start": "Nacht ab", "night_end": "Nacht bis", "minutes": "Minuten", "below": "unter", "above": "über", "at": "um",
 		},
 		messages: map[string]string{
 			"water_runs_on":            "Um {{ now().strftime('%H:%M') }} Uhr lief seit {{ duration }} Minuten Wasser ohne Pause. Zählerstand: {{ states(meter) }} {{ state_attr(meter, 'unit_of_measurement') }}.",
@@ -62,6 +64,8 @@ var catalog = map[i18n.Lang]texts{
 			"motion_while_away":        "Bewegung bei {{ breaking[:-1] | join(', ') ~ ' und ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}, obwohl niemand zu Hause ist.",
 			"motion_at_night":          "Bewegung bei {{ breaking[:-1] | join(', ') ~ ' und ' ~ breaking[-1] if breaking | count > 1 else breaking | first }} um {{ now().strftime('%H:%M') }} Uhr.",
 			"temperature_out_of_range": "{% for b in breaking %}{{ b.name }}: {{ b.value }} °C, {{ 'unter' if b.low else 'über' }} {{ below if b.low else above }} °C.{{ ' ' if not loop.last }}{% endfor %}",
+			"battery_low":              "Batterie fast leer: {{ breaking[:-1] | join(', ') ~ ' und ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}.",
+			"unreachable":              "Nicht erreichbar: {{ breaking[:-1] | join(', ') ~ ' und ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}.",
 			"device_run":               "{% if what == 'long' %}Um {{ now().strftime('%H:%M') }} Uhr lief {{ state_attr(power, 'friendly_name') }} schon {{ max_minutes }} Minuten, länger als sonst.{% else %}Um {{ now().strftime('%H:%M') }} Uhr war {{ state_attr(power, 'friendly_name') }} nach {{ minutes }} Minuten fertig, hat aber nicht aufgeheizt (nie über {{ heat_above }} W).{% endif %}",
 		},
 		entityIn:  "Entität %s mit device_class %s",
@@ -95,6 +99,8 @@ var catalog = map[i18n.Lang]texts{
 			"motion_while_away":        "motion while nobody is home (a watch group of motion and presence sensors)",
 			"motion_at_night":          "motion at night (motion and presence sensors): between night_start and night_end (times HH:MM)",
 			"temperature_out_of_range": "too cold or too warm (a watch group of temperature sensors): a temperature is below below or above above °C for minutes minutes (at least one of the two)",
+			"battery_low":              "batteries (a watch group of every battery in the house: sensors in percent and low-battery sensors): once a day at at (time HH:MM) a message naming every one below below percent or reporting low, by device; while one stays low, again every day",
+			"unreachable":              "devices that cannot be reached (a watch group of the entities of the house's devices): once a day at at (time HH:MM) a message naming every device unavailable for hours hours; while one stays lost, again every day",
 			"device_run":               "the device run of a device that runs a programme now and then (a dishwasher, a washing machine): a run starts above on_above watts and ends after off_for minutes below (longer than the programme's pauses); when it runs longer than max_minutes, a message; when it ends without a peak above heat_above watts (0: no check), a message that it did not heat; the numbers from device_profile",
 		},
 		labels: map[string]string{
@@ -103,7 +109,7 @@ var catalog = map[i18n.Lang]texts{
 			"max_on": "longest run", "max_off": "longest pause", "off_for": "end after", "max_minutes": "longest run",
 			"heat_above": "heating above",
 			"areas":      "areas", "floors": "floors", "group": "group helper", "hours": "hours", "only_away": "only while nobody is home",
-			"delay": "delay", "night_start": "night from", "night_end": "night until", "minutes": "minutes", "below": "below", "above": "above",
+			"delay": "delay", "night_start": "night from", "night_end": "night until", "minutes": "minutes", "below": "below", "above": "above", "at": "at",
 		},
 		messages: map[string]string{
 			"water_runs_on":            "At {{ now().strftime('%H:%M') }} water had run for {{ duration }} minutes without a pause. Meter: {{ states(meter) }} {{ state_attr(meter, 'unit_of_measurement') }}.",
@@ -117,6 +123,8 @@ var catalog = map[i18n.Lang]texts{
 			"motion_while_away":        "Motion at {{ breaking[:-1] | join(', ') ~ ' and ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}, though nobody is home.",
 			"motion_at_night":          "Motion at {{ breaking[:-1] | join(', ') ~ ' and ' ~ breaking[-1] if breaking | count > 1 else breaking | first }} at {{ now().strftime('%H:%M') }}.",
 			"temperature_out_of_range": "{% for b in breaking %}{{ b.name }}: {{ b.value }} °C, {{ 'below' if b.low else 'above' }} {{ below if b.low else above }} °C.{{ ' ' if not loop.last }}{% endfor %}",
+			"battery_low":              "Battery low: {{ breaking[:-1] | join(', ') ~ ' and ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}.",
+			"unreachable":              "Not reachable: {{ breaking[:-1] | join(', ') ~ ' and ' ~ breaking[-1] if breaking | count > 1 else breaking | first }}.",
 			"device_run":               "{% if what == 'long' %}At {{ now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} had been running for {{ max_minutes }} minutes, longer than usual.{% else %}At {{ now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} finished a run of {{ minutes }} minutes, but did not heat (never above {{ heat_above }} W).{% endif %}",
 		},
 		entityIn:  "entity %s with device_class %s",

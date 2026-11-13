@@ -162,3 +162,14 @@ set:
       example: "on"
       selector:
         text:
+reachable:
+  fields:
+    device:
+      required: true
+      example: Fake Steckdose Garage
+      selector:
+        text:
+    reachable:
+      required: true
+      selector:
+        boolean:

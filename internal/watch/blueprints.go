@@ -58,16 +58,16 @@ type Blueprint struct {
 	// changed blueprint gets a higher one.
 	Version int
 	Inputs  []Input
-	// Domain and Classes are a group watch's (docs/spec/group-watch.md): the
-	// domain and device classes of its watch group, from its
-	// trigger_variables. Empty for a device watch.
-	Domain  string
+	// Domains and Classes are a group watch's (docs/spec/group-watch.md):
+	// the domains (one or several, decision 42) and device classes of its
+	// watch group, from its trigger_variables. Empty for a device watch.
+	Domains []string
 	Classes []string
 	yaml    string
 }
 
 // Group says whether the blueprint is a group watch's.
-func (b Blueprint) Group() bool { return b.Domain != "" }
+func (b Blueprint) Group() bool { return len(b.Domains) > 0 }
 
 // Path is the blueprint's path as Home Assistant lists it.
 func (b Blueprint) Path() string { return Folder + b.Name + ".yaml" }
@@ -141,8 +141,9 @@ func parse(name string, raw []byte) (Blueprint, error) {
 			Input       yaml.Node
 		} `yaml:"blueprint"`
 		TriggerVariables struct {
-			Domain  string   `yaml:"domain"`
-			Classes []string `yaml:"classes"`
+			// Domain is one domain or a list of them.
+			Domain  yaml.Node `yaml:"domain"`
+			Classes []string  `yaml:"classes"`
 		} `yaml:"trigger_variables"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -152,7 +153,15 @@ func parse(name string, raw []byte) (Blueprint, error) {
 		return Blueprint{}, fmt.Errorf("domain %q, not automation", doc.Blueprint.Domain)
 	}
 	b := Blueprint{Name: name, Version: VersionOf(doc.Blueprint.Description), yaml: string(raw),
-		Domain: doc.TriggerVariables.Domain, Classes: doc.TriggerVariables.Classes}
+		Classes: doc.TriggerVariables.Classes}
+	switch d := doc.TriggerVariables.Domain; d.Kind {
+	case yaml.ScalarNode:
+		b.Domains = []string{d.Value}
+	case yaml.SequenceNode:
+		if err := d.Decode(&b.Domains); err != nil {
+			return Blueprint{}, fmt.Errorf("trigger_variables domain: %w", err)
+		}
+	}
 	if b.Version == 0 {
 		return Blueprint{}, fmt.Errorf("no mira-version in its description")
 	}

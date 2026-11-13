@@ -326,11 +326,11 @@ trace shows the error.
 
 | 12 | The selection over two domains (batteries) | the shared selection with `domain` a list, `sensor` and `binary_sensor` of `battery`; `device_attr` for the names | the batteries with their devices' names | 2026-11-13, 2026.11.1: the test HA's five battery sensors (the demo's, the fake Zigbee2MQTT's), each with its device's name ("Outside Temperature", "Klimasensor Bad"), rendered in 8 ms; the openings with `domain` a string as before (9) |
 | 13 | A watch remembering whom it told | a template trigger reading `this` | `this` in the trigger after the automation is saved | 2026-11-13, 2026.11.1: an automation saved over the config API with a template trigger `{{ this is not none and … }}` did not fire when the window opened (`this` is empty: the triggers are attached before the automation's state is written); switched off and on, it fired. Hence decision 37 |
-| 14 | The daily check | a watch with `at` a minute ahead, a fake battery low, a fake device lost | the trace at `at`, the entry naming the device | open (step 6) |
-| 15 | A restart | Home Assistant restarted with an entity `unavailable` before and after | the entity's `last_changed` | 2026-11-13, 2026.11.1: the test HA's Matter plug (offline) had `last_changed` 3 s after the container started; again with the fake device lost over a restart: step 6 |
+| 14 | The daily check | a watch with `at` a minute ahead, a fake battery low, a fake device lost | the trace at `at`, the entry naming the device | 2026-11-13, 2026.11.1: `battery_low` at 23:13 to the second, `breaking` "Outside Temperature (12 %)" (the demo's), "Fake Rauchmelder Flur (12 %)", "Fake Wassermelder Keller", the call `mira.send_message` for the house with "Batterie fast leer: …"; `unreachable` (0.05 h) at 23:16 named "Fake Steckdose Garage" and the Matter plug "Steckdose Wohnzimmer" (an entity's name: its device has entities that are there) |
+| 15 | A restart | Home Assistant restarted with an entity `unavailable` before and after | the entity's `last_changed` | 2026-11-13, 2026.11.1: the test HA's Matter plug (offline) had `last_changed` 3 s after the container started; the fake plug lost, Home Assistant restarted with `homeassistant.restart` at 22:19:38 UTC: both its entities `unavailable` again, not `restored`, `last_changed` 22:19:58 (the start); no watch fired at the start |
 | 16 | A reload of an integration | the Matter entry reloaded, its plug `unavailable` before and after | the plug's `last_changed` | 2026-11-13, 2026.11.1: kept (21:36:47 before and after the reload at 21:59) |
 | 17 | Who is a device, and the cost | the devices' selection over the nine domains | members with a device, the `unavailable` ones, `restored`, the render time | 2026-11-13, 2026.11.1: 407 entities, 371 with a device; 8 `unavailable` among them, 7 of them `restored` (left-overs of the found-devices fake and a duplicate of the Show's switch), the Matter plug not; 20 to 22 ms |
-| 18 | A device lost, and one of its entities lost | the fake device's entities all `unavailable`, then only one | the entry names the device, then the entity | open (step 6) |
+| 18 | A device lost, and one of its entities lost | the fake device's entities all `unavailable`, then only one | the entry names the device, then the entity | 2026-11-13, 2026.11.1: the whole fake plug lost: "Fake Steckdose Garage" (row 14); the plug back and only its signal lost: "Fake Steckdose Garage Signal" at 23:24 |
 
 Each row is checked before the step that builds on it.
 
@@ -391,7 +391,13 @@ Each row is checked before the step that builds on it.
 6. **The battery and the availability watch in Home Assistant:** the shared selection over a list of domains
    (decision 42, every group blueprint to version 2), the blueprints `battery_low` and `unreachable`, the fakes'
    batteries and a device that can be lost (with a device, [Fake devices](fake-devices.md)); rows 14, 15 (with the
-   fake) and 18. GW-22 to GW-26 in pytest.
+   fake) and 18. Built 2026-11-13: the selection's `domain` one or a list (`Scope.Domains`, `Blueprint.Domains`), every
+   group blueprint at version 2 (replaced at the test Mira's start, the log names each), `battery_low` and
+   `unreachable` with their texts in German and English, `house_check` keeping its three scopes; the fakes' devices
+   with the config entry "Fake Geräte" and `watch_fake.reachable` (a lost device keeps its loss over a restart in
+   its restore data: Home Assistant keeps no `unavailable` to restore). GW-22 to GW-26 in pytest
+   (`tests/ha/test_group_watch.py`, the restart of GW-26 as states written anew, the real one row 15); rows 14,
+   15 and 18 checked.
 7. **Drafting them:** the scopes batteries and devices in the code, the catalog, the proposal's counts by device and
    "Schon jetzt …", the exceptions, `house_check` refusing them, the skill's prose; GW-27 to GW-31 in Go; each made
    by voice at the test Mira, triggered, read out.

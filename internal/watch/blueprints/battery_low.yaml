@@ -1,0 +1,96 @@
+blueprint:
+  name: "Mira: batteries low"
+  description: >-
+    Tells Mira once a day, at the time, every battery of the watch group below the percentage or reported low,
+    named by its device (docs/spec/group-watch.md, the battery watch). The watch group: the house's sensors and
+    binary sensors of the device class battery, in the areas and on the floors if given, without what carries the
+    label "Mira: nicht überwachen" (mira_dont_watch). A battery still low is named again the next day. Brought and
+    updated by the Mira service; a change made here is overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    areas:
+      name: Areas
+      description: Only the members in these areas (together with the floors); none for the whole house.
+      default: []
+      selector:
+        area:
+          multiple: true
+    floors:
+      name: Floors
+      description: Only the members on these floors (together with the areas); none for the whole house.
+      default: []
+      selector:
+        floor:
+          multiple: true
+    below:
+      name: Below
+      description: A battery below this percentage is low (a binary battery sensor reports low by itself).
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 90
+          unit_of_measurement: "%"
+          mode: box
+    at:
+      name: At
+      description: When Mira looks, once a day.
+      default: "09:00:00"
+      selector:
+        time:
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "Battery low: {{ breaking | join(', ') }}."
+      selector:
+        text:
+          multiline: true
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  domain: [sensor, binary_sensor]
+  classes: [battery]
+  areas: !input areas
+  floors: !input floors
+  group: ""
+  below: !input below
+
+triggers:
+  - trigger: time
+    at: !input at
+
+variables:
+  breaking: >-
+    {%- set ns = namespace(members=[]) -%}
+    {%- if group -%}
+    {%- set ns.members = expand(group) -%}
+    {%- else -%}
+    {%- set skip = label_entities('mira_dont_watch') -%}
+    {%- set places = namespace(areas=areas | list) -%}
+    {%- for f in floors -%}
+    {%- set places.areas = places.areas + floor_areas(f) -%}
+    {%- endfor -%}
+    {%- for d in ([domain] if domain is string else domain) -%}
+    {%- for s in states[d] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- set out = namespace(list=[], devices=[]) -%} {%- for s in ns.members if (s.domain == 'binary_sensor' and s.state == 'on') or (s.domain == 'sensor' and is_number(s.state) and s.state | float < below) -%} {%- set dev = device_id(s.entity_id) -%} {%- if not dev or dev not in out.devices -%} {%- if dev -%}{%- set out.devices = out.devices + [dev] -%}{%- endif -%} {%- set name = (device_attr(dev, 'name_by_user') or device_attr(dev, 'name') or s.name) if dev else s.name -%} {%- set out.list = out.list + [name ~ (' (' ~ (s.state | float | round | int) ~ ' %)' if s.domain == 'sensor' else '')] -%} {%- endif -%} {%- endfor -%} {{ out.list }}
+
+conditions:
+  - condition: template
+    value_template: "{{ breaking | count > 0 }}"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 1
+      receiver: "{{ 'persons' if states('zone.home') | int(1) == 0 else 'house' }}"
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

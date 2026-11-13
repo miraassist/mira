@@ -1,0 +1,99 @@
+blueprint:
+  name: "Mira: devices not reachable"
+  description: >-
+    Tells Mira once a day, at the time, every device of the watch group that has not been reachable for the hours
+    (docs/spec/group-watch.md, the availability watch): an entity of a device unavailable for the hours, not one
+    Home Assistant restored without an integration providing it. A device whose entities are all unavailable is
+    named by the device, else each such entity by its name. The watch group: the house's entities of the domains
+    below that belong to a device, in the areas and on the floors if given, without what carries the label "Mira:
+    nicht überwachen" (mira_dont_watch). A device still lost is named again the next day. Brought and updated by
+    the Mira service; a change made here is overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    areas:
+      name: Areas
+      description: Only the members in these areas (together with the floors); none for the whole house.
+      default: []
+      selector:
+        area:
+          multiple: true
+    floors:
+      name: Floors
+      description: Only the members on these floors (together with the areas); none for the whole house.
+      default: []
+      selector:
+        floor:
+          multiple: true
+    hours:
+      name: Hours
+      description: How many hours a device is unavailable before it counts.
+      default: 1
+      selector:
+        number:
+          min: 0.05
+          max: 72
+          step: 0.05
+          unit_of_measurement: h
+          mode: box
+    at:
+      name: At
+      description: When Mira looks, once a day.
+      default: "09:00:00"
+      selector:
+        time:
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "Not reachable: {{ breaking | join(', ') }}."
+      selector:
+        text:
+          multiline: true
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  domain: [sensor, binary_sensor, switch, light, cover, climate, lock, fan, valve]
+  classes: []
+  areas: !input areas
+  floors: !input floors
+  group: ""
+  hours: !input hours
+
+triggers:
+  - trigger: time
+    at: !input at
+
+variables:
+  breaking: >-
+    {%- set ns = namespace(members=[]) -%}
+    {%- if group -%}
+    {%- set ns.members = expand(group) -%}
+    {%- else -%}
+    {%- set skip = label_entities('mira_dont_watch') -%}
+    {%- set places = namespace(areas=areas | list) -%}
+    {%- for f in floors -%}
+    {%- set places.areas = places.areas + floor_areas(f) -%}
+    {%- endfor -%}
+    {%- for d in ([domain] if domain is string else domain) -%}
+    {%- for s in states[d] if (not classes or s.attributes.device_class in classes) and s.attributes.entity_id is not defined and s.entity_id not in skip and (not (areas or floors) or area_id(s.entity_id) in places.areas) -%}
+    {%- set ns.members = ns.members + [s] -%}
+    {%- endfor -%}
+    {%- endfor -%}
+    {%- endif -%}
+    {%- set out = namespace(down=[], up=[], list=[], seen=[]) -%} {%- for s in ns.members if device_id(s.entity_id) and not s.attributes.get('restored', false) -%} {%- if s.state != 'unavailable' -%}{%- set out.up = out.up + [device_id(s.entity_id)] -%} {%- elif s.last_changed <= now() - timedelta(hours=hours) -%}{%- set out.down = out.down + [s] -%}{%- endif -%} {%- endfor -%} {%- for s in out.down -%} {%- set dev = device_id(s.entity_id) -%} {%- if dev in out.up -%}{%- set out.list = out.list + [s.name] -%} {%- elif dev not in out.seen -%}{%- set out.seen = out.seen + [dev] -%}{%- set out.list = out.list + [device_attr(dev, 'name_by_user') or device_attr(dev, 'name') or s.name] -%} {%- endif -%} {%- endfor -%} {{ out.list }}
+
+conditions:
+  - condition: template
+    value_template: "{{ breaking | count > 0 }}"
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 1
+      receiver: "{{ 'persons' if states('zone.home') | int(1) == 0 else 'house' }}"
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

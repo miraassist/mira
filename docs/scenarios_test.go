@@ -54,7 +54,7 @@ var builtSteps = map[string][]int{
 	"HD": {},                       // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-22) and Go (HD-23, 25, 26), step 5 in pytest (HD-30 to 38), step 6 in Go (HD-40 to 44)
 	"KV": {1, 2},                   // docs/spec/kv-cleanup.md, Steps
 	"CW": {1, 2, 4, 5, 6, 8},       // docs/spec/device-watch.md, Steps; steps 3 and 7 are tested in pytest (CW-11 to CW-15, CW-26 to CW-29)
-	"GW": {2},                      // docs/spec/group-watch.md, Steps; steps 1 and 3 in pytest (GW-01 to GW-03, GW-08 to GW-16), step 4 in Go (GW-17 to GW-20) and pytest (GW-19, GW-21)
+	"GW": {2},                      // docs/spec/group-watch.md, Steps; steps 1 and 3 in pytest (GW-01 to GW-03, GW-08 to GW-16), step 4 in Go (GW-17 to GW-20) and pytest (GW-19, GW-21), step 6 in pytest (GW-22 to GW-26)
 }
 
 var (
