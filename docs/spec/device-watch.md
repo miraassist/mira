@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 3 built 2026-11-13 (decisions 22 to 32 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 4 built 2026-11-13 (decisions 22 to 37 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -59,6 +59,11 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 30 | A change of a watch | The planner sees the watch as saved (`use_blueprint`) and answers with the changed `use_blueprint` or with the blueprint and its inputs; both go through A3 and A4. The integration checks the rendered automation, as for a new one. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 31 | A watch "water runs on" made while the water runs | Home Assistant's template trigger fires when its template **turns** true: a streak that runs while the watch is made is not told, the next one is. Accepted. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 | 32 | "Water never rests" switched on again (task_enable) | Starts no window by itself: the next rest, Home Assistant's start or a reload of the automations starts it. Open for the maintainer; accepted for now (the entry comes later, never wrongly). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 33 | How many device runs are enough (CW-24) | **One whole run** within the states, as "Enough?" says: a dishwasher running once a week would never have more in ten days. CW-24 read "one run in the last ten days … says that runs are missing", against "Enough?"; it now reads "no whole run". Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 34 | Which power sensors | Only sensors of device class `power` in **W**: the blueprints' numbers are watts and compare the state as it is. A sensor in kW is no candidate, and `device_profile` refuses it with why. A sensor whose hourly min went **below −5 W** is no device (the grid, a battery, an inverter feeding in); noise around 0 W is off. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 35 | What the device profile does with a state that is not a number | `unavailable` or `unknown` changes nothing: the state before it holds, as decision 26 for the blueprint. A run cut by the start of the states, or still on at their end, is not counted (its length is unknown). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 36 | Who gets the device profile | The model, as the tool `device_profile`, which comes with the skill `aufgabe` (offered in a turn that opened it, as the answering machine's tools come with theirs): the model proposes a daily routine's times from it in conversation (step 6). For an entity Mira may see (exposed to Assist) only. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 37 | The house's hours and days | The hours of the statistics and the days of a daily routine are taken in the service's time zone, as the tasks' views take them (`time.Local`; the HA app runs in Home Assistant's). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -180,17 +185,56 @@ For a device that runs a programme now and then (a dishwasher, a washing machine
 
 What it computes, for one power sensor:
 
-1. **Candidate and kind** from the long-term statistics (`recorder/statistics_during_period`, hourly mean and max, the
-   last 90 days): on at the same hours every day → daily routine; on in most hours with a mean far below the max →
-   cycle; on now and then with a high max → run. Under 5 W in every hour: no candidate. The bounds are tried on the
-   maintainer's devices (read only) before they are written down.
+1. **Candidate and kind** from the long-term statistics (`recorder/statistics_during_period`, hourly mean, min and
+   max, the last 90 days; for the request the last 30): on at the same hours every day → daily routine; on in most
+   hours, switching within them → cycle; on now and then with a high max → run. Under 5 W in every hour: no
+   candidate. The bounds below (section "The bounds").
 2. **Numbers** from the states of the last ten days (`history/history_during_period`, the one entity,
    `minimal_response`): the runs above `on_above` with start, duration, the pause before and the peak; per kind: the
    windows (daily routine), the longest normal run and pause (cycle), duration, longest pause in a run and peak (run).
-3. **Enough?** A daily routine needs 3 days, a cycle 2 days, a run one run within the states (proposed; a dishwasher
-   running once a week would never have three in ten days; the hourly statistics of months show whether that run's
-   length was typical). Not enough:
-   the answer says it and what is missing; the candidate waits (decision 14).
+3. **Enough?** A daily routine needs 3 days that follow its windows, a cycle states of 2 days with a whole run, a run
+   one whole run within the states (decision 33; a dishwasher running once a week would never have three in ten days;
+   the hourly statistics of months show whether that run's length was typical). Not enough: the answer says it and
+   what is missing; the candidate waits (decision 14).
+
+### The bounds
+
+Tried read-only on the maintainer's house on 2026-11-13 (the recorder's database opened read-only: the hourly
+statistics of the last 30 and 90 days of all 119 sensors in W with statistics, the states of the last ten days of the freezer, the
+fridge, the dishwasher, the washing machine, the aquarium's light and a few others). An hour counts as **on** when its
+max is above 5 W, as **switching** when it is on and its min at or below 5 W. In this order:
+
+| Kind | Rule | What it found in the maintainer's house |
+|---|---|---|
+| no device | an hourly min below −5 W (noise around 0 W is off: a wallbox read −0.1 W) | the grid's, the house's and a battery's power, a wallbox's phases (14 sensors) |
+| no candidate | no hour on | lamps, plugs that were off |
+| daily routine | every hour of the day is on on at least 90 % of the days or off on at least 90 %, with at least one of each (and 3 days of each hour) | the aquarium's light and pump, the ventilation (on 8 to 22 h), an air purifier on a timer; not the solar power (its first and last hours of daylight change with the days and the weather: 3 to 6 hours neither) |
+| cycle | on in at least 90 % of the hours, switching in at least 50 % | the freezer (on in 100 %, switching in 62 to 90 %), the fridge (100 %, 100 %); also a media plug in standby (a nuisance, accepted); not a constant load (a router, a heating pump: switching 0 %) |
+| device run | on in at most 20 % of the hours, a max of at least 500 W in one of them | the dishwasher (on 2 %, 1960 W), the washing machine (1 %, 2391 W), the wallbox's charging power; also a lamp and an air conditioner with a single glitch of 1.3 and 21 kW (no run in their states: they wait, a nuisance) |
+| none of these | | lights now and then, a kitchen hood, an ice maker |
+
+The numbers from the states (a plug reporting every 5 minutes): a **run** is a time above 5 W; a **device run** joins
+runs whose pause is shorter than 30 minutes (a programme's own pauses: the dishwasher's run of 2026-11-13 had none
+below 5 W, then a blip of 13 W 15 minutes after its end, which it joins: 140 minutes instead of 120). A **daily
+routine's windows**: per minute of the day, on when the device was on at that minute on more than half of the full
+days; gaps shorter than 15 minutes (the blueprint's default tolerance) joined, windows shorter than 15 minutes
+dropped; a day **follows** them when it differs by at most 60 minutes (the aquarium's light: windows 07:42–11:42 and
+14:22–21:02, 8 of 9 days; the 12th, off at 18:36 instead of 21:01, differed by 147 minutes). A **cycle**: the freezer
+121 whole runs, mostly 65 minutes, the longest 80, pauses mostly and at most 55 minutes; the fridge 250, mostly 20
+minutes, the longest 200, pauses at most 40.
+
+### The tool `device_profile`
+
+The model's way to a device profile (decision 36): `device_profile` with a power sensor's id, offered in a turn that
+opened the skill `aufgabe`. Step by step: the entity's state (is it one Mira may see, a power sensor in W?), the
+hourly statistics of the last 90 days (`recorder/statistics_during_period`, the one id), the states of the last ten
+days (`history/history_during_period`, the one entity, `minimal_response`, `no_attributes`); computed in the service.
+It answers in words: the kind, the numbers (a daily routine's windows with the days that follow them and the usual
+power; a cycle's runs and pauses, the usual and the longest; a device run's runs with start, length, peak and longest
+pause within), and whether they are enough for a watch, else what is missing. Its errors: an entity Mira may not see,
+a sensor that is not a power sensor in W, the recorder's refusal or an answer with nothing for the sensor (each
+naming the sensor and Home Assistant's answer); decision 17 for the reads (a refusal is not tried again, a lost
+connection is).
 
 The model gets the numbers and proposes the inputs in words; the code checks they lie within what the device profile saw.
 
@@ -253,8 +297,11 @@ starts anew (its trigger `automation_reloaded`).
   (milliseconds); the save as a task (four calls). For a blueprint of a power sensor one device profile (below).
 - **An entry:** one `mira.send_message`; the model words it when it is read out, as every message.
 - **A blueprint changed:** one `blueprint/save`; Home Assistant reloads its automations (all, once).
-- **A device profile:** two reads of the recorder for one entity: 90 days of hourly statistics (about 2,200 rows) and ten
-  days of states (a plug every 5 minutes: up to 3,000 rows). Computed in the service, milliseconds.
+- **A device profile:** a state and two reads of the recorder for one entity: 90 days of hourly statistics (about 2,200
+  rows) and ten days of states (a plug every 5 minutes: up to 3,000 rows; the maintainer's plugs report changes only:
+  270 to 3,000). Computed in the service, milliseconds. Measured on the test HA (2026-11-13, the fake plug with 90 days
+  of statistics and 2,900 states): 30 ms for both reads; the maintainer's recorder reads the states of one plug in 20
+  to 140 ms (read-only, its database directly).
 - **"Gibt's Geräte, die du überwachen könntest?"** (the turn waits): one read of the hourly statistics of the last 30
   days for all power sensors of the house in one call (`statistic_ids` as a list), the kinds computed from it, the
   states of the last ten days only for the candidates. Grows with the number of power sensors (the maintainer's house:
@@ -320,7 +367,12 @@ Rows 6 to 12 are checked before the step that builds on them.
    dauernd läuft" made the watch from `water_runs_on`, the entries were read out, the watch was paused, switched on
    and deleted by voice.
 4. **The device profile:** the tool, the kinds and the numbers, the daily routine's windows included; its bounds tried
-   read-only on the maintainer's devices first.
+   read-only on the maintainer's devices first. Built 2026-11-13 (decisions 33 to 37): `internal/watch` (`KindOf`,
+   `Compute`, `Profiler`, the tool `device_profile` with the skill `aufgabe`), the bounds above; CW-23 to CW-25 in Go
+   with synthetic series (and the kinds, the windows through midnight, a day off, states not a number). Run against the
+   test HA's recorder: the fake plug's past written by `watch_fake.past` (90 days of statistics, ten days of states of
+   a daily routine) gave its windows, 9 of 9 days; a plug never on "no candidate"; a sensor without statistics the
+   error naming it.
 5. **Offering on request:** "Gibt's Geräte, die du überwachen könntest?": the candidates of all blueprints (water meters,
    power sensors by their kind), without the ones watched or declined.
 6. **Daily routine from the device profile:** the model proposes the windows; the user corrects them.

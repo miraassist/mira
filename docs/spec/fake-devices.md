@@ -98,6 +98,11 @@ without a device, exposed to Assist by `testha up`:
   `watch_fake.power` (`watts`) sets it and ends a routine; `watch_fake.routine` (`windows`, e.g.
   `07:40-11:40, 14:20-21:00`; `watts`, default 50) lets it follow a daily routine: `watts` within the windows, else
   0, set at once and at every full minute. The routine lives in memory: a restart of the test HA ends it.
+- **The plug's past** for its device profile: `watch_fake.past` (`windows`, empty for never on; `watts`, default 50;
+  `days`, default 10; `stats_days`, default 90) writes into the test HA's recorder the plug's states every 5 minutes
+  of the last `days` days before its first recorded state, and its hourly statistics (mean, min, max) of the last
+  `stats_days` days (`async_import_statistics`), both following the windows. The states go straight into the
+  recorder's tables (Home Assistant has no action for a past state); for the test HA only.
 
 As every fake's time (a playback's length, speaking), the meter's and the routine's is the fake's own: Mira and the
 blueprints only see the state change. The blueprints' runs are tested in pytest with these fakes and the time moved

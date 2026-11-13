@@ -46,3 +46,30 @@ routine:
           min: 0
           max: 5000
           mode: box
+past:
+  fields:
+    windows:
+      example: "07:40-11:40, 14:20-21:00"
+      selector:
+        text:
+    watts:
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 5000
+          mode: box
+    days:
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 30
+          mode: box
+    stats_days:
+      default: 90
+      selector:
+        number:
+          min: 1
+          max: 365
+          mode: box

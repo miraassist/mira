@@ -28,6 +28,8 @@ type Source interface {
 	// GetStates reads the states Home Assistant filters for it.
 	GetStates(ctx context.Context, f haws.StateFilter) ([]haws.State, error)
 	Statistics(ctx context.Context, ids []string, start time.Time, period string) (map[string][]haws.StatRow, error)
+	// History reads one entity's states (the device profile).
+	History(ctx context.Context, id string, start, end time.Time) ([]haws.Change, error)
 }
 
 // HA is what the tasks change in Home Assistant: Mira's automations go
@@ -71,7 +73,11 @@ type Options struct {
 	// Watch holds Mira's blueprints (docs/spec/device-watch.md): the
 	// planner may fill one instead of drafting an automation of its own.
 	// Without it, it drafts only its own.
-	Watch    *watch.Blueprints
+	Watch *watch.Blueprints
+	// Profiler computes device profiles for the watch's tools
+	// (device_profile, watch_candidates); without it, or without Watch,
+	// they are not offered.
+	Profiler *watch.Profiler
 	Clock    func() time.Time
 	Location *time.Location
 	Logger   *slog.Logger

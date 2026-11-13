@@ -41,7 +41,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 		}
 		return err
 	}
-	return []tools.InternalTool{
+	return append([]tools.InternalTool{
 		{
 			Name: ToolTaskList, Description: t.listDesc, Schema: `{"type":"object","properties":{}}`, ReadOnly: true,
 			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
@@ -106,7 +106,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 				return m.DescribeTry(res), nil
 			},
 		},
-	}
+	}, m.watchTools()...)
 }
 
 // DescribeTry says what a dry run found.

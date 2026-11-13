@@ -124,7 +124,7 @@ Feature: Device watch (docs/spec/device-watch.md)
   @step4
   Scenario: CW-24 The device profile finds a run with too few in the last days
     Given a power sensor with an hourly peak above 500 W now and then for months
-    And one run in the last ten days
+    And no whole run in the last ten days
     When its device profile is computed
     Then its kind is device run and it says that runs are missing
 

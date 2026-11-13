@@ -23,6 +23,12 @@ func f(v float64) *float64 { return &v }
 type fakeSource struct {
 	states []haws.State
 	stats  map[string][]haws.StatRow
+	// history are entities' states; histErrs the refusals of reading them.
+	history  map[string][]haws.Change
+	histErrs map[string]error
+	// statsErr refuses the statistics; statCalls are the ids asked for.
+	statsErr  error
+	statCalls [][]string
 	// personsFail makes reading the person states fail.
 	personsFail error
 }
@@ -41,7 +47,18 @@ func (s *fakeSource) GetStates(_ context.Context, f haws.StateFilter) ([]haws.St
 	return out, nil
 }
 func (s *fakeSource) Statistics(_ context.Context, ids []string, _ time.Time, _ string) (map[string][]haws.StatRow, error) {
+	s.statCalls = append(s.statCalls, ids)
+	if s.statsErr != nil {
+		return nil, s.statsErr
+	}
 	return s.stats, nil
+}
+
+func (s *fakeSource) History(_ context.Context, id string, _, _ time.Time) ([]haws.Change, error) {
+	if err := s.histErrs[id]; err != nil {
+		return nil, err
+	}
+	return s.history[id], nil
 }
 
 // fakeHA plays the Mira integration's automation commands and Home

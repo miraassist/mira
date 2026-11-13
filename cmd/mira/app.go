@@ -530,6 +530,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.watch = watch.New(watch.Options{HA: a.ha, Lang: a.lang, Logger: a.log})
 	a.tasks = tasks.New(tasks.Options{
 		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot, Watch: a.watch,
+		Profiler:   watch.NewProfiler(watch.ProfilerOptions{Recorder: a.ha, Lang: a.lang, Logger: a.log}),
 		Model:      a.tasksAssess(),
 		Decider:    a.tasksDecide(),
 		Planner:    a.tasksPlan(),
