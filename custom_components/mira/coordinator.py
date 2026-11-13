@@ -1,4 +1,4 @@
-"""Polls the agent's status, and keeps the agent's managed config in sync."""
+"""Polls the service's status, and keeps the service's managed config in sync."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .managed import async_config, exposed_entities, exposed_hash
 
 _LOGGER = logging.getLogger(__name__)
 
-# The repair when the agent and this integration are not the same version
+# The repair when the service and this integration are not the same version
 # (major.minor; a patch apart is fine): docs/spec/versions.md.
 ISSUE_VERSION = "version_mismatch"
 # The repair while the token an admin gave Mira does not work, or none was
@@ -33,6 +33,14 @@ def _minor(version: Any) -> tuple[int, int] | None:
     """major.minor of a version like 0.9.0 or v0.9.0; None for anything else."""
     if m := re.match(r"v?(\d+)\.(\d+)", str(version or "")):
         return int(m[1]), int(m[2])
+    return None
+
+
+def _full(version: Any) -> tuple[int, int, int] | None:
+    """major.minor.patch of a version like 0.9.1 or v0.9 (a missing patch is
+    0); None for anything else."""
+    if m := re.match(r"v?(\d+)\.(\d+)(?:\.(\d+))?", str(version or "")):
+        return int(m[1]), int(m[2]), int(m[3] or 0)
     return None
 
 
@@ -55,7 +63,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Reads /v1/status every minute.
 
     After every setup it also sends Mira's settings on HA's persons and
-    satellites to the agent, until that worked once: an agent that was down
+    satellites to the service, until that worked once: a service that was down
     or restarted with an empty database gets them on the next poll.
     """
 
@@ -65,7 +73,7 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=timedelta(seconds=60))
         self.client = client
         self._synced = False
-        # From /v1/health at setup; a newer agent says it in /v1/status too.
+        # From /v1/health at setup; a newer service says it in /v1/status too.
         self.agent_version = agent_version
         # The Supervisor was asked once to look for the app's update.
         self._store_reloaded = False
@@ -86,8 +94,8 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """The token an admin gave Mira (docs/spec/hacs-default.md, 4): one
         that does not work (revoked, its user inactive or no admin), or the
         owner's token the integration made itself before, which is revoked
-        here, raises the repair asking for a token; nothing is made. An
-        agent with Home Assistant's token in its own file has no id here:
+        here, raises the repair asking for a token; nothing is made. A
+        service with Home Assistant's token in its own file has no id here:
         nothing to check."""
         refresh_id = self.config_entry.data.get(CONF_AGENT_TOKEN)
         if not refresh_id:
@@ -112,8 +120,13 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     def _show_version(self, agent: Any) -> None:
-        """A repair while the agent and this integration are not the same
-        version, saying which of the two to update; gone once they match."""
+        """A repair while the service and this integration are not the same
+        version, saying which of the two to update; gone once they match. The
+        app's update is asked for a patch apart too: the repair leaves that
+        alone, the Supervisor offers it all the same (docs/spec/versions.md)."""
+        full_ours, full_theirs = _full(VERSION), _full(agent)
+        if full_ours is not None and full_theirs is not None and full_theirs < full_ours:
+            self._ask_for_the_app_update()
         ours, theirs = _minor(VERSION), _minor(agent)
         if ours is None or theirs is None or ours == theirs:
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_VERSION)
@@ -127,8 +140,6 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             translation_key="version_agent_older" if theirs < ours else "version_agent_newer",
             translation_placeholders={"integration": VERSION, "agent": str(agent).lstrip("v")},
         )
-        if theirs < ours:
-            self._ask_for_the_app_update()
 
     def _ask_for_the_app_update(self) -> None:
         """On Home Assistant OS, the Supervisor reloads its app store once, so
@@ -151,9 +162,9 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.info("Asked the Supervisor to look for the app's update (integration %s)", VERSION)
 
     def _show_problems(self, problems: list[dict[str, Any]]) -> None:
-        """What did not start at the agent (a skill with a wrong setting, an
+        """What did not start at the service (a skill with a wrong setting, an
         agent described in YAML that does not fit) is a repair in Home
-        Assistant, in the words the agent logged. A problem that is gone is
+        Assistant, in the words the service logged. A problem that is gone is
         taken away again."""
         wanted: dict[str, dict[str, Any]] = {}
         for problem in problems:
@@ -180,11 +191,11 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _sync(self, status: dict[str, Any]) -> None:
         """Sends the settings once, and the list of what Assist sees again
-        whenever the agent's fingerprint of it differs from ours: a device
-        that was discovered later, an agent that started with an empty
+        whenever the service's fingerprint of it differs from ours: a device
+        that was discovered later, a service that started with an empty
         database. Not while Home Assistant is still starting: its entities
         are not all there yet, and a short list would replace a complete one
-        at the agent."""
+        at the service."""
         entry = self.config_entry
         if not entry.data.get(CONF_IMPORTED) or self.hass.state is not CoreState.running:
             return
@@ -194,9 +205,9 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             await self.client.set_managed_config(await async_config(self.hass, entry))
         except (MiraInvalidConfig, ValueError) as err:
-            # Retrying cannot fix it; the agent keeps its last valid config.
-            _LOGGER.error("The agent refused watchers, persons and rooms from Home Assistant: %s", err)
+            # Retrying cannot fix it; the service keeps its last valid config.
+            _LOGGER.error("The service refused watchers, persons and rooms from Home Assistant: %s", err)
         except MiraError as err:
-            _LOGGER.debug("Sending watchers, persons and rooms waits for the agent: %s", err)
+            _LOGGER.debug("Sending watchers, persons and rooms waits for the service: %s", err)
             return
         self._synced = True

@@ -1,6 +1,6 @@
-"""The integration and the agent may be different versions for a while
+"""The integration and the service may be different versions for a while
 (docs/spec/versions.md): a repair says which one to update, and what an
-older agent does not have is taken as missing, not as an error."""
+older service does not have is taken as missing, not as an error."""
 
 import json
 from pathlib import Path
@@ -24,7 +24,7 @@ def _minor_apart(delta: int) -> str:
 
 
 async def test_older_agent_is_a_repair_until_updated(hass, aioclient_mock, entry):
-    """VE-02: an agent a minor version behind asks to update the agent; once it
+    """VE-02: a service a minor version behind asks to update the service; once it
     is the same version, the repair goes away. A patch apart is fine."""
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={**STATUS, "version": "v" + _minor_apart(-2)})
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -51,7 +51,7 @@ async def test_newer_agent_asks_to_update_the_integration(hass, aioclient_mock, 
 
 
 async def test_agent_without_a_version_in_status_uses_health(hass, aioclient_mock, entry):
-    """VE-03: an agent that does not say its version in /v1/status (older) is
+    """VE-03: a service that does not say its version in /v1/status (older) is
     judged by what /v1/health said at setup; without any version, no repair."""
     aioclient_mock.clear_requests()
     aioclient_mock.put(f"{AGENT_URL}/v1/ui/ha", json={"managed": True})
@@ -74,7 +74,7 @@ async def test_no_version_no_repair(hass, aioclient_mock, entry):
 
 
 async def test_agent_without_provider_list_knows_none(hass, aioclient_mock):
-    """VE-04: an agent older than the provider list answers 404; then there are
+    """VE-04: a service older than the provider list answers 404; then there are
     no providers to pick, only a model of one's own, instead of an error."""
     aioclient_mock.get(f"{AGENT_URL}/v1/setup/providers", status=404, json={"error": "not found"})
     client = MiraClient(async_get_clientsession(hass), AGENT_URL, "secret")
@@ -82,7 +82,7 @@ async def test_agent_without_provider_list_knows_none(hass, aioclient_mock):
 
 
 def test_the_code_version_is_the_manifests():
-    # The release raises manifest.json; VERSION is what the integration compares with the agent and shows on the
+    # The release raises manifest.json; VERSION is what the integration compares with the service and shows on the
     # device. 0.16.0 went out with VERSION still 0.15.2 and a wrong "versions do not match" repair.
     manifest = json.loads((Path(__file__).parents[2] / "custom_components/mira/manifest.json").read_text())
     assert VERSION == manifest["version"]
@@ -111,6 +111,36 @@ async def test_an_older_agent_on_ha_os_reloads_the_app_store_once(hass, aioclien
         await entry.runtime_data.coordinator.async_refresh()
         await hass.async_block_till_done()
     assert client.store.reload.await_count == 1
+
+
+async def test_an_agent_a_patch_behind_reloads_the_app_store_without_a_repair(hass, aioclient_mock, entry):
+    """A patch apart is no repair, but the app's update is asked for all the same."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={**STATUS, "version": "0.23.1"})
+    client = MagicMock()
+    client.store.reload = AsyncMock()
+    with (
+        patch("custom_components.mira.coordinator.VERSION", "0.23.2"),
+        patch("custom_components.mira.coordinator.is_hassio", return_value=True),
+        patch("homeassistant.components.hassio.get_supervisor_client", return_value=client),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert client.store.reload.await_count == 1
+    assert ir.async_get(hass).async_get_issue(DOMAIN, "version_mismatch") is None
+
+
+async def test_the_same_or_a_newer_agent_reloads_no_app_store(hass, aioclient_mock, entry):
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={**STATUS, "version": "0.23.3"})
+    client = MagicMock()
+    client.store.reload = AsyncMock()
+    with (
+        patch("custom_components.mira.coordinator.VERSION", "0.23.2"),
+        patch("custom_components.mira.coordinator.is_hassio", return_value=True),
+        patch("homeassistant.components.hassio.get_supervisor_client", return_value=client),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert client.store.reload.await_count == 0
 
 
 async def test_without_ha_os_no_store_is_reloaded(hass, aioclient_mock, entry):

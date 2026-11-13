@@ -85,6 +85,14 @@ func TestAnOlderIntegrationMakesTheMarketplaceLookOnce(t *testing.T) {
 	}
 }
 
+func TestAPatchBehindAsksToo(t *testing.T) {
+	ha := &fakeHA{known: "marketplace"}
+	logs := &lockedBuf{}
+	w := &Watcher{Version: "0.22.1", HA: ha, Log: slog.New(slog.NewTextHandler(logs, nil))}
+	w.Seen(context.Background(), "0.22.0")
+	wait(t, func() bool { return strings.Contains(logs.String(), "asked for the integration's update") })
+}
+
 func TestBefore202611HACSIsAsked(t *testing.T) {
 	ha := &fakeHA{known: "hacs"}
 	logs := &lockedBuf{}
@@ -107,7 +115,7 @@ func TestNeitherCommandIsLogged(t *testing.T) {
 func TestTheSameOrANewerOrNoIntegrationAsksNothing(t *testing.T) {
 	ha := &fakeHA{known: "marketplace"}
 	w := &Watcher{Version: "0.21.0", HA: ha, Log: slog.Default()}
-	for _, v := range []string{"", "0.21.3", "v0.21.0", "0.22.0", "garbage"} {
+	for _, v := range []string{"", "0.21.3", "v0.21.0", "0.21", "0.22.0", "garbage"} {
 		w.Seen(context.Background(), v)
 	}
 	time.Sleep(30 * time.Millisecond)

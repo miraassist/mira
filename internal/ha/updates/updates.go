@@ -38,28 +38,37 @@ type Watcher struct {
 	asked bool
 }
 
-var minorRE = regexp.MustCompile(`^v?(\d+)\.(\d+)`)
+var versionRE = regexp.MustCompile(`^v?(\d+)\.(\d+)(?:\.(\d+))?`)
 
-// minor is major and minor of a version like 0.9.0 or v0.9.0.
-func minor(v string) (int, int, bool) {
-	m := minorRE.FindStringSubmatch(v)
+// parts is major, minor and patch of a version like 0.9.1 or v0.9 (a missing
+// patch is 0).
+func parts(v string) ([3]int, bool) {
+	m := versionRE.FindStringSubmatch(v)
 	if m == nil {
-		return 0, 0, false
+		return [3]int{}, false
 	}
-	a, _ := strconv.Atoi(m[1])
-	b, _ := strconv.Atoi(m[2])
-	return a, b, true
+	var p [3]int
+	for i := range p {
+		p[i], _ = strconv.Atoi(m[i+1])
+	}
+	return p, true
 }
 
-// Older says whether version a is older than b by major or minor (a patch
-// apart is the same, as the repair counts).
+// Older says whether version a is older than b, a patch counting too: the
+// repair leaves a patch apart alone, but the update is offered for it as well,
+// and asking for it disturbs nobody (docs/spec/versions.md).
 func Older(a, b string) bool {
-	am, an, ok1 := minor(a)
-	bm, bn, ok2 := minor(b)
+	pa, ok1 := parts(a)
+	pb, ok2 := parts(b)
 	if !ok1 || !ok2 {
 		return false
 	}
-	return am < bm || am == bm && an < bn
+	for i := range pa {
+		if pa[i] != pb[i] {
+			return pa[i] < pb[i]
+		}
+	}
+	return false
 }
 
 // Seen is called with the integration's version from a request
