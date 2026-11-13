@@ -17,6 +17,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
 	"github.com/miraassist/mira/internal/tasks"
+	"github.com/miraassist/mira/internal/watch"
 )
 
 type fakeConversation struct {
@@ -209,8 +210,15 @@ func TestTaskMessageIsLogged(t *testing.T) {
 }
 
 type fakeTasks struct {
-	got tasks.Request
-	err error
+	got   tasks.Request
+	err   error
+	check tasks.CheckCall
+	ans   tasks.CheckAnswer
+}
+
+func (f *fakeTasks) Check(_ context.Context, c tasks.CheckCall) (tasks.CheckAnswer, error) {
+	f.check = c
+	return f.ans, f.err
 }
 
 func (f *fakeTasks) Assess(context.Context, tasks.Request) (tasks.Verdict, error) {
@@ -347,5 +355,30 @@ func TestMessageForEveryPerson(t *testing.T) {
 	n, _ := st2.GetMessage(context.Background(), r["id"].(string))
 	if n.Kind != store.KindPrivate || n.Receiver != store.ReceiverHouse || n.Importance != 2 || n.Source != store.SourceTask {
 		t.Errorf("message %+v", n)
+	}
+}
+
+// mira.check as the integration sends it: the action's fields, the result
+// back; a request naming what does not exist is 400, Home Assistant failing
+// to render 502, both with the reason.
+func TestCheckRoute(t *testing.T) {
+	ft := &fakeTasks{ans: tasks.CheckAnswer{CheckResult: watch.CheckResult{Scope: "openings", Checked: 9,
+		Open: []watch.Member{{ID: "binary_sensor.fenster_bad", Name: "Fenster Bad", State: "on", Area: "Bad"}}}, MessageID: "m1"}}
+	srv := httptest.NewServer(New(Options{Token: "secret", Tasks: ft, Version: "test"}))
+	t.Cleanup(srv.Close)
+	code, body := do(t, srv, "POST", "/v1/check", "secret", `{"scope":"openings","floors":["dachgeschoss"],"receiver":"anna","notify":false}`)
+	if code != 200 || body["checked"] != 9.0 || body["message_id"] != "m1" || fmt.Sprint(body["open"]) == "[]" {
+		t.Fatalf("%d %v", code, body)
+	}
+	if ft.check.Scope != "openings" || ft.check.Floors[0] != "dachgeschoss" || ft.check.Receiver != "anna" || ft.check.Notify == nil || *ft.check.Notify {
+		t.Errorf("call %+v", ft.check)
+	}
+	ft.err = watch.ErrBadCheck{Reason: `eine Etage "turm" gibt es nicht`}
+	if code, body := do(t, srv, "POST", "/v1/check", "secret", `{"floors":["turm"]}`); code != 400 || !strings.Contains(fmt.Sprint(body["error"]), "turm") {
+		t.Errorf("%d %v", code, body)
+	}
+	ft.err = errors.New("home assistant rejected render_template: boom (template_error)")
+	if code, body := do(t, srv, "POST", "/v1/check", "secret", `{}`); code != 502 || !strings.Contains(fmt.Sprint(body["error"]), "boom") {
+		t.Errorf("%d %v", code, body)
 	}
 }

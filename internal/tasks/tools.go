@@ -106,7 +106,7 @@ func (m *Manager) Tools() []tools.InternalTool {
 				return m.DescribeTry(res), nil
 			},
 		},
-	}, append(m.watchTools(), m.exceptionTool()...)...)
+	}, append(append(m.watchTools(), m.exceptionTool()...), m.checkTool()...)...)
 }
 
 // DescribeTry says what a dry run found.

@@ -404,6 +404,32 @@
           "description": "The call id mira.agent returned."
         }
       }
+    },
+    "check": {
+      "name": "Check",
+      "description": "Mira checks once whether the windows and doors (or the lights or motion sensors) of the house, or of areas and floors, are closed, as her watches see them. When something is open she puts an entry for the receiver; the list comes back as the response (open, unreadable, checked).",
+      "fields": {
+        "scope": {
+          "name": "Kind",
+          "description": "openings (windows and doors, default), lights or motion."
+        },
+        "areas": {
+          "name": "Areas",
+          "description": "Only these areas (with the floors); none for the whole house."
+        },
+        "floors": {
+          "name": "Floors",
+          "description": "Only these floors (with the areas); none for the whole house."
+        },
+        "receiver": {
+          "name": "Receiver",
+          "description": "house (default), or a person: the HA person id (e.g. anna)."
+        },
+        "notify": {
+          "name": "Entry",
+          "description": "Put an entry for the receiver when something is open (default on)."
+        }
+      }
     }
   },
   "selector": {
@@ -525,6 +551,14 @@
     "model_problem": {
       "title": "Mira's AI model {name} does not answer",
       "description": "{text}\n\nCheck the model on Mira's page under Models: its key and its address. The message disappears here once the model answers again."
+    }
+  },
+  "exceptions": {
+    "check_needs_update": {
+      "message": "Mira can do this only after an update of the Mira service."
+    },
+    "check_failed": {
+      "message": "Mira could not check: {error}"
     }
   }
 }

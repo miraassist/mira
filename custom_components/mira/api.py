@@ -376,6 +376,11 @@ class MiraClient:
         """Let the service judge an observation and queue a message if it is worth one."""
         return await self._request("POST", "/v1/assess", 60, json=request)
 
+    async def check(self, request: dict[str, Any]) -> dict[str, Any]:
+        """mira.check: the watch group checked once. MiraNotFound from a
+        service older than the group watch."""
+        return await self._request("POST", "/v1/check", 20, json=request)
+
     async def decide(self, request: dict[str, Any]) -> dict[str, Any]:
         """Ask the service a yes/no question about the house; no message."""
         return await self._request("POST", "/v1/decide", 60, json=request)

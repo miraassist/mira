@@ -25,6 +25,7 @@ import (
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
 	"github.com/miraassist/mira/internal/trace"
+	"github.com/miraassist/mira/internal/watch"
 )
 
 // Conversation is the part of the engine the API needs.
@@ -129,6 +130,8 @@ type Problem struct {
 type Tasks interface {
 	Assess(ctx context.Context, r tasks.Request) (tasks.Verdict, error)
 	Decide(ctx context.Context, r tasks.Request) (tasks.Decision, error)
+	// Check is mira.check (docs/spec/group-watch.md, C2).
+	Check(ctx context.Context, c tasks.CheckCall) (tasks.CheckAnswer, error)
 }
 
 type Server struct {
@@ -153,6 +156,7 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
 	s.mux.HandleFunc("POST /v1/assess", s.assess)
 	s.mux.HandleFunc("POST /v1/decide", s.decide)
+	s.mux.HandleFunc("POST /v1/check", s.check)
 	s.mux.HandleFunc("POST /v1/mail", s.mail)
 	if s.opts.Agents != nil {
 		s.mux.HandleFunc("POST /v1/agent", s.callAgent)
@@ -644,6 +648,33 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusCreated
 	}
 	writeJSON(w, code, map[string]any{"id": n.ID, "created": created})
+}
+
+// check is mira.check (docs/spec/group-watch.md, C2): the watch group
+// checked once, an entry for the receiver when something is open (unless
+// notify is false), the result as the answer. A request naming what does
+// not exist is 400 with what there is; Home Assistant failing to render is
+// 502 with its answer (the action's error, the automation's trace).
+func (s *Server) check(w http.ResponseWriter, r *http.Request) {
+	var req tasks.CheckCall
+	if err := decode(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ans, err := s.opts.Tasks.Check(r.Context(), req)
+	var bad watch.ErrBadCheck
+	switch {
+	case errors.As(err, &bad):
+		s.log.Info("check refused", "scope", req.Scope, "areas", req.Areas, "floors", req.Floors, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, tasks.ErrNoWatch):
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+	case err != nil:
+		s.log.Warn("check failed", "scope", req.Scope, "areas", req.Areas, "floors", req.Floors, "error", err)
+		writeError(w, http.StatusBadGateway, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, ans)
+	}
 }
 
 func decode(r *http.Request, v any) error {

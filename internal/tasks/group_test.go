@@ -297,3 +297,97 @@ func toolNamed(t *testing.T, m *Manager, name string) tools.InternalTool {
 	t.Fatalf("no tool %s", name)
 	return tools.InternalTool{}
 }
+
+// GW-17 Ist alles zu?
+func TestGW17_IstAllesZu(t *testing.T) {
+	e, h, _ := groupSetup(t)
+	// Given the fake bathroom window is open and every other opening closed
+	mb := h.entities["binary_sensor.fenster_bad"]
+	mb.State, mb.Area = "on", "Bad"
+	h.entities["binary_sensor.fenster_bad"] = mb
+	// When the user asks "Ist alles zu?"
+	out, err := toolNamed(t, e.m, ToolHouseCheck).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{}`)})
+	// Then Mira hears that all is closed but the bathroom window
+	if err != nil || out != "Offen: Fenster Bad (Bad). Geprüft: 3 Fenster und Türen." {
+		t.Errorf("%q %v", out, err)
+	}
+	// Nothing open: said so; a floor by its name narrows it.
+	mb.State = "off"
+	h.entities["binary_sensor.fenster_bad"] = mb
+	out, err = toolNamed(t, e.m, ToolHouseCheck).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"floors":["Dachgeschoss"]}`)})
+	if err != nil || out != "Alles zu: 1 Fenster und Türen geprüft, nichts offen." {
+		t.Errorf("%q %v", out, err)
+	}
+	// A floor that does not exist is said with the floors there are.
+	if _, err := toolNamed(t, e.m, ToolHouseCheck).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"floors":["Turm"]}`)}); err == nil ||
+		!strings.Contains(err.Error(), `eine Etage "Turm" gibt es nicht; die Etagen: Erdgeschoss, Dachgeschoss`) {
+		t.Errorf("%v", err)
+	}
+}
+
+// GW-18 The check names what does not report
+func TestGW18_TheCheckNamesWhatDoesNotReport(t *testing.T) {
+	e, h, _ := groupSetup(t)
+	// Given a fake window is unavailable
+	mb := h.entities["binary_sensor.fenster_buro"]
+	mb.State = "unavailable"
+	h.entities["binary_sensor.fenster_buro"] = mb
+	// When the user asks "Ist alles zu?"
+	out, err := toolNamed(t, e.m, ToolHouseCheck).Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{}`)})
+	// Then Mira names it as not readable
+	if err != nil || !strings.Contains(out, "Alles zu: 3 Fenster und Türen geprüft") ||
+		!strings.Contains(out, "Meldet sich nicht, also nicht geprüft (sag das dazu): Fenster Büro (buro).") {
+		t.Errorf("%q %v", out, err)
+	}
+}
+
+// GW-19 mira.check from a script
+func TestGW19_MiraCheckFromAScript(t *testing.T) {
+	e, h, _ := groupSetup(t)
+	// Given the fake bathroom window is open
+	mb := h.entities["binary_sensor.fenster_bad"]
+	mb.State, mb.Area = "on", "Bad"
+	h.entities["binary_sensor.fenster_bad"] = mb
+	// When a script calls mira.check with a response variable
+	ans, err := e.m.Check(context.Background(), CheckCall{})
+	// Then the response lists the bathroom window
+	if err != nil || ans.Scope != "openings" || len(ans.Open) != 1 || ans.Open[0].ID != "binary_sensor.fenster_bad" || ans.Checked != 3 {
+		t.Fatalf("%+v %v", ans, err)
+	}
+	// And an entry for the receiver names it
+	n, err := e.st.GetMessage(context.Background(), ans.MessageID)
+	if err != nil || n.Receiver != store.ReceiverHouse || n.Kind != store.KindSimple || n.Spoken != "Noch offen: Fenster Bad (Bad)." {
+		t.Errorf("%+v %v", n, err)
+	}
+	// For a person, and not at all with notify off; an unknown receiver is the caller's error.
+	off := false
+	if ans, err := e.m.Check(context.Background(), CheckCall{Notify: &off}); err != nil || ans.MessageID != "" || len(ans.Open) != 1 {
+		t.Errorf("notify off: %+v %v", ans, err)
+	}
+	var bad watch.ErrBadCheck
+	if _, err := e.m.Check(context.Background(), CheckCall{Receiver: "jemand"}); !errors.As(err, &bad) {
+		t.Errorf("receiver: %v", err)
+	}
+	if ans, err := e.m.Check(context.Background(), CheckCall{Receiver: "anna"}); err != nil || ans.MessageID == "" {
+		t.Errorf("anna: %+v %v", ans, err)
+	}
+}
+
+// GW-20 mira.check and nothing open
+func TestGW20_MiraCheckAndNothingOpen(t *testing.T) {
+	e, _, _ := groupSetup(t)
+	// Given every opening is closed
+	// When a script calls mira.check
+	ans, err := e.m.Check(context.Background(), CheckCall{})
+	// Then the response's list is empty
+	if err != nil || ans.Open == nil || len(ans.Open) != 0 || ans.Checked != 3 {
+		t.Fatalf("%+v %v", ans, err)
+	}
+	// And no entry comes
+	if ans.MessageID != "" {
+		t.Errorf("entry %s", ans.MessageID)
+	}
+	if msgs, _ := e.st.ListMessages(context.Background(), store.MessageFilter{IncludeExpired: true}); len(msgs) != 0 {
+		t.Errorf("messages: %v", msgs)
+	}
+}

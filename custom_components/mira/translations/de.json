@@ -404,6 +404,32 @@
           "description": "Die Aufruf-ID, die mira.agent zurückgab."
         }
       }
+    },
+    "check": {
+      "name": "Prüfen",
+      "description": "Mira prüft einmal, ob die Fenster und Türen (oder die Lichter oder Bewegungsmelder) im Haus oder in Bereichen und Etagen zu sind, so wie ihre Wächter sie sehen. Ist etwas offen, bekommt der Empfänger einen Eintrag; die Liste kommt als Antwort zurück (open, unreadable, checked).",
+      "fields": {
+        "scope": {
+          "name": "Art",
+          "description": "openings (Fenster und Türen, Standard), lights oder motion."
+        },
+        "areas": {
+          "name": "Bereiche",
+          "description": "Nur diese Bereiche (mit den Etagen); leer für das ganze Haus."
+        },
+        "floors": {
+          "name": "Etagen",
+          "description": "Nur diese Etagen (mit den Bereichen); leer für das ganze Haus."
+        },
+        "receiver": {
+          "name": "Empfänger",
+          "description": "house (Standard) oder eine Person: die HA-Personen-ID (z. B. anna)."
+        },
+        "notify": {
+          "name": "Eintrag",
+          "description": "Einen Eintrag für den Empfänger, wenn etwas offen ist (Standard an)."
+        }
+      }
     }
   },
   "selector": {
@@ -525,6 +551,14 @@
     "model_problem": {
       "title": "Miras KI-Modell {name} antwortet nicht",
       "description": "{text}\n\nPrüfe das Modell auf Miras Seite unter Modelle: seinen Schlüssel und seine Adresse. Die Meldung verschwindet hier, sobald das Modell wieder antwortet."
+    }
+  },
+  "exceptions": {
+    "check_needs_update": {
+      "message": "Mira kann das erst nach einem Update."
+    },
+    "check_failed": {
+      "message": "Mira konnte nicht prüfen: {error}"
     }
   }
 }

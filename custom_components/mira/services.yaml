@@ -163,3 +163,26 @@ agent_cancel:
       required: true
       selector:
         text:
+check:
+  fields:
+    scope:
+      default: openings
+      selector:
+        select:
+          options: [openings, lights, motion]
+    areas:
+      selector:
+        area:
+          multiple: true
+    floors:
+      selector:
+        floor:
+          multiple: true
+    receiver:
+      example: house
+      selector:
+        text:
+    notify:
+      default: true
+      selector:
+        boolean:

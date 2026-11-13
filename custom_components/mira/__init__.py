@@ -22,7 +22,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .access import hand_back, keep_rejoin, use_mira_in
 from .agents import async_register_agent_services
-from .api import MiraClient, MiraError
+from .api import MiraClient, MiraError, MiraNotFound
 from .automations import async_register_commands
 from .backup import async_offer_restore
 from .const import (
@@ -99,6 +99,18 @@ ASSESS_SCHEMA = vol.Schema(
 )
 DECIDE_SCHEMA = vol.Schema({vol.Required("question"): cv.string, **JUDGEMENT_FIELDS})
 
+# mira.check (docs/spec/group-watch.md, C2): a watch group checked once.
+SERVICE_CHECK = "check"
+CHECK_SCHEMA = vol.Schema(
+    {
+        vol.Optional("scope"): vol.In(["openings", "lights", "motion"]),
+        vol.Optional("areas"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("floors"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("receiver"): cv.string,
+        vol.Optional("notify"): cv.boolean,
+    }
+)
+
 
 @dataclass
 class MiraData:
@@ -157,8 +169,28 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         schema=SEND_MESSAGE_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+
+    async def check(call: ServiceCall) -> ServiceResponse:
+        """A watch group checked once by the service; an older service has
+        no route for it (404) and the action says so. Not tried again: the
+        automation's trace shows the error (docs/spec/group-watch.md)."""
+        entry = loaded()
+        try:
+            result = await entry.runtime_data.client.check(dict(call.data))
+        except MiraNotFound as err:
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="check_needs_update") from err
+        except MiraError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="check_failed", translation_placeholders={"error": str(err)}
+            ) from err
+        await entry.runtime_data.coordinator.async_request_refresh()
+        return result
+
     hass.services.async_register(
         DOMAIN, SERVICE_ASSESS, assess, schema=ASSESS_SCHEMA, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CHECK, check, schema=CHECK_SCHEMA, supports_response=SupportsResponse.OPTIONAL
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DECIDE, decide, schema=DECIDE_SCHEMA, supports_response=SupportsResponse.ONLY

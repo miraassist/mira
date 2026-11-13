@@ -1,6 +1,6 @@
 # Group watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 3 built 2026-11-13 (decisions 21 and on taken while building,
+Status 2026-11-13: specified (decisions 1 to 20); steps 1 to 4 built 2026-11-13 (decisions 21 and on taken while building,
 to be confirmed by the maintainer), not released. It builds on the [Device watch](device-watch.md). Scenarios:
 [group-watch.feature](group-watch.feature).
 
@@ -61,6 +61,9 @@ availability watch (later group watches, decision 19).
 | 30 | A selection without members (A4) | Ends the drafting at once with the reason (no second draft: another draft cannot add a sensor); the thread ends as one the house cannot do, the user hears it, nothing is saved, a log line names the selection. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 31 | The receiver `persons` in the service (decision 20) | `mira.send_message` with `receiver: persons` is stored as a **private message of the house**, which goes out over the channels of every person that has one (a person without a channel is passed over, not a failure); no person with a channel: refused (400, "receiver persons: no person has a channel", a log line with the text), so the automation's trace shows it. Each call is sent: the dedupe key is not used for it (a key would only find an entry already sent). The integration passes the value on unchanged. Taken while building, 2026-11-13, to be confirmed by the maintainer |
 | 32 | A member on when the watch is loaded | A template trigger fires when its template **turns** true: a member already on (or a streak running) when the watch is saved or Home Assistant starts is not told, the next streak is (as the device watch's decision 31). Found on the test HA: the demo's `binary_sensor.movement_backyard` is on for good, so "motion while nobody is home" over the whole test house never turned true; a sensor stuck on keeps such a watch quiet until it goes off. Accepted; the label takes such a sensor out. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 33 | The tool `house_check` | Offered in **every turn**, without a skill ("Ist alles zu?" is asked at any time); read only. Scopes `openings` (default), `lights` ("Brennt irgendwo noch Licht?") and `motion`; areas and floors by name or id. Temperatures have no "open" and are no scope of a check. Its answer names what is open with its area, how many were checked, and what does not report, which the model is told to say too (Flash Lite left it out at first). Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 34 | The check's entry (C2) | Kind `simple`, importance 1, for the receiver (house or a person; another value is the caller's error), key `check:<scope>` (a second check while it is unheard replaces it), expiry 12 hours, text "Noch offen: Fenster Bad (Bad)." and, when some do not report, "Meldet sich nicht: …". Nothing open: no entry, also when some do not report. Taken while building, 2026-11-13, to be confirmed by the maintainer |
+| 35 | Errors of `/v1/check` | A scope, area, floor or receiver that does not exist: 400 with what there is; Home Assistant failing to render: 502 with its answer and a log line; the integration's action raises them as `check_failed` with the service's reason, a 404 (an older service) as `check_needs_update` ("Mira kann das erst nach einem Update."). Not tried again (Retries). Taken while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -239,8 +242,8 @@ trace shows the error.
 | 7 | Open too long, lights left on | a fake window or light on for the (shortened) time | the trace fires once per streak | 2026-11-13, 2026.11.1: open 1 minute, light 0.05 h: each at the first full minute after the time (the template's render each minute, as the device watch's row 6); not again while they stayed on; a labelled light on for the time: no trace (row 3) |
 | 8 | Motion while nobody is home | fake motion with nobody home | the trace fires | 2026-11-13, 2026.11.1: at once, the entry at both fake phones about 6 seconds later (the notifier's tick); over the whole house only once the demo's motion sensor, on for good, was left out (decision 32) |
 | 9 | Too cold | a fake temperature below the value for the (shortened) time; how long the template takes over all sensors | the trace fires; the render time | 2026-11-13, 2026.11.1: the entry 1 minute after 4 °C, to the second; the template over the test HA's 179 sensors rendered in 3 to 11 ms (`render_template`, the round trip included); Home Assistant renders a template over a whole domain at most once a second |
-| 10 | `render_template` once | the check's template | the first answer, then the subscription ends | open |
-| 11 | `mira.check` from a script | a script with `response_variable` | the list in the response, the entry | open |
+| 10 | `render_template` once | the check's template | the first answer, then the subscription ends | 2026-11-13, 2026.11.1: the first answer after 2 ms, `unsubscribe_events` answered with success, no event after it; `house_check` at the test Mira 3 to 4 ms |
+| 11 | `mira.check` from a script | a script with `response_variable` | the list in the response, the entry | 2026-11-13, 2026.11.1: the script's response `{"scope": "openings", "open": [Fenster Bad], "checked": 9, "message_id": …}` in 25 ms, the entry for the house; all closed: `open` empty, no entry; with the service of step 3 (no route): "Mira can do this only after an update of the Mira service" |
 
 Each row is checked before the step that builds on it.
 
@@ -288,5 +291,12 @@ Each row is checked before the step that builds on it.
    bedroom's fake light off (`HassTurnOff`); a watch switched off (GW-16) told nothing. The test HA's Telegram chat of
    the person Admin got the first private entry before the test persons' phones were set; it was taken off Admin for
    the runs and set back after.
-4. **"Ist alles zu?":** the tool `house_check`, the route `/v1/check`, the action `mira.check`; rows 10 and 11.
+4. **"Ist alles zu?":** the tool `house_check`, the route `/v1/check`, the action `mira.check`; rows 10 and 11. Built
+   2026-11-13 (decisions 33 to 35): `watch.HouseCheck`, `tasks.Check` and the tool `house_check`, the route
+   `/v1/check`, the action `mira.check` with its texts in German and English. GW-17 to GW-20 in Go, GW-19 (the
+   integration's side) and GW-21 in pytest (`tests/ha/test_check.py`); rows 10 and 11 checked. At the test Mira by
+   voice at the fake Show (Flash Lite): "Ist alles zu?" with the bathroom window open – "Im Bad steht noch ein Fenster
+   offen."; with the office's fake window unavailable – "Das Fenster im Bad ist noch offen, und das Bürofenster meldet
+   sich nicht."; a script with `mira.check` and `response_variable` as in row 11, GW-21 against the service of step 3
+   at the test HA.
 5. **The guide**, German and English: group watches, the label, "Ist alles zu?", `mira.check` in an automation.

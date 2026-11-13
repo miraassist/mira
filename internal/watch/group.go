@@ -481,3 +481,129 @@ func (w *Blueprints) setLabel(ctx context.Context, entity string, on bool) error
 	}
 	return err
 }
+
+// CheckRequest is a check of a watch group once ("Ist alles zu?", the
+// action mira.check; docs/spec/group-watch.md, C): a scope (default the
+// openings, decision 17) and optionally areas and floors, by id or name.
+type CheckRequest struct {
+	Scope  string   `json:"scope"`
+	Areas  []string `json:"areas"`
+	Floors []string `json:"floors"`
+}
+
+// CheckResult is what a check found: the members that break the scope's
+// rule now (on: open, on, motion), the ones that cannot be read, and how
+// many were checked.
+type CheckResult struct {
+	Scope      string   `json:"scope"`
+	Open       []Member `json:"open"`
+	Unreadable []Member `json:"unreadable"`
+	Checked    int      `json:"checked"`
+}
+
+type checkTexts struct {
+	unknownScope, unknownArea, unknownFloor string
+}
+
+var checkCatalog = map[i18n.Lang]checkTexts{
+	i18n.DE: {
+		unknownScope: "eine Art %q gibt es hier nicht; die Arten: openings, lights, motion",
+		unknownArea:  "einen Bereich %q gibt es nicht; die Bereiche: %s",
+		unknownFloor: "eine Etage %q gibt es nicht; die Etagen: %s",
+	},
+	i18n.EN: {
+		unknownScope: "there is no kind %q here; the kinds: openings, lights, motion",
+		unknownArea:  "there is no area %q; the areas: %s",
+		unknownFloor: "there is no floor %q; the floors: %s",
+	},
+}
+
+// ErrBadCheck is a check that names what does not exist (a scope, an area,
+// a floor): the caller's error, with what there is.
+type ErrBadCheck struct{ Reason string }
+
+func (e ErrBadCheck) Error() string { return e.Reason }
+
+// HouseCheck checks a watch group once (C1, C2): the house's floors and
+// areas when the request names some (one render), then the selection's
+// members as the blueprints compute them (one render), split into what is
+// on (open) and what cannot be read; the label counts as in every watch
+// (decision 13). Temperatures have no "open" and are no scope of a check.
+func (w *Blueprints) HouseCheck(ctx context.Context, req CheckRequest) (CheckResult, error) {
+	t := i18n.Pick(checkCatalog, w.opts.Lang)
+	name := req.Scope
+	if name == "" {
+		name = "openings"
+	}
+	scope, ok := ScopeByName(name)
+	if !ok || scope.Name == "temperatures" {
+		return CheckResult{}, ErrBadCheck{fmt.Sprintf(t.unknownScope, name)}
+	}
+	sel := Selection{Scope: scope}
+	if len(req.Areas) > 0 || len(req.Floors) > 0 {
+		h, err := w.House(ctx)
+		if err != nil {
+			return CheckResult{}, err
+		}
+		for _, a := range req.Areas {
+			id, ok := h.areaID(a)
+			if !ok {
+				var names []string
+				for _, n := range h.Areas {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				return CheckResult{}, ErrBadCheck{fmt.Sprintf(t.unknownArea, a, strings.Join(names, ", "))}
+			}
+			sel.Areas = append(sel.Areas, id)
+		}
+		for _, f := range req.Floors {
+			id, ok := h.floorID(f)
+			if !ok {
+				var names []string
+				for _, x := range h.Floors {
+					names = append(names, x.Name)
+				}
+				return CheckResult{}, ErrBadCheck{fmt.Sprintf(t.unknownFloor, f, strings.Join(names, ", "))}
+			}
+			sel.Floors = append(sel.Floors, id)
+		}
+	}
+	members, err := w.Members(ctx, sel)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	res := CheckResult{Scope: scope.Name, Checked: len(members), Open: []Member{}, Unreadable: []Member{}}
+	for _, m := range members {
+		switch {
+		case !m.Readable():
+			res.Unreadable = append(res.Unreadable, m)
+		case m.State == "on":
+			res.Open = append(res.Open, m)
+		}
+	}
+	return res, nil
+}
+
+// areaID finds an area by its id or its name (any case).
+func (h House) areaID(given string) (string, bool) {
+	if _, ok := h.Areas[given]; ok {
+		return given, true
+	}
+	for id, n := range h.Areas {
+		if strings.EqualFold(n, strings.TrimSpace(given)) {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// floorID finds a floor by its id or its name (any case).
+func (h House) floorID(given string) (string, bool) {
+	for _, f := range h.Floors {
+		if f.ID == given || strings.EqualFold(f.Name, strings.TrimSpace(given)) {
+			return f.ID, true
+		}
+	}
+	return "", false
+}
