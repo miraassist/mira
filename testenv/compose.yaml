@@ -23,6 +23,8 @@ services:
       # A fake Zigbee2MQTT bridge on the test broker (docs/spec/device-onboarding.md).
       - ./z2m_fake:/config/custom_components/z2m_fake:ro
       - ./found_fake:/config/custom_components/found_fake:ro
+      # A water meter and a plug for Mira's device watch (docs/spec/fake-devices.md).
+      - ./watch_fake:/config/custom_components/watch_fake:ro
     restart: "no"
 
   # A broker of its own for test devices (a Tasmota lamp, say), so they never

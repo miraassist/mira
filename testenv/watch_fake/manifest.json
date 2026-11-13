@@ -1,0 +1,11 @@
+{
+  "domain": "watch_fake",
+  "name": "Watched devices fake (test only)",
+  "codeowners": [],
+  "dependencies": [],
+  "documentation": "https://github.com/miraassist/mira/blob/main/docs/spec/fake-devices.md",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -4,7 +4,7 @@ Feature: Device watch (docs/spec/device-watch.md)
   Scenario: CW-01 A missing blueprint is saved in Home Assistant
     Given Home Assistant has none of Mira's blueprints
     When the blueprints are made ready
-    Then each of the four blueprints is saved under "mira/" with blueprint/save
+    Then each of Mira's blueprints is saved under "mira/" with blueprint/save
 
   @step1
   Scenario: CW-02 An unchanged blueprint is not saved again
@@ -18,7 +18,7 @@ Feature: Device watch (docs/spec/device-watch.md)
     And two automations use it
     When the blueprints are made ready
     Then the blueprint is saved with allow_override
-    And exactly those two automations are reloaded
+    And Home Assistant reloads the automations itself, the service reloads nothing
 
   @step1
   Scenario: CW-04 Saving a blueprint is refused
@@ -167,7 +167,7 @@ Feature: Device watch (docs/spec/device-watch.md)
 
   @step1
   Scenario: CW-31 A lost connection is tried again, a refusal is not
-    Given Home Assistant answers blueprint/save first with a 503, then with success
+    Given Home Assistant's connection is lost at the first blueprint/save, then it succeeds
     When the blueprints are made ready
     Then the blueprint is saved on the second try
     And when Home Assistant refuses blueprint/save, it is not tried again and the log names the path and the answer

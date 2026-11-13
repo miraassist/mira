@@ -131,6 +131,9 @@ type edit struct {
 	Summary  string         `json:"summary"`
 	Before   map[string]any `json:"before"`
 	After    map[string]any `json:"after"`
+	// Rendered is a watch's automation as Home Assistant rendered it from
+	// its blueprint: what the integration checks.
+	Rendered map[string]any `json:"rendered,omitempty"`
 }
 
 func (editFinisher) Async() bool { return true }
@@ -178,6 +181,7 @@ func (f editFinisher) Work(ctx context.Context, th store.Thread) (threads.Result
 	goal := fmt.Sprintf(t.editIntro, name, change)
 	current, _ := json.MarshalIndent(before, "", "  ")
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
+	instruction += m.blueprints(ctx)
 	instruction += m.originText(from)
 	instruction += fmt.Sprintf(t.editRules, current)
 
@@ -200,7 +204,7 @@ func (f editFinisher) Work(ctx context.Context, th store.Thread) (threads.Result
 	if sameConfig(before, after) {
 		return threads.Result{Cancel: fmt.Sprintf(t.editNothing, name)}, nil
 	}
-	e := edit{ID: task.ID, EntityID: entity, Title: name, Summary: strings.TrimSpace(d.Summary), Before: before, After: after}
+	e := edit{ID: task.ID, EntityID: entity, Title: name, Summary: strings.TrimSpace(d.Summary), Before: before, After: after, Rendered: d.Rendered}
 	content, _ := json.Marshal(e)
 	m.log.Info("task change drafted", "automation", task.ID, "person", th.Person)
 	return threads.Result{Proposal: m.editProposal(e), Content: content}, nil
@@ -222,7 +226,11 @@ func (f editFinisher) Commit(ctx context.Context, th store.Thread) (string, erro
 	}
 	// Checked once more, then saved as the editor does; the household's
 	// task keeps its own labels.
-	if err := m.validate(ctx, e.After, e.ID); err != nil {
+	checked := e.After
+	if e.Rendered != nil {
+		checked = e.Rendered
+	}
+	if err := m.validate(ctx, checked, e.ID); err != nil {
 		return "", m.haError(err)
 	}
 	if err := automation.Save(ctx, m.opts.HA, m.opts.Store, m.log, e.ID, e.After, automation.Keep); err != nil {
@@ -241,6 +249,15 @@ func (m *Manager) editProposal(e edit) string {
 	condsBefore, condsAfter := m.describeConditions(e.Before["conditions"]), m.describeConditions(e.After["conditions"])
 	if !slices.Equal(condsBefore, condsAfter) {
 		parts = append(parts, fmt.Sprintf(t.conditionsChange, orNone(condsBefore, t.noneShort), orNone(condsAfter, t.noneShort)))
+	}
+	if valuesBefore, valuesAfter := m.blueprintValues(e.Before), m.blueprintValues(e.After); !slices.Equal(valuesBefore, valuesAfter) {
+		said := func(values []string) string {
+			if len(values) == 0 {
+				return t.noneShort
+			}
+			return strings.Join(values, ", ")
+		}
+		parts = append(parts, fmt.Sprintf(t.valuesChange, said(valuesBefore), said(valuesAfter)))
 	}
 	was, now := otherActions(e.Before["actions"]), otherActions(e.After["actions"])
 	if added := missingFrom(now, was); len(added) > 0 {

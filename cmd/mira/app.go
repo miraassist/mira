@@ -59,6 +59,7 @@ import (
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/voicemail"
 	"github.com/miraassist/mira/internal/waiting"
+	"github.com/miraassist/mira/internal/watch"
 	"github.com/miraassist/mira/internal/websearch"
 	"github.com/miraassist/mira/internal/wifi"
 	"github.com/miraassist/mira/internal/zigbee"
@@ -132,6 +133,9 @@ type app struct {
 	// satellites are the voice satellites' device ids last seen in the structure.
 	satellites []string
 	tasks      *tasks.Manager
+	// watch brings Mira's blueprints into Home Assistant
+	// (docs/spec/device-watch.md).
+	watch *watch.Blueprints
 	// threads runs threads ("Vorgänge"): concerns over several turns.
 	threads *threads.Manager
 	// people are Home Assistant's persons (people.go).
@@ -523,8 +527,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, a.clip.Tools()...)
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
+	a.watch = watch.New(watch.Options{HA: a.ha, Lang: a.lang, Logger: a.log})
 	a.tasks = tasks.New(tasks.Options{
-		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot,
+		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot, Watch: a.watch,
 		Model:      a.tasksAssess(),
 		Decider:    a.tasksDecide(),
 		Planner:    a.tasksPlan(),
@@ -791,6 +796,16 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 		a.log.Warn("llm server is not answering yet", "error", err)
 	}
 	a.goRun(ctx, "warmup", a.engine.RunWarmups)
+	// Mira's blueprints, once Home Assistant is connected (step A2 of
+	// docs/spec/device-watch.md); a failure is logged there and tried again
+	// at first use.
+	a.goRun(ctx, "watch-blueprints", func(ctx context.Context) error {
+		if err := a.ha.WaitReady(ctx); err != nil {
+			return nil
+		}
+		_ = a.watch.Ready(ctx)
+		return nil
+	})
 	// A rule written, changed or deleted in hooks/ applies without a restart
 	// (docs/spec/hooks-writing.md, Reloading).
 	a.goRun(ctx, "hooks", func(ctx context.Context) error { a.hooks.Watch(ctx, 2*time.Second); return nil })

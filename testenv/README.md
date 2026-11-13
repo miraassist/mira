@@ -64,6 +64,12 @@ Bridge" with its "Permit join" switch, the requests `permit_join`, `device/renam
 `interview_seconds`), and only while pairing is open, as a real one; `z2m_fake.remove` takes it out again. The fake
 keeps its devices in `.storage/z2m_fake.devices`.
 
+A fake water meter and a fake plug, `watch_fake` (`testenv/watch_fake`, `watch_fake:` in the test HA's configuration),
+are there for Mira's device watch ([Fake devices](../docs/spec/fake-devices.md), The watched devices):
+`sensor.fake_wasserzahler` counts up while `watch_fake.water_run` lets water run (`litres` every `every` seconds) until
+`watch_fake.water_stop`; `sensor.fake_aquarium_leistung` is set with `watch_fake.power` or follows a daily routine with
+`watch_fake.routine` (`windows`, `watts`).
+
 Entities you add to the test house yourself (a lamp, say) are hidden from Assist by `testha up`. List them in `testenv/.env` to keep them exposed and on the dashboard: `TESTHA_EXPOSE="light.lampe|Wohnzimmer|Farblampe;switch.x|Büro"` (area and name optional).
 
 The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the

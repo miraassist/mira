@@ -1,0 +1,97 @@
+blueprint:
+  name: "Mira: water never rests"
+  description: >-
+    Tells Mira when the water meter had no rest within a window (a dripping tap, a toilet that runs on): the
+    window starts when a rest ends, at Home Assistant's start and when the automations are loaded; while no rest
+    comes, Mira gets an entry once per window. Brought and updated by the Mira service; a change made here is
+    overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    meter:
+      name: Water meter
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: water
+    rest:
+      name: Rest
+      description: How many hours the meter stands still to count as a rest.
+      default: 1
+      selector:
+        number:
+          min: 0.25
+          max: 12
+          step: 0.25
+          unit_of_measurement: h
+          mode: box
+    window:
+      name: Window
+      description: Within how many hours a rest must come.
+      default: 24
+      selector:
+        number:
+          min: 2
+          max: 168
+          unit_of_measurement: h
+          mode: box
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "At {{ now().strftime('%H:%M') }} the water meter had not stood still for {{ rest }} hours within the last {{ window }} hours. A tap may be dripping or the toilet running on. Meter: {{ states(meter) }} {{ state_attr(meter, 'unit_of_measurement') }}."
+      selector:
+        text:
+          multiline: true
+
+mode: restart
+
+variables:
+  meter: !input meter
+  rest: !input rest
+  window: !input window
+
+triggers:
+  - trigger: state
+    entity_id: !input meter
+    to: ~
+    for:
+      hours: !input rest
+    id: rest
+  - trigger: homeassistant
+    event: start
+    id: start
+  - trigger: event
+    event_type: automation_reloaded
+    id: start
+
+actions:
+  - repeat:
+      while:
+        - condition: template
+          value_template: "{{ true }}"
+      sequence:
+        # A rest that lasts: the window starts when it ends.
+        - if:
+            - condition: template
+              value_template: "{{ (now() - states[meter].last_changed).total_seconds() >= rest * 3600 }}"
+          then:
+            - wait_for_trigger:
+                - trigger: state
+                  entity_id: !input meter
+                  to: ~
+        - delay:
+            hours: !input window
+        # A rest that began before the automation was loaded holds no entry.
+        - if:
+            - condition: template
+              value_template: "{{ (now() - states[meter].last_changed).total_seconds() < rest * 3600 }}"
+          then:
+            - action: mira.send_message
+              data:
+                text: !input message
+                importance: 1
+                receiver: house
+                dedupe_key: "watch:{{ this.attributes.id }}"
+                expires_in: 12h
+                task: "{{ this.attributes.id }}"

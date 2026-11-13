@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-01: steps 1–4 built; the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-13: steps 1–5 built (step 5: the watched devices); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -84,6 +84,25 @@ The fakes get two actions of their own, for tests only (the real device has noth
 are not in the contract): `techo5_fake.wake_word` (`device`, the node: `fake_show`) and `techo5_fake.say` (`device`,
 `text`), as above. By hand they are called like any action in Home Assistant (developer tools, Actions).
 
+### The watched devices (`testenv/watch_fake`)
+
+For Mira's device watch ([Device watch](device-watch.md)): the test HA has no water meter and no plug whose power
+follows a day. The fake integration `watch_fake` (`watch_fake:` in the test HA's configuration) brings two sensors,
+without a device, exposed to Assist by `testha up`:
+
+- **A water meter** `sensor.fake_wasserzahler` (device class `water`, state class `total_increasing`, litres; keeps its
+  value over a restart). It changes only while water runs: `watch_fake.water_run` (`litres`, default 10; `every`
+  seconds, default 300, as a meter that reports every 5 minutes; `for` seconds, optional, else until stopped) counts up
+  at once and every `every` seconds; `watch_fake.water_stop` ends it.
+- **A plug's power** `sensor.fake_aquarium_leistung` (device class `power`, state class `measurement`, watts):
+  `watch_fake.power` (`watts`) sets it and ends a routine; `watch_fake.routine` (`windows`, e.g.
+  `07:40-11:40, 14:20-21:00`; `watts`, default 50) lets it follow a daily routine: `watts` within the windows, else
+  0, set at once and at every full minute. The routine lives in memory: a restart of the test HA ends it.
+
+As every fake's time (a playback's length, speaking), the meter's and the routine's is the fake's own: Mira and the
+blueprints only see the state change. The blueprints' runs are tested in pytest with these fakes and the time moved
+on (`tests/ha/test_watch_blueprints.py`, CW-11 to CW-15), and on the test HA with shortened durations.
+
 ### The fake OAuth service (`internal/testsupport/fakeoauth`)
 
 For the skills' connections ([Connections](oauth.md)), in the Go tests only: a login that answers at once with a
@@ -110,3 +129,5 @@ turn at the conversation agent.
    and the test files; no `testha` commands of their own (decided 2026-10-30).
 4. **A voice turn** (`techo5_fake.say`) and speaking by the length of the text (FG-15 to FG-17), tested in pytest; the
    answering machine's "all messages, one after the other" played through with it at the test HA.
+5. **The watched devices** (`watch_fake`): the water meter and the plug's power, for the device watch (built
+   2026-11-13 with its step 3; tested with the blueprints in pytest, CW-11 to CW-15).

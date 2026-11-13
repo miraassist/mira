@@ -1,6 +1,6 @@
 # Device watch – Spec
 
-Status 2026-11-13: specified (decisions 1 to 21), not built. Scenarios: [device-watch.feature](device-watch.feature). First part
+Status 2026-11-13: specified (decisions 1 to 21); steps 1 to 3 built 2026-11-13 (decisions 22 to 32 taken while building, to be confirmed), not released. Scenarios: [device-watch.feature](device-watch.feature). First part
 of "Mira watches over the house": a **device watch** watches one device against its own normal, learned from its
 history. A **group watch** watches a group of sensors against a rule for a situation (lights left on, windows open,
 motion while nobody is home, the checks at occasions): [Group watch](group-watch.md), specified later. "Wie geht's
@@ -48,6 +48,17 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 | 19 | The offer's thread | The target `ueberwachung-anbieten` in the skill `aufgabe`, fields: the device, the blueprint, the numbers; expiry 30 days. When the user says no, Mira remembers the device as declined and does not name it again, neither by herself nor in the list on request; "Pass doch auf die Spülmaschine auf" makes the watch all the same |
 | 20 | Two kinds of watch | A **device watch** (this spec): one device against its own normal, learned from its history (its device profile). A **group watch** ([Group watch](group-watch.md)): a group of sensors against a rule for a situation, said by the user (all lights but the garden's, nobody home, at night, when leaving). "A light left on" is a group watch and moves there with its decisions 8 to 10. The ground is shared: blueprints as blueprints, drafting through the skill `aufgabe`, a watch is a task, its entry a message's. Cameras are not part of either for now |
 | 21 | Where a declined device is kept (decision 19) | In Mira's database, table `watch_declined` (`entity_id`, `blueprint`, `declined_at`; key `entity_id`, `blueprint`): no label in Home Assistant, whose negative meaning on a device would be out of place and easily too much. Undone by making the watch by voice ("Pass doch auf die Spülmaschine auf"), which deletes the row |
+| 22 | Who reloads the automations of a changed blueprint (D) | **Home Assistant itself**: `blueprint/save` with `allow_override` reloads all automations when it replaced a file (`homeassistant/components/automation/helpers.py`, `_reload_blueprint_automations`, one `automation.reload`). The service does not look them up (`search/related`) nor reload them by id: not rebuilt what Home Assistant does (checked on the test HA, row 12). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 23 | Who checks the inputs | Home Assistant checks only that no input is missing (`blueprint/substitute` and the save; `blueprint/models.py`, `BlueprintInputs.validate`: selectors are not checked, an input the blueprint does not have is ignored). The **code** checks the rest before Home Assistant is asked (A3): an input the blueprint has, a number within its selector's bounds, an entity among the ones exposed to Assist with the selector's domain and device class, times that read (`07:40-11:40, 14:20-21:00`), and for "water runs on" a gap shorter than the duration (else one change of the meter would count as running for the whole duration). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 24 | The entry's text | The input `message` of every blueprint, the **service's**: filled from the service's texts in the house's language (templates over the blueprint's variables, with the time, as every task's text read later), replacing whatever the planner gives for it; the planner's catalog does not show it. The blueprint's own default is English, for one made by hand in Home Assistant. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 25 | When the window of "water never rests" starts | When a **rest ends** (after a rest the run waits for the meter's next change), at Home Assistant's start and when the automations are loaded; at the window's end no entry while the meter rests right then (a rest that began before the automation was loaded, which no state trigger saw). Without it a meter standing still for a day would be told as never resting. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 26 | A daily routine's power that is not a number | `unavailable` or `unknown` is **no deviation**: the device being gone is Home Assistant's to show (Errors, last row). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 27 | Retryable over the WebSocket (decision 17) | Home Assistant's answers over the WebSocket carry no HTTP status: tried again are a lost connection, a timeout and what `ws.Error.Retryable` counts as retryable (`home_assistant_error`, `unknown_error`); `blueprint/substitute`'s refusals are always about the inputs (a missing input comes as `unknown_error`) and are not tried again. CW-31 reads "a lost connection" for "a 503". Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 28 | Which blueprints the planner sees | Only the ones **ready** in Home Assistant (A2 done for them); one that is not is left out of the catalog and refused by the check with why (CW-04). A2 runs at the service's start once Home Assistant is connected, and again at the next drafting while one is not ready. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 29 | What the proposal says of a watch | The planner's sentence, then the inputs with their values as the code reads them from what is saved, defaults included ("Werte: Zähler sensor.x, Pause bis 11 min, Dauer 30 min."), so the yes covers exactly them; a change says the values before and after. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 30 | A change of a watch | The planner sees the watch as saved (`use_blueprint`) and answers with the changed `use_blueprint` or with the blueprint and its inputs; both go through A3 and A4. The integration checks the rendered automation, as for a new one. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 31 | A watch "water runs on" made while the water runs | Home Assistant's template trigger fires when its template **turns** true: a streak that runs while the watch is made is not told, the next one is. Accepted. Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
+| 32 | "Water never rests" switched on again (task_enable) | Starts no window by itself: the next rest, Home Assistant's start or a reload of the automations starts it. Open for the maintainer; accepted for now (the entry comes later, never wrongly). Decided by Claude while building, 2026-11-13, to be confirmed by the maintainer |
 
 ## Who does what
 
@@ -55,7 +66,7 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 |---|---|---|
 | How it is detected | The blueprint: triggers, conditions, durations, the message | — |
 | Which device | The code lists candidates from the blueprint's entity selector (domain, device class, state class) among the entities exposed to Assist | chooses among several, asks when it is unclear |
-| The inputs | The blueprint's selectors bound them; Home Assistant checks them (`blueprint/substitute`, the save) | turns the user's words into inputs ("nachts läuft zwei Stunden die Bewässerung" → a longer duration) |
+| The inputs | The blueprint's selectors bound them; the code checks them against the selectors, Home Assistant checks that none is missing (`blueprint/substitute`, the save; decision 23) | turns the user's words into inputs ("nachts läuft zwei Stunden die Bewässerung" → a longer duration) |
 | A daily routine | The device profile computes the windows from the last days | proposes them in words ("7:40 bis 11:40 und 14:20 bis 21:00") and takes the correction |
 | Creating | The task's way as today: check, propose, save on yes | proposes in words, takes the yes |
 | Telling | The automation calls `mira.send_message` with the facts (which meter, since when, its value) | words the message when it is read out and talks about it ("Ben ist in der Badewanne"; "mach's aus") |
@@ -64,7 +75,7 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 
 | Building block | Used for | Change | Reason |
 |---|---|---|---|
-| Tasks (`internal/tasks`, skill `aufgabe`, finisher `tasks.automation`) | A watch **is a task**: an automation labelled "Mira", made in conversation, listed, switched off and deleted as one | The drafting step offers the blueprints: the planner may answer with a blueprint and its inputs instead of an automation; the check renders it with `blueprint/substitute` and checks the result as today; the proposal is built from the rendered automation. The skill's prose names the blueprints | One way to make a task; the blueprint only replaces the model's free draft where one fits |
+| Tasks (`internal/tasks`, skill `aufgabe`, finisher `tasks.automation`) | A watch **is a task**: an automation labelled "Mira", made in conversation, listed, switched off and deleted as one | The drafting step offers the blueprints: the planner may answer with a blueprint and its inputs instead of an automation; the code checks the choice (A3), `blueprint/substitute` renders it, the rendered automation is checked as today; the proposal is built from the rendered automation and the saved inputs; a change of a watch drafts with the same blueprint (decision 30). The thread's draft keeps the blueprint, its inputs and the rendered automation (new optional fields of the draft). The skill's prose names the blueprints | One way to make a task; the blueprint only replaces the model's free draft where one fits |
 | Saving (`automation.Save`, table `own_automations`) | Saves the automation `{use_blueprint: {path, input}}` with `POST /api/config/automation/config/<id>`, reload, label, row of kind `task` | None | A watch is a task; Home Assistant takes a blueprint's automation through the same call (checked 2026-11-13) |
 | `mira/automation/validate` (integration) | Checks the **rendered** automation (the forbidden actions, as today) | None; the service sends the rendered config | No change of the interface between integration and service |
 | `mira.send_message` (integration) | The blueprint's action: `text` with the facts, `importance`, `dedupe_key`, `expires_in`, `task: "{{ this.attributes.id }}"` | None | Already there for tasks |
@@ -78,33 +89,38 @@ watching (cameras, network; that is what tools like Home Generative Agent do).
 
 ## The blueprints
 
-Each is a blueprint in `blueprints/automation/mira/` of Home Assistant, `domain: automation`. The text of the entry
-is an input the service fills in the house's language with the facts as templates; the model words it when it is read
-out. Every entry goes to the house with `dedupe_key: watch:<automation id>` (a new entry of the same watch replaces the
-old), `expires_in: 12h` and the importance of decision 18.
+Each is a blueprint in `blueprints/automation/mira/` of Home Assistant, `domain: automation`, embedded in the service
+(`internal/watch/blueprints/`), with `mira-version: N` in its description. The text of the entry is the input
+`message`, which the service fills in the house's language with the facts as templates (decision 24); the model words
+it when it is read out. Every entry goes to the house (`receiver: house`) with `dedupe_key: watch:<automation id>` (a
+new entry of the same watch replaces the old), `expires_in: 12h`, `task: <automation id>` and the importance of
+decision 18. The bounds below are the selectors' and the code's check (decision 23).
 
 ### 1. Water runs on (`water_runs_on`)
 
 After the maintainer's automation "Dauerdurchfluss", without its timer helper.
 
-- **Inputs:** `meter` (sensor, device class `water`), `gap` (minutes, default 11: a meter that reports every 5
-  minutes counts as running while it changed within this), `duration` (minutes, default 30).
+- **Inputs:** `meter` (sensor, device class `water`), `gap` (minutes, 1 to 60, default 11: a meter that reports every
+  5 minutes counts as running while it changed within this), `duration` (minutes, 5 to 1440, default 30; longer than
+  `gap`).
 - **Trigger:** a template trigger, true while the meter changed within `gap` (`now() - last_changed`), held for
   `duration`. Home Assistant renders it on every change of the meter and once a minute (it uses `now()`).
-- **Entry:** "Seit {duration} Minuten läuft Wasser ohne Pause. Zählerstand: {state} L."
-- Once per streak: the trigger fires again only after the template was false (the water stopped for `gap`).
+- **Entry:** "Um {time} Uhr lief seit {duration} Minuten Wasser ohne Pause. Zählerstand: {state} {unit}."
+- Once per streak: the trigger fires again only after the template was false (the water stopped for `gap`). A streak
+  running while the watch is made is not told (decision 31).
 
 ### 2. Water never rests (`water_never_rests`)
 
 After the maintainer's automation "Schleichender Verbrauch" (a dripping tap, a toilet that runs on), without its
 timer helper.
 
-- **Inputs:** `meter` (as above), `rest` (hours, default 1), `window` (hours, default 24).
-- **Way:** `mode: restart`. Triggers: the meter unchanged for `rest` (a rest: the run starts again), Home Assistant
-  started, the automation loaded. The run waits `window`, sends the entry, and repeats every `window` while no rest
-  comes (a daily reminder while it leaks).
-- **Entry:** "Der Wasserzähler stand in den letzten {window} Stunden keine {rest} Stunde still. Vielleicht tropft
-  ein Hahn oder die Spülung läuft nach. Zählerstand: {state} L."
+- **Inputs:** `meter` (as above), `rest` (hours, 0.25 to 12, default 1), `window` (hours, 2 to 168, default 24).
+- **Way:** `mode: restart`. Triggers: the meter unchanged for `rest` (a state trigger with `to: null` and `for`: a
+  rest; the run starts again), Home Assistant started, the automations loaded (`automation_reloaded`). The run, while
+  the meter rests, first waits for its next change (the window starts when the rest ends, decision 25), then waits
+  `window`, sends the entry unless the meter rests right then, and repeats (a daily reminder while it leaks).
+- **Entry:** "Um {time} Uhr: Der Wasserzähler stand in den letzten {window} Stunden keine {rest} Stunden still.
+  Vielleicht tropft ein Hahn oder die Spülung läuft nach. Zählerstand: {state} {unit}."
 - A restart of Home Assistant or a reload of the automations starts the window anew: the entry comes later, never
   wrongly. Accepted (the timer helper would survive a restart, but the blueprint would need a helper Mira makes and
   owns: a second kind of object for little gain).
@@ -117,11 +133,14 @@ timer helper.
 
 For a device whose power follows the same times every day (an aquarium's light, a pump, a heater on a timer).
 
-- **Inputs:** `power` (sensor, device class `power`), `on_above` (watts, default 5), `windows` (text, the expected
-  times on, e.g. `07:40-11:40, 14:20-21:00`), `tolerance` (minutes, default 15).
+- **Inputs:** `power` (sensor, device class `power`), `on_above` (watts, 0 to 5000, default 5), `windows` (text, the
+  expected times on, e.g. `07:40-11:40, 14:20-21:00`; a window may pass midnight), `tolerance` (minutes, 1 to 240,
+  default 15).
 - **Trigger:** a template trigger, true while the power's being above `on_above` differs from the windows, held for
-  `tolerance`. Rendered on every change of the power and once a minute.
-- **Entry:** "{name} weicht von seinem Tagesablauf ab: jetzt {power} W, erwartet {an/aus}."
+  `tolerance`. Rendered on every change of the power and once a minute. A power that is not a number is no deviation
+  (decision 26).
+- **Entry:** "Um {time} Uhr wich {name} von seinem Tagesablauf ab: {power} W, erwartet {an/aus}." ({an/aus} is the
+  other of what the power shows: the trigger fired because they differ.)
 - **Proposing the windows:** the device profile computes them from the last days (decision 16); the model proposes
   them in words, and the user's yes or correction fills `windows`. Where Home Assistant has a
   schedule for the device, the model may take its times instead (assumption: not looked at yet which schedules
@@ -191,16 +210,21 @@ gelaufen ist."
 ### A. Making a watch (in conversation)
 
 1. The skill `aufgabe` collects the wish as today (`watch`, `when`, `measure`, `reaction`).
-2. **Blueprints ready** (once per start of the service and at first use): `blueprint/list` for the domain `automation`;
-   every embedded blueprint that is missing or differs is saved with `blueprint/save` (path `mira/<name>.yaml`,
-   `allow_override` when it differs). The blueprints carry a version in their description; "differs" compares it.
-3. **Drafting:** the planner gets, besides what it gets today, the catalog of blueprints (name, what it watches, its
-   inputs with their bounds). It answers either with a blueprint and its inputs, or with an automation as today.
+2. **Blueprints ready** (once per start of the service, once Home Assistant is connected, and at the next drafting
+   while one is not ready, decision 28): `blueprint/list` for the domain `automation`; every embedded blueprint that is
+   missing or differs is saved with `blueprint/save` (path `mira/<name>`, `allow_override` when it differs, also when
+   Home Assistant lists the file with an error). The blueprints carry a version in their description
+   (`mira-version: N`); "differs" compares it.
+3. **Drafting:** the planner gets, besides what it gets today, the catalog of the blueprints ready (name, what it
+   watches, its inputs with their bounds and defaults, without `message`). It answers either with a blueprint and its
+   inputs (`{"title", "summary", "blueprint", "inputs"}`), or with an automation as today.
+   **Check of the choice (A3, code):** decision 23; the input `message` is set (decision 24).
 4. **Check of a blueprint's draft:** `blueprint/substitute` with the inputs (Home Assistant renders the automation and
-   refuses a missing or wrong input); the rendered automation goes through `mira/automation/validate` as today. A
-   refusal goes back to the planner once with the reason, as today.
+   refuses a missing input); the rendered automation goes through `mira/automation/validate` as today. A refusal of A3
+   or A4 goes back to the planner once with the reason, as today.
 5. **Proposal:** from the rendered automation, as today ("Wenn der Wasserzähler eine halbe Stunde ohne Pause läuft,
-   sag ich Bescheid."). On yes: saved as a task (`{alias, description, use_blueprint: {path, input}}`).
+   sag ich Bescheid."), with the values (decision 29). On yes: the rendered automation is checked once more by the
+   integration and the task saved (`{alias, description, use_blueprint: {path, input}}`).
 
 ### B. Telling
 
@@ -216,10 +240,9 @@ Wasser auf" deletes the automation (Mira's own, by its row). The blueprint stays
 
 ### D. A blueprint changes (a new version of the service)
 
-At step A2 the changed blueprint is saved over the old (`allow_override`). Home Assistant applies it to the
-automations that use it at their next reload: the service reloads exactly those (`search/related` with
-`automation_blueprint` gives their entities, e.g. `automation.wasser_lauft_dauernd`; the automation's id is the
-attribute `id` of its state; one `automation.reload` per id). A running wait of blueprint 2 starts anew.
+At step A2 the changed blueprint is saved over the old (`allow_override`). Home Assistant reloads the automations
+itself when a save replaced a file (decision 22): all automations of the house, once. A running wait of blueprint 2
+starts anew (its trigger `automation_reloaded`).
 
 ## What it costs
 
@@ -229,7 +252,7 @@ attribute `id` of its state; one `automation.reload` per id). A running wait of 
   per start and, the first time, one `blueprint/save` per blueprint; the planner's call as today; `blueprint/substitute`
   (milliseconds); the save as a task (four calls). For a blueprint of a power sensor one device profile (below).
 - **An entry:** one `mira.send_message`; the model words it when it is read out, as every message.
-- **A blueprint changed:** one `blueprint/save`, one `search/related`, one reload per automation using it.
+- **A blueprint changed:** one `blueprint/save`; Home Assistant reloads its automations (all, once).
 - **A device profile:** two reads of the recorder for one entity: 90 days of hourly statistics (about 2,200 rows) and ten
   days of states (a plug every 5 minutes: up to 3,000 rows). Computed in the service, milliseconds.
 - **"Gibt's Geräte, die du überwachen könntest?"** (the turn waits): one read of the hourly statistics of the last 30
@@ -244,13 +267,12 @@ attribute `id` of its state; one `automation.reload` per id). A running wait of 
 
 | Step | Fails | Who learns of it |
 |---|---|---|
-| A2 | `blueprint/list` or `blueprint/save` refused (not an admin's token, a write error) | The turn: "Dafür braucht Mira erst einen neuen Zugang …" as for every task (not an admin), else the tool's error with Home Assistant's answer; a log line with the blueprint's path and the answer. No watch is drafted with a missing blueprint; free drafts work as before |
+| A2 | `blueprint/list` or `blueprint/save` refused (not an admin's token, a write error) | A log line with the blueprint's path and the answer (`could not list home assistant's blueprints` / `could not save a blueprint`); the blueprint is left out of the planner's catalog (decision 28), so no watch is drafted with a missing blueprint; free drafts work as before (without an admin's token their save says "Mira braucht erst wieder einen Zugang" as for every task) |
 | A3 | The planner names a blueprint that does not exist, or inputs it does not have | Refused by the code before Home Assistant is asked; back to the planner once with the reason, as a refused draft today; then the tool's error |
 | A4 | `blueprint/substitute` refuses (missing or wrong input) | Back to the planner once with Home Assistant's answer; then the tool's error naming the blueprint and the answer |
 | A5 | The save fails | As a task's save today (hacs-default, section 3) |
 | B1 | `mira.send_message` fails | Home Assistant's automation trace shows the error; the integration logs it as today. Nothing in the service (it never got the call) |
-| D | Saving the changed blueprint fails | A log warning with the path and the answer; the old blueprint stays in use; tried again at the next start |
-| D | `search/related` or a reload fails | A log warning with the automation's id; the old blueprint stays in use for it until Home Assistant's next reload |
+| D | Saving the changed blueprint fails | A log warning with the path and the answer; the old blueprint stays in use; tried again at the next start or drafting |
 | Device profile | The recorder refuses or answers with nothing for the entity | The tool's error with the entity and Home Assistant's answer; for the request a log line, and the answer names the sensors it could not read |
 | Device profile | Not enough history | Not an error: the answer says what is missing; the candidate waits (decision 14) |
 | Waiting | The subscription for a waiting entity fails or the entity is gone | A log line with the entity; the thread stays waiting and the subscription is tried again at the next start; for a gone entity the thread ends, with a log line |
@@ -265,12 +287,12 @@ attribute `id` of its state; one `automation.reload` per id). A running wait of 
 | 3 | Rendering with inputs | `blueprint/substitute` | `substituted_config` with the inputs in place | 2026-11-13 |
 | 4 | An automation from the blueprint | `POST /api/config/automation/config/<id>` with `use_blueprint`, then `automation.reload` with the id | `{"result":"ok"}`; the entity `automation.<alias>` is `on` with the id | 2026-11-13 |
 | 5 | A missing input | the same `POST` without the input | HTTP 400 "Message malformed: Missing input meter"; nothing saved | 2026-11-13 |
-| 6 | Blueprint 1's template trigger with an input, rendered each minute | a fake meter changing every 5 minutes for 30 minutes | the automation's trace fires once at minute 30 | open |
-| 7 | Blueprint 2's restart and wait | a rest of the fake meter; then none for the window (shortened for the test) | the trace: the run restarts on the rest, sends after the window | open |
-| 8 | Blueprint 2 starts its window when loaded and at Home Assistant's start | reload / restart of the test HA | a running run in the trace | open |
-| 10 | Blueprint 4 | a fake plug's power leaving its window | the entry after the tolerance | open |
-| 11 | The entry reaches Mira | the automation's `mira.send_message` with `task` | a `simple` entry with the task as sender | open (as for tasks today) |
-| 12 | A changed blueprint reaches its automations | `blueprint/save` with `allow_override`, `search/related`, reload by id | `overrides_existing: true`; `search/related` answers `{"automation": [entity ids]}` (checked 2026-11-13, 2026.11.1); the trace of the next run shows the new version: open |
+| 6 | Blueprint 1's template trigger with an input, rendered each minute | a fake meter changing every 5 minutes for 30 minutes (shortened: gap 2, duration 5, a change every minute) | the automation's trace fires once at minute 30 (shortened: 5 minutes after the first change, to the second); not again while the water runs; again after a stop longer than the gap (the template is rendered at the full minute: a stop counts once it lasted the gap at a minute's render) | 2026-11-13, 2026.11.1 |
+| 7 | Blueprint 2's restart and wait | a rest of the fake meter; then none for the window (shortened: rest 0.05 h, window 0.1 h) | the trace: sends after the window and repeats; on the rest the run restarts (trigger "state of sensor"), waits for the next change, then the window anew and sends after it, to the second | 2026-11-13, 2026.11.1 |
+| 8 | Blueprint 2 starts its window when loaded and at Home Assistant's start | reload / restart of the test HA | a running run in the trace: trigger "event 'automation_reloaded'" after `automation.reload` with its id (also after the reload of another automation, and after a blueprint was saved over); trigger "Home Assistant starting" after `docker restart` | 2026-11-13, 2026.11.1 |
+| 10 | Blueprint 4 | a fake plug's power leaving its window (fake routine `18:00-23:00`, 50 W; tolerance 1 minute; power set to 0) | the entry after the tolerance, to the second ("erwartet an") | 2026-11-13, 2026.11.1 |
+| 11 | The entry reaches Mira | the automation's `mira.send_message` with `task` | a `simple` entry of the house's message, source `task`, `dedupe_key` `watch:<id>`; the next entry of the same watch replaces it; read out at the fake Show ("Hab ich neue Nachrichten?") | 2026-11-13, 2026.11.1 |
+| 12 | A changed blueprint reaches its automations | `blueprint/save` with `allow_override` (decision 22: nothing else) | `overrides_existing: true`; Home Assistant reloads the automations at once (a running wait of blueprint 2 starts anew: "event 'automation_reloaded'"); the trace of the next run shows the new version (importance 1 instead of 2); the service's start then saves its version back ("blueprint updated", from 0 to 1) | 2026-11-13, 2026.11.1 |
 | 12a | A blueprint in use cannot be deleted | `blueprint/delete` while an automation uses it | error `home_assistant_error` "Blueprint in use" | 2026-11-13, 2026.11.1 |
 | 13 | Blueprint 5 | a fake plug on longer than `max_on`, off longer than `max_off` (shortened) | one entry each | open |
 | 14 | Blueprint 6: a run too long | a fake plug's run longer than `max_minutes` | the entry | open |
@@ -283,13 +305,20 @@ Rows 6 to 12 are checked before the step that builds on them.
 
 1. **Blueprints in Home Assistant:** the package `internal/watch` with the blueprints of blueprints 1, 2 and 4 embedded
    (blueprints 5 and 6 come with step 7); A2 and D; the
-   catalog. Tests: saving missing and changed blueprints, nothing for unchanged ones, the errors.
+   catalog. Tests: saving missing and changed blueprints, nothing for unchanged ones, the errors. Built 2026-11-13
+   (CW-01 to CW-04, CW-31 in Go); A2 at the service's start once Home Assistant is connected (`cmd/mira`).
 2. **Drafting with blueprints:** the planner's catalog and answer, the check (A4), the proposal, the save as a task;
    the skill's prose. Tests against the fake: a wish becomes a watch from a blueprint, a wrong input is said, a wish
-   without a blueprint is drafted as before.
+   without a blueprint is drafted as before. Built 2026-11-13 (CW-05 to CW-10, CW-21 in Go); the tools `task_enable`
+   and `task_delete` name a watch in their descriptions (without it "Pass wieder aufs Wasser auf" started a new task at
+   the test Mira).
 3. **The fakes and the runs:** a fake water meter and a fake plug with a daily routine in the test HA; rows 6 to 11
    checked; each blueprint run end to end (entry, read out, follow-up); the table `watch_declined` with its migration
-   comes with step 5.
+   comes with step 5. Built 2026-11-13: `testenv/watch_fake` ([Fake devices](fake-devices.md), The watched devices);
+   CW-11 to CW-15 in pytest (`tests/ha/test_watch_blueprints.py`, the blueprints with the fakes and the time moved on);
+   rows 6 to 12 checked on the test HA; at the test Mira by voice at the fake Show: "Pass auf, ob bei uns Wasser
+   dauernd läuft" made the watch from `water_runs_on`, the entries were read out, the watch was paused, switched on
+   and deleted by voice.
 4. **The device profile:** the tool, the kinds and the numbers, the daily routine's windows included; its bounds tried
    read-only on the maintainer's devices first.
 5. **Offering on request:** "Gibt's Geräte, die du überwachen könntest?": the candidates of all blueprints (water meters,

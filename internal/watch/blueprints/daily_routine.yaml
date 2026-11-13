@@ -1,0 +1,95 @@
+blueprint:
+  name: "Mira: daily routine"
+  description: >-
+    Tells Mira when a device leaves its daily routine: its power is above a limit outside the expected times, or
+    at or below it within them, for longer than the tolerance. Brought and updated by the Mira service; a change
+    made here is overwritten. mira-version: 1
+  domain: automation
+  author: Mira
+  input:
+    power:
+      name: Power
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: power
+    on_above:
+      name: On above
+      description: Above this many watts the device counts as on.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: W
+          mode: box
+    windows:
+      name: Times on
+      description: "The times the device is on every day, e.g. 07:40-11:40, 14:20-21:00."
+      selector:
+        text:
+    tolerance:
+      name: Tolerance
+      description: How many minutes the device may differ from its routine before Mira is told.
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+          mode: box
+    message:
+      name: Entry
+      description: The entry Mira gets; the Mira service fills it in the house's language.
+      default: "At {{ now().strftime('%H:%M') }} {{ state_attr(power, 'friendly_name') }} left its daily routine: {{ states(power) }} W, expected {{ 'on' if expected_on else 'off' }}."
+      selector:
+        text:
+          multiline: true
+
+mode: single
+
+trigger_variables:
+  power: !input power
+  on_above: !input on_above
+  windows: !input windows
+
+variables:
+  power: !input power
+  on_above: !input on_above
+  # The trigger fired because the power differs from the routine: what was
+  # expected is the other state.
+  expected_on: "{{ not (states(power) | float(0) > on_above) }}"
+
+triggers:
+  - trigger: template
+    value_template: >-
+      {%- set p = states(power) -%}
+      {%- if not is_number(p) -%}
+        false
+      {%- else -%}
+        {%- set t = now().hour * 60 + now().minute -%}
+        {%- set ns = namespace(on=false) -%}
+        {%- for w in windows.split(',') if '-' in w -%}
+          {%- set a = w.split('-')[0].strip().split(':') -%}
+          {%- set b = w.split('-')[1].strip().split(':') -%}
+          {%- set s = a[0] | int(0) * 60 + a[-1] | int(0) -%}
+          {%- set e = b[0] | int(0) * 60 + b[-1] | int(0) -%}
+          {%- if (s <= e and s <= t < e) or (s > e and (t >= s or t < e)) -%}
+            {%- set ns.on = true -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ (p | float > on_above) != ns.on }}
+      {%- endif -%}
+    for:
+      minutes: !input tolerance
+
+actions:
+  - action: mira.send_message
+    data:
+      text: !input message
+      importance: 1
+      receiver: house
+      dedupe_key: "watch:{{ this.attributes.id }}"
+      expires_in: 12h
+      task: "{{ this.attributes.id }}"

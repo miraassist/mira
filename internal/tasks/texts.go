@@ -23,6 +23,7 @@ type texts struct {
 	draftFields, draftArea, draftPerson                                    string
 	draftForbidden, alsoSwitches                                           string
 	conditionsAre, judgesItself, noCondition                               string
+	blueprintValues, valuesChange                                          string
 	condBetween, condAfter, condBefore, condAbove, condBelow, condTemplate string
 	proposal, planFailed                                                   string
 	confirmed, tryObservation, cannot                                      string
@@ -186,6 +187,8 @@ JSON-Objekt:
 		draftForbidden:   "nichts weiter",
 		alsoSwitches:     "Dabei schaltet sie außerdem: %s.",
 		conditionsAre:    "Bedingung: %s.",
+		blueprintValues:  "Werte: %s.",
+		valuesChange:     "Werte bisher: %s; neu: %s.",
 		judgesItself:     "Ob es sich lohnt, entscheide ich jedes Mal selbst; eine feste Bedingung gibt es nicht.",
 		noCondition:      "Ohne weitere Bedingung.",
 		condBetween:      "nur zwischen %s und %s Uhr",
@@ -217,8 +220,8 @@ JSON-Objekt:
 		tryObservation:   "Probelauf: kein Auslöser, beurteile die Daten, wie sie jetzt sind.",
 
 		listDesc:     "Listet die Aufgaben: offene Vorschläge und Miras Automationen in Home Assistant, mit an/aus.",
-		deleteDesc:   "Löscht eine Aufgabe oder einen Vorschlag anhand der id aus task_list.",
-		enableDesc:   "Schaltet eine Aufgabe an oder aus (pausieren, fortsetzen), anhand der id aus task_list.",
+		deleteDesc:   "Löscht eine Aufgabe oder einen Vorschlag anhand der id aus task_list, auch einen Wächter („Pass nicht mehr aufs Wasser auf“).",
+		enableDesc:   "Schaltet eine bestehende Aufgabe an oder aus (pausieren, fortsetzen), auch einen Wächter („Pass erstmal nicht aufs Wasser auf“, „Pass wieder aufs Wasser auf“), anhand der id aus task_list.",
 		enableOn:     "true schaltet an, false aus.",
 		tryDesc:      "Probelauf einer Aufgabe: Mira beurteilt die Daten jetzt, ohne zu melden, und sagt, was sie sagen würde. id aus task_list.",
 		idDesc:       "Die id aus task_list.",
@@ -284,6 +287,8 @@ JSON object:
 		draftForbidden:   "nothing else",
 		alsoSwitches:     "It also switches: %s.",
 		conditionsAre:    "Condition: %s.",
+		blueprintValues:  "Values: %s.",
+		valuesChange:     "Values so far: %s; now: %s.",
 		judgesItself:     "Whether it is worth it, I decide each time myself; there is no fixed condition.",
 		noCondition:      "No further condition.",
 		condBetween:      "only between %s and %s",
@@ -315,8 +320,8 @@ JSON object:
 		tryObservation:   "Dry run: no trigger, judge the data as they are now.",
 
 		listDesc:     "Lists the tasks: open proposals and Mira's automations in Home Assistant, with on/off.",
-		deleteDesc:   "Deletes a task or a proposal by its id from task_list.",
-		enableDesc:   "Switches a task on or off (pause, resume), by its id from task_list.",
+		deleteDesc:   "Deletes a task or a proposal by its id from task_list, a watch too (\"stop watching the water\").",
+		enableDesc:   "Switches an existing task on or off (pause, resume), a watch too (\"stop watching the water for now\", \"watch the water again\"), by its id from task_list.",
 		enableOn:     "true switches on, false off.",
 		tryDesc:      "Dry run of a task: Mira judges the data now, without reporting, and says what she would say. id from task_list.",
 		idDesc:       "The id from task_list.",

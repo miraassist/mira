@@ -20,6 +20,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
+	"github.com/miraassist/mira/internal/watch"
 )
 
 // Source is what the tasks read from Home Assistant.
@@ -67,9 +68,13 @@ type Options struct {
 	// Forbidden is what Mira only switches after an explicit yes, as the
 	// hook critical.star says (docs/spec/hooks.md): a task never calls it.
 	Forbidden func() (domains, entities []string)
-	Clock     func() time.Time
-	Location  *time.Location
-	Logger    *slog.Logger
+	// Watch holds Mira's blueprints (docs/spec/device-watch.md): the
+	// planner may fill one instead of drafting an automation of its own.
+	// Without it, it drafts only its own.
+	Watch    *watch.Blueprints
+	Clock    func() time.Time
+	Location *time.Location
+	Logger   *slog.Logger
 }
 
 type Manager struct {
@@ -116,6 +121,15 @@ type Draft struct {
 	// unusual for you?"): better than a task that only pretends to have
 	// a condition.
 	Question string `json:"question"`
+	// Blueprint and Inputs are the planner's answer when one of Mira's
+	// blueprints fits (docs/spec/device-watch.md, A3): its name and the
+	// inputs it fills. Once checked, Inputs hold what is saved, and
+	// Automation is the task {alias, description, use_blueprint}.
+	Blueprint string         `json:"blueprint,omitempty"`
+	Inputs    map[string]any `json:"inputs,omitempty"`
+	// Rendered is the automation Home Assistant rendered from the
+	// blueprint (A4): what the integration checks and the proposal reads.
+	Rendered map[string]any `json:"rendered,omitempty"`
 }
 
 // ErrQuestion ends drafting with a question back to the user.
@@ -168,6 +182,7 @@ func (m *Manager) DraftAutomation(ctx context.Context, request string, fields ma
 	// What Mira knows may hold the measure the request leaves open: with it
 	// the planner builds a fixed condition instead of asking back.
 	instruction := m.draftInstruction(goal, Catalog(states, m.opts.Snapshot()), m.memory(ctx, Request{Goal: goal, Owner: from.Person}))
+	instruction += m.blueprints(ctx)
 	instruction += m.originText(from)
 	instruction += m.fieldsText(fields)
 	d, err := m.draft(ctx, instruction, goal, "")
@@ -214,6 +229,15 @@ func (m *Manager) draft(ctx context.Context, instruction, goal, automationID str
 		m.log.Info("draft refused, drafting again", "error", err)
 		instruction += fmt.Sprintf(t.redraft, err.Error())
 	}
+}
+
+// blueprints is the catalog of Mira's blueprints for the planner; empty
+// without them.
+func (m *Manager) blueprints(ctx context.Context) string {
+	if m.opts.Watch == nil {
+		return ""
+	}
+	return m.opts.Watch.Catalog(ctx)
 }
 
 // originText tells the planner where and from whom the task came, so "here"
@@ -284,7 +308,23 @@ func (m *Manager) fieldsText(fields map[string]string) string {
 // the integration, saved through Home Assistant's automation config API,
 // noted as hers and labelled "Mira" (docs/spec/hacs-default.md, 3 and 4).
 func (m *Manager) SaveAutomation(ctx context.Context, id string, config map[string]any) error {
-	if err := m.validate(ctx, config, ""); err != nil {
+	return m.save(ctx, id, config, config)
+}
+
+// SaveDraft saves a confirmed draft as a task: a blueprint's draft is
+// checked as Home Assistant rendered it and saved as {use_blueprint}
+// (docs/spec/device-watch.md, A5).
+func (m *Manager) SaveDraft(ctx context.Context, id string, d Draft) error {
+	checked := d.Automation
+	if d.Rendered != nil {
+		checked = d.Rendered
+	}
+	return m.save(ctx, id, checked, d.Automation)
+}
+
+// save lets the integration check checked, then saves config.
+func (m *Manager) save(ctx context.Context, id string, checked, config map[string]any) error {
+	if err := m.validate(ctx, checked, ""); err != nil {
 		return m.haError(err)
 	}
 	if err := automation.Save(ctx, m.opts.HA, m.opts.Store, m.log, id, config, automation.LabelTask); err != nil {
@@ -338,6 +378,9 @@ func NewAutomationID() string { return automationID(strings.ToLower(ulid.Make().
 // check completes a draft and lets Home Assistant validate it; for a change
 // of a task (automationID), its unchanged steps are not checked again.
 func (m *Manager) check(ctx context.Context, d *Draft, goal, automationID string) error {
+	if name, inputs, ok := blueprintOf(*d); ok {
+		return m.checkBlueprint(ctx, d, name, inputs, goal, automationID)
+	}
 	if strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Summary) == "" || len(d.Automation) == 0 {
 		return errors.New("title, summary and automation are required")
 	}
@@ -353,6 +396,96 @@ func (m *Manager) check(ctx context.Context, d *Draft, goal, automationID string
 	}
 	tagTask(d.Automation["actions"])
 	return m.haError(m.validate(ctx, d.Automation, automationID))
+}
+
+// blueprintOf is the blueprint a draft fills: named by the planner, or, for
+// a change of a watch, the planner's whole automation with use_blueprint of
+// one of Mira's.
+func blueprintOf(d Draft) (string, map[string]any, bool) {
+	if name := strings.TrimSpace(d.Blueprint); name != "" {
+		return name, d.Inputs, true
+	}
+	use, _ := d.Automation["use_blueprint"].(map[string]any)
+	path, _ := use["path"].(string)
+	name, ok := watch.NameOf(path)
+	if !ok {
+		return "", nil, false
+	}
+	inputs, _ := use["input"].(map[string]any)
+	return name, inputs, true
+}
+
+// checkBlueprint is a blueprint's draft (docs/spec/device-watch.md, A3 and
+// A4): the code checks the choice before Home Assistant is asked, Home
+// Assistant renders it, and the rendered automation is checked by the
+// integration as any task. A refusal goes back to the planner as for any
+// draft. The draft then holds the task to save.
+func (m *Manager) checkBlueprint(ctx context.Context, d *Draft, name string, inputs map[string]any, goal, automationID string) error {
+	if m.opts.Watch == nil {
+		return fmt.Errorf("there are no blueprints; write an automation of your own instead of %q", name)
+	}
+	if strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Summary) == "" {
+		return errors.New("title and summary are required")
+	}
+	states, err := m.exposedStates(ctx)
+	if err != nil {
+		return err
+	}
+	entities := map[string]watch.Entity{}
+	for _, e := range Catalog(states, m.opts.Snapshot()) {
+		entities[e.ID] = watch.Entity{Domain: e.Domain, DeviceClass: e.DeviceClass}
+	}
+	b, full, err := m.opts.Watch.Check(name, inputs, func(id string) (watch.Entity, bool) {
+		e, ok := entities[id]
+		return e, ok
+	})
+	if err != nil {
+		return err
+	}
+	rendered, err := m.opts.Watch.Substitute(ctx, b, full)
+	if err != nil {
+		return err
+	}
+	if err := m.haError(m.validate(ctx, rendered, automationID)); err != nil {
+		return err
+	}
+	task := map[string]any{"alias": d.Automation["alias"], "use_blueprint": map[string]any{"path": b.Path(), "input": full}}
+	if task["alias"] == nil {
+		task["alias"] = d.Title
+	}
+	// A change keeps the task's description as it is (or as it was not).
+	if desc := d.Automation["description"]; desc != nil {
+		task["description"] = desc
+	} else if automationID == "" {
+		task["description"] = strings.TrimSpace(goal)
+	}
+	d.Blueprint, d.Inputs, d.Automation, d.Rendered = b.Name, full, task, rendered
+	return nil
+}
+
+// blueprintValues says a watch's inputs as the proposal names them, the
+// defaults included: "Zähler sensor.wasser, Dauer 30 min".
+func (m *Manager) blueprintValues(config map[string]any) []string {
+	name, inputs, ok := blueprintOf(Draft{Automation: config})
+	b, known := watch.ByName(name)
+	if !ok || !known || m.opts.Watch == nil {
+		return nil
+	}
+	var out []string
+	for _, in := range b.Inputs {
+		if in.Name == watch.MessageInput {
+			continue
+		}
+		v, given := inputs[in.Name]
+		if !given {
+			if !in.HasDefault {
+				continue
+			}
+			v = in.Default
+		}
+		out = append(out, strings.TrimSpace(fmt.Sprintf("%s %v %s", m.opts.Watch.Label(in.Name), v, in.Unit)))
+	}
+	return out
 }
 
 // forbidden is what the integration refuses in a task's actions.
@@ -487,6 +620,13 @@ func tagTask(actions any) {
 func (m *Manager) ProposalText(d Draft) string {
 	t := m.texts()
 	parts := []string{strings.TrimSpace(d.Summary)}
+	// A watch from a blueprint: its values are said by the code, from what
+	// is saved, so the yes covers exactly them; what it does is the
+	// blueprint's, rendered by Home Assistant.
+	if values := m.blueprintValues(d.Automation); d.Rendered != nil && len(values) > 0 {
+		parts = append(parts, fmt.Sprintf(t.blueprintValues, strings.Join(values, ", ")))
+		return fmt.Sprintf(t.proposal, d.Title, strings.Join(parts, " "))
+	}
 	if automation := d.Automation; automation != nil {
 		if other := otherActions(automation["actions"]); len(other) > 0 {
 			parts = append(parts, fmt.Sprintf(t.alsoSwitches, strings.Join(other, ", ")))

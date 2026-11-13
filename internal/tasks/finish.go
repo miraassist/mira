@@ -101,7 +101,7 @@ func (f automationFinisher) Commit(ctx context.Context, th store.Thread) (string
 	if err := json.Unmarshal(th.Content, &d); err != nil || d.Automation == nil {
 		return "", errors.New("the thread holds no draft")
 	}
-	if err := f.m.SaveAutomation(ctx, NewAutomationID(), d.Automation); err != nil {
+	if err := f.m.SaveDraft(ctx, NewAutomationID(), d); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf(f.m.texts().confirmed, d.Title), nil

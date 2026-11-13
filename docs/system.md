@@ -92,7 +92,8 @@ flowchart LR
 | `internal/ha/automation` | Saving and deleting Mira's automations (tasks, timers) through HA's automation config API, then reload and label ([HACS default catalog](spec/hacs-default.md)) |
 | `internal/ha/structure` | House structure (areas, entities) as prompt layer 4 |
 | `internal/ha/assistprompt` | HA's own Assist prompt as an alternative for layer 4: the common beginning of all versions (without device and per satellite) is layer 4, what HA appends per device goes into the turn ([Context](spec/context.md), 1.1) |
-| `internal/tasks` | Tasks: assessments (`assess`, `decide`), data views, drafting and managing the automations, tools |
+| `internal/tasks` | Tasks: assessments (`assess`, `decide`), data views, drafting and managing the automations (also a watch from one of Mira's blueprints), tools |
+| `internal/watch` | Mira's blueprints, embedded: making sure Home Assistant has them in this version, the catalog the planner chooses from, the check of a choice and its rendering by Home Assistant ([Device watch](spec/device-watch.md)) |
 | `internal/notifier` | Delivery: when, where, how a message arrives; indicators (LED ring, screen); reminders |
 | `internal/skills` | Skills in the Agent Skills format (`SKILL.md`), schedules, calendar; `random_pick`, which draws from a skill's axes so that quizzes and stories vary ([Random pick](spec/random-pick.md)). A skill that cannot start is skipped and reported with a readable reason in the log and in `/v1/status` (`problems`); the integration shows it as a repair in HA |
 | `internal/calendar`, `internal/timeline` | Read and change calendars from Home Assistant; the shared rendering of the timeline |
