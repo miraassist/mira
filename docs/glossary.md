@@ -83,15 +83,15 @@ is used in a spec; a term that is not here is not a term yet.
 
 | English | German | Meaning | Code / database | Not |
 |---|---|---|---|---|
-| pattern | Muster | A fixed way of watching, written once and checked: a Home Assistant blueprint under `mira/` | `internal/watch` (planned), HA `blueprints/automation/mira/` | template, recipe |
-| watch | Wächter (one); Überwachung (the feature) | A pattern applied to the house: a task made from a pattern; a device watch or a group watch | an automation with `use_blueprint`, `own_automations` kind `task` | monitor, sentinel |
-| device watch | Gerätewächter | A watch over one device against its own normal, learned from its history (its device profile): a water meter, a fridge, a dishwasher | patterns `water_runs_on`, `water_never_rests`, `daily_routine`, `duty_cycle`, `device_run` | consumption watch |
-| group watch | Gruppenwächter | A watch over a group of sensors against a rule for a situation the user says: lights left on, windows open, motion while nobody is home | pattern `left_on` (planned) | — |
-| candidate | Kandidat | A device a pattern could watch | — (computed) | suggestion |
+| blueprint | Blueprint | Home Assistant's automation with named inputs; Mira's are the ones the service brings under `mira/`, a fixed way of watching, written once and checked | HA `blueprints/automation/mira/`, `internal/watch` (planned) | pattern, Muster, Vorlage, Blaupause |
+| watch | Wächter (one); Überwachung (the feature) | A blueprint applied to the house: a task made from a blueprint; a device watch or a group watch | an automation with `use_blueprint`, `own_automations` kind `task` | monitor, sentinel |
+| device watch | Gerätewächter | A watch over one device against its own normal, learned from its history (its device profile): a water meter, a fridge, a dishwasher | blueprints `water_runs_on`, `water_never_rests`, `daily_routine`, `duty_cycle`, `device_run` | consumption watch |
+| group watch | Gruppenwächter | A watch over a group of sensors against a rule for a situation the user says: lights left on, windows open, motion while nobody is home | blueprint `left_on` (planned) | — |
+| candidate | Kandidat | A device a blueprint could watch | — (computed) | suggestion |
 | device profile | Geräteprofil | A device's usual behaviour: its kind (daily routine, cycle, device run) and its numbers | — (computed, not stored) | profile (alone), habit, baseline |
-| daily routine | Tagesablauf | On at the same times every day | pattern `daily_routine` | schedule |
-| cycle | Takt | On and off again and again all day | pattern `duty_cycle` | — |
-| device run | Gerätelauf | A device's run of a programme, with a start and an end, now and then (a dishwasher, a washing machine) | pattern `device_run` | run (alone: a schedule's or an agent's), programme run, cycle |
+| daily routine | Tagesablauf | On at the same times every day | blueprint `daily_routine` | schedule |
+| cycle | Takt | On and off again and again all day | blueprint `duty_cycle` | — |
+| device run | Gerätelauf | A device's run of a programme, with a start and an end, now and then (a dishwasher, a washing machine) | blueprint `device_run` | run (alone: a schedule's or an agent's), programme run, cycle |
 
 ## Decided (2026-11-13)
 
@@ -106,3 +106,4 @@ is used in a spec; a term that is not here is not a term yet.
 8. "notice" is not used: a message, or an entry of one.
 9. A **room** is an area where Mira has satellites; an **area** is any area of Home Assistant.
 10. Two kinds of watch: the **device watch** and the **group watch**; "consumption watch" is not used.
+11. Mira's fixed ways of watching are **blueprints** ("Blueprint" in German too, as in Home Assistant); "pattern" and "Muster" are not used.

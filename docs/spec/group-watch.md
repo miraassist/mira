@@ -8,18 +8,18 @@ is kept here.
 A **group watch** watches a group of sensors against a rule for a situation the user says: all lights but the
 garden's, nobody home, at night, when leaving. A member that does not follow the rule makes an entry of a message.
 The checks at occasions ("Ist alles zu?" when leaving or going to bed) are the same kind, checked once instead of all
-the time. It shares the ground of the device watch: patterns as blueprints, drafting through the skill `aufgabe`, a
+the time. It shares the ground of the device watch: blueprints as blueprints, drafting through the skill `aufgabe`, a
 watch is a task, its entry a message's. Not part of it for now: cameras (decided 2026-11-13).
 
 ## Decided already (2026-11-13, in the device watch's spec)
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Which lights for "left on" | **All lights, with exceptions.** Mira proposes all lights except those she takes for outside lighting by their area or name; the user corrects by voice ("die Terrasse nicht"); the exceptions are an input of the pattern. A light added later is watched without asking |
-| 2 | Pausing, e.g. on holiday | A presence simulation switches lights on on purpose. The pattern "left on" gets an input "pause while": an entity of the house and its state (a holiday helper, the simulation's switch, an alarm panel in `armed_vacation`). When Mira finds such an entity while making the watch, she asks whether to use it; if not, the watch is switched off and on by voice or in the companion app, as every task (`automation.turn_off/on`, [Tasks](tasks.md)). The water watches and the daily routine do not pause: on holiday they matter most |
+| 1 | Which lights for "left on" | **All lights, with exceptions.** Mira proposes all lights except those she takes for outside lighting by their area or name; the user corrects by voice ("die Terrasse nicht"); the exceptions are an input of the blueprint. A light added later is watched without asking |
+| 2 | Pausing, e.g. on holiday | A presence simulation switches lights on on purpose. The blueprint "left on" gets an input "pause while": an entity of the house and its state (a holiday helper, the simulation's switch, an alarm panel in `armed_vacation`). When Mira finds such an entity while making the watch, she asks whether to use it; if not, the watch is switched off and on by voice or in the companion app, as every task (`automation.turn_off/on`, [Tasks](tasks.md)). The water watches and the daily routine do not pause: on holiday they matter most |
 | 3 | How "all lights" becomes a trigger | A **template trigger over all lights** minus the exceptions and groups: a new light is watched at once. It fires once per streak; a second light crossing the hours while the first is still on is not said on its own (the entry names every light on that long). The exceptions must hold: an excluded light (the garden light) never makes or joins an entry |
 
-## The pattern "lights left on", as far as it was specified
+## The blueprint "lights left on", as far as it was specified
 
 ### Lights left on (`left_on`)
 

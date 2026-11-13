@@ -1,34 +1,34 @@
 Feature: Device watch (docs/spec/device-watch.md)
 
   @step1
-  Scenario: CW-01 A missing pattern is saved in Home Assistant
-    Given Home Assistant has none of Mira's patterns
-    When the patterns are made ready
-    Then each of the four patterns is saved under "mira/" with blueprint/save
+  Scenario: CW-01 A missing blueprint is saved in Home Assistant
+    Given Home Assistant has none of Mira's blueprints
+    When the blueprints are made ready
+    Then each of the four blueprints is saved under "mira/" with blueprint/save
 
   @step1
-  Scenario: CW-02 An unchanged pattern is not saved again
-    Given Home Assistant has every pattern in its current version
-    When the patterns are made ready
+  Scenario: CW-02 An unchanged blueprint is not saved again
+    Given Home Assistant has every blueprint in its current version
+    When the blueprints are made ready
     Then nothing is saved
 
   @step1
-  Scenario: CW-03 A changed pattern replaces the old one and reaches its automations
-    Given Home Assistant has the pattern "water_runs_on" in an older version
+  Scenario: CW-03 A changed blueprint replaces the old one and reaches its automations
+    Given Home Assistant has the blueprint "water_runs_on" in an older version
     And two automations use it
-    When the patterns are made ready
-    Then the pattern is saved with allow_override
+    When the blueprints are made ready
+    Then the blueprint is saved with allow_override
     And exactly those two automations are reloaded
 
   @step1
-  Scenario: CW-04 Saving a pattern is refused
+  Scenario: CW-04 Saving a blueprint is refused
     Given Home Assistant refuses blueprint/save
-    When the patterns are made ready
-    Then a log line names the pattern's path and Home Assistant's answer
-    And no watch is drafted from that pattern
+    When the blueprints are made ready
+    Then a log line names the blueprint's path and Home Assistant's answer
+    And no watch is drafted from that blueprint
 
   @step2
-  Scenario: CW-05 A wish that fits a pattern becomes a task from it
+  Scenario: CW-05 A wish that fits a blueprint becomes a task from it
     Given the house has a water meter
     When the user says "Pass auf, ob bei uns Wasser dauernd läuft"
     And agrees to the proposal
@@ -43,30 +43,30 @@ Feature: Device watch (docs/spec/device-watch.md)
 
   @step2
   Scenario: CW-07 Home Assistant refuses the inputs
-    Given the planner chose a pattern with an input Home Assistant refuses
+    Given the planner chose a blueprint with an input Home Assistant refuses
     When the draft is checked
     Then the planner gets Home Assistant's answer once
-    And if it is refused again, the tool's error names the pattern and the answer
+    And if it is refused again, the tool's error names the blueprint and the answer
     And nothing is saved
 
   @step2
-  Scenario: CW-08 A pattern that does not exist
-    Given the planner names a pattern that is not in the catalog
+  Scenario: CW-08 A blueprint that does not exist
+    Given the planner names a blueprint that is not in the catalog
     When the draft is checked
     Then the code refuses it before Home Assistant is asked
     And the planner gets the reason once
 
   @step2
-  Scenario: CW-09 A wish without a pattern is drafted as before
+  Scenario: CW-09 A wish without a blueprint is drafted as before
     When the user says "Sag Bescheid, wenn die Waschmaschine fertig ist"
     Then the planner drafts an automation of its own as today
 
   @step2
   Scenario: CW-10 A watch is deleted like a task
-    Given a watch made from a pattern
+    Given a watch made from a blueprint
     When the user says "Pass nicht mehr aufs Wasser auf"
     Then its automation is deleted
-    And the pattern stays in Home Assistant
+    And the blueprint stays in Home Assistant
 
   @step3
   Scenario: CW-11 Water runs on
@@ -168,8 +168,8 @@ Feature: Device watch (docs/spec/device-watch.md)
   @step1
   Scenario: CW-31 A lost connection is tried again, a refusal is not
     Given Home Assistant answers blueprint/save first with a 503, then with success
-    When the patterns are made ready
-    Then the pattern is saved on the second try
+    When the blueprints are made ready
+    Then the blueprint is saved on the second try
     And when Home Assistant refuses blueprint/save, it is not tried again and the log names the path and the answer
 
   @step5
