@@ -16,7 +16,8 @@ The app has the version of Mira's release; what changed is in the release notes:
 - **"Ist alles zu?"** Mira names what is still open and what does not report; scripts get the same with the action
   `mira.check`.
 - Every watch is an automation from a blueprint of Mira's, so you can switch it off, for example by a holiday script.
-- Mira's database is tidied up; nothing to do.
+- **Fixed:** Assist in the Home Assistant app on a phone was always refused ("Mir fehlt gerade die Beschreibung des
+  Hauses"). Thanks for the report!
 
 ## 0.23.0
 
