@@ -973,6 +973,9 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	if err := a.agents.Resume(ctx); err != nil {
 		a.log.Error("could not take up the asynchronous runs", "error", err)
 	}
+	// So do the calls of remote agents, once their cards are read
+	// (docs/spec/remote-agents.md, G).
+	a.remote.Resume(ctx)
 	if a.threads != nil && a.threads.HasTargets() {
 		a.threads.Resume(ctx)
 	}

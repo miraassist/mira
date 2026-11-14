@@ -1029,3 +1029,107 @@ func (h *Host) Answer(ctx context.Context, callID, text string) error {
 		return ctx.Err()
 	}
 }
+
+// Resume takes up the calls that were open when Mira stopped (G, decision
+// 20), once the cards were read: it asks each task once with GetTask and
+// takes the state reached meanwhile; a task still working is followed again
+// (SubscribeToTask) where Mira streams, or waits for its pushes. A call
+// without a task, of an agent no longer there, or whose task the agent no
+// longer knows (TaskNotFound) is a failed agent. It does not wait.
+func (h *Host) Resume(ctx context.Context) {
+	if h == nil || h.runs == nil {
+		return
+	}
+	h.wg.Go(func() {
+		select {
+		case <-h.read:
+		case <-ctx.Done():
+			return
+		case <-h.base.Done():
+			return
+		}
+		runs, err := h.runs.RunningAgentRuns(ctx)
+		if err != nil {
+			h.log.Error("could not read the open calls of remote agents; they stay open until their threads end", "error", err)
+			return
+		}
+		for _, rec := range runs {
+			if len(rec.Remote) == 0 {
+				continue
+			}
+			h.takeUp(rec)
+		}
+	})
+}
+
+// takeUp takes up one open call after a restart.
+func (h *Host) takeUp(rec store.AgentRun) {
+	var st state
+	if err := json.Unmarshal(rec.Remote, &st); err != nil {
+		st = state{Agent: rec.Agent}
+		c := h.track(rec, &Agent{Name: rec.Agent}, rec.Agent, st)
+		h.fail(c, fmt.Sprintf("its call cannot be read after the restart (%v): %q", err, bodyStart(rec.Remote)))
+		return
+	}
+	a, ok := h.agentOf(st.Skill, st.Agent)
+	if !ok {
+		c := h.track(rec, &Agent{Skill: st.Skill, Name: st.Agent}, st.Label, st)
+		h.fail(c, "the remote agent is no longer in its skill")
+		return
+	}
+	label := st.Label
+	if info, ok := a.Info(); ok && info.Label != "" {
+		label = info.Label
+	}
+	c := h.track(rec, a, label, st)
+	if st.TaskID == "" {
+		h.fail(c, "Mira stopped before the remote agent answered the send")
+		return
+	}
+	client := a.Client()
+	if client == nil {
+		h.fail(c, "its task cannot be asked after the restart: "+h.why(a))
+		return
+	}
+	h.log.Info("remote agent's call taken up after the restart", "agent", a.Name, "call_id", c.id, "task_id", st.TaskID,
+		"state", st.State)
+	h.wg.Go(func() {
+		p := h.policy3()
+		var task *sdk.Task
+		err := retry.Do(c.ctx, p, func(ctx context.Context) error {
+			var err error
+			task, err = client.GetTask(ctx, &sdk.GetTaskRequest{ID: sdk.TaskID(st.TaskID)})
+			if err != nil {
+				return classify(err)
+			}
+			return nil
+		}, retry.Warn(h.log, "asking the remote agent's task", p, "agent", a.Name, "call_id", c.id))
+		switch {
+		case c.ctx.Err() != nil:
+			return
+		case errors.Is(err, sdk.ErrTaskNotFound):
+			h.fail(c, "it no longer knows the task after Mira's restart")
+			return
+		case err != nil:
+			h.fail(c, fmt.Sprintf("its task could not be asked after the restart: %v", err))
+			return
+		}
+		h.take(c, task)
+		c.mu.Lock()
+		follow := !c.ended && c.st.State != string(sdk.TaskStateInputRequired) && !c.st.Push
+		c.mu.Unlock()
+		if follow {
+			h.subscribe(c)
+		}
+	})
+}
+
+// agentOf is the remote agent of a skill by its name.
+func (h *Host) agentOf(skill, name string) (*Agent, bool) {
+	for _, a := range h.agents {
+		if a.Name == name && (skill == "" || a.Skill == skill) {
+			return a, true
+		}
+	}
+	return nil, false
+}

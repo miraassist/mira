@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -33,6 +34,20 @@ type remoteEnv struct {
 
 	mu   sync.Mutex
 	told []store.Message
+	// host is the service's remote agents, for the push route.
+	host *a2a.Host
+}
+
+func (e *remoteEnv) setHost(h *a2a.Host) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.host = h
+}
+
+func (e *remoteEnv) currentHost() *a2a.Host {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.host
 }
 
 type lockedBuffer struct {
@@ -72,7 +87,7 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 	t.Cleanup(agentSrv.Close)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+a2a.PushPath+"{call}", func(w http.ResponseWriter, r *http.Request) {
-		a.remote.ServePush(w, r)
+		env.currentHost().ServePush(w, r)
 	})
 	env.mira = httptest.NewServer(mux)
 	t.Cleanup(env.mira.Close)
@@ -95,6 +110,7 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 		Deliver: a.remoteDelivered, Ask: a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
 	a.remote.Start(context.Background())
 	t.Cleanup(a.remote.Close)
+	env.setHost(a.remote)
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{sk},
 		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
 		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: 50 * time.Millisecond,
@@ -492,4 +508,96 @@ func TestRM13_TheAnswerCannotBeSent(t *testing.T) {
 	}()); !ok || label != "Hermes" || q != a2afake.Question {
 		t.Errorf("the question is not open any more: %q %q %v", label, q, ok)
 	}
+}
+
+// restart stops the remote agents as a stopping service does and starts
+// them anew on the same store; meanwhile, while is run with no service.
+func (e *remoteEnv) restart(t *testing.T, while func()) {
+	t.Helper()
+	old := e.a.remote
+	e.setHost(nil)
+	old.Close()
+	while()
+	logger := slog.New(slog.NewTextHandler(e.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	e.a.remote = a2a.New(a2a.Options{Skills: old.Skills(), ServerURL: old.ServerURL(), Runs: e.a.store,
+		Deliver: e.a.remoteDelivered, Ask: e.a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
+	e.a.remote.Start(context.Background())
+	t.Cleanup(e.a.remote.Close)
+	e.setHost(e.a.remote)
+	e.a.remote.Resume(context.Background())
+}
+
+// RM-14 A restart during the work: the remote agent completes the task
+// while the service is down; up again, Mira asks the task's state once and
+// the field holds the artifacts' text.
+func TestRM14_ARestartDuringTheWork(t *testing.T) {
+	for _, card := range []string{a2afake.CardStreamOnly, a2afake.CardPushOnly} {
+		t.Run(card, func(t *testing.T) {
+			env := newRemoteEnv(t, card, a2afake.SkillSlow, true)
+			ctx := context.Background()
+			env.start(t, "Welche Wärmepumpe passt?")
+			waitFor(t, "the task id", func() bool {
+				runs, _ := env.a.store.RunningAgentRuns(ctx)
+				return len(runs) == 1 && strings.Contains(string(runs[0].Remote), "TASK_STATE_WORKING")
+			})
+			env.restart(t, func() {
+				env.fake.Release()
+				if card == a2afake.CardPushOnly {
+					// Its pushes reach no service.
+					waitFor(t, "the task completed", func() bool {
+						for _, r := range env.fake.Received() {
+							if r.Kind == "push" && r.State == "TASK_STATE_COMPLETED" {
+								return true
+							}
+						}
+						return false
+					})
+					return
+				}
+				// The streamed task leaves no trace at the fake when it
+				// completes: a moment for it.
+				time.Sleep(200 * time.Millisecond)
+			})
+			waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+			if got := env.fact(t); got != a2afake.Result {
+				t.Errorf("field %q", got)
+			}
+			if n := len(env.received("GetTask")); n != 1 {
+				t.Errorf("GetTask %d times", n)
+			}
+			if !strings.Contains(env.log.String(), "remote agent's call taken up after the restart") {
+				t.Errorf("log:\n%s", env.log.String())
+			}
+		})
+	}
+}
+
+// A task the remote agent no longer knows after the restart (Hermes keeps
+// its tasks in memory) is a failed agent: the thread asks its owner.
+func TestRemoteTaskNotFoundAfterTheRestart(t *testing.T) {
+	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillSlow, false)
+	ctx := context.Background()
+	env.start(t, "Welche Wärmepumpe passt?")
+	waitFor(t, "the task id", func() bool {
+		runs, _ := env.a.store.RunningAgentRuns(ctx)
+		return len(runs) == 1 && strings.Contains(string(runs[0].Remote), "task_id")
+	})
+	env.restart(t, func() {
+		runs, _ := env.a.store.RunningAgentRuns(ctx)
+		var st map[string]any
+		_ = json.Unmarshal(runs[0].Remote, &st)
+		st["task_id"] = "gone"
+		raw, _ := json.Marshal(st)
+		if err := env.a.store.SetAgentRunRemote(ctx, runs[0].CallID, raw); err != nil {
+			t.Fatal(err)
+		}
+	})
+	waitFor(t, "the question", func() bool { return len(env.messages()) == 1 })
+	if say := env.messages()[0].Spoken; !strings.HasPrefix(say, "Hermes konnte das nicht.") {
+		t.Errorf("said %q", say)
+	}
+	if !strings.Contains(env.log.String(), "it no longer knows the task after Mira's restart") {
+		t.Errorf("log:\n%s", env.log.String())
+	}
+	env.fake.Release()
 }

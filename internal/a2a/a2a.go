@@ -97,6 +97,7 @@ type Host struct {
 	conns     Connections
 	retry     time.Duration
 	agents    []*Agent
+	skills    []skills.Skill
 
 	runs      Runs
 	deliver   func(ctx context.Context, rec store.AgentRun)
@@ -110,6 +111,9 @@ type Host struct {
 	wg       sync.WaitGroup
 	mu       sync.Mutex
 	calls    map[string]*call
+	// read is closed once every card was read the first time (Start).
+	read     chan struct{}
+	readOnce sync.Once
 }
 
 // Agent is one remote agent.
@@ -167,8 +171,9 @@ type Status struct {
 func New(o Options) *Host {
 	h := &Host{log: o.Logger, http: o.HTTP, transport: o.Transport, serverURL: o.ServerURL, conns: o.Connections,
 		retry: o.RetryInterval, runs: o.Runs, deliver: o.Deliver, ask: o.Ask, callRetry: o.CallRetry, clock: o.Clock,
-		calls: map[string]*call{}}
+		calls: map[string]*call{}, read: make(chan struct{})}
 	h.base, h.stopBase = context.WithCancel(context.Background())
+	h.skills = o.Skills
 	if h.callRetry == 0 {
 		h.callRetry = time.Second
 	}
@@ -206,6 +211,12 @@ func sortedKeys[K ~string, V any](m map[K]V) []K {
 	return keys
 }
 
+// Skills are the skills the host was made with.
+func (h *Host) Skills() []skills.Skill { return slices.Clone(h.skills) }
+
+// ServerURL is Mira's address for remote agents, as the host has it.
+func (h *Host) ServerURL() string { return h.serverURL }
+
 // Agents are the remote agents, by skill and name.
 func (h *Host) Agents() []*Agent { return slices.Clone(h.agents) }
 
@@ -226,6 +237,7 @@ func (h *Host) Start(ctx context.Context) {
 		wg.Go(func() { h.load(ctx, a) })
 	}
 	wg.Wait()
+	h.readOnce.Do(func() { close(h.read) })
 }
 
 // Run reads every card, then reads again those that could not be read,
@@ -234,6 +246,7 @@ func (h *Host) Start(ctx context.Context) {
 // docs/spec/retry.md, row 6, as an MCP server).
 func (h *Host) Run(ctx context.Context) error {
 	if len(h.agents) == 0 {
+		h.readOnce.Do(func() { close(h.read) })
 		return nil
 	}
 	defer h.Close()
