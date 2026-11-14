@@ -99,6 +99,11 @@ func (m *Manager) Tools() []tools.InternalTool {
 			},
 		},
 	}
+	// Answering an agent request is there only with remote agents
+	// (docs/spec/remote-agents.md, D).
+	if m.opts.Answer != nil {
+		out = append(out, m.agentAnswerTool())
+	}
 	// The plan tool is there only when a target has a plan.
 	for _, sk := range m.targets {
 		if sk.Target.Plan {

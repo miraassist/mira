@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -53,11 +55,20 @@ func (l *lockedBuffer) String() string {
 // newRemoteEnv: card is the fake's card (a2afake.CardPushOnly, …), skill
 // the behaviour (a2afake.SkillComplete, …); withURL sets server.url.
 func newRemoteEnv(t *testing.T, card, skill string, withURL bool) *remoteEnv {
+	return newRemoteEnvBefore(t, card, skill, withURL, nil)
+}
+
+// newRemoteEnvBefore is newRemoteEnv with a handler before the fake.
+func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler) *remoteEnv {
 	t.Helper()
 	a, _, _ := deliveryApp(t)
 	env := &remoteEnv{a: a, log: &lockedBuffer{}}
 	env.fake = a2afake.New(a2afake.Options{})
-	agentSrv := httptest.NewServer(env.fake)
+	var agent http.Handler = env.fake
+	if before != nil {
+		agent = before(env.fake)
+	}
+	agentSrv := httptest.NewServer(agent)
 	t.Cleanup(agentSrv.Close)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+a2a.PushPath+"{call}", func(w http.ResponseWriter, r *http.Request) {
@@ -81,18 +92,20 @@ func newRemoteEnv(t *testing.T, card, skill string, withURL bool) *remoteEnv {
 	}
 	logger := slog.New(slog.NewTextHandler(env.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	a.remote = a2a.New(a2a.Options{Skills: []skills.Skill{sk}, ServerURL: serverURL, Runs: a.store,
-		Deliver: a.remoteDelivered, CallRetry: 10 * time.Millisecond, Logger: logger})
+		Deliver: a.remoteDelivered, Ask: a.remoteAsked, CallRetry: 10 * time.Millisecond, Logger: logger})
 	a.remote.Start(context.Background())
 	t.Cleanup(a.remote.Close)
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{sk},
 		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
 		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: 50 * time.Millisecond,
+		Asking: a.remote.Asking, Answer: a.remote.Answer,
 		Cancel: func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
-		Deliver: func(_ context.Context, n store.Message, _ string) error {
+		Deliver: func(ctx context.Context, n store.Message, _ string) error {
 			env.mu.Lock()
-			defer env.mu.Unlock()
 			env.told = append(env.told, n)
-			return nil
+			env.mu.Unlock()
+			_, _, err := a.store.PutMessage(ctx, n)
+			return err
 		}, Logger: logger})
 	return env
 }
@@ -387,5 +400,96 @@ func TestRM11_LoginAskedDuringTheWork(t *testing.T) {
 	}
 	if !strings.Contains(env.log.String(), "needs a login: "+a2afake.LoginText) {
 		t.Errorf("log:\n%s", env.log.String())
+	}
+}
+
+// RM-12 An agent request: the remote agent's question goes to the thread's
+// owner as a message of the kind agent_request naming the agent; the
+// answer goes back with the same task id and the agent goes on.
+func TestRM12_AnAgentRequest(t *testing.T) {
+	for _, card := range []string{a2afake.CardStreamOnly, a2afake.CardPushOnly} {
+		t.Run(card, func(t *testing.T) {
+			env := newRemoteEnv(t, card, a2afake.SkillAsk, true)
+			ctx := context.Background()
+			id := env.start(t, "Welche Wärmepumpe passt?")
+			waitFor(t, "the agent request", func() bool { return len(env.messages()) == 1 })
+			n := env.messages()[0]
+			if n.Kind != store.KindAgentRequest || n.ThreadID != id || n.Spoken != "Hermes fragt: "+a2afake.Question {
+				t.Fatalf("message %+v", n)
+			}
+			// The thread shows the model the question and the tool.
+			inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+			shown, err := env.a.threads.Take(ctx, inv, id)
+			if err != nil || !strings.Contains(shown, "Hermes fragt: „"+a2afake.Question+"“") ||
+				!strings.Contains(shown, "agent_answer") {
+				t.Errorf("thread shown:\n%s %v", shown, err)
+			}
+			said, err := env.a.threads.AgentAnswer(ctx, inv, "", "140 Quadratmeter")
+			if err != nil || said != "Antwort an Hermes weitergegeben." {
+				t.Fatalf("answer: %q %v", said, err)
+			}
+			waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+			if got := env.fact(t); got != a2afake.AnswerResult+"140 Quadratmeter." {
+				t.Errorf("field %q", got)
+			}
+			var first, answer a2afake.Received
+			for _, r := range env.fake.Received() {
+				if r.Kind != "SendMessage" && r.Kind != "SendStreamingMessage" {
+					continue
+				}
+				if r.Text == "140 Quadratmeter" {
+					answer = r
+				} else {
+					first = r
+				}
+			}
+			runs, _ := env.a.store.RecentAgentRuns(ctx, time.Now().Add(-time.Hour))
+			if answer.TaskID == "" || answer.ContextID == "" || len(runs) != 1 || !strings.Contains(string(runs[0].Remote), answer.TaskID) ||
+				answer.MessageID == first.MessageID {
+				t.Errorf("answer %+v, first %+v, runs %+v", answer, first, runs)
+			}
+			if m, err := env.a.store.GetMessage(ctx, n.ID); err != nil || m.State != store.MessageAcked {
+				t.Errorf("the agent request is not done: %+v %v", m, err)
+			}
+		})
+	}
+}
+
+// RM-13 The answer cannot be sent: Mira says she could not pass it on, the
+// agent request stays and the log names the agent and the refusal.
+func TestRM13_TheAnswerCannotBeSent(t *testing.T) {
+	refuse := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), "140 Quadratmeter") {
+				http.Error(w, "Antworten nehme ich nicht an.", http.StatusForbidden)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			next.ServeHTTP(w, r)
+		})
+	}
+	env := newRemoteEnvBefore(t, a2afake.CardStreamOnly, a2afake.SkillAsk, false, refuse)
+	ctx := context.Background()
+	env.start(t, "Welche Wärmepumpe passt?")
+	waitFor(t, "the agent request", func() bool { return len(env.messages()) == 1 })
+	inv := tools.Invocation{SessionKey: "telegram:1", Channel: config.ChannelTelegram}
+	_, err := env.a.threads.AgentAnswer(ctx, inv, "", "140 Quadratmeter")
+	if err == nil || !strings.HasPrefix(err.Error(), "Ich konnte die Antwort nicht weitergeben: ") || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("err = %v", err)
+	}
+	if m, err := env.a.store.GetMessage(ctx, env.messages()[0].ID); err != nil || m.State == store.MessageAcked {
+		t.Errorf("the agent request did not stay: %+v %v", m, err)
+	}
+	log := env.log.String()
+	if !strings.Contains(log, "the answer did not reach the remote agent") || !strings.Contains(log, "agent=recherche") ||
+		!strings.Contains(log, "Antworten nehme ich nicht an") {
+		t.Errorf("log:\n%s", log)
+	}
+	if label, q, ok := env.a.remote.Asking(func() string {
+		runs, _ := env.a.store.RunningAgentRuns(ctx)
+		return runs[0].CallID
+	}()); !ok || label != "Hermes" || q != a2afake.Question {
+		t.Errorf("the question is not open any more: %q %q %v", label, q, ok)
 	}
 }

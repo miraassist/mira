@@ -339,18 +339,23 @@ const skillMeta = "skill"
 // deliverSend sends a message of a call and follows what comes back: the
 // stream, or for a push agent the answer of the send.
 func (h *Host) deliverSend(c *call, m *sdk.Message) {
-	if err := h.sendMessage(c, m); err != nil {
+	if err := h.sendMessage(c, m, nil); err != nil {
 		h.fail(c, fmt.Sprintf("the send failed: %v", err))
 	}
 }
 
 // sendMessage sends m and takes what comes back; an error when the send did
 // not get through (after its retries) or broke off where nothing can follow
-// it. With a stream it returns once the stream ends.
-func (h *Host) sendMessage(c *call, m *sdk.Message) error {
+// it. With a stream it returns once the stream ends. reached, when set, is
+// told once the agent took the message (the answer of the send, the
+// stream's first event).
+func (h *Host) sendMessage(c *call, m *sdk.Message, reached func()) error {
 	client := c.agent.Client()
 	if client == nil {
 		return fmt.Errorf("the remote agent %s is not ready", c.agent.Name)
+	}
+	if reached == nil {
+		reached = func() {}
 	}
 	c.mu.Lock()
 	push, token, task := c.st.Push, c.st.Token, c.st.TaskID
@@ -373,13 +378,14 @@ func (h *Host) sendMessage(c *call, m *sdk.Message) error {
 		if err != nil {
 			return err
 		}
+		reached()
 		h.take(c, res)
 		return nil
 	}
 	req := &sdk.SendMessageRequest{Message: m}
 	var got int
 	err := retry.Do(ctx, p, func(ctx context.Context) error {
-		n, err := h.consume(c, client.SendStreamingMessage(ctx, req))
+		n, err := h.consume(c, client.SendStreamingMessage(ctx, req), reached)
 		got += n
 		switch {
 		case err == nil:
@@ -442,7 +448,7 @@ func (h *Host) subscribe(c *call) {
 		c.mu.Lock()
 		task := c.st.TaskID
 		c.mu.Unlock()
-		_, err := h.consume(c, client.SubscribeToTask(ctx, &sdk.SubscribeToTaskRequest{ID: sdk.TaskID(task)}))
+		_, err := h.consume(c, client.SubscribeToTask(ctx, &sdk.SubscribeToTaskRequest{ID: sdk.TaskID(task)}), nil)
 		if err != nil {
 			return classify(err)
 		}
@@ -460,12 +466,15 @@ func (h *Host) subscribe(c *call) {
 }
 
 // consume takes a stream's events in order; it stops when the call ended or
-// waits for an answer.
-func (h *Host) consume(c *call, events iter.Seq2[sdk.Event, error]) (int, error) {
+// waits for an answer. first, when set, is told at the first event.
+func (h *Host) consume(c *call, events iter.Seq2[sdk.Event, error], first func()) (int, error) {
 	n := 0
 	for ev, err := range events {
 		if err != nil {
 			return n, err
+		}
+		if n == 0 && first != nil {
+			first()
 		}
 		n++
 		h.take(c, ev)
@@ -582,7 +591,7 @@ func (h *Host) take(c *call, ev sdk.Event) {
 		return
 	case sdk.TaskStateSubmitted, sdk.TaskStateWorking:
 		if c.st.State != string(stateNow) {
-			c.st.State, save = string(stateNow), true
+			c.st.State, c.st.Asked, save = string(stateNow), "", true
 		}
 		snap := c.st
 		c.mu.Unlock()
@@ -944,4 +953,79 @@ func (h *Host) now() time.Time {
 		return h.clock()
 	}
 	return time.Now()
+}
+
+// Asking is the question an agent request of a call still waits on, and
+// how Mira names the agent; ok false when the call asks nothing.
+func (h *Host) Asking(callID string) (label, question string, ok bool) {
+	if h == nil {
+		return "", "", false
+	}
+	h.mu.Lock()
+	c := h.calls[callID]
+	h.mu.Unlock()
+	if c == nil {
+		return "", "", false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ended || c.st.State != string(sdk.TaskStateInputRequired) {
+		return "", "", false
+	}
+	return c.label, c.st.Asked, true
+}
+
+// Answer sends the owner's answer to a call's agent request (D.3, decision
+// 21): a new message with the task and context id, the push configuration
+// again for an agent without a stream (its answer may make a new task); the
+// call follows whatever task comes back. It returns once the agent took the
+// answer; an error when it did not (after the retries of a send), and the
+// question stays open.
+func (h *Host) Answer(ctx context.Context, callID, text string) error {
+	if h == nil {
+		return errors.New("no remote agents")
+	}
+	h.mu.Lock()
+	c := h.calls[callID]
+	h.mu.Unlock()
+	if c == nil {
+		return fmt.Errorf("no open call %s", callID)
+	}
+	c.mu.Lock()
+	if c.ended || c.st.State != string(sdk.TaskStateInputRequired) {
+		c.mu.Unlock()
+		return fmt.Errorf("%s asks nothing now", c.label)
+	}
+	c.st.Sent++
+	m := sdk.NewMessage(sdk.MessageRoleUser, sdk.NewTextPart(text))
+	m.ID = fmt.Sprintf("%s-%d", c.id, c.st.Sent)
+	m.TaskID, m.ContextID = sdk.TaskID(c.st.TaskID), c.st.ContextID
+	snap := c.st
+	c.mu.Unlock()
+	if skill := c.agent.def.Remote.A2ASkill; skill != "" {
+		m.Metadata = map[string]any{skillMeta: skill}
+	}
+	h.save(c, snap)
+	result := make(chan error, 1)
+	var once sync.Once
+	tell := func(err error) { once.Do(func() { result <- err }) }
+	h.wg.Go(func() {
+		err := h.sendMessage(c, m, func() { tell(nil) })
+		if err != nil {
+			tell(err)
+			h.log.Warn("the answer did not reach the remote agent", "agent", c.agent.Name, "call_id", c.id,
+				"task_id", snap.TaskID, "error", err)
+			return
+		}
+		tell(nil)
+	})
+	select {
+	case err := <-result:
+		if err == nil {
+			h.log.Info("answer passed to the remote agent", "agent", c.agent.Name, "call_id", c.id, "task_id", snap.TaskID)
+		}
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

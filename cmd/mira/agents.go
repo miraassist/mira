@@ -359,6 +359,28 @@ func (a *app) dispatchForThread(ctx context.Context, th store.Thread, into, name
 	return err
 }
 
+// remoteAsked takes a remote agent's question into the thread its call
+// fills: an agent request (docs/spec/remote-agents.md, D).
+func (a *app) remoteAsked(ctx context.Context, q a2a.Question) error {
+	var cc agent.CallContext
+	if err := json.Unmarshal(q.Call, &cc); err != nil {
+		return fmt.Errorf("the call has no readable call context (%v): %q", err, string(q.Call))
+	}
+	if cc.Mode.Delivery.Route != agent.ToThread || a.threads == nil {
+		return fmt.Errorf("the call %s fills no thread", q.CallID)
+	}
+	return a.threads.AgentRequest(ctx, cc.Mode.Delivery.Thread, cc.Mode.Delivery.Into, q.CallID, q.Label, q.Text)
+}
+
+// remoteAnswer is how an answer to an agent request goes back; nil (no tool
+// agent_answer) without remote agents.
+func (a *app) remoteAnswer() func(ctx context.Context, callID, text string) error {
+	if a.remote == nil || len(a.remote.Agents()) == 0 {
+		return nil
+	}
+	return a.remote.Answer
+}
+
 // remoteDelivered hands a remote agent's result to the route of its call
 // context, as a run of the runtime is handed (docs/spec/remote-agents.md,
 // C).

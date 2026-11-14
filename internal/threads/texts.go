@@ -24,7 +24,11 @@ type texts struct {
 	// remoteFailed names a remote agent that failed and what it said
 	// (docs/spec/remote-agents.md, decision 22); remoteFailedBare without
 	// its words.
-	remoteFailed, remoteFailedBare                                string
+	remoteFailed, remoteFailedBare string
+	// The agent requests (docs/spec/remote-agents.md, D).
+	agentAsks, fieldAgentAsks, answerDesc, answerThreadDesc       string
+	answerTextDesc, answerEmpty, nobodyAsks, answerNotSent        string
+	answerPassed                                                  string
 	planNoteDesc, noteOnlyCheck, noteTooLong                      string
 	takeDesc, takeIDDesc, notYours, openLine, noneOpen, stillOpen string
 	waitingLine                                                   string
@@ -87,6 +91,15 @@ var catalog = map[i18n.Lang]texts{
 		agentAsk:         "Das konnte ich nicht selbst herausfinden: %s. Sagst du es mir?",
 		remoteFailed:     "%s konnte das nicht: %s",
 		remoteFailedBare: "%s konnte das nicht.",
+		agentAsks:        "%s fragt: %s",
+		fieldAgentAsks:   "(%s fragt: „%s“; die Antwort des Nutzers gibst du mit agent_answer weiter)",
+		answerDesc:       "Gibt die Antwort des Nutzers an einen Agenten weiter, der in einem Vorgang nachgefragt hat (eine Agentenanfrage, etwa „Hermes fragt: …“). Nur mit dem, was der Nutzer selbst geantwortet hat.",
+		answerThreadDesc: "Die id des Vorgangs, wenn es nicht der aktuelle ist.",
+		answerTextDesc:   "Die Antwort des Nutzers, so wie er sie gegeben hat.",
+		answerEmpty:      "Die Antwort ist leer.",
+		nobodyAsks:       "In diesem Vorgang wartet kein Agent auf eine Antwort.",
+		answerNotSent:    "Ich konnte die Antwort nicht weitergeben: %v",
+		answerPassed:     "Antwort an %s weitergegeben.",
 		agentPlanFailed:  "Den Plan für „%s“ konnte ich nicht erstellen. Magst du es mir anders geben?",
 		agentPlanReady:   "„%s“ ist bereit: %d Schritte.",
 		stillMissing:     "Fehlt noch: %s",
@@ -175,6 +188,15 @@ var catalog = map[i18n.Lang]texts{
 		agentAsk:         "I could not find this out myself: %s. Will you tell me?",
 		remoteFailed:     "%s could not do it: %s",
 		remoteFailedBare: "%s could not do it.",
+		agentAsks:        "%s asks: %s",
+		fieldAgentAsks:   "(%s asks: \"%s\"; pass the user's answer on with agent_answer)",
+		answerDesc:       "Passes the user's answer on to an agent that asked back in a thread (an agent request, such as \"Hermes asks: …\"). Only with what the user answered.",
+		answerThreadDesc: "The thread's id, when it is not the current one.",
+		answerTextDesc:   "The user's answer, as they gave it.",
+		answerEmpty:      "The answer is empty.",
+		nobodyAsks:       "No agent waits for an answer in this thread.",
+		answerNotSent:    "I could not pass the answer on: %v",
+		answerPassed:     "Answer passed on to %s.",
 		agentPlanFailed:  "I could not make the plan for \"%s\". Would you give it to me another way?",
 		agentPlanReady:   "\"%s\" is ready: %d steps.",
 		stillMissing:     "Still missing: %s",

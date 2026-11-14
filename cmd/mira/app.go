@@ -433,7 +433,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// The skills' remote agents (docs/spec/remote-agents.md): their cards
 	// are read in the background, and read again while they cannot be.
 	a.remote = a2a.New(a2a.Options{Skills: usable, ServerURL: cfg.Server.URL, Connections: a.oauth, Logger: a.log,
-		Runs: a.store, Deliver: a.remoteDelivered})
+		Runs: a.store, Deliver: a.remoteDelivered, Ask: a.remoteAsked})
 	a.goRun(ctx, "remote-agents", a.remote.Run)
 	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home,
 		Connection: a.oauth.State}
@@ -633,6 +633,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Cancel:        func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Dispatch:      a.dispatchForThread,
 		RemoteFailure: a2a.Failure,
+		Asking:        a.remote.Asking,
+		Answer:        a.remoteAnswer(),
 		// A watch offer is started by watch_wait only.
 		CodeStarted: []string{watch.OfferSkill},
 		// The answering machine's recordings stop with their thread.

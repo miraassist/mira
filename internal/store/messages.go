@@ -56,6 +56,11 @@ const (
 	// KindReply is what comes back to a request at once: a thread's
 	// question or proposal, a helper's result (decision 16).
 	KindReply = "reply"
+	// KindAgentRequest is a remote agent's question to the owner of its
+	// thread (docs/spec/remote-agents.md, D): one entry per question, keyed
+	// by the call, gathered like the kinds that wait; it ends with its
+	// thread.
+	KindAgentRequest = "agent_request"
 )
 
 // KindsWithSkill are the kinds whose entries lead to a skill's threads.
@@ -78,7 +83,8 @@ func KindFor(importance int, confidentiality string) string {
 // gathering are the kinds of which a receiver has at most one unheard
 // message: what comes while it is unheard becomes an entry of it (decision
 // 3). The others are one message per entry (decision 6).
-var gathering = map[string]bool{KindSimple: true, KindPostfach: true, KindVoicemail: true, KindDevice: true}
+var gathering = map[string]bool{KindSimple: true, KindPostfach: true, KindVoicemail: true, KindDevice: true,
+	KindAgentRequest: true}
 
 // KindSkill is the skill a kind's entries lead to through their threads; ""
 // for a kind without one.
@@ -225,7 +231,7 @@ func (s *Store) PutMessage(ctx context.Context, n Message) (Message, bool, error
 	}
 	switch n.Kind {
 	case KindSimple, KindReminder, KindUrgent, KindPrivate, KindConfidential, KindPostfach, KindVoicemail, KindDevice,
-		KindReply:
+		KindReply, KindAgentRequest:
 	case "":
 		return Message{}, false, fmt.Errorf("message %q needs a kind", excerpt.Of(n.Spoken))
 	default:
@@ -846,13 +852,13 @@ type Lead struct {
 }
 
 // Leads are the open entries of kinds with a skill (postfach, voicemail,
-// device) for the receivers, oldest first: what still waits to be taken up
+// device) and the agent requests for the receivers, oldest first: what still waits to be taken up
 // (docs/spec/messages.md, decision 10). Entries expired by now are left out.
 func (s *Store) Leads(ctx context.Context, receivers []string) ([]Lead, error) {
 	if len(receivers) == 0 {
 		return nil, nil
 	}
-	args := []any{KindPostfach, KindVoicemail, KindDevice, MessagePending, MessageDelivered, formatTime(s.now())}
+	args := []any{KindPostfach, KindVoicemail, KindDevice, KindAgentRequest, MessagePending, MessageDelivered, formatTime(s.now())}
 	for _, r := range receivers {
 		args = append(args, r)
 	}
@@ -860,7 +866,7 @@ func (s *Store) Leads(ctx context.Context, receivers []string) ([]Lead, error) {
 SELECT m.kind, e.id, e.message_id, e.text, e.details, e.sender, e.source, e.importance, e.expires_at, e.dedupe_key,
        e.thread_id, e.origin_area, e.created_at, e.updated_at
 FROM message_entries e JOIN messages m ON m.id = e.message_id
-WHERE m.kind IN (?, ?, ?) AND m.state IN (?, ?) AND (e.expires_at = '' OR e.expires_at > ?)
+WHERE m.kind IN (?, ?, ?, ?) AND m.state IN (?, ?) AND (e.expires_at = '' OR e.expires_at > ?)
   AND m.receiver IN (`+placeholders(len(receivers))+`)
 ORDER BY e.created_at, e.id`, args...)
 	if err != nil {

@@ -122,7 +122,12 @@ func (m *Manager) status(th store.Thread) string {
 	t := m.texts()
 	sk := m.targets[th.Target]
 	if sk.Target.Plan {
-		if th.Calls[PlanField] != "" {
+		if call := th.Calls[PlanField]; call != "" {
+			if m.opts.Asking != nil {
+				if label, q, ok := m.opts.Asking(call); ok {
+					return t.linePlan + "\n" + fmt.Sprintf(t.fieldAgentAsks, label, q)
+				}
+			}
 			return t.linePlan + "\n" + fmt.Sprintf(t.planByAgent, sk.Target.Agent)
 		}
 		return t.linePlan + "\n" + m.planStatus(th)
@@ -133,8 +138,14 @@ func (m *Manager) status(th store.Thread) string {
 		v := strings.TrimSpace(th.Fields[f.Name])
 		switch {
 		case v == "" && th.Calls[f.Name] != "":
-			// An agent fills it: nothing to ask the user.
+			// An agent fills it: nothing to ask the user, unless it asks
+			// back itself (an agent request).
 			v = fmt.Sprintf(t.fieldByAgent, f.Agent)
+			if m.opts.Asking != nil {
+				if label, q, ok := m.opts.Asking(th.Calls[f.Name]); ok {
+					v = fmt.Sprintf(t.fieldAgentAsks, label, q)
+				}
+			}
 		case v == "":
 			v = t.fieldMissing
 		}

@@ -99,6 +99,11 @@ type Options struct {
 	// call id the thread chose (agents.go). Without it no agent fills a
 	// field.
 	Dispatch func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error
+	// Asking is the open agent request of a call: how the remote agent is
+	// named and its question (docs/spec/remote-agents.md, D); Answer passes
+	// the owner's answer on to it. Without Answer there is no agent_answer.
+	Asking func(callID string) (label, question string, ok bool)
+	Answer func(ctx context.Context, callID, text string) error
 	// RemoteFailure is, for a failed call of a remote agent, its name to
 	// the user and what it said (docs/spec/remote-agents.md, decision
 	// 22); ok false for another run.
@@ -762,19 +767,7 @@ func (m *Manager) tell(ctx context.Context, th store.Thread, text string) {
 	}
 	// Spoken where the thread began, even when it belongs to a person:
 	// that is where they are.
-	area := th.Area
-	receiver := store.ReceiverHouse
-	if a, ok := strings.CutPrefix(th.Place, "area:"); ok {
-		area = a
-	} else if p, ok := strings.CutPrefix(th.Place, "person:"); ok {
-		receiver = p
-	} else {
-		var persons map[string]config.Person
-		if m.opts.Persons != nil {
-			persons = m.opts.Persons()
-		}
-		receiver = tools.ReceiverFor("", tools.Invocation{SessionKey: th.Place, Channel: config.ChannelTelegram}, persons)
-	}
+	receiver, area := m.owner(th)
 	n := store.Message{ID: ulid.Make().String(), Kind: store.KindReply, Source: store.SourceTask, DedupeKey: "thread:" + th.ID + ":" + ulid.Make().String(),
 		Importance: 2, Receiver: receiver, Spoken: text, Details: m.summary(th), ThreadID: th.ID,
 		ExpiresAt: th.ExpiresAt, OriginDevice: th.Device}

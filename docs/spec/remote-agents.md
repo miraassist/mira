@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 to 2 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+building, to be confirmed); steps 0 to 3 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -98,6 +98,9 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 38 | What counts as reaching the agent | Not reached, so a send is tried again: a refused connection, no route, an unknown name, an answer 429 or 503. Reached: everything else, also a 502 or 504 of a proxy before the agent |
 | 39 | Where the page sets the address | On the tab "Verbindungen", a card of its own, shown when a skill that is on has a remote agent or the address is set; written to `mira.yaml`, it holds after a restart (the page says so). The skill's problem for a missing address points there |
 | 40 | What a failed remote agent says | The thread's question for the field is preceded by the agent's name and its own words (its status text): "Hermes konnte das nicht: Die Quelle ist nicht erreichbar. Das konnte ich nicht selbst herausfinden: …" (decision 22); without its words "Hermes konnte das nicht." |
+| 41 | A question while the turn waits | A question that comes within the 10 seconds a voice turn waits for its thread's agents is said in that turn's answer ("Hermes fragt: …") and put as no message: the owner hears it already. Later ones are messages of the kind `agent_request` |
+| 42 | Where the model sees an agent request | In the thread's fields, at the field the remote agent fills: "(Hermes fragt: „…“; die Antwort des Nutzers gibst du mit agent_answer weiter)", and as a line of its log. `agent_answer` takes the thread's id only when it is not the turn's own; it is there only when a skill that is on has a remote agent, and it asks first after web content (as `thread_confirm`) |
+| 43 | The answer sent again | The answer is a new message (id `<call id>-<n>`), with the push configuration again for an agent without a stream (its answer may make a new task, Hermes). On the fake the repeated configuration makes each later push come twice (check 4); decision 15 takes it once |
 
 ## What a skill writes
 
@@ -303,10 +306,14 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    task in the new column `remote` (migration 0032), sends with `SendStreamingMessage` (a card with a stream) or
    `SendMessage` with the push configuration (`POST /v1/a2a/push/<call id>`, outside the service's token), takes the
    events once, ends a failed call with the agent's own words for the thread, and sends `CancelTask` when the thread
-   ends. Before step 3 a question (`input-required`) fails the call. The address on the tab "Verbindungen"
+   ends. Before step 3 a question (`input-required`) failed the call. The address on the tab "Verbindungen"
    (decision 39). RM-05 to RM-11, RM-21 in Go (`cmd/mira`, `internal/a2a`).
 3. **The agent request:** the kind `agent_request`, the tool `agent_answer` (D; decisions 5, 8, 21);
    [Messages](messages.md) gets the kind.
+   Built 2026-11-14 (decisions 41 to 43): the kind in `store` (gathering, in the leads of "Wartet noch"), the
+   question in the thread's log and fields and as a message keyed by the call (`threads.AgentRequest`), the tool
+   `agent_answer` (`threads.AgentAnswer`, `a2a.Host.Answer`), the request done once answered; an answer that is not
+   taken leaves it open and says why. Messages decision 33. RM-12, RM-13 in Go (`cmd/mira`).
 4. **A restart** (G; decision 20).
 5. **From Home Assistant:** `mira.agent` with `skill` in the service and the integration (F; decision 7).
 6. **The guide** (de and en): a skill with a remote agent, the address and the token or the connection, Mira's
