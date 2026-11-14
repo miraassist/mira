@@ -76,6 +76,10 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 - **Signals, not timing.** A sequence (play, then speak, then listen) is coordinated by clear signals of state
   transitions: a state changes, an event comes, a turn arrives. Never by computed durations, estimated delays or
   sleeps. A time is only a safety net, or the very last resort where no signal exists, and then the spec says why.
+- **What the code models, the model is told.** A new kind, state, field or thread that changes what a message, an
+  entry or a tool result means is explained to the model in the same step: in the instruction, the prompt or the tool
+  description that reads it. Modelling and explaining are specified and built together; a spec step that adds one
+  names the other.
 - **Handlers of a subscription never block**: they run on the connection's read loop and only pass the change on.
 - **Whose a thread is follows clear rules** ([Threads](docs/spec/threads.md), Assignment): a thread is bound to a
   person or a room by its type; who speaks is decided by the voice alone.

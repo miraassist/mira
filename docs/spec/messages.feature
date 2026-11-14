@@ -221,3 +221,59 @@ Feature: Messages
     Given a thread of the house with 1 day left whose type's timeout is 15 minutes
     When a turn takes it up
     Then it still expires in 1 day; a step in it 2 days later would give its type's timeout from then
+
+  @step6
+  Scenario: MS-37 A found device's announcement offers to add it
+    Given a device message with one found device and its thread
+    When it is announced
+    Then the model words it with the message's kind, entry and thread and the section "Ansage" of geraet-einbinden
+    And the announcement names the device and offers to add it
+
+  @step6
+  Scenario: MS-38 Several found devices are offered all or one by one
+    Given a device message with three found devices, each with its thread
+    When it is announced
+    Then the model gets all three entries with their threads in one request
+    And the instruction asks to offer adding them all or the ones the user names
+
+  @step6
+  Scenario: MS-39 A single simple entry is worded too
+    Given a simple message with one entry
+    When it is announced
+    Then the model words it and its answer is said
+
+  @step6
+  Scenario: MS-40 A failed wording says the sentence of a failed model
+    Given a device message waits
+    When the model's answer for the announcement is no JSON, or the model does not answer
+    Then Mira says the sentence of a failed model at the satellite, and no entry is read out instead
+    And the log names the error, the messages and the answer's start
+    And the message still waits and is announced at the next occasion
+
+  @step6
+  Scenario: MS-41 A failed wording at messages_read is the tool's error
+    Given a simple message with two entries waits
+    When messages_read cannot have them worded
+    Then the tool gives the error, Mira says the sentence of a failed model, and the message still waits
+
+  @step6
+  Scenario: MS-42 A skill that takes up a kind without its Ansage is a problem
+    Given the skill geraet-einbinden has no section "Ansage"
+    Then GET /v1/status names the skill's problem with the missing section
+    And a device message is not announced
+
+  @step6
+  Scenario: MS-43 Several kinds with threads: each named, then which first
+    Given a postfach message with a mail and a device message with two found devices wait
+    When they are announced together
+    Then the model is told to name each kind briefly as its instruction says and to ask what to start with
+
+  @step6
+  Scenario: MS-44 The afterword is worded by the model
+    Given a device message waits in the room
+    When an answer in that room gets its afterword
+    Then the model words it with the message, its kind, entry and thread and the kind's instruction
+    And the message counts as heard
+    When the wording fails
+    Then the sentence of a failed model is the afterword and the message still waits
+

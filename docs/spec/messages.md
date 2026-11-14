@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-13: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12; steps 1 to 5 released in 0.23.0. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-13: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12; steps 1 to 5 released in 0.23.0; step 6 (the announcement knows the kinds) built 2026-11-14, not released. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 
@@ -233,6 +233,10 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
 | 26 | Taking up never shortens (decided 2026-11-12, step 5) | A thread's expiry only grows: taking it up, or any step in it, gives the later of its expiry and its type's timeout from now. Only a done plan ends sooner (its `done_after`). A mail's thread taken up keeps 3 days, the answering machine's its 5 days, a found device's its day |
 | 27 | A thread of the house taken up in a room (decided 2026-11-12, step 5; decision 13's transition) | A target says where its threads belong: `bound: house` stays the house's wherever it is taken up (the answering machine, decision 23); `bound: room` started by the code at the house moves to the room of the turn that takes it up (`thread_take`, or a tool of its skill that takes it), with its satellite, and a log line names the move. It is the room's from then on |
 | 28 | A found device's thread (decided 2026-11-12, step 5) | One thread per found device, as one per mail (decision 7): the list lives in the `device` message, one entry per device, and each entry leads to the device's own thread of `geraet-einbinden` with its plan (add, room, name). The code starts it at the house when the device is found (decision 27 moves it into the room that takes it up); `device_adopt` takes it; `device_ignore` ends it, and its entry leaves |
+| 29 | What the model knows when it words a message (decided 2026-11-14, step 6) | Seen live 2026-11-14: three found devices were announced as "Neues Gerät gefunden: …" and nothing more; nobody answered, because nothing was offered. Step 5 made found devices a kind with entries and threads, but the wording still got only the spoken lines, and a single entry was read out as it is. What the code models, the model is told (CLAUDE.md, design rules): every announcement is worded by the model, also with a single entry, `simple` included (its entries summed up as one text). It gets each message: its kind, its entries, the threads they lead to (id, skill, plan), and for a kind with a skill (`voicemail`, `postfach`, `device`) the kind's instruction (decision 30) |
+| 30 | Where a kind's instruction lives (decided 2026-11-14, step 6) | In the skill that takes the kind up, which also describes how its thread goes on: a section `## Ansage` of its `SKILL.md` (the skills stay German). Mira reads the skills at her start; the section is taken from there when a message of the kind is announced or read, and the skill is not opened for it. The three: `geraet-einbinden` names the found devices by their names (never their ids) and offers to add them, one ("Soll ich es einbinden?") or several (all, or which ones); `anrufbeantworter` says who called and when and offers to play the recordings; `postfach` says what each mail or document asks for and offers to go through it. A skill that takes up a kind without the section is a problem of the skill (as a skill's other problems, a repair); a message of its kind is not announced until it is fixed |
+| 31 | When the wording fails (decided 2026-11-14, step 6) | The wording is a model call like any other, and its errors are handled as those of every model call: no answer (the model unreachable, the key refused, a server error after the retries of [Retries](retry.md), longer than 20 s) and an answer that cannot be used (no JSON, a message left out) are errors. Mira then says the sentence of a failed model, as in a turn ("Mein KI-Modell lehnt meinen Schlüssel ab. …", "Ich erreiche mein KI-Modell gerade nicht."): at an announcement at the satellite, at `messages_read` as the tool's error. The messages and their threads stay waiting; the next occasion announces them anew. No fixed form in the code does the model's job instead (before: the entries read out one after the other). Replaces the fixed form of an announcement ([Fallbacks](fallbacks.md), row 14) |
+| 32 | Several kinds at once, and the afterword (decided 2026-11-14, step 6) | One rule for the announcement, `messages_read` and the afterword ("Übrigens: …" added to an answer), given to the model with the messages: with one kind whose entries lead to threads, it follows that kind's instruction and offers what it says ("Soll ich sie einbinden?"); with several such kinds (a mail with an appointment and two new devices), it names each briefly as its instruction says and asks what to start with ("Ein Elternbrief mit einem Termin und zwei neue Geräte. Womit soll ich anfangen?"), and the answer chooses the thread as in decision 8; messages without a thread are just said. The afterword is worded by the model too (before: the messages' texts after "Übrigens"); the answer it is added to waits for it, about 1 to 3 s more in that turn. When its wording fails, the sentence of a failed model is added instead (decision 31), and the messages stay waiting |
 
 ### What it does, step by step
 
@@ -256,8 +260,9 @@ set by whoever starts it (the code or a model), instead of only its type's timeo
    as today); the box's sensors trigger step 1 and stay the way to amber when the list could not be read, and to red
    for missed calls (decision 22).
 6. **"Hab ich neue Nachrichten?", "Was gibt's?"**: the model calls `messages_read`. The tool gives each message with
-   its kind and entries; the `simple` one worded as one text; an entry with a thread with the thread's id and skill.
-   Its instruction: only `simple`: read it out; else name what waits and ask what first.
+   its kind and entries; the `simple` one worded as one text; an entry with a thread with the thread's id and skill;
+   a kind with a skill with its instruction (decision 30). Its instruction: only `simple`: read it out; else word each
+   kind as its instruction says and ask what first.
 7. **The choice** ("erst die Praxis"): `thread_take(id)`; the turn has that thread with its plan and its skill's tools.
    Worked through until it ends; then the tool names what is still open (decision 10) and the model offers the next.
 8. **Heard**: a message counts as heard once said (read out, announced, or named in the "what first?" answer). An
@@ -276,7 +281,8 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
 | a mail or document comes | as today plus the entry | 1 database read and write more | no |
 | a device is found | as today plus the thread and the entry | a few database writes | no |
 | a simple text comes | find the unheard message, add the entry | 1 database read more than today | no |
-| `messages_read` | the waiting messages with their entries; the `simple` one worded | one database query; one model call (`notify.compose`) when a `simple` message has more than one entry | yes; the wording about 1 to 3 s (as for an announcement today) |
+| `messages_read` | the waiting messages with their entries; the `simple` one worded; the kinds' instructions | one database query; one model call (`notify.compose`) when a `simple` message has more than one entry; the instructions from the skills read at the start (no file read) | yes; the wording about 1 to 3 s (as for an announcement today) |
+| an announcement, an afterword | the model words it with the messages and the kinds' instructions (decisions 29, 32) | one model call (`notify.compose`) per announcement, also for a single entry (before: none for a single one); its prompt grows with the entries and the kinds' instructions (a few hundred characters each) | an announcement: no turn, the speech at the satellite comes 1 to 3 s later; an afterword: the turn's answer waits 1 to 3 s more |
 | `thread_take` | links the turn to the thread, opens its skill | one database write | yes, milliseconds |
 | the line "Wartet noch" | counts the waiting entries of the person and the house | one database query per turn; about 100 characters | yes, milliseconds |
 
@@ -288,7 +294,9 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
 | The box's list cannot be read when a recording comes | no entry, no thread; the ring still shows the sensor's count; tried again at the next change of the sensor | log line with the error and the count |
 | A thread cannot be started or extended (database) | no entry either: an entry of a kind with a skill without its thread would lead nowhere | log line; for the inbox as its spec says |
 | The entry cannot be added | the thread stays; it is found on the Plans tab and by the line "Wartet noch" (it counts threads too) | log line with the kind and the receiver |
-| The wording (`notify.compose`) fails or takes too long | the entries are read out as they are, one after the other | log line with the error; the fallback of an announcement today ([Fallbacks](fallbacks.md)) |
+| The wording of an announcement fails (decision 31) | the sentence of a failed model is said at the satellite; the message stays waiting, and the next occasion announces it anew | log warning `could not word the announcement; it waits for the next occasion` with the error, the messages' ids and, for an answer that could not be used, its start |
+| The wording at `messages_read` fails | the tool gives the error; Mira says the sentence of a failed model; the messages stay | the user; the log line of the failed tool call |
+| A skill that takes up a kind has no section `## Ansage` | its kind is not announced; the messages wait | a problem of the skill in `GET /v1/status` (a repair in Home Assistant), with the skill and the missing section |
 | `thread_take` with an id that is not open, or not the asker's | refused; the tool says which threads are open for the asker | the model, from the tool's answer |
 | A thread's entries cannot be removed when it ends | the message stays with them; `messages_read` drops an entry whose thread has ended and marks it done | log line with the thread and the error |
 
@@ -313,6 +321,12 @@ everywhere, also in `messages_read` (no "Benachrichtigungen").
 5. **Found devices as a kind**: a thread per found device at the house, 1 day, its entry in the `device` message;
    taken up, it moves into the room (decision 27); taking up never shortens (decision 26). MS-31 to MS-33, MS-35,
    MS-36.
+6. **The announcement knows the kinds** (decisions 29 to 31): the message with its kind, entries and threads to
+   `notify.compose`, every announcement worded (also a single entry, `simple` included), the section `## Ansage` of `geraet-einbinden`,
+   `anrufbeantworter` and `postfach`, the kinds' instructions in `messages_read`, no fixed form when the wording
+   fails (the sentence of a failed model, the messages wait), the skill's problem without the section; several kinds
+   at once and the afterword worded by the model (decision 32); the skill `geraet-einbinden` no longer quotes the old sentence.
+   MS-37 to MS-44.
 
 ## Open
 

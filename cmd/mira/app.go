@@ -1062,7 +1062,7 @@ func (a *app) startProactive(parent context.Context) {
 
 	n := notifier.New(notifier.Options{
 		Config: cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel, Structure: a.structure.Snapshot,
-		Composer: a.notifyCompose, Screens: a.screens(ctx, cfg), Languages: a.langs,
+		Composer: a.notifyCompose, Instruction: a.kindInstruction, Screens: a.screens(ctx, cfg), Languages: a.langs,
 		Phone: a.phoneNews(),
 	})
 	a.notifier = n
@@ -1110,7 +1110,7 @@ func (a *app) messageNotifier() *notifier.Notifier {
 	defer a.proactiveMu.Unlock()
 	if a.notifier == nil {
 		a.notifier = notifier.New(notifier.Options{Config: a.cfg, Store: a.store, HA: a.ha, Logger: a.log, Telemetry: a.tel,
-			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Languages: a.langs})
+			Structure: a.structure.Snapshot, Composer: a.notifyCompose, Instruction: a.kindInstruction, Languages: a.langs})
 	}
 	return a.notifier
 }
@@ -1154,7 +1154,7 @@ func (a *app) readMessages(ctx context.Context, inv tools.Invocation) (tools.Rea
 	}
 	r := tools.Reading{Text: got.Text}
 	for _, ld := range got.Leads {
-		r.Leads = append(r.Leads, tools.Lead{Line: ld.Line, Skill: ld.Skill, Thread: ld.Thread})
+		r.Leads = append(r.Leads, tools.Lead{Line: ld.Line, Skill: ld.Skill, Thread: ld.Thread, Instruction: ld.Instruction})
 	}
 	if a.voicemail == nil || !a.voicemailOn() {
 		return r, nil
@@ -1746,6 +1746,15 @@ func (a *app) allProblems() []haconv.Problem {
 			}
 		}
 	}
+	// A skill that takes up a kind of message without its section "Ansage"
+	// (docs/spec/messages.md, decision 30).
+	for _, kind := range store.KindsWithSkill {
+		if _, err := a.kindInstruction(context.Background(), kind); errors.Is(err, errNoAnnounce) {
+			skill := store.KindSkill(kind)
+			p := skills.NewProblem(skill, skills.KindNoAnnounce, skills.SectionAnnounce)
+			out = append(out, haconv.Problem{Source: "skill", Name: skill, Text: p.Text(a.lang)})
+		}
+	}
 	// A model that failed for its key or its address (docs/spec/models.md, When a model fails).
 	if a.engine != nil {
 		for _, p := range a.engine.ModelProblems(a.lang) {
@@ -1784,4 +1793,28 @@ func (a *app) allProblems() []haconv.Problem {
 // (docs/spec/calendar.md, Adding): the inbox.
 func (a *app) calendarTools() []tools.InternalTool {
 	return []tools.InternalTool{a.calendar.Tool(a.lang), a.calendar.CreateTool(a.lang, inbox.Target)}
+}
+
+// errNoAnnounce is a started skill that takes up a kind of message without
+// its section "Ansage".
+var errNoAnnounce = errors.New("the skill has no section " + skills.SectionAnnounce)
+
+// kindInstruction is the section "Ansage" of the skill that takes up a kind
+// of message (docs/spec/messages.md, decision 30): how the model words its
+// announcement. An error when the skill is not started or has no section.
+func (a *app) kindInstruction(_ context.Context, kind string) (string, error) {
+	name := store.KindSkill(kind)
+	if name == "" {
+		return "", fmt.Errorf("the kind %q is taken up by no skill", kind)
+	}
+	for _, sk := range a.skillsWithAgents() {
+		if sk.Name != name {
+			continue
+		}
+		if text := sk.Section(a.lang, skills.SectionAnnounce); text != "" {
+			return text, nil
+		}
+		return "", fmt.Errorf("skill %s (%s): %w", name, filepath.Join(sk.Dir, "SKILL.md"), errNoAnnounce)
+	}
+	return "", fmt.Errorf("the skill %s, which takes up the kind %q, is not started", name, kind)
 }

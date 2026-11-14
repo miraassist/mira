@@ -97,8 +97,8 @@ Den Setup-Code liest du nie vor und wiederholst ihn nicht.
 
 ## Gefundene Geräte
 
-- **Miras Nachricht** („Ich habe ein neues Gerät gefunden: … Soll ich es
-  einbinden?“) nennt in ihren Details die Kennungen (`flow:…` oder `device:…`).
+- **Miras Nachricht** über gefundene Geräte (wie sie angesagt wird, steht
+  unter „Ansage“) nennt in ihren Details die Kennungen (`flow:…` oder `device:…`).
   Beim Ja: `device_adopt` mit der Kennung; bei mehreren frag, welches zuerst, oder
   nimm sie nacheinander. Beim Nein („nein“, „ignorieren“, „das ist vom Nachbarn“):
   `device_ignore`. Lies die Kennungen nie vor.
@@ -132,3 +132,11 @@ Gerät hat. Ein Gerät, das schon einen Namen bekommen hat, ist fertig: Sagt der
 Nutzer danach wieder, er hat ein neues Gerät, ist es ein weiteres, und es geht
 von vorn los, auch wenn es im Gespräch eben schon um ein Gerät ging. Z-Wave geht
 damit nicht; sag das, wenn danach gefragt wird.
+
+## Ansage
+
+Eine Nachricht der Art `device` heißt: Home Assistant hat neue Geräte
+gefunden, und jedes hat seinen Vorgang zum Einbinden (Plan: Einbinden, Raum,
+Name). Nenn die Geräte mit ihrem Namen, nie mit ihren Kennungen, und biete an,
+sie einzubinden: bei einem „Soll ich es einbinden?“, bei mehreren, ob du alle
+einbinden sollst oder nur einzelne.

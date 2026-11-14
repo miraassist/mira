@@ -36,6 +36,10 @@ type Step struct {
 	// BreakAfter, for a streamed request, ends the stream after that many
 	// pieces, as a server that fails in the middle of an answer.
 	BreakAfter int
+	// Answer, when set, gives Content from the request: for an answer that
+	// names what only the request knows (the ids of the messages an
+	// announcement words).
+	Answer func(req llm.ChatRequest) string
 }
 
 // Recorded is one request as the server saw it.
@@ -149,6 +153,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	s.requests = append(s.requests, rec)
 	s.mu.Unlock()
 
+	if step.Answer != nil {
+		step.Content = step.Answer(req)
+	}
 	if step.Delay > 0 {
 		time.Sleep(step.Delay)
 	}

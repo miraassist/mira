@@ -20,7 +20,7 @@ type texts struct {
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                                  string // reminderSaved: time, id
 	reminderListDesc, noReminders, reminderCancelDesc, noSuchReminder, reminderCancelled          string
 	messagesReadDesc, messagesNothing, messagesReadOut                                            string
-	messagesChoose, leadLine, leadLineNoThread, messagesAlso                                      string // leadLine: line, skill, thread
+	messagesChoose, leadLine, leadLineNoThread, messagesAlso, leadInstruction                     string // leadLine: line, skill, thread
 
 	denyStoreFailed   string
 	needsConfirmation string // %s = summary of the call, %s = the hook's reason with a space, or nothing
@@ -85,9 +85,10 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelled:  "Erinnerung gelöscht.",
 		messagesReadDesc:   "Liest die wartenden Nachrichten für diesen Raum oder diese Person und markiert sie als gehört. Ruf es immer zuerst auf, wenn der Nutzer nach Neuem fragt (\"Hab ich neue Nachrichten?\", \"Gibt es was Neues?\", \"Was gibt's?\"), auch wenn es um Post, den Anrufbeantworter oder neue Geräte gehen könnte: Es sagt, was wartet, und wie es weitergeht.",
 		messagesNothing:    "Keine neuen Nachrichten.",
-		messagesChoose:     "Es wartet etwas, das mit einem Skill weitergeht. Sag dem Nutzer kurz, was wartet, und frag, womit du anfangen sollst. Wählt er etwas, nimm seinen Vorgang mit thread_take (die id steht dabei) und mach in dem Skill weiter; ohne Vorgang öffne den Skill. Eins nach dem anderen.\n",
+		messagesChoose:     "Es wartet etwas, das mit einem Skill weitergeht. Ist es nur eine Art, sag es so, wie die Anweisung ihres Skills unten es sagt, und biete an, was sie sagt. Sind es mehrere Arten, nenn jede kurz nach ihrer Anweisung und frag, womit du anfangen sollst. Wählt er etwas, nimm seinen Vorgang mit thread_take (die id steht dabei) und mach in dem Skill weiter; ohne Vorgang öffne den Skill. Eins nach dem anderen.\n",
 		leadLine:           "- %s (Skill %s, Vorgang %s)\n",
 		leadLineNoThread:   "- %s (Skill %s)\n",
+		leadInstruction:    "So sagst du, was der Skill %s bringt:\n%s\n",
 		messagesAlso:       "Dazu diese Nachrichten zum Vorlesen; Datum und Uhrzeit, Orte, Beträge, Fristen und Namen genau so, wie sie hier stehen: ",
 		messagesReadOut:    "Sag dem Nutzer diese Nachrichten vollständig. In eigenen Worten ist gut, aber Datum und Uhrzeit, Orte, Beträge, Fristen und Namen sagst du genau so, wie sie hier stehen; nichts davon weglassen oder zusammenfassen, auch nicht bei mehreren Terminen: ",
 
@@ -150,9 +151,10 @@ var catalog = map[i18n.Lang]texts{
 		reminderCancelled:  "Reminder deleted.",
 		messagesReadDesc:   "Reads the waiting messages for this room or person and marks them as heard. Always call it first when the user asks for news (\"Do I have new messages?\", \"Anything new?\", \"What's up?\"), also when it might be about mail, the answering machine or new devices: it says what waits and how it goes on.",
 		messagesNothing:    "No new messages.",
-		messagesChoose:     "Something waits that goes on in a skill. Tell the user briefly what waits and ask what to start with. When they choose, take its thread with thread_take (the id is given) and go on in the skill; without a thread, open the skill. One after the other.\n",
+		messagesChoose:     "Something waits that goes on in a skill. If it is one kind, say it as its skill's instruction below says and offer what it says. If there are several kinds, name each briefly as its instruction says and ask what to start with. When they choose, take its thread with thread_take (the id is given) and go on in the skill; without a thread, open the skill. One after the other.\n",
 		leadLine:           "- %s (skill %s, thread %s)\n",
 		leadLineNoThread:   "- %s (skill %s)\n",
+		leadInstruction:    "How to say what the skill %s brings:\n%s\n",
 		messagesAlso:       "Besides, these messages to read out; dates and times, places, amounts, deadlines and names exactly as they stand here: ",
 		messagesReadOut:    "Tell the user these messages completely. Your own words are fine, but dates and times, places, amounts, deadlines and names you say exactly as they stand here; leave none of them out and do not sum them up, also not with several appointments: ",
 

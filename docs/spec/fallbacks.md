@@ -87,7 +87,7 @@ Found 2026-11-05, not changed yet. "Spec" says whether a spec decides the case.
 | 11 | `notifier/remind.go` | speaking a reminder at the satellite fails: it is sent privately instead | no |
 | 12 | `notifier/remind.go` | the satellite is still busy after the wait: delivered anyway, cutting the answer off | partly (satellite.md: once idle) |
 | 13 | `tasks/assess.go` (cooldown) | the past assessments cannot be read: no cooldown, it notifies again | no |
-| 14 | `notifier/compose.go`, `cmd/mira/agents.go` | the model cannot word a message: a fixed sentence | no |
+| 14 | `notifier/compose.go`, `cmd/mira/agents.go` | the model cannot word a message: a fixed sentence | for an announcement and `messages_read`: decided 2026-11-14, no fixed form, the message waits ([Messages](messages.md), decision 31); `cmd/mira/agents.go` still open |
 | 15 | `cmd/mira/lookup.go` (`hasAction`) | Home Assistant's actions cannot be read: the satellite counts as one without phone, screen, station names | no |
 | 16 | `calendar` | an event's start cannot be parsed: the event is left out, a day may look free | no |
 | 17 | `conversation/layers.go` | memory search or personal profile fails: the turn runs without them | no |

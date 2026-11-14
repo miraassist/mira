@@ -275,6 +275,10 @@ type Reading struct {
 // on with it and its thread ("" when it has none yet).
 type Lead struct {
 	Kind, Skill, Thread, Line string
+	// Instruction is the kind's section "Ansage" of its skill, "" when the
+	// skill has none (its problem says so; docs/spec/messages.md,
+	// decision 30).
+	Instruction string
 }
 
 // Empty reports whether nothing waits.
@@ -324,11 +328,23 @@ func (n *Notifier) ReadOut(ctx context.Context, area, device, receiver string) (
 					continue
 				}
 			}
-			r.Leads = append(r.Leads, Lead{Kind: m.Kind, Skill: skill, Thread: e.ThreadID, Line: e.Text})
+			ld := Lead{Kind: m.Kind, Skill: skill, Thread: e.ThreadID, Line: e.Text}
+			if n.instruction != nil {
+				if text, err := n.instruction(ctx, m.Kind); err == nil {
+					ld.Instruction = text
+				}
+			}
+			r.Leads = append(r.Leads, ld)
 		}
 	}
 	if len(said) > 0 {
-		r.Text = n.compose(ctx, said)
+		// A failed wording is the tool's error; the messages stay waiting
+		// (docs/spec/messages.md, decision 31).
+		text, err := n.compose(ctx, said)
+		if err != nil {
+			return Reading{}, err
+		}
+		r.Text = text
 	}
 	via := "telegram"
 	if area != "" {
@@ -424,9 +440,11 @@ func (n *Notifier) forReceiver(ctx context.Context, receiver string) ([]store.Me
 }
 
 // Afterword is what follows an answer on a satellite: the messages waiting
-// for its area, as "Übrigens: ...", marked heard. Nothing during quiet hours
-// (a light switched at night wants no news) and nothing urgent, which was
-// spoken already. device is the satellite's device the answer is spoken on.
+// for its area, worded by the model as "Übrigens: ..." (docs/spec/messages.md,
+// decision 32), marked heard. Nothing during quiet hours (a light switched
+// at night wants no news) and nothing urgent, which was spoken already. When
+// the wording fails, the sentence of a failed model and the messages wait
+// (decision 31). device is the satellite's device the answer is spoken on.
 func (n *Notifier) Afterword(ctx context.Context, area, device string) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -444,19 +462,26 @@ func (n *Notifier) Afterword(ctx context.Context, area, device string) string {
 	if max := n.cfg.MaxItemsPerAnnouncement; max > 0 && len(list) > max {
 		list = list[:max] // the rest waits for the next occasion
 	}
-	t := textsFor(n.langOf(ctx))
-	var b strings.Builder
+	list, err = n.announceable(ctx, list)
+	if err != nil {
+		return ""
+	}
 	ids := make([]string, len(list))
 	for i, nt := range list {
 		ids[i] = nt.ID
-		if i == 0 {
-			b.WriteString(t.byTheWay)
-		} else {
-			b.WriteString(t.also)
+	}
+	text, err := n.composeAs(ctx, list, true)
+	if err != nil {
+		n.log.Warn("could not word the afterword; the messages wait for the next occasion", "area", area, "messages", ids, "error", err)
+		var ce *ComposeError
+		if errors.As(err, &ce) {
+			return ce.Say
 		}
-		b.WriteString(n.timed(ctx, nt, n.clock().In(n.loc)))
-		if err := n.store.MarkDelivered(ctx, nt.ID, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
-			n.log.Error("could not mark message delivered", "message", nt.ID, "error", err)
+		return textsFor(n.langOf(ctx)).failedModel
+	}
+	for _, id := range ids {
+		if err := n.store.MarkDelivered(ctx, id, "voice:"+area); err != nil && !errors.Is(err, store.ErrNotFound) {
+			n.log.Error("could not mark message delivered", "message", id, "error", err)
 			return ""
 		}
 	}
@@ -472,5 +497,5 @@ func (n *Notifier) Afterword(ctx context.Context, area, device string) string {
 	n.tel.RecordMessageDelivery(ctx, "afterword", len(ids))
 	n.log.Info("messages added to an answer", "area", area, "messages", len(ids))
 	n.syncIndicators(ctx)
-	return strings.TrimSpace(b.String())
+	return text
 }

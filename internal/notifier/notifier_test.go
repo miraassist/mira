@@ -3,7 +3,9 @@ package notifier
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -239,10 +241,33 @@ func newEnv(t *testing.T, mutate func(*config.Config)) *env {
 	snap := structure.Build(structure.Registry{Entities: entities})
 	e.n = New(Options{Config: cfg, Store: e.st, HA: e.ha, Clock: func() time.Time { return e.now },
 		Location: time.UTC, Logger: slog.New(slog.NewTextHandler(e.log, nil)),
-		Structure: func() structure.Snapshot { return snap }})
+		Structure: func() structure.Snapshot { return snap }, Composer: echoComposer})
 	e.n.speakPause = 0
 	return e
 }
+
+// echoComposer stands in for the model: it says the entries of the
+// messages in the instruction as they are, one after the other, and names
+// all their ids.
+func echoComposer(_ context.Context, instruction string, _ json.RawMessage) (string, error) {
+	var ids, lines []string
+	for _, line := range strings.Split(instruction, "\n") {
+		if m := echoMessage.FindStringSubmatch(line); m != nil {
+			ids = append(ids, m[1])
+			continue
+		}
+		if text, ok := strings.CutPrefix(line, "  - "); ok {
+			if i := strings.Index(text, " (Vorgang "); i >= 0 {
+				text = text[:i]
+			}
+			lines = append(lines, sentence(text))
+		}
+	}
+	out, err := json.Marshal(map[string]any{"text": strings.Join(lines, " "), "ids": ids})
+	return string(out), err
+}
+
+var echoMessage = regexp.MustCompile(`^- (?:Nachricht|Message) \[([^\]]+)\]`)
 
 func (e *env) message(id string, importance int, mutate func(*store.Message)) {
 	e.t.Helper()
@@ -295,15 +320,23 @@ func TestNightFaultIsAnnouncedOnceOnFirstMorningMotion(t *testing.T) {
 		t.Fatalf("03:00 motion: %+v", out)
 	}
 	e.now = at("06:45")
+	var asked string
+	e.n.composer = func(ctx context.Context, instruction string, schema json.RawMessage) (string, error) {
+		asked = instruction
+		return echoComposer(ctx, instruction, schema)
+	}
 	out := e.presence("bad")
 	if len(out.Announced) != 1 {
 		t.Fatalf("06:45 motion: %+v", out)
+	}
+	if !strings.Contains(asked, "Beginne mit „Guten Morgen“") {
+		t.Errorf("the first announcement of the morning is not greeted: %s", asked)
 	}
 	calls := e.ha.calls
 	if len(calls) != 1 || calls[0].Service != "start_conversation" || calls[0].Target.EntityID[0] != "assist_satellite.bad" {
 		t.Fatalf("calls = %+v", calls)
 	}
-	if got := calls[0].Data["start_message"]; got != "Guten Morgen. Der Wechselrichter meldet seit drei Uhr einen Fehler." {
+	if got := calls[0].Data["start_message"]; got != "Der Wechselrichter meldet seit drei Uhr einen Fehler." {
 		t.Errorf("spoken %q", got)
 	}
 	if e.state("inverter") != store.MessageDelivered {
@@ -413,7 +446,7 @@ func TestBundlingTakesTheMostImportantThree(t *testing.T) {
 		t.Fatalf("announced %s", got)
 	}
 	text := e.ha.calls[0].Data["start_message"].(string)
-	if text != "Ich habe drei Nachrichten. Hinweis n2. Außerdem: Hinweis n3. Und: Hinweis n5." {
+	if text != "Hinweis n2. Hinweis n3. Hinweis n5." {
 		t.Errorf("text = %q", text)
 	}
 	if e.state("n1") != store.MessagePending || e.state("n4") != store.MessagePending {
@@ -577,27 +610,20 @@ func TestPrivateGoesToTheFirstWorkingChannel(t *testing.T) {
 	}
 }
 
-// Without a model: each message a sentence, an older one with its time.
-func TestComposeFixed(t *testing.T) {
+// Without a model there is no wording, and no fixed form stands in for it
+// (docs/spec/messages.md, decision 31).
+func TestComposeWithoutAModelFails(t *testing.T) {
 	e := newEnv(t, nil)
-	e.now = at("15:00")
-	one := []store.Message{{Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("14:30")}}
-	if got := e.n.compose(context.Background(), one); got != "Die Waschmaschine ist fertig." {
-		t.Errorf("got %q", got)
-	}
-	old := []store.Message{{Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("13:05"), Source: store.SourceExternal}}
-	if got := e.n.compose(context.Background(), old); got != "Um 13:05: Die Waschmaschine ist fertig." {
-		t.Errorf("got %q", got)
-	}
-	e.now = at("07:00")
-	two := []store.Message{{Spoken: "A.", CreatedAt: at("03:13"), Source: store.SourceExternal}, {Spoken: "B!", CreatedAt: at("06:55")}}
-	if got := e.n.compose(context.Background(), two); got != "Guten Morgen. Ich habe zwei Nachrichten. Heute Nacht um 3:13: A. Und: B!" {
-		t.Errorf("got %q", got)
+	e.n.composer = nil
+	_, err := e.n.compose(context.Background(), []store.Message{{ID: "a", Spoken: "Die Waschmaschine ist fertig"}})
+	var ce *ComposeError
+	if !errors.As(err, &ce) || ce.Say != "Ich kann gerade nicht antworten. Bitte versuch es gleich noch einmal." {
+		t.Errorf("err = %v", err)
 	}
 }
 
-// With a model: one announcement for all messages; one left out, and the
-// fixed form is used instead.
+// With a model: one announcement for all messages; one left out is an
+// error, not the fixed form.
 func TestComposeWithModel(t *testing.T) {
 	e := newEnv(t, nil)
 	e.now = at("15:00")
@@ -607,17 +633,17 @@ func TestComposeWithModel(t *testing.T) {
 		asked = instruction
 		return answer, nil
 	}
-	two := []store.Message{{ID: "a", Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("13:05")},
-		{ID: "b", Spoken: "Morgen wird der Wertstoff abgeholt", CreatedAt: at("14:00")}}
-	if got := e.n.compose(context.Background(), two); got != "Die Waschmaschine ist seit eins fertig, und morgen kommt der Wertstoff." {
-		t.Errorf("got %q", got)
+	two := []store.Message{{ID: "a", Kind: store.KindSimple, Spoken: "Die Waschmaschine ist fertig", CreatedAt: at("13:05")},
+		{ID: "b", Kind: store.KindSimple, Spoken: "Morgen wird der Wertstoff abgeholt", CreatedAt: at("14:00")}}
+	if got, err := e.n.compose(context.Background(), two); err != nil || got != "Die Waschmaschine ist seit eins fertig, und morgen kommt der Wertstoff." {
+		t.Errorf("got %q, %v", got, err)
 	}
-	if !strings.Contains(asked, "[a] heute 13:05") || !strings.Contains(asked, "Jetzt ist es 15:00 Uhr") {
+	if !strings.Contains(asked, "[a], Art simple, heute 13:05") || !strings.Contains(asked, "Jetzt ist es 15:00 Uhr") {
 		t.Errorf("instruction: %s", asked)
 	}
 	answer = `{"text":"Nur die Waschmaschine.","ids":["a"]}`
-	if got := e.n.compose(context.Background(), two); !strings.HasPrefix(got, "Ich habe zwei Nachrichten.") {
-		t.Errorf("a left-out message must fall back to the fixed form: %q", got)
+	if got, err := e.n.compose(context.Background(), two); err == nil || !strings.Contains(err.Error(), "leaves out message b") {
+		t.Errorf("a left-out message must be an error: %q, %v", got, err)
 	}
 }
 

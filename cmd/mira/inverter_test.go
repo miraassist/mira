@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/miraassist/mira/internal/llm"
 	"io"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +38,17 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 // answered with the details and acknowledges the message.
 func TestInverterCaseEndToEnd(t *testing.T) {
 	verdict := fakellm.Step{Content: `{"importance":2,"spoken":"Der Wechselrichter meldet einen Fehler.","details":"Status fault, Fehlercode 42."}`}
-	model := fakellm.New(verdict, verdict, verdict, fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."})
+	// The announcement is worded by the model (docs/spec/messages.md,
+	// decision 29): it names the message's id from the request.
+	announce := fakellm.Step{Answer: func(req llm.ChatRequest) string {
+		ids := regexp.MustCompile(`Nachricht \[([^\]]+)\]`).FindAllStringSubmatch(req.Messages[len(req.Messages)-1].Content, -1)
+		var list []string
+		for _, m := range ids {
+			list = append(list, `"`+m[1]+`"`)
+		}
+		return `{"text":"Der Wechselrichter meldet einen Fehler.","ids":[` + strings.Join(list, ",") + `]}`
+	}}
+	model := fakellm.New(verdict, verdict, verdict, announce, fakellm.Step{Content: "Er meldet Fehlercode zweiundvierzig."})
 	defer model.Close()
 
 	ha := fakeha.New()
@@ -158,10 +170,10 @@ func TestInverterCaseEndToEnd(t *testing.T) {
 		t.Fatalf("answer = %s", raw)
 	}
 	reqs := model.Requests()
-	if len(reqs) != 4 {
-		t.Fatalf("model saw %d requests: three assessments, one turn", len(reqs))
+	if len(reqs) != 5 {
+		t.Fatalf("model saw %d requests: three assessments, the announcement, one turn", len(reqs))
 	}
-	turn := reqs[3].Request.Messages
+	turn := reqs[4].Request.Messages
 	if layer7 := turn[len(turn)-1].Content; !strings.Contains(layer7, "Fehlercode 42") {
 		t.Fatalf("follow-up lacks the details:\n%s", layer7)
 	}

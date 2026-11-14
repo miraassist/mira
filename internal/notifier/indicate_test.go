@@ -136,7 +136,8 @@ func TestAfterwordFollowsAnAnswer(t *testing.T) {
 	e := indicateEnv(t)
 	e.message("n1", 1, func(n *store.Message) { n.Spoken = "Heute hast du einen Zahnarzttermin" })
 	e.tick()
-	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "Übrigens: Heute hast du einen Zahnarzttermin." {
+	// The model words it (echoComposer stands in; decision 32).
+	if got := e.n.Afterword(context.Background(), "kueche", ""); got != "Heute hast du einen Zahnarzttermin." {
 		t.Fatalf("afterword: %q", got)
 	}
 	if e.state("n1") != store.MessageDelivered {

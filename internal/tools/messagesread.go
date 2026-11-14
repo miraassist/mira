@@ -21,6 +21,9 @@ type Reading struct {
 // Lead is an entry that goes on in a skill, in its thread ("" for none).
 type Lead struct {
 	Line, Skill, Thread string
+	// Instruction is the skill's section "Ansage": how its kind is said
+	// (docs/spec/messages.md, decision 30).
+	Instruction string
 }
 
 // MessageReader reads what waits for the asker and marks it delivered; an
@@ -54,6 +57,13 @@ func MessagesRead(l i18n.Lang, read MessageReader) InternalTool {
 					fmt.Fprintf(&b, t.leadLine, ld.Line, ld.Skill, ld.Thread)
 				} else {
 					fmt.Fprintf(&b, t.leadLineNoThread, ld.Line, ld.Skill)
+				}
+			}
+			said := map[string]bool{}
+			for _, ld := range r.Leads {
+				if ld.Instruction != "" && !said[ld.Skill] {
+					said[ld.Skill] = true
+					fmt.Fprintf(&b, t.leadInstruction, ld.Skill, ld.Instruction)
 				}
 			}
 			if r.Text != "" {

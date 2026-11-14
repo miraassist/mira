@@ -32,6 +32,7 @@ const (
 	KindMCPTools      = "mcptools"
 	KindOAuthExpired  = "oauthexpired"
 	KindOAuthNone     = "oauthnone"
+	KindNoAnnounce    = "noannounce"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -98,6 +99,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthmcp":         "Der Abschnitt mcp nimmt token: oauth, aber der Skill hat keinen Abschnitt oauth.",
 		"oauthnone":        "Der Skill ist noch nicht mit %s verbunden. Verbinde ihn in Mira auf der Seite Verbindungen.",
 		"oauthexpired":     "Die Verbindung mit %s ist abgelaufen oder wurde widerrufen. Verbinde den Skill in Mira auf der Seite Verbindungen neu.",
+		"noannounce":       "In SKILL.md fehlt der Abschnitt „## %s“. Er sagt, wie Mira die Nachrichten dieses Skills ansagt; bis er da ist, sagt sie sie nicht an.",
 		"notlocal":         "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
 	},
 	i18n.EN: {
@@ -148,6 +150,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthmcp":         "The mcp section takes token: oauth, but the skill has no oauth section.",
 		"oauthnone":        "The skill is not connected with %s yet. Connect it in Mira on the Connections page.",
 		"oauthexpired":     "The connection with %s has expired or was revoked. Connect the skill again in Mira on the Connections page.",
+		"noannounce":       "SKILL.md has no section \"## %s\". It says how Mira announces this skill's messages; until it is there, she does not announce them.",
 		"notlocal":         "The skill must run locally (privacy: local), but its agent %s runs on the model \"%s\" (%s). Give the agent a local model in mira.yaml under agents.",
 	},
 }

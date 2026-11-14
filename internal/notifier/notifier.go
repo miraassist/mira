@@ -56,8 +56,10 @@ type Options struct {
 	Location  *time.Location
 	Logger    *slog.Logger
 	Telemetry *telemetry.Provider
-	// Composer words several messages as one announcement (compose.go).
+	// Composer words every announcement (compose.go).
 	Composer Composer
+	// Instruction is a kind's instruction from its skill (compose.go).
+	Instruction Instruction
 	// Screens are on-screen overlay actions per satellite (screen.go); found
 	// by the app.
 	Screens map[string]string
@@ -100,16 +102,17 @@ type Notifier struct {
 	langs      Languages
 	cfg        config.Notifier
 	// sats are each area's satellites, the primary first.
-	sats     map[string]config.Entities
-	persons  map[string]config.Person
-	store    *store.Store
-	ha       HA
-	clock    func() time.Time
-	loc      *time.Location
-	log      *slog.Logger
-	tel      *telemetry.Provider
-	composer Composer
-	screens  map[string]string
+	sats        map[string]config.Entities
+	persons     map[string]config.Person
+	store       *store.Store
+	ha          HA
+	clock       func() time.Time
+	loc         *time.Location
+	log         *slog.Logger
+	tel         *telemetry.Provider
+	composer    Composer
+	instruction Instruction
+	screens     map[string]string
 	// screenCount is what each screen overlay last showed; screenShown when.
 	screenCount map[string]int
 	screenShown map[string]time.Time
@@ -157,6 +160,7 @@ func New(opts Options) *Notifier {
 		log:           opts.Logger.With("component", "notifier"),
 		tel:           opts.Telemetry,
 		composer:      opts.Composer,
+		instruction:   opts.Instruction,
 		screens:       opts.Screens,
 		screenCount:   map[string]int{},
 		screenShown:   map[string]time.Time{},
@@ -495,15 +499,16 @@ func (n *Notifier) inQuietHours(t time.Time) bool {
 
 // texts are the words around the messages of an announcement.
 type texts struct {
-	goodMorning, intro, also, and string // intro: %s = count word
-	reminder                      string // %s = what to remember
-	byTheWay                      string
-	counts                        []string
+	reminder string // %s = what to remember
 	// For the model's wording (compose.go): the task (%s now, %s the
 	// list), the morning greeting, and how times are described.
-	composeTask, composeMorning, importance               string
-	whenToday, whenNight, whenYesterday, whenDate         string // %s clock (date first for whenDate)
-	prefixToday, prefixNight, prefixYesterday, prefixDate string
+	composeTask, composeMorning, importance string
+	// One message, entry, thread and kind instruction in the model's list.
+	composeMessage, composeEntry, composeThread, composeDetails, composeKind, composeKinds, composeAfterword string
+	// The sentences of a failed model (docs/spec/messages.md, decision 31):
+	// its key refused, unreachable, any other failure.
+	keyRefused, unreachable, failedModel          string
+	whenToday, whenNight, whenYesterday, whenDate string // %s clock (date first for whenDate)
 	// The screen overlay (screen.go): one, several (%d), all heard.
 	screenOne, screenMany, screenHeard string
 	// The answering machine on the screen: one message, several (%d), one
@@ -514,8 +519,7 @@ type texts struct {
 func textsFor(l i18n.Lang) texts { return i18n.Pick(catalog, l) }
 
 var catalog = map[i18n.Lang]texts{
-	i18n.DE: {goodMorning: "Guten Morgen. ", intro: "Ich habe %s Nachrichten. ", also: " Außerdem: ", and: " Und: ", reminder: "Erinnerung: %s.", byTheWay: "Übrigens: ",
-		counts: []string{"null", "eine", "zwei", "drei", "vier", "fünf"},
+	i18n.DE: {reminder: "Erinnerung: %s.",
 		composeTask: `Formuliere aus diesen wartenden Nachrichten EINE gesprochene Ansage für den Raum. Jetzt ist es %s Uhr.
 
 %s
@@ -525,18 +529,29 @@ Regeln:
 - Nenne die Zeit, wenn sie für das Verständnis hilft (z. B. bei Dingen, die vorbei sind: „heute Nacht um drei“, „vorhin um eins“). Bei Dingen, die kommen (Abholung morgen), nicht.
 - Eine Nachricht, die schon sagt, von wem sie ist („Anna lässt dir ausrichten …“), behält das.
 - Gesprochene Sprache, Du-Form, kurz, natürliche Übergänge statt Aufzählung. Keine Listen, keine Emojis, keine Markdown-Zeichen.
+- Jede Nachricht hat eine Art. Ihre Einträge führen manchmal zu einem Vorgang, der mit einem Skill weitergeht. Steht unten eine Anweisung für die Art, folge ihr: Sie sagt, was die Nachricht bedeutet und was du anbietest.
+- Sind Nachrichten mehrerer Arten mit Vorgängen dabei, nenn jede kurz so, wie ihre Anweisung es sagt, und frag am Ende, womit du anfangen sollst, statt jede einzeln anzubieten. Nachrichten ohne Vorgang sagst du einfach.
+- Kennungen von Nachrichten, Vorgängen und Geräten liest du nie vor.
 - Antworte mit JSON: "text" ist die Ansage, "ids" die IDs aller Nachrichten, die darin vorkommen.`,
-		composeMorning: "\nBeginne mit „Guten Morgen“.",
-		importance:     "Wichtigkeit",
-		whenToday:      "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
-		prefixToday: "Um %s: ", prefixNight: "Heute Nacht um %s: ", prefixYesterday: "Gestern um %s: ", prefixDate: "Am %s um %s: ",
+		composeMessage:   "- Nachricht [%s], Art %s, %s, %s %d:\n",
+		composeEntry:     "  - %s",
+		composeThread:    " (Vorgang %s, Skill %s, Plan: %s)",
+		composeDetails:   "    Details: %s\n",
+		composeKind:      "\nArt %s (Skill %s):\n%s\n",
+		composeKinds:     "\n\nAnweisungen für die Arten:",
+		composeAfterword: "\nDie Ansage wird an deine Antwort auf etwas anderes angehängt: Beginne mit „Übrigens“.",
+		keyRefused:       "Mein KI-Modell lehnt meinen Schlüssel ab. Das muss auf meiner Seite unter Modelle behoben werden.",
+		unreachable:      "Ich erreiche mein KI-Modell gerade nicht.",
+		failedModel:      "Ich kann gerade nicht antworten. Bitte versuch es gleich noch einmal.",
+		composeMorning:   "\nBeginne mit „Guten Morgen“.",
+		importance:       "Wichtigkeit",
+		whenToday:        "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
 		screenOne:    "1 Nachricht wartet – frag: „Hab ich neue Nachrichten?“",
 		screenMany:   "%d Nachrichten warten – frag: „Hab ich neue Nachrichten?“",
 		screenHeard:  "Alles gehört",
 		phoneMessage: "1 Nachricht auf dem Anrufbeantworter", phoneMessages: "%d Nachrichten auf dem Anrufbeantworter",
 		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe"},
-	i18n.EN: {goodMorning: "Good morning. ", intro: "I have %s messages. ", also: " Also: ", and: " And: ", reminder: "Reminder: %s.", byTheWay: "By the way: ",
-		counts: []string{"zero", "one", "two", "three", "four", "five"},
+	i18n.EN: {reminder: "Reminder: %s.",
 		composeTask: `Word these waiting messages as ONE spoken announcement for the room. It is %s now.
 
 %s
@@ -546,11 +561,23 @@ Rules:
 - Say the time when it helps understanding (for things that are over: "tonight at three", "earlier at one"). Not for things to come (collection tomorrow).
 - A message that already says who it is from ("Anna asks me to tell you …") keeps that.
 - Spoken language, addressing the listener as "you", short, natural transitions instead of a list. No lists, no emojis, no Markdown.
+- Every message has a kind. Its entries sometimes lead to a thread that goes on in a skill. When there is an instruction for the kind below, follow it: it says what the message means and what you offer.
+- When messages of several kinds with threads are there, name each briefly as its instruction says and ask at the end what to start with, instead of offering each on its own. Messages without a thread you just say.
+- Never read out ids of messages, threads or devices.
 - Answer with JSON: "text" is the announcement, "ids" the ids of all messages in it.`,
-		composeMorning: "\nStart with \"Good morning\".",
-		importance:     "importance",
-		whenToday:      "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
-		prefixToday: "At %s: ", prefixNight: "Tonight at %s: ", prefixYesterday: "Yesterday at %s: ", prefixDate: "On %s at %s: ",
+		composeMessage:   "- Message [%s], kind %s, %s, %s %d:\n",
+		composeEntry:     "  - %s",
+		composeThread:    " (thread %s, skill %s, plan: %s)",
+		composeDetails:   "    Details: %s\n",
+		composeKind:      "\nKind %s (skill %s):\n%s\n",
+		composeKinds:     "\n\nInstructions for the kinds:",
+		composeAfterword: "\nThe announcement is added to your answer to something else: start with \"By the way\".",
+		keyRefused:       "My AI model refuses my key. It has to be fixed on my page under Models.",
+		unreachable:      "I can't reach my AI model right now.",
+		failedModel:      "I can't answer right now. Please try again in a moment.",
+		composeMorning:   "\nStart with \"Good morning\".",
+		importance:       "importance",
+		whenToday:        "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
 		screenOne:    "1 message waiting – ask: \"Do I have new messages?\"",
 		screenMany:   "%d messages waiting – ask: \"Do I have new messages?\"",
 		screenHeard:  "All heard",
@@ -566,22 +593,22 @@ func sentence(s string) string {
 	return s
 }
 
-func countWord(t texts, n int) string {
-	if n < len(t.counts) {
-		return t.counts[n]
-	}
-	return fmt.Sprint(n)
-}
-
 // preannounce plays the satellite's chime first; an answer someone waits
 // for in that room does without it. sat is the satellite of the room that
 // speaks (docs/spec/satellites-rooms.md, Who speaks).
 func (n *Notifier) announce(ctx context.Context, area, sat string, messages []store.Message, preannounce bool) error {
 	ctx = n.inArea(ctx, area)
-	text := n.compose(ctx, messages)
 	method, err := n.method(ctx, sat)
 	if err != nil {
 		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
+	}
+	messages, err = n.announceable(ctx, messages)
+	if err != nil {
+		return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
+	}
+	text, err := n.compose(ctx, messages)
+	if err != nil {
+		return n.composeFailed(ctx, area, sat, method, messages, err)
 	}
 	n.speaking(ctx, area, sat)
 	ids := make([]string, len(messages))
@@ -621,6 +648,52 @@ func (n *Notifier) announce(ctx context.Context, area, sat string, messages []st
 	n.tel.RecordMessageDelivery(ctx, "voice", len(ids))
 	n.log.Info("announced", "area", area, "satellite", sat, "method", method, "messages", len(ids))
 	return nil
+}
+
+// announceable are the messages whose kind can be announced: a kind with a
+// skill needs the skill's section "Ansage"; without it the message waits
+// and the skill's problem says why (docs/spec/messages.md, decision 30). An
+// error when none is left.
+func (n *Notifier) announceable(ctx context.Context, messages []store.Message) ([]store.Message, error) {
+	var out []store.Message
+	var missing error
+	for _, m := range messages {
+		if store.KindSkill(m.Kind) != "" && n.instruction != nil {
+			if _, err := n.instruction(ctx, m.Kind); err != nil {
+				n.log.Warn("a message of a kind without its instruction is not announced; it waits", "message", m.ID, "kind", m.Kind, "error", err)
+				missing = err
+				continue
+			}
+		}
+		out = append(out, m)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no message can be announced: %w", missing)
+	}
+	return out, nil
+}
+
+// composeFailed says the sentence of a failed model at the satellite, without
+// listening after it; the messages stay waiting for the next occasion
+// (docs/spec/messages.md, decision 31).
+func (n *Notifier) composeFailed(ctx context.Context, area, sat, method string, messages []store.Message, err error) error {
+	ids := make([]string, len(messages))
+	for i, m := range messages {
+		ids[i] = m.ID
+	}
+	n.log.Warn("could not word the announcement; it waits for the next occasion", "area", area, "messages", ids, "error", err)
+	say := textsFor(n.langOf(ctx)).failedModel
+	var ce *ComposeError
+	if errors.As(err, &ce) {
+		say = ce.Say
+	}
+	if method == "start_conversation" {
+		method = "announce"
+	}
+	if derr := n.deliver(ctx, sat, method, say, true); derr != nil {
+		n.log.Warn("could not say that the announcement failed", "area", area, "satellite", sat, "error", derr)
+	}
+	return fmt.Errorf("announce in %s on %s: %w", area, sat, err)
 }
 
 // delivered marks messages delivered by voice in an area and records the

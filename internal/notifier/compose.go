@@ -3,141 +3,157 @@ package notifier
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 )
 
 // Composer runs one isolated model request with a JSON answer (the
-// engine's Assess). With it, several messages become one announcement the
-// model words as a whole; without it, or when it fails, the fixed form is
-// used.
+// engine's Assess). Every announcement is worded by it
+// (docs/spec/messages.md, decision 29).
 type Composer func(ctx context.Context, instruction string, schema json.RawMessage) (string, error)
 
-// composeTimeout bounds the model's wording; the fixed form follows.
-const composeTimeout = 20 * time.Second
+// Instruction is the kind's instruction for its announcement: the section
+// "Ansage" of the skill that takes the kind up (docs/spec/messages.md,
+// decision 30); an error when the skill is not there or has none.
+type Instruction func(ctx context.Context, kind string) (string, error)
 
-// olderThan is from when a message gets its time said: "the washing machine
-// is done" heard hours later needs "at one".
-const olderThan = time.Hour
+// composeTimeout bounds the model's wording.
+const composeTimeout = 20 * time.Second
 
 var composeSchema = json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"},"ids":{"type":"array","items":{"type":"string"}}},"required":["text","ids"]}`)
 
-// compose words messages for speaking. One message is said as it is (with
-// its time if it is older); several go to the model as one announcement.
-func (n *Notifier) compose(ctx context.Context, messages []store.Message) string {
-	now := n.clock().In(n.loc)
-	morning := n.goodMorning(now)
-	// A gathered message is said with all its entries, worded as one text
-	// (docs/spec/messages.md, decision 18): each entry is one item here,
-	// under its message's id.
-	items := entriesOf(messages)
-	if len(items) > 1 && n.composer != nil {
-		if text, err := n.composeWithModel(ctx, items, now, morning); err == nil {
-			return text
-		} else {
-			n.log.Warn("model could not word the announcement, using the fixed form", "error", err)
-		}
-	}
-	return n.fixed(ctx, items, now, morning)
+// ComposeError is a failed wording: Say is the sentence of a failed model
+// (docs/spec/messages.md, decision 31).
+type ComposeError struct {
+	Say string
+	Err error
 }
 
-// entriesOf lists each entry of the messages as an item of its own, with
-// the message's id; a message without entries (of the form before kinds)
-// is one item.
-func entriesOf(messages []store.Message) []store.Message {
-	var out []store.Message
-	for _, m := range messages {
-		if len(m.Entries) == 0 {
-			out = append(out, m)
-			continue
-		}
-		for _, e := range m.Entries {
-			item := m
-			item.Entries = nil
-			item.Spoken, item.Details, item.Importance = e.Text, e.Details, e.Importance
-			item.CreatedAt, item.Source, item.Sender = e.CreatedAt, e.Source, e.Sender
-			out = append(out, item)
-		}
-	}
-	return out
+func (e *ComposeError) Error() string { return e.Err.Error() }
+func (e *ComposeError) Unwrap() error { return e.Err }
+
+// compose words messages for speaking: the model gets each message with
+// its kind, its entries and the threads they lead to, and the instructions
+// of the kinds (docs/spec/messages.md, decisions 29 to 31). No fixed form
+// stands in for it: a failure is a ComposeError with the sentence of a
+// failed model.
+func (n *Notifier) compose(ctx context.Context, messages []store.Message) (string, error) {
+	return n.composeAs(ctx, messages, false)
 }
 
-func (n *Notifier) composeWithModel(ctx context.Context, messages []store.Message, now time.Time, morning bool) (string, error) {
+// composeAs is compose, for an afterword added to an answer when afterword
+// is set (docs/spec/messages.md, decision 32).
+func (n *Notifier) composeAs(ctx context.Context, messages []store.Message, afterword bool) (string, error) {
 	t := textsFor(n.langOf(ctx))
-	var list strings.Builder
-	for _, m := range messages {
-		fmt.Fprintf(&list, "- [%s] %s · %s %d · %s\n", m.ID, n.when(ctx, m.CreatedAt, now), t.importance, m.Importance, strings.TrimSpace(m.Spoken))
+	if n.composer == nil {
+		return "", &ComposeError{Say: t.failedModel, Err: errors.New("no model to word the announcement")}
 	}
-	instruction := fmt.Sprintf(t.composeTask, now.Format("15:04"), list.String())
-	if morning {
-		instruction += t.composeMorning
+	now := n.clock().In(n.loc)
+	instruction := n.composeInstruction(ctx, messages, now)
+	if afterword {
+		instruction += t.composeAfterword
 	}
-	ctx, cancel := context.WithTimeout(ctx, composeTimeout)
+	cctx, cancel := context.WithTimeout(ctx, composeTimeout)
 	defer cancel()
-	raw, err := n.composer(ctx, instruction, composeSchema)
+	raw, err := n.composer(cctx, instruction, composeSchema)
 	if err != nil {
-		return "", err
+		// An answer that does not follow the schema is the model's, not a
+		// lost connection: only the other failures are the key or the
+		// address.
+		say := t.failedModel
+		if !errors.Is(err, agent.ErrOutput) {
+			switch llm.Cause(err) {
+			case llm.CauseKey:
+				say = t.keyRefused
+			case llm.CauseUnreachable:
+				say = t.unreachable
+			}
+		}
+		return "", &ComposeError{Say: say, Err: fmt.Errorf("word the announcement: %w", err)}
 	}
 	var out struct {
 		Text string   `json:"text"`
 		IDs  []string `json:"ids"`
 	}
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return "", fmt.Errorf("answer is not JSON %q: %w", excerpt.Of(raw), err)
+		return "", &ComposeError{Say: t.failedModel, Err: fmt.Errorf("the announcement's answer is not JSON %q: %w", excerpt.Of(raw), err)}
 	}
 	if strings.TrimSpace(out.Text) == "" {
-		return "", fmt.Errorf("empty announcement")
+		return "", &ComposeError{Say: t.failedModel, Err: fmt.Errorf("the announcement's answer has no text: %q", excerpt.Of(raw))}
 	}
 	// Every message must be in it; one left out would count as heard.
 	for _, m := range messages {
 		if !slices.Contains(out.IDs, m.ID) {
-			return "", fmt.Errorf("message %s left out", m.ID)
+			return "", &ComposeError{Say: t.failedModel, Err: fmt.Errorf("the announcement's answer leaves out message %s: %q", m.ID, excerpt.Of(raw))}
 		}
 	}
 	return strings.TrimSpace(out.Text), nil
 }
 
-// fixed is the announcement without a model: each message as a sentence,
-// an older one with its time in front.
-func (n *Notifier) fixed(ctx context.Context, messages []store.Message, now time.Time, morning bool) string {
+// composeInstruction is the model's task: the messages, each with its kind,
+// its entries and their threads (id, skill, plan), and the instruction of
+// each kind with a skill, once.
+func (n *Notifier) composeInstruction(ctx context.Context, messages []store.Message, now time.Time) string {
 	t := textsFor(n.langOf(ctx))
-	var b strings.Builder
-	if morning {
-		b.WriteString(t.goodMorning)
-	}
-	if len(messages) > 1 {
-		fmt.Fprintf(&b, t.intro, countWord(t, len(messages)))
-	}
-	for i, m := range messages {
-		switch {
-		case i == 0:
-		case i == len(messages)-1:
-			b.WriteString(t.and)
-		default:
-			b.WriteString(t.also)
+	var list, kinds strings.Builder
+	seen := map[string]bool{}
+	for _, m := range messages {
+		fmt.Fprintf(&list, t.composeMessage, m.ID, m.Kind, n.when(ctx, m.CreatedAt, now), t.importance, m.Importance)
+		entries := m.Entries
+		if len(entries) == 0 { // a message of the form before kinds
+			entries = []store.Entry{{Text: m.Spoken, ThreadID: m.ThreadID, CreatedAt: m.CreatedAt}}
 		}
-		b.WriteString(n.timed(ctx, m, now))
+		for _, e := range entries {
+			fmt.Fprintf(&list, t.composeEntry, strings.TrimSpace(e.Text))
+			if e.ThreadID != "" {
+				fmt.Fprintf(&list, t.composeThread, e.ThreadID, store.KindSkill(m.Kind), n.planOf(ctx, e.ThreadID))
+			}
+			list.WriteString("\n")
+			if d := strings.TrimSpace(e.Details); d != "" {
+				fmt.Fprintf(&list, t.composeDetails, strings.Join(strings.Fields(d), " "))
+			}
+		}
+		if skill := store.KindSkill(m.Kind); skill != "" && !seen[m.Kind] && n.instruction != nil {
+			seen[m.Kind] = true
+			if text, err := n.instruction(ctx, m.Kind); err == nil {
+				fmt.Fprintf(&kinds, t.composeKind, m.Kind, skill, text)
+			}
+		}
 	}
-	return b.String()
+	instruction := fmt.Sprintf(t.composeTask, now.Format("15:04"), list.String())
+	if kinds.Len() > 0 {
+		instruction += t.composeKinds + kinds.String()
+	}
+	if n.goodMorning(now) {
+		instruction += t.composeMorning
+	}
+	return instruction
 }
 
-// timed is a message as a sentence, with its time in front when it is
-// older than olderThan and its text came from outside (an automation, a
-// person). Mira's own messages carry their time where it matters: a task's
-// verdict is worded with it, a collection day is about tomorrow.
-func (n *Notifier) timed(ctx context.Context, m store.Message, now time.Time) string {
-	text := sentence(m.Spoken)
-	if m.CreatedAt.IsZero() || now.Sub(m.CreatedAt) < olderThan ||
-		(m.Source != store.SourceExternal && m.Source != store.SourcePerson) {
-		return text
+// planOf is a thread's plan on one line, "" when it has none or cannot be
+// read (the entry is still said; the log names it).
+func (n *Notifier) planOf(ctx context.Context, thread string) string {
+	th, err := n.store.GetThread(ctx, thread)
+	if err != nil {
+		n.log.Warn("could not read a thread for the announcement; its plan is left out", "thread", thread, "error", err)
+		return ""
 	}
-	return n.whenPrefix(ctx, m.CreatedAt, now) + text
+	var c struct {
+		Plan string `json:"plan"`
+	}
+	if len(th.Content) == 0 || json.Unmarshal(th.Content, &c) != nil {
+		return ""
+	}
+	return strings.Join(strings.Fields(c.Plan), " ")
 }
 
 // goodMorning: the first announcement after the quiet hours, before 11.
@@ -161,23 +177,6 @@ func (n *Notifier) when(ctx context.Context, at, now time.Time) string {
 		return fmt.Sprintf(t.whenYesterday, clock)
 	default:
 		return fmt.Sprintf(t.whenDate, at.Format("2.1."), clock)
-	}
-}
-
-// whenPrefix is the same as the start of a spoken sentence.
-func (n *Notifier) whenPrefix(ctx context.Context, at, now time.Time) string {
-	t := textsFor(n.langOf(ctx))
-	at = at.In(n.loc)
-	clock := clock(n.langOf(ctx), at)
-	switch day := dayDiff(at, now); {
-	case day == 0 && at.Hour() < 6 && now.Hour() >= 6:
-		return fmt.Sprintf(t.prefixNight, clock)
-	case day == 0:
-		return fmt.Sprintf(t.prefixToday, clock)
-	case day == 1:
-		return fmt.Sprintf(t.prefixYesterday, clock)
-	default:
-		return fmt.Sprintf(t.prefixDate, at.Format("2.1."), clock)
 	}
 }
 

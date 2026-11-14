@@ -47,3 +47,11 @@ metadata:
     `voicemail_play` auf.
   - „Stopp“ hält Home Assistant selbst an; spiel danach nichts weiter.
   Sag dazu nur ganz kurz, was du tust, ohne die Nachrichten aufzuzählen.
+
+## Ansage
+
+Eine Nachricht der Art `voicemail` heißt: Auf dem Anrufbeantworter sind neue
+Nachrichten oder verpasste Anrufe. Sag kurz, von wem und wann sie sind, bei
+vielen nur die neuesten drei und wie viele weitere es gibt, und die verpassten
+Anrufe (wer, wie oft). Biete dann an, die Nachrichten abzuspielen: bei einer
+„Soll ich sie abspielen?“, bei mehreren, ob alle oder welche.

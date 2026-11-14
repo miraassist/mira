@@ -89,7 +89,10 @@ shows it as ignored. Or nobody answers: Mira does not ask again; "Gibt's neue Ge
 3. **Naming.** A discovered flow is named by its `title_placeholders.name`, else by the integration's name
    (`manifest/get` of its domain, once per domain); a device by its name, with its manufacturer and model as the
    facts. No model round: the message is a fixed sentence with the names.
-4. **The message.** One message to the house: "Ich habe ein neues Gerät gefunden: <name>. Soll ich es einbinden?",
+4. **The message.** Changed 2026-11-14 ([Messages](messages.md), decisions 29 to 31): the device's entry goes into
+   the house's `device` message, and the model words its announcement with the section `## Ansage` of
+   `geraet-einbinden`: the found devices by name, and the offer to add them, all or the ones the user names. What
+   follows describes the message before step 5 of Messages. One message to the house: "Ich habe ein neues Gerät gefunden: <name>. Soll ich es einbinden?",
    for several "Ich habe <n> neue Geräte gefunden: <a>, <b> und <c>. Soll ich sie einbinden?" (more than three:
    the first three "und <n> weitere"). Its details name the skill and each found item with its id (`flow:<flow_id>`,
    `device:<device_id>`) and kind. Each item is marked **said** in Mira's database (by the flow's `unique_id`, else

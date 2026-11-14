@@ -675,6 +675,31 @@ func (s Skill) BodyIn(l i18n.Lang) string {
 	return s.Body
 }
 
+// SectionAnnounce is the heading of a skill's section that says how a
+// message of the kind it takes up is announced (docs/spec/messages.md,
+// decision 30).
+const SectionAnnounce = "Ansage"
+
+// Section is the text under the heading "## <heading>" of the body in a
+// language, up to the next heading of the same level; "" when there is none.
+func (s Skill) Section(l i18n.Lang, heading string) string {
+	var out []string
+	in := false
+	for _, line := range strings.Split(s.BodyIn(l), "\n") {
+		if strings.HasPrefix(line, "## ") {
+			if in {
+				break
+			}
+			in = strings.TrimSpace(strings.TrimPrefix(line, "## ")) == heading
+			continue
+		}
+		if in {
+			out = append(out, line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
 // split separates the YAML frontmatter from the Markdown body.
 func split(raw []byte) ([]byte, []byte, *Problem) {
 	raw = bytes.TrimPrefix(raw, []byte("\xef\xbb\xbf"))

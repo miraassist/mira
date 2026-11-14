@@ -58,6 +58,9 @@ const (
 	KindReply = "reply"
 )
 
+// KindsWithSkill are the kinds whose entries lead to a skill's threads.
+var KindsWithSkill = []string{KindPostfach, KindVoicemail, KindDevice}
+
 // KindFor is the kind a caller's fields say (decision 17): private,
 // confidential, importance 3 urgent, else simple.
 func KindFor(importance int, confidentiality string) string {
