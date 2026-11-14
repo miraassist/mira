@@ -964,7 +964,7 @@ Mira looks up on the web what she cannot know: opening hours, results, news. She
 
 The search is built in and needs no setup. You can switch it off under Settings → Devices & services → Mira → **Configure** → **General** → **Web search**, for instance if you use another search (see "More tools over MCP").
 
-If the setup is connected to a stronger language model, Mira hands elaborate questions over to it – explanations, planning, recipes, comparisons – and sums up the result for you. The stronger model can look things up but change nothing in the house.
+If the setup is connected to a stronger language model, Mira hands elaborate questions over to it – explanations, comparisons, weighing options – and sums up the result for you. The stronger model can look things up but change nothing in the house.
 
 ## Reminders, timers and alarms
 

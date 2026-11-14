@@ -980,7 +980,7 @@ Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebn
 
 Die Suche ist eingebaut und braucht keine Einrichtung. Ausschalten kannst du sie unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Allgemein** → **Internetsuche**, etwa wenn du eine andere Suche verwendest (siehe „Weitere Werkzeuge über MCP“).
 
-Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Planungen, Rezepte, Vergleiche – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
+Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Vergleiche, Abwägungen – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
 
 ## Erinnerungen, Timer und Wecker
 

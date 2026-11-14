@@ -567,6 +567,9 @@ From that:
     stored steps of the live run: with `tool_choice: none` alone, and with no tools at all, it called a tool again
     twice and gave no text; with the sentence it answered. The sentence is not kept in the run's steps. The
     conversation keeps its own last round ([Silent fallbacks](fallbacks.md), row 4).
+43. **`delegate` is for knowledge questions, skills come first** (2026-11-14): its description was sharpened to a
+    knowledge question with no skill for it, after Gemini Flash Lite took `delegate` instead of a remote agent's skill
+    in about 7 of 11 starts, its old list (planning, research steps, recipes) overlapping every skill that does head work.
 
 ## Open questions
 
