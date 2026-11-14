@@ -73,6 +73,22 @@ services:
       - "3399:3000"
     restart: "no"
 
+  # The fake A2A agent for Mira's remote agents (docs/spec/remote-agents.md,
+  # docs/spec/fake-devices.md): its cards at http://localhost:8791/<card>/,
+  # what it received at /fake/received. Its pushes reach the test Mira on the
+  # host as host.docker.internal.
+  a2a-fake:
+    container_name: mira-test-a2a
+    build:
+      context: ..
+      dockerfile: testenv/a2a_fake/Dockerfile
+    command: ["-wait", "30s"]
+    ports:
+      - "8791:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+
   # Matter server for the test HA (docs/spec/device-onboarding.md): Home
   # Assistant's own Matter integration talks to it over its WebSocket
   # (ws://host.docker.internal:5580/ws). It needs the host's network

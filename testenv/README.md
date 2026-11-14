@@ -70,6 +70,12 @@ are there for Mira's device watch ([Fake devices](../docs/spec/fake-devices.md),
 `watch_fake.water_stop`; `sensor.fake_aquarium_leistung` is set with `watch_fake.power` or follows a daily routine with
 `watch_fake.routine` (`windows`, `watts`).
 
+A fake A2A agent, `testenv/a2a_fake`, is a remote agent for Mira's tests ([Fake devices](../docs/spec/fake-devices.md),
+The fake A2A agent): the container `mira-test-a2a` on port 8791 (`docker compose up -d a2a-fake`), its cards at
+`http://localhost:8791/<card>/.well-known/agent-card.json` (the root, `push-only`, `stream-only`, `neither`,
+`oauth2`, `api-key`, `open`), its token `fake-a2a-token`, what it received at `/fake/received`. The Go tests start it
+in the process.
+
 A fake answering machine, `testenv/fritz_fake`, takes the place of Mira FRITZ!Box in the test HA: it is mounted as
 `custom_components/mira_fritz` (`mira_fritz:` in the configuration), because the Mira service knows the answering
 machine by that domain ([Fake devices](../docs/spec/fake-devices.md), The answering machine). It has Mira FRITZ!Box's

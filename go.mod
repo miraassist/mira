@@ -3,6 +3,7 @@ module github.com/miraassist/mira
 go 1.27.3
 
 require (
+	github.com/a2aproject/a2a-go/v2 v2.8.0
 	github.com/coder/websocket v1.8.15
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/libp2p/zeroconf/v2 v2.2.0
@@ -43,6 +44,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
+	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

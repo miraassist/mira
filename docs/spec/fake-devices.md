@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-14: steps 1–7 built (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-14: steps 1–8 built (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -178,6 +178,34 @@ token. A test lets the tokens run out (`Expire`), withdraws the app (`Revoke`) a
 MCP server takes its tokens (`Authorize`). The test HA does not use it: it would have to trust the fake's
 certificate; there the service is X itself.
 
+### The fake A2A agent (`testenv/a2a_fake`)
+
+For Mira's remote agents ([Remote agents](remote-agents.md), decisions 23 to 25): an A2A agent without a model,
+built with the official Go SDK (`github.com/a2aproject/a2a-go/v2`), deterministic. The Go tests start it in the
+process (`a2afake.New`, `httptest.NewServer`); the test environment runs it as the container `mira-test-a2a`
+(`testenv/compose.yaml`, port 8791; `-wait` sets how long the skill `slow` works).
+
+- **One agent, one skill per behaviour.** The skill a message names in its metadata (`skill`, decision 27 of the
+  remote agents) picks it: `complete` (completed at once, one artifact with a fixed text), `slow` (working until
+  released, or until `-wait` is over, then completed), `ask` (input-required with "Wie groß ist die Wohnfläche?";
+  a message with the same task id completes it with the answer in its artifact), `login` (auth-required), `fail`
+  (failed with a status text), `reject` (rejected), `push-twice` (as `complete`, every push sent twice), `message`
+  (a message instead of a task). A message that names no skill fails with a status text that says so.
+- **The cards** are served under several paths, one per kind of card (the simplest of the ways: no start flag, so
+  one fake serves every test): the card at `<path>/.well-known/agent-card.json`, its JSON-RPC endpoint at
+  `<path>/a2a`, both on the fake's address as the request reached it. The root: push and streaming, a bearer token;
+  `push-only`, `stream-only`, `neither`: the capabilities they name, a bearer token; `oauth2`: an OAuth2 login
+  (authorization code); `api-key`: an API key in the header `X-API-Key`; `open`: no login. The fake accepts one
+  token for all of them (`-token`, by default `fake-a2a-token`), and answers 401 to a missing or wrong one.
+- **What it received** is kept in order: each card read, each JSON-RPC call with its method and the credential that
+  came (refused or not), a message's text, skill, ids and push configuration, each cancel, each push it sent (to
+  where, with which token, the task's state). The Go tests read it (`Received`); by hand
+  `GET /fake/received`; `POST /fake/release` ends the work of the waiting `slow` tasks, `POST /fake/reset` forgets
+  what was received.
+- **Pushes** go out with the SDK's sender, which refuses private addresses by default; the fake allows them, since
+  the Mira service it pushes to is in the home network. The SDK sends the push token in the header
+  `A2A-Notification-Token`.
+
 ## What it costs
 
 Nothing for Mira: these are fakes in the test HA. Per `play_media` the fake fetches the media once and runs
@@ -203,3 +231,5 @@ turn at the conversation agent.
    GW-01 to GW-03, GW-08 to GW-16).
 7. **The answering machine** (`testenv/fritz_fake` as `mira_fritz`): the two sensors, Mira FRITZ!Box's actions and the
    test actions, for the evals of the messages' kinds (2026-11-14); tested in pytest (FG-30 to FG-32).
+8. **The fake A2A agent** (`testenv/a2a_fake`): the behaviours, the cards, what it received, its container
+   (2026-11-14, step 0 of [Remote agents](remote-agents.md)); tested in Go (`testenv/a2a_fake`).

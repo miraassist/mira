@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
-Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing, to be
-confirmed), not built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
+building, to be confirmed); step 0 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -79,6 +79,12 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 20 | A restart of the Mira service | The open calls are in `agent_runs` with the task id; at the start Mira asks each once with `GetTask` and subscribes again (`SubscribeToTask`) where it streams. A state missed meanwhile is taken from the answer. No polling afterwards |
 | 22 | Who asks | A remote agent is named in everything Mira says and shows by its **name**: the agent card's `name`, or the skill's `name` for the agent when it gives one ("Hermes fragt: …", "Hermes konnte das nicht: …"). "Der entfernte Agent" is never said to the user (2026-11-14, by the maintainer; the source of the name taken while writing) |
 | 21 | The answer to an agent request | Goes to the remote agent as a new message with the same task id and context id; the call waits on, and follows the task the answer returns, which may be a new one in the same context (Hermes makes a new task, see Hermes below). A second agent request of the same task replaces the first, if that is still unheard |
+
+### Taken while building (2026-11-14, to be confirmed by the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 27 | How the skill of the card reaches the remote agent | A2A 1.0 has no field for it in a message. Mira puts `a2a_skill` into the message's metadata as `skill`; an agent that does not read it ignores it. The fake A2A agent picks its behaviour by it (step 0) |
 
 ## What a skill writes
 
@@ -272,8 +278,12 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
 
 ## Steps
 
-0. **The fake A2A agent** (decisions 23–25): `testenv/a2a_fake` with the Go SDK, one skill per behaviour, its
+0. **The fake A2A agent** (decisions 23–25, 27): `testenv/a2a_fake` with the Go SDK, one skill per behaviour, its
    container in `testenv/compose.yaml`, what it received readable for the tests; in [Fake devices](fake-devices.md).
+   Built 2026-11-14 with the SDK v2.8.0. Found in it: a server of the SDK refuses a request without the header
+   `A2A-Version: 1.0` (it takes such a request as 0.3); the SDK's client sends it. The SDK's push sender puts the push
+   token into the header `A2A-Notification-Token`, not into `Authorization` (decision 14 names `Authorization:
+   Bearer`; for step 2).
 1. **The remote agent in a skill:** `remote` in `metadata.mira.agents`, the settings' placeholders, reading the agent
    card, the login with a token or the skill's connection, the skill's problems (decisions 9, 12, 16, 17, 18; A).
    Glossary done.
