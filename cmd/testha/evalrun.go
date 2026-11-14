@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -33,6 +34,13 @@ type ResultCheck struct {
 	TaskExists    *TaskCheck    `yaml:"task_exists"`
 	Plan          *PlanCheck    `yaml:"plan"`
 	NoMessage     *NoMessage    `yaml:"no_message"`
+	// RemoteReceived wants a message to the fake A2A agent whose text
+	// contains this (docs/spec/evals.md, Remote agents and delegate).
+	RemoteReceived *RemoteCheck `yaml:"remote_received"`
+}
+
+type RemoteCheck struct {
+	Contains string `yaml:"contains"`
 }
 
 type EventCheck struct {
@@ -74,9 +82,9 @@ type TaskCheck struct {
 	Contains string `yaml:"contains"`
 }
 
-// Behaviour checks the turn's trace. An entry is "tool:NAME",
-// "thread:TARGET[:STATE]", "action:NAME" or "blocked:NAME", matched as a
-// prefix.
+// Behaviour checks the turn's trace. An entry is "tool:NAME" (for
+// skill_open "tool:skill_open:SKILL"), "thread:TARGET[:STATE]",
+// "action:NAME" or "blocked:NAME", matched as a prefix.
 type Behaviour struct {
 	Must      []string `yaml:"must"`
 	MustNot   []string `yaml:"must_not"`
@@ -248,6 +256,14 @@ func traceKey(e trace.Event) string {
 		return "thread:" + e.Name + ":" + e.Detail
 	case trace.Round:
 		return fmt.Sprintf("round:%s:%dms", e.Name, e.Ms)
+	case trace.Tool:
+		// Which skill was opened, so a scenario can forbid one.
+		var a struct {
+			Name string `json:"name"`
+		}
+		if e.Name == "skill_open" && json.Unmarshal([]byte(e.Detail), &a) == nil && a.Name != "" {
+			return "tool:skill_open:" + a.Name
+		}
 	}
 	return e.Kind + ":" + e.Name
 }
@@ -473,6 +489,26 @@ func (r *evalRun) checkResult(ctx context.Context, c ResultCheck) string {
 		return r.checkPlan(ctx, *c.Plan)
 	case c.NoMessage != nil:
 		return r.checkNoMessage(ctx, *c.NoMessage)
+	case c.RemoteReceived != nil:
+		var got []struct {
+			Kind string `json:"kind"`
+			Text string `json:"text"`
+		}
+		if err := r.call(ctx, "GET", a2aFakeURL+"/fake/received", "", nil, &got); err != nil {
+			return "the fake A2A agent: " + err.Error()
+		}
+		var texts []string
+		for _, g := range got {
+			if g.Kind != "SendMessage" && g.Kind != "SendStreamingMessage" {
+				continue
+			}
+			if strings.Contains(strings.ToLower(g.Text), strings.ToLower(c.RemoteReceived.Contains)) {
+				return ""
+			}
+			texts = append(texts, fmt.Sprintf("%q", g.Text))
+		}
+		return fmt.Sprintf("the fake A2A agent received no message with %q (got %d: %s)", c.RemoteReceived.Contains,
+			len(texts), strings.Join(texts, ", "))
 	default:
 		return "empty result check"
 	}

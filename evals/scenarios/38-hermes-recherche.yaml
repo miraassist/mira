@@ -1,0 +1,13 @@
+name: hermes-recherche
+description: Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht delegate
+skills: [hermes]
+steps:
+  - say: Finde heraus, welche Wärmepumpe zu einem Altbau passt
+    expect:
+      result:
+        - remote_received: { contains: Wärmepumpe }
+      behaviour:
+        must: [thread:hermes]
+        must_not: [tool:delegate]
+      answer:
+        contains: [Hermes]

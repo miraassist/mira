@@ -33,7 +33,11 @@ type Scenario struct {
 	// Core scenarios pass at 3 of 3 runs, the others at 2 of 3.
 	Core  bool          `yaml:"core"`
 	Setup ScenarioSetup `yaml:"setup"`
-	Steps []Step        `yaml:"steps"`
+	// Skills are eval skills (evals/skills) the scenario needs; the run
+	// switches on those of its scenarios (docs/spec/evals.md, Remote agents
+	// and delegate).
+	Skills []string `yaml:"skills"`
+	Steps  []Step   `yaml:"steps"`
 }
 
 type ScenarioSetup struct {
@@ -111,7 +115,15 @@ type evalRun struct {
 	// leftOut are the skills left out of the run because a variable their
 	// settings need is not in testenv/.env, with that variable.
 	leftOut []string
+	// evalSkills are the eval skills the run's scenarios need.
+	evalSkills []string
 }
+
+// evalSkillsDir holds the skills only evals use, relative to the repo.
+const evalSkillsDir = "evals/skills"
+
+// a2aFakeURL is the fake A2A agent's container (testenv/compose.yaml).
+const a2aFakeURL = "http://127.0.0.1:8791"
 
 func evalCmd(ctx context.Context, dir string, args []string) error {
 	fs := flag.NewFlagSet("eval", flag.ContinueOnError)
@@ -145,6 +157,13 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	scenarios, err := loadScenarios(filepath.Join(root, "evals", "scenarios"), *only)
 	if err != nil {
 		return err
+	}
+	for _, sc := range scenarios {
+		for _, s := range sc.Skills {
+			if !slices.Contains(r.evalSkills, s) {
+				r.evalSkills = append(r.evalSkills, s)
+			}
+		}
 	}
 	stop, err := r.startAgent(ctx)
 	if err != nil {
@@ -295,6 +314,7 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		}
 		cfg["agents"] = agents
 	}
+	withEvalSkills(cfg, r.evalSkills)
 	r.leftOut = r.withoutUnsetSkills(cfg)
 	for _, s := range r.leftOut {
 		fmt.Printf("skill left out, a variable is missing in testenv/.env: %s\n", s)
@@ -590,6 +610,26 @@ func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// withEvalSkills switches on the eval skills named, from evalSkillsDir after
+// the config's own folders, without settings.
+func withEvalSkills(cfg map[string]any, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	skills, _ := cfg["skills"].(map[string]any)
+	if skills == nil {
+		skills = map[string]any{}
+		cfg["skills"] = skills
+	}
+	dirs, _ := skills["dirs"].([]any)
+	skills["dirs"] = append(dirs, evalSkillsDir)
+	for _, n := range names {
+		if _, ok := skills[n]; !ok {
+			skills[n] = map[string]any{}
+		}
+	}
 }
 
 // printLogTail shows the end of the eval service's log, for a failure.

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/miraassist/mira/internal/trace"
 )
 
 // A skill whose settings need a variable testenv/.env lacks is left out of
@@ -58,5 +60,41 @@ func TestAScenarioMeasuredAgainGoesIntoTheLastReport(t *testing.T) {
 	}
 	if !strings.Contains(got.markdown(), "Measured again on their own: termin-absagen (2026-11-05 23:00, Mira 0.16.0, 3 runs)") {
 		t.Errorf("report:\n%s", got.markdown())
+	}
+}
+
+// The eval skills the scenarios name are switched on from evals/skills,
+// after the config's own folders (docs/spec/evals.md, Remote agents and
+// delegate).
+func TestEvalSwitchesOnTheScenariosEvalSkills(t *testing.T) {
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte("skills:\n  dirs: [skills]\n  abfall: {calendar: calendar.abfuhr}\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	withEvalSkills(cfg, []string{"hermes"})
+	skills := cfg["skills"].(map[string]any)
+	if dirs := skills["dirs"].([]any); len(dirs) != 2 || dirs[0] != "skills" || dirs[1] != evalSkillsDir {
+		t.Errorf("dirs %v", dirs)
+	}
+	if _, ok := skills["hermes"]; !ok {
+		t.Error("hermes is not on")
+	}
+	if _, ok := skills["abfall"]; !ok {
+		t.Error("abfall is gone")
+	}
+	untouched := map[string]any{}
+	withEvalSkills(untouched, nil)
+	if len(untouched) != 0 {
+		t.Errorf("without eval skills the config changed: %v", untouched)
+	}
+}
+
+// skill_open names the skill in the trace, so a scenario can forbid one.
+func TestEvalTraceNamesTheOpenedSkill(t *testing.T) {
+	if got := traceKey(trace.Event{Kind: trace.Tool, Name: "skill_open", Detail: `{"name":"hermes"}`}); got != "tool:skill_open:hermes" {
+		t.Errorf("skill_open: %q", got)
+	}
+	if got := traceKey(trace.Event{Kind: trace.Tool, Name: "delegate", Detail: `{"task":"x"}`}); got != "tool:delegate" {
+		t.Errorf("delegate: %q", got)
 	}
 }

@@ -1,0 +1,8 @@
+name: waermepumpe-erklaeren
+description: Eine Wissensfrage geht an delegate oder wird beantwortet, ohne den Skill des Recherche-Agenten
+skills: [hermes]
+steps:
+  - say: Erklär mir, wie eine Wärmepumpe funktioniert
+    expect:
+      behaviour:
+        must_not: [thread:hermes, tool:skill_open:hermes]

@@ -1943,9 +1943,182 @@
           ]
         }
       ]
+    },
+    {
+      "name": "hermes-recherche",
+      "description": "Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht delegate",
+      "core": false,
+      "passed_runs": 0,
+      "answer_ok_runs": 3,
+      "passed": false,
+      "step_times": [
+        {
+          "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
+          "median_seconds": 6.276140524,
+          "max_seconds": 6.390915863,
+          "model_ms_median": 1254,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 92493,
+      "runs": [
+        {
+          "passed": false,
+          "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:hermes",
+            "step 1: must not tool:delegate",
+            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
+          ],
+          "steps": [
+            {
+              "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Ich lass den Hermes nachforschen. Das dauert einen Moment.",
+              "seconds": 6.138308898,
+              "model_ms": 1118,
+              "rounds": 2,
+              "tokens": 30792,
+              "trace": [
+                "round:flashlite:554ms",
+                "tool:delegate",
+                "round:flashlite:564ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": false,
+          "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:hermes",
+            "step 1: must not tool:delegate",
+            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
+          ],
+          "steps": [
+            {
+              "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Ich lasse Hermes nach passenden Wärmepumpen für den Altbau recherchieren. Das Ergebnis schicke ich dir, sobald es da ist.",
+              "seconds": 6.276140524,
+              "model_ms": 1254,
+              "rounds": 2,
+              "tokens": 30844,
+              "trace": [
+                "round:flashlite:650ms",
+                "tool:delegate",
+                "round:flashlite:604ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": false,
+          "answer_ok": true,
+          "failures": [
+            "step 1: missing thread:hermes",
+            "step 1: must not tool:delegate",
+            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
+          ],
+          "steps": [
+            {
+              "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Ich lasse Hermes nach einer passenden Wärmepumpe für den Altbau recherchieren. Das Ergebnis schicke ich dir, sobald es da ist.",
+              "seconds": 6.390915863,
+              "model_ms": 1373,
+              "rounds": 2,
+              "tokens": 30857,
+              "trace": [
+                "round:flashlite:791ms",
+                "tool:delegate",
+                "round:flashlite:582ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "waermepumpe-erklaeren",
+      "description": "Eine Wissensfrage geht an delegate oder wird beantwortet, ohne den Skill des Recherche-Agenten",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
+          "median_seconds": 6.254407655,
+          "max_seconds": 6.327516603,
+          "model_ms_median": 1234,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 92410,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
+              "text": "Ich schaue nach und sage dir Bescheid.",
+              "seconds": 6.327516603,
+              "model_ms": 1304,
+              "rounds": 2,
+              "tokens": 30835,
+              "trace": [
+                "round:flashlite:613ms",
+                "tool:delegate",
+                "round:flashlite:691ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
+              "text": "Eine Wärmepumpe entzieht der Umwelt Wärme, bringt sie auf ein höheres Temperaturniveau und heizt damit das Haus.",
+              "seconds": 6.199390427,
+              "model_ms": 1179,
+              "rounds": 2,
+              "tokens": 30792,
+              "trace": [
+                "round:flashlite:553ms",
+                "tool:delegate",
+                "round:flashlite:626ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
+              "text": "Ich schaue mir das genauer an und schicke dir die Erklärung, sobald sie fertig ist.",
+              "seconds": 6.254407655,
+              "model_ms": 1234,
+              "rounds": 2,
+              "tokens": 30783,
+              "trace": [
+                "round:flashlite:542ms",
+                "tool:delegate",
+                "round:flashlite:692ms"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "left_out": [
     "x (MIRA_SKILL_X_CLIENT_SECRET)"
+  ],
+  "again": [
+    "hermes-recherche (2026-11-14 23:48, Mira 0.24.0, 3 runs)",
+    "waermepumpe-erklaeren (2026-11-14 23:48, Mira 0.24.0, 3 runs)"
   ]
 }

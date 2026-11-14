@@ -170,6 +170,12 @@ func (r *evalRun) setUp(ctx context.Context, sc Scenario) error {
 	if err := r.agent(ctx, "POST", "/v1/eval/reset", body, nil); err != nil {
 		return err
 	}
+	if sc.checksRemote() {
+		// What the fake A2A agent received counts from this run on.
+		if err := r.call(ctx, "POST", a2aFakeURL+"/fake/reset", "", nil, nil); err != nil {
+			return fmt.Errorf("the fake A2A agent (container mira-test-a2a, testenv/compose.yaml) does not answer: %w", err)
+		}
+	}
 	for _, e := range sc.Setup.Events {
 		d, err := day(e.Day)
 		if err != nil {
@@ -315,4 +321,16 @@ func (r *evalRun) alarms(ctx context.Context, node string) ([]alarm, error) {
 	}
 	err := r.ha(ctx, "POST", "/api/services/esphome/"+node+"_alarms_list?return_response", map[string]any{}, &out)
 	return out.Response.Alarms, err
+}
+
+// checksRemote: a step checks what the fake A2A agent received.
+func (sc Scenario) checksRemote() bool {
+	for _, st := range sc.Steps {
+		for _, c := range st.Expect.Result {
+			if c.RemoteReceived != nil {
+				return true
+			}
+		}
+	}
+	return false
 }

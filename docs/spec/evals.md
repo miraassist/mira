@@ -124,6 +124,7 @@ From what has been tested by hand so far:
 | A list that does not exist: said, not confirmed (added 2026-11-09, after Mira confirmed an item on a list that did not exist yet) | |
 | Mira's inbox: eight scenarios (added 2026-11-12, see below) | |
 | Messages and their kinds: sixteen scenarios (added 2026-11-14, see below) | |
+| Remote agents and delegate: two scenarios (added 2026-11-14, see below) | |
 
 ## Mira's inbox (added 2026-11-12)
 
@@ -189,6 +190,28 @@ Decided 2026-11-14:
 What it costs: per scenario one turn (two models calls with `messages_read`, one more for the afterword's wording),
 and per mail its reading; 16 scenarios with 3 runs are about 150 model calls. A device scenario waits at least a
 minute for the gathering.
+
+## Remote agents and delegate (added 2026-11-14)
+
+Scenarios 38 and 39 test whether the voice model tells a skill's remote agent from `delegate`
+([Remote agents](remote-agents.md), [Agents](agents.md), decision 43): in the end-to-end tests of the remote agents
+Gemini Flash Lite took `delegate` in about 7 of 11 starts instead of the skill whose agent should do the work.
+
+Decided 2026-11-14:
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Where the skill comes from | An eval skill, `hermes`, in `evals/skills/` (not in `skills/`): a research agent on another device, described as concretely as a real skill. A scenario names the eval skills it needs (`skills: [hermes]`); the run switches on those of its scenarios, from `evals/skills` after the test config's folders, without settings. A run without such a scenario has no eval skill |
+| 2 | The remote agent | The fake A2A agent's container (`mira-test-a2a`, [Fake devices](fake-devices.md)) at its port on this machine, with its default token and the skill `ask`, which asks back at once, so the turn ends within the voice limit. The container must run; a scenario that checks it fails its setup, naming the container, when it does not answer |
+| 3 | Checks | `remote_received: {contains}` wants a message to the fake A2A agent with that text (what it received is emptied before such a scenario's run); the trace names the skill `skill_open` opened (`tool:skill_open:hermes`), so a scenario can forbid opening one |
+| 4 | Core scenarios | None for now |
+
+| Scenario | Said | Expected |
+|---|---|---|
+| hermes-recherche | "Finde heraus, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` starts and the fake A2A agent gets the request; no `delegate` |
+| waermepumpe-erklaeren | "Erklär mir, wie eine Wärmepumpe funktioniert" | neither the thread of `hermes` nor `skill_open` of it (`delegate` or an answer of its own) |
+
+What it costs: one voice turn per scenario, with `delegate` one more call of the main model.
 
 ## Deliberately not
 
