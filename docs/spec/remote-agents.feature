@@ -42,10 +42,11 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     Then the skill has a problem saying Mira's address for remote agents is missing
 
   @step2
-  Scenario: RM-21 Push or stream by the address
+  Scenario: RM-21 The stream first
     Given the agent card offers push and streaming
-    When server.url is set, Mira sends the work with a push configuration
-    And when it is not set, Mira reads the stream
+    And server.url is set
+    When the field is due
+    Then Mira reads the stream and sends no push configuration
 
   @step1
   Scenario: RM-04 The card cannot be read
@@ -56,7 +57,8 @@ Feature: Remote agents (docs/spec/remote-agents.md)
   @step2
   Scenario: RM-05 A field filled by a remote agent, by push
     Given a skill's target names a remote agent for a field
-    And the remote agent offers push notifications
+    And the remote agent offers push notifications but no stream
+    And server.url is set
     When the field is due
     Then Mira sends one message with a push configuration and a token of the call
     And when the remote agent pushes the completed task, the field holds the artifacts' text
