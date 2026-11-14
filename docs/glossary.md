@@ -44,7 +44,8 @@ is used in a spec; a term that is not here is not a term yet.
 |---|---|---|---|---|
 | message | Nachricht | What waits for a receiver; lights the ring and the screen | table `messages`, `store.Message` | notice, notification, Hinweis (as a term) |
 | entry | Eintrag | One item of a message: a text, often with a thread behind it | table `message_entries` | item, notice |
-| kind | Art | What a message is and what happens with it: `simple`, `reminder`, `urgent`, `private`, `confidential`, `postfach`, `voicemail`, `device`, `reply` | `messages.kind`, `store.Kind*` | type, category |
+| kind | Art | What a message is and what happens with it: `simple`, `reminder`, `urgent`, `private`, `confidential`, `postfach`, `voicemail`, `device`, `reply`, `agent_request` | `messages.kind`, `store.Kind*` | type, category |
+| agent request | Agentenanfrage | A remote agent's question to the owner of its thread, because input is missing; a kind of message; the answer goes back to the agent | kind `agent_request` | reply (that is what comes back to a request), question |
 | receiver | Empfänger | Whom a message is for: a person, a room, the house | `messages.receiver` | audience |
 | sender | Absender | Who put an entry: a person, a task, a skill | `message_entries.sender` | author (of a message) |
 | announcement | Ansage | Mira saying waiting messages at a satellite | table `announcements`, `notify.compose` | Durchsage |
@@ -61,6 +62,8 @@ is used in a spec; a term that is not here is not a term yet.
 | capabilities | Fähigkeiten | The tab of Mira's page with skills, rules, schedule and tools | `internal/ui` | — |
 | tool | Werkzeug | A function the model calls | `internal/tools`, MCP tools | action (for a tool), function |
 | agent | Agent | One of Mira's helpers: a model with its own context, tools and form of answer, callable like a tool | `internal/agent`, tables `agent_runs`, `agent_run_steps` | the Mira service |
+| remote agent | entfernter Agent | An agent of a skill that runs elsewhere and speaks A2A: Mira sends it the work and gets the result; described by its agent card, not by a model ([Remote agents](spec/remote-agents.md)) | a skill's `metadata.mira.agents.<name>.remote`, `internal/a2a` | A2A server (for the agent), external agent |
+| agent card | Agent Card | What a remote agent says about itself: name, description, skills, what it can (push, streaming), how to log in; at `/.well-known/agent-card.json` | `internal/a2a` | manifest |
 | hook | Regel | A check on every tool call: allow, confirm, deny ([Hooks](spec/hooks.md): "Regel" for users, "hook" in spec and code) | `internal/hooks`, folder `hooks/` | policy, guard (for the hook), rule (in English) |
 | schedule | Zeitplan | When a skill acts by itself (cron) | a skill's `schedules`, `kv` `schedule:*` | timer, job |
 | task | Aufgabe | A Home Assistant automation as the user sees it; Mira's own carry the label "Mira" | `internal/tasks`, table `own_automations` (kind `task`) | automation (to the user), job |
@@ -119,3 +122,4 @@ is used in a spec; a term that is not here is not a term yet.
 11. Mira's fixed ways of watching are **blueprints** ("Blueprint" in German too, as in Home Assistant); "pattern" and "Muster" are not used.
 12. A group watch watches a **watch group**: a selection by device class, area or floor, or a group helper; "group" alone is not used. The **floor** is Home Assistant's floor.
 13. The **battery watch** and the **availability watch** are group watches; a device whose entities are `unavailable` is **unreachable** ("nicht erreichbar"). Added 2026-11-13 without the maintainer, to be confirmed.
+14. An agent that runs elsewhere and speaks A2A is a **remote agent** (entfernter Agent); "agent" alone stays one of Mira's helpers. Its question for missing input is an **agent request** (kind `agent_request`), not a `reply`. Decided 2026-11-14.
