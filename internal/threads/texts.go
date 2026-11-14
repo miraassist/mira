@@ -28,7 +28,7 @@ type texts struct {
 	// The agent requests (docs/spec/remote-agents.md, D).
 	agentAsks, fieldAgentAsks, answerDesc, answerThreadDesc       string
 	answerTextDesc, answerEmpty, nobodyAsks, answerNotSent        string
-	answerPassed                                                  string
+	answerPassed, answerTooSoon                                   string
 	planNoteDesc, noteOnlyCheck, noteTooLong                      string
 	takeDesc, takeIDDesc, notYours, openLine, noneOpen, stillOpen string
 	waitingLine                                                   string
@@ -100,6 +100,7 @@ var catalog = map[i18n.Lang]texts{
 		nobodyAsks:       "In diesem Vorgang wartet kein Agent auf eine Antwort.",
 		answerNotSent:    "Ich konnte die Antwort nicht weitergeben: %v",
 		answerPassed:     "Antwort an %s weitergegeben.",
+		answerTooSoon:    "%s hat gerade erst gefragt; der Nutzer hat die Frage noch nicht gehört. Stell sie ihm und gib erst seine Antwort mit agent_answer weiter.",
 		agentPlanFailed:  "Den Plan für „%s“ konnte ich nicht erstellen. Magst du es mir anders geben?",
 		agentPlanReady:   "„%s“ ist bereit: %d Schritte.",
 		stillMissing:     "Fehlt noch: %s",
@@ -197,6 +198,7 @@ var catalog = map[i18n.Lang]texts{
 		nobodyAsks:       "No agent waits for an answer in this thread.",
 		answerNotSent:    "I could not pass the answer on: %v",
 		answerPassed:     "Answer passed on to %s.",
+		answerTooSoon:    "%s has only just asked; the user has not heard the question yet. Ask them, and pass on only their answer with agent_answer.",
 		agentPlanFailed:  "I could not make the plan for \"%s\". Would you give it to me another way?",
 		agentPlanReady:   "\"%s\" is ready: %d steps.",
 		stillMissing:     "Still missing: %s",

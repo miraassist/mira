@@ -188,7 +188,28 @@ type TurnState struct {
 	// flow cannot go on without, so the satellite keeps listening however
 	// the model words it (docs/spec/keep-listening.md).
 	waitsForUser bool
+	// askedNow are the threads whose remote agent asked back within this
+	// turn: the user has not answered it yet (docs/spec/remote-agents.md,
+	// decision 51).
+	askedNow map[string]bool
 }
+
+// AgentAsked notes that a thread's remote agent asked back within this
+// turn; the satellite listens again for the answer.
+func (t *TurnState) AgentAsked(thread string) {
+	if t == nil {
+		return
+	}
+	if t.askedNow == nil {
+		t.askedNow = map[string]bool{}
+	}
+	t.askedNow[thread] = true
+	t.waitsForUser = true
+}
+
+// AgentAskedNow reports whether a thread's remote agent asked back within
+// this turn, so no answer of the user's can be there yet.
+func (t *TurnState) AgentAskedNow(thread string) bool { return t != nil && t.askedNow[thread] }
 
 // WaitForUser is called by a tool whose answer asks the user for something:
 // the satellite then listens again after the turn, whether or not the model

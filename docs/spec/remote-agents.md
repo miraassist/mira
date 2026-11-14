@@ -108,6 +108,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 48 | The receiver | A person (its key), a room (its area id; `area:<id>` and `person:<key>` are taken too) or `house`. A target bound to the house takes only `house`, one bound to a room only a room, another a person or a room. Anything else is refused with the reason |
 | 49 | The input | The request as a text, or `{"input": "…"}`; the integration lets an object or a text through for a skill and keeps an object for an agent. The defaults of a call of an agent (`mode`, `timeout`, …) go along only for an agent; with `skill` they are refused |
 | 50 | The thread's turn | It has no session: it starts as a background turn of its owner, its agents start at once, and what it says comes as messages of the thread (to the person, or said in the room) |
+| 51 | No answer in the asking turn | Seen on the test Mira (2026-11-14, Gemini Flash Lite): the question came while the voice turn waited, and the model answered it itself with `agent_answer` ("150 Quadratmeter") without asking the user. A question that comes within the turn is noted on the turn: the satellite listens again (as `WaitForUser`), and `agent_answer` for that thread is refused in that turn ("Hermes hat gerade erst gefragt …"); the user's answer comes in the next turn |
 
 ## What a skill writes
 
@@ -320,7 +321,8 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    Built 2026-11-14 (decisions 41 to 43): the kind in `store` (gathering, in the leads of "Wartet noch"), the
    question in the thread's log and fields and as a message keyed by the call (`threads.AgentRequest`), the tool
    `agent_answer` (`threads.AgentAnswer`, `a2a.Host.Answer`), the request done once answered; an answer that is not
-   taken leaves it open and says why. Messages decision 33. RM-12, RM-13 in Go (`cmd/mira`).
+   taken leaves it open and says why. Messages decision 33. RM-12, RM-13 in Go (`cmd/mira`). After the run on the
+   test Mira: no answer within the asking turn (decision 51).
 4. **A restart** (G; decision 20). Built 2026-11-14 (decisions 44 to 46): `a2a.Host.Resume`, called with the
    runtime's resume, takes up every running row with a remote task. RM-14 in Go (`cmd/mira`), also a task the agent
    no longer knows (`TaskNotFound`).

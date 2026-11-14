@@ -132,6 +132,12 @@ func (m *Manager) AgentAnswer(ctx context.Context, inv tools.Invocation, id, tex
 	if !ok {
 		return "", errors.New(t.nobodyAsks)
 	}
+	if tools.TurnOf(ctx).AgentAskedNow(th.ID) {
+		// The question came within this turn: the user has not heard it
+		// yet, so no answer of theirs can be there (decision 51).
+		m.log.Info("agent_answer refused: the question came in this turn", "thread", th.ID, "call_id", callID)
+		return "", fmt.Errorf(t.answerTooSoon, label)
+	}
 	if err := m.opts.Answer(ctx, callID, text); err != nil {
 		m.log.Warn("the answer to an agent request could not be passed on; the request stays", "thread", th.ID,
 			"call_id", callID, "agent", label, "error", err)

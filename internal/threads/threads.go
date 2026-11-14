@@ -485,6 +485,12 @@ func (m *Manager) begin(ctx context.Context, inv tools.Invocation, target, reque
 		if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil {
 			th = cur
 		}
+		if _, _, _, _, asks := m.asking(th); asks {
+			// Its remote agent asked back while the turn waited: the user
+			// answers in the next turn, and the satellite listens for it
+			// (docs/spec/remote-agents.md, decisions 41, 51).
+			tools.TurnOf(ctx).AgentAsked(th.ID)
+		}
 	}
 	out := m.texts().started + "\n\n" + sk.BodyIn(m.lang(ctx)) + "\n\n" + m.status(th)
 	if said != "" {

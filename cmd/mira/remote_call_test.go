@@ -658,3 +658,38 @@ func TestRM16_MiraAgentWithASkillWithoutATarget(t *testing.T) {
 		}
 	}
 }
+
+// A question that comes while the voice turn waits is said in that turn,
+// the satellite listens again, and agent_answer is refused within it: the
+// user has not heard the question yet (decisions 41, 51).
+func TestRemoteQuestionInTheWaitingTurn(t *testing.T) {
+	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillAsk, false)
+	ctx := context.Background()
+	if _, err := env.a.store.UpsertSession(ctx, store.Session{Key: "voice:1", Channel: string(config.ChannelVoice)}, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	inv := tools.Invocation{SessionKey: "voice:1", Channel: config.ChannelVoice, Person: "anna"}
+	ts := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice}
+	turn := tools.WithTurn(ctx, ts)
+	// The fake asks at once; the turn waits up to AgentWait for it.
+	out, err := env.a.threads.Start(turn, inv, "recherche", "Welche Wärmepumpe passt?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "Hermes fragt: "+a2afake.Question) || !ts.WaitsForUser() {
+		t.Fatalf("waits %v, said:\n%s", ts.WaitsForUser(), out)
+	}
+	if n := len(env.messages()); n != 0 {
+		t.Errorf("%d messages for a question said in the turn", n)
+	}
+	if _, err := env.a.threads.AgentAnswer(turn, inv, "", "150 Quadratmeter"); err == nil ||
+		!strings.Contains(err.Error(), "gerade erst gefragt") {
+		t.Errorf("answered within the asking turn: %v", err)
+	}
+	// The next turn carries the user's answer.
+	next := tools.WithTurn(ctx, &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice})
+	if _, err := env.a.threads.AgentAnswer(next, inv, "", "140 Quadratmeter"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+}
