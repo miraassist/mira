@@ -116,8 +116,11 @@ decide:
 agent:
   fields:
     agent:
-      required: true
       example: "delegate"
+      selector:
+        text:
+    skill:
+      example: "recherche"
       selector:
         text:
     input:

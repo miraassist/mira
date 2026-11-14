@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -19,6 +20,7 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
+	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/tools"
 )
 
@@ -437,4 +439,69 @@ func modelNameOf(name string) string {
 		return config.MainModel
 	}
 	return name
+}
+
+// startSkill serves mira.agent with skill (docs/spec/remote-agents.md, F):
+// the skill's thread starts as if its owner had asked by voice, with the
+// request. The receiver is a person (its key), a room (its area id) or the
+// house; what does not fit is refused with the reason.
+func (a *app) startSkill(ctx context.Context, skill, request, receiver string) (string, error) {
+	refuse := func(format string, args ...any) error {
+		return &haconv.SkillRefused{Reason: fmt.Sprintf(format, args...)}
+	}
+	var sk *skills.Skill
+	for _, s := range a.allSkills() {
+		if s.Name == skill {
+			sk = &s
+			break
+		}
+	}
+	switch {
+	case sk == nil:
+		return "", refuse("there is no skill %q that is on", skill)
+	case sk.Target == nil:
+		return "", refuse("the skill %s has no target: it has no thread to start", skill)
+	case a.threads == nil || !a.threads.HasTarget(skill):
+		return "", refuse("the thread of the skill %s cannot start; the skill has a problem on Mira's page", skill)
+	}
+	var person, area string
+	receiver = strings.TrimSpace(receiver)
+	switch {
+	case receiver == "":
+		return "", refuse("receiver is missing: a person, a room (its area id) or house")
+	case receiver == store.ReceiverHouse:
+	default:
+		key, isPerson := strings.CutPrefix(receiver, "person:")
+		room, isRoom := strings.CutPrefix(receiver, "area:")
+		_, known := a.persons()[key]
+		_, known2 := a.areaNames()[room]
+		switch {
+		case !isRoom && known:
+			person = key
+		case !isPerson && known2:
+			area = room
+		default:
+			return "", refuse("receiver %q is neither a person nor a room Mira knows", receiver)
+		}
+	}
+	th, err := a.threads.StartFromHA(ctx, skill, request, person, area)
+	if errors.Is(err, threads.ErrOwner) {
+		return "", refuse("%s", err.Error())
+	}
+	if err != nil {
+		return "", err
+	}
+	a.log.Info("thread started from home assistant", "skill", skill, "thread", th.ID, "receiver", receiver)
+	return th.ID, nil
+}
+
+// allSkills are the skills that are on, those with a target too.
+func (a *app) allSkills() []skills.Skill { return a.skillsWithAgents() }
+
+// areaNames are Home Assistant's areas by id.
+func (a *app) areaNames() map[string]string {
+	if a.structure == nil {
+		return nil
+	}
+	return a.structure.Snapshot().AreaNames
 }

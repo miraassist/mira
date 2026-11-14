@@ -353,15 +353,19 @@
     },
     "agent": {
       "name": "Agent",
-      "description": "Runs one of Mira's agents. Waits for its answer (use response_variable), or with mode async returns a call id at once; the result then comes as the event mira_agent_done or as a message.",
+      "description": "Runs one of Mira's agents. Waits for its answer (use response_variable), or with mode async returns a call id at once; the result then comes as the event mira_agent_done or as a message. With skill instead of agent, it starts that skill's thread as if the receiver had asked by voice.",
       "fields": {
         "agent": {
           "name": "Agent",
-          "description": "The agent's name, such as delegate."
+          "description": "The agent's name, such as delegate. Leave it empty when you name a skill."
+        },
+        "skill": {
+          "name": "Skill",
+          "description": "Instead of an agent: the skill whose thread starts, such as recherche. Then only input and receiver go with it."
         },
         "input": {
           "name": "Input",
-          "description": "What the agent gets, as an object; for an agent that takes text, the field input with the text."
+          "description": "What the agent gets, as an object; for an agent that takes text, the field input with the text. With skill: what is asked, as text."
         },
         "mode": {
           "name": "Mode",
@@ -381,7 +385,7 @@
         },
         "receiver": {
           "name": "Receiver",
-          "description": "For message: a person or house."
+          "description": "For message: a person or house. With skill: whom the thread is for, a person or a room (its area id), or house."
         }
       }
     },
@@ -559,6 +563,12 @@
     },
     "check_failed": {
       "message": "Mira could not check: {error}"
+    },
+    "skill_needs_update": {
+      "message": "Mira can do this only after an update of the Mira service."
+    },
+    "skill_failed": {
+      "message": "Mira could not start {skill}: {error}"
     }
   }
 }

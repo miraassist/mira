@@ -1327,7 +1327,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: longestTimeout(cfg), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
-		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents,
+		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents, StartSkill: a.startSkill,
 		Backup: func(ctx context.Context, w io.Writer) error { return backup.Make(ctx, a.backupMira(), w) },
 		Logins: a.oauth,
 		Restore: func(ctx context.Context, r io.Reader) (any, error) {

@@ -109,3 +109,67 @@ async def test_unknown_agent_says_why(hass, aioclient_mock, entry):
     aioclient_mock.post(f"{AGENT_URL}/v1/agent", status=404, json={"error": "no such agent: gibtsnicht"})
     with pytest.raises(HomeAssistantError, match="no such agent: gibtsnicht"):
         await hass.services.async_call(DOMAIN, "agent", {"agent": "gibtsnicht"}, blocking=True, return_response=True)
+
+
+async def test_RM15_agent_with_skill_starts_its_thread(hass, aioclient_mock, entry):
+    """RM-15: mira.agent with skill starts the skill's thread for the receiver
+    with the input as the request; the response holds the thread's id."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.post(f"{AGENT_URL}/v1/agent/skill", json={"thread_id": "t1"})
+    result = await hass.services.async_call(
+        DOMAIN,
+        "agent",
+        {"skill": "recherche", "input": "Welche Wärmepumpe passt?", "receiver": "anna"},
+        blocking=True,
+        return_response=True,
+    )
+    assert result == {"thread_id": "t1"}
+    # Only what was given goes along: no defaults of a call of an agent.
+    assert _sent(aioclient_mock, "/v1/agent/skill") == {
+        "skill": "recherche",
+        "input": "Welche Wärmepumpe passt?",
+        "receiver": "anna",
+    }
+
+
+async def test_agent_with_skill_refuses_the_fields_of_an_agent(hass, aioclient_mock, entry):
+    """With skill, agent, mode, timeout, on_timeout and delivery are not allowed."""
+    await _setup(hass, aioclient_mock, entry)
+    for extra in ({"agent": "delegate"}, {"mode": "async"}, {"delivery": "message"}):
+        with pytest.raises(Exception, match="not allowed"):
+            await hass.services.async_call(
+                DOMAIN, "agent", {"skill": "recherche", "input": "x", **extra}, blocking=True, return_response=True
+            )
+    with pytest.raises(Exception, match="name an agent or a skill"):
+        await hass.services.async_call(DOMAIN, "agent", {"input": {}}, blocking=True, return_response=True)
+
+
+async def test_RM16_agent_with_a_skill_without_a_target(hass, aioclient_mock, entry):
+    """RM-16: the action fails naming the service's reason."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.post(
+        f"{AGENT_URL}/v1/agent/skill",
+        status=400,
+        json={"error": "the skill wetter has no target: it has no thread to start"},
+    )
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            DOMAIN, "agent", {"skill": "wetter", "input": "x", "receiver": "anna"}, blocking=True, return_response=True
+        )
+    assert err.value.translation_key == "skill_failed"
+    assert "has no target" in err.value.translation_placeholders["error"]
+
+
+async def test_RM17_agent_with_skill_at_an_older_service(hass, aioclient_mock, entry):
+    """RM-17: a service without the route says Mira needs an update."""
+    await _setup(hass, aioclient_mock, entry)
+    aioclient_mock.post(f"{AGENT_URL}/v1/agent/skill", status=404, json={"error": "404 page not found"})
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            "agent",
+            {"skill": "recherche", "input": "x", "receiver": "anna"},
+            blocking=True,
+            return_response=True,
+        )
+    assert err.value.translation_key == "skill_needs_update"

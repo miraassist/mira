@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/miraassist/mira/internal/agent"
@@ -162,4 +163,69 @@ func (s *Server) cancelAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"cancelled": s.opts.Agents.Cancel(req.CallID)})
+}
+
+// SkillRefused is why a skill's thread was not started from Home
+// Assistant: the caller's error (400).
+type SkillRefused struct{ Reason string }
+
+func (e *SkillRefused) Error() string { return e.Reason }
+
+// startSkill serves mira.agent with skill (docs/spec/remote-agents.md, F):
+// the skill's thread starts as if its owner had asked by voice, with the
+// input as the request. A route of its own, so an older service answers
+// 404 and the integration says that Mira needs an update (decision 47).
+func (s *Server) startSkill(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Skill    string          `json:"skill"`
+		Input    json.RawMessage `json:"input"`
+		Receiver string          `json:"receiver"`
+	}
+	if err := decode(r, &req); err != nil || req.Skill == "" {
+		writeError(w, http.StatusBadRequest, `body must name a "skill"`)
+		return
+	}
+	request, err := skillRequest(req.Input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	id, err := s.opts.StartSkill(r.Context(), req.Skill, request, req.Receiver)
+	var refused *SkillRefused
+	switch {
+	case errors.As(err, &refused):
+		s.log.Warn("mira.agent with skill refused", "skill", req.Skill, "receiver", req.Receiver, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	case err != nil:
+		s.log.Error("mira.agent with skill failed", "skill", req.Skill, "receiver", req.Receiver, "error", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"thread_id": id})
+}
+
+// skillRequest is the request of mira.agent with skill: a text, or an
+// object with the text in input.
+func skillRequest(raw json.RawMessage) (string, error) {
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		if text = strings.TrimSpace(text); text != "" {
+			return text, nil
+		}
+	}
+	var in struct {
+		Input string `json:"input"`
+	}
+	if json.Unmarshal(raw, &in) == nil && strings.TrimSpace(in.Input) != "" {
+		return strings.TrimSpace(in.Input), nil
+	}
+	return "", fmt.Errorf(`input must be the request: a text, or {"input": "…"}; got %q`, cut(string(raw)))
+}
+
+func cut(s string) string {
+	if r := []rune(s); len(r) > 200 {
+		return string(r[:200]) + "…"
+	}
+	return s
 }

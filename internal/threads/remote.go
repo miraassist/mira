@@ -10,6 +10,7 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -188,4 +189,43 @@ func (m *Manager) agentAnswerTool() tools.InternalTool {
 			return m.AgentAnswer(ctx, inv, strings.TrimSpace(a.Thread), a.Text)
 		},
 	}
+}
+
+// ErrOwner: the owner given does not fit how the target binds its threads.
+var ErrOwner = errors.New("the receiver does not fit the skill's threads")
+
+// StartFromHA starts a target's thread from Home Assistant (mira.agent with
+// skill, docs/spec/remote-agents.md, F) as if its owner had asked: for a
+// person, in a room (area), or for the house (neither). The owner must fit
+// the target: a room's target takes a room, a house's the house, another a
+// person or a room. Its agents start as for every thread.
+func (m *Manager) StartFromHA(ctx context.Context, target, request, person, area string) (store.Thread, error) {
+	sk, ok := m.targets[target]
+	if !ok {
+		return store.Thread{}, fmt.Errorf(m.texts().noTarget, target)
+	}
+	if contains(m.opts.CodeStarted, target) {
+		return store.Thread{}, fmt.Errorf(m.texts().codeStarted, target)
+	}
+	inv := tools.Invocation{Channel: config.ChannelBackground, Person: person, Area: area}
+	switch bound := sk.Target.Bound; {
+	case bound == skills.BoundHouse:
+		if person != "" || area != "" {
+			return store.Thread{}, fmt.Errorf("%w: the threads of %s belong to the house; the receiver is house", ErrOwner, target)
+		}
+		inv.Place = store.PlaceHouse
+	case bound == skills.BoundRoom:
+		if area == "" {
+			return store.Thread{}, fmt.Errorf("%w: the threads of %s belong to a room; the receiver is a room", ErrOwner, target)
+		}
+		inv.Person, inv.Place = "", "area:"+area
+	case person != "":
+		inv.Place = "person:" + person
+	case area != "":
+		inv.Place = "area:" + area
+	default:
+		return store.Thread{}, fmt.Errorf("%w: the threads of %s belong to a person or a room", ErrOwner, target)
+	}
+	_, th, err := m.begin(ctx, inv, target, request)
+	return th, err
 }

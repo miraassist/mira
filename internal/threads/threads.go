@@ -425,13 +425,20 @@ func (m *Manager) logEntry(th *store.Thread, who, text string) {
 // different: it may be well under way, so the user decides whether to go on
 // or start anew.
 func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, request string) (string, error) {
-	sk, ok := m.targets[target]
-	if !ok {
-		return "", fmt.Errorf(m.texts().noTarget, target)
-	}
 	if contains(m.opts.CodeStarted, target) {
 		m.log.Info("thread_start refused: Mira's code starts this target", "target", target)
 		return "", fmt.Errorf(m.texts().codeStarted, target)
+	}
+	out, _, err := m.begin(ctx, inv, target, request)
+	return out, err
+}
+
+// begin opens a thread for a target at the turn's place: what Start does,
+// also for a start from Home Assistant (StartFromHA), which has no session.
+func (m *Manager) begin(ctx context.Context, inv tools.Invocation, target, request string) (string, store.Thread, error) {
+	sk, ok := m.targets[target]
+	if !ok {
+		return "", store.Thread{}, fmt.Errorf(m.texts().noTarget, target)
 	}
 	place, _ := m.startPlace(ctx, inv, target)
 	if open, err := m.openAt(ctx, m.turnPlaces(ctx, inv)); err == nil {
@@ -440,8 +447,10 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 				continue
 			}
 			if sk.Target.Plan {
-				m.link(ctx, inv.SessionKey, old)
-				return fmt.Sprintf(m.texts().planRunning, old.Request, m.planStatus(old)), nil
+				if inv.SessionKey != "" {
+					m.link(ctx, inv.SessionKey, old)
+				}
+				return fmt.Sprintf(m.texts().planRunning, old.Request, m.planStatus(old)), old, nil
 			}
 			m.end(ctx, old, store.ThreadCancelled)
 		}
@@ -453,7 +462,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	m.logEntry(&th, "user", th.Request)
 	launches := m.dispatch(&th)
 	if err := m.save(ctx, &th); err != nil {
-		return "", err
+		return "", store.Thread{}, err
 	}
 	// At a satellite the user waits for the answer: a quick agent's result
 	// comes in it rather than as a message afterwards.
@@ -462,10 +471,12 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 		result = m.await(th.ID)
 	}
 	m.start(ctx, th, launches)
-	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
-		return "", err
+	if inv.SessionKey != "" {
+		if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
+			return "", store.Thread{}, err
+		}
+		m.openSkill(ctx, inv.SessionKey, th.Target)
 	}
-	m.openSkill(ctx, inv.SessionKey, th.Target)
 	m.log.Info("thread started", "thread", th.ID, "target", target, "place", place)
 	trace.Add(ctx, trace.Thread, target, "started")
 	var said string
@@ -479,7 +490,7 @@ func (m *Manager) Start(ctx context.Context, inv tools.Invocation, target, reque
 	if said != "" {
 		out += "\n\n" + said
 	}
-	return out, nil
+	return out, th, nil
 }
 
 // await registers a turn waiting for th's agents.

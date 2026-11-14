@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/a2a"
+	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
@@ -600,4 +601,60 @@ func TestRemoteTaskNotFoundAfterTheRestart(t *testing.T) {
 		t.Errorf("log:\n%s", env.log.String())
 	}
 	env.fake.Release()
+}
+
+// RM-15 mira.agent starts the skill's thread: for a person, with the input
+// as the request; the response holds the thread's id.
+func TestRM15_MiraAgentStartsTheSkillsThread(t *testing.T) {
+	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillComplete, false)
+	ctx := context.Background()
+	env.a.targetSkills = env.a.remote.Skills()
+	id, err := env.a.startSkill(ctx, "recherche", "Welche Wärmepumpe passt?", "anna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	th, err := env.a.store.GetThread(ctx, id)
+	if err != nil || th.Place != "person:anna" || th.Person != "anna" || th.Request != "Welche Wärmepumpe passt?" {
+		t.Fatalf("thread %+v %v", th, err)
+	}
+	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+	if s := env.received("SendStreamingMessage"); len(s) != 1 || s[0].Text != "Welche Wärmepumpe passt?" {
+		t.Errorf("sent %+v", s)
+	}
+	// Over the service's API, as the integration calls it.
+	srv := haconv.New(haconv.Options{StartSkill: env.a.startSkill})
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/agent/skill",
+		strings.NewReader(`{"skill":"recherche","input":{"input":"Und für die Garage?"},"receiver":"anna"}`)))
+	var out struct {
+		ThreadID string `json:"thread_id"`
+	}
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &out) != nil || out.ThreadID == "" {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if th, err := env.a.store.GetThread(ctx, out.ThreadID); err != nil || th.Request != "Und für die Garage?" {
+		t.Errorf("thread %+v %v", th, err)
+	}
+	// A receiver Mira does not know is refused, naming it.
+	if _, err := env.a.startSkill(ctx, "recherche", "x", "niemand"); err == nil || !strings.Contains(err.Error(), `"niemand"`) {
+		t.Errorf("unknown receiver: %v", err)
+	}
+}
+
+// RM-16 mira.agent with a skill without a target fails naming the reason.
+func TestRM16_MiraAgentWithASkillWithoutATarget(t *testing.T) {
+	env := newRemoteEnv(t, a2afake.CardStreamOnly, a2afake.SkillComplete, false)
+	env.a.skills = &skills.Set{Skills: []skills.Skill{{Name: "wetter", Description: "Wetter"}}}
+	srv := haconv.New(haconv.Options{StartSkill: env.a.startSkill})
+	for _, c := range []struct{ body, want string }{
+		{`{"skill":"wetter","input":"Wie wird das Wetter?","receiver":"anna"}`, "has no target"},
+		{`{"skill":"gibtsnicht","input":"x","receiver":"anna"}`, `no skill \"gibtsnicht\"`},
+		{`{"skill":"wetter","input":{},"receiver":"anna"}`, "input must be the request"},
+	} {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/agent/skill", strings.NewReader(c.body)))
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("%s: %d %s", c.body, rec.Code, rec.Body)
+		}
+	}
 }

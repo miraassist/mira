@@ -81,6 +81,10 @@ type Options struct {
 	// Agents runs the agents Home Assistant calls (mira.agent); nil turns
 	// /v1/agent off.
 	Agents Agents
+	// StartSkill starts a skill's thread from Home Assistant (mira.agent
+	// with skill, docs/spec/remote-agents.md, F): its id, or an error; a
+	// SkillRefused is the caller's (400).
+	StartSkill func(ctx context.Context, skill, request, receiver string) (string, error)
 	// Backup writes Mira's snapshot for Home Assistant's backup, Restore
 	// puts one in place (docs/spec/backup.md); nil turns them off.
 	Backup func(ctx context.Context, w io.Writer) error
@@ -162,6 +166,9 @@ func New(opts Options) *Server {
 		s.mux.HandleFunc("POST /v1/agent", s.callAgent)
 		s.mux.HandleFunc("POST /v1/agent/result", s.agentResult)
 		s.mux.HandleFunc("POST /v1/agent/cancel", s.cancelAgent)
+	}
+	if s.opts.StartSkill != nil {
+		s.mux.HandleFunc("POST /v1/agent/skill", s.startSkill)
 	}
 	if s.opts.Eval {
 		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)

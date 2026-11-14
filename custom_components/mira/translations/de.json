@@ -353,15 +353,19 @@
     },
     "agent": {
       "name": "Agent",
-      "description": "Startet einen von Miras Agenten. Wartet auf seine Antwort (mit response_variable) oder gibt mit Modus async sofort eine Aufruf-ID zurück; das Ergebnis kommt dann als Ereignis mira_agent_done oder als Nachricht.",
+      "description": "Startet einen von Miras Agenten. Wartet auf seine Antwort (mit response_variable) oder gibt mit Modus async sofort eine Aufruf-ID zurück; das Ergebnis kommt dann als Ereignis mira_agent_done oder als Nachricht. Mit Skill statt Agent startet es den Vorgang dieses Skills, als hätte der Empfänger per Sprache gefragt.",
       "fields": {
         "agent": {
           "name": "Agent",
-          "description": "Der Name des Agenten, etwa delegate."
+          "description": "Der Name des Agenten, etwa delegate. Leer lassen, wenn du einen Skill nennst."
+        },
+        "skill": {
+          "name": "Skill",
+          "description": "Statt eines Agenten: der Skill, dessen Vorgang startet, etwa recherche. Dann gehen nur Eingabe und Empfänger mit."
         },
         "input": {
           "name": "Eingabe",
-          "description": "Was der Agent bekommt, als Objekt; für einen Agenten, der Text nimmt, das Feld input mit dem Text."
+          "description": "Was der Agent bekommt, als Objekt; für einen Agenten, der Text nimmt, das Feld input mit dem Text. Mit Skill: was gefragt wird, als Text."
         },
         "mode": {
           "name": "Modus",
@@ -381,7 +385,7 @@
         },
         "receiver": {
           "name": "Empfänger",
-          "description": "Für message: eine Person oder house."
+          "description": "Für message: eine Person oder house. Mit Skill: für wen der Vorgang ist, eine Person oder ein Raum (seine Bereichs-ID), oder house."
         }
       }
     },
@@ -559,6 +563,12 @@
     },
     "check_failed": {
       "message": "Mira konnte nicht prüfen: {error}"
+    },
+    "skill_needs_update": {
+      "message": "Mira kann das erst nach einem Update."
+    },
+    "skill_failed": {
+      "message": "Mira konnte {skill} nicht starten: {error}"
     }
   }
 }

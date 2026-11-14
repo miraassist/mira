@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 to 4 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+building, to be confirmed); steps 0 to 5 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -104,6 +104,10 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 44 | When the restart takes up the calls | Once every card was read the first time, after the agent runtime's runs; the calls of a skill's agent that is gone, and a call without a task (Mira stopped while its send was on its way), are failed agents |
 | 45 | A card that cannot be read at the restart | Its open calls are failed agents at once: without the card's interface Mira cannot ask the task (as a `GetTask` that cannot be made) |
 | 46 | After the one `GetTask` | A final state is taken as in C; `input-required` already asked is not asked again (its request is still there); a task still working is followed with `SubscribeToTask` where Mira streams, and waits for the pushes with the call's token where she takes them |
+| 47 | How the integration reaches the service | `mira.agent` with `skill` goes to a route of its own, `POST /v1/agent/skill` (`skill`, `input`, `receiver`; the answer `{thread_id}`): a service older than that answers 404, which the integration turns into "Mira kann das erst nach einem Update" as for `mira.check`. `/v1/agent` stays as it is |
+| 48 | The receiver | A person (its key), a room (its area id; `area:<id>` and `person:<key>` are taken too) or `house`. A target bound to the house takes only `house`, one bound to a room only a room, another a person or a room. Anything else is refused with the reason |
+| 49 | The input | The request as a text, or `{"input": "…"}`; the integration lets an object or a text through for a skill and keeps an object for an agent. The defaults of a call of an agent (`mode`, `timeout`, …) go along only for an agent; with `skill` they are refused |
+| 50 | The thread's turn | It has no session: it starts as a background turn of its owner, its agents start at once, and what it says comes as messages of the thread (to the person, or said in the room) |
 
 ## What a skill writes
 
@@ -320,7 +324,10 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
 4. **A restart** (G; decision 20). Built 2026-11-14 (decisions 44 to 46): `a2a.Host.Resume`, called with the
    runtime's resume, takes up every running row with a remote task. RM-14 in Go (`cmd/mira`), also a task the agent
    no longer knows (`TaskNotFound`).
-5. **From Home Assistant:** `mira.agent` with `skill` in the service and the integration (F; decision 7).
+5. **From Home Assistant:** `mira.agent` with `skill` in the service and the integration (F; decision 7). Built
+   2026-11-14 (decisions 47 to 50): `threads.StartFromHA`, the service's `POST /v1/agent/skill`, the field `skill`
+   in the integration (`agents.py`; with `skill`, `agent`, `mode`, `timeout`, `on_timeout` and `delivery` are
+   refused). RM-15 and RM-16 in Go (`cmd/mira`), RM-15 to RM-17 in pytest (`tests/ha/test_agents.py`).
 6. **The guide** (de and en): a skill with a remote agent, the address and the token or the connection, Mira's
    address for remote agents, http and https.
 7. **Deferred: a login during the work** (`auth-required` as a special agent request, decision 16).

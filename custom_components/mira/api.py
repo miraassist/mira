@@ -391,6 +391,11 @@ class MiraClient:
         wait = 10 if request.get("mode") == "async" else float(request.get("timeout", 60)) + 15
         return await self._request("POST", "/v1/agent", wait, json=request)
 
+    async def start_skill(self, request: dict[str, Any]) -> dict[str, Any]:
+        """mira.agent with skill: the skill's thread starts; its id comes
+        back. MiraNotFound from a service older than that."""
+        return await self._request("POST", "/v1/agent/skill", 20, json=request)
+
     async def agent_result(self, call_id: str) -> dict[str, Any]:
         """A run's record by its call id."""
         return await self._request("POST", "/v1/agent/result", 10, json={"call_id": call_id})
