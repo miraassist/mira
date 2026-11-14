@@ -3,6 +3,21 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.24.0
+
+- **Mira watches your devices.** "Pass auf die Spülmaschine auf" or "Achte aufs Aquarium": Mira learns from a
+  device's history what is normal for it (a daily routine, a fridge's cycle, a dishwasher's run) and tells you when it
+  departs from it. "Gibt's Geräte, die du überwachen könntest?" names the devices she could watch; for a device
+  without enough history she waits for its next run and then offers the watch.
+- **Mira watches groups of devices.** Lights left on, a window open while nobody is home, open at night or too long,
+  motion while nobody is home or at night, too cold or too warm, a battery running low, a device no longer reachable:
+  for a kind of device, an area or a floor. A device you name as an exception gets the label "Mira: nicht
+  überwachen". While nobody is home, everyone gets the entry on their phone.
+- **"Ist alles zu?"** Mira names what is still open and what does not report; scripts get the same with the action
+  `mira.check`.
+- Every watch is an automation from a blueprint of Mira's, so you can switch it off, for example by a holiday script.
+- Mira's database is tidied up; nothing to do.
+
 ## 0.23.0
 
 - **Mira's inbox.** Documents you tag "Mira" in Paperless and mails of an IMAP device "Postfach <login>" reach Mira.
