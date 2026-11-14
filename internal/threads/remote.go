@@ -107,7 +107,9 @@ func (m *Manager) asking(th store.Thread) (into, callID, label, question string,
 
 // AgentAnswer passes the owner's answer on to the remote agent that asks in
 // the turn's thread (or the thread named): sent, its agent request is done;
-// not sent, it stays and the owner hears why (D.4).
+// not sent, it stays and the owner hears why (D.4). A voice turn then waits
+// up to AgentWait for the remote agent, as a thread's start does: its result
+// or a second question comes in the same answer (decision 52).
 func (m *Manager) AgentAnswer(ctx context.Context, inv tools.Invocation, id, text string) (string, error) {
 	t := m.texts()
 	var th store.Thread
@@ -138,7 +140,15 @@ func (m *Manager) AgentAnswer(ctx context.Context, inv tools.Invocation, id, tex
 		m.log.Info("agent_answer refused: the question came in this turn", "thread", th.ID, "call_id", callID)
 		return "", fmt.Errorf(t.answerTooSoon, label)
 	}
+	var result chan string
+	if inv.Channel == config.ChannelVoice {
+		// Registered before the send: the agent may answer at once.
+		result = m.await(th.ID)
+	}
 	if err := m.opts.Answer(ctx, callID, text); err != nil {
+		if result != nil {
+			m.unawait(th.ID, result)
+		}
 		m.log.Warn("the answer to an agent request could not be passed on; the request stays", "thread", th.ID,
 			"call_id", callID, "agent", label, "error", err)
 		return "", fmt.Errorf(t.answerNotSent, err)
@@ -152,7 +162,22 @@ func (m *Manager) AgentAnswer(ctx context.Context, inv tools.Invocation, id, tex
 	}
 	m.ackRequest(ctx, callID)
 	m.log.Info("agent request answered", "thread", th.ID, "call_id", callID, "agent", label, "question", question)
-	return fmt.Sprintf(t.answerPassed, label), nil
+	out := fmt.Sprintf(t.answerPassed, label)
+	if result != nil {
+		said := m.waitFor(ctx, th.ID, result)
+		if said == "" {
+			return out, nil
+		}
+		if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil {
+			if _, _, _, _, asks := m.asking(cur); asks {
+				// It asked again while the turn waited: the user answers
+				// in the next turn (decisions 41, 51).
+				tools.TurnOf(ctx).AgentAsked(th.ID)
+			}
+		}
+		out += "\n\n" + said
+	}
+	return out, nil
 }
 
 // ackRequest marks a call's agent request done, once answered.

@@ -188,7 +188,8 @@ process (`a2afake.New`, `httptest.NewServer`); the test environment runs it as t
 - **One agent, one skill per behaviour.** The skill a message names in its metadata (`skill`, decision 27 of the
   remote agents) picks it: `complete` (completed at once, one artifact with a fixed text), `slow` (working until
   released, or until `-wait` is over, then completed), `ask` (input-required with "Wie groß ist die Wohnfläche?";
-  a message with the same task id completes it with the answer in its artifact), `login` (auth-required), `fail`
+  a message with the same task id completes it with the answer in its artifact), `ask-twice` (as `ask`, but the
+  first answer makes it ask again, "Wie alt ist das Haus?"; the second completes it), `login` (auth-required), `fail`
   (failed with a status text), `reject` (rejected), `push-twice` (as `complete`, every push sent twice), `message`
   (a message instead of a task). A message that names no skill fails with a status text that says so.
 - **The cards** are served under several paths, one per kind of card (the simplest of the ways: no start flag, so

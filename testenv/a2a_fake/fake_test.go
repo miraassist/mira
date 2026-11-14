@@ -118,6 +118,20 @@ func TestFakeBehaviours(t *testing.T) {
 		t.Errorf("answer: %s %q", done.Status.State, artifactText(done))
 	}
 
+	// Ask twice: the first answer brings the second question.
+	asked = send(message(SkillAskTwice, "Wärmepumpe"))
+	if asked.Status.State != a2a.TaskStateInputRequired || textOf(asked.Status.Message.Parts) != Question {
+		t.Fatalf("ask-twice: %s %+v", asked.Status.State, asked.Status.Message)
+	}
+	again := send(a2a.NewMessageForTask(a2a.MessageRoleUser, asked, a2a.NewTextPart("140 Quadratmeter")))
+	if again.Status.State != a2a.TaskStateInputRequired || textOf(again.Status.Message.Parts) != Question2 {
+		t.Fatalf("ask-twice, first answer: %s %+v", again.Status.State, again.Status.Message)
+	}
+	if done := send(a2a.NewMessageForTask(a2a.MessageRoleUser, again, a2a.NewTextPart("1925"))); done.Status.State != a2a.TaskStateCompleted ||
+		artifactText(done) != AnswerResult+"1925." {
+		t.Errorf("ask-twice, second answer: %s %q", done.Status.State, artifactText(done))
+	}
+
 	res, err := cl.SendMessage(ctx, &a2a.SendMessageRequest{Message: message(SkillMessage, "x")})
 	if msg, ok := res.(*a2a.Message); err != nil || !ok || textOf(msg.Parts) != Result {
 		t.Errorf("message: %T %v", res, err)

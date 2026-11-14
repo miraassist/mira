@@ -76,6 +76,12 @@ func newRemoteEnv(t *testing.T, card, skill string, withURL bool) *remoteEnv {
 
 // newRemoteEnvBefore is newRemoteEnv with a handler before the fake.
 func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler) *remoteEnv {
+	return newRemoteEnvWait(t, card, skill, withURL, before, 50*time.Millisecond)
+}
+
+// newRemoteEnvWait is newRemoteEnvBefore with how long a voice turn waits
+// for the thread's agents.
+func newRemoteEnvWait(t *testing.T, card, skill string, withURL bool, before func(http.Handler) http.Handler, wait time.Duration) *remoteEnv {
 	t.Helper()
 	a, _, _ := deliveryApp(t)
 	env := &remoteEnv{a: a, log: &lockedBuffer{}}
@@ -114,7 +120,7 @@ func newRemoteEnvBefore(t *testing.T, card, skill string, withURL bool, before f
 	env.setHost(a.remote)
 	a.threads = threads.New(threads.Options{Lang: i18n.DE, Store: a.store, Targets: []skills.Skill{sk},
 		Finishers: map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, i18n.DE)},
-		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: 50 * time.Millisecond,
+		Dispatch:  a.dispatchForThread, RemoteFailure: a2a.Failure, AgentWait: wait,
 		Asking: a.remote.Asking, Answer: a.remote.Answer,
 		Cancel: func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Deliver: func(ctx context.Context, n store.Message, _ string) error {
@@ -692,4 +698,74 @@ func TestRemoteQuestionInTheWaitingTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "the field", func() bool { return env.fact(t) != "" })
+}
+
+// RM-22 agent_answer at a satellite waits for the remote agent: what comes
+// within the wait (the result and the finish's answer, or a second question)
+// is said in the same answer, and no message comes (decision 52).
+func TestRM22_AgentAnswerAtASatelliteWaitsForTheRemoteAgent(t *testing.T) {
+	// voiceTurn starts the skill's thread at a satellite; the fake asks at
+	// once, within the turn.
+	voiceTurn := func(t *testing.T, env *remoteEnv) tools.Invocation {
+		t.Helper()
+		ctx := context.Background()
+		if _, err := env.a.store.UpsertSession(ctx, store.Session{Key: "voice:1", Channel: string(config.ChannelVoice)}, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+		inv := tools.Invocation{SessionKey: "voice:1", Channel: config.ChannelVoice, Person: "anna"}
+		out, err := env.a.threads.Start(tools.WithTurn(ctx, &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice}),
+			inv, "recherche", "Welche Wärmepumpe passt?")
+		if err != nil || !strings.Contains(out, "Hermes fragt: "+a2afake.Question) {
+			t.Fatalf("start: %v\n%s", err, out)
+		}
+		return inv
+	}
+	t.Run("the result", func(t *testing.T) {
+		env := newRemoteEnvWait(t, a2afake.CardStreamOnly, a2afake.SkillAsk, false, nil, 5*time.Second)
+		inv := voiceTurn(t, env)
+		ts := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice}
+		out, err := env.a.threads.AgentAnswer(tools.WithTurn(context.Background(), ts), inv, "", "140 Quadratmeter")
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := a2afake.AnswerResult + "140 Quadratmeter."
+		if !strings.HasPrefix(out, "Antwort an Hermes weitergegeben.") || !strings.Contains(out, result) {
+			t.Errorf("said:\n%s", out)
+		}
+		if got := env.fact(t); got != result {
+			t.Errorf("field %q", got)
+		}
+		if n := env.messages(); len(n) != 0 {
+			t.Errorf("messages for a result said in the turn: %+v", n)
+		}
+		if ts.WaitsForUser() {
+			t.Error("the satellite listens again after a result")
+		}
+	})
+	t.Run("a second question", func(t *testing.T) {
+		env := newRemoteEnvWait(t, a2afake.CardStreamOnly, a2afake.SkillAskTwice, false, nil, 5*time.Second)
+		inv := voiceTurn(t, env)
+		ts := &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice}
+		turn := tools.WithTurn(context.Background(), ts)
+		out, err := env.a.threads.AgentAnswer(turn, inv, "", "140 Quadratmeter")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(out, "Antwort an Hermes weitergegeben.") || !strings.Contains(out, "Hermes fragt: "+a2afake.Question2) ||
+			!ts.WaitsForUser() {
+			t.Fatalf("waits %v, said:\n%s", ts.WaitsForUser(), out)
+		}
+		if n := env.messages(); len(n) != 0 {
+			t.Errorf("messages for a question said in the turn: %+v", n)
+		}
+		// Not answered in the turn that heard the question first.
+		if _, err := env.a.threads.AgentAnswer(turn, inv, "", "1925"); err == nil || !strings.Contains(err.Error(), "gerade erst gefragt") {
+			t.Errorf("answered within the asking turn: %v", err)
+		}
+		next := tools.WithTurn(context.Background(), &tools.TurnState{SessionKey: "voice:1", Channel: config.ChannelVoice})
+		out, err = env.a.threads.AgentAnswer(next, inv, "", "1925")
+		if err != nil || !strings.Contains(out, a2afake.AnswerResult+"1925.") {
+			t.Fatalf("second answer: %v\n%s", err, out)
+		}
+	})
 }

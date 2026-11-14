@@ -116,6 +116,15 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     Then Mira says she could not pass the answer on
     And the message stays and the log names the agent and the refusal
 
+  @step3
+  Scenario: RM-22 agent_answer at a satellite waits for the remote agent
+    Given a remote agent asked back in a thread started at a satellite
+    When the owner answers at the satellite and the answer is passed on with agent_answer
+    Then the turn waits up to 10 seconds for the remote agent
+    And its result, with the finish's answer, is said in the same answer and comes as no message
+    And a second question that comes in that time is said in the same answer, the satellite listens again
+    And that second question is answered only in the next turn
+
   @step4
   Scenario: RM-14 A restart during the work
     Given a remote agent works for a thread

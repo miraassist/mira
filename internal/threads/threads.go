@@ -83,7 +83,8 @@ type Options struct {
 	// 15 seconds for a voice turn.
 	InlineWait time.Duration
 	// AgentWait is how long a voice turn that starts a thread waits for the
-	// agents it starts, so their result comes in the same answer; default
+	// agents it starts, and one that answers a remote agent's question waits
+	// for that agent, so their result comes in the same answer; default
 	// 10s. A slower one comes as a message of the thread.
 	AgentWait time.Duration
 	// Run runs a thread's background work as a run of the agent runtime
@@ -506,6 +507,16 @@ func (m *Manager) await(id string) chan string {
 	m.waiting[id] = ch
 	m.waitMu.Unlock()
 	return ch
+}
+
+// unawait takes back a turn's wait registered with await, when it is still
+// that one.
+func (m *Manager) unawait(id string, ch chan string) {
+	m.waitMu.Lock()
+	defer m.waitMu.Unlock()
+	if m.waiting[id] == ch {
+		delete(m.waiting, id)
+	}
 }
 
 // waitFor waits up to AgentWait for an agent's result for thread id; what

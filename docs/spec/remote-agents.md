@@ -1,6 +1,6 @@
 # Remote agents (A2A) – Spec
 
-Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
+Status 2026-11-14: specified (decisions 1 to 7, 13, 16 and 52 by the maintainer, the others taken while writing or
 building, to be confirmed); steps 0 to 6 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
@@ -61,6 +61,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 5 | When the remote agent asks back (`input-required`) | A new kind of message, `agent_request`, with its thread; the owner's answer goes back to the remote agent |
 | 6 | Who may use it, what it gets | Whoever may use the skill may use its remote agent. It gets only what the skill's target puts into its input: the thread's fields and the request. No setting of its own |
 | 7 | What thread `mira.agent` starts | The skill's own thread, as by voice: `mira.agent` names the skill, not the agent; the call's input is the request, its receiver the owner. No thread type of its own |
+| 52 | After `agent_answer` at a satellite | The turn waits up to 10 seconds for the remote agent, as a thread's start waits for its agents ([Agents](agents.md), Continuation): what comes in that time (the result with the finish's answer, or a second agent request) is said in the same answer, else it comes as a message. A second question heard in the turn is answered in the next one (decision 51) (2026-11-14, A) |
 
 ### Taken while writing (2026-11-14, to be confirmed by the maintainer)
 
@@ -187,6 +188,9 @@ agent today).
    they are, sent privately to a person who cannot hear it; it ends with its thread.
 3. The owner answers (by voice, Telegram, the companion app): the answer is a turn of the thread; the model passes
    it on with the tool `agent_answer` (thread, text). Mira sends it to the remote agent with the same task id.
+   **At a satellite the turn waits** then up to 10 seconds for the remote agent, as at the start (B.4, decision 52):
+   its result (and the finish's answer when it completes the thread) or a second question comes in the same answer;
+   past the 10 seconds it comes as a message. Elsewhere (Telegram, the companion app) the turn does not wait.
 4. **Fails:** the answer cannot be sent (retries exhausted, a refusal) → the message stays, a log line, and Mira
    tells the owner ("Ich konnte die Antwort nicht weitergeben: …"); the thread waits on. The owner does not answer
    → the thread's expiry ends it (decision 19).
@@ -222,7 +226,7 @@ As decision 20. **Fails:** `GetTask` unreachable → retried (Retries); after th
 | A field or plan due | one `SendMessage` (with the push configuration) | — |
 | While it works | nothing with push; one open stream with SSE | the number of open calls (streams) |
 | Per state the remote agent reports | one push to Mira (or an event in the stream); one database write | the remote agent's updates |
-| An agent request | one message; the answer one `SendMessage` | the questions |
+| An agent request | one message; the answer one `SendMessage`, and at a satellite the turn waits up to 10 s for the agent (decision 52) | the questions |
 | The thread ends early | one `CancelTask` | — |
 | Mira's start | one `GetTask` per open call, one `SubscribeToTask` per open stream | open calls |
 
@@ -322,7 +326,9 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    question in the thread's log and fields and as a message keyed by the call (`threads.AgentRequest`), the tool
    `agent_answer` (`threads.AgentAnswer`, `a2a.Host.Answer`), the request done once answered; an answer that is not
    taken leaves it open and says why. Messages decision 33. RM-12, RM-13 in Go (`cmd/mira`). After the run on the
-   test Mira: no answer within the asking turn (decision 51).
+   test Mira: no answer within the asking turn (decision 51). After `agent_answer` at a satellite the turn waits for
+   the remote agent (decision 52, built 2026-11-14 with the wait of a thread's start); the fake A2A agent got the
+   skill `ask-twice` for it. RM-22 in Go (`cmd/mira`).
 4. **A restart** (G; decision 20). Built 2026-11-14 (decisions 44 to 46): `a2a.Host.Resume`, called with the
    runtime's resume, takes up every running row with a remote task. RM-14 in Go (`cmd/mira`), also a task the agent
    no longer knows (`TaskNotFound`).

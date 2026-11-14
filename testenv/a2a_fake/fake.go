@@ -40,6 +40,9 @@ const (
 	// SkillAsk asks back (input-required, Question); the answer, a message
 	// with the same task id, completes it with AnswerResult and the answer.
 	SkillAsk = "ask"
+	// SkillAskTwice asks back as SkillAsk; the first answer makes it ask
+	// again (Question2), the second completes it as SkillAsk does.
+	SkillAskTwice = "ask-twice"
 	// SkillLogin needs a login during the work (auth-required, LoginText).
 	SkillLogin = "login"
 	// SkillFail fails with FailText.
@@ -53,7 +56,7 @@ const (
 )
 
 // Skills are the card's skills, in its order.
-var Skills = []string{SkillComplete, SkillSlow, SkillAsk, SkillLogin, SkillFail, SkillReject, SkillPushTwice, SkillMessage}
+var Skills = []string{SkillComplete, SkillSlow, SkillAsk, SkillAskTwice, SkillLogin, SkillFail, SkillReject, SkillPushTwice, SkillMessage}
 
 // SkillMeta is the key of a message's metadata that names the card's skill.
 const SkillMeta = "skill"
@@ -62,6 +65,7 @@ const SkillMeta = "skill"
 const (
 	Result       = "Die Übersicht ist fertig."
 	Question     = "Wie groß ist die Wohnfläche?"
+	Question2    = "Wie alt ist das Haus?"
 	AnswerResult = "Die Übersicht für "
 	LoginText    = "Ich brauche eine Anmeldung bei der Bibliothek."
 	FailText     = "Die Quelle ist nicht erreichbar."
@@ -386,8 +390,14 @@ func (f *Fake) Execute(ctx context.Context, ec *a2asrv.ExecutorContext) iter.Seq
 			return
 		}
 		if ec.StoredTask != nil {
-			// The answer to a question: only SkillAsk asks.
-			if skill == SkillAsk && ec.StoredTask.Status.State == a2a.TaskStateInputRequired {
+			// The answer to a question: only SkillAsk and SkillAskTwice ask.
+			asked := ec.StoredTask.Status.State == a2a.TaskStateInputRequired
+			if skill == SkillAskTwice && asked && ec.StoredTask.Status.Message != nil &&
+				textOf(ec.StoredTask.Status.Message.Parts) == Question {
+				yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateInputRequired, say(Question2)), nil)
+				return
+			}
+			if (skill == SkillAsk || skill == SkillAskTwice) && asked {
 				if !yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateWorking, nil), nil) {
 					return
 				}
@@ -421,7 +431,7 @@ func (f *Fake) Execute(ctx context.Context, ec *a2asrv.ExecutorContext) iter.Seq
 			case <-timeout:
 			}
 			complete(Result)
-		case SkillAsk:
+		case SkillAsk, SkillAskTwice:
 			yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateInputRequired, say(Question)), nil)
 		case SkillLogin:
 			yield(a2a.NewStatusUpdateEvent(ec, a2a.TaskStateAuthRequired, say(LoginText)), nil)
