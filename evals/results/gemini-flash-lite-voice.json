@@ -1948,19 +1948,19 @@
       "name": "hermes-recherche",
       "description": "Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht delegate",
       "core": false,
-      "passed_runs": 0,
-      "answer_ok_runs": 3,
+      "passed_runs": 1,
+      "answer_ok_runs": 2,
       "passed": false,
       "step_times": [
         {
           "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-          "median_seconds": 6.276140524,
-          "max_seconds": 6.390915863,
-          "model_ms_median": 1254,
+          "median_seconds": 6.563871164,
+          "max_seconds": 8.085076188,
+          "model_ms_median": 1537,
           "rating": "usable"
         }
       ],
-      "tokens": 92493,
+      "tokens": 92581,
       "runs": [
         {
           "passed": false,
@@ -1973,39 +1973,15 @@
           "steps": [
             {
               "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-              "text": "Ich lass den Hermes nachforschen. Das dauert einen Moment.",
-              "seconds": 6.138308898,
-              "model_ms": 1118,
+              "text": "Ich lasse Hermes nach passenden Wärmepumpen für einen Altbau recherchieren. Das Ergebnis schicke ich dir, sobald es da ist.",
+              "seconds": 6.563871164,
+              "model_ms": 1537,
               "rounds": 2,
-              "tokens": 30792,
+              "tokens": 30824,
               "trace": [
-                "round:flashlite:554ms",
+                "round:flashlite:803ms",
                 "tool:delegate",
-                "round:flashlite:564ms"
-              ]
-            }
-          ]
-        },
-        {
-          "passed": false,
-          "answer_ok": true,
-          "failures": [
-            "step 1: missing thread:hermes",
-            "step 1: must not tool:delegate",
-            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
-          ],
-          "steps": [
-            {
-              "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-              "text": "Ich lasse Hermes nach passenden Wärmepumpen für den Altbau recherchieren. Das Ergebnis schicke ich dir, sobald es da ist.",
-              "seconds": 6.276140524,
-              "model_ms": 1254,
-              "rounds": 2,
-              "tokens": 30844,
-              "trace": [
-                "round:flashlite:650ms",
-                "tool:delegate",
-                "round:flashlite:604ms"
+                "round:flashlite:734ms"
               ]
             }
           ]
@@ -2022,14 +1998,37 @@
             {
               "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
               "text": "Ich lasse Hermes nach einer passenden Wärmepumpe für den Altbau recherchieren. Das Ergebnis schicke ich dir, sobald es da ist.",
-              "seconds": 6.390915863,
-              "model_ms": 1373,
+              "seconds": 8.085076188,
+              "model_ms": 3063,
               "rounds": 2,
-              "tokens": 30857,
+              "tokens": 30845,
               "trace": [
-                "round:flashlite:791ms",
+                "round:flashlite:571ms",
                 "tool:delegate",
-                "round:flashlite:582ms"
+                "round:flashlite:2492ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 1: answer lacks \"Hermes\""
+          ],
+          "steps": [
+            {
+              "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 1.227975843,
+              "model_ms": 1189,
+              "rounds": 2,
+              "tokens": 30912,
+              "trace": [
+                "round:flashlite:662ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:527ms"
               ]
             }
           ]
@@ -2119,6 +2118,7 @@
   ],
   "again": [
     "hermes-recherche (2026-11-14 23:48, Mira 0.24.0, 3 runs)",
-    "waermepumpe-erklaeren (2026-11-14 23:48, Mira 0.24.0, 3 runs)"
+    "waermepumpe-erklaeren (2026-11-14 23:48, Mira 0.24.0, 3 runs)",
+    "hermes-recherche (2026-11-15 00:07, Mira 0.24.0, 3 runs)"
   ]
 }
