@@ -5,6 +5,7 @@ models:
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
     token: ${GEMINI_API_TOKEN}
     model: "gemini-flash-latest"
+    context_tokens: 1048576   # the model endpoint inputTokenLimit, asked 2026-11-15
     privacy: cloud
     reasoning_effort: low
     timeout: 2m
@@ -12,6 +13,7 @@ models:
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai"
     token: ${GEMINI_API_TOKEN}
     model: "gemini-flash-lite-latest"
+    context_tokens: 1048576   # the model endpoint inputTokenLimit, asked 2026-11-15
     privacy: cloud
     reasoning_effort: low
     timeout: 2m
