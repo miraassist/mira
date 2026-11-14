@@ -420,3 +420,26 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
+
+// An agent whose card was never read is named all the same when its call
+// cannot start (decision 22): by the skill's name for it, else its key.
+func TestFailureNamesAnAgentThatIsNotReady(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(srv.Close)
+	log, _ := logger()
+	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log})
+	h.Start(context.Background())
+	if label, said, ok := h.Failure(store.AgentRun{Agent: "recherche"}); !ok || label != "recherche" || said != "" {
+		t.Errorf("not ready: %q %q %v", label, said, ok)
+	}
+	h = New(Options{Skills: load(t, skillFile(t, "        name: Hermes\n", ""), srv.URL), Logger: log})
+	h.Start(context.Background())
+	if label, _, ok := h.Failure(store.AgentRun{Agent: "recherche"}); !ok || label != "Hermes" {
+		t.Errorf("with a name: %q %v", label, ok)
+	}
+	if _, _, ok := h.Failure(store.AgentRun{Agent: "wetter"}); ok {
+		t.Error("an agent that is no remote agent is named")
+	}
+}

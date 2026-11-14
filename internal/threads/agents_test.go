@@ -369,3 +369,51 @@ func TestAG106_APersonsThreadSpeaksWhereItBegan(t *testing.T) {
 		t.Errorf("message %+v", n)
 	}
 }
+
+// RM-23 A remote agent's overview comes as the thread's message
+func TestRM23_ARemoteAgentsOverviewComesAsTheThreadsMessage(t *testing.T) {
+	e := setupAgents(t)
+	// Given a skill whose target has the field message, filled by an agent, and the finish message.send
+	recherche := skills.Skill{Name: "recherche", Description: "Recherche", Body: "Starte den Vorgang.",
+		Target: &skills.Target{Finish: skills.Finish{Name: "message.send"}, Fields: []skills.TargetField{
+			{Name: "message", Description: "die Übersicht", Agent: "recherche.agent", Input: map[string]any{"input": "{{ request }}"}},
+		}}}
+	opts := e.m.opts
+	opts.Targets = append(append([]skills.Skill{}, opts.Targets...), recherche)
+	opts.Finishers = map[string]Finisher{"fake": e.fin, "message.send": MessageSend()}
+	e.m = New(opts)
+	inv, _ := e.turn(t, "voice:a")
+	inv.Person = "anna"
+	if _, err := e.m.Start(context.Background(), inv, "recherche", "Welche Wärmepumpe passt zu 140 m² Altbau?"); err != nil {
+		t.Fatal(err)
+	}
+	s, ok := e.startedFor("message")
+	if !ok || s.input["input"] != "Welche Wärmepumpe passt zu 140 m² Altbau?" {
+		t.Fatalf("started %+v", s)
+	}
+	// When the agent's overview arrives after the turn
+	overview := "Eine Luft-Wasser-Wärmepumpe mit 10 bis 12 kW.\n\nQuellen:\n- https://example.org/test"
+	e.done(s, overview)
+	// Then the overview, as it is, is the thread's message to its owner (where the thread began, AG-106)
+	// And the thread is done
+	if n := e.next(t); n.ThreadID != s.th.ID || n.Spoken != overview || s.th.Person != "anna" {
+		t.Errorf("message %+v", n)
+	}
+	if th := e.thread(t, s.th.ID); th.State != store.ThreadDone {
+		t.Errorf("thread %+v", th)
+	}
+}
+
+// message.send without its field, or with the field left out ("- …"),
+// fails and names it.
+func TestMessageSendWithoutItsField(t *testing.T) {
+	if _, err := MessageSend().Work(context.Background(), store.Thread{Fields: map[string]string{}}); err == nil ||
+		!strings.Contains(err.Error(), "message") {
+		t.Errorf("error %v", err)
+	}
+	left := "- Der Agent sucht noch."
+	if _, err := MessageSend().Work(context.Background(), store.Thread{Fields: map[string]string{"message": left}}); err == nil ||
+		!strings.Contains(err.Error(), left) {
+		t.Errorf("left out: %v", err)
+	}
+}

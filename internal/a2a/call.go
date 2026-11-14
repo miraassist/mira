@@ -757,6 +757,28 @@ func Failure(rec store.AgentRun) (label, said string, ok bool) {
 	return label, st.Said, true
 }
 
+// Failure is Failure for the calls of h's remote agents, and names also an
+// agent whose call could not start (its card not read, decision 22): its
+// card's name when it was read, else the skill's name for it, else its key.
+func (h *Host) Failure(rec store.AgentRun) (label, said string, ok bool) {
+	if label, said, ok := Failure(rec); ok || h == nil {
+		return label, said, ok
+	}
+	a, found := h.Agent(rec.Agent)
+	if !found {
+		return "", "", false
+	}
+	info, _ := a.Info()
+	label = info.Label
+	if label == "" {
+		label = strings.TrimSpace(a.def.Name)
+	}
+	if label == "" {
+		label = a.Name
+	}
+	return label, "", true
+}
+
 // end ends a call once: its row, the log, its route.
 func (h *Host) end(c *call, status, output, errText string) {
 	c.mu.Lock()

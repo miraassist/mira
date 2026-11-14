@@ -413,6 +413,26 @@ Good to know:
 
 > 🎬 **Recording to follow:** "What gets collected next week?" at a satellite.
 
+### Research
+
+When a question needs thorough research, Mira hands it to a research agent in your home network, such as [Hermes Agent](https://github.com/NousResearch/hermes-agent). It searches the web for a few minutes, compares the sources and writes an overview with a recommendation and its sources. It comes as a message: at the satellite where you asked, Mira announces the summary; without a satellite the whole overview goes to your phone.
+
+- "Find out which heat pump suits our old house of 140 square metres, and give me an overview."
+- If the agent lacks something important, it asks back ("Hermes asks: How large is the living space?"); Mira passes your answer on.
+- "Forget the research" cancels it. If the agent cannot be reached, Mira says so and offers to look it up herself.
+
+How to set it up:
+
+1. Run an agent with **A2A** in your home network. For Hermes, switch on the platform A2A in its `config.yaml` (`gateway.platforms.a2a.enabled: true`, port 9900). Give it only web search and reading pages for its research, no tools that run commands or change files. A research often takes longer than the 300 seconds Hermes waits for its model on its own: `A2A_REPLY_TIMEOUT=1800`.
+2. Without a token Hermes takes requests only from its own machine. If Mira runs on another device, give it a token: `A2A_PEER_TOKENS=mira:<token>`, `A2A_TRUSTED_PEERS=mira` and `A2A_HOST=0.0.0.0`.
+3. Switch the skill on in `mira.yaml`, with the agent's address and, if it wants one, the token:
+   ```yaml
+   skills:
+     recherche: { url: http://192.168.1.20:9900, token: ${HERMES_TOKEN} }
+   ```
+
+Good to know: the agent works with its own model and its own tools; Mira gives it only your question. What it writes counts as third-party text from the web. Over `http` anyone in the same network can read along, the token too.
+
 ### More bundled skills
 
 They run once you list them in `mira.yaml` under `skills`; most need no setting, since Mira knows from Home Assistant where the house is. Their sources are German ones (tagesschau.de, OpenLigaDB, the German school holidays, NINA).
@@ -575,7 +595,7 @@ in one sentence that the coffee is on its way.
 ```
 
 - **Fields** (`fields`): `name`, `description` (Mira asks along it), optionally `optional: true`, `enum` (only these values) and `check`, a built-in check: `entities` (devices in the house), `calendar_writable`, `calendar_event`, `todo_list`.
-- **Finish** (`finish`): a Home Assistant action with `data`. In `{{ … }}` Mira puts the fields, and the place: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (the satellite's ESPHome name) and `{{ person }}` when known. Empty values stay; with `omit_empty: true` they are left out. Instead of an action, a built-in finish works too: `memory.save`, `tasks.automation`, `calendar.delete`.
+- **Finish** (`finish`): a Home Assistant action with `data`. In `{{ … }}` Mira puts the fields, and the place: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (the satellite's ESPHome name) and `{{ person }}` when known. Empty values stay; with `omit_empty: true` they are left out. Instead of an action, a built-in finish works too: `memory.save`, `tasks.automation`, `calendar.delete`, `message.send` (says the field `message` as the thread's message).
 - `confirm: true` makes Mira ask before the action. `undo` names a second action that takes back what was done when you correct it ("No, mild"). `timeout` is how long Mira waits for an answer (15 minutes by default).
 - An **agent** can fill a field too (see "Your own agents"): `agent: weather` and `input: { day: "{{ date }}" }`. Mira starts it as soon as the fields its input names are there (`{{ request }}` is what you asked for) and does not ask you for it. Several agents run at the same time; once all fields are there it goes on as usual. If an agent does not manage, Mira asks you for the field. At a satellite Mira waits up to 10 seconds for an agent she starts at the beginning; if it is quicker, it goes on in the same answer. Otherwise she comes back with the result at the satellite where you asked.
 - What Home Assistant switches only with a yes (locks, alarm, the label "Mira: confirm first") asks here too.
@@ -770,7 +790,7 @@ This is how it goes:
 - If it cannot do it, Mira says so in its words ("Hermes could not do it: …") and asks you herself.
 - "Forget it" ends the thread, and Mira tells the agent it can stop.
 
-**Example:** `skills/recherche/SKILL.md`:
+**Example**, like the bundled skill `recherche` (see "Research"), shortened:
 
 ```yaml
 ---
@@ -790,11 +810,11 @@ metadata:
         name: Hermes                # optional: how Mira names it; else its own name
     target:
       fields:
-        - name: ergebnis
+        - name: message
           description: The overview.
           agent: recherche
           input: { input: "{{ request }}" }
-      finish: memory.save
+      finish: message.send
 ---
 Start the thread with the user's question. If Hermes asks back, pass the user's answer on with agent_answer.
 ```
@@ -803,7 +823,7 @@ Start the thread with the user's question. If Hermes asks back, pass the user's 
 
 ```yaml
 skills:
-  recherche: { url: http://192.168.1.20:8642, token: ${HERMES_TOKEN} }
+  recherche: { url: http://192.168.1.20:9900, token: ${HERMES_TOKEN} }
 ```
 
 What the agent can do and what it is called, Mira reads at the start from its agent card at `/.well-known/agent-card.json`. A remote agent has no model, tools or rights in Mira: it works with its own. It gets only what the skill gives it under `input`.

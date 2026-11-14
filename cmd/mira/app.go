@@ -579,7 +579,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	internal = append(internal, a.watchWaiter.WaitTool(a.tasks.Sensor))
 	internal = append(internal, a.watchWaiter.Tools()...)
 	checks := map[string]threads.Check{}
-	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang)}
+	finishers := map[string]threads.Finisher{"memory.save": threads.MemorySave(a.store, a.lang), "message.send": threads.MessageSend()}
 	checks["entities"] = a.tasks.CheckEntities
 	checks["calendar_writable"] = a.calendar.CheckWritable
 	checks["calendar_event"] = a.calendar.CheckEvent
@@ -632,7 +632,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		},
 		Cancel:        func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Dispatch:      a.dispatchForThread,
-		RemoteFailure: a2a.Failure,
+		RemoteFailure: a.remote.Failure,
 		Asking:        a.remote.Asking,
 		Answer:        a.remoteAnswer(),
 		// A watch offer is started by watch_wait only.

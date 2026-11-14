@@ -45,3 +45,29 @@ func (f memorySave) Work(ctx context.Context, th store.Thread) (Result, error) {
 func (memorySave) Commit(context.Context, store.Thread) (string, error) {
 	return "", errors.New("memory.save needs no yes")
 }
+
+// MessageSend is the building block "message.send": the field "message" is
+// said to the thread's owner as it is, as the thread's message (or in the
+// turn that still waits for it), without a yes. A remote agent's overview
+// reaches its owner this way (docs/spec/remote-agents.md, decision 53).
+func MessageSend() Finisher { return messageSend{} }
+
+type messageSend struct{}
+
+func (messageSend) Async() bool { return false }
+
+func (messageSend) Work(_ context.Context, th store.Thread) (Result, error) {
+	text := strings.TrimSpace(th.Fields["message"])
+	if text == "" {
+		return Result{}, errors.New("the field message is missing")
+	}
+	if notNeeded(text) {
+		// "- …" leaves the field out on purpose: there is nothing to say.
+		return Result{}, fmt.Errorf("the field message was left out: %q", text)
+	}
+	return Result{Done: text}, nil
+}
+
+func (messageSend) Commit(context.Context, store.Thread) (string, error) {
+	return "", errors.New("message.send needs no yes")
+}

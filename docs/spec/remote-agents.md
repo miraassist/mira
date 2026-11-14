@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
-Status 2026-11-14: specified (decisions 1 to 7, 13, 16 and 52 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 to 6 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+Status 2026-11-15: specified (decisions 1 to 7, 13, 16 and 52 by the maintainer, the others taken while writing or
+building, to be confirmed); steps 0 to 6 and 8 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -110,6 +110,17 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 49 | The input | The request as a text, or `{"input": "…"}`; the integration lets an object or a text through for a skill and keeps an object for an agent. The defaults of a call of an agent (`mode`, `timeout`, …) go along only for an agent; with `skill` they are refused |
 | 50 | The thread's turn | It has no session: it starts as a background turn of its owner, its agents start at once, and what it says comes as messages of the thread (to the person, or said in the room) |
 | 51 | No answer in the asking turn | Seen on the test Mira (2026-11-14, Gemini Flash Lite): the question came while the voice turn waited, and the model answered it itself with `agent_answer` ("150 Quadratmeter") without asking the user. A question that comes within the turn is noted on the turn: the satellite listens again (as `WaitForUser`), and `agent_answer` for that thread is refused in that turn ("Hermes hat gerade erst gefragt …"); the user's answer comes in the next turn |
+
+### Taken while building the skill `recherche` (2026-11-15, to be confirmed by the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 53 | How the overview reaches its owner | A new finisher, `message.send`: the field `message` is said to the thread's owner as it is, as the thread's message (or in the turn that still waits for it), without a yes ([Threads](threads.md), building blocks). Departure from the existing ones: `memory.save` would put the overview into the memory and say "gemerkt"; a plan target would say "is ready: 0 steps". An empty field, or one left out with "- …" (the threads' sign for "deliberately not needed"), fails the finish (the log line naming the value and the sentence of a failed work, as for every finisher); so an overview that itself begins with "-" fails too |
+| 54 | The shipped skill | `skills/recherche`: the setting `url` (required) and `token` (optional, secret). Hermes without a token listens only on its own machine; reached from another device it needs one. The skill sets no `name`: the agent card's name is said, so any research agent with A2A fits. The target's expiry is 24 hours, so a slow research still lands and its message waits until it is heard (a thread's message expires with the thread) |
+| 55 | No login | A card without a security scheme and the skill's `token` empty: no login, as decisions 28 and 31 already say; nothing to build. Checked with Hermes v0.23.1 without a token (its card has no scheme; Mira logs `scheme=none`) |
+| 56 | The model fills the agent's field | Seen on the test Mira (Gemini Flash Lite): after `thread_start` the model filled `message` with "-" itself, and the thread ended saying "-" while Hermes still worked. Taken in the skill's text, not in the code: the model calls no `thread_fill` for that field. Whether `thread_fill` should refuse a field a remote agent fills is open |
+| 57 | A failed remote agent in this skill | The skill's text: say it with the agent's name, end the thread and ask whether Mira should look it up herself; not `delegate` unasked. Seen before that text: the model fell back to `delegate` silently |
+| 58 | A remote agent whose call cannot start | Seen on the test Mira: with Hermes down when Mira started, its card was never read, the field failed without the agent's name, and the model filled the field with "- …" itself. Now its failure names it as decision 22 says (its card's name when read, else the skill's `name` for it, else its key: "recherche konnte das nicht."), so the skill's text (decision 57) applies; with decision 53 a "- …" no longer becomes the message |
 
 ## What a skill writes
 
@@ -297,6 +308,16 @@ Python's standard library, no SDK. A2A 1.0, JSON-RPC over HTTP only, SSE.
 
 Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from its source).
 
+Run against Hermes v0.23.1 (its official image) on the test Mira's machine, 2026-11-15:
+
+| Question | Hermes | For Mira |
+|---|---|---|
+| Without a token | binds 127.0.0.1 only and refuses a `Host` that is not a loopback name; the card has no security scheme | reachable only from its own machine (a container with the host's network); `scheme=none` |
+| `A2A_REPLY_TIMEOUT` | 300 s by default; a task that takes longer ends `failed` ("[agent did not reply in time]") | a long research needs it raised (the guide says so) |
+| `CancelTask` | answers `canceled` and drops the answer, but its agent's turn runs on to its end (`_rpc_tasks_cancel` resolves only the A2A task) | the cancel is said and logged; Hermes's model cost of that turn is not saved |
+| Stopped during a task | the stream ends with `completed` and no text | a failed agent, "completed the task without a result" (decision 36) |
+| Asking back | when its persona says when to ask, it answers `[INPUT_REQUIRED] …` and Mira gets `input-required` | an agent request (D), checked end to end |
+
 ## Steps
 
 0. **The fake A2A agent** (decisions 23–25, 27): `testenv/a2a_fake` with the Go SDK, one skill per behaviour, its
@@ -343,3 +364,10 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    voice, a restart during a slow task, push through `host.docker.internal`, `mira.agent` with `skill` from the
    test HA.
 7. **Deferred: a login during the work** (`auth-required` as a special agent request, decision 16).
+8. **The shipped skill `recherche`** (decisions 53 to 58): `skills/recherche`, the finisher `message.send`, a
+   paragraph in the guide. Built 2026-11-15. RM-23 in Go (`internal/threads`); naming an agent that is not ready in Go (`internal/a2a`). Run on the test Mira with Hermes
+   v0.23.1 (Gemini Flash, without a token, on the same machine): a research by voice at the fake Show (Hermes 40 to 65 s,
+   the overview announced at the satellite), an ask-back of Hermes answered by voice, a cancel by voice, Hermes
+   stopped before and during the work, a research from Home Assistant's chat without a satellite (the overview to
+   the phones). **Fails:** Hermes not reachable when the field is due → the thread asks as for every failed agent
+   (C.5), and the skill's text has the model say it and end the thread (decision 57).

@@ -176,6 +176,7 @@ Building blocks to start with:
 | `entities` | check | Every named entity must exist in the house. |
 | `tasks.automation` | finish with work step | Draft an automation from the request and the fields, have HA check it and announce the proposal. On the yes it is saved. |
 | `memory.save` | finish | Save the fact in the house memory. |
+| `message.send` | finish | Say the field `message` to the thread's owner as it is, as the thread's message (a remote agent's overview, [Remote agents](remote-agents.md), decision 53). |
 
 Plans (long processes) are described in the section [Plans](#plans-long-processes-step-by-step).
 

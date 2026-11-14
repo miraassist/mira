@@ -149,3 +149,10 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     Given the service does not know the field skill
     When a script calls mira.agent with skill
     Then the action fails with "Mira kann das erst nach einem Update"
+
+  @step8
+  Scenario: RM-23 A remote agent's overview comes as the thread's message
+    Given a skill's target has the field message, filled by a remote agent, and the finish message.send
+    When the remote agent's overview arrives after the turn
+    Then the overview, as it is, is the thread's message to its owner
+    And the thread is done
