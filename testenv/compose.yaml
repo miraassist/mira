@@ -25,6 +25,8 @@ services:
       - ./found_fake:/config/custom_components/found_fake:ro
       # A water meter and a plug for Mira's device watch (docs/spec/fake-devices.md).
       - ./watch_fake:/config/custom_components/watch_fake:ro
+      # Mira FRITZ!Box's answering machine, faked under its domain (docs/spec/fake-devices.md).
+      - ./fritz_fake:/config/custom_components/mira_fritz:ro
     restart: "no"
 
   # A broker of its own for test devices (a Tasmota lamp, say), so they never

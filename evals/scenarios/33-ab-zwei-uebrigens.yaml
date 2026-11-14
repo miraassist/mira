@@ -1,0 +1,17 @@
+name: ab-zwei-uebrigens
+description: 'Wartet: zwei neue Aufnahmen auf dem Anrufbeantworter; Mira hängt sie mit „Übrigens“ an die Antwort auf eine
+  andere Frage und bietet an, sie abzuspielen'
+steps:
+- recordings:
+  - Oma
+  - Ben
+- say: Wie spät ist es?
+  expect:
+    behaviour:
+      must_not:
+      - tool:voicemail_play
+    answer:
+      contains:
+      - Oma
+      - Ben
+      - abspielen|anhören|vorspielen|hören

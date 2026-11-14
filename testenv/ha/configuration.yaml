@@ -30,6 +30,9 @@ found_fake:
 # A water meter and a plug for Mira's device watch, faked (testenv/watch_fake).
 watch_fake:
 
+# Mira FRITZ!Box's answering machine, faked (testenv/fritz_fake, mounted as mira_fritz).
+mira_fritz:
+
 # Mira's tasks are automations here, like in every UI-managed installation.
 automation: !include automations.yaml
 

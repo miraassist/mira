@@ -1,0 +1,19 @@
+name: ab-zwei-lesen
+description: 'Wartet: zwei neue Aufnahmen auf dem Anrufbeantworter; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet
+  an, sie abzuspielen'
+steps:
+- recordings:
+  - Oma
+  - Ben
+- say: Hab ich neue Nachrichten?
+  expect:
+    behaviour:
+      must:
+      - tool:messages_read
+      must_not:
+      - tool:voicemail_play
+    answer:
+      contains:
+      - Oma
+      - Ben
+      - abspielen|anhören|vorspielen|hören

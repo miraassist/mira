@@ -1,0 +1,12 @@
+{
+  "domain": "mira_fritz",
+  "name": "Mira FRITZ!Box fake (test only)",
+  "codeowners": [],
+  "config_flow": false,
+  "dependencies": [],
+  "documentation": "https://github.com/miraassist/mira/blob/main/docs/spec/fake-devices.md",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "0.1.0"
+}

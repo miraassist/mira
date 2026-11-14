@@ -7,7 +7,7 @@ fields that fails until `found_fake.press` was called, as a Hue Bridge's link
 button), `fields` (a step with a key) and `wifi` (a step with the fields `ssid` and
 `password`, as Improv's). Adding it creates one device without an area, with a
 measuring entity and a diagnostic one. `found_fake.add_device` creates a device
-without a flow, as a maker's app would.
+without a flow, as a maker's app would; `found_fake.remove_device` removes one the fake created.
 
 `found_fake.zeroconf` hands one real device's Zeroconf announcement to a real
 integration (`domain`), as Home Assistant's zeroconf would: the test HA runs in a
@@ -68,6 +68,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                          call.data.get("model") or "Fake Lamp", call.data.get("entities", "measure"))
         return {"device_id": device.id, "uid": uid}
 
+    async def remove_device(call: ServiceCall) -> None:
+        """Removes a device the fake created, with its entities (the evals' cleanup)."""
+        devices = dr.async_get(hass)
+        device = devices.async_get(call.data["device_id"])
+        if device is None or not any(domain == DOMAIN for domain, _ in device.identifiers):
+            raise vol.Invalid(f"{call.data['device_id']} is no device of {DOMAIN}")
+        entities = er.async_get(hass)
+        for entity in er.async_entries_for_device(entities, device.id, include_disabled_entities=True):
+            entities.async_remove(entity.entity_id)
+        devices.async_remove_device(device.id)
+
     async def zeroconf(call: ServiceCall) -> ServiceResponse:
         stype = call.data.get("type") or "_http._tcp.local."
         name = call.data["name"]
@@ -92,6 +103,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         vol.Required("name"): str, vol.Optional("manufacturer"): str, vol.Optional("model"): str,
         vol.Optional("entities"): vol.In(["measure", "diagnostic", "none"])}),
         supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(DOMAIN, "remove_device", remove_device,
+                                 schema=vol.Schema({vol.Required("device_id"): str}))
     return True
 
 

@@ -159,7 +159,8 @@ during the message is an ordinary interruption of a message.
 - **A fake discovery** in the test HA (an addition to `testenv/z2m_fake` or a small integration of its own): a test
   action starts a discovered flow of three kinds: a confirmation only; a step "press the button" that fails with an
   error until a second test action presses it; a step with a field. Adding it creates a device without an area. A
-  second test action creates a device without a flow, as an app would.
+  second test action creates a device without a flow, as an app would. A third (`found_fake.remove_device`, the
+  device id; added 2026-11-14 for the evals' cleanup) removes a device the fake created.
 - **A Wi-Fi step**: the fake discovery gets a fourth kind, a step with the fields `ssid` and `password`, as Improv's.
   Which field names count as the Wi-Fi's is checked against Home Assistant's Improv and Shelly flows (assumption until
   then: Improv's step `provision` with `ssid` and `password`).

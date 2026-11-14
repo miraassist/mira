@@ -70,6 +70,12 @@ are there for Mira's device watch ([Fake devices](../docs/spec/fake-devices.md),
 `watch_fake.water_stop`; `sensor.fake_aquarium_leistung` is set with `watch_fake.power` or follows a daily routine with
 `watch_fake.routine` (`windows`, `watts`).
 
+A fake answering machine, `testenv/fritz_fake`, takes the place of Mira FRITZ!Box in the test HA: it is mounted as
+`custom_components/mira_fritz` (`mira_fritz:` in the configuration), because the Mira service knows the answering
+machine by that domain ([Fake devices](../docs/spec/fake-devices.md), The answering machine). It has Mira FRITZ!Box's
+two sensors and actions; `mira_fritz.fake_add` (`recordings`: callers' names) adds new recordings at once,
+`mira_fritz.fake_reset` empties it. The real Mira FRITZ!Box and its box are not in the test HA.
+
 Entities you add to the test house yourself (a lamp, say) are hidden from Assist by `testha up`. List them in `testenv/.env` to keep them exposed and on the dashboard: `TESTHA_EXPOSE="light.lampe|Wohnzimmer|Farblampe;switch.x|Büro"` (area and name optional).
 
 The dashboard **Mira Simulation** (sidebar, `/mira-sim`) has the switches for the

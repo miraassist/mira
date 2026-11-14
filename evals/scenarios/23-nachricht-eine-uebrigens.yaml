@@ -1,0 +1,11 @@
+name: nachricht-eine-uebrigens
+description: 'Wartet: eine einfache Nachricht ans Haus; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage,
+  ohne etwas anzubieten'
+steps:
+- message:
+    text: Die Waschmaschine ist fertig
+- say: Wie spät ist es?
+  expect:
+    answer:
+      contains:
+      - Waschmaschine

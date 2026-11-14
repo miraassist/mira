@@ -130,7 +130,7 @@ func waitLog(ctx context.Context, path string, from int64, wait time.Duration, m
 			return err
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("no word of the inbox in %s (%s)", wait, path)
+			return fmt.Errorf("the line waited for did not come in %s (%s)", wait, path)
 		}
 		select {
 		case <-ctx.Done():

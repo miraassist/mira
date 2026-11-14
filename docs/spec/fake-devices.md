@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-13: steps 1–5 built (step 5: the watched devices, extended with the device watch's step 7); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-14: steps 1–7 built (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -151,6 +151,24 @@ blueprints only see the state change. The blueprints' runs are tested in pytest 
 on (`tests/ha/test_watch_blueprints.py`, CW-11 to CW-15, CW-26 to CW-29), and on the test HA with shortened
 durations.
 
+### The answering machine (`testenv/fritz_fake`, as `mira_fritz`)
+
+For the evals of the answering machine's messages ([Evals](evals.md), Messages and their kinds; decided 2026-11-14):
+the fake takes the place of Mira FRITZ!Box in the test HA, under its domain `mira_fritz` (mounted as
+`custom_components/mira_fritz`, `mira_fritz:` in the configuration), because the Mira service knows the answering
+machine by that domain. The real Mira FRITZ!Box and its box are no longer in the test HA.
+
+- **Two sensors without a device**, as Mira FRITZ!Box's: new messages (unique id ending in `_new_messages`) and missed
+  calls (`_missed_calls`), each the count as its state.
+- **Mira FRITZ!Box's actions** the Mira service calls, with the same fields and answers: `get_messages` (`new_only`;
+  each message with `id`, `name`, `date`, `minutes`, `new`, `media_content_id` and `answering_machine_name`),
+  `get_calls` (`kind`, `new_only`; each call with `kind`, `name`, `date`), `mark_heard` (`message_ids`; the count
+  goes down), `mark_calls_seen`, `delete_messages` (`message_ids`) and `get_phonebook` (no books, no contacts). A message's
+  `media_content_id` is the fake's two-second WAV of the test HA.
+- **Test actions:** `mira_fritz.fake_add` (`recordings`, a list of names; `minutes`, default 1) adds new recordings
+  dated now, all at once, so the count rises once; `mira_fritz.fake_reset` empties it. Everything lives in memory: a
+  restart of the test HA empties it.
+
 ### The fake OAuth service (`internal/testsupport/fakeoauth`)
 
 For the skills' connections ([Connections](oauth.md)), in the Go tests only: a login that answers at once with a
@@ -183,3 +201,5 @@ turn at the conversation agent.
 6. **The watched group** (`watch_fake`): floors and areas, openings, motion, temperatures, lights, two group helpers and
    the persons' phones, for the group watch (built 2026-11-13 with its step 1; tested with its blueprints in pytest,
    GW-01 to GW-03, GW-08 to GW-16).
+7. **The answering machine** (`testenv/fritz_fake` as `mira_fritz`): the two sensors, Mira FRITZ!Box's actions and the
+   test actions, for the evals of the messages' kinds (2026-11-14); tested in pytest (FG-30 to FG-32).

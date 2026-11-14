@@ -1,0 +1,28 @@
+name: post-eine-uebrigens
+description: 'Wartet: ein Elternbrief mit einem Termin in Annas Postfach; Mira hängt sie mit „Übrigens“ an die Antwort auf
+  eine andere Frage und bietet an, sie durchzugehen'
+steps:
+- mail:
+    from: sekretariat@grundschule.example
+    subject: Elternabend der Klasse 3b
+    text: 'Liebe Eltern,
+
+      der Elternabend der Klasse 3b ist am {{+9}} um 19:30 Uhr im Raum 12.
+
+      Viele Grüße
+
+      Frau Berger'
+  expect:
+    result:
+    - plan:
+        target: postfach
+- say: Wie spät ist es?
+  person: anna
+  expect:
+    behaviour:
+      must_not:
+      - tool:calendar_create
+    answer:
+      contains:
+      - Elternabend
+      - durchgehen|eintragen|anfangen|Kalender|soll ich

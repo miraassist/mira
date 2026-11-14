@@ -70,15 +70,20 @@ type SetupFact struct {
 
 // Step is one thing said. At is the area of the satellite it is said at,
 // with Person as who speaks there; otherwise Person on Channel (telegram). A step with Mail says nothing: it
-// puts a mail into Mira's inbox and waits until it is read.
+// puts a mail into Mira's inbox and waits until it is read; so do the steps with Message, Devices and Recordings.
 type Step struct {
-	Mail       *StepMail `yaml:"mail"`
-	Say        string    `yaml:"say"`
-	At         string    `yaml:"at"`
-	Person     string    `yaml:"person"`
-	Channel    string    `yaml:"channel"`
-	MaxSeconds float64   `yaml:"max_seconds"`
-	Expect     Expect    `yaml:"expect"`
+	Mail *StepMail `yaml:"mail"`
+	// Message, Devices and Recordings put a waiting message of a kind
+	// (docs/spec/evals.md, Messages and their kinds) and say nothing.
+	Message    *StepMessage `yaml:"message"`
+	Devices    []StepDevice `yaml:"devices"`
+	Recordings []string     `yaml:"recordings"`
+	Say        string       `yaml:"say"`
+	At         string       `yaml:"at"`
+	Person     string       `yaml:"person"`
+	Channel    string       `yaml:"channel"`
+	MaxSeconds float64      `yaml:"max_seconds"`
+	Expect     Expect       `yaml:"expect"`
 }
 
 // Time limits at which a turn fails for the user: the integration's answer

@@ -1,0 +1,39 @@
+get_messages:
+  fields:
+    new_only:
+      selector:
+        boolean:
+get_calls:
+  fields:
+    kind:
+      selector:
+        text:
+    new_only:
+      selector:
+        boolean:
+mark_heard:
+  fields:
+    message_ids:
+      required: true
+      selector:
+        object:
+mark_calls_seen:
+delete_messages:
+  fields:
+    message_ids:
+      required: true
+      selector:
+        object:
+get_phonebook:
+fake_add:
+  fields:
+    recordings:
+      required: true
+      selector:
+        object:
+    minutes:
+      selector:
+        number:
+          min: 1
+          max: 10
+fake_reset:

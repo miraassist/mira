@@ -144,7 +144,41 @@ func (r *evalRun) runScenario(ctx context.Context, sc Scenario, run int) RunResu
 	}
 	conv := fmt.Sprintf("eval-%s-%d-%d", sc.Name, run, time.Now().Unix())
 	answerOK := true
+	var devices []string
+	recordings := false
+	defer func() {
+		if err := r.cleanKinds(ctx, recordings, devices); err != nil {
+			fmt.Printf("  cleanup: %v\n", err)
+		}
+	}()
 	for i, step := range sc.Steps {
+		if step.Message != nil || len(step.Devices) > 0 || len(step.Recordings) > 0 {
+			started := time.Now()
+			var err error
+			var what string
+			switch {
+			case step.Message != nil:
+				what = "Nachricht: " + step.Message.Text
+				err = r.postMessage(ctx, *step.Message)
+			case len(step.Devices) > 0:
+				names := make([]string, len(step.Devices))
+				for j, d := range step.Devices {
+					names[j] = d.Name
+				}
+				what = "Geräte: " + strings.Join(names, ", ")
+				err = r.addDevices(ctx, step.Devices, &devices)
+			default:
+				recordings = true
+				what = "Aufnahmen: " + strings.Join(step.Recordings, ", ")
+				err = r.addRecordings(ctx, step.Recordings)
+			}
+			res.Steps = append(res.Steps, StepResult{Say: what, Seconds: time.Since(started).Seconds()})
+			if err != nil {
+				fail("step %d: %v", i+1, err)
+				break
+			}
+			continue
+		}
 		if step.Mail != nil {
 			started := time.Now()
 			err := r.sendMail(ctx, *step.Mail)

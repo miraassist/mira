@@ -123,6 +123,7 @@ From what has been tested by hand so far:
 | Locked things only after yes (garage door) | yes |
 | A list that does not exist: said, not confirmed (added 2026-11-09, after Mira confirmed an item on a list that did not exist yet) | |
 | Mira's inbox: eight scenarios (added 2026-11-12, see below) | |
+| Messages and their kinds: sixteen scenarios (added 2026-11-14, see below) | |
 
 ## Mira's inbox (added 2026-11-12)
 
@@ -155,6 +156,39 @@ the answer turn has the thread's plan, and the waiting message is added to its a
 | postfach-vorlesen | three proposals with times | "Hab ich neue Nachrichten?", then "Ja, lies sie mir vor" | `messages_read`, no entry; the first answer names what waits and asks ([Messages](messages.md), Kinds), the second names every time (level 3, reported); changed 2026-11-12 from every time in the first answer |
 
 What it costs: per scenario one reading and one or two turns; 8 scenarios with 3 runs are about 50 model calls.
+
+## Messages and their kinds (added 2026-11-14)
+
+Scenarios 22 to 37 test how the model words waiting messages of each kind ([Messages](messages.md), decisions 29 to
+32): with the kind, its entries and threads and the instruction of the kind's skill, it names the entries and offers
+what the instruction says. The code around it (what the model is given, the failure, the skill's problem) is tested by
+the Go tests (MS-37 to MS-44); the evals test only what the model makes of it.
+
+Decided 2026-11-14:
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Which kinds | The gathered kinds: `simple`, `postfach`, `voicemail`, `device`; each with one entry and with two |
+| 2 | Where the answer comes from | The eval service announces nothing, so the messages wait. Two ways, each a scenario of its own: "Hab ich neue Nachrichten?" (`messages_read`) and the afterword, added to the answer to another question at the satellite ("Wie spät ist es?") |
+| 3 | How a message gets in | A step of its own per kind, which says nothing and waits for its signal: `message:` posts a text to the eval service's `/v1/messages`, as the integration does for Mira's mailboxes (the house as receiver), and the answer says it is kept; `mail:` as for the inbox; `devices:` adds each device with the fake discovery's `found_fake.add_device` and waits for the found devices' log lines `found devices said` until their counts reach the number of devices (the gathering takes 60 s after the last one, so such a scenario takes more than a minute); `recordings:` adds the recordings to the fake answering machine at once (`mira_fritz.fake_add`, [Fake devices](fake-devices.md)) and waits for the line `answering machine thread kept` with that many recordings. Two minutes are the safety net of each wait; the step then fails with the log's path |
+| 4 | Checks | The answer names the entries (a name or what the entry is about) and offers the kind's offer: to add the devices, to play the recordings, to go through the mail; for `simple`, its text and no offer. The first answer calls none of the tools that act (`device_adopt`, `voicemail_play`, `calendar_create`); the way of `messages_read` calls `messages_read` |
+| 5 | Cleanup | After the scenario the fake answering machine is emptied (`mira_fritz.fake_reset`) and the found devices of the run are removed (`found_fake.remove_device`), so the next run finds them anew |
+| 6 | Core scenarios | None for now; decided after the first full run |
+
+| Scenarios | Kind | Entries | Way |
+|---|---|---|---|
+| nachricht-eine-lesen, nachricht-zwei-lesen | `simple` | one, two | `messages_read` |
+| nachricht-eine-uebrigens, nachricht-zwei-uebrigens | `simple` | one, two | afterword |
+| post-eine-lesen, post-zwei-lesen | `postfach` | one, two mails | `messages_read` |
+| post-eine-uebrigens, post-zwei-uebrigens | `postfach` | one, two mails | afterword |
+| ab-eine-lesen, ab-zwei-lesen | `voicemail` | one, two recordings | `messages_read` |
+| ab-eine-uebrigens, ab-zwei-uebrigens | `voicemail` | one, two recordings | afterword |
+| geraet-eins-lesen, geraet-zwei-lesen | `device` | one, two devices | `messages_read` |
+| geraet-eins-uebrigens, geraet-zwei-uebrigens | `device` | one, two devices | afterword |
+
+What it costs: per scenario one turn (two models calls with `messages_read`, one more for the afterword's wording),
+and per mail its reading; 16 scenarios with 3 runs are about 150 model calls. A device scenario waits at least a
+minute for the gathering.
 
 ## Deliberately not
 

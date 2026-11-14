@@ -29,6 +29,12 @@ add_device:
     entities:
       selector:
         text:
+remove_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        text:
 zeroconf:
   fields:
     domain:

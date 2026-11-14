@@ -108,3 +108,25 @@ Feature: FG Fake satellites that behave like the real ones
   Scenario: FG-17 A longer text takes longer to speak
     When the Fake Show announces a sentence of 15 characters and then one of 90
     Then the second keeps it "responding" longer than the first
+
+  # The answering machine (testenv/fritz_fake as mira_fritz)
+
+  @step7
+  Scenario: FG-30 New recordings raise the count of new messages at once
+    When a test adds two recordings with mira_fritz.fake_add
+    Then the sensor of new messages goes from 0 to 2 in one change
+
+  @step7
+  Scenario: FG-31 The actions answer as Mira FRITZ!Box's
+    Given two new recordings
+    Then get_messages with new_only lists both with id, name, date, minutes, new, media_content_id and the machine's name
+    When mark_heard takes the first
+    Then the count is 1 and get_messages with new_only lists only the second
+    And get_calls lists no missed call and get_phonebook has no contacts
+
+  @step7
+  Scenario: FG-32 The box is emptied for the next scenario
+    Given a recording
+    When a test calls mira_fritz.fake_reset
+    Then get_messages lists nothing and the count is 0
+

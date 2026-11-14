@@ -1,0 +1,45 @@
+name: post-zwei-lesen
+description: 'Wartet: ein Elternbrief und Terminvorschläge einer Praxis in Annas Postfach; Mira nennt sie auf „Hab ich neue
+  Nachrichten?“ und bietet an, sie durchzugehen'
+steps:
+- mail:
+    from: sekretariat@grundschule.example
+    subject: Elternabend der Klasse 3b
+    text: 'Liebe Eltern,
+
+      der Elternabend der Klasse 3b ist am {{+9}} um 19:30 Uhr im Raum 12.
+
+      Viele Grüße
+
+      Frau Berger'
+  expect:
+    result:
+    - plan:
+        target: postfach
+- mail:
+    from: praxis@kieferorthopaedie.example
+    subject: Terminvorschläge für die Kontrolle
+    text: 'Guten Tag,
+
+      für die Kontrolle bei Dr. Kaya können wir Ihnen {{+11}} um 8:00 Uhr oder {{+12}} um 14:30 Uhr anbieten.
+
+      Bitte wählen Sie einen davon.
+
+      Ihre Praxis Dr. Kaya'
+  expect:
+    result:
+    - plan:
+        target: postfach
+- say: Hab ich neue Nachrichten?
+  person: anna
+  expect:
+    behaviour:
+      must:
+      - tool:messages_read
+      must_not:
+      - tool:calendar_create
+    answer:
+      contains:
+      - Elternabend
+      - Kaya|Kieferorthop|Kontroll
+      - durchgehen|eintragen|anfangen|Kalender|soll ich
