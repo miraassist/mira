@@ -1,0 +1,1951 @@
+{
+  "setup": "gemini-flash-lite-voice",
+  "models": [
+    "flashlite: gemini-flash-lite-latest",
+    "main: gemini-flash-latest",
+    "agents: conversation.voice=flashlite"
+  ],
+  "mira": "0.24.0",
+  "date": "2026-11-14 20:02",
+  "runs": 3,
+  "scenarios": [
+    {
+      "name": "nachricht-eine-lesen",
+      "description": "Wartet: eine einfache Nachricht ans Haus; Mira nennt sie auf „Hab ich neue Nachrichten?“, ohne etwas anzubieten",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Nachricht: Die Waschmaschine ist fertig",
+          "median_seconds": 0.003232058,
+          "max_seconds": 0.003963026,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 3.7231331340000002,
+          "max_seconds": 3.848057993,
+          "model_ms_median": 1382,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90640,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003963026,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Die Waschmaschine ist fertig.",
+              "seconds": 3.848057993,
+              "model_ms": 1369,
+              "rounds": 2,
+              "tokens": 30212,
+              "trace": [
+                "round:flashlite:651ms",
+                "tool:messages_read",
+                "round:flashlite:718ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003194739,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Die Waschmaschine ist gerade fertig geworden.",
+              "seconds": 3.7231331340000002,
+              "model_ms": 1553,
+              "rounds": 2,
+              "tokens": 30216,
+              "trace": [
+                "round:flashlite:629ms",
+                "tool:messages_read",
+                "round:flashlite:924ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003232058,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Die Waschmaschine ist fertig.",
+              "seconds": 3.331977002,
+              "model_ms": 1382,
+              "rounds": 2,
+              "tokens": 30212,
+              "trace": [
+                "round:flashlite:658ms",
+                "tool:messages_read",
+                "round:flashlite:724ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nachricht-eine-uebrigens",
+      "description": "Wartet: eine einfache Nachricht ans Haus; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage, ohne etwas anzubieten",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Nachricht: Die Waschmaschine ist fertig",
+          "median_seconds": 0.0041364,
+          "max_seconds": 0.005056923,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 2.990715856,
+          "max_seconds": 3.560401407,
+          "model_ms_median": 1310,
+          "rating": "good"
+        }
+      ],
+      "tokens": 60332,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.005056923,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 2. Übrigens, die Waschmaschine ist fertig.",
+              "seconds": 2.700995619,
+              "model_ms": 539,
+              "rounds": 1,
+              "tokens": 15064,
+              "trace": [
+                "round:flashlite:539ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.0041364,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 2. Übrigens: Die Waschmaschine ist fertig.",
+              "seconds": 3.560401407,
+              "model_ms": 1310,
+              "rounds": 1,
+              "tokens": 15064,
+              "trace": [
+                "round:flashlite:1310ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003172657,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 2. Übrigens: Die Waschmaschine ist fertig.",
+              "seconds": 2.990715856,
+              "model_ms": 1424,
+              "rounds": 2,
+              "tokens": 30204,
+              "trace": [
+                "round:flashlite:591ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:833ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nachricht-zwei-lesen",
+      "description": "Wartet: zwei einfache Nachrichten ans Haus; Mira nennt sie auf „Hab ich neue Nachrichten?“, ohne etwas anzubieten",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Nachricht: Die Waschmaschine ist fertig",
+          "median_seconds": 0.003117915,
+          "max_seconds": 0.003148101,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Nachricht: Der Trockner ist fertig",
+          "median_seconds": 0.003073351,
+          "max_seconds": 0.003176955,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 3.625113319,
+          "max_seconds": 4.449301804,
+          "model_ms_median": 1573,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 105871,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.002859591,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.003176955,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Die Waschmaschine und der Trockner sind fertig.",
+              "seconds": 3.625113319,
+              "model_ms": 1573,
+              "rounds": 2,
+              "tokens": 30220,
+              "trace": [
+                "round:flashlite:796ms",
+                "tool:messages_read",
+                "round:flashlite:777ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003117915,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.002902862,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Waschmaschine und Trockner sind gerade beide fertig geworden.",
+              "seconds": 3.541313191,
+              "model_ms": 1429,
+              "rounds": 2,
+              "tokens": 30223,
+              "trace": [
+                "round:flashlite:770ms",
+                "tool:messages_read",
+                "round:flashlite:659ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003148101,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.003073351,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Waschmaschine und Trockner sind gerade beide fertig geworden.",
+              "seconds": 4.449301804,
+              "model_ms": 2032,
+              "rounds": 3,
+              "tokens": 45428,
+              "trace": [
+                "round:flashlite:645ms",
+                "tool:messages_read",
+                "round:flashlite:665ms",
+                "tool:message_ack",
+                "round:flashlite:722ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nachricht-zwei-uebrigens",
+      "description": "Wartet: zwei einfache Nachrichten ans Haus; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage, ohne etwas anzubieten",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Nachricht: Die Waschmaschine ist fertig",
+          "median_seconds": 0.003187495,
+          "max_seconds": 0.003210128,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Nachricht: Der Trockner ist fertig",
+          "median_seconds": 0.003212101,
+          "max_seconds": 0.004100363,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 3.730755027,
+          "max_seconds": 3.814904304,
+          "model_ms_median": 1445,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90604,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003187495,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.004100363,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist acht Uhr drei. Übrigens: Die Waschmaschine und der Trockner sind gerade beide fertig geworden.",
+              "seconds": 3.730755027,
+              "model_ms": 1445,
+              "rounds": 2,
+              "tokens": 30201,
+              "trace": [
+                "round:flashlite:712ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:733ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003210128,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.003008239,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist kurz nach acht Uhr. Übrigens sind die Waschmaschine und der Trockner gerade fertig geworden.",
+              "seconds": 3.447893491,
+              "model_ms": 1263,
+              "rounds": 2,
+              "tokens": 30202,
+              "trace": [
+                "round:flashlite:667ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:596ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Nachricht: Die Waschmaschine ist fertig",
+              "text": "",
+              "seconds": 0.003012417,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Nachricht: Der Trockner ist fertig",
+              "text": "",
+              "seconds": 0.003212101,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist drei nach acht. Übrigens: Die Waschmaschine und der Trockner sind fertig.",
+              "seconds": 3.814904304,
+              "model_ms": 1550,
+              "rounds": 2,
+              "tokens": 30201,
+              "trace": [
+                "round:flashlite:710ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:840ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "post-eine-lesen",
+      "description": "Wartet: ein Elternbrief mit einem Termin in Annas Postfach; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie durchzugehen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 2,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Mail: Elternabend der Klasse 3b",
+          "median_seconds": 2.40283016,
+          "max_seconds": 2.403036562,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 2.410022873,
+          "max_seconds": 2.689231391,
+          "model_ms_median": 2368,
+          "rating": "good"
+        }
+      ],
+      "tokens": 169734,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.40283016,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Postfach liegt ein Elternbrief zum Elternabend der Klasse 3b am Montag, den 23. November um 19:30 Uhr in Raum 12. Soll ich den Termin eintragen?",
+              "seconds": 2.410022873,
+              "model_ms": 2368,
+              "rounds": 3,
+              "tokens": 50648,
+              "trace": [
+                "round:flashlite:626ms",
+                "tool:messages_read",
+                "round:flashlite:1110ms",
+                "tool:thread_take",
+                "round:flashlite:632ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.403036562,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Postfach liegt ein Elternbrief zur Einladung zum Elternabend der Klasse 3b am Montag, den 23. November, um 19:30 Uhr. Soll ich das eintragen?",
+              "seconds": 2.689231391,
+              "model_ms": 2645,
+              "rounds": 4,
+              "tokens": 68505,
+              "trace": [
+                "round:flashlite:468ms",
+                "tool:messages_read",
+                "round:flashlite:878ms",
+                "tool:skill_open",
+                "round:flashlite:584ms",
+                "tool:thread_take",
+                "round:flashlite:715ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 2: answer lacks \"Elternabend\""
+          ],
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.402609091,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Da ist ein Elternbrief für die Klasse 3b mit einem Termin. Soll ich den eintragen?",
+              "seconds": 1.692219167,
+              "model_ms": 1651,
+              "rounds": 3,
+              "tokens": 50581,
+              "trace": [
+                "round:flashlite:497ms",
+                "tool:messages_read",
+                "round:flashlite:525ms",
+                "tool:thread_take",
+                "round:flashlite:629ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "post-eine-uebrigens",
+      "description": "Wartet: ein Elternbrief mit einem Termin in Annas Postfach; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie durchzugehen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Mail: Elternabend der Klasse 3b",
+          "median_seconds": 2.805766528,
+          "max_seconds": 2.805779025,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 4.369583344,
+          "max_seconds": 4.677160274,
+          "model_ms_median": 1623,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 98665,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.805766528,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 3 Minuten. Übrigens, im Postfach liegt eine Mail vom Schulsekretariat mit einer Einladung zum Elternabend der Klasse 3b. Sollen wir das kurz durchgehen?",
+              "seconds": 4.677160274,
+              "model_ms": 2002,
+              "rounds": 2,
+              "tokens": 32957,
+              "trace": [
+                "round:flashlite:1358ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:644ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.805779025,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20:03 Uhr. Übrigens, im Postfach liegt eine Mail vom Schulsekretariat mit einer Einladung zum Elternabend der Klasse 3b. Sollen wir das kurz durchgehen?",
+              "seconds": 4.369583344,
+              "model_ms": 1623,
+              "rounds": 2,
+              "tokens": 32955,
+              "trace": [
+                "round:flashlite:1059ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:564ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.804014845,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 3 Uhr. Übrigens liegt eine Mail von der Grundschule im Postfach: eine Einladung zum Elternabend der Klasse 3b am 23. November. Sollen wir das kurz durchgehen?",
+              "seconds": 3.737365731,
+              "model_ms": 1187,
+              "rounds": 2,
+              "tokens": 32753,
+              "trace": [
+                "round:flashlite:545ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:642ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "post-zwei-lesen",
+      "description": "Wartet: ein Elternbrief und Terminvorschläge einer Praxis in Annas Postfach; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie durchzugehen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 2,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Mail: Elternabend der Klasse 3b",
+          "median_seconds": 2.605551963,
+          "max_seconds": 3.403273462,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Mail: Terminvorschläge für die Kontrolle",
+          "median_seconds": 3.204686906,
+          "max_seconds": 4.007410192,
+          "model_ms_median": 0,
+          "rating": "usable"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 1.313960741,
+          "max_seconds": 1.855029659,
+          "model_ms_median": 1286,
+          "rating": "good"
+        }
+      ],
+      "tokens": 123357,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.605551963,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 4.007410192,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Du hast Post: Eine Einladung zum Elternabend und Terminvorschläge von der Praxis Dr. Kaya. Womit sollen wir anfangen?",
+              "seconds": 1.313960741,
+              "model_ms": 1286,
+              "rounds": 2,
+              "tokens": 34971,
+              "trace": [
+                "round:flashlite:601ms",
+                "tool:messages_read",
+                "round:flashlite:685ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 3.403273462,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 3.003421934,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Postfach liegen eine Einladung zum Elternabend der Klasse 3b und Terminvorschläge von der Praxis Dr Kaya. Womit möchtest du anfangen?",
+              "seconds": 1.855029659,
+              "model_ms": 1820,
+              "rounds": 3,
+              "tokens": 53465,
+              "trace": [
+                "round:flashlite:529ms",
+                "tool:skill_open",
+                "round:flashlite:570ms",
+                "tool:messages_read",
+                "round:flashlite:721ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 3: answer lacks \"durchgehen|eintragen|anfangen|Kalender|soll ich\""
+          ],
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.605088367,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 3.204686906,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Postfach liegen ein Elternabend für die Klasse 3b und Terminvorschläge von der Praxis Dr. Kaya. Womit fangen wir an?",
+              "seconds": 1.20014355,
+              "model_ms": 1169,
+              "rounds": 2,
+              "tokens": 34921,
+              "trace": [
+                "round:flashlite:525ms",
+                "tool:messages_read",
+                "round:flashlite:644ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "post-zwei-uebrigens",
+      "description": "Wartet: ein Elternbrief und Terminvorschläge einer Praxis in Annas Postfach; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie durchzugehen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Mail: Elternabend der Klasse 3b",
+          "median_seconds": 2.605426092,
+          "max_seconds": 3.408157772,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Mail: Terminvorschläge für die Kontrolle",
+          "median_seconds": 2.604665019,
+          "max_seconds": 2.606589426,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 3.60757619,
+          "max_seconds": 3.7433927479999998,
+          "model_ms_median": 1212,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 103833,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.201745969,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 2.603197223,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20:04 Uhr. Übrigens liegen in deinem Postfach zwei neue Sachen: Einmal eine Einladung der Grundschule zum Elternabend der Klasse 3b und Terminvorschläge von der Kieferorthopädie Dr. Kaya für die Kontrolle. Womit soll ich anfangen?",
+              "seconds": 3.7433927479999998,
+              "model_ms": 1080,
+              "rounds": 2,
+              "tokens": 34625,
+              "trace": [
+                "round:flashlite:534ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:546ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 2.605426092,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 2.604665019,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20:04 Uhr. Übrigens, im Postfach liegen zwei neue Mails: die Grundschule lädt zum Elternabend der Klasse 3b am 23. November ein, und von der Praxis Dr. Kaya gibt es Terminvorschläge für die Kontrolle am 25. oder 26. November. Womit soll ich anfangen?",
+              "seconds": 3.551146943,
+              "model_ms": 1212,
+              "rounds": 2,
+              "tokens": 34607,
+              "trace": [
+                "round:flashlite:609ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:603ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Mail: Elternabend der Klasse 3b",
+              "text": "",
+              "seconds": 3.408157772,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Mail: Terminvorschläge für die Kontrolle",
+              "text": "",
+              "seconds": 2.606589426,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20:04 Uhr. Übrigens, im Postfach liegen zwei neue Mails: die Grundschule lädt zum Elternabend der Klasse 3b am 23. November ein, und die Praxis Dr. Kaya schlägt zwei Termine für die Kontrolle Ende November vor. Womit soll ich anfangen?",
+              "seconds": 3.60757619,
+              "model_ms": 1281,
+              "rounds": 2,
+              "tokens": 34601,
+              "trace": [
+                "round:flashlite:687ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:594ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ab-eine-lesen",
+      "description": "Wartet: eine neue Aufnahme auf dem Anrufbeantworter; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie abzuspielen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Aufnahmen: Oma",
+          "median_seconds": 0.201384325,
+          "max_seconds": 0.201805444,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 1.381885676,
+          "max_seconds": 1.456496241,
+          "model_ms_median": 1350,
+          "rating": "good"
+        }
+      ],
+      "tokens": 91407,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.201384325,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Oma hat heute um 20:04 Uhr angerufen. Soll ich die Nachricht abspielen?",
+              "seconds": 1.381885676,
+              "model_ms": 1350,
+              "rounds": 2,
+              "tokens": 30468,
+              "trace": [
+                "round:flashlite:805ms",
+                "tool:messages_read",
+                "round:flashlite:545ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.201805444,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Oma hat heute um 20:04 Uhr angerufen. Soll ich die Nachricht abspielen?",
+              "seconds": 1.456496241,
+              "model_ms": 1425,
+              "rounds": 2,
+              "tokens": 30466,
+              "trace": [
+                "round:flashlite:697ms",
+                "tool:messages_read",
+                "round:flashlite:728ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.201101817,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Oma hat heute um 20 Uhr 4 auf dem Anrufbeantworter angerufen. Soll ich sie abspielen?",
+              "seconds": 1.347302419,
+              "model_ms": 1317,
+              "rounds": 2,
+              "tokens": 30473,
+              "trace": [
+                "round:flashlite:732ms",
+                "tool:messages_read",
+                "round:flashlite:585ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ab-eine-uebrigens",
+      "description": "Wartet: eine neue Aufnahme auf dem Anrufbeantworter; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie abzuspielen",
+      "core": false,
+      "passed_runs": 2,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Aufnahmen: Oma",
+          "median_seconds": 0.200941429,
+          "max_seconds": 0.202254365,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 4.513124168,
+          "max_seconds": 18.910427088,
+          "model_ms_median": 1328,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90707,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.202254365,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20:04 Uhr. Übrigens, Oma hat eben um 20:04 Uhr auf den Anrufbeantworter gesprochen. Soll ich sie abspielen?",
+              "seconds": 4.513124168,
+              "model_ms": 1318,
+              "rounds": 2,
+              "tokens": 30237,
+              "trace": [
+                "round:flashlite:570ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:748ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.200941429,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist kurz nach acht Uhr. Übrigens: Auf dem Anrufbeantworter ist eine neue Nachricht von Oma von heute um 20:04 Uhr. Soll ich sie abspielen?",
+              "seconds": 3.703184115,
+              "model_ms": 1395,
+              "rounds": 2,
+              "tokens": 30234,
+              "trace": [
+                "round:flashlite:657ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:738ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": false,
+          "answer_ok": true,
+          "failures": [
+            "step 2 took 18.9s, over 15s"
+          ],
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma",
+              "text": "",
+              "seconds": 0.20084649,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 4. Übrigens: Auf dem Anrufbeantworter ist eine neue Nachricht von Oma von heute um 20:04 Uhr. Soll ich sie abspielen?",
+              "seconds": 18.910427088,
+              "model_ms": 1328,
+              "rounds": 2,
+              "tokens": 30236,
+              "trace": [
+                "round:flashlite:530ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:798ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ab-zwei-lesen",
+      "description": "Wartet: zwei neue Aufnahmen auf dem Anrufbeantworter; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie abzuspielen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Aufnahmen: Oma, Ben",
+          "median_seconds": 0.201343693,
+          "max_seconds": 0.201811689,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 2.187925692,
+          "max_seconds": 3.252284509,
+          "model_ms_median": 2141,
+          "rating": "good"
+        }
+      ],
+      "tokens": 141846,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.200985603,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Zwei neue Nachrichten vom Anrufbeantworter, von Oma und Ben von heute Abend. Soll ich sie abspielen?",
+              "seconds": 1.366219531,
+              "model_ms": 1337,
+              "rounds": 2,
+              "tokens": 30518,
+              "trace": [
+                "round:flashlite:547ms",
+                "tool:messages_read",
+                "round:flashlite:790ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.201811689,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Du hast zwei neue Nachrichten, eine von Oma und eine von Ben, beide von heute Abend. Soll ich sie abspielen?",
+              "seconds": 3.252284509,
+              "model_ms": 3199,
+              "rounds": 4,
+              "tokens": 63895,
+              "trace": [
+                "round:flashlite:719ms",
+                "tool:messages_read",
+                "round:flashlite:755ms",
+                "tool:skill_open",
+                "round:flashlite:849ms",
+                "tool:voicemail_list",
+                "round:flashlite:876ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.201343693,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Du hast zwei neue Nachrichten, heute um 20:05 Uhr von Oma und von Ben. Soll ich sie abspielen?",
+              "seconds": 2.187925692,
+              "model_ms": 2141,
+              "rounds": 3,
+              "tokens": 47433,
+              "trace": [
+                "round:flashlite:690ms",
+                "tool:messages_read",
+                "round:flashlite:799ms",
+                "tool:thread_take",
+                "round:flashlite:652ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ab-zwei-uebrigens",
+      "description": "Wartet: zwei neue Aufnahmen auf dem Anrufbeantworter; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie abzuspielen",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Aufnahmen: Oma, Ben",
+          "median_seconds": 0.201825606,
+          "max_seconds": 0.202547717,
+          "model_ms_median": 0,
+          "rating": "good"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 4.000269114,
+          "max_seconds": 4.177921652,
+          "model_ms_median": 1277,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90702,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.202547717,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist fünf nach acht. Übrigens: Auf dem Anrufbeantworter sind gerade zwei neue Nachrichten von Oma und Ben eingegangen. Soll ich alle abspielen oder eine bestimmte?",
+              "seconds": 4.000269114,
+              "model_ms": 1277,
+              "rounds": 2,
+              "tokens": 30233,
+              "trace": [
+                "round:flashlite:613ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:664ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.201089559,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist fünf nach acht. Übrigens: Auf dem Anrufbeantworter sind gerade zwei neue Nachrichten von Oma und Ben eingegangen. Soll ich alle abspielen oder eine bestimmte?",
+              "seconds": 4.177921652,
+              "model_ms": 1881,
+              "rounds": 2,
+              "tokens": 30233,
+              "trace": [
+                "round:flashlite:1094ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:787ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Aufnahmen: Oma, Ben",
+              "text": "",
+              "seconds": 0.201825606,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 5. Übrigens, auf dem Anrufbeantworter sind zwei neue Nachrichten: von Oma und von Ben, beide von eben gerade um 20:05 Uhr. Soll ich alle abspielen oder eine bestimmte?",
+              "seconds": 3.759379596,
+              "model_ms": 1263,
+              "rounds": 2,
+              "tokens": 30236,
+              "trace": [
+                "round:flashlite:610ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:653ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "geraet-eins-lesen",
+      "description": "Wartet: ein neu gefundenes Gerät; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie einzubinden",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Geräte: Rauchmelder Flur",
+          "median_seconds": 60.068597804,
+          "max_seconds": 60.07204455,
+          "model_ms_median": 0,
+          "rating": "slow"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 1.499403137,
+          "max_seconds": 1.58369991,
+          "model_ms_median": 1469,
+          "rating": "good"
+        }
+      ],
+      "tokens": 91357,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.06814982,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Home Assistant hat einen Rauchmelder im Flur gefunden. Soll ich ihn einbinden?",
+              "seconds": 1.499403137,
+              "model_ms": 1469,
+              "rounds": 2,
+              "tokens": 30453,
+              "trace": [
+                "round:flashlite:782ms",
+                "tool:messages_read",
+                "round:flashlite:687ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.07204455,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Flur wurde ein neuer Rauchmelder gefunden. Soll ich den einbinden?",
+              "seconds": 1.356364554,
+              "model_ms": 1326,
+              "rounds": 2,
+              "tokens": 30453,
+              "trace": [
+                "round:flashlite:622ms",
+                "tool:messages_read",
+                "round:flashlite:704ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.068597804,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Flur wurde ein neuer Rauchmelder gefunden. Soll ich ihn einbinden?",
+              "seconds": 1.58369991,
+              "model_ms": 1554,
+              "rounds": 2,
+              "tokens": 30451,
+              "trace": [
+                "round:flashlite:648ms",
+                "tool:messages_read",
+                "round:flashlite:906ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "geraet-eins-uebrigens",
+      "description": "Wartet: ein neu gefundenes Gerät; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie einzubinden",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Geräte: Rauchmelder Flur",
+          "median_seconds": 60.06737409,
+          "max_seconds": 60.078694822,
+          "model_ms_median": 0,
+          "rating": "slow"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 3.939367469,
+          "max_seconds": 4.074117456,
+          "model_ms_median": 1435,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90705,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.061174741,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist zwanzig nach acht. Übrigens wurde ein neues Gerät gefunden: Rauchmelder Flur. Soll ich es einbinden?",
+              "seconds": 3.939367469,
+              "model_ms": 1658,
+              "rounds": 2,
+              "tokens": 30235,
+              "trace": [
+                "round:flashlite:866ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:792ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.078694822,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist zehn nach acht am Abend. Übrigens wurde ein neues Gerät gefunden: Rauchmelder Flur. Soll ich es einbinden?",
+              "seconds": 3.773731273,
+              "model_ms": 1277,
+              "rounds": 2,
+              "tokens": 30235,
+              "trace": [
+                "round:flashlite:683ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:594ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur",
+              "text": "",
+              "seconds": 60.06737409,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist zwanzig Uhr elf. Übrigens wurde ein neues Gerät gefunden: Rauchmelder Flur. Soll ich es einbinden?",
+              "seconds": 4.074117456,
+              "model_ms": 1435,
+              "rounds": 2,
+              "tokens": 30235,
+              "trace": [
+                "round:flashlite:587ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:848ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "geraet-zwei-lesen",
+      "description": "Wartet: zwei neu gefundene Geräte; Mira nennt sie auf „Hab ich neue Nachrichten?“ und bietet an, sie einzubinden",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+          "median_seconds": 60.063725035,
+          "max_seconds": 60.074554689,
+          "model_ms_median": 0,
+          "rating": "slow"
+        },
+        {
+          "say": "Hab ich neue Nachrichten?",
+          "median_seconds": 1.6065287000000001,
+          "max_seconds": 1.84298173,
+          "model_ms_median": 1573,
+          "rating": "good"
+        }
+      ],
+      "tokens": 91506,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.063725035,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Ein Bewegungsmelder im Keller und ein Rauchmelder im Flur wurden gefunden. Soll ich beide einbinden?",
+              "seconds": 1.51986513,
+              "model_ms": 1488,
+              "rounds": 2,
+              "tokens": 30502,
+              "trace": [
+                "round:flashlite:814ms",
+                "tool:messages_read",
+                "round:flashlite:674ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.074554689,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Es gibt zwei neue Geräte, den Rauchmelder im Flur und den Bewegungsmelder im Keller. Soll ich beide einbinden?",
+              "seconds": 1.84298173,
+              "model_ms": 1813,
+              "rounds": 2,
+              "tokens": 30505,
+              "trace": [
+                "round:flashlite:865ms",
+                "tool:messages_read",
+                "round:flashlite:948ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.059889906,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Hab ich neue Nachrichten?",
+              "text": "Im Keller wurde ein Bewegungsmelder und im Flur ein Rauchmelder gefunden. Soll ich beide einbinden?",
+              "seconds": 1.6065287000000001,
+              "model_ms": 1573,
+              "rounds": 2,
+              "tokens": 30499,
+              "trace": [
+                "round:flashlite:702ms",
+                "tool:messages_read",
+                "round:flashlite:871ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "geraet-zwei-uebrigens",
+      "description": "Wartet: zwei neu gefundene Geräte; Mira hängt sie mit „Übrigens“ an die Antwort auf eine andere Frage und bietet an, sie einzubinden",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+          "median_seconds": 60.098298768,
+          "max_seconds": 60.100572972,
+          "model_ms_median": 0,
+          "rating": "slow"
+        },
+        {
+          "say": "Wie spät ist es?",
+          "median_seconds": 5.038942896,
+          "max_seconds": 5.628960707,
+          "model_ms_median": 1672,
+          "rating": "usable"
+        }
+      ],
+      "tokens": 90712,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.100572972,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 15. Übrigens, ich habe zwei neue Geräte gefunden: den Rauchmelder Flur und den Bewegungsmelder Keller. Soll ich alle einbinden oder nur einzelne?",
+              "seconds": 5.038942896,
+              "model_ms": 1672,
+              "rounds": 2,
+              "tokens": 30237,
+              "trace": [
+                "round:flashlite:715ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:957ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.070502083,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist zwanzig Uhr siebzehn. Übrigens, es wurden neue Geräte gefunden: der Bewegungsmelder Keller und der Rauchmelder Flur. Soll ich alle einbinden oder nur einzelne?",
+              "seconds": 3.873639019,
+              "model_ms": 1480,
+              "rounds": 2,
+              "tokens": 30238,
+              "trace": [
+                "round:flashlite:757ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:723ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Geräte: Rauchmelder Flur, Bewegungsmelder Keller",
+              "text": "",
+              "seconds": 60.098298768,
+              "model_ms": 0,
+              "rounds": 0,
+              "tokens": 0,
+              "trace": null
+            },
+            {
+              "say": "Wie spät ist es?",
+              "text": "Es ist 20 Uhr 18. Übrigens, ich habe zwei neue Geräte gefunden: Bewegungsmelder Keller und Rauchmelder Flur. Soll ich alle einbinden oder nur einzelne?",
+              "seconds": 5.628960707,
+              "model_ms": 1800,
+              "rounds": 2,
+              "tokens": 30237,
+              "trace": [
+                "round:flashlite:808ms",
+                "tool:ha__llm__GetDateTime",
+                "round:flashlite:992ms"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "left_out": [
+    "x (MIRA_SKILL_X_CLIENT_SECRET)"
+  ]
+}
