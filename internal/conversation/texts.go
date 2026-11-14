@@ -34,6 +34,10 @@ type texts struct {
 	waitingForHA  string
 	// noHousePrompt answers a turn without Home Assistant's prompt.
 	noHousePrompt string
+	// noDeviceLines answers a turn whose asking device's lines or tools
+	// cannot be had; no repair is raised for it (docs/spec/context.md, 1.1,
+	// decision 5).
+	noDeviceLines string
 	// keyRefused and unreachable end a turn whose model failed for its key
 	// or its address; problemKey and problemUnreachable are the problem's
 	// text with the server's answer (docs/spec/models.md, When a model fails).
@@ -57,6 +61,7 @@ var catalog = map[i18n.Lang]texts{
 		delegateLater:      "Ergebnis: braucht länger, läuft im Hintergrund weiter. Das Ergebnis kommt als Nachricht, sobald es da ist.",
 		waitingForHA:       "Ich warte noch auf die Verbindung mit Home Assistant und weiß deshalb noch nicht, was ich sehen und schalten darf. Bitte versuch es gleich noch einmal.",
 		noHousePrompt:      "Mir fehlt gerade die Beschreibung des Hauses von Home Assistant, deshalb kann ich gerade nichts tun. Unter Reparaturen in Home Assistant steht, woran es liegt.",
+		noDeviceLines:      "Mir fehlt gerade, was Home Assistant über dieses Gerät sagt, deshalb kann ich gerade nichts tun. Versuch es gleich noch einmal.",
 		keyRefused:         "Mein KI-Modell lehnt meinen Schlüssel ab. Das muss auf meiner Seite unter Modelle behoben werden.",
 		unreachable:        "Ich erreiche mein KI-Modell gerade nicht.",
 		problemKey:         "Der Server lehnt den Schlüssel ab (%s).",
@@ -77,6 +82,7 @@ var catalog = map[i18n.Lang]texts{
 		delegateLater:      "Result: takes longer, goes on in the background. The result comes as a message as soon as it is there.",
 		waitingForHA:       "I am still waiting for the connection to Home Assistant, so I do not know yet what I may see and switch. Please try again in a moment.",
 		noHousePrompt:      "I don't have Home Assistant's description of the house right now, so I can't do anything. Repairs in Home Assistant say why.",
+		noDeviceLines:      "I don't have what Home Assistant says about this device right now, so I can't do anything. Please try again in a moment.",
 		keyRefused:         "My AI model refuses my key. It has to be fixed on my page under Models.",
 		unreachable:        "I can't reach my AI model right now.",
 		problemKey:         "The server refuses the key (%s).",

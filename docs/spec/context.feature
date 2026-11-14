@@ -1,4 +1,4 @@
-Feature: The house structure from Home Assistant's prompt (docs/spec/context.md, 1.2 and 1.3)
+Feature: The house structure from Home Assistant's prompt (docs/spec/context.md, 1.1 to 1.3)
 
   Without Home Assistant's prompt Mira does not answer; nothing replaces it.
 
@@ -85,3 +85,37 @@ Feature: The house structure from Home Assistant's prompt (docs/spec/context.md,
     Given Home Assistant exposes new entities on its own
     When a new entity is created
     Then the integration sends the list of exposed entities after a moment, with the new entity
+
+  # docs/spec/context.md, 1.1: every asking device is compared
+
+  @step1
+  Scenario: AD-01 A companion app is an asking device
+    Given the device registry has a satellite and a companion app
+    Then both are asking devices
+    And Home Assistant's prompt and tools are fetched as each of them
+
+  @step1
+  Scenario: AD-02 A device that can start timers where no compared one can gets its own lines
+    Given every compared version ends with "This device is not able to start timers."
+    When a turn comes from a device that is not compared and whose version lacks that line
+    Then all versions are fetched again with it, and the turn gets its own lines
+    And part 1 ends before the timer line from then on, also after the next refresh
+
+  @step1
+  Scenario: AD-03 The fetch of all versions fails on that turn
+    Given a turn comes from a device that is not compared and whose version does not begin with part 1
+    When fetching all versions again fails
+    Then the turn is refused and the error names the failed fetch
+
+  @step1
+  Scenario: AD-04 An asking device whose version fits stays in the comparison
+    Given a turn comes from a device that is not compared and whose version begins with part 1
+    Then the turn gets the rest as its lines
+    And its version is fetched with every refresh
+
+  @step1
+  Scenario: AD-05 A turn without its device lines says so, without Repairs
+    Given the asking device's lines cannot be had
+    When its turn comes
+    Then Mira says that she lacks what Home Assistant says about this device
+    And the sentence does not mention Repairs

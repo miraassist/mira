@@ -41,10 +41,11 @@ compat` (HC-06) is fixed for Home Assistant 2026.10 and 2026.11 alike. Rows 13 t
   2026-11-05 an answer is empty only when nothing at all was said in the turn ([Streaming](streaming.md), decision
   10): text spoken in a round with a tool is an answer.
 - **Row 5:** when a satellite's own version of Home Assistant's prompt was never fetched, its turn fetches it; if
-  that fails, the turn answers with the fixed sentence of a missing house description, not with the lines of the
-  version without a device.
+  that fails, the turn answers with a fixed sentence, not with the lines of the
+  version without a device. Since 2026-11-14 this holds for every asking device, and the sentence is the one of the
+  device's missing lines, without "Repairs" ([Context](context.md), 1.1, decisions 3 and 5).
 - **Row 6:** when the tools for a satellite could not be listed, its turn lists them again; if that fails, the turn
-  answers with the fixed sentence of a missing house description ([Context](context.md), 1.2).
+  answers with the fixed sentence of the device's missing lines ([Context](context.md), 1.1, decision 5).
 - **Row 7:** when the calendar list cannot be read, the mail is an error back to the integration, not "no calendar";
   the log names it. The integration sends a mail once (on IMAP's event for a new mail); after an error it logs a
   warning ("The service could not read the mail of …") and the mail does not come again. Sending it again is not

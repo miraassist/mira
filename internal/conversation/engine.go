@@ -414,17 +414,18 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		}
 		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noHousePrompt}, nil
 	}
-	// The satellite's own lines and tools, or no turn: without them the model
-	// would not know its room or its timers (docs/spec/fallbacks.md, rows 5, 6).
+	// The asking device's own lines and tools, or no turn: without them the
+	// model would not know its room or its timers (docs/spec/fallbacks.md,
+	// rows 5, 6; docs/spec/context.md, 1.1).
 	hints, err := e.deviceReady(ctx, req.DeviceID)
 	if err != nil {
-		e.log.Error("turn refused: the satellite's part of home assistant's prompt or tools is missing",
+		e.log.Error("turn refused: the asking device's part of home assistant's prompt or tools is missing",
 			"session", key, "device", req.DeviceID, "error", err)
 		lang := e.lang(ctx)
 		if e.languages != nil {
 			lang = e.languages.Turn(ctx, req.Language, "", "")
 		}
-		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noHousePrompt}, nil
+		return Response{ConversationID: req.ConversationID, Text: i18n.Pick(catalog, lang).noDeviceLines}, nil
 	}
 
 	sess, err := e.openSession(ctx, key, req, ts.Area)

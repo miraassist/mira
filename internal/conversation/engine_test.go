@@ -964,23 +964,33 @@ func TestFB05_AnEmptyAnswerSaysItDidNotFinish(t *testing.T) {
 	}
 }
 
-// A satellite's turn without its part of Home Assistant's prompt or its tools
-// does not run (docs/spec/fallbacks.md, rows 5 and 6).
-func TestASatellitesTurnWithoutItsPartDoesNotRun(t *testing.T) {
-	h := newHarness(t, fakellm.Step{Content: "Ok."})
-	e := conversation.New(conversation.Options{
-		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
-		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
-		StructurePrompt: func() string { return harnessHousePrompt },
-		DeviceTools:     func(context.Context, string) error { return errors.New("listing failed") },
-	})
-	res, err := e.Handle(context.Background(), conversation.Request{
-		Channel: config.ChannelVoice, ConversationID: "v1", DeviceID: "sat-kueche", Text: "Stell einen Timer", Language: "de"})
-	if err != nil || !strings.Contains(res.Text, "Beschreibung des Hauses") {
-		t.Errorf("answer = %q, %v", res.Text, err)
-	}
-	if n := len(h.llm.Requests()); n != 0 {
-		t.Errorf("model called %d times", n)
+// AD-05: an asking device's turn without its part of Home Assistant's prompt
+// or its tools does not run, and its sentence does not send the user to
+// Repairs, where nothing is (docs/spec/context.md, 1.1, decision 5;
+// docs/spec/fallbacks.md, rows 5 and 6).
+func TestAD05_ATurnWithoutItsDeviceLinesSaysSoWithoutRepairs(t *testing.T) {
+	for name, opts := range map[string]conversation.Options{
+		"tools": {DeviceTools: func(context.Context, string) error { return errors.New("listing failed") }},
+		"lines": {DeviceHints: func(context.Context, string) (string, error) { return "", errors.New("fetch failed") }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t, fakellm.Step{Content: "Ok."})
+			e := conversation.New(conversation.Options{
+				Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
+				Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
+				StructurePrompt: func() string { return harnessHousePrompt },
+				DeviceTools:     opts.DeviceTools, DeviceHints: opts.DeviceHints,
+			})
+			res, err := e.Handle(context.Background(), conversation.Request{
+				Channel: config.ChannelVoice, ConversationID: "v1", DeviceID: "sat-kueche", Text: "Stell einen Timer", Language: "de"})
+			if err != nil || !strings.Contains(res.Text, "was Home Assistant über dieses Gerät sagt") ||
+				strings.Contains(res.Text, "Reparaturen") {
+				t.Errorf("answer = %q, %v", res.Text, err)
+			}
+			if n := len(h.llm.Requests()); n != 0 {
+				t.Errorf("model called %d times", n)
+			}
+		})
 	}
 }
 

@@ -67,6 +67,11 @@ type Snapshot struct {
 	// satellite entities), sorted. The MCP host asks Home Assistant for its
 	// tools as each of them would get them.
 	SatelliteDevices []string
+	// AskingDevices are the device ids a turn can come from, sorted: the
+	// satellites and the companion apps (devices of the integration
+	// mobile_app, not disabled). Home Assistant's prompt and tools are
+	// fetched as each of them (docs/spec/context.md, 1.1).
+	AskingDevices []string
 	// Counts for logging and telemetry.
 	AreaCount, EntityCount int
 }
@@ -133,6 +138,13 @@ func Build(reg Registry) Snapshot {
 		}
 	}
 	slices.Sort(snap.SatelliteDevices)
+	snap.AskingDevices = slices.Clone(snap.SatelliteDevices)
+	for _, d := range reg.Devices {
+		if d.DisabledBy == "" && d.HasIdentifierOf("mobile_app") && !slices.Contains(snap.AskingDevices, d.ID) {
+			snap.AskingDevices = append(snap.AskingDevices, d.ID)
+		}
+	}
+	slices.Sort(snap.AskingDevices)
 
 	for _, a := range reg.Areas {
 		snap.AreaNames[a.AreaID] = a.Name
@@ -300,7 +312,7 @@ func Domain(entityID string) string {
 }
 
 // Same reports whether two snapshots know the same house: the same areas,
-// names, aliases, exposure, labels and satellites. Only then is a rebuild a
+// names, aliases, exposure, labels, satellites and asking devices. Only then is a rebuild a
 // change worth fetching Home Assistant's prompt again for.
 func Same(a, b Snapshot) bool {
 	return a.ExposureKnown == b.ExposureKnown &&
@@ -309,5 +321,5 @@ func Same(a, b Snapshot) bool {
 		reflect.DeepEqual(a.EntityDevice, b.EntityDevice) && reflect.DeepEqual(a.ExposedEntities, b.ExposedEntities) &&
 		reflect.DeepEqual(a.EntityNames, b.EntityNames) && reflect.DeepEqual(a.EntityLabel, b.EntityLabel) &&
 		reflect.DeepEqual(a.Confirm, b.Confirm) && reflect.DeepEqual(a.Private, b.Private) &&
-		slices.Equal(a.SatelliteDevices, b.SatelliteDevices)
+		slices.Equal(a.SatelliteDevices, b.SatelliteDevices) && slices.Equal(a.AskingDevices, b.AskingDevices)
 }

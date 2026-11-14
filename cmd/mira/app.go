@@ -130,9 +130,9 @@ type app struct {
 	// carries out their verdict.
 	hooks *hooks.Engine
 	guard *tools.Guard
-	// satellites are the voice satellites' device ids last seen in the structure.
-	satellites []string
-	tasks      *tasks.Manager
+	// askingDevices are the asking devices last seen in the structure.
+	askingDevices []string
+	tasks         *tasks.Manager
 	// watch brings Mira's blueprints into Home Assistant
 	// (docs/spec/device-watch.md).
 	watch *watch.Blueprints
@@ -286,13 +286,23 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.mcp = mcp.New(mcp.Options{
 		Servers: servers, Logger: a.log, Version: version, Connections: a.oauth,
 		ReadOnlyTools: cfg.Security.ReadOnlyTools,
-		// Home Assistant's tools as each voice satellite would get them
-		// (the timers exist only for those that have them).
+		// Home Assistant's tools as each asking device would get them (the
+		// timers exist only for those that have them): the satellites, the
+		// companion apps, and every other device that asked
+		// (docs/spec/context.md, 1.1).
 		Devices: func() []string {
-			if a.structure == nil {
-				return nil
+			var devices []string
+			if a.structure != nil {
+				devices = slices.Clone(a.structure.Snapshot().AskingDevices)
 			}
-			return a.structure.Snapshot().SatelliteDevices
+			if a.assist != nil {
+				for _, d := range a.assist.Asked() {
+					if !slices.Contains(devices, d) {
+						devices = append(devices, d)
+					}
+				}
+			}
+			return devices
 		},
 		OnChange: func(tools []mcp.Tool) {
 			a.log.Info("tool list changed", "tools", len(tools))
@@ -319,7 +329,13 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			if a.structure == nil {
 				return nil
 			}
-			return a.structure.Snapshot().SatelliteDevices
+			return a.structure.Snapshot().AskingDevices
+		},
+		// A device that asked without being known lists its tools too.
+		OnAsked: func() {
+			if a.mcp != nil {
+				go a.mcp.Refresh(context.WithoutCancel(ctx))
+			}
 		},
 		Interval: cfg.HA.AssistPromptRefresh.Duration(), Logger: a.log,
 		OnChange: func() { a.warmup("structure_changed") },
@@ -723,9 +739,10 @@ func (a *app) startHA(ctx context.Context) error {
 		Source: a.ha, Subscriber: a.ha, Exposed: a.exposed,
 		Debounce: a.cfg.HA.StructureDebounce.Duration(), Logger: a.log,
 		OnChange: func(s structure.Snapshot) {
-			// A satellite that came or went changes the tools it is offered.
-			if !slices.Equal(a.satellites, s.SatelliteDevices) {
-				a.satellites = s.SatelliteDevices
+			// An asking device that came or went changes the tools it is
+			// offered.
+			if !slices.Equal(a.askingDevices, s.AskingDevices) {
+				a.askingDevices = s.AskingDevices
 				if a.mcp != nil {
 					go a.mcp.Refresh(context.WithoutCancel(ctx))
 				}

@@ -1,6 +1,6 @@
 # Context – Spec
 
-Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released; a list of exposed entities rebuilds the house at once (section 1.3), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
+Status 2026-11-05: built in 0.6.9; device part of HA's prompt (section 1.1) in 0.6.48; without HA's prompt an error (section 1.2), built, not released; a list of exposed entities rebuilds the house at once (section 1.3), built, not released; the companion app and every other asking device in the comparison (section 1.1, 2026-11-14), built, not released. Applies to all channels. See also [Threads](threads.md) and [Channels](channels.md).
 
 The **context** is everything the model sees with a request. Mira does two things with it:
 - **Composition**: what goes into the context window in which order;
@@ -25,9 +25,9 @@ HA's Assist prompt (part 1, house structure) is not the same for every device. H
 
 Mira therefore fetches the prompt via MCP (`prompts/get` with the one prompt `prompts/list` offers: Home Assistant names it after the LLM API, "Assist" until 2026.10, "Device control" since 2026.11) **not only without a device**, otherwise it would get the "cannot do timers" version and the model would refuse timers even where the device can do them (this happened). Instead:
 
-1. It fetches it **once without a device** and **once as each satellite** (the id goes into `_meta` with `io.home-assistant/device_id`, as with the tools).
+1. It fetches it **once without a device** and **once as each asking device**: each satellite, each companion app, and each other device that has asked since the start (the id goes into `_meta` with `io.home-assistant/device_id`, as with the tools; decided 2026-11-14, below).
 2. **The common beginning of all versions**, up to the first difference and cut at a line boundary, is **part 1** (the prompt cache `internal/ha/assistprompt`). It is the same for all rooms and channels, so the cache behind it (tools, examples, history) is preserved.
-3. **The rest of the asking satellite's version** is its piece and goes into the **turn** (part 6), under the heading "Hinweise von Home Assistant für dieses Gerät:", after the line with the channel. A channel without a device (Telegram) gets the piece of the version without a device. There "cannot do timers" is also correct. Background jobs (assessing, skill schedules) get no hints.
+3. **The rest of the asking device's version** is its piece and goes into the **turn** (part 6), under the heading "Hinweise von Home Assistant für dieses Gerät:", after the line with the channel. A channel without a device (Telegram) gets the piece of the version without a device. There "cannot do timers" is also correct. Background jobs (assessing, skill schedules) get no hints.
 4. **Detection is by comparison**, not by knowledge of the text: Mira knows nothing about room or timer sentences, it takes what differs between the versions. If HA changes the wording or another device-dependent line is added, Mira follows without a change.
 
 Properties:
@@ -36,9 +36,56 @@ Properties:
 - **Failure:** If a satellite does not answer, it keeps its old piece; if the version without a device does not answer, everything stays as it was.
 - **Without satellites** (none known) the whole prompt is part 1, as before.
 - **Without HA's prompt** Mira does not answer at all (section 1.2).
-- **Cost:** one or two lines in the turn per voice request (estimated about 40 tokens) and one extra fetch per satellite when the prompt is fetched anew (every few minutes and on changes).
+- **Cost:** one or two lines in the turn per voice request (estimated about 40 tokens) and one extra fetch per asking device when the prompt is fetched anew (every few minutes and on changes).
 
-The same rule applies to the **tools**: the list is fetched once without a device and once as each satellite and merged, and every call carries the satellite's id, so that HA serves it like its own agents (timers, room for commands without a room; [Scheduled actions](scheduled-actions.md)). **What Home Assistant offers we do not rebuild, and nothing is lost because the context does not come along.**
+**Every asking device is compared** (decided 2026-11-14, after [issue 6](https://github.com/miraassist/mira/issues/6)):
+every turn from the Assist dialog of the companion app was refused. Home Assistant writes "This device is not able
+to start timers." for every device that cannot, and for no device at all. When none of the compared satellites can
+start timers, every compared version has the line, so it was part 1. A companion app can start timers (Home Assistant
+registers its timers when the app supports push notifications); its version lacks a line of part 1, and the piece of
+the turn can only add lines, never take one away. So its turn fetched its version, found that it does not begin with
+part 1, and was refused; the refresh this started compared the same devices again, so every later turn failed the
+same way. The browser's Assist dialog names no device (checked in Home Assistant's frontend, 2026-11-14) and gets the
+version without one, as Telegram.
+
+Part 1 is therefore only safe when every device that can ask is in the comparison. Recognising the device lines by
+their text (the last two lines) was rejected: Home Assistant may add a third line any day.
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Which devices are compared | Every asking device: the satellites, the companion apps (devices with an identifier of `mobile_app` in the device registry, not disabled), and every other device that asked since the start |
+| 2 | A new companion app | It is a new device in the registry: the house structure is rebuilt (1.3) and the prompt fetched again with it, before its first turn |
+| 3 | A device that is neither a satellite nor a companion app asks | It joins the comparison at once. Its version is fetched; when it begins with part 1, the rest is its piece. When not, all versions are fetched again at once, with it, the turn waits for that, and then gets its piece. It stays in the comparison until Mira restarts (memory only: after a restart its first turn pays the wait again) |
+| 4 | Its tools | As with the satellites: the tools are listed as each asking device too, so a companion app gets the timer tools |
+| 5 | The sentence when a turn's device lines or tools are missing | Its own sentence, without "Repairs": no repair is raised for it. "Mir fehlt gerade, was Home Assistant über dieses Gerät sagt, deshalb kann ich gerade nichts tun. Versuch es gleich noch einmal." (in English: "I don't have what Home Assistant says about this device right now, so I can't do anything. Please try again in a moment.") |
+
+Steps of a turn from a device whose piece is not known (`assistprompt.TailFor`):
+1. The device joins the comparison and the MCP host lists the tools again in the background (one listing per asking
+   device; the turn does not wait for it). A log line at info names the device.
+2. Its version is fetched (one MCP call). When that fails, the turn is refused with the sentence of decision 5 and
+   the log error `turn refused: the asking device's part of home assistant's prompt or tools is missing` names the
+   device and the error.
+3. When the version begins with part 1, the rest is its piece and the turn runs.
+4. When not, all versions are fetched again at once (one MCP call without a device and one per asking device; it
+   grows with their number), the turn waits for it. Part 1 now ends before the line the device lacks; the change of
+   part 1 starts the warm-up. When that fetch fails, or the device's version is still not in it, the turn is refused
+   as in step 2, and the error names the failed fetch.
+
+**Cost:** for a companion app nothing in its turns: it is compared from the start. One more prompt fetch and one more
+tool listing per companion app whenever they are fetched anew. For any other asking device, its first turn after a
+start waits for one fetch, or for a fetch of all versions when its version does not fit.
+
+| Fails | Who learns of it |
+|---|---|
+| The asking device's version cannot be fetched on its turn | The user: the sentence of decision 5; the log error with the device and the error |
+| The fetch of all versions on its turn fails | The same, the error names the failed fetch |
+| A companion app's version cannot be fetched in a refresh | As a satellite's: the warning `could not fetch the assist prompt for an asking device`, it keeps its old piece |
+
+Steps:
+1. **The service:** companion apps are asking devices; an unknown asking device joins the comparison on its turn;
+   the sentence of decision 5. Scenarios AD-01 to AD-05. Built.
+
+The same rule applies to the **tools**: the list is fetched once without a device and once as each asking device and merged, and every call carries the asking device's id, so that HA serves it like its own agents (timers, room for commands without a room; [Scheduled actions](scheduled-actions.md)). **What Home Assistant offers we do not rebuild, and nothing is lost because the context does not come along.**
 
 ### 1.2 Without HA's prompt: an error
 
@@ -111,7 +158,7 @@ Steps of a send of the integration (`PUT /v1/ui/ha` with `exposed`):
    structure stays, the log has "structure rebuild failed" with the error, and the next send or registry change
    tries again.
 3. When the structure differs, HA's prompt is fetched again (as before: once without a device and once as each
-   satellite, one MCP call each, so it grows with the number of satellites), and with a changed prompt the warm-up
+   asking device, one MCP call each, so it grows with the number of asking devices, 1.1), and with a changed prompt the warm-up
    runs. A failed fetch keeps the last prompt (1.2).
 
 **Cost:** per send of the integration three registry reads, and the prompt fetches only when the house changed. The

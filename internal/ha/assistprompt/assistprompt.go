@@ -16,11 +16,12 @@
 // Part of the prompt depends on the device that asks: which area it is in,
 // and whether it can start timers. Home Assistant puts those lines at the
 // end, and so does it keep its own cache intact. Mira fetches the prompt
-// once without a device and once as each satellite, takes what all of them
+// once without a device and once as each asking device (satellites,
+// companion apps, and any other device that asked), takes what all of them
 // share as layer 4 (the same for every room and channel, so the cache of
 // everything behind it holds), and gives each request the rest of its own
-// satellite's version in the turn layer, the last part of the prompt
-// (docs/spec/context.md).
+// device's version in the turn layer, the last part of the prompt
+// (docs/spec/context.md, 1.1).
 package assistprompt
 
 import (
@@ -28,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -43,9 +45,14 @@ type Options struct {
 	Source Source
 	Server string
 	Name   string // "" for the server's prompt, whatever its name
-	// Devices are the voice satellites' device ids; the prompt is fetched
-	// as each of them.
+	// Devices are the asking devices' ids (satellites and companion apps);
+	// the prompt is fetched as each of them, and as every other device that
+	// asked since the start.
 	Devices func() []string
+	// OnAsked runs when a device that is not among Devices joined the
+	// comparison on its turn, so its tools can be listed too. It must not
+	// block.
+	OnAsked func()
 	// Interval is how often Run fetches the prompt to notice changes that
 	// come without any event.
 	Interval time.Duration
@@ -68,9 +75,13 @@ type Cache struct {
 	// woken by the signal, not by asking again (docs/spec/context.md, 1.2).
 	ready chan struct{}
 
-	mu      sync.RWMutex
-	base    string
-	tails   map[string]string // by device; "" is the version without one
+	mu    sync.RWMutex
+	base  string
+	tails map[string]string // by device; "" is the version without one
+	// asked are the devices that asked although they are not among
+	// Devices: they are compared from then on (docs/spec/context.md, 1.1,
+	// decision 3).
+	asked   map[string]bool
 	fetched bool
 	err     error // of the last fetch of the version without a device
 }
@@ -83,7 +94,7 @@ func New(opts Options) *Cache {
 		opts.Interval = 5 * time.Minute
 	}
 	return &Cache{opts: opts, log: opts.Logger.With("component", "assist-prompt"), tails: map[string]string{},
-		ready: make(chan struct{})}
+		asked: map[string]bool{}, ready: make(chan struct{})}
 }
 
 // Ready returns once there is a prompt, or with ctx's error when it ends
@@ -135,10 +146,23 @@ func (c *Cache) Tail(device string) string {
 	return c.tails[""]
 }
 
-// TailFor is Tail for a satellite's turn: when its own version was never
-// fetched, it is fetched now; an error says it cannot be, and the turn does
-// not run with the lines of the version without a device
-// (docs/spec/fallbacks.md, row 5). No device is the version without one.
+// Asked are the devices that joined the comparison on their turn, sorted.
+func (c *Cache) Asked() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]string, 0, len(c.asked))
+	for device := range c.asked {
+		out = append(out, device)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TailFor is Tail for a turn of an asking device: when its own version was
+// never fetched, the device joins the comparison and its version is fetched
+// now; an error says it cannot be had, and the turn does not run with the
+// lines of the version without a device (docs/spec/fallbacks.md, row 5). No
+// device is the version without one.
 func (c *Cache) TailFor(ctx context.Context, device string) (string, error) {
 	c.mu.RLock()
 	tail, ok := c.tails[device]
@@ -150,22 +174,54 @@ func (c *Cache) TailFor(ctx context.Context, device string) (string, error) {
 	if base == "" {
 		return "", errors.New("home assistant's prompt is missing")
 	}
+	c.join(device)
 	text, err := c.opts.Source.PromptAs(ctx, c.opts.Server, c.opts.Name, device)
 	if err != nil {
 		return "", fmt.Errorf("home assistant's prompt for device %s: %w", device, err)
 	}
 	text = strings.TrimSpace(text)
-	if !strings.HasPrefix(text, base) {
-		// The house changed since the last fetch; all versions are fetched
-		// anew, and this turn does not guess.
-		c.Trigger(ctx)
-		return "", fmt.Errorf("home assistant's prompt for device %s changed since the last fetch", device)
+	if strings.HasPrefix(text, base) {
+		tail = strings.TrimSpace(strings.TrimPrefix(text, base))
+		c.mu.Lock()
+		c.tails[device] = tail
+		c.mu.Unlock()
+		return tail, nil
 	}
-	tail = strings.TrimSpace(strings.TrimPrefix(text, base))
-	c.mu.Lock()
-	c.tails[device] = tail
-	c.mu.Unlock()
+	// Its version does not begin with layer 4: it lacks a line all compared
+	// versions have (a device that can start timers where none of the
+	// others can), or the house changed since the last fetch. All versions
+	// are fetched again, with it, and the turn waits for them
+	// (docs/spec/context.md, 1.1, decision 3).
+	c.log.Info("an asking device's version of the assist prompt does not begin with layer 4; fetching all versions again",
+		"device", device, "chars", len(text), "layer4_chars", len(base))
+	if _, err := c.Refresh(ctx); err != nil {
+		return "", fmt.Errorf("home assistant's prompt for device %s does not begin with the shared part, and fetching all versions again failed: %w", device, err)
+	}
+	c.mu.RLock()
+	tail, ok = c.tails[device]
+	c.mu.RUnlock()
+	if !ok {
+		return "", fmt.Errorf("home assistant's prompt for device %s does not begin with the shared part, and fetching all versions again did not bring it", device)
+	}
 	return tail, nil
+}
+
+// join puts a device that is not among Devices into the comparison.
+func (c *Cache) join(device string) {
+	if c.opts.Devices != nil && slices.Contains(c.opts.Devices(), device) {
+		return
+	}
+	c.mu.Lock()
+	known := c.asked[device]
+	c.asked[device] = true
+	c.mu.Unlock()
+	if known {
+		return
+	}
+	c.log.Info("a device that is neither a satellite nor a companion app asked; it is compared from now on", "device", device)
+	if c.opts.OnAsked != nil {
+		c.opts.OnAsked()
+	}
 }
 
 // Refresh fetches the prompt and reports whether layer 4 changed. A failed
@@ -185,15 +241,22 @@ func (c *Cache) Refresh(ctx context.Context) (bool, error) {
 	}
 	plain = strings.TrimSpace(plain)
 	versions := map[string]string{"": plain}
+	var devices []string
 	if c.opts.Devices != nil {
-		for _, device := range c.opts.Devices() {
-			text, err := c.opts.Source.PromptAs(ctx, c.opts.Server, c.opts.Name, device)
-			if err != nil {
-				c.log.Warn("could not fetch the assist prompt for a satellite", "error", err)
-				continue
-			}
-			versions[device] = strings.TrimSpace(text)
+		devices = c.opts.Devices()
+	}
+	devices = append(devices, c.Asked()...)
+	for _, device := range devices {
+		if _, ok := versions[device]; ok || device == "" {
+			continue
 		}
+		text, err := c.opts.Source.PromptAs(ctx, c.opts.Server, c.opts.Name, device)
+		if err != nil {
+			c.log.Warn("could not fetch the assist prompt for an asking device; it keeps its old lines",
+				"device", device, "error", err)
+			continue
+		}
+		versions[device] = strings.TrimSpace(text)
 	}
 
 	base := sharedStart(versions)

@@ -3,6 +3,8 @@ package assistprompt
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -217,5 +219,93 @@ func TestFB06_ASatelliteWhosePromptWasNeverFetchedFetchesItOnItsTurn(t *testing.
 	tail, err := c.TailFor(context.Background(), "sat-a")
 	if err != nil || tail != "You are in area Küche and generic commands target it." {
 		t.Errorf("tail = %q, %v", tail, err)
+	}
+}
+
+// AD-02 A device that can start timers where no compared one can gets its own
+// lines (docs/spec/context.md, 1.1, decision 3; issue 6: the companion app).
+func TestAD02_ADeviceThatCanStartTimersWhereNoComparedOneCanGetsItsOwnLines(t *testing.T) {
+	// Given every compared version ends with "This device is not able to
+	// start timers." (no satellite: the version without a device is all)
+	p := newPerDevice()
+	p.tails["phone"] = "When a user asks to turn on all devices, ask for an area."
+	asked := 0
+	c := New(Options{Source: p, Server: "ha", Devices: func() []string { return nil }, OnAsked: func() { asked++ }})
+	if _, err := c.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(c.Text(), "This device is not able to start timers.") {
+		t.Fatalf("layer 4 = %q", c.Text())
+	}
+	// When a turn comes from a device that is not compared and whose version
+	// lacks that line, then all versions are fetched again with it, and the
+	// turn gets its own lines
+	tail, err := c.TailFor(context.Background(), "phone")
+	if err != nil || tail != "When a user asks to turn on all devices, ask for an area." {
+		t.Fatalf("tail = %q, %v", tail, err)
+	}
+	if asked != 1 || !slices.Equal(c.Asked(), []string{"phone"}) {
+		t.Errorf("OnAsked ran %d times, asked %v", asked, c.Asked())
+	}
+	// And part 1 ends before the timer line from then on, also after the
+	// next refresh
+	if c.Text() != p.start {
+		t.Errorf("layer 4 = %q", c.Text())
+	}
+	if c.Tail("") != p.tails[""] {
+		t.Errorf("tail without a device = %q", c.Tail(""))
+	}
+	p.asked = nil
+	if _, err := c.Refresh(context.Background()); err != nil || c.Text() != p.start || !slices.Contains(p.asked, "phone") {
+		t.Errorf("after refresh layer 4 = %q, fetched %v, %v", c.Text(), p.asked, err)
+	}
+	if _, err := c.TailFor(context.Background(), "phone"); err != nil || asked != 1 {
+		t.Errorf("second turn: %v, OnAsked ran %d times", err, asked)
+	}
+}
+
+// AD-03 The fetch of all versions fails on that turn.
+func TestAD03_TheFetchOfAllVersionsFailsOnThatTurn(t *testing.T) {
+	p := newPerDevice()
+	p.tails["phone"] = "When a user asks to turn on all devices, ask for an area."
+	c := New(Options{Source: p, Server: "ha", Devices: func() []string { return nil }})
+	if _, err := c.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Given a turn comes from a device that is not compared and whose
+	// version does not begin with part 1, when fetching all versions again
+	// fails
+	p.broken = map[string]bool{"": true}
+	tail, err := c.TailFor(context.Background(), "phone")
+	// Then the turn is refused and the error names the failed fetch
+	if err == nil || !strings.Contains(err.Error(), "fetching all versions again failed: down") ||
+		!strings.Contains(err.Error(), "phone") {
+		t.Errorf("tail = %q, %v", tail, err)
+	}
+	// It is compared from then on: the next turn tries again and works.
+	p.broken = nil
+	if tail, err := c.TailFor(context.Background(), "phone"); err != nil || tail != p.tails["phone"] {
+		t.Errorf("next turn: tail = %q, %v", tail, err)
+	}
+}
+
+// AD-04 An asking device whose version fits stays in the comparison.
+func TestAD04_AnAskingDeviceWhoseVersionFitsStaysInTheComparison(t *testing.T) {
+	p := newPerDevice()
+	p.tails["tablet"] = "You are in area Flur and generic commands target it."
+	c := New(Options{Source: p, Server: "ha", Devices: func() []string { return []string{"sat-a", "sat-b"} }})
+	if _, err := c.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Given a turn comes from a device that is not compared and whose
+	// version begins with part 1, then the turn gets the rest as its lines
+	tail, err := c.TailFor(context.Background(), "tablet")
+	if err != nil || tail != p.tails["tablet"] {
+		t.Fatalf("tail = %q, %v", tail, err)
+	}
+	// And its version is fetched with every refresh: its new area follows.
+	p.tails["tablet"] = "You are in area Küche and generic commands target it."
+	if _, err := c.Refresh(context.Background()); err != nil || c.Tail("tablet") != p.tails["tablet"] {
+		t.Errorf("after refresh tail = %q, %v", c.Tail("tablet"), err)
 	}
 }

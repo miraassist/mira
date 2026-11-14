@@ -2,6 +2,7 @@ package structure
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math/rand"
 	"slices"
@@ -342,6 +343,40 @@ func TestBuildKeepsTheSatelliteDevices(t *testing.T) {
 	})
 	if got := strings.Join(snap.SatelliteDevices, ","); got != "dev-a,dev-b" {
 		t.Errorf("satellite devices = %q", got)
+	}
+}
+
+// AD-01 A companion app is an asking device (docs/spec/context.md, 1.1):
+// the satellites and the devices of the integration mobile_app, as Home
+// Assistant's device registry lists them; a disabled one is not.
+func TestAD01_ACompanionAppIsAnAskingDevice(t *testing.T) {
+	var devices []haws.Device
+	rows := `[
+		{"id": "dev-phone", "name": "Phone", "identifiers": [["mobile_app", "abc"]]},
+		{"id": "dev-old", "name": "Old phone", "identifiers": [["mobile_app", "def"]], "disabled_by": "user"},
+		{"id": "dev-a", "name": "Echo", "identifiers": [["techo5", "1"]]},
+		{"id": "dev-lamp", "name": "Lamp", "identifiers": [["zha", "00:11"]]}
+	]`
+	if err := json.Unmarshal([]byte(rows), &devices); err != nil {
+		t.Fatal(err)
+	}
+	snap := Build(Registry{
+		Devices:  devices,
+		Entities: []haws.Entity{{EntityID: "assist_satellite.echo", DeviceID: "dev-a"}},
+		Exposed:  map[string]bool{},
+	})
+	if got := strings.Join(snap.AskingDevices, ","); got != "dev-a,dev-phone" {
+		t.Errorf("asking devices = %q", got)
+	}
+	if got := strings.Join(snap.SatelliteDevices, ","); got != "dev-a" {
+		t.Errorf("satellite devices = %q", got)
+	}
+	// A new companion app is a change of the house: the prompt is fetched
+	// again with it.
+	before := Build(Registry{Devices: devices[2:], Entities: []haws.Entity{{EntityID: "assist_satellite.echo", DeviceID: "dev-a"}},
+		Exposed: map[string]bool{}})
+	if Same(before, snap) {
+		t.Error("a new companion app does not count as a change")
 	}
 }
 

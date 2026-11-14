@@ -71,6 +71,20 @@ type Device struct {
 	ViaDeviceID string `json:"via_device_id"`
 	// ConfigurationURL is where the device's own web interface is.
 	ConfigurationURL string `json:"configuration_url"`
+	// Identifiers are the device's [domain, id] pairs; a companion app's
+	// domain is "mobile_app".
+	Identifiers [][]string `json:"identifiers"`
+}
+
+// HasIdentifierOf reports whether one of the device's identifiers is of the
+// domain.
+func (d Device) HasIdentifierOf(domain string) bool {
+	for _, id := range d.Identifiers {
+		if len(id) > 0 && id[0] == domain {
+			return true
+		}
+	}
+	return false
 }
 
 // DisplayName is the user's name for the device if they set one.

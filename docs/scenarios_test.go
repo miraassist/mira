@@ -35,6 +35,7 @@ var builtSteps = map[string][]int{
 	"ZP": {1, 2, 3},                // docs/spec/schedules.md, Steps
 	"CO": {2, 4},                   // docs/spec/oauth.md; step 3 is tested in pytest
 	"HP": {1, 3},                   // docs/spec/context.md, 1.2; step 2 is tested in pytest
+	"AD": {1},                      // docs/spec/context.md, 1.1 (every asking device is compared)
 	"HU": {1},                      // docs/spec/context.md, 1.3; step 2 is tested in pytest
 	"FD": {3, 4},                   // docs/spec/found-devices.md, Steps
 	"WA": {3},                      // docs/spec/waiting-indicator.md, Steps
