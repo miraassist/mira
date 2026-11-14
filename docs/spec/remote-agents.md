@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 to 5 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+building, to be confirmed); steps 0 to 6 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -331,5 +331,9 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    in the integration (`agents.py`; with `skill`, `agent`, `mode`, `timeout`, `on_timeout` and `delivery` are
    refused). RM-15 and RM-16 in Go (`cmd/mira`), RM-15 to RM-17 in pytest (`tests/ha/test_agents.py`).
 6. **The guide** (de and en): a skill with a remote agent, the address and the token or the connection, Mira's
-   address for remote agents, http and https.
+   address for remote agents, http and https. Built 2026-11-14: "Ein Agent auf einem anderen Gerät" / "An agent on another device" in
+   the chapter on own skills, after the own agents; with `mira.agent` and `skill`. Run on the test Mira 2026-11-14
+   with the fake A2A agent's container (a skill in the scratchpad): complete, ask back and answer, fail, cancel by
+   voice, a restart during a slow task, push through `host.docker.internal`, `mira.agent` with `skill` from the
+   test HA.
 7. **Deferred: a login during the work** (`auth-required` as a special agent request, decision 16).

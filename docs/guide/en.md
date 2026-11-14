@@ -760,6 +760,64 @@ Without `model` the agent takes the main model; with `model: smart` one from `mo
 
 If something in the description does not fit, a misspelt field for example, only this agent does not start. Home Assistant then shows under **Repairs** what to change.
 
+### An agent on another device
+
+Some work is better done by another agent: one that researches the web at length, one that writes code, one on your own server. If it speaks **A2A** (the open protocol agents use to hand each other work), you bind it into a skill as a **remote agent**. Mira gives it work as she does to her own helpers: it fills a field of the thread the skill describes.
+
+This is how it goes:
+- "Find out which heat pump suits our house." Mira starts the skill's thread and passes the question on. If the result is there within a few seconds, she says it right away; otherwise "I'll come back to you", and the result comes later as a message.
+- If the agent asks back ("Hermes asks: How large is the living space?"), that comes to you as a message, spoken at the satellite or over your channel. Mira passes your answer ("140 square metres") on to it.
+- If it cannot do it, Mira says so in its words ("Hermes could not do it: …") and asks you herself.
+- "Forget it" ends the thread, and Mira tells the agent it can stop.
+
+**Example:** `skills/recherche/SKILL.md`:
+
+```yaml
+---
+name: recherche
+description: Lets Hermes research the web at length ("Find out …").
+metadata:
+  mira:
+    settings:
+      url:   { description: The agent's address, required: true }
+      token: { description: The agent's token, secret: true }
+    agents:
+      recherche:
+        remote:
+          url: "{{ url }}"          # the agent's address
+          token: "{{ token }}"      # its token, if it wants one
+          a2a_skill: research       # optional: one particular skill of the agent
+        name: Hermes                # optional: how Mira names it; else its own name
+    target:
+      fields:
+        - name: ergebnis
+          description: The overview.
+          agent: recherche
+          input: { input: "{{ request }}" }
+      finish: memory.save
+---
+Start the thread with the user's question. If Hermes asks back, pass the user's answer on with agent_answer.
+```
+
+`mira.yaml` holds the address and the token:
+
+```yaml
+skills:
+  recherche: { url: http://192.168.1.20:8642, token: ${HERMES_TOKEN} }
+```
+
+What the agent can do and what it is called, Mira reads at the start from its agent card at `/.well-known/agent-card.json`. A remote agent has no model, tools or rights in Mira: it works with its own. It gets only what the skill gives it under `input`.
+
+**Login:** if the agent wants a token, enter it as a setting of the skill; Mira sends it as its agent card asks, and only to the agent's address. If it asks for a login through OAuth, the skill gets an `oauth` section, and you connect it on the page **Connections**, as described above.
+
+**Mira's address for remote agents:** most agents deliver their result directly while Mira waits for it. One that cannot reports back to Mira later on its own; for that it needs Mira's address as it reaches her in the network, for example `http://192.168.1.10:8787`. Enter it on the page **Connections** and restart Mira. If it is missing and the agent needs it, **Repairs** says so.
+
+**http or https:** both work. Over `http` anyone in the same network can read along, the token too; for an agent outside your home network take `https`.
+
+**From an automation:** with **Mira: Agent** and **Skill** instead of an agent (`skill: recherche`, the question as the input, a person or a room as the receiver) an automation starts the skill's thread as if the receiver had asked by voice. The thread's id comes back; the result comes as a message.
+
+If the agent cannot be reached, Mira starts all the same and tries again later; what does not fit in its agent card shows under **Repairs**.
+
 ## Cooking and baking
 
 Mira cooks with you, step by step, even when a step takes half an hour.

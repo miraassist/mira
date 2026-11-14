@@ -764,6 +764,64 @@ Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `mode
 
 Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, startet nur dieser Agent nicht. In Home Assistant steht dann unter **Reparaturen**, was zu ändern ist.
 
+### Ein Agent auf einem anderen Gerät
+
+Manche Arbeit erledigt besser ein anderer Agent: einer, der lange im Netz recherchiert, einer, der programmiert, einer auf deinem eigenen Server. Spricht er **A2A** (das offene Protokoll, mit dem Agenten einander Arbeit übergeben), bindest du ihn als **entfernten Agenten** in einen Skill ein. Mira gibt ihm die Arbeit wie ihren eigenen Helfern: Er füllt ein Feld des Vorgangs, den der Skill beschreibt.
+
+So läuft es ab:
+- „Finde heraus, welche Wärmepumpe für unser Haus passt.“ Mira startet den Vorgang des Skills und gibt die Frage weiter. Ist das Ergebnis in ein paar Sekunden da, sagt sie es gleich; sonst „ich melde mich“, und das Ergebnis kommt später als Nachricht.
+- Fragt der Agent nach („Hermes fragt: Wie groß ist die Wohnfläche?“), kommt das als Nachricht zu dir, gesprochen am Satelliten oder über deinen Kanal. Deine Antwort („140 Quadratmeter“) gibt Mira an ihn weiter.
+- Kann er es nicht, sagt Mira es mit seinen Worten („Hermes konnte das nicht: …“) und fragt dich selbst.
+- „Vergiss es“ beendet den Vorgang, und Mira sagt dem Agenten, dass er aufhören kann.
+
+**Beispiel:** `skills/recherche/SKILL.md`:
+
+```yaml
+---
+name: recherche
+description: Lässt Hermes ausführlich im Netz recherchieren („Finde heraus …“).
+metadata:
+  mira:
+    settings:
+      url:   { description: Adresse des Agenten, required: true }
+      token: { description: Token des Agenten, secret: true }
+    agents:
+      recherche:
+        remote:
+          url: "{{ url }}"          # die Adresse des Agenten
+          token: "{{ token }}"      # sein Token, falls er eins will
+          a2a_skill: research       # optional: eine bestimmte Fähigkeit des Agenten
+        name: Hermes                # optional: so nennt Mira ihn; sonst sein eigener Name
+    target:
+      fields:
+        - name: ergebnis
+          description: Die Übersicht.
+          agent: recherche
+          input: { input: "{{ request }}" }
+      finish: memory.save
+---
+Starte den Vorgang mit der Frage des Nutzers. Fragt Hermes nach, gib die Antwort des Nutzers mit agent_answer weiter.
+```
+
+In `mira.yaml` stehen Adresse und Token:
+
+```yaml
+skills:
+  recherche: { url: http://192.168.1.20:8642, token: ${HERMES_TOKEN} }
+```
+
+Was der Agent kann und wie er heißt, liest Mira beim Start aus seiner Agent Card unter `/.well-known/agent-card.json`. Modell, Werkzeuge und Rechte gibt es bei einem entfernten Agenten nicht: Er arbeitet mit seinen eigenen. Er bekommt nur, was der Skill ihm unter `input` gibt.
+
+**Anmeldung:** Will der Agent einen Token, trägst du ihn als Einstellung des Skills ein; Mira schickt ihn so, wie seine Agent Card es verlangt, und nur an die Adresse des Agenten. Verlangt er eine Anmeldung über OAuth, bekommt der Skill einen Abschnitt `oauth`, und du verbindest ihn auf der Seite **Verbindungen**, wie oben beschrieben.
+
+**Miras Adresse für entfernte Agenten:** Die meisten Agenten liefern ihr Ergebnis direkt, solange Mira auf sie wartet. Einer, der das nicht kann, meldet sich später von selbst bei Mira; dafür braucht er Miras Adresse, so wie er sie im Netz erreicht, etwa `http://192.168.1.10:8787`. Trag sie auf der Seite **Verbindungen** ein und starte Mira neu. Fehlt sie und der Agent braucht sie, steht das unter **Reparaturen**.
+
+**http oder https:** Beides geht. Über `http` kann jeder im selben Netz mitlesen, auch den Token; für einen Agenten außerhalb deines Heimnetzes nimm `https`.
+
+**Aus einer Automation:** Mit **Mira: Agent** und **Skill** statt Agent (`skill: recherche`, die Frage als Eingabe, eine Person oder einen Raum als Empfänger) startet eine Automation den Vorgang des Skills, als hätte der Empfänger per Sprache gefragt. Zurück kommt die ID des Vorgangs; das Ergebnis kommt als Nachricht.
+
+Ist der Agent nicht erreichbar, startet Mira trotzdem und versucht es später wieder; was an seiner Agent Card nicht passt, steht unter **Reparaturen**.
+
 ## Kochen und Backen
 
 Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.
