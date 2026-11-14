@@ -76,6 +76,11 @@ func (a *app) registerAgents(registry *tools.Registry) {
 		if failed[d.Skill+"/"+d.Name] {
 			continue
 		}
+		if d.Def.Remote != nil {
+			// A remote agent: the log says when its card is read
+			// (internal/a2a).
+			continue
+		}
 		a.log.Info("agent enabled", "agent", d.Name, "skill", d.Skill)
 		if d.Def.Conversation && registry != nil {
 			if t, ok := a.conversationTool(d); ok {

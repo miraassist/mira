@@ -142,7 +142,7 @@ func (m *Manager) allows(skill, method string, u *url.URL) bool {
 		return false
 	}
 	for _, a := range o.API {
-		if below(u, a.URL) && slices.Contains(a.Methods, method) {
+		if Below(u, a.URL) && slices.Contains(a.Methods, method) {
 			return true
 		}
 	}

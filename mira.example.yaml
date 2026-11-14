@@ -16,6 +16,12 @@ server:
   # LAN interfaces are announced, never container bridges.
   announce: true
   name: Mira
+  # Mira's address for remote agents (docs/spec/remote-agents.md): where an
+  # agent that speaks A2A sends its results (push). Mira cannot know how she
+  # is reached from outside, in a container or the HA app. Without it she
+  # reads a remote agent's results as a stream, and an agent that only
+  # pushes cannot be used.
+  # url: "http://192.168.1.10:8787"
 
 # The language models by name (docs/spec/models.md). main must exist: every
 # agent that names no model takes it. Settings a model leaves out come from

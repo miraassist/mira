@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
-building, to be confirmed); step 0 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+building, to be confirmed); steps 0 and 1 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -85,6 +85,11 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | # | Question | Decision |
 |---|---|---|
 | 27 | How the skill of the card reaches the remote agent | A2A 1.0 has no field for it in a message. Mira puts `a2a_skill` into the message's metadata as `skill`; an agent that does not read it ignores it. The fake A2A agent picks its behaviour by it (step 0) |
+| 28 | Where the token goes | The skill's token (bearer or API key) and the connection's token (OAuth2) go only to the remote agent's `url` and below it (as a connection's token goes only to the addresses the skill names, [Connections](oauth.md), decision 5). A card whose interface lies elsewhere (another host, or a path outside the `url`) is the skill's problem, naming both addresses; a card that asks for no login is not checked |
+| 29 | Reading the card | At `<url>/.well-known/agent-card.json`, below the `url`'s path, so one host can serve several agents. A connection that fails, a timeout, a 408, 429 or 5xx, or an answer that is no card: read again (decision 17). Another 4xx (the address is wrong, the card is refused): not read again until the skill is loaded again, as an MCP server whose token is refused ([Retries](retry.md), row 6); the skill's problem says so |
+| 30 | The interface and the skill of the card | The first interface of the card that speaks A2A 1.x over JSON-RPC or HTTP+JSON, in the card's order; gRPC is left out (it would bring gRPC into the Mira service). A card without such an interface is the skill's problem. `a2a_skill` names a skill of the card by its `id`; one the card does not have is the skill's problem, listing the card's skills |
+| 31 | Which login | The first of the card's security requirements (the `a2a_skill`'s own when it has some) that names one scheme Mira can do: HTTP bearer, an API key (header, query or cookie), OAuth2; an empty requirement means no login. Anything else (HTTP basic, OpenID Connect, mTLS, two schemes at once) is the skill's problem naming it; a bearer or API key scheme with the skill's `token` empty, too |
+| 32 | What a remote agent may not set | Besides the fields named under What a skill writes, `input`, `output` and `privacy` (they come from the card, or cannot be known); a skill with `privacy: local` and a remote agent has a problem and is left out, since Mira cannot know where the remote agent handles the data. `name` goes only with `remote`; `remote` only in a skill, not in `mira.yaml` (decision 1) |
 
 ## What a skill writes
 
@@ -286,7 +291,11 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    Bearer`; for step 2).
 1. **The remote agent in a skill:** `remote` in `metadata.mira.agents`, the settings' placeholders, reading the agent
    card, the login with a token or the skill's connection, the skill's problems (decisions 9, 12, 16, 17, 18; A).
-   Glossary done.
+   Glossary done. Built 2026-11-14 (decisions 28 to 32): `internal/a2a` reads the cards in the background at the
+   start and again while they cannot be read; the setting `server.url` in `mira.yaml` (checked when Mira starts,
+   in `mira.example.yaml`). The remote agent is not yet called: a target that names it fails that field until
+   step 2. Mira's page has no place for the server's settings yet, so its field for `server.url` comes with
+   step 2. RM-01 to RM-04, RM-18 to RM-20 in Go (`internal/a2a`).
 2. **Sending and the result:** a target's field or plan filled by a remote agent; push route and stream; failures;
    cancelling at the thread's end (B, C, E; decisions 10, 11, 13–15, 19). The setting `server.url` on Mira's page.
 3. **The agent request:** the kind `agent_request`, the tool `agent_answer` (D; decisions 5, 8, 21);

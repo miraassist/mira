@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -127,6 +128,25 @@ type AgentDef struct {
 	// MaxRounds bounds the agent's tool rounds (1 to 50); without it the
 	// model's max_tool_rounds.
 	MaxRounds int `yaml:"max_rounds"`
+	// Remote makes it a remote agent that speaks A2A (only in a skill,
+	// docs/spec/remote-agents.md); its description, input and output come
+	// from its agent card.
+	Remote *RemoteDef `yaml:"remote"`
+	// Name is how Mira names a remote agent to the user; without it the
+	// agent card's name (docs/spec/remote-agents.md, decision 22).
+	Name string `yaml:"name"`
+}
+
+// RemoteDef is where a remote agent is and how Mira logs in there, with
+// the skill's settings filled in.
+type RemoteDef struct {
+	// URL is the agent's base address; its card is at
+	// <url>/.well-known/agent-card.json.
+	URL string `yaml:"url"`
+	// Token goes as the card's security scheme asks (bearer or API key).
+	Token string `yaml:"token"`
+	// A2ASkill names one skill of the card (decision 9).
+	A2ASkill string `yaml:"a2a_skill"`
 }
 
 // DecodeAgent reads one agent's description strictly: an unknown field is a
@@ -172,6 +192,10 @@ type Server struct {
 	// what happened in the turn, and the state can be reset between
 	// scenarios. Only for the eval runner's own agent.
 	Eval bool `yaml:"eval"`
+	// URL is Mira's address for remote agents, where they send their
+	// pushes (docs/spec/remote-agents.md, decision 13): Mira cannot know
+	// how she is reached from outside. Empty: no push, only streams.
+	URL string `yaml:"url"`
 }
 
 // LLM is a language model (docs/spec/models.md).
@@ -862,6 +886,7 @@ func (c *Config) normalize() {
 		c.Models[name] = m
 	}
 	c.HA.URL = strings.TrimRight(c.HA.URL, "/")
+	c.Server.URL = strings.TrimRight(strings.TrimSpace(c.Server.URL), "/")
 	// An area once set to "indicate" did not speak on entry; it still doesn't.
 	if len(c.Notifier.RoomMode) > 0 {
 		c.Notifier.MorningTrigger.Areas = slices.DeleteFunc(c.Notifier.MorningTrigger.Areas, func(a string) bool {
@@ -915,6 +940,12 @@ func (c Config) Validate() error {
 
 	if c.Server.Listen == "" {
 		add("server.listen must not be empty")
+	}
+	if c.Server.URL != "" {
+		if u, err := url.Parse(c.Server.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+			u.RawQuery != "" || u.Fragment != "" {
+			add("server.url %q must be Mira's address for remote agents, as they reach her: http:// or https://, the host and the port, e.g. http://192.168.1.10:8787", c.Server.URL)
+		}
 	}
 	if _, ok := c.Models[MainModel]; !ok {
 		add("models needs main: the model every agent takes that names none")

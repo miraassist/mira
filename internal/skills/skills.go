@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -543,6 +544,13 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		d.Description = fill(strings.TrimSpace(d.Description), vals, m.Settings)
 		d.Instructions = fill(strings.TrimSpace(d.Instructions), vals, m.Settings)
+		if d.Remote != nil {
+			if p := remoteAgent(name, &d, s.Privacy, vals, m.Settings); p != nil {
+				return Skill{}, p
+			}
+		} else if d.Name != "" {
+			return Skill{}, problem("agentname", name)
+		}
 		if s.Privacy == config.PrivacyLocal {
 			d.Privacy = config.PrivacyLocal
 		}
@@ -786,6 +794,43 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string) (confi
 		return srv, problem("mcptransport", srv.Transport)
 	}
 	return srv, nil
+}
+
+// remoteAgent checks a remote agent of a skill (docs/spec/remote-agents.md,
+// What a skill writes) and fills the skill's settings into it, secret ones
+// too (they go to the remote agent, never into a prompt). The fields of a
+// model agent do not go with remote: the remote agent runs its own model and
+// tools.
+func remoteAgent(name string, d *config.AgentDef, privacy string, vals map[string]string, decl map[string]Setting) *Problem {
+	for _, f := range []struct {
+		field string
+		set   bool
+	}{
+		{"model", d.Model != ""}, {"privacy", d.Privacy != ""}, {"context", d.Context != ""},
+		{"tools", d.Tools.Word != "" || len(d.Tools.Names) > 0}, {"rights", len(d.Rights) > 0},
+		{"max_rounds", d.MaxRounds != 0}, {"instructions", d.Instructions != ""},
+		{"conversation", d.Conversation}, {"input", len(d.Input) > 0}, {"output", len(d.Output) > 0},
+	} {
+		if f.set {
+			return problem("remotefields", name, f.field)
+		}
+	}
+	if privacy == config.PrivacyLocal {
+		return problem("remoteprivacy", name)
+	}
+	all := func(s string) string {
+		return strings.TrimSpace(placeholder.ReplaceAllStringFunc(s, func(m string) string {
+			return vals[placeholder.FindStringSubmatch(m)[1]]
+		}))
+	}
+	r := *d.Remote
+	r.URL, r.Token, r.A2ASkill = strings.TrimRight(all(r.URL), "/"), all(r.Token), all(r.A2ASkill)
+	if u, err := url.Parse(r.URL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return problem("remoteurl", name, r.URL)
+	}
+	d.Remote = &r
+	d.Name = fill(strings.TrimSpace(d.Name), vals, decl)
+	return nil
 }
 
 // Exists reports whether a skill folder of that name is in dirs.

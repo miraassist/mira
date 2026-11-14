@@ -111,6 +111,9 @@ type Manager struct {
 
 	logins map[string]*skills.OAuth
 	mcp    map[string]string // the skill's MCP server address, where the token may go
+	// remote are the addresses of the skill's remote agents, where the
+	// token may go too.
+	remote map[string][]string
 
 	mu     sync.Mutex
 	tokens map[string]Token
@@ -121,7 +124,7 @@ type Manager struct {
 // no connection, and the log says why.
 func New(ctx context.Context, o Options) (*Manager, error) {
 	m := &Manager{st: o.Store, sec: o.Secrets, http: o.HTTP, now: o.Now, log: o.Logger, onChange: o.OnChange,
-		logins: map[string]*skills.OAuth{}, mcp: map[string]string{}, tokens: map[string]Token{}}
+		logins: map[string]*skills.OAuth{}, mcp: map[string]string{}, remote: map[string][]string{}, tokens: map[string]Token{}}
 	if m.http == nil {
 		m.http = http.DefaultClient
 	}
@@ -138,6 +141,11 @@ func New(ctx context.Context, o Options) (*Manager, error) {
 		m.logins[sk.Name] = sk.OAuth
 		if sk.MCP != nil && sk.MCP.OAuth {
 			m.mcp[sk.Name] = sk.MCP.URL
+		}
+		for _, d := range sk.Agents {
+			if d.Remote != nil {
+				m.remote[sk.Name] = append(m.remote[sk.Name], d.Remote.URL)
+			}
 		}
 		raw, err := m.st.GetOAuthToken(ctx, sk.Name)
 		if errors.Is(err, store.ErrNotFound) {
@@ -397,14 +405,20 @@ func (m *Manager) Transport(skill string, next http.RoundTripper) http.RoundTrip
 }
 
 // Allowed reports whether the token of skill may go to u: below the
-// skill's MCP server address or one of its api prefixes.
+// skill's MCP server address, one of its api prefixes or the address of one
+// of its remote agents (docs/spec/remote-agents.md).
 func (m *Manager) Allowed(skill string, u *url.URL) bool {
-	if mcp := m.mcp[skill]; mcp != "" && below(u, mcp) {
+	if mcp := m.mcp[skill]; mcp != "" && Below(u, mcp) {
 		return true
+	}
+	for _, r := range m.remote[skill] {
+		if Below(u, r) {
+			return true
+		}
 	}
 	if o := m.logins[skill]; o != nil {
 		for _, a := range o.API {
-			if below(u, a.URL) {
+			if Below(u, a.URL) {
 				return true
 			}
 		}
@@ -412,9 +426,9 @@ func (m *Manager) Allowed(skill string, u *url.URL) bool {
 	return false
 }
 
-// below reports whether u is the address prefix or under it: same scheme
+// Below reports whether u is the address prefix or under it: same scheme
 // and host, and the path continues the prefix's at a "/".
-func below(u *url.URL, prefix string) bool {
+func Below(u *url.URL, prefix string) bool {
 	p, err := url.Parse(prefix)
 	if err != nil || u == nil || !strings.EqualFold(u.Scheme, p.Scheme) || !strings.EqualFold(u.Host, p.Host) {
 		return false

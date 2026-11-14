@@ -33,6 +33,18 @@ const (
 	KindOAuthExpired  = "oauthexpired"
 	KindOAuthNone     = "oauthnone"
 	KindNoAnnounce    = "noannounce"
+	// A remote agent (docs/spec/remote-agents.md): its card cannot be
+	// read, is refused, or says something Mira cannot use.
+	KindRemoteDown      = "remotedown"
+	KindRemoteRefused   = "remoterefused"
+	KindRemoteNoWay     = "remotenoway"
+	KindRemoteNoAddress = "remotenoaddress"
+	KindRemoteScheme    = "remotescheme"
+	KindRemoteOAuth     = "remoteoauth"
+	KindRemoteToken     = "remotetoken"
+	KindRemoteSkill     = "remoteskill"
+	KindRemoteTransport = "remotetransport"
+	KindRemoteElsewhere = "remoteelsewhere"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -101,6 +113,20 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthexpired":     "Die Verbindung mit %s ist abgelaufen oder wurde widerrufen. Verbinde den Skill in Mira auf der Seite Verbindungen neu.",
 		"noannounce":       "In SKILL.md fehlt der Abschnitt „## %s“. Er sagt, wie Mira die Nachrichten dieses Skills ansagt; bis er da ist, sagt sie sie nicht an.",
 		"notlocal":         "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
+		"agentname":        "Der Agent „%s“ hat einen Namen (name); den gibt es nur für einen Agenten, der anderswo läuft (remote).",
+		"remotefields":     "Der Agent „%s“ läuft anderswo (remote); %s geht dann nicht: Modell, Werkzeuge und Anleitung hat er selbst. Lass das Feld weg.",
+		"remoteprivacy":    "Der Skill muss lokal laufen (privacy: local), aber sein Agent „%s“ läuft anderswo (remote); Mira kann nicht wissen, wo er die Daten verarbeitet.",
+		"remoteurl":        "Der Agent „%s“ unter remote braucht eine Adresse (url) mit http:// oder https://, meist aus einer Einstellung wie \"{{ url }}\"; da steht „%s“.",
+		"remotedown":       "%s ist nicht erreichbar (%s). Der Skill ist da, aber ohne diesen Agenten; Mira versucht es weiter.",
+		"remoterefused":    "%s gibt seine Beschreibung nicht heraus (%s). Prüfe die Adresse in den Einstellungen des Skills; Mira versucht es erst nach einem Neustart wieder.",
+		"remotenoway":      "%s kann Ergebnisse weder schicken (Push) noch streamen; so bekommt Mira kein Ergebnis. Der Skill ist da, aber ohne diesen Agenten.",
+		"remotenoaddress":  "%s schickt Ergebnisse nur als Push, aber Miras Adresse für entfernte Agenten fehlt (server.url in der mira.yaml, zum Beispiel http://192.168.1.10:8787). Der Skill ist da, aber ohne diesen Agenten.",
+		"remotescheme":     "%s verlangt eine Anmeldung, die Mira nicht kann (%s). Mira kann einen Token (Bearer), einen API-Schlüssel und OAuth2. Der Skill ist da, aber ohne diesen Agenten.",
+		"remoteoauth":      "%s verlangt eine Anmeldung mit OAuth2 (%s), aber der Skill hat keinen Abschnitt oauth für die Verbindung. Der Skill ist da, aber ohne diesen Agenten.",
+		"remotetoken":      "%s verlangt einen Token (%s), aber die Einstellung des Skills dafür ist leer. Der Skill ist da, aber ohne diesen Agenten.",
+		"remoteskill":      "%s hat keinen Skill „%s“ (a2a_skill). Seine Skills: %s. Der Skill ist da, aber ohne diesen Agenten.",
+		"remotetransport":  "%s nennt keine Schnittstelle, die Mira spricht (%s); Mira spricht A2A 1.0 über JSON-RPC und HTTP+JSON. Der Skill ist da, aber ohne diesen Agenten.",
+		"remoteelsewhere":  "%s nimmt Anfragen unter %s an, nicht unter seiner Adresse %s; Mira schickt den Token nur an die Adresse des Skills. Trag in den Einstellungen des Skills die Adresse ein, unter der er Anfragen annimmt.",
 	},
 	i18n.EN: {
 		"nofolder":         "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or take \"%[1]s\" out from under skills in mira.yaml (or write enabled: false there).",
@@ -152,5 +178,19 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthexpired":     "The connection with %s has expired or was revoked. Connect the skill again in Mira on the Connections page.",
 		"noannounce":       "SKILL.md has no section \"## %s\". It says how Mira announces this skill's messages; until it is there, she does not announce them.",
 		"notlocal":         "The skill must run locally (privacy: local), but its agent %s runs on the model \"%s\" (%s). Give the agent a local model in mira.yaml under agents.",
+		"agentname":        "The agent \"%s\" has a name; that is only for an agent that runs elsewhere (remote).",
+		"remotefields":     "The agent \"%s\" runs elsewhere (remote); %s does not go with it: it has its own model, tools and instructions. Leave the field out.",
+		"remoteprivacy":    "The skill must run locally (privacy: local), but its agent \"%s\" runs elsewhere (remote); Mira cannot know where it handles the data.",
+		"remoteurl":        "The agent \"%s\" under remote needs an address (url) with http:// or https://, usually from a setting like \"{{ url }}\"; it says \"%s\".",
+		"remotedown":       "%s cannot be reached (%s). The skill is there, but without this agent; Mira keeps trying.",
+		"remoterefused":    "%s does not give out its description (%s). Check the address in the skill's settings; Mira tries again only after a restart.",
+		"remotenoway":      "%s can neither send results (push) nor stream them, so Mira gets no result. The skill is there, but without this agent.",
+		"remotenoaddress":  "%s sends results only as a push, but Mira's address for remote agents is missing (server.url in mira.yaml, e.g. http://192.168.1.10:8787). The skill is there, but without this agent.",
+		"remotescheme":     "%s asks for a login Mira cannot do (%s). Mira can do a token (bearer), an API key and OAuth2. The skill is there, but without this agent.",
+		"remoteoauth":      "%s asks for a login with OAuth2 (%s), but the skill has no oauth section for the connection. The skill is there, but without this agent.",
+		"remotetoken":      "%s asks for a token (%s), but the skill's setting for it is empty. The skill is there, but without this agent.",
+		"remoteskill":      "%s has no skill \"%s\" (a2a_skill). Its skills: %s. The skill is there, but without this agent.",
+		"remotetransport":  "%s names no interface Mira speaks (%s); Mira speaks A2A 1.0 over JSON-RPC and HTTP+JSON. The skill is there, but without this agent.",
+		"remoteelsewhere":  "%s takes requests at %s, not under its address %s; Mira sends the token only to the skill's address. Enter the address where it takes requests in the skill's settings.",
 	},
 }

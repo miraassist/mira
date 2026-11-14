@@ -297,6 +297,14 @@ func (a *app) agentInfo(d agent.Defined, defs []agent.Defined, active []skills.S
 	if d.Skill != "" {
 		info.Origin = "skill"
 	}
+	// A remote agent: what its card says (docs/spec/remote-agents.md).
+	if d.Def.Remote != nil && a.remote != nil {
+		if ra, ok := a.remote.Agent(d.Name); ok {
+			if ri, ok := ra.Info(); ok {
+				info.Description = ri.Description
+			}
+		}
+	}
 	if spec, ok := a.agents.Lookup(d.Name); ok && problem == "" {
 		info.Description = spec.Description
 		info.Context = map[agent.Profile]string{agent.Isolated: "isolated", agent.Background: "background"}[spec.Profile]

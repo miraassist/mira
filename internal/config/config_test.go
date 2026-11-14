@@ -85,6 +85,22 @@ mcp_servers:
 	}
 }
 
+// server.url is Mira's address for remote agents (docs/spec/remote-agents.md,
+// decision 13): an http or https address with a host, kept without a
+// trailing slash.
+func TestServerURL(t *testing.T) {
+	cfg, err := Parse([]byte("ha: { url: \"http://ha\", token: t }\nserver: { url: \"http://192.168.1.10:8787/\" }\n"), fakeEnv(nil))
+	if err != nil || cfg.Server.URL != "http://192.168.1.10:8787" {
+		t.Fatalf("url %q, err %v", cfg.Server.URL, err)
+	}
+	for _, bad := range []string{"192.168.1.10:8787", "ftp://mira", "http://", "http://mira?x=1"} {
+		_, err := Parse([]byte("ha: { url: \"http://ha\", token: t }\nserver: { url: \""+bad+"\" }\n"), fakeEnv(nil))
+		if err == nil || !strings.Contains(err.Error(), "server.url") {
+			t.Errorf("%s: %v", bad, err)
+		}
+	}
+}
+
 // Persons and satellites come from Home Assistant: a config without them
 // passes.
 func TestValidatePersonsAndSatellitesFromHA(t *testing.T) {

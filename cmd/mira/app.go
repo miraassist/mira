@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/miraassist/mira/internal/a2a"
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/announce"
 	"github.com/miraassist/mira/internal/backup"
@@ -168,6 +169,7 @@ type app struct {
 	toolsChanged chan struct{}
 	mcp          *mcp.Host
 	oauth        *oauth.Manager
+	remote       *a2a.Host // the skills' remote agents (docs/spec/remote-agents.md)
 	engine       *conversation.Engine
 
 	// live is the config the proactive parts run with: mira.yaml, what the
@@ -428,6 +430,10 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			loaded = append(loaded, sk)
 		}
 	}
+	// The skills' remote agents (docs/spec/remote-agents.md): their cards
+	// are read in the background, and read again while they cannot be.
+	a.remote = a2a.New(a2a.Options{Skills: usable, ServerURL: cfg.Server.URL, Connections: a.oauth, Logger: a.log})
+	a.goRun(ctx, "remote-agents", a.remote.Run)
 	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home,
 		Connection: a.oauth.State}
 	internal = append(internal, a.skills.Tools()...)
@@ -1765,6 +1771,16 @@ func (a *app) allProblems() []haconv.Problem {
 	if a.assist != nil {
 		if err := a.assist.Problem(); err != nil {
 			out = append(out, haconv.Problem{Source: "ha", Name: "prompt", Text: fmt.Sprintf(i18n.Pick(promptProblem, a.lang), err)})
+		}
+	}
+	// A remote agent whose card cannot be read or asks what Mira cannot do
+	// (docs/spec/remote-agents.md, A.4); one waiting for the skill's
+	// connection is none.
+	if a.remote != nil {
+		for _, st := range a.remote.Status() {
+			if st.Problem != nil {
+				out = append(out, haconv.Problem{Source: "skill", Name: st.Skill, Text: st.Problem.Text(a.lang)})
+			}
 		}
 	}
 	if a.mcp == nil {

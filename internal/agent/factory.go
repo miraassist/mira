@@ -104,6 +104,9 @@ func (r *Runtime) RegisterDefined(defs []Defined, models func(name string) (conf
 			continue
 		}
 		if spec == nil {
+			if d.Def.Remote != nil {
+				seen[d.Name] = true
+			}
 			continue
 		}
 		seen[d.Name] = true
@@ -120,7 +123,7 @@ func Check(d Defined, models func(name string) (config.LLM, bool)) *Problem {
 }
 
 // check reads one YAML agent: its spec, nil for an entry of one of Mira's
-// own agents, or what does not fit.
+// own agents or a skill's remote agent, or what does not fit.
 func check(d Defined, models func(name string) (config.LLM, bool)) (*Spec, *Problem) {
 	fail := func(kind string, args ...any) (*Spec, *Problem) {
 		return nil, &Problem{Agent: d.Name, Skill: d.Skill, kind: kind, args: args}
@@ -147,6 +150,14 @@ func check(d Defined, models func(name string) (config.LLM, bool)) (*Spec, *Prob
 		return fail("name", d.Name)
 	case slices.Contains(codeAgents, d.Name):
 		return fail("taken", d.Name)
+	case d.Def.Remote != nil && d.Skill == "":
+		return fail("remote")
+	case d.Def.Name != "" && d.Def.Remote == nil:
+		return fail("agentname")
+	case d.Def.Remote != nil:
+		// A remote agent: the skill checked it, its agent card describes it
+		// (docs/spec/remote-agents.md); it is no model agent to register.
+		return nil, nil
 	}
 	spec, kind, args := specOf(d, models)
 	if kind != "" {
@@ -180,6 +191,10 @@ func ownExtra(d config.AgentDef) string {
 		return "input"
 	case len(d.Output) > 0:
 		return "output"
+	case d.Remote != nil:
+		return "remote"
+	case d.Name != "":
+		return "name"
 	}
 	return ""
 }
@@ -299,6 +314,8 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"privacy":        "Der Agent muss lokal laufen (privacy: local), aber sein Modell „%s“ ist %s. Nimm ein Modell mit privacy: local.",
 		"ownprivacy":     "Der Agent muss lokal laufen (privacy: local), aber sein Modell „%s“ ist %s; jeder Aufruf scheitert. Nimm ein Modell mit privacy: local.",
 		"privacyword":    "privacy ist „%s“; hier geht nur local.",
+		"agentname":      "name gibt es nur für einen Agenten, der anderswo läuft (remote).",
+		"remote":         "remote gibt es nur für den Agenten eines Skills: Adresse und Token sind Einstellungen des Skills.",
 	},
 	i18n.EN: {
 		"yaml":           "The description cannot be read like this (%s). Usually a field name is misspelt or an indent is wrong.",
@@ -318,5 +335,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"privacy":        "The agent must run locally (privacy: local), but its model \"%s\" is %s. Take a model with privacy: local.",
 		"ownprivacy":     "The agent must run locally (privacy: local), but its model \"%s\" is %s; every call fails. Take a model with privacy: local.",
 		"privacyword":    "privacy is \"%s\"; only local goes here.",
+		"agentname":      "name is only for an agent that runs elsewhere (remote).",
+		"remote":         "remote is only for the agent of a skill: its address and token are settings of the skill.",
 	},
 }
