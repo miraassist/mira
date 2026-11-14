@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/miraassist/mira/internal/config"
+	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/ui"
@@ -78,4 +81,55 @@ func (c connections) Disconnect(ctx context.Context, skill string) error {
 		return oauth.ErrUnknown
 	}
 	return c.a.oauth.Disconnect(ctx, skill)
+}
+
+// RemoteAddress is server.url as mira.yaml has it, and whether a skill
+// that is on has a remote agent (docs/spec/remote-agents.md, decision 13).
+func (c connections) RemoteAddress() (string, bool) {
+	used := c.a.remote != nil && len(c.a.remote.Agents()) > 0
+	address := c.a.liveConfig().Server.URL
+	// What the file holds, saved and not yet in force after a restart.
+	if e := c.a.edit; e != nil {
+		if doc, err := e.file.Read(); err == nil && len(doc.Content) > 0 {
+			address = ""
+			if v := config.MapGet(config.MapGet(doc.Content[0], "server"), "url"); v != nil {
+				address = v.Value
+			}
+		}
+	}
+	return address, used
+}
+
+// SaveRemoteAddress writes server.url to mira.yaml (empty removes it),
+// checked as Mira checks it when she starts; it holds after a restart.
+func (c connections) SaveRemoteAddress(ctx context.Context, address string) error {
+	e := c.a.edit
+	if e == nil {
+		return errors.New(i18n.Pick(remoteAddressTexts, c.a.lang).noFile)
+	}
+	address = strings.TrimRight(address, "/")
+	if address != "" {
+		u, err := url.Parse(address)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf(i18n.Pick(remoteAddressTexts, c.a.lang).wrong, address)
+		}
+	}
+	return e.write(nil, func(top *yaml.Node) error {
+		server := config.MapChild(top, "server")
+		if address == "" {
+			config.MapDelete(server, "url")
+			return nil
+		}
+		config.MapSet(server, "url", config.Scalar(address))
+		return nil
+	}, true)
+}
+
+type remoteAddressText struct{ noFile, wrong string }
+
+var remoteAddressTexts = map[i18n.Lang]remoteAddressText{
+	i18n.DE: {noFile: "Die mira.yaml lässt sich hier nicht ändern.",
+		wrong: "„%s“ geht nicht: Die Adresse beginnt mit http:// oder https://, dann kommen Name oder IP-Adresse und der Port, etwa http://192.168.1.10:8787."},
+	i18n.EN: {noFile: "mira.yaml cannot be changed here.",
+		wrong: "\"%s\" does not work: the address starts with http:// or https://, then the name or IP address and the port, for example http://192.168.1.10:8787."},
 }

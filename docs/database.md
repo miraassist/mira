@@ -98,6 +98,7 @@ erDiagram
         text model
         int prompt_tokens
         text ended_at
+        text remote "a remote agent's task"
     }
     agent_run_steps {
         text call_id PK
@@ -166,7 +167,7 @@ erDiagram
 | `messages` | What Mira has to say: reminders, task and schedule results, messages left; its state from scheduled to acked ([Messages](spec/messages.md)) | tasks, schedules, reminders, threads, voicemail | the notifier, the page "Messages" |
 | `announcements` | What was said where and when, for a follow-up ("what did you say?") | the notifier | the conversation engine |
 | `assessments` | The model's judgements of a task, with what came of them ([Tasks](spec/tasks.md)) | `internal/tasks` | the page "Tasks" |
-| `agent_runs`, `agent_run_steps` | Runs of Mira's helpers with their steps and cost ([Agents](spec/agents.md)) | the agent runtime | the page "Agents", a run taken up after a restart |
+| `agent_runs`, `agent_run_steps` | Runs of Mira's helpers with their steps and cost ([Agents](spec/agents.md)); a remote agent's call with its task in `remote` ([Remote agents](spec/remote-agents.md)) | the agent runtime; `internal/a2a` for remote agents | the page "Agents", a run taken up after a restart |
 | `memory_facts` (+ `memory_facts_fts`) | What Mira remembers, per owner (the house or a person), with a full-text index | the memory tools, the page "Memory" | the memory tools, the profile rebuild |
 | `memory_profiles` | The profile per owner, built from the facts at night | the profile rebuild | every prompt |
 | `schedule_runs` | A schedule's last run, per person for a per-person one ([Schedules](spec/schedules.md)) | the skills' runner | the page "Schedule" |

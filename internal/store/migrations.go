@@ -517,6 +517,12 @@ CREATE TABLE watch_declined (
     PRIMARY KEY (entity_id, blueprint)
 );`,
 	},
+	{
+		// A remote agent's call (docs/spec/remote-agents.md): its task, the
+		// push token, the state taken, so a restart asks the task once.
+		name: "0032_agent_run_remote",
+		stmt: `ALTER TABLE agent_runs ADD COLUMN remote TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

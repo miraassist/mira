@@ -95,3 +95,33 @@ func TestConnectionsSaveClient(t *testing.T) {
 		t.Errorf("login %+v", l)
 	}
 }
+
+// Mira's address for remote agents, entered on the Connections page, goes
+// into mira.yaml as server.url and holds after a restart; a wrong one is
+// refused (docs/spec/remote-agents.md, decision 13, step 2).
+func TestConnectionsSaveRemoteAddress(t *testing.T) {
+	a, e, path := editApp(t)
+	a.lang = i18n.DE
+	c := connections{a: a}
+	if err := c.SaveRemoteAddress(context.Background(), "ftp://mira"); err == nil || !strings.Contains(err.Error(), "http://") {
+		t.Errorf("wrong address: %v", err)
+	}
+	if err := c.SaveRemoteAddress(context.Background(), "http://192.168.1.10:8787/"); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); !strings.Contains(out, "url: http://192.168.1.10:8787\n") {
+		t.Errorf("file:\n%s", out)
+	}
+	if got, _ := c.RemoteAddress(); got != "http://192.168.1.10:8787" {
+		t.Errorf("address %q", got)
+	}
+	if !e.State(context.Background()).RestartNeeded {
+		t.Error("no restart asked for")
+	}
+	if err := c.SaveRemoteAddress(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if out := read(t, path); strings.Contains(out, "192.168.1.10") {
+		t.Errorf("file:\n%s", out)
+	}
+}

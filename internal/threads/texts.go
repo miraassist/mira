@@ -21,10 +21,14 @@ type texts struct {
 	planRunning, planNoFields, planHint, linePlan, lineInstructions       string
 	fieldByAgent, planByAgent, agentStarted, agentFilled, agentFailedLog  string
 	agentAsk, agentPlanFailed, agentPlanReady                             string
-	planNoteDesc, noteOnlyCheck, noteTooLong                              string
-	takeDesc, takeIDDesc, notYours, openLine, noneOpen, stillOpen         string
-	waitingLine                                                           string
-	stateHint                                                             map[string]string
+	// remoteFailed names a remote agent that failed and what it said
+	// (docs/spec/remote-agents.md, decision 22); remoteFailedBare without
+	// its words.
+	remoteFailed, remoteFailedBare                                string
+	planNoteDesc, noteOnlyCheck, noteTooLong                      string
+	takeDesc, takeIDDesc, notYours, openLine, noneOpen, stillOpen string
+	waitingLine                                                   string
+	stateHint                                                     map[string]string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -81,6 +85,8 @@ var catalog = map[i18n.Lang]texts{
 		agentFilled:      "Agent %s: %s = %s",
 		agentFailedLog:   "Agent %s konnte %s nicht ermitteln: %s",
 		agentAsk:         "Das konnte ich nicht selbst herausfinden: %s. Sagst du es mir?",
+		remoteFailed:     "%s konnte das nicht: %s",
+		remoteFailedBare: "%s konnte das nicht.",
 		agentPlanFailed:  "Den Plan für „%s“ konnte ich nicht erstellen. Magst du es mir anders geben?",
 		agentPlanReady:   "„%s“ ist bereit: %d Schritte.",
 		stillMissing:     "Fehlt noch: %s",
@@ -167,6 +173,8 @@ var catalog = map[i18n.Lang]texts{
 		agentFilled:      "Agent %s: %s = %s",
 		agentFailedLog:   "Agent %s could not find out %s: %s",
 		agentAsk:         "I could not find this out myself: %s. Will you tell me?",
+		remoteFailed:     "%s could not do it: %s",
+		remoteFailedBare: "%s could not do it.",
 		agentPlanFailed:  "I could not make the plan for \"%s\". Would you give it to me another way?",
 		agentPlanReady:   "\"%s\" is ready: %d steps.",
 		stillMissing:     "Still missing: %s",

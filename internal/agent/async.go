@@ -296,6 +296,11 @@ func (r *Runtime) Resume(ctx context.Context) error {
 		return err
 	}
 	for _, rec := range runs {
+		if len(rec.Remote) > 0 {
+			// A remote agent's call: internal/a2a takes it up
+			// (docs/spec/remote-agents.md, G).
+			continue
+		}
 		var cc CallContext
 		if err := json.Unmarshal(rec.Call, &cc); err != nil {
 			// docs/spec/fallbacks.md, row 33.

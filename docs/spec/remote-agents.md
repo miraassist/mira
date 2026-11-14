@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
 Status 2026-11-14: specified (decisions 1 to 7, 13 and 16 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 and 1 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+building, to be confirmed); steps 0 to 2 built. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -90,6 +90,14 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 30 | The interface and the skill of the card | The first interface of the card that speaks A2A 1.x over JSON-RPC or HTTP+JSON, in the card's order; gRPC is left out (it would bring gRPC into the Mira service). A card without such an interface is the skill's problem. `a2a_skill` names a skill of the card by its `id`; one the card does not have is the skill's problem, listing the card's skills |
 | 31 | Which login | The first of the card's security requirements (the `a2a_skill`'s own when it has some) that names one scheme Mira can do: HTTP bearer, an API key (header, query or cookie), OAuth2; an empty requirement means no login. Anything else (HTTP basic, OpenID Connect, mTLS, two schemes at once) is the skill's problem naming it; a bearer or API key scheme with the skill's `token` empty, too |
 | 32 | What a remote agent may not set | Besides the fields named under What a skill writes, `input`, `output` and `privacy` (they come from the card, or cannot be known); a skill with `privacy: local` and a remote agent has a problem and is left out, since Mira cannot know where the remote agent handles the data. `name` goes only with `remote`; `remote` only in a skill, not in `mira.yaml` (decision 1) |
+| 33 | A call's time limit | None of its own: a remote agent's call ends with its thread (decision 19). Its row's deadline is the thread's expiry when the call starts, only for the run view |
+| 34 | The result as third-party text | A remote agent's result counts as third-party text (as a sub-agent that read the web): Mira cannot know what it read |
+| 35 | A stream that ends early | A stream that closes or breaks before the task ends (and not at `input-required`, where it closes by itself, check 7) is followed again with `SubscribeToTask`, tried as a read (3 attempts, exponential from 1 s); the send is not repeated (decision 26). Giving up: a failed agent |
+| 36 | Completed without artifacts | The status message's text is the result; with neither, a failed agent ("completed the task without a result") |
+| 37 | The order of pushes | One push per event (check 3), and an artifact comes before its `completed`: the pushes of a call are taken one after the other in the order they came (a queue per call); the handler answers before they are taken |
+| 38 | What counts as reaching the agent | Not reached, so a send is tried again: a refused connection, no route, an unknown name, an answer 429 or 503. Reached: everything else, also a 502 or 504 of a proxy before the agent |
+| 39 | Where the page sets the address | On the tab "Verbindungen", a card of its own, shown when a skill that is on has a remote agent or the address is set; written to `mira.yaml`, it holds after a restart (the page says so). The skill's problem for a missing address points there |
+| 40 | What a failed remote agent says | The thread's question for the field is preceded by the agent's name and its own words (its status text): "Hermes konnte das nicht: Die Quelle ist nicht erreichbar. Das konnte ich nicht selbst herausfinden: …" (decision 22); without its words "Hermes konnte das nicht." |
 
 ## What a skill writes
 
@@ -242,15 +250,15 @@ its source (Hermes) and stay an assumption elsewhere.
 
 | # | Transition | Signal | How Mira learns of it | Checked |
 |---|---|---|---|---|
-| 1 | card read | the card's JSON at `/.well-known/agent-card.json` | GET | — |
-| 2 | sent, push configured in the same send | task `submitted`/`working` | the answer of `SendMessage` | — |
-| 3 | working → completed | push with the task and its artifacts | push route | — |
-| 4 | working → input required → (answer) → working | push with status message; the answer with the same task id is accepted | push route; the answer's reply | — |
-| 5 | working → failed / rejected | push | push route | — |
-| 6 | Mira cancels | task `canceled` | the answer of `CancelTask` | — |
-| 7 | without push: the stream | SSE events until a final state | the stream | — |
-| 8 | Mira restarted during work | `GetTask` gives the state reached meanwhile | `GetTask` at the start | — |
-| 9 | a push repeated | the same state twice | push route | — |
+| 1 | card read | the card's JSON at `/.well-known/agent-card.json` | GET | 2026-11-14 (fake container; per card path) |
+| 2 | sent, push configured in the same send | task `submitted`/`working` | the answer of `SendMessage` | 2026-11-14 (fake: a task `submitted` at once with `returnImmediately`; Hermes: see below) |
+| 3 | working → completed | push with the task and its artifacts | push route | 2026-11-14 (fake: one push per event, not the whole task: the task `submitted`, a `statusUpdate` `working`, an `artifactUpdate` with the text, a `statusUpdate` `completed` without artifacts; the token in `A2A-Notification-Token`, no `Authorization`) |
+| 4 | working → input required → (answer) → working | push with status message; the answer with the same task id is accepted | push route; the answer's reply | 2026-11-14 (fake: `statusUpdate` `input-required` with the question as its message; the answer with task and context id goes on in the same task to `completed`; a push configuration sent again with the answer makes every later push come twice) |
+| 5 | working → failed / rejected | push | push route | 2026-11-14 (fake: `statusUpdate` `failed`, `rejected`, `auth-required`, each with its text as the status message) |
+| 6 | Mira cancels | task `canceled` | the answer of `CancelTask` | 2026-11-14 (fake: the answer is the task `canceled`, and a push `canceled` follows) |
+| 7 | without push: the stream | SSE events until a final state | the stream | 2026-11-14 (fake: the task, then status and artifact events, the stream closes after `completed`; it also closes at `input-required`, and the answer is a new `SendStreamingMessage` with task and context id that streams on; a direct answer is one `Message`) |
+| 8 | Mira restarted during work | `GetTask` gives the state reached meanwhile | `GetTask` at the start | 2026-11-14 (fake: `completed` with its artifacts; an unknown task is `TaskNotFound` (`a2a.ErrTaskNotFound`); `SubscribeToTask` gives the task, then its events to the end) |
+| 9 | a push repeated | the same state twice | push route | 2026-11-14 (fake `push-twice`: every event twice, the artifact with the same `artifactId`) |
 | 10 | a retried `SendMessage` with the same `messageId` | one task or two? | the answers | — |
 
 ## Hermes
@@ -291,6 +299,12 @@ Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from it
    step 2. RM-01 to RM-04, RM-18 to RM-20 in Go (`internal/a2a`).
 2. **Sending and the result:** a target's field or plan filled by a remote agent; push route and stream; failures;
    cancelling at the thread's end (B, C, E; decisions 10, 11, 13–15, 19). The setting `server.url` on Mira's page.
+   Built 2026-11-14 (decisions 33 to 40): `internal/a2a` (`call.go`) keeps each call as a row of `agent_runs` with its
+   task in the new column `remote` (migration 0032), sends with `SendStreamingMessage` (a card with a stream) or
+   `SendMessage` with the push configuration (`POST /v1/a2a/push/<call id>`, outside the service's token), takes the
+   events once, ends a failed call with the agent's own words for the thread, and sends `CancelTask` when the thread
+   ends. Before step 3 a question (`input-required`) fails the call. The address on the tab "Verbindungen"
+   (decision 39). RM-05 to RM-11, RM-21 in Go (`cmd/mira`, `internal/a2a`).
 3. **The agent request:** the kind `agent_request`, the tool `agent_answer` (D; decisions 5, 8, 21);
    [Messages](messages.md) gets the kind.
 4. **A restart** (G; decision 20).

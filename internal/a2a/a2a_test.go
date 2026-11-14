@@ -263,7 +263,7 @@ func TestRM20_OnlyPushAndNoAddressForRemoteAgents(t *testing.T) {
 	h := New(Options{Skills: loaded, Logger: log})
 	h.Start(context.Background())
 	st := only(t, h)
-	if st.Ready || st.Problem == nil || !strings.Contains(st.Problem.Text(i18n.DE), "server.url") {
+	if st.Ready || st.Problem == nil || !strings.Contains(st.Problem.Text(i18n.DE), "Adresse für entfernte Agenten") {
 		t.Fatalf("status %+v", st)
 	}
 	h = New(Options{Skills: loaded, ServerURL: "http://mira.example:8787", Logger: log})

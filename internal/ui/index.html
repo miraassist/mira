@@ -676,6 +676,9 @@ const I18N = {
   "tab_connections": "Verbindungen",
   "conn_intro": "Manche Skills brauchen eine Anmeldung bei einem Dienst, etwa bei X. Lege dort eine App an, trag ihre Client-ID und ihr Secret hier ein und klick auf „Verbinden“.",
   "conn_none": "Kein eingeschalteter Skill braucht eine Verbindung.",
+  "remote_title": "Miras Adresse für entfernte Agenten",
+  "remote_hint": "Ein Agent, der auf einem anderen Gerät läuft, liefert sein Ergebnis meist direkt, solange Mira auf ihn wartet. Manche melden sich aber erst später von selbst bei Mira; dafür brauchen sie diese Adresse, so wie sie Mira im Netz erreichen. Steht bei einem Skill, dass die Adresse fehlt, trag sie hier ein. Danach Mira neu starten.",
+  "remote_label": "Adresse",
   "conn_state_none": "nicht verbunden",
   "conn_state_connected": "verbunden",
   "conn_state_expired": "abgelaufen",
@@ -1194,6 +1197,9 @@ const I18N = {
   "tab_connections": "Connections",
   "conn_intro": "Some skills need a login at a service, X for one. Create an app there, enter its client ID and secret here and click \"Connect\".",
   "conn_none": "No skill that is on needs a connection.",
+  "remote_title": "Mira's address for remote agents",
+  "remote_hint": "An agent that runs on another device usually delivers its result directly while Mira waits for it. Some, though, report back to Mira later on their own; for that they need this address, as they reach Mira in the network. If a skill says the address is missing, enter it here. Then restart Mira.",
+  "remote_label": "Address",
   "conn_state_none": "not connected",
   "conn_state_connected": "connected",
   "conn_state_expired": "expired",
@@ -1898,8 +1904,8 @@ function saveNotifier() {
 // connect (inside Home Assistant, which does the login) and disconnect.
 async function connections() {
   $("#view").innerHTML = `<section class="card">${T.loading}</section>`;
-  let list;
-  try { list = (await api("GET", "/v1/ui/connections")).connections || []; }
+  let list, remote = {};
+  try { remote = await api("GET", "/v1/ui/connections"); list = remote.connections || []; }
   catch (e) { $("#view").innerHTML = `<section class="card"><p class="hint">${T.conn_old_mira}</p></section>`; return; }
   // Inside Home Assistant: can the integration and Home Assistant connect?
   let note = embedded ? "" : T.conn_open_in_ha;
@@ -1929,7 +1935,23 @@ async function connections() {
     ${listHead(T.tab_connections, list.length, T.conn_intro)}
     ${note ? `<p class="msg">${note}</p>` : ""}
     ${list.length ? `<div class="card-list">${list.map(card).join("")}</div>` : `<section class="card"><p class="hint">${T.conn_none}</p></section>`}
-  </section>`;
+  </section>
+  ${remote.remote_agents || remote.remote_address ? `<section class="card">
+    <h2>${T.remote_title}</h2>
+    <p class="hint">${T.remote_hint}</p>
+    <form onsubmit="event.preventDefault(); remoteAddressSave(this)">
+      <div class="grid"><label>${T.remote_label}</label><input name="url" value="${esc(remote.remote_address || "")}"
+        placeholder="http://192.168.1.10:8787" autocomplete="off"></div>
+      ${applyRow()}
+    </form></section>` : ""}`;
+}
+// Mira's address for remote agents (docs/spec/remote-agents.md, decision
+// 13): written to mira.yaml, it holds after a restart.
+async function remoteAddressSave(form) {
+  try {
+    await api("PUT", "/v1/ui/remote_address", { url: form.url.value.trim() });
+    message(T.ed_restart_needed, true);
+  } catch (e) { message(e.message, false); }
 }
 async function connectionSave(form, skill) {
   try {

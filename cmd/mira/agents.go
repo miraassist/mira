@@ -11,6 +11,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/a2a"
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/config"
@@ -342,10 +343,33 @@ func (a *app) dispatchForThread(ctx context.Context, th store.Thread, into, name
 	if area == th.Place {
 		area = ""
 	}
-	_, err := a.agents.CallByName(ctx, name, input, agent.CallContext{CallID: callID, Origin: agent.FromCode,
+	cc := agent.CallContext{CallID: callID, Origin: agent.FromCode,
 		Person: th.Person, Place: area, Mode: agent.Mode{Async: true,
-			Delivery: agent.Delivery{Route: agent.ToThread, Thread: th.ID, Into: into}}})
+			Delivery: agent.Delivery{Route: agent.ToThread, Thread: th.ID, Into: into}}}
+	if a.remote.Remote(name) {
+		// A remote agent (docs/spec/remote-agents.md, B): internal/a2a
+		// sends the work and hands the result back on the same route.
+		raw, err := json.Marshal(cc)
+		if err != nil {
+			return err
+		}
+		return a.remote.Send(ctx, a2a.Request{CallID: callID, Agent: name, Input: input, Call: raw, Deadline: th.ExpiresAt})
+	}
+	_, err := a.agents.CallByName(ctx, name, input, cc)
 	return err
+}
+
+// remoteDelivered hands a remote agent's result to the route of its call
+// context, as a run of the runtime is handed (docs/spec/remote-agents.md,
+// C).
+func (a *app) remoteDelivered(ctx context.Context, rec store.AgentRun) {
+	var cc agent.CallContext
+	if err := json.Unmarshal(rec.Call, &cc); err != nil {
+		a.log.Error("a remote agent's call has no readable call context; its result is dropped", "call_id", rec.CallID,
+			"agent", rec.Agent, "error", err, "call", string(rec.Call))
+		return
+	}
+	a.deliverRun(ctx, rec, cc)
 }
 
 // notLocal is, for a skill that must run locally, the first agent it uses

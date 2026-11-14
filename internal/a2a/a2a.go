@@ -33,6 +33,7 @@ import (
 	"github.com/miraassist/mira/internal/oauth"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/store"
 )
 
 // CardPath is where an agent's card is, below its address.
@@ -72,7 +73,19 @@ type Options struct {
 	// RetryInterval is the first wait before a card is read again; 30 s
 	// when 0. The waits double up to 30 minutes.
 	RetryInterval time.Duration
-	Logger        *slog.Logger
+	// Runs keeps the calls; without it no remote agent can be called.
+	Runs Runs
+	// Deliver hands a call's end (done or failed) to its route: the
+	// thread whose field or plan it fills.
+	Deliver func(ctx context.Context, rec store.AgentRun)
+	// Ask hands a remote agent's question on (an agent request, D);
+	// without it a question fails the call.
+	Ask func(ctx context.Context, q Question) error
+	// CallRetry is the first wait before a send or a read of a call is
+	// tried again; 1 s when 0, doubling, 3 attempts (Retries).
+	CallRetry time.Duration
+	Clock     func() time.Time
+	Logger    *slog.Logger
 }
 
 // Host holds the remote agents of the loaded skills.
@@ -84,6 +97,19 @@ type Host struct {
 	conns     Connections
 	retry     time.Duration
 	agents    []*Agent
+
+	runs      Runs
+	deliver   func(ctx context.Context, rec store.AgentRun)
+	ask       func(ctx context.Context, q Question) error
+	callRetry time.Duration
+	clock     func() time.Time
+	// base ends every call's stream and send at shutdown; the calls stay
+	// running in their rows and are taken up at the next start (G).
+	base     context.Context
+	stopBase context.CancelFunc
+	wg       sync.WaitGroup
+	mu       sync.Mutex
+	calls    map[string]*call
 }
 
 // Agent is one remote agent.
@@ -140,7 +166,12 @@ type Status struct {
 // New collects the remote agents of the skills; Start reads their cards.
 func New(o Options) *Host {
 	h := &Host{log: o.Logger, http: o.HTTP, transport: o.Transport, serverURL: o.ServerURL, conns: o.Connections,
-		retry: o.RetryInterval}
+		retry: o.RetryInterval, runs: o.Runs, deliver: o.Deliver, ask: o.Ask, callRetry: o.CallRetry, clock: o.Clock,
+		calls: map[string]*call{}}
+	h.base, h.stopBase = context.WithCancel(context.Background())
+	if h.callRetry == 0 {
+		h.callRetry = time.Second
+	}
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -205,6 +236,7 @@ func (h *Host) Run(ctx context.Context) error {
 	if len(h.agents) == 0 {
 		return nil
 	}
+	defer h.Close()
 	h.Start(ctx)
 	t := time.NewTicker(h.retry)
 	defer t.Stop()
@@ -223,6 +255,23 @@ func (h *Host) Run(ctx context.Context) error {
 				}
 			}
 		}
+	}
+}
+
+// Close ends the calls' streams and sends without ending the calls: their
+// rows stay running and the next start takes them up (G). It waits up to
+// 5 seconds for them.
+func (h *Host) Close() {
+	h.stopBase()
+	done := make(chan struct{})
+	go func() {
+		h.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		h.log.Warn("remote agents' calls did not stop within 5 seconds")
 	}
 }
 
@@ -447,7 +496,7 @@ func (h *Host) inspect(ctx context.Context, a *Agent, card *sdk.AgentCard) (Info
 	// The SDK gets only the interface Mira chose, so it talks to that one.
 	only := *card
 	only.SupportedInterfaces = []*sdk.AgentInterface{iface}
-	hc := &http.Client{Transport: cred}
+	hc := &http.Client{Transport: statusTransport{next: cred}}
 	client, err := a2aclient.NewFromCard(ctx, &only, a2aclient.WithJSONRPCTransport(hc), a2aclient.WithRESTTransport(hc))
 	if err != nil {
 		return fail(skills.KindRemoteTransport, fmt.Sprintf("%s %s: %v", iface.ProtocolBinding, iface.URL, err))

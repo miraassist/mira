@@ -432,7 +432,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	// The skills' remote agents (docs/spec/remote-agents.md): their cards
 	// are read in the background, and read again while they cannot be.
-	a.remote = a2a.New(a2a.Options{Skills: usable, ServerURL: cfg.Server.URL, Connections: a.oauth, Logger: a.log})
+	a.remote = a2a.New(a2a.Options{Skills: usable, ServerURL: cfg.Server.URL, Connections: a.oauth, Logger: a.log,
+		Runs: a.store, Deliver: a.remoteDelivered})
 	a.goRun(ctx, "remote-agents", a.remote.Run)
 	a.skills = &skills.Set{Lang: a.lang, Skills: loaded, OnOpen: a.store.AddSessionSkill, Home: a.home,
 		Connection: a.oauth.State}
@@ -629,8 +630,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 			return a.agents.Job(ctx, agent.Spec{Name: name, Profile: agent.Isolated, Rights: agent.AllRights},
 				agent.CallContext{CallID: id, Origin: agent.FromCode, Rights: agent.AllRights}, work)
 		},
-		Cancel:   func(id string) bool { return a.agents.Cancel(id) },
-		Dispatch: a.dispatchForThread,
+		Cancel:        func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
+		Dispatch:      a.dispatchForThread,
+		RemoteFailure: a2a.Failure,
 		// A watch offer is started by watch_wait only.
 		CodeStarted: []string{watch.OfferSkill},
 		// The answering machine's recordings stop with their thread.
@@ -1395,6 +1397,11 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	// (docs/spec/setup.md).
 	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
 		Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log}).Register(mux)
+	// Remote agents push here, with the token of their call, not the
+	// service's (docs/spec/remote-agents.md, E).
+	mux.HandleFunc("POST "+a2a.PushPath+"{call}", func(w http.ResponseWriter, r *http.Request) {
+		a.remote.ServePush(w, r)
+	})
 	mux.Handle("/", api)
 	// An integration older than this service: ask Home Assistant to look
 	// for its update at once (docs/spec/versions.md, Both updates offered

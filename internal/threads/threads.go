@@ -99,6 +99,10 @@ type Options struct {
 	// call id the thread chose (agents.go). Without it no agent fills a
 	// field.
 	Dispatch func(ctx context.Context, th store.Thread, into, agent, callID string, input json.RawMessage) error
+	// RemoteFailure is, for a failed call of a remote agent, its name to
+	// the user and what it said (docs/spec/remote-agents.md, decision
+	// 22); ok false for another run.
+	RemoteFailure func(rec store.AgentRun) (label, said string, ok bool)
 	// Ended is told when a thread ended (done, cancelled, expired), for what
 	// runs on its behalf outside it: the answering machine's recordings stop
 	// with their thread.

@@ -147,6 +147,17 @@ func (m *Manager) AgentResult(ctx context.Context, id, into string, rec store.Ag
 			} else if f, ok := field(sk.Target, into); ok {
 				say = fmt.Sprintf(t.agentAsk, f.Description)
 			}
+			if m.opts.RemoteFailure != nil {
+				// A remote agent is named, with its own words
+				// (docs/spec/remote-agents.md, decision 22).
+				if label, said, ok := m.opts.RemoteFailure(rec); ok {
+					named := fmt.Sprintf(t.remoteFailedBare, label)
+					if said = strings.TrimSpace(said); said != "" {
+						named = fmt.Sprintf(t.remoteFailed, label, said)
+					}
+					say = strings.TrimSpace(named + " " + say)
+				}
+			}
 			return nil
 		}
 		value := strings.TrimSpace(rec.Output)

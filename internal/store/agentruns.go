@@ -23,6 +23,10 @@ type AgentRun struct {
 	Error  string
 	// Foreign: the run read third-party text.
 	Foreign bool
+	// Remote is a remote agent's call (docs/spec/remote-agents.md): its
+	// task, push token and the state taken, as internal/a2a keeps them;
+	// empty for a run of the agent runtime.
+	Remote json.RawMessage
 	// Usage is what the run cost, once it ended.
 	Usage AgentUsage
 	// Deadline is when the run expires; EndedAt is zero while it runs.
@@ -57,11 +61,24 @@ func (s *Store) PutAgentRun(ctx context.Context, r AgentRun) error {
 		call = json.RawMessage("{}")
 	}
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO agent_runs(call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+INSERT INTO agent_runs(call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at, remote)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.CallID, r.ParentID, r.Agent, r.Status, string(call), r.Input, r.Output, r.Error,
-		formatTime(r.StartedAt), formatTime(r.Deadline), formatTime(r.EndedAt))
+		formatTime(r.StartedAt), formatTime(r.Deadline), formatTime(r.EndedAt), string(r.Remote))
 	return err
+}
+
+// SetAgentRunRemote keeps what a remote agent's call knows now (its task,
+// the state taken).
+func (s *Store) SetAgentRunRemote(ctx context.Context, callID string, remote json.RawMessage) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE agent_runs SET remote = ? WHERE call_id = ?`, string(remote), callID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // EndAgentRun gives a run its final status, its output or error, whether
@@ -80,17 +97,20 @@ func (s *Store) EndAgentRun(ctx context.Context, callID, status, output, errText
 }
 
 const agentRunSelect = `SELECT call_id, parent_id, agent, status, call, input, output, error, started_at, deadline, ended_at, foreign_text,
-	model, model_calls, prompt_tokens, completion_tokens FROM agent_runs`
+	model, model_calls, prompt_tokens, completion_tokens, remote FROM agent_runs`
 
 func scanAgentRun(row scannable) (AgentRun, error) {
 	var r AgentRun
-	var call, started, deadline, ended string
+	var call, started, deadline, ended, remote string
 	if err := row.Scan(&r.CallID, &r.ParentID, &r.Agent, &r.Status, &call, &r.Input, &r.Output, &r.Error,
 		&started, &deadline, &ended, &r.Foreign, &r.Usage.Model, &r.Usage.ModelCalls, &r.Usage.PromptTokens,
-		&r.Usage.CompletionTokens); err != nil {
+		&r.Usage.CompletionTokens, &remote); err != nil {
 		return AgentRun{}, err
 	}
 	r.Call = json.RawMessage(call)
+	if remote != "" {
+		r.Remote = json.RawMessage(remote)
+	}
 	r.StartedAt, r.Deadline, r.EndedAt = parseTime(started), parseTime(deadline), parseTime(ended)
 	return r, nil
 }
