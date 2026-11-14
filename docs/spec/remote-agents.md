@@ -54,6 +54,9 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 3 | In the conversation | A2A is always a thread, never directly part of a turn |
 | 4 | How the result arrives | By push (A2A push notification to the Mira service) when the agent card offers it and Mira has her address for remote agents (decision 13), else by a stream (SSE). Push, not polling |
 | 13 | Push address | The push endpoint is the Mira service's. Mira does not know how she is reached from outside (in a container and in the HA app she only listens on all interfaces), so it is a setting: `server.url`, Mira's address for remote agents, in `mira.yaml`, written by Mira's page. Without it Mira uses the stream (2026-11-14, 13A) |
+| 23 | Testing | Against a **fake A2A agent** without a model, deterministic, built with the Go SDK (`testenv/a2a_fake`, [Fake devices](fake-devices.md)): one agent whose agent card has one skill per behaviour (complete, ask back, login, fail, reject, push twice, …); the skill on Mira's side picks the behaviour with `a2a_skill` (2026-11-14, 1B). A real agent (Hermes) is not set up for the tests |
+| 24 | Where the fake runs | As a container in `testenv/compose.yaml`, beside the test HA (2026-11-14, 2B); the Go tests start it in the process |
+| 25 | When the fake is built | Step 0, before step 1 (2026-11-14, 3A) |
 | 16 | A login | Mira logs in at the remote agent through the skill's **connection** ([Connections](oauth.md)) when the agent card asks for OAuth2: the skill has an `oauth` section, Home Assistant does the login, Mira sends the token. A login the remote agent needs during its work (`auth-required`) becomes later a special agent request ("Hermes braucht eine Verbindung … Geh dafür auf Miras Seite …"); deferred (step 7), until then it ends the call as failed (2026-11-14, 16A) |
 | 5 | When the remote agent asks back (`input-required`) | A new kind of message, `agent_request`, with its thread; the owner's answer goes back to the remote agent |
 | 6 | Who may use it, what it gets | Whoever may use the skill may use its remote agent. It gets only what the skill's target puts into its input: the thread's fields and the request. No setting of its own |
@@ -75,7 +78,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 19 | When the thread ends | Cancelled or expired: Mira sends `CancelTask`. A failing cancel is logged, nothing more |
 | 20 | A restart of the Mira service | The open calls are in `agent_runs` with the task id; at the start Mira asks each once with `GetTask` and subscribes again (`SubscribeToTask`) where it streams. A state missed meanwhile is taken from the answer. No polling afterwards |
 | 22 | Who asks | A remote agent is named in everything Mira says and shows by its **name**: the agent card's `name`, or the skill's `name` for the agent when it gives one ("Hermes fragt: …", "Hermes konnte das nicht: …"). "Der entfernte Agent" is never said to the user (2026-11-14, by the maintainer; the source of the name taken while writing) |
-| 21 | The answer to an agent request | Goes to the remote agent as a new message with the same task id; the call waits on. A second agent request of the same task replaces the first, if that is still unheard |
+| 21 | The answer to an agent request | Goes to the remote agent as a new message with the same task id and context id; the call waits on, and follows the task the answer returns, which may be a new one in the same context (Hermes makes a new task, see Hermes below). A second agent request of the same task replaces the first, if that is still unheard |
 
 ## What a skill writes
 
@@ -199,7 +202,10 @@ What the remote agent spends (its model, its tools) is its own and not Mira's.
 
 [Retries](retry.md), `internal/retry`. Retryable: a lost connection, a timeout, 429 (its `Retry-After` is kept),
 5xx. Fatal: 400, 401, 403, 404, an A2A error in the answer (e.g. `TaskNotFound`, `UnsupportedOperation`,
-`VersionNotSupported`). Bound: 3 tries, exponential from 1 s. Giving up: the agent card → decision 17; a send, an
+`VersionNotSupported`). Bound: 3 tries, exponential from 1 s. A `SendMessage` is tried again only when it did not reach the remote agent
+(connection refused, no route, a DNS error, 429, 503); a connection lost or a timeout after it was sent is not
+retried but a failed agent, since a server may do the work twice (A2A: "MAY be idempotent"; Hermes does not
+deduplicate, below) (decision 26, taken while writing, to be confirmed). Giving up: the agent card → decision 17; a send, an
 answer, a `GetTask` → a failed agent (C.5) or the message of D.4. A retried `SendMessage` keeps its `messageId`.
 `CancelTask` is tried once.
 
@@ -219,7 +225,9 @@ answer, a `GetTask` → a failed agent (C.5) or the message of D.4. A retried `S
 
 ## Checks on the test HA
 
-A state table: each row is checked against a remote agent before step 2 is built.
+A state table: each row is checked against the fake A2A agent (decision 23) before step 2 is built. Rows 2 and 10
+depend on how a real server behaves; the fake shows only what the SDK does, so for a real agent they are read from
+its source (Hermes) and stay an assumption elsewhere.
 
 | # | Transition | Signal | How Mira learns of it | Checked |
 |---|---|---|---|---|
@@ -234,8 +242,38 @@ A state table: each row is checked against a remote agent before step 2 is built
 | 9 | a push repeated | the same state twice | push route | — |
 | 10 | a retried `SendMessage` with the same `messageId` | one task or two? | the answers | — |
 
+## Hermes
+
+Read from its source (2026-11-14; NousResearch/hermes-agent, the plugin `plugins/platforms/a2a`, main `1831ce1c` and
+release v0.23.1; changed as late as 2026-11-13, so a household's version may differ). Its own implementation in
+Python's standard library, no SDK. A2A 1.0, JSON-RPC over HTTP only, SSE.
+
+| Question | Hermes | For Mira |
+|---|---|---|
+| A send repeated with the same `messageId` | its local agent drops the `messageId`: two tasks, two turns (`adapter.py` 573–587); deduplication only for forwarded agents | decision 26: no retry after the send reached it |
+| Push configuration in the same send | yes, `configuration.taskPushNotificationConfig.url` (`adapter.py` 813–818, 607) | as planned |
+| Push authentication | ignores `token` and `authentication`; signs each push with HMAC-SHA256 in `X-A2A-Signature` (secret `A2A_PUSH_SECRET`, else its bearer token), over the body with sorted keys | Mira's bearer check refuses Hermes's pushes: open question 1 |
+| Pushes | one per task, at its end, text cut at 2000 characters; no retry; a guard against private addresses (`allow_private_urls`) | the stream gives the whole result |
+| `returnImmediately` | ignored: a send blocks until the answer or 300 s | with Hermes the stream is the way |
+| Card | `pushNotifications` always true, `streaming` true for its local agent; bearer scheme unless only on localhost | — |
+| `input-required` | when its answer starts with `[INPUT_REQUIRED]`; an answer to it ignores `taskId` and becomes a new task in the same context | decision 21 |
+| `auth-required` | not implemented | — |
+| Tasks after its restart | in memory only, 500 finished kept: `GetTask` does not find them | a failed agent (G) |
+| Turns per context | 5 (`A2A_MAX_PINGPONG_TURNS`, up to 20) | a long back and forth ends there |
+
+Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from its source).
+
+## Open questions
+
+1. **Push or stream first:** Hermes's pushes carry no bearer token but an HMAC signature, and cut the result at 2000
+   characters. Either Mira prefers the stream whenever the card offers one and uses push only for agents without a
+   stream (Hermes then works over the stream), or she keeps push first and also accepts an HMAC signature with the
+   skill's token as the secret.
+
 ## Steps
 
+0. **The fake A2A agent** (decisions 23–25): `testenv/a2a_fake` with the Go SDK, one skill per behaviour, its
+   container in `testenv/compose.yaml`, what it received readable for the tests; in [Fake devices](fake-devices.md).
 1. **The remote agent in a skill:** `remote` in `metadata.mira.agents`, the settings' placeholders, reading the agent
    card, the login with a token or the skill's connection, the skill's problems (decisions 9, 12, 16, 17, 18; A).
    Glossary done.
