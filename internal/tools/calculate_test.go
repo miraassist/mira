@@ -34,7 +34,7 @@ func TestCalculate(t *testing.T) {
 	}
 	// As a tool: read only, and an error says what is wrong.
 	var tool InternalTool
-	for _, it := range Internal(i18n.DE, nil, nil) {
+	for _, it := range Internal(i18n.DE, nil) {
 		if it.Name == ToolCalculate {
 			tool = it
 		}

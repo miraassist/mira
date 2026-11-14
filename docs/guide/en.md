@@ -512,7 +512,7 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
   - `chapter`: the chapter of this guide about the skill, as its heading begins (`"## Cooking and baking"`, `###` for a section). Mira's page shows a link to it with the skill. A skill written in German names the German guide's chapter; its translation (`SKILL.en.md`) names the English one.
 - The text below the header is the instruction for Mira. Where `{{name}}` stands, Mira puts in the setting `name`. Where the house is, Mira knows from Home Assistant (Settings → System → General): she puts in `{{ home.latitude }}`, `{{ home.longitude }}` and `{{ home.name }}` when the skill is used; no setting is needed for it.
 
-**3. Switch it on.** A skill runs only when it is listed under `skills` in `mira.yaml`, with its settings below. If it has none, the name followed by `{}` is enough. `enabled: false` switches it off without losing its settings. The bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking and parcels are on without an entry; `enabled: false` switches them off too, say for a replacement of your own.
+**3. Switch it on.** A skill runs only when it is listed under `skills` in `mira.yaml`, with its settings below. If it has none, the name followed by `{}` is enough. `enabled: false` switches it off without losing its settings. The bundled skills for tasks, remembering, appointments, to-dos, alarms, cooking, parcels and thinking it over (Nachdenken) are on without an entry; `enabled: false` switches them off too, say for a replacement of your own.
 
 **Adapting a skill that comes with Mira.** The bundled skills sit in the container under `/app/skills` and are replaced by every update. To change one, copy it into your own skills folder:
 
@@ -984,7 +984,7 @@ Mira looks up on the web what she cannot know: opening hours, results, news. She
 
 The search is built in and needs no setup. You can switch it off under Settings → Devices & services → Mira → **Configure** → **General** → **Web search**, for instance if you use another search (see "More tools over MCP").
 
-If the setup is connected to a stronger language model, Mira hands elaborate questions over to it – explanations, comparisons, weighing options – and sums up the result for you. The stronger model can look things up but change nothing in the house.
+Elaborate questions – explanations, comparisons, weighing options ("Explain to me how a heat pump works") – Mira hands to the strongest model of your setup with the bundled skill **Nachdenken** ("think it over") and sums up the result for you. Which model that is, `mira.yaml` says under `agents` for `delegate` (see "Several models"); without an entry it is `main`. The model can look things up but change nothing in the house. If it takes longer than a few seconds, Mira comes back with the answer as a message. The skill is on without an entry; `nachdenken: { enabled: false }` under `skills` switches it off.
 
 ## Reminders, timers and alarms
 
@@ -1190,7 +1190,7 @@ agents:
 - **`parallel`** is how many requests a model gets at once; without it 1 for `local`, 4 for `cloud`.
 - **`fallback`** names another model Mira takes when this one does not answer. If it is only busy, Mira waits.
 - **If a model refuses its key or cannot be reached**, Mira says so in the conversation ("My AI model refuses my key …"), and **Repairs** names the model and the server's answer until it answers again.
-- **Which part takes what:** without an entry under `agents` every part takes `main`. The parts are: `conversation.voice` (voice), `conversation.telegram` (Telegram), `delegate` (hard questions), `skill.task` (skill schedules, briefing), `notify.compose` (announcements), `tasks.assess`, `tasks.decide`, `tasks.plan` (tasks), `mail.read`, `mail.match` (mails), `profile.compact` (memory profile).
+- **Which part takes what:** without an entry under `agents` every part takes `main`. The parts are: `conversation.voice` (voice), `conversation.telegram` (Telegram), `delegate` (the strongest model: hard questions in the skill Nachdenken, writing rules of your own), `skill.task` (skill schedules, briefing), `notify.compose` (announcements), `tasks.assess`, `tasks.decide`, `tasks.plan` (tasks), `mail.read`, `mail.match` (mails), `profile.compact` (memory profile).
 - **`privacy: local`** on a part means: it runs only on a local model, with no fallback to the cloud either. A skill can ask the same (`privacy: local` under `metadata.mira`); then Mira checks every part it uses when it starts. If something does not fit, it does not start, and Home Assistant shows under **Repairs** what to change.
 
 What the integration sets up as the model applies to `main` before what `mira.yaml` says.

@@ -44,7 +44,8 @@ danach als Nachricht.
    - „… konnte das nicht“ (etwa weil der Agent nicht erreichbar ist): Die Recherche
      ist gescheitert. Sag das dem Nutzer mit dem Namen des Agenten, beende den
      Vorgang mit `thread_cancel` und frag, ob du stattdessen selbst kurz
-     nachschlagen sollst. Gib sie nicht ungefragt an `delegate` ab.
+     nachschlagen sollst. Tu es nicht ungefragt, auch nicht mit einem anderen
+     Skill.
    - „… fragt: …“: Stell dem Nutzer die Frage.
    - Die Übersicht: Lies ihre Zusammenfassung vor.
    - Sonst arbeitet der Agent: Sag kurz, dass er (mit seinem Namen) daran arbeitet

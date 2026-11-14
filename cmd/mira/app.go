@@ -251,13 +251,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.llm = a.models[config.MainModel]
 
 	// The goals Mira works towards in threads come as skills too and are
-	// on when their folder is there (builtinTargets), unless mira.yaml
-	// switches one off (enabled: false), for a replacement of one's own.
+	// on when their folder is there (builtinTargets), as is the skill
+	// nachdenken (builtinSkills), unless mira.yaml switches one off
+	// (enabled: false), for a replacement of one's own.
 	enabled := map[string]map[string]any{}
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
 	}
-	for _, name := range append(builtinTargets(), builtinMail()...) {
+	for _, name := range alwaysOn() {
 		if _, ok := enabled[name]; !ok && !cfg.Skills.Off[name] && skills.Exists(cfg.Skills.Dirs, name) {
 			enabled[name] = nil
 		}
@@ -360,10 +361,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.goRun(ctx, "assist-prompt", a.assist.Run)
 
 	snapshot := a.structure.Snapshot
-	// The delegate tool is bound late: the engine it calls is built from the
-	// registry.
-	delegate := func(ctx context.Context, task string) (string, error) { return a.engine.Delegate(ctx, task) }
-	internal := tools.Internal(a.lang, a.store, delegate)
+	internal := tools.Internal(a.lang, a.store)
 	internal = append(internal, tools.Reminders(tools.ReminderOptions{
 		Lang: a.lang, Store: a.store,
 		Persons: a.persons,
@@ -1113,6 +1111,11 @@ func builtinTargets() []string {
 	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel",
 		"postfach", "ueberwachung-anbieten"}
 }
+
+// builtinSkills are Mira's own skills beside the goals and the mail that
+// are always on: nachdenken, where the conversation hands a question to the
+// strongest model (docs/spec/agents.md, Decided 44).
+func builtinSkills() []string { return []string{"nachdenken"} }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
 // for the satellite's room, on Telegram what waits for that person.

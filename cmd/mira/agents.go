@@ -96,7 +96,7 @@ func (a *app) registerAgents(registry *tools.Registry) {
 // conversationTool is a YAML agent with conversation true as a tool of the
 // conversation (docs/spec/agents.md, An agent as a tool in a conversation):
 // a skill's comes with the skill, one of mira.yaml is always there. The
-// conversation waits for it as for delegate.
+// conversation waits for it 5 s at a satellite, 30 s on Telegram (Decided 27).
 func (a *app) conversationTool(d agent.Defined) (tools.InternalTool, bool) {
 	spec, ok := a.agents.Lookup(d.Name)
 	if !ok {

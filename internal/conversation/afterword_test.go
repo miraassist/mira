@@ -29,7 +29,7 @@ func TestAfterwordFollowsAVoiceAnswer(t *testing.T) {
 
 	var asked []string
 	waiting := "Übrigens: Heute hast du einen Zahnarzttermin."
-	internal := append(tools.Internal(i18n.DE, st, nil),
+	internal := append(tools.Internal(i18n.DE, st),
 		tools.MessagesRead(i18n.DE, func(context.Context, tools.Invocation) (tools.Reading, error) {
 			return tools.Reading{Text: "Nichts."}, nil
 		}))

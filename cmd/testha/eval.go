@@ -315,6 +315,9 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		cfg["agents"] = agents
 	}
 	withEvalSkills(cfg, r.evalSkills)
+	for _, s := range withoutRealRemoteAgents(cfg) {
+		fmt.Printf("skill left out, its agent researches for real: %s\n", s)
+	}
 	r.leftOut = r.withoutUnsetSkills(cfg)
 	for _, s := range r.leftOut {
 		fmt.Printf("skill left out, a variable is missing in testenv/.env: %s\n", s)
@@ -609,6 +612,26 @@ func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// realRemoteAgents are the shipped skills whose remote agent works for
+// real, minutes at a time and with its own model: an eval run never has
+// them, so it offers one research skill only, the eval skill hermes
+// (docs/spec/evals.md, Remote agents and delegate, decision 5).
+var realRemoteAgents = []string{"recherche"}
+
+// withoutRealRemoteAgents removes those skills from the test config and
+// names the ones it removed.
+func withoutRealRemoteAgents(cfg map[string]any) []string {
+	skills, _ := cfg["skills"].(map[string]any)
+	var out []string
+	for _, name := range realRemoteAgents {
+		if _, ok := skills[name]; ok {
+			delete(skills, name)
+			out = append(out, name)
+		}
+	}
 	return out
 }
 

@@ -198,8 +198,9 @@ telemetry:
 # Agents: how deep agents may call each other, and agents described in YAML
 # (docs/spec/agents.md, Factory). Call them from automations with mira.agent.
 # Every agent takes main unless it names its model here (Mira's own agents
-# take only model and privacy). delegate is the model the conversation hands
-# harder tasks to; mail.read and mail.match read the mails of the mail
+# take only model and privacy). delegate is the strongest model: the skill
+# nachdenken hands harder questions to it, and the skill regel writes rules
+# with it; mail.read and mail.match read the mails of the mail
 # calendars, so a local model keeps them in the house.
 agents:
   max_depth: 3

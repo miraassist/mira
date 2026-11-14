@@ -84,7 +84,8 @@ Every agent names its model; without one it takes `main`.
 
 - **A YAML agent** names it in its description (`model:`), as today. Instead of a model it may name one of Mira's own
   agents (`model: delegate`): it then takes that agent's model, whatever `mira.yaml` names for it when it runs, so a
-  skill can ask for "the stronger model" without a setting (since 2026-10-28, the skill `regel`).
+  skill can ask for "the stronger model" without a setting (since 2026-10-28, the skill `regel`; since 2026-11-15 the
+  skill `nachdenken`, which took the place of the conversation's tool `delegate`, [Agents](agents.md), decision 44).
 - **Mira's own agents** get it in `mira.yaml` under `agents`, by their name, with only `model` and `privacy`:
 
   ```yaml

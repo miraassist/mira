@@ -7,12 +7,12 @@ import (
 	"github.com/miraassist/mira/internal/tools"
 )
 
-// SetDelegateWait shortens how long a voice conversation waits for the
-// delegate; the returned func restores it.
-func SetDelegateWait(voice time.Duration) (restore func()) {
-	old := delegateWaitVoice
-	delegateWaitVoice = voice
-	return func() { delegateWaitVoice = old }
+// SetAgentWait shortens how long a voice conversation waits for an agent
+// it calls as a tool; the returned func restores it.
+func SetAgentWait(voice time.Duration) (restore func()) {
+	old := agentWaitVoice
+	agentWaitVoice = voice
+	return func() { agentWaitVoice = old }
 }
 
 // ToolsForTest is the engine's tool registry.

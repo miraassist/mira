@@ -21,7 +21,8 @@ import (
 )
 
 // twoModels is an engine with a local main model (slots, cache_prompt) and
-// a cloud model "smart" that serves Telegram and delegated tasks.
+// a cloud model "smart" that serves Telegram and the model of delegate,
+// which the conversation's agent tool "denker" takes.
 func twoModels(t *testing.T) (*conversation.Engine, *fakellm.Server, *fakellm.Server) {
 	t.Helper()
 	return twoModelsRouted(t, "conversation.telegram: { model: smart }\ndelegate: { model: smart }")
@@ -70,8 +71,7 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 	t.Cleanup(func() { st.Close() })
 
 	var engine *conversation.Engine
-	delegate := func(ctx context.Context, task string) (string, error) { return engine.Delegate(ctx, task) }
-	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st, delegate)...)
+	registry := tools.NewRegistry(nil, tools.Internal(i18n.DE, st)...)
 	mainClient := llm.New(llm.Options{BaseURL: main.BaseURL(), Model: "local"})
 	smartClient := llm.New(llm.Options{BaseURL: smart.BaseURL(), Model: "cloud"})
 	guard := tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil))
@@ -101,6 +101,18 @@ func twoModelsDelivering(t *testing.T, agentsYAML string, deliver agent.Delivere
 		Guard:     guard,
 		Logger:    quietLogger(), Location: time.UTC,
 	})
+	// An agent as a tool of the conversation, as the skill nachdenken's:
+	// it takes the model of delegate (cmd/mira builds such tools from
+	// YAML; docs/spec/agents.md, An agent as a tool in a conversation).
+	agents.Register(agent.Spec{Name: "denker", Description: "Denkt nach.", ModelOf: "delegate",
+		Profile: agent.Background, Instructions: "Beantworte die Frage.", Tools: agent.Tools{Kind: agent.ReadOnlyTools},
+		Rights: agent.ReadHouse | agent.Web})
+	registry.Add(tools.InternalTool{Name: "denker", Description: "Denkt nach.", ReadOnly: true,
+		Schema: `{"type":"object","properties":{"input":{"type":"string"}},"required":["input"]}`,
+		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+			res, err := agents.CallByName(ctx, "denker", inv.Args, engine.AgentCall(ctx))
+			return engine.AgentAnswer(ctx, res, err)
+		}})
 	return engine, main, smart
 }
 
@@ -167,64 +179,36 @@ func TestMO07_OnlyModelsThatWantItAreWarmedUp(t *testing.T) {
 	}
 }
 
-func TestDelegateHandsATaskToTheStrongerModel(t *testing.T) {
+// An agent the conversation calls as a tool with the model of delegate runs
+// on that model, and the conversation's model hears its answer.
+func TestAnAgentAsAToolTakesTheModelOfDelegate(t *testing.T) {
 	e, main, smart := twoModels(t)
 	main.Push(
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Plane ein Menü für vier Personen."}`)}},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "denker", `{"input":"Plane ein Menü für vier Personen."}`)}},
 		fakellm.Step{Content: "Vorspeise Suppe, dann Risotto."},
 	)
-	// The delegated model tries to delegate again; that is refused.
-	smart.Push(
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d2", "delegate", `{"task":"noch einmal"}`)}},
-		fakellm.Step{Content: "Suppe, Risotto, Tiramisu."},
-	)
+	smart.Push(fakellm.Step{Content: "Suppe, Risotto, Tiramisu."})
 	r := handle(t, e, config.ChannelVoice, "Was koche ich heute für vier?")
 	if r.Text != "Vorspeise Suppe, dann Risotto." {
 		t.Fatalf("answer: %q", r.Text)
 	}
-
 	reqs := smart.Requests()
-	if len(reqs) != 2 {
-		t.Fatalf("delegate model got %d requests", len(reqs))
+	if len(reqs) != 1 {
+		t.Fatalf("the model of delegate got %d requests", len(reqs))
 	}
-	first := reqs[0].Request.Messages
-	if last := first[len(first)-1].Content; !strings.Contains(last, "Plane ein Menü für vier Personen.") || !strings.Contains(last, "Abgegebene Aufgabe") {
-		t.Errorf("delegated turn: %q", last)
-	}
-	refused := reqs[1].Request.Messages[len(reqs[1].Request.Messages)-1]
-	if refused.Role != llm.RoleTool || !strings.Contains(refused.Content, "cannot be called from an agent's run") {
-		t.Errorf("nested delegate not refused: %+v", refused)
+	if last := lastContent(reqs[0].Request.Messages); !strings.Contains(last, "Plane ein Menü für vier Personen.") || !strings.Contains(last, "Beantworte die Frage.") {
+		t.Errorf("the agent's turn: %q", last)
 	}
 	// The fast model reads the stronger model's answer as the tool result.
 	back := main.Last().Request.Messages
 	if got := back[len(back)-1]; got.Role != llm.RoleTool || got.Content != "Suppe, Risotto, Tiramisu." {
 		t.Errorf("tool result: %+v", got)
 	}
-}
-
-// AG-72 The delegate agent exists without an entry too
-func TestAG72_TheDelegateAgentExistsWithoutAnEntry(t *testing.T) {
-	// Given routing has nothing for delegate
-	e, main, _ := twoModelsRouted(t, "")
-	main.Push(
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Erkläre Ebbe und Flut."}`)}},
-		fakellm.Step{Content: "Der Mond zieht am Wasser."},
-		fakellm.Step{Content: "Der Mond macht das."},
-	)
-	// When the conversation is called
-	r := handle(t, e, config.ChannelVoice, "Warum gibt es Ebbe?")
-	// Then it has the tool delegate
-	offered := false
+	// The conversation has no tool delegate any more (Decided 44).
 	for _, tl := range main.Requests()[0].Request.Tools {
-		offered = offered || tl.Function.Name == tools.ToolDelegate
-	}
-	if !offered {
-		t.Fatal("no delegate tool")
-	}
-	// And the delegate agent takes the model main
-	reqs := main.Requests()
-	if len(reqs) != 3 || !strings.Contains(lastContent(reqs[1].Request.Messages), "Erkläre Ebbe und Flut.") || r.Text != "Der Mond macht das." {
-		t.Errorf("%d requests to main, answer %q", len(reqs), r.Text)
+		if tl.Function.Name == "delegate" {
+			t.Error("the conversation still has the tool delegate")
+		}
 	}
 }
 
@@ -242,7 +226,7 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 	cfg := config.Default()
 	engine := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "local"}),
-		Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...),
+		Store: st, Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st)...),
 		Guard:  tools.NewGuard(i18n.DE, cfg.Security, st, nil, hooks.Load("", i18n.DE, nil)),
 		Logger: quietLogger(), Location: time.UTC,
 		// no Structure: the list has not arrived
@@ -258,7 +242,7 @@ func TestTurnWaitsForTheExposureList(t *testing.T) {
 
 // AG-99 An agent as a tool at a satellite answers late
 func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
-	defer conversation.SetDelegateWait(100 * time.Millisecond)()
+	defer conversation.SetAgentWait(100 * time.Millisecond)()
 	type delivery struct {
 		rec store.AgentRun
 		cc  agent.CallContext
@@ -268,7 +252,7 @@ func TestAG99_AnAgentAsAToolAtASatelliteAnswersLate(t *testing.T) {
 	e, main, smart := twoModelsDelivering(t, "conversation.telegram: { model: smart }\ndelegate: { model: smart }",
 		func(_ context.Context, rec store.AgentRun, cc agent.CallContext) { delivered <- delivery{rec, cc} })
 	main.Push(
-		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "delegate", `{"task":"Plane die Woche."}`)}},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("d1", "denker", `{"input":"Plane die Woche."}`)}},
 		fakellm.Step{Content: "Ich melde mich, sobald der Plan steht."},
 	)
 	// When the agent is not done after 5 seconds

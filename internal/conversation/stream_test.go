@@ -153,7 +153,7 @@ func TestST05_UebrigensComesAsTheLastPiece(t *testing.T) {
 	defer st.Close()
 	e := conversation.New(conversation.Options{StructurePrompt: func() string { return harnessHousePrompt },
 		Config: cfg, LLM: llm.New(llm.Options{BaseURL: model.BaseURL(), Model: "m"}), Store: st,
-		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st, nil)...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
+		Tools: tools.NewRegistry(nil, tools.Internal(i18n.DE, st)...), Guard: tools.NewGuard(i18n.DE, cfg.Security, st, houseSnapshot, hooks.Load("", i18n.DE, nil)),
 		Structure: houseSnapshot, Logger: quietLogger(), Location: time.UTC,
 		Afterword: func(context.Context, string, string) string { return "Übrigens: Heute hast du einen Zahnarzttermin." },
 	})

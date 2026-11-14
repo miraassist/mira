@@ -193,8 +193,8 @@ minute for the gathering.
 
 ## Remote agents and delegate (added 2026-11-14)
 
-Scenarios 38 and 39 test whether the voice model tells a skill's remote agent from `delegate`
-([Remote agents](remote-agents.md), [Agents](agents.md), decision 43): in the end-to-end tests of the remote agents
+Scenarios 38 and 39 test whether the voice model tells a skill's remote agent from `delegate` (since 2026-11-15 the
+skill `nachdenken`, [Agents](agents.md), decision 44) ([Remote agents](remote-agents.md), [Agents](agents.md), decision 43): in the end-to-end tests of the remote agents
 Gemini Flash Lite took `delegate` in about 7 of 11 starts instead of the skill whose agent should do the work.
 
 Decided 2026-11-14:
@@ -205,13 +205,17 @@ Decided 2026-11-14:
 | 2 | The remote agent | The fake A2A agent's container (`mira-test-a2a`, [Fake devices](fake-devices.md)) at its port on this machine, with its default token and the skill `ask`, which asks back at once, so the turn ends within the voice limit. The container must run; a scenario that checks it fails its setup, naming the container, when it does not answer |
 | 3 | Checks | `remote_received: {contains}` wants a message to the fake A2A agent with that text (what it received is emptied before such a scenario's run); the trace names the skill `skill_open` opened (`tool:skill_open:hermes`), so a scenario can forbid opening one |
 | 4 | Core scenarios | None for now |
+| 5 | The real research skill (2026-11-15, taken while building, to be confirmed) | An eval run leaves out the shipped skill `recherche` from the test config, saying so in its output: its agent researches for real, minutes at a time; `hermes` stands for it, so a run offers one research skill |
+
+Changed 2026-11-15: the tool `delegate` is gone ([Agents](agents.md), decision 44); a knowledge question goes to the
+skill `nachdenken`, always on, so scenario 39 now wants it.
 
 | Scenario | Said | Expected |
 |---|---|---|
-| hermes-recherche | "Finde heraus, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` starts and the fake A2A agent gets the request; no `delegate` |
-| waermepumpe-erklaeren | "Erklär mir, wie eine Wärmepumpe funktioniert" | neither the thread of `hermes` nor `skill_open` of it (`delegate` or an answer of its own) |
+| hermes-recherche | "Finde heraus, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` starts and the fake A2A agent gets the request; neither `skill_open` of `nachdenken` nor its agent |
+| waermepumpe-erklaeren | "Erklär mir, wie eine Wärmepumpe funktioniert" | `skill_open` of `nachdenken` and its agent `nachdenken`; neither the thread of `hermes` nor `skill_open` of it |
 
-What it costs: one voice turn per scenario, with `delegate` one more call of the main model.
+What it costs: one voice turn per scenario, with `nachdenken` one more call of the model `delegate` takes.
 
 ## Deliberately not
 

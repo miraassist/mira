@@ -118,9 +118,10 @@ Models: `models` names them, each with an endpoint, a token and whether it
 is `local` or `cloud` (any OpenAI-compatible endpoint, e.g. Gemini); `main`
 must exist, and every agent takes it unless `agents` names another for it
 (`agents: { conversation.telegram: { model: smart } }`). The conversation
-model has a `delegate` tool that hands harder tasks (planning,
-explanations, research) to the model `agents.delegate.model` names,
-typically a stronger one, and reads back its answer. Only local models are
+model hands harder questions (explanations, comparisons, weighing up)
+through the always-on skill `nachdenken` to the model
+`agents.delegate.model` names, typically a stronger one, and reads back
+its answer. Only local models are
 warmed up; a cloud model is billed per token, and each turn logs its model
 and token counts.
 

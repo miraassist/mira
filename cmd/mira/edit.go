@@ -865,7 +865,9 @@ func (e *editor) writeSections(sections map[string][]byte, keep []string) error 
 // --- helpers ---------------------------------------------------------------
 
 // alwaysOn are the skills that are on without an entry.
-func alwaysOn() []string { return append(builtinTargets(), builtinMail()...) }
+func alwaysOn() []string {
+	return append(append(builtinTargets(), builtinMail()...), builtinSkills()...)
+}
 
 // skillOn says whether a skill is on, by its entry under skills: there and
 // not enabled: false, or one of Mira's own without an entry.

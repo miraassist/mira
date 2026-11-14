@@ -1,6 +1,6 @@
 # Agents – Spec
 
-Status 2026-11-11: built, steps 1 to 12.
+Status 2026-11-15: built, steps 1 to 13.
 
 The testable rules are numbered scenarios in [agents.feature](agents.feature); each Go test for one carries the
 number in its name (`TestAG07_…`).
@@ -99,7 +99,7 @@ Derived from what a tool declares (`internal/agent/rights.go`, `RightFor`):
 | `message_send`, `message_ack`, `reminder_set`, `reminder_cancel` | messages |
 | `radio_play`, `sound_play`, `display_card`, `sleep_timer`, `task_delete`, `task_enable` | act on the house |
 | `thread_fill`, `thread_confirm`, `thread_undo` (filling or confirming may run the thread's finish, an action or a fact; taking back runs an action) | act on the house |
-| every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `device_profile`, `watch_candidates`, `watch_wait`, `watch_accept`, `watch_decline`, `thread_start`, `thread_cancel`, `thread_plan`, `delegate`, `calculate`, `agent_answer`) | read the house |
+| every other own tool (`memory_search`, `messages_list`, `messages_read`, `reminder_list`, `calendar_events`, `skill_open`, `task_list`, `task_try`, `device_profile`, `watch_candidates`, `watch_wait`, `watch_accept`, `watch_decline`, `thread_start`, `thread_cancel`, `thread_plan`, `calculate`, `agent_answer`) | read the house |
 
 ## Calling
 
@@ -107,8 +107,8 @@ All ways go through the same interface: agent, input, call context; back comes t
 the call ID.
 
 - **As a tool of another agent:** if an agent is in another one's tool list, that one's model sees it as a tool:
-  name, description, input schema. The call context comes from the calling run. `delegate` works like this already,
-  only built in.
+  name, description, input schema. The call context comes from the calling run. The agent of the skill `nachdenken` works like
+  this in the conversation (Decided 44).
 - **From Home Assistant:** an action, for instance at the end of an automation, with agent, input and mode;
   synchronously with an answer for the automation (`response_variable`), as `mira.assess` does today. Name:
   `mira.agent`. All agents with a fixed description can be called from Home Assistant (Decided 12).
@@ -127,7 +127,8 @@ also `receiver`). `mira.agent_result` and `mira.agent_cancel` take only the call
 threads do today; then the run goes on (`run_on`) and its result comes as a message to the room or the person, and
 Mira says she will come back. On Telegram it waits up to 30 seconds.
 
-- **Which agents:** `delegate`, built in, and every YAML agent whose description says `conversation: true`. The
+- **Which agents:** every YAML agent whose description says `conversation: true` (until 2026-11-15 also `delegate`,
+  built in; now the skill `nachdenken` brings that agent, Decided 44). The
   default is off: an agent is for Home Assistant, other agents and threads until its description switches it on.
   An agent of `mira.yaml` is then in every conversation; an agent of a skill only once the conversation opened the
   skill (`skill_open`), as the skill's MCP tools, and not in other conversations.
@@ -391,6 +392,10 @@ per agent come in addition.
     its MCP server; `max_rounds` per YAML agent.
 11. **No answer names what came back** (Decided 41): the error and the run's steps. AG-116 (built 2026-11-11).
 12. **The last round says it is the last** (Decided 42). AG-117 (built 2026-11-11).
+13. **The skill `nachdenken` instead of the tool `delegate`** (Decided 44 to 48): the conversation loses the tool
+    `delegate`; Mira's own skill `nachdenken`, always on, brings the agent `nachdenken` with `conversation: true` and
+    `model: delegate`. The agent `delegate` stays, callable from Home Assistant. AG-72 retired; AG-118 to AG-120
+    (built 2026-11-15).
 
 ## Model choice
 
@@ -461,7 +466,7 @@ Things that stand out:
 | `conversation.voice` | HA: a satellite's Assist pipeline | integration → `POST /v1/conversation` | back to HA (spoken); memory, threads, messages |
 | `conversation.telegram` | HA: an event of HA's Telegram integration | integration (`telegram.py`) → `POST /v1/conversation` | back to HA (Telegram) |
 | `skill.task` | Mira herself: a skill's schedule | internal timer → `RunTask` | a message in the queue → notifier |
-| `delegate` | another agent: the conversation calls the tool `delegate` | direct call, waits for the answer | as a tool result back to the conversation |
+| `delegate` | another agent: the conversation calls the tool `delegate` (until 2026-11-15; since then the skill `nachdenken`'s agent, Decided 44) | direct call, waits for the answer | as a tool result back to the conversation |
 | `tasks.assess`, `tasks.decide` | HA: an automation labelled "Mira" calls `mira.assess` / `mira.decide` | integration → `POST /v1/assess` / `/v1/decide` | back to the automation (the action's response); `assess` adds a message if wanted |
 | `tasks.plan` | a thread "aufgabe" that the conversation opened and filled | the thread's finish, in the background | into the thread (database) → announced as a message → the yes comes in a later conversation |
 | `mail.read`, `mail.match` | HA: event `imap_content` | integration (`mail.py`) → `POST /v1/mail` | into a calendar in HA; read by conversation and briefing |
@@ -499,7 +504,8 @@ From that:
     `notify.compose` and the YAML agents. The agents whose instructions the code builds at each call (`mail.*`,
     `tasks.*`, `profile.compact`) are left out.
 13. **`delegate` without an entry:** the rule "without an entry `main`" holds for it too; the tool `delegate` thus
-    always exists, also without `routing.delegate` (today it does not then).
+    always exists, also without `routing.delegate` (today it does not then). The tool is gone since 2026-11-15
+    (Decided 44); the rule holds for the skill `nachdenken`'s agent, which takes the model of `delegate`.
 14. **The event `mira_agent_done` is fired by the integration:** Mira's own Home Assistant user may not fire events
     (`fire_event` is admin only). The agent calls an action of its own integration, allowed only for Mira's user
     (like the `mira/automation` commands today), and the integration fires the event at once.
@@ -547,7 +553,7 @@ From that:
     itself stays an idea). A result goes into fields or the plan only. A failed agent makes the thread ask the user
     for that field.
 
-37. **Agents in the conversation:** besides `delegate`, a YAML agent is a tool of the conversation only when its
+37. **Agents in the conversation:** besides `delegate` (gone from the conversation since 2026-11-15, Decided 44), a YAML agent is a tool of the conversation only when its
     description says `conversation: true` (default off). One of `mira.yaml` is in every conversation, a skill's only
     once the skill is opened.
 38. **A skill's agents work in the skill:** they get the tools of the skill's MCP server that their `tools` list
@@ -570,6 +576,27 @@ From that:
 43. **`delegate` is for knowledge questions, skills come first** (2026-11-14): its description was sharpened to a
     knowledge question with no skill for it, after Gemini Flash Lite took `delegate` instead of a remote agent's skill
     in about 7 of 11 starts, its old list (planning, research steps, recipes) overlapping every skill that does head work.
+    Superseded by 44.
+44. **The skill `nachdenken` instead of the tool `delegate`** (2026-11-15, the maintainer's choice B): the tool
+    `delegate`, always in every conversation, goes away. In its place Mira's own skill `nachdenken`, always on like
+    the skills of the goals: its agent `nachdenken` (`model: delegate`, context background, read-only tools, rights
+    read the house and web, `conversation: true`) is a tool of the conversation once the skill is opened, as the agent
+    of `paperless`. It waits 5 s at a satellite and 30 s on Telegram and then runs on, as every agent as a tool
+    (Decided 27).
+
+Taken while building (2026-11-15), to be confirmed by the maintainer:
+
+45. **The agent `delegate` stays**, only the tool goes: it holds the strongest model's entry (`agents.delegate`,
+    which `model: delegate` names, the skill `nachdenken` and `regel` among them), it stays on Mira's page as one of
+    her own agents, and it stays callable from Home Assistant (`mira.agent` with `agent: delegate`, Decided 12), so
+    no automation and no `mira.yaml` breaks.
+46. **`nachdenken` is always on**, like the skills of the goals and the mail (no entry needed under `skills`;
+    `enabled: false` switches it off), since `delegate` was always there too.
+47. **No English translation** of the skill (`SKILL.en.md`): like the other skills that are always on, it is German
+    only; the agent's instructions were the only part of `delegate` with an English text.
+48. **An eval run leaves out the skill `recherche`**: its agent would research for real (minutes, its own model);
+    the eval skill `hermes` stands for it, so a run offers one research skill ([Evals](evals.md), Remote agents and
+    delegate, decision 5).
 
 ## Open questions
 

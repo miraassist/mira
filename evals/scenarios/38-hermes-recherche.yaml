@@ -1,5 +1,5 @@
 name: hermes-recherche
-description: Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht delegate
+description: Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht den Skill nachdenken
 skills: [hermes]
 steps:
   - say: Finde heraus, welche Wärmepumpe zu einem Altbau passt
@@ -8,6 +8,6 @@ steps:
         - remote_received: { contains: Wärmepumpe }
       behaviour:
         must: [thread:hermes]
-        must_not: [tool:delegate]
+        must_not: [tool:skill_open:nachdenken, tool:nachdenken]
       answer:
         contains: [Hermes]

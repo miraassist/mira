@@ -57,7 +57,7 @@ The warmup of today (`warmup_on_start`, `warmup_on_prefix_change`, [Models](mode
 | 5 | More optimisation for local models | None after this |
 | 6 | When it is on | A setting of the model, `warm_slots: true` (default off), in `mira.yaml` and on the page "Models". Only for a local model; Mira does not guess the server |
 | 7 | Which two slots, and `pin_slots` | Slots 0 and 1, for every channel (they share the prompt but for a short style message, [Context](context.md)); `pin_slots` is not used for a model with `warm_slots` |
-| 8 | Mira's helpers (agents: delegate, skills' agents, tasks, the profile) on the same model | In the spare slot: the warm slot belongs to the conversation turns. A helper stops a reading there, as a turn does; it starts again once the model is free |
+| 8 | Mira's helpers (agents: delegate, skills' agents such as `nachdenken`'s, tasks, the profile) on the same model | In the spare slot: the warm slot belongs to the conversation turns. A helper stops a reading there, as a turn does; it starts again once the model is free |
 | 9 | Which prompt is read in the background | The voice channel's: the other channels find the shared part warm and read only their short end |
 
 ## How it works

@@ -516,7 +516,7 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
   - `chapter`: das Kapitel dieser Anleitung zum Skill, so wie seine Überschrift beginnt (`"## Kochen und Backen"`, für einen Abschnitt `###`). Miras Seite zeigt beim Skill einen Link dorthin. In einer Übersetzung (`SKILL.en.md`) steht das Kapitel der englischen Anleitung.
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein. Wo das Haus liegt, weiß Mira aus Home Assistant (Einstellungen → System → Allgemein): `{{ home.latitude }}`, `{{ home.longitude }}` und `{{ home.name }}` setzt sie ein, wenn der Skill gebraucht wird; eine Einstellung dafür ist nicht nötig.
 
-**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen und Pakete sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
+**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen, Pakete und Nachdenken sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
 
 **Einen mitgelieferten Skill anpassen.** Die mitgelieferten Skills stecken im Container unter `/app/skills` und werden bei jedem Update ersetzt. Willst du einen ändern, kopierst du ihn in deinen eigenen Skill-Ordner:
 
@@ -1000,7 +1000,7 @@ Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebn
 
 Die Suche ist eingebaut und braucht keine Einrichtung. Ausschalten kannst du sie unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **Allgemein** → **Internetsuche**, etwa wenn du eine andere Suche verwendest (siehe „Weitere Werkzeuge über MCP“).
 
-Ist die Einrichtung mit einem stärkeren Sprachmodell verbunden, gibt Mira aufwendige Fragen dorthin ab – Erklärungen, Vergleiche, Abwägungen – und fasst das Ergebnis für dich zusammen. Das stärkere Modell kann nachschlagen, aber nichts im Haus verändern.
+Aufwendige Fragen – Erklärungen, Vergleiche, Abwägungen („Erklär mir, wie eine Wärmepumpe funktioniert“) – gibt Mira mit dem mitgelieferten Skill **Nachdenken** an das stärkste Modell deiner Einrichtung ab und fasst das Ergebnis für dich zusammen. Welches das ist, steht in der `mira.yaml` unter `agents` bei `delegate` (siehe „Mehrere Modelle“); ohne Eintrag ist es `main`. Das Modell kann nachschlagen, aber nichts im Haus verändern. Braucht es länger als ein paar Sekunden, meldet sich Mira mit der Antwort als Nachricht. Der Skill ist ohne Eintrag an; mit `nachdenken: { enabled: false }` unter `skills` schaltest du ihn aus.
 
 ## Erinnerungen, Timer und Wecker
 
@@ -1214,7 +1214,7 @@ agents:
 - **`parallel`** ist, wie viele Anfragen ein Modell gleichzeitig bekommt; ohne Angabe 1 bei `local`, 4 bei `cloud`.
 - **`fallback`** nennt ein anderes Modell, das Mira nimmt, wenn dieses nicht antwortet. Ist es nur gerade beschäftigt, wartet Mira.
 - **Lehnt ein Modell den Schlüssel ab oder ist es nicht erreichbar**, sagt Mira das im Gespräch („Mein KI-Modell lehnt meinen Schlüssel ab …“), und unter **Reparaturen** steht, welches Modell es ist und was der Server geantwortet hat, bis es wieder antwortet.
-- **Wer was nimmt:** Ohne Eintrag unter `agents` nimmt jeder Teil `main`. Die Teile heißen: `conversation.voice` (Sprache), `conversation.telegram` (Telegram), `delegate` (schwierige Fragen), `skill.task` (Zeitpläne der Skills, Briefing), `notify.compose` (Ansagen), `tasks.assess`, `tasks.decide`, `tasks.plan` (Aufgaben), `mail.read`, `mail.match` (Mails), `profile.compact` (Gedächtnis-Profil).
+- **Wer was nimmt:** Ohne Eintrag unter `agents` nimmt jeder Teil `main`. Die Teile heißen: `conversation.voice` (Sprache), `conversation.telegram` (Telegram), `delegate` (das stärkste Modell: schwierige Fragen im Skill Nachdenken, eigene Regeln schreiben), `skill.task` (Zeitpläne der Skills, Briefing), `notify.compose` (Ansagen), `tasks.assess`, `tasks.decide`, `tasks.plan` (Aufgaben), `mail.read`, `mail.match` (Mails), `profile.compact` (Gedächtnis-Profil).
 - **`privacy: local`** bei einem Teil heißt: Er läuft nur auf einem lokalen Modell, auch kein Fallback in die Cloud. Ein Skill kann das ebenso verlangen (`privacy: local` unter `metadata.mira`); dann prüft Mira beim Start alle Teile, die er nutzt. Passt etwas nicht, startet er nicht, und Home Assistant zeigt unter **Reparaturen**, was zu ändern ist.
 
 Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.

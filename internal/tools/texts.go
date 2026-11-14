@@ -14,7 +14,6 @@ type texts struct {
 	messageSendDesc, messageTo, messageSendText, messageSent, unknownReceiver                     string
 	refusedNone, refusedPersons, fromPerson, fromPersonHouse, fromArea, fromAreaHouse, remindFrom string
 	textMissing, invalidArgs                                                                      string
-	delegateDesc, delegateTask                                                                    string
 	calculateDesc, calculateExpr, calculateBad                                                    string
 	reminderSetDesc, reminderText, reminderAt, reminderInMinutes, reminderFor                     string
 	reminderBadTime, reminderPast, reminderTooFar, reminderSaved                                  string // reminderSaved: time, id
@@ -64,8 +63,6 @@ var catalog = map[i18n.Lang]texts{
 		remindFrom:         "%s erinnert dich: %s",
 		textMissing:        "text fehlt",
 		invalidArgs:        "ungültige Argumente: %w",
-		delegateDesc:       "Gibt eine Wissensfrage an ein stärkeres Modell ab, wenn sie viel Wissen oder gründliches Nachdenken braucht (Erklärungen, Vergleiche, Abwägungen) und kein Skill dafür da ist. Passt ein Skill, öffne ihn, statt hier abzugeben: Kochen, Dokumente, Termine, Vorgänge und Agenten der Skills laufen nur dort. Nicht für Schaltbefehle, Zustandsabfragen oder Smalltalk. Das stärkere Modell kann nachschlagen, aber nichts verändern. Fasse sein Ergebnis für den Nutzer im Stil des Kanals zusammen.",
-		delegateTask:       "Die vollständige Aufgabe mit allem nötigen Kontext aus dem Gespräch; das andere Modell kennt das Gespräch nicht.",
 		calculateDesc:      "Rechnet einen Ausdruck exakt aus. Nimm das immer, wenn du mehr als zwei Zahlen zusammenrechnest, Mengen umrechnest oder Prozente ausrechnest, statt im Kopf zu rechnen.",
 		calculateExpr:      "Der Ausdruck mit Zahlen (Dezimalpunkt, kein Tausenderpunkt), + - * / und Klammern, z. B. 307.93 + 276.77 + 54.86 oder 400 * 2 / 4.",
 		calculateBad:       "Das lässt sich nicht ausrechnen: %v",
@@ -130,8 +127,6 @@ var catalog = map[i18n.Lang]texts{
 		remindFrom:         "%s reminds you: %s",
 		textMissing:        "text is missing",
 		invalidArgs:        "invalid arguments: %w",
-		delegateDesc:       "Hands a knowledge question to a stronger model when it needs a lot of knowledge or careful thought (explanations, comparisons, weighing options) and no skill is there for it. If a skill fits, open it instead of handing off here: cooking, documents, appointments, threads and the skills' agents run only there. Not for switching, state lookups or small talk. The stronger model can look things up but change nothing. Summarize its result for the user in the channel's style.",
-		delegateTask:       "The complete task with all needed context from the conversation; the other model does not know the conversation.",
 		calculateDesc:      "Computes an expression exactly. Use it whenever you add up more than two numbers, scale quantities or work out percentages, instead of calculating in your head.",
 		calculateExpr:      "The expression with numbers (decimal point, no thousands separator), + - * / and brackets, e.g. 307.93 + 276.77 + 54.86 or 400 * 2 / 4.",
 		calculateBad:       "That cannot be computed: %v",

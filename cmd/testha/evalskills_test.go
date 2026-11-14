@@ -94,7 +94,29 @@ func TestEvalTraceNamesTheOpenedSkill(t *testing.T) {
 	if got := traceKey(trace.Event{Kind: trace.Tool, Name: "skill_open", Detail: `{"name":"hermes"}`}); got != "tool:skill_open:hermes" {
 		t.Errorf("skill_open: %q", got)
 	}
-	if got := traceKey(trace.Event{Kind: trace.Tool, Name: "delegate", Detail: `{"task":"x"}`}); got != "tool:delegate" {
-		t.Errorf("delegate: %q", got)
+	if got := traceKey(trace.Event{Kind: trace.Tool, Name: "nachdenken", Detail: `{"input":"x"}`}); got != "tool:nachdenken" {
+		t.Errorf("an agent's tool: %q", got)
+	}
+}
+
+// The shipped skill recherche is left out of an eval run: its agent would
+// research for real, and the eval skill hermes stands for it.
+func TestEvalLeavesOutTheRealResearchSkill(t *testing.T) {
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte("skills:\n  dirs: [skills]\n  recherche: {url: http://127.0.0.1:9900}\n  abfall: {}\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	withEvalSkills(cfg, []string{"hermes"})
+	if got := withoutRealRemoteAgents(cfg); len(got) != 1 || got[0] != "recherche" {
+		t.Errorf("left out %v", got)
+	}
+	skills := cfg["skills"].(map[string]any)
+	if _, ok := skills["recherche"]; ok {
+		t.Error("recherche is still on")
+	}
+	for _, kept := range []string{"hermes", "abfall"} {
+		if _, ok := skills[kept]; !ok {
+			t.Errorf("%s is gone", kept)
+		}
 	}
 }

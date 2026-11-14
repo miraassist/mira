@@ -326,12 +326,8 @@ Feature: AG Agents
     When the agent runs
     Then it takes the model smart
 
-  @step4
-  Scenario: AG-72 The delegate agent exists without an entry too
-    Given routing has nothing for delegate
-    When the conversation is called
-    Then it has the tool delegate
-    And the delegate agent takes the model main
+  # AG-72 (the tool delegate exists without an entry) was retired on 2026-11-15 with step 13: the conversation has no
+  # tool delegate any more; replaced by AG-118 and AG-119.
 
   # --- Runtime (agents.md: Runtime) -----------------------------------------------------------------
 
@@ -648,3 +644,26 @@ Feature: AG Agents
     Then that request has tool_choice none and, last, the sentence that the rounds are used up
     And the sentence is not in the run's steps
     And the answer to it is the run's answer
+
+  # --- The skill nachdenken instead of the tool delegate (agents.md: Decided 44) ---------------------------------
+
+  @step13
+  Scenario: AG-118 The conversation hands a question on through the skill nachdenken
+    Given mira.yaml has no entry for the skill nachdenken
+    When Mira starts
+    Then the skill is on, as Mira's own skills are
+    And the conversation has no tool delegate
+    And once the conversation opened the skill, its agent nachdenken is a tool
+    And the agent reads the house and the web in the background context and changes nothing
+
+  @step13
+  Scenario: AG-119 The agent of nachdenken takes the model mira.yaml names for delegate
+    Given agents.delegate.model is smart
+    When the conversation calls nachdenken with a question
+    Then the agent runs on smart, and its answer is the tool's result
+    And without an entry for delegate it runs on main
+
+  @step13
+  Scenario: AG-120 The agent delegate stays callable from Home Assistant
+    Given an automation calls mira.agent with the agent delegate
+    Then it answers as before

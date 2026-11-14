@@ -19,7 +19,7 @@ func TestMemoryHasOwners(t *testing.T) {
 	}
 	t.Cleanup(func() { st.Close() })
 	tl := map[string]InternalTool{}
-	for _, it := range Internal(i18n.DE, st, nil) {
+	for _, it := range Internal(i18n.DE, st) {
 		tl[it.Name] = it
 	}
 	anna := Invocation{Channel: config.ChannelTelegram, Person: "anna"}
