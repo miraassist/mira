@@ -52,7 +52,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 1 | Where a remote agent is described | As an agent of a skill, `metadata.mira.agents`, only that it is remote. Its address and token are settings of the skill: in `mira.yaml`, written by Mira's page; no second place |
 | 2 | Who starts it | A thread only: the skill's target; Home Assistant through `mira.agent` with the new field `skill`, which starts that skill's thread (decision 7). Neither `delegate` nor the conversation call it directly |
 | 3 | In the conversation | A2A is always a thread, never directly part of a turn |
-| 4 | How the result arrives | By push (A2A push notification to the Mira service) when the agent card offers it and Mira has her address for remote agents (decision 13), else by a stream (SSE). Push, not polling |
+| 4 | How the result arrives | By a stream (SSE) when the agent card offers one; by push (A2A push notification to the Mira service) only for an agent without a stream, and only when Mira has her address for remote agents (decision 13). Never by polling. Changed 2026-11-14 (open question 1, A): first push before the stream; a stream starts from Mira, needs no address and no way into the home network, and Hermes's pushes are cut and unauthenticated |
 | 13 | Push address | The push endpoint is the Mira service's. Mira does not know how she is reached from outside (in a container and in the HA app she only listens on all interfaces), so it is a setting: `server.url`, Mira's address for remote agents, in `mira.yaml`, written by Mira's page. Without it Mira uses the stream (2026-11-14, 13A) |
 | 23 | Testing | Against a **fake A2A agent** without a model, deterministic, built with the Go SDK (`testenv/a2a_fake`, [Fake devices](fake-devices.md)): one agent whose agent card has one skill per behaviour (complete, ask back, login, fail, reject, push twice, …); the skill on Mira's side picks the behaviour with `a2a_skill` (2026-11-14, 1B). A real agent (Hermes) is not set up for the tests |
 | 24 | Where the fake runs | As a container in `testenv/compose.yaml`, beside the test HA (2026-11-14, 2B); the Go tests start it in the process |
@@ -71,7 +71,7 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 10 | Input to the remote agent | One A2A message: a text part with the request and the fields the target's `input` names, worded as the target's `input` says; an input object becomes a data part beside it |
 | 11 | The result | The task's artifacts: all text parts joined, in order; a data part as JSON. That fills the field (or is the plan) as an agent's answer does today. Files (`raw`, `url`) are named in the text by their file name and not downloaded in this spec |
 | 12 | No way for the result | A card without streaming, when Mira cannot use push (the card offers none or `server.url` is not set): the remote agent is refused when the skill is loaded, since Mira would have to poll `GetTask`. The skill's problem says so and names what is missing; the skill stays, without that agent |
-| 14 | Push token | Per call a random token Mira makes; the remote agent sends it back on every push (`Authorization: Bearer`). A push with an unknown or wrong token is refused (401) and logged |
+| 14 | Push token | Per call a random token Mira makes; the remote agent sends it back on every push. Mira takes it from `A2A-Notification-Token` (what the Go SDK sends) or from `Authorization: Bearer` (2026-11-14, by the maintainer, 2A). A push with an unknown or wrong token is refused (401) and logged |
 | 15 | A push comes twice | A2A delivers at least once. Mira keeps the state per task; a push that repeats a state or an artifact already taken changes nothing |
 | 17 | The agent card | Read when the skill is loaded (Mira's start, a skill reload), kept in memory; an unreachable card is tried again like an MCP server that is down (from the retry interval up to 30 minutes). Signed cards are not checked in this spec |
 | 18 | http or https | Both: the address is the user's choice. A2A requires TLS in production; a remote agent in the home network often has none. The guide says that a token over http is readable in the network |
@@ -263,7 +263,7 @@ Python's standard library, no SDK. A2A 1.0, JSON-RPC over HTTP only, SSE.
 |---|---|---|
 | A send repeated with the same `messageId` | its local agent drops the `messageId`: two tasks, two turns (`adapter.py` 573–587); deduplication only for forwarded agents | decision 26: no retry after the send reached it |
 | Push configuration in the same send | yes, `configuration.taskPushNotificationConfig.url` (`adapter.py` 813–818, 607) | as planned |
-| Push authentication | ignores `token` and `authentication`; signs each push with HMAC-SHA256 in `X-A2A-Signature` (secret `A2A_PUSH_SECRET`, else its bearer token), over the body with sorted keys | Mira's bearer check refuses Hermes's pushes: open question 1 |
+| Push authentication | ignores `token` and `authentication`; signs each push with HMAC-SHA256 in `X-A2A-Signature` (secret `A2A_PUSH_SECRET`, else its bearer token), over the body with sorted keys | Mira uses Hermes's stream, not its pushes (decision 4) |
 | Pushes | one per task, at its end, text cut at 2000 characters; no retry; a guard against private addresses (`allow_private_urls`) | the stream gives the whole result |
 | `returnImmediately` | ignored: a send blocks until the answer or 300 s | with Hermes the stream is the way |
 | Card | `pushNotifications` always true, `streaming` true for its local agent; bearer scheme unless only on localhost | — |
@@ -273,13 +273,6 @@ Python's standard library, no SDK. A2A 1.0, JSON-RPC over HTTP only, SSE.
 | Turns per context | 5 (`A2A_MAX_PINGPONG_TURNS`, up to 20) | a long back and forth ends there |
 
 Rows 2 and 10 of the checks are answered for Hermes by this (2026-11-14, from its source).
-
-## Open questions
-
-1. **Push or stream first:** Hermes's pushes carry no bearer token but an HMAC signature, and cut the result at 2000
-   characters. Either Mira prefers the stream whenever the card offers one and uses push only for agents without a
-   stream (Hermes then works over the stream), or she keeps push first and also accepts an HMAC signature with the
-   skill's token as the secret.
 
 ## Steps
 
