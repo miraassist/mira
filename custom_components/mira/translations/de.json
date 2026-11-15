@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Mira verbinden",
-        "description": "Meist findet Home Assistant Mira von selbst, sie steht dann unter **Entdeckt**. Sonst gib die Adresse des Rechners ein, auf dem Mira läuft, mit Port 8787. Auf demselben Rechner wie Home Assistant ist das `http://localhost:8787`.\n\nNoch kein Mira? Eine Zeile Docker genügt, eine Config-Datei braucht es nicht: [Einrichtung in fünf Schritten]({guide}).",
+        "description": "Meist findet Home Assistant Mira von selbst, sie steht dann unter **Entdeckt**. Sonst gib die Adresse des Rechners ein, auf dem Mira läuft, mit Port 8787. Auf demselben Rechner wie Home Assistant ist das `http://localhost:8787`.\n\nNoch kein Mira? Eine Zeile Docker genügt, eine Config-Datei braucht es nicht: [Einrichtung in drei Schritten]({guide}).",
         "data": {
           "url": "Adresse von Mira"
         }
@@ -469,12 +469,12 @@
       "description": "Mira ist ohne sie gestartet. {text}\n\nÄndere die Datei im Ordner hooks neben der mira.yaml. Die Meldung verschwindet hier, sobald die Datei lädt."
     },
     "version_agent_older": {
-      "title": "Mira-Dienst aktualisieren",
-      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Dienst erst {agent}. Aktualisiere den Mira-Dienst auf {integration}: beim Container das Image auf {integration} stellen und neu starten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+      "title": "Mira-Service aktualisieren",
+      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere den Mira-Service auf {integration}: bei der HA-App unter Einstellungen → Updates; beim eigenen Container das Image auf {integration} stellen und neu starten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
     },
     "version_agent_newer": {
       "title": "Mira-Integration aktualisieren",
-      "description": "Der Mira-Dienst hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration unter Einstellungen → Updates auf {agent} (vor Home Assistant 2026.11: in HACS) und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+      "description": "Der Mira-Service hat die Version {agent}, die Mira-Integration erst {integration}. Aktualisiere die Integration unter Einstellungen → Updates auf {agent} (vor Home Assistant 2026.11: in HACS) und starte Home Assistant neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
     },
     "satellite_no_area": {
       "title": "Mira weiß nicht, wo {name} steht",

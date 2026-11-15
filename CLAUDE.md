@@ -93,7 +93,11 @@ FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz)) fo
 
 - **Semantic versioning**: a patch for fixes, a minor version for features and changed configuration. Every live
   change raises the version of the service and of the integration.
-- **The guide is updated before a release**: new pages, new skills, screenshots.
+- **The guide is updated before a release**: new pages, new skills, screenshots. Part of it is a **cross-check of
+  the user-facing documents** against the code, the skills and the specs: the guide in both languages (against each
+  other too), README, the HA app's DOCS.md, `mira.example.yaml`, the integration's texts, CONTRIBUTING and
+  SECURITY; outdated or missing statements, menu paths and setting names, and the glossary's terms. Findings are
+  listed first, then fixed.
 - **`scripts/check.sh` before every push** (Go tests with the scenario check, pytest, hassfest).
 - **Every test run gets a small deadline** (`go test -timeout`): 120 s with `-race` (`scripts/check.sh`, CI) and
   60 s without (release), never Go's default of ten minutes per package. Hunting a hanging test, `-timeout 20s`

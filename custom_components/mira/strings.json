@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Connect Mira",
-        "description": "Usually Home Assistant finds Mira by itself, and it shows up under **Discovered**. If not, enter the address of the machine Mira runs on, with port 8787. On the same machine as Home Assistant that is `http://localhost:8787`.\n\nNo Mira yet? One line of Docker is enough, no config file needed: [setup in five steps]({guide}).",
+        "description": "Usually Home Assistant finds Mira by itself, and it shows up under **Discovered**. If not, enter the address of the machine Mira runs on, with port 8787. On the same machine as Home Assistant that is `http://localhost:8787`.\n\nNo Mira yet? One line of Docker is enough, no config file needed: [setup in three steps]({guide}).",
         "data": {
           "url": "Address of Mira"
         }
@@ -470,7 +470,7 @@
     },
     "version_agent_older": {
       "title": "Update the Mira service",
-      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira service to {integration}: for a container, set its image to {integration} and start it again.\n\nThis message disappears once both have the same version."
+      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira service to {integration}: for the HA app, under Settings → Updates; for a container of your own, set its image to {integration} and start it again.\n\nThis message disappears once both have the same version."
     },
     "version_agent_newer": {
       "title": "Update the Mira integration",

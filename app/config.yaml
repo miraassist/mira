@@ -4,7 +4,7 @@
 name: Mira
 version: "0.24.0"
 slug: mira
-description: The household voice agent behind the Mira integration.
+description: The voice assistant service behind the Mira integration.
 url: https://github.com/miraassist/mira
 arch:
   - amd64

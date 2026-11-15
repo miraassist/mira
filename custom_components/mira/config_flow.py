@@ -124,9 +124,8 @@ def _best_host(info: ZeroconfServiceInfo) -> str:
 
 
 class ModelSteps:
-    """Choosing the AI model (LLM): where it comes from (an AI integration
-    Home Assistant has, a cloud provider, or a server of one's own), then a
-    model from what it offers. The service tries it with a real request
+    """Choosing the AI model (LLM): where it comes from (a cloud provider or
+    a server of one's own), then a model from what it offers. The service tries it with a real request
     before it keeps it. Used by the setup and by the options; _use_model
     does the rest."""
 

@@ -7,8 +7,10 @@
 # run it as nonroot (the data folder belongs to nonroot):
 #
 #   docker build -t mira .
-#   docker run --user nonroot -v ./mira.yaml:/etc/mira/mira.yaml:ro -v mira-data:/var/lib/mira \
+#   docker run --user nonroot -v ./mira:/etc/mira -v mira-data:/var/lib/mira \
 #     -p 8787:8787 -e TZ=Europe/Berlin mira
+#
+# ./mira holds mira.yaml (and skills of your own) and must be writable for nonroot.
 #
 # The config sets store.path: /var/lib/mira/mira.db (as in mira.example.yaml).
 # MCP servers over stdio need their runtime (e.g. node) and do not run in this

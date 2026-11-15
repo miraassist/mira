@@ -14,6 +14,8 @@ Home Assistant ist dabei ihr Werkzeugkasten: Lampen, Sensoren, Sprach-Satelliten
 
 ## Ein Gespräch mit Mira
 
+▶ [Erklärvideo: Mira fragt nach (0:51)](https://mira-assist.com/videos/erklaer/rueckfragen.mp4)
+
 ▶ [Eine Aufgabe einrichten: Mira fragt nach, schlägt vor und richtet sie nach deinem Ja ein](https://mira-assist.com/videos/mira-chat-de.mp4#t=266,312)
 
 So klingt das, zum Beispiel beim Einrichten einer Aufgabe:
@@ -40,7 +42,7 @@ Und bei einer Frage, die das Haus gar nicht betrifft:
 
 - **Per Sprache**: über einen Sprach-Satelliten (z. B. den Echo im Wohnzimmer). Sag das Aktivierungswort und dann, was du möchtest. Mira weiß, in welchem Raum der Satellit steht: „Mach das Licht an“ meint das Licht in diesem Raum. Ist ihre Antwort eine Frage, hört der Satellit gleich weiter zu.
 - **Per Telegram**: schreib dem Bot, den du in Home Assistant eingerichtet hast (Integration „Telegram bot“). Damit Mira antwortet, muss dein Chat bei deiner Person als Kanal eingetragen sein (siehe unten). Antworten dürfen hier länger sein, mit Listen und Links. `/neu` beginnt ein neues Gespräch.
-- **In der Home-Assistant-App**: Der Assist-Chat der Companion App spricht ebenfalls mit Mira, getippt oder gesprochen.
+- **In der Companion App**: Der Assist-Chat der Companion App (der App von Home Assistant auf dem Handy) spricht ebenfalls mit Mira, getippt oder gesprochen.
 
 Mira antwortet in der Sprache, in der du sie ansprichst.
 
@@ -52,12 +54,12 @@ Gib Mira eine dauerhafte Aufgabe, und sie behält etwas für dich im Blick:
 - „Sag Bescheid, wenn nachts ungewöhnlich viel Strom verbraucht wird.“
 - „Melde dich sofort, wenn einer der Lecksensoren anschlägt.“
 
-▶ [Ein Auftrag für den Lecksensor und die Meldung, wenn er anschlägt](https://mira-assist.com/videos/mira-chat-de.mp4#t=623,673)
+▶ [Eine Aufgabe für den Lecksensor und die Meldung, wenn er anschlägt](https://mira-assist.com/videos/mira-chat-de.mp4#t=623,673)
 
 So läuft das Einrichten ab:
 
 1. Fehlt Mira etwas, fragt sie zurück, statt zu raten – etwa „Welche Uhrzeit ist für dich ungewöhnlich?“. Antworte einfach; das Gespräch bleibt beim Thema, auch über mehrere Sätze.
-2. Dann plant sie. Geht das schnell, nennt sie dir den Vorschlag gleich; sonst sagt sie „Ich plane das“ und meldet sich, sobald sie fertig gesprochen hat – im selben Raum oder auf Telegram.
+2. Dann plant sie. Geht das schnell, nennt sie dir den Vorschlag gleich; sonst sagt sie „Ich plane das“ und meldet sich mit dem Vorschlag, sobald sie fertig geplant hat – im selben Raum oder auf Telegram.
 3. Der Vorschlag sagt, was sie beobachtet, und nennt die Bedingung: „Wenn die Nachttischlampe angeht, sage ich dir Bescheid. Bedingung: nur zwischen 1 und 4 Uhr. Soll ich so vorgehen?“
 4. Sag **„Ja“**, dann richtet sie die Aufgabe ein. Mit „Nein, lass es“ bricht sie ab. Antwortet niemand, verfällt der Vorschlag nach einer Viertelstunde.
 
@@ -83,7 +85,7 @@ Mira sucht die Aufgabe heraus, fragt nach, wenn zwei passen, und nennt dir die �
 
 Eigene Automationen können Mira genauso nutzen: die Aktionen **Mira: Bewerten** (`mira.assess`), **Mira: Entscheiden** (`mira.decide`, eine Ja/Nein-Antwort für Bedingungen) und **Mira: Nachricht senden** (`mira.send_message`). Aufgaben gehören vorerst dem ganzen Haus und nutzen beim Beurteilen das Haus-Gedächtnis.
 
-Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer Automation, etwa `delegate` mit der Eingabe `{"input": "Plane ein Menü für Samstag."}`. Ohne weitere Angaben wartet die Automation bis zu 60 Sekunden auf die Antwort; mit `response_variable` liest du sie. Mit dem Modus **async** geht es sofort weiter: Das Ergebnis kommt dann als Ereignis `mira_agent_done`, auf das eine Automation warten kann, oder mit **Zustellung: message** als Nachricht von Mira. **Mira: Agent-Ergebnis** liest einen Lauf über seine Aufruf-ID, **Mira: Agent abbrechen** beendet ihn.
+Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer Automation, etwa `delegate` mit der Eingabe `{"input": "Plane ein Menü für Samstag."}`. Ohne weitere Angaben wartet die Automation bis zu 60 Sekunden auf die Antwort; mit `response_variable` liest du sie. Ist die Zeit um, bricht Mira den Lauf ab; mit `on_timeout: run_on` lässt sie den Agenten fertig werden und liefert das Ergebnis später, so wie im Modus async. Mit dem Modus **async** geht es sofort weiter: Das Ergebnis kommt dann als Ereignis `mira_agent_done`, auf das eine Automation warten kann, oder mit **Zustellung: message** als Nachricht von Mira. **Mira: Agent-Ergebnis** liest einen Lauf über seine Aufruf-ID, **Mira: Agent abbrechen** beendet ihn.
 
 ### Wächter: Mira passt auf deine Geräte auf
 
@@ -170,8 +172,8 @@ Welche Sensoren dazugehören, sagst du in deinen Worten: alle im Haus, nur in be
 ```yaml
 - action: mira.check
   data:
-    scope: openings        # Fenster und Türen; lights für Lampen
-    floors: [dachgeschoss] # optional, sonst das ganze Haus
+    scope: openings        # Fenster und Türen; lights für Lampen, motion für Bewegungsmelder
+    floors: [dachgeschoss] # optional, sonst das ganze Haus; ebenso areas für Bereiche
   response_variable: check
 - if: "{{ check.open | count > 0 }}"
   then:
@@ -179,6 +181,8 @@ Welche Sensoren dazugehören, sagst du in deinen Worten: alle im Haus, nur in be
       data:
         message: "Noch offen: {{ check.open | map(attribute='name') | join(', ') }}"
 ```
+
+Die Nachricht geht ans Haus; mit `receiver: anna` (die ID der Person in Home Assistant) an eine Person, mit `notify: false` an niemanden, dann zählt nur die Antwort.
 
 **Batterien und Erreichbarkeit.** Zwei Wächter für Gruppen kümmern sich um die Geräte selbst: Mira schaut einmal am Tag (normalerweise um 9 Uhr) nach allen Batterien im Haus und nach allen Geräten, die Home Assistant nicht mehr erreicht, und sagt dir, was sie findet.
 
@@ -198,11 +202,11 @@ Auch diese Wächter sind Aufgaben wie alle anderen: „Pass erstmal nicht auf di
 
 Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmaschine ist fertig, morgen wird der Müll abgeholt, eine Aufgabe findet etwas Ungewöhnliches. Wie sie dir das sagt, hängt vom Raum und von der Wichtigkeit ab.
 
-▶ [Eine Nachricht fürs Haus hinterlassen und später nach Benachrichtigungen fragen](https://mira-assist.com/videos/mira-chat-de.mp4#t=195,227)
+▶ [Eine Nachricht fürs Haus hinterlassen und später nach Nachrichten fragen](https://mira-assist.com/videos/mira-chat-de.mp4#t=195,227)
 
 Pro Satellit stellst du ein:
 
-- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen „Mira · 1 Nachricht wartet“ ein, sobald etwas Neues kommt, und nimmt es weg, wenn alles gehört ist; das erkennt Mira von selbst. Frag dann: **„Hab ich neue Nachrichten?“** oder „Gibt es was Neues?“. Mira sagt dir alles, was wartet; wartet Verschiedenes (Post, der Anrufbeantworter, ein neues Gerät), fragt sie, womit sie anfangen soll, und geht es dann eins nach dem anderen mit dir durch.
+- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen eine Minute lang „1 Nachricht wartet – frag: ‚Hab ich neue Nachrichten?‘“ ein, sobald etwas Neues kommt; ist alles gehört, solange der Hinweis noch steht, zeigt er kurz „Alles gehört“. Dass ein Satellit einen Bildschirm hat, erkennt Mira von selbst. Frag dann: **„Hab ich neue Nachrichten?“** oder „Gibt es was Neues?“. Mira sagt dir alles, was wartet; wartet Verschiedenes (Post, der Anrufbeantworter, ein neues Gerät), fragt sie, womit sie anfangen soll, und geht es dann eins nach dem anderen mit dir durch.
 - **Beim Hereinkommen ansagen**: Merkt ein Bewegungsmelder, dass jemand den Raum betritt, sagt Mira von selbst an, was ansteht; die erste Bewegung nach der Ruhezeit beginnt mit „Guten Morgen“. Ohne Bewegungsmelder oder ausgeschaltet spricht sie dich nicht von sich aus an.
 
 Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).
@@ -232,7 +236,7 @@ Was der Echo beim Hören, Denken und Sprechen zeigt, stellst du am Echo selbst e
 
 **Ruhemodus**: Der Schalter „Ruhemodus“ in Home Assistant stellt alle Ansagen ab, bis du ihn wieder ausschaltest.
 
-**Vertrauliches und Persönliches**: Nachrichten können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat über die Kanäle der Person (Telegram, Companion-App).
+**Vertrauliches und Persönliches**: Nachrichten können für eine Person bestimmt oder vertraulich sein. Vertrauliches liest Mira nur vor, wenn die Einstellung es erlaubt (z. B. nur wenn die Person allein zu Hause ist); sonst kommt es privat über die Kanäle der Person (Telegram, Companion App).
 
 ![Nachrichten: wartende und zugestellte](img/meldungen-de.png)
 
@@ -251,7 +255,7 @@ Was Mira weiß, nutzt sie auch beim Aufpassen: Sag ihr „Merk dir, die Nachttis
 Es gibt ein Gedächtnis fürs **Haus** und eins für **jede Person**:
 
 - Weiß Mira, wer spricht, merkt sie sich es für diese Person. Ins Haus-Gedächtnis kommt es nur, wenn du es ausdrücklich sagst („merk dir fürs Haus …“).
-- Mira weiß, wer spricht: über Telegram, im Chat der HA-App (über deinen HA-Benutzer) und am Satelliten an deiner Stimme, wenn die Stimmerkennung eingerichtet ist (siehe unten), oder wenn du allein zu Hause bist und das auf deiner Karte eingeschaltet hast („Bist du allein zu Hause, weiß Mira, dass du es bist“). Sonst ist es am Satelliten das Haus.
+- Mira weiß, wer spricht: über Telegram, im Assist-Chat der Companion App (über deinen HA-Benutzer) und am Satelliten an deiner Stimme, wenn die Stimmerkennung eingerichtet ist (siehe unten), oder wenn du allein zu Hause bist und das auf deiner Karte eingeschaltet hast („Bist du allein zu Hause, weiß Mira, dass du es bist“). Sonst ist es am Satelliten das Haus.
 - Dein persönliches Gedächtnis sieht nur Mira im Gespräch mit dir. Das Haus-Gedächtnis gilt für alle.
 - In fremde Gedächtnisse schreibt niemand.
 
@@ -281,7 +285,7 @@ Die Stimmerkennung ist **freiwillig**. Ohne sie läuft Mira wie bisher; auf dein
 
 **Deine Stimme anlernen.** Auf der Übersicht hat jeder eine Karte mit seinem Namen. Dort **Stimme anlernen**: Die Karte zeigt vier Sätze, etwa „Wie spät ist es gerade?“. Sag an einem Satelliten jeweils das Aktivierungswort und einen davon, am besten alle. Jeder Satz erscheint auf der Karte; tipp jeweils auf **Das war ich**, am Ende auf **Fertig**. Die Karte zeigt drei Minuten lang nur diese Sätze, gesagt ab dem Klick, und nicht in der Stimme von jemand anderem. Was sonst im Haus gesagt wird, sieht dort niemand. Wird deine Stimme später oft nicht erkannt, lerne einfach ein paar Sätze mehr an.
 
-**Für Kinder und andere ohne Login** lernt ein Admin die Stimme an: Einstellungen → **Personen** → die Person → **Stimme anlernen**; die Person spricht, der Admin tippt **Das war Ben**. Dort setzt ein Admin auch die **Schwelle für die Stimme** einer Person: niedriger, wenn ihre Stimme oft nicht erkannt wird, höher, wenn sie mit einer anderen verwechselt wird. Ohne Angabe gilt 0,7.
+**Für Kinder und andere ohne Login** lernt ein Admin die Stimme an: auf Miras Seite unter Einrichtung → **Personen** → die Person → **Stimme anlernen**; die Person spricht, der Admin tippt **Das war Ben**. Dort setzt ein Admin auch die **Schwelle für die Stimme** einer Person: niedriger, wenn ihre Stimme oft nicht erkannt wird, höher, wenn sie mit einer anderen verwechselt wird. Ohne Angabe gilt 0,7.
 
 **Einrichten** (für den, der Mira betreibt). Die Stimmerkennung ist ein eigener kleiner Dienst, ein Container (`ghcr.io/miraassist/speaker-id`). Er sitzt vor deiner Spracherkennung (etwa faster-whisper), reicht das Audio unverändert weiter und erkennt nebenbei die Stimme; er braucht keine Grafikkarte.
 
@@ -305,7 +309,7 @@ Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet e
 
 ### Abfall
 
-Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Assistant (zum Beispiel über die Integration „Remote Calendar“ mit dem iCal-Link des Entsorgers); in `mira.yaml` steht beim Skill `abfall` sein Name.
+Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Assistant (zum Beispiel über die Integration „Remote Calendar“ mit dem iCal-Link des Entsorgers); in `mira.yaml` steht beim Skill `abfall` sein Name (`calendar`). Mit `types` nennst du nur die Abfallarten, die dich interessieren, etwa `"Restabfall, Wertstoff"`; leer heißt alle.
 
 - „Wann wird der Restmüll abgeholt?“ – „Was wird nächste Woche abgeholt?“
 - Am Vorabend erinnert Mira von selbst: „Morgen wird der Wertstoff abgeholt.“
@@ -318,7 +322,7 @@ Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Ass
 Eine kurze Übersicht, was ansteht, in drei, vier Sätzen.
 
 - Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht, und ohne die Müllabfuhr: an die erinnert am Vorabend der Skill **Abfall**. Willst du abends an die Tonne erinnert werden, schalte ihn mit ein.
-- **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Hast du weder Termine noch Themen, kommt nichts.
+- **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), deine Pakete von heute, wenn du einen eigenen Paketkalender hast („Pakete stefan“, siehe „Pakete“), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Gibt es nichts davon, kommt nichts.
 - „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
 - Wann die Briefings kommen, stellst du unter **Fähigkeiten → Zeitplan** ein (siehe „Zeitplan“).
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
@@ -433,9 +437,9 @@ Gut zu wissen:
 
 ### Recherche
 
-Braucht eine Frage eine gründliche Recherche, gibt Mira sie an einen Recherche-Agenten in deinem Heimnetz ab, etwa [Hermes Agent](https://github.com/NousResearch/hermes-agent). Er sucht ein paar Minuten lang im Internet, vergleicht die Quellen und schreibt eine Übersicht mit Empfehlung und Quellen. Sie kommt als Nachricht: Am Satelliten, an dem du gefragt hast, sagt Mira die Zusammenfassung an; ohne Satelliten kommt die ganze Übersicht aufs Handy.
+Für eine gründliche Recherche gibt Mira die Frage an einen Recherche-Agenten in deinem Heimnetz ab, etwa [Hermes Agent](https://github.com/NousResearch/hermes-agent), wenn du ihn nennst: beim Namen („Frag Hermes, …“) oder als Recherche-Agenten. Ohne diese Nennung schlägt Mira meist selbst nach, mit dem Skill Nachdenken (siehe „Wenn zwei Skills Ähnliches können“). Der Agent sucht ein paar Minuten lang im Internet, vergleicht die Quellen und schreibt eine Übersicht mit Empfehlung und Quellen. Sie kommt als Nachricht: Am Satelliten, an dem du gefragt hast, sagt Mira die Zusammenfassung an; ohne Satelliten kommt die ganze Übersicht aufs Handy.
 
-- „Finde heraus, welche Wärmepumpe zu unserem Altbau mit 140 Quadratmetern passt, und gib mir eine Übersicht.“
+- „Frag Hermes, welche Wärmepumpe zu unserem Altbau mit 140 Quadratmetern passt, und gib mir eine Übersicht.“
 - Fehlt dem Agenten etwas Wichtiges, fragt er nach („Hermes fragt: Wie groß ist die Wohnfläche?“); deine Antwort gibt Mira weiter.
 - „Vergiss die Recherche“ bricht ab. Ist der Agent nicht erreichbar, sagt Mira das und bietet an, selbst kurz nachzuschlagen.
 
@@ -453,7 +457,7 @@ Gut zu wissen: Der Agent arbeitet mit seinem eigenen Modell und seinen eigenen W
 
 ### Weitere mitgelieferte Skills
 
-Sie laufen, sobald du sie in der `mira.yaml` unter `skills` einträgst; die meisten brauchen keine Einstellung, weil Mira aus Home Assistant weiß, wo das Haus liegt.
+Sie laufen, sobald du sie einschaltest: auf Miras Seite unter Fähigkeiten → Skills → **Einschalten** oder in der `mira.yaml` unter `skills`; die meisten brauchen keine Einstellung, weil Mira aus Home Assistant weiß, wo das Haus liegt.
 
 | Skill | Was du fragst | Einstellung |
 |---|---|---|
@@ -525,12 +529,13 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 - Optional unter `metadata:` → `mira:`:
   - `settings`: Angaben, die jeder Haushalt selbst einträgt, jeweils mit einer `description` (die erscheint auch in Fehlermeldungen) und `required: true`, wenn der Skill ohne sie nicht arbeiten kann.
   - `schedules`: Aufgaben nach Zeitplan. `name` ist ein kurzer, fester Name (`morgen`) und `description` ein paar Worte für die Seite; mit `name` lässt sich der Zeitplan unter **Zeitplan** ändern und ausschalten. `cron` ist die Zeit (fünf Felder, zum Beispiel `0 10 * * 0` für sonntags um 10 Uhr), `task` ist, was Mira dann tun soll. Das Ergebnis ist entweder nichts (`importance: 0`, `spoken` leer) oder eine kurze Nachricht an das Haus. Mit `per_person: true` läuft die Aufgabe einmal für jede Person, die Mira persönlich erreicht (eigener Kanal oder „allein zu Hause bin ich“). Eingesetzt werden `{{person}}` (der Name), `{{person_login}}` (der Login-Name in Home Assistant, „-“ ohne) und `{{person_calendar}}` (der Kalender, der so heißt wie der Login-Name oder die Person; „-“ ohne). Mira gibt dazu, was sie über die Person weiß, und die Nachricht geht an diese Person statt ans Haus. Mit `to` geht die Nachricht an genau eine Person, meist aus einer Einstellung (`to: "{{empfaenger}}"`, der Name, Schlüssel oder Login der Person): Die Aufgabe läuft einmal, und die Nachricht kommt sofort und nur über die Kanäle dieser Person (etwa Telegram), wird also nie vorgelesen; in der Ruhezeit wartet sie bis zum Morgen. Gut für eine Liste mit Links. `to` und `per_person` schließen sich aus. Eine Nachricht aus einem Zeitplan ist höchstens „wichtig“ (2) und wartet nachts bis zum Morgen. Mit `urgent: true` darf der Zeitplan „dringend“ (3) melden: Das geht sofort an alle, auch in der Ruhezeit. Nimm das nur, wo es wirklich darauf ankommt, wie bei amtlichen Unwetterwarnungen.
-  - `target`: macht aus dem Skill ein Anliegen über mehrere Gesprächszüge, mit Rückfragen oder als Ablauf Schritt für Schritt (siehe unten).
+  - `target`: macht aus dem Skill einen Vorgang über mehrere Gespräche, mit Rückfragen oder als Ablauf Schritt für Schritt (siehe unten).
+  - `random`: Achsen, aus denen Mira zufällig zieht, damit ein Quiz oder eine Geschichte nicht jedes Mal gleich ausfällt: je Achse eine Liste von Werten (`schwierigkeit: [leicht, mittel, schwer]`), auf Wunsch mit einer Liste darunter je Wert (`thema: { Tiere: [Vögel, Insekten] }`). Was der Nutzer selbst festlegt („Fragen zu Tieren“), bleibt fest; den Rest zieht Mira. Im Text sagt der Skill, wann Mira ziehen soll (das Werkzeug `random_pick`). Beispiele: `quiz`, `vokabeln`, `musikquiz`, `geschichte`.
   - `mail`: macht aus dem Skill eine Mail-Anwendung (siehe unten).
   - `chapter`: das Kapitel dieser Anleitung zum Skill, so wie seine Überschrift beginnt (`"## Kochen und Backen"`, für einen Abschnitt `###`). Miras Seite zeigt beim Skill einen Link dorthin. In einer Übersetzung (`SKILL.en.md`) steht das Kapitel der englischen Anleitung.
 - Der Text unter dem Kopfbereich ist die Anleitung für Mira, in der Du-Form. Wo `{{name}}` steht, setzt Mira die Einstellung `name` ein. Wo das Haus liegt, weiß Mira aus Home Assistant (Einstellungen → System → Allgemein): `{{ home.latitude }}`, `{{ home.longitude }}` und `{{ home.name }}` setzt sie ein, wenn der Skill gebraucht wird; eine Einstellung dafür ist nicht nötig.
 
-**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben, Merken, Termine, To-dos, Wecker, Kochen, Pakete und Nachdenken sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
+**3. Einschalten.** Ein Skill läuft erst, wenn er in der `mira.yaml` unter `skills` steht, mit seinen Einstellungen darunter. Hat er keine, genügt der Name mit `{}` dahinter. Mit `enabled: false` schaltest du ihn aus, ohne seine Einstellungen zu verlieren. Die mitgelieferten Skills für Aufgaben (`aufgabe`, `aufgabe-aendern`, `ueberwachung-anbieten`), Merken, Termine (`termin`, `termin-absagen`), To-dos, Wecker, Kochen, Regeln, Miras Postfach, Pakete und Nachdenken sind ohne Eintrag an; auch sie schaltest du mit `enabled: false` aus, etwa wenn du einen eigenen Ersatz schreibst.
 
 **Einen mitgelieferten Skill anpassen.** Die mitgelieferten Skills stecken im Container unter `/app/skills` und werden bei jedem Update ersetzt. Willst du einen ändern, kopierst du ihn in deinen eigenen Skill-Ordner:
 
@@ -583,7 +588,7 @@ Danach Mira neu starten. „Wann muss der Kaktus gegossen werden?“ beantwortet
 
 **Wenn etwas nicht stimmt:** Mira startet trotzdem, nur der betroffene Skill läuft nicht. Im Log steht `skill not started` mit einem Satz, was falsch ist, zum Beispiel „Die Einstellung „pflanzen“ fehlt in der mira.yaml unter skills.blumen“. Dieselbe Meldung zeigt Home Assistant unter Einstellungen → System → **Reparaturen**. Nach der Korrektur startest du Mira neu; die Meldung verschwindet, sobald der Skill läuft.
 
-### Ein Anliegen mit Rückfragen
+### Ein Vorgang mit Rückfragen
 
 Manches braucht mehrere Angaben, die Mira erst erfragen muss, und endet mit einer Aktion in Home Assistant. Dafür gibt es `target` mit Feldern. Mira sammelt die Felder über mehrere Gesprächszüge, fragt nach, was fehlt, und ruft am Ende die Aktion auf, die der Skill festlegt. Das Modell füllt nur die Felder; welche Aktion läuft, steht im Skill.
 
@@ -612,10 +617,10 @@ Sagt der Nutzer nicht, wie stark, frag kurz: „Mild, normal oder stark?“ Sag 
 in einem Satz, dass der Kaffee läuft.
 ```
 
-- **Felder** (`fields`): `name`, `description` (danach richtet sich Mira beim Fragen), auf Wunsch `optional: true`, `enum` (nur diese Werte) und `check`, eine eingebaute Prüfung: `entities` (Geräte im Haus), `calendar_writable`, `calendar_event`, `todo_list`.
-- **Abschluss** (`finish`): eine Aktion von Home Assistant mit `data`. In `{{ … }}` setzt Mira die Felder ein, dazu den Ort: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (der ESPHome-Name des Satelliten) und `{{ person }}`, falls bekannt. Leere Werte bleiben stehen; mit `omit_empty: true` fallen sie weg. Statt einer Aktion geht auch ein eingebauter Abschluss: `memory.save`, `tasks.automation`, `calendar.delete`, `message.send` (sagt das Feld `message` als Nachricht des Vorgangs).
+- **Felder** (`fields`): `name`, `description` (danach richtet sich Mira beim Fragen), auf Wunsch `optional: true`, `enum` (nur diese Werte) und `check`, eine eingebaute Prüfung: `entities` (Geräte im Haus), `calendar_writable`, `calendar_event`, `todo_list`, `tasks.find` (eine bestehende Aufgabe), `hook.check` (eine eigene Regel).
+- **Abschluss** (`finish`): eine Aktion von Home Assistant mit `data`. In `{{ … }}` setzt Mira die Felder ein, dazu den Ort: `{{ area }}`, `{{ area_name }}`, `{{ satellite }}`, `{{ satellite.device }}` (der ESPHome-Name des Satelliten) und `{{ person }}`, falls bekannt. Leere Werte bleiben stehen; mit `omit_empty: true` fallen sie weg. Statt einer Aktion geht auch ein eingebauter Abschluss: `memory.save`, `tasks.automation`, `tasks.edit` (eine Aufgabe ändern), `calendar.delete`, `hook.save` (eine eigene Regel speichern), `message.send` (sagt das Feld `message` als Nachricht des Vorgangs).
 - `confirm: true` lässt Mira vor der Aktion fragen. `undo` nennt eine zweite Aktion, die das Ausgeführte zurücknimmt, wenn du korrigierst („Nein, mild“). `timeout` ist, wie lange Mira auf eine Antwort wartet (Vorgabe 15 Minuten).
-- Ein Feld kann auch ein **Agent** füllen (siehe „Eigene Agenten“): `agent: wetter` und `input: { tag: "{{ datum }}" }`. Mira startet ihn, sobald die Felder da sind, die seine Eingabe nennt (`{{ request }}` ist dein Anliegen), und fragt dich nicht danach. Mehrere Agenten laufen gleichzeitig; sind alle Felder da, geht es weiter wie sonst. Klappt es bei einem Agenten nicht, fragt Mira dich nach dem Feld. Am Satelliten wartet Mira bis zu 10 Sekunden auf einen Agenten, den sie zu Beginn startet; ist er schneller, geht es in derselben Antwort weiter. Sonst meldet sie sich mit dem Ergebnis an dem Satelliten, an dem du gefragt hast.
+- Ein Feld kann auch ein **Agent** füllen (siehe „Eigene Agenten“): `agent: wetter` und `input: { tag: "{{ datum }}" }`. Mira startet ihn, sobald die Felder da sind, die seine Eingabe nennt (`{{ request }}` ist deine Bitte), und fragt dich nicht danach. Mehrere Agenten laufen gleichzeitig; sind alle Felder da, geht es weiter wie sonst. Klappt es bei einem Agenten nicht, fragt Mira dich nach dem Feld. Am Satelliten wartet Mira bis zu 10 Sekunden auf einen Agenten, den sie zu Beginn startet; ist er schneller, geht es in derselben Antwort weiter. Sonst meldet sie sich mit dem Ergebnis an dem Satelliten, an dem du gefragt hast.
 - Was in Home Assistant nur mit Ja geschaltet wird (Schlösser, Alarm, das Label „Mira: nachfragen“), fragt auch hier nach.
 
 Die mitgelieferten Skills `wecker`, `termin` und `todo` sind weitere Beispiele.
@@ -647,10 +652,10 @@ einen Timer an.
 ```
 
 Den Rest macht Mira von selbst:
-- Der Plan gehört zum Vorgang im Raum, in dem er begonnen wurde. Er überdauert das Gespräch: Auch Minuten später, in einem neuen Gespräch, weiß Mira, wo ihr seid.
+- Der Plan gehört zu einem Vorgang. Ohne weitere Angabe gehört der Vorgang der Person, die ihn begonnen hat, und folgt ihr an jeden Satelliten und zu Telegram; erkennt Mira niemanden, gehört er dem Raum. Mit `bound: room` unter `target` gehört er immer dem Raum, in dem er begonnen wurde, und jeder dort kann weitermachen (so bei `kochen` und `quiz`); mit `bound: house` gehört er dem ganzen Haus. Der Plan überdauert das Gespräch: Auch Minuten später, in einem neuen Gespräch, weiß Mira, wo ihr seid.
 - Solange er läuft, sieht Mira den zuletzt erledigten, den aktuellen und den nächsten Schritt sowie die Anleitung des Skills. Den ganzen Plan liest sie bei Bedarf nach.
-- Jeder Schritt startet die Frist (`timeout`, Vorgabe 1 Stunde) neu. Sind alle Schritte erledigt, bleibt der Ablauf noch 30 Minuten offen, falls doch noch etwas ist; dann endet er. „Hör auf“ beendet ihn sofort.
-- Im Reiter **Pläne** der Mira-Seite sieht jeder im Haus den laufenden Plan und kann ihn dort mit **Beenden** beenden.
+- Jeder Schritt startet die Frist (`timeout`, Vorgabe 1 Stunde) neu. Sind alle Schritte erledigt, bleibt der Ablauf noch 30 Minuten offen, falls doch noch etwas ist (`done_after`, etwa `done_after: 5m`); dann endet er. „Hör auf“ beendet ihn sofort.
+- Im Reiter **Pläne** auf Miras Seite sieht jeder im Haus den laufenden Plan und kann ihn dort mit **Beenden** beenden.
 - Stammt der Plan aus dem Netz (etwa ein Rezept), fragt Mira, solange er läuft, nach, bevor sie sich etwas merkt oder etwas weitergibt.
 - Ein Plan ohne Kästchen geht auch (etwa ein Menü); dann sieht Mira nur, dass es ihn gibt, und liest ihn bei Bedarf.
 
@@ -658,7 +663,7 @@ Der mitgelieferte Skill `kochen` ist ein ausführliches Beispiel; `quiz` und `vo
 
 ### Klänge, Karten und Weiterhören
 
-Am Satelliten kann ein Skill mehr als sprechen. Drei Werkzeuge stehen Mira dafür zur Verfügung; die Anleitung des Skills sagt, wann sie sie nimmt:
+Am Satelliten kann ein Skill mehr als sprechen. Vier Werkzeuge stehen Mira dafür zur Verfügung; die Anleitung des Skills sagt, wann sie sie nimmt:
 
 - **`sound_play`** spielt einen von Miras Klängen auf dem Lautsprecher des Satelliten, an dem gesprochen wird: `fanfare_big` (großer Erfolg), `fanfare` (Erfolg) und `too_bad` (hat nicht geklappt). Mira spricht erst weiter, wenn der Klang vorbei ist. Läuft gerade Musik oder Radio, unterbricht der Klang sie nur kurz, danach läuft sie weiter. Das Quiz nutzt das am Ende.
 - **`display_card`** zeigt eine Karte auf dem Bildschirm des Satelliten: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Das geht an einem Echo Show mit TECHO5. Was auf der Karte steht, sagt Mira trotzdem.
@@ -669,7 +674,7 @@ An einem Satelliten ohne Lautsprecher oder Bildschirm und bei Telegram passiert 
 
 ### Ein Skill mit eigenem MCP-Server
 
-Ein Skill kann einen MCP-Server mitbringen. Dessen Werkzeuge stehen in keinem Gespräch, bis Mira den Skill öffnet; dann bleiben sie für den Rest dieses Gesprächs da, und nur die, die der Skill nennt. So füllen 44 Werkzeuge eines Servers nicht jeden Prompt. Adresse und Token kommen aus den Einstellungen des Skills; ein geheimer Token erreicht nie das Modell.
+Ein Skill kann einen MCP-Server mitbringen. Dessen Werkzeuge stehen in keinem Gespräch, bis Mira den Skill öffnet; dann bleiben sie für den Rest dieses Gesprächs da, und nur die, die der Skill nennt. Mit `conversation: false` kommen sie gar nicht ins Gespräch: Dann nutzen sie nur die Agenten und Zeitpläne des Skills. So füllen 44 Werkzeuge eines Servers nicht jeden Prompt. Adresse und Token kommen aus den Einstellungen des Skills; ein geheimer Token erreicht nie das Modell.
 
 **Beispiel: Paperless.** Der mitgelieferte Skill `paperless` sucht in deinen Dokumenten aus Paperless-ngx („Such in meinen Dokumenten nach der Rechnung vom Schornsteinfeger und nenn mir den Betrag“). Er nutzt den MCP-Server [baruchiro/paperless-mcp](https://github.com/baruchiro/paperless-mcp), der als eigener Container läuft:
 
@@ -697,8 +702,17 @@ metadata:
       url: "{{ url }}"
       token: "{{ token }}"
       web_content: true                              # was er liefert, ist fremder Text
-      tools: [query_documents, get_document_content]  # nur diese, und nur zum Lesen
+      read_only: true                                # nur lesende Werkzeuge
+      conversation: false                            # nicht ins Gespräch, nur für den Agenten
+      tools: [query_documents, get_document_content]  # nur diese
+    agents:
+      paperless.recherche:                           # sucht mit diesen Werkzeugen, gibt nur das Ergebnis zurück
+        tools: [paperless__query_documents, paperless__get_document_content, calculate]
+        conversation: true                           # das Gespräch kann ihn aufrufen
+        # … description, instructions und weitere Felder wie unter „Eigene Agenten“
 ```
+
+Die Werkzeuge heißen für die Agenten `<skill>__<werkzeug>`. So kommen die Dokumente nie ins Gespräch, nur das Ergebnis des Agenten. `read_only: true` sagt, dass der Server nur liest; nur dann dürfen auch Mira-Aufgaben im Hintergrund seine Werkzeuge nutzen.
 
 `tools` ist die Kontrolle: Wer den Skill schreibt, entscheidet, was Mira mit dem Server darf. Ist der Server nicht erreichbar, startet Mira trotzdem; der Skill ist da, nur ohne seine Werkzeuge, und Home Assistant zeigt es unter **Reparaturen**. Mit einem lokalen Modell rechnet der erste Zug nach dem Öffnen des Skills den Prompt neu, weil Werkzeuge dazukommen; das dauert dann einmal länger.
 
@@ -788,7 +802,7 @@ agents:
       properties: { steps: { type: array, items: { type: string } } }
 ```
 
-Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `models`. Braucht ein Agent Werkzeuge und eine feste Antwortform (`output`) zugleich, nimm ein Modell, das beides gleichzeitig kann; Gemini kann das. In einem Skill füllt Mira die Einstellungen des Skills in `{{…}}` ein, wie überall.
+Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `models`. Nennt `model` einen von Miras eigenen Teilen (siehe „Wer was nimmt“ unter „Mehrere Modelle“), etwa `model: delegate`, nimmt der Agent dessen Modell, was immer dort eingetragen ist; so kommen die Skills Nachdenken und Regel an das stärkste Modell. Braucht ein Agent Werkzeuge und eine feste Antwortform (`output`) zugleich, nimm ein Modell, das beides gleichzeitig kann; Gemini kann das. In einem Skill füllt Mira die Einstellungen des Skills in `{{…}}` ein, wie überall.
 
 **Im Gespräch:** Mit `conversation: true` kann auch Mira selbst den Agenten im Gespräch rufen, als Werkzeug; ohne die Zeile nicht. Ein Agent aus der `mira.yaml` steht dann in jedem Gespräch bereit, einer aus einem Skill, sobald Mira den Skill geöffnet hat. Bei Sprache wartet Mira bis zu 5 Sekunden auf ihn, bei Telegram 30; braucht er länger, sagt sie „ich melde mich“ und sagt das Ergebnis später an.
 
@@ -799,6 +813,8 @@ Ohne `model` nimmt der Agent das Hauptmodell; mit `model: smart` eines aus `mode
 Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, startet nur dieser Agent nicht. In Home Assistant steht dann unter **Reparaturen**, was zu ändern ist.
 
 ### Ein Agent auf einem anderen Gerät
+
+▶ [Erklärvideo: Mira holt sich Hilfe (0:59)](https://mira-assist.com/videos/erklaer/hilfe-holen.mp4)
 
 Manche Arbeit erledigt besser ein anderer Agent: einer, der lange im Netz recherchiert, einer, der programmiert, einer auf deinem eigenen Server. Spricht er **A2A** (das offene Protokoll, mit dem Agenten einander Arbeit übergeben), bindest du ihn als **entfernten Agenten** in einen Skill ein. Mira gibt ihm die Arbeit wie ihren eigenen Helfern: Er füllt ein Feld des Vorgangs, den der Skill beschreibt.
 
@@ -871,7 +887,7 @@ Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stund
 - **Auf dem Bildschirm** eines Echo Show mit TECHO5 steht zu jedem Schritt eine Karte mit dem Bild des Rezepts, „Schritt 2 von 8“ und dem Schritt in Stichworten. Antippen schließt sie.
 - „Wie viel Milch brauche ich?“ Mira antwortet aus dem Rezept.
 - Bei Wartezeiten bietet sie einen Timer an: „Soll ich einen Timer auf 30 Minuten stellen?“
-- Im Reiter **Pläne** der Mira-Seite siehst du das Rezept mit allen Schritten; die erledigten sind abgehakt.
+- Im Reiter **Pläne** auf Miras Seite siehst du das Rezept mit allen Schritten; die erledigten sind abgehakt.
 - „Hör auf mit dem Kochen“ beendet es. Sonst endet es von selbst eine halbe Stunde nach dem letzten Schritt, oder nach einer Stunde ohne „weiter“.
 
 Mira braucht dafür ihre Internetsuche; sie ist eingebaut und an, solange du sie nicht ausschaltest.
@@ -930,7 +946,7 @@ Hat dir jemand auf den Anrufbeantworter der FRITZ!Box gesprochen, zeigt Mira das
 - Während eine Aufnahme läuft, sag das Aktivierungswort; die Aufnahme wird dann leiser. „Weiter“ überspringt sie (sie bleibt neu), „noch einmal“ spielt sie wieder, „lösch die“ löscht sie, „Stopp“ hält an, „hör auf“ beendet das Abhören.
 - „Was ist auf dem Anrufbeantworter?“ – „Wer hat angerufen?“ – „Lösch die Nachricht.“
 - Eine abgespielte Nachricht gilt als gehört, auch auf der FRITZ!Box. Verpasste Anrufe gelten als gesehen, sobald Mira sie genannt hat. Löschen tut Mira nur, wenn du es sagst.
-- Mira spielt die Aufnahme so ab, wie sie ist; sie schreibt sie nicht ab, die Aufnahme bleibt im Haus. Abspielen geht nur am Satelliten, nicht per Telegram oder in der App.
+- Mira spielt die Aufnahme so ab, wie sie ist; sie schreibt sie nicht ab, die Aufnahme bleibt im Haus. Abspielen geht nur am Satelliten, nicht per Telegram oder in der Companion App.
 - Hast du mehrere Anrufbeantworter, sagt Mira, auf welchem eine Nachricht ist.
 - Auf Miras Seite steht, solange etwas wartet, etwa „2 neue Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf“, mit einem Link zur FRITZ!Box.
 
@@ -994,7 +1010,7 @@ Passt der Code, sagt Mira: „Steck das Gerät jetzt ein.“ Sie sucht es drei M
 
 ### Geräte, die Home Assistant gefunden hat
 
-Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Netz, einen Bluetooth-Sensor, eine Lampe, die du in der App des Herstellers gekoppelt hast. Mira legt jedes neue Gerät in ihre Nachricht, wie Post und Aufnahmen vom Anrufbeantworter: Der Ring leuchtet, der Bildschirm zeigt, dass eine Nachricht wartet. Frag dann „Hab ich neue Nachrichten?“, und Mira nennt dir, was sie gefunden hat: „Neues Gerät gefunden: Hue Bridge“. Willst du es einbinden, führt sie dich durch das, was Home Assistant dafür braucht („Drück den Knopf auf der Bridge“), und dann geht es mit Raum und Name weiter.
+Home Assistant findet vieles von selbst: eine Hue Bridge oder einen Shelly im Netz, einen Bluetooth-Sensor, eine Lampe, die du in der App des Herstellers gekoppelt hast. Mira legt jedes neue Gerät in ihre Nachricht, wie Post und Aufnahmen vom Anrufbeantworter: Der Ring leuchtet, der Bildschirm zeigt, dass eine Nachricht wartet. Frag dann „Hab ich neue Nachrichten?“, oder Mira sagt es nebenbei an. Sie nennt, was sie gefunden hat, und bietet an, es einzubinden: „Ich habe eine Hue Bridge gefunden. Soll ich sie einbinden?“ Sind es mehrere Geräte, fragt sie, ob alle oder welche; wartet noch anderes, etwa Post, fragt sie zuerst, womit sie anfangen soll. Sagst du ja, führt sie dich durch das, was Home Assistant dafür braucht („Drück den Knopf auf der Bridge“), und dann geht es mit Raum und Name weiter.
 
 - **Nein, ignorieren, das ist vom Nachbarn:** Mira nennt es nie wieder. In Home Assistant steht ein entdecktes Gerät dann unter „Ignoriert“, ein Gerät ohne Raum hat das Label „Mira: ignoriert“; dort machst du es rückgängig.
 - **Nicht aufgegriffen:** Das Gerät wartet einen Tag in der Nachricht, danach nennt Mira es nicht mehr von selbst. „Gibt's neue Geräte?“ nennt dir alles, was noch wartet.
@@ -1032,7 +1048,15 @@ skills:
 
 Auf einem Echo Show schaltet Mira für den Ring die Video-Wiedergabe ein, wenn sie aus ist („Video“ beim Gerät in Home Assistant).
 
-Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager: `network_mode: host`, das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket` und das Recht, Netzwerke zu verwalten: Als `root` (Standard des Containers) hat Mira es; läuft sie als anderer Benutzer, braucht dieser eine polkit-Regel für die Aktionen `org.freedesktop.NetworkManager.*` (die Gruppe `netdev` reicht unter Ubuntu nicht). Ohne das gehen die anderen beiden Wege trotzdem.
+**Als HA-App** braucht Mira dafür nichts weiter: Sie nutzt das WLAN des Rechners, auf dem Home Assistant läuft, über den Supervisor.
+
+**Als Container** braucht Mira für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager:
+
+- `network_mode: host` (beim `docker run` unter „Einrichtung“ ist das `--network host`, schon dabei),
+- das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket`,
+- das Recht, Netzwerke zu verwalten. Das geht auf zwei Arten: Mira läuft als `root` (der Standard des Containers, ohne `--user`), dann hat sie es. Oder sie läuft als anderer Benutzer, etwa `--user nonroot` wie beim `docker run` unter „Einrichtung“; dann muss dieser Benutzer WLAN verwalten dürfen, über eine polkit-Regel, die ihm oder einer seiner Gruppen die Aktionen `org.freedesktop.NetworkManager.*` erlaubt. Die Gruppe `netdev` allein reicht unter Ubuntu nicht.
+
+Ohne WLAN-Zugang gehen die anderen drei Wege trotzdem.
 
 Z-Wave geht damit noch nicht.
 
@@ -1060,7 +1084,7 @@ Aufwendige Fragen – Erklärungen, Vergleiche, Abwägungen („Erklär mir, wie
 
 ▶ [Einen Wecker stellen, ändern und wieder löschen](https://mira-assist.com/videos/mira-chat-de.mp4#t=139,194)
 
-Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der HA-App gestellte Erinnerungen kommen privat über deine Kanäle.
+Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie gestellt hast – auch in der Ruhezeit, denn die Zeit hast du gewählt. Per Telegram oder in der Companion App gestellte Erinnerungen kommen privat über deine Kanäle.
 
 **Wecker**: „Weck mich morgen um 6“ – „Weck mich werktags um halb sieben“ – „Weck mich zur üblichen Zeit“, wenn Mira die kennt. Der Wecker klingelt an dem Satelliten, an dem du gefragt hast, und zwar auf dem Gerät selbst: Schlummern und Ausschalten gehen dort wie gewohnt, und er klingelt auch, wenn Home Assistant gerade nicht läuft. Mira fragt nicht nach, sondern sagt, was sie gestellt hat; hat sie sich verhört, sag gleich „Nein, halb sieben“. Das geht an Satelliten, die Wecker können, etwa einem Echo Show mit TECHO5; an anderen sagt Mira, dass es dort nicht geht.
 
@@ -1073,7 +1097,7 @@ Zur gewählten Zeit sagt Mira die Erinnerung in dem Raum an, in dem du sie geste
 
 ▶ [Eine zweite Nachricht fürs Haus: Mira hängt sie an die nächste Antwort an](https://mira-assist.com/videos/mira-chat-de.mp4#t=228,265)
 
-An eine Person geht eine Nachricht über ihre Kanäle (Telegram, Companion-App), am Satelliten nur, wenn sie dort als sie erkannt ist. Jede Person stellt ein, von wem sie Nachrichten annimmt: von allen, nur von Personen, die Mira erkennt, oder von niemandem; Miras eigene Nachrichten (Aufgaben, Erinnerungen, Warnungen) kommen immer an. Wer etwas von jemandem im Wohnzimmer hinterlässt, ohne erkannt zu sein, erscheint als „jemand im Bereich Wohnzimmer“. Ob eine Nachricht gehört wurde, erfährt der Absender nicht.
+An eine Person geht eine Nachricht über ihre Kanäle (Telegram, Companion App), am Satelliten nur, wenn sie dort als sie erkannt ist. Jede Person stellt ein, von wem sie Nachrichten annimmt: von allen, nur von Personen, die Mira erkennt, oder von niemandem; Miras eigene Nachrichten (Aufgaben, Erinnerungen, Warnungen) kommen immer an. Wer etwas von jemandem im Wohnzimmer hinterlässt, ohne erkannt zu sein, erscheint als „jemand im Bereich Wohnzimmer“. Ob eine Nachricht gehört wurde, erfährt der Absender nicht.
 
 Eine Nachricht fürs Haus, die du an einem Satelliten hinterlässt, wird in genau diesem Raum zehn Minuten lang nicht angesagt oder angezeigt: Du stehst ja dort. Alle anderen Räume bekommen sie sofort. Die Zeit stellst du in Home Assistant unter „Konfigurieren → Allgemein“ ein; 0 heißt: nicht warten. Dringendes und Erinnerungen sind davon nicht betroffen.
 
@@ -1131,13 +1155,13 @@ Bei Szenen reicht der Name. Wichtige Aktionen (Schlösser, Alarmanlage, Garagent
 
 ## Mira in Home Assistant
 
-Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der App.
+Mira steht in Home Assistant im Seitenmenü. Du bist dort schon angemeldet, sie sieht aus wie dein HA-Theme (hell oder dunkel) und spricht deine HA-Sprache; das klappt auch unterwegs in der Companion App.
 
 Die **Übersicht** zeigt vier Karten. Jede nennt kurz, was gerade los ist, und führt zu ihren Seiten:
 
 - **Aktuell**: **Nachrichten** (offene und zugestellte ansehen und quittieren), **Aufgaben** (an/aus, Probelauf, Protokoll, löschen, „In Home Assistant bearbeiten“), **Pläne** (laufende Abläufe wie ein Rezept) und **Gedächtnis** (das des Hauses und dein eigenes; bearbeiten, vergessen, als Datei exportieren und importieren).
 - **Einrichtung**: **Satelliten** und **Personen** (alle aus Home Assistant, mit dem, was Mira zusätzlich braucht; siehe unten), **Benachrichtigung** (Ruhezeit, Pausen, Eskalation, Vertrauliches, dringende Nachrichten) und **Verbindungen** (Anmeldungen bei Diensten, die Skills brauchen, etwa X).
-- **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Zeitplan** (was Mira wann von selbst tut, mit letztem Lauf; siehe „Zeitplan“), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet).
+- **Fähigkeiten**: **Skills** (welche laufen, mit Einstellungen, Zeitplänen und Anleitung), **Zeitplan** (was Mira wann von selbst tut, mit letztem Lauf; siehe „Zeitplan“), **Agenten** (Miras eigene und deine, mit Modell und wer sie aufruft, darunter die letzten Läufe) und **Modelle** (welche Mira nutzt; **Jetzt prüfen** schickt eine echte kleine Anfrage und zeigt, ob und wie schnell das Modell antwortet) und **Regeln** (deine eigenen Regeln; siehe „Eigene Regeln“).
 - **Anleitung**: diese Seite, mit Sprüngen zu den wichtigsten Kapiteln.
 
 ![Die Übersicht: Aktuell, Einrichtung, Fähigkeiten und Anleitung](img/mira-uebersicht-de.png)
@@ -1186,22 +1210,22 @@ Mira kennt deine Personen und Satelliten von selbst, anlegen musst du nichts: Je
 
 ![Die Mira-Integration in Home Assistant](img/ha-integration-de.png)
 
-Was Mira darüber hinaus braucht, stellst du am einfachsten im Mira-Panel unter **Satelliten** und **Personen** ein; dasselbe geht in Home Assistant unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren**, mit einem aufklappbaren Abschnitt pro Person oder Satellit. Gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
+Was Mira darüber hinaus braucht, stellst du am einfachsten auf Miras Seite unter **Satelliten** und **Personen** ein; dasselbe geht in Home Assistant unter Einstellungen → Geräte & Dienste → Mira → **Konfigurieren**, mit einem aufklappbaren Abschnitt pro Person oder Satellit. Gespeichert wird es direkt an der Person oder am Satelliten, und es verschwindet mit ihnen.
 
 - **Einstellungen für einen Satelliten**: Bewegungsmelder (auch mehrere, etwa Flur und Wohnzimmer), beim Hereinkommen ansagen, Anzeige (LED-Ring). Der Raum ist der Bereich des Satelliten.
 - **Mehrere Satelliten in einem Raum** (etwa zwei in einem großen Wohnzimmer): Jeder hat seine eigenen Einstellungen. Was du an einem Satelliten erbeten hast, etwa eine Erinnerung, sagt Mira dort an; die Ansage beim Hereinkommen kommt an dem Satelliten, dessen Bewegungsmelder angeschlagen hat; alles andere, etwa eine Nachricht an den Raum, am **Hauptsatelliten**. Das ist der Satellit, der zuerst im Raum war; mit dem Schalter **Hauptsatellit** machst du einen anderen dazu. Alle Ringe und Bildschirme im Raum zeigen, was wartet.
 - **Ein Satellit ohne Bereich** hat keinen Raum: Du kannst mit ihm sprechen, aber Mira meldet sich dort nicht von selbst, und sein Ring zeigt nichts an. Home Assistant zeigt dafür unter Einstellungen → **Reparaturen** eine Meldung mit Link zum Gerät; gib ihm dort einen Bereich, dann verschwindet sie.
-- **Einstellungen für eine Person**: **Kanäle** (notify-Ziele, z. B. der Telegram-Chat aus HAs Telegram-Integration und die Companion-App; persönliche Nachrichten gehen an den ersten, der klappt), **Nachrichten annehmen von** (allen, nur Personen, niemandem) und „Allein zu Hause sind die Satelliten ich“.
+- **Einstellungen für eine Person**: **Kanäle** (notify-Ziele, z. B. der Telegram-Chat aus HAs Telegram-Integration und die Companion App; persönliche Nachrichten gehen an den ersten, der klappt), **Nachrichten annehmen von** (allen, nur Personen, niemandem) und „Allein zu Hause sind die Satelliten ich“.
 
-**Zwei Arten von notify-Entitäten:** **Mira Haus** und **Mira ‹Person›** (`notify.mira_…`) sind Miras Briefkästen. Was dort ankommt, wird eine Nachricht, und Mira entscheidet, wie sie ankommt: angesagt, angezeigt oder privat, mit Ruhezeit und Wichtigkeit. Die **Kanäle** einer Person sind dagegen Transporte, die direkt zustellen, etwa der Telegram-Chat oder die Companion-App. Automationen schicken an die Briefkästen, als Kanal trägst du Transporte ein; Miras eigene Briefkästen bietet die Auswahl dort gar nicht erst an.
+**Zwei Arten von notify-Entitäten:** **Mira Haus** und **Mira ‹Person›** (`notify.mira_…`) sind Miras Briefkästen. Was dort ankommt, wird eine Nachricht, und Mira entscheidet, wie sie ankommt: angesagt, angezeigt oder privat, mit Ruhezeit und Wichtigkeit. Die **Kanäle** einer Person stellen dagegen direkt zu, etwa der Telegram-Chat oder die Companion App. Automationen schicken an die Briefkästen, als Kanal trägst du solche direkten notify-Entitäten ein; Miras eigene Briefkästen bietet die Auswahl dort gar nicht erst an.
 
 ![Einstellungen für Personen unter „Konfigurieren“: ein Abschnitt pro Person](img/ha-person-de.png)
 
 - **Persönlichkeit** (unter **Allgemein**): wie Mira klingt, als freier Text: Ton, Humor, wie knapp sie bei Gerätebefehlen antwortet, ein paar Beispiele für ihren Ton. Sie hängt ihn an ihre festen Regeln an, er gilt für Sprache, Telegram und ihre Ansagen. Was je Kanal gilt (kurze Sätze am Satelliten, Listen bei Telegram) und welche Sprache, regelt sie selbst; das gehört nicht hinein.
 - **Nachfragen**: Hängst du in Home Assistant das Label **„Mira: nachfragen“** an eine Entität, etwa das Garagentor, schaltet Mira sie nur nach deinem „Ja“, und Aufgaben schalten sie nie. Das gilt auch, wenn du sie nicht beim Namen nennst, etwa „Öffne alle Rollos“ oder „Mach im Erdgeschoss alles aus“. Schlösser und Alarmanlagen sind das ohnehin.
-- **Privater Bereich**: Weiß Mira, wer spricht (sie erkennt deine Stimme, du bist allein zu Hause, schreibst über Telegram oder die HA-App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
+- **Privater Bereich**: Weiß Mira, wer spricht (sie erkennt deine Stimme, du bist allein zu Hause, schreibst über Telegram oder die Companion App), geht ein Gespräch mit dir von Raum zu Raum mit, samt Plänen. Hängst du das Label **„Mira: privater Bereich“** an einen Bereich, etwa das Gästezimmer, bleibt alles, was dort beginnt, in diesem Raum, und nichts von draußen kommt hinein.
 
-Im Assist-Chat der HA-App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
+Im Assist-Chat der Companion App und im Seitenmenü erkennt Mira dich an deinem HA-Benutzer, über die Person, mit der Home Assistant ihn verknüpft.
 
 ## Weitere Werkzeuge über MCP
 
@@ -1236,6 +1260,8 @@ Neue oder geänderte Server gelten nach einem Neustart von Mira. `mira check` pr
 
 ## Mehrere Modelle
 
+▶ [Erklärvideo: Lokal oder Cloud? (0:56)](https://mira-assist.com/videos/erklaer/lokal-oder-cloud.mp4)
+
 Die Integration richtet ein Modell ein: Es heißt in Mira **`main`**, und jeder Teil von Mira nimmt es. Willst du mehr, etwa ein lokales Modell für Mails und ein Cloud-Modell für schwierige Fragen, trägst du die Modelle in `mira.yaml` unter `models` ein und sagst unter `agents`, wer welches nimmt:
 
 ```yaml
@@ -1262,7 +1288,7 @@ agents:
 - **`parallel`** ist, wie viele Anfragen ein Modell gleichzeitig bekommt; ohne Angabe 1 bei `local`, 4 bei `cloud`.
 - **`fallback`** nennt ein anderes Modell, das Mira nimmt, wenn dieses nicht antwortet. Ist es nur gerade beschäftigt, wartet Mira.
 - **Lehnt ein Modell den Schlüssel ab oder ist es nicht erreichbar**, sagt Mira das im Gespräch („Mein KI-Modell lehnt meinen Schlüssel ab …“), und unter **Reparaturen** steht, welches Modell es ist und was der Server geantwortet hat, bis es wieder antwortet.
-- **Wer was nimmt:** Ohne Eintrag unter `agents` nimmt jeder Teil `main`. Die Teile heißen: `conversation.voice` (Sprache), `conversation.telegram` (Telegram), `delegate` (das stärkste Modell: schwierige Fragen im Skill Nachdenken, eigene Regeln schreiben), `skill.task` (Zeitpläne der Skills, Briefing), `notify.compose` (Ansagen), `tasks.assess`, `tasks.decide`, `tasks.plan` (Aufgaben), `mail.read`, `mail.match` (Mails), `profile.compact` (Gedächtnis-Profil).
+- **Wer was nimmt:** Ohne Eintrag unter `agents` nimmt jeder Teil `main`. Die Teile heißen: `conversation.voice` (Sprache), `conversation.telegram` (Telegram), `delegate` (das stärkste Modell: schwierige Fragen im Skill Nachdenken, eigene Regeln schreiben), `skill.task` (Zeitpläne der Skills, Briefing), `notify.compose` (Ansagen), `tasks.assess`, `tasks.decide`, `tasks.plan` (Aufgaben), `mail.read`, `mail.match` (Mails), `inbox.read` (Miras Postfach), `profile.compact` (Gedächtnis-Profil).
 - **`privacy: local`** bei einem Teil heißt: Er läuft nur auf einem lokalen Modell, auch kein Fallback in die Cloud. Ein Skill kann das ebenso verlangen (`privacy: local` unter `metadata.mira`); dann prüft Mira beim Start alle Teile, die er nutzt. Passt etwas nicht, startet er nicht, und Home Assistant zeigt unter **Reparaturen**, was zu ändern ist.
 
 Was die Integration als Modell einrichtet, gilt für `main` vor dem, was in `mira.yaml` steht.
@@ -1292,6 +1318,8 @@ Das geht nur mit einem eigenen **llama.cpp**-Server, nicht mit LM Studio und nic
 - **ohne** `--kv-unified` (sonst teilen sich die Plätze den Speicher und verdrängen sich gegenseitig).
 
 ## Eigene Regeln
+
+▶ [Erklärvideo: Erst fragen (0:59)](https://mira-assist.com/videos/erklaer/sicherheit.mp4)
 
 Bevor Mira ein Werkzeug benutzt, entscheiden kleine Regeln, ob sie es darf: ausführen, erst nachfragen oder ablehnen. Mira bringt ihre eigenen mit, etwa „Schlösser nur mit Ja“ und „nach einer Websuche nichts Kritisches“. Du siehst sie auf Miras Seite unter **Fähigkeiten → Regeln**, samt ihrem Code.
 
@@ -1335,7 +1363,7 @@ Das Programm `mira` hat ein paar Befehle. Im Container rufst du sie mit `docker 
 
 Du brauchst zwei Dinge:
 - **Einen Rechner mit Docker** in deinem Heimnetz. Das kann derselbe sein, auf dem Home Assistant läuft. Mit Home Assistant OS brauchst du keinen: Mira kommt dann als App (Schritt 2).
-- **Ein KI-Modell (LLM)**, mit dem Mira denkt. Am einfachsten ist ein Cloud-Anbieter wie Google Gemini oder OpenAI. Hast du in Home Assistant schon eine KI-Integration eingerichtet, übernimmt Mira sie samt Schlüssel. Ein eigener Server (LM Studio, Ollama, llama.cpp) geht auch, braucht aber eine starke Grafikkarte.
+- **Ein KI-Modell (LLM)**, mit dem Mira denkt. Am einfachsten ist ein Cloud-Anbieter wie Google Gemini oder OpenAI. Beim Einrichten wählst du den Anbieter und gibst seinen Schlüssel ein. Ein eigener Server (LM Studio, Ollama, llama.cpp) geht auch, braucht aber eine starke Grafikkarte.
 
 Eine Config-Datei brauchst du nicht. Drei Schritte:
 
@@ -1388,7 +1416,7 @@ Und sonst:
 - **Mira steht nicht unter „Entdeckt“?** Meist fehlt `--network host`, oder Mira steht in einem anderen Netz. Dann gibst du die Adresse von Hand ein (siehe Schritt 3).
 - **Der Dialog fragt nach einem Kopplungscode?** Diese Mira war schon mit einem anderen Home Assistant gekoppelt. Den Code schreibt Mira in ihr Protokoll, sobald dort die Integration entfernt wird: `docker logs mira`, bei der Home-Assistant-App unter **Einstellungen → Apps → Mira → Protokoll**. Er sieht so aus: `ABCD-EFGH-JKMN`.
   - Entfernst du die Integration und fügst sie im selben Home Assistant wieder hinzu, brauchst du keinen Code.
-  - Gibt es keinen Code, weil das alte Home Assistant nicht mehr existiert: Setze Miras Daten zurück, mit `docker exec mira /app/mira reset` und einem Neustart (`docker restart mira`), bei der Home-Assistant-App mit der Option **Daten zurücksetzen** im Tab **Konfiguration** und einem Neustart der App. Gedächtnis und Nachrichten sind dann weg, die `mira.yaml` bleibt.
+  - Gibt es keinen Code, weil das alte Home Assistant nicht mehr existiert: Setze Miras Daten zurück, mit `docker exec mira /app/mira reset` und einem Neustart (`docker restart mira`), bei der HA-App mit der Option **Daten zurücksetzen** im Tab **Konfiguration** und einem Neustart der App. Gedächtnis und Nachrichten sind dann weg, die `mira.yaml` bleibt.
 - **Anderes Modell?** Einstellungen → Geräte & Dienste → Mira → **Konfigurieren** → **KI-Modell (LLM)**.
 - **Reparatur „Mira hat keinen Zugang mehr“?** Miras Token wurde widerrufen, oder sein Benutzer ist kein Administrator mehr. Bis du ihr ein neues gibst, klappt nicht, was Home Assistant ablehnt, zum Beispiel neue Aufgaben und Timer. Öffne die Reparatur unter **Einstellungen → System → Reparaturen** und füge ein neues Token ein, wie beim Einrichten.
 
@@ -1398,9 +1426,9 @@ Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstell
 
 ### Mira aktualisieren
 
-Mira besteht aus zwei Teilen, die beide aus demselben Release kommen: der **Integration** in Home Assistant und dem **Mira-Service** (die App oder dein Container). Beide haben dieselbe Version.
+Mira besteht aus zwei Teilen, die beide aus demselben Release kommen: der **Integration** in Home Assistant und dem **Mira-Service** (die HA-App oder dein Container). Beide haben dieselbe Version.
 
-- **Integration und App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; sonst hilft ein Neustart von Home Assistant.
+- **Integration und HA-App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die HA-App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; sonst hilft ein Neustart von Home Assistant.
 - **Eigener Container:** `docker pull ghcr.io/miraassist/mira` und den Container mit demselben `docker run` neu anlegen (bei Compose: `docker compose pull && docker compose up -d`). Deine Daten liegen im Volume und bleiben.
 - **Bis beide gleich sind**, steht unter Einstellungen → Reparaturen, welcher Teil älter ist. Mira arbeitet in der Zeit weiter.
 
@@ -1451,4 +1479,4 @@ Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → Syst
 - Mira erfindet keine Werte: Fehlt ihr etwas, sagt sie es oder fragt nach.
 - Nach einer Websuche führt Mira keine kritischen Aktionen aus, bis du den Befehl noch einmal direkt gibst. Etwas zu merken, eine Nachricht zu schicken oder eine Aufgabe anzulegen macht sie dann erst nach deinem Ja. So kann eine Webseite ihr nichts unterschieben, was sie dauerhaft behält oder weitergibt.
 - Bei Spracherkennungsfehlern hilft es, deutlich und in einem Satz zu sprechen.
-- Ein Gespräch per Telegram läuft weiter, solange du schreibst. Mira sieht davon die letzten Wechsel (etwa 30 bis 50) und alles zum Anliegen, an dem ihr gerade arbeitet; Älteres fällt heraus, was sie sich gemerkt hat, bleibt. `/neu` beginnt von vorn.
+- Ein Gespräch per Telegram läuft weiter, solange du schreibst. Mira sieht davon die letzten Wechsel (etwa 30 bis 50) und alles zum Vorgang, an dem ihr gerade arbeitet; Älteres fällt heraus, was sie sich gemerkt hat, bleibt. `/neu` beginnt von vorn.

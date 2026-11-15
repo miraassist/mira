@@ -1,13 +1,15 @@
 # Mira
 
-Mira is a household voice agent for Home Assistant: conversations, tasks she keeps an eye on, memory and skills.
-This app runs Mira's service; the **Mira integration** (from HACS) connects Home Assistant to it. Both share one
-version: update them together.
+Mira is a voice assistant for Home Assistant: conversations, tasks she keeps an eye on, memory and skills.
+This app runs the Mira service; the **Mira integration** (from the Marketplace, before Home Assistant 2026.11 from
+HACS) connects Home Assistant to it. Both share one version: update them together.
 
 ## Setup
 
 1. Install and start this app.
-2. Install the **Mira** integration through HACS and restart Home Assistant.
+2. Install the **Mira** integration and restart Home Assistant: Settings → Marketplace → **Add from link** →
+   `https://github.com/miraassist/mira` (before Home Assistant 2026.11: HACS → Custom repositories, the same
+   address, type Integration).
 3. Settings → Devices & services → **Add integration** → **Mira**. As the address enter
    `http://localhost:8787`. The setup then asks for the AI model and the assistants Mira answers in.
 
