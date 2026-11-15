@@ -631,6 +631,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Cancel:        func(id string) bool { return a.agents.Cancel(id) || a.remote.Cancel(id) },
 		Dispatch:      a.dispatchForThread,
 		RemoteFailure: a.remote.Failure,
+		AgentNames:    a.remote.Names,
 		Asking:        a.remote.Asking,
 		Answer:        a.remoteAnswer(),
 		// A watch offer is started by watch_wait only.

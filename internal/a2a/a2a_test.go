@@ -443,3 +443,49 @@ func TestFailureNamesAnAgentThatIsNotReady(t *testing.T) {
 		t.Error("an agent that is no remote agent is named")
 	}
 }
+
+// RM-25 Without the skill's name, the card's name once read: before the
+// card is read the skill's agent has no name; the skill's own name holds
+// from the start.
+func TestRM25_WithoutTheSkillsNameTheCardsNameOnceRead(t *testing.T) {
+	f := a2afake.New(a2afake.Options{})
+	var up atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !up.Load() {
+			http.Error(w, "down", http.StatusServiceUnavailable)
+			return
+		}
+		f.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	log, _ := logger()
+	// The skill's own name: there before the card is read.
+	named := New(Options{Skills: load(t, skillFile(t, "        name: Hermes\n", ""), srv.URL), Logger: log})
+	if got := named.Names("recherche"); len(got) != 1 || got[0] != "Hermes" {
+		t.Errorf("with the skill's name: %v", got)
+	}
+	// Given the skill gives no name for its remote agent
+	// And its card cannot be read yet
+	h := New(Options{Skills: load(t, skillFile(t, "", ""), srv.URL), Logger: log, RetryInterval: 20 * time.Millisecond})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- h.Run(ctx) }()
+	waitFor(t, func() bool { return only(t, h).Problem != nil })
+	// Then the entry names no agent (not its key)
+	if got := h.Names("recherche"); len(got) != 0 {
+		t.Errorf("before the card: %v", got)
+	}
+	// When the card is read
+	up.Store(true)
+	waitFor(t, func() bool { return only(t, h).Ready })
+	// Then the next turn's entry names the card's name
+	if got := h.Names("recherche"); len(got) != 1 || got[0] != a2afake.Name {
+		t.Errorf("after the card: %v", got)
+	}
+	if got := h.Names("merken"); len(got) != 0 {
+		t.Errorf("a skill without a remote agent: %v", got)
+	}
+	cancel()
+	<-done
+}

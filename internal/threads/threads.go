@@ -109,6 +109,11 @@ type Options struct {
 	// the user and what it said (docs/spec/remote-agents.md, decision
 	// 22); ok false for another run.
 	RemoteFailure func(rec store.AgentRun) (label, said string, ok bool)
+	// AgentNames are the names of a target's remote agents as Mira names
+	// them to the user, appended to its entry in thread_start's list
+	// (docs/spec/remote-agents.md, decision 61); asked at every turn, so a
+	// card read later shows from the next turn on.
+	AgentNames func(skill string) []string
 	// Ended is told when a thread ended (done, cancelled, expired), for what
 	// runs on its behalf outside it: the answering machine's recordings stop
 	// with their thread.

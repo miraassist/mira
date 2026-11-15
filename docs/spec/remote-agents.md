@@ -1,7 +1,7 @@
 # Remote agents (A2A) – Spec
 
-Status 2026-11-15: specified (decisions 1 to 7, 13, 16 and 52 by the maintainer, the others taken while writing or
-building, to be confirmed); steps 0 to 6 and 8 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
+Status 2026-11-15: specified (decisions 1 to 7, 13, 16, 52 and 59 to 61 by the maintainer, the others taken while
+writing or building, to be confirmed); steps 0 to 6, 8 and 9 built, step 7 deferred. Mira is an A2A **client** only; Mira as an A2A server is not part of this spec.
 
 The testable rules are numbered scenarios in [remote-agents.feature](remote-agents.feature); each Go test for one
 carries the number in its name (`TestRM07_…`).
@@ -122,6 +122,21 @@ action `mira.agent` ([Agents](agents.md), Calling; a new optional field `skill`)
 | 57 | A failed remote agent in this skill | The skill's text: say it with the agent's name, end the thread and ask whether Mira should look it up herself; not `delegate` unasked. Seen before that text: the model fell back to `delegate` silently. Since 2026-11-15 the tool `delegate` is gone ([Agents](agents.md), decision 44); the text says not to look it up unasked, with no other skill either |
 | 58 | A remote agent whose call cannot start | Seen on the test Mira: with Hermes down when Mira started, its card was never read, the field failed without the agent's name, and the model filled the field with "- …" itself. Now its failure names it as decision 22 says (its card's name when read, else the skill's `name` for it, else its key: "recherche konnte das nicht."), so the skill's text (decision 57) applies; with decision 53 a "- …" no longer becomes the message |
 
+### By the maintainer: research by Mira or by a remote agent (2026-11-15)
+
+| # | Question | Decision |
+|---|---|---|
+| 59 | Two skills that research | Both stay as they are: Mira's own skill `nachdenken` (its agent with the right to the web, [Agents](agents.md), decision 44) and a skill with a remote agent (`recherche`). Neither is narrowed to leave the other room |
+| 60 | Which one a research order opens | A skill with a remote agent only when the user names its agent explicitly: by its name ("Frag Hermes, …") or as the research agent ("Lass den Recherche-Agenten …"); every other research order goes to `nachdenken`. The skill's description says so (`skills/recherche`) |
+| 61 | How the model knows the agent's name | Mira appends to the skill's entry in the list of skills the agent's name: the skill's `name` for the agent, else the card's name: "Der Agent dieses Skills heißt Hermes." ("This skill's agent is called Hermes."). Before this the model saw "Hermes" only as an example in the skill's text |
+
+### Taken while building the name in the list (2026-11-15, to be confirmed by the maintainer)
+
+| # | Question | Decision |
+|---|---|---|
+| 62 | Which list | `thread_start`'s list of targets: a remote agent works only for a skill's target (decision 2), and a skill with a target is listed there, not in `skill_open`'s list (which the check before decision 61 looked at). Several remote agents in one skill: one sentence naming them all ("Die Agenten dieses Skills heißen Hermes, Kim.") |
+| 63 | Before the card is read | With the skill's `name` for the agent the sentence is there from the start. Without it the entry has no sentence until the card is read, also while the card cannot be read (A.4 says what happens then); a card with an empty name gives none either. The agent's key is not said: it is no name (unlike decision 58, where a failure must name something). The list is made at every turn (the tool descriptions in the turn's language), so the name shows from the first turn after the card was read; the prompt's cached start changes once then |
+
 ## What a skill writes
 
 ```yaml
@@ -234,6 +249,7 @@ As decision 20. **Fails:** `GetTask` unreachable → retried (Retries); after th
 | When | What | Grows with |
 |---|---|---|
 | Loading the skills | one GET of the agent card per remote agent | the number of remote agents |
+| Every turn | the names of the skills' remote agents, read from memory, into `thread_start`'s list (decision 61); no call | the number of targets |
 | A field or plan due | one `SendMessage` (with the push configuration) | — |
 | While it works | nothing with push; one open stream with SSE | the number of open calls (streams) |
 | Per state the remote agent reports | one push to Mira (or an event in the stream); one database write | the remote agent's updates |
@@ -371,3 +387,10 @@ Run against Hermes v0.23.1 (its official image) on the test Mira's machine, 2026
    stopped before and during the work, a research from Home Assistant's chat without a satellite (the overview to
    the phones). **Fails:** Hermes not reachable when the field is due → the thread asks as for every failed agent
    (C.5), and the skill's text has the model say it and end the thread (decision 57).
+9. **The agent's name in the list of skills** (decisions 59 to 63): every turn, `thread_start`'s list gives each
+   target with a remote agent that agent's name after its description (`a2a.Host.Names`, the threads' option
+   `AgentNames`); `skills/recherche` is opened only when the user names its agent (decision 60), and its description
+   no longer names Hermes as an example. Built 2026-11-15. RM-24 in Go (`internal/threads`), RM-25 in Go
+   (`internal/a2a`). **Fails:** nothing in this step calls out; an agent without a known name (no `name`, its card
+   not read yet or without a name) is listed without the sentence (decision 63), and its card's failure is logged and
+   shown as A.4 says. Measured in the evals ([Evals](evals.md), Remote agents and delegate).

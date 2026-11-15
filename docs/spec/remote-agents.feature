@@ -156,3 +156,19 @@ Feature: Remote agents (docs/spec/remote-agents.md)
     When the remote agent's overview arrives after the turn
     Then the overview, as it is, is the thread's message to its owner
     And the thread is done
+
+  @step9
+  Scenario: RM-24 The entry of a skill with a remote agent names its agent
+    Given a skill's target has a remote agent the skill names "Hermes"
+    When Mira describes thread_start for a turn
+    Then the skill's entry ends with "Der Agent dieses Skills heißt Hermes."
+    And in English with "This skill's agent is called Hermes."
+    And a skill without a remote agent keeps its entry as it is
+
+  @step9
+  Scenario: RM-25 Without the skill's name, the card's name once read
+    Given the skill gives no name for its remote agent
+    And its card cannot be read yet
+    Then the skill's entry names no agent
+    When the card is read
+    Then the next turn's entry names the card's name

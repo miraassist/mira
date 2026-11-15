@@ -25,6 +25,9 @@ type texts struct {
 	// (docs/spec/remote-agents.md, decision 22); remoteFailedBare without
 	// its words.
 	remoteFailed, remoteFailedBare string
+	// agentNamed and agentsNamed follow a target's entry in thread_start's
+	// list with its remote agents' names (decision 61).
+	agentNamed, agentsNamed string
 	// The agent requests (docs/spec/remote-agents.md, D).
 	agentAsks, fieldAgentAsks, answerDesc, answerThreadDesc       string
 	answerTextDesc, answerEmpty, nobodyAsks, answerNotSent        string
@@ -37,6 +40,8 @@ type texts struct {
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
+		agentNamed:       "Der Agent dieses Skills heißt %s.",
+		agentsNamed:      "Die Agenten dieses Skills heißen %s.",
 		startDesc:        "Eröffnet einen Vorgang für ein Anliegen, das mehr braucht als eine Antwort: Mira sammelt, was das Ziel braucht, fragt nach, was fehlt, und schließt ab. Erst öffnen, dann mit thread_fill füllen. Ziele:",
 		requestDesc:      "Das Anliegen in den Worten des Nutzers.",
 		fillDesc:         "Trägt Felder des laufenden oder hier wartenden Vorgangs ein, aus dem, was der Nutzer gesagt hat oder was du im Haus nachgesehen hast. Jedes Feld braucht eine Antwort; ist ein Feld bewusst nicht nötig, schreib \"- \" und den Grund (z. B. \"- der Wunsch enthält nichts Relatives\"). Du bekommst den Stand zurück: Fehlt etwas, frag den Nutzer kurz und gezielt danach. Auch eine Antwort oder ein Änderungswunsch zu einem Vorgang geht hierüber.",
@@ -135,6 +140,8 @@ var catalog = map[i18n.Lang]texts{
 		},
 	},
 	i18n.EN: {
+		agentNamed:       "This skill's agent is called %s.",
+		agentsNamed:      "This skill's agents are called %s.",
 		startDesc:        "Opens a thread for a concern that needs more than one answer: Mira collects what the target needs, asks for what is missing and finishes. Open first, then fill with thread_fill. Targets:",
 		requestDesc:      "The concern in the user's words.",
 		fillDesc:         "Fills fields of the current thread or the one waiting here, from what the user said or what you looked up in the house. Every field needs an answer; if a field is deliberately not needed, write \"- \" and the reason (e.g. \"- nothing relative in the request\"). You get the state back: if something is missing, ask the user for it, briefly and specifically. An answer or a change to a thread also goes here.",

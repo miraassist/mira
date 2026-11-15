@@ -22,7 +22,9 @@ const (
 
 // Tools are the thread tools; none without a target. The list of targets
 // sits in thread_start's description, the same for every turn of a language,
-// so the cached prompt prefix does not change.
+// so the cached prompt prefix does not change; only a remote agent's name
+// read from its card later changes it once (decision 63 of
+// docs/spec/remote-agents.md).
 func (m *Manager) Tools() []tools.InternalTool {
 	if !m.HasTargets() {
 		return nil
@@ -165,9 +167,22 @@ func (m *Manager) describeTargets(l i18n.Lang) string {
 	for name := range m.targets {
 		names = append(names, name)
 	}
+	t := i18n.Pick(catalog, l)
 	var list strings.Builder
 	for _, name := range sortedNames(names) {
 		fmt.Fprintf(&list, "\n- %s: %s", name, m.targets[name].DescriptionIn(l))
+		if m.opts.AgentNames == nil {
+			continue
+		}
+		// The skill's remote agents by name (docs/spec/remote-agents.md,
+		// decision 61): the user starts such a skill by naming its agent.
+		switch agents := m.opts.AgentNames(name); len(agents) {
+		case 0:
+		case 1:
+			fmt.Fprintf(&list, " "+t.agentNamed, agents[0])
+		default:
+			fmt.Fprintf(&list, " "+t.agentsNamed, strings.Join(agents, ", "))
+		}
 	}
-	return i18n.Pick(catalog, l).startDesc + list.String()
+	return t.startDesc + list.String()
 }

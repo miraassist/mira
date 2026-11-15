@@ -1,6 +1,6 @@
 ---
 name: recherche
-description: "Gibt eine gründliche Recherche an einen Recherche-Agenten im Heimnetz ab (etwa Hermes): Er sucht mehrere Minuten lang im Internet, liest und vergleicht viele Quellen (Testberichte, Herstellerangaben, Verbraucherberatung, Preise) und schickt danach eine Übersicht mit Empfehlung und Quellen als Nachricht. Für Aufträge wie „Finde heraus, welche Wärmepumpe zu unserem Haus passt, und gib mir eine Übersicht“, „Recherchier mal, welcher Saugroboter …“, „Such mir die besten … raus“. Nicht für eine kurze Frage, die sofort beantwortet werden kann."
+description: "Gibt eine gründliche Recherche an einen Recherche-Agenten im Heimnetz ab: Er sucht mehrere Minuten lang im Internet, liest und vergleicht viele Quellen (Testberichte, Herstellerangaben, Verbraucherberatung, Preise) und schickt danach eine Übersicht mit Empfehlung und Quellen als Nachricht. Nur wenn der Nutzer den Agenten ausdrücklich nennt: mit seinem Namen, der am Ende dieses Eintrags steht („Frag <Name>, welche Wärmepumpe …“), oder als Recherche-Agenten („Lass den Recherche-Agenten herausfinden …“). Ohne diese Nennung recherchierst du selbst mit dem Skill nachdenken."
 license: MIT
 metadata:
   mira:

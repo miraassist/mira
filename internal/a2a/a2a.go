@@ -127,6 +127,8 @@ type Agent struct {
 	mu     sync.Mutex
 	info   Info
 	client *a2aclient.Client
+	// card is the name the card gives, once it was read.
+	card string
 	// read: the card was read; err is why it could not be, problem what
 	// in it Mira cannot use.
 	read    bool
@@ -303,6 +305,7 @@ func (h *Host) load(ctx context.Context, a *Agent) {
 	a.mu.Lock()
 	again := a.failed > 0
 	a.read, a.err, a.failed, a.info, a.client, a.problem = true, nil, 0, info, client, p
+	a.card = strings.TrimSpace(card.Name)
 	a.mu.Unlock()
 	if p != nil {
 		h.log.Warn("remote agent not usable", "skill", a.Skill, "agent", a.Name, "url", a.def.Remote.URL,
@@ -621,6 +624,33 @@ func (c credentials) RoundTrip(r *http.Request) (*http.Response, error) {
 		out.AddCookie(&http.Cookie{Name: c.cookie, Value: c.token})
 	}
 	return c.next.RoundTrip(out)
+}
+
+// Names are the names of a skill's remote agents as Mira names them to
+// the user, for the skill's entry in the list of targets
+// (docs/spec/remote-agents.md, decisions 61 and 63): the skill's name for
+// an agent, else its card's name once the card was read. An agent with
+// neither is left out, so before its card is read it has no name.
+func (h *Host) Names(skill string) []string {
+	if h == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range h.agents {
+		if a.Skill != skill {
+			continue
+		}
+		name := a.def.Name
+		if name == "" {
+			a.mu.Lock()
+			name = a.card
+			a.mu.Unlock()
+		}
+		if name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // Info is what Mira took from the card; ok once it was read and fits.

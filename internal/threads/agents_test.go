@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
@@ -415,5 +416,58 @@ func TestMessageSendWithoutItsField(t *testing.T) {
 	if _, err := MessageSend().Work(context.Background(), store.Thread{Fields: map[string]string{"message": left}}); err == nil ||
 		!strings.Contains(err.Error(), left) {
 		t.Errorf("left out: %v", err)
+	}
+}
+
+// RM-24 The entry of a skill with a remote agent names its agent
+func TestRM24_TheEntryOfASkillWithARemoteAgentNamesItsAgent(t *testing.T) {
+	recherche := skills.Skill{Name: "recherche", Description: "Recherchiert gründlich.", Body: "Starte den Vorgang.",
+		Target: &skills.Target{Finish: skills.Finish{Name: "message.send"}, Fields: []skills.TargetField{
+			{Name: "message", Description: "die Übersicht", Agent: "recherche"}}}}
+	zwei := skills.Skill{Name: "zwei", Description: "Zwei Agenten.", Body: "Starte.",
+		Target: &skills.Target{Finish: skills.Finish{Name: "message.send"}}}
+	merken := skills.Skill{Name: "merken", Description: "merken", Body: "Frag nach.",
+		Target: &skills.Target{Finish: skills.Finish{Name: "memory.save"}}}
+	// The names as the host gives them; asked again at every description.
+	names := map[string][]string{"recherche": {"Hermes"}, "zwei": {"Hermes", "Kim"}}
+	m := New(Options{Lang: i18n.DE, Targets: []skills.Skill{recherche, zwei, merken},
+		AgentNames: func(skill string) []string { return names[skill] }})
+	// Given a skill's target has a remote agent the skill names "Hermes"
+	// When Mira describes thread_start for a turn
+	// Then the skill's entry ends with "Der Agent dieses Skills heißt Hermes."
+	de := m.describeTargets(i18n.DE)
+	for _, want := range []string{
+		"\n- recherche: Recherchiert gründlich. Der Agent dieses Skills heißt Hermes.",
+		"\n- zwei: Zwei Agenten. Die Agenten dieses Skills heißen Hermes, Kim.",
+		"\n- merken: merken\n",
+	} {
+		if !strings.Contains(de+"\n", want) {
+			t.Errorf("de lacks %q:\n%s", want, de)
+		}
+	}
+	// And in English "This skill's agent is called Hermes."
+	if en := m.describeTargets(i18n.EN); !strings.Contains(en, "- recherche: Recherchiert gründlich. This skill's agent is called Hermes.") ||
+		!strings.Contains(en, "This skill's agents are called Hermes, Kim.") {
+		t.Errorf("en:\n%s", en)
+	}
+	// A name that is known only later (its card read) shows from the next
+	// description on; without one the entry is as it was.
+	delete(names, "recherche")
+	if d := m.describeTargets(i18n.DE); !strings.Contains(d+"\n", "- recherche: Recherchiert gründlich.\n") {
+		t.Errorf("without a name:\n%s", d)
+	}
+	names["recherche"] = []string{"Fake-Agent"}
+	if d := m.describeTargets(i18n.DE); !strings.Contains(d, "Recherchiert gründlich. Der Agent dieses Skills heißt Fake-Agent.") {
+		t.Errorf("later:\n%s", d)
+	}
+	// Without AgentNames (no remote agents) the entries stay as they were.
+	if d := New(Options{Lang: i18n.DE, Targets: []skills.Skill{recherche}}).describeTargets(i18n.DE); strings.Contains(d, "heißt") {
+		t.Errorf("without names:\n%s", d)
+	}
+	// The tool's per-language description is this very function.
+	for _, tl := range m.Tools() {
+		if tl.Name == ToolStart && !strings.Contains(tl.DescribeIn(i18n.DE), "heißt Fake-Agent") {
+			t.Errorf("thread_start: %s", tl.DescribeIn(i18n.DE))
+		}
 	}
 }
