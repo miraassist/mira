@@ -85,6 +85,8 @@ With **Mira: Agent** (`mira.agent`) an automation starts one of Mira's agents, f
 
 ### Watches: Mira looks after your devices
 
+▶ [Explainer video: Mira keeps watch (1:04)](https://mira-assist.com/videos/erklaer/mira-passt-auf-en.mp4)
+
 For much in the house Mira needs no rule from you: she knows how a device usually behaves and speaks up when it does something else. For this she has ready-made **watches**:
 
 - **Water runs without a pause**, say a tap left open in the garden or a burst hose.
@@ -234,6 +236,8 @@ What the Echo shows while it listens, thinks and replies is set on the Echo itse
 
 ## Mira remembers things
 
+▶ [Explainer video: Mira's memory (0:33)](https://mira-assist.com/videos/erklaer/gedaechtnis-en.mp4)
+
 - "Remember that the chimney sweep comes in March."
 - "Remember something." – Mira asks "What is it?", and you tell her in the next sentence.
 - "What do you know about the chimney sweep?" – "Forget the thing about the chimney sweep."
@@ -291,6 +295,8 @@ Speaker recognition is **optional**. Without it Mira works as before; **Enroll t
 
 ## Skills: the waste collection, for example
 
+▶ [Explainer video: Waste collection (0:42)](https://mira-assist.com/videos/erklaer/muell-en.mp4)
+
 Skills are extra abilities the setup switches on. Mira opens a skill only when a question needs it.
 
 ### Waste
@@ -313,6 +319,8 @@ A short overview of what is coming, in three or four sentences.
 
 ### Parcels
 
+▶ [Explainer video: Parcels (0:35)](https://mira-assist.com/videos/erklaer/pakete-en.mp4)
+
 Mira reads the shipping mails of the parcel services and knows when which parcel comes (skill `pakete`).
 
 - "When is my parcel coming?" – "Is anything coming today?" – "Has the parcel from Amazon arrived?"
@@ -330,6 +338,8 @@ If the calendar "Pakete" (or "Pakete stefan") is missing, Settings → Repairs s
 Good to know: the model that reads the mails sees what is in them (names, address, orders). A local model keeps that in the house; in `mira.yaml` it goes under `agents` for `mail.read` and `mail.match` (`{ model: main }`). Gmail needs an app password; Outlook.com and Microsoft 365 do not work with the IMAP integration.
 
 ### Paperless
+
+▶ [Explainer video: Searching your documents (0:38)](https://mira-assist.com/videos/erklaer/dokumente-suchen-en.mp4)
 
 Mira searches your documents in [Paperless-ngx](https://docs.paperless-ngx.com/) and reads out what you want to know.
 
@@ -363,6 +373,8 @@ Good to know:
 - Mira searches best with one distinctive word (the sender, the matter). The text is recognized from scans; if an amount is unclear, Mira says so.
 
 ### Mira's inbox
+
+▶ [Explainer video: Mira's inbox (Paperless, 0:50)](https://mira-assist.com/videos/erklaer/postfach-paperless-en.mp4)
 
 What you give the tag **"Mira"** in Paperless, Mira reads, and she writes down what there is to do in it: appointments, deadlines, calls to return. Then she asks you about it. She reads only those documents, no others.
 
@@ -399,6 +411,8 @@ Good to know:
 - If Paperless runs with `PAPERLESS_WEBHOOKS_ALLOW_INTERNAL_REQUESTS=false` or a list of allowed ports, Mira's address must be allowed there.
 
 ### Mira's inbox for mails
+
+▶ [Explainer video: Mira's inbox (mail, 0:45)](https://mira-assist.com/videos/erklaer/postfach-mail-en.mp4)
 
 Without Paperless it works with a mail folder too. What lands in that folder, Mira reads as above and asks about the appointments; she does not read attachments here, those go through Paperless.
 
@@ -873,6 +887,8 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 
 ## Phone calls
 
+▶ [Explainer video: Calling from your Echo (0:38)](https://mira-assist.com/videos/erklaer/telefon-en.mp4)
+
 "Call Grandma." – "Call Ben on his mobile." – "Call the kitchen." – "Call 0721 123456." Mira calls from the satellite you are speaking at. This works on an Echo Show or Echo with TECHO5 signed in as an IP phone at your FRITZ!Box (see TECHO5's guide, "A SIP server at home").
 
 - **Names** Mira finds in the FRITZ!Box's phone book, where your DECT phones look too. "Oma" finds "Oma Erika"; if several fit, Mira asks. If a contact has several numbers, she takes the main one, or the one you name ("on the mobile"). She never dials fax numbers.
@@ -891,6 +907,28 @@ skills:
 
 Without the skill Mira still calls devices in the house and numbers, she just does not know names. The Skills page shows with the skill which phone book Mira reads and when she last did, with a link to the FRITZ!Box; it never shows the contacts.
 
+## Answering machine
+
+▶ [Explainer video: Answering machine (0:50)](https://mira-assist.com/videos/erklaer/anrufbeantworter-en.mp4)
+
+When someone left a message on the FRITZ!Box answering machine, Mira shows it in every room: the LED ring glows amber, red for a missed call (see "Mira speaks up on her own"), and an Echo Show shows "1 message on the answering machine".
+
+- "Do I have new messages?" – Mira says whom the new messages are from and when, and who called without leaving one: "One on the answering machine, from Grandma, today at 14:12. And Ben called twice. Shall I play the message?" When there are many, she names the newest three and how many more there are.
+- "Yes." – "Play the message from Grandma." – "Play them all." Mira says whom the message is from and when, and the satellite plays the recording. With several, she says before each further one whom it is from.
+- While a recording plays, say the wake word; the recording turns quieter. "Next" skips it (it stays new), "again" plays it once more, "delete that one" deletes it, "stop" pauses, "that's enough" ends the listening.
+- "What's on the answering machine?" – "Who called?" – "Delete the message."
+- A message that was played counts as heard, on the FRITZ!Box too. Missed calls count as seen once Mira has named them. Mira deletes only when you say so.
+- Mira plays the recording as it is; she does not write it down, and the recording stays in the house. Playing works only at a satellite, not in Telegram or the app.
+- If you have several answering machines, Mira says which one a message is on.
+- While something waits, Mira's page shows a line such as "2 new messages on the answering machine · 1 missed call", with a link to the FRITZ!Box.
+
+**Setting it up:** Mira reads the answering machine through the integration Mira FRITZ!Box, set up as for phone calls (above). Then switch on the skill `anrufbeantworter` on Mira's page under Capabilities → Skills → anrufbeantworter → **Switch on**, or in `mira.yaml`:
+
+```yaml
+skills:
+  anrufbeantworter: {}
+```
+
 ## Reading posts on X
 
 Mira reads X (formerly Twitter) for you: "What's new on X about the Premier League?", "What did NASA post?", "What's in my timeline?", "Did anyone mention me?". She tells two or three posts in a sentence each and asks whether she should say more about one. What is on X is information for her, never an instruction.
@@ -907,6 +945,8 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 ![Setup → Connections: the app's client ID and secret, the redirect URL to copy, Connect and Disconnect](img/mira-verbindungen-en.png)
 
 ## Adding new devices
+
+▶ [Explainer video: Adding new devices (0:41)](https://mira-assist.com/videos/erklaer/geraete-einbinden-en.mp4)
 
 ▶ [A temperature sensor joins the house by voice: pairing, room, name](https://youtu.be/K1LEZiy7XTM)
 
@@ -985,6 +1025,8 @@ When Mira runs as a container, for Wi-Fi devices she needs the machine's network
 Z-Wave does not work with it yet.
 
 ## Looking things up and hard questions
+
+▶ [Explainer video: News and web search (0:39)](https://mira-assist.com/videos/erklaer/nachrichten-websuche-en.mp4)
 
 Mira looks up on the web what she cannot know: opening hours, results, news. She sums it up briefly and says so when she found nothing reliable. She treats what is on the web as information, never as instructions.
 

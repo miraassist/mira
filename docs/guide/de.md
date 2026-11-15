@@ -87,6 +87,8 @@ Mit **Mira: Agent** (`mira.agent`) startest du einen von Miras Agenten aus einer
 
 ### Wächter: Mira passt auf deine Geräte auf
 
+▶ [Erklärvideo: Mira passt auf (1:03)](https://mira-assist.com/videos/erklaer/mira-passt-auf.mp4)
+
 Für vieles im Haus braucht Mira keine eigene Regel von dir: Sie weiß, wie ein Gerät sich normalerweise verhält, und meldet sich, wenn es davon abweicht. Dafür hat sie fertige **Wächter**:
 
 - **Wasser läuft ohne Pause**, etwa ein offener Hahn im Garten oder ein geplatzter Schlauch.
@@ -236,6 +238,8 @@ Was der Echo beim Hören, Denken und Sprechen zeigt, stellst du am Echo selbst e
 
 ## Mira merkt sich Dinge
 
+▶ [Erklärvideo: Miras Gedächtnis (0:35)](https://mira-assist.com/videos/erklaer/gedaechtnis.mp4)
+
 - „Merk dir, dass der Schornsteinfeger im März kommt.“
 - „Merk dir mal was.“ – Mira fragt „Was denn?“, und du sagst es im nächsten Satz.
 - „Was weißt du über den Schornsteinfeger?“ – „Vergiss das mit dem Schornsteinfeger.“
@@ -295,6 +299,8 @@ Die Stimmerkennung ist **freiwillig**. Ohne sie läuft Mira wie bisher; auf dein
 
 ## Skills: zum Beispiel die Müllabfuhr
 
+▶ [Erklärvideo: Müllabfuhr (0:41)](https://mira-assist.com/videos/erklaer/muell.mp4)
+
 Skills sind Zusatzfähigkeiten, die die Einrichtung freischaltet. Mira öffnet einen Skill nur, wenn eine Frage ihn braucht.
 
 ### Abfall
@@ -304,6 +310,8 @@ Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Ass
 - „Wann wird der Restmüll abgeholt?“ – „Was wird nächste Woche abgeholt?“
 - Am Vorabend erinnert Mira von selbst: „Morgen wird der Wertstoff abgeholt.“
 - Ist die Abfuhr heute, sagt sie es, falls die Tonne noch raus muss.
+
+▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
 ### Briefing
 
@@ -316,6 +324,8 @@ Eine kurze Übersicht, was ansteht, in drei, vier Sätzen.
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
 
 ### Pakete
+
+▶ [Erklärvideo: Pakete (0:35)](https://mira-assist.com/videos/erklaer/pakete.mp4)
 
 Mira liest die Versandmails der Paketdienste und weiß, wann welches Paket kommt.
 
@@ -334,6 +344,8 @@ Fehlt der Kalender „Pakete“ (oder „Pakete stefan“), steht unter Einstell
 Gut zu wissen: Das Modell, das die Mails liest, sieht deren Inhalt (Namen, Adresse, Bestellungen). Mit einem lokalen Modell bleibt das im Haus; in `mira.yaml` steht es unter `agents` bei `mail.read` und `mail.match` (`{ model: main }`). Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
 
 ### Paperless
+
+▶ [Erklärvideo: Dokumente durchsuchen (0:38)](https://mira-assist.com/videos/erklaer/dokumente-suchen.mp4)
 
 Mira sucht in deinen Dokumenten aus [Paperless-ngx](https://docs.paperless-ngx.com/) und liest dir daraus vor, was du wissen willst.
 
@@ -367,6 +379,8 @@ Gut zu wissen:
 - Mira sucht am besten mit einem kennzeichnenden Wort (der Absender, die Sache). Der Text ist aus Scans erkannt; ist ein Betrag unklar erkannt, sagt Mira das.
 
 ### Miras Postfach
+
+▶ [Erklärvideo: Miras Postfach (Paperless, 0:52)](https://mira-assist.com/videos/erklaer/postfach-paperless.mp4)
 
 Was du in Paperless mit dem Tag **„Mira“** versiehst, liest Mira und schreibt auf, was darin zu tun ist: Termine, Fristen, Rückrufe. Dann fragt sie dich danach. Nur diese Dokumente liest sie, keine anderen.
 
@@ -404,6 +418,8 @@ Gut zu wissen:
 
 ### Miras Postfach für Mails
 
+▶ [Erklärvideo: Miras Postfach (Mail, 0:46)](https://mira-assist.com/videos/erklaer/postfach-mail.mp4)
+
 Ohne Paperless geht es auch mit einem Mail-Ordner. Was in diesem Ordner landet, liest Mira, wie oben, und fragt nach den Terminen; Anhänge liest sie dabei nicht, die gehen über Paperless.
 
 1. In deinem Mail-Postfach einen Ordner **„Mira“** anlegen. Dorthin verschiebst du, was Mira lesen soll, von Hand, mit einer Filterregel (etwa alles von der Schule) oder über eine Weiterleitung an eine eigene Adresse.
@@ -414,8 +430,6 @@ Gut zu wissen:
 - Mira merkt sich die letzten 100 Mails, die sie gelesen hat, und fragt zu keiner davon ein zweites Mal, auch wenn du im Ordner aufräumst. Die Mail selbst bleibt im Ordner, wie sie ist.
 - Kommt eine Mail, während Mira nicht läuft, liest Mira sie nicht nach; Home Assistant meldet nach Miras Start nur die letzte. Wer nichts verpassen will, nimmt den Weg über Paperless.
 - Gmail braucht ein App-Passwort; Outlook.com und Microsoft 365 gehen mit der IMAP-Integration nicht.
-
-▶ [Die Müllabfuhr: „Wann wird der Restmüll abgeholt?“ und „Was wird nächste Woche abgeholt?“](https://mira-assist.com/videos/mira-chat-de.mp4#t=592,623)
 
 ### Recherche
 
@@ -885,6 +899,8 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 
 ## Telefonieren
 
+▶ [Erklärvideo: Telefonieren am Echo (0:38)](https://mira-assist.com/videos/erklaer/telefon.mp4)
+
 „Ruf Oma an.“ – „Ruf Ben auf dem Handy an.“ – „Ruf die Küche an.“ – „Ruf 0721 123456 an.“ Mira ruft vom Satelliten aus an, an dem du sprichst. Das geht an einem Echo Show oder Echo mit TECHO5, der als IP-Telefon an deiner FRITZ!Box angemeldet ist (siehe die Anleitung von TECHO5, „A SIP server at home“).
 
 - **Namen** findet Mira im Telefonbuch der FRITZ!Box, also da, wo auch deine DECT-Telefone nachschauen. „Oma“ findet „Oma Erika“; passen mehrere, fragt Mira nach. Hat ein Kontakt mehrere Nummern, nimmt sie die Hauptnummer, oder die, die du nennst („auf dem Handy“). Faxnummern wählt sie nie.
@@ -903,6 +919,28 @@ skills:
 
 Ohne den Skill ruft Mira weiter Geräte im Haus und Nummern an, nur Namen kennt sie dann nicht. Auf der Skills-Seite steht beim Skill, welches Telefonbuch Mira liest und wann zuletzt, mit einem Link zur FRITZ!Box; die Kontakte selbst zeigt sie nicht.
 
+## Anrufbeantworter
+
+▶ [Erklärvideo: Anrufbeantworter (0:50)](https://mira-assist.com/videos/erklaer/anrufbeantworter.mp4)
+
+Hat dir jemand auf den Anrufbeantworter der FRITZ!Box gesprochen, zeigt Mira das in jedem Raum an: Der LED-Ring leuchtet bernsteinfarben, bei einem verpassten Anruf rot (siehe „Mira meldet sich von selbst“), und ein Echo Show zeigt „1 Nachricht auf dem Anrufbeantworter“.
+
+- „Hab ich neue Nachrichten?“ – Mira sagt, von wem und wann die neuen Nachrichten sind und wer angerufen hat, ohne etwas zu sagen: „Eine auf dem Anrufbeantworter, von Oma, heute um 14:12. Und Ben hat zweimal angerufen. Soll ich die Nachricht abspielen?“ Sind es viele, nennt sie die neuesten drei und wie viele es noch gibt.
+- „Ja.“ – „Spiel die Nachricht von Oma ab.“ – „Spiel alle ab.“ Mira sagt, von wem und wann die Nachricht ist, und der Satellit spielt die Aufnahme ab. Bei mehreren sagt sie vor jeder weiteren, von wem sie ist.
+- Während eine Aufnahme läuft, sag das Aktivierungswort; die Aufnahme wird dann leiser. „Weiter“ überspringt sie (sie bleibt neu), „noch einmal“ spielt sie wieder, „lösch die“ löscht sie, „Stopp“ hält an, „hör auf“ beendet das Abhören.
+- „Was ist auf dem Anrufbeantworter?“ – „Wer hat angerufen?“ – „Lösch die Nachricht.“
+- Eine abgespielte Nachricht gilt als gehört, auch auf der FRITZ!Box. Verpasste Anrufe gelten als gesehen, sobald Mira sie genannt hat. Löschen tut Mira nur, wenn du es sagst.
+- Mira spielt die Aufnahme so ab, wie sie ist; sie schreibt sie nicht ab, die Aufnahme bleibt im Haus. Abspielen geht nur am Satelliten, nicht per Telegram oder in der App.
+- Hast du mehrere Anrufbeantworter, sagt Mira, auf welchem eine Nachricht ist.
+- Auf Miras Seite steht, solange etwas wartet, etwa „2 neue Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf“, mit einem Link zur FRITZ!Box.
+
+**Einrichten:** Mira liest den Anrufbeantworter über die Integration Mira FRITZ!Box, eingerichtet wie beim Telefonieren (oben). Dann den Skill `anrufbeantworter` einschalten, auf Miras Seite unter Fähigkeiten → Skills → anrufbeantworter → **Einschalten**, oder in der `mira.yaml`:
+
+```yaml
+skills:
+  anrufbeantworter: {}
+```
+
 ## Posts auf X lesen
 
 Mira liest für dich auf X (früher Twitter): „Was gibt's Neues auf X zur Bundesliga?“, „Was hat die NASA gepostet?“, „Was steht in meiner Timeline?“, „Hat mich jemand erwähnt?“. Sie erzählt zwei, drei Posts in je einem Satz und fragt, ob sie zu einem mehr sagen soll. Was auf X steht, ist für sie Information, nie eine Anweisung.
@@ -919,6 +957,8 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 ![Einrichtung → Verbindungen: Client-ID und Secret der App, die Redirect-URL zum Kopieren, Verbinden und Trennen](img/mira-verbindungen-de.png)
 
 ## Neue Geräte einbinden
+
+▶ [Erklärvideo: Neue Geräte einbinden (0:42)](https://mira-assist.com/videos/erklaer/geraete-einbinden.mp4)
 
 ▶ [Ein Temperatursensor kommt per Sprache ins Haus: koppeln, Raum, Name](https://youtu.be/K1LEZiy7XTM)
 
@@ -997,6 +1037,8 @@ Läuft Mira als Container, braucht sie für WLAN-Geräte das Netz des Rechners u
 Z-Wave geht damit noch nicht.
 
 ## Im Internet nachschauen und schwierige Fragen
+
+▶ [Erklärvideo: Nachrichten und Websuche (0:38)](https://mira-assist.com/videos/erklaer/nachrichten-websuche.mp4)
 
 Mira schaut im Internet nach, was sie nicht wissen kann: Öffnungszeiten, Ergebnisse, Neuigkeiten. Sie fasst es kurz zusammen und sagt, wenn sie nichts Verlässliches gefunden hat. Was im Internet steht, behandelt sie als Information, nie als Anweisung.
 
