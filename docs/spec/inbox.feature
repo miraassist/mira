@@ -258,3 +258,99 @@ Feature: IN Mira's inbox in Paperless
   Scenario: IN-44 The skill postfach enters through calendar_create
     Given a turn with the skill postfach open
     Then the tool calendar_create is offered and inbox_enter is not
+
+  @step10
+  Scenario: IN-45 The reading gives items by meaning
+    Given a letter with the parents' evening on Thu 3.12. 19:30 in the hall and a reply due by Fri 28.11.
+    When the fake model reads it
+    Then the reading has an item of kind appointment with the fields title "Elternabend" and one line of proposals
+    And an item of kind todo with the fields item "Rückmeldung Ausflug" and due "2026-11-28"
+    And each item has a line with the source and an expiry
+
+  @step10
+  Scenario: IN-46 An appointment starts a thread of termin, waiting for a yes
+    Given the reading's appointment item "Elternabend" with one proposal for Anna
+    Then a thread of the target termin is started for Anna with title, proposals and description filled
+    And it waits for a yes and does not finish by itself
+    And its expiry is the start of the proposal
+
+  @step10
+  Scenario: IN-47 A to-do starts a thread of todo
+    Given the reading's todo item "Steuererklärung abgeben" due 2026-11-16 for Anna
+    Then a thread of the target todo is started for Anna with item, due and description filled
+    And its expiry is the end of 2026-11-16
+
+  @step10
+  Scenario: IN-48 Each item is an entry of the message of its kind
+    Given a letter with one appointment and one deadline for Anna
+    When it is read
+    Then Anna's unheard appointment message has an entry with the appointment's line and its thread
+    And Anna's unheard todo message has an entry with the to-do's line and its thread
+    And no message of kind postfach is put
+
+  @step10
+  Scenario: IN-49 Proposals to choose one are one appointment
+    Given a letter from a practice offering Tue 9:00, Wed 14:30 and Fri 11:00, one to choose
+    When the fake model reads it
+    Then the reading has one appointment item with three proposals
+    And one thread and one entry are started for it
+
+  @step10
+  Scenario: IN-50 The yes runs the finish of termin
+    Given Anna's termin thread from the inbox with one proposal "2026-12-03 19:30–20:30 · Aula"
+    When the model fills start, end, location and the calendar and confirms
+    Then calendar.create enters the Elternabend into Anna's calendar
+    And the thread is done and its entry gone
+
+  @step10
+  Scenario: IN-51 The yes runs the finish of todo
+    Given Anna's todo thread from the inbox with item "Steuererklärung abgeben" and due 2026-11-16
+    When the model fills the list "standard" and confirms
+    Then todo.create puts it onto Anna's own list with due_date 2026-11-16
+    And the thread is done and its entry gone
+
+  @step10
+  Scenario: IN-52 Items that do not fit are dropped, the others go on
+    Given a reading with an item of kind "rechnung", which no skill takes, and a valid to-do
+    Then only the to-do starts a thread
+    And a log line names the document and the dropped item
+
+  @step10
+  Scenario: IN-53 No answer until the expiry
+    Given Anna's todo thread from the inbox due 2026-11-16
+    When the end of 2026-11-16 passes without an answer
+    Then nothing is put on the list, the thread has expired and its entry is gone
+    And a log line names the thread and the item
+
+  @step10
+  Scenario: IN-54 The kinds' instructions offer what will be done
+    Given the skills termin and todo
+    Then each has a section "## Ansage"
+    And neither instruction contains "durchgehen"
+
+  @step10
+  Scenario: IN-55 A field the taking skill does not know is dropped
+    Given a reading with a todo item whose fields are item, due and "priority"
+    Then the todo thread is started with item and due
+    And a log line names the document, the item and the field "priority"
+
+  @step10
+  Scenario: IN-56 The reading is offered only the kinds a switched-on skill takes
+    Given the skill todo is switched off
+    When a document is read
+    Then the reading's instruction names the kind appointment and not todo
+    And an item of kind todo in the answer is dropped with a log line
+
+  @step10
+  Scenario: IN-57 Two switched-on skills taking the same kind
+    Given the skill todo and an own skill "aufgaben" with takes todo, both switched on
+    Then a repair names both and says to switch one off
+    And the reading is not offered the kind todo
+    And with "aufgaben" switched off the kind todo is taken by todo again
+
+  @step10
+  Scenario: IN-58 "Ja" confirms an appointment and a to-do one after another
+    Given Anna's waiting entries "Elternbrief: Elternabend Do 3.12. 19:30, Aula" (appointment, one proposal) and "Elternbrief: Rückmeldung Ausflug bis Fr 28.11." (todo)
+    When the announcement offers both and Anna says "ja"
+    Then the termin thread and the todo thread are confirmed one after the other in that turn
+    And the Elternabend is in Anna's calendar and the reply on Anna's list

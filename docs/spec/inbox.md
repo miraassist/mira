@@ -1,6 +1,6 @@
 # Mira's inbox – Spec
 
-Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Scenarios: [inbox.feature](inbox.feature).
+Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Step 10 (kinds by meaning, decision 29) decided 2026-11-15, not built. Scenarios: [inbox.feature](inbox.feature).
 First source: Paperless-ngx; first kind of finding: appointments.
 
 ## Goal
@@ -336,6 +336,8 @@ made Mira ask about the one before again, and a new mail on the position of a ma
 
 ### 7. The model writes the plan (step 9)
 
+Replaced by section 8 (step 10) once that is built.
+
 Decided 2026-11-12 (decision 28). The reading's model writes the plan, the message's line and the thread's expiry; the
 conversation's model works the plan with the tools that exist; appointments are entered through the calendar's tool.
 
@@ -373,7 +375,7 @@ is worded. The plan is German like every plan; dates as the plan's reader says t
    - a change ("der Elternabend ist um 20 Uhr"): the changed value goes into `calendar_create`; the plan is not rewritten;
    - a choice among proposals: the model asks which one, enters it, ticks the step;
    - a deadline: entered as an appointment for the whole day when the person wants it, not offered by itself
-     (decided 2026-11-12);
+     (decided 2026-11-12; replaced by section 8, decision 29: a deadline becomes a to-do);
    - an entry that was wrong ("nein, der war falsch") right after it was entered: through the skill
      `termin-absagen`, with its question back, as for every event (decided 2026-11-12); `calendar_create` keeps nothing
      to take back;
@@ -394,6 +396,126 @@ the answer's turn per appointment: `calendar_create` (1 read of the calendars, 1
 
 **What goes away:** the findings as fields (`kind`, `title`, `day`, `start`, `end`, `location`, `for`), their check in
 code, the plan written by code, the fixed question "Soll ich sie eintragen?", the tool `inbox_enter` and its texts.
+
+### 8. Kinds by meaning: appointments and to-dos (step 10)
+
+Decided 2026-11-15 (decision 29). Replaces the plan per mail of section 7, the kind `postfach` and the skill
+`postfach`'s working of the plan.
+
+**Why.** The kind `postfach` and its plan said where a thing came from, not what to do with it. Its announcement
+could only offer to "go through" the mail, and its plan could not tell three proposals (one to choose) from three
+appointments (all to enter): after the first, it showed "Jetzt (Schritt 2)" (seen in the real test 2026-11-12). What
+matters is what a thing means: something that **takes place** goes into a calendar, something **to do** onto a to-do
+list ([Glossary](../glossary.md), Calendars and lists). Each becomes an entry of the message of its kind, and the skill
+that enters such things anyway takes it up: `termin` and `todo`, the same way "Trag mir Freitag Zahnarzt ein" goes.
+The mail is the source, named in the entry's line.
+
+Departures from the building blocks it hangs on, each with its reason:
+
+- **A thread of a field target started by code** ([Threads](threads.md), Started by code): until now only plan
+  threads could be started from code. `termin` and `todo` are field targets; their thread is started with its fields
+  filled from the reading, and it waits for a yes, because the inbox acts only on a yes (decision 2).
+- **No plan per mail** (messages decision 7 changed): one thread per thing, not per mail. A mail with an appointment
+  and a deadline gives two threads of two kinds.
+
+**The reading's answer** (replaces the table of section 7). The reading is the agent `inbox.read` as today; its
+instruction is the skill `postfach`'s `inbox.extract` (decision 30), and the code adds one line with the kinds a
+switched-on skill takes now ("Arten: appointment, todo"; decision 32):
+
+```json
+{
+  "summary": "Elternbrief der Grundschule",
+  "items": [
+    { "kind": "appointment",
+      "line": "Elternbrief: Elternabend Do 3.12. 19:30, Aula",
+      "expires": "2026-12-03 19:30",
+      "fields": { "title": "Elternabend",
+                  "proposals": "2026-12-03 19:30–20:30 · Aula",
+                  "description": "Unterlagen mitbringen. Aus Paperless 5444: Elternbrief der Grundschule" } },
+    { "kind": "todo",
+      "line": "Elternbrief: Rückmeldung Ausflug bis Fr 28.11.",
+      "expires": "2026-11-28",
+      "fields": { "item": "Rückmeldung Ausflug", "due": "2026-11-28",
+                  "description": "Aus Paperless 5444: Elternbrief der Grundschule" } }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `summary` | what the document is, short; for the log |
+| `items` | the things to do, at most 20; empty when there is nothing to do |
+| `items[].kind` | a kind a switched-on skill takes (`takes`, [Messages](messages.md), decision 33) |
+| `items[].line` | the entry's line, with the source; at most 120 characters |
+| `items[].expires` | when the thing is of no use any more, by [Messages](messages.md) decision 11: an appointment, the start of its last proposal; a to-do, its due day; `YYYY-MM-DD HH:MM` or `YYYY-MM-DD` for the end of that day |
+| `items[].fields` | the fields of the taking skill's target, by their names there |
+
+The fields per kind are the taking skill's: `appointment` fills `termin`'s `title`, `proposals` (one line per proposal:
+"2026-12-03 19:30–20:30 · Aula" or "2026-12-22 ganztägig"; several only when the document offers them to choose one)
+and `description` (new fields of `termin`, below); `todo` fills `todo`'s `item`, `due`, `description`. Their dates
+are the plan's reader's dates, checked by the building block at the yes, not here.
+
+What fits no kind goes into the `description` of the item it belongs to; what belongs to none is not taken (decided
+2026-11-15: no field for a rest; the source is there to look into). Further kinds with a skill of their own may follow
+by the same pattern; they are not specified here.
+
+**The skill `postfach`** (decision 30) stays as the reading's skill only: no target, no `## Ansage`, no prose for a
+conversation. Its `inbox.extract` says what the possible ways to handle a document are (an appointment, entered by the
+skill `termin`; a to-do, put on a list by the skill `todo`), how to tell them apart (takes place / to do), when
+proposals are one appointment, and how fields and line are worded. The model decides what is to be done; it does
+nothing itself, it points to the threads that do it at the yes.
+
+**New fields of `termin`:** `proposals` (optional; filled only by the code from a reading; the prose: one proposal,
+on the yes take it; several, read them out and ask which; then fill `start`/`end` or `day`/`day_after` and
+`location` from the chosen one) and `description` (optional; passed to `calendar.create`, which takes it already).
+
+**The check in code**, only what the code relies on, no branch per kind:
+- at most 20 items (more: the first 20, a log line);
+- `kind` taken by a switched-on skill, else the item is dropped with a log line naming it;
+- each field a field of that skill's target, else the field is dropped with a log line;
+- `line` cut to 120 characters (log line); empty: the item's first field;
+- `expires` as in section 7 (a valid time, not before now, at most a year ahead; else 24 hours and a log line).
+
+**Asking:**
+
+1. Per item, with a person: the code starts a thread of the skill that takes the item's kind
+   ([Threads](threads.md), Started by code) for the person, with the item's `fields` and its `expires`.
+2. Its entry goes into the person's unheard message of the item's kind, or a new one ([Messages](messages.md)); the
+   entry's text is the item's line, its thread the one just started.
+3. The announcement is worded by the model from the kinds' instructions (`## Ansage` of `termin` and `todo`):
+   - `appointment`: what takes place, when, from what source; one proposal: "Soll ich ihn eintragen?", several: the
+     proposals and "Soll ich dir einen davon eintragen?";
+   - `todo`: what is to be done by when, from what source: "Soll ich das auf deine Liste setzen?".
+   Never "durchgehen": the offer names what will be done.
+4. **The answer** takes up the thread (`thread_take`, as for every kind with threads):
+   - one proposal, "ja": the model fills `start`/`end` or `day`/`day_after` and `location` from it, and the calendar
+     ("standard" or the memory's default), and confirms; the finish `calendar.create` enters it;
+   - several proposals: the model reads them out and asks which; the choice is the yes: it fills and confirms;
+   - a to-do, "ja": the model fills the list ("standard" or the memory's default) and confirms; the finish
+     `todo.create` puts it on the list ([To-dos with a due date](todo-due.md));
+   - a change ("der Elternabend ist um 20 Uhr"): the model fills the changed value, then confirms;
+   - "nein": `thread_cancel` for that thread.
+   The thread ends with its finish (done), on `thread_cancel`, or at its expiry; its entry goes with it.
+5. Without a person (decision 22): no thread; a message of kind `simple` to the house with the items' lines in full,
+   as today.
+
+**Errors:**
+
+| What fails | What happens | Who learns of it |
+|---|---|---|
+| The answer has no `items` field or is no JSON | as an answer that is no valid JSON (step 2) | as there |
+| An item's kind is taken by no switched-on skill, or a field is not the skill's | the item (or the field) is dropped, the others go on | a log line with the document and the item |
+| A thread cannot be started (database) | the document stays unread, threads already started for it are cancelled | a log line; the catch-up takes it |
+| The finish fails at the yes (calendar or list refused, HA unreachable) | the thread stays open, waiting | the finish's answer; the model says it |
+| No answer until the expiry | nothing is entered, the entry goes | a log line with the thread and the item |
+
+**What it costs:** the reading as before (1 model call). Per item: 1 thread written, 1 entry written. In the answer's
+turn per thing entered: the finish (1 read of the calendars or lists, 1 call to Home Assistant) and the thread's
+writes; the turn waits for them. N things, N of each.
+
+**What goes away:** the plan per mail, the kind `postfach` and its message, the skill `postfach`'s target, prose and
+`## Ansage` (the skill stays with `inbox.extract`), the tool `calendar_create` in the skills that named it (the building block `calendar.create`
+stays: the skill `termin` and the mail calendar use it).
 
 ## Open
 
@@ -421,6 +543,10 @@ Decided 2026-11-11 from this list:
 | 20 | A link to the document | Not for now |
 | 22 | No person, or no calendar | When the owner maps to no person, or the person has no calendar by convention ([Calendar](calendar.md)): no thread, only a message with the findings and the question "Was soll ich damit machen?", to the house or to the person. The answer ("nichts", "sag es Anna", "trag es mir ein") is a normal turn after it, not the inbox's: Mira acts with her usual tools (`termin`, messages). Writing into another person's calendar needs rights, which are not built now. The message therefore carries every finding in full (title, day, time, place, the document's title and number), so the next turn has what it needs |
 | 21 | How findings are entered | Replaced 2026-11-12 by decision 28. It was Mira's own tool `inbox_enter` from data checked by code, so the model would never copy a date. That mixed code and model in one flow: the code wrote the plan and checked the fields, the model only picked numbers, and a third way to enter an event grew beside the skill `termin` and the mail calendar |
+| 29 | Kinds by meaning (2026-11-15) | A thing in a mail or document is an **appointment** (takes place: a calendar) or a **to-do** (to do: the person's to-do list, [To-dos with a due date](todo-due.md)). Each becomes an entry of the message of kind `appointment` or `todo` with a thread of the skill `termin` or `todo`, its fields filled from the reading; the yes runs the skill's finish. Proposals to choose one are one appointment with a list of proposals (one long for a plain appointment). What is neither goes into the description of what it belongs to. The kind `postfach` and the plan per mail go (section 8). Replaces decisions 3 and 28 in how things are entered |
+| 30 | The skill `postfach` (2026-11-15) | Stays, as the reading's skill only: its `inbox.extract` names the ways to handle a document and the skills that do them; no target, no `## Ansage`. The reading's answer is JSON (summary, items with kind, line, expires, fields), not a tool call; the code starts the threads from it without a branch per kind (section 8) |
+| 32 | Which kinds the reading may give (2026-11-15) | Only the kinds a switched-on skill takes now: the code adds them to the reading's instruction as one line. A kind nobody takes is not proposed |
+| 31 | "Ja, alle" across things and kinds (2026-11-15) | Kinds whose taking up is a plain yes (`appointment` with one proposal, `todo`) are offered together ("Soll ich den Elternabend eintragen und die Rückmeldung auf deine Liste setzen?"); "ja" takes their threads one after another in the same turn (`thread_take`, fill, `thread_confirm` each), one thread at a time as messages decision 9 says; an appointment with proposals to choose from is asked after them. Changes messages decision 32 for these kinds |
 | 28 | Who writes the plan, and how it is entered | 2026-11-12: agentic before code. The reading's model writes the plan, the message's line and the expiry, as in `kochen` and `vokabeln`; the code only checks what it relies on (counts, lengths, the expiry). The conversation's model works the plan with the tools that exist; appointments go through the calendar's one building block and its tool `calendar_create` ([Calendar](calendar.md), Adding), which checks the dates. The plan may hold any thing to do (deadlines, callbacks), not only appointments (decision 3 widened) |
 
 ## Steps
@@ -441,7 +567,14 @@ Decided 2026-11-11 from this list:
    it. Needs the calendar's building block and tool ([Calendar](calendar.md), steps 1 and 2). IN-39 to IN-44; IN-07, IN-13 to
    IN-15 and IN-17 dropped; IN-09 and IN-16 are replaced by IN-40 and IN-42 and dropped too.
 
-Later, each with a spec of its own: further kinds (deadline, invoice, reminder to pay, callback) and their actions;
+10. Kinds by meaning (section 8, decision 29): the reading's items, threads of `termin` and `todo` started by code
+    with their fields, the kinds `appointment` and `todo` with their `## Ansage`, the skill `termin` with proposals;
+    `termin`'s fields `proposals` and `description`, `takes` in the taking skills ([Messages](messages.md), decision
+    33); the kind `postfach` and the skill `postfach`'s target and `## Ansage` removed; the evals on the inbox
+    rewritten. Needs [To-dos with a due date](todo-due.md), step 2, and [Threads](threads.md), Started by code. IN-45
+    to IN-58.
+
+Later, each with a spec of its own: further actions with a skill and a plan of their own by the same pattern;
 photos over Telegram (`telegram_attachment` with caption and
 `file_id`, `telegram_bot.download_file`); filing a photo into Paperless on request.
 

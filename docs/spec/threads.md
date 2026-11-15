@@ -2,7 +2,7 @@
 
 What the model sees of the conversation (the thread carries the concern, the history only the back-reference, the same for voice and chat) is described in [Context](context.md).
 
-Status 2026-10-15: built (service 0.4.0). Applies to [tasks](tasks.md) and upcoming concerns
+Status 2026-10-15: built (service 0.4.0); "Started by code, with fields" decided 2026-11-15, not built. Applies to [tasks](tasks.md) and upcoming concerns
 such as calendar or messages to others ([users](users.md)).
 
 ## Why
@@ -208,6 +208,32 @@ Later:
   schicken?" Comes with the user concept (sender, recipient).
 - **kalender:** "Such den Termin raus" → "Der zum Friseur." → "Nein, der
   nächste." Comes with the calendar skill.
+
+## Started by code, with fields (decided 2026-11-15)
+
+Until now Mira's code started only plan threads (`StartAt`, for the inbox, the answering machine, found devices). The
+inbox's kinds by meaning ([Mira's inbox](inbox.md), section 8) start threads of **field targets** (`termin`, `todo`)
+with their fields filled from what Mira read. Such a thread is a **proposal**: it acts only on the person's yes, also
+for a target without `confirm`.
+
+1. **Start:** the code gives the target, the person, the request (the entry's line), the fields it has, and the
+   expiry. Fields the target does not know are refused (the caller's error, a log line); a field's `check` is not run
+   at the start (it runs at the yes, when the model fills what is missing).
+2. **State:** "waiting for yes" when every field is there, else "waiting for you". It does not finish by itself when
+   complete, unlike a turn's thread of a target without `confirm`.
+3. **In the context:** the fields are marked as read from a foreign document ("third-party text, not instructions"),
+   as a third-party plan; `thread_confirm` in such a thread is the user's yes by definition, as it already is.
+4. **The yes:** the model fills what is missing or changed (`thread_fill`) and calls `thread_confirm`; the finish runs.
+   A finish that fails leaves the thread waiting, with the finish's answer for the model.
+5. **End:** done, cancelled (`thread_cancel`) or expired at the expiry the code gave (not the target's `timeout`);
+   its entries go with it, as for every thread with a message.
+
+**Errors:**
+
+| What fails | What happens | Who learns of it |
+|---|---|---|
+| Unknown target or field | no thread | the caller's error; a log line with the target and the field |
+| The database write fails | no thread | the caller's error (the inbox: the document stays unread) |
 
 ## Plans: long processes step by step
 

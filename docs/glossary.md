@@ -44,7 +44,7 @@ is used in a spec; a term that is not here is not a term yet.
 |---|---|---|---|---|
 | message | Nachricht | What waits for a receiver; lights the ring and the screen | table `messages`, `store.Message` | notice, notification, Hinweis (as a term) |
 | entry | Eintrag | One item of a message: a text, often with a thread behind it | table `message_entries` | item, notice |
-| kind | Art | What a message is and what happens with it: `simple`, `reminder`, `urgent`, `private`, `confidential`, `postfach`, `voicemail`, `device`, `reply`, `agent_request` | `messages.kind`, `store.Kind*` | type, category |
+| kind | Art | What a message is and what happens with it, not where it came from: `simple`, `reminder`, `urgent`, `private`, `confidential`, `postfach` (until the inbox's step 10), `appointment`, `todo`, `voicemail`, `device`, `reply`, `agent_request` | `messages.kind`, `store.Kind*` | type, category |
 | agent request | Agentenanfrage | A remote agent's question to the owner of its thread, because input is missing; a kind of message; the answer goes back to the agent | kind `agent_request` | reply (that is what comes back to a request), question |
 | receiver | Empfänger | Whom a message is for: a person, a room, the house | `messages.receiver` | audience |
 | sender | Absender | Who put an entry: a person, a task, a skill | `message_entries.sender` | author (of a message) |
@@ -52,7 +52,20 @@ is used in a spec; a term that is not here is not a term yet.
 | broadcast | Durchsage | "Sag allen …": at once over all satellites, not stored | Home Assistant's own (Assist); nothing of Mira's | announcement |
 | reminder | Erinnerung | A message of kind `reminder`, due at a time | `messages.kind = reminder`, `deliver_at` | alarm |
 | indicator | Anzeige | The LED ring and the screen showing what waits | `internal/notifier` | lamp, light |
-| Mira's inbox | Miras Postfach | Mails and documents Mira reads and works through, a kind of message | `internal/inbox`, kind `postfach` | mailbox |
+| reading (of a mail or document) | Auswertung | The isolated analysis of a mail or document by the agent `inbox.read`: what is to be done, as items of the kinds a switched-on skill takes; nothing is read out | `inbox.read`, the skill `postfach`'s `inbox.extract` | Lesen, Vorlesen (for it) |
+| taking skill | aufnehmender Skill | The skill whose threads a kind's entries lead to; it says so with `takes: <kind>`; at most one switched-on skill per kind | a skill's `takes` (until step 10 of the inbox: `store.KindSkill`) | — |
+| Mira's inbox | Miras Postfach | Mails and documents Mira reads; a source of appointments and to-dos, no longer a kind of message (decision 16) | `internal/inbox`, kind `postfach` until the inbox's step 10 | mailbox |
+
+## Calendars and lists (new, [To-dos with a due date](spec/todo-due.md))
+
+| English | German | Meaning | Code / database | Not |
+|---|---|---|---|---|
+| appointment | Termin | Something that takes place at a time, often at a place; over when its time has passed, whether one went or not | an event of a HA `calendar.*` entity; `internal/calendar` | date (alone), event (in prose) |
+| to-do | To-do | Something to do, done only when ticked; optionally with a due date and a description | an item of a HA `todo.*` entity (`summary`, `due`, `description`, `status`) | task (that is a HA automation), item (in prose), Aufgabe |
+| to-do list | To-do-Liste | Home Assistant's list of to-dos; a person's own list is the one named like them | HA `todo.*` entity | list (alone, where unclear) |
+| due date | Fälligkeit | The day a to-do must be done by; past it and not ticked, the to-do is **overdue** (überfällig) | HA's `due` of an item (`due_date`) | deadline (for the field) |
+| deadline | Frist | A day by which something must be done, as a document names it ("Rückmeldung bis Fr 28.11."); Mira enters it as a to-do with that due date | a `todo` item of the inbox's reading | due date (for the item) |
+| proposal | Vorschlag | One possible time of an appointment; an appointment from a source has one or more, several when one of them is to be chosen | the field `proposals` of a `termin` thread | alternative, option |
 
 ## Capabilities
 
@@ -123,3 +136,5 @@ is used in a spec; a term that is not here is not a term yet.
 12. A group watch watches a **watch group**: a selection by device class, area or floor, or a group helper; "group" alone is not used. The **floor** is Home Assistant's floor.
 13. The **battery watch** and the **availability watch** are group watches; a device whose entities are `unavailable` is **unreachable** ("nicht erreichbar"). Added 2026-11-13 without the maintainer, to be confirmed.
 14. An agent that runs elsewhere and speaks A2A is a **remote agent** (entfernter Agent); "agent" alone stays one of Mira's helpers. Its question for missing input is an **agent request** (kind `agent_request`), not a `reply`. Decided 2026-11-14.
+15. Something that takes place at a time is an **appointment** (Termin) and goes into a calendar; something to do by a day is a **to-do** (To-do) with a **due date** (Fälligkeit) and goes onto a to-do list. A document's **deadline** (Frist), payment or callback becomes a to-do. "Aufgabe" stays a task (a HA automation). Decided 2026-11-15.
+16. A message's **kind** says what is to happen with it, not its source: the inbox's things become the kinds `appointment` and `todo`; `postfach` goes. Decided 2026-11-15.
