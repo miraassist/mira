@@ -842,6 +842,12 @@ Was der Agent kann und wie er heißt, liest Mira beim Start aus seiner Agent Car
 
 Ist der Agent nicht erreichbar, startet Mira trotzdem und versucht es später wieder; was an seiner Agent Card nicht passt, steht unter **Reparaturen**.
 
+### Wenn zwei Skills Ähnliches können
+
+Beschreiben zwei Skills ähnliche Aufgaben, kann Mira nicht immer sicher wählen, welcher dran ist. Zum Beispiel können **Nachdenken** und **Recherche** beide im Internet nachschlagen: „Finde heraus, welche Wärmepumpe zu uns passt“ landet mal beim einen, mal beim anderen. Nennst du den Agenten beim Namen („Frag Hermes, …“), nimmt Mira die Recherche.
+
+Willst du immer denselben Weg, schalte den anderen Skill in der `mira.yaml` mit `enabled: false` aus, etwa `nachdenken: { enabled: false }` unter `skills`.
+
 ## Kochen und Backen
 
 Mira kocht mit dir, Schritt für Schritt, auch wenn ein Schritt eine halbe Stunde dauert.

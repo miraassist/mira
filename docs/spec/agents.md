@@ -606,8 +606,15 @@ From that:
       funktioniert") opens `nachdenken` and calls its agent, 3 of 3. The order that names the agent ("Frag Hermes,
       welche Wärmepumpe zu einem Altbau passt") starts the thread of `hermes`, 3 of 3. The order that names no agent
       starts the thread of `hermes` too, 3 of 3, although its description says such an order goes to `nachdenken`;
-      both count as right. Whether the name in the list made the difference is not measured on its own (no run
-      without it at the same hour): an assumption.
+      both count as right.
+    - The same with the new description but without the name in the list (09:40): the order that names no agent
+      starts the thread of `hermes` 1 of 3 and opens `nachdenken` 2 of 3; the named order still starts the thread of
+      `hermes`, 3 of 3. The name draws no boundary: it makes the remote agent's skill more attractive, named or not.
+
+    Conclusion (2026-11-15, the maintainer): the model cannot tell two skills with similar descriptions apart cleanly,
+    and the overlap is accepted. Both skills stay; the name stays in the list, because it names the agent as Mira
+    names it in an agent request. Whoever wants one way only switches the other skill off (`enabled: false`); the
+    guide says so at the end of the skills.
     - Not yet right in the named order: the answer does not name Hermes (0 of 3). The model called `agent_answer`
       for the fake agent's question in the same turn (refused, [Remote agents](remote-agents.md), decision 51) and
       then asked "Wie groß ist die Wohnfläche?" without saying who asks.

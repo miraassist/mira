@@ -838,6 +838,12 @@ What the agent can do and what it is called, Mira reads at the start from its ag
 
 If the agent cannot be reached, Mira starts all the same and tries again later; what does not fit in its agent card shows under **Repairs**.
 
+### When two skills can do similar things
+
+If two skills describe similar tasks, Mira cannot always tell for sure which one is meant. For example, **Nachdenken** and the research skill **Recherche** can both look things up on the internet: "Find out which heat pump suits us" ends up with one or the other. If you call the agent by its name ("Ask Hermes, …"), Mira takes the research.
+
+If you always want the same way, switch the other skill off in `mira.yaml` with `enabled: false`, for example `nachdenken: { enabled: false }` under `skills`.
+
 ## Cooking and baking
 
 Mira cooks with you, step by step, even when a step takes half an hour.
