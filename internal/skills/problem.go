@@ -33,6 +33,9 @@ const (
 	KindOAuthExpired  = "oauthexpired"
 	KindOAuthNone     = "oauthnone"
 	KindNoAnnounce    = "noannounce"
+	// KindTakesTwice: two switched-on skills take the same kind of message
+	// (docs/spec/messages.md, decision 33).
+	KindTakesTwice = "takestwice"
 	// A remote agent (docs/spec/remote-agents.md): its card cannot be
 	// read, is refused, or says something Mira cannot use.
 	KindRemoteDown      = "remotedown"
@@ -112,6 +115,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthnone":        "Der Skill ist noch nicht mit %s verbunden. Verbinde ihn in Mira auf der Seite Verbindungen.",
 		"oauthexpired":     "Die Verbindung mit %s ist abgelaufen oder wurde widerrufen. Verbinde den Skill in Mira auf der Seite Verbindungen neu.",
 		"noannounce":       "In SKILL.md fehlt der Abschnitt „## %s“. Er sagt, wie Mira die Nachrichten dieses Skills ansagt; bis er da ist, sagt sie sie nicht an.",
+		"takestwice":       "Dieser Skill und der Skill %[2]s nehmen beide die Nachrichten der Art %[1]s auf. Schalte einen der beiden aus; bis dahin nimmt keiner sie auf.",
 		"notlocal":         "Der Skill muss lokal laufen (privacy: local), aber sein Agent %s läuft auf dem Modell „%s“ (%s). Gib dem Agenten in der mira.yaml unter agents ein lokales Modell.",
 		"agentname":        "Der Agent „%s“ hat einen Namen (name); den gibt es nur für einen Agenten, der anderswo läuft (remote).",
 		"remotefields":     "Der Agent „%s“ läuft anderswo (remote); %s geht dann nicht: Modell, Werkzeuge und Anleitung hat er selbst. Lass das Feld weg.",
@@ -177,6 +181,7 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"oauthnone":        "The skill is not connected with %s yet. Connect it in Mira on the Connections page.",
 		"oauthexpired":     "The connection with %s has expired or was revoked. Connect the skill again in Mira on the Connections page.",
 		"noannounce":       "SKILL.md has no section \"## %s\". It says how Mira announces this skill's messages; until it is there, she does not announce them.",
+		"takestwice":       "This skill and the skill %[2]s both take the messages of the kind %[1]s. Switch one of them off; until then neither takes them.",
 		"notlocal":         "The skill must run locally (privacy: local), but its agent %s runs on the model \"%s\" (%s). Give the agent a local model in mira.yaml under agents.",
 		"agentname":        "The agent \"%s\" has a name; that is only for an agent that runs elsewhere (remote).",
 		"remotefields":     "The agent \"%s\" runs elsewhere (remote); %s does not go with it: it has its own model, tools and instructions. Leave the field out.",

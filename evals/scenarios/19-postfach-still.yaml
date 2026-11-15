@@ -10,7 +10,6 @@ steps:
         Ihr Möbelhaus-Team
     expect:
       result:
-        - plan: { target: postfach, not: true }
         - no_message: { receiver: anna }
         - no_message: { receiver: house }
   - mail:
@@ -23,6 +22,5 @@ steps:
         Viele Grüße, die Schulleitung
     expect:
       result:
-        - plan: { target: postfach, not: true }
         - no_message: { receiver: anna }
         - no_message: { receiver: house }

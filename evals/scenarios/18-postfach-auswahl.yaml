@@ -12,7 +12,7 @@ steps:
         Ihre Praxis Dr. Kaya
     expect:
       result:
-        - plan: { target: postfach }
+        - message_for: { receiver: anna, contains: Kaya }
   - say: Den zweiten nehme ich
     person: anna
     expect:
@@ -20,6 +20,5 @@ steps:
         - event_exists: { calendar: calendar.anna, day: "+12", start: "14:30", title: Kontroll }
         - calendar_empty: { calendar: calendar.anna, day: "+11", title: Kontroll }
         - calendar_empty: { calendar: calendar.anna, day: "+14", title: Kontroll }
-        - plan: { target: postfach, finished: true }
       behaviour:
-        must: [tool:calendar_create]
+        must: [action:calendar.create]

@@ -369,6 +369,10 @@ func (m *Manager) current(ctx context.Context, inv tools.Invocation) (store.Thre
 	place, _ := m.place(ctx, inv)
 	th := m.adopt(ctx, open[0], place)
 	m.link(ctx, inv.SessionKey, th)
+	// Linking may change it (a starter's expiry ends): its current version.
+	if cur, err := m.opts.Store.GetThread(ctx, th.ID); err == nil {
+		th = cur
+	}
 	return th, nil
 }
 
@@ -572,6 +576,12 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 	if sk.Target.Plan {
 		return "", errors.New(t.planNoFields)
 	}
+	// A check may decide by the thread's person (the calendar's one rule).
+	person := th.Person
+	if person == "" {
+		person = inv.Person
+	}
+	ctx = tools.WithPerson(ctx, person)
 	var problems []string
 	for name, value := range values {
 		value = strings.TrimSpace(value)

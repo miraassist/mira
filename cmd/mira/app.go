@@ -405,8 +405,8 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.todo = todo.New(todo.Options{Lang: a.lang, Lists: a.todoLists, Owner: a.calendarOwner, Act: a.callAction,
 		Items: a.todoItems, Logger: a.log})
 	internal = append(internal, a.todo.DueTool(a.lang, "briefing"))
-	// Mira's inbox in Paperless (docs/spec/inbox.md); it enters through
-	// calendar_create, which comes with the skill postfach.
+	// Mira's inbox (docs/spec/inbox.md): its items become threads of the
+	// skills that take their kinds (termin, todo).
 	a.inbox = a.newInbox(cfg, all)
 	// A skill Mira binds tools to can be opened even when it has a target:
 	// its tools come with skill_open (docs/spec/threads.md).
@@ -431,10 +431,25 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		if sk.Target != nil {
 			targets = append(targets, sk)
 		}
+		// A skill that only instructs the inbox's reading is no skill of
+		// the conversation (docs/spec/inbox.md, decision 30).
+		if sk.Inbox != nil && sk.Target == nil {
+			continue
+		}
 		if sk.Target == nil || bound[sk.Name] {
 			loaded = append(loaded, sk)
 		}
 	}
+	// Which skill takes which kind of message (docs/spec/messages.md,
+	// decision 33): at most one switched-on skill per kind; two make it
+	// nobody's until one is switched off.
+	takers, clash := kindTakers(usable)
+	for _, c := range clash {
+		problems = append(problems, skills.NewProblem(c.skill, skills.KindTakesTwice, c.kind, c.other))
+		a.log.Warn("two switched-on skills take the same kind of message; neither takes it", "kind", c.kind,
+			"skill", c.skill, "other", c.other)
+	}
+	store.SetTakers(takers)
 	// The skills' remote agents (docs/spec/remote-agents.md): their cards
 	// are read in the background, and read again while they cannot be.
 	a.remote = a2a.New(a2a.Options{Skills: usable, ServerURL: cfg.Server.URL, Connections: a.oauth, Logger: a.log,
@@ -1117,13 +1132,14 @@ func (a *app) haUser(ctx context.Context) string {
 // builtinTargets are the goal skills that are always on.
 func builtinTargets() []string {
 	return []string{"aufgabe", "aufgabe-aendern", "merken", "wecker", "termin", "termin-absagen", "todo", "kochen", "regel",
-		"postfach", "ueberwachung-anbieten"}
+		"ueberwachung-anbieten"}
 }
 
 // builtinSkills are Mira's own skills beside the goals and the mail that
 // are always on: nachdenken, where the conversation hands a question to the
-// strongest model (docs/spec/agents.md, Decided 44).
-func builtinSkills() []string { return []string{"nachdenken"} }
+// strongest model (docs/spec/agents.md, Decided 44); postfach, the inbox's
+// reading (docs/spec/inbox.md, decision 30).
+func builtinSkills() []string { return []string{"nachdenken", "postfach"} }
 
 // readMessages answers "Hast du eine Benachrichtigung?": by voice what waits
 // for the satellite's room, on Telegram what waits for that person.
@@ -1777,7 +1793,7 @@ func (a *app) allProblems() []haconv.Problem {
 	}
 	// A skill that takes up a kind of message without its section "Ansage"
 	// (docs/spec/messages.md, decision 30).
-	for _, kind := range store.KindsWithSkill {
+	for _, kind := range store.KindsWithSkill() {
 		if _, err := a.kindInstruction(context.Background(), kind); errors.Is(err, errNoAnnounce) {
 			skill := store.KindSkill(kind)
 			p := skills.NewProblem(skill, skills.KindNoAnnounce, skills.SectionAnnounce)
@@ -1831,7 +1847,34 @@ func (a *app) allProblems() []haconv.Problem {
 // one tool to enter an event, for the skills that name it
 // (docs/spec/calendar.md, Adding): the inbox.
 func (a *app) calendarTools() []tools.InternalTool {
-	return []tools.InternalTool{a.calendar.Tool(a.lang), a.calendar.CreateTool(a.lang, inbox.Target)}
+	return []tools.InternalTool{a.calendar.Tool(a.lang)}
+}
+
+type takeClash struct{ kind, skill, other string }
+
+// kindTakers are the kinds the skills take, by kind; a kind two skills take
+// is left out, and each of the two is a clash.
+func kindTakers(started []skills.Skill) (map[string]string, []takeClash) {
+	by := map[string][]string{}
+	for _, sk := range started {
+		if sk.Takes != "" {
+			by[sk.Takes] = append(by[sk.Takes], sk.Name)
+		}
+	}
+	out := map[string]string{}
+	var clash []takeClash
+	for kind, names := range by {
+		if len(names) == 1 {
+			out[kind] = names[0]
+			continue
+		}
+		sort.Strings(names)
+		for i, n := range names {
+			clash = append(clash, takeClash{kind, n, names[(i+1)%len(names)]})
+		}
+	}
+	sort.Slice(clash, func(i, j int) bool { return clash[i].kind+clash[i].skill < clash[j].kind+clash[j].skill })
+	return out, clash
 }
 
 // errNoAnnounce is a started skill that takes up a kind of message without

@@ -1,0 +1,29 @@
+name: postfach-frist
+description: Mail mit nur einer Frist ins Postfach; Mira bietet an, sie auf Annas Liste zu setzen, und tut es auf das Ja
+steps:
+  - mail:
+      from: kanzlei@steuerberater.example
+      subject: Erinnerung Steuererklärung
+      text: |
+        Guten Tag,
+        bitte denken Sie daran: Die Unterlagen für Ihre Steuererklärung brauchen wir bis zum {{+5}}.
+        Mit freundlichen Grüßen, Ihre Kanzlei
+    expect:
+      result:
+        - message_for: { receiver: anna, contains: Steuer }
+  - say: Hab ich neue Nachrichten?
+    person: anna
+    expect:
+      behaviour:
+        must: [tool:messages_read]
+        must_not: [action:todo.create]
+      answer:
+        contains: [Steuer, "Liste"]
+        not_contains: [durchgehen]
+  - say: Ja
+    person: anna
+    expect:
+      result:
+        - todo_item: { list: todo.anna, contains: Steuer, due: "+5" }
+      behaviour:
+        must: [action:todo.create]

@@ -13,7 +13,7 @@ import (
 
 func (e *env) thread(id, place string) {
 	e.t.Helper()
-	if err := e.st.PutThread(context.Background(), &store.Thread{ID: id, Target: "postfach", Place: place,
+	if err := e.st.PutThread(context.Background(), &store.Thread{ID: id, Target: "termin", Place: place,
 		State: store.ThreadCollecting, ExpiresAt: e.now.Add(72 * 3600e9)}); err != nil {
 		e.t.Fatal(err)
 	}
@@ -24,13 +24,13 @@ func TestMS08_MessagesReadNamesEachMessagesKindSkillAndThread(t *testing.T) {
 	e.thread("t1", "person:anna")
 	e.message("h1", 2, nil)
 	e.message("p1", 2, func(m *store.Message) {
-		m.Kind, m.Receiver, m.ThreadID, m.Spoken = store.KindPostfach, store.ReceiverHouse, "t1", "Elternbrief, 2 Termine"
+		m.Kind, m.Receiver, m.ThreadID, m.Spoken = store.KindAppointment, store.ReceiverHouse, "t1", "Elternbrief, 2 Termine"
 	})
 	r, err := e.n.ReadOut(context.Background(), "kueche", "", "")
 	if err != nil || !strings.Contains(r.Text, "Hinweis h1") || strings.Contains(r.Text, "Elternbrief") {
 		t.Fatalf("text = %q, %v", r.Text, err)
 	}
-	if len(r.Leads) != 1 || r.Leads[0] != (Lead{Kind: store.KindPostfach, Skill: "postfach", Thread: "t1", Line: "Elternbrief, 2 Termine"}) {
+	if len(r.Leads) != 1 || r.Leads[0] != (Lead{Kind: store.KindAppointment, Skill: "termin", Thread: "t1", Line: "Elternbrief, 2 Termine"}) {
 		t.Fatalf("leads = %+v", r.Leads)
 	}
 	if e.state("p1") != store.MessageDelivered {
@@ -60,7 +60,7 @@ func TestMS11_AMessageOfAnEndedThreadIsNotReadOut(t *testing.T) {
 	e := indicateEnv(t)
 	e.thread("t1", "person:anna")
 	e.message("p1", 2, func(m *store.Message) {
-		m.Kind, m.ThreadID, m.Spoken = store.KindPostfach, "t1", "Elternbrief"
+		m.Kind, m.ThreadID, m.Spoken = store.KindAppointment, "t1", "Elternbrief"
 	})
 	// The thread ended, and taking its entries out failed.
 	th, _ := e.st.GetThread(context.Background(), "t1")

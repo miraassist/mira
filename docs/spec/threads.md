@@ -2,7 +2,7 @@
 
 What the model sees of the conversation (the thread carries the concern, the history only the back-reference, the same for voice and chat) is described in [Context](context.md).
 
-Status 2026-10-15: built (service 0.4.0); "Started by code, with fields" decided 2026-11-15, not built. Applies to [tasks](tasks.md) and upcoming concerns
+Status 2026-10-15: built (service 0.4.0); "Started by code, with fields" built 2026-11-15 (not released). Applies to [tasks](tasks.md) and upcoming concerns
 such as calendar or messages to others ([users](users.md)).
 
 ## Why
@@ -216,8 +216,10 @@ inbox's kinds by meaning ([Mira's inbox](inbox.md), section 8) start threads of 
 with their fields filled from what Mira read. Such a thread is a **proposal**: it acts only on the person's yes, also
 for a target without `confirm`.
 
-1. **Start:** the code gives the target, the person, the request (the entry's line), the fields it has, and the
-   expiry. Fields the target does not know are refused (the caller's error, a log line); a field's `check` is not run
+1. **Start:** the code gives the target, the person, the request (the entry's line), the fields it has, the
+   expiry, and a **source**: a key of where the thread comes from (the inbox: the document's or mail's key). The
+   source is a column of its own beside the fields (`threads.source`); the model does not see it. The code asks
+   whether a thread with a source is still open (the inbox: not to ask about a document twice). Fields the target does not know are refused (the caller's error, a log line); a field's `check` is not run
    at the start (it runs at the yes, when the model fills what is missing).
 2. **State:** "waiting for yes" when every field is there, else "waiting for you". It does not finish by itself when
    complete, unlike a turn's thread of a target without `confirm`.

@@ -1,6 +1,6 @@
 name: post-eine-lesen
 description: 'Wartet: ein Elternbrief mit einem Termin in Annas Postfach; Mira nennt sie auf „Hab ich neue Nachrichten?“ und
-  bietet an, sie durchzugehen'
+  bietet an, sie einzutragen'
 steps:
 - mail:
     from: sekretariat@grundschule.example
@@ -14,8 +14,9 @@ steps:
       Frau Berger'
   expect:
     result:
-    - plan:
-        target: postfach
+    - message_for:
+        receiver: anna
+        contains: Elternabend
 - say: Hab ich neue Nachrichten?
   person: anna
   expect:
@@ -23,8 +24,8 @@ steps:
       must:
       - tool:messages_read
       must_not:
-      - tool:calendar_create
+      - action:calendar.create
     answer:
       contains:
       - Elternabend
-      - durchgehen|eintragen|anfangen|Kalender|soll ich
+      - eintragen|anfangen|Kalender|soll ich

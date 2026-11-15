@@ -4,6 +4,7 @@ description: "Der Anrufbeantworter und verpasste Anrufe: „Was ist auf dem Anru
 license: MIT
 metadata:
   mira:
+    takes: voicemail
     target:
       plan: true
       bound: house

@@ -92,6 +92,9 @@ func (m *Manager) describe(th store.Thread, l i18n.Lang) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, t.lineTarget, th.Target, sk.DescriptionIn(l))
 	fmt.Fprintf(&b, t.lineRequest, th.Request)
+	if th.Source != "" && !sk.Target.Plan {
+		b.WriteString(t.fieldsForeign + "\n")
+	}
 	b.WriteString(m.status(th))
 	log := th.Log
 	if len(log) > maxLog {

@@ -10,7 +10,7 @@ steps:
         Mit freundlichen Grüßen, die Klassenleitung
     expect:
       result:
-        - plan: { target: postfach }
+        - message_for: { receiver: anna, contains: Elternabend }
   - say: Ja, aber der Elternabend ist um 20 Uhr
     person: anna
     expect:
@@ -18,4 +18,4 @@ steps:
         - event_exists: { calendar: calendar.anna, day: "+9", start: "20:00", title: Elternabend }
         - calendar_empty: { calendar: calendar.anna, day: "+9", start: "19:30", title: Elternabend }
       behaviour:
-        must: [tool:calendar_create]
+        must: [action:calendar.create]

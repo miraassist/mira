@@ -71,6 +71,9 @@ type Thread struct {
 	// decision 11): until a turn takes the thread up, it expires then;
 	// zero for its type's timeout.
 	Deadline time.Time
+	// Source is where a thread started by code comes from (the inbox: the
+	// document's or mail's key); the model does not see it.
+	Source string
 	// Version counts the changes; PutThread writes only over the version it
 	// was read with.
 	Version int
@@ -111,8 +114,8 @@ func (s *Store) PutThread(ctx context.Context, t *Thread) error {
 		calls = []byte("{}")
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO threads(id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline, source)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, state = excluded.state,
 	request = excluded.request, fields = excluded.fields,
 	log = excluded.log, content = excluded.content, updated_at = excluded.updated_at, expires_at = excluded.expires_at,
@@ -121,7 +124,7 @@ ON CONFLICT(id) DO UPDATE SET place = excluded.place, person = excluded.person, 
 WHERE threads.version = excluded.version`,
 		t.ID, t.Target, t.Place, t.Person, t.State, t.Request, string(fields), string(log), string(content),
 		formatTime(t.CreatedAt), formatTime(t.UpdatedAt), formatTime(t.ExpiresAt), t.Version, string(calls), t.Area, t.Device,
-		formatTime(t.Deadline))
+		formatTime(t.Deadline), t.Source)
 	if err != nil {
 		return err
 	}
@@ -139,13 +142,13 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline, source FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
 	var fields, log, content, created, updated, expires, calls, deadline string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device, &deadline); err != nil {
+		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device, &deadline, &t.Source); err != nil {
 		return Thread{}, err
 	}
 	// A row that does not read is an error, not an empty thread.

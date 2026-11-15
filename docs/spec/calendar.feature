@@ -6,7 +6,6 @@ Feature: Calendars – one building block for entering an event
     Given Anna's calendar "Anna" is writable
     When calendar.create gets the title "Elternabend", the start "2026-12-03 19:30" and the location "Aula" for Anna
     Then Home Assistant's calendar.create_event is called once for calendar.anna with these values and the end 20:30
-    And the answer names title, day, time and calendar
 
   @step1
   Scenario: CA-02 A whole day

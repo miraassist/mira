@@ -1,6 +1,6 @@
 # Mira's inbox – Spec
 
-Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Step 10 (kinds by meaning, decision 29) decided 2026-11-15, not built. Scenarios: [inbox.feature](inbox.feature).
+Status 2026-11-13: steps 1 to 4 and 6 to 9 built and released in 0.23.0; step 8 changed on 2026-11-12 to knowing a mail by its hash (decision 24); step 9 is the model writing the plan, entering through the calendar's tool (decision 28); of step 5 the guide's text is written and released, the end-to-end test is open. Step 10 (kinds by meaning, decision 29) built 2026-11-15, not released; its evals pass one at a time, several things in one answer take too many rounds (open). Scenarios: [inbox.feature](inbox.feature).
 First source: Paperless-ngx; first kind of finding: appointments.
 
 ## Goal
@@ -479,7 +479,9 @@ on the yes take it; several, read them out and ask which; then fill `start`/`end
 **Asking:**
 
 1. Per item, with a person: the code starts a thread of the skill that takes the item's kind
-   ([Threads](threads.md), Started by code) for the person, with the item's `fields` and its `expires`.
+   ([Threads](threads.md), Started by code) for the person, with the item's `fields`, its `expires`, and the
+   document's or mail's key as the thread's source. A document queued again while a thread with its source is open
+   is skipped, as before (decision 33).
 2. Its entry goes into the person's unheard message of the item's kind, or a new one ([Messages](messages.md)); the
    entry's text is the item's line, its thread the one just started.
 3. The announcement is worded by the model from the kinds' instructions (`## Ansage` of `termin` and `todo`):
@@ -547,6 +549,7 @@ Decided 2026-11-11 from this list:
 | 30 | The skill `postfach` (2026-11-15) | Stays, as the reading's skill only: its `inbox.extract` names the ways to handle a document and the skills that do them; no target, no `## Ansage`. The reading's answer is JSON (summary, items with kind, line, expires, fields), not a tool call; the code starts the threads from it without a branch per kind (section 8) |
 | 32 | Which kinds the reading may give (2026-11-15) | Only the kinds a switched-on skill takes now: the code adds them to the reading's instruction as one line. A kind nobody takes is not proposed |
 | 31 | "Ja, alle" across things and kinds (2026-11-15) | Kinds whose taking up is a plain yes (`appointment` with one proposal, `todo`) are offered together ("Soll ich den Elternabend eintragen und die Rückmeldung auf deine Liste setzen?"); "ja" takes their threads one after another in the same turn (`thread_take`, fill, `thread_confirm` each), one thread at a time as messages decision 9 says; an appointment with proposals to choose from is asked after them. Changes messages decision 32 for these kinds |
+| 33 | The source of a thread (2026-11-15) | Each thread of a document keeps the document's or mail's key as its source, a column of the thread beside its fields ([Threads](threads.md), Started by code); "a thread of this document is open" asks for it. The tool `calendar_create` goes (nobody names it any more); its tests run on the building block. The inbox's evals are rewritten in step 10 |
 | 28 | Who writes the plan, and how it is entered | 2026-11-12: agentic before code. The reading's model writes the plan, the message's line and the expiry, as in `kochen` and `vokabeln`; the code only checks what it relies on (counts, lengths, the expiry). The conversation's model works the plan with the tools that exist; appointments go through the calendar's one building block and its tool `calendar_create` ([Calendar](calendar.md), Adding), which checks the dates. The plan may hold any thing to do (deadlines, callbacks), not only appointments (decision 3 widened) |
 
 ## Steps

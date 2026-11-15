@@ -55,19 +55,33 @@ func createSetup(t *testing.T, cals ...Info) (*Calendar, *[]acted, *bytes.Buffer
 	return c, &calls, &log, &refuse
 }
 
+// create runs the building block as the skill termin's finish names it,
+// with the fields as JSON; it gives the refusal's or Home Assistant's error
+// text, "" when entered.
 func create(t *testing.T, c *Calendar, person, args string) string {
 	t.Helper()
-	out, err := c.CreateTool(i18n.DE, "postfach").Run(context.Background(),
-		tools.Invocation{Args: json.RawMessage(args), Person: person})
-	if err != nil {
+	var a map[string]string
+	if err := json.Unmarshal([]byte(args), &a); err != nil {
 		t.Fatal(err)
 	}
-	return out
+	data := map[string]any{"person": person}
+	for k, v := range a {
+		if k == "calendar" {
+			k = "entity_id"
+		}
+		data[k] = v
+	}
+	if err := c.CreateAction(context.Background(), data); err != nil {
+		return err.Error()
+	}
+	return ""
 }
 
 func TestCA01_AnEventWithATimeIsEntered(t *testing.T) {
 	c, calls, _, _ := createSetup(t)
-	out := create(t, c, "anna", `{"title":"Elternabend","start":"2026-12-03 19:30","location":"Aula"}`)
+	if out := create(t, c, "anna", `{"title":"Elternabend","start":"2026-12-03 19:30","location":"Aula"}`); out != "" {
+		t.Fatal(out)
+	}
 	if len(*calls) != 1 {
 		t.Fatalf("%d calls", len(*calls))
 	}
@@ -76,11 +90,6 @@ func TestCA01_AnEventWithATimeIsEntered(t *testing.T) {
 		got.data["start_date_time"] != "2026-12-03T19:30:00+01:00" || got.data["end_date_time"] != "2026-12-03T20:30:00+01:00" ||
 		got.data["location"] != "Aula" {
 		t.Fatalf("call = %+v", got)
-	}
-	for _, want := range []string{"Elternabend", "19:30", "Anna"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("answer %q lacks %q", out, want)
-		}
 	}
 }
 
@@ -103,7 +112,7 @@ func TestCA03_DatesThatDoNotFitEnterNothing(t *testing.T) {
 		`{"title":"","day":"2026-12-03"}`,
 	} {
 		out := create(t, c, "anna", args)
-		if !strings.HasPrefix(out, "Nicht eingetragen") {
+		if out == "" {
 			t.Errorf("%s: %q", args, out)
 		}
 	}
@@ -163,7 +172,7 @@ func TestCA07_HomeAssistantRefuses(t *testing.T) {
 	c, _, log, refuse := createSetup(t)
 	*refuse = errors.New("service not found")
 	out := create(t, c, "anna", `{"title":"Elternabend","day":"2026-12-03"}`)
-	if !strings.HasPrefix(out, "Nicht eingetragen") || !strings.Contains(out, "service not found") {
+	if !strings.Contains(out, "service not found") {
 		t.Fatalf("answer %q", out)
 	}
 	for _, want := range []string{"calendar.anna", "Elternabend", "service not found"} {
@@ -187,9 +196,19 @@ func TestCreateActionOfTheSkillTermin(t *testing.T) {
 	}
 }
 
-func TestCreatePastIsSaid(t *testing.T) {
+// The skill termin's check calendar_writable follows the one rule when its
+// thread has a person: "standard" is the person's own calendar.
+func TestCheckWritableTakesThePersonsOwnCalendar(t *testing.T) {
 	c, _, _, _ := createSetup(t)
-	if out := create(t, c, "anna", `{"title":"A","day":"2026-11-01"}`); !strings.Contains(out, "Vergangenheit") {
-		t.Fatalf("answer %q", out)
+	ctx := tools.WithPerson(context.Background(), "anna")
+	if got, err := c.CheckWritable(ctx, "standard"); err != nil || got != "calendar.anna" {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if _, err := c.CheckWritable(ctx, "Ben"); err == nil {
+		t.Fatal("another person's calendar passed the check")
+	}
+	// Without a person, several writable calendars ask which.
+	if _, err := c.CheckWritable(context.Background(), "standard"); err == nil {
+		t.Fatal("no question without a person")
 	}
 }

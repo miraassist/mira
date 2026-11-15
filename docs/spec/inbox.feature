@@ -89,11 +89,7 @@ Feature: IN Mira's inbox in Paperless
 
   # IN-17 was dropped on 2026-11-12 with step 9: the model writes the plan; the calendar's building block checks what is entered.
 
-  @step3
-  Scenario: IN-18 An unanswered question ends without entries
-    Given the inbox thread got no answer
-    When its deadline of 3 days passes
-    Then nothing is entered, its message is withdrawn, and a log line says so
+  # IN-18 dropped 2026-11-15: each item's thread expires by its own expiry (step 10)
 
   @step4
   Scenario: IN-19 After the reading the document is marked read, the tag "Mira" stays
@@ -217,20 +213,9 @@ Feature: IN Mira's inbox in Paperless
     When Mira starts again
     Then the 100 latest of E and the one of F are known, the first of E is not
 
-  @step9
-  Scenario: IN-39 The reading's plan becomes the thread's plan
-    Given the reading answers the summary "Elternbrief der Grundschule", a plan with three steps, the line "Elternbrief: drei Termine" and the expiry "2026-12-19"
-    When the document of Anna is read
-    Then a thread of the target postfach is started for Anna with exactly these three steps, under the summary and the source
-    And its expiry is the end of 2026-12-19
-    And Anna's message is the line
+  # IN-39 dropped 2026-11-15: no plan per mail any more (step 10, decision 29)
 
-  @step9
-  Scenario: IN-40 At most 20 steps, the rest named
-    Given the reading answers a plan with 25 steps
-    When the document is read
-    Then the plan has the first 20 steps and a last one "5 weitere im Dokument"
-    And a log line names the 25
+  # IN-40 dropped 2026-11-15: no plan per mail any more (step 10, decision 29)
 
   @step9
   Scenario: IN-41 An expiry that does not fit, or none
@@ -254,10 +239,7 @@ Feature: IN Mira's inbox in Paperless
     Then no thread and no message, only a log line with the summary
     And the document is marked read
 
-  @step9
-  Scenario: IN-44 The skill postfach enters through calendar_create
-    Given a turn with the skill postfach open
-    Then the tool calendar_create is offered and inbox_enter is not
+  # IN-44 (the skill postfach enters through calendar_create) dropped 2026-11-15 with step 10 (decision 33).
 
   @step10
   Scenario: IN-45 The reading gives items by meaning

@@ -1,6 +1,6 @@
 name: post-zwei-uebrigens
 description: 'Wartet: ein Elternbrief und Terminvorschläge einer Praxis in Annas Postfach; Mira hängt sie mit „Übrigens“ an
-  die Antwort auf eine andere Frage und bietet an, sie durchzugehen'
+  die Antwort auf eine andere Frage und bietet an, sie einzutragen'
 steps:
 - mail:
     from: sekretariat@grundschule.example
@@ -14,8 +14,9 @@ steps:
       Frau Berger'
   expect:
     result:
-    - plan:
-        target: postfach
+    - message_for:
+        receiver: anna
+        contains: Elternabend
 - mail:
     from: praxis@kieferorthopaedie.example
     subject: Terminvorschläge für die Kontrolle
@@ -28,16 +29,17 @@ steps:
       Ihre Praxis Dr. Kaya'
   expect:
     result:
-    - plan:
-        target: postfach
+    - message_for:
+        receiver: anna
+        contains: Kaya
 - say: Wie spät ist es?
   person: anna
   expect:
     behaviour:
       must_not:
-      - tool:calendar_create
+      - action:calendar.create
     answer:
       contains:
       - Elternabend
       - Kaya|Kieferorthop|Kontroll
-      - durchgehen|eintragen|anfangen|Kalender|soll ich
+      - eintragen|anfangen|Kalender|soll ich

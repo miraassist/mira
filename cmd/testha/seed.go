@@ -49,6 +49,7 @@ var house = map[string]struct{ area, name string }{
 	"todo.einkaufsliste":                    {"", ""},
 	"calendar.familie":                      {"", ""},
 	"calendar.ben":                          {"", ""},
+	"calendar.anna":                         {"", ""},
 	"calendar.abfuhrtermine":                {"", ""},
 	"todo.einkauf":                          {"", ""},
 	"todo.anna":                             {"", ""},

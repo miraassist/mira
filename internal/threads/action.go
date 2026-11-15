@@ -80,8 +80,15 @@ func (f actionFinish) Work(ctx context.Context, th store.Thread) (Result, error)
 	// The thread keeps what was (or will be) called, with its undo, for a
 	// correction.
 	content, _ := json.Marshal(d)
-	if f.sk.Target.Confirm || dec.Outcome == tools.NeedsConfirmation {
-		return Result{Proposal: fmt.Sprintf(t.actionProposal, th.Request, describeData(d.Data)), Content: content}, nil
+	// A thread started by code from a document is a proposal: it acts on
+	// the person's yes only (docs/spec/threads.md, Started by code).
+	if f.sk.Target.Confirm || dec.Outcome == tools.NeedsConfirmation || th.Source != "" {
+		proposal := fmt.Sprintf(t.actionProposal, th.Request, describeData(d.Data))
+		if th.Source != "" {
+			// The person was offered it already; their answer is the yes.
+			proposal += " " + t.sourceReady
+		}
+		return Result{Proposal: proposal, Content: content}, nil
 	}
 	if err := f.call(ctx, th, d); err != nil {
 		return Result{}, err

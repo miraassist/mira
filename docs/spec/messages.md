@@ -1,6 +1,6 @@
 # Messages – spec
 
-Status 2026-11-13: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12; steps 1 to 5 released in 0.23.0; step 6 (the announcement knows the kinds) built 2026-11-14, not released; the kind `agent_request` built 2026-11-14 with [Remote agents](remote-agents.md), step 3. Decision 33 (kinds `appointment` and `todo` instead of `postfach`) decided 2026-11-15, built with the inbox's step 10. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
+Status 2026-11-13: built in 0.6.0–0.6.4 (except "recognized at the satellite", see Open); step 1 (who sees which open messages) built 2026-11-11; kinds of messages specified 2026-11-12: steps 2 to 5 built 2026-11-12; steps 1 to 5 released in 0.23.0; step 6 (the announcement knows the kinds) built 2026-11-14, not released; the kind `agent_request` built 2026-11-14 with [Remote agents](remote-agents.md), step 3. Decision 33 (kinds `appointment` and `todo` instead of `postfach`, `takes`) built 2026-11-15 with the inbox's step 10, not released. Scenarios: [messages.feature](messages.feature). Two abstractions carry Mira's communication: [Channel](channels.md) and **message** (this document). Builds on [Users](users.md) and [Mira in Home Assistant](ha-integration.md).
 
 ## Principle
 

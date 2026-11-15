@@ -14,16 +14,18 @@ import (
 // MS-42 A skill that takes up a kind without its Ansage is a problem
 // (docs/spec/messages.md, decision 30); the shipped skills have theirs.
 func TestMS42_ASkillThatTakesUpAKindWithoutItsAnsageIsAProblem(t *testing.T) {
-	enabled := map[string]map[string]any{}
-	for _, kind := range store.KindsWithSkill {
-		enabled[store.KindSkill(kind)] = nil
-	}
+	enabled := map[string]map[string]any{"termin": nil, "todo": nil, "anrufbeantworter": nil, "geraet-einbinden": nil}
 	loaded, problems := skills.Load([]string{"../../skills"}, enabled)
 	if len(problems) > 0 {
 		t.Fatalf("problems: %v", problems)
 	}
+	takers, clash := kindTakers(loaded)
+	if len(clash) > 0 || len(takers) != 4 {
+		t.Fatalf("takers %v, clash %v", takers, clash)
+	}
+	store.SetTakers(takers)
 	a := &app{lang: i18n.DE, skills: &skills.Set{Skills: loaded}}
-	for _, kind := range store.KindsWithSkill {
+	for _, kind := range store.KindsWithSkill() {
 		if text, err := a.kindInstruction(context.Background(), kind); err != nil || text == "" {
 			t.Errorf("the shipped skill for %s: %q, %v", kind, text, err)
 		}

@@ -2,19 +2,12 @@ package calendar
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/miraassist/mira/internal/i18n"
-	"github.com/miraassist/mira/internal/tools"
 )
-
-// ToolCreate is the tool on the building block calendar.create.
-const ToolCreate = "calendar_create"
 
 // ActionCreate is the building block's name where a skill's finish names it.
 const ActionCreate = "calendar.create"
@@ -246,80 +239,6 @@ func (c *Calendar) parseNew(ctx context.Context, title, start, end, day, dayAfte
 		return e, err
 	}
 	return e, nil
-}
-
-// CreateTool is calendar_create, the tool on the building block for the
-// skills that name it (docs/spec/calendar.md, Who uses it).
-func (c *Calendar) CreateTool(lang i18n.Lang, skills ...string) tools.InternalTool {
-	t := i18n.Pick(catalog, lang)
-	return tools.InternalTool{
-		Name: ToolCreate, Description: t.createDesc, Skills: skills,
-		Schema: fmt.Sprintf(`{"type":"object","properties":{
-"title":{"type":"string","description":%q},
-"start":{"type":"string","description":%q},
-"end":{"type":"string","description":%q},
-"day":{"type":"string","description":%q},
-"day_after":{"type":"string","description":%q},
-"location":{"type":"string","description":%q},
-"description":{"type":"string","description":%q},
-"calendar":{"type":"string","description":%q}},
-"required":["title"]}`, t.createTitleDesc, t.createStartDesc, t.createEndDesc, t.createDayDesc, t.createDayAfterDesc,
-			t.createLocationDesc, t.createDescriptionDesc, t.createCalendarDesc),
-		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
-			var a struct {
-				Title, Start, End, Day, Location, Description, Calendar string
-				DayAfter                                                string `json:"day_after"`
-			}
-			if err := json.Unmarshal(inv.Args, &a); err != nil {
-				return "", fmt.Errorf("arguments of %s: %w", ToolCreate, err)
-			}
-			tt := c.texts(ctx)
-			e, err := c.parseNew(ctx, a.Title, a.Start, a.End, a.Day, a.DayAfter)
-			if err == nil {
-				e.Location, e.Description, e.Calendar, e.Person = a.Location, a.Description, a.Calendar, inv.Person
-				var done Created
-				if done, err = c.Create(ctx, e); err == nil {
-					out := fmt.Sprintf(tt.createDone, c.describeNew(ctx, done))
-					if c.past(done.Event) {
-						out += " " + tt.createPast
-					}
-					return out, nil
-				}
-			}
-			var r *Refusal
-			if errors.As(err, &r) {
-				return fmt.Sprintf(tt.createRefused, r.Text), nil
-			}
-			return fmt.Sprintf(tt.createFailed, err), nil
-		},
-	}
-}
-
-// describeNew says an entered event in words: title, day, time, calendar.
-func (c *Calendar) describeNew(ctx context.Context, d Created) string {
-	l := c.lang(ctx)
-	e := d.Event
-	if e.Start.IsZero() {
-		when := i18n.FormatDate(l, e.Day)
-		if last := e.DayAfter.AddDate(0, 0, -1); last.After(e.Day) {
-			when += " – " + i18n.FormatDate(l, last)
-		}
-		return fmt.Sprintf("%s, %s, %s", e.Title, when, d.Name)
-	}
-	start := e.Start.In(c.opts.Location)
-	return fmt.Sprintf("%s, %s %s–%s, %s", e.Title, i18n.FormatDate(l, start), start.Format("15:04"),
-		e.End.In(c.opts.Location).Format("15:04"), d.Name)
-}
-
-// past: the event begins before today.
-func (c *Calendar) past(e NewEvent) bool {
-	now := c.opts.Clock().In(c.opts.Location)
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, c.opts.Location)
-	start := e.Start
-	if start.IsZero() {
-		start = e.Day
-	}
-	return start.Before(today)
 }
 
 func cut(s string, n int) string {

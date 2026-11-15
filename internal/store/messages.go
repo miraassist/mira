@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miraassist/mira/internal/excerpt"
@@ -50,9 +52,12 @@ const (
 	KindUrgent       = "urgent"
 	KindPrivate      = "private"
 	KindConfidential = "confidential"
-	KindPostfach     = "postfach"
-	KindVoicemail    = "voicemail"
-	KindDevice       = "device"
+	// KindAppointment and KindTodo are what Mira's inbox found to enter:
+	// an appointment into a calendar, a to-do onto a list (decision 33).
+	KindAppointment = "appointment"
+	KindTodo        = "todo"
+	KindVoicemail   = "voicemail"
+	KindDevice      = "device"
 	// KindReply is what comes back to a request at once: a thread's
 	// question or proposal, a helper's result (decision 16).
 	KindReply = "reply"
@@ -62,9 +67,6 @@ const (
 	// thread.
 	KindAgentRequest = "agent_request"
 )
-
-// KindsWithSkill are the kinds whose entries lead to a skill's threads.
-var KindsWithSkill = []string{KindPostfach, KindVoicemail, KindDevice}
 
 // KindFor is the kind a caller's fields say (decision 17): private,
 // confidential, importance 3 urgent, else simple.
@@ -83,21 +85,45 @@ func KindFor(importance int, confidentiality string) string {
 // gathering are the kinds of which a receiver has at most one unheard
 // message: what comes while it is unheard becomes an entry of it (decision
 // 3). The others are one message per entry (decision 6).
-var gathering = map[string]bool{KindSimple: true, KindPostfach: true, KindVoicemail: true, KindDevice: true,
+var gathering = map[string]bool{KindSimple: true, KindAppointment: true, KindTodo: true, KindVoicemail: true, KindDevice: true,
 	KindAgentRequest: true}
+
+// takers are the switched-on skills that take a kind up, by kind
+// (docs/spec/messages.md, decision 33): each skill says so with takes in
+// its SKILL.md; the service sets them once its skills are loaded.
+var (
+	takersMu sync.RWMutex
+	takers   = map[string]string{}
+)
+
+// SetTakers sets which skill takes which kind; a kind left out has none.
+func SetTakers(m map[string]string) {
+	takersMu.Lock()
+	defer takersMu.Unlock()
+	takers = make(map[string]string, len(m))
+	for k, v := range m {
+		takers[k] = v
+	}
+}
 
 // KindSkill is the skill a kind's entries lead to through their threads; ""
 // for a kind without one.
 func KindSkill(kind string) string {
-	switch kind {
-	case KindPostfach:
-		return "postfach"
-	case KindVoicemail:
-		return "anrufbeantworter"
-	case KindDevice:
-		return "geraet-einbinden"
+	takersMu.RLock()
+	defer takersMu.RUnlock()
+	return takers[kind]
+}
+
+// KindsWithSkill are the kinds a skill takes up now, sorted.
+func KindsWithSkill() []string {
+	takersMu.RLock()
+	defer takersMu.RUnlock()
+	out := make([]string, 0, len(takers))
+	for k := range takers {
+		out = append(out, k)
 	}
-	return ""
+	sort.Strings(out)
+	return out
 }
 
 // confidentialityOf is a kind's confidentiality: private and confidential
@@ -230,7 +256,7 @@ func (s *Store) PutMessage(ctx context.Context, n Message) (Message, bool, error
 		return Message{}, false, fmt.Errorf("message needs spoken text")
 	}
 	switch n.Kind {
-	case KindSimple, KindReminder, KindUrgent, KindPrivate, KindConfidential, KindPostfach, KindVoicemail, KindDevice,
+	case KindSimple, KindReminder, KindUrgent, KindPrivate, KindConfidential, KindAppointment, KindTodo, KindVoicemail, KindDevice,
 		KindReply, KindAgentRequest:
 	case "":
 		return Message{}, false, fmt.Errorf("message %q needs a kind", excerpt.Of(n.Spoken))
@@ -851,14 +877,19 @@ type Lead struct {
 	Entry
 }
 
-// Leads are the open entries of kinds with a skill (postfach, voicemail,
-// device) and the agent requests for the receivers, oldest first: what still waits to be taken up
+// Leads are the open entries of kinds with a skill (appointment, todo,
+// voicemail, device) and the agent requests for the receivers, oldest first: what still waits to be taken up
 // (docs/spec/messages.md, decision 10). Entries expired by now are left out.
 func (s *Store) Leads(ctx context.Context, receivers []string) ([]Lead, error) {
 	if len(receivers) == 0 {
 		return nil, nil
 	}
-	args := []any{KindPostfach, KindVoicemail, KindDevice, KindAgentRequest, MessagePending, MessageDelivered, formatTime(s.now())}
+	kinds := append(KindsWithSkill(), KindAgentRequest)
+	var args []any
+	for _, k := range kinds {
+		args = append(args, k)
+	}
+	args = append(args, MessagePending, MessageDelivered, formatTime(s.now()))
 	for _, r := range receivers {
 		args = append(args, r)
 	}
@@ -866,7 +897,7 @@ func (s *Store) Leads(ctx context.Context, receivers []string) ([]Lead, error) {
 SELECT m.kind, e.id, e.message_id, e.text, e.details, e.sender, e.source, e.importance, e.expires_at, e.dedupe_key,
        e.thread_id, e.origin_area, e.created_at, e.updated_at
 FROM message_entries e JOIN messages m ON m.id = e.message_id
-WHERE m.kind IN (?, ?, ?, ?) AND m.state IN (?, ?) AND (e.expires_at = '' OR e.expires_at > ?)
+WHERE m.kind IN (`+placeholders(len(kinds))+`) AND m.state IN (?, ?) AND (e.expires_at = '' OR e.expires_at > ?)
   AND m.receiver IN (`+placeholders(len(receivers))+`)
 ORDER BY e.created_at, e.id`, args...)
 	if err != nil {

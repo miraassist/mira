@@ -5,13 +5,12 @@ import "github.com/miraassist/mira/internal/i18n"
 // texts are the inbox's messages to the people.
 type texts struct {
 	// Messages; %s is the document's title.
-	unclear, more, cut, noText, unreachable, unreadable, notMarked string
+	unclear, cut, noText, unreachable, unreadable, notMarked string
 }
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
 		unclear:     "In der Post: %s. Darin: %s. Was soll ich damit machen?",
-		more:        "%d weitere im Dokument",
 		cut:         " Ich habe nur den Anfang gelesen.",
 		noText:      "In „%s“ konnte ich keinen Text lesen.",
 		unreachable: "Ich komme an „%s“ in Paperless nicht heran.",
@@ -20,7 +19,6 @@ var catalog = map[i18n.Lang]texts{
 	},
 	i18n.EN: {
 		unclear:     "In the post: %s. In it: %s. What shall I do with it?",
-		more:        "%d more in the document",
 		cut:         " I only read the beginning.",
 		noText:      "I could not read any text in “%s”.",
 		unreachable: "I cannot get at “%s” in Paperless.",

@@ -42,7 +42,7 @@ func (a *app) newInbox(cfg config.Config, loaded []skills.Skill) *inbox.Service 
 	var postfach, paperless *skills.Skill
 	for i := range loaded {
 		switch loaded[i].Name {
-		case inbox.Target:
+		case inbox.Skill:
 			postfach = &loaded[i]
 		case inboxSkill:
 			paperless = &loaded[i]
@@ -54,10 +54,10 @@ func (a *app) newInbox(cfg config.Config, loaded []skills.Skill) *inbox.Service 
 	}
 	o := inbox.Options{Model: a.inboxRead(),
 		Extract: postfach.Inbox.Extract, Person: a.inboxPerson,
-		Ask: a.inboxAsk, Tell: a.inboxTell, House: store.ReceiverHouse,
+		Kinds: a.inboxKinds, Ask: a.inboxAsk, Drop: a.inboxDrop, Tell: a.inboxTell, House: store.ReceiverHouse,
 		Learn: a.inboxLearn, Owner: a.inboxOwner,
 		Open: func(ctx context.Context, key string) bool {
-			return a.threads != nil && a.threads.OpenWith(ctx, inbox.Target, inbox.FieldDoc, key)
+			return a.threads != nil && a.threads.OpenFrom(ctx, key)
 		},
 		Known: a.inboxKnown, Keep: a.inboxKeep,
 		Lang: a.lang, Logger: a.log,
@@ -124,26 +124,58 @@ func (a *app) calendarOwner(ctx context.Context, name string) string {
 	return key
 }
 
-// inboxAsk starts the person's inbox thread with the reading's plan and leaves its
-// question as a message of the thread: delivered by the person's settings,
-// withdrawn when the thread ends.
+// inboxKinds are the kinds the inbox's reading may give: those a
+// switched-on skill takes whose target has fields (a plan target is not
+// started from an item), each with its fields (docs/spec/inbox.md,
+// decision 32).
+func (a *app) inboxKinds() map[string][]string {
+	out := map[string][]string{}
+	if a.threads == nil {
+		return out
+	}
+	for _, kind := range store.KindsWithSkill() {
+		sk, ok := a.threads.TargetOf(store.KindSkill(kind))
+		if !ok || sk.Target == nil || sk.Target.Plan {
+			continue
+		}
+		var fields []string
+		for _, f := range sk.Target.Fields {
+			fields = append(fields, f.Name)
+		}
+		out[kind] = fields
+	}
+	return out
+}
+
+// inboxAsk starts the thread of one item in the skill that takes its kind,
+// with the item's fields and the document as its source, and leaves its line
+// as an entry of the person's message of that kind (docs/spec/inbox.md,
+// section 8): delivered by the person's settings, gone when the thread ends.
 func (a *app) inboxAsk(ctx context.Context, q inbox.Question) error {
 	if a.threads == nil {
 		return errors.New("no threads")
 	}
-	th, err := a.threads.StartAt(ctx, threads.Begin{Target: inbox.Target, Person: q.Person, Request: q.Summary,
-		Plan: q.Plan, Deadline: q.Deadline, Fields: map[string]string{
-			inbox.FieldDoc: q.Doc.Key, inbox.FieldTitle: q.Doc.Title, inbox.FieldRef: q.Doc.Ref}})
+	skill := store.KindSkill(q.Kind)
+	if skill == "" {
+		return fmt.Errorf("no skill takes the kind %q", q.Kind)
+	}
+	th, err := a.threads.StartAt(ctx, threads.Begin{Target: skill, Person: q.Person, Request: q.Line,
+		Fields: q.Fields, Deadline: q.Deadline, Source: q.Doc.Key})
 	if err != nil {
 		return err
 	}
-	if err := a.threads.Note(ctx, th.ID, q.Text); err != nil {
-		a.log.Warn("could not note the inbox question in its thread", "thread", th.ID, "error", err)
-	}
-	_, _, err = a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: store.KindPostfach, Source: store.SourceTask,
-		DedupeKey: "inbox:" + th.ID, Importance: 1, Receiver: q.Person, Spoken: q.Text, ThreadID: th.ID,
+	_, _, err = a.store.PutMessage(ctx, store.Message{ID: ulid.Make().String(), Kind: q.Kind, Source: store.SourceTask,
+		DedupeKey: "inbox:" + th.ID, Importance: 1, Receiver: q.Person, Spoken: q.Line, ThreadID: th.ID,
 		ExpiresAt: th.ExpiresAt})
 	return err
+}
+
+// inboxDrop cancels the open threads of a document whose items could not
+// all be asked; it is read again at the next start.
+func (a *app) inboxDrop(ctx context.Context, key string) {
+	if a.threads != nil {
+		a.threads.CancelFrom(ctx, key)
+	}
 }
 
 // inboxTell leaves a message of the inbox for a person or the house.

@@ -523,6 +523,12 @@ CREATE TABLE watch_declined (
 		name: "0032_agent_run_remote",
 		stmt: `ALTER TABLE agent_runs ADD COLUMN remote TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Where a thread started by code comes from (docs/spec/threads.md,
+		// Started by code): the inbox's document or mail.
+		name: "0033_thread_source",
+		stmt: `ALTER TABLE threads ADD COLUMN source TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

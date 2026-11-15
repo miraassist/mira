@@ -115,8 +115,8 @@ func TestMS25_APrivateMessageIsNotAddedToASimpleOne(t *testing.T) {
 func TestMS30_AnEndedThreadsEntriesLeaveTheMessage(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newStore(t)
-	s.PutMessage(ctx, Message{ID: "e1", Kind: KindPostfach, Receiver: "anna", Spoken: "Elternbrief", ThreadID: "t1"})
-	m, _, _ := s.PutMessage(ctx, Message{ID: "e2", Kind: KindPostfach, Receiver: "anna", Spoken: "Praxis", ThreadID: "t2"})
+	s.PutMessage(ctx, Message{ID: "e1", Kind: KindAppointment, Receiver: "anna", Spoken: "Elternbrief", ThreadID: "t1"})
+	m, _, _ := s.PutMessage(ctx, Message{ID: "e2", Kind: KindAppointment, Receiver: "anna", Spoken: "Praxis", ThreadID: "t2"})
 	if len(m.Entries) != 2 || m.ThreadID != "" {
 		t.Fatalf("message = %+v", m)
 	}

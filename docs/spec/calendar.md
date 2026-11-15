@@ -96,7 +96,9 @@ Step by step:
   ([Threads](threads.md), Tools of a turn in a thread: a tool may belong to several skills). Cost in a turn: 1 read of
   the calendars (as `calendar_writable` today), 1 call to Home Assistant; the turn waits for both.
 - **The skill `termin`**: its finish names the building block (`action: calendar.create`) instead of the action
-  `calendar.create_event`; its check `calendar_writable` and its `undo` stay.
+  `calendar.create_event`; its check `calendar_writable` and its `undo` stay. Since 2026-11-15 the check follows the
+  same rule when the thread has a person (the thread's person goes with the check): "standard" is the person's own
+  calendar, another person's is refused; without a person it asks as before.
 - **The mail calendar** ([Mail calendar](mail-calendar.md)): its code enters a new parcel through the building block
   instead of its own WebSocket command; updating and deleting by the event's id stay its own. The flow of parcels does not
   change.
@@ -171,4 +173,5 @@ Before 2026-11-12 this spec had no steps; what it describes above was built in 0
 1. **The building block `calendar.create`** and its checks; the skill `termin` finishes with it; the mail calendar
    enters a new parcel with it. CA-01 to CA-07.
 2. **The tool `calendar_create`**, and a tool of Mira's belonging to several skills ([Threads](threads.md)). CA-08 to
-   CA-09.
+   CA-09. The tool is removed with the inbox's step 10 ([Mira's inbox](inbox.md), decision 33): the inbox's
+   appointments go through the skill `termin`'s thread; CA-01 to CA-07 test the building block directly.

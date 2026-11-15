@@ -60,6 +60,10 @@ type Skill struct {
 	// Inbox, when set, is how Mira reads what lands in her inbox
 	// (docs/spec/inbox.md): the reading's instructions.
 	Inbox *Inbox
+	// Takes is the kind of message whose entries lead to this skill's
+	// threads (metadata.mira.takes; docs/spec/messages.md, decision 33);
+	// empty for none.
+	Takes string
 	// Agents are the agents the skill describes (metadata.mira.agents), by
 	// name, with the settings filled into description and instructions
 	// (docs/spec/agents.md, Factory).
@@ -331,6 +335,7 @@ type frontmatter struct {
 			Target    *Target              `yaml:"target"`
 			Mail      *Mail                `yaml:"mail"`
 			Inbox     *Inbox               `yaml:"inbox"`
+			Takes     string               `yaml:"takes"`
 			Agents    map[string]yaml.Node `yaml:"agents"`
 			Privacy   string               `yaml:"privacy"`
 			MCP       *config.MCPServer    `yaml:"mcp"`
@@ -582,6 +587,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	s.Chapter = strings.TrimSpace(m.Chapter)
+	s.Takes = strings.TrimSpace(m.Takes)
 	if s.Random, p = parseRandom(&m.Random, "SKILL.md"); p != nil {
 		return Skill{}, p
 	}

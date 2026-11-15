@@ -18,7 +18,6 @@ import (
 	"github.com/miraassist/mira/internal/i18n"
 	"github.com/miraassist/mira/internal/mailcal"
 	"github.com/miraassist/mira/internal/retry"
-	"github.com/miraassist/mira/internal/skills"
 )
 
 var berlin = func() *time.Location {
@@ -129,6 +128,8 @@ type bed struct {
 	owners  map[int]string
 	kept    map[string][]string
 	keptErr error
+	askErr  error
+	dropped []string
 }
 
 func newBed(t *testing.T) *bed {
@@ -138,13 +139,26 @@ func newBed(t *testing.T) *bed {
 	b.pl.docs[5444] = Doc{ID: 5444, Title: "Elternbrief", Created: time.Date(2026, 11, 9, 0, 0, 0, 0, berlin), Owner: 3}
 	b.pl.texts[5444] = "Liebe Eltern, der Elternabend ist am 3. Dezember um 19:30 in der Aula."
 	b.s = New(Options{Token: "inbox-secret", Paperless: b.pl, Model: b.model, Extract: "Nimm jeden Termin.",
+		Kinds: func() map[string][]string {
+			return map[string][]string{
+				"appointment": {"title", "start", "end", "day", "day_after", "location", "description", "proposals", "calendar"},
+				"todo":        {"item", "list", "due", "description"},
+			}
+		},
+		Drop: func(_ context.Context, key string) { b.dropped = append(b.dropped, key) },
 		Person: func(owner string) (string, bool) {
 			if owner == "anna" {
 				return "anna", true
 			}
 			return "", false
 		},
-		Ask:   func(_ context.Context, q Question) error { b.asked = append(b.asked, q); return nil },
+		Ask: func(_ context.Context, q Question) error {
+			if b.askErr != nil && len(b.asked) > 0 {
+				return b.askErr
+			}
+			b.asked = append(b.asked, q)
+			return nil
+		},
 		Tell:  func(_ context.Context, r, text string) error { b.told = append(b.told, told{r, text}); return nil },
 		Open:  func(_ context.Context, key string) bool { return b.open[key] },
 		Learn: func(_ context.Context, owner int, name string) error { b.owners[owner] = name; return nil },
@@ -168,21 +182,25 @@ func newBed(t *testing.T) *bed {
 	return b
 }
 
-// answer is the reading's answer: the summary, the plan's steps, the
-// summary as the line, no expiry.
-func (b *bed) answer(summary string, steps ...string) {
-	b.reading(reading{Summary: summary, Plan: steps, Line: summary})
+// answer is the reading's answer: the summary and an appointment item per
+// line, its title the line, no expiry.
+func (b *bed) answer(summary string, lines ...string) {
+	rd := reading{Summary: summary, Items: []item{}}
+	for _, l := range lines {
+		rd.Items = append(rd.Items, item{Kind: "appointment", Line: l, Fields: map[string]string{"title": l}})
+	}
+	b.reading(rd)
 }
 
 func (b *bed) reading(rd reading) {
-	if rd.Plan == nil {
-		rd.Plan = []string{}
+	if rd.Items == nil {
+		rd.Items = []item{}
 	}
 	raw, _ := json.Marshal(rd)
 	b.model.answer = string(raw)
 }
 
-// appt is a step of the plan as the model words it.
+// appt is an appointment's line as the model words it.
 func appt(title, day, start string) string {
 	return strings.TrimSpace(title + ", " + day + " " + start)
 }
@@ -278,7 +296,7 @@ func TestIN08_ALongTextIsCutAndSaid(t *testing.T) {
 	if n := strings.Count(b.model.instruction, "x"); n != maxText {
 		t.Fatalf("the reading got %d characters", n)
 	}
-	if len(b.asked) != 1 || !strings.Contains(b.asked[0].Text, "nur den Anfang") {
+	if len(b.asked) != 1 || !strings.Contains(b.asked[0].Line, "nur den Anfang") {
 		t.Fatalf("asked = %+v", b.asked)
 	}
 	if !strings.Contains(b.log.String(), "length=50000") {
@@ -337,30 +355,7 @@ func TestIN12_AnAnswerThatIsNoJSONNamesItsStart(t *testing.T) {
 
 // --- step 3 -------------------------------------------------------------------
 
-func postfachSkill(t *testing.T) skills.Skill {
-	t.Helper()
-	loaded, problems := skills.Load([]string{"../../skills"}, map[string]map[string]any{Target: nil})
-	if len(problems) > 0 {
-		t.Fatalf("problems: %+v", problems)
-	}
-	for _, sk := range loaded {
-		if sk.Name == Target {
-			return sk
-		}
-	}
-	t.Fatal("no skill postfach")
-	return skills.Skill{}
-}
-
-func TestIN18_TheQuestionWaitsThreeDays(t *testing.T) {
-	sk := postfachSkill(t)
-	if d := sk.Target.TimeoutDuration(); d != 72*time.Hour {
-		t.Fatalf("timeout = %s", d)
-	}
-	// Withdrawing the thread's message and the log line on expiry are the
-	// threads' own (docs/spec/threads.md, End); the question is a message of
-	// the thread (cmd/mira inboxAsk sets its ThreadID).
-}
+// IN-18 (the question waits three days) dropped with step 10: each item's thread expires by its own expiry.
 
 // --- step 4 -------------------------------------------------------------------
 
@@ -518,7 +513,7 @@ func TestIN28_TheDeviceNameNamesThePerson(t *testing.T) {
 	}
 	b.runQueue(t)
 	if len(b.asked) != 1 || b.asked[0].Person != "anna" || b.asked[0].Doc.Title != "Elternbrief" ||
-		!strings.Contains(b.asked[0].Plan, "Mail von schule@example.org") {
+		!strings.Contains(b.asked[0].Doc.Ref, "Mail von schule@example.org") {
 		t.Fatalf("asked = %+v", b.asked)
 	}
 	if strings.Contains(b.model.instruction, "<p>") || !strings.Contains(b.model.instruction, "Mail von: schule@example.org") {
@@ -637,62 +632,13 @@ func TestIN37_MailsReadThatCannotBeLookedUpOrKept(t *testing.T) {
 	}
 }
 
-// --- step 9: the model writes the plan -----------------------------------------
-
-func TestIN39_TheReadingsPlanBecomesTheThreadsPlan(t *testing.T) {
-	b := newBed(t)
-	steps := []string{"Elternabend, Do 3.12.2026 19:30, Aula", "Weihnachtsfeier, Sa 19.12.2026 15:00", "schulfrei, Di 22.12.2026 (ganztägig)"}
-	b.reading(reading{Summary: "Elternbrief der Grundschule", Plan: steps, Line: "Elternbrief: drei Termine", Expires: "2026-12-19"})
-	b.s.Read(context.Background(), 5444, "anna")
-	if len(b.asked) != 1 {
-		t.Fatalf("asked = %+v", b.asked)
-	}
-	q := b.asked[0]
-	want := "Elternbrief der Grundschule (Paperless 5444): Elternbrief\n- [ ] " + strings.Join(steps, "\n- [ ] ")
-	if q.Person != "anna" || q.Plan != want {
-		t.Fatalf("plan:\n%s\nwant:\n%s", q.Plan, want)
-	}
-	if !q.Deadline.Equal(time.Date(2026, 12, 20, 0, 0, 0, 0, berlin)) {
-		t.Fatalf("deadline = %s", q.Deadline)
-	}
-	if q.Text != "Elternbrief: drei Termine" {
-		t.Fatalf("text = %q", q.Text)
-	}
-	// The target binds the thread to the person: skills/postfach.
-	sk := postfachSkill(t)
-	if sk.Target == nil || !sk.Target.Plan || sk.Target.Bound != "person" || sk.Inbox == nil {
-		t.Fatalf("skill postfach: %+v", sk.Target)
-	}
-}
-
-func TestIN40_AtMost20StepsTheRestNamed(t *testing.T) {
-	b := newBed(t)
-	var steps []string
-	for i := 1; i <= 25; i++ {
-		steps = append(steps, fmt.Sprintf("Termin %d, 2026-12-%02d", i, i))
-	}
-	b.answer("Terminliste", steps...)
-	b.s.Read(context.Background(), 5444, "anna")
-	q := b.asked[0]
-	if n := strings.Count(q.Plan, "- [ ]"); n != 21 || !strings.HasSuffix(q.Plan, "- [ ] 5 weitere im Dokument") {
-		t.Fatalf("%d steps, plan:\n%s", n, q.Plan)
-	}
-	if !strings.Contains(b.log.String(), "steps=25") {
-		t.Errorf("the log does not name the 25:\n%s", b.log)
-	}
-	// A step longer than 200 characters is cut, with a log line.
-	b = newBed(t)
-	b.answer("Brief", strings.Repeat("y", 300))
-	b.s.Read(context.Background(), 5444, "anna")
-	if n := strings.Count(b.asked[0].Plan, "y"); n != maxStep || !strings.Contains(b.log.String(), "a step of the plan is cut") {
-		t.Fatalf("%d characters kept", n)
-	}
-}
+// --- step 9, changed by step 10 ---------------------------------------------
+// IN-39 and IN-40 (the plan per mail) dropped with step 10 (decision 29).
 
 func TestIN41_AnExpiryThatDoesNotFitOrNone(t *testing.T) {
 	for _, e := range []string{"2019-01-01", "morgen", "2031-01-01", ""} {
 		b := newBed(t)
-		b.reading(reading{Summary: "Brief", Plan: []string{"Termin"}, Line: "Brief", Expires: e})
+		b.reading(reading{Summary: "Brief", Items: []item{{Kind: "todo", Line: "Brief", Expires: e, Fields: map[string]string{"item": "Rückmeldung"}}}})
 		b.s.Read(context.Background(), 5444, "anna")
 		if got := b.asked[0].Deadline; !got.Equal(now.Add(24 * time.Hour)) {
 			t.Fatalf("%q: deadline %s", e, got)
@@ -701,24 +647,28 @@ func TestIN41_AnExpiryThatDoesNotFitOrNone(t *testing.T) {
 			t.Errorf("%q: log line %v:\n%s", e, logged, b.log)
 		}
 	}
-	// A time is taken as it is (the deadline to answer, tomorrow 12:00).
+	// A time is taken as it is; a day until its end.
 	b := newBed(t)
-	b.reading(reading{Summary: "Brief", Plan: []string{"Rückmeldung"}, Line: "Brief", Expires: "2026-11-11 12:00"})
+	b.reading(reading{Summary: "Brief", Items: []item{
+		{Kind: "appointment", Line: "Elternabend", Expires: "2026-11-11 12:00", Fields: map[string]string{"title": "Elternabend"}},
+		{Kind: "todo", Line: "Rückmeldung", Expires: "2026-11-16", Fields: map[string]string{"item": "Rückmeldung"}}}})
 	b.s.Read(context.Background(), 5444, "anna")
 	if got := b.asked[0].Deadline; !got.Equal(time.Date(2026, 11, 11, 12, 0, 0, 0, berlin)) {
+		t.Fatalf("deadline %s", got)
+	}
+	if got := b.asked[1].Deadline; !got.Equal(time.Date(2026, 11, 17, 0, 0, 0, 0, berlin)) {
 		t.Fatalf("deadline %s", got)
 	}
 }
 
 func TestIN42_WithoutAPersonThePlanGoesToTheHouse(t *testing.T) {
 	b := newBed(t)
-	b.reading(reading{Summary: "Elternbrief", Plan: []string{"Elternabend, Do 3.12.2026 19:30", "Feier, Sa 19.12.2026 15:00"},
-		Line: "Elternbrief: zwei Termine"})
+	b.answer("Elternbrief", "Elternbrief: Elternabend Do 3.12. 19:30", "Elternbrief: Feier Sa 19.12. 15:00")
 	b.s.Read(context.Background(), 5444, "scanner")
 	if len(b.asked) != 0 || len(b.told) != 1 || b.told[0].receiver != "house" {
 		t.Fatalf("asked %+v, told %+v", b.asked, b.told)
 	}
-	for _, want := range []string{"Elternbrief: zwei Termine", "Elternabend, Do 3.12.2026 19:30", "Feier, Sa 19.12.2026 15:00", "Was soll ich damit machen?"} {
+	for _, want := range []string{"Elternbrief: Elternabend Do 3.12. 19:30", "Elternbrief: Feier Sa 19.12. 15:00", "Was soll ich damit machen?"} {
 		if !strings.Contains(b.told[0].text, want) {
 			t.Errorf("message lacks %q: %s", want, b.told[0].text)
 		}
@@ -740,5 +690,101 @@ func TestIN43_AnEmptyPlanStartsNothing(t *testing.T) {
 	}
 	if got := b.pl.addedTag[5444]; len(got) != 1 {
 		t.Fatalf("not marked read: %v", got)
+	}
+}
+
+// --- step 10: kinds by meaning --------------------------------------------------
+
+func TestIN45_TheReadingGivesItemsByMeaning(t *testing.T) {
+	b := newBed(t)
+	b.reading(reading{Summary: "Elternbrief der Grundschule", Items: []item{
+		{Kind: "appointment", Line: "Elternbrief: Elternabend Do 3.12. 19:30, Aula", Expires: "2026-12-03 19:30",
+			Fields: map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula",
+				"description": "Aus Paperless 5444: Elternbrief der Grundschule"}},
+		{Kind: "todo", Line: "Elternbrief: Rückmeldung Ausflug bis Fr 28.11.", Expires: "2026-11-28",
+			Fields: map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}}}})
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 2 {
+		t.Fatalf("asked = %+v", b.asked)
+	}
+	a, d := b.asked[0], b.asked[1]
+	if a.Kind != "appointment" || a.Person != "anna" || a.Fields["title"] != "Elternabend" ||
+		a.Fields["proposals"] != "2026-12-03 19:30–20:30 · Aula" || a.Line != "Elternbrief: Elternabend Do 3.12. 19:30, Aula" ||
+		a.Doc.Key != "paperless:5444" {
+		t.Fatalf("appointment = %+v", a)
+	}
+	if d.Kind != "todo" || d.Fields["item"] != "Rückmeldung Ausflug" || d.Fields["due"] != "2026-11-28" ||
+		!d.Deadline.Equal(time.Date(2026, 11, 29, 0, 0, 0, 0, berlin)) {
+		t.Fatalf("todo = %+v", d)
+	}
+	if !strings.Contains(b.model.instruction, "Arten: appointment, todo") {
+		t.Fatalf("instruction:\n%s", b.model.instruction)
+	}
+}
+
+func TestIN49_ProposalsToChooseOneAreOneAppointment(t *testing.T) {
+	b := newBed(t)
+	b.reading(reading{Summary: "Praxis", Items: []item{{Kind: "appointment", Line: "Praxis Dr. Kaya schlägt drei Termine vor",
+		Fields: map[string]string{"title": "Kontrolle", "proposals": "2026-11-17 09:00–09:30\n2026-11-18 14:30–15:00\n2026-11-20 11:00–11:30"}}}})
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 1 || strings.Count(b.asked[0].Fields["proposals"], "\n") != 2 {
+		t.Fatalf("asked = %+v", b.asked)
+	}
+}
+
+func TestIN52_ItemsThatDoNotFitAreDroppedTheOthersGoOn(t *testing.T) {
+	b := newBed(t)
+	b.reading(reading{Summary: "Rechnung", Items: []item{
+		{Kind: "rechnung", Line: "Stadtwerke: 84 Euro", Fields: map[string]string{"betrag": "84"}},
+		{Kind: "todo", Line: "Stadtwerke: bezahlen bis 30.11.", Fields: map[string]string{"item": "Stadtwerke bezahlen", "due": "2026-11-30"}}}})
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 1 || b.asked[0].Kind != "todo" {
+		t.Fatalf("asked = %+v", b.asked)
+	}
+	if !strings.Contains(b.log.String(), "kind no switched-on skill takes") || !strings.Contains(b.log.String(), "rechnung") ||
+		!strings.Contains(b.log.String(), "paperless:5444") {
+		t.Fatalf("log:\n%s", b.log)
+	}
+}
+
+func TestIN55_AFieldTheTakingSkillDoesNotKnowIsDropped(t *testing.T) {
+	b := newBed(t)
+	b.reading(reading{Summary: "Brief", Items: []item{{Kind: "todo", Line: "Formular",
+		Fields: map[string]string{"item": "Formular", "due": "2026-11-28", "priority": "hoch"}}}})
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.asked) != 1 || b.asked[0].Fields["priority"] != "" || b.asked[0].Fields["due"] != "2026-11-28" {
+		t.Fatalf("asked = %+v", b.asked)
+	}
+	if !strings.Contains(b.log.String(), "field=priority") {
+		t.Fatalf("log:\n%s", b.log)
+	}
+}
+
+func TestIN56_TheReadingIsOfferedOnlyTheKindsASwitchedOnSkillTakes(t *testing.T) {
+	b := newBed(t)
+	b.s.o.Kinds = func() map[string][]string { return map[string][]string{"appointment": {"title", "proposals"}} }
+	b.reading(reading{Summary: "Brief", Items: []item{{Kind: "todo", Line: "Formular", Fields: map[string]string{"item": "Formular"}}}})
+	b.s.Read(context.Background(), 5444, "anna")
+	if !strings.Contains(b.model.instruction, "Arten: appointment\n") || len(b.asked) != 0 ||
+		!strings.Contains(b.log.String(), "kind no switched-on skill takes") {
+		t.Fatalf("instruction:\n%s\nasked %+v", b.model.instruction, b.asked)
+	}
+}
+
+// An item that cannot be asked drops the document's threads; the document
+// stays unread and is read again (docs/spec/inbox.md, section 8, Errors).
+func TestAnItemThatCannotBeAskedLeavesTheDocumentUnread(t *testing.T) {
+	b := newBed(t)
+	b.askErr = errors.New("database locked")
+	b.answer("Elternbrief", "Elternabend", "Feier")
+	b.s.Read(context.Background(), 5444, "anna")
+	if len(b.dropped) != 1 || b.dropped[0] != "paperless:5444" {
+		t.Fatalf("dropped = %v", b.dropped)
+	}
+	if got := b.pl.addedTag[5444]; len(got) != 0 {
+		t.Fatalf("marked read: %v", got)
+	}
+	if !strings.Contains(b.log.String(), "database locked") {
+		t.Fatalf("log:\n%s", b.log)
 	}
 }

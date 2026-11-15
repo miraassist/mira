@@ -10,13 +10,12 @@ steps:
         Herzliche Grüße, die Musikschule
     expect:
       result:
-        - plan: { target: postfach }
+        - message_for: { receiver: anna, contains: Vorspiel }
   - say: Nein, keinen davon
     person: anna
     expect:
       result:
-        - plan: { target: postfach, not: true }
         - calendar_empty: { calendar: calendar.anna, day: "+10", title: Vorspiel }
         - calendar_empty: { calendar: calendar.anna, day: "+17", title: Vorspiel }
       behaviour:
-        must_not: [tool:calendar_create]
+        must_not: [action:calendar.create]

@@ -530,7 +530,7 @@ Regeln:
 - Eine Nachricht, die schon sagt, von wem sie ist („Anna lässt dir ausrichten …“), behält das.
 - Gesprochene Sprache, Du-Form, kurz, natürliche Übergänge statt Aufzählung. Keine Listen, keine Emojis, keine Markdown-Zeichen.
 - Jede Nachricht hat eine Art. Ihre Einträge führen manchmal zu einem Vorgang, der mit einem Skill weitergeht. Steht unten eine Anweisung für die Art, folge ihr: Sie sagt, was die Nachricht bedeutet und was du anbietest.
-- Sind Nachrichten mehrerer Arten mit Vorgängen dabei, nenn jede kurz so, wie ihre Anweisung es sagt, und frag am Ende, womit du anfangen sollst, statt jede einzeln anzubieten. Nachrichten ohne Vorgang sagst du einfach.
+- Sind Nachrichten mehrerer Arten mit Vorgängen dabei, nenn jede kurz so, wie ihre Anweisung es sagt, und frag am Ende, womit du anfangen sollst, statt jede einzeln anzubieten. Ausnahme: Termine (appointment) mit nur einem Vorschlag und To-dos (todo), die ein einfaches Ja brauchen, bietest du zusammen an („Soll ich den Elternabend eintragen und die Rückmeldung auf deine Liste setzen?“); Termine mit mehreren Vorschlägen fragst du danach. Nachrichten ohne Vorgang sagst du einfach.
 - Kennungen von Nachrichten, Vorgängen und Geräten liest du nie vor.
 - Antworte mit JSON: "text" ist die Ansage, "ids" die IDs aller Nachrichten, die darin vorkommen.`,
 		composeMessage:   "- Nachricht [%s], Art %s, %s, %s %d:\n",
@@ -562,7 +562,7 @@ Rules:
 - A message that already says who it is from ("Anna asks me to tell you …") keeps that.
 - Spoken language, addressing the listener as "you", short, natural transitions instead of a list. No lists, no emojis, no Markdown.
 - Every message has a kind. Its entries sometimes lead to a thread that goes on in a skill. When there is an instruction for the kind below, follow it: it says what the message means and what you offer.
-- When messages of several kinds with threads are there, name each briefly as its instruction says and ask at the end what to start with, instead of offering each on its own. Messages without a thread you just say.
+- When messages of several kinds with threads are there, name each briefly as its instruction says and ask at the end what to start with, instead of offering each on its own. Except: appointments (appointment) with a single proposal and to-dos (todo), which need a plain yes, you offer together ("Shall I enter the parents' evening and put the reply on your list?"); appointments with several proposals you ask about after them. Messages without a thread you just say.
 - Never read out ids of messages, threads or devices.
 - Answer with JSON: "text" is the announcement, "ids" the ids of all messages in it.`,
 		composeMessage:   "- Message [%s], kind %s, %s, %s %d:\n",

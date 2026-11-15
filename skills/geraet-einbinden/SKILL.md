@@ -17,6 +17,7 @@ metadata:
       mqtt_password:
         description: Das Passwort am MQTT-Broker für Tasmota-Geräte.
         secret: true
+    takes: device
     target:
       plan: true
       bound: room

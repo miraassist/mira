@@ -12,6 +12,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/skills"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tools"
 )
@@ -183,20 +184,25 @@ func (m *Manager) StartFor(ctx context.Context, target, person, request, plan st
 	return m.StartAt(ctx, Begin{Target: target, Person: person, Request: request, Plan: plan, Fields: fields})
 }
 
-// Begin is a plan thread Mira's code starts: of a person, or of the house
-// when Person is empty; Deadline is its own expiry until a turn takes it up
-// (docs/spec/messages.md, decision 11), zero for its type's timeout.
+// Begin is a thread Mira's code starts: of a person, or of the house when
+// Person is empty; Deadline is its own expiry until a turn takes it up
+// (docs/spec/messages.md, decision 11), zero for its type's timeout. A plan
+// target takes Plan; a field target takes Fields read from a document and
+// Source, where they come from (docs/spec/threads.md, Started by code).
 type Begin struct {
 	Target, Person, Request, Plan string
 	Fields                        map[string]string
 	Deadline                      time.Time
+	Source                        string
 }
 
-// StartAt starts a plan thread from Mira's code (decisions 11 and 13).
+// StartAt starts a thread from Mira's code (decisions 11 and 13; Started by
+// code). A field target's thread is a proposal: it waits for the person and
+// finishes only on their yes.
 func (m *Manager) StartAt(ctx context.Context, b Begin) (store.Thread, error) {
 	target, person, request, plan, fields := b.Target, b.Person, b.Request, b.Plan, b.Fields
 	sk, ok := m.targets[target]
-	if !ok || !sk.Target.Plan {
+	if !ok {
 		return store.Thread{}, fmt.Errorf(m.texts().noTarget, target)
 	}
 	place := store.PlaceHouse
@@ -204,19 +210,73 @@ func (m *Manager) StartAt(ctx context.Context, b Begin) (store.Thread, error) {
 		place = "person:" + person
 	}
 	th := store.Thread{ID: strings.ToLower(ulid.Make().String()), Target: target, Place: place,
-		Person: person, State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: fields,
-		Deadline: b.Deadline}
-	if th.Fields == nil {
-		th.Fields = map[string]string{}
+		Person: person, State: store.ThreadCollecting, Request: strings.TrimSpace(request), Fields: map[string]string{},
+		Deadline: b.Deadline, Source: b.Source}
+	if sk.Target.Plan {
+		for k, v := range fields {
+			th.Fields[k] = v
+		}
+		m.logEntry(&th, "mira", th.Request)
+		setPlan(&th, planContent{Plan: strings.TrimSpace(plan)})
+	} else {
+		if b.Source == "" {
+			return store.Thread{}, fmt.Errorf("a thread of %s started by code needs its source", target)
+		}
+		for k, v := range fields {
+			if _, ok := field(sk.Target, k); !ok {
+				return store.Thread{}, fmt.Errorf("the target %s has no field %q (source %s)", target, k, b.Source)
+			}
+			th.Fields[k] = strings.TrimSpace(v)
+		}
+		// The fields the code cannot know (the calendar, the list) stay
+		// for the person's answer.
+		th.State = store.ThreadWaiting
+		m.logEntry(&th, "mira", th.Request)
 	}
-	m.logEntry(&th, "mira", th.Request)
-	c := planContent{Plan: strings.TrimSpace(plan)}
-	setPlan(&th, c)
 	if err := m.save(ctx, &th); err != nil {
 		return store.Thread{}, err
 	}
-	m.log.Info("thread started", "thread", th.ID, "target", target, "place", th.Place, "by", "code")
+	m.log.Info("thread started", "thread", th.ID, "target", target, "place", th.Place, "by", "code", "source", th.Source)
 	return th, nil
+}
+
+// CancelFrom cancels the open threads from a source (a document of the
+// inbox that could not be asked in full).
+func (m *Manager) CancelFrom(ctx context.Context, source string) {
+	open, err := m.opts.Store.OpenThreads(ctx, "")
+	if err != nil {
+		m.log.Warn("could not read the open threads to cancel those of a source", "source", source, "error", err)
+		return
+	}
+	for _, th := range open {
+		if th.Source == source {
+			m.end(ctx, th, store.ThreadCancelled)
+			m.log.Info("thread cancelled with its source", "thread", th.ID, "source", source)
+		}
+	}
+}
+
+// TargetOf is the skill of a target; false for none.
+func (m *Manager) TargetOf(name string) (skills.Skill, bool) {
+	sk, ok := m.targets[name]
+	return sk, ok
+}
+
+// OpenFrom reports whether an open thread comes from this source (a
+// document of the inbox); an error reading the threads counts as none,
+// with a log line.
+func (m *Manager) OpenFrom(ctx context.Context, source string) bool {
+	open, err := m.opts.Store.OpenThreads(ctx, "")
+	if err != nil {
+		m.log.Warn("could not read the open threads; taken as none", "source", source, "error", err)
+		return false
+	}
+	for _, th := range open {
+		if th.Source == source {
+			return true
+		}
+	}
+	return false
 }
 
 // TurnThreadOf is the open thread of the target the turn belongs to or that

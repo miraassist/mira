@@ -2,6 +2,8 @@ package threads
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,14 +17,30 @@ import (
 // docs/spec/messages.md, Kinds of messages: taking up a thread, what still
 // waits, threads of the house.
 
+// briefSkill is a plan target of a person started by code, as the inbox's
+// was before its step 10: "brief".
+func briefSkill(t *testing.T) []skills.Skill {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "brief"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skill := "---\nname: brief\ndescription: Ein Brief mit Dingen zu tun.\nmetadata:\n  mira:\n    target:\n      plan: true\n      bound: person\n      timeout: 72h\n      done_after: 5m\n---\nAnleitung.\n"
+	if err := os.WriteFile(filepath.Join(dir, "brief", "SKILL.md"), []byte(skill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, problems := skills.Load([]string{dir}, map[string]map[string]any{"brief": nil})
+	if len(problems) > 0 || len(loaded) != 1 {
+		t.Fatalf("skill brief: %+v", problems)
+	}
+	store.SetTakers(map[string]string{store.KindAppointment: "brief", store.KindDevice: "geraet-einbinden"})
+	return loaded
+}
+
 func postfachEnv(t *testing.T) *env {
 	t.Helper()
 	e := setup(t)
-	loaded, problems := skills.Load([]string{"../../skills"}, map[string]map[string]any{"postfach": nil})
-	if len(problems) > 0 || len(loaded) != 1 {
-		t.Fatalf("skill postfach: %+v", problems)
-	}
-	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: loaded, Clock: func() time.Time { return e.now }})
+	e.m = New(Options{Lang: i18n.DE, Store: e.st, Targets: briefSkill(t), Clock: func() time.Time { return e.now }})
 	return e
 }
 
@@ -31,11 +49,11 @@ func postfachEnv(t *testing.T) *env {
 func (e *env) mail(t *testing.T, person, line string) store.Thread {
 	t.Helper()
 	ctx := context.Background()
-	th, err := e.m.StartFor(ctx, "postfach", person, line, line+"\n- [ ] Termin", nil)
+	th, err := e.m.StartFor(ctx, "brief", person, line, line+"\n- [ ] Termin", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := e.st.PutMessage(ctx, store.Message{ID: "m-" + th.ID, Kind: store.KindPostfach, Receiver: person,
+	if _, _, err := e.st.PutMessage(ctx, store.Message{ID: "m-" + th.ID, Kind: store.KindAppointment, Receiver: person,
 		Spoken: line, ThreadID: th.ID}); err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +116,9 @@ func TestMS29_TheLineWartetNochInEveryTurn(t *testing.T) {
 	e.mail(t, "anna", "Elternbrief")
 	e.mail(t, "anna", "Praxis")
 	e.st.PutMessage(ctx, store.Message{ID: "d1", Kind: store.KindDevice, Spoken: "Hue Bridge"})
-	e.st.PutMessage(ctx, store.Message{ID: "b1", Kind: store.KindPostfach, Receiver: "ben", Spoken: "Chorprobe"})
+	e.st.PutMessage(ctx, store.Message{ID: "b1", Kind: store.KindAppointment, Receiver: "ben", Spoken: "Chorprobe"})
 	text, _ := e.m.Context(ctx, store.Session{Key: "voice:x"}, "person:anna", nil, "")
-	if !strings.Contains(text, "Wartet noch (Einzelheiten mit messages_read): 1 × device, 2 × postfach") {
+	if !strings.Contains(text, "Wartet noch (Einzelheiten mit messages_read): 2 × appointment, 1 × device") {
 		t.Fatalf("context:\n%s", text)
 	}
 }
@@ -111,7 +129,7 @@ func TestAThreadOfTheHouseKeepsItsDeadlineUntilTakenUp(t *testing.T) {
 	e := postfachEnv(t)
 	ctx := context.Background()
 	deadline := e.now.Add(5 * 24 * time.Hour)
-	th, err := e.m.StartAt(ctx, Begin{Target: "postfach", Request: "Haus", Plan: "Haus\n- [ ] a", Deadline: deadline})
+	th, err := e.m.StartAt(ctx, Begin{Target: "brief", Request: "Haus", Plan: "Haus\n- [ ] a", Deadline: deadline})
 	if err != nil || th.Place != store.PlaceHouse || !th.ExpiresAt.Equal(deadline) {
 		t.Fatalf("thread = %+v %v", th, err)
 	}
@@ -129,13 +147,13 @@ func TestMS15_AMailsThreadExpiresWhenInboxReadSays(t *testing.T) {
 	e := postfachEnv(t)
 	ctx := context.Background()
 	deadline := e.now.Add(26 * time.Hour) // tomorrow 12:00, the deadline to answer
-	th, err := e.m.StartAt(ctx, Begin{Target: "postfach", Person: "anna", Request: "Rückmeldung zum Ausflug",
+	th, err := e.m.StartAt(ctx, Begin{Target: "brief", Person: "anna", Request: "Rückmeldung zum Ausflug",
 		Plan: "Rückmeldung zum Ausflug\n- [ ] Rückmeldung bis morgen 12:00", Deadline: deadline})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.st.PutMessage(ctx, store.Message{ID: "m1", Kind: store.KindPostfach, Receiver: "anna", Spoken: "Ausflug", ThreadID: th.ID})
-	e.st.PutMessage(ctx, store.Message{ID: "m2", Kind: store.KindPostfach, Receiver: "anna", Spoken: "Elternbrief", ThreadID: "other"})
+	e.st.PutMessage(ctx, store.Message{ID: "m1", Kind: store.KindAppointment, Receiver: "anna", Spoken: "Ausflug", ThreadID: th.ID})
+	e.st.PutMessage(ctx, store.Message{ID: "m2", Kind: store.KindAppointment, Receiver: "anna", Spoken: "Elternbrief", ThreadID: "other"})
 	e.now = deadline.Add(-time.Minute)
 	e.m.expire(ctx)
 	if got, _ := e.st.GetThread(ctx, th.ID); got.State == store.ThreadExpired {

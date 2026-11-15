@@ -220,13 +220,13 @@ func TestMS43_SeveralKindsWithThreadsEachNamedThenWhichFirst(t *testing.T) {
 	// found devices wait
 	e.foundDevice("th-1", "Rauchmelder DG")
 	e.foundDevice("th-2", "Bewegungsmelder")
-	th := &store.Thread{ID: "th-mail", Target: "postfach", Place: "person:ben", State: "collecting", Request: "Elternbrief",
+	th := &store.Thread{ID: "th-mail", Target: "termin", Place: "person:ben", State: "collecting", Request: "Elternbrief",
 		ExpiresAt: e.now.Add(24 * time.Hour)}
 	if err := e.st.PutThread(context.Background(), th); err != nil {
 		t.Fatal(err)
 	}
 	e.message("mail", 2, func(m *store.Message) {
-		m.Kind, m.Spoken, m.ThreadID = store.KindPostfach, "Elternbrief mit einem Termin", "th-mail"
+		m.Kind, m.Spoken, m.ThreadID = store.KindAppointment, "Elternbrief mit einem Termin", "th-mail"
 	})
 	// When they are announced together
 	e.presence("bad")
@@ -235,7 +235,7 @@ func TestMS43_SeveralKindsWithThreadsEachNamedThenWhichFirst(t *testing.T) {
 	}
 	// Then the model is told to name each kind briefly as its instruction
 	// says and to ask what to start with
-	for _, want := range []string{"Anweisung für device", "Anweisung für postfach",
+	for _, want := range []string{"Anweisung für device", "Anweisung für appointment",
 		"Sind Nachrichten mehrerer Arten mit Vorgängen dabei, nenn jede kurz so, wie ihre Anweisung es sagt, und frag am Ende, womit du anfangen sollst"} {
 		if !strings.Contains(asked[0], want) {
 			t.Errorf("the model was not told %q:\n%s", want, asked[0])

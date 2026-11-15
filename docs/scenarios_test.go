@@ -22,42 +22,42 @@ var builtSteps = map[string][]int{
 	"AG": {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}, // docs/spec/agents.md, Switching over in steps
 	"BE": {2},                                         // docs/spec/editing.md, Steps; step 1 predates the map; step 3 in Go (BE-22, 23) and pytest (BE-24, 25)
 	"HK": {1, 2},
-	"HW": {1, 2, 3},                // docs/spec/hooks.md, Steps
-	"MO": {1, 2, 3, 4, 5, 7},       // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
-	"SM": {1, 2},                   // docs/spec/skill-mcp.md
-	"SP": {3},                      // docs/spec/speaker-id.md
-	"BK": {1},                      // docs/spec/backup.md; steps 2 and 3 are tested in pytest
-	"RA": {2, 3, 4},                // docs/spec/radio.md, Steps
-	"SR": {2, 4},                   // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
-	"ST": {2, 3, 4, 6, 8, 9},       // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10)
-	"WS": {2, 4},                   // docs/spec/warm-slot.md, Steps
-	"VL": {1, 2},                   // docs/spec/history.md, Steps
-	"ZP": {1, 2, 3},                // docs/spec/schedules.md, Steps
-	"CO": {2, 4},                   // docs/spec/oauth.md; step 3 is tested in pytest
-	"HP": {1, 3},                   // docs/spec/context.md, 1.2; step 2 is tested in pytest
-	"AD": {1},                      // docs/spec/context.md, 1.1 (every asking device is compared)
-	"HU": {1},                      // docs/spec/context.md, 1.3; step 2 is tested in pytest
-	"FD": {3, 4},                   // docs/spec/found-devices.md, Steps
-	"WA": {3},                      // docs/spec/waiting-indicator.md, Steps
-	"IN": {1, 2, 3, 4, 6, 7, 8, 9}, // docs/spec/inbox.md, Steps; step 5 (the guide, an end-to-end test) has no scenarios; IN-26's integration side in pytest
-	"WL": {2, 3, 5},                // docs/spec/wifi-onboarding.md, Steps
-	"HC": {1},                      // docs/spec/ha-compat.md
-	"FB": {1, 2, 5},                // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest
-	"MQ": {1},                      // docs/spec/music-quiz.md, Steps
-	"RP": {1, 2},                   // docs/spec/random-pick.md, Steps
-	"PE": {1},                      // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
-	"PS": {1, 2},                   // docs/spec/schedule-receiver.md, Steps
-	"DV": {3, 6, 7},                // docs/spec/device-onboarding.md, Steps
-	"RY": {1, 2, 3, 4, 5},          // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)
-	"MS": {1, 2, 3, 4, 5, 6},       // docs/spec/messages.md
-	"KL": {1, 2},                   // docs/spec/keep-listening.md, Steps
-	"CA": {1, 2},                   // docs/spec/calendar.md, Steps
-	"HD": {},                       // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-22) and Go (HD-23, 25, 26), step 5 in pytest (HD-30 to 38), step 6 in Go (HD-40 to 44)
-	"KV": {1, 2},                   // docs/spec/kv-cleanup.md, Steps
-	"CW": {1, 2, 4, 5, 6, 8},       // docs/spec/device-watch.md, Steps; steps 3 and 7 are tested in pytest (CW-11 to CW-15, CW-26 to CW-29)
-	"GW": {2, 7},                   // docs/spec/group-watch.md, Steps; steps 1 and 3 in pytest (GW-01 to GW-03, GW-08 to GW-16), step 4 in Go (GW-17 to GW-20) and pytest (GW-19, GW-21), step 6 in pytest (GW-22 to GW-26)
-	"TD": {2, 4},                   // docs/spec/todo-due.md, Steps; step 1 dropped, step 3 is built with the inbox's step 10
-	"RM": {1, 2, 3, 4, 8, 9},       // docs/spec/remote-agents.md, Steps; step 0 (the fake A2A agent) has no scenarios; step 5 in Go (RM-15, RM-16) and pytest (RM-15 to RM-17)
+	"HW": {1, 2, 3},                    // docs/spec/hooks.md, Steps
+	"MO": {1, 2, 3, 4, 5, 7},           // docs/spec/models.md, Steps; step 6 in Go (MO-50 to 54) and pytest (MO-55)
+	"SM": {1, 2},                       // docs/spec/skill-mcp.md
+	"SP": {3},                          // docs/spec/speaker-id.md
+	"BK": {1},                          // docs/spec/backup.md; steps 2 and 3 are tested in pytest
+	"RA": {2, 3, 4},                    // docs/spec/radio.md, Steps
+	"SR": {2, 4},                       // docs/spec/satellites-rooms.md; steps 1 and 3 are tested in pytest
+	"ST": {2, 3, 4, 6, 8, 9},           // docs/spec/streaming.md; step 5 is tested in Go (ST-09) and pytest (ST-08, ST-10)
+	"WS": {2, 4},                       // docs/spec/warm-slot.md, Steps
+	"VL": {1, 2},                       // docs/spec/history.md, Steps
+	"ZP": {1, 2, 3},                    // docs/spec/schedules.md, Steps
+	"CO": {2, 4},                       // docs/spec/oauth.md; step 3 is tested in pytest
+	"HP": {1, 3},                       // docs/spec/context.md, 1.2; step 2 is tested in pytest
+	"AD": {1},                          // docs/spec/context.md, 1.1 (every asking device is compared)
+	"HU": {1},                          // docs/spec/context.md, 1.3; step 2 is tested in pytest
+	"FD": {3, 4},                       // docs/spec/found-devices.md, Steps
+	"WA": {3},                          // docs/spec/waiting-indicator.md, Steps
+	"IN": {1, 2, 3, 4, 6, 7, 8, 9, 10}, // docs/spec/inbox.md, Steps; step 5 (the guide, an end-to-end test) has no scenarios; IN-26's integration side in pytest
+	"WL": {2, 3, 5},                    // docs/spec/wifi-onboarding.md, Steps
+	"HC": {1},                          // docs/spec/ha-compat.md
+	"FB": {1, 2, 5},                    // docs/spec/fallbacks.md; steps 3 and 6 are tested in pytest
+	"MQ": {1},                          // docs/spec/music-quiz.md, Steps
+	"RP": {1, 2},                       // docs/spec/random-pick.md, Steps
+	"PE": {1},                          // docs/spec/plan-end.md, Steps; step 2 is tested in pytest
+	"PS": {1, 2},                       // docs/spec/schedule-receiver.md, Steps
+	"DV": {3, 6, 7},                    // docs/spec/device-onboarding.md, Steps
+	"RY": {1, 2, 3, 4, 5},              // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)
+	"MS": {1, 2, 3, 4, 5, 6},           // docs/spec/messages.md
+	"KL": {1, 2},                       // docs/spec/keep-listening.md, Steps
+	"CA": {1, 2},                       // docs/spec/calendar.md, Steps
+	"HD": {},                           // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-22) and Go (HD-23, 25, 26), step 5 in pytest (HD-30 to 38), step 6 in Go (HD-40 to 44)
+	"KV": {1, 2},                       // docs/spec/kv-cleanup.md, Steps
+	"CW": {1, 2, 4, 5, 6, 8},           // docs/spec/device-watch.md, Steps; steps 3 and 7 are tested in pytest (CW-11 to CW-15, CW-26 to CW-29)
+	"GW": {2, 7},                       // docs/spec/group-watch.md, Steps; steps 1 and 3 in pytest (GW-01 to GW-03, GW-08 to GW-16), step 4 in Go (GW-17 to GW-20) and pytest (GW-19, GW-21), step 6 in pytest (GW-22 to GW-26)
+	"TD": {2, 4},                       // docs/spec/todo-due.md, Steps; step 1 dropped, step 3 is built with the inbox's step 10
+	"RM": {1, 2, 3, 4, 8, 9},           // docs/spec/remote-agents.md, Steps; step 0 (the fake A2A agent) has no scenarios; step 5 in Go (RM-15, RM-16) and pytest (RM-15 to RM-17)
 }
 
 var (

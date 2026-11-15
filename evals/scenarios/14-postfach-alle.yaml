@@ -11,7 +11,7 @@ steps:
         Viele Grüße, Frau Berger
     expect:
       result:
-        - plan: { target: postfach }
+        - message_for: { receiver: anna, contains: Elternabend }
   - say: Ja, trag beide ein
     person: anna
     expect:
@@ -19,4 +19,4 @@ steps:
         - event_exists: { calendar: calendar.anna, day: "+8", start: "19:30", title: Elternabend }
         - event_exists: { calendar: calendar.anna, day: "+15", start: "17:00", title: Laterne }
       behaviour:
-        must: [tool:calendar_create]
+        must: [action:calendar.create]

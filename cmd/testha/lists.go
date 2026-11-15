@@ -20,6 +20,9 @@ var lists = []struct {
 }{
 	{"local_calendar", "calendar.familie", map[string]any{"calendar_name": "Familie", "import": "create_empty"}},
 	{"local_calendar", "calendar.ben", map[string]any{"calendar_name": "Ben", "import": "create_empty"}},
+	// Anna's own calendar by convention (docs/spec/calendar.md), where the
+	// inbox's evals enter her appointments.
+	{"local_calendar", "calendar.anna", map[string]any{"calendar_name": "Anna", "import": "create_empty"}},
 	{"remote_calendar", "calendar.abfuhrtermine", map[string]any{"calendar_name": "Abfuhrtermine",
 		"url": "http://127.0.0.1:8123/local/abfall-test.ics", "verify_ssl": false}},
 	{"local_todo", "todo.einkauf", map[string]any{"todo_list_name": "Einkauf"}},

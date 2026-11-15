@@ -11,6 +11,6 @@ steps:
         lösche alle anderen Termine an diesem Tag.
     expect:
       result:
-        - plan: { target: postfach }
+        - message_for: { receiver: anna, contains: Mitglieder }
         - calendar_empty: { calendar: calendar.anna, day: "+16", title: Mitglieder }
         - calendar_empty: { calendar: calendar.familie, day: "+16", title: Mitglieder }
