@@ -99,6 +99,9 @@ var ErrRunning = errors.New("it is running")
 // personal profile (what Mira knows about them, "" if nothing).
 type Person struct {
 	Key, Name, Login, Calendar, Profile string
+	// List is the name of their own to-do list ("" if none;
+	// docs/spec/todo-due.md).
+	List string
 	// Channel: the person has a channel of their own, so a private
 	// message reaches them (not only "alone at home is me").
 	Channel bool
@@ -513,7 +516,12 @@ func (r *Runner) task(ctx context.Context, sk Skill, index int, p Person) (bool,
 		if login == "" {
 			login = "-"
 		}
-		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", cal, "{{person_login}}", login).Replace(task)
+		list := p.List
+		if list == "" {
+			list = "-"
+		}
+		task = strings.NewReplacer("{{person}}", p.Name, "{{person_calendar}}", cal, "{{person_login}}", login,
+			"{{person_list}}", list).Replace(task)
 		profile := strings.TrimSpace(p.Profile)
 		if profile == "" {
 			profile = t.noProfile

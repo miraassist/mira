@@ -1,6 +1,6 @@
 ---
 name: briefing
-description: "Morgen- und Abendbriefing – was heute (oder morgen) im Haus ansteht: Wetter, Termine, Müllabfuhr, Pakete; Nachrichten nur als zwei Schlagzeilen am Ende. Auch auf Nachfrage („Was steht heute an?“, „Gib mir mein Briefing“). Für mehr Nachrichten ist der Skill nachrichten da."
+description: "Morgen- und Abendbriefing – was heute (oder morgen) im Haus ansteht: Wetter, Termine, Müllabfuhr, Pakete, fällige To-dos; Nachrichten nur als zwei Schlagzeilen am Ende. Auch auf Nachfrage („Was steht heute an?“, „Gib mir mein Briefing“). Für mehr Nachrichten ist der Skill nachrichten da."
 license: MIT
 metadata:
   mira:
@@ -38,11 +38,13 @@ metadata:
         cron: "35 5 * * *"
         per_person: true
         task: >-
-          Persönliches Morgen-Briefing für {{person}}. Drei mögliche Teile, alle nur,
+          Persönliches Morgen-Briefing für {{person}}. Vier mögliche Teile, alle nur,
           wenn es sie gibt: die Termine von heute aus dem eigenen Kalender
           {{person_calendar}} („-“ heißt: keiner, dann keine Termine); die Pakete, die
           heute kommen, aus dem Kalender „Pakete {{person_login}}“ (nur wenn es ihn
-          gibt; „Pakete -“ heißt: keiner), mit Zeitfenster und Shop; und zwei kurze
+          gibt; „Pakete -“ heißt: keiner), mit Zeitfenster und Shop; die To-dos, die
+          heute fällig oder überfällig sind, mit todo_due aus der Liste
+          {{person_list}} („-“ heißt: keine, dann keine To-dos); und zwei kurze
           Schlagzeilen von heute zu Themen, für die sich {{person}} laut dem, was du
           über sie weißt (unten), interessiert: zu allgemeinen Themen mit web_page von
           den festen Seiten (Deutschland https://www.tagesschau.de/inland, Welt
@@ -51,10 +53,12 @@ metadata:
           Sport https://www.sportschau.de/), zu einem Thema ohne feste Seite (ein
           Verein, eine Person) mit web_search. Kein Wetter,
           kein Müll, keine Themen des Hauses: die kommen im Briefing fürs Haus. Gibt
-          es weder Termine noch Pakete noch eigene Themen: importance 0 und spoken leer. Sonst
-          importance 1, spoken höchstens drei kurze Sätze an {{person}} gerichtet
-          (du-Form, z. B. „Du hast heute um halb zehn Zahnarzt.“), details die Termine
-          mit Uhrzeit, die Pakete und die Schlagzeilen, expires_in_hours 8.
+          es weder Termine noch Pakete noch fällige To-dos noch eigene Themen: importance 0
+          und spoken leer. Sonst importance 1, spoken höchstens drei kurze Sätze an
+          {{person}} gerichtet (du-Form, z. B. „Du hast heute um halb zehn Zahnarzt.“,
+          „Die Rechnung der Stadtwerke ist seit Donnerstag überfällig.“), details die
+          Termine mit Uhrzeit, die Pakete, die fälligen To-dos und die Schlagzeilen,
+          expires_in_hours 8.
       - name: abend
         description: Abend-Briefing für morgen
         cron: "0 18 * * *"
@@ -75,8 +79,8 @@ gesprochen sein: drei bis fünf kurze Sätze, keine Aufzählung mit Spiegelstric
 **Persönlich:** Jede Person, die Mira persönlich erreicht (eigener Kanal wie Handy oder
 Telegram, oder „allein zu Hause bin ich“), bekommt morgens zusätzlich eine eigene
 Nachricht: ihre Termine, wenn sie einen eigenen Kalender hat (einer, der so heißt wie
-sie), und Schlagzeilen zu den Themen, die sie interessieren, wenn Mira das weiß
-(„Merk dir, mich interessiert der KSC“). Ohne beides kommt nichts.
+sie), ihre fälligen und überfälligen To-dos, wenn sie eine eigene To-do-Liste hat, und Schlagzeilen zu den Themen, die sie interessieren, wenn Mira das weiß
+(„Merk dir, mich interessiert der KSC“). Ohne all das kommt nichts.
 
 **Auf Nachfrage** („Was steht heute an?“, „Gib mir mein Briefing“, „Was ist morgen
 los?“) stellst du es jetzt zusammen, für heute oder für den Tag, nach dem gefragt wird:
@@ -89,7 +93,11 @@ los?“) stellst du es jetzt zusammen, für heute oder für den Tag, nach dem ge
      Kalender anderer Personen nimmst du nicht.
    - Ist niemand erkannt, nur die Kalender fürs Haus.
 3. Müll: was an dem Tag abgeholt wird, falls es einen Abfallkalender gibt.
-4. Nachrichten: nur wenn hier Themen stehen ({{themen}}) und der Nutzer nach dem
+4. To-dos: weißt du, wer spricht, und hat die Person eine eigene To-do-Liste (eine,
+   die so heißt wie sie), die To-dos, die heute fällig oder überfällig sind, mit
+   `todo_due` aus dieser Liste. Nicht die Listen anderer Personen, nicht ohne
+   erkannte Person.
+5. Nachrichten: nur wenn hier Themen stehen ({{themen}}) und der Nutzer nach dem
    Morgen-Briefing fragt; zwei kurze Schlagzeilen. Zu allgemeinen Themen liest du
    sie mit `web_page` von festen Seiten:
    - Nachrichten allgemein: `https://www.tagesschau.de/`

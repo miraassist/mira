@@ -1,6 +1,6 @@
 # To-dos with a due date – spec
 
-Status 2026-11-15: decided (decisions 1 to 10), nothing built. Builds on [Calendars and to-do lists](calendar.md) (the to-do lists, the
+Status 2026-11-15: decided (decisions 1 to 10); steps 2 and 4 built (not released), step 1 dropped, step 3 comes with the inbox's step 10, step 5 open. Builds on [Calendars and to-do lists](calendar.md) (the to-do lists, the
 skill `todo`, the calendar's one building block as the model), [Mira's inbox](inbox.md) (section 8, kinds by meaning)
 and the skill `briefing`. Terms: [Glossary](../glossary.md), Calendars and lists. Scenarios: [todo-due.feature](todo-due.feature).
 
@@ -47,7 +47,7 @@ remind: so the personal briefing names the to-dos that are due today or overdue.
 | 4 | Which briefing names due to-dos | The personal morning briefing, from the person's own list, and the briefing on request for whoever speaks. Not the house's briefing, not the evening one |
 | 5 | A reminder beside the briefing | None; the briefing is the reminder |
 | 6 | Reading | An own tool `todo_due` that filters by due date itself: HA's `todo__get_items` filters only by status (`needs_action`, `completed`, all) and returns every item raw, so the model would sort dates and the result would grow with the list (checked in HA's source, `components/todo/llm.py`, 2026-11-15) |
-| 7 | Background runs and HA's to-do tool | HA serves its tool as `todo__get_items` since 2026.10; the default `security.read_only_tools` names only the old `ha__todo_get_items`, so background runs do not get it. The new name `ha__todo__get_items` is added (checked in HA's source on the test HA, 2026-11-15; in the running service not yet seen, see Step 1) |
+| 7 | Background runs and HA's to-do tool | Nothing to do (corrected 2026-11-15 before building): HA serves its tool as `todo__get_items` since 2026.10, and the default `security.read_only_tools` names only the old `ha__todo_get_items`, but HA's MCP server marks the tool `readOnlyHint: true` (its `tools/list` on the test HA, 2026-11-15), and Mira takes an annotated tool as read-only (`internal/mcp/host.go`). The name list is only for servers that do not annotate |
 | 8 | A list that cannot hold a due date (HA's shopping list: `supported_features` without `SET_DUE_DATE_ON_ITEM`, 16; on the test HA `todo.einkaufsliste`, 15) | When there is a due date, the rule takes only lists that can hold it; a named list that cannot is refused with the lists that can. The same for the description (`SET_DESCRIPTION_ON_ITEM`, 64) |
 | 9 | Overdue: how far back | The last 30 days: an open to-do due more than 30 days ago is not named; within them the tool says "fällig seit" and cuts at 20 with "und N weitere" |
 | 10 | A message of its own for to-dos | Changed the same day: a to-do *to be entered* is an entry of the new kind `todo`, with a thread of the skill `todo` ([Messages](messages.md), decision 33; inbox, decision 29). A to-do *on the list* is no message: due ones are named by the briefing, whose result is a message as today (its kind by importance and confidentiality) |
@@ -132,7 +132,7 @@ Step by step:
 
 ```
 Überfällig
-- Rechnung Stadtwerke bezahlen · fällig seit Mi 12.11. (Anna)
+- Rechnung Stadtwerke bezahlen · fällig seit Donnerstag 12.11. (Anna)
 Heute
 - Anmeldung Schwimmkurs abgeben (Anna)
 ```
@@ -166,12 +166,6 @@ lines. Read-only: offered to background runs (`ReadOnly: true`). It belongs to t
 - **Errors:** `todo_due` fails → the briefing leaves the part out (its prose: what the tools do not give is not
   mentioned); the tool's log line is the trace.
 
-### Background runs: HA's to-do tool
-
-The default of `security.read_only_tools` (`internal/config/config.go`, `mira.example.yaml`) gets
-`ha__todo__get_items` beside the old name. A `mira.yaml` that sets the list itself keeps its own; the example file
-shows the new name.
-
 ## Deliberately not
 
 - **A reminder on the due day** (decision 5).
@@ -182,8 +176,7 @@ shows the new name.
 
 ## Steps
 
-1. **HA's to-do tool in background runs:** the new name in the default and in `mira.example.yaml`; seen in the test
-   service's tool list for a background run. TD-01.
+1. Dropped (decision 7): background runs get HA's to-do tool by its annotation already. TD-01 dropped.
 2. **The building block `todo.create`**, the list's rule, the person's own list; the skill `todo` finishes through
    it. TD-02 to TD-08, TD-18.
 3. **The inbox's to-dos:** built with [Mira's inbox](inbox.md), step 10 (the skill `todo`'s `## Ansage` and its prose

@@ -51,6 +51,7 @@ var house = map[string]struct{ area, name string }{
 	"calendar.ben":                          {"", ""},
 	"calendar.abfuhrtermine":                {"", ""},
 	"todo.einkauf":                          {"", ""},
+	"todo.anna":                             {"", ""},
 	// The fake TECHO5 devices (testenv/techo5_fake): their speakers, like
 	// the real ones, are exposed so Mira can play on them.
 	"media_player.fake_show_speaker": {"Schlafzimmer", "Fake Show Lautsprecher"},

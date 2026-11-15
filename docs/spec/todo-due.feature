@@ -1,11 +1,7 @@
 Feature: To-dos with a due date
   docs/spec/todo-due.md
 
-  @step1
-  Scenario: TD-01 Background runs get HA's to-do tool under its new name
-    Given Home Assistant serves its to-do tool as todo__get_items
-    When a background run lists its tools with the default security settings
-    Then ha__todo__get_items is among them
+  # TD-01 dropped 2026-11-15: HA annotates todo__get_items as read-only; background runs have it already.
 
   @step2
   Scenario: TD-02 A to-do with a due date goes onto the person's own list

@@ -373,7 +373,7 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "tag"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	skill := "---\nname: tag\ndescription: Der eigene Tag.\nmetadata:\n  mira:\n    schedules:\n      - cron: \"35 5 * * *\"\n        per_person: true\n        task: Termine von {{person}} im Kalender {{person_calendar}}, Pakete {{person_login}}.\n---\nAnleitung.\n"
+	skill := "---\nname: tag\ndescription: Der eigene Tag.\nmetadata:\n  mira:\n    schedules:\n      - cron: \"35 5 * * *\"\n        per_person: true\n        task: Termine von {{person}} im Kalender {{person_calendar}}, Pakete {{person_login}}, Liste {{person_list}}.\n---\nAnleitung.\n"
 	if err := os.WriteFile(filepath.Join(dir, "tag", "SKILL.md"), []byte(skill), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -392,17 +392,17 @@ func TestPerPersonScheduleRunsForEachPerson(t *testing.T) {
 		"Anna": `{"importance":0,"spoken":""}`,
 	}}
 	r := &Runner{Set: berlinSet(t, sk), Tasker: tasker, Store: st, People: func(context.Context) []Person {
-		return []Person{{Key: "anna", Name: "Anna"}, {Key: "ben", Name: "Ben", Login: "ben", Calendar: "Ben", Profile: "Ben interessiert sich für den KSC."}}
+		return []Person{{Key: "anna", Name: "Anna"}, {Key: "ben", Name: "Ben", Login: "ben", Calendar: "Ben", List: "Ben", Profile: "Ben interessiert sich für den KSC."}}
 	}}
 	queued, err := r.RunJob(context.Background(), sk, 0)
 	if err != nil || !queued {
 		t.Fatalf("run: %v %v", queued, err)
 	}
-	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben, Pakete ben.") ||
+	if len(tasker.seen) != 2 || !strings.Contains(tasker.seen[1], "Termine von Ben im Kalender Ben, Pakete ben, Liste Ben.") ||
 		!strings.Contains(tasker.seen[1], "Was du über Ben weißt") || !strings.Contains(tasker.seen[1], "Ben interessiert sich für den KSC.") {
 		t.Errorf("tasks: %q", tasker.seen)
 	}
-	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -, Pakete -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
+	if !strings.Contains(tasker.seen[0], "Termine von Anna im Kalender -, Pakete -, Liste -.") || !strings.Contains(tasker.seen[0], "(nichts)") {
 		t.Errorf("Anna without calendar and memory: %q", tasker.seen[0])
 	}
 	msgs, _ := st.ListMessages(context.Background(), store.MessageFilter{States: []string{store.MessagePending}, IncludeExpired: true})

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/miraassist/mira/internal/config"
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/todo"
 	"github.com/miraassist/mira/internal/trace"
 )
 
@@ -46,6 +48,42 @@ func (a *app) deleteEvent(ctx context.Context, entity, uid, recurrenceID string)
 	}
 	_, err := a.ha.Call(ctx, cmd)
 	return err
+}
+
+// todoLists are the exposed to-do lists with what they can hold
+// (docs/spec/todo-due.md).
+func (a *app) todoLists(ctx context.Context) ([]todo.List, error) {
+	exposed := a.structure.Snapshot().ExposedEntities
+	states, err := a.ha.GetStates(ctx, haws.StateFilter{Domains: []string{"todo"}})
+	if err != nil {
+		return nil, err
+	}
+	var out []todo.List
+	for _, s := range states {
+		if !strings.HasPrefix(s.EntityID, "todo.") || !exposed[s.EntityID] {
+			continue
+		}
+		out = append(out, todo.List{Entity: s.EntityID, Name: s.FriendlyName(), Features: features(s.Attributes)})
+	}
+	return out, nil
+}
+
+// todoItems are a list's open to-dos, from Home Assistant's todo.get_items
+// (docs/spec/todo-due.md, Reading).
+func (a *app) todoItems(ctx context.Context, entity string) ([]todo.Item, error) {
+	trace.Add(ctx, trace.Action, "todo.get_items", entity)
+	raw, err := a.ha.CallServiceResponse(ctx, "todo", "get_items",
+		map[string]any{"entity_id": entity, "status": "needs_action"})
+	if err != nil {
+		return nil, err
+	}
+	var resp map[string]struct {
+		Items []todo.Item `json:"items"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("todo.get_items for %s: %w (answer starts %q)", entity, err, todo.Cut(string(raw), 80))
+	}
+	return resp[entity].Items, nil
 }
 
 // checkTodoList is the check "todo_list": an exposed to-do list by name or
@@ -93,7 +131,15 @@ func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 	if err != nil {
 		a.log.Warn("could not read the calendars for personal schedules", "error", err)
 	}
-	out := reachablePeople(a.persons(), a.logins(ctx), cals)
+	lists, err := a.todoLists(ctx)
+	if err != nil {
+		a.log.Warn("could not read the to-do lists for personal schedules", "error", err)
+	}
+	names := make([]string, len(lists))
+	for i, l := range lists {
+		names[i] = l.Name
+	}
+	out := reachablePeople(a.persons(), a.logins(ctx), cals, names)
 	for i := range out {
 		if p, _, err := a.store.Profile(ctx, out[i].Key); err == nil {
 			out[i].Profile = p
@@ -103,15 +149,22 @@ func (a *app) briefingPeople(ctx context.Context) []skills.Person {
 }
 
 // reachablePeople are the persons a personal message reaches, with their
-// own calendar, if any: one named like the login of their Home Assistant
-// user ("stefan"), or like the person ("Stefan Rinke"), case and spaces
-// aside. logins is person entity: login.
-func reachablePeople(persons map[string]config.Person, logins map[string]string, cals []calendar.Info) []skills.Person {
+// own calendar and to-do list, if any: one named like the login of their
+// Home Assistant user ("stefan"), or like the person ("Stefan Rinke"), case
+// and spaces aside. logins is person entity: login; lists are the to-do
+// lists' names.
+func reachablePeople(persons map[string]config.Person, logins map[string]string, cals []calendar.Info, lists []string) []skills.Person {
 	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 	byName := map[string]string{}
 	for _, c := range cals {
 		if n := norm(c.Name); n != "" {
 			byName[n] = c.Name
+		}
+	}
+	listByName := map[string]string{}
+	for _, l := range lists {
+		if n := norm(l); n != "" {
+			listByName[n] = l
 		}
 	}
 	var out []skills.Person
@@ -127,7 +180,11 @@ func reachablePeople(persons map[string]config.Person, logins map[string]string,
 		if cal == "" {
 			cal = byName[norm(name)]
 		}
-		out = append(out, skills.Person{Key: key, Name: name, Login: logins[p.Entity], Calendar: cal,
+		list := listByName[norm(logins[p.Entity])]
+		if list == "" {
+			list = listByName[norm(name)]
+		}
+		out = append(out, skills.Person{Key: key, Name: name, Login: logins[p.Entity], Calendar: cal, List: list,
 			Channel: len(p.Channels) > 0})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })

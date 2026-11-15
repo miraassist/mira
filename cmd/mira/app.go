@@ -56,6 +56,7 @@ import (
 	"github.com/miraassist/mira/internal/telemetry"
 	"github.com/miraassist/mira/internal/threads"
 	"github.com/miraassist/mira/internal/timer"
+	"github.com/miraassist/mira/internal/todo"
 	"github.com/miraassist/mira/internal/tools"
 	"github.com/miraassist/mira/internal/ui"
 	"github.com/miraassist/mira/internal/voicemail"
@@ -108,6 +109,7 @@ type app struct {
 	agents *agent.Runtime
 	// calendar reads and changes Home Assistant's calendars.
 	calendar *calendar.Calendar
+	todo     *todo.Todo
 	// mail keeps the mail calendars (mail.go); nil without a mail skill.
 	mail *mailcal.Service
 	// inbox is Mira's inbox in Paperless (docs/spec/inbox.md); nil when off.
@@ -398,6 +400,11 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	a.calendar = calendar.New(calendar.Options{HAURL: cfg.HA.URL, Token: cfg.HA.Token, Lang: a.lang,
 		Calendars: a.calendarList, Delete: a.deleteEvent, Owner: a.calendarOwner, Act: a.callAction, Logger: a.log})
 	internal = append(internal, a.calendarTools()...)
+	// Home Assistant's to-do lists beside its Assist tools: the building
+	// block todo.create (docs/spec/todo-due.md).
+	a.todo = todo.New(todo.Options{Lang: a.lang, Lists: a.todoLists, Owner: a.calendarOwner, Act: a.callAction,
+		Items: a.todoItems, Logger: a.log})
+	internal = append(internal, a.todo.DueTool(a.lang, "briefing"))
 	// Mira's inbox in Paperless (docs/spec/inbox.md); it enters through
 	// calendar_create, which comes with the skill postfach.
 	a.inbox = a.newInbox(cfg, all)

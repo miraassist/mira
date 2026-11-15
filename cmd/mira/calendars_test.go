@@ -20,7 +20,7 @@ func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 	}
 	logins := map[string]string{"person.stefan_rinke": "stefan", "person.anna": "anna.m"}
 	cals := []calendar.Info{{Name: "Stefan"}, {Name: "ben "}, {Name: "Familie"}, {Name: ""}}
-	got := reachablePeople(persons, logins, cals)
+	got := reachablePeople(persons, logins, cals, nil)
 	want := []struct{ key, login, cal string }{{"anna", "anna.m", ""}, {"ben", "", "ben "}, {"stefan_rinke", "stefan", "Stefan"}}
 	if len(got) != len(want) {
 		t.Fatalf("people: %+v", got)
@@ -37,8 +37,21 @@ func TestReachablePeopleWithTheirOwnCalendar(t *testing.T) {
 func TestNoCalendarByFirstName(t *testing.T) {
 	got := reachablePeople(map[string]config.Person{
 		"stefan_rinke": {Name: "Stefan Rinke", Entity: "person.stefan_rinke", AloneIsMe: true},
-	}, nil, []calendar.Info{{Name: "Stefan"}})
+	}, nil, []calendar.Info{{Name: "Stefan"}}, nil)
 	if len(got) != 1 || got[0].Calendar != "" {
 		t.Errorf("matched by first name: %+v", got)
+	}
+}
+
+// docs/spec/todo-due.md, The briefing: a person's own to-do list by the
+// same convention as their calendar.
+func TestTD16_ThePersonalBriefingGetsThePersonsList(t *testing.T) {
+	persons := map[string]config.Person{
+		"anna": {Name: "Anna", Entity: "person.anna", AloneIsMe: true},
+		"ben":  {Name: "Ben", Entity: "person.ben", Channels: []string{"notify.ben_phone"}},
+	}
+	got := reachablePeople(persons, nil, nil, []string{"Anna", "Einkauf"})
+	if len(got) != 2 || got[0].List != "Anna" || got[1].List != "" {
+		t.Fatalf("people: %+v", got)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/miraassist/mira/internal/calendar"
+	"github.com/miraassist/mira/internal/todo"
 	"github.com/miraassist/mira/internal/trace"
 )
 
@@ -16,7 +17,8 @@ type haActions struct{ a *app }
 
 // core is a building block of the core a skill's action may name where Home
 // Assistant has no action or Mira checks before it (docs/spec/skill-actions.md):
-// the finish and the undo of termin (docs/spec/calendar.md).
+// the finish and the undo of termin (docs/spec/calendar.md), the finish of
+// todo (docs/spec/todo-due.md).
 func (h haActions) core(action string) func(context.Context, map[string]any) error {
 	switch action {
 	case "calendar.delete_created":
@@ -26,6 +28,10 @@ func (h haActions) core(action string) func(context.Context, map[string]any) err
 	case calendar.ActionCreate:
 		if h.a.calendar != nil {
 			return h.a.calendar.CreateAction
+		}
+	case todo.ActionCreate:
+		if h.a.todo != nil {
+			return h.a.todo.CreateAction
 		}
 	}
 	return nil

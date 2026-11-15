@@ -12,7 +12,8 @@ import (
 // The test house's calendars and to-do list (docs/spec/calendar.md): a
 // writable family calendar, the waste calendar the abfall skill reads (the
 // made-up iCal file under /local/, through Home Assistant's remote
-// calendar), and a shopping list with due dates and descriptions.
+// calendar), a shopping list with due dates and descriptions, and Anna's
+// own to-do list.
 var lists = []struct {
 	handler, entity string
 	data            map[string]any
@@ -22,6 +23,9 @@ var lists = []struct {
 	{"remote_calendar", "calendar.abfuhrtermine", map[string]any{"calendar_name": "Abfuhrtermine",
 		"url": "http://127.0.0.1:8123/local/abfall-test.ics", "verify_ssl": false}},
 	{"local_todo", "todo.einkauf", map[string]any{"todo_list_name": "Einkauf"}},
+	// Anna's own list by convention (docs/spec/todo-due.md), for her due
+	// to-dos in the briefing; the evals fill it.
+	{"local_todo", "todo.anna", map[string]any{"todo_list_name": "Anna"}},
 }
 
 // ensureLists sets up the calendars and the list once, and fills the empty

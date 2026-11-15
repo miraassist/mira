@@ -244,7 +244,7 @@ type Schedule struct {
 	// PerPerson runs the task once for each person a message can reach (a
 	// channel of their own, or "alone at home is me"), with {{person}} and
 	// {{person_calendar}} (their own calendar, one named like them; "-" if
-	// none) filled in and what Mira knows about them added; the message goes
+	// none) and {{person_list}} (their own to-do list, the same way) filled in and what Mira knows about them added; the message goes
 	// to that person, not to the house.
 	PerPerson bool `yaml:"per_person"`
 	// To names one person the message goes to, privately over their
