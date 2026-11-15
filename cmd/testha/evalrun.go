@@ -84,7 +84,8 @@ type TaskCheck struct {
 
 // Behaviour checks the turn's trace. An entry is "tool:NAME" (for
 // skill_open "tool:skill_open:SKILL"), "thread:TARGET[:STATE]",
-// "action:NAME" or "blocked:NAME", matched as a prefix.
+// "action:NAME" or "blocked:NAME", matched as a prefix. An entry of Must may
+// give alternatives with "|": one of them is enough.
 type Behaviour struct {
 	Must      []string `yaml:"must"`
 	MustNot   []string `yaml:"must_not"`
@@ -279,7 +280,7 @@ func checkBehaviour(b Behaviour, s StepResult) []string {
 		return false
 	}
 	for _, m := range b.Must {
-		if !has(m) {
+		if !slices.ContainsFunc(strings.Split(m, "|"), func(alt string) bool { return has(strings.TrimSpace(alt)) }) {
 			out = append(out, "missing "+m)
 		}
 	}

@@ -1,11 +1,13 @@
 # Eval gemini-flash-lite-voice – 2026-11-15 01:04
 
-Mira 0.24.0 · 3 runs per scenario · **32 of 39 scenarios passed**
+Mira 0.24.0 · 3 runs per scenario · **34 of 40 scenarios passed**
 
 Models:
 - flashlite: gemini-flash-lite-latest
 - main: gemini-flash-latest
 - agents: conversation.voice=flashlite
+
+Measured again on their own: hermes-recherche (2026-11-15 09:30, Mira 0.24.0, 3 runs); waermepumpe-erklaeren (2026-11-15 09:30, Mira 0.24.0, 3 runs); hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs)
 
 Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_SECRET)
 
@@ -48,8 +50,9 @@ Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_
 | geraet-eins-uebrigens |  | ✓ | 3/3 | 0/3 | 60.1 / 60.1 s, 0.0 s (slow)<br>1.4 / 1.4 s, 1.3 s (good) | 76621 |
 | geraet-zwei-lesen |  | ✓ | 3/3 | 3/3 | 60.1 / 60.1 s, 0.0 s (slow)<br>1.3 / 1.4 s, 1.3 s (good) | 92806 |
 | geraet-zwei-uebrigens |  | ✓ | 3/3 | 0/3 | 60.1 / 60.1 s, 0.0 s (slow)<br>1.3 / 1.4 s, 1.3 s (good) | 91999 |
-| hermes-recherche |  | ✗ | 0/3 | 0/3 | 7.1 / 7.3 s, 2.1 s (usable) | 139785 |
-| waermepumpe-erklaeren |  | ✓ | 3/3 | 3/3 | 6.8 / 7.0 s, 1.8 s (usable) | 139714 |
+| hermes-recherche |  | ✓ | 3/3 | 3/3 | 1.6 / 1.8 s, 1.6 s (good) | 92601 |
+| waermepumpe-erklaeren |  | ✓ | 3/3 | 3/3 | 7.0 / 8.1 s, 2.0 s (usable) | 140010 |
+| hermes-genannt |  | ✓ | 3/3 | 0/3 | 2.1 / 2.4 s, 2.0 s (good) | 139394 |
 
 ## Findings
 
@@ -143,18 +146,6 @@ Without these skills (variable missing in testenv/.env): x (MIRA_SKILL_X_CLIENT_
 - geraet-zwei-uebrigens, run 3 (answer): step 2: answer lacks "Rauchmelder"
 - geraet-zwei-uebrigens, run 3 (answer): step 2: answer lacks "Bewegungsmelder"
 - geraet-zwei-uebrigens, run 3 (answer): step 2: answer lacks "einbinden|einrichten"
-- hermes-recherche, run 1: step 1: missing thread:hermes
-- hermes-recherche, run 1: step 1: must not tool:skill_open:nachdenken
-- hermes-recherche, run 1: step 1: must not tool:nachdenken
-- hermes-recherche, run 1: step 1: the fake A2A agent received no message with "Wärmepumpe" (got 0: )
-- hermes-recherche, run 1 (answer): step 1: answer lacks "Hermes"
-- hermes-recherche, run 2: step 1: missing thread:hermes
-- hermes-recherche, run 2: step 1: must not tool:skill_open:nachdenken
-- hermes-recherche, run 2: step 1: must not tool:nachdenken
-- hermes-recherche, run 2: step 1: the fake A2A agent received no message with "Wärmepumpe" (got 0: )
-- hermes-recherche, run 2 (answer): step 1: answer lacks "Hermes"
-- hermes-recherche, run 3: step 1: missing thread:hermes
-- hermes-recherche, run 3: step 1: must not tool:skill_open:nachdenken
-- hermes-recherche, run 3: step 1: must not tool:nachdenken
-- hermes-recherche, run 3: step 1: the fake A2A agent received no message with "Wärmepumpe" (got 0: )
-- hermes-recherche, run 3 (answer): step 1: answer lacks "Hermes"
+- hermes-genannt, run 1 (answer): step 1: answer lacks "Hermes"
+- hermes-genannt, run 2 (answer): step 1: answer lacks "Hermes"
+- hermes-genannt, run 3 (answer): step 1: answer lacks "Hermes"

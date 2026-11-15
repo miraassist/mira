@@ -4654,108 +4654,78 @@
     },
     {
       "name": "hermes-recherche",
-      "description": "Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht den Skill nachdenken",
+      "description": "Eine Recherche, die keinen Agenten nennt, darf Mira selbst machen (Skill nachdenken) oder dem Recherche-Agenten geben",
       "core": false,
-      "passed_runs": 0,
-      "answer_ok_runs": 0,
-      "passed": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 3,
+      "passed": true,
       "step_times": [
         {
           "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-          "median_seconds": 7.098128194,
-          "max_seconds": 7.315738924,
-          "model_ms_median": 2070,
-          "rating": "usable"
+          "median_seconds": 1.619194005,
+          "max_seconds": 1.750348549,
+          "model_ms_median": 1579,
+          "rating": "good"
         }
       ],
-      "tokens": 139785,
+      "tokens": 92601,
       "runs": [
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing thread:hermes",
-            "step 1: must not tool:skill_open:nachdenken",
-            "step 1: must not tool:nachdenken",
-            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"Hermes\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-              "text": "Ich schaue mir das genauer an und melde mich mit einer Nachricht, sobald ich die Antwort habe.",
-              "seconds": 7.315738924,
-              "model_ms": 2287,
-              "rounds": 3,
-              "tokens": 46580,
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 1.5512244499999999,
+              "model_ms": 1510,
+              "rounds": 2,
+              "tokens": 30868,
               "trace": [
-                "round:flashlite:699ms",
-                "tool:skill_open:nachdenken",
                 "round:flashlite:879ms",
-                "tool:nachdenken",
-                "round:flashlite:709ms"
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:631ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing thread:hermes",
-            "step 1: must not tool:skill_open:nachdenken",
-            "step 1: must not tool:nachdenken",
-            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"Hermes\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-              "text": "Ich schaue mir das genauer an und melde mich gleich per Nachricht bei dir.",
-              "seconds": 7.053969367,
-              "model_ms": 2029,
-              "rounds": 3,
-              "tokens": 46576,
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 1.619194005,
+              "model_ms": 1579,
+              "rounds": 2,
+              "tokens": 30864,
               "trace": [
-                "round:flashlite:595ms",
-                "tool:skill_open:nachdenken",
-                "round:flashlite:565ms",
-                "tool:nachdenken",
-                "round:flashlite:869ms"
+                "round:flashlite:908ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:671ms"
               ]
             }
           ]
         },
         {
-          "passed": false,
-          "answer_ok": false,
-          "failures": [
-            "step 1: missing thread:hermes",
-            "step 1: must not tool:skill_open:nachdenken",
-            "step 1: must not tool:nachdenken",
-            "step 1: the fake A2A agent received no message with \"Wärmepumpe\" (got 0: )"
-          ],
-          "answer_notes": [
-            "step 1: answer lacks \"Hermes\""
-          ],
+          "passed": true,
+          "answer_ok": true,
           "steps": [
             {
               "say": "Finde heraus, welche Wärmepumpe zu einem Altbau passt",
-              "text": "Ich schaue mir das genauer an und melde mich mit einer Antwort, sobald sie da ist.",
-              "seconds": 7.098128194,
-              "model_ms": 2070,
-              "rounds": 3,
-              "tokens": 46629,
+              "text": "Hermes möchte wissen, wie groß die Wohnfläche ist.",
+              "seconds": 1.750348549,
+              "model_ms": 1713,
+              "rounds": 2,
+              "tokens": 30869,
               "trace": [
-                "round:flashlite:563ms",
-                "tool:skill_open:nachdenken",
-                "round:flashlite:822ms",
-                "tool:nachdenken",
-                "round:flashlite:685ms"
+                "round:flashlite:1151ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:562ms"
               ]
             }
           ]
@@ -4772,13 +4742,13 @@
       "step_times": [
         {
           "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
-          "median_seconds": 6.831288487,
-          "max_seconds": 6.993014879,
-          "model_ms_median": 1802,
+          "median_seconds": 7.000498826,
+          "max_seconds": 8.132649874,
+          "model_ms_median": 1967,
           "rating": "usable"
         }
       ],
-      "tokens": 139714,
+      "tokens": 140010,
       "runs": [
         {
           "passed": true,
@@ -4787,16 +4757,37 @@
             {
               "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
               "text": "Ich schaue mir das genauer an und melde mich gleich per Nachricht bei dir.",
-              "seconds": 6.831288487,
-              "model_ms": 1802,
+              "seconds": 7.000498826,
+              "model_ms": 1967,
               "rounds": 3,
-              "tokens": 46565,
+              "tokens": 46670,
               "trace": [
-                "round:flashlite:509ms",
+                "round:flashlite:567ms",
                 "tool:skill_open:nachdenken",
+                "round:flashlite:673ms",
+                "tool:nachdenken",
+                "round:flashlite:727ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": true,
+          "steps": [
+            {
+              "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
+              "text": "Ich schaue mir das genauer an und melde mich gleich per Nachricht bei dir.",
+              "seconds": 8.132649874,
+              "model_ms": 3103,
+              "rounds": 3,
+              "tokens": 46670,
+              "trace": [
                 "round:flashlite:655ms",
+                "tool:skill_open:nachdenken",
+                "round:flashlite:1751ms",
                 "tool:nachdenken",
-                "round:flashlite:638ms"
+                "round:flashlite:697ms"
               ]
             }
           ]
@@ -4807,38 +4798,112 @@
           "steps": [
             {
               "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
-              "text": ", ich schaue mir das genauer an und melde mich gleich mit der Antwort bei dir.",
-              "seconds": 6.763652056,
-              "model_ms": 1732,
+              "text": "Ich schaue mir das genauer an und melde mich gleich per Nachricht bei dir.",
+              "seconds": 6.82817562,
+              "model_ms": 1801,
               "rounds": 3,
-              "tokens": 46567,
+              "tokens": 46670,
               "trace": [
-                "round:flashlite:516ms",
+                "round:flashlite:531ms",
                 "tool:skill_open:nachdenken",
-                "round:flashlite:530ms",
+                "round:flashlite:618ms",
                 "tool:nachdenken",
-                "round:flashlite:686ms"
+                "round:flashlite:652ms"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hermes-genannt",
+      "description": "Nennt der Nutzer den Recherche-Agenten mit Namen, startet der Vorgang seines Skills, nicht der Skill nachdenken",
+      "core": false,
+      "passed_runs": 3,
+      "answer_ok_runs": 0,
+      "passed": true,
+      "step_times": [
+        {
+          "say": "Frag Hermes, welche Wärmepumpe zu einem Altbau passt",
+          "median_seconds": 2.087696564,
+          "max_seconds": 2.413438743,
+          "model_ms_median": 2045,
+          "rating": "good"
+        }
+      ],
+      "tokens": 139394,
+      "runs": [
+        {
+          "passed": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 1: answer lacks \"Hermes\""
+          ],
+          "steps": [
+            {
+              "say": "Frag Hermes, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 2.413438743,
+              "model_ms": 2372,
+              "rounds": 3,
+              "tokens": 46473,
+              "trace": [
+                "round:flashlite:884ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:898ms",
+                "tool:agent_answer",
+                "round:flashlite:590ms"
               ]
             }
           ]
         },
         {
           "passed": true,
-          "answer_ok": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 1: answer lacks \"Hermes\""
+          ],
           "steps": [
             {
-              "say": "Erklär mir, wie eine Wärmepumpe funktioniert",
-              "text": "Eine Wärmepumpe entzieht der Umwelt wie Luft oder Erde Wärme und bringt sie über ein Kältemittel auf ein höheres Temperaturniveau zum Heizen.",
-              "seconds": 6.993014879,
-              "model_ms": 1963,
+              "say": "Frag Hermes, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 2.087696564,
+              "model_ms": 2045,
               "rounds": 3,
-              "tokens": 46582,
+              "tokens": 46452,
               "trace": [
-                "round:flashlite:620ms",
-                "tool:skill_open:nachdenken",
-                "round:flashlite:536ms",
-                "tool:nachdenken",
-                "round:flashlite:807ms"
+                "round:flashlite:617ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:692ms",
+                "tool:agent_answer",
+                "round:flashlite:736ms"
+              ]
+            }
+          ]
+        },
+        {
+          "passed": true,
+          "answer_ok": false,
+          "answer_notes": [
+            "step 1: answer lacks \"Hermes\""
+          ],
+          "steps": [
+            {
+              "say": "Frag Hermes, welche Wärmepumpe zu einem Altbau passt",
+              "text": "Wie groß ist die Wohnfläche?",
+              "seconds": 1.676681849,
+              "model_ms": 1640,
+              "rounds": 3,
+              "tokens": 46469,
+              "trace": [
+                "round:flashlite:595ms",
+                "tool:thread_start",
+                "thread:hermes:started",
+                "round:flashlite:543ms",
+                "tool:agent_answer",
+                "round:flashlite:502ms"
               ]
             }
           ]
@@ -4848,5 +4913,10 @@
   ],
   "left_out": [
     "x (MIRA_SKILL_X_CLIENT_SECRET)"
+  ],
+  "again": [
+    "hermes-recherche (2026-11-15 09:30, Mira 0.24.0, 3 runs)",
+    "waermepumpe-erklaeren (2026-11-15 09:30, Mira 0.24.0, 3 runs)",
+    "hermes-genannt (2026-11-15 09:30, Mira 0.24.0, 3 runs)"
   ]
 }

@@ -586,28 +586,38 @@ From that:
 
     Why: `delegate` stood in every conversation as a tool with a broad description ("Wissen, Nachdenken, Recherche,
     Planungen, Vergleiche, Rezepte"), beside a list of skills described in one sentence each, and the model could not
-    tell them apart. With a skill whose remote agent (Hermes) researches, Gemini Flash Lite said "Ich lasse Hermes …
-    recherchieren" and called `delegate`: 0 of 3 with a wrong context size, 1 of 3 with the right one, also after
-    decision 43 sharpened the description. Two causes: `delegate`'s special position (always there, one call) against
-    a skill (two calls, `skill_open` and `thread_start`), and overlapping descriptions. As a skill it competes on
-    equal footing in the same list.
+    tell them apart; `delegate`'s special position (always there, one call) stood against an entry in a list of
+    skills. As a skill it competes on equal footing with the others.
 
-    Evidence (2026-11-15, setup `gemini-flash-lite-voice`, [Evals](evals.md)):
-    - A knowledge question ("Erklär mir, wie eine Wärmepumpe funktioniert") lands at `nachdenken` (`skill_open`, then
-      its agent) in 3 of 3, measured twice, and in the full run; by voice on the test Mira (the fake Show) too: the
-      agent took longer than 5 s, Mira said she would come back, and the answer came as a message at that satellite.
-    - A research order for the eval skill `hermes` ("Finde heraus, welche Wärmepumpe zu einem Altbau passt") lands
-      at `nachdenken` instead, 0 of 3 in each of three runs of the scenario (one with a sharper description of
-      `nachdenken`, which did not help and was not kept); with `delegate`, at the same hour, 2 of 3. The equal footing
-      did not make Flash Lite choose the research skill here.
+    Research by Mira or by a remote agent (2026-11-15, the maintainer, [Remote agents](remote-agents.md), decisions 59
+    to 61): both can research, and both stay as they are: `nachdenken` keeps its right to the web, a skill with a
+    remote agent (`recherche`) is not narrowed either. The boundary is that the user names the remote agent
+    explicitly ("Frag Hermes, …", "den Recherche-Agenten"): only then does its skill open; every other research order
+    may go to `nachdenken`. So the model can see the name, Mira appends it to the skill's entry in the list ("Der Agent
+    dieses Skills heißt Hermes."). The evals accept either skill for a research order that names no agent and want the
+    remote agent's skill only when it is named ([Evals](evals.md), Remote agents and delegate, decision 7).
+
+    Evidence (2026-11-15, setup `gemini-flash-lite-voice`, [Evals](evals.md), 3 runs each):
+    - Before the boundary, with only "Finde heraus, welche Wärmepumpe zu einem Altbau passt" and the thread of `hermes`
+      counted as right: with `delegate` 0 of 3 with a wrong context size, 1 of 3 with the right one (also after
+      decision 43), 2 of 3 at another hour; with `nachdenken` 0 of 3 in each of three runs: the model took
+      `nachdenken`. That was the wrong expectation, not a wrong choice: nothing in the order names the agent.
+    - With the boundary and the name in the list (09:30): a knowledge question ("Erklär mir, wie eine Wärmepumpe
+      funktioniert") opens `nachdenken` and calls its agent, 3 of 3. The order that names the agent ("Frag Hermes,
+      welche Wärmepumpe zu einem Altbau passt") starts the thread of `hermes`, 3 of 3. The order that names no agent
+      starts the thread of `hermes` too, 3 of 3, although its description says such an order goes to `nachdenken`;
+      both count as right. Whether the name in the list made the difference is not measured on its own (no run
+      without it at the same hour): an assumption.
+    - Not yet right in the named order: the answer does not name Hermes (0 of 3). The model called `agent_answer`
+      for the fake agent's question in the same turn (refused, [Remote agents](remote-agents.md), decision 51) and
+      then asked "Wie groß ist die Wohnfläche?" without saying who asks.
     - The shipped skill `recherche`, by voice on the test Mira with the real Hermes ("Finde heraus, welche Wärmepumpe
-      zu einem Altbau mit 140 m² passt"): its thread started at once, Hermes answered in 44 s, the overview came as a
-      message (1 of 1). Its description names this very kind of order; that the eval skill's shorter description is
-      why `hermes` loses is an assumption, not measured.
-    - The rest of the setup, run at the same night hour before and after: 34 and 32 of 39; the difference is
-      `hermes-recherche` and `kalender-lesen` (0 of 3 after, 2 of 3 when measured again on its own); every other
-      scenario the same or within one run. The eight `*-uebrigens` scenarios miss their afterword in both runs:
-      quiet hours (23:30 to 06:30 in the test config) leave it out.
+      zu einem Altbau mit 140 m² passt", before the boundary): its thread started at once, Hermes answered in 44 s,
+      the overview came as a message (1 of 1).
+    - The rest of the setup, run at the same night hour before and after the change to `nachdenken`: 34 and 32 of 39;
+      the difference is `hermes-recherche` and `kalender-lesen` (0 of 3 after, 2 of 3 when measured again on its own);
+      every other scenario the same or within one run. The eight `*-uebrigens` scenarios miss their afterword in both
+      runs: quiet hours (23:30 to 06:30 in the test config) leave it out.
 
 Taken while building (2026-11-15), to be confirmed by the maintainer:
 

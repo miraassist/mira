@@ -1,0 +1,13 @@
+name: hermes-genannt
+description: Nennt der Nutzer den Recherche-Agenten mit Namen, startet der Vorgang seines Skills, nicht der Skill nachdenken
+skills: [hermes]
+steps:
+  - say: Frag Hermes, welche Wärmepumpe zu einem Altbau passt
+    expect:
+      result:
+        - remote_received: { contains: Wärmepumpe }
+      behaviour:
+        must: [thread:hermes]
+        must_not: [tool:skill_open:nachdenken, tool:nachdenken]
+      answer:
+        contains: [Hermes]

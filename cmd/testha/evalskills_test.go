@@ -120,3 +120,22 @@ func TestEvalLeavesOutTheRealResearchSkill(t *testing.T) {
 		}
 	}
 }
+
+// An entry of must with "|" is met by one of its alternatives
+// (docs/spec/evals.md, Remote agents and delegate, decision 6).
+func TestEvalMustWithAlternatives(t *testing.T) {
+	b := Behaviour{Must: []string{"thread:hermes|tool:nachdenken"}}
+	for _, c := range []struct {
+		trace []string
+		ok    bool
+	}{
+		{[]string{"tool:skill_open:hermes", "thread:hermes:collecting"}, true},
+		{[]string{"tool:skill_open:nachdenken", "tool:nachdenken"}, true},
+		{[]string{"tool:skill_open:nachdenken"}, false},
+	} {
+		got := checkBehaviour(b, StepResult{Trace: c.trace})
+		if (len(got) == 0) != c.ok {
+			t.Errorf("%v: %v", c.trace, got)
+		}
+	}
+}

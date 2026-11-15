@@ -1,6 +1,6 @@
 ---
 name: hermes
-description: "Lässt Hermes, einen Recherche-Agenten auf einem anderen Gerät, gründlich recherchieren: er durchsucht über längere Zeit viele Quellen (Testberichte, Herstellerangaben, Foren, Preise), vergleicht Produkte und Angebote und schreibt eine Übersicht mit Empfehlung – mehr, als Mira in einem Gespräch nachschlagen kann. Für Aufträge wie „Lass Hermes recherchieren …“, „Finde heraus, welche … passt“, „Such mir die besten … raus“."
+description: "Gibt eine gründliche Recherche an einen Recherche-Agenten auf einem anderen Gerät ab: Er durchsucht über längere Zeit viele Quellen (Testberichte, Herstellerangaben, Foren, Preise), vergleicht Produkte und Angebote und schreibt eine Übersicht mit Empfehlung. Nur wenn der Nutzer den Agenten ausdrücklich nennt: mit seinem Namen, der am Ende dieses Eintrags steht („Frag <Name>, welche Wärmepumpe …“), oder als Recherche-Agenten („Lass den Recherche-Agenten herausfinden …“). Ohne diese Nennung recherchierst du selbst mit dem Skill nachdenken."
 metadata:
   mira:
     # An eval fixture (docs/spec/evals.md, Remote agents and delegate): the

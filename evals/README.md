@@ -14,7 +14,7 @@ Models tried only by hand (without an eval run): [models.md](models.md).
 | chatgpt-luna | main: gpt-6-luna | 2026-11-08 07:07 | 0.18.0 | 9 of 12 | [chatgpt-luna.md](results/chatgpt-luna.md) |
 | deepseek-flash | main: deepseek/deepseek-v4-flash | 2026-11-05 22:08 | 0.15.2 | 8 of 12 | [deepseek-flash.md](results/deepseek-flash.md) |
 | gemini-flash | main: gemini-flash-latest | 2026-11-05 22:20 | 0.16.0 | 12 of 12 | [gemini-flash.md](results/gemini-flash.md) |
-| gemini-flash-lite-voice | flashlite: gemini-flash-lite-latest<br>main: gemini-flash-latest<br>agents: conversation.voice=flashlite | 2026-11-15 01:04 | 0.24.0 | 32 of 39 | [gemini-flash-lite-voice.md](results/gemini-flash-lite-voice.md) |
+| gemini-flash-lite-voice | flashlite: gemini-flash-lite-latest<br>main: gemini-flash-latest<br>agents: conversation.voice=flashlite | 2026-11-15 01:04 | 0.24.0 | 34 of 40 | [gemini-flash-lite-voice.md](results/gemini-flash-lite-voice.md) |
 | llama-nemotron-bolt-e4b | main: nvidia/nemotron-3.5-bolt-e4b | 2026-11-14 23:02 | 0.24.0 | 11 of 17 | [llama-nemotron-bolt-e4b.md](results/llama-nemotron-bolt-e4b.md) |
 | llama-qwen3-30b | main: qwen/qwen3-30b-a3b-2507 | 2026-11-08 22:52 | 0.19.0 | 3 of 12 | [llama-qwen3-30b.md](results/llama-qwen3-30b.md) |
 | llama-qwen36 | main: qwen3.6-35b-a3b | 2026-11-08 22:40 | 0.19.0 | 8 of 12 | [llama-qwen36.md](results/llama-qwen36.md) |

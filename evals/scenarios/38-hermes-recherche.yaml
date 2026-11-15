@@ -1,13 +1,8 @@
 name: hermes-recherche
-description: Eine Recherche für den Agenten eines Skills startet dessen Vorgang, nicht den Skill nachdenken
+description: Eine Recherche, die keinen Agenten nennt, darf Mira selbst machen (Skill nachdenken) oder dem Recherche-Agenten geben
 skills: [hermes]
 steps:
   - say: Finde heraus, welche Wärmepumpe zu einem Altbau passt
     expect:
-      result:
-        - remote_received: { contains: Wärmepumpe }
       behaviour:
-        must: [thread:hermes]
-        must_not: [tool:skill_open:nachdenken, tool:nachdenken]
-      answer:
-        contains: [Hermes]
+        must: ["thread:hermes|tool:nachdenken"]

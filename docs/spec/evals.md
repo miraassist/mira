@@ -193,7 +193,7 @@ minute for the gathering.
 
 ## Remote agents and delegate (added 2026-11-14)
 
-Scenarios 38 and 39 test whether the voice model tells a skill's remote agent from `delegate` (since 2026-11-15 the
+Scenarios 38 to 40 test whether the voice model tells a skill's remote agent from `delegate` (since 2026-11-15 the
 skill `nachdenken`, [Agents](agents.md), decision 44) ([Remote agents](remote-agents.md), [Agents](agents.md), decision 43): in the end-to-end tests of the remote agents
 Gemini Flash Lite took `delegate` in about 7 of 11 starts instead of the skill whose agent should do the work.
 
@@ -206,13 +206,16 @@ Decided 2026-11-14:
 | 3 | Checks | `remote_received: {contains}` wants a message to the fake A2A agent with that text (what it received is emptied before such a scenario's run); the trace names the skill `skill_open` opened (`tool:skill_open:hermes`), so a scenario can forbid opening one |
 | 4 | Core scenarios | None for now |
 | 5 | The real research skill (2026-11-15, taken while building, to be confirmed) | An eval run leaves out the shipped skill `recherche` from the test config, saying so in its output: its agent researches for real, minutes at a time; `hermes` stands for it, so a run offers one research skill |
+| 6 | Either of two behaviours (2026-11-15, taken while building, to be confirmed) | An entry of `must` may give alternatives with `\|`, as `answer.contains` does: one of them is enough (`thread:hermes\|tool:nachdenken`) |
+| 7 | Which skill researches (2026-11-15, by the maintainer, [Remote agents](remote-agents.md), decisions 59 and 60) | A research order that does not name the agent may go to either: `nachdenken` or the research skill's thread are both right. Only when the user names the agent ("Frag Hermes, …") must the research skill's thread start. The eval skill `hermes` says so in its description, as `recherche` does |
 
 Changed 2026-11-15: the tool `delegate` is gone ([Agents](agents.md), decision 44); a knowledge question goes to the
 skill `nachdenken`, always on, so scenario 39 now wants it.
 
 | Scenario | Said | Expected |
 |---|---|---|
-| hermes-recherche | "Finde heraus, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` starts and the fake A2A agent gets the request; neither `skill_open` of `nachdenken` nor its agent |
+| hermes-recherche | "Finde heraus, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` or the agent `nachdenken` (decision 7; until 2026-11-15 only the thread of `hermes`) |
+| hermes-genannt | "Frag Hermes, welche Wärmepumpe zu einem Altbau passt" | the thread of `hermes` starts, the fake A2A agent gets the request, the answer names Hermes; neither `skill_open` of `nachdenken` nor its agent |
 | waermepumpe-erklaeren | "Erklär mir, wie eine Wärmepumpe funktioniert" | `skill_open` of `nachdenken` and its agent `nachdenken`; neither the thread of `hermes` nor `skill_open` of it |
 
 What it costs: one voice turn per scenario, with `nachdenken` one more call of the model `delegate` takes.
