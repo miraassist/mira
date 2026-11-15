@@ -232,3 +232,35 @@ func TestAnItemsThreadFilledWithoutTakingItUp(t *testing.T) {
 		t.Fatalf("confirm: %v, calls %+v", err, acts.calls)
 	}
 }
+
+// docs/spec/inbox.md, decision 34: thread_confirm with an id and fields
+// takes up, fills and says yes in one call, per thread, side by side.
+func TestThreadConfirmWithIDAndFieldsInOneCall(t *testing.T) {
+	e, acts := itemsEnv(t)
+	ctx := context.Background()
+	appt := e.item(t, "termin", store.KindAppointment, "Elternbrief: Elternabend",
+		map[string]string{"title": "Elternabend", "proposals": "2026-12-03 19:30–20:30 · Aula"}, e.now.Add(48*time.Hour))
+	todo := e.item(t, "todo", store.KindTodo, "Elternbrief: Rückmeldung",
+		map[string]string{"item": "Rückmeldung Ausflug", "due": "2026-11-28"}, e.now.Add(48*time.Hour))
+	inv := e.annasTurn(t)
+	if _, err := e.m.ConfirmWith(ctx, inv, appt.ID, map[string]string{"start": "2026-12-03 19:30", "end": "2026-12-03 20:30",
+		"calendar": "standard"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.m.ConfirmWith(ctx, inv, todo.ID, map[string]string{"list": "standard"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(acts.calls) != 2 || acts.calls[0].action != "calendar.create" || acts.calls[1].action != "todo.create" {
+		t.Fatalf("calls = %+v", acts.calls)
+	}
+	// A thread that is not the asker's is refused.
+	ben := e.item(t, "todo", store.KindTodo, "x", map[string]string{"item": "x"}, e.now.Add(time.Hour))
+	if _, err := e.st.GetThread(ctx, ben.ID); err != nil {
+		t.Fatal(err)
+	}
+	other := e.annasTurn(t)
+	other.Person, other.Place = "ben", "person:ben"
+	if _, err := e.m.ConfirmWith(ctx, other, ben.ID, map[string]string{"list": "standard"}); err == nil {
+		t.Fatal("another person's thread was confirmed")
+	}
+}

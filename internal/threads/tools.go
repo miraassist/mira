@@ -75,8 +75,21 @@ func (m *Manager) Tools() []tools.InternalTool {
 			},
 		},
 		{
-			Name: ToolConfirm, Description: t.confirmDesc, Schema: empty, AskAfterWeb: true,
-			Run: func(ctx context.Context, inv tools.Invocation) (string, error) { return m.Confirm(ctx, inv) },
+			Name: ToolConfirm, Description: t.confirmDesc, AskAfterWeb: true,
+			Schema: fmt.Sprintf(`{"type":"object","properties":{"id":{"type":"string","description":%q},"fields":{"type":"object","description":%q,"additionalProperties":{"type":"string"}}}}`,
+				t.confirmIDDesc, t.confirmFieldsDesc),
+			Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+				var a struct {
+					ID     string            `json:"id"`
+					Fields map[string]string `json:"fields"`
+				}
+				if len(inv.Args) > 0 {
+					if err := json.Unmarshal(inv.Args, &a); err != nil {
+						return "", err
+					}
+				}
+				return m.ConfirmWith(ctx, inv, strings.TrimSpace(a.ID), a.Fields)
+			},
 		},
 		{
 			Name: ToolTake, Description: t.takeDesc,

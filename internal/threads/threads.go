@@ -571,6 +571,52 @@ func (m *Manager) Fill(ctx context.Context, inv tools.Invocation, values map[str
 	if err != nil {
 		return "", errors.New(m.texts().noThread)
 	}
+	return m.fill(ctx, inv, th, values)
+}
+
+// ConfirmThread takes up a thread by its id, fills the fields given and
+// says yes, in one call (docs/spec/inbox.md, decision 34): one round per
+// thing, and several such calls in one round for "ja, alle". It acts on the
+// thread by its id, not on the turn's thread, so calls side by side do not
+// meet. Without an id it is thread_confirm as before.
+func (m *Manager) ConfirmWith(ctx context.Context, inv tools.Invocation, id string, values map[string]string) (string, error) {
+	if id == "" {
+		if len(values) > 0 {
+			if out, err := m.Fill(ctx, inv, values); err != nil {
+				return "", err
+			} else if th, err := m.current(ctx, inv); err != nil || th.State != store.ThreadProposed {
+				return out, nil
+			}
+		}
+		return m.Confirm(ctx, inv)
+	}
+	th, err := m.opts.Store.GetThread(ctx, id)
+	if err != nil || !store.ThreadOpen(th.State) || !contains(append(m.turnPlaces(ctx, inv), store.PlaceHouse), th.Place) {
+		m.log.Info("thread_confirm refused: not open, or not the asker's", "thread", id, "error", err)
+		return "", errors.New(m.texts().noThread)
+	}
+	if err := m.opts.Store.SetSessionThread(ctx, inv.SessionKey, th.ID); err != nil {
+		m.log.Warn("could not link the turn to its thread", "thread", th.ID, "error", err)
+	}
+	if !th.Deadline.IsZero() {
+		// Taken up: from now on its type's timeout counts (decision 11).
+		if cur, err := m.change(ctx, th.ID, func(t *store.Thread) error { t.Deadline = time.Time{}; m.extend(t); return nil }); err == nil {
+			th = cur
+		}
+	}
+	if len(values) > 0 {
+		out, err := m.fill(ctx, inv, th, values)
+		if err != nil {
+			return "", err
+		}
+		if th, err = m.opts.Store.GetThread(ctx, id); err != nil || th.State != store.ThreadProposed {
+			return out, nil
+		}
+	}
+	return m.confirm(m.withTurnArea(ctx, inv), th)
+}
+
+func (m *Manager) fill(ctx context.Context, inv tools.Invocation, th store.Thread, values map[string]string) (string, error) {
 	sk := m.targets[th.Target]
 	t := m.texts()
 	if sk.Target.Plan {
