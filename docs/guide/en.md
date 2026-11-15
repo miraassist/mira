@@ -318,8 +318,8 @@ Mira knows your waste collector's calendar. It is a calendar in Home Assistant (
 A short overview of what is coming, in three or four sentences.
 
 - In the morning Mira puts together what is on today: weather, appointments, waste collection and, if you name topics, two headlines. She says it the first time someone enters a room with "announce on entry"; otherwise the indicator lights up or she mentions it in passing. In the evening the same comes for tomorrow, but only when something is on tomorrow, and without the waste collection: the skill **Waste** reminds you of that on the evening before. To be reminded of the bins in the evening, turn it on as well.
-- **Your own briefing:** if Mira can reach you personally (your phone or Telegram under "Configure → Persons", or "alone at home is me"), you also get a message of your own in the morning. It has your appointments for today if you have a calendar of your own (one named like your Home Assistant login or like you as a person; with the login `stefan`, "Stefan"), your parcels of today if you have a parcel calendar of your own ("Pakete stefan", see "Parcels"), and two headlines on your topics if Mira knows them: "Remember that I'm interested in football and electric cars." With none of these, nothing comes.
-- "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar too when she knows who is speaking.
+- **Your own briefing:** if Mira can reach you personally (your phone or Telegram under "Configure → Persons", or "alone at home is me"), you also get a message of your own in the morning. It has your appointments for today if you have a calendar of your own (one named like your Home Assistant login or like you as a person; with the login `stefan`, "Stefan"), your parcels of today if you have a parcel calendar of your own ("Pakete stefan", see "Parcels"), your to-dos due today or overdue for up to 30 days if you have a to-do list of your own (one named like you, as with the calendar), and two headlines on your topics if Mira knows them: "Remember that I'm interested in football and electric cars." With none of these, nothing comes.
+- "What's on today?" – "What's on tomorrow?" – "Give me my briefing." On request Mira adds your own calendar and your due to-dos too when she knows who is speaking.
 - When the briefings come is set under **Capabilities → Schedules** (see "Schedules").
 - In `mira.yaml` the skill `briefing` names the house's calendars (`kalender`) and the news topics (`themen`). Without `kalender` the house briefing reads every exposed calendar, personal ones too, and the whole house hears their appointments.
 
@@ -382,11 +382,13 @@ Good to know:
 
 ▶ [Explainer video: Mira's inbox (Paperless, 0:50)](https://mira-assist.com/videos/erklaer/postfach-paperless-en.mp4)
 
-What you give the tag **"Mira"** in Paperless, Mira reads, and she writes down what there is to do in it: appointments, deadlines, calls to return. Then she asks you about it. She reads only those documents, no others.
+What you give the tag **"Mira"** in Paperless, Mira reads, and she looks at what there is to do in it. She tells two things apart: an **appointment** that takes place at a time (parents' evening, a doctor's appointment) goes into your calendar; a **to-do** you must do by a day (a deadline, an invoice, a call to return) goes onto your to-do list, with the day as its due date. She asks you first. She reads only those documents, no others.
 
 - The letter from school comes by post. You scan it with the Paperless app and give it the tag "Mira".
-- Shortly after, on Telegram or at a satellite where Mira recognizes you: "In your post: a letter from the primary school, three appointments." When you ask, she reads them out: parents' evening, Thu 3.12. 19:30, hall; Christmas party, Sat 19.12. 15:00; no school, Tue 22.12., all day.
-- "Add the first two." Mira adds them to your calendar. "The parents' evening is at 8 pm" adds it at the new time. A deadline she adds if you want; a call to return she tells you, with the number.
+- Shortly after, on Telegram or at a satellite where Mira recognizes you: "The letter from school has the parents' evening on Thursday at 7:30 pm in the hall and a reply about the trip due Friday. Shall I enter the appointment and put the reply on your list?"
+- "Yes." Mira enters the parents' evening into your calendar and puts the reply on your list. "Only the appointment" works the same way, "The parents' evening is at 8 pm" enters it at the new time, "No" leaves it.
+- If a practice offers three appointments to choose one, Mira reads them out and asks which suits; she enters the one you choose.
+- The morning briefing names your due to-dos (see "Briefing").
 
 Paperless already reads your mailboxes and files the attachments. With a **mail rule** or its automatic matching you give documents the tag "Mira" there too, for example everything from the school. Then Mira reads along by herself.
 
@@ -409,9 +411,9 @@ How to set it up (the skill **Paperless** above already runs; Paperless needs wo
 6. Try it: give a document with an appointment the tag "Mira".
 
 Good to know:
-- Mira asks the person the document **belongs to** in Paperless: their Paperless user name is their login name or their name in Home Assistant. If it belongs to none of them, or the person has no calendar of their own, Mira only sends a message with the appointments and asks what to do with them. She never adds anything to another person's calendar.
+- Mira asks the person the document **belongs to** in Paperless: their Paperless user name is their login name or their name in Home Assistant. If it belongs to none of them, Mira only sends a message with what she found and asks what to do with it. Appointments go into your own calendar, to-dos onto your own list (the one named like you); without one, Mira asks where when entering, and remembers it on request. She never adds anything to another person's calendar or list. A list that cannot keep a due date (such as Home Assistant's shopping list) she does not take for a to-do with a due date.
 - After reading, Mira sets the tag **"Mira gelesen"**; "Mira" stays, so you see in Paperless what went through her inbox. For Mira to read a document again, remove "Mira gelesen".
-- If Mira finds nothing to do, she says nothing. The question waits three days for your answer.
+- If Mira finds nothing to do, she says nothing. What is neither an appointment nor a to-do she does not say on its own; it is in the description of the appointment or to-do it belongs to, and otherwise in the document itself. An appointment waits for your answer until it begins, a to-do until its day, one without a day for a day.
 - If Mira could not be reached when the webhook came, she catches the document up at her next start, if she knows its owner from an earlier document; otherwise just set the tag "Mira" again.
 - The document's text goes to the model that reads it (`inbox.read` under `agents`). A local model keeps it in the house.
 - If Paperless runs with `PAPERLESS_WEBHOOKS_ALLOW_INTERNAL_REQUESTS=false` or a list of allowed ports, Mira's address must be allowed there.
@@ -420,11 +422,11 @@ Good to know:
 
 ▶ [Explainer video: Mira's inbox (mail, 0:45)](https://mira-assist.com/videos/erklaer/postfach-mail-en.mp4)
 
-Without Paperless it works with a mail folder too. What lands in that folder, Mira reads as above and asks about the appointments; she does not read attachments here, those go through Paperless.
+Without Paperless it works with a mail folder too. What lands in that folder, Mira reads as above and asks about the appointments and to-dos; she does not read attachments here, those go through Paperless.
 
 1. In your mailbox, create a folder **"Mira"**. Move there what Mira should read: by hand, with a filter rule (for example everything from the school) or with a forward to an address of its own.
 2. In Home Assistant, add the **IMAP** integration with this mailbox. Enter **"Mira"** as the **folder** and **`ALL`** as the **search**. With the default search "UnSeen UnDeleted" Home Assistant never reports a mail you already read and then moved. If Home Assistant says "Selected folder is invalid", the mail server keeps the folder under the inbox: then enter "INBOX/Mira", on some servers "INBOX.Mira".
-3. Rename the new **device** to **"Postfach" and your login name**, such as "Postfach anna". "Postfach" alone belongs to the house: then Mira only sends a message with the appointments.
+3. Rename the new **device** to **"Postfach" and your login name**, such as "Postfach anna". "Postfach" alone belongs to the house: then Mira only sends a message with what she found.
 
 Good to know:
 - Mira remembers the last 100 mails she has read and does not ask about any of them a second time, even when you tidy up the folder. The mail itself stays in the folder as it is.
@@ -896,6 +898,7 @@ Mira uses the calendars and to-do lists from Home Assistant that are exposed to 
 - "Put the dentist in for Friday at 3 pm." Mira enters it and says what she entered. With several calendars she asks once which one, and on request remembers it as your default.
 - "Cancel my doctor's appointment tomorrow." Mira looks the event up and asks before she deletes it. Of a recurring event she cancels only this one, unless you want all.
 - "Put milk on the shopping list." – "Add batteries, due Friday." – "What's on the list?"
+- **To-dos with a due date:** "Put the tax return on my list, due Monday." Without a list named, Mira takes your own, the one named like you (as with the calendar), else your remembered default or the only one; she does not take other persons' lists. A list that cannot keep a due date (such as Home Assistant's shopping list) she does not take for it and names those that can; a local to-do list can. What is due today or overdue, the morning briefing tells you.
 
 ## Listening to the radio
 

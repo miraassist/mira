@@ -322,8 +322,8 @@ Mira kennt den Abfuhrkalender deines Entsorgers. Er ist ein Kalender in Home Ass
 Eine kurze Übersicht, was ansteht, in drei, vier Sätzen.
 
 - Morgens stellt Mira zusammen, was heute ist: Wetter, Termine, Müllabfuhr und, wenn du Themen angibst, zwei Schlagzeilen. Sie sagt es an, wenn das erste Mal jemand in einen Raum mit „beim Hereinkommen ansagen“ kommt, sonst leuchtet die Anzeige oder sie erwähnt es nebenbei. Abends kommt dasselbe für morgen, aber nur, wenn morgen etwas ansteht, und ohne die Müllabfuhr: an die erinnert am Vorabend der Skill **Abfall**. Willst du abends an die Tonne erinnert werden, schalte ihn mit ein.
-- **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), deine Pakete von heute, wenn du einen eigenen Paketkalender hast („Pakete stefan“, siehe „Pakete“), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Gibt es nichts davon, kommt nichts.
-- „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender dazu, wenn sie weiß, wer spricht.
+- **Dein eigenes Briefing:** Erreicht Mira dich persönlich (dein Handy oder Telegram unter „Konfigurieren → Personen“, oder „allein zu Hause bin ich“), bekommst du morgens zusätzlich eine eigene Nachricht. Darin stehen deine Termine von heute, wenn du einen eigenen Kalender hast (einer, der so heißt wie dein Login-Name in Home Assistant oder wie du als Person; bei Login `stefan` also „Stefan“), deine Pakete von heute, wenn du einen eigenen Paketkalender hast („Pakete stefan“, siehe „Pakete“), deine To-dos, die heute fällig oder seit bis zu 30 Tagen überfällig sind, wenn du eine eigene To-do-Liste hast (eine, die so heißt wie du, wie beim Kalender), und zwei Schlagzeilen zu deinen Themen, wenn Mira sie kennt: „Merk dir, mich interessieren der KSC und E-Autos.“ Gibt es nichts davon, kommt nichts.
+- „Was steht heute an?“ – „Was ist morgen los?“ – „Gib mir mein Briefing.“ Auf Nachfrage nimmt Mira auch deinen eigenen Kalender und deine fälligen To-dos dazu, wenn sie weiß, wer spricht.
 - Wann die Briefings kommen, stellst du unter **Fähigkeiten → Zeitplan** ein (siehe „Zeitplan“).
 - In `mira.yaml` stehen beim Skill `briefing` die Kalender fürs Haus (`kalender`) und die Nachrichten-Themen (`themen`). Ohne `kalender` nimmt das Haus-Briefing alle freigegebenen Kalender, auch persönliche, und das ganze Haus hört deren Termine.
 
@@ -386,11 +386,13 @@ Gut zu wissen:
 
 ▶ [Erklärvideo: Miras Postfach (Paperless, 0:52)](https://mira-assist.com/videos/erklaer/postfach-paperless.mp4)
 
-Was du in Paperless mit dem Tag **„Mira“** versiehst, liest Mira und schreibt auf, was darin zu tun ist: Termine, Fristen, Rückrufe. Dann fragt sie dich danach. Nur diese Dokumente liest sie, keine anderen.
+Was du in Paperless mit dem Tag **„Mira“** versiehst, liest Mira und schaut, was darin zu tun ist. Dabei unterscheidet sie zwei Dinge: einen **Termin**, der zu einer Zeit stattfindet (Elternabend, Arzttermin), kommt in deinen Kalender; ein **To-do**, das du bis zu einem Tag erledigen musst (eine Frist, eine Rechnung, ein Rückruf), kommt auf deine To-do-Liste, mit dem Tag als Fälligkeit. Sie fragt dich vorher. Nur diese Dokumente liest sie, keine anderen.
 
 - Der Elternbrief kommt mit der Post. Du scannst ihn mit der Paperless-App und gibst ihm den Tag „Mira“.
-- Kurz darauf, per Telegram oder am Satelliten, wenn Mira dich dort erkennt: „In deiner Post: Elternbrief der Grundschule, drei Termine.“ Auf Nachfrage liest sie sie vor: Elternabend, Do 3.12. 19:30, Aula; Weihnachtsfeier, Sa 19.12. 15:00; schulfrei, Di 22.12., ganztägig.
-- „Trag die ersten beiden ein.“ Mira trägt sie in deinen Kalender ein. „Der Elternabend ist um 20 Uhr“ trägt ihn mit der neuen Uhrzeit ein. Eine Frist trägt sie ein, wenn du willst; einen Rückruf mit Nummer sagt sie dir.
+- Kurz darauf, per Telegram oder am Satelliten, wenn Mira dich dort erkennt: „Im Elternbrief stehen der Elternabend am Donnerstag um 19:30 in der Aula und eine Rückmeldung zum Ausflug bis Freitag. Soll ich den Termin eintragen und die Rückmeldung auf deine Liste setzen?“
+- „Ja.“ Mira trägt den Elternabend in deinen Kalender ein und setzt die Rückmeldung auf deine Liste. „Nur den Termin“ geht genauso, „Der Elternabend ist um 20 Uhr“ trägt ihn mit der neuen Uhrzeit ein, „Nein“ lässt es.
+- Schlägt eine Praxis drei Termine vor, von denen du einen nehmen sollst, liest Mira sie vor und fragt, welcher passt; den gewählten trägt sie ein.
+- Fällige To-dos nennt dir das Briefing am Morgen (siehe „Briefing“).
 
 Paperless liest schon deine Postfächer und legt die Anhänge ab. Mit einer **Mail-Regel** oder der automatischen Zuweisung gibst du dort auch Dokumenten den Tag „Mira“, etwa allem von der Schule. Dann liest Mira von selbst mit.
 
@@ -413,9 +415,9 @@ So richtest du es ein (der Skill **Paperless** von oben läuft schon; Paperless 
 6. Ausprobieren: einem Dokument mit einem Termin den Tag „Mira“ geben.
 
 Gut zu wissen:
-- Mira fragt die Person, der das Dokument in Paperless **gehört**: ihr Paperless-Benutzername ist ihr Login-Name oder ihr Name in Home Assistant. Gehört es niemandem davon, oder hat die Person keinen eigenen Kalender, schickt Mira nur eine Nachricht mit den Terminen und der Frage, was sie damit machen soll. In den Kalender einer anderen Person trägt sie nichts ein.
+- Mira fragt die Person, der das Dokument in Paperless **gehört**: ihr Paperless-Benutzername ist ihr Login-Name oder ihr Name in Home Assistant. Gehört es niemandem davon, schickt Mira nur eine Nachricht mit dem, was sie gefunden hat, und der Frage, was sie damit machen soll. Termine kommen in deinen eigenen Kalender, To-dos auf deine eigene Liste (die, die so heißt wie du); gibt es keine eigene, fragt Mira beim Eintragen, wohin, und merkt es sich auf Wunsch. In den Kalender oder die Liste einer anderen Person trägt sie nichts ein. Eine Liste, die keine Fälligkeit speichern kann (etwa die Einkaufsliste von Home Assistant), nimmt sie für ein To-do mit Fälligkeit nicht.
 - Nach dem Lesen setzt Mira den Tag **„Mira gelesen“**; „Mira“ bleibt, so siehst du in Paperless, was durch ihr Postfach ging. Soll Mira ein Dokument noch einmal lesen, nimm „Mira gelesen“ wieder weg.
-- Findet Mira nichts zu tun, sagt sie nichts. Die Frage wartet drei Tage auf deine Antwort.
+- Findet Mira nichts zu tun, sagt sie nichts. Was nicht Termin oder To-do ist, sagt sie nicht eigens; es steht in der Beschreibung des Termins oder To-dos, zu dem es gehört, und sonst im Dokument selbst. Ein Termin wartet bis zu seinem Beginn auf deine Antwort, ein To-do bis zu seinem Tag, eines ohne Tag einen Tag lang.
 - War Mira beim Webhook nicht erreichbar, holt sie das Dokument beim nächsten Start nach, wenn sie seinen Besitzer schon von einem früheren Dokument kennt; sonst setzt du den Tag „Mira“ einfach neu.
 - Der Text des Dokuments geht an das Modell, das liest (`inbox.read` unter `agents`). Mit einem lokalen Modell bleibt er im Haus.
 - Läuft Paperless mit `PAPERLESS_WEBHOOKS_ALLOW_INTERNAL_REQUESTS=false` oder einer Liste erlaubter Ports, muss die Adresse von Mira dort erlaubt sein.
@@ -424,11 +426,11 @@ Gut zu wissen:
 
 ▶ [Erklärvideo: Miras Postfach (Mail, 0:46)](https://mira-assist.com/videos/erklaer/postfach-mail.mp4)
 
-Ohne Paperless geht es auch mit einem Mail-Ordner. Was in diesem Ordner landet, liest Mira, wie oben, und fragt nach den Terminen; Anhänge liest sie dabei nicht, die gehen über Paperless.
+Ohne Paperless geht es auch mit einem Mail-Ordner. Was in diesem Ordner landet, liest Mira, wie oben, und fragt nach den Terminen und To-dos; Anhänge liest sie dabei nicht, die gehen über Paperless.
 
 1. In deinem Mail-Postfach einen Ordner **„Mira“** anlegen. Dorthin verschiebst du, was Mira lesen soll, von Hand, mit einer Filterregel (etwa alles von der Schule) oder über eine Weiterleitung an eine eigene Adresse.
 2. In Home Assistant die Integration **IMAP** hinzufügen, mit diesem Postfach. Als **Ordner** „Mira“ angeben und als **Suche** **`ALL`**. Mit der vorgegebenen Suche „UnSeen UnDeleted“ meldet Home Assistant eine Mail, die du schon gelesen und dann verschoben hast, nie. Meldet Home Assistant „Selected folder is invalid“, liegt der Ordner beim Mail-Server unter dem Posteingang: dann „INBOX/Mira“ angeben, bei manchen Servern „INBOX.Mira“.
-3. Das neue **Gerät** umbenennen in **„Postfach“ und deinen Login-Namen**, etwa „Postfach anna“. Nur „Postfach“ gehört dem Haus: dann schickt Mira nur eine Nachricht mit den Terminen.
+3. Das neue **Gerät** umbenennen in **„Postfach“ und deinen Login-Namen**, etwa „Postfach anna“. Nur „Postfach“ gehört dem Haus: dann schickt Mira nur eine Nachricht mit dem, was sie gefunden hat.
 
 Gut zu wissen:
 - Mira merkt sich die letzten 100 Mails, die sie gelesen hat, und fragt zu keiner davon ein zweites Mal, auch wenn du im Ordner aufräumst. Die Mail selbst bleibt im Ordner, wie sie ist.
@@ -900,6 +902,7 @@ Mira nutzt die Kalender und To-do-Listen aus Home Assistant, die für Assist fre
 - „Trag mir Freitag um 15 Uhr Zahnarzt ein.“ Mira trägt ein und sagt, was eingetragen ist. Gibt es mehrere Kalender, fragt sie einmal, in welchen, und merkt sich das auf Wunsch als deinen Standard.
 - „Sag meinen Termin morgen beim Arzt ab.“ Mira sucht den Termin und fragt nach, bevor sie ihn löscht. Bei einem Serientermin sagt sie nur diesen einen ab, außer du willst alle.
 - „Setz Milch auf die Einkaufsliste.“ – „Setz Batterien drauf, bis Freitag.“ – „Was steht auf der Liste?“
+- **To-dos mit Fälligkeit:** „Setz die Steuererklärung auf meine Liste, bis Montag.“ Ohne genannte Liste nimmt Mira deine eigene, die so heißt wie du (wie beim Kalender), sonst deinen gemerkten Standard oder die einzige; die Listen anderer Personen nimmt sie nicht. Eine Liste, die keine Fälligkeit speichern kann (etwa die Einkaufsliste von Home Assistant), nimmt sie dafür nicht und nennt dir die, die es können; eine lokale To-do-Liste kann es. Was heute fällig oder überfällig ist, sagt dir das Briefing am Morgen.
 
 ▶ [Einen Termin eintragen und den Standardkalender merken](https://mira-assist.com/videos/mira-chat-de.mp4#t=7,60)
 
