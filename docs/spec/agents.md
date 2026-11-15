@@ -584,6 +584,31 @@ From that:
     of `paperless`. It waits 5 s at a satellite and 30 s on Telegram and then runs on, as every agent as a tool
     (Decided 27).
 
+    Why: `delegate` stood in every conversation as a tool with a broad description ("Wissen, Nachdenken, Recherche,
+    Planungen, Vergleiche, Rezepte"), beside a list of skills described in one sentence each, and the model could not
+    tell them apart. With a skill whose remote agent (Hermes) researches, Gemini Flash Lite said "Ich lasse Hermes …
+    recherchieren" and called `delegate`: 0 of 3 with a wrong context size, 1 of 3 with the right one, also after
+    decision 43 sharpened the description. Two causes: `delegate`'s special position (always there, one call) against
+    a skill (two calls, `skill_open` and `thread_start`), and overlapping descriptions. As a skill it competes on
+    equal footing in the same list.
+
+    Evidence (2026-11-15, setup `gemini-flash-lite-voice`, [Evals](evals.md)):
+    - A knowledge question ("Erklär mir, wie eine Wärmepumpe funktioniert") lands at `nachdenken` (`skill_open`, then
+      its agent) in 3 of 3, measured twice, and in the full run; by voice on the test Mira (the fake Show) too: the
+      agent took longer than 5 s, Mira said she would come back, and the answer came as a message at that satellite.
+    - A research order for the eval skill `hermes` ("Finde heraus, welche Wärmepumpe zu einem Altbau passt") lands
+      at `nachdenken` instead, 0 of 3 in each of three runs of the scenario (one with a sharper description of
+      `nachdenken`, which did not help and was not kept); with `delegate`, at the same hour, 2 of 3. The equal footing
+      did not make Flash Lite choose the research skill here.
+    - The shipped skill `recherche`, by voice on the test Mira with the real Hermes ("Finde heraus, welche Wärmepumpe
+      zu einem Altbau mit 140 m² passt"): its thread started at once, Hermes answered in 44 s, the overview came as a
+      message (1 of 1). Its description names this very kind of order; that the eval skill's shorter description is
+      why `hermes` loses is an assumption, not measured.
+    - The rest of the setup, run at the same night hour before and after: 34 and 32 of 39; the difference is
+      `hermes-recherche` and `kalender-lesen` (0 of 3 after, 2 of 3 when measured again on its own); every other
+      scenario the same or within one run. The eight `*-uebrigens` scenarios miss their afterword in both runs:
+      quiet hours (23:30 to 06:30 in the test config) leave it out.
+
 Taken while building (2026-11-15), to be confirmed by the maintainer:
 
 45. **The agent `delegate` stays**, only the tool goes: it holds the strongest model's entry (`agents.delegate`,
