@@ -819,7 +819,7 @@ Passt etwas an der Beschreibung nicht, etwa ein falsch geschriebenes Feld, start
 Manche Arbeit erledigt besser ein anderer Agent: einer, der lange im Netz recherchiert, einer, der programmiert, einer auf deinem eigenen Server. Spricht er **A2A** (das offene Protokoll, mit dem Agenten einander Arbeit übergeben), bindest du ihn als **entfernten Agenten** in einen Skill ein. Mira gibt ihm die Arbeit wie ihren eigenen Helfern: Er füllt ein Feld des Vorgangs, den der Skill beschreibt.
 
 So läuft es ab:
-- „Finde heraus, welche Wärmepumpe für unser Haus passt.“ Mira startet den Vorgang des Skills und gibt die Frage weiter. Ist das Ergebnis in ein paar Sekunden da, sagt sie es gleich; sonst „ich melde mich“, und das Ergebnis kommt später als Nachricht.
+- „Frag Hermes, welche Wärmepumpe für unser Haus passt.“ Mira startet den Vorgang des Skills und gibt die Frage weiter. Ist das Ergebnis in ein paar Sekunden da, sagt sie es gleich; sonst „ich melde mich“, und das Ergebnis kommt später als Nachricht.
 - Fragt der Agent nach („Hermes fragt: Wie groß ist die Wohnfläche?“), kommt das als Nachricht zu dir, gesprochen am Satelliten oder über deinen Kanal. Deine Antwort („140 Quadratmeter“) gibt Mira an ihn weiter.
 - Kann er es nicht, sagt Mira es mit seinen Worten („Hermes konnte das nicht: …“) und fragt dich selbst.
 - „Vergiss es“ beendet den Vorgang, und Mira sagt dem Agenten, dass er aufhören kann.
@@ -829,7 +829,7 @@ So läuft es ab:
 ```yaml
 ---
 name: recherche
-description: Lässt Hermes ausführlich im Netz recherchieren („Finde heraus …“).
+description: Lässt Hermes ausführlich im Netz recherchieren, wenn der Nutzer ihn nennt („Frag Hermes …“).
 metadata:
   mira:
     settings:

@@ -3,6 +3,23 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.25.0
+
+- **Mira hands work to other agents.** A skill can name an agent on another device that speaks A2A, such as
+  [Hermes Agent](https://github.com/NousResearch/hermes-agent). Mira passes your question on, brings its questions
+  back to you ("Hermes fragt: …") and announces the result as a message; "Vergiss es" stops it. The bundled skill
+  `recherche` hands a thorough web research to such an agent when you name it: "Frag Hermes, welche Wärmepumpe zu uns
+  passt". Automations start such a skill with `mira.agent` and its new field `skill`.
+- **Hard questions with the skill Nachdenken.** What needs the strongest model (the one under `agents.delegate`) now
+  goes through the skill `nachdenken`. It is on without an entry; `nachdenken: { enabled: false }` under `skills`
+  switches it off.
+- **Announcements know what a message is about.** For devices Home Assistant found, Mira offers to add them, one or
+  several. When different things wait, say a letter and two new devices, she names each and asks what to start with.
+  Every announcement is worded by the model, the "Übrigens" too; if that fails, Mira says she cannot answer right now,
+  and the messages keep waiting.
+- The guide opens its chapters with short explainer videos and has a chapter on the answering machine; README and the
+  example configuration are up to date again.
+
 ## 0.24.0
 
 - **Mira watches your devices.** "Pass auf die Spülmaschine auf" or "Achte aufs Aquarium": Mira learns from a

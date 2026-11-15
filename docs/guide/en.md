@@ -815,7 +815,7 @@ If something in the description does not fit, a misspelt field for example, only
 Some work is better done by another agent: one that researches the web at length, one that writes code, one on your own server. If it speaks **A2A** (the open protocol agents use to hand each other work), you bind it into a skill as a **remote agent**. Mira gives it work as she does to her own helpers: it fills a field of the thread the skill describes.
 
 This is how it goes:
-- "Find out which heat pump suits our house." Mira starts the skill's thread and passes the question on. If the result is there within a few seconds, she says it right away; otherwise "I'll come back to you", and the result comes later as a message.
+- "Ask Hermes which heat pump suits our house." Mira starts the skill's thread and passes the question on. If the result is there within a few seconds, she says it right away; otherwise "I'll come back to you", and the result comes later as a message.
 - If the agent asks back ("Hermes asks: How large is the living space?"), that comes to you as a message, spoken at the satellite or over your channel. Mira passes your answer ("140 square metres") on to it.
 - If it cannot do it, Mira says so in its words ("Hermes could not do it: …") and asks you herself.
 - "Forget it" ends the thread, and Mira tells the agent it can stop.
@@ -825,7 +825,7 @@ This is how it goes:
 ```yaml
 ---
 name: recherche
-description: Lets Hermes research the web at length ("Find out …").
+description: Lets Hermes research the web at length when the user names him ("Ask Hermes …").
 metadata:
   mira:
     settings:
