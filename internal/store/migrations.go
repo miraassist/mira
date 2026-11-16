@@ -529,6 +529,31 @@ CREATE TABLE watch_declined (
 		name: "0033_thread_source",
 		stmt: `ALTER TABLE threads ADD COLUMN source TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		// Named access tokens beside the integration's, stored as a hash, and
+		// what a partner token did (docs/spec/access-tokens.md).
+		name: "0034_access_tokens",
+		stmt: `
+CREATE TABLE access_tokens (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    kind       TEXT NOT NULL,
+    hash       TEXT NOT NULL UNIQUE,
+    prefix     TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE access_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_id     TEXT NOT NULL,
+    token_name   TEXT NOT NULL,
+    partner_user TEXT NOT NULL DEFAULT '',
+    method       TEXT NOT NULL,
+    path         TEXT NOT NULL,
+    status       INTEGER NOT NULL,
+    at           TEXT NOT NULL
+);
+CREATE INDEX idx_access_log_token ON access_log(token_id, at);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

@@ -13,14 +13,17 @@ const (
 	keepAssessments   = 90 * 24 * time.Hour
 	keepAnnouncements = 7 * 24 * time.Hour
 	keepThreads       = 30 * 24 * time.Hour
+	// A partner token's calls (docs/spec/access-tokens.md, decision 12).
+	keepAccessCalls = 90 * 24 * time.Hour
 )
 
 // Pruned is how many rows of each kind were removed.
-type Pruned struct{ Messages, Assessments, Announcements, Threads int64 }
+type Pruned struct{ Messages, Assessments, Announcements, Threads, AccessCalls int64 }
 
 // PruneFinished removes what has long been finished: messages no longer
 // pending or scheduled, judgements, announcements and ended threads, each
-// older than it is kept. Nothing open is ever removed.
+// older than it is kept, and a partner token's calls after 90 days. Nothing
+// open is ever removed.
 func (s *Store) PruneFinished(ctx context.Context) (Pruned, error) {
 	now := s.now()
 	var p Pruned
@@ -37,6 +40,7 @@ func (s *Store) PruneFinished(ctx context.Context) (Pruned, error) {
 			[]any{formatTime(now.Add(-keepAnnouncements))}},
 		{&p.Threads, `DELETE FROM threads WHERE state IN (?, ?, ?) AND updated_at < ?`,
 			[]any{ThreadDone, ThreadCancelled, ThreadExpired, formatTime(now.Add(-keepThreads))}},
+		{&p.AccessCalls, `DELETE FROM access_log WHERE at < ?`, []any{formatTime(now.Add(-keepAccessCalls))}},
 	}
 	for _, st := range steps {
 		res, err := s.db.ExecContext(ctx, st.stmt, st.args...)

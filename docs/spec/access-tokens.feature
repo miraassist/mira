@@ -38,6 +38,13 @@ Feature: Access tokens
     When the page makes another named "Elektro Meier"
     Then the answer is 409 and nothing is stored
 
+  @step1
+  Scenario: AT-13 A partner token is refused at the setup and at backup and restore
+    Given a partner token
+    When it calls /v1/pair, /v1/unpair, /v1/prove, /v1/setup, /v1/backup or /v1/restore
+    Then the answer is 403 and the handler is not called
+    And the integration's token still gets through
+
   @step2
   Scenario: AT-07 A partner call is recorded with its partner user
     Given a partner token named "Elektro Meier"

@@ -1,6 +1,6 @@
 # Access tokens – Spec
 
-Status 2026-11-16: spec, nothing built. Scenarios:
+Status 2026-11-16: steps 1 and 2 built (not released). Scenarios:
 [access-tokens.feature](access-tokens.feature).
 
 ## Goal
@@ -42,9 +42,11 @@ token, and the partner activity on Mira's page.
 
 - **The token check** of the three handlers that take the integration's token today: Mira's page (`internal/ui`,
   `auth` and `authAnyone`), the integration's interface (`internal/channels/haconv`: conversation, status, messages,
-  tasks, agents, OAuth, backup) and the setup (`internal/setup`). They compare against one token; they get one check
-  that knows several and puts the caller (name, kind, partner user) into the request's context. Not touched: the inbox's
-  own token for webhooks ([Inbox](inbox.md)) and the push tokens of remote agents ([Remote agents](remote-agents.md)).
+  tasks, agents, OAuth, backup) and the setup (`internal/setup`). They stay as they are. One check before all of them
+  (`internal/access`) knows the partner tokens: it answers `/v1/whoami`, refuses a partner token where decisions 9
+  and 16 say, and passes a partner token's call on with the integration's token, the caller (name, kind, partner
+  user) in the request's context. Not touched: the inbox's own token for webhooks ([Inbox](inbox.md)) and the push
+  tokens of remote agents ([Remote agents](remote-agents.md)); they never start with a partner token's prefix.
 - **Mira's page**: the tab Connections ([Connections](oauth.md)) gets the section; the dialog to ask is the page's own
   `ask()`, never a browser alert.
 - **The nightly cleanup** ([Cleaning up the key-value table](kv-cleanup.md)) deletes old partner activity.
@@ -82,6 +84,10 @@ with the name and the error; nothing is stored, the page says it did not work.
 **Fails:** the activity row cannot be written → the call still runs (the owner's interface does not stop for its
 record), log line `could not record a partner call` with token name, partner user, path and the error.
 
+**At the start** the service reads the stored tokens once. If that fails, Mira does not start, and the error says
+that the access tokens could not be read: a service whose tokens are unknown would refuse its partners without a
+word.
+
 ### `GET /v1/whoami`
 
 Answers `{name, kind}` of the calling token; for the integration's token `{name: "integration", kind:
@@ -110,9 +116,10 @@ version, as for Connections).
 
 ## Steps
 
-1. **Tokens and the check**: the table `access_tokens`, the check in the three handlers, `GET /v1/whoami`,
-   `X-Partner-User` only with a partner token. Scenarios AT-01 to AT-06.
-2. **The partner activity**: the table `access_log`, the rows, the log line, the cleanup. Scenarios AT-07 to AT-09.
+1. **Tokens and the check** (built 2026-11-16): the table `access_tokens`, the check before the three handlers,
+   `GET /v1/whoami`, `X-Partner-User` only with a partner token, the refused routes. Scenarios AT-01 to AT-06,
+   AT-13.
+2. **The partner activity** (built 2026-11-16): the table `access_log`, the rows, the log line, the cleanup. Scenarios AT-07 to AT-09.
 3. **The page**: the section Access (make, show once, delete, activity), German and English. Scenarios AT-10 to
    AT-12.
 4. **The guide**: a paragraph on giving a partner access and taking it back.

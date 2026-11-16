@@ -39,3 +39,27 @@ func TestPruneFinishedKeepsWhatIsOpen(t *testing.T) {
 		}
 	}
 }
+
+func TestAT09_OldPartnerActivityIsDeletedAtTheNightlyCleanup(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 11, 16, 3, 0, 0, 0, time.UTC)
+	st, err := Open(ctx, Options{Path: ":memory:", Clock: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, at := range []time.Time{now.Add(-91 * 24 * time.Hour), now.Add(-89 * 24 * time.Hour)} {
+		if err := st.RecordAccessCall(ctx, AccessCall{TokenID: "t1", TokenName: "Elektro Meier", Method: "GET",
+			Path: "/v1/status", Status: 200, At: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := st.PruneFinished(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := st.AccessCalls(ctx, "t1", 50, 0)
+	if p.AccessCalls != 1 || len(calls) != 1 || !calls[0].At.Equal(now.Add(-89*24*time.Hour)) {
+		t.Fatalf("pruned %d, left %+v", p.AccessCalls, calls)
+	}
+}

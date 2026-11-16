@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/internal/a2a"
+	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/agent"
 	"github.com/miraassist/mira/internal/announce"
 	"github.com/miraassist/mira/internal/backup"
@@ -100,7 +101,10 @@ type app struct {
 	log        *slog.Logger
 	tel        *telemetry.Provider
 	store      *store.Store
-	llm        *llm.Client
+	// tokens are the named access tokens beside the integration's
+	// (docs/spec/access-tokens.md).
+	tokens *access.Keeper
+	llm    *llm.Client
 	// langs says which language applies when; lang is the one at the start,
 	// for what only the model reads.
 	langs *language.Resolver
@@ -217,6 +221,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
 	if err != nil {
+		return nil, err
+	}
+	if a.tokens, err = access.New(ctx, a.store, cfg.Server.Token, tel.Logger); err != nil {
 		return nil, err
 	}
 	// Messages of the form before kinds are dropped, not carried over
@@ -934,7 +941,7 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 					a.log.Warn("pruning finished rows failed", "error", err)
 				} else if p != (store.Pruned{}) {
 					a.log.Info("finished rows pruned", "messages", p.Messages, "assessments", p.Assessments,
-						"announcements", p.Announcements, "threads", p.Threads)
+						"announcements", p.Announcements, "threads", p.Threads, "partner_calls", p.AccessCalls)
 				}
 			}
 		}
@@ -1442,9 +1449,12 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	if a.ha != nil {
 		watch = &updates.Watcher{Version: version, HA: a.ha, Log: a.log.With("component", "updates")}
 	}
+	// Every call passes the check of the access tokens first
+	// (docs/spec/access-tokens.md).
+	checked := a.tokens.Check(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		watch.Seen(r.Context(), r.Header.Get(ui.HeaderIntegration))
-		mux.ServeHTTP(w, r)
+		checked.ServeHTTP(w, r)
 	})
 }
 
