@@ -3,6 +3,21 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.26.0
+
+- **To-dos with a due date.** "Setz die Steuererklärung auf meine Liste, bis Montag": Mira puts it on your own to-do
+  list (the one named like you), never on another person's, and only on a list that can keep a due date. What is due
+  today or overdue (up to 30 days) is in your personal morning briefing, and on request ("Was steht heute an?").
+- **Mira's inbox finds appointments and to-dos.** In a document from Paperless or a mail she tells an appointment
+  (parents' evening on Thursday at 7 pm) from a to-do with a deadline (pay the invoice by the 30th). Each becomes a
+  thread of its own: an appointment goes into your calendar, with several proposed dates you choose one; a to-do goes
+  onto your list. Several found things are offered together, and a "ja" enters them one after another.
+- **Skills say what they take up.** A skill's new field `takes` names the kind of message it handles (`appointment`,
+  `todo`, `voicemail`, `device`). Only one switched-on skill may take a kind; if two do, Mira's page shows a problem.
+  The skill `postfach` now only tells the model how to read a document. The tool `calendar_create` is gone: skills
+  enter appointments with the finish `calendar.create`, to-dos with `todo.create`.
+- The guide has an explainer video on to-dos and describes `takes`, `{{person_list}}` and the two finishes.
+
 ## 0.25.0
 
 - **Mira hands work to other agents.** A skill can name an agent on another device that speaks A2A, such as
