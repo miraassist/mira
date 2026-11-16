@@ -1393,6 +1393,7 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 		Token: cfg.Server.Token, Sections: config.UISections, Config: uiConfig{a: a, runCtx: runCtx},
 		Store: a.store, Entities: a.uiEntities, CompactProfile: compact, Logger: a.log, Version: version,
 		SetExposed: a.setExposed, SetLogins: a.setLogins, Phone: a.phonePage, Connections: connections{a: a},
+		Tokens: a.tokens,
 		Persons: func() []string {
 			keys := make([]string, 0, len(a.persons()))
 			for k := range a.persons() {

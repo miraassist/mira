@@ -1,6 +1,6 @@
 # Access tokens – Spec
 
-Status 2026-11-16: steps 1 and 2 built (not released). Scenarios:
+Status 2026-11-16: steps 1 to 4 built (not released). Scenarios:
 [access-tokens.feature](access-tokens.feature).
 
 ## Goal
@@ -105,8 +105,9 @@ holds.
 
 ### The partner activity on the page
 
-Below the tokens, per token: the last calls, newest first (time, partner user, what: the page's name of the route,
-e.g. "Modell geändert", else method and path), 50 per page. `GET /v1/ui/tokens/{id}/activity`.
+Below the tokens, per token, when its card is opened: the last calls, newest first (time, partner user, what as
+method and path, the result's status), 50 at a time with "Mehr" for the next. `GET /v1/ui/tokens/{id}/activity`.
+The integration's token is the first card, without "Löschen".
 
 ## Between the integration and the service
 
@@ -120,6 +121,6 @@ version, as for Connections).
    `GET /v1/whoami`, `X-Partner-User` only with a partner token, the refused routes. Scenarios AT-01 to AT-06,
    AT-13.
 2. **The partner activity** (built 2026-11-16): the table `access_log`, the rows, the log line, the cleanup. Scenarios AT-07 to AT-09.
-3. **The page**: the section Access (make, show once, delete, activity), German and English. Scenarios AT-10 to
+3. **The page** (built 2026-11-16): the section Access (make, show once, delete, activity), German and English. Scenarios AT-10 to
    AT-12.
-4. **The guide**: a paragraph on giving a partner access and taking it back.
+4. **The guide** (built 2026-11-16): a paragraph on giving a partner access and taking it back.

@@ -116,6 +116,9 @@ type Options struct {
 	Editor Editor
 	// Connections are the skills' logins at services (docs/spec/oauth.md).
 	Connections Connections
+	// Tokens are the named access tokens (docs/spec/access-tokens.md); nil
+	// without them.
+	Tokens Tokens
 	// Phone is what waits on the answering machine, for the start page and
 	// the messages page (docs/spec/voicemail.md); nil without it.
 	Phone func(ctx context.Context) (PhoneNews, error)
@@ -191,6 +194,7 @@ func New(opts Options) *Handler {
 	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
 	h.editRoutes()
 	h.connectionRoutes()
+	h.tokenRoutes()
 	return h
 }
 

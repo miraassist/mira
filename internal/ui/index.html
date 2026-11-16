@@ -699,6 +699,27 @@ const I18N = {
   "conn_window": "Melde dich im neuen Fenster beim Dienst an und erlaube den Zugriff. Danach steht hier „verbunden“.",
   "conn_row": "Verbindung",
   "conn_open": "zu den Verbindungen",
+  "tok_title": "Zugänge",
+  "tok_intro": "Ein Partner, der Mira für dich betreut, bekommt hier einen eigenen Zugang. Er trägt ihn bei sich ein und kann damit alles, was diese Seite kann, außer Mira neu einzurichten und zu sichern. Du kannst den Zugang jederzeit löschen. Was der Partner getan hat, steht beim Zugang.",
+  "tok_integration": "Home Assistant (Integration)",
+  "tok_integration_hint": "Gehört zur Integration; er geht, wenn du die Integration entfernst.",
+  "tok_name": "Name des Partners",
+  "tok_make": "Zugang für einen Partner anlegen",
+  "tok_made": "Der Zugang für „%s“. Kopiere ihn jetzt und gib ihn deinem Partner; er wird nur dieses eine Mal angezeigt.",
+  "tok_copied": "Zugang kopiert.",
+  "tok_delete": "Löschen",
+  "tok_delete_ask": "Zugang „%s“ löschen? Der Partner kommt danach nicht mehr an Mira.",
+  "tok_gone": "Dieser Zugang ist schon gelöscht.",
+  "tok_taken": "Einen Zugang mit diesem Namen gibt es schon.",
+  "tok_need_name": "Gib dem Zugang einen Namen.",
+  "tok_since": "angelegt %s",
+  "tok_activity": "Was der Partner getan hat",
+  "tok_activity_none": "Noch nichts.",
+  "tok_more": "Mehr",
+  "tok_when": "Wann",
+  "tok_who": "Wer beim Partner",
+  "tok_what": "Was",
+  "tok_status": "Ergebnis",
   "hooks_intro": "Regeln entscheiden bei jedem Werkzeug, ob Mira es ausführt, erst nachfragt oder ablehnt. Deine laufen zuerst, das System hat das letzte Wort, und es gilt immer das Strengste.",
   "hooks_household": "Deine Regeln",
   "hooks_household_hint": "Mira legt sie an, wenn du sie darum bittest („Merk dir eine Regel: …“), oder du schreibst sie selbst als Datei mit der Endung .star in den Ordner hooks neben der mira.yaml. Änderungen gelten sofort. Eine Datei mit dem Namen einer Standard-Regel ersetzt sie.",
@@ -1220,6 +1241,27 @@ const I18N = {
   "conn_window": "Sign in at the service in the new window and allow the access. Then it says \"connected\" here.",
   "conn_row": "Connection",
   "conn_open": "to the connections",
+  "tok_title": "Access",
+  "tok_intro": "A partner who looks after Mira for you gets an access of their own here. They enter it on their side and can then do everything this page can, except setting Mira up anew and backing her up. You can delete the access at any time. What the partner did is shown with the access.",
+  "tok_integration": "Home Assistant (integration)",
+  "tok_integration_hint": "Belongs to the integration; it goes when you remove the integration.",
+  "tok_name": "Partner's name",
+  "tok_make": "Create access for a partner",
+  "tok_made": "The access for \"%s\". Copy it now and give it to your partner; it is shown only this once.",
+  "tok_copied": "Access copied.",
+  "tok_delete": "Delete",
+  "tok_delete_ask": "Delete the access \"%s\"? The partner can no longer reach Mira afterwards.",
+  "tok_gone": "This access is already deleted.",
+  "tok_taken": "An access with this name exists already.",
+  "tok_need_name": "Give the access a name.",
+  "tok_since": "created %s",
+  "tok_activity": "What the partner did",
+  "tok_activity_none": "Nothing yet.",
+  "tok_more": "More",
+  "tok_when": "When",
+  "tok_who": "Who at the partner",
+  "tok_what": "What",
+  "tok_status": "Result",
   "hooks_intro": "Rules decide on every tool whether Mira runs it, asks first or refuses. Yours run first, the system has the last word, and the strictest always wins.",
   "hooks_household": "Your rules",
   "hooks_household_hint": "Mira makes them when you ask her (\"Remember a rule: …\"), or you write them yourself as files ending in .star in the folder hooks next to mira.yaml. Changes apply at once. A file with the name of a default rule replaces it.",
@@ -1750,6 +1792,7 @@ const CARD_ICONS = {
   fact: `<path d="M5 3h10l4 4v14H5Z"/><path d="M15 3v4h4M8 12h8M8 16h6"/>`,
   profile: `<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c.5-1.3 1.6-2 3-2s2.5.7 3 2"/>`,
   run: `<rect x="4" y="7" width="16" height="13" rx="3"/><path d="M12 7V3M8 12v2m8-2v2M9 17h6"/>`,
+  key: `<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>`,
 };
 const cardIcon = kind => `<svg class="mira-icon" viewBox="0 0 24 24" aria-hidden="true">${CARD_ICONS[kind]}</svg>`;
 // buttonIcon is the small line icon on a button.
@@ -1943,7 +1986,78 @@ async function connections() {
       <div class="grid"><label>${T.remote_label}</label><input name="url" value="${esc(remote.remote_address || "")}"
         placeholder="http://192.168.1.10:8787" autocomplete="off"></div>
       ${applyRow()}
-    </form></section>` : ""}`;
+    </form></section>` : ""}
+  <section class="card" id="tokens"></section>`;
+  tokens();
+}
+// ---- Zugänge (docs/spec/access-tokens.md) ---------------------------------
+// The named access tokens: the integration's, and a partner's, made here and
+// shown once; each with what the partner did.
+let madeToken = null;
+async function tokens() {
+  const el = $("#tokens");
+  if (!el) return;
+  let list;
+  try { list = (await api("GET", "/v1/ui/tokens")).tokens || []; }
+  catch (e) { el.remove(); return; }  // an older service has no access tokens
+  const made = madeToken ? `<p class="msg">${esc(T.tok_made.replace("%s", madeToken.name))}</p>
+    <span class="copyline"><code>${esc(madeToken.token)}</code><button type="button" class="copy" title="${T.conn_copy}"
+      aria-label="${T.conn_copy}" onclick="tokenCopy()">${buttonIcon("copy")}</button></span>` : "";
+  const card = t => cardItem({ kind: "key", name: esc(t.name), short: esc(T.tok_since.replace("%s", localTime(t.created))),
+    tags: badge(esc(t.prefix) + "…", true), attrs: ` data-id="${esc(t.id)}"` }, `
+      <h4>${T.tok_activity}</h4><div id="act-${esc(t.id)}" class="hint">${T.loading}</div>
+      <div class="actions left"><span class="spacer"></span>
+        <button type="button" class="secondary" onclick="tokenDelete('${esc(t.id)}', '${esc(t.name)}')">${T.tok_delete}</button></div>`);
+  el.innerHTML = `<h2>${T.tok_title}</h2><p class="hint">${T.tok_intro}</p>${made}
+    <div class="card-list">
+      ${cardItem({ kind: "key", name: esc(T.tok_integration), short: esc(T.tok_integration_hint) }, `<p class="hint">${T.tok_integration_hint}</p>`)}
+      ${list.map(card).join("")}
+    </div>
+    <form onsubmit="event.preventDefault(); tokenMake(this)">
+      <div class="grid"><label>${T.tok_name}</label><input name="name" autocomplete="off"></div>
+      <div class="actions left"><button class="primary" type="submit">${T.tok_make}</button></div>
+    </form>`;
+  el.querySelectorAll("details[data-id]").forEach(d => d.addEventListener("toggle", () => {
+    if (d.open) tokenActivity(d.dataset.id, 0);
+  }, { once: true }));
+}
+async function tokenMake(form) {
+  const name = form.name.value.trim();
+  if (!name) { message(T.tok_need_name, false); return; }
+  try {
+    const r = await api("POST", "/v1/ui/tokens", { name });
+    madeToken = { name: r.info.name, token: r.token };
+    await tokens();
+  } catch (e) { message(e.message === "name taken" ? T.tok_taken : e.message, false); }
+}
+async function tokenCopy() {
+  if (!madeToken) return;
+  try { await navigator.clipboard.writeText(madeToken.token); message(T.tok_copied, true); }
+  catch (e) { message(e.message, false); }
+}
+async function tokenDelete(id, name) {
+  if (!await ask({ text: T.tok_delete_ask.replace("%s", name), ok: T.tok_delete })) return;
+  try { await api("DELETE", `/v1/ui/tokens/${encodeURIComponent(id)}`); madeToken = null; await tokens(); }
+  catch (e) { message(e.message === "no such token" ? T.tok_gone : e.message, false); await tokens(); }
+}
+// tokenActivity shows a token's calls, newest first, a page at a time.
+async function tokenActivity(id, offset) {
+  const el = document.getElementById("act-" + id);
+  if (!el) return;
+  try {
+    const r = await api("GET", `/v1/ui/tokens/${encodeURIComponent(id)}/activity?offset=${offset}`);
+    const rows = (r.calls || []).map(c => `<tr><td>${esc(localTime(c.at))}</td><td>${esc(c.partner_user) || "–"}</td>
+      <td><code>${esc(c.method)} ${esc(c.path)}</code></td><td>${esc(String(c.status))}</td></tr>`).join("");
+    const more = (r.calls || []).length === r.page ? `<button type="button" class="secondary"
+      onclick="this.remove(); tokenActivity('${esc(id)}', ${offset + r.page})">${T.tok_more}</button>` : "";
+    if (offset === 0) {
+      el.innerHTML = rows ? `<table class="facts"><tr><th>${T.tok_when}</th><th>${T.tok_who}</th><th>${T.tok_what}</th>
+        <th>${T.tok_status}</th></tr>${rows}</table>${more}` : T.tok_activity_none;
+    } else {
+      el.querySelector("table").insertAdjacentHTML("beforeend", rows);
+      if (more) el.insertAdjacentHTML("beforeend", more);
+    }
+  } catch (e) { el.textContent = e.message; }
 }
 // Mira's address for remote agents (docs/spec/remote-agents.md, decision
 // 13): written to mira.yaml, it holds after a restart.

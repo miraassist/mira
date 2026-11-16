@@ -305,3 +305,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+// Activity is a token's calls, newest first, a page of limit from offset.
+func (k *Keeper) Activity(ctx context.Context, id string, limit, offset int) ([]store.AccessCall, error) {
+	return k.store.AccessCalls(ctx, id, limit, offset)
+}

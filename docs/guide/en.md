@@ -1445,6 +1445,15 @@ Mira's data goes into Home Assistant's backups (Settings → System → Backups)
 - **The keys** are in the backup without encryption of their own. Home Assistant's backup encryption protects them, as it protects Home Assistant's own keys; so leave it on (it is the default). So keep Home Assistant's **backup key** safe, in a password manager say; without it no backup can be opened. You do not need `MIRA_SECRET_KEY` to restore.
 - If `mira.yaml` is read only (mounted so in a container), Mira leaves it as it is at a restore and puts the backup's as `mira.yaml.restored` into her data folder, to compare.
 
+### Access for a partner
+
+If a company looks after Mira for you, it gets an access of its own. It uses it with a program of its own that runs next to Mira; it is not part of Mira.
+
+- **Create:** Mira → Setup → **Connections** → **Access**: enter a name, the company's say, and **Create access for a partner**. Mira shows the access only once; copy it and give it to your partner. Only admins can create and delete one.
+- **What the partner can do with it:** everything Mira's page can, as an admin. Setting Mira up anew, separating her from Home Assistant, fetching or restoring a backup it cannot.
+- **What it did:** open the access. Every call is listed there with its time, who at the partner it was, and what. Mira keeps this for 90 days.
+- **Take it back:** **Delete** at the access. From then on the partner can no longer reach Mira.
+
 ## Security: how Mira and Home Assistant talk
 
 - **Two keys:**

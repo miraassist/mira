@@ -1469,6 +1469,15 @@ Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → Syst
 - **Die Schlüssel** stehen im Backup unverschlüsselt in Miras Daten. Geschützt sind sie durch die Verschlüsselung der Backups von Home Assistant, genau wie die Schlüssel von Home Assistant selbst; lass sie deshalb eingeschaltet (das ist der Standard). Bewahre deshalb den **Backup-Schlüssel** von Home Assistant sicher auf, etwa in einem Passwort-Manager; ohne ihn lässt sich kein Backup öffnen. `MIRA_SECRET_KEY` brauchst du fürs Wiederherstellen nicht.
 - Ist die `mira.yaml` nur lesbar (im Container so eingebunden), lässt Mira sie beim Wiederherstellen, wie sie ist, und legt die aus dem Backup als `mira.yaml.restored` in ihren Datenordner, zum Vergleichen.
 
+### Zugang für einen Partner
+
+Betreut eine Firma Mira für dich, bekommt sie einen eigenen Zugang. Sie nutzt ihn mit einem eigenen Programm, das neben Mira läuft; es gehört nicht zu Mira.
+
+- **Anlegen:** Mira → Einrichtung → **Verbindungen** → **Zugänge**: einen Namen eintragen, etwa den der Firma, und **Zugang für einen Partner anlegen**. Mira zeigt den Zugang ein einziges Mal; kopiere ihn und gib ihn deinem Partner. Anlegen und löschen können nur Admins.
+- **Was der Partner damit kann:** alles, was Miras Seite kann, wie ein Admin. Mira neu einrichten, sie von Home Assistant trennen, ein Backup holen oder einspielen kann er nicht.
+- **Was er getan hat:** Öffne den Zugang. Dort steht jeder Aufruf mit Zeit, wer beim Partner es war und was. Mira hebt das 90 Tage auf.
+- **Zurücknehmen:** **Löschen** beim Zugang. Ab sofort kommt der Partner nicht mehr an Mira.
+
 ## Sicherheit: wie Mira und Home Assistant miteinander sprechen
 
 - **Zwei Schlüssel:**
