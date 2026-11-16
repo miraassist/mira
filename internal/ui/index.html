@@ -323,6 +323,9 @@ button.switch[aria-checked=true]>span { transform:translateX(18px); }
 button.switch:disabled { opacity:.5; cursor:wait; }
 button.switch:focus-visible { outline:2px solid var(--tone); outline-offset:2px; }
 .copyline { display:flex; align-items:center; gap:6px; min-width:0; }
+.token-new { display:flex; gap:8px; align-items:center; margin-top:16px; }
+.token-new input { flex:1; min-width:0; }
+.token-new button { flex:none; }
 .copyline code { overflow-wrap:anywhere; }
 button.copy { background:none; border:0; padding:4px; color:var(--muted); cursor:pointer; line-height:0; }
 button.copy:hover { color:var(--text); }
@@ -2015,9 +2018,9 @@ async function tokens() {
       ${cardItem({ kind: "key", name: esc(T.tok_integration), short: esc(T.tok_integration_hint) }, `<p class="hint">${T.tok_integration_hint}</p>`)}
       ${list.map(card).join("")}
     </div>
-    <form onsubmit="event.preventDefault(); tokenMake(this)">
-      <div class="grid"><label>${T.tok_name}</label><input name="name" autocomplete="off"></div>
-      <div class="actions left"><button class="primary" type="submit">${T.tok_make}</button></div>
+    <form class="token-new" onsubmit="event.preventDefault(); tokenMake(this)">
+      <input name="name" autocomplete="off" placeholder="${esc(T.tok_name)}" aria-label="${esc(T.tok_name)}">
+      <button class="primary" type="submit">${T.tok_make}</button>
     </form>`;
   el.querySelectorAll("details[data-id]").forEach(d => d.addEventListener("toggle", () => {
     if (d.open) tokenActivity(d.dataset.id, 0);
