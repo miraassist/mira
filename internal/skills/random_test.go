@@ -43,7 +43,7 @@ func writeRandomSkill(t *testing.T, random, en string) string {
 
 func loadRandom(t *testing.T, random, en string) Skill {
 	t.Helper()
-	sk, p := load(writeRandomSkill(t, random, en), nil)
+	sk, p := loadDir(writeRandomSkill(t, random, en), nil)
 	if p != nil {
 		t.Fatalf("load: %v", p)
 	}
@@ -105,7 +105,7 @@ func TestRP02_BrokenAxesAreAProblem(t *testing.T) {
 		"no sub-values": {"    random:\n      thema:\n        Tiere: []\n", "randomempty"},
 		"too deep":      {"    random:\n      thema:\n        Tiere:\n          Vögel: [Spatz]\n", "randomaxis"},
 	} {
-		_, p := load(writeRandomSkill(t, c.random, ""), nil)
+		_, p := loadDir(writeRandomSkill(t, c.random, ""), nil)
 		if p == nil || p.kind != c.kind {
 			t.Errorf("%s: %v", name, p)
 			continue
@@ -135,7 +135,7 @@ func TestRP03_TranslationBringsItsAxes(t *testing.T) {
 }
 
 func TestRP04_BrokenTranslatedAxesAreAProblem(t *testing.T) {
-	_, p := load(writeRandomSkill(t, quizAxes, "random:\n  age: []\n"), nil)
+	_, p := loadDir(writeRandomSkill(t, quizAxes, "random:\n  age: []\n"), nil)
 	if p == nil || p.kind != "randomempty" || !strings.HasPrefix(p.Text(i18n.EN), "SKILL.en.md:") {
 		t.Fatalf("problem %v", p)
 	}

@@ -249,7 +249,21 @@ type Skills struct {
 	// Off are the skills the file switches off (enabled: false), also
 	// Mira's own ones that are otherwise always on.
 	Off map[string]bool `yaml:"-"`
+	// Source is the skill source Mira loads a subscription's skills from
+	// at her start (docs/spec/skill-source.md); empty URL for none.
+	Source SkillSource `yaml:"-"`
 }
+
+// SkillSource is one skill source: its address and the subscription key
+// (in the secrets file, as every secret the page writes).
+type SkillSource struct {
+	URL string `yaml:"url"`
+	Key string `yaml:"key"`
+}
+
+// SkillSourceKey is the key under skills that names the skill source; no
+// skill may be called so.
+const SkillSourceKey = "source"
 
 // SkillOn is the key that switches a skill on and off; no setting may be
 // called so.
@@ -271,6 +285,12 @@ func (s *Skills) UnmarshalYAML(n *yaml.Node) error {
 			if err := val.Decode(&s.Dirs); err != nil {
 				return fmt.Errorf("skills.dirs: %w", err)
 			}
+			continue
+		case key == SkillSourceKey:
+			if err := val.Decode(&s.Source); err != nil {
+				return fmt.Errorf("skills.source takes url and key: %w", err)
+			}
+			s.Source.URL = strings.TrimSpace(s.Source.URL)
 			continue
 		case key == SkillOn:
 			return errors.New("skills.enabled is gone: write each skill straight under skills, with its settings, e.g. skills: { abfall: { calendar: … } }; enabled: false switches one off")

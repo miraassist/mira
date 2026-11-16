@@ -623,7 +623,7 @@ func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
 	skills, _ := cfg["skills"].(map[string]any)
 	var out []string
 	for name, settings := range skills {
-		if name == "dirs" || name == "enabled" {
+		if name == "dirs" || name == "enabled" || name == "source" {
 			continue
 		}
 		raw, err := yaml.Marshal(settings)

@@ -59,6 +59,8 @@ var builtSteps = map[string][]int{
 	"GW": {2, 7},                       // docs/spec/group-watch.md, Steps; steps 1 and 3 in pytest (GW-01 to GW-03, GW-08 to GW-16), step 4 in Go (GW-17 to GW-20) and pytest (GW-19, GW-21), step 6 in pytest (GW-22 to GW-26)
 	"TD": {2, 4},                       // docs/spec/todo-due.md, Steps; step 1 dropped, step 3 is built with the inbox's step 10
 	"RM": {1, 2, 3, 4, 8, 9},           // docs/spec/remote-agents.md, Steps; step 0 (the fake A2A agent) has no scenarios; step 5 in Go (RM-15, RM-16) and pytest (RM-15 to RM-17)
+	"SQ": {1},                          // docs/spec/skill-source.md, Steps
+	"SB": {1, 2, 3},                    // docs/spec/skill-files.md, Steps; step 4 is the guide
 }
 
 var (

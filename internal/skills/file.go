@@ -3,8 +3,11 @@ package skills
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"testing/fstest"
 
 	"gopkg.in/yaml.v3"
 
@@ -23,6 +26,9 @@ func Find(dirs []string, name string) string { return find(dirs, name) }
 type File struct {
 	Front *yaml.Node // the frontmatter's mapping
 	Body  string
+	// Dir is the folder it was read from; Check reads the skill's other
+	// files there (docs/spec/skill-files.md). Empty for a new skill.
+	Dir string
 }
 
 // ReadFile reads the SKILL.md in dir.
@@ -42,7 +48,7 @@ func ReadFile(dir string) (File, error) {
 	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
 		return File{}, errors.New("the frontmatter is no mapping")
 	}
-	return File{Front: doc.Content[0], Body: string(body)}, nil
+	return File{Front: doc.Content[0], Body: string(body), Dir: dir}, nil
 }
 
 // Bytes is the file as it is written.
@@ -69,19 +75,14 @@ func (f File) Check(name string, settings map[string]any, l i18n.Lang) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "mira-skill-check-")
-	if err != nil {
-		return err
+	// The changed SKILL.md over the skill's folder: its other files (its
+	// blueprints) are checked as they are.
+	edited := fstest.MapFS{path.Join(name, "SKILL.md"): {Data: raw, Mode: 0o644}}
+	root := Root{Name: name, FS: edited}
+	if f.Dir != "" {
+		root = Root{Name: filepath.Dir(f.Dir), FS: overlay{base: os.DirFS(filepath.Dir(f.Dir)), top: edited}}
 	}
-	defer os.RemoveAll(tmp)
-	dir := filepath.Join(tmp, name)
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), raw, 0o644); err != nil {
-		return err
-	}
-	if _, p := load(dir, settings); p != nil {
+	if _, p := load(root, name, settings); p != nil {
 		return errors.New(p.Text(l))
 	}
 	return nil
@@ -129,4 +130,17 @@ func (f File) ScheduleDecls() []Schedule {
 		_ = n.Decode(&out)
 	}
 	return out
+}
+
+// overlay serves top's files over base's; a folder is base's.
+type overlay struct {
+	base fs.FS
+	top  fstest.MapFS
+}
+
+func (o overlay) Open(name string) (fs.File, error) {
+	if _, ok := o.top[name]; ok {
+		return o.top.Open(name)
+	}
+	return o.base.Open(name)
 }

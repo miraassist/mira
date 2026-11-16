@@ -96,6 +96,8 @@ flowchart LR
 | `internal/watch` | Mira's blueprints, embedded: making sure Home Assistant has them in this version, the catalog the planner chooses from, the check of a choice and its rendering by Home Assistant ([Device watch](spec/device-watch.md)) |
 | `internal/notifier` | Delivery: when, where, how a message arrives; indicators (LED ring, screen); reminders |
 | `internal/skills` | Skills in the Agent Skills format (`SKILL.md`), schedules, calendar; `random_pick`, which draws from a skill's axes so that quizzes and stories vary ([Random pick](spec/random-pick.md)). A skill that cannot start is skipped and reported with a readable reason in the log and in `/v1/status` (`problems`); the integration shows it as a repair in HA |
+| `internal/skillsource` | Loads a subscription's skills from a skill source at the start, in memory only: the request, its retries and errors ([Skill source](spec/skill-source.md)) |
+| `internal/skillha` | A skill's part in Home Assistant at the start: its skill blueprints (saved when new or of another version, only with a compatible interface) and its skill automations made from them ([Skill files](spec/skill-files.md)) |
 | `internal/calendar`, `internal/timeline` | Read and change calendars from Home Assistant; the shared rendering of the timeline |
 | `internal/mailcal` | Mail calendar: evaluate mails from HA's IMAP integration (the integration passes them on via `POST /v1/mail`) in isolation and maintain them as an entry in a calendar; hourly cleanup ([Mail calendar](spec/mail-calendar.md)) |
 | `internal/feeds` | Read feeds (RSS/Atom) |

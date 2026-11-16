@@ -1,6 +1,6 @@
 # Skill source – Spec
 
-Status 2026-11-16: specified, nothing built. Decisions 1 to 4 and 15 by the maintainer; 5 to 14 taken while writing and confirmed by
+Status 2026-11-16: specified; step 1 built 2026-11-16 (with [Skill files](skill-files.md)), steps 2 to 4 open. Decisions 1 to 4 and 15 by the maintainer; 5 to 14 taken while writing and confirmed by
 him the same day. The testable rules are numbered scenarios in [skill-source.feature](skill-source.feature); each Go test
 for one carries the number in its name (`TestSQ03_…`).
 
@@ -30,7 +30,8 @@ Departures, each with its reason:
   paid for.
 
 The server itself (subscriptions, payment, the watermark) is not part of Mira and not of this repository; this spec
-names only what Mira expects of it (section "The source's interface").
+names only what Mira expects of it (section "The source's interface"); the interface itself is specified once, on the
+server's side.
 
 ## Decisions
 
@@ -61,32 +62,13 @@ Taken while writing, confirmed by the maintainer (2026-11-16):
 
 ## The source's interface
 
-One request at Mira's start:
+Specified once, on the server's side: `mira-skills: REQUIREMENTS.md, Interface to Mira` (the server's repository is
+private): the request, every answer, and the skill's files (every file of the skill's folder, in any subfolder, by
+its path relative to the folder). This spec says only what Mira does with each answer (section B, Errors); what she
+does with the files beyond `SKILL.md`: [Skill files](skill-files.md).
 
-```
-GET <url>/v1/skills
-Authorization: Bearer <subscription key>
-Mira-Version: 0.25.0
-```
-
-Answer `200`, JSON:
-
-```json
-{
-  "skills": [
-    {
-      "name": "angehoerige",
-      "version": "1.2.0",
-      "files": { "SKILL.md": "---\nname: angehoerige\n…" }
-    }
-  ]
-}
-```
-
-- `files` maps a path inside the skill's folder to its text; only text files (as a skill folder holds today:
-  `SKILL.md`, an MCP server's description, prompts). A path with `..` or a leading `/` is refused.
-- `401` or `403`: the key is not (or no longer) valid. `404`: no skill source at this address.
-- The answer holds the subscription's copy (decision 3); Mira does not look for the watermark.
+Mira checks what she relies on: a path with `..`, a leading `/` or an empty part is refused (Go's `fs.ValidPath`);
+she does not look for the watermark.
 
 ## What it does
 
@@ -106,7 +88,7 @@ Answer `200`, JSON:
 4. From here a source's skill is loaded, switched on and wired like any other.
 
 What it costs: one HTTPS request at the start, its answer (all of the subscription's skills, typically tens of
-kilobytes) kept in memory for the service's life. The start waits for it, at most the retries' bound (below). No
+kilobytes) kept in memory for the service's life. The start waits for it, at most the retries' bound (below; each try at most 10 s). No
 turn waits for the source.
 
 ### C. Opening a source's skill
@@ -118,7 +100,7 @@ text at every turn that carries it, as with any skill.
 
 | Fails | What happens | Who learns of it |
 |---|---|---|
-| The source cannot be reached, a timeout, `429`, `5xx` | Retried at the start: three tries, waiting 2 s and 8 s (a `Retry-After` is kept, up to 30 s); then Mira starts without the source's skills ([Retries](retry.md)) | the log per try (address, error, next wait); after the last a repair "Die Skills aus dem Abo konnten nicht geladen werden; Mira versucht es beim nächsten Start wieder" |
+| The source cannot be reached, a timeout, `429`, `5xx` | Retried at the start: three tries, waiting 2 s and 4 s (exponential, [Retries](retry.md); a `Retry-After` is kept, up to 30 s; a longer one ends at once); then Mira starts without the source's skills ([Retries](retry.md)) | the log per try (address, error, next wait); after the last a repair "Die Skills aus dem Abo konnten nicht geladen werden; Mira versucht es beim nächsten Start wieder" |
 | `401`, `403` | Not retried; Mira starts without them | a repair "Dein Abo ist abgelaufen oder der Schlüssel stimmt nicht", and the log with the address and the status |
 | `404`, an answer that is not the expected JSON | Not retried; Mira starts without them | a repair naming the address; the log with the address, the status and the answer's start (the answer is not yet a skill's text) |
 | A skill in the answer without `name` or `SKILL.md`, or with a path refused | That skill is left out, the others load | a problem of the source naming the skill and the path |
@@ -132,12 +114,15 @@ text at every turn that carries it, as with any skill.
 - Protection against a changed Mira: not possible with an open service (decision 2).
 - Several sources, loading during the run, a copy kept for a start without the source.
 - Binary files in a skill (sounds, pictures).
+- A source's skill blueprints are written into Home Assistant like any blueprint ([Skill files](skill-files.md),
+  decision 16): only the skill's text stays in memory.
 
 ## Steps
 
 1. **The setting and loading** (A, B; decisions 5 to 8, 12 to 14): `skills.source` in `mira.yaml` and the secrets
-   file, the request with its retries and errors, the skills from memory in `skills.Load`, the repairs. A fake
-   source in `testenv/` for the tests. SQ-01 to SQ-08.
+   file, the request with its retries and errors, the skills from memory in `skills.Load`, the repairs. The fake
+   source of the Go tests serves the example answers of the server's contract (copied into
+   `internal/skillsource/testdata`). SQ-01 to SQ-08. Built 2026-11-16.
 2. **Protecting the text** (C; decisions 9 to 11): the placeholder in the history, the page without the text, the
    errors without it. SQ-09 to SQ-11.
 3. **The card "Abo" on the tab "Verbindungen"** (A), German and English. SQ-12.

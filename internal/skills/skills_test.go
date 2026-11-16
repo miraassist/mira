@@ -96,7 +96,7 @@ func TestShippedSkillsLoad(t *testing.T) {
 		}
 		// Every translation beside it reads, and brings a description.
 		for _, l := range i18n.All {
-			tr, ok, p := readTranslation(filepath.Join("../../skills", e.Name()), l, nil, nil)
+			tr, ok, p := readTranslation(os.DirFS(filepath.Join("../../skills", e.Name())), l, nil, nil)
 			if p != nil || (ok && tr.Description == "") {
 				t.Errorf("%s: translation %s: %v", e.Name(), l, p)
 			}
@@ -170,7 +170,7 @@ func TestOwnLanguage(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skill), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		sk, p := load(dir, nil)
+		sk, p := loadDir(dir, nil)
 		switch {
 		case want == "" && (p != nil || sk.Lang != i18n.EN || sk.DescriptionIn(i18n.DE) != "An English skill."):
 			t.Errorf("%s: %+v %v", lang, sk, p)
@@ -547,7 +547,7 @@ func TestChapters(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]string{"de": "## Kochen und Backen", "en": "## Cooking and baking"}
-	sk, p := load(dir, nil)
+	sk, p := loadDir(dir, nil)
 	if p != nil || !maps.Equal(sk.Chapters(), want) {
 		t.Errorf("loaded: %v %v", sk.Chapters(), p)
 	}
@@ -559,7 +559,7 @@ func TestChapters(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: kochen\ndescription: Kochen.\n---\n# Kochen\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if sk, _ := load(dir, nil); sk.Chapters() != nil {
+	if sk, _ := loadDir(dir, nil); sk.Chapters() != nil {
 		t.Errorf("without a chapter: %v", sk.Chapters())
 	}
 }

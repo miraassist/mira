@@ -50,7 +50,9 @@ import (
 	"github.com/miraassist/mira/internal/radio"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/setup"
+	"github.com/miraassist/mira/internal/skillha"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/skillsource"
 	"github.com/miraassist/mira/internal/speakerid"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/tasks"
@@ -143,6 +145,14 @@ type app struct {
 	// watch brings Mira's blueprints into Home Assistant
 	// (docs/spec/device-watch.md).
 	watch *watch.Blueprints
+	// skillHA brings the skills' blueprints and automations into Home
+	// Assistant at the start (docs/spec/skill-files.md); skillsOn are the
+	// skills it does it for, the switched-on ones that loaded.
+	skillHA  *skillha.Sync
+	skillsOn []skills.Skill
+	// skillRoots are where skills are found: the skill directories, then
+	// a skill source's skills in memory (docs/spec/skill-source.md).
+	skillRoots []skills.Root
 	// watchWaiter follows the devices whose watch offer waits for their next
 	// run.
 	watchWaiter *watch.Waiter
@@ -267,6 +277,17 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	for name, settings := range cfg.Skills.Enabled {
 		enabled[name] = settings
 	}
+	// The skill source's skills, once at the start, in memory only, after
+	// the skill directories (docs/spec/skill-source.md, B).
+	a.skillRoots = skills.Roots(cfg.Skills.Dirs)
+	var sourceProblems []skills.Problem
+	if cfg.Skills.Source.URL != "" {
+		var root *skills.Root
+		root, sourceProblems = skillsource.Load(ctx, skillsource.Options{Source: cfg.Skills.Source, Version: version, Logger: a.log})
+		if root != nil {
+			a.skillRoots = append(a.skillRoots, *root)
+		}
+	}
 	for _, name := range alwaysOn() {
 		if _, ok := enabled[name]; !ok && !cfg.Skills.Off[name] && skills.Exists(cfg.Skills.Dirs, name) {
 			enabled[name] = nil
@@ -274,7 +295,9 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	// A skill that cannot start is left out and reported (log, and the
 	// integration shows it as a repair); the service starts all the same.
-	all, problems := skills.Load(cfg.Skills.Dirs, enabled)
+	all, problems := skills.LoadFrom(a.skillRoots, enabled)
+	problems = append(sourceProblems, problems...)
+	a.skillsOn = all
 	// A skill may bring its MCP server (docs/spec/skill-mcp.md): it is
 	// connected as the others, its tools come only with the skill.
 	servers := append([]config.MCPServer(nil), cfg.MCPServers...)
@@ -581,6 +604,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	// Judging, deciding and drafting are isolated agents (agents.go), bound
 	// late: the agent runtime is built after this registry.
 	a.watch = watch.New(watch.Options{HA: a.ha, Templates: a.ha, Lang: a.lang, Logger: a.log})
+	a.skillHA = skillha.New(skillha.Options{HA: a.ha, Own: a.store, Lang: a.lang, Logger: a.log})
 	profiler := watch.NewProfiler(watch.ProfilerOptions{Recorder: a.ha, Lang: a.lang, Logger: a.log})
 	a.tasks = tasks.New(tasks.Options{
 		Lang: a.lang, Store: a.store, Source: a.ha, HA: a.ha, Snapshot: snapshot, Watch: a.watch,
@@ -877,6 +901,16 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 			return nil
 		}
 		_ = a.watch.Ready(ctx)
+		return nil
+	})
+	// The skills' blueprints and automations, once Home Assistant is
+	// connected (docs/spec/skill-files.md, steps 5 and 6); every failure is
+	// logged there and kept for the repairs.
+	a.goRun(ctx, "skill-blueprints", func(ctx context.Context) error {
+		if err := a.ha.WaitReady(ctx); err != nil {
+			return nil
+		}
+		a.skillHA.Run(ctx, a.skillsOn)
 		return nil
 	})
 	// The watch offers that wait for a device's next run are followed again
@@ -1781,6 +1815,13 @@ var promptProblem = map[i18n.Lang]string{
 
 func (a *app) allProblems() []haconv.Problem {
 	out := append([]haconv.Problem(nil), a.problems...)
+	// A skill's blueprint or automation that did not reach Home Assistant
+	// (docs/spec/skill-files.md, Errors): the skill runs without it.
+	if a.skillHA != nil {
+		for _, p := range a.skillHA.Problems(a.lang) {
+			out = append(out, haconv.Problem{Source: "skill", Name: p.Skill, Text: p.Text(a.lang)})
+		}
+	}
 	for _, p := range a.hooks.Problems() {
 		out = append(out, haconv.Problem{Source: "hook", Name: p.File, Text: p.Text})
 	}

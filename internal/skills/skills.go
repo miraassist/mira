@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -47,9 +48,22 @@ type Skill struct {
 	// the texts for a turn's language.
 	Lang         i18n.Lang
 	translations map[i18n.Lang]translation
-	Dir          string
-	Settings     map[string]Setting
-	Schedules    []Schedule
+	// Dir is the skill's folder on disk; empty for a skill from a skill
+	// source, which lives in memory only (docs/spec/skill-source.md).
+	Dir string
+	// Files are the skill's files: every file of its folder, in every
+	// subfolder, as it is, rooted at the folder (SKILL.md, blueprints/…),
+	// from a folder or from a source alike (docs/spec/skill-files.md).
+	Files fs.FS
+	// Source is the address of the skill source the skill came from; empty
+	// for a skill from a folder.
+	Source string
+	// Automations are the skill automations it declares
+	// (metadata.mira.automations), their inputs filled from the settings
+	// (docs/spec/skill-files.md, decision 12).
+	Automations []Automation
+	Settings    map[string]Setting
+	Schedules   []Schedule
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
 	Target *Target
@@ -343,31 +357,84 @@ type frontmatter struct {
 			Language  string               `yaml:"language"`
 			Chapter   string               `yaml:"chapter"`
 			Random    yaml.Node            `yaml:"random"`
+			// Automations are kept as written: their inputs are filled
+			// with the settings' values as mira.yaml has them.
+			Automations []automationDecl `yaml:"automations"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
 
 var namePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// Root is one place skills are found in: a skill directory on disk, or the
+// skills of a skill source in memory (docs/spec/skill-source.md). Its file
+// system holds one folder per skill.
+type Root struct {
+	// Name is the folder's path, or the source's address: what a problem
+	// names.
+	Name string
+	FS   fs.FS
+	// Source says the skills come from a skill source.
+	Source bool
+}
+
+// Roots are the skill directories as roots, in order.
+func Roots(dirs []string) []Root {
+	out := make([]Root, 0, len(dirs))
+	for _, d := range dirs {
+		out = append(out, Root{Name: d, FS: os.DirFS(d)})
+	}
+	return out
+}
+
 // Load finds every enabled skill in dirs (the first folder of that name
 // wins) and checks it against its settings. A skill that is enabled but
 // missing or broken is left out and comes back as a Problem: the service must
 // start anyway, and the problem is shown to whoever enabled the skill.
 func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, []Problem) {
+	return LoadFrom(Roots(dirs), enabled)
+}
+
+// LoadFrom is Load over roots: the skill directories, then a source's skills
+// (docs/spec/skill-source.md, B). A source's skill with the name of a skill
+// in a folder before it is left out, with a problem naming both (decision
+// 12); the folder's is the one loaded.
+func LoadFrom(roots []Root, enabled map[string]map[string]any) ([]Skill, []Problem) {
 	var out []Skill
 	var problems []Problem
+	for i, r := range roots {
+		if !r.Source {
+			continue
+		}
+		entries, err := fs.ReadDir(r.FS, ".")
+		if err != nil {
+			continue // a source's skills are in memory: nothing to fail
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			if other := findIn(roots[:i], e.Name()); other != nil {
+				problems = append(problems, Problem{Skill: e.Name(), kind: KindSourceTwice, args: []any{e.Name(), other.Name, r.Name}})
+			}
+		}
+	}
 	names := make([]string, 0, len(enabled))
 	for n := range enabled {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		dir := find(dirs, name)
-		if dir == "" {
-			problems = append(problems, Problem{Skill: name, kind: "nofolder", args: []any{name, strings.Join(dirs, ", ")}})
+		root := findIn(roots, name)
+		if root == nil {
+			where := make([]string, 0, len(roots))
+			for _, r := range roots {
+				where = append(where, r.Name)
+			}
+			problems = append(problems, Problem{Skill: name, kind: "nofolder", args: []any{name, strings.Join(where, ", ")}})
 			continue
 		}
-		s, p := load(dir, enabled[name])
+		s, p := load(*root, name, enabled[name])
 		if p != nil {
 			p.Skill = name
 			problems = append(problems, *p)
@@ -376,6 +443,19 @@ func Load(dirs []string, enabled map[string]map[string]any) ([]Skill, []Problem)
 		out = append(out, s)
 	}
 	return out, problems
+}
+
+// findIn is the first root with a skill folder of that name, nil if none.
+func findIn(roots []Root, name string) *Root {
+	if !fs.ValidPath(name) || strings.Contains(name, "/") {
+		return nil
+	}
+	for i := range roots {
+		if st, err := fs.Stat(roots[i].FS, path.Join(name, "SKILL.md")); err == nil && !st.IsDir() {
+			return &roots[i]
+		}
+	}
+	return nil
 }
 
 func find(dirs []string, name string) string {
@@ -388,8 +468,12 @@ func find(dirs []string, name string) string {
 	return ""
 }
 
-func load(dir string, values map[string]any) (Skill, *Problem) {
-	raw, err := os.ReadFile(filepath.Join(dir, "SKILL.md"))
+func load(root Root, name string, values map[string]any) (Skill, *Problem) {
+	files, err := fs.Sub(root.FS, name)
+	if err != nil {
+		return Skill{}, problem("unreadable", err)
+	}
+	raw, err := fs.ReadFile(files, "SKILL.md")
 	if err != nil {
 		return Skill{}, problem("unreadable", err)
 	}
@@ -401,15 +485,20 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 	if err := yaml.Unmarshal(fm, &meta); err != nil {
 		return Skill{}, problem("yaml", err)
 	}
-	if meta.Name != filepath.Base(dir) || !namePattern.MatchString(meta.Name) {
+	if meta.Name != name || !namePattern.MatchString(meta.Name) {
 		return Skill{}, problem("name", meta.Name)
 	}
 	if strings.TrimSpace(meta.Description) == "" {
 		return Skill{}, problem("nodesc")
 	}
 	m := meta.Metadata.Mira
-	s := Skill{Name: meta.Name, Description: strings.TrimSpace(meta.Description), Dir: dir,
+	s := Skill{Name: meta.Name, Description: strings.TrimSpace(meta.Description), Files: files,
 		Settings: m.Settings, Privacy: m.Privacy}
+	if root.Source {
+		s.Source = root.Name
+	} else {
+		s.Dir = filepath.Join(root.Name, name)
+	}
 	if s.Privacy != "" && s.Privacy != config.PrivacyLocal {
 		return Skill{}, problem("privacyword", s.Privacy)
 	}
@@ -585,6 +674,9 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		}
 		s.MCP = &srv
 	}
+	if s.Automations, p = automations(files, m.Automations, values, vals, m.Settings); p != nil {
+		return Skill{}, p
+	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)
 	s.Chapter = strings.TrimSpace(m.Chapter)
 	s.Takes = strings.TrimSpace(m.Takes)
@@ -598,7 +690,7 @@ func load(dir string, values map[string]any) (Skill, *Problem) {
 		if l == s.Lang {
 			continue
 		}
-		t, ok, p := readTranslation(dir, l, vals, m.Settings)
+		t, ok, p := readTranslation(files, l, vals, m.Settings)
 		if p != nil {
 			return Skill{}, p
 		}
@@ -624,10 +716,10 @@ type translation struct {
 // readTranslation reads SKILL.<lang>.md: frontmatter with the translated
 // texts by key (the first step: the description), the translated guide as
 // its body, filled like the skill's own.
-func readTranslation(dir string, l i18n.Lang, vals map[string]string, decl map[string]Setting) (translation, bool, *Problem) {
+func readTranslation(files fs.FS, l i18n.Lang, vals map[string]string, decl map[string]Setting) (translation, bool, *Problem) {
 	name := "SKILL." + string(l) + ".md"
-	raw, err := os.ReadFile(filepath.Join(dir, name))
-	if os.IsNotExist(err) {
+	raw, err := fs.ReadFile(files, name)
+	if errors.Is(err, fs.ErrNotExist) {
 		return translation{}, false, nil
 	}
 	if err != nil {
@@ -842,6 +934,9 @@ func remoteAgent(name string, d *config.AgentDef, privacy string, vals map[strin
 // Exists reports whether a skill folder of that name is in dirs.
 func Exists(dirs []string, name string) bool { return find(dirs, name) != "" }
 
+// ExistsIn reports whether a skill of that name is in roots.
+func ExistsIn(roots []Root, name string) bool { return findIn(roots, name) != nil }
+
 // Info is a skill folder's name, description and chapter of Mira's guide
 // by language (as Skill.Chapters), read without loading it.
 type Info struct {
@@ -853,14 +948,19 @@ type Info struct {
 // Available are the skills in dirs that are not enabled, by name: what a
 // user could switch on (the first folder of a name wins, as for Load).
 func Available(dirs []string, enabled map[string]map[string]any) []Info {
+	return AvailableIn(Roots(dirs), enabled)
+}
+
+// AvailableIn is Available over roots, a source's skills among them.
+func AvailableIn(roots []Root, enabled map[string]map[string]any) []Info {
 	seen := map[string]bool{}
 	var out []Info
-	for _, d := range dirs {
-		entries, err := os.ReadDir(d)
+	for _, r := range roots {
+		entries, err := fs.ReadDir(r.FS, ".")
 		if err != nil {
 			// docs/spec/fallbacks.md, row 29; a folder not made yet is no error.
 			if !errors.Is(err, fs.ErrNotExist) {
-				slog.Warn("could not read a skills folder; its skills are missing from the list", "dir", d, "error", err)
+				slog.Warn("could not read a skills folder; its skills are missing from the list", "dir", r.Name, "error", err)
 			}
 			continue
 		}
@@ -869,11 +969,11 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 			if !e.IsDir() || seen[name] {
 				continue
 			}
-			raw, err := os.ReadFile(filepath.Join(d, name, "SKILL.md"))
+			raw, err := fs.ReadFile(r.FS, path.Join(name, "SKILL.md"))
 			if err != nil {
 				// A folder without SKILL.md is no skill.
 				if !errors.Is(err, fs.ErrNotExist) {
-					slog.Warn("could not read a skill; it is missing from the list", "skill", name, "dir", d, "error", err)
+					slog.Warn("could not read a skill; it is missing from the list", "skill", name, "dir", r.Name, "error", err)
 				}
 				continue
 			}
@@ -886,7 +986,9 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 				var fm frontmatter
 				if yaml.Unmarshal(front, &fm) == nil {
 					info.Description = strings.TrimSpace(fm.Description)
-					info.Chapters = availableChapters(filepath.Join(d, name), fm.Metadata.Mira.Language, fm.Metadata.Mira.Chapter)
+					if sub, err := fs.Sub(r.FS, name); err == nil {
+						info.Chapters = availableChapters(sub, fm.Metadata.Mira.Language, fm.Metadata.Mira.Chapter)
+					}
 				}
 			}
 			out = append(out, info)
@@ -898,7 +1000,7 @@ func Available(dirs []string, enabled map[string]map[string]any) []Info {
 
 // availableChapters are the chapters of a skill not switched on: its own
 // and those of its translations, as Skill.Chapters.
-func availableChapters(dir, language, chapter string) map[string]string {
+func availableChapters(files fs.FS, language, chapter string) map[string]string {
 	own, err := i18n.Parse(language)
 	if err != nil || strings.TrimSpace(chapter) == "" {
 		return nil
@@ -908,7 +1010,7 @@ func availableChapters(dir, language, chapter string) map[string]string {
 		if l == own {
 			continue
 		}
-		if t, ok, _ := readTranslation(dir, l, nil, nil); ok && t.Chapter != "" {
+		if t, ok, _ := readTranslation(files, l, nil, nil); ok && t.Chapter != "" {
 			out[string(l)] = t.Chapter
 		}
 	}

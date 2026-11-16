@@ -50,6 +50,7 @@ Sag das Wetter für {{ort}}.
 `)
 	writeSkill(t, dir, "frei", "---\nname: frei\ndescription: Ein freier Skill.\n---\nText.\n")
 	a.cfg.Skills.Dirs = []string{dir}
+	a.skillRoots = skills.Roots(a.cfg.Skills.Dirs)
 	a.cfg.Skills.Enabled = map[string]map[string]any{"wetter": {"ort": "Karlsruhe", "key": "geheim"}, "kaputt": nil}
 	loaded, _ := skills.Load(a.cfg.Skills.Dirs, a.cfg.Skills.Enabled)
 	a.skills = &skills.Set{Skills: loaded}

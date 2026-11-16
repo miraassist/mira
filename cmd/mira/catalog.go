@@ -44,7 +44,8 @@ func (a *app) catalog(ctx context.Context) ui.Catalog {
 			}
 		}
 	}
-	for _, info := range skills.Available(a.cfg.Skills.Dirs, a.cfg.Skills.Enabled) {
+	// A skill source's skills among them (docs/spec/skill-source.md, SQ-02).
+	for _, info := range skills.AvailableIn(a.skillRoots, a.cfg.Skills.Enabled) {
 		if _, problem := problems[info.Name]; !problem && !started[info.Name] {
 			c.Skills = append(c.Skills, ui.SkillInfo{Name: info.Name, Description: info.Description, State: "available",
 				Chapters: info.Chapters})

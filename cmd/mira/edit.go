@@ -167,7 +167,7 @@ func (e *editor) skillsState(top *yaml.Node, st *ui.EditState) {
 		names[info.Name] = true
 	}
 	for _, n := range config.Keys(entries) {
-		if n != "dirs" {
+		if n != "dirs" && n != config.SkillSourceKey {
 			names[n] = true
 		}
 	}
