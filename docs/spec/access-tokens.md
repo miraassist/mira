@@ -1,6 +1,6 @@
 # Access tokens – Spec
 
-Status 2026-11-16: spec, nothing built. One question is open (backup and restore); it is answered before step 1 is built. Scenarios:
+Status 2026-11-16: spec, nothing built. Scenarios:
 [access-tokens.feature](access-tokens.feature).
 
 ## Goal
@@ -36,12 +36,7 @@ token, and the partner activity on Mira's page.
 | 13 | Where on the page | Setup → Connections, a section "Zugänge" / "Access" |
 | 14 | Expiry | None; a token holds until it is deleted |
 | 15 | The integration's token in the list | Shown as "Home Assistant (Integration)", not deletable there (removing the integration releases it, [Setup](setup.md)) |
-
-## Open (to be answered before step 1)
-
-| # | Question | To weigh |
-|---|---|---|
-| A | Backup and restore (`/v1/backup`, `/v1/restore`) with a partner token | They carry the whole database: memory, messages, the household's data. A restore replaces it. Allowed by decision 6, or kept to the integration like the setup's routes |
+| 16 | Backup and restore (`/v1/backup`, `/v1/restore`) | Not with a partner token for now (403, like the setup's routes); they carry the whole database. Can be decided either way later |
 
 ## Building blocks
 
@@ -77,7 +72,7 @@ with the name and the error; nothing is stored, the page says it did not work.
    held tokens. None fits → 401 as today (`missing or wrong bearer token`), no log line per call (as today; a log
    line per wrong call would let anyone fill the log).
 2. A partner token: the caller is `{name, kind: partner, partner_user}`, the partner user from `X-Partner-User`
-   (empty if missing). The headers `X-Mira-HA-User` / `X-Mira-HA-Admin` are ignored (decision 10); the setup's routes refuse a partner token with 403 (decision 9).
+   (empty if missing). The headers `X-Mira-HA-User` / `X-Mira-HA-Admin` are ignored (decision 10); the setup's routes and backup and restore refuse a partner token with 403 (decisions 9 and 16).
 3. With the integration's token, `X-Partner-User` is dropped before the handler sees it.
 4. Every call of a partner token writes a row of partner activity (time, token name, partner user, method, path,
    status), for every call (decision 12). A log line `partner call` with the same fields.
