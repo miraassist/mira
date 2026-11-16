@@ -23,7 +23,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/miraassist/mira/internal/excerpt"
 	"github.com/miraassist/mira/internal/i18n"
@@ -873,17 +872,6 @@ func (s *Service) keepMail(ctx context.Context, _ string, _ bool, doc Doc) {
 // --- helpers ----------------------------------------------------------------
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
-
-// sameWords: a and b name the same, punctuation and case aside ("IKEA
-// Rechnung" and "IKEA - Rechnung").
-func sameWords(a, b string) bool {
-	words := func(s string) string {
-		return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-		}), " ")
-	}
-	return words(a) == words(b)
-}
 
 func clip(s string, n int) string {
 	if r := []rune(s); len(r) > n {

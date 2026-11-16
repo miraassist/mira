@@ -191,8 +191,8 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
   on, windows open while nobody is home, low batteries) by kind, area or floor;
   "Ist alles zu?" names what is still open.
 - **Mira's inbox**: documents tagged in Paperless and mails of an IMAP
-  mailbox; she tells their owner what they ask for and enters chosen
-  appointments into the calendar.
+  mailbox; she finds appointments and to-dos with a deadline in them and, after a
+  yes, enters them into the calendar or onto the to-do list.
 - **Adding devices by voice**: Zigbee, Matter (the QR code read by an Echo
   Show's camera, or its digits read out), devices Home Assistant found, and
   Wi-Fi devices brought into the Wi-Fi; then room and name.
