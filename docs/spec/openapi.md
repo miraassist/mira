@@ -69,6 +69,10 @@ Taken while writing (2026-11-16), to be confirmed:
 - **Decision 11, at run time**: the running service describes the routes of its setup; it equals the file when
   every optional route is on. The description is made at each call, nothing is kept.
 
+- **Accepted by the maintainer (2026-11-16):** a field made a pointer to keep its key present when empty shows as
+  nullable in the description, although the service never sends null (2A); `TaskList.error` with `omitempty` differs
+  from the old map only for an error with an empty message, which does not happen (3A).
+
 ## What it does
 
 1. `internal/api`: `Route{Method, Path, Summary, Tag, Query, Request, Response, Status, Errors, Open, Only}`, `Mux`

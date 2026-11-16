@@ -121,6 +121,9 @@ type app struct {
 	mail *mailcal.Service
 	// inbox is Mira's inbox in Paperless (docs/spec/inbox.md); nil when off.
 	inbox *inbox.Service
+	// haFromSetup: the Home Assistant token came from the integration's
+	// setup; only then is a refused token the integration's repair.
+	haFromSetup bool
 	// pairing: Home Assistant pairs with a code (the token is the service's
 	// own).
 	pairing bool
@@ -213,6 +216,9 @@ type buildOptions struct {
 	pairing bool
 	// configPath is the mira.yaml the page edits; empty: no editing.
 	configPath string
+	// haFromSetup: the Home Assistant token came from the integration's
+	// setup (prepared.haFromSetup).
+	haFromSetup bool
 }
 
 // build wires everything that both run and chat need, and connects to Home
@@ -227,7 +233,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		return nil, err
 	}
 	slog.SetDefault(tel.Logger)
-	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath,
+	a := &app{cfg: cfg, log: tel.Logger, tel: tel, warmup: func(string) {}, pairing: opts.pairing, configPath: opts.configPath, haFromSetup: opts.haFromSetup,
 		speaker: speakerid.New(cfg.SpeakerID.URL, cfg.SpeakerID.Token)}
 
 	a.store, err = store.Open(ctx, store.Options{Path: cfg.Store.Path})
@@ -882,7 +888,7 @@ func (a *app) close() {
 func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
-	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing, configPath: p.path})
+	a, err := build(ctx, cfg, buildOptions{pairing: p.pairing, configPath: p.path, haFromSetup: p.haFromSetup})
 	if err != nil {
 		return err
 	}
@@ -1393,7 +1399,7 @@ func (u uiConfig) ReleaseHA() {
 func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	cfg := a.cfg
 	opts := haconv.Options{
-		Eval: cfg.Server.Eval, Token: cfg.Server.Token, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
+		Eval: cfg.Server.Eval, Token: cfg.Server.Token, HATokenRepair: a.haFromSetup, Conversation: a.engine, Store: a.store, Version: version, InstanceID: a.instanceID(),
 		Logger: a.log, TurnTimeout: longestTimeout(cfg), Checks: a.healthChecks(),
 		Persons: a.persons, HAUser: a.haUser, Tasks: a.tasks,
 		Problems: a.allProblems, ExposedHash: a.exposedHash, Agents: a.agents, StartSkill: a.startSkill,

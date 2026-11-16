@@ -1,6 +1,6 @@
 # Home Assistant through Mira's interface – Spec
 
-Status 2026-11-16: steps 1 and 2 built (not released). Decisions 1 to 3 and 10 by the maintainer, the others taken
+Status 2026-11-16: steps 1 and 2 built (not released). Decisions 1 to 3, 10 and 11 by the maintainer, the others taken
 while writing, to be confirmed. Scenarios: [ha-api.feature](ha-api.feature) (`HE-…`).
 
 ## Goal
@@ -22,6 +22,7 @@ By the maintainer (2026-11-16):
 | 2 | Who may | Whoever holds a token of Mira's interface (the integration's or an access token); a partner's calls show on Mira's page as every partner call does ([Access tokens](access-tokens.md), decision 7) |
 | 3 | Described | In Mira's OpenAPI file ([OpenAPI](openapi.md)) |
 | 10 | A refused token (the open question of step 1: decided B) | Home Assistant refusing Mira's token on these routes raises a repair, not only a log line: the existing one, "Mira has no access any more" / „Mira hat keinen Zugang mehr“ ([HACS default](hacs-default.md), 4). It goes again with the next call Home Assistant accepts |
+| 11 | Only for a token from the setup (2026-11-16, by the maintainer, 1B) | The repair is raised only when Mira's Home Assistant token came from the integration's setup (pairing). A token from `mira.yaml` is not the integration's to replace (its fix sends a new token through the setup): a refusal then answers `502` and writes the log line, but `/v1/status` does not report it |
 
 Taken while writing (2026-11-16), to be confirmed:
 
@@ -120,4 +121,4 @@ Every `4xx`/`5xx` uses Mira's error body (`{"error": "…"}`) as every route doe
 1. **The two routes** with their errors and tests (HE-01 to HE-08), in the OpenAPI file (built 2026-11-16:
    `internal/channels/haconv/ha.go`, `ws.Client.State`).
 2. **The repair for a refused token** (decision 10): `ha_token_refused` in `/v1/status`, the integration's existing
-   repair (HE-09; built 2026-11-16, Go and pytest).
+   repair (HE-09, built 2026-11-16, Go and pytest); only for a token from the setup (HE-10, decision 11, built 2026-11-16).

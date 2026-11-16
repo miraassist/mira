@@ -41,10 +41,15 @@ type HealthCheck func(ctx context.Context) error
 type Options struct {
 	// Eval is eval mode (docs/spec/evals.md): answers carry their trace,
 	// and POST /v1/eval/reset empties Mira's state between scenarios.
-	Eval         bool
-	Token        string
-	Conversation Conversation
-	Store        *store.Store
+	Eval  bool
+	Token string
+	// HATokenRepair: Mira's Home Assistant token came from the integration's
+	// setup, so a refused token is reported in /v1/status for the
+	// integration's repair; a token from mira.yaml is not the integration's
+	// to replace (docs/spec/ha-api.md, decision 11).
+	HATokenRepair bool
+	Conversation  Conversation
+	Store         *store.Store
 	// Checks are run by /v1/health. A failing check makes the service
 	// "degraded", not down: it still answers, just with less.
 	Checks  map[string]HealthCheck
@@ -517,7 +522,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	// version lets the integration say when it and the service do not match
 	// (docs/spec/versions.md).
 	status := Status{PendingMessages: pending, QuietMode: quiet, Problems: problems, Version: s.opts.Version,
-		HATokenRefused: s.haRefused.Load()}
+		HATokenRefused: s.opts.HATokenRepair && s.haRefused.Load()}
 	if s.opts.ExposedHash != nil {
 		hash := s.opts.ExposedHash(r.Context())
 		status.ExposedHash = &hash

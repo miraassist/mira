@@ -34,6 +34,9 @@ type prepared struct {
 	// waits to be set up.
 	ready    bool
 	hasModel bool
+	// haFromSetup: Home Assistant's address and token came from the
+	// integration's setup, not from mira.yaml.
+	haFromSetup bool
 	// code: the pairing code for another Home Assistant, made when one
 	// let go.
 	code string
@@ -73,6 +76,7 @@ func prepare(ctx context.Context, path string) (prepared, error) {
 		slog.Info("setup covers mira.yaml: the integration's values are used", "settings", strings.Join(covered, ", "))
 	}
 	p.cfg = setup.Apply(cfg, s)
+	p.haFromSetup = s.HAURL != "" && s.HAToken != ""
 	if err := p.cfg.Validate(); err != nil {
 		return prepared{}, err
 	}

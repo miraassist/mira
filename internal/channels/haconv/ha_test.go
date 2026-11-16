@@ -268,7 +268,7 @@ func TestHE09_ARefusedTokenRaisesTheRepair(t *testing.T) {
 	}
 	t.Cleanup(func() { st.Close() })
 	var logs bytes.Buffer
-	srv := httptest.NewServer(New(Options{Token: "secret", HA: client, Store: st,
+	srv := httptest.NewServer(New(Options{Token: "secret", HATokenRepair: true, HA: client, Store: st,
 		Logger: slog.New(slog.NewTextHandler(&logs, nil))}))
 	t.Cleanup(srv.Close)
 	refused := func() (bool, bool) {
@@ -309,5 +309,40 @@ func TestHE09_ARefusedTokenRaisesTheRepair(t *testing.T) {
 	}
 	if _, present := refused(); present {
 		t.Fatal("ha_token_refused stays after a call Home Assistant accepted")
+	}
+}
+
+// HE-10: a Home Assistant token from mira.yaml (not from the integration's
+// setup) is not the integration's to replace: a refusal answers 502 and is
+// logged, but /v1/status does not raise the repair (docs/spec/ha-api.md,
+// decision 11).
+func TestHE10_ATokenFromTheFileRaisesNoRepair(t *testing.T) {
+	ha := fakeha.New()
+	t.Cleanup(ha.Close)
+	ha.SetStates([]haws.State{{EntityID: "input_boolean.x", State: "on"}})
+	client := haClient(t, ha.URL, ha.Token)
+	waitConnected(t, client)
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	var logs bytes.Buffer
+	srv := httptest.NewServer(New(Options{Token: "secret", HA: client, Store: st,
+		Logger: slog.New(slog.NewTextHandler(&logs, nil))}))
+	t.Cleanup(srv.Close)
+	ha.SetToken("revoked")
+	if code, out := do(t, srv, "GET", "/v1/ha/states/input_boolean.x", "secret", ""); code != http.StatusBadGateway {
+		t.Fatalf("want 502 for the refused token, got %d %v", code, out)
+	}
+	if !strings.Contains(logs.String(), "refused Mira's token") {
+		t.Fatalf("no log line for the refusal:\n%s", logs.String())
+	}
+	code, out := do(t, srv, "GET", "/v1/status", "secret", "")
+	if code != http.StatusOK {
+		t.Fatalf("status: %d %v", code, out)
+	}
+	if _, present := out["ha_token_refused"]; present {
+		t.Fatalf("a token from mira.yaml raised the repair: %v", out)
 	}
 }
