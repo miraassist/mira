@@ -1,7 +1,7 @@
 # Skill files – Spec
 
 Status 2026-11-16: specified; steps 1 to 3 built 2026-11-16, step 4 (the guide) open. Decisions 1 to 4 by the
-maintainer; 5 to 16 taken while writing, to be confirmed by him. The testable rules are numbered scenarios in
+maintainer; 5 to 16 taken while writing and confirmed by him the same day. The testable rules are numbered scenarios in
 [skill-files.feature](skill-files.feature); each Go test for one carries the number in its name (`TestSB03_…`).
 
 ## Goal
@@ -57,7 +57,7 @@ By the maintainer (2026-11-16):
 | 3 | The building block | General: every file of the skill's folder, in any subfolder, comes with the skill. Blueprints are one application |
 | 4 | The transfer | Specified once, on the server's side: `mira-skills: REQUIREMENTS.md, Interface to Mira`. This spec and [Skill source](skill-source.md) refer to it |
 
-Taken while writing, to be confirmed by the maintainer (2026-11-16):
+Taken while writing, confirmed by the maintainer (2026-11-16):
 
 | # | Topic | Decision | Reason |
 |---|---|---|---|
