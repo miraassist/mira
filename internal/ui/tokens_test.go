@@ -83,10 +83,19 @@ func TestAT10_ThePageMakesATokenAndShowsItOnce(t *testing.T) {
 	// (decision 20).
 	fn := regexp.MustCompile(`(?s)async function tokenMake\(form\) \{.*?\n\}`).Find(page)
 	for _, want := range []string{"await ask({", "value: r.token", "readonly: true", "ok: T.tok_copy_close",
-		"navigator.clipboard.writeText(r.token)"} {
+		"copyText(r.token)"} {
 		if !bytes.Contains(fn, []byte(want)) {
 			t.Fatalf("tokenMake lacks %s:\n%s", want, fn)
 		}
+	}
+	// A taken name is said under the field, not only at the page's top.
+	if !bytes.Contains(fn, []byte(`fail(e.message === "name taken" ? T.tok_taken : e.message)`)) {
+		t.Fatalf("tokenMake does not say a taken name under the field:\n%s", fn)
+	}
+	// Copying works over http too (decision 21).
+	cp := regexp.MustCompile(`(?s)async function copyText\(text\) \{.*?\n\}`).Find(page)
+	if !bytes.Contains(cp, []byte("navigator.clipboard")) || !bytes.Contains(cp, []byte(`document.execCommand("copy")`)) {
+		t.Fatalf("copyText:\n%s", cp)
 	}
 	// Home Assistant users who are no admin may not (decision 8).
 	if code, _ := callAs(t, srv, "POST", "/v1/ui/tokens", `{"name":"Other"}`,

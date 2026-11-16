@@ -25,18 +25,21 @@ type AccessToken struct {
 var ErrNameTaken = errors.New("name taken")
 
 // AddAccessToken stores a token's hash under a new name; ErrNameTaken for a
-// name in use.
+// name in use, whatever its case.
 func (s *Store) AddAccessToken(ctx context.Context, name, kind, hash, prefix string) (AccessToken, error) {
 	t := AccessToken{ID: strings.ToLower(ulid.Make().String()), Name: name, Kind: kind, Hash: hash, Prefix: prefix,
 		Created: s.now()}
-	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM access_tokens WHERE name = ?`, name).Scan(&n); err != nil {
+	// A name is taken regardless of upper and lower case ("Test", "test").
+	have, err := s.AccessTokens(ctx)
+	if err != nil {
 		return AccessToken{}, err
 	}
-	if n > 0 {
-		return AccessToken{}, ErrNameTaken
+	for _, h := range have {
+		if strings.EqualFold(h.Name, name) {
+			return AccessToken{}, ErrNameTaken
+		}
 	}
-	_, err := s.db.ExecContext(ctx, `
+	_, err = s.db.ExecContext(ctx, `
 INSERT INTO access_tokens(id, name, kind, hash, prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Name, t.Kind, t.Hash, t.Prefix, formatTime(t.Created))
 	return t, err

@@ -41,6 +41,7 @@ token, and the partner activity on Mira's page.
 | 18 | Managing access with a partner token (2026-11-16, 2B) | Refused (403): `/v1/ui/tokens` and below are the owner's; a partner cannot make, delete or list tokens, nor read the partner activity |
 | 19 | The page's words (2026-11-16, by the maintainer) | The page and the guide do not speak of a partner: it is simply a new token ("Zugangs-Tokens", "Neues Token anlegen"; the partner user is "Benutzer"). Partner stays the word in the specs and the code (kind `partner`, `X-Partner-User`) |
 | 20 | Showing a new token (2026-11-16, by the maintainer) | In the page's dialog, the token in a read-only field, selected, with "Kopieren und schließen" and "Schließen"; never inline on the page, where it was overlooked |
+| 21 | A taken name; copying over http (2026-11-16, by the maintainer, after trying it) | A name is taken regardless of upper and lower case ("Test" and "test" are one); the page says so under the field, not only at its top. The browser's clipboard interface exists only on https and localhost; over http the page copies with the browser's older copy command, for the connections' copy button too |
 
 ## Building blocks
 
@@ -66,7 +67,8 @@ token, and the partner activity on Mira's page.
    **once**. The page shows it in its dialog (decision 20): "Das Token „<name>“. Kopiere es jetzt: Es wird nur dieses
    eine Mal angezeigt.", the token selected in a read-only field, "Kopieren und schließen" copies it and closes,
    "Schließen" closes.
-3. The name must be new among the tokens: a second "Elektro Meier" is refused (409, the page says so).
+3. The name must be new among the tokens, regardless of case: a second "Elektro Meier" or an "elektro meier" is
+   refused (409); the page says so under the field (decision 21).
 
 **Costs:** one write; the tokens are held in memory (a map from hash to name and kind), renewed on every write, so a
 call costs no read of the database.

@@ -712,6 +712,7 @@ const I18N = {
   "tok_copy_close": "Kopieren und schließen",
   "tok_close": "Schließen",
   "tok_copied": "Token kopiert.",
+  "copy_failed": "Kopieren hat nicht geklappt; markiere den Text und kopiere ihn mit Strg+C (Mac: ⌘C).",
   "tok_delete": "Löschen",
   "tok_delete_ask": "Token „%s“ löschen? Wer es nutzt, kommt danach nicht mehr an Mira.",
   "tok_gone": "Dieses Token ist schon gelöscht.",
@@ -1256,6 +1257,7 @@ const I18N = {
   "tok_copy_close": "Copy and close",
   "tok_close": "Close",
   "tok_copied": "Token copied.",
+  "copy_failed": "Copying did not work; select the text and copy it with Ctrl+C (Mac: ⌘C).",
   "tok_delete": "Delete",
   "tok_delete_ask": "Delete the token \"%s\"? Whoever uses it can no longer reach Mira afterwards.",
   "tok_gone": "This token is already deleted.",
@@ -2021,23 +2023,27 @@ async function tokens() {
     <form class="token-new" onsubmit="event.preventDefault(); tokenMake(this)">
       <input name="name" autocomplete="off" placeholder="${esc(T.tok_name)}" aria-label="${esc(T.tok_name)}">
       <button class="primary" type="submit">${T.tok_make}</button>
-    </form>`;
+    </form>
+    <p class="msg err" id="token-err" hidden></p>`;
   el.querySelectorAll("details[data-id]").forEach(d => d.addEventListener("toggle", () => {
     if (d.open) tokenActivity(d.dataset.id, 0);
   }, { once: true }));
 }
 // tokenMake shows the new token once, in the page's dialog, to copy.
 async function tokenMake(form) {
-  const name = form.name.value.trim();
-  if (!name) { message(T.tok_need_name, false); return; }
+  const name = form.name.value.trim(), err = $("#token-err");
+  // Errors show under the field, where the eye is (a duplicate name too).
+  const fail = text => { err.textContent = text; err.hidden = false; };
+  err.hidden = true;
+  if (!name) { fail(T.tok_need_name); return; }
   let r;
   try { r = await api("POST", "/v1/ui/tokens", { name }); }
-  catch (e) { message(e.message === "name taken" ? T.tok_taken : e.message, false); return; }
+  catch (e) { fail(e.message === "name taken" ? T.tok_taken : e.message); return; }
   await tokens();
   const copy = await ask({ text: T.tok_made.replace("%s", r.info.name), input: "text", value: r.token, readonly: true,
     ok: T.tok_copy_close, cancel: T.tok_close });
   if (copy === null) return;
-  try { await navigator.clipboard.writeText(r.token); message(T.tok_copied, true); }
+  try { await copyText(r.token); message(T.tok_copied, true); }
   catch (e) { message(e.message, false); }
 }
 async function tokenDelete(id, name) {
@@ -2098,8 +2104,21 @@ async function connectionDrop(skill, name) {
   catch (e) { message(e.message, false); }
 }
 async function connectionCopy(text) {
-  try { await navigator.clipboard.writeText(text); message(T.conn_copied, true); }
+  try { await copyText(text); message(T.conn_copied, true); }
   catch (e) { message(e.message, false); }
+}
+// copyText puts a text into the clipboard. The browser offers its clipboard
+// interface only on https (or localhost); over http the page copies with the
+// browser's older copy command instead.
+async function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (!ok) throw new Error(T.copy_failed);
 }
 // Inside Home Assistant's panel the page is an iframe: coming back from the
 // login window focuses Home Assistant's window, not the iframe's, so both

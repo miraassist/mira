@@ -198,6 +198,9 @@ func TestAT06_ASecondTokenWithTheSameNameIsRefused(t *testing.T) {
 	if _, _, err := k.Make(context.Background(), " Elektro Meier "); err != ErrNameTaken {
 		t.Fatalf("second: %v", err)
 	}
+	if _, _, err := k.Make(context.Background(), "elektro MEIER"); err != ErrNameTaken {
+		t.Fatalf("in another case: %v", err)
+	}
 	if _, _, err := k.Make(context.Background(), "  "); err != ErrNoName {
 		t.Fatalf("no name: %v", err)
 	}

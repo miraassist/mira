@@ -35,7 +35,7 @@ Feature: Access tokens
   @step1
   Scenario: AT-06 A second token with the same name is refused
     Given a partner token named "Elektro Meier"
-    When the page makes another named "Elektro Meier"
+    When the page makes another named "Elektro Meier" or "elektro MEIER"
     Then the answer is 409 and nothing is stored
 
   @step1
