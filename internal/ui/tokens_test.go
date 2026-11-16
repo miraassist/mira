@@ -79,6 +79,15 @@ func TestAT10_ThePageMakesATokenAndShowsItOnce(t *testing.T) {
 		!strings.Contains(body, "name taken") {
 		t.Fatalf("again: %d %s", code, body)
 	}
+	// The page shows it once, in its own dialog, read-only, to copy and close
+	// (decision 20).
+	fn := regexp.MustCompile(`(?s)async function tokenMake\(form\) \{.*?\n\}`).Find(page)
+	for _, want := range []string{"await ask({", "value: r.token", "readonly: true", "ok: T.tok_copy_close",
+		"navigator.clipboard.writeText(r.token)"} {
+		if !bytes.Contains(fn, []byte(want)) {
+			t.Fatalf("tokenMake lacks %s:\n%s", want, fn)
+		}
+	}
 	// Home Assistant users who are no admin may not (decision 8).
 	if code, _ := callAs(t, srv, "POST", "/v1/ui/tokens", `{"name":"Other"}`,
 		map[string]string{HeaderHAUser: "u1", HeaderHAAdmin: "0"}); code != http.StatusForbidden {

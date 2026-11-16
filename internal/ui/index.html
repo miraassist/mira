@@ -699,25 +699,27 @@ const I18N = {
   "conn_window": "Melde dich im neuen Fenster beim Dienst an und erlaube den Zugriff. Danach steht hier „verbunden“.",
   "conn_row": "Verbindung",
   "conn_open": "zu den Verbindungen",
-  "tok_title": "Zugänge",
-  "tok_intro": "Ein Partner, der Mira für dich betreut, bekommt hier einen eigenen Zugang. Er trägt ihn bei sich ein und kann damit alles, was diese Seite kann, außer Mira neu einzurichten und zu sichern. Du kannst den Zugang jederzeit löschen. Was der Partner getan hat, steht beim Zugang.",
+  "tok_title": "Zugangs-Tokens",
+  "tok_intro": "Mit einem eigenen Token kann ein anderes Programm Mira nutzen, so wie diese Seite: alles außer Mira neu einzurichten und zu sichern. Du kannst ein Token jederzeit löschen. Was mit ihm getan wurde, steht beim Token.",
   "tok_integration": "Home Assistant (Integration)",
-  "tok_integration_hint": "Gehört zur Integration; er geht, wenn du die Integration entfernst.",
-  "tok_name": "Name des Partners",
-  "tok_make": "Zugang für einen Partner anlegen",
-  "tok_made": "Der Zugang für „%s“. Kopiere ihn jetzt und gib ihn deinem Partner; er wird nur dieses eine Mal angezeigt.",
-  "tok_copied": "Zugang kopiert.",
+  "tok_integration_hint": "Gehört zur Integration; es geht, wenn du die Integration entfernst.",
+  "tok_name": "Name",
+  "tok_make": "Neues Token anlegen",
+  "tok_made": "Das Token „%s“. Kopiere es jetzt: Es wird nur dieses eine Mal angezeigt.",
+  "tok_copy_close": "Kopieren und schließen",
+  "tok_close": "Schließen",
+  "tok_copied": "Token kopiert.",
   "tok_delete": "Löschen",
-  "tok_delete_ask": "Zugang „%s“ löschen? Der Partner kommt danach nicht mehr an Mira.",
-  "tok_gone": "Dieser Zugang ist schon gelöscht.",
-  "tok_taken": "Einen Zugang mit diesem Namen gibt es schon.",
-  "tok_need_name": "Gib dem Zugang einen Namen.",
+  "tok_delete_ask": "Token „%s“ löschen? Wer es nutzt, kommt danach nicht mehr an Mira.",
+  "tok_gone": "Dieses Token ist schon gelöscht.",
+  "tok_taken": "Ein Token mit diesem Namen gibt es schon.",
+  "tok_need_name": "Gib dem Token einen Namen.",
   "tok_since": "angelegt %s",
-  "tok_activity": "Was der Partner getan hat",
+  "tok_activity": "Was mit diesem Token getan wurde",
   "tok_activity_none": "Noch nichts.",
   "tok_more": "Mehr",
   "tok_when": "Wann",
-  "tok_who": "Wer beim Partner",
+  "tok_who": "Benutzer",
   "tok_what": "Was",
   "tok_status": "Ergebnis",
   "hooks_intro": "Regeln entscheiden bei jedem Werkzeug, ob Mira es ausführt, erst nachfragt oder ablehnt. Deine laufen zuerst, das System hat das letzte Wort, und es gilt immer das Strengste.",
@@ -1241,25 +1243,27 @@ const I18N = {
   "conn_window": "Sign in at the service in the new window and allow the access. Then it says \"connected\" here.",
   "conn_row": "Connection",
   "conn_open": "to the connections",
-  "tok_title": "Access",
-  "tok_intro": "A partner who looks after Mira for you gets an access of their own here. They enter it on their side and can then do everything this page can, except setting Mira up anew and backing her up. You can delete the access at any time. What the partner did is shown with the access.",
+  "tok_title": "Access tokens",
+  "tok_intro": "With a token of its own, another program can use Mira the way this page does: everything except setting Mira up anew and backing her up. You can delete a token at any time. What was done with it is shown with the token.",
   "tok_integration": "Home Assistant (integration)",
   "tok_integration_hint": "Belongs to the integration; it goes when you remove the integration.",
-  "tok_name": "Partner's name",
-  "tok_make": "Create access for a partner",
-  "tok_made": "The access for \"%s\". Copy it now and give it to your partner; it is shown only this once.",
-  "tok_copied": "Access copied.",
+  "tok_name": "Name",
+  "tok_make": "Create a new token",
+  "tok_made": "The token \"%s\". Copy it now: it is shown only this once.",
+  "tok_copy_close": "Copy and close",
+  "tok_close": "Close",
+  "tok_copied": "Token copied.",
   "tok_delete": "Delete",
-  "tok_delete_ask": "Delete the access \"%s\"? The partner can no longer reach Mira afterwards.",
-  "tok_gone": "This access is already deleted.",
-  "tok_taken": "An access with this name exists already.",
-  "tok_need_name": "Give the access a name.",
+  "tok_delete_ask": "Delete the token \"%s\"? Whoever uses it can no longer reach Mira afterwards.",
+  "tok_gone": "This token is already deleted.",
+  "tok_taken": "A token with this name exists already.",
+  "tok_need_name": "Give the token a name.",
   "tok_since": "created %s",
-  "tok_activity": "What the partner did",
+  "tok_activity": "What was done with this token",
   "tok_activity_none": "Nothing yet.",
   "tok_more": "More",
   "tok_when": "When",
-  "tok_who": "Who at the partner",
+  "tok_who": "User",
   "tok_what": "What",
   "tok_status": "Result",
   "hooks_intro": "Rules decide on every tool whether Mira runs it, asks first or refuses. Yours run first, the system has the last word, and the strictest always wins.",
@@ -1671,14 +1675,15 @@ async function api(method, path, body, tries = 0) {
 
 // ask shows Mira's dialog: true/false, or with input the text (null when
 // cancelled). Escape and a click beside the dialog cancel.
-function ask({ text, ok, danger, input }) {
+function ask({ text, ok, danger, input, value = "", readonly = false, cancel }) {
   const d = $("#dlg"), inp = $("#dlg-input"), okb = $("#dlg-ok");
   if (d.open) return Promise.resolve(input ? null : false);
   $("#dlg-text").textContent = text;
-  $("#dlg-cancel").textContent = T.dlg_cancel;
+  $("#dlg-cancel").textContent = cancel || T.dlg_cancel;
   okb.textContent = ok || T.dlg_ok;
   okb.className = danger ? "danger solid" : "primary";
-  inp.hidden = !input; inp.type = input === "password" ? "password" : "text"; inp.value = "";
+  inp.hidden = !input; inp.type = input === "password" ? "password" : "text"; inp.value = value;
+  inp.readOnly = readonly;
   d.returnValue = "";
   return new Promise(resolve => {
     d.onclose = () => {
@@ -1686,7 +1691,8 @@ function ask({ text, ok, danger, input }) {
       resolve(input ? (yes ? inp.value.trim() : null) : yes);
     };
     d.showModal();
-    (input ? inp : okb).focus();
+    (input && !readonly ? inp : okb).focus();
+    if (readonly) inp.select();
   });
 }
 $("#dlg").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
@@ -1990,25 +1996,21 @@ async function connections() {
   <section class="card" id="tokens"></section>`;
   tokens();
 }
-// ---- Zugänge (docs/spec/access-tokens.md) ---------------------------------
-// The named access tokens: the integration's, and a partner's, made here and
-// shown once; each with what the partner did.
-let madeToken = null;
+// ---- Zugangs-Tokens (docs/spec/access-tokens.md) -------------------------
+// The named access tokens: the integration's, and others made here and shown
+// once in the page's dialog; each with what was done with it.
 async function tokens() {
   const el = $("#tokens");
   if (!el) return;
   let list;
   try { list = (await api("GET", "/v1/ui/tokens")).tokens || []; }
   catch (e) { el.remove(); return; }  // an older service has no access tokens
-  const made = madeToken ? `<p class="msg">${esc(T.tok_made.replace("%s", madeToken.name))}</p>
-    <span class="copyline"><code>${esc(madeToken.token)}</code><button type="button" class="copy" title="${T.conn_copy}"
-      aria-label="${T.conn_copy}" onclick="tokenCopy()">${buttonIcon("copy")}</button></span>` : "";
   const card = t => cardItem({ kind: "key", name: esc(t.name), short: esc(T.tok_since.replace("%s", localTime(t.created))),
     tags: badge(esc(t.prefix) + "…", true), attrs: ` data-id="${esc(t.id)}"` }, `
       <h4>${T.tok_activity}</h4><div id="act-${esc(t.id)}" class="hint">${T.loading}</div>
       <div class="actions left"><span class="spacer"></span>
         <button type="button" class="secondary" onclick="tokenDelete('${esc(t.id)}', '${esc(t.name)}')">${T.tok_delete}</button></div>`);
-  el.innerHTML = `<h2>${T.tok_title}</h2><p class="hint">${T.tok_intro}</p>${made}
+  el.innerHTML = `<h2>${T.tok_title}</h2><p class="hint">${T.tok_intro}</p>
     <div class="card-list">
       ${cardItem({ kind: "key", name: esc(T.tok_integration), short: esc(T.tok_integration_hint) }, `<p class="hint">${T.tok_integration_hint}</p>`)}
       ${list.map(card).join("")}
@@ -2021,23 +2023,23 @@ async function tokens() {
     if (d.open) tokenActivity(d.dataset.id, 0);
   }, { once: true }));
 }
+// tokenMake shows the new token once, in the page's dialog, to copy.
 async function tokenMake(form) {
   const name = form.name.value.trim();
   if (!name) { message(T.tok_need_name, false); return; }
-  try {
-    const r = await api("POST", "/v1/ui/tokens", { name });
-    madeToken = { name: r.info.name, token: r.token };
-    await tokens();
-  } catch (e) { message(e.message === "name taken" ? T.tok_taken : e.message, false); }
-}
-async function tokenCopy() {
-  if (!madeToken) return;
-  try { await navigator.clipboard.writeText(madeToken.token); message(T.tok_copied, true); }
+  let r;
+  try { r = await api("POST", "/v1/ui/tokens", { name }); }
+  catch (e) { message(e.message === "name taken" ? T.tok_taken : e.message, false); return; }
+  await tokens();
+  const copy = await ask({ text: T.tok_made.replace("%s", r.info.name), input: "text", value: r.token, readonly: true,
+    ok: T.tok_copy_close, cancel: T.tok_close });
+  if (copy === null) return;
+  try { await navigator.clipboard.writeText(r.token); message(T.tok_copied, true); }
   catch (e) { message(e.message, false); }
 }
 async function tokenDelete(id, name) {
   if (!await ask({ text: T.tok_delete_ask.replace("%s", name), ok: T.tok_delete })) return;
-  try { await api("DELETE", `/v1/ui/tokens/${encodeURIComponent(id)}`); madeToken = null; await tokens(); }
+  try { await api("DELETE", `/v1/ui/tokens/${encodeURIComponent(id)}`); await tokens(); }
   catch (e) { message(e.message === "no such token" ? T.tok_gone : e.message, false); await tokens(); }
 }
 // tokenActivity shows a token's calls, newest first, a page at a time.

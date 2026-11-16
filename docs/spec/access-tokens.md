@@ -33,12 +33,14 @@ token, and the partner activity on Mira's page.
 | 10 | As whom a partner token acts on the page | As an admin without a Home Assistant user: `X-Mira-HA-User` and `X-Mira-HA-Admin` are ignored with a partner token. Which memories it sees: decision 17 |
 | 11 | What is stored of a token | Only a hash (SHA-256) and its first characters for recognising it; the token itself is shown once, when it is made. A backup of the database holds no usable token |
 | 12 | Which calls the partner activity keeps | Every call, reading too; kept 90 days, then deleted at the nightly cleanup |
-| 13 | Where on the page | Setup → Connections, a section "Zugänge" / "Access" |
+| 13 | Where on the page | Setup → Connections, a section "Zugangs-Tokens" / "Access tokens" (the words: decision 19) |
 | 14 | Expiry | None; a token holds until it is deleted |
 | 15 | The integration's token in the list | Shown as "Home Assistant (Integration)", not deletable there (removing the integration releases it, [Setup](setup.md)) |
 | 16 | Backup and restore (`/v1/backup`, `/v1/restore`) | Not with a partner token for now (403, like the setup's routes); they carry the whole database. Can be decided either way later |
 | 17 | The persons' memories (2026-11-16, 1B; the first text of decision 10 said wrongly that they are out of reach: a call without a Home Assistant user sees every memory) | A partner token sees and changes only the house's memory, like a person who is no admin; a person's own memory stays out of its reach |
 | 18 | Managing access with a partner token (2026-11-16, 2B) | Refused (403): `/v1/ui/tokens` and below are the owner's; a partner cannot make, delete or list tokens, nor read the partner activity |
+| 19 | The page's words (2026-11-16, by the maintainer) | The page and the guide do not speak of a partner: it is simply a new token ("Zugangs-Tokens", "Neues Token anlegen"; the partner user is "Benutzer"). Partner stays the word in the specs and the code (kind `partner`, `X-Partner-User`) |
+| 20 | Showing a new token (2026-11-16, by the maintainer) | In the page's dialog, the token in a read-only field, selected, with "Kopieren und schließen" and "Schließen"; never inline on the page, where it was overlooked |
 
 ## Building blocks
 
@@ -57,11 +59,13 @@ token, and the partner activity on Mira's page.
 
 ### Making a token
 
-1. On Mira's page, Setup → Connections → Access: **"Zugang für einen Partner anlegen"**, a name ("Elektro Meier").
-   `POST /v1/ui/tokens` `{name, kind: "partner"}`.
+1. On Mira's page, Setup → Connections → Access tokens: a name ("Elektro Meier"), **"Neues Token anlegen"**.
+   `POST /v1/ui/tokens` `{name}` (the kind is `partner`).
 2. The service makes 32 random bytes (`crypto/rand`), base64url, with the prefix `mira_p_` (so a token found in a log
    or a file says what it is), stores the hash, the first 10 characters, name, kind and time, and answers the token
-   **once**. The page shows it with "Kopieren" and the sentence that it is shown only now.
+   **once**. The page shows it in its dialog (decision 20): "Das Token „<name>“. Kopiere es jetzt: Es wird nur dieses
+   eine Mal angezeigt.", the token selected in a read-only field, "Kopieren und schließen" copies it and closes,
+   "Schließen" closes.
 3. The name must be new among the tokens: a second "Elektro Meier" is refused (409, the page says so).
 
 **Costs:** one write; the tokens are held in memory (a map from hash to name and kind), renewed on every write, so a
@@ -97,7 +101,7 @@ Answers `{name, kind}` of the calling token; for the integration's token `{name:
 
 ### Deleting a token
 
-On the page "Löschen", asked in the page's dialog ("Zugang „Elektro Meier“ löschen? Der Partner kommt danach nicht
+On the page "Löschen", asked in the page's dialog ("Token „Elektro Meier“ löschen? Wer es nutzt, kommt danach nicht
 mehr an Mira."). `DELETE /v1/ui/tokens/{id}` deletes the row and renews the tokens in memory; the next call with it is
 refused. The partner activity stays (with the name) until it ages out.
 
@@ -123,6 +127,6 @@ version, as for Connections).
    `GET /v1/whoami`, `X-Partner-User` only with a partner token, the refused routes. Scenarios AT-01 to AT-06,
    AT-13, AT-15.
 2. **The partner activity** (built 2026-11-16): the table `access_log`, the rows, the log line, the cleanup. Scenarios AT-07 to AT-09.
-3. **The page** (built 2026-11-16): the section Access (make, show once, delete, activity), German and English; a partner sees the house's memory only. Scenarios AT-10 to
+3. **The page** (built 2026-11-16): the section Access tokens (make, show once in the dialog, delete, activity), German and English; a partner sees the house's memory only. Scenarios AT-10 to
    AT-12.
 4. **The guide** (built 2026-11-16): a paragraph on giving a partner access and taking it back.

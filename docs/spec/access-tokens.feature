@@ -66,10 +66,10 @@ Feature: Access tokens
     Then those rows are gone and newer ones stay
 
   @step3
-  Scenario: AT-10 The page makes a token and shows it once
+  Scenario: AT-10 The page makes a token and shows it once in its dialog
     Given an admin on Mira's page
-    When they make access for a partner
-    Then the page shows the token with "Kopieren" once
+    When they make a new token
+    Then the page shows the token once in its own dialog, read-only, with "Kopieren und schließen"
 
   @step3
   Scenario: AT-11 Deleting asks in the page's dialog
