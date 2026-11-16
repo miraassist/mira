@@ -98,6 +98,19 @@ is used in a spec; a term that is not here is not a term yet.
 | key-value table | Schlüssel-Wert-Tabelle | Small marks without a table of their own; under review | table `kv` (`key`, `value`) | cache, settings |
 | configuration | Einstellungen | `mira.yaml`, the one truth; the pages write it | `internal/config` | options (except HA's options dialog) |
 
+## Access (new, [Access tokens](spec/access-tokens.md))
+
+| English | German | Meaning | Code / database | Not |
+|---|---|---|---|---|
+| access token | Zugangs-Token | A secret that lets a caller use the Mira service's HTTP interface; each has a name that says whose it is | the integration's: `server.token`; the others: new table `access_tokens` | API key, password |
+| integration's token | Token der Integration | The access token the integration got at pairing (or `server.token` in `mira.yaml`) | `server.token`, the setup in the database | — |
+| partner token | Partner-Token | An access token made on Mira's page for a partner's service | `access_tokens` (kind `partner`) | — |
+| partner | Partner | A company that looks after Mira installations for their owners, with a service of its own; not part of Mira's open source | — | operator, reseller |
+| Partner service | Partner-Service | The partner's program next to the Mira service in the house, using its interface with a partner token | separate repository `mira-partner` | partner agent |
+| Partner portal | Partner-Portal | The partner's website where its people see and look after many installations | separate repository `mira-partner` | dashboard (alone) |
+| partner user | Partner-User | One of the partner's people, known to the Partner service; named in `X-Partner-User` | header `X-Partner-User` | technician (as a term) |
+| partner activity | Partner-Protokoll | What a partner token did, with time and partner user, shown on Mira's page | new table `access_log` | audit trail |
+
 ## Watching (new, [Device watch](spec/device-watch.md), [Group watch](spec/group-watch.md))
 
 | English | German | Meaning | Code / database | Not |
