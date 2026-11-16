@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/llm"
 	"github.com/miraassist/mira/internal/store"
 )
@@ -111,19 +112,43 @@ func (h *Handler) now() time.Time {
 	return time.Now()
 }
 
-// Register adds the routes to a mux.
-func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /v1/pair", h.status)
-	mux.HandleFunc("POST /v1/pair", h.pair)
-	mux.HandleFunc("POST /v1/prove", h.prove)
-	mux.HandleFunc("POST /v1/unpair", h.auth(h.unpair))
-	mux.HandleFunc("POST /v1/setup", h.auth(h.setup))
-	mux.HandleFunc("GET /v1/setup/providers", h.authOrOpen(h.providers))
-	mux.HandleFunc("POST /v1/setup/models", h.authOrOpen(h.models))
-	mux.HandleFunc("POST /v1/setup/probe", h.authOrOpen(h.probeOnly))
+// object is a body or an answer the handler builds as a map or an
+// anonymous struct: a JSON object whose keys the description does not list.
+type object = map[string]any
+
+// Register adds the routes to a mux (docs/spec/openapi.md).
+func (h *Handler) Register(mux *api.Mux) {
+	const tag = api.TagSetup
+	mux.Handle(api.Route{Method: http.MethodGet, Path: "/v1/pair", Tag: tag, Open: true,
+		Summary: "Whether the service is paired and pairing is open", Response: object{}}, h.status)
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/pair", Tag: tag, Open: true,
+		Summary: "Pair with the code the service logged; answers the integration's token (not with a partner token)",
+		Request: object{}, Response: object{}, Errors: []int{400, 403, 409, 422, 500}}, h.pair)
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/prove", Tag: tag, Open: true,
+		Summary: "Prove the service holds the token (not with a partner token)", Request: object{}, Response: object{},
+		Errors: []int{400, 403, 409}}, h.prove)
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/unpair", Tag: tag,
+		Summary: "Release the pairing (not with a partner token)", Response: object{}, Errors: []int{403, 409, 500}}, h.auth(h.unpair))
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/setup", Tag: tag,
+		Summary: "Set Home Assistant and the model (not with a partner token)", Request: object{}, Response: object{},
+		Errors: []int{400, 403, 422, 500}}, h.auth(h.setup))
+	mux.Handle(api.Route{Method: http.MethodGet, Path: "/v1/setup/providers", Tag: tag,
+		Summary:     "The model providers setup offers (not with a partner token)",
+		Description: "Open while the service was never paired, at most 20 calls a minute; else with the token.",
+		Response:    object{}, Errors: []int{403, 429}}, h.authOrOpen(h.providers))
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/setup/models", Tag: tag,
+		Summary:     "A server's models, for setup (not with a partner token)",
+		Description: "Open while the service was never paired, at most 20 calls a minute; else with the token.",
+		Request:     object{}, Response: object{}, Errors: []int{400, 403, 422, 429}}, h.authOrOpen(h.models))
+	mux.Handle(api.Route{Method: http.MethodPost, Path: "/v1/setup/probe", Tag: tag,
+		Summary:     "Check a model for setup (not with a partner token)",
+		Description: "Open while the service was never paired, at most 20 calls a minute; else with the token.",
+		Request:     object{}, Response: object{}, Errors: []int{400, 403, 422, 429}}, h.authOrOpen(h.probeOnly))
 	if h.SetupMode {
-		mux.HandleFunc("GET /v1/health", h.health)
-		mux.HandleFunc("GET /", h.page)
+		// The service waiting to be set up is a server of its own; its
+		// health and page are not the running service's interface.
+		mux.Hidden("GET /v1/health", "setup mode only: the waiting service's health", http.HandlerFunc(h.health))
+		mux.Hidden("GET /", "setup mode only: the waiting service's page", http.HandlerFunc(h.page))
 	}
 }
 

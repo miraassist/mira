@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/store"
 	"github.com/miraassist/mira/internal/store/storetest"
@@ -267,7 +268,7 @@ func TestSetupEndpoint(t *testing.T) {
 	var restarted atomic.Bool
 	h := &Handler{Store: st, Token: "tok", ID: "id1", Version: "t", Pairing: true, SetupMode: true,
 		Restart: func() { restarted.Store(true) }, Log: slog.Default()}
-	mux := http.NewServeMux()
+	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -341,7 +342,7 @@ func TestPairEndpoint(t *testing.T) {
 	var restarted atomic.Bool
 	h := &Handler{Store: st, Token: s.Token, ID: "id1", Version: "t", Pairing: true, SetupMode: true,
 		Restart: func() { restarted.Store(true) }, Log: slog.Default()}
-	mux := http.NewServeMux()
+	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -420,7 +421,7 @@ func TestOpenRoutesAreHarmless(t *testing.T) {
 
 	st := newStore(t)
 	h := &Handler{Store: st, Token: "tok", ID: "id", Version: "t", Pairing: true, SetupMode: true, Log: slog.Default()}
-	mux := http.NewServeMux()
+	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -461,7 +462,7 @@ func TestOpenRoutesAreHarmless(t *testing.T) {
 // give the same answer, another token does not.
 func TestProve(t *testing.T) {
 	h := &Handler{Store: newStore(t), Token: "tok", ID: "id", Version: "t", Log: slog.Default()}
-	mux := http.NewServeMux()
+	mux := api.NewMux()
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

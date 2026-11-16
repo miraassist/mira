@@ -41,6 +41,12 @@ type Server struct {
 	states   []haws.State
 
 	calls []ServiceCall
+	// refusals are the actions the fake refuses (domain.service -> error),
+	// responses what an action answers with return_response.
+	refusals  map[string]refusal
+	responses map[string]any
+	// restCalls counts the requests to the REST interface.
+	restCalls int
 	// commands are the integration's commands ("mira/…") the service sent.
 	commands []map[string]any
 	// conns holds live connections so events can be pushed and so a test can
@@ -70,6 +76,7 @@ func New() *Server {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/websocket", s.handle)
+	mux.HandleFunc("GET /api/states/{entity_id}", s.restState)
 	s.Server = httptest.NewServer(mux)
 	return s
 }
@@ -92,6 +99,64 @@ func (s *Server) SetStates(states []haws.State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.states = states
+}
+
+type refusal struct{ code, message string }
+
+// RefuseService makes the fake refuse an action as Home Assistant does,
+// with its code ("service_validation_error", "not_found") and message.
+func (s *Server) RefuseService(domain, service, code, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refusals == nil {
+		s.refusals = map[string]refusal{}
+	}
+	s.refusals[domain+"."+service] = refusal{code, message}
+}
+
+// SetServiceResponse is what an action answers when called with
+// return_response.
+func (s *Server) SetServiceResponse(domain, service string, response any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.responses == nil {
+		s.responses = map[string]any{}
+	}
+	s.responses[domain+"."+service] = response
+}
+
+// RESTCalls is how many requests reached the REST interface.
+func (s *Server) RESTCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.restCalls
+}
+
+// restState answers GET /api/states/<entity_id> as Home Assistant does:
+// the state object, 404 for an unknown entity, 401 for a wrong token.
+func (s *Server) restState(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.restCalls++
+	token, states := s.Token, s.states
+	s.mu.Unlock()
+	if r.Header.Get("Authorization") != "Bearer "+token {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("401: Unauthorized"))
+		return
+	}
+	id := r.PathValue("entity_id")
+	for _, st := range states {
+		if st.EntityID == id {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"entity_id": st.EntityID, "state": st.State,
+				"attributes": st.Attributes, "last_changed": st.LastChanged, "last_updated": st.LastChanged,
+				"context": map[string]any{"id": "ctx", "parent_id": nil, "user_id": nil}})
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write([]byte(`{"message":"Entity not found."}`))
 }
 
 // ServiceCalls returns everything that was called so far.
@@ -364,8 +429,18 @@ func (s *Server) dispatch(cs *connState, cmd map[string]any) {
 		call.Target, _ = cmd["target"].(map[string]any)
 		s.mu.Lock()
 		s.calls = append(s.calls, call)
+		refused, isRefused := s.refusals[call.Domain+"."+call.Service]
+		response, hasResponse := s.responses[call.Domain+"."+call.Service]
 		s.mu.Unlock()
-		reply(map[string]any{"context": map[string]any{"id": "ctx"}})
+		if isRefused {
+			fail(refused.code, refused.message)
+			return
+		}
+		result := map[string]any{"context": map[string]any{"id": "ctx"}}
+		if want, _ := cmd["return_response"].(bool); want && hasResponse {
+			result["response"] = response
+		}
+		reply(result)
 	case haws.CmdSubscribeEvents:
 		eventType, _ := cmd["event_type"].(string)
 		cs.mu.Lock()

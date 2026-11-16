@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/miraassist/mira/internal/excerpt"
 )
 
 // Config flows Home Assistant discovered and waits for a yes for
@@ -154,6 +156,8 @@ func (c *Client) rest(ctx context.Context, method, path string, body []byte) ([]
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized:
 		return nil, fmt.Errorf("%w: %s %s answered %s", ErrNotAdmin, method, path, resp.Status)
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, fmt.Errorf("%w: %s %s answered %s %s", ErrNotFound, method, path, resp.Status, excerpt.Bytes(answer))
 	case resp.StatusCode >= 300:
 		return nil, fmt.Errorf("home assistant refused %s %s: %s %s", method, path, resp.Status, strings.TrimSpace(string(answer)))
 	}

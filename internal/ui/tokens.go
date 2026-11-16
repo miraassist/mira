@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/miraassist/mira/internal/access"
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/store"
 )
 
@@ -24,10 +25,10 @@ type Tokens interface {
 const activityPage = 50
 
 func (h *Handler) tokenRoutes() {
-	h.mux.HandleFunc("GET /v1/ui/tokens", h.auth(h.listTokens))
-	h.mux.HandleFunc("POST /v1/ui/tokens", h.auth(h.makeToken))
-	h.mux.HandleFunc("DELETE /v1/ui/tokens/{id}", h.auth(h.deleteToken))
-	h.mux.HandleFunc("GET /v1/ui/tokens/{id}/activity", h.auth(h.tokenActivity))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tokens", Summary: "The access tokens (not with a partner token)", Response: object{}, Errors: []int{403, 500}}), h.auth(h.listTokens))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tokens", Summary: "Make an access token; it is answered once (201)", Request: object{}, Response: object{}, Status: http.StatusCreated, Errors: []int{400, 403, 404, 409, 500}}), h.auth(h.makeToken))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/tokens/{id}", Summary: "Delete an access token", Response: object{}, Errors: []int{403, 404, 500}}), h.auth(h.deleteToken))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tokens/{id}/activity", Summary: "A token's partner activity, 50 at a time", Response: object{}, Query: []api.Param{{Name: "offset", Description: "Where the page starts"}}, Errors: []int{403, 500}}), h.auth(h.tokenActivity))
 }
 
 func (h *Handler) listTokens(w http.ResponseWriter, r *http.Request) {

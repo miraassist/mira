@@ -1,0 +1,6363 @@
+openapi: 3.1.0
+info:
+  title: Mira
+  version: 0.26.0
+  description: The Mira service's HTTP interface. Generated from the code (go run ./cmd/openapi, docs/spec/openapi.md); every error answers Mira's error body. A partner token names its partner user in X-Partner-User.
+tags:
+  - name: integration
+    description: 'The Home Assistant integration''s interface: conversations, messages, tasks, agents, backup.'
+  - name: home-assistant
+    description: 'Home Assistant through Mira''s interface (docs/spec/ha-api.md): read an entity, call an action, with Mira''s own connection.'
+  - name: skills
+    description: Skills' connections and starting a skill's thread.
+  - name: access
+    description: Who calls (docs/spec/access-tokens.md).
+  - name: setup
+    description: Pairing and setup of the service (docs/spec/setup.md).
+  - name: page
+    description: 'Mira''s page''s own routes (/v1/ui/…): they serve the page and may change between versions.'
+  - name: description
+    description: This description.
+security:
+  - bearer: []
+paths:
+  /v1/a2a/push/{call}:
+    post:
+      tags:
+        - integration
+      summary: A remote agent's push for a call (A2A)
+      description: Takes the call's own token in A2A-Notification-Token or as bearer, not the service's (docs/spec/remote-agents.md).
+      operationId: postV1A2aPushCall
+      security:
+        - {}
+      parameters:
+        - in: path
+          name: call
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/agent:
+    post:
+      tags:
+        - integration
+      summary: 'mira.agent: run one of Mira''s agents'
+      description: Only with agents.
+      operationId: postV1Agent
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agent:
+                  type: string
+                input: true
+                mode:
+                  type: string
+                timeout:
+                  type: number
+                on_timeout:
+                  type: string
+                delivery:
+                  type: string
+                receiver:
+                  type: string
+              required:
+                - agent
+                - input
+                - mode
+                - timeout
+                - on_timeout
+                - delivery
+                - receiver
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id:
+                    type: string
+                  agent:
+                    type: string
+                  status:
+                    type: string
+                  output: true
+                  error:
+                    type: string
+                  started_at:
+                    type: string
+                  ended_at:
+                    type: string
+                required:
+                  - call_id
+                  - status
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/agent/cancel:
+    post:
+      tags:
+        - integration
+      summary: Cancel an agent's call
+      description: Only with agents.
+      operationId: postV1AgentCancel
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/agent/result:
+    post:
+      tags:
+        - integration
+      summary: The result of an agent's call that ran on
+      description: Only with agents.
+      operationId: postV1AgentResult
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id:
+                    type: string
+                  agent:
+                    type: string
+                  status:
+                    type: string
+                  output: true
+                  error:
+                    type: string
+                  started_at:
+                    type: string
+                  ended_at:
+                    type: string
+                required:
+                  - call_id
+                  - status
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/agent/skill:
+    post:
+      tags:
+        - skills
+      summary: Start a skill's thread (mira.agent with skill)
+      description: Only with skills that start from Home Assistant.
+      operationId: postV1AgentSkill
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/assess:
+    post:
+      tags:
+        - integration
+      summary: 'mira.assess: judge a situation for an automation, maybe notify'
+      operationId: postV1Assess
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                goal:
+                  type: string
+                question:
+                  type: string
+                observation:
+                  type: string
+                data:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: object
+                    properties:
+                      entity_id:
+                        type: string
+                      view:
+                        type: string
+                    required:
+                      - entity_id
+                      - view
+                    additionalProperties: false
+                memory:
+                  type: string
+                cooldown:
+                  type: string
+                notify:
+                  type:
+                    - "null"
+                    - boolean
+                task:
+                  type: string
+                owner:
+                  type: string
+                receiver:
+                  type: string
+                confidentiality:
+                  type: string
+                dedupe_key:
+                  type: string
+                expires_in:
+                  type: string
+              required:
+                - goal
+                - question
+                - observation
+                - data
+                - memory
+                - cooldown
+                - notify
+                - task
+                - owner
+                - receiver
+                - confidentiality
+                - dedupe_key
+                - expires_in
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  importance:
+                    type: integer
+                  spoken:
+                    type: string
+                  details:
+                    type: string
+                  message_id:
+                    type: string
+                  withheld:
+                    type: string
+                required:
+                  - importance
+                  - spoken
+                  - message_id
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/backup:
+    get:
+      tags:
+        - integration
+      summary: Mira's snapshot for Home Assistant's backup (not with a partner token)
+      description: Only with backups.
+      operationId: getV1Backup
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/gzip:
+              schema:
+                format: binary
+                type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/check:
+    post:
+      tags:
+        - integration
+      summary: 'mira.check: look at a group of entities'
+      operationId: postV1Check
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scope:
+                  type: string
+                areas:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+                floors:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+                receiver:
+                  type: string
+                notify:
+                  type:
+                    - "null"
+                    - boolean
+              required:
+                - scope
+                - areas
+                - floors
+                - receiver
+                - notify
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scope:
+                    type: string
+                  open:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        area:
+                          type: string
+                        device:
+                          type: string
+                        restored:
+                          type: boolean
+                      required:
+                        - id
+                        - name
+                        - state
+                        - area
+                      additionalProperties: false
+                  unreadable:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        area:
+                          type: string
+                        device:
+                          type: string
+                        restored:
+                          type: boolean
+                      required:
+                        - id
+                        - name
+                        - state
+                        - area
+                      additionalProperties: false
+                  checked:
+                    type: integer
+                  message_id:
+                    type: string
+                required:
+                  - scope
+                  - open
+                  - unreadable
+                  - checked
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/conversation:
+    post:
+      tags:
+        - integration
+      summary: 'A turn: what the satellite or the chat heard, Mira''s answer'
+      description: 'With stream true (voice), the answer is application/x-ndjson: one line per piece and per tool call, then the whole answer (docs/spec/streaming.md).'
+      operationId: postV1Conversation
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                conversation_id:
+                  type: string
+                device_id:
+                  type: string
+                language:
+                  type: string
+                agent_id:
+                  type: string
+                extra_system_prompt:
+                  type: string
+                user_id:
+                  type: string
+                channel:
+                  type: string
+                person:
+                  type: string
+                stream:
+                  type: boolean
+              required:
+                - text
+                - conversation_id
+                - device_id
+                - language
+                - agent_id
+                - extra_system_prompt
+                - user_id
+                - channel
+                - person
+                - stream
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text:
+                    type: string
+                  conversation_id:
+                    type: string
+                  continue_conversation:
+                    type: boolean
+                  html:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  trace:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        detail:
+                          type: string
+                        ms:
+                          type: integer
+                        tokens:
+                          type: integer
+                      required:
+                        - kind
+                      additionalProperties: false
+                required:
+                  - text
+                  - conversation_id
+                  - continue_conversation
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/conversation/reset:
+    post:
+      tags:
+        - integration
+      summary: Forget a conversation's history
+      operationId: postV1ConversationReset
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/decide:
+    post:
+      tags:
+        - integration
+      summary: 'mira.decide: a yes or no for an automation'
+      operationId: postV1Decide
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                goal:
+                  type: string
+                question:
+                  type: string
+                observation:
+                  type: string
+                data:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: object
+                    properties:
+                      entity_id:
+                        type: string
+                      view:
+                        type: string
+                    required:
+                      - entity_id
+                      - view
+                    additionalProperties: false
+                memory:
+                  type: string
+                cooldown:
+                  type: string
+                notify:
+                  type:
+                    - "null"
+                    - boolean
+                task:
+                  type: string
+                owner:
+                  type: string
+                receiver:
+                  type: string
+                confidentiality:
+                  type: string
+                dedupe_key:
+                  type: string
+                expires_in:
+                  type: string
+              required:
+                - goal
+                - question
+                - observation
+                - data
+                - memory
+                - cooldown
+                - notify
+                - task
+                - owner
+                - receiver
+                - confidentiality
+                - dedupe_key
+                - expires_in
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer:
+                    type: boolean
+                  reason:
+                    type: string
+                required:
+                  - answer
+                  - reason
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/eval/reset:
+    post:
+      tags:
+        - integration
+      summary: Empty Mira's state between eval scenarios
+      description: Only in eval mode (docs/spec/evals.md), for tests.
+      operationId: postV1EvalReset
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ha/services/{domain}/{service}:
+    post:
+      tags:
+        - home-assistant
+      summary: Call a Home Assistant action with Mira's connection
+      description: The body is the action's data as Home Assistant takes it, the target inside it (entity_id, area_id, …). With return_response, the answer holds the action's response as it came. Tried once; no hooks.
+      operationId: postV1HaServicesDomainService
+      parameters:
+        - in: path
+          name: domain
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: service
+          required: true
+          schema:
+            type: string
+        - description: 'Present: ask for the action''s response.'
+          in: query
+          name: return_response
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response: true
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ha/states/{entity_id}:
+    get:
+      tags:
+        - home-assistant
+      summary: One entity's state as Home Assistant gives it
+      description: Home Assistant's GET /api/states/<entity_id>, with Mira's token, passed on unchanged. One request, no retry.
+      operationId: getV1HaStatesEntityId
+      parameters:
+        - in: path
+          name: entity_id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entity_id:
+                    type: string
+                  state:
+                    type: string
+                  attributes:
+                    type: object
+                    additionalProperties: true
+                  last_changed:
+                    type: string
+                  last_updated:
+                    type: string
+                  context:
+                    type: object
+                    additionalProperties: true
+                required:
+                  - entity_id
+                  - state
+                  - attributes
+                  - last_changed
+                  - last_updated
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/health:
+    get:
+      tags:
+        - integration
+      summary: The service's state, version and id, and its dependencies' checks
+      operationId: getV1Health
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/inbox/paperless:
+    post:
+      tags:
+        - integration
+      summary: Paperless's webhook for the inbox (docs/spec/inbox.md)
+      description: Takes the inbox's own token (the skill paperless's inbox_token) as bearer, not the service's.
+      operationId: postV1InboxPaperless
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "405":
+          description: Method Not Allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/mail:
+    post:
+      tags:
+        - integration
+      summary: A mail of an IMAP device, for the mail calendar or the inbox
+      description: 202 with {queued} when the mail is the inbox's.
+      operationId: postV1Mail
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entry:
+                  type: string
+                sender:
+                  type: string
+                subject:
+                  type: string
+                date:
+                  type: string
+                text:
+                  type: string
+                imap_entry:
+                  type: string
+                uid:
+                  type: string
+              required:
+                - entry
+                - sender
+                - subject
+                - date
+                - text
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action:
+                    type: string
+                  reason:
+                    type: string
+                  title:
+                    type: string
+                required:
+                  - action
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/messages:
+    post:
+      tags:
+        - integration
+      summary: Leave a message for a person or the house
+      description: 201 when the message was made, 200 when it was there already.
+      operationId: postV1Messages
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                details:
+                  type: string
+                importance:
+                  type: integer
+                receiver:
+                  type: string
+                dedupe_key:
+                  type: string
+                confidentiality:
+                  type: string
+                expires_in:
+                  type: string
+                task:
+                  type: string
+              required:
+                - text
+                - details
+                - importance
+                - receiver
+                - dedupe_key
+                - confidentiality
+                - expires_in
+                - task
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/oauth/{skill}:
+    get:
+      tags:
+        - skills
+      summary: What the integration starts a skill's login with
+      description: Only with skills' connections.
+      operationId: getV1OauthSkill
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skill:
+                    type: string
+                  name:
+                    type: string
+                  authorize_url:
+                    type: string
+                  token_url:
+                    type: string
+                  scopes:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  pkce:
+                    type: boolean
+                  token_auth:
+                    type: string
+                  authorize_params:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  client_id:
+                    type: string
+                  client_secret:
+                    type: string
+                required:
+                  - skill
+                  - name
+                  - authorize_url
+                  - token_url
+                  - scopes
+                  - pkce
+                  - token_auth
+                  - authorize_params
+                  - client_id
+                  - client_secret
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/oauth/{skill}/token:
+    put:
+      tags:
+        - skills
+      summary: Hand over a skill's login
+      description: Only with skills' connections.
+      operationId: putV1OauthSkillToken
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                refresh_token:
+                  type: string
+                token_type:
+                  type: string
+                scope:
+                  type: string
+                expires_in:
+                  type: number
+                expires_at:
+                  type: number
+              required:
+                - access_token
+                - refresh_token
+                - token_type
+                - scope
+                - expires_in
+                - expires_at
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/openapi.json:
+    get:
+      tags:
+        - description
+      summary: This description as JSON (OpenAPI 3.1), of the running service's routes
+      operationId: getV1OpenapiJson
+      security:
+        - {}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/openapi.yaml:
+    get:
+      tags:
+        - description
+      summary: This description as YAML (OpenAPI 3.1), of the running service's routes
+      operationId: getV1OpenapiYaml
+      security:
+        - {}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/pair:
+    get:
+      tags:
+        - setup
+      summary: Whether the service is paired and pairing is open
+      operationId: getV1Pair
+      security:
+        - {}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+    post:
+      tags:
+        - setup
+      summary: Pair with the code the service logged; answers the integration's token (not with a partner token)
+      operationId: postV1Pair
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/prove:
+    post:
+      tags:
+        - setup
+      summary: Prove the service holds the token (not with a partner token)
+      operationId: postV1Prove
+      security:
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/quiet_mode:
+    put:
+      tags:
+        - integration
+      summary: Turn quiet mode on or off
+      operationId: putV1QuietMode
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/restore:
+    post:
+      tags:
+        - integration
+      summary: Put a snapshot in place; the service starts anew (not with a partner token)
+      description: Only with backups.
+      operationId: postV1Restore
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/gzip:
+            schema:
+              format: binary
+              type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config:
+                    type: string
+                  skills:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  created:
+                    type: string
+                  version:
+                    type: string
+                required:
+                  - config
+                  - created
+                  - version
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/setup:
+    post:
+      tags:
+        - setup
+      summary: Set Home Assistant and the model (not with a partner token)
+      operationId: postV1Setup
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/setup/models:
+    post:
+      tags:
+        - setup
+      summary: A server's models, for setup (not with a partner token)
+      description: Open while the service was never paired, at most 20 calls a minute; else with the token.
+      operationId: postV1SetupModels
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/setup/probe:
+    post:
+      tags:
+        - setup
+      summary: Check a model for setup (not with a partner token)
+      description: Open while the service was never paired, at most 20 calls a minute; else with the token.
+      operationId: postV1SetupProbe
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/setup/providers:
+    get:
+      tags:
+        - setup
+      summary: The model providers setup offers (not with a partner token)
+      description: Open while the service was never paired, at most 20 calls a minute; else with the token.
+      operationId: getV1SetupProviders
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/status:
+    get:
+      tags:
+        - integration
+      summary: What waits, quiet mode, problems for the repairs
+      operationId: getV1Status
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/agents:
+    get:
+      tags:
+        - page
+      summary: The stored agent runs
+      operationId: getV1UiAgents
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/agents/{id}:
+    get:
+      tags:
+        - page
+      summary: One agent run
+      operationId: getV1UiAgentsId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_id:
+                    type: string
+                  parent_id:
+                    type: string
+                  agent:
+                    type: string
+                  status:
+                    type: string
+                  started:
+                    type: string
+                  ended:
+                    type: string
+                  duration_ms:
+                    type: integer
+                  model:
+                    type: string
+                  model_calls:
+                    type: integer
+                  prompt_tokens:
+                    type: integer
+                  completion_tokens:
+                    type: integer
+                  route:
+                    type: string
+                  input:
+                    type: string
+                  output:
+                    type: string
+                  error:
+                    type: string
+                  foreign:
+                    type: boolean
+                  call:
+                    type: object
+                    properties:
+                      origin:
+                        type: string
+                      person:
+                        type: string
+                      place:
+                        type: string
+                      rights:
+                        type: string
+                      depth:
+                        type: integer
+                      mode:
+                        type: string
+                      delivery:
+                        type: string
+                      thread:
+                        type: string
+                      into:
+                        type: string
+                    required:
+                      - origin
+                      - rights
+                      - depth
+                      - mode
+                    additionalProperties: false
+                  steps:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        seq:
+                          type: integer
+                        kind:
+                          type: string
+                        body: true
+                      required:
+                        - seq
+                        - kind
+                        - body
+                      additionalProperties: false
+                required:
+                  - call_id
+                  - agent
+                  - status
+                  - started
+                  - duration_ms
+                  - model_calls
+                  - prompt_tokens
+                  - completion_tokens
+                  - input
+                  - foreign
+                  - call
+                  - steps
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/catalog:
+    get:
+      tags:
+        - page
+      summary: The skills, agents and models
+      operationId: getV1UiCatalog
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        state:
+                          type: string
+                        problem:
+                          type: string
+                        kinds:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        settings:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              value:
+                                type: string
+                              secret:
+                                type: boolean
+                              set:
+                                type: boolean
+                            required:
+                              - name
+                              - set
+                            additionalProperties: false
+                        schedules:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              off:
+                                type: boolean
+                              cron:
+                                type: string
+                              per_person:
+                                type: boolean
+                              next:
+                                type: string
+                            required:
+                              - cron
+                            additionalProperties: false
+                        target:
+                          type:
+                            - "null"
+                            - object
+                          properties:
+                            plan:
+                              type: boolean
+                            agent:
+                              type: string
+                            fields:
+                              type:
+                                - "null"
+                                - array
+                              items:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  description:
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                  check:
+                                    type: string
+                                  agent:
+                                    type: string
+                                required:
+                                  - name
+                                additionalProperties: false
+                            finish:
+                              type: string
+                            confirm:
+                              type: boolean
+                            timeout:
+                              type: string
+                          required:
+                            - timeout
+                          additionalProperties: false
+                        mcp:
+                          type:
+                            - "null"
+                            - object
+                          properties:
+                            transport:
+                              type: string
+                            address:
+                              type: string
+                            connected:
+                              type: boolean
+                            error:
+                              type: string
+                            tools:
+                              type:
+                                - "null"
+                                - array
+                              items:
+                                type: string
+                            missing:
+                              type:
+                                - "null"
+                                - array
+                              items:
+                                type: string
+                            conversation:
+                              type: boolean
+                            web_content:
+                              type: boolean
+                          required:
+                            - transport
+                            - connected
+                            - conversation
+                          additionalProperties: false
+                        connection:
+                          type: string
+                        agents:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        guide:
+                          type: string
+                        chapters:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        phonebook:
+                          type:
+                            - "null"
+                            - object
+                          properties:
+                            link:
+                              type: string
+                            books:
+                              type:
+                                - "null"
+                                - array
+                              items:
+                                type: string
+                            read_at:
+                              type: string
+                            error:
+                              type: string
+                          required:
+                            - link
+                          additionalProperties: false
+                      required:
+                        - name
+                        - state
+                      additionalProperties: false
+                  agents:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        origin:
+                          type: string
+                        skill:
+                          type: string
+                        model:
+                          type: string
+                        model_privacy:
+                          type: string
+                        fallback:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type: string
+                        tool_names:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        threads:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        called_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        max_rounds:
+                          type: integer
+                        problem:
+                          type: string
+                      required:
+                        - name
+                        - origin
+                      additionalProperties: false
+                  models:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        token_set:
+                          type: boolean
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        from_ha:
+                          type: boolean
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        cache_prompt:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        fallback_for:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        last_ok:
+                          type: string
+                        last_failed:
+                          type: string
+                        problem:
+                          type: string
+                        runs:
+                          type: integer
+                        tokens:
+                          type: integer
+                      required:
+                        - name
+                        - endpoint
+                        - model
+                        - token_set
+                        - privacy
+                        - parallel
+                      additionalProperties: false
+                  hooks:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        level:
+                          type: string
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        source:
+                          type: string
+                        replaced:
+                          type: boolean
+                        problem:
+                          type: string
+                        off:
+                          type: boolean
+                      required:
+                        - level
+                        - name
+                        - source
+                      additionalProperties: false
+                required:
+                  - skills
+                  - agents
+                  - models
+                  - hooks
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/config:
+    get:
+      tags:
+        - page
+      summary: The settings' sections as the page edits them
+      operationId: getV1UiConfig
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Save settings' sections
+      operationId: putV1UiConfig
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/connections:
+    get:
+      tags:
+        - page
+      summary: The skills' connections and the remote address
+      operationId: getV1UiConnections
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/connections/{skill}:
+    put:
+      tags:
+        - page
+      summary: Save a skill's client id and secret
+      operationId: putV1UiConnectionsSkill
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+              required:
+                - client_id
+                - client_secret
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/connections/{skill}/token:
+    delete:
+      tags:
+        - page
+      summary: Disconnect a skill
+      operationId: deleteV1UiConnectionsSkillToken
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit:
+    get:
+      tags:
+        - page
+      summary: Models, agents and skills as the page edits them
+      operationId: getV1UiEdit
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/agents/{name}:
+    delete:
+      tags:
+        - page
+      summary: Delete an agent
+      operationId: deleteV1UiEditAgentsName
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Save an agent
+      operationId: putV1UiEditAgentsName
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                own:
+                  type: boolean
+                description:
+                  type: string
+                model:
+                  type: string
+                privacy:
+                  type: string
+                context:
+                  type: string
+                tools:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+                tools_word:
+                  type: string
+                rights:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+                conversation:
+                  type: boolean
+                max_rounds:
+                  type: integer
+                instructions:
+                  type: string
+                input:
+                  type: string
+                output:
+                  type: string
+                used_by:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/model-check:
+    post:
+      tags:
+        - page
+      summary: Check a model before saving it
+      operationId: postV1UiEditModelCheck
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                endpoint:
+                  type: string
+                model:
+                  type: string
+                token:
+                  type: string
+                privacy:
+                  type: string
+              required:
+                - endpoint
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  reason:
+                    type: string
+                  error:
+                    type: string
+                  context_tokens:
+                    type: integer
+                required:
+                  - ok
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/model-list:
+    post:
+      tags:
+        - page
+      summary: List a server's models
+      operationId: postV1UiEditModelList
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                endpoint:
+                  type: string
+                model:
+                  type: string
+                token:
+                  type: string
+                privacy:
+                  type: string
+              required:
+                - endpoint
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  error:
+                    type: string
+                required:
+                  - models
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/models/{name}:
+    delete:
+      tags:
+        - page
+      summary: Delete a model
+      operationId: deleteV1UiEditModelsName
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Save a model
+      operationId: putV1UiEditModelsName
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                endpoint:
+                  type: string
+                model:
+                  type: string
+                privacy:
+                  type: string
+                parallel:
+                  type: integer
+                fallback:
+                  type: string
+                context_tokens:
+                  type: integer
+                reasoning_effort:
+                  type: string
+                temperature:
+                  type:
+                    - "null"
+                    - number
+                max_tool_rounds:
+                  type: integer
+                timeout:
+                  type: string
+                token:
+                  type: string
+                token_clear:
+                  type: boolean
+                token_set:
+                  type: boolean
+                warm_slots:
+                  type: boolean
+                warmup:
+                  type: boolean
+                from_ha:
+                  type: boolean
+                in_file:
+                  type: boolean
+              required:
+                - endpoint
+                - model
+                - privacy
+                - token_set
+                - in_file
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/skills/{name}:
+    put:
+      tags:
+        - page
+      summary: Save a skill's settings
+      operationId: putV1UiEditSkillsName
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                settings:
+                  type: object
+                  additionalProperties:
+                    type: string
+                setting_defs:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      required:
+                        type: boolean
+                      secret:
+                        type: boolean
+                      secret_set:
+                        type: boolean
+                    required:
+                      - name
+                    additionalProperties: false
+                own:
+                  type: boolean
+                read_only:
+                  type: string
+                description:
+                  type: string
+                guide:
+                  type: string
+                agents:
+                  type: string
+                target:
+                  type: string
+                mcp:
+                  type: string
+                parts:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+              required:
+                - enabled
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                  read_only:
+                    type: string
+                  encrypted:
+                    type: boolean
+                  restart_needed:
+                    type: boolean
+                  models:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        endpoint:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        parallel:
+                          type: integer
+                        fallback:
+                          type: string
+                        context_tokens:
+                          type: integer
+                        reasoning_effort:
+                          type: string
+                        temperature:
+                          type:
+                            - "null"
+                            - number
+                        max_tool_rounds:
+                          type: integer
+                        timeout:
+                          type: string
+                        token:
+                          type: string
+                        token_clear:
+                          type: boolean
+                        token_set:
+                          type: boolean
+                        warm_slots:
+                          type: boolean
+                        warmup:
+                          type: boolean
+                        from_ha:
+                          type: boolean
+                        in_file:
+                          type: boolean
+                      required:
+                        - endpoint
+                        - model
+                        - privacy
+                        - token_set
+                        - in_file
+                      additionalProperties: false
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        own:
+                          type: boolean
+                        description:
+                          type: string
+                        model:
+                          type: string
+                        privacy:
+                          type: string
+                        context:
+                          type: string
+                        tools:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        tools_word:
+                          type: string
+                        rights:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        conversation:
+                          type: boolean
+                        max_rounds:
+                          type: integer
+                        instructions:
+                          type: string
+                        input:
+                          type: string
+                        output:
+                          type: string
+                        used_by:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      additionalProperties: false
+                  skills:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                        settings:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        setting_defs:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              description:
+                                type: string
+                              required:
+                                type: boolean
+                              secret:
+                                type: boolean
+                              secret_set:
+                                type: boolean
+                            required:
+                              - name
+                            additionalProperties: false
+                        own:
+                          type: boolean
+                        read_only:
+                          type: string
+                        description:
+                          type: string
+                        guide:
+                          type: string
+                        agents:
+                          type: string
+                        target:
+                          type: string
+                        mcp:
+                          type: string
+                        parts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                      required:
+                        - enabled
+                      additionalProperties: false
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                      additionalProperties: false
+                required:
+                  - file
+                  - encrypted
+                  - restart_needed
+                  - models
+                  - agents
+                  - skills
+                  - providers
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/edit/skills/{name}/mcp-check:
+    post:
+      tags:
+        - page
+      summary: Check a skill's MCP server
+      operationId: postV1UiEditSkillsNameMcpCheck
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settings:
+                  type: object
+                  additionalProperties:
+                    type: string
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  ms:
+                    type: integer
+                  tools:
+                    type: integer
+                  missing:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  error:
+                    type: string
+                  contacts:
+                    type: integer
+                  books:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                required:
+                  - ok
+                  - ms
+                  - tools
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/entities:
+    get:
+      tags:
+        - page
+      summary: Home Assistant's entities, for completion
+      operationId: getV1UiEntities
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type:
+                  - "null"
+                  - array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    area:
+                      type: string
+                  required:
+                    - id
+                  additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/ha:
+    delete:
+      tags:
+        - page
+      summary: Hand the sections Home Assistant set back to the page
+      operationId: deleteV1UiHa
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - page
+      summary: Mira's connection to Home Assistant as the page shows it
+      operationId: getV1UiHa
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  persons: true
+                  rooms:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        area:
+                          type: string
+                        satellite:
+                          type: string
+                        presence:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        morning:
+                          type: boolean
+                        mode:
+                          type: string
+                        indicator:
+                          type: string
+                        others:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              satellite:
+                                type: string
+                              presence:
+                                type:
+                                  - "null"
+                                  - array
+                                items:
+                                  type: string
+                              morning:
+                                type: boolean
+                              indicator:
+                                type: string
+                            required:
+                              - satellite
+                              - morning
+                            additionalProperties: false
+                      required:
+                        - area
+                        - morning
+                      additionalProperties: false
+                  managed:
+                    type: boolean
+                  exposed:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  logins:
+                    type: object
+                    additionalProperties:
+                      type: string
+                required:
+                  - persons
+                  - rooms
+                  - managed
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Change the connection to Home Assistant
+      operationId: putV1UiHa
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                persons: true
+                rooms:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: object
+                    properties:
+                      area:
+                        type: string
+                      satellite:
+                        type: string
+                      presence:
+                        type:
+                          - "null"
+                          - array
+                        items:
+                          type: string
+                      morning:
+                        type: boolean
+                      mode:
+                        type: string
+                      indicator:
+                        type: string
+                      others:
+                        type:
+                          - "null"
+                          - array
+                        items:
+                          type: object
+                          properties:
+                            satellite:
+                              type: string
+                            presence:
+                              type:
+                                - "null"
+                                - array
+                              items:
+                                type: string
+                            morning:
+                              type: boolean
+                            indicator:
+                              type: string
+                          required:
+                            - satellite
+                            - morning
+                          additionalProperties: false
+                    required:
+                      - area
+                      - morning
+                    additionalProperties: false
+                managed:
+                  type: boolean
+                exposed:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: string
+                logins:
+                  type: object
+                  additionalProperties:
+                    type: string
+              required:
+                - persons
+                - rooms
+                - managed
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  persons: true
+                  rooms:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        area:
+                          type: string
+                        satellite:
+                          type: string
+                        presence:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        morning:
+                          type: boolean
+                        mode:
+                          type: string
+                        indicator:
+                          type: string
+                        others:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              satellite:
+                                type: string
+                              presence:
+                                type:
+                                  - "null"
+                                  - array
+                                items:
+                                  type: string
+                              morning:
+                                type: boolean
+                              indicator:
+                                type: string
+                            required:
+                              - satellite
+                              - morning
+                            additionalProperties: false
+                      required:
+                        - area
+                        - morning
+                      additionalProperties: false
+                  managed:
+                    type: boolean
+                  exposed:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  logins:
+                    type: object
+                    additionalProperties:
+                      type: string
+                required:
+                  - persons
+                  - rooms
+                  - managed
+                additionalProperties: false
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/me:
+    get:
+      tags:
+        - page
+      summary: Who looks at the page
+      operationId: getV1UiMe
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/memory:
+    get:
+      tags:
+        - page
+      summary: The memories the caller may see
+      operationId: getV1UiMemory
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/memory/compact:
+    post:
+      tags:
+        - page
+      summary: Compact the persons' profiles now
+      operationId: postV1UiMemoryCompact
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "501":
+          description: Not Implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/memory/export:
+    get:
+      tags:
+        - page
+      summary: The memory as text
+      operationId: getV1UiMemoryExport
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/memory/import:
+    post:
+      tags:
+        - page
+      summary: Import facts from text (preview, then apply)
+      operationId: postV1UiMemoryImport
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/memory/{id}:
+    delete:
+      tags:
+        - page
+      summary: Forget a fact
+      operationId: deleteV1UiMemoryId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - page
+      summary: Change a fact
+      operationId: putV1UiMemoryId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/messages:
+    get:
+      tags:
+        - page
+      summary: 'Messages: the house''s, the caller''s own, all for admins'
+      operationId: getV1UiMessages
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: string
+        - description: '1: only the caller''s own'
+          in: query
+          name: mine
+          schema:
+            type: string
+        - description: '1: only the unread'
+          in: query
+          name: open
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/messages/{id}/ack:
+    post:
+      tags:
+        - page
+      summary: Mark a message as read
+      operationId: postV1UiMessagesIdAck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/models/{name}/check:
+    post:
+      tags:
+        - page
+      summary: Ask a model whether it answers
+      operationId: postV1UiModelsNameCheck
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  ms:
+                    type: integer
+                  answer:
+                    type: string
+                  error:
+                    type: string
+                required:
+                  - ok
+                  - ms
+                additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/plans:
+    get:
+      tags:
+        - page
+      summary: The open plans
+      operationId: getV1UiPlans
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/plans/{id}:
+    delete:
+      tags:
+        - page
+      summary: End a plan
+      operationId: deleteV1UiPlansId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/remote_address:
+    put:
+      tags:
+        - page
+      summary: Save the address remote agents push to
+      operationId: putV1UiRemoteAddress
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/restart:
+    post:
+      tags:
+        - page
+      summary: Restart the service to apply settings (202)
+      operationId: postV1UiRestart
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/schedules:
+    get:
+      tags:
+        - page
+      summary: The skills' and Mira's jobs at a time
+      operationId: getV1UiSchedules
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/schedules/{skill}/{name}:
+    put:
+      tags:
+        - page
+      summary: Change a job's time
+      operationId: putV1UiSchedulesSkillName
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type:
+                    - "null"
+                    - boolean
+                time:
+                  type: string
+                days:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: integer
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/schedules/{skill}/{name}/run:
+    post:
+      tags:
+        - page
+      summary: Run a job now
+      operationId: postV1UiSchedulesSkillNameRun
+      parameters:
+        - in: path
+          name: skill
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks:
+    get:
+      tags:
+        - page
+      summary: The tasks and the ones being planned
+      operationId: getV1UiTasks
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks/{id}:
+    delete:
+      tags:
+        - page
+      summary: Delete a task
+      operationId: deleteV1UiTasksId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks/{id}/activate:
+    post:
+      tags:
+        - page
+      summary: Turn a task on
+      operationId: postV1UiTasksIdActivate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks/{id}/log:
+    get:
+      tags:
+        - page
+      summary: A task's assessments
+      operationId: getV1UiTasksIdLog
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type:
+                  - "null"
+                  - array
+                items:
+                  type: object
+                  properties:
+                    at:
+                      type: string
+                    kind:
+                      type: string
+                    importance:
+                      type: integer
+                    answer:
+                      type: boolean
+                    spoken:
+                      type: string
+                    input:
+                      type: string
+                    notified:
+                      type: boolean
+                    dry_run:
+                      type: boolean
+                  required:
+                    - at
+                    - kind
+                    - importance
+                    - answer
+                    - spoken
+                    - input
+                    - notified
+                    - dry_run
+                  additionalProperties: false
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks/{id}/pause:
+    post:
+      tags:
+        - page
+      summary: Pause a task
+      operationId: postV1UiTasksIdPause
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tasks/{id}/try:
+    post:
+      tags:
+        - page
+      summary: Try a task now
+      operationId: postV1UiTasksIdTry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tokens:
+    get:
+      tags:
+        - page
+      summary: The access tokens (not with a partner token)
+      operationId: getV1UiTokens
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - page
+      summary: Make an access token; it is answered once (201)
+      operationId: postV1UiTokens
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tokens/{id}:
+    delete:
+      tags:
+        - page
+      summary: Delete an access token
+      operationId: deleteV1UiTokensId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/tokens/{id}/activity:
+    get:
+      tags:
+        - page
+      summary: A token's partner activity, 50 at a time
+      operationId: getV1UiTokensIdActivity
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - description: Where the page starts
+          in: query
+          name: offset
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/voice:
+    get:
+      tags:
+        - page
+      summary: The voices known to the speaker id
+      operationId: getV1UiVoice
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/voice/{person}:
+    delete:
+      tags:
+        - page
+      summary: Forget a person's voice
+      operationId: deleteV1UiVoicePerson
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - page
+      summary: A person's voice
+      operationId: getV1UiVoicePerson
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/voice/{person}/assign:
+    post:
+      tags:
+        - page
+      summary: Assign a heard sample to a person
+      operationId: postV1UiVoicePersonAssign
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/voice/{person}/enroll:
+    delete:
+      tags:
+        - page
+      summary: Stop enrolling a voice
+      operationId: deleteV1UiVoicePersonEnroll
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - page
+      summary: Start enrolling a voice
+      operationId: postV1UiVoicePersonEnroll
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - description: The sentences' language
+          in: query
+          name: lang
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/ui/voice/{person}/heard:
+    get:
+      tags:
+        - page
+      summary: What the speaker id heard while enrolling
+      operationId: getV1UiVoicePersonHeard
+      parameters:
+        - in: path
+          name: person
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "502":
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/unpair:
+    post:
+      tags:
+        - setup
+      summary: Release the pairing (not with a partner token)
+      operationId: postV1Unpair
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/whoami:
+    get:
+      tags:
+        - access
+      summary: The calling token's name and kind
+      operationId: getV1Whoami
+      parameters:
+        - $ref: '#/components/parameters/PartnerUser'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearer:
+      description: The integration's token or an access token made on Mira's page (docs/spec/access-tokens.md).
+      scheme: bearer
+      type: http
+  parameters:
+    PartnerUser:
+      description: The partner user who makes the call; read only with a partner token, ignored with any other.
+      in: header
+      name: X-Partner-User
+      required: false
+      schema:
+        type: string
+  schemas:
+    Error:
+      properties:
+        error:
+          description: What failed, naming its input.
+          type: string
+      required:
+        - error
+      type: object

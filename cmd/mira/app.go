@@ -48,6 +48,7 @@ import (
 	"github.com/miraassist/mira/internal/profile"
 	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/radio"
+	"github.com/miraassist/mira/internal/routes"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/setup"
 	"github.com/miraassist/mira/internal/skillha"
@@ -1409,6 +1410,9 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 			return res, nil
 		},
 	}
+	if a.ha != nil { // a nil *Client would be a non-nil HA
+		opts.HA = a.ha
+	}
 	if a.mail != nil {
 		opts.Mail = a.mail
 	}
@@ -1463,20 +1467,15 @@ func (a *app) httpHandler(runCtx context.Context) http.Handler {
 	}
 
 	page := ui.New(uiOpts)
-	mux := http.NewServeMux()
-	mux.Handle("/ui", page)
-	mux.Handle("/ui/", page)
-	mux.Handle("/v1/ui/", page)
-	// Pairing anew and changing the model from Home Assistant
-	// (docs/spec/setup.md).
-	(&setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
-		Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log}).Register(mux)
-	// Remote agents push here, with the token of their call, not the
-	// service's (docs/spec/remote-agents.md, E).
-	mux.HandleFunc("POST "+a2a.PushPath+"{call}", func(w http.ResponseWriter, r *http.Request) {
-		a.remote.ServePush(w, r)
-	})
-	mux.Handle("/", api)
+	// Every route goes through internal/api, so the service can describe
+	// itself (docs/spec/openapi.md); pairing anew and changing the model
+	// from Home Assistant (docs/spec/setup.md); remote agents push with the
+	// token of their call, not the service's (docs/spec/remote-agents.md, E).
+	mux := routes.Mux(routes.Parts{Integration: api, Page: page,
+		Setup: &setup.Handler{Store: a.store, Token: cfg.Server.Token, ID: a.instanceID(), Version: version,
+			Pairing: a.pairing, Model: cfg.Main().Model, Restart: restart, Log: a.log},
+		Push:    func(w http.ResponseWriter, r *http.Request) { a.remote.ServePush(w, r) },
+		Version: version, Log: a.log})
 	// An integration older than this service: ask Home Assistant to look
 	// for its update at once (docs/spec/versions.md, Both updates offered
 	// together).

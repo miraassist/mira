@@ -6,6 +6,7 @@ require (
 	github.com/a2aproject/a2a-go/v2 v2.8.0
 	github.com/coder/websocket v1.8.15
 	github.com/godbus/dbus/v5 v5.1.0
+	github.com/google/jsonschema-go v0.4.3
 	github.com/libp2p/zeroconf/v2 v2.2.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oklog/ulid/v2 v2.1.2
@@ -29,7 +30,6 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/kr/text v0.2.0 // indirect

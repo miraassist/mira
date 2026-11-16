@@ -30,6 +30,7 @@ import (
 
 	"github.com/miraassist/mira/docs"
 	"github.com/miraassist/mira/internal/access"
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/memfile"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
@@ -131,9 +132,22 @@ type Options struct {
 type Handler struct {
 	opts   Options
 	log    *slog.Logger
-	mux    *http.ServeMux
+	mux    *api.Mux
 	enroll enrolling
 }
+
+// object is an answer or a body a handler builds as a map or an anonymous
+// struct: a JSON object whose keys the description does not list.
+type object = map[string]any
+
+// pageRoute marks a route as the page's own (docs/spec/openapi.md, decision 4).
+func pageRoute(r api.Route) api.Route {
+	r.Tag = api.TagPage
+	return r
+}
+
+// Mux is the page's routes, for the service's mux and its description.
+func (h *Handler) Mux() *api.Mux { return h.mux }
 
 func New(opts Options) *Handler {
 	if opts.Logger == nil {
@@ -142,57 +156,57 @@ func New(opts Options) *Handler {
 	if opts.Location == nil {
 		opts.Location = time.Local
 	}
-	h := &Handler{opts: opts, log: opts.Logger.With("component", "ui"), mux: http.NewServeMux()}
-	h.mux.HandleFunc("GET /ui", h.page)
-	h.mux.HandleFunc("GET /ui/icon.png", h.icon)
-	h.mux.HandleFunc("GET /ui/guide/{lang}", h.guide)
-	h.mux.HandleFunc("GET /ui/guide/img/{name...}", h.guideFile)
-	h.mux.HandleFunc("GET /ui/js/{name}", h.script)
-	h.mux.HandleFunc("GET /ui/sounds/{name}", h.sound)
-	h.mux.HandleFunc("GET /ui/videos/{name}", h.video)
-	h.mux.HandleFunc("GET /ui/", h.page)
-	h.mux.HandleFunc("GET /v1/ui/config", h.auth(h.getConfig))
-	h.mux.HandleFunc("PUT /v1/ui/config", h.auth(h.putSections))
-	h.mux.HandleFunc("GET /v1/ui/entities", h.auth(h.entities))
+	h := &Handler{opts: opts, log: opts.Logger.With("component", "ui"), mux: api.NewMux()}
+	h.mux.Hidden("GET /ui", "the page's files, not part of the interface", http.HandlerFunc(h.page))
+	h.mux.Hidden("GET /ui/icon.png", "the page's files, not part of the interface", http.HandlerFunc(h.icon))
+	h.mux.Hidden("GET /ui/guide/{lang}", "the page's files, not part of the interface", http.HandlerFunc(h.guide))
+	h.mux.Hidden("GET /ui/guide/img/{name...}", "the page's files, not part of the interface", http.HandlerFunc(h.guideFile))
+	h.mux.Hidden("GET /ui/js/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.script))
+	h.mux.Hidden("GET /ui/sounds/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.sound))
+	h.mux.Hidden("GET /ui/videos/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.video))
+	h.mux.Hidden("GET /ui/", "the page's files, not part of the interface", http.HandlerFunc(h.page))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/config", Summary: "The settings' sections as the page edits them", Response: object{}, Errors: []int{403, 500}}), h.auth(h.getConfig))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/config", Summary: "Save settings' sections", Request: object{}, Response: object{}, Errors: []int{400, 403, 409, 422, 500}}), h.auth(h.putSections))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/entities", Summary: "Home Assistant's entities, for completion", Response: []Entity{}, Errors: []int{403}}), h.auth(h.entities))
 	// Everyone sees the house's messages and, with mine=1, their own;
 	// admins see all.
-	h.mux.HandleFunc("GET /v1/ui/messages", h.authAnyone(h.messages))
-	h.mux.HandleFunc("POST /v1/ui/messages/{id}/ack", h.authAnyone(h.ackMessage))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/messages", Summary: "Messages: the house's, the caller's own, all for admins", Response: object{}, Query: []api.Param{{Name: "page"}, {Name: "mine", Description: "1: only the caller's own"}, {Name: "open", Description: "1: only the unread"}}, Errors: []int{500}}), h.authAnyone(h.messages))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/messages/{id}/ack", Summary: "Mark a message as read", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.ackMessage))
 	// Everyone in Home Assistant may see and change their own memory;
 	// the rest is for admins (and the operator with the token).
-	h.mux.HandleFunc("GET /v1/ui/memory", h.authAnyone(h.memory))
-	h.mux.HandleFunc("DELETE /v1/ui/memory/{id}", h.authAnyone(h.forget))
-	h.mux.HandleFunc("PUT /v1/ui/memory/{id}", h.authAnyone(h.editFact))
-	h.mux.HandleFunc("POST /v1/ui/memory/compact", h.auth(h.compact))
-	h.mux.HandleFunc("GET /v1/ui/memory/export", h.authAnyone(h.exportMemory))
-	h.mux.HandleFunc("POST /v1/ui/memory/import", h.authAnyone(h.importMemory))
-	h.mux.HandleFunc("GET /v1/ui/plans", h.authAnyone(h.plans))
-	h.mux.HandleFunc("DELETE /v1/ui/plans/{id}", h.authAnyone(h.endPlan))
-	h.mux.HandleFunc("GET /v1/ui/me", h.authAnyone(h.me))
-	h.mux.HandleFunc("GET /v1/ui/voice", h.auth(h.voices))
-	h.mux.HandleFunc("GET /v1/ui/voice/{person}", h.authAnyone(h.voice))
-	h.mux.HandleFunc("DELETE /v1/ui/voice/{person}", h.authAnyone(h.forgetVoice))
-	h.mux.HandleFunc("POST /v1/ui/voice/{person}/enroll", h.authAnyone(h.enrollStart))
-	h.mux.HandleFunc("DELETE /v1/ui/voice/{person}/enroll", h.authAnyone(h.enrollStop))
-	h.mux.HandleFunc("GET /v1/ui/voice/{person}/heard", h.authAnyone(h.heard))
-	h.mux.HandleFunc("POST /v1/ui/voice/{person}/assign", h.authAnyone(h.assign))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory", Summary: "The memories the caller may see", Response: object{}, Errors: []int{500}}), h.authAnyone(h.memory))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/memory/{id}", Summary: "Forget a fact", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.forget))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/memory/{id}", Summary: "Change a fact", Request: object{}, Response: object{}, Errors: []int{400, 404, 500}}), h.authAnyone(h.editFact))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/compact", Summary: "Compact the persons' profiles now", Response: object{}, Errors: []int{403, 501, 502}}), h.auth(h.compact))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory/export", Summary: "The memory as text", Response: object{}, Errors: []int{500}}), h.authAnyone(h.exportMemory))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/import", Summary: "Import facts from text (preview, then apply)", Request: object{}, Response: object{}, Errors: []int{400, 500}}), h.authAnyone(h.importMemory))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/plans", Summary: "The open plans", Response: object{}, Errors: []int{500}}), h.authAnyone(h.plans))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/plans/{id}", Summary: "End a plan", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.endPlan))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/me", Summary: "Who looks at the page", Response: object{}}), h.authAnyone(h.me))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice", Summary: "The voices known to the speaker id", Response: object{}, Errors: []int{403, 502}}), h.auth(h.voices))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}", Summary: "A person's voice", Response: object{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.voice))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}", Summary: "Forget a person's voice", Response: object{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.forgetVoice))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/enroll", Summary: "Start enrolling a voice", Response: object{}, Query: []api.Param{{Name: "lang", Description: "The sentences' language"}}, Errors: []int{403, 404, 502}}), h.authAnyone(h.enrollStart))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}/enroll", Summary: "Stop enrolling a voice", Response: object{}, Errors: []int{403, 404}}), h.authAnyone(h.enrollStop))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}/heard", Summary: "What the speaker id heard while enrolling", Response: object{}, Errors: []int{403, 404, 409, 502}}), h.authAnyone(h.heard))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: object{}, Response: object{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
-	h.mux.HandleFunc("GET /v1/ui/catalog", h.auth(h.catalog))
-	h.mux.HandleFunc("GET /v1/ui/schedules", h.auth(h.schedules))
-	h.mux.HandleFunc("PUT /v1/ui/schedules/{skill}/{name}", h.auth(h.changeSchedule))
-	h.mux.HandleFunc("POST /v1/ui/schedules/{skill}/{name}/run", h.auth(h.runSchedule))
-	h.mux.HandleFunc("POST /v1/ui/models/{name}/check", h.auth(h.checkModel))
-	h.mux.HandleFunc("GET /v1/ui/agents", h.auth(h.runs))
-	h.mux.HandleFunc("GET /v1/ui/agents/{id}", h.auth(h.run))
-	h.mux.HandleFunc("GET /v1/ui/tasks", h.auth(h.tasks))
-	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/activate", h.auth(h.enableTask(true)))
-	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/pause", h.auth(h.enableTask(false)))
-	h.mux.HandleFunc("POST /v1/ui/tasks/{id}/try", h.auth(h.tryTask))
-	h.mux.HandleFunc("GET /v1/ui/tasks/{id}/log", h.auth(h.taskLog))
-	h.mux.HandleFunc("DELETE /v1/ui/tasks/{id}", h.auth(h.deleteTask))
-	h.mux.HandleFunc("GET /v1/ui/ha", h.auth(h.getHA))
-	h.mux.HandleFunc("PUT /v1/ui/ha", h.auth(h.putHA))
-	h.mux.HandleFunc("DELETE /v1/ui/ha", h.auth(h.deleteHA))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/catalog", Summary: "The skills, agents and models", Response: Catalog{}, Errors: []int{403}}), h.auth(h.catalog))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: object{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/schedules/{skill}/{name}", Summary: "Change a job's time", Request: ScheduleEdit{}, Response: object{}, Errors: []int{400, 403, 503}}), h.auth(h.changeSchedule))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/schedules/{skill}/{name}/run", Summary: "Run a job now", Response: object{}, Status: http.StatusAccepted, Errors: []int{400, 403, 409, 503}}), h.auth(h.runSchedule))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/models/{name}/check", Summary: "Ask a model whether it answers", Response: CheckResult{}, Errors: []int{403, 404}}), h.auth(h.checkModel))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/agents", Summary: "The stored agent runs", Response: object{}, Errors: []int{403, 500}}), h.auth(h.runs))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/agents/{id}", Summary: "One agent run", Response: RunDetail{}, Errors: []int{403, 404, 500}}), h.auth(h.run))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tasks", Summary: "The tasks and the ones being planned", Response: object{}, Errors: []int{403, 503}}), h.auth(h.tasks))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/activate", Summary: "Turn a task on", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(true)))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/pause", Summary: "Pause a task", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(false)))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/try", Summary: "Try a task now", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.tryTask))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tasks/{id}/log", Summary: "A task's assessments", Response: []assessmentJSON{}, Errors: []int{403, 500}}), h.auth(h.taskLog))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/tasks/{id}", Summary: "Delete a task", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.deleteTask))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/ha", Summary: "Mira's connection to Home Assistant as the page shows it", Response: haConfig{}, Errors: []int{403, 500}}), h.auth(h.getHA))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/ha", Summary: "Change the connection to Home Assistant", Request: haConfig{}, Response: haConfig{}, Errors: []int{400, 403, 422, 500}}), h.auth(h.putHA))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/ha", Summary: "Hand the sections Home Assistant set back to the page", Response: object{}, Errors: []int{403}}), h.auth(h.deleteHA))
 	h.editRoutes()
 	h.connectionRoutes()
 	h.tokenRoutes()

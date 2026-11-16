@@ -17,6 +17,7 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/channels/telegram"
 	"github.com/miraassist/mira/internal/config"
 	"github.com/miraassist/mira/internal/conversation"
@@ -92,6 +93,9 @@ type Options struct {
 	// service without them, whose /v1/oauth is then missing.
 	Logins  Logins
 	Restore func(ctx context.Context, r io.Reader) (any, error)
+	// HA is Mira's connection to Home Assistant, for /v1/ha/…
+	// (docs/spec/ha-api.md); nil when Mira runs without it (503 there).
+	HA HA
 }
 
 // RefusedError is a restore that was refused, with the reason for the user;
@@ -141,8 +145,12 @@ type Tasks interface {
 type Server struct {
 	opts Options
 	log  *slog.Logger
-	mux  *http.ServeMux
+	mux  *api.Mux
 }
+
+// Mux is the integration's routes, for the service's mux and its
+// description (docs/spec/openapi.md).
+func (s *Server) Mux() *api.Mux { return s.mux }
 
 func New(opts Options) *Server {
 	if opts.Logger == nil {
@@ -151,36 +159,8 @@ func New(opts Options) *Server {
 	if opts.TurnTimeout == 0 {
 		opts.TurnTimeout = 60 * time.Second
 	}
-	s := &Server{opts: opts, log: opts.Logger.With("component", "http"), mux: http.NewServeMux()}
-	s.mux.HandleFunc("GET /v1/health", s.health)
-	s.mux.HandleFunc("POST /v1/conversation", s.conversation)
-	s.mux.HandleFunc("POST /v1/conversation/reset", s.resetConversation)
-	s.mux.HandleFunc("GET /v1/status", s.status)
-	s.mux.HandleFunc("PUT /v1/quiet_mode", s.quietMode)
-	s.mux.HandleFunc("POST /v1/messages", s.addMessage)
-	s.mux.HandleFunc("POST /v1/assess", s.assess)
-	s.mux.HandleFunc("POST /v1/decide", s.decide)
-	s.mux.HandleFunc("POST /v1/check", s.check)
-	s.mux.HandleFunc("POST /v1/mail", s.mail)
-	if s.opts.Agents != nil {
-		s.mux.HandleFunc("POST /v1/agent", s.callAgent)
-		s.mux.HandleFunc("POST /v1/agent/result", s.agentResult)
-		s.mux.HandleFunc("POST /v1/agent/cancel", s.cancelAgent)
-	}
-	if s.opts.StartSkill != nil {
-		s.mux.HandleFunc("POST /v1/agent/skill", s.startSkill)
-	}
-	if s.opts.Eval {
-		s.mux.HandleFunc("POST /v1/eval/reset", s.evalReset)
-	}
-	if s.opts.Logins != nil {
-		s.mux.HandleFunc("GET /v1/oauth/{skill}", s.oauthLogin)
-		s.mux.HandleFunc("PUT /v1/oauth/{skill}/token", s.oauthToken)
-	}
-	if s.opts.Backup != nil {
-		s.mux.HandleFunc("GET /v1/backup", s.backup)
-		s.mux.HandleFunc("POST /v1/restore", s.restore)
-	}
+	s := &Server{opts: opts, log: opts.Logger.With("component", "http"), mux: api.NewMux()}
+	s.routes()
 	return s
 }
 

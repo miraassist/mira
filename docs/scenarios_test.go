@@ -61,6 +61,8 @@ var builtSteps = map[string][]int{
 	"RM": {1, 2, 3, 4, 8, 9},           // docs/spec/remote-agents.md, Steps; step 0 (the fake A2A agent) has no scenarios; step 5 in Go (RM-15, RM-16) and pytest (RM-15 to RM-17)
 	"SQ": {1},                          // docs/spec/skill-source.md, Steps
 	"SB": {1, 2, 3},                    // docs/spec/skill-files.md, Steps; step 4 is the guide
+	"HE": {1},                          // docs/spec/ha-api.md, Steps
+	"OA": {1},                          // docs/spec/openapi.md, Steps
 }
 
 var (

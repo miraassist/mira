@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/llm"
 )
 
@@ -176,38 +177,38 @@ type MCPCheckResult struct {
 }
 
 func (h *Handler) editRoutes() {
-	h.mux.HandleFunc("GET /v1/ui/edit", h.auth(h.editState))
-	h.mux.HandleFunc("PUT /v1/ui/edit/models/{name}", h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/edit", Summary: "Models, agents and skills as the page edits them", Response: EditState{}, Errors: []int{403, 404}}), h.auth(h.editState))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/edit/models/{name}", Summary: "Save a model", Request: ModelEdit{}, Response: EditState{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
 		var m ModelEdit
 		if err := json.Unmarshal(raw, &m); err != nil {
 			return errBadBody
 		}
 		return e.SaveModel(ctx, name, m)
 	})))
-	h.mux.HandleFunc("DELETE /v1/ui/edit/models/{name}", h.auth(h.editSave(func(ctx context.Context, e Editor, name string, _ json.RawMessage) error {
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/edit/models/{name}", Summary: "Delete a model", Response: EditState{}, Errors: []int{403, 404, 422}}), h.auth(h.editSave(func(ctx context.Context, e Editor, name string, _ json.RawMessage) error {
 		return e.DeleteModel(ctx, name)
 	})))
-	h.mux.HandleFunc("PUT /v1/ui/edit/agents/{name}", h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/edit/agents/{name}", Summary: "Save an agent", Request: AgentEdit{}, Response: EditState{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
 		var a AgentEdit
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return errBadBody
 		}
 		return e.SaveAgent(ctx, name, a)
 	})))
-	h.mux.HandleFunc("DELETE /v1/ui/edit/agents/{name}", h.auth(h.editSave(func(ctx context.Context, e Editor, name string, _ json.RawMessage) error {
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/edit/agents/{name}", Summary: "Delete an agent", Response: EditState{}, Errors: []int{403, 404, 422}}), h.auth(h.editSave(func(ctx context.Context, e Editor, name string, _ json.RawMessage) error {
 		return e.DeleteAgent(ctx, name)
 	})))
-	h.mux.HandleFunc("PUT /v1/ui/edit/skills/{name}", h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/edit/skills/{name}", Summary: "Save a skill's settings", Request: SkillEdit{}, Response: EditState{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.editSave(func(ctx context.Context, e Editor, name string, raw json.RawMessage) error {
 		var s SkillEdit
 		if err := json.Unmarshal(raw, &s); err != nil {
 			return errBadBody
 		}
 		return e.SaveSkill(ctx, name, s)
 	})))
-	h.mux.HandleFunc("POST /v1/ui/edit/skills/{name}/mcp-check", h.auth(h.mcpCheck))
-	h.mux.HandleFunc("POST /v1/ui/edit/model-check", h.auth(h.modelCheck))
-	h.mux.HandleFunc("POST /v1/ui/edit/model-list", h.auth(h.modelList))
-	h.mux.HandleFunc("POST /v1/ui/restart", h.auth(h.restart))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/skills/{name}/mcp-check", Summary: "Check a skill's MCP server", Request: MCPCheckRequest{}, Response: MCPCheckResult{}, Errors: []int{400, 403, 404}}), h.auth(h.mcpCheck))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/model-check", Summary: "Check a model before saving it", Request: ModelRequest{}, Response: ModelCheckResult{}, Errors: []int{400, 403, 404}}), h.auth(h.modelCheck))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/model-list", Summary: "List a server's models", Request: ModelRequest{}, Response: ModelListResult{}, Errors: []int{400, 403, 404}}), h.auth(h.modelList))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/restart", Summary: "Restart the service to apply settings (202)", Response: object{}, Status: http.StatusAccepted, Errors: []int{403, 404}}), h.auth(h.restart))
 }
 
 var errBadBody = errors.New("the body is not a valid form")

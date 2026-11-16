@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/miraassist/mira/internal/api"
 )
 
 // Connections are the skills' logins at services, for the Connections page
@@ -43,10 +45,10 @@ type ClientEdit struct {
 }
 
 func (h *Handler) connectionRoutes() {
-	h.mux.HandleFunc("GET /v1/ui/connections", h.auth(h.connections))
-	h.mux.HandleFunc("PUT /v1/ui/connections/{skill}", h.auth(h.saveClient))
-	h.mux.HandleFunc("DELETE /v1/ui/connections/{skill}/token", h.auth(h.disconnect))
-	h.mux.HandleFunc("PUT /v1/ui/remote_address", h.auth(h.saveRemoteAddress))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/connections", Summary: "The skills' connections and the remote address", Response: object{}, Errors: []int{403}}), h.auth(h.connections))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/connections/{skill}", Summary: "Save a skill's client id and secret", Request: ClientEdit{}, Response: object{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveClient))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/connections/{skill}/token", Summary: "Disconnect a skill", Response: object{}, Errors: []int{403, 404, 422}}), h.auth(h.disconnect))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/remote_address", Summary: "Save the address remote agents push to", Request: object{}, Response: object{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveRemoteAddress))
 }
 
 func (h *Handler) connections(w http.ResponseWriter, r *http.Request) {
