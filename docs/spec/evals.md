@@ -85,7 +85,7 @@ although no scenario uses X). Model keys for evals (e.g. `GEMINI_API_TOKEN`) the
 ## Run
 
 ```
-go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario termin-absagen] [--runs 3]
+go run ./cmd/testha eval --setup evals/setups/gemini-flash.yaml [--scenario termin-absagen] [--runs 3] [--evals <folder>]
 ```
 
 - `--scenario` with a report: the scenarios measured again replace theirs in the setup's last report, the others
@@ -219,6 +219,17 @@ skill `nachdenken`, always on, so scenario 39 now wants it.
 | waermepumpe-erklaeren | "Erklär mir, wie eine Wärmepumpe funktioniert" | `skill_open` of `nachdenken` and its agent `nachdenken`; neither the thread of `hermes` nor `skill_open` of it |
 
 What it costs: one voice turn per scenario, with `nachdenken` one more call of the model `delegate` takes.
+
+## Evals of private skills (added 2026-11-16)
+
+Skills sold through a [skill source](skill-source.md) are developed in a private repository: the skill, its eval
+skills, its scenarios and their results stay there, never in this one (decided by the maintainer 2026-11-16).
+
+| # | Topic | Decision |
+|---|---|---|
+| 1 | Where the scenarios come from | `--evals <folder>` names a folder laid out as `evals/`: `scenarios/`, `skills/` (eval skills), `results/`, `README.md`. The run reads the scenarios and the eval skills there and writes the report and the overview there. Without it, `evals/` of this repository. The setups (`--setup`) stay this repository's |
+| 2 | Where the skill comes from | The private skill under development is a skill of the test configuration like any other: `testenv/mira.yaml` lists `${MIRA_PRIVATE_SKILLS:-skills}` among `skills.dirs`, and `testenv/.env` (not in the repository) names the private repository's skill folder. Without the variable nothing changes. A scenario switches the skill on by naming it under `skills`, as an eval skill, but it is found in the test configuration's folders first |
+| 3 | A folder that is not there | `--evals` naming a folder without `scenarios/` ends the run before the service starts, naming the folder |
 
 ## Deliberately not
 

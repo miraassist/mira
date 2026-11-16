@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,7 +73,7 @@ func TestEvalSwitchesOnTheScenariosEvalSkills(t *testing.T) {
 	if err := yaml.Unmarshal([]byte("skills:\n  dirs: [skills]\n  abfall: {calendar: calendar.abfuhr}\n"), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	withEvalSkills(cfg, []string{"hermes"})
+	withEvalSkills(cfg, []string{"hermes"}, evalSkillsDir)
 	skills := cfg["skills"].(map[string]any)
 	if dirs := skills["dirs"].([]any); len(dirs) != 2 || dirs[0] != "skills" || dirs[1] != evalSkillsDir {
 		t.Errorf("dirs %v", dirs)
@@ -83,7 +85,7 @@ func TestEvalSwitchesOnTheScenariosEvalSkills(t *testing.T) {
 		t.Error("abfall is gone")
 	}
 	untouched := map[string]any{}
-	withEvalSkills(untouched, nil)
+	withEvalSkills(untouched, nil, evalSkillsDir)
 	if len(untouched) != 0 {
 		t.Errorf("without eval skills the config changed: %v", untouched)
 	}
@@ -106,7 +108,7 @@ func TestEvalLeavesOutTheRealResearchSkill(t *testing.T) {
 	if err := yaml.Unmarshal([]byte("skills:\n  dirs: [skills]\n  recherche: {url: http://127.0.0.1:9900}\n  abfall: {}\n"), &cfg); err != nil {
 		t.Fatal(err)
 	}
-	withEvalSkills(cfg, []string{"hermes"})
+	withEvalSkills(cfg, []string{"hermes"}, evalSkillsDir)
 	if got := withoutRealRemoteAgents(cfg); len(got) != 1 || got[0] != "recherche" {
 		t.Errorf("left out %v", got)
 	}
@@ -137,5 +139,44 @@ func TestEvalMustWithAlternatives(t *testing.T) {
 		if (len(got) == 0) != c.ok {
 			t.Errorf("%v: %v", c.trace, got)
 		}
+	}
+}
+
+// --evals names a folder laid out as evals/: its scenarios, eval skills and
+// results are used; a folder without scenarios ends the run (docs/spec/evals.md,
+// Evals of private skills).
+func TestEvalsFolderFromTheFlag(t *testing.T) {
+	root := t.TempDir()
+	if ev, sk, err := evalsFolders(root, ""); err != nil || ev != filepath.Join(root, "evals") || sk != evalSkillsDir {
+		t.Errorf("default: %q %q %v", ev, sk, err)
+	}
+	private := filepath.Join(t.TempDir(), "evals")
+	if _, _, err := evalsFolders(root, private); err == nil || !strings.Contains(err.Error(), private) {
+		t.Errorf("a folder without scenarios: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(private, "scenarios"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if ev, sk, err := evalsFolders(root, private); err != nil || ev != private || sk != filepath.Join(private, "skills") {
+		t.Errorf("private: %q %q %v", ev, sk, err)
+	}
+}
+
+// A reference with a fallback, as the private skills' folder in the test
+// config, is not missing when testenv/.env lacks it (docs/spec/evals.md,
+// Evals of private skills, decision 2).
+func TestEvalEnvTakesAFallbackAsSet(t *testing.T) {
+	r := &evalRun{env: env{"HA_TOKEN": "t"}}
+	got, err := r.agentEnv("token: ${HA_TOKEN}\nskills: {dirs: [skills, \"${MIRA_PRIVATE_SKILLS:-skills}\"]}\n")
+	if err != nil {
+		t.Fatalf("a fallback counted as missing: %v", err)
+	}
+	for _, e := range got {
+		if strings.HasPrefix(e, "MIRA_PRIVATE_SKILLS=") {
+			t.Errorf("an unset variable was passed: %s", e)
+		}
+	}
+	if _, err := r.agentEnv("token: ${NOPE}\n"); err == nil {
+		t.Error("a reference without a fallback is missing")
 	}
 }

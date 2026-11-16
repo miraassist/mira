@@ -115,7 +115,9 @@ telemetry:
   log_level: info
 # The waste skill against a made-up calendar the test HA serves; the briefing.
 skills:
-  dirs: [skills]
+  # Private skills under development (docs/spec/evals.md, Evals of private skills):
+  # testenv/.env names their folder; without it only skills/.
+  dirs: [skills, "${MIRA_PRIVATE_SKILLS:-skills}"]
   # Paperless through the MCP container of compose.yaml; without a token in
   # testenv/.env the skill does not start.
   paperless:

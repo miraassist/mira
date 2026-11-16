@@ -115,8 +115,27 @@ type evalRun struct {
 	// leftOut are the skills left out of the run because a variable their
 	// settings need is not in testenv/.env, with that variable.
 	leftOut []string
-	// evalSkills are the eval skills the run's scenarios need.
+	// evalSkills are the eval skills the run's scenarios need, from
+	// skillsDir (evalSkillsDir, or the skills of --evals).
 	evalSkills []string
+	skillsDir  string
+}
+
+// evalsFolders gives the folder of the scenarios and results and the folder
+// of the eval skills: evals/ of the repository at root, or the folder flag
+// names, which must hold scenarios/.
+func evalsFolders(root, flag string) (evalsDir, skillsDir string, err error) {
+	if flag == "" {
+		return filepath.Join(root, "evals"), evalSkillsDir, nil
+	}
+	abs, err := filepath.Abs(flag)
+	if err != nil {
+		return "", "", fmt.Errorf("--evals %s: %w", flag, err)
+	}
+	if st, err := os.Stat(filepath.Join(abs, "scenarios")); err != nil || !st.IsDir() {
+		return "", "", fmt.Errorf("--evals %s: no folder scenarios in it", abs)
+	}
+	return abs, filepath.Join(abs, "skills"), nil
 }
 
 // evalSkillsDir holds the skills only evals use, relative to the repo.
@@ -133,17 +152,24 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	keep := fs.Bool("no-report", false, "do not write a report")
 	overview := fs.Bool("overview", false, "only renew evals/README.md from the stored results")
 	keepAgent := fs.Bool("keep", false, "keep the eval service's database and log, to look into a failure")
+	evalsFlag := fs.String("evals", "", "a folder laid out as evals/ (scenarios, skills, results), e.g. a private repository's")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// The scenarios, eval skills and results: evals/ of this repository, or
+	// the folder --evals names (docs/spec/evals.md, Evals of private skills).
+	evalsDir, skillsDir, err := evalsFolders(filepath.Dir(dir), *evalsFlag)
+	if err != nil {
+		return err
+	}
 	if *overview {
-		return writeOverview(filepath.Join(filepath.Dir(dir), "evals"))
+		return writeOverview(evalsDir)
 	}
 	if *setupPath == "" {
 		return fmt.Errorf("usage: testha eval --setup evals/setups/NAME.yaml [--scenario a,b] [--runs 3]")
 	}
 	root := filepath.Dir(dir)
-	r := &evalRun{dir: dir, root: root, env: loadEnv(dir), client: &http.Client{Timeout: 2 * time.Minute}, keep: *keepAgent}
+	r := &evalRun{dir: dir, root: root, env: loadEnv(dir), client: &http.Client{Timeout: 2 * time.Minute}, keep: *keepAgent, skillsDir: skillsDir}
 	r.haToken = r.env["TESTHA_ADMIN_TOKEN"]
 	raw, err := os.ReadFile(filepath.Join(root, *setupPath))
 	if err != nil {
@@ -154,7 +180,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	}
 	r.setupName = strings.TrimSuffix(filepath.Base(*setupPath), filepath.Ext(*setupPath))
 
-	scenarios, err := loadScenarios(filepath.Join(root, "evals", "scenarios"), *only)
+	scenarios, err := loadScenarios(filepath.Join(evalsDir, "scenarios"), *only)
 	if err != nil {
 		return err
 	}
@@ -193,7 +219,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	if *only != "" {
 		// A scenario measured again goes into the setup's last report; the
 		// others stay as they were (docs/spec/evals.md).
-		merged, err := report.into(filepath.Join(root, "evals"))
+		merged, err := report.into(evalsDir)
 		if err != nil {
 			return err
 		}
@@ -203,7 +229,7 @@ func evalCmd(ctx context.Context, dir string, args []string) error {
 	if *keep {
 		return nil
 	}
-	return report.write(filepath.Join(root, "evals"))
+	return report.write(evalsDir)
 }
 
 func loadScenarios(dir, only string) ([]Scenario, error) {
@@ -314,7 +340,7 @@ func (r *evalRun) startAgent(ctx context.Context) (func(), error) {
 		}
 		cfg["agents"] = agents
 	}
-	withEvalSkills(cfg, r.evalSkills)
+	withEvalSkills(cfg, r.evalSkills, r.skillsDir)
 	for _, s := range withoutRealRemoteAgents(cfg) {
 		fmt.Printf("skill left out, its agent researches for real: %s\n", s)
 	}
@@ -553,7 +579,7 @@ func (r *evalRun) call(ctx context.Context, method, url, token string, body, out
 	return json.Unmarshal(raw, out)
 }
 
-var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)`)
+var envRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^}]*)?\}`)
 
 // agentEnv is the eval service's whole environment: a few harmless basics
 // and exactly the variables its config refers to, from testenv/.env only.
@@ -575,7 +601,11 @@ func (r *evalRun) agentEnv(config string) ([]string, error) {
 		seen[name] = true
 		v, ok := r.env[name]
 		if !ok || v == "" {
-			missing = append(missing, name)
+			// A reference with a fallback (${NAME:-x}) is not missing: the
+			// service takes the fallback, as config.expandEnv does.
+			if m[2] == "" {
+				missing = append(missing, name)
+			}
 			continue
 		}
 		env = append(env, name+"="+v)
@@ -602,7 +632,7 @@ func (r *evalRun) withoutUnsetSkills(cfg map[string]any) []string {
 		}
 		var missing []string
 		for _, m := range envRef.FindAllStringSubmatch(string(raw), -1) {
-			if v, ok := r.env[m[1]]; (!ok || v == "") && !slices.Contains(missing, m[1]) {
+			if v, ok := r.env[m[1]]; (!ok || v == "") && m[2] == "" && !slices.Contains(missing, m[1]) {
 				missing = append(missing, m[1])
 			}
 		}
@@ -635,9 +665,9 @@ func withoutRealRemoteAgents(cfg map[string]any) []string {
 	return out
 }
 
-// withEvalSkills switches on the eval skills named, from evalSkillsDir after
+// withEvalSkills switches on the eval skills named, from dir after
 // the config's own folders, without settings.
-func withEvalSkills(cfg map[string]any, names []string) {
+func withEvalSkills(cfg map[string]any, names []string, dir string) {
 	if len(names) == 0 {
 		return
 	}
@@ -647,7 +677,7 @@ func withEvalSkills(cfg map[string]any, names []string) {
 		cfg["skills"] = skills
 	}
 	dirs, _ := skills["dirs"].([]any)
-	skills["dirs"] = append(dirs, evalSkillsDir)
+	skills["dirs"] = append(dirs, dir)
 	for _, n := range names {
 		if _, ok := skills[n]; !ok {
 			skills[n] = map[string]any{}
