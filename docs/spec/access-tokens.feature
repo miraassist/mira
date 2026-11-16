@@ -81,3 +81,16 @@ Feature: Access tokens
   Scenario: AT-12 The page shows what the partner did
     Given partner activity of a token
     Then the page lists it newest first with time, partner user and what was done
+
+  @step3
+  Scenario: AT-14 A partner sees only the house's memory
+    Given a fact of the house and a fact of Anna
+    When a partner token reads the memory on Mira's page
+    Then it sees the house's fact and not Anna's
+    And it can forget the house's fact but not Anna's
+
+  @step1
+  Scenario: AT-15 A partner token cannot manage access
+    Given a partner token
+    When it lists, makes or deletes tokens or reads their activity
+    Then the answer is 403 and nothing changes

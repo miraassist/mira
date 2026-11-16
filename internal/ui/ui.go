@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/miraassist/mira/docs"
+	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/memfile"
 	"github.com/miraassist/mira/internal/satellite"
 	"github.com/miraassist/mira/internal/store"
@@ -563,9 +564,15 @@ type viewer struct {
 	limited bool
 	person  string
 	admin   bool
+	// partner is a partner token's call: an admin who sees only the house's
+	// memory (docs/spec/access-tokens.md, decision 17).
+	partner bool
 }
 
 func (h *Handler) viewer(r *http.Request) viewer {
+	if c, ok := access.CallerFrom(r.Context()); ok && c.Kind == access.KindPartner {
+		return viewer{limited: true, admin: true, partner: true}
+	}
 	user := r.Header.Get(HeaderHAUser)
 	if user == "" {
 		return viewer{admin: true}
@@ -637,7 +644,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 		Unknown bool `json:"unknown_person,omitempty"`
 		// You is the viewer's own person inside Home Assistant.
 		You string `json:"you,omitempty"`
-	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == "", You: v.person}
+	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == "" && !v.partner, You: v.person}
 	const stamp = "2006-01-02 15:04"
 	for _, owner := range owners {
 		facts, err := h.opts.Store.AllFacts(ctx, owner)

@@ -143,3 +143,51 @@ func TestAT12_ThePageShowsWhatThePartnerDid(t *testing.T) {
 		}
 	}
 }
+
+func TestAT14_APartnerSeesOnlyTheHousesMemory(t *testing.T) {
+	srv, k, st, _ := tokenServer(t)
+	ctx := context.Background()
+	house, err := st.SaveFact(ctx, store.Fact{ID: "f1", Owner: store.OwnerHouse, Text: "Der Müll kommt dienstags"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	anna, err := st.SaveFact(ctx, store.Fact{ID: "f2", Owner: "anna", Text: "Anna mag keinen Koriander"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, _, _ := k.Make(ctx, "Elektro Meier")
+	code, body := call(t, srv, "GET", "/v1/ui/memory", token, "")
+	if code != http.StatusOK || !strings.Contains(body, "dienstags") || strings.Contains(body, "Koriander") ||
+		strings.Contains(body, "unknown_person") {
+		t.Fatalf("memory: %d %s", code, body)
+	}
+	// A person's fact cannot be changed or forgotten either; the house's can.
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/"+anna.ID, token, ""); code != http.StatusNotFound {
+		t.Fatalf("forgetting Anna's fact: %d", code)
+	}
+	if code, _ := call(t, srv, "DELETE", "/v1/ui/memory/"+house.ID, token, ""); code != http.StatusOK {
+		t.Fatalf("forgetting the house's fact: %d", code)
+	}
+	// The service's own token still sees everyone's.
+	if _, body := call(t, srv, "GET", "/v1/ui/memory", "secret", ""); !strings.Contains(body, "Koriander") {
+		t.Fatalf("the integration's token: %s", body)
+	}
+}
+
+func TestAT15_APartnerTokenCannotManageAccess(t *testing.T) {
+	srv, k, _, _ := tokenServer(t)
+	token, made, _ := k.Make(context.Background(), "Elektro Meier")
+	for _, c := range []struct{ method, path, body string }{
+		{"GET", "/v1/ui/tokens", ""},
+		{"POST", "/v1/ui/tokens", `{"name":"Hintertür"}`},
+		{"DELETE", "/v1/ui/tokens/" + made.ID, ""},
+		{"GET", "/v1/ui/tokens/" + made.ID + "/activity", ""},
+	} {
+		if code, _ := call(t, srv, c.method, c.path, token, c.body); code != http.StatusForbidden {
+			t.Fatalf("%s %s: %d", c.method, c.path, code)
+		}
+	}
+	if list, _ := k.List(context.Background()); len(list) != 1 {
+		t.Fatalf("tokens now: %+v", list)
+	}
+}

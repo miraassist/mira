@@ -191,13 +191,19 @@ func (k *Keeper) isIntegration(bearer string) bool {
 }
 
 // partnerRefused are the routes a partner token may not use: the setup's
-// (decision 9) and backup and restore (decision 16).
+// (decision 9), backup and restore (decision 16) and the access tokens
+// themselves (decision 18).
 func partnerRefused(path string) bool {
 	switch path {
 	case "/v1/pair", "/v1/unpair", "/v1/prove", "/v1/backup", "/v1/restore":
 		return true
 	}
-	return path == "/v1/setup" || strings.HasPrefix(path, "/v1/setup/")
+	for _, p := range []string{"/v1/setup", "/v1/ui/tokens"} {
+		if path == p || strings.HasPrefix(path, p+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // Check wraps the HTTP interface: it answers GET /v1/whoami, passes a

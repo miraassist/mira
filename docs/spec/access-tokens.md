@@ -30,21 +30,23 @@ token, and the partner activity on Mira's page.
 |---|---|---|
 | 8 | Who may make and delete a token on the page | Home Assistant admins only, as every other setting of the setup |
 | 9 | The setup's routes | `/v1/pair`, `/v1/unpair`, `/v1/setup` and `/v1/prove` stay the integration's: a partner token is refused there (403). A partner who unpairs would cut the house off from Mira |
-| 10 | As whom a partner token acts on the page | As an admin without a Home Assistant user: `X-Mira-HA-User` and `X-Mira-HA-Admin` are ignored with a partner token. A person's own card ("Ich") and own memory are not reachable for the partner |
+| 10 | As whom a partner token acts on the page | As an admin without a Home Assistant user: `X-Mira-HA-User` and `X-Mira-HA-Admin` are ignored with a partner token. Which memories it sees: decision 17 |
 | 11 | What is stored of a token | Only a hash (SHA-256) and its first characters for recognising it; the token itself is shown once, when it is made. A backup of the database holds no usable token |
 | 12 | Which calls the partner activity keeps | Every call, reading too; kept 90 days, then deleted at the nightly cleanup |
 | 13 | Where on the page | Setup → Connections, a section "Zugänge" / "Access" |
 | 14 | Expiry | None; a token holds until it is deleted |
 | 15 | The integration's token in the list | Shown as "Home Assistant (Integration)", not deletable there (removing the integration releases it, [Setup](setup.md)) |
 | 16 | Backup and restore (`/v1/backup`, `/v1/restore`) | Not with a partner token for now (403, like the setup's routes); they carry the whole database. Can be decided either way later |
+| 17 | The persons' memories (2026-11-16, 1B; the first text of decision 10 said wrongly that they are out of reach: a call without a Home Assistant user sees every memory) | A partner token sees and changes only the house's memory, like a person who is no admin; a person's own memory stays out of its reach |
+| 18 | Managing access with a partner token (2026-11-16, 2B) | Refused (403): `/v1/ui/tokens` and below are the owner's; a partner cannot make, delete or list tokens, nor read the partner activity |
 
 ## Building blocks
 
 - **The token check** of the three handlers that take the integration's token today: Mira's page (`internal/ui`,
   `auth` and `authAnyone`), the integration's interface (`internal/channels/haconv`: conversation, status, messages,
   tasks, agents, OAuth, backup) and the setup (`internal/setup`). They stay as they are. One check before all of them
-  (`internal/access`) knows the partner tokens: it answers `/v1/whoami`, refuses a partner token where decisions 9
-  and 16 say, and passes a partner token's call on with the integration's token, the caller (name, kind, partner
+  (`internal/access`) knows the partner tokens: it answers `/v1/whoami`, refuses a partner token where decisions 9,
+  16 and 18 say, and passes a partner token's call on with the integration's token, the caller (name, kind, partner
   user) in the request's context. Not touched: the inbox's own token for webhooks ([Inbox](inbox.md)) and the push
   tokens of remote agents ([Remote agents](remote-agents.md)); they never start with a partner token's prefix.
 - **Mira's page**: the tab Connections ([Connections](oauth.md)) gets the section; the dialog to ask is the page's own
@@ -74,7 +76,7 @@ with the name and the error; nothing is stored, the page says it did not work.
    held tokens. None fits → 401 as today (`missing or wrong bearer token`), no log line per call (as today; a log
    line per wrong call would let anyone fill the log).
 2. A partner token: the caller is `{name, kind: partner, partner_user}`, the partner user from `X-Partner-User`
-   (empty if missing). The headers `X-Mira-HA-User` / `X-Mira-HA-Admin` are ignored (decision 10); the setup's routes and backup and restore refuse a partner token with 403 (decisions 9 and 16).
+   (empty if missing). The headers `X-Mira-HA-User` / `X-Mira-HA-Admin` are ignored (decision 10); the setup's routes, backup and restore and the access tokens' own routes refuse a partner token with 403 (decisions 9, 16 and 18). On the page it sees the house's memory only (decision 17).
 3. With the integration's token, `X-Partner-User` is dropped before the handler sees it.
 4. Every call of a partner token writes a row of partner activity (time, token name, partner user, method, path,
    status), for every call (decision 12). A log line `partner call` with the same fields.
@@ -119,8 +121,8 @@ version, as for Connections).
 
 1. **Tokens and the check** (built 2026-11-16): the table `access_tokens`, the check before the three handlers,
    `GET /v1/whoami`, `X-Partner-User` only with a partner token, the refused routes. Scenarios AT-01 to AT-06,
-   AT-13.
+   AT-13, AT-15.
 2. **The partner activity** (built 2026-11-16): the table `access_log`, the rows, the log line, the cleanup. Scenarios AT-07 to AT-09.
-3. **The page** (built 2026-11-16): the section Access (make, show once, delete, activity), German and English. Scenarios AT-10 to
+3. **The page** (built 2026-11-16): the section Access (make, show once, delete, activity), German and English; a partner sees the house's memory only. Scenarios AT-10 to
    AT-12.
 4. **The guide** (built 2026-11-16): a paragraph on giving a partner access and taking it back.
