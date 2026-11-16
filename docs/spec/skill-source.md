@@ -100,7 +100,7 @@ text at every turn that carries it, as with any skill.
 
 | Fails | What happens | Who learns of it |
 |---|---|---|
-| The source cannot be reached, a timeout, `429`, `5xx` | Retried at the start: three tries, waiting 2 s and 4 s (exponential, [Retries](retry.md); a `Retry-After` is kept, up to 30 s; a longer one ends at once); then Mira starts without the source's skills ([Retries](retry.md)) | the log per try (address, error, next wait); after the last a repair "Die Skills aus dem Abo konnten nicht geladen werden; Mira versucht es beim nächsten Start wieder" |
+| The source cannot be reached, a timeout, `429`, `5xx` | Retried at the start: three tries, waiting 2 s and 4 s (exponential, [Retries](retry.md); confirmed by the maintainer 2026-11-16; a `Retry-After` is kept, up to 30 s; a longer one ends at once); then Mira starts without the source's skills ([Retries](retry.md)) | the log per try (address, error, next wait); after the last a repair "Die Skills aus dem Abo konnten nicht geladen werden; Mira versucht es beim nächsten Start wieder" |
 | `401`, `403` | Not retried; Mira starts without them | a repair "Dein Abo ist abgelaufen oder der Schlüssel stimmt nicht", and the log with the address and the status |
 | `404`, an answer that is not the expected JSON | Not retried; Mira starts without them | a repair naming the address; the log with the address, the status and the answer's start (the answer is not yet a skill's text) |
 | A skill in the answer without `name` or `SKILL.md`, or with a path refused | That skill is left out, the others load | a problem of the source naming the skill and the path |
