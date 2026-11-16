@@ -254,6 +254,9 @@ log; everything else works. The reason: keeping the old commands would keep the 
      the source `ha` in `/v1/status`, as today.
    Home Assistant keeps one repair per id, so raising it at every poll while it is open adds none.
    The repair goes by itself when the token works again (its user is an admin again).
+   The service's `ha_token_refused` in `/v1/status` raises the same repair, for a token Home Assistant refused on a
+   route of Mira's interface to Home Assistant, also without an id here ([Home Assistant through Mira's
+   interface](ha-api.md), decision 10, 2026-11-16); it goes when neither says so.
 4. **Removing** the integration revokes nothing: the token is the admin's, made in their profile, and removed there
    (decided 2026-11-12). The guide says so.
 5. **A service with Home Assistant's token in its own file** (`ha.token`, no pairing): unchanged, section 3, item 4.

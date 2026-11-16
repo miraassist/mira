@@ -68,6 +68,11 @@ func (h *Handler) noSchedules(w http.ResponseWriter) bool {
 	return false
 }
 
+// ScheduleList are the schedules.
+type ScheduleList struct {
+	Items []ScheduleItem `json:"items"`
+}
+
 func (h *Handler) schedules(w http.ResponseWriter, r *http.Request) {
 	if h.noSchedules(w) {
 		return
@@ -80,7 +85,7 @@ func (h *Handler) schedules(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []ScheduleItem{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, ScheduleList{Items: items})
 }
 
 func (h *Handler) changeSchedule(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +101,7 @@ func (h *Handler) changeSchedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+	writeJSON(w, http.StatusOK, Saved{Saved: true})
 }
 
 func (h *Handler) runSchedule(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +114,6 @@ func (h *Handler) runSchedule(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeError(w, http.StatusBadRequest, err.Error())
 	default:
-		writeJSON(w, http.StatusAccepted, map[string]bool{"started": true})
+		writeJSON(w, http.StatusAccepted, Started{Started: true})
 	}
 }

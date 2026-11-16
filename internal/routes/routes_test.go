@@ -311,3 +311,83 @@ func TestOA05_TheRunningServiceDescribesItself(t *testing.T) {
 		t.Fatalf("the generator's description should hold the routes of every setup: %v", err)
 	}
 }
+
+// inner and outer are an answer with a struct inside, as most answers are.
+type inner struct {
+	Name string `json:"name"`
+}
+
+type outer struct {
+	One  inner            `json:"one"`
+	Many []inner          `json:"many"`
+	ByID map[string]inner `json:"by_id"`
+}
+
+func TestOA06_SchemasAcceptAnAddedField(t *testing.T) {
+	routes := []api.Route{{Method: "POST", Path: "/v1/thing", Summary: "A thing", Tag: api.TagIntegration,
+		Request: outer{}, Response: outer{}}}
+	raw, err := api.JSON(routes, "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"name"`) {
+		t.Fatalf("the inner struct is not described:\n%s", raw)
+	}
+	for name, doc := range map[string][]byte{"a struct inside a struct, a list and a map": raw} {
+		if strings.Contains(string(doc), `"additionalProperties": false`) {
+			t.Errorf("%s: a schema refuses added fields:\n%s", name, doc)
+		}
+	}
+	// The service's own description.
+	all, err := api.JSON(All("test"), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(all), `"additionalProperties": false`); n > 0 {
+		t.Errorf("the service's description refuses added fields in %d schemas", n)
+	}
+}
+
+// freeForm are the bodies and answers that are open objects on purpose,
+// each with its reason in the route's description (docs/spec/openapi.md,
+// decision 12).
+var freeForm = map[string]bool{
+	"POST /v1/a2a/push/{call} request":                true, // an A2A StreamResponse, the A2A protocol's
+	"POST /v1/ha/services/{domain}/{service} request": true, // an action's data, each action its own
+	"GET /v1/openapi.json response":                   true, // an OpenAPI document, OpenAPI's schema
+	"PUT /v1/ui/config request":                       true, // settings' sections as mira.yaml holds them
+}
+
+func TestOA07_EveryBodyAndAnswerIsNamed(t *testing.T) {
+	doc := described(t, All("test"))
+	bare := func(s any) bool {
+		m, _ := s.(map[string]any)
+		if m == nil || m["$ref"] != nil {
+			return false
+		}
+		props, _ := m["properties"].(map[string]any)
+		extra, _ := m["additionalProperties"].(map[string]any)
+		return fmt.Sprint(m["type"]) == "object" && len(props) == 0 && len(extra) == 0
+	}
+	for _, r := range All("test") {
+		op := operation(doc, r.Method, strings.ReplaceAll(r.Path, "...}", "}"))
+		check := func(what string, content any) {
+			for _, media := range asMap(content) {
+				if bare(asMap(media)["schema"]) && !freeForm[r.Pattern()+" "+what] {
+					t.Errorf("%s: its %s is a JSON object without its keys; name its Go type", r.Pattern(), what)
+				}
+			}
+		}
+		check("request", asMap(op["requestBody"])["content"])
+		for code, resp := range asMap(op["responses"]) {
+			if code[0] == '2' {
+				check("response", asMap(resp)["content"])
+			}
+		}
+	}
+}
+
+func asMap(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}

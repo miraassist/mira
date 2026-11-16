@@ -27,3 +27,14 @@ Feature: OpenAPI (docs/spec/openapi.md)
   Scenario: OA-04 Errors and security
     When the OpenAPI file is generated
     Then every route names the bearer scheme and Mira's error body for its error statuses
+
+  @step2
+  Scenario: OA-06 A client takes an added field
+    When the OpenAPI file is generated
+    Then no schema says additionalProperties false, not inside a list or a map either
+
+  @step2
+  Scenario: OA-07 Every body and answer is named
+    When the OpenAPI file is generated
+    Then every request and answer lists its keys
+    Except the open objects on purpose, each with its reason in its route's description

@@ -85,6 +85,11 @@ func callOf(rec store.AgentRun) agent.CallContext {
 	return cc
 }
 
+// RunList are the stored runs.
+type RunList struct {
+	Runs []Run `json:"runs"`
+}
+
 // runs lists the stored runs: running ones first, then newest first.
 func (h *Handler) runs(w http.ResponseWriter, r *http.Request) {
 	list, err := h.opts.Store.RecentAgentRuns(r.Context(), time.Now().Add(-keepRuns))
@@ -96,7 +101,7 @@ func (h *Handler) runs(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range list {
 		out = append(out, runOf(rec, callOf(rec)))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
+	writeJSON(w, http.StatusOK, RunList{Runs: out})
 }
 
 // run is one stored run with its call context and its steps in order.

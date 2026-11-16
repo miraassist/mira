@@ -155,14 +155,23 @@ func (e *enrolling) stop(person string) {
 	delete(e.open, person)
 }
 
+// Me is who looks at the page; Person and Name only when Home Assistant
+// links a person to the login.
+type Me struct {
+	Admin  bool   `json:"admin"`
+	Name   string `json:"name,omitempty"`
+	Person string `json:"person,omitempty"`
+	Voice  bool   `json:"voice"`
+}
+
 // me is who looks at the page: their person (if Home Assistant links one to
 // their login), its name, whether they are an admin, and whether there is
 // speaker recognition. Everyone may ask.
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	v := h.viewer(r)
-	out := map[string]any{"admin": v.admin, "voice": h.opts.Voices != nil}
+	out := Me{Admin: v.admin, Voice: h.opts.Voices != nil}
 	if v.person != "" {
-		out["person"], out["name"] = v.person, h.personName(v.person)
+		out.Person, out.Name = v.person, h.personName(v.person)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -187,10 +196,17 @@ func (h *Handler) voiceTarget(w http.ResponseWriter, r *http.Request) (string, b
 	return person, true
 }
 
+// VoiceList is whether there is speaker recognition and, with it, the
+// samples each person has.
+type VoiceList struct {
+	Available bool            `json:"available"`
+	Samples   *map[string]int `json:"samples,omitempty"`
+}
+
 // voices are the samples each person has; for the admins' list.
 func (h *Handler) voices(w http.ResponseWriter, r *http.Request) {
 	if h.opts.Voices == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"available": false})
+		writeJSON(w, http.StatusOK, VoiceList{Available: false})
 		return
 	}
 	profiles, err := h.opts.Voices.Profiles(r.Context())
@@ -198,7 +214,16 @@ func (h *Handler) voices(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"available": true, "samples": profiles})
+	writeJSON(w, http.StatusOK, VoiceList{Available: true, Samples: &profiles})
+}
+
+// VoiceOf is one person's samples, and whether they are enrolling: the
+// seconds left and the sentences to say.
+type VoiceOf struct {
+	Enrolling bool     `json:"enrolling"`
+	Left      int      `json:"left"`
+	Samples   int      `json:"samples"`
+	Sentences []string `json:"sentences"`
 }
 
 // voice is one person's samples, and whether they are enrolling right now.
@@ -213,8 +238,14 @@ func (h *Handler) voice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	win, left, open := h.enroll.window(person)
-	writeJSON(w, http.StatusOK, map[string]any{"samples": profiles[person], "enrolling": open, "left": int(left.Seconds()),
-		"sentences": nonNilStrings(win.sentences)})
+	writeJSON(w, http.StatusOK, VoiceOf{Samples: profiles[person], Enrolling: open, Left: int(left.Seconds()),
+		Sentences: nonNilStrings(win.sentences)})
+}
+
+// EnrollStarted is how long enrolling lasts and the sentences to say.
+type EnrollStarted struct {
+	Seconds   int      `json:"seconds"`
+	Sentences []string `json:"sentences"`
 }
 
 // enrollStart starts enrolling: for enrollFor the page shows what the
@@ -231,7 +262,7 @@ func (h *Handler) enrollStart(w http.ResponseWriter, r *http.Request) {
 	}
 	sentences := pickSentences(r.URL.Query().Get("lang"))
 	h.enroll.start(person, now, sentences)
-	writeJSON(w, http.StatusOK, map[string]any{"seconds": int(enrollFor.Seconds()), "sentences": sentences})
+	writeJSON(w, http.StatusOK, EnrollStarted{Seconds: int(enrollFor.Seconds()), Sentences: sentences})
 }
 
 func (h *Handler) enrollStop(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +271,14 @@ func (h *Handler) enrollStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.enroll.stop(person)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, OK{OK: true})
+}
+
+// HeardList is what the satellites heard while enrolling, and the seconds
+// left.
+type HeardList struct {
+	Heard []speakerid.Heard `json:"heard"`
+	Left  int               `json:"left"`
 }
 
 // heard is what the satellites heard of the sentences since enrolling
@@ -261,7 +299,12 @@ func (h *Handler) heard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// left: how much longer, so the page follows Mira's window and not a clock of its own.
-	writeJSON(w, http.StatusOK, map[string]any{"heard": h.enrollable(heard, person, win), "left": int(left.Seconds())})
+	writeJSON(w, http.StatusOK, HeardList{Heard: h.enrollable(heard, person, win), Left: int(left.Seconds())})
+}
+
+// VoiceAssign is the heard utterance to enroll.
+type VoiceAssign struct {
+	ID string `json:"id"`
 }
 
 // assign enrolls one of the utterances heard while enrolling for the person.
@@ -270,9 +313,7 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var body struct {
-		ID string `json:"id"`
-	}
+	var body VoiceAssign
 	if err := readJSON(r, &body); err != nil || body.ID == "" {
 		writeError(w, http.StatusBadRequest, "id missing")
 		return
@@ -300,7 +341,7 @@ func (h *Handler) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, OK{OK: true})
 }
 
 // forgetVoice deletes the person's voice.
@@ -314,7 +355,7 @@ func (h *Handler) forgetVoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.enroll.stop(person)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, OK{OK: true})
 }
 
 func nonNilStrings(s []string) []string {

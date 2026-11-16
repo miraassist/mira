@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/miraassist/mira/internal/a2a"
+	"github.com/miraassist/mira/internal/access"
 	"github.com/miraassist/mira/internal/api"
 	"github.com/miraassist/mira/internal/channels/haconv"
 	"github.com/miraassist/mira/internal/setup"
@@ -47,13 +48,15 @@ func Mux(p Parts) *api.Mux {
 		push = http.NotFound
 	}
 	m.Handle(api.Route{Method: http.MethodPost, Path: a2a.PushPath + "{call}", Tag: api.TagIntegration, Open: true,
-		Summary:     "A remote agent's push for a call (A2A)",
-		Description: "Takes the call's own token in A2A-Notification-Token or as bearer, not the service's (docs/spec/remote-agents.md).",
-		Request:     map[string]any{}, Errors: []int{400, 401}}, push)
+		Summary: "A remote agent's push for a call (A2A)",
+		Description: "Takes the call's own token in A2A-Notification-Token or as bearer, not the service's (docs/spec/remote-agents.md). " +
+			"The body is an A2A StreamResponse as the A2A protocol defines it (a task, a message, a status or an artifact update): " +
+			"the remote agent's protocol, not Mira's, so it is described as an open object.",
+		Request: a2a.Push{}, Errors: []int{400, 401}}, push)
 	// Answered by the access check in front of the mux
 	// (docs/spec/access-tokens.md).
 	m.Before(api.Route{Method: http.MethodGet, Path: "/v1/whoami", Tag: api.TagAccess,
-		Summary: "The calling token's name and kind", Response: map[string]string{}})
+		Summary: "The calling token's name and kind", Response: access.Who{}})
 	log := p.Log
 	if log == nil {
 		log = slog.Default()

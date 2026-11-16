@@ -210,6 +210,19 @@ func (s *Service) PaperlessOn() bool { return s.o.Token != "" && s.o.Paperless !
 // Path is where Paperless's webhook posts.
 const Path = "/v1/inbox/paperless"
 
+// Webhook is Paperless's webhook body: the document (a number, or a
+// number as a string), its title and its owner.
+type Webhook struct {
+	DocID json.RawMessage `json:"doc_id"`
+	Title string          `json:"title"`
+	Owner string          `json:"owner"`
+}
+
+// Queued is the webhook's answer (202).
+type Queued struct {
+	Queued bool `json:"queued"`
+}
+
 // ServeHTTP takes a webhook of Paperless: it answers at once and the reading
 // runs afterwards (Paperless waits at most 5 s). Only the inbox token opens
 // it.
@@ -233,11 +246,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	var body struct {
-		DocID json.RawMessage `json:"doc_id"`
-		Title string          `json:"title"`
-		Owner string          `json:"owner"`
-	}
+	var body Webhook
 	if err := json.Unmarshal(raw, &body); err != nil {
 		s.refuse(w, raw, "body", "not a JSON object")
 		return
@@ -253,7 +262,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Enqueue(r.Context(), doc, owner)
-	writeJSON(w, http.StatusAccepted, map[string]bool{"queued": true})
+	writeJSON(w, http.StatusAccepted, Queued{Queued: true})
 }
 
 func (s *Service) refuse(w http.ResponseWriter, raw []byte, field, why string) {

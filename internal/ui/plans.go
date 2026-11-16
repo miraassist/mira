@@ -28,6 +28,11 @@ type Plan struct {
 // PlanSource lists the running plans; Place is "area:<id>" for a room.
 type PlanSource func(ctx context.Context) ([]Plan, error)
 
+// PlanList are the running plans.
+type PlanList struct {
+	Plans []Plan `json:"plans"`
+}
+
 func (h *Handler) plans(w http.ResponseWriter, r *http.Request) {
 	out := []Plan{}
 	if h.opts.Plans != nil {
@@ -50,7 +55,7 @@ func (h *Handler) plans(w http.ResponseWriter, r *http.Request) {
 			out = append(out, p)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
+	writeJSON(w, http.StatusOK, PlanList{Plans: out})
 }
 
 // endPlan ends a running plan from the page (docs/spec/plan-end.md): only an
@@ -90,5 +95,5 @@ func (h *Handler) endPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log.Info("plan ended on the page", "plan", id, "target", target)
-	writeJSON(w, http.StatusOK, map[string]bool{"ended": true})
+	writeJSON(w, http.StatusOK, Ended{Ended: true})
 }

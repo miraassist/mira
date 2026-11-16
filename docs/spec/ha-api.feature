@@ -44,3 +44,14 @@ Feature: Home Assistant through Mira's interface (docs/spec/ha-api.md)
   Scenario: HE-08 A partner's call is shown
     When the Partner service sets a helper with its partner token and a partner user
     Then the call shows on Mira's page with the token's name and the partner user
+
+  @step2
+  Scenario: HE-09 A refused token raises the repair
+    Given Home Assistant refuses Mira's token
+    When a token holder reads an entity
+    Then the answer is 502 "Home Assistant refused Mira's token"
+    And /v1/status says ha_token_refused
+    And the integration shows the repair "Mira has no access any more"
+    When a later call is accepted by Home Assistant
+    Then /v1/status no longer has ha_token_refused
+    And the repair goes at the integration's next poll

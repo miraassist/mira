@@ -255,3 +255,59 @@ func TestHE08_APartnersCallIsShown(t *testing.T) {
 		t.Fatalf("partner activity: %+v", calls)
 	}
 }
+
+func TestHE09_ARefusedTokenRaisesTheRepair(t *testing.T) {
+	ha := fakeha.New()
+	t.Cleanup(ha.Close)
+	ha.SetStates([]haws.State{{EntityID: "input_boolean.x", State: "on"}})
+	client := haClient(t, ha.URL, ha.Token)
+	waitConnected(t, client)
+	st, err := store.Open(context.Background(), store.Options{Path: storetest.Path(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	var logs bytes.Buffer
+	srv := httptest.NewServer(New(Options{Token: "secret", HA: client, Store: st,
+		Logger: slog.New(slog.NewTextHandler(&logs, nil))}))
+	t.Cleanup(srv.Close)
+	refused := func() (bool, bool) {
+		t.Helper()
+		code, out := do(t, srv, "GET", "/v1/status", "secret", "")
+		if code != http.StatusOK {
+			t.Fatalf("status: %d %v", code, out)
+		}
+		v, present := out["ha_token_refused"]
+		return v == true, present
+	}
+	if _, present := refused(); present {
+		t.Fatal("ha_token_refused is there before any refusal; an older integration must see no new key")
+	}
+	good := ha.Token
+	ha.SetToken("revoked")
+	code, out := do(t, srv, "GET", "/v1/ha/states/input_boolean.x", "secret", "")
+	if code != http.StatusBadGateway || out["error"] != "Home Assistant refused Mira's token" {
+		t.Fatalf("want 502 for the refused token, got %d %v", code, out)
+	}
+	if on, _ := refused(); !on {
+		t.Fatal("/v1/status does not report the refused token")
+	}
+	if !strings.Contains(logs.String(), "refused Mira's token") {
+		t.Fatalf("no log line for the refusal:\n%s", logs.String())
+	}
+	// A call that does not reach Home Assistant changes nothing.
+	if code, _ := do(t, srv, "GET", "/v1/ha/states/NOT-AN-ID", "secret", ""); code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", code)
+	}
+	if on, _ := refused(); !on {
+		t.Fatal("a request Home Assistant did not see took the repair away")
+	}
+	// The next call Home Assistant accepts takes it away.
+	ha.SetToken(good)
+	if code, out := do(t, srv, "GET", "/v1/ha/states/input_boolean.x", "secret", ""); code != http.StatusOK {
+		t.Fatalf("want 200, got %d %v", code, out)
+	}
+	if _, present := refused(); present {
+		t.Fatal("ha_token_refused stays after a call Home Assistant accepted")
+	}
+}

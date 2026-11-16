@@ -864,6 +864,12 @@ func (h *Host) cancelTask(c *call, task string) {
 	h.log.Info("remote agent's task cancelled", "agent", c.agent.Name, "call_id", c.id, "task_id", task)
 }
 
+// Push is a remote agent's push as the A2A protocol defines it (a
+// StreamResponse: a task, a message, a status or an artifact update); here
+// only to describe the route, as an open object: the remote agent's
+// protocol, not Mira's.
+type Push map[string]any
+
 // ServePush takes a push of a remote agent (E): the call by its id, the
 // token from A2A-Notification-Token or Authorization: Bearer (decision 14).
 // It answers at once and hands the event on; it never blocks.

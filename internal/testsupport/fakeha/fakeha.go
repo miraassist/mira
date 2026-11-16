@@ -88,6 +88,14 @@ func (s *Server) Commands() []map[string]any {
 	return append([]map[string]any(nil), s.commands...)
 }
 
+// SetToken changes the token the fake accepts from now on, as when Mira's
+// token is revoked; a connection made before stays.
+func (s *Server) SetToken(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Token = token
+}
+
 // SetRegistry installs the registry data the fake answers with.
 func (s *Server) SetRegistry(areas []haws.Area, devices []haws.Device, entities []haws.Entity) {
 	s.mu.Lock()

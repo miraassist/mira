@@ -341,5 +341,5 @@ func knownPersonFields(raw json.RawMessage) (json.RawMessage, []string, error) {
 func (h *Handler) deleteHA(w http.ResponseWriter, r *http.Request) {
 	h.opts.Config.ReleaseHA()
 	h.log.Info("Home Assistant no longer manages persons and rooms")
-	writeJSON(w, http.StatusOK, map[string]bool{"managed": false})
+	writeJSON(w, http.StatusOK, HAManaged{Managed: false})
 }

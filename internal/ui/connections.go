@@ -45,20 +45,33 @@ type ClientEdit struct {
 }
 
 func (h *Handler) connectionRoutes() {
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/connections", Summary: "The skills' connections and the remote address", Response: object{}, Errors: []int{403}}), h.auth(h.connections))
-	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/connections/{skill}", Summary: "Save a skill's client id and secret", Request: ClientEdit{}, Response: object{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveClient))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/connections/{skill}/token", Summary: "Disconnect a skill", Response: object{}, Errors: []int{403, 404, 422}}), h.auth(h.disconnect))
-	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/remote_address", Summary: "Save the address remote agents push to", Request: object{}, Response: object{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveRemoteAddress))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/connections", Summary: "The skills' connections and the remote address", Response: ConnectionList{}, Errors: []int{403}}), h.auth(h.connections))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/connections/{skill}", Summary: "Save a skill's client id and secret", Request: ClientEdit{}, Response: ConnectionList{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveClient))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/connections/{skill}/token", Summary: "Disconnect a skill", Response: ConnectionList{}, Errors: []int{403, 404, 422}}), h.auth(h.disconnect))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/remote_address", Summary: "Save the address remote agents push to", Request: RemoteAddressEdit{}, Response: ConnectionList{}, Errors: []int{400, 403, 404, 422}}), h.auth(h.saveRemoteAddress))
+}
+
+// ConnectionList are the skills' connections and, with connections, Mira's
+// address for remote agents and whether a skill that is on has one.
+type ConnectionList struct {
+	Connections   []Connection `json:"connections"`
+	RemoteAddress *string      `json:"remote_address,omitempty"`
+	RemoteAgents  *bool        `json:"remote_agents,omitempty"`
+}
+
+// RemoteAddressEdit is Mira's new address for remote agents.
+type RemoteAddressEdit struct {
+	URL string `json:"url"`
 }
 
 func (h *Handler) connections(w http.ResponseWriter, r *http.Request) {
 	if h.opts.Connections == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"connections": []Connection{}})
+		writeJSON(w, http.StatusOK, ConnectionList{Connections: []Connection{}})
 		return
 	}
 	url, used := h.opts.Connections.RemoteAddress()
-	writeJSON(w, http.StatusOK, map[string]any{"connections": h.opts.Connections.List(r.Context()),
-		"remote_address": url, "remote_agents": used})
+	writeJSON(w, http.StatusOK, ConnectionList{Connections: h.opts.Connections.List(r.Context()),
+		RemoteAddress: &url, RemoteAgents: &used})
 }
 
 // saveRemoteAddress writes Mira's address for remote agents.
@@ -67,9 +80,7 @@ func (h *Handler) saveRemoteAddress(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no connections")
 		return
 	}
-	var in struct {
-		URL string `json:"url"`
-	}
+	var in RemoteAddressEdit
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, errBadBody.Error())
 		return

@@ -30,6 +30,11 @@ func (s *Server) oauthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Connected is PUT /v1/oauth/{skill}/token's answer.
+type Connected struct {
+	Connected bool `json:"connected"`
+}
+
 // PUT /v1/oauth/{skill}/token: the tokens of a login Home Assistant has
 // done, once.
 func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +50,6 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 	default:
-		writeJSON(w, http.StatusOK, map[string]bool{"connected": true})
+		writeJSON(w, http.StatusOK, Connected{Connected: true})
 	}
 }

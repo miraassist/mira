@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -146,6 +147,10 @@ type Server struct {
 	opts Options
 	log  *slog.Logger
 	mux  *api.Mux
+	// haRefused: Home Assistant refused Mira's token on a route to Home
+	// Assistant, and no later call there was accepted (docs/spec/ha-api.md,
+	// decision 10); /v1/status reports it for the integration's repair.
+	haRefused atomic.Bool
 }
 
 // Mux is the integration's routes, for the service's mux and its
@@ -185,6 +190,17 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 }
 
+// Health is GET /v1/health: the service's state ("ok", "degraded"), its
+// version and id, each dependency's check ("ok" or its error), and the Home
+// Assistant user of Mira's token when it is known.
+type Health struct {
+	Checks   map[string]string `json:"checks"`
+	HAUserID string            `json:"ha_user_id,omitempty"`
+	ID       string            `json:"id"`
+	Status   string            `json:"status"`
+	Version  string            `json:"version"`
+}
+
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -198,11 +214,9 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 			checks[name] = "ok"
 		}
 	}
-	out := map[string]any{"status": status, "version": s.opts.Version, "id": s.opts.InstanceID, "checks": checks}
+	out := Health{Status: status, Version: s.opts.Version, ID: s.opts.InstanceID, Checks: checks}
 	if s.opts.HAUser != nil {
-		if user := s.opts.HAUser(ctx); user != "" {
-			out["ha_user_id"] = user
-		}
+		out.HAUserID = s.opts.HAUser(ctx)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -386,16 +400,28 @@ func (l *lineWriter) write(v any) {
 
 func (l *lineWriter) started() bool { return l != nil && l.begun }
 
+// EvalReset is POST /v1/eval/reset's body: the facts a scenario starts
+// with; the body may be empty.
+type EvalReset struct {
+	Facts []EvalFact `json:"facts"`
+}
+
+// EvalFact is one fact; without an owner it is the house's.
+type EvalFact struct {
+	Owner string `json:"owner"`
+	Text  string `json:"text"`
+}
+
+// Done is an answer that says what happened: "reset".
+type Done struct {
+	Status string `json:"status"`
+}
+
 // evalReset empties Mira's state between eval scenarios (conversations,
 // threads, memory, messages) and puts in the facts a scenario starts with.
 // Only in eval mode.
 func (s *Server) evalReset(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Facts []struct {
-			Owner string `json:"owner"`
-			Text  string `json:"text"`
-		} `json:"facts"`
-	}
+	var req EvalReset
 	if r.ContentLength != 0 {
 		if err := decode(r, &req); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -417,7 +443,7 @@ func (s *Server) evalReset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "reset"})
+	writeJSON(w, http.StatusOK, Done{Status: "reset"})
 }
 
 // resetter starts a conversation afresh ("/neu" on Telegram).
@@ -425,11 +451,20 @@ type resetter interface {
 	ResetSession(ctx context.Context, ch config.Channel, conversationID string) error
 }
 
+// ConversationReset is POST /v1/conversation/reset's body: the channel
+// (telegram or voice) and the conversation.
+type ConversationReset struct {
+	Channel        string `json:"channel"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// ResetDone is POST /v1/conversation/reset's answer.
+type ResetDone struct {
+	Reset bool `json:"reset"`
+}
+
 func (s *Server) resetConversation(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Channel        string `json:"channel"`
-		ConversationID string `json:"conversation_id"`
-	}
+	var req ConversationReset
 	if err := decode(r, &req); err != nil || req.ConversationID == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"channel", "conversation_id"}`)
 		return
@@ -443,7 +478,25 @@ func (s *Server) resetConversation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"reset": true})
+	writeJSON(w, http.StatusOK, ResetDone{Reset: true})
+}
+
+// Status is GET /v1/status: what waits, quiet mode, the problems the
+// integration shows as repairs, the version, and the lists the integration
+// checks against Home Assistant.
+type Status struct {
+	// ExposedHash is the fingerprint of the entities exposed to Assist;
+	// present whenever the service keeps that list.
+	ExposedHash *string `json:"exposed_hash,omitempty"`
+	// HATokenRefused: Home Assistant refused Mira's token on a route to
+	// Home Assistant (docs/spec/ha-api.md, decision 10); absent when not.
+	HATokenRefused  bool      `json:"ha_token_refused,omitempty"`
+	InboxApps       []string  `json:"inbox_apps"`
+	MailApps        []string  `json:"mail_apps"`
+	PendingMessages int       `json:"pending_messages"`
+	Problems        []Problem `json:"problems"`
+	QuietMode       bool      `json:"quiet_mode"`
+	Version         string    `json:"version"`
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
@@ -463,15 +516,17 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	// version lets the integration say when it and the service do not match
 	// (docs/spec/versions.md).
-	status := map[string]any{"pending_messages": pending, "quiet_mode": quiet, "problems": problems, "version": s.opts.Version}
+	status := Status{PendingMessages: pending, QuietMode: quiet, Problems: problems, Version: s.opts.Version,
+		HATokenRefused: s.haRefused.Load()}
 	if s.opts.ExposedHash != nil {
-		status["exposed_hash"] = s.opts.ExposedHash(r.Context())
+		hash := s.opts.ExposedHash(r.Context())
+		status.ExposedHash = &hash
 	}
 	apps := []string{}
 	if s.opts.Mail != nil {
 		apps = append(apps, s.opts.Mail.AppNames()...)
 	}
-	status["mail_apps"] = apps
+	status.MailApps = apps
 	// The inbox needs no calendar, so it has a list of its own: the
 	// integration's repair for a missing calendar stays with mail_apps
 	// (docs/spec/inbox.md, step 6).
@@ -479,8 +534,14 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.opts.MailInbox != nil {
 		inboxApps = append(inboxApps, MailInboxApp)
 	}
-	status["inbox_apps"] = inboxApps
+	status.InboxApps = inboxApps
 	writeJSON(w, http.StatusOK, status)
+}
+
+// MailQueued is POST /v1/mail's answer (202) for a mail of the inbox:
+// whether it was queued for reading.
+type MailQueued struct {
+	Queued bool `json:"queued"`
 }
 
 // mail takes one mail of an IMAP entry and keeps its calendar entry. The
@@ -495,7 +556,7 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 	// (docs/spec/inbox.md, step 6).
 	if s.opts.MailInbox != nil && s.opts.MailInbox.Owns(m.Entry) {
 		queued := s.opts.MailInbox.EnqueueMail(context.WithoutCancel(r.Context()), m)
-		writeJSON(w, http.StatusAccepted, map[string]bool{"queued": queued})
+		writeJSON(w, http.StatusAccepted, MailQueued{Queued: queued})
 		return
 	}
 	if s.opts.Mail == nil {
@@ -517,10 +578,18 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// QuietModeRequest is PUT /v1/quiet_mode's body; enabled is required.
+type QuietModeRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// QuietMode is PUT /v1/quiet_mode's answer: quiet mode as it is now.
+type QuietMode struct {
+	QuietMode bool `json:"quiet_mode"`
+}
+
 func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Enabled *bool `json:"enabled"`
-	}
+	var req QuietModeRequest
 	if err := decode(r, &req); err != nil || req.Enabled == nil {
 		writeError(w, http.StatusBadRequest, `body must be {"enabled": true|false}`)
 		return
@@ -529,7 +598,7 @@ func (s *Server) quietMode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"quiet_mode": *req.Enabled})
+	writeJSON(w, http.StatusOK, QuietMode{QuietMode: *req.Enabled})
 }
 
 type messageRequest struct {
@@ -546,6 +615,13 @@ type messageRequest struct {
 	// ({{ this.attributes.id }}): the message then counts as the task's and
 	// shows in its log.
 	Task string `json:"task"`
+}
+
+// MessageMade is POST /v1/messages's answer: the message's id, and whether
+// it was made now (201) or was there already (200).
+type MessageMade struct {
+	Created bool   `json:"created"`
+	ID      string `json:"id"`
 }
 
 func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
@@ -634,7 +710,7 @@ func (s *Server) addMessage(w http.ResponseWriter, r *http.Request) {
 	if created {
 		code = http.StatusCreated
 	}
-	writeJSON(w, code, map[string]any{"id": n.ID, "created": created})
+	writeJSON(w, code, MessageMade{ID: n.ID, Created: created})
 }
 
 // check is mira.check (docs/spec/group-watch.md, C2): the watch group

@@ -1,7 +1,7 @@
 # OpenAPI – Spec
 
-Status 2026-11-16: step 1 built (not released). Decisions 1, 2 and 11 by the maintainer, the others taken while
-writing, to be confirmed; notes from building below the decisions.
+Status 2026-11-16: steps 1 and 2 built (not released). Decisions 1, 2, 11, 12 and 13 by the maintainer, the others
+taken while writing, to be confirmed; notes from building below the decisions.
 
 ## Goal
 
@@ -16,7 +16,10 @@ By the maintainer (2026-11-16):
 | # | Topic | Decision |
 |---|---|---|
 | 1 | Made how | Generated from the code, not written by hand |
-| 2 | The way | Every route is registered through one small function that knows its method, path, summary and the Go types of its request and answer; a generator writes the OpenAPI file from that, and a test fails when the file does not match the code. The handlers themselves stay as they are |
+| 2 | The way | Every route is registered through one small function that knows its method, path, summary and the Go types of its request and answer; a generator writes the OpenAPI file from that, and a test fails when the file does not match the code. The handlers themselves stay as they are (until decision 12) |
+| 11 | At run time | The running service serves its description at `GET /v1/openapi.yaml` (and `GET /v1/openapi.json`), generated from the routes it registered, so it is always the running version's. Without a token: it says nothing the open repository does not; it is itself in the file |
+| 12 | "A JSON object" (the open question of step 1: decided A) | Every route's request and answer has a named Go type, given in its registration; the handler fills that type instead of a map or an anonymous struct. The JSON on the wire stays as it was, key for key. A body that is free-form on purpose (an action's data, a protocol of others, settings' sections as `mira.yaml` holds them, the description itself) stays an open object, and its route's description says why |
+| 13 | `additionalProperties` (decided B) | No schema says `additionalProperties: false`: the generator takes it out of every schema, so a client written against an older description takes a newer service's answer with a field added (the interface rule: new fields are optional both ways) |
 
 Taken while writing (2026-11-16), to be confirmed:
 
@@ -29,7 +32,6 @@ Taken while writing (2026-11-16), to be confirmed:
 | 7 | Security | One bearer scheme; the header `X-Partner-User` with a partner token ([Access tokens](access-tokens.md)) described once |
 | 8 | Version | `info.version` is the service's version (`cmd/mira`'s `version`) at generation |
 | 9 | A route without registration | The test also walks the service's mux: a route registered past the function fails the test, naming it |
-| 11 | At run time (2026-11-16, by the maintainer) | The running service serves its description at `GET /v1/openapi.yaml` (and `GET /v1/openapi.json`), generated from the routes it registered, so it is always the running version's. Without a token: it says nothing the open repository does not (confirmed by the maintainer the same day); it is itself in the file |
 | 10 | A dependency | A small, maintained library for the reflection of Go types into JSON Schema may be used; no framework that changes how handlers are written |
 
 ## Notes from building (2026-11-16)
@@ -46,9 +48,20 @@ Taken while writing (2026-11-16), to be confirmed:
   Assistant, connections, backup, eval mode) is listed with "Only …". Left out: the page's files under `/ui`, and the
   setup mode's own `GET /v1/health` and page (the service waiting to be set up is a server of its own).
 - **Decision 5, schemas**: a field's Go comment is not read (no source at run time); a `jsonschema` tag would be.
-  Where a handler builds its answer or reads its body as a map or an anonymous struct, the description says "a JSON
-  object" without its keys: 56 answers and 18 bodies of the 79 routes. Naming their types changes the handlers,
-  which decision 2 keeps as they are; open.
+  Where a handler built its answer or read its body as a map or an anonymous struct, the description said "a JSON
+  object" without its keys: 56 answers and 18 bodies of the 79 routes. Decision 12 names them all (step 2).
+- **Decision 12, building (2026-11-16)**: a struct that replaces a map lists its fields in the order of their keys,
+  so it marshals byte for byte as the map did (Go sorts a map's keys); one that replaces an anonymous struct keeps its
+  order. `omitempty` only where the key was left out, and exactly then; a key that was there even when empty (an
+  empty fingerprint, an empty list) is a pointer with `omitempty`, which the schema shows as nullable although the
+  service never sends `null`. The equality was checked once, for the change, against the old maps (not kept as a
+  test: once the maps are gone it tests nothing); the handlers' tests and the file's test guard it from then on. The
+  open objects on purpose: the body of `POST /v1/ha/services/{domain}/{service}` (each action takes its own data),
+  of `POST /v1/a2a/push/{call}` (an A2A StreamResponse, the A2A protocol's), of `PUT /v1/ui/config` (a section's
+  value as `mira.yaml` holds it), and the answer of `GET /v1/openapi.json` (an OpenAPI document). A test fails for
+  any other body or answer that is an object without keys, naming the route.
+- **Decision 13, building**: the generator walks every schema the reflection made and drops
+  `additionalProperties: false`; a map's schema of its values stays.
 - **Decision 6, errors**: each route lists the statuses its handler writes, `401` added for every route with the
   token, `403` where a partner token is refused.
 - **Decision 8, version**: `cmd/openapi` and the test read `var version = "…"` from `cmd/mira/main.go`; every raise of
@@ -85,3 +98,5 @@ description; the generation of the file runs only on demand and in the test.
 
 1. **The function and the generator**, every route through it, the file and the test, the description at run time
    (OA-01 to OA-05; built 2026-11-16).
+2. **Named types and open schemas** (decisions 12 and 13): every request and answer a named Go type, the free-form ones
+   listed with their reason; no `additionalProperties: false` (OA-06, OA-07; built 2026-11-16).

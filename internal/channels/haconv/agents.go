@@ -127,11 +127,34 @@ func (s *Server) callAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// AgentCall is the body of mira.agent_result and mira.agent_cancel: the
+// call's id.
+type AgentCall struct {
+	CallID string `json:"call_id"`
+}
+
+// AgentCancelled is mira.agent_cancel's answer: whether a running call was
+// cancelled.
+type AgentCancelled struct {
+	Cancelled bool `json:"cancelled"`
+}
+
+// SkillStart is the body of mira.agent with skill: the skill, its request
+// (a text, or {"input": "…"}), and the receiver.
+type SkillStart struct {
+	Skill    string          `json:"skill"`
+	Input    json.RawMessage `json:"input"`
+	Receiver string          `json:"receiver"`
+}
+
+// SkillStarted is mira.agent with skill's answer: the thread it started.
+type SkillStarted struct {
+	ThreadID string `json:"thread_id"`
+}
+
 // agentResult serves mira.agent_result.
 func (s *Server) agentResult(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		CallID string `json:"call_id"`
-	}
+	var req AgentCall
 	if err := decode(r, &req); err != nil || req.CallID == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"call_id"}`)
 		return
@@ -155,14 +178,12 @@ func (s *Server) agentResult(w http.ResponseWriter, r *http.Request) {
 
 // cancelAgent serves mira.agent_cancel.
 func (s *Server) cancelAgent(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		CallID string `json:"call_id"`
-	}
+	var req AgentCall
 	if err := decode(r, &req); err != nil || req.CallID == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"call_id"}`)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"cancelled": s.opts.Agents.Cancel(req.CallID)})
+	writeJSON(w, http.StatusOK, AgentCancelled{Cancelled: s.opts.Agents.Cancel(req.CallID)})
 }
 
 // SkillRefused is why a skill's thread was not started from Home
@@ -176,11 +197,7 @@ func (e *SkillRefused) Error() string { return e.Reason }
 // input as the request. A route of its own, so an older service answers
 // 404 and the integration says that Mira needs an update (decision 47).
 func (s *Server) startSkill(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Skill    string          `json:"skill"`
-		Input    json.RawMessage `json:"input"`
-		Receiver string          `json:"receiver"`
-	}
+	var req SkillStart
 	if err := decode(r, &req); err != nil || req.Skill == "" {
 		writeError(w, http.StatusBadRequest, `body must name a "skill"`)
 		return
@@ -202,7 +219,7 @@ func (s *Server) startSkill(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"thread_id": id})
+	writeJSON(w, http.StatusOK, SkillStarted{ThreadID: id})
 }
 
 // skillRequest is the request of mira.agent with skill: a text, or an

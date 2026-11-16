@@ -239,11 +239,46 @@ func content(r Route, v any, media string) (string, any, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("route %s: the type %T cannot be described: %w", r.Pattern(), v, err)
 	}
+	openUp(reflect.ValueOf(s))
 	raw, err := json.Marshal(s)
 	if err != nil {
 		return "", nil, fmt.Errorf("route %s: the schema of %T: %w", r.Pattern(), v, err)
 	}
 	return "application/json", json.RawMessage(raw), nil
+}
+
+// openUp takes "additionalProperties: false" out of a schema and every
+// schema inside it (docs/spec/openapi.md, decision 13): a client written
+// against an older description then takes a newer service's answer with a
+// field added. The reflection closes every struct; a map's schema of its
+// values stays.
+func openUp(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if v.IsNil() {
+			return
+		}
+		if s, ok := v.Interface().(*jsonschema.Schema); ok && s.AdditionalProperties != nil {
+			if raw, err := json.Marshal(s.AdditionalProperties); err == nil && string(raw) == "false" {
+				s.AdditionalProperties = nil
+			}
+		}
+		openUp(v.Elem())
+	case reflect.Struct:
+		for i := range v.NumField() {
+			if v.Type().Field(i).IsExported() {
+				openUp(v.Field(i))
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := range v.Len() {
+			openUp(v.Index(i))
+		}
+	case reflect.Map:
+		for it := v.MapRange(); it.Next(); {
+			openUp(it.Value())
+		}
+	}
 }
 
 // operationID is the method and the path's words: getV1HaStatesEntityId.
@@ -331,6 +366,9 @@ func nodeFrom(dec *json.Decoder, tok json.Token) (*yaml.Node, error) {
 	return nil, fmt.Errorf("unexpected JSON token %v", tok)
 }
 
+// Document is an OpenAPI document as JSON: open, its schema is OpenAPI's.
+type Document map[string]any
+
 // Serve answers the description of the routes at PathYAML and PathJSON
 // (docs/spec/openapi.md, decision 11). routes is asked at each call, so
 // the answer is the running service's; a failure is a 500 naming it.
@@ -356,7 +394,8 @@ func Serve(m *Mux, routes func() []Route, version string, onError func(path stri
 		Response: "", ResponseMedia: "application/yaml", Errors: []int{http.StatusInternalServerError}},
 		serve("application/yaml", YAML))
 	m.Handle(Route{Method: http.MethodGet, Path: PathJSON, Tag: TagDescription, Open: true,
-		Summary:  "This description as JSON (OpenAPI 3.1), of the running service's routes",
-		Response: map[string]any{}, Errors: []int{http.StatusInternalServerError}},
+		Summary:     "This description as JSON (OpenAPI 3.1), of the running service's routes",
+		Description: "The answer is an OpenAPI 3.1 document, whose own schema is OpenAPI's, not Mira's: an open object here.",
+		Response:    Document{}, Errors: []int{http.StatusInternalServerError}},
 		serve("application/json", JSON))
 }

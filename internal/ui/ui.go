@@ -136,10 +136,6 @@ type Handler struct {
 	enroll enrolling
 }
 
-// object is an answer or a body a handler builds as a map or an anonymous
-// struct: a JSON object whose keys the description does not list.
-type object = map[string]any
-
 // pageRoute marks a route as the page's own (docs/spec/openapi.md, decision 4).
 func pageRoute(r api.Route) api.Route {
 	r.Tag = api.TagPage
@@ -165,48 +161,48 @@ func New(opts Options) *Handler {
 	h.mux.Hidden("GET /ui/sounds/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.sound))
 	h.mux.Hidden("GET /ui/videos/{name}", "the page's files, not part of the interface", http.HandlerFunc(h.video))
 	h.mux.Hidden("GET /ui/", "the page's files, not part of the interface", http.HandlerFunc(h.page))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/config", Summary: "The settings' sections as the page edits them", Response: object{}, Errors: []int{403, 500}}), h.auth(h.getConfig))
-	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/config", Summary: "Save settings' sections", Request: object{}, Response: object{}, Errors: []int{400, 403, 409, 422, 500}}), h.auth(h.putSections))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/config", Summary: "The settings' sections as the page edits them", Description: "Each section's value is free-form: it is the section as mira.yaml holds it.", Response: ConfigSections{}, Errors: []int{403, 500}}), h.auth(h.getConfig))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/config", Summary: "Save settings' sections", Description: "The body maps a section's name to its new value; a value is free-form, the section as mira.yaml holds it.", Request: ConfigSectionsEdit{}, Response: ConfigSections{}, Errors: []int{400, 403, 409, 422, 500}}), h.auth(h.putSections))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/entities", Summary: "Home Assistant's entities, for completion", Response: []Entity{}, Errors: []int{403}}), h.auth(h.entities))
 	// Everyone sees the house's messages and, with mine=1, their own;
 	// admins see all.
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/messages", Summary: "Messages: the house's, the caller's own, all for admins", Response: object{}, Query: []api.Param{{Name: "page"}, {Name: "mine", Description: "1: only the caller's own"}, {Name: "open", Description: "1: only the unread"}}, Errors: []int{500}}), h.authAnyone(h.messages))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/messages/{id}/ack", Summary: "Mark a message as read", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.ackMessage))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/messages", Summary: "Messages: the house's, the caller's own, all for admins", Response: MessagePage{}, Query: []api.Param{{Name: "page"}, {Name: "mine", Description: "1: only the caller's own"}, {Name: "open", Description: "1: only the unread"}}, Errors: []int{500}}), h.authAnyone(h.messages))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/messages/{id}/ack", Summary: "Mark a message as read", Response: Acked{}, Errors: []int{404, 500}}), h.authAnyone(h.ackMessage))
 	// Everyone in Home Assistant may see and change their own memory;
 	// the rest is for admins (and the operator with the token).
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory", Summary: "The memories the caller may see", Response: object{}, Errors: []int{500}}), h.authAnyone(h.memory))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/memory/{id}", Summary: "Forget a fact", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.forget))
-	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/memory/{id}", Summary: "Change a fact", Request: object{}, Response: object{}, Errors: []int{400, 404, 500}}), h.authAnyone(h.editFact))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/compact", Summary: "Compact the persons' profiles now", Response: object{}, Errors: []int{403, 501, 502}}), h.auth(h.compact))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory/export", Summary: "The memory as text", Response: object{}, Errors: []int{500}}), h.authAnyone(h.exportMemory))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/import", Summary: "Import facts from text (preview, then apply)", Request: object{}, Response: object{}, Errors: []int{400, 500}}), h.authAnyone(h.importMemory))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/plans", Summary: "The open plans", Response: object{}, Errors: []int{500}}), h.authAnyone(h.plans))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/plans/{id}", Summary: "End a plan", Response: object{}, Errors: []int{404, 500}}), h.authAnyone(h.endPlan))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/me", Summary: "Who looks at the page", Response: object{}}), h.authAnyone(h.me))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice", Summary: "The voices known to the speaker id", Response: object{}, Errors: []int{403, 502}}), h.auth(h.voices))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}", Summary: "A person's voice", Response: object{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.voice))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}", Summary: "Forget a person's voice", Response: object{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.forgetVoice))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/enroll", Summary: "Start enrolling a voice", Response: object{}, Query: []api.Param{{Name: "lang", Description: "The sentences' language"}}, Errors: []int{403, 404, 502}}), h.authAnyone(h.enrollStart))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}/enroll", Summary: "Stop enrolling a voice", Response: object{}, Errors: []int{403, 404}}), h.authAnyone(h.enrollStop))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}/heard", Summary: "What the speaker id heard while enrolling", Response: object{}, Errors: []int{403, 404, 409, 502}}), h.authAnyone(h.heard))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: object{}, Response: object{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory", Summary: "The memories the caller may see", Response: Memories{}, Errors: []int{500}}), h.authAnyone(h.memory))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/memory/{id}", Summary: "Forget a fact", Response: Deleted{}, Errors: []int{404, 500}}), h.authAnyone(h.forget))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/memory/{id}", Summary: "Change a fact", Request: FactEdit{}, Response: Saved{}, Errors: []int{400, 404, 500}}), h.authAnyone(h.editFact))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/compact", Summary: "Compact the persons' profiles now", Response: Compacted{}, Errors: []int{403, 501, 502}}), h.auth(h.compact))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/memory/export", Summary: "The memory as text", Response: MemoryExport{}, Errors: []int{500}}), h.authAnyone(h.exportMemory))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/memory/import", Summary: "Import facts from text (preview, then apply)", Description: "Answers either a problem, or the changes and whether they were applied.", Request: MemoryImport{}, Response: MemoryImportResult{}, Errors: []int{400, 500}}), h.authAnyone(h.importMemory))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/plans", Summary: "The open plans", Response: PlanList{}, Errors: []int{500}}), h.authAnyone(h.plans))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/plans/{id}", Summary: "End a plan", Response: Ended{}, Errors: []int{404, 500}}), h.authAnyone(h.endPlan))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/me", Summary: "Who looks at the page", Response: Me{}}), h.authAnyone(h.me))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice", Summary: "The voices known to the speaker id", Response: VoiceList{}, Errors: []int{403, 502}}), h.auth(h.voices))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}", Summary: "A person's voice", Response: VoiceOf{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.voice))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}", Summary: "Forget a person's voice", Response: OK{}, Errors: []int{403, 404, 502}}), h.authAnyone(h.forgetVoice))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/enroll", Summary: "Start enrolling a voice", Response: EnrollStarted{}, Query: []api.Param{{Name: "lang", Description: "The sentences' language"}}, Errors: []int{403, 404, 502}}), h.authAnyone(h.enrollStart))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/voice/{person}/enroll", Summary: "Stop enrolling a voice", Response: OK{}, Errors: []int{403, 404}}), h.authAnyone(h.enrollStop))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/voice/{person}/heard", Summary: "What the speaker id heard while enrolling", Response: HeardList{}, Errors: []int{403, 404, 409, 502}}), h.authAnyone(h.heard))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/voice/{person}/assign", Summary: "Assign a heard sample to a person", Request: VoiceAssign{}, Response: OK{}, Errors: []int{400, 403, 404, 409, 502}}), h.authAnyone(h.assign))
 	// The stored agent runs, for debugging (agents.go).
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/catalog", Summary: "The skills, agents and models", Response: Catalog{}, Errors: []int{403}}), h.auth(h.catalog))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: object{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))
-	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/schedules/{skill}/{name}", Summary: "Change a job's time", Request: ScheduleEdit{}, Response: object{}, Errors: []int{400, 403, 503}}), h.auth(h.changeSchedule))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/schedules/{skill}/{name}/run", Summary: "Run a job now", Response: object{}, Status: http.StatusAccepted, Errors: []int{400, 403, 409, 503}}), h.auth(h.runSchedule))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/schedules", Summary: "The skills' and Mira's jobs at a time", Response: ScheduleList{}, Errors: []int{403, 500, 503}}), h.auth(h.schedules))
+	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/schedules/{skill}/{name}", Summary: "Change a job's time", Request: ScheduleEdit{}, Response: Saved{}, Errors: []int{400, 403, 503}}), h.auth(h.changeSchedule))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/schedules/{skill}/{name}/run", Summary: "Run a job now", Response: Started{}, Status: http.StatusAccepted, Errors: []int{400, 403, 409, 503}}), h.auth(h.runSchedule))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/models/{name}/check", Summary: "Ask a model whether it answers", Response: CheckResult{}, Errors: []int{403, 404}}), h.auth(h.checkModel))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/agents", Summary: "The stored agent runs", Response: object{}, Errors: []int{403, 500}}), h.auth(h.runs))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/agents", Summary: "The stored agent runs", Response: RunList{}, Errors: []int{403, 500}}), h.auth(h.runs))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/agents/{id}", Summary: "One agent run", Response: RunDetail{}, Errors: []int{403, 404, 500}}), h.auth(h.run))
-	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tasks", Summary: "The tasks and the ones being planned", Response: object{}, Errors: []int{403, 503}}), h.auth(h.tasks))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/activate", Summary: "Turn a task on", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(true)))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/pause", Summary: "Pause a task", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(false)))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/try", Summary: "Try a task now", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.tryTask))
+	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tasks", Summary: "The tasks and the ones being planned", Response: TaskList{}, Errors: []int{403, 503}}), h.auth(h.tasks))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/activate", Summary: "Turn a task on", Response: TaskOn{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(true)))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/pause", Summary: "Pause a task", Response: TaskOn{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.enableTask(false)))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/tasks/{id}/try", Summary: "Try a task now", Response: TaskTried{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.tryTask))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/tasks/{id}/log", Summary: "A task's assessments", Response: []assessmentJSON{}, Errors: []int{403, 500}}), h.auth(h.taskLog))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/tasks/{id}", Summary: "Delete a task", Response: object{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.deleteTask))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/tasks/{id}", Summary: "Delete a task", Response: Deleted{}, Errors: []int{403, 404, 502, 503}}), h.auth(h.deleteTask))
 	h.mux.Handle(pageRoute(api.Route{Method: "GET", Path: "/v1/ui/ha", Summary: "Mira's connection to Home Assistant as the page shows it", Response: haConfig{}, Errors: []int{403, 500}}), h.auth(h.getHA))
 	h.mux.Handle(pageRoute(api.Route{Method: "PUT", Path: "/v1/ui/ha", Summary: "Change the connection to Home Assistant", Request: haConfig{}, Response: haConfig{}, Errors: []int{400, 403, 422, 500}}), h.auth(h.putHA))
-	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/ha", Summary: "Hand the sections Home Assistant set back to the page", Response: object{}, Errors: []int{403}}), h.auth(h.deleteHA))
+	h.mux.Handle(pageRoute(api.Route{Method: "DELETE", Path: "/v1/ui/ha", Summary: "Hand the sections Home Assistant set back to the page", Response: HAManaged{}, Errors: []int{403}}), h.auth(h.deleteHA))
 	h.editRoutes()
 	h.connectionRoutes()
 	h.tokenRoutes()
@@ -346,26 +342,36 @@ func (h *Handler) personName(key string) string {
 	return key
 }
 
+// ConfigSection is one section of the settings as the page edits it.
+type ConfigSection struct {
+	// Value is the section as mira.yaml holds it: free-form.
+	Value json.RawMessage `json:"value"`
+	// People are Home Assistant's persons, with the persons section:
+	// its value then holds only Mira's settings per person.
+	People []PersonInfo `json:"people,omitempty"`
+	// ManagedBy is "home_assistant" while the integration manages the
+	// section; the page shows it read-only then. For the notifier it
+	// means only its morning_trigger.
+	ManagedBy string `json:"managed_by,omitempty"`
+}
+
+// ConfigSections are the settings' sections by name.
+type ConfigSections map[string]ConfigSection
+
+// ConfigSectionsEdit are the sections the page saves, by name; each value
+// is free-form, the section as mira.yaml holds it.
+type ConfigSectionsEdit map[string]json.RawMessage
+
 func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
-	type section struct {
-		Value json.RawMessage `json:"value"`
-		// People are Home Assistant's persons, with the persons section:
-		// its value then holds only Mira's settings per person.
-		People []PersonInfo `json:"people,omitempty"`
-		// ManagedBy is "home_assistant" while the integration manages the
-		// section; the page shows it read-only then. For the notifier it
-		// means only its morning_trigger.
-		ManagedBy string `json:"managed_by,omitempty"`
-	}
 	managed := h.opts.Config.HAManaged()
-	out := map[string]section{}
+	out := ConfigSections{}
 	for _, name := range h.opts.Sections {
 		v, err := h.opts.Config.Section(name)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		s := section{Value: v}
+		s := ConfigSection{Value: v}
 		if name == "persons" {
 			s.People = h.people()
 		}
@@ -378,7 +384,7 @@ func (h *Handler) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) putSections(w http.ResponseWriter, r *http.Request) {
-	var sections map[string]json.RawMessage
+	var sections ConfigSectionsEdit
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&sections); err != nil {
 		writeError(w, http.StatusBadRequest, "body must be a JSON object of sections: "+err.Error())
 		return
@@ -459,6 +465,15 @@ type messageJSON struct {
 	DeliverAt string `json:"deliver_at,omitempty"`
 }
 
+// MessagePage is a page of messages; Phone is what waits on the answering
+// machine, on the first page while something waits there.
+type MessagePage struct {
+	Items []messageJSON `json:"items"`
+	More  bool          `json:"more"`
+	Page  int           `json:"page"`
+	Phone *PhoneNews    `json:"phone,omitempty"`
+}
+
 func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	// The history: every state, newest first, a page at a time; with
 	// open=1 only what still waits. A message past its expiry that nobody
@@ -473,7 +488,7 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Query().Get("mine") == "1":
 		if v.person == "" {
-			writeJSON(w, http.StatusOK, map[string]any{"items": []messageJSON{}, "page": page, "more": false})
+			writeJSON(w, http.StatusOK, MessagePage{Items: []messageJSON{}, Page: page, More: false})
 			return
 		}
 		f.Receiver = v.person
@@ -507,7 +522,7 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 	if more {
 		out = out[:messagePage]
 	}
-	resp := map[string]any{"items": out, "page": page, "more": more}
+	resp := MessagePage{Items: out, Page: page, More: more}
 	// The answering machine's beside the house's, while something waits there.
 	if h.opts.Phone != nil && page == 0 {
 		if news, err := h.opts.Phone(r.Context()); err == nil && news.Messages+news.Missed > 0 {
@@ -515,7 +530,7 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request) {
 			if !strings.HasPrefix(news.URL, "http://") && !strings.HasPrefix(news.URL, "https://") {
 				news.URL = ""
 			}
-			resp["phone"] = news
+			resp.Phone = &news
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -555,7 +570,7 @@ func (h *Handler) ackMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"acked": true})
+	writeJSON(w, http.StatusOK, Acked{Acked: true})
 }
 
 // Headers the Home Assistant integration's proxy sets on the page's calls:
@@ -624,6 +639,37 @@ func (h *Handler) mayChange(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// MemoryFact is a fact as the page shows it.
+type MemoryFact struct {
+	ID      string `json:"id"`
+	Text    string `json:"text"`
+	Updated string `json:"updated"`
+	// Author is a person key or an area's name; Told is set when the
+	// fact was edited after it was told.
+	Author string `json:"author,omitempty"`
+	Told   string `json:"told,omitempty"`
+}
+
+// MemoryOf is one owner's memory: the house's or a person's.
+type MemoryOf struct {
+	Owner          string       `json:"owner"`
+	Name           string       `json:"name,omitempty"`
+	Profile        string       `json:"profile"`
+	ProfileUpdated string       `json:"profile_updated,omitempty"`
+	Facts          []MemoryFact `json:"facts"`
+}
+
+// Memories are the memories the viewer may see.
+type Memories struct {
+	Memories   []MemoryOf `json:"memories"`
+	CanCompact bool       `json:"can_compact"`
+	// Unknown is set inside Home Assistant when the HA user belongs to
+	// no person, so only the house's memory shows.
+	Unknown bool `json:"unknown_person,omitempty"`
+	// You is the viewer's own person inside Home Assistant.
+	You string `json:"you,omitempty"`
+}
+
 // memory lists the memories by owner: the house first, then each person
 // with facts or a profile.
 func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
@@ -634,31 +680,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	type fact struct {
-		ID      string `json:"id"`
-		Text    string `json:"text"`
-		Updated string `json:"updated"`
-		// Author is a person key or an area's name; Told is set when the
-		// fact was edited after it was told.
-		Author string `json:"author,omitempty"`
-		Told   string `json:"told,omitempty"`
-	}
-	type memory struct {
-		Owner          string `json:"owner"`
-		Name           string `json:"name,omitempty"`
-		Profile        string `json:"profile"`
-		ProfileUpdated string `json:"profile_updated,omitempty"`
-		Facts          []fact `json:"facts"`
-	}
-	out := struct {
-		Memories   []memory `json:"memories"`
-		CanCompact bool     `json:"can_compact"`
-		// Unknown is set inside Home Assistant when the HA user belongs to
-		// no person, so only the house's memory shows.
-		Unknown bool `json:"unknown_person,omitempty"`
-		// You is the viewer's own person inside Home Assistant.
-		You string `json:"you,omitempty"`
-	}{Memories: []memory{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == "" && !v.partner, You: v.person}
+	out := Memories{Memories: []MemoryOf{}, CanCompact: h.opts.CompactProfile != nil && v.admin, Unknown: v.limited && v.person == "" && !v.partner, You: v.person}
 	const stamp = "2006-01-02 15:04"
 	for _, owner := range owners {
 		facts, err := h.opts.Store.AllFacts(ctx, owner)
@@ -671,7 +693,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		m := memory{Owner: owner, Profile: profile, Facts: []fact{}}
+		m := MemoryOf{Owner: owner, Profile: profile, Facts: []MemoryFact{}}
 		if owner != store.OwnerHouse {
 			m.Name = h.personName(owner)
 		}
@@ -680,7 +702,7 @@ func (h *Handler) memory(w http.ResponseWriter, r *http.Request) {
 		}
 		for i := len(facts) - 1; i >= 0; i-- { // newest first
 			f := facts[i]
-			item := fact{ID: f.ID, Text: f.Text, Updated: f.UpdatedAt.In(h.opts.Location).Format(stamp), Author: h.author(f.Author)}
+			item := MemoryFact{ID: f.ID, Text: f.Text, Updated: f.UpdatedAt.In(h.opts.Location).Format(stamp), Author: h.author(f.Author)}
 			if f.UpdatedAt.Sub(f.CreatedAt) > time.Minute {
 				item.Told = f.CreatedAt.In(h.opts.Location).Format(stamp)
 			}
@@ -729,6 +751,12 @@ func (h *Handler) fileOwners(keys []string) []memfile.Owner {
 	return out
 }
 
+// MemoryExport is the memory as a file's text, and the file's name.
+type MemoryExport struct {
+	File string `json:"file"`
+	Text string `json:"text"`
+}
+
 // exportMemory is the memories the viewer sees, as a file
 // (docs/spec/memory-file.md).
 func (h *Handler) exportMemory(w http.ResponseWriter, r *http.Request) {
@@ -742,17 +770,44 @@ func (h *Handler) exportMemory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"text": text, "file": "mira-gedaechtnis.md"})
+	writeJSON(w, http.StatusOK, MemoryExport{Text: text, File: "mira-gedaechtnis.md"})
+}
+
+// MemoryImport is a memory file's text, and whether to apply it.
+type MemoryImport struct {
+	Text  string `json:"text"`
+	Apply bool   `json:"apply"`
+}
+
+// MemoryImportResult is either a problem with the file, or the changes it
+// makes and whether they were applied.
+type MemoryImportResult struct {
+	Changes *[]ImportChange `json:"changes,omitempty"`
+	Applied *bool           `json:"applied,omitempty"`
+	Problem *ImportProblem  `json:"problem,omitempty"`
+}
+
+// ImportProblem is why a file cannot be imported.
+type ImportProblem struct {
+	Kind    string `json:"kind"` // line, unknown, not_allowed
+	Heading string `json:"heading,omitempty"`
+	Line    int    `json:"line,omitempty"`
+}
+
+// ImportChange is what a file changes in one owner's memory.
+type ImportChange struct {
+	Owner  string   `json:"owner"`
+	Name   string   `json:"name,omitempty"`
+	Add    []string `json:"add"`
+	Remove []string `json:"remove"`
+	Keep   int      `json:"keep"`
 }
 
 // importMemory says what a file would change and, with apply, changes it:
 // each owner with a section then has exactly its facts. A file that cannot
 // be imported comes back as a problem the page puts into words.
 func (h *Handler) importMemory(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Text  string `json:"text"`
-		Apply bool   `json:"apply"`
-	}
+	var req MemoryImport
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, `body must be {"text": "...", "apply": false}`)
 		return
@@ -778,15 +833,10 @@ func (h *Handler) importMemory(w http.ResponseWriter, r *http.Request) {
 	if !v.limited {
 		allowed = known
 	}
-	type problem struct {
-		Kind    string `json:"kind"` // line, unknown, not_allowed
-		Heading string `json:"heading,omitempty"`
-		Line    int    `json:"line,omitempty"`
-	}
 	sections, err := memfile.Parse(req.Text)
 	var le memfile.LineError
 	if errors.As(err, &le) {
-		writeJSON(w, http.StatusOK, map[string]any{"problem": problem{Kind: "line", Line: le.Line}})
+		writeJSON(w, http.StatusOK, MemoryImportResult{Problem: &ImportProblem{Kind: "line", Line: le.Line}})
 		return
 	}
 	changes, err := memfile.Plan(ctx, h.opts.Store, sections, h.fileOwners(known), h.fileOwners(allowed))
@@ -796,42 +846,32 @@ func (h *Handler) importMemory(w http.ResponseWriter, r *http.Request) {
 		if he.Unknown {
 			kind = "unknown"
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"problem": problem{Kind: kind, Heading: he.Heading}})
+		writeJSON(w, http.StatusOK, MemoryImportResult{Problem: &ImportProblem{Kind: kind, Heading: he.Heading}})
 		return
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	type change struct {
-		Owner  string   `json:"owner"`
-		Name   string   `json:"name,omitempty"`
-		Add    []string `json:"add"`
-		Remove []string `json:"remove"`
-		Keep   int      `json:"keep"`
-	}
-	out := struct {
-		Changes []change `json:"changes"`
-		Applied bool     `json:"applied"`
-	}{Changes: []change{}}
+	list, applied := []ImportChange{}, false
 	for _, c := range changes {
-		ch := change{Owner: c.Owner.Key, Name: c.Owner.Name, Add: []string{}, Remove: []string{}, Keep: len(c.Keep)}
+		ch := ImportChange{Owner: c.Owner.Key, Name: c.Owner.Name, Add: []string{}, Remove: []string{}, Keep: len(c.Keep)}
 		for _, l := range c.Add {
 			ch.Add = append(ch.Add, l.Text)
 		}
 		for _, f := range c.Remove {
 			ch.Remove = append(ch.Remove, f.Text)
 		}
-		out.Changes = append(out.Changes, ch)
+		list = append(list, ch)
 	}
 	if req.Apply {
 		if err := memfile.Apply(ctx, h.opts.Store, changes, v.person); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		out.Applied = true
+		applied = true
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, MemoryImportResult{Changes: &list, Applied: &applied})
 }
 
 // author renders who told a fact: the person's name, or the area's name.
@@ -863,14 +903,17 @@ func (h *Handler) forget(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	writeJSON(w, http.StatusOK, Deleted{Deleted: true})
+}
+
+// FactEdit is a fact's new text.
+type FactEdit struct {
+	Text string `json:"text"`
 }
 
 // editFact changes a fact's text; tags and source stay.
 func (h *Handler) editFact(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Text string `json:"text"`
-	}
+	var req FactEdit
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
 		writeError(w, http.StatusBadRequest, `body must be {"text": "..."}`)
 		return
@@ -892,7 +935,7 @@ func (h *Handler) editFact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
+	writeJSON(w, http.StatusOK, Saved{Saved: true})
 }
 
 func (h *Handler) compact(w http.ResponseWriter, r *http.Request) {
@@ -905,7 +948,7 @@ func (h *Handler) compact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"changed": changed})
+	writeJSON(w, http.StatusOK, Compacted{Changed: changed})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -913,6 +956,50 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
 }
+
+// Acknowledgements: an answer of one key that says what was done.
+type (
+	// Acked: a message was marked as read.
+	Acked struct {
+		Acked bool `json:"acked"`
+	}
+	// Deleted: a fact, a task or a token is gone.
+	Deleted struct {
+		Deleted bool `json:"deleted"`
+	}
+	// Saved: a change was saved.
+	Saved struct {
+		Saved bool `json:"saved"`
+	}
+	// Compacted says whether compacting changed a profile.
+	Compacted struct {
+		Changed bool `json:"changed"`
+	}
+	// Ended: a plan was ended.
+	Ended struct {
+		Ended bool `json:"ended"`
+	}
+	// OK: a voice's change was done.
+	OK struct {
+		OK bool `json:"ok"`
+	}
+	// Started: a job runs.
+	Started struct {
+		Started bool `json:"started"`
+	}
+	// TaskOn says whether a task is on now.
+	TaskOn struct {
+		On bool `json:"on"`
+	}
+	// HAManaged says whether Home Assistant still manages the sections.
+	HAManaged struct {
+		Managed bool `json:"managed"`
+	}
+	// Restarting: the service starts anew.
+	Restarting struct {
+		Restarting bool `json:"restarting"`
+	}
+)
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})

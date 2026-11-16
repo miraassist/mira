@@ -44,6 +44,14 @@ func (h *Handler) noTasks(w http.ResponseWriter) bool {
 	return false
 }
 
+// TaskList are the tasks, the ones being planned, and the error when Home
+// Assistant could not be asked.
+type TaskList struct {
+	Error    string       `json:"error,omitempty"`
+	Items    []tasks.Item `json:"items"`
+	Planning []threadJSON `json:"planning"`
+}
+
 // tasks lists proposals and automations. When Home Assistant cannot be
 // asked, the proposals still come, with the error.
 func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +59,12 @@ func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items, err := h.opts.Tasks.List(r.Context())
-	out := map[string]any{"items": items}
+	out := TaskList{Items: items}
 	if items == nil {
-		out["items"] = []tasks.Item{}
+		out.Items = []tasks.Item{}
 	}
 	if err != nil {
-		out["error"] = err.Error()
+		out.Error = err.Error()
 	}
 	// Tasks still being planned: open threads of the target "aufgabe".
 	planning := []threadJSON{}
@@ -76,7 +84,7 @@ func (h *Handler) tasks(w http.ResponseWriter, r *http.Request) {
 				Updated: localTime(th.UpdatedAt)})
 		}
 	}
-	out["planning"] = planning
+	out.Planning = planning
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -100,8 +108,14 @@ func (h *Handler) enableTask(on bool) http.HandlerFunc {
 		if h.taskError(w, err) {
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]bool{"on": on})
+		writeJSON(w, http.StatusOK, TaskOn{On: on})
 	}
+}
+
+// TaskTried is what trying a task did, and the same in words.
+type TaskTried struct {
+	Result tasks.TryResult `json:"result"`
+	Text   string          `json:"text"`
 }
 
 func (h *Handler) tryTask(w http.ResponseWriter, r *http.Request) {
@@ -112,7 +126,7 @@ func (h *Handler) tryTask(w http.ResponseWriter, r *http.Request) {
 	if h.taskError(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"text": h.opts.Tasks.DescribeTry(res), "result": res})
+	writeJSON(w, http.StatusOK, TaskTried{Text: h.opts.Tasks.DescribeTry(res), Result: res})
 }
 
 type assessmentJSON struct {
@@ -155,7 +169,7 @@ func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 	if h.taskError(w, err) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	writeJSON(w, http.StatusOK, Deleted{Deleted: true})
 }
 
 func (h *Handler) taskError(w http.ResponseWriter, err error) bool {

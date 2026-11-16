@@ -26,7 +26,7 @@ paths:
       tags:
         - integration
       summary: A remote agent's push for a call (A2A)
-      description: Takes the call's own token in A2A-Notification-Token or as bearer, not the service's (docs/spec/remote-agents.md).
+      description: 'Takes the call''s own token in A2A-Notification-Token or as bearer, not the service''s (docs/spec/remote-agents.md). The body is an A2A StreamResponse as the A2A protocol defines it (a task, a message, a status or an artifact update): the remote agent''s protocol, not Mira''s, so it is described as an open object.'
       operationId: postV1A2aPushCall
       security:
         - {}
@@ -95,7 +95,6 @@ paths:
                 - on_timeout
                 - delivery
                 - receiver
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -120,7 +119,6 @@ paths:
                 required:
                   - call_id
                   - status
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -154,7 +152,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                call_id:
+                  type: string
+              required:
+                - call_id
       responses:
         "200":
           description: OK
@@ -162,7 +164,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  cancelled:
+                    type: boolean
+                required:
+                  - cancelled
         "400":
           description: Bad Request
           content:
@@ -190,7 +196,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                call_id:
+                  type: string
+              required:
+                - call_id
       responses:
         "200":
           description: OK
@@ -215,7 +225,6 @@ paths:
                 required:
                   - call_id
                   - status
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -255,7 +264,16 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                skill:
+                  type: string
+                input: true
+                receiver:
+                  type: string
+              required:
+                - skill
+                - input
+                - receiver
       responses:
         "200":
           description: OK
@@ -263,7 +281,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  thread_id:
+                    type: string
+                required:
+                  - thread_id
         "400":
           description: Bad Request
           content:
@@ -317,7 +339,6 @@ paths:
                     required:
                       - entity_id
                       - view
-                    additionalProperties: false
                 memory:
                   type: string
                 cooldown:
@@ -352,7 +373,6 @@ paths:
                 - confidentiality
                 - dedupe_key
                 - expires_in
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -375,7 +395,6 @@ paths:
                   - importance
                   - spoken
                   - message_id
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -470,7 +489,6 @@ paths:
                 - floors
                 - receiver
                 - notify
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -505,7 +523,6 @@ paths:
                         - name
                         - state
                         - area
-                      additionalProperties: false
                   unreadable:
                     type:
                       - "null"
@@ -530,7 +547,6 @@ paths:
                         - name
                         - state
                         - area
-                      additionalProperties: false
                   checked:
                     type: integer
                   message_id:
@@ -540,7 +556,6 @@ paths:
                   - open
                   - unreadable
                   - checked
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -612,7 +627,6 @@ paths:
                 - channel
                 - person
                 - stream
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -652,12 +666,10 @@ paths:
                           type: integer
                       required:
                         - kind
-                      additionalProperties: false
                 required:
                   - text
                   - conversation_id
                   - continue_conversation
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -690,7 +702,14 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                channel:
+                  type: string
+                conversation_id:
+                  type: string
+              required:
+                - channel
+                - conversation_id
       responses:
         "200":
           description: OK
@@ -698,7 +717,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  reset:
+                    type: boolean
+                required:
+                  - reset
         "400":
           description: Bad Request
           content:
@@ -752,7 +775,6 @@ paths:
                     required:
                       - entity_id
                       - view
-                    additionalProperties: false
                 memory:
                   type: string
                 cooldown:
@@ -787,7 +809,6 @@ paths:
                 - confidentiality
                 - dedupe_key
                 - expires_in
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -803,7 +824,6 @@ paths:
                 required:
                   - answer
                   - reason
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -837,7 +857,23 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                facts:
+                  type:
+                    - "null"
+                    - array
+                  items:
+                    type: object
+                    properties:
+                      owner:
+                        type: string
+                      text:
+                        type: string
+                    required:
+                      - owner
+                      - text
+              required:
+                - facts
       responses:
         "200":
           description: OK
@@ -845,7 +881,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
         "400":
           description: Bad Request
           content:
@@ -869,7 +909,7 @@ paths:
       tags:
         - home-assistant
       summary: Call a Home Assistant action with Mira's connection
-      description: The body is the action's data as Home Assistant takes it, the target inside it (entity_id, area_id, …). With return_response, the answer holds the action's response as it came. Tried once; no hooks.
+      description: 'The body is the action''s data as Home Assistant takes it, the target inside it (entity_id, area_id, …): each action takes its own fields, so it is an open object, passed on unchanged. With return_response, the answer holds the action''s response as it came. Tried once; no hooks.'
       operationId: postV1HaServicesDomainService
       parameters:
         - in: path
@@ -904,7 +944,6 @@ paths:
                 type: object
                 properties:
                   response: true
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -971,7 +1010,6 @@ paths:
                   - attributes
                   - last_changed
                   - last_updated
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -1017,7 +1055,24 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  ha_user_id:
+                    type: string
+                  id:
+                    type: string
+                  status:
+                    type: string
+                  version:
+                    type: string
+                required:
+                  - checks
+                  - id
+                  - status
+                  - version
         "401":
           description: Unauthorized
           content:
@@ -1039,7 +1094,16 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                doc_id: true
+                title:
+                  type: string
+                owner:
+                  type: string
+              required:
+                - doc_id
+                - title
+                - owner
       responses:
         "202":
           description: Accepted
@@ -1047,7 +1111,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  queued:
+                    type: boolean
+                required:
+                  - queued
         "400":
           description: Bad Request
           content:
@@ -1108,7 +1176,6 @@ paths:
                 - subject
                 - date
                 - text
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -1125,7 +1192,6 @@ paths:
                     type: string
                 required:
                   - action
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -1197,7 +1263,6 @@ paths:
                 - confidentiality
                 - expires_in
                 - task
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -1205,7 +1270,14 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  created:
+                    type: boolean
+                  id:
+                    type: string
+                required:
+                  - created
+                  - id
         "400":
           description: Bad Request
           content:
@@ -1283,7 +1355,6 @@ paths:
                   - authorize_params
                   - client_id
                   - client_secret
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -1342,7 +1413,6 @@ paths:
                 - scope
                 - expires_in
                 - expires_at
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -1350,7 +1420,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  connected:
+                    type: boolean
+                required:
+                  - connected
         "400":
           description: Bad Request
           content:
@@ -1380,6 +1454,7 @@ paths:
       tags:
         - description
       summary: This description as JSON (OpenAPI 3.1), of the running service's routes
+      description: 'The answer is an OpenAPI 3.1 document, whose own schema is OpenAPI''s, not Mira''s: an open object here.'
       operationId: getV1OpenapiJson
       security:
         - {}
@@ -1433,7 +1508,32 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  id:
+                    type: string
+                  model:
+                    type: string
+                  open:
+                    type: boolean
+                  pairing:
+                    type: boolean
+                  pairs:
+                    type: boolean
+                  rejoin:
+                    type: boolean
+                  setup_mode:
+                    type: boolean
+                  version:
+                    type: string
+                required:
+                  - id
+                  - model
+                  - open
+                  - pairing
+                  - pairs
+                  - rejoin
+                  - setup_mode
+                  - version
     post:
       tags:
         - setup
@@ -1447,7 +1547,40 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                code:
+                  type: string
+                rejoin:
+                  type: string
+                ha_url:
+                  type: string
+                ha_token:
+                  type: string
+                llm:
+                  type:
+                    - "null"
+                    - object
+                  properties:
+                    kind:
+                      type: string
+                    base_url:
+                      type: string
+                    model:
+                      type: string
+                    api_key:
+                      type: string
+                    context_tokens:
+                      type: integer
+                  required:
+                    - kind
+                    - base_url
+                    - model
+              required:
+                - code
+                - rejoin
+                - ha_url
+                - ha_token
+                - llm
       responses:
         "200":
           description: OK
@@ -1455,7 +1588,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  token:
+                    type: string
+                required:
+                  - token
         "400":
           description: Bad Request
           content:
@@ -1500,7 +1637,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                nonce:
+                  type: string
+              required:
+                - nonce
       responses:
         "200":
           description: OK
@@ -1508,7 +1649,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  proof:
+                    type: string
+                required:
+                  - proof
         "400":
           description: Bad Request
           content:
@@ -1541,7 +1686,13 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                enabled:
+                  type:
+                    - "null"
+                    - boolean
+              required:
+                - enabled
       responses:
         "200":
           description: OK
@@ -1549,7 +1700,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  quiet_mode:
+                    type: boolean
+                required:
+                  - quiet_mode
         "400":
           description: Bad Request
           content:
@@ -1608,7 +1763,6 @@ paths:
                   - config
                   - created
                   - version
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -1647,7 +1801,34 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                ha_url:
+                  type: string
+                ha_token:
+                  type: string
+                llm:
+                  type:
+                    - "null"
+                    - object
+                  properties:
+                    kind:
+                      type: string
+                    base_url:
+                      type: string
+                    model:
+                      type: string
+                    api_key:
+                      type: string
+                    context_tokens:
+                      type: integer
+                  required:
+                    - kind
+                    - base_url
+                    - model
+              required:
+                - ha_url
+                - ha_token
+                - llm
       responses:
         "200":
           description: OK
@@ -1655,7 +1836,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
         "400":
           description: Bad Request
           content:
@@ -1701,7 +1886,14 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                base_url:
+                  type: string
+                api_key:
+                  type: string
+              required:
+                - base_url
+                - api_key
       responses:
         "200":
           description: OK
@@ -1709,7 +1901,15 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  models:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                required:
+                  - models
         "400":
           description: Bad Request
           content:
@@ -1755,7 +1955,28 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                llm:
+                  type:
+                    - "null"
+                    - object
+                  properties:
+                    kind:
+                      type: string
+                    base_url:
+                      type: string
+                    model:
+                      type: string
+                    api_key:
+                      type: string
+                    context_tokens:
+                      type: integer
+                  required:
+                    - kind
+                    - base_url
+                    - model
+              required:
+                - llm
       responses:
         "200":
           description: OK
@@ -1763,7 +1984,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
         "400":
           description: Bad Request
           content:
@@ -1810,7 +2035,26 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  providers:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        base_url:
+                          type: string
+                      required:
+                        - key
+                        - name
+                        - base_url
+                required:
+                  - providers
         "401":
           description: Unauthorized
           content:
@@ -1844,7 +2088,55 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  exposed_hash:
+                    type:
+                      - "null"
+                      - string
+                  ha_token_refused:
+                    type: boolean
+                  inbox_apps:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  mail_apps:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                  pending_messages:
+                    type: integer
+                  problems:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        name:
+                          type: string
+                        text:
+                          type: string
+                      required:
+                        - source
+                        - name
+                        - text
+                  quiet_mode:
+                    type: boolean
+                  version:
+                    type: string
+                required:
+                  - inbox_apps
+                  - mail_apps
+                  - pending_messages
+                  - problems
+                  - quiet_mode
+                  - version
         "401":
           description: Unauthorized
           content:
@@ -1872,7 +2164,49 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  runs:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        call_id:
+                          type: string
+                        parent_id:
+                          type: string
+                        agent:
+                          type: string
+                        status:
+                          type: string
+                        started:
+                          type: string
+                        ended:
+                          type: string
+                        duration_ms:
+                          type: integer
+                        model:
+                          type: string
+                        model_calls:
+                          type: integer
+                        prompt_tokens:
+                          type: integer
+                        completion_tokens:
+                          type: integer
+                        route:
+                          type: string
+                      required:
+                        - call_id
+                        - agent
+                        - status
+                        - started
+                        - duration_ms
+                        - model_calls
+                        - prompt_tokens
+                        - completion_tokens
+                required:
+                  - runs
         "401":
           description: Unauthorized
           content:
@@ -1970,7 +2304,6 @@ paths:
                       - rights
                       - depth
                       - mode
-                    additionalProperties: false
                   steps:
                     type:
                       - "null"
@@ -1987,7 +2320,6 @@ paths:
                         - seq
                         - kind
                         - body
-                      additionalProperties: false
                 required:
                   - call_id
                   - agent
@@ -2001,7 +2333,6 @@ paths:
                   - foreign
                   - call
                   - steps
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -2083,7 +2414,6 @@ paths:
                             required:
                               - name
                               - set
-                            additionalProperties: false
                         schedules:
                           type:
                             - "null"
@@ -2103,7 +2433,6 @@ paths:
                                 type: string
                             required:
                               - cron
-                            additionalProperties: false
                         target:
                           type:
                             - "null"
@@ -2132,7 +2461,6 @@ paths:
                                     type: string
                                 required:
                                   - name
-                                additionalProperties: false
                             finish:
                               type: string
                             confirm:
@@ -2141,7 +2469,6 @@ paths:
                               type: string
                           required:
                             - timeout
-                          additionalProperties: false
                         mcp:
                           type:
                             - "null"
@@ -2175,7 +2502,6 @@ paths:
                             - transport
                             - connected
                             - conversation
-                          additionalProperties: false
                         connection:
                           type: string
                         agents:
@@ -2209,11 +2535,9 @@ paths:
                               type: string
                           required:
                             - link
-                          additionalProperties: false
                       required:
                         - name
                         - state
-                      additionalProperties: false
                   agents:
                     type:
                       - "null"
@@ -2274,7 +2598,6 @@ paths:
                       required:
                         - name
                         - origin
-                      additionalProperties: false
                   models:
                     type:
                       - "null"
@@ -2345,7 +2668,6 @@ paths:
                         - token_set
                         - privacy
                         - parallel
-                      additionalProperties: false
                   hooks:
                     type:
                       - "null"
@@ -2371,13 +2693,11 @@ paths:
                         - level
                         - name
                         - source
-                      additionalProperties: false
                 required:
                   - skills
                   - agents
                   - models
                   - hooks
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -2395,6 +2715,7 @@ paths:
       tags:
         - page
       summary: The settings' sections as the page edits them
+      description: 'Each section''s value is free-form: it is the section as mira.yaml holds it.'
       operationId: getV1UiConfig
       parameters:
         - $ref: '#/components/parameters/PartnerUser'
@@ -2405,7 +2726,31 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                additionalProperties:
+                  type: object
+                  properties:
+                    value: true
+                    people:
+                      type:
+                        - "null"
+                        - array
+                      items:
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                          entity:
+                            type: string
+                        required:
+                          - key
+                          - name
+                          - entity
+                    managed_by:
+                      type: string
+                  required:
+                    - value
         "401":
           description: Unauthorized
           content:
@@ -2428,6 +2773,7 @@ paths:
       tags:
         - page
       summary: Save settings' sections
+      description: The body maps a section's name to its new value; a value is free-form, the section as mira.yaml holds it.
       operationId: putV1UiConfig
       parameters:
         - $ref: '#/components/parameters/PartnerUser'
@@ -2445,7 +2791,31 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                additionalProperties:
+                  type: object
+                  properties:
+                    value: true
+                    people:
+                      type:
+                        - "null"
+                        - array
+                      items:
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            type: string
+                          entity:
+                            type: string
+                        required:
+                          - key
+                          - name
+                          - entity
+                    managed_by:
+                      type: string
+                  required:
+                    - value
         "400":
           description: Bad Request
           content:
@@ -2497,7 +2867,43 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  connections:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        client_id:
+                          type: string
+                        secret_set:
+                          type: boolean
+                        redirect:
+                          type: string
+                      required:
+                        - skill
+                        - name
+                        - state
+                        - client_id
+                        - secret_set
+                        - redirect
+                  remote_address:
+                    type:
+                      - "null"
+                      - string
+                  remote_agents:
+                    type:
+                      - "null"
+                      - boolean
+                required:
+                  - connections
         "401":
           description: Unauthorized
           content:
@@ -2537,7 +2943,6 @@ paths:
               required:
                 - client_id
                 - client_secret
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -2545,7 +2950,43 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  connections:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        client_id:
+                          type: string
+                        secret_set:
+                          type: boolean
+                        redirect:
+                          type: string
+                      required:
+                        - skill
+                        - name
+                        - state
+                        - client_id
+                        - secret_set
+                        - redirect
+                  remote_address:
+                    type:
+                      - "null"
+                      - string
+                  remote_agents:
+                    type:
+                      - "null"
+                      - boolean
+                required:
+                  - connections
         "400":
           description: Bad Request
           content:
@@ -2596,7 +3037,43 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  connections:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        client_id:
+                          type: string
+                        secret_set:
+                          type: boolean
+                        redirect:
+                          type: string
+                      required:
+                        - skill
+                        - name
+                        - state
+                        - client_id
+                        - secret_set
+                        - redirect
+                  remote_address:
+                    type:
+                      - "null"
+                      - string
+                  remote_agents:
+                    type:
+                      - "null"
+                      - boolean
+                required:
+                  - connections
         "401":
           description: Unauthorized
           content:
@@ -2694,7 +3171,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -2742,7 +3218,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -2773,7 +3248,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -2796,7 +3270,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -2814,7 +3287,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -2823,7 +3295,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -2920,7 +3391,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -2968,7 +3438,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -2999,7 +3468,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -3022,7 +3490,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -3040,7 +3507,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -3049,7 +3515,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -3135,7 +3600,6 @@ paths:
                     - array
                   items:
                     type: string
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -3201,7 +3665,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -3249,7 +3712,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -3280,7 +3742,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -3303,7 +3764,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -3321,7 +3781,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -3330,7 +3789,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -3388,7 +3846,6 @@ paths:
                   type: string
               required:
                 - endpoint
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -3407,7 +3864,6 @@ paths:
                     type: integer
                 required:
                   - ok
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -3459,7 +3915,6 @@ paths:
                   type: string
               required:
                 - endpoint
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -3478,7 +3933,6 @@ paths:
                     type: string
                 required:
                   - models
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -3581,7 +4035,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -3629,7 +4082,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -3660,7 +4112,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -3683,7 +4134,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -3701,7 +4151,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -3710,7 +4159,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -3798,7 +4246,6 @@ paths:
                 - privacy
                 - token_set
                 - in_file
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -3864,7 +4311,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -3912,7 +4358,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -3943,7 +4388,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -3966,7 +4410,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -3984,7 +4427,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -3993,7 +4435,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -4069,7 +4510,6 @@ paths:
                         type: boolean
                     required:
                       - name
-                    additionalProperties: false
                 own:
                   type: boolean
                 read_only:
@@ -4092,7 +4532,6 @@ paths:
                     type: string
               required:
                 - enabled
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -4158,7 +4597,6 @@ paths:
                         - privacy
                         - token_set
                         - in_file
-                      additionalProperties: false
                   agents:
                     type: object
                     additionalProperties:
@@ -4206,7 +4644,6 @@ paths:
                             - array
                           items:
                             type: string
-                      additionalProperties: false
                   skills:
                     type: object
                     additionalProperties:
@@ -4237,7 +4674,6 @@ paths:
                                 type: boolean
                             required:
                               - name
-                            additionalProperties: false
                         own:
                           type: boolean
                         read_only:
@@ -4260,7 +4696,6 @@ paths:
                             type: string
                       required:
                         - enabled
-                      additionalProperties: false
                   providers:
                     type:
                       - "null"
@@ -4278,7 +4713,6 @@ paths:
                         - key
                         - name
                         - base_url
-                      additionalProperties: false
                 required:
                   - file
                   - encrypted
@@ -4287,7 +4721,6 @@ paths:
                   - agents
                   - skills
                   - providers
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -4342,7 +4775,6 @@ paths:
                   type: object
                   additionalProperties:
                     type: string
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -4377,7 +4809,6 @@ paths:
                   - ok
                   - ms
                   - tools
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -4430,7 +4861,6 @@ paths:
                       type: string
                   required:
                     - id
-                  additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -4458,7 +4888,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  managed:
+                    type: boolean
+                required:
+                  - managed
         "401":
           description: Unauthorized
           content:
@@ -4532,11 +4966,9 @@ paths:
                             required:
                               - satellite
                               - morning
-                            additionalProperties: false
                       required:
                         - area
                         - morning
-                      additionalProperties: false
                   managed:
                     type: boolean
                   exposed:
@@ -4553,7 +4985,6 @@ paths:
                   - persons
                   - rooms
                   - managed
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -4632,11 +5063,9 @@ paths:
                           required:
                             - satellite
                             - morning
-                          additionalProperties: false
                     required:
                       - area
                       - morning
-                    additionalProperties: false
                 managed:
                   type: boolean
                 exposed:
@@ -4653,7 +5082,6 @@ paths:
                 - persons
                 - rooms
                 - managed
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -4708,11 +5136,9 @@ paths:
                             required:
                               - satellite
                               - morning
-                            additionalProperties: false
                       required:
                         - area
                         - morning
-                      additionalProperties: false
                   managed:
                     type: boolean
                   exposed:
@@ -4729,7 +5155,6 @@ paths:
                   - persons
                   - rooms
                   - managed
-                additionalProperties: false
         "400":
           description: Bad Request
           content:
@@ -4775,7 +5200,18 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  admin:
+                    type: boolean
+                  name:
+                    type: string
+                  person:
+                    type: string
+                  voice:
+                    type: boolean
+                required:
+                  - admin
+                  - voice
         "401":
           description: Unauthorized
           content:
@@ -4797,7 +5233,56 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  memories:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        owner:
+                          type: string
+                        name:
+                          type: string
+                        profile:
+                          type: string
+                        profile_updated:
+                          type: string
+                        facts:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                              text:
+                                type: string
+                              updated:
+                                type: string
+                              author:
+                                type: string
+                              told:
+                                type: string
+                            required:
+                              - id
+                              - text
+                              - updated
+                      required:
+                        - owner
+                        - profile
+                        - facts
+                  can_compact:
+                    type: boolean
+                  unknown_person:
+                    type: boolean
+                  you:
+                    type: string
+                required:
+                  - memories
+                  - can_compact
         "401":
           description: Unauthorized
           content:
@@ -4825,7 +5310,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  changed:
+                    type: boolean
+                required:
+                  - changed
         "401":
           description: Unauthorized
           content:
@@ -4865,7 +5354,14 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  file:
+                    type: string
+                  text:
+                    type: string
+                required:
+                  - file
+                  - text
         "401":
           description: Unauthorized
           content:
@@ -4883,6 +5379,7 @@ paths:
       tags:
         - page
       summary: Import facts from text (preview, then apply)
+      description: Answers either a problem, or the changes and whether they were applied.
       operationId: postV1UiMemoryImport
       parameters:
         - $ref: '#/components/parameters/PartnerUser'
@@ -4892,7 +5389,14 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                text:
+                  type: string
+                apply:
+                  type: boolean
+              required:
+                - text
+                - apply
       responses:
         "200":
           description: OK
@@ -4900,7 +5404,54 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  changes:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        owner:
+                          type: string
+                        name:
+                          type: string
+                        add:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        remove:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: string
+                        keep:
+                          type: integer
+                      required:
+                        - owner
+                        - add
+                        - remove
+                        - keep
+                  applied:
+                    type:
+                      - "null"
+                      - boolean
+                  problem:
+                    type:
+                      - "null"
+                      - object
+                    properties:
+                      kind:
+                        type: string
+                      heading:
+                        type: string
+                      line:
+                        type: integer
+                    required:
+                      - kind
         "400":
           description: Bad Request
           content:
@@ -4939,7 +5490,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
         "401":
           description: Unauthorized
           content:
@@ -4976,7 +5531,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                text:
+                  type: string
+              required:
+                - text
       responses:
         "200":
           description: OK
@@ -4984,7 +5543,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  saved:
+                    type: boolean
+                required:
+                  - saved
         "400":
           description: Bad Request
           content:
@@ -5038,7 +5601,68 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  items:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        state:
+                          type: string
+                        importance:
+                          type: integer
+                        receiver:
+                          type: string
+                        confidentiality:
+                          type: string
+                        spoken:
+                          type: string
+                        details:
+                          type: string
+                        source:
+                          type: string
+                        created_at:
+                          type: string
+                        delivered_via:
+                          type: string
+                        deliver_at:
+                          type: string
+                      required:
+                        - id
+                        - state
+                        - importance
+                        - receiver
+                        - confidentiality
+                        - spoken
+                        - details
+                        - source
+                        - created_at
+                  more:
+                    type: boolean
+                  page:
+                    type: integer
+                  phone:
+                    type:
+                      - "null"
+                      - object
+                    properties:
+                      messages:
+                        type: integer
+                      missed:
+                        type: integer
+                      url:
+                        type: string
+                    required:
+                      - messages
+                      - missed
+                required:
+                  - items
+                  - more
+                  - page
         "401":
           description: Unauthorized
           content:
@@ -5071,7 +5695,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  acked:
+                    type: boolean
+                required:
+                  - acked
         "401":
           description: Unauthorized
           content:
@@ -5122,7 +5750,6 @@ paths:
                 required:
                   - ok
                   - ms
-                additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -5156,7 +5783,47 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  plans:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        target:
+                          type: string
+                        request:
+                          type: string
+                        place:
+                          type: string
+                        plan:
+                          type: string
+                        done:
+                          type: integer
+                        steps:
+                          type: integer
+                        finished:
+                          type: boolean
+                        started:
+                          type: string
+                        updated:
+                          type: string
+                      required:
+                        - id
+                        - target
+                        - request
+                        - place
+                        - plan
+                        - done
+                        - steps
+                        - finished
+                        - started
+                        - updated
+                required:
+                  - plans
         "401":
           description: Unauthorized
           content:
@@ -5189,7 +5856,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  ended:
+                    type: boolean
+                required:
+                  - ended
         "401":
           description: Unauthorized
           content:
@@ -5222,7 +5893,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                url:
+                  type: string
+              required:
+                - url
       responses:
         "200":
           description: OK
@@ -5230,7 +5905,43 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  connections:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                        name:
+                          type: string
+                        state:
+                          type: string
+                        client_id:
+                          type: string
+                        secret_set:
+                          type: boolean
+                        redirect:
+                          type: string
+                      required:
+                        - skill
+                        - name
+                        - state
+                        - client_id
+                        - secret_set
+                        - redirect
+                  remote_address:
+                    type:
+                      - "null"
+                      - string
+                  remote_agents:
+                    type:
+                      - "null"
+                      - boolean
+                required:
+                  - connections
         "400":
           description: Bad Request
           content:
@@ -5276,7 +5987,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  restarting:
+                    type: boolean
+                required:
+                  - restarting
         "401":
           description: Unauthorized
           content:
@@ -5310,7 +6025,74 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  items:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                        name:
+                          type: string
+                        description:
+                          type: string
+                        own:
+                          type: boolean
+                        skill_off:
+                          type: boolean
+                        per_person:
+                          type: boolean
+                        cron:
+                          type: string
+                        enabled:
+                          type: boolean
+                        editable:
+                          type: boolean
+                        time:
+                          type: string
+                        days:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: integer
+                        next:
+                          type: string
+                        state:
+                          type: string
+                        last:
+                          type:
+                            - "null"
+                            - array
+                          items:
+                            type: object
+                            properties:
+                              person:
+                                type: string
+                              started:
+                                type: string
+                              seconds:
+                                type: integer
+                              status:
+                                type: string
+                              text:
+                                type: string
+                              error:
+                                type: string
+                            required:
+                              - started
+                              - seconds
+                              - status
+                      required:
+                        - skill
+                        - cron
+                        - enabled
+                        - editable
+                required:
+                  - items
         "401":
           description: Unauthorized
           content:
@@ -5372,7 +6154,6 @@ paths:
                     - array
                   items:
                     type: integer
-              additionalProperties: false
       responses:
         "200":
           description: OK
@@ -5380,7 +6161,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  saved:
+                    type: boolean
+                required:
+                  - saved
         "400":
           description: Bad Request
           content:
@@ -5430,7 +6215,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  started:
+                    type: boolean
+                required:
+                  - started
         "400":
           description: Bad Request
           content:
@@ -5476,7 +6265,64 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  error:
+                    type: string
+                  items:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        goal:
+                          type: string
+                        summary:
+                          type: string
+                        state:
+                          type: string
+                        entity_id:
+                          type: string
+                        last_triggered:
+                          type: string
+                        automation: true
+                        edit_url:
+                          type: string
+                      required:
+                        - id
+                        - title
+                        - goal
+                        - state
+                  planning:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        state:
+                          type: string
+                        request:
+                          type: string
+                        last:
+                          type: string
+                        updated:
+                          type: string
+                      required:
+                        - id
+                        - state
+                        - request
+                        - last
+                        - updated
+                required:
+                  - items
+                  - planning
         "401":
           description: Unauthorized
           content:
@@ -5515,7 +6361,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
         "401":
           description: Unauthorized
           content:
@@ -5566,7 +6416,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  on:
+                    type: boolean
+                required:
+                  - on
         "401":
           description: Unauthorized
           content:
@@ -5647,7 +6501,6 @@ paths:
                     - input
                     - notified
                     - dry_run
-                  additionalProperties: false
         "401":
           description: Unauthorized
           content:
@@ -5686,7 +6539,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  on:
+                    type: boolean
+                required:
+                  - on
         "401":
           description: Unauthorized
           content:
@@ -5737,7 +6594,50 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  result:
+                    type: object
+                    properties:
+                      verdicts:
+                        type:
+                          - "null"
+                          - array
+                        items:
+                          type: object
+                          properties:
+                            importance:
+                              type: integer
+                            spoken:
+                              type: string
+                            details:
+                              type: string
+                            message_id:
+                              type: string
+                            withheld:
+                              type: string
+                          required:
+                            - importance
+                            - spoken
+                            - message_id
+                      decisions:
+                        type:
+                          - "null"
+                          - array
+                        items:
+                          type: object
+                          properties:
+                            answer:
+                              type: boolean
+                            reason:
+                              type: string
+                          required:
+                            - answer
+                            - reason
+                  text:
+                    type: string
+                required:
+                  - result
+                  - text
         "401":
           description: Unauthorized
           content:
@@ -5783,7 +6683,32 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  tokens:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        kind:
+                          type: string
+                        prefix:
+                          type: string
+                        created:
+                          type: string
+                      required:
+                        - id
+                        - name
+                        - kind
+                        - prefix
+                        - created
+                required:
+                  - tokens
         "401":
           description: Unauthorized
           content:
@@ -5815,7 +6740,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                name:
+                  type: string
+              required:
+                - name
       responses:
         "201":
           description: Created
@@ -5823,7 +6752,31 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  info:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      kind:
+                        type: string
+                      prefix:
+                        type: string
+                      created:
+                        type: string
+                    required:
+                      - id
+                      - name
+                      - kind
+                      - prefix
+                      - created
+                  token:
+                    type: string
+                required:
+                  - info
+                  - token
         "400":
           description: Bad Request
           content:
@@ -5880,7 +6833,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
         "401":
           description: Unauthorized
           content:
@@ -5930,7 +6887,37 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  calls:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        token:
+                          type: string
+                        partner_user:
+                          type: string
+                        method:
+                          type: string
+                        path:
+                          type: string
+                        status:
+                          type: integer
+                        at:
+                          type: string
+                      required:
+                        - token
+                        - partner_user
+                        - method
+                        - path
+                        - status
+                        - at
+                  page:
+                    type: integer
+                required:
+                  - calls
         "401":
           description: Unauthorized
           content:
@@ -5964,7 +6951,17 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  available:
+                    type: boolean
+                  samples:
+                    type:
+                      - "null"
+                      - object
+                    additionalProperties:
+                      type: integer
+                required:
+                  - available
         "401":
           description: Unauthorized
           content:
@@ -6003,7 +7000,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  ok:
+                    type: boolean
+                required:
+                  - ok
         "401":
           description: Unauthorized
           content:
@@ -6047,7 +7048,24 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  enrolling:
+                    type: boolean
+                  left:
+                    type: integer
+                  samples:
+                    type: integer
+                  sentences:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                required:
+                  - enrolling
+                  - left
+                  - samples
+                  - sentences
         "401":
           description: Unauthorized
           content:
@@ -6091,7 +7109,11 @@ paths:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              properties:
+                id:
+                  type: string
+              required:
+                - id
       responses:
         "200":
           description: OK
@@ -6099,7 +7121,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  ok:
+                    type: boolean
+                required:
+                  - ok
         "400":
           description: Bad Request
           content:
@@ -6156,7 +7182,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  ok:
+                    type: boolean
+                required:
+                  - ok
         "401":
           description: Unauthorized
           content:
@@ -6199,7 +7229,18 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  seconds:
+                    type: integer
+                  sentences:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: string
+                required:
+                  - seconds
+                  - sentences
         "401":
           description: Unauthorized
           content:
@@ -6244,7 +7285,38 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  heard:
+                    type:
+                      - "null"
+                      - array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        at:
+                          type: number
+                        seconds:
+                          type: number
+                        transcript:
+                          type: string
+                        assigned:
+                          type: string
+                        person:
+                          type: string
+                        score:
+                          type: number
+                      required:
+                        - id
+                        - at
+                        - seconds
+                        - transcript
+                  left:
+                    type: integer
+                required:
+                  - heard
+                  - left
         "401":
           description: Unauthorized
           content:
@@ -6290,7 +7362,11 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
         "401":
           description: Unauthorized
           content:
@@ -6330,8 +7406,14 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties:
-                  type: string
+                properties:
+                  kind:
+                    type: string
+                  name:
+                    type: string
+                required:
+                  - kind
+                  - name
         "401":
           description: Unauthorized
           content:

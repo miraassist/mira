@@ -85,29 +85,35 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise UpdateFailed(str(err)) from err
         await self._sync(status)
         show_missing_calendars(self.hass, list(status.get("mail_apps") or []))
-        await self._check_access()
+        await self._check_access(bool(status.get("ha_token_refused")))
         self._show_problems(status.get("problems") or [])
         self._show_version(status.get("version") or self.agent_version)
         return status
 
-    async def _check_access(self) -> None:
+    async def _check_access(self, refused: bool = False) -> None:
         """The token an admin gave Mira (docs/spec/hacs-default.md, 4): one
         that does not work (revoked, its user inactive or no admin), or the
         owner's token the integration made itself before, which is revoked
         here, raises the repair asking for a token; nothing is made. A
         service with Home Assistant's token in its own file has no id here:
-        nothing to check."""
+        nothing to check. refused is the service's ha_token_refused in
+        /v1/status (docs/spec/ha-api.md, decision 10): Home Assistant refused
+        Mira's token on a call through Mira's interface; it raises the same
+        repair until the service reports it no more. An older service sends
+        no such field: nothing changes."""
         refresh_id = self.config_entry.data.get(CONF_AGENT_TOKEN)
-        if not refresh_id:
-            return
-        revoke_made_token(self.hass, self.config_entry)
-        if token_works(self.hass, refresh_id):
+        if refresh_id:
+            revoke_made_token(self.hass, self.config_entry)
+        works = not refresh_id or token_works(self.hass, refresh_id)
+        if works and not refused:
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ACCESS)
             return
         if ir.async_get(self.hass).async_get_issue(DOMAIN, ISSUE_ACCESS) is None:
             _LOGGER.warning(
-                "Mira's token does not work (revoked, or its user is inactive or no admin); "
-                "the repair asks an admin for a new one"
+                "Mira's token does not work (%s); the repair asks an admin for a new one",
+                "revoked, or its user is inactive or no admin"
+                if not works
+                else "Home Assistant refused it on a call through Mira's interface",
             )
         ir.async_create_issue(
             self.hass,

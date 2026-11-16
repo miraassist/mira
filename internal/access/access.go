@@ -260,12 +260,18 @@ func unrecorded(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/v1/status"
 }
 
+// Who is GET /v1/whoami's answer: the calling token's kind and name.
+type Who struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
 func (k *Keeper) whoami(w http.ResponseWriter, integration bool, c Caller) {
 	switch {
 	case c.Kind == KindPartner:
-		writeJSON(w, http.StatusOK, map[string]string{"name": c.Name, "kind": KindPartner})
+		writeJSON(w, http.StatusOK, Who{Name: c.Name, Kind: KindPartner})
 	case integration:
-		writeJSON(w, http.StatusOK, map[string]string{"name": KindIntegration, "kind": KindIntegration})
+		writeJSON(w, http.StatusOK, Who{Name: KindIntegration, Kind: KindIntegration})
 	default:
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing or wrong bearer token"})
 	}

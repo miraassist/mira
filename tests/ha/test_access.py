@@ -163,3 +163,24 @@ async def test_HD38_removing_mira_revokes_nothing(hass, aioclient_mock, entry, h
     aioclient_mock.post(f"{AGENT_URL}/v1/unpair", json={})
     await async_remove_entry(hass, entry)
     assert hass.auth.async_get_refresh_token(refresh.id) is not None
+
+
+async def test_HE09_a_token_refused_on_the_ha_routes_raises_the_repair(hass, aioclient_mock, entry, hass_owner_user):
+    """The service's ha_token_refused in /v1/status (docs/spec/ha-api.md,
+    decision 10) raises the same repair; it goes when the service reports it
+    no more. An older service sends no such field."""
+    refresh, _ = await admin_token(hass, hass_owner_user)
+    await _with_token(hass, aioclient_mock, entry, refresh.id)
+    assert _issue(hass) is None
+    for refused, raised in ((True, True), (False, False), (True, True)):
+        aioclient_mock.clear_requests()
+        aioclient_mock.get(
+            f"{AGENT_URL}/v1/status",
+            json={"pending_messages": 0, "quiet_mode": False, **({"ha_token_refused": True} if refused else {})},
+        )
+        await entry.runtime_data.coordinator.async_refresh()
+        issue = _issue(hass)
+        assert (issue is not None) is raised
+        if raised:
+            assert issue.is_fixable and issue.severity is ir.IssueSeverity.ERROR
+    assert not _setups(aioclient_mock)

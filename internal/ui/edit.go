@@ -208,7 +208,7 @@ func (h *Handler) editRoutes() {
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/skills/{name}/mcp-check", Summary: "Check a skill's MCP server", Request: MCPCheckRequest{}, Response: MCPCheckResult{}, Errors: []int{400, 403, 404}}), h.auth(h.mcpCheck))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/model-check", Summary: "Check a model before saving it", Request: ModelRequest{}, Response: ModelCheckResult{}, Errors: []int{400, 403, 404}}), h.auth(h.modelCheck))
 	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/edit/model-list", Summary: "List a server's models", Request: ModelRequest{}, Response: ModelListResult{}, Errors: []int{400, 403, 404}}), h.auth(h.modelList))
-	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/restart", Summary: "Restart the service to apply settings (202)", Response: object{}, Status: http.StatusAccepted, Errors: []int{403, 404}}), h.auth(h.restart))
+	h.mux.Handle(pageRoute(api.Route{Method: "POST", Path: "/v1/ui/restart", Summary: "Restart the service to apply settings (202)", Response: Restarting{}, Status: http.StatusAccepted, Errors: []int{403, 404}}), h.auth(h.restart))
 }
 
 var errBadBody = errors.New("the body is not a valid form")
@@ -298,7 +298,7 @@ func (h *Handler) restart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log.Info("restart asked for on the page")
-	writeJSON(w, http.StatusAccepted, map[string]bool{"restarting": true})
+	writeJSON(w, http.StatusAccepted, Restarting{Restarting: true})
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}

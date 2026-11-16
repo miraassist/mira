@@ -61,6 +61,7 @@ func (s *Server) haState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	raw, err := s.opts.HA.State(r.Context(), id)
+	s.noteToken(err)
 	switch {
 	case err == nil:
 		w.Header().Set("Content-Type", "application/json")
@@ -75,6 +76,26 @@ func (s *Server) haState(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("reading an entity from Home Assistant failed; the caller gets 502, nothing is tried again",
 			"route", "GET /v1/ha/states", "entity", id, "error", err)
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("reading %s from Home Assistant failed: %v", id, err))
+	}
+}
+
+// noteToken keeps whether Home Assistant refused Mira's token on the last
+// call of these routes it answered (decision 10): a refusal raises the
+// integration's repair through /v1/status; a call it answered otherwise (the
+// state, no such entity, an action done or refused for its data) takes it
+// away. A call that did not reach Home Assistant says nothing about the
+// token and changes nothing.
+func (s *Server) noteToken(err error) {
+	var refusal *haws.Error
+	switch {
+	case errors.Is(err, haws.ErrNotAdmin):
+		if !s.haRefused.Swap(true) {
+			s.log.Warn("Home Assistant refused Mira's token on a route to Home Assistant; /v1/status reports it for the integration's repair until a call is accepted")
+		}
+	case err == nil, errors.Is(err, haws.ErrNotFound), errors.As(err, &refusal) && !refusal.Retryable():
+		if s.haRefused.Swap(false) {
+			s.log.Info("Home Assistant accepts Mira's token again; the repair goes")
+		}
 	}
 }
 
@@ -117,6 +138,7 @@ func (s *Server) haService(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = s.opts.HA.CallService(r.Context(), domain, service, data, nil)
 	}
+	s.noteToken(err)
 	var refusal *haws.Error
 	switch {
 	case err == nil:
