@@ -229,7 +229,9 @@ func (k *Keeper) Check(next http.Handler) http.Handler {
 		}
 		c := Caller{TokenID: t.ID, Name: t.Name, Kind: KindPartner, PartnerUser: r.Header.Get(HeaderPartnerUser)}
 		rec := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-		defer func() { k.record(r, c, rec.status) }()
+		if !unrecorded(r) {
+			defer func() { k.record(r, c, rec.status) }()
+		}
 		if r.Method == http.MethodGet && r.URL.Path == "/v1/whoami" {
 			k.whoami(rec, false, c)
 			return
@@ -249,6 +251,13 @@ func (k *Keeper) Check(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(rec, r)
 	})
+}
+
+// unrecorded is the call a partner token makes all the time and that only
+// reads: the state the Partner service asks at a fixed interval (decision
+// 22). It gets no row and no log line.
+func unrecorded(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == "/v1/status"
 }
 
 func (k *Keeper) whoami(w http.ResponseWriter, integration bool, c Caller) {

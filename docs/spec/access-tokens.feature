@@ -51,6 +51,7 @@ Feature: Access tokens
     When it calls with X-Partner-User "anna"
     Then the partner activity has a row with the token's name, "anna", the method, the path and the status
     And the log has "partner call" with the same
+    And a partner token's GET /v1/status is kept neither as a row nor as a log line
 
   @step2
   Scenario: AT-08 The call runs although its record fails

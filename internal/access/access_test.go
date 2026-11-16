@@ -215,6 +215,8 @@ func TestAT07_APartnerCallIsRecordedWithItsPartnerUser(t *testing.T) {
 	serve(k, http.MethodGet, "/v1/ui/tasks", token, map[string]string{HeaderPartnerUser: "anna"})
 	serve(k, http.MethodPost, "/v1/backup", token, map[string]string{HeaderPartnerUser: "anna"})
 	serve(k, http.MethodGet, "/v1/status", integrationToken, nil)
+	// The state the Partner service asks all the time is not kept (decision 22).
+	serve(k, http.MethodGet, "/v1/status", token, map[string]string{HeaderPartnerUser: "anna"})
 	calls, err := st.AccessCalls(context.Background(), made.ID, 50, 0)
 	if err != nil || len(calls) != 2 {
 		t.Fatalf("calls %+v, %v", calls, err)
@@ -233,6 +235,9 @@ func TestAT07_APartnerCallIsRecordedWithItsPartnerUser(t *testing.T) {
 	if !strings.Contains(logs.String(), `msg="partner call" token="Elektro Meier" partner_user=anna method=GET path=/v1/ui/tasks status=200`) {
 		t.Fatalf("log:\n%s", logs)
 	}
+	if strings.Contains(logs.String(), "path=/v1/status") {
+		t.Fatalf("the state was logged:\n%s", logs)
+	}
 }
 
 func TestAT08_TheCallRunsAlthoughItsRecordFails(t *testing.T) {
@@ -241,12 +246,12 @@ func TestAT08_TheCallRunsAlthoughItsRecordFails(t *testing.T) {
 	if _, err := st.DB().Exec(`DROP TABLE access_log`); err != nil {
 		t.Fatal(err)
 	}
-	rec, s := serve(k, http.MethodGet, "/v1/status", token, map[string]string{HeaderPartnerUser: "anna"})
+	rec, s := serve(k, http.MethodGet, "/v1/ui/tasks", token, map[string]string{HeaderPartnerUser: "anna"})
 	if rec.Code != http.StatusOK || !s.called {
 		t.Fatalf("status %d, called %v", rec.Code, s.called)
 	}
 	if !strings.Contains(logs.String(), "could not record a partner call") ||
-		!strings.Contains(logs.String(), "path=/v1/status") {
+		!strings.Contains(logs.String(), "path=/v1/ui/tasks") {
 		t.Fatalf("log:\n%s", logs)
 	}
 }

@@ -42,6 +42,7 @@ token, and the partner activity on Mira's page.
 | 19 | The page's words (2026-11-16, by the maintainer) | The page and the guide do not speak of a partner: it is simply a new token ("Zugangs-Tokens", "Neues Token anlegen"; the partner user is "Benutzer"). Partner stays the word in the specs and the code (kind `partner`, `X-Partner-User`) |
 | 20 | Showing a new token (2026-11-16, by the maintainer) | In the page's dialog, the token in a read-only field, selected, with "Kopieren und schließen" and "Schließen"; never inline on the page, where it was overlooked |
 | 21 | A taken name; copying over http (2026-11-16, by the maintainer, after trying it) | A name is taken regardless of upper and lower case ("Test" and "test" are one); the page says so under the field, not only at its top. The browser's clipboard interface exists only on https and localhost; over http the page copies with the browser's older copy command, for the connections' copy button too |
+| 22 | The state in the partner activity (2026-11-16, by the maintainer) | `GET /v1/status` with a partner token is kept neither as a row nor as a log line: the Partner service asks it at a fixed interval, it only reads, and it would bury the rest. Every other call stays as decision 12 says |
 
 ## Building blocks
 
@@ -85,9 +86,9 @@ with the name and the error; nothing is stored, the page says it did not work.
    (empty if missing). The headers `X-Mira-HA-User` / `X-Mira-HA-Admin` are ignored (decision 10); the setup's routes, backup and restore and the access tokens' own routes refuse a partner token with 403 (decisions 9, 16 and 18). On the page it sees the house's memory only (decision 17).
 3. With the integration's token, `X-Partner-User` is dropped before the handler sees it.
 4. Every call of a partner token writes a row of partner activity (time, token name, partner user, method, path,
-   status), for every call (decision 12). A log line `partner call` with the same fields.
+   status), for every call except `GET /v1/status` (decisions 12 and 22). A log line `partner call` with the same fields.
 
-**Costs:** one hash per call (SHA-256 of the token) and one lookup in memory; for a partner token one write per call.
+**Costs:** one hash per call (SHA-256 of the token) and one lookup in memory; for a partner token one write per call (none for `GET /v1/status`).
 
 **Fails:** the activity row cannot be written → the call still runs (the owner's interface does not stop for its
 record), log line `could not record a partner call` with token name, partner user, path and the error.
