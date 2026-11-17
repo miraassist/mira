@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-14: steps 1–8 built (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-17: steps 1–9 built (step 9: a question, 2026-11-17) (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -61,6 +61,12 @@ real Show. A test that runs a flow against fakes catches that early only if the 
   over.
 - **`start_conversation`**: `responding`, then `idle` for a moment, then `listening`, then `idle` when no turn comes.
   The short `idle` is there, so a flow that takes it for the end shows its mistake against the fake too.
+- **A question** (`assist_satellite.ask_question`, since 2026-11-17): `responding` while the question is spoken, a short
+  `idle`, then `listening` (as the real Show on 2026-11-16). A `techo5_fake.say` while it listens is the answer: it goes to Home Assistant, which matches it against
+  the question's `answers` as for a real device, and the satellite goes `idle`; the text goes to no conversation agent
+  and there is no `processing` (the real Show showed none on 2026-11-16). Nobody answers within the listening time:
+  `idle`, and Home Assistant's action fails with "No answer received from the satellite", as at the real Show (which
+  listens longer, about 15 s).
 - **The wake word**: a test calls `techo5_fake.wake_word` for the device. The satellite goes `listening`; a background
   playback is lowered (the speaker's `volume_level` attribute shows it lowered by the device's 15 dB while it lasts),
   a foreground playback is not. Without a following turn the satellite goes `idle` again and the background
@@ -234,3 +240,5 @@ turn at the conversation agent.
    test actions, for the evals of the messages' kinds (2026-11-14); tested in pytest (FG-30 to FG-32).
 8. **The fake A2A agent** (`testenv/a2a_fake`): the behaviours, the cards, what it received, its container
    (2026-11-14, step 0 of [Remote agents](remote-agents.md)); tested in Go (`testenv/a2a_fake`).
+9. **A question** (`assist_satellite.ask_question`, 2026-11-17): answered by `techo5_fake.say`, or no answer within
+   the listening time (FG-18, FG-19), tested in pytest; for the skill `angehoerige`, whose automations ask.

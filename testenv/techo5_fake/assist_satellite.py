@@ -7,6 +7,11 @@ states a device reports.
   it is over.
 - Starting a conversation: "responding", "idle" for a moment, "listening",
   and "idle" when the listening time is over.
+- A question (assist_satellite.ask_question): "responding", "idle" for a
+  moment, "listening";
+  a voice turn while it listens is the answer, handed to Home Assistant,
+  which matches it; then "idle", without "processing". Nobody answers:
+  "idle" when the listening time is over, and the action fails.
 - The wake word (the action techo5_fake.wake_word): "listening", music on
   the speaker lowered meanwhile; "idle" again when the listening time is
   over.
@@ -27,7 +32,9 @@ from homeassistant.components.assist_satellite import (
     AssistSatelliteEntity,
     AssistSatelliteEntityFeature,
 )
-from homeassistant.components.assist_satellite.entity import AssistSatelliteState
+from homeassistant.components.assist_satellite.entity import AssistSatelliteAnswer, AssistSatelliteState
+from homeassistant.components.assist_satellite.errors import SatelliteBusyError
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.components import conversation
 from homeassistant.components.assist_pipeline import async_get_pipeline
@@ -90,6 +97,12 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
     async def say(self, text: str) -> dict[str, Any]:
         """A voice turn: someone said text after the wake word."""
         self.dev.record("say", text=text)
+        if self._asking():
+            # The answer to a question: Home Assistant matches it, no agent hears it.
+            self._stop_listening()
+            self._ask_question_future.set_result(text)
+            self._quiet()
+            return {"speech": "", "continue_conversation": False}
         conversation_id = self._follow_up if self._listen_end else None
         self._stop_listening()
         if self.dev.speaker:
@@ -131,6 +144,32 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
         finally:
             cancel()
 
+    def _asking(self) -> bool:
+        return self._ask_question_future is not None and not self._ask_question_future.done()
+
+    async def async_internal_ask_question(self, question: str | None = None, question_media_id: str | None = None,
+                                          preannounce: bool = True, answers: list[dict[str, Any]] | None = None,
+                                          **_: Any) -> AssistSatelliteAnswer | None:
+        """As Home Assistant's own, without speech synthesis: speak the question,
+        listen, and match the answer with Home Assistant's matching."""
+        if self._is_announcing:
+            raise SatelliteBusyError
+        self._is_announcing = True
+        self._ask_question_future = asyncio.Future()
+        try:
+            await self._speak("ask_question", question, question_media_id, preannounce=preannounce)
+            self._listen()
+            text = await self._ask_question_future
+            if text is None:
+                raise HomeAssistantError(translation_domain="assist_satellite", translation_key="no_answer")
+            if not answers:
+                return AssistSatelliteAnswer(id=None, sentence=text)
+            return self._question_response_to_answer(text, answers)
+        finally:
+            self._is_announcing = False
+            self._ask_question_future = None
+            self._quiet()
+
     # No speech synthesis: the text is what a test checks, and a fake must
     # not make the test house pay for a cloud voice.
     async def async_internal_announce(self, message: str | None = None, media_id: str | None = None,
@@ -158,6 +197,8 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
     @callback
     def _heard_nothing(self, _now: datetime) -> None:
         self._listen_end = None
+        if self._asking():
+            self._ask_question_future.set_result(None)
         self._quiet()
 
     @callback

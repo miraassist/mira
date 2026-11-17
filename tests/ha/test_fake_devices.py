@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
@@ -269,3 +270,54 @@ async def test_FG17_a_longer_text_takes_longer_to_speak(hass, fakes):
     short = await responding_for("x" * 15)
     long = await responding_for("x" * 90)
     assert short < long
+
+
+def ask(hass: HomeAssistant) -> asyncio.Task:
+    return asyncio.ensure_future(
+        hass.services.async_call(
+            "assist_satellite",
+            "ask_question",
+            {
+                "entity_id": SAT,
+                "question": "Ist alles in Ordnung?",
+                "preannounce": False,
+                "answers": [
+                    {"id": "ja", "sentences": ["ja [alles gut]"]},
+                    {"id": "nein", "sentences": ["nein"]},
+                ],
+            },
+            blocking=True,
+            return_response=True,
+        )
+    )
+
+
+async def test_FG18_a_question_is_answered_by_a_voice_turn(hass, fakes):
+    seen = states(hass, SAT)
+    question = ask(hass)
+    for _ in range(5):
+        await later(hass, 1)
+        if hass.states.get(SAT).state == "listening":
+            break
+    assert seen == [(SAT, "responding"), (SAT, "idle"), (SAT, "listening")]
+    turn = await say(hass, "Ja, alles gut")
+    await later(hass, 0)
+    assert await turn == {"speech": "", "continue_conversation": False}
+    answer = await question
+    assert answer["id"] == "ja", answer
+    assert seen[3:] == [(SAT, "idle")]
+
+
+async def test_FG19_a_question_nobody_answers(hass, fakes):
+    seen = states(hass, SAT)
+    question = ask(hass)
+    for _ in range(15):
+        await later(hass, 1)
+        if question.done():
+            break
+    # Home Assistant's text for it: "No answer received from the satellite."
+    with pytest.raises(HomeAssistantError) as failed:
+        await question
+    assert failed.value.translation_key == "no_answer"
+    assert seen[-1] == (SAT, "idle")
+    assert "processing" not in [s for _, s in seen]

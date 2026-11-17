@@ -109,7 +109,21 @@ Feature: FG Fake satellites that behave like the real ones
     When the Fake Show announces a sentence of 15 characters and then one of 90
     Then the second keeps it "responding" longer than the first
 
-  # The answering machine (testenv/fritz_fake as mira_fritz)
+  @step9
+  Scenario: FG-18 A question is answered by a voice turn
+    When the Fake Show gets assist_satellite.ask_question with the answers "ja" and "nein"
+    Then the satellite goes "responding", "idle", "listening", in that order
+    When a test calls techo5_fake.say for the Fake Show with "Ja, alles gut"
+    Then the action answers with the id "ja"
+    And the satellite goes "idle", without "processing"
+
+  @step9
+  Scenario: FG-19 A question nobody answers
+    When the Fake Show gets assist_satellite.ask_question and nobody speaks
+    Then the satellite goes "idle" after the listening time
+    And the action fails with "No answer received from the satellite"
+
+ (testenv/fritz_fake as mira_fritz)
 
   @step7
   Scenario: FG-30 New recordings raise the count of new messages at once
