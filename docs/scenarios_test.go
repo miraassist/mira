@@ -63,6 +63,7 @@ var builtSteps = map[string][]int{
 	"SB": {1, 2, 3},                    // docs/spec/skill-files.md, Steps; step 4 is the guide
 	"HE": {1, 2},                       // docs/spec/ha-api.md, Steps
 	"OA": {1, 2},                       // docs/spec/openapi.md, Steps
+	"SV": {1},                          // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
 }
 
 var (

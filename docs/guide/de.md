@@ -978,6 +978,19 @@ Ab dann hält Mira die Anmeldung selbst frisch. Lehnt X sie einmal ab, etwa weil
 
 ![Einrichtung → Verbindungen: Client-ID und Secret der App, die Redirect-URL zum Kopieren, Verbinden und Trennen](img/mira-verbindungen-de.png)
 
+## Sport aus Strava
+
+Mira liest dir deine Aktivitäten aus Strava vor: „Wie war meine letzte Tour?“, „Wie viel bin ich diese Woche gefahren?“, „Wie lang ist meine Serie?“, „Wie viel hat mein Rad drauf?“, „Was sind meine Bestleistungen?“. Sie liest nur, sie trägt nichts ein, und sie merkt sich nichts davon; bei jeder Frage schaut sie neu nach. Die Serie zählt die Wochen in Folge mit mindestens einer Aktivität.
+
+**Gut zu wissen:** Strava erlaubt seit Juni 2026 nicht mehr, Daten aus seiner Schnittstelle an eine KI zu geben (außer an seinen eigenen Zugang für Claude und Gemini). Mira kann diesen Zugang nicht nutzen, Strava lässt sie dort nicht zu. Der Skill geht deshalb über eine eigene Strava-App, und du nutzt ihn auf eigenes Risiko: Strava könnte die App sperren.
+
+**Einrichten:**
+1. Auf strava.com unter Einstellungen → **Meine API-Anwendung** eine App anlegen (dafür braucht Strava ein Abo). Bei „Authorization Callback Domain“ genau `my.home-assistant.io` eintragen, ohne `https://` und ohne Schrägstrich. Home Assistant braucht dafür [My Home Assistant](https://my.home-assistant.io) mit der Adresse deiner Instanz.
+2. Den Skill `strava` einschalten: Mira → Fähigkeiten → Skills → strava → **Einschalten**.
+3. Mira → Einrichtung → **Verbindungen**: Client-ID und Client-Secret der App eintragen, **Übernehmen**, dann **Verbinden**. Bei Strava anmelden und **Autorisieren**; alle Haken drin lassen, auch den für die Aktivitäten.
+
+Eine neue Strava-App kann nur dein eigenes Konto lesen. Die Kilometer pro Rad zählen nur Aktivitäten, bei denen in Strava das Rad als Ausrüstung eingetragen ist.
+
 ## Neue Geräte einbinden
 
 ▶ [Erklärvideo: Neue Geräte einbinden (0:42)](https://mira-assist.com/videos/erklaer/geraete-einbinden.mp4)

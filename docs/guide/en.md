@@ -966,6 +966,19 @@ From then on Mira keeps the sign-in fresh herself. If X refuses it once, say bec
 
 ![Setup → Connections: the app's client ID and secret, the redirect URL to copy, Connect and Disconnect](img/mira-verbindungen-en.png)
 
+## Sport from Strava
+
+Mira reads your activities from Strava: "How was my last ride?", "How far did I ride this week?", "How long is my streak?", "How many kilometres does my bike have?", "What are my best efforts?". She only reads, she enters nothing, and she remembers none of it; she looks again for every question. The streak counts the weeks in a row with at least one activity.
+
+**Good to know:** since June 2026 Strava no longer allows data from its interface to be given to an AI (except to its own access for Claude and Gemini). Mira cannot use that access, Strava does not admit her there. The skill therefore goes through a Strava app of your own, and you use it at your own risk: Strava could block the app.
+
+**Setting it up:**
+1. On strava.com under Settings → **My API Application**, create an app (Strava needs a subscription for that). Under "Authorization Callback Domain" enter exactly `my.home-assistant.io`, without `https://` and without a slash. Home Assistant needs [My Home Assistant](https://my.home-assistant.io) with your instance's address for this.
+2. Switch on the skill `strava`: Mira → Capabilities → Skills → strava → **Switch on**.
+3. Mira → Setup → **Connections**: enter the app's client ID and client secret, **Apply**, then **Connect**. Sign in at Strava and **Authorize**; leave every box ticked, including the one for activities.
+
+A new Strava app can read only your own account. The kilometres per bike count only activities that have the bike set as gear in Strava.
+
 ## Adding new devices
 
 ▶ [Explainer video: Adding new devices (0:41)](https://mira-assist.com/videos/erklaer/geraete-einbinden-en.mp4)
