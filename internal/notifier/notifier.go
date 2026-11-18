@@ -113,9 +113,8 @@ type Notifier struct {
 	composer    Composer
 	instruction Instruction
 	screens     map[string]string
-	// screenCount is what each screen overlay last showed; screenShown when.
+	// screenCount is what each screen overlay last showed.
 	screenCount map[string]int
-	screenShown map[string]time.Time
 	areas       map[string]bool
 
 	// speakingIn marks areas whose indicator glows for an announcement;
@@ -163,7 +162,6 @@ func New(opts Options) *Notifier {
 		instruction:   opts.Instruction,
 		screens:       opts.Screens,
 		screenCount:   map[string]int{},
-		screenShown:   map[string]time.Time{},
 		areas:         map[string]bool{},
 		indicatorOn:   map[string]string{},
 		phone:         opts.Phone,
@@ -509,8 +507,8 @@ type texts struct {
 	// its key refused, unreachable, any other failure.
 	keyRefused, unreachable, failedModel          string
 	whenToday, whenNight, whenYesterday, whenDate string // %s clock (date first for whenDate)
-	// The screen overlay (screen.go): one, several (%d), all heard.
-	screenOne, screenMany, screenHeard string
+	// The screen overlay (screen.go): one, several (%d).
+	screenOne, screenMany string
 	// The answering machine on the screen: one message, several (%d), one
 	// missed call, several (%d).
 	phoneMessage, phoneMessages, phoneMissed, phoneMisseds string
@@ -548,7 +546,6 @@ Regeln:
 		whenToday:        "heute %s", whenNight: "heute Nacht %s", whenYesterday: "gestern %s", whenDate: "am %s um %s",
 		screenOne:    "1 Nachricht wartet – frag: „Hab ich neue Nachrichten?“",
 		screenMany:   "%d Nachrichten warten – frag: „Hab ich neue Nachrichten?“",
-		screenHeard:  "Alles gehört",
 		phoneMessage: "1 Nachricht auf dem Anrufbeantworter", phoneMessages: "%d Nachrichten auf dem Anrufbeantworter",
 		phoneMissed: "1 verpasster Anruf", phoneMisseds: "%d verpasste Anrufe"},
 	i18n.EN: {reminder: "Reminder: %s.",
@@ -580,7 +577,6 @@ Rules:
 		whenToday:        "today %s", whenNight: "tonight %s", whenYesterday: "yesterday %s", whenDate: "on %s at %s",
 		screenOne:    "1 message waiting – ask: \"Do I have new messages?\"",
 		screenMany:   "%d messages waiting – ask: \"Do I have new messages?\"",
-		screenHeard:  "All heard",
 		phoneMessage: "1 message on the answering machine", phoneMessages: "%d messages on the answering machine",
 		phoneMissed: "1 missed call", phoneMisseds: "%d missed calls"},
 }

@@ -187,8 +187,8 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 }
 
 // Without an indicator light, a satellite whose device offers an overlay
-// shows that messages wait: at once, refreshed with the count, and taken
-// away when everything was heard.
+// shows that messages wait: at once and refreshed with the count. When
+// everything was heard nothing more is shown: the hint runs out by itself.
 func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
@@ -218,8 +218,8 @@ func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = overlays()
-	if len(got) != 3 || got[2].Data["seconds"] != 1 || got[2].Data["message"] != "Alles gehört" {
-		t.Errorf("not taken away: %+v", got)
+	if len(got) != 2 {
+		t.Errorf("an overlay after everything was heard: %+v", got)
 	}
 }
 

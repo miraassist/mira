@@ -16,13 +16,15 @@ import (
 // with a tag and a duration (found by the app, e.g. esphome.show_notify of
 // an Echo Show with TECHO5). It is a hint at the moment something new
 // arrives, not a lasting light: an overlay with the same tag replaces the
-// last one, and when everything was heard it is taken away.
+// last one. When everything was heard it stays until its time is up: the
+// firmware has no action to take it down (docs/spec/satellite.md), and a
+// short card in its place only flashed up after every turn.
 
 // screenFor is how long the overlay stays.
 const screenFor = 60 * time.Second
 
 // syncScreens shows or updates each screen's overlay when the number of
-// messages waiting in its room changes, and takes it away when none wait.
+// messages waiting in its room changes; when none wait it shows nothing.
 // Every screen of a room shows the room's (docs/spec/satellites-rooms.md).
 // The caller holds n.mu.
 func (n *Notifier) syncScreens(ctx context.Context) {
@@ -46,25 +48,21 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 		if count == n.screenCount[sat] {
 			continue
 		}
+		if count == 0 {
+			// Nothing to show: the last hint runs out by itself.
+			n.screenCount[sat] = 0
+			continue
+		}
 		if busy[sat] {
 			n.showWhenIdle(sat)
 			continue
 		}
 		t := textsFor(n.langOf(n.inArea(ctx, area)))
-		now := n.clock()
-		switch {
-		case count > 0:
-			text := t.screenOne
-			if count > 1 {
-				text = fmt.Sprintf(t.screenMany, count)
-			}
-			err = n.overlay(ctx, action, "mira", text, "mdi:message-badge", screenFor)
-			n.screenShown[sat] = now
-		case now.Sub(n.screenShown[sat]) < screenFor:
-			// Still on the screen: replace it with a short "all heard".
-			err = n.overlay(ctx, action, "mira", t.screenHeard, "mdi:check", time.Second)
+		text := t.screenOne
+		if count > 1 {
+			text = fmt.Sprintf(t.screenMany, count)
 		}
-		if err != nil {
+		if err := n.overlay(ctx, action, "mira", text, "mdi:message-badge", screenFor); err != nil {
 			n.log.Warn("could not show waiting messages on the screen", "area", area, "action", action, "error", err)
 			continue
 		}
@@ -75,7 +73,7 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 
 // syncPhoneScreens shows on each screen what is new on the answering
 // machine, as a hint of its own beside Mira's messages, when it changes;
-// it goes when nothing is new (docs/spec/voicemail.md). The caller
+// when nothing is new it shows nothing (docs/spec/voicemail.md). The caller
 // holds n.mu.
 func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 	busy := n.busyScreens(ctx)
@@ -84,35 +82,34 @@ func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 		if n.phoneShown[sat] == news || n.phoneHeld[area] {
 			continue
 		}
+		if news.Messages == 0 && news.Missed == 0 {
+			// Nothing new: the last hint runs out by itself.
+			n.phoneShown[sat] = news
+			continue
+		}
 		if busy[sat] {
 			n.showWhenIdle(sat)
 			continue
 		}
 		t := textsFor(n.langOf(n.inArea(ctx, area)))
-		var err error
-		if news.Messages > 0 || news.Missed > 0 {
-			var parts []string
-			switch {
-			case news.Messages == 1:
-				parts = append(parts, t.phoneMessage)
-			case news.Messages > 1:
-				parts = append(parts, fmt.Sprintf(t.phoneMessages, news.Messages))
-			}
-			switch {
-			case news.Missed == 1:
-				parts = append(parts, t.phoneMissed)
-			case news.Missed > 1:
-				parts = append(parts, fmt.Sprintf(t.phoneMisseds, news.Missed))
-			}
-			icon := "mdi:voicemail"
-			if news.Messages == 0 {
-				icon = "mdi:phone-missed"
-			}
-			err = n.overlay(ctx, action, "phone", strings.Join(parts, " · "), icon, screenFor)
-		} else {
-			err = n.overlay(ctx, action, "phone", t.screenHeard, "mdi:check", time.Second)
+		var parts []string
+		switch {
+		case news.Messages == 1:
+			parts = append(parts, t.phoneMessage)
+		case news.Messages > 1:
+			parts = append(parts, fmt.Sprintf(t.phoneMessages, news.Messages))
 		}
-		if err != nil {
+		switch {
+		case news.Missed == 1:
+			parts = append(parts, t.phoneMissed)
+		case news.Missed > 1:
+			parts = append(parts, fmt.Sprintf(t.phoneMisseds, news.Missed))
+		}
+		icon := "mdi:voicemail"
+		if news.Messages == 0 {
+			icon = "mdi:phone-missed"
+		}
+		if err := n.overlay(ctx, action, "phone", strings.Join(parts, " · "), icon, screenFor); err != nil {
 			n.log.Warn("could not show the answering machine on the screen", "area", area, "error", err)
 			continue
 		}

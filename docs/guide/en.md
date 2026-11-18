@@ -204,7 +204,7 @@ Mira speaks up when something happens: a leak sensor goes off, the washing machi
 
 Per satellite you set:
 
-- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "1 message waiting – ask: 'Do I have new messages?'" for a minute instead, as soon as something new arrives; if everything is heard while the hint is still up, it briefly shows "All heard". Mira finds out by herself that a satellite has a screen. Then ask: **"Do I have new messages?"** or "Anything new?". Mira tells you everything that waits; when different things wait (mail, the answering machine, a new device), she asks what to start with and then goes through them with you one after the other.
+- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "1 message waiting – ask: 'Do I have new messages?'" for a minute instead, as soon as something new arrives. Mira finds out by herself that a satellite has a screen. Then ask: **"Do I have new messages?"** or "Anything new?". Mira tells you everything that waits; when different things wait (mail, the answering machine, a new device), she asks what to start with and then goes through them with you one after the other.
 - **Announce on entry**: when a motion sensor notices someone entering the room, Mira says by herself what is pending; the first motion after quiet hours starts with "Good morning". Without a motion sensor, or switched off, she does not speak up on her own.
 
 Several messages become one announcement, the most important first and with times where they help ("tonight at three …").

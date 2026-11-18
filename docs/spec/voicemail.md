@@ -111,7 +111,8 @@ ids end in `_new_messages` and `_missed_calls`. A change of either updates the i
 - **The ring** (a satellite with an indicator light, [ha-integration.md](ha-integration.md)): lights while anything waits,
   in the colour of what ranks first (4, 5).
 - **The screen** (a satellite with an overlay, TECHO5): a hint of its own beside Mira's messages, with the two counts
-  ("2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"); taken away when nothing waits. While a satellite
+  ("2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"); when nothing waits any more it runs out by
+  itself (no card in its place, 2026-11-18). While a satellite
   plays messages it gets no new hint: each one heard lowers the count, and the hint would cover its player.
   It gets the new count once the playing ends (decision 10, step 4).
 - **In every room**: the answering machine belongs to the house, like a message to the house. Quiet hours hold back
