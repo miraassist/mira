@@ -137,7 +137,7 @@ silent turn costs one model round less than one with an answer.
    than 15 %. Between the two bounds it is neither: no note, no measurement. The heard part is the playing time minus
    the fixed part, times the rate, in characters, back to the end of the last complete sentence (`.`, `!`, `?`, `…`).
    A new run of the satellite is not waited for: whatever ended the playing, the user did not hear the rest
-   (changed 2026-11-18 while building; the first version of this step asked for it).
+   (changed 2026-11-18 while building, confirmed by the maintainer the same day; the first version of this step asked for it).
 4. **The note:** Mira keeps, per conversation, where its last answer was interrupted (the last heard sentence), in
    memory: a restart of the service loses it, as it loses the conversation's running turn. The context block of the
    next turn of that conversation says so once: "Deine letzte Antwort wurde beim Vorlesen unterbrochen. Gehört hat
