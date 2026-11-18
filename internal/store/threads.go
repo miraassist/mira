@@ -80,6 +80,10 @@ type Thread struct {
 	// Calls are the agents' runs filling its fields, by field ("plan" for
 	// a plan): their call ids.
 	Calls map[string]string
+	// Participants are the own histories' keys of whoever spoke in it
+	// (docs/spec/thread-history.md); written by AddThreadParticipant only,
+	// never by PutThread.
+	Participants []string
 }
 
 // ErrConflict: the thread changed since it was read.
@@ -142,20 +146,20 @@ WHERE threads.version = excluded.version`,
 	return nil
 }
 
-const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline, source FROM threads`
+const threadSelect = `SELECT id, target, place, person, state, request, fields, log, content, created_at, updated_at, expires_at, version, calls, area, device, deadline, source, participants FROM threads`
 
 func scanThread(row scannable) (Thread, error) {
 	var t Thread
-	var fields, log, content, created, updated, expires, calls, deadline string
+	var fields, log, content, created, updated, expires, calls, deadline, participants string
 	if err := row.Scan(&t.ID, &t.Target, &t.Place, &t.Person, &t.State, &t.Request, &fields, &log, &content,
-		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device, &deadline, &t.Source); err != nil {
+		&created, &updated, &expires, &t.Version, &calls, &t.Area, &t.Device, &deadline, &t.Source, &participants); err != nil {
 		return Thread{}, err
 	}
 	// A row that does not read is an error, not an empty thread.
 	for _, part := range []struct {
 		name, raw string
 		into      any
-	}{{"fields", fields, &t.Fields}, {"log", log, &t.Log}, {"calls", calls, &t.Calls}} {
+	}{{"fields", fields, &t.Fields}, {"log", log, &t.Log}, {"calls", calls, &t.Calls}, {"participants", participants, &t.Participants}} {
 		if err := json.Unmarshal([]byte(part.raw), part.into); err != nil {
 			return Thread{}, fmt.Errorf("thread %s: %s: %w", t.ID, part.name, err)
 		}
@@ -254,4 +258,36 @@ func (s *Store) SessionSkills(ctx context.Context, sessionKey string) ([]string,
 func (s *Store) SetSessionThread(ctx context.Context, sessionKey, threadID string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET thread_id = ? WHERE key = ?`, threadID, sessionKey)
 	return err
+}
+
+// AddThreadParticipant records an own history's key as a participant of a
+// thread, once (docs/spec/thread-history.md). It does not count as a change
+// of the thread: its version stays.
+func (s *Store) AddThreadParticipant(ctx context.Context, threadID, key string) error {
+	_, err := s.db.ExecContext(ctx, `
+UPDATE threads SET participants = json_insert(participants, '$[#]', ?)
+WHERE id = ? AND NOT EXISTS (SELECT 1 FROM json_each(threads.participants) WHERE value = ?)`, key, threadID, key)
+	return err
+}
+
+// LinkConversation makes a conversation of Home Assistant (or a chat) run in
+// a thread's history; a link it had before is replaced.
+func (s *Store) LinkConversation(ctx context.Context, channel, conversationID, threadID string) error {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO thread_conversations(channel, conversation_id, thread_id, linked_at) VALUES (?, ?, ?, ?)
+ON CONFLICT(channel, conversation_id) DO UPDATE SET thread_id = excluded.thread_id, linked_at = excluded.linked_at`,
+		channel, conversationID, threadID, formatTime(s.now()))
+	return err
+}
+
+// ConversationThread is the thread a conversation is linked to, open or not;
+// ErrNotFound when it has none.
+func (s *Store) ConversationThread(ctx context.Context, channel, conversationID string) (string, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM thread_conversations WHERE channel = ? AND conversation_id = ?`,
+		channel, conversationID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", ErrNotFound
+	}
+	return id, err
 }

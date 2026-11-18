@@ -554,6 +554,22 @@ CREATE TABLE access_log (
 );
 CREATE INDEX idx_access_log_token ON access_log(token_id, at);`,
 	},
+	{
+		// The thread's history (docs/spec/thread-history.md): who took part
+		// in a thread (their own history's key), and which conversation of
+		// Home Assistant (or chat) runs in it.
+		name: "0035_thread_history",
+		stmt: `
+ALTER TABLE threads ADD COLUMN participants TEXT NOT NULL DEFAULT '[]';
+CREATE TABLE thread_conversations (
+    channel         TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    thread_id       TEXT NOT NULL,
+    linked_at       TEXT NOT NULL,
+    PRIMARY KEY (channel, conversation_id)
+);
+CREATE INDEX idx_thread_conversations_thread ON thread_conversations(thread_id);`,
+	},
 }
 
 func (s *Store) migrate(ctx context.Context) error {

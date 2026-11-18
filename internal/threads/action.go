@@ -270,11 +270,13 @@ func (m *Manager) Undo(ctx context.Context, place string) (string, error) {
 			return "", err
 		}
 		m.logEntry(&th, "mira", t.undoneLogged)
-		th.State = store.ThreadCancelled
 		th.Content = nil
 		if err := m.opts.Store.PutThread(ctx, &th); err != nil {
 			return "", err
 		}
+		// Taken back: cancelled through the one place every end goes
+		// through (docs/spec/thread-history.md, step 1).
+		m.endHow(ctx, th, store.ThreadCancelled, howUndone)
 		m.log.Info("thread action undone", "thread", th.ID, "action", d.Undo.Action)
 		return fmt.Sprintf(t.undone, th.Request), nil
 	}

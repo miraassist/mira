@@ -254,6 +254,7 @@ Models (local as well as in the cloud) do not recompute an **identical beginning
 ## 4. History and thread
 
 - **The thread carries the concern**, the same for voice and chat: its state appears fresh in part 6 on every turn. What a concern needs over many turns does not depend on the history.
+- **A turn in a thread runs in the thread's history**, whoever speaks; the thread's summary goes into the participants' own histories when it ends ([The thread's history](thread-history.md), decided 2026-11-16).
 - **The history provides the back-reference**: "und das andere Licht?", "wie alt ist der?". The last turns suffice for that; nobody simply refers to an ancient message.
 - **House structure and memory** are added up to date on every turn (parts 1 and 6), regardless of how old the history is.
 

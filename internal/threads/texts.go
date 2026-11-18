@@ -28,6 +28,11 @@ type texts struct {
 	// (docs/spec/remote-agents.md, decision 22); remoteFailedBare without
 	// its words.
 	remoteFailed, remoteFailedBare string
+	// The thread's summary in a participant's own history
+	// (docs/spec/thread-history.md): its header, the line, the ends, Mira's
+	// last sentence and the answer that closes the record's turn.
+	recordHeader, recordLine, recordLast, recordAck string
+	howDone, howCancelled, howExpired, howUndone    string
 	// agentNamed and agentsNamed follow a target's entry in thread_start's
 	// list with its remote agents' names (decision 61).
 	agentNamed, agentsNamed string
@@ -86,7 +91,15 @@ var catalog = map[i18n.Lang]texts{
 		undoneLogged:      "zurückgenommen",
 		nothingToUndo:     "Hier gibt es nichts zurückzunehmen.",
 		undoRefused:       "Nicht zurückgenommen: %s",
-		headerCurrent:     "## Laufender Vorgang (diese Unterhaltung gehört dazu)",
+		headerCurrent:     "## Laufender Vorgang (diese Unterhaltung gehört dazu; der Verlauf oben ist der dieses Vorgangs, auch wenn darin verschiedene Personen sprachen)",
+		recordHeader:      "Ergebnis eines Vorgangs, festgehalten von Mira, nicht gesagt. Darauf kannst du dich beziehen wie auf deine eigenen Worte; sag es nicht ungefragt noch einmal:",
+		recordLine:        "Vorgang „%s“ %s. Anliegen: %s.",
+		recordLast:        "Zuletzt gesagt: %s",
+		recordAck:         "Festgehalten.",
+		howDone:           "erledigt",
+		howCancelled:      "abgebrochen",
+		howExpired:        "abgelaufen",
+		howUndone:         "zurückgenommen",
 		headerWaiting:     "## Hier wartet ein Vorgang auf den Nutzer\nGehört seine Nachricht dazu, führe ihn weiter (thread_fill, thread_confirm) oder brich ihn ab (thread_cancel); sonst lass ihn stehen.",
 		lineTarget:        "Ziel: %s – %s\n",
 		lineRequest:       "Anliegen: %s\n",
@@ -190,7 +203,15 @@ var catalog = map[i18n.Lang]texts{
 		undoneLogged:      "taken back",
 		nothingToUndo:     "There is nothing to take back here.",
 		undoRefused:       "Not taken back: %s",
-		headerCurrent:     "## Current thread (this conversation belongs to it)",
+		headerCurrent:     "## Current thread (this conversation belongs to it; the history above is this thread's, even where different people spoke in it)",
+		recordHeader:      "Result of a thread, recorded by Mira, not said. Refer to it as to your own words; do not say it again unasked:",
+		recordLine:        "Thread \"%s\" %s. Concern: %s.",
+		recordLast:        "Last said: %s",
+		recordAck:         "Recorded.",
+		howDone:           "done",
+		howCancelled:      "cancelled",
+		howExpired:        "expired",
+		howUndone:         "taken back",
 		headerWaiting:     "## A thread waits for the user here\nIf the message belongs to it, continue it (thread_fill, thread_confirm) or cancel it (thread_cancel); otherwise leave it.",
 		lineTarget:        "Target: %s – %s\n",
 		lineRequest:       "Concern: %s\n",

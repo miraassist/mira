@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -192,6 +193,48 @@ type TurnState struct {
 	// turn: the user has not answered it yet (docs/spec/remote-agents.md,
 	// decision 51).
 	askedNow map[string]bool
+
+	// HoldsSummaries: a conversation's turn, which writes the summaries of
+	// the threads its tools ended after its answer
+	// (docs/spec/thread-history.md). Other turns (an agent's run) do not
+	// hold them.
+	HoldsSummaries bool
+	heldMu         sync.Mutex
+	held           []HeldSummary
+	over           bool
+}
+
+// HeldSummary is a thread whose summary waits for the turn's answer, and
+// how it ended.
+type HeldSummary struct{ Thread, How string }
+
+// HoldSummary keeps a thread's summary until the turn has answered. It
+// reports false when there is no conversation's turn or it is over: then the
+// caller writes it now.
+func (t *TurnState) HoldSummary(thread, how string) bool {
+	if t == nil || !t.HoldsSummaries {
+		return false
+	}
+	t.heldMu.Lock()
+	defer t.heldMu.Unlock()
+	if t.over {
+		return false
+	}
+	t.held = append(t.held, HeldSummary{thread, how})
+	return true
+}
+
+// TurnOver ends the turn for HoldSummary and returns what it held.
+func (t *TurnState) TurnOver() []HeldSummary {
+	if t == nil {
+		return nil
+	}
+	t.heldMu.Lock()
+	defer t.heldMu.Unlock()
+	t.over = true
+	held := t.held
+	t.held = nil
+	return held
 }
 
 // AgentAsked notes that a thread's remote agent asked back within this

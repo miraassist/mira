@@ -148,6 +148,13 @@ type Options struct {
 	// followedUp are the messages this turn answers.
 	// announced is the thread an announcement on the satellite named itself.
 	Thread func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (text string, foreign bool)
+	// JoinThread makes a session (a thread's history) belong to its thread:
+	// linked, with the thread's skill open (docs/spec/thread-history.md).
+	// Without it, every turn runs in its own history.
+	JoinThread func(ctx context.Context, sessionKey, threadID string) error
+	// SummarizeThread writes the summary of a thread a tool of the turn
+	// ended, after the turn's answer (docs/spec/thread-history.md).
+	SummarizeThread func(ctx context.Context, threadID, how string)
 	// PersonName names a person key for the model (Home Assistant's name);
 	// without it, or when it returns "", the model sees the key.
 	PersonName func(person string) string
@@ -186,15 +193,17 @@ type Engine struct {
 	deviceTools func(ctx context.Context, device string) error
 	afterword   func(ctx context.Context, area, device string) string
 	playing     func(device string) bool
+	spoke       func(key, device, text string, began time.Time)
+	interrupted func(key string) (string, bool)
 	thread      func(ctx context.Context, sess store.Session, place string, followedUp []string, announced string) (string, bool)
+	joinThread  func(ctx context.Context, sessionKey, threadID string) error
+	summarize   func(ctx context.Context, threadID, how string)
 	identify    func(ctx context.Context, req Request) (person, by string)
 	// follow are the voice conversations Mira's last answer left listening,
 	// by conversation id: whose they are, at which satellite, since when.
 	followMu   sync.Mutex
 	follow     map[string]followUp
 	personName func(person string) string
-	spoke       func(key, device, text string, began time.Time)
-	interrupted func(key string) (string, bool)
 	persona    func() string
 	languages  Languages
 	tel        *telemetry.Provider
@@ -251,17 +260,19 @@ func New(opts Options) *Engine {
 		assist:      opts.StructurePrompt,
 		deviceHints: opts.DeviceHints,
 		playing:     opts.Playing,
+		spoke:       opts.Spoke,
+		interrupted: opts.Interrupted,
 		deviceTools: opts.DeviceTools,
 		afterword:   opts.Afterword,
 		thread:      opts.Thread,
+		joinThread:  opts.JoinThread,
+		summarize:   opts.SummarizeThread,
 		identify:    opts.Identify,
 		personName:  opts.PersonName,
 		persona:     opts.Persona,
 		languages:   opts.Languages,
 		tel:         opts.Telemetry,
 		log:         opts.Logger.With("component", "conversation"),
-		spoke:       opts.Spoke,
-		interrupted: opts.Interrupted,
 		clock:       opts.Clock,
 		loc:         opts.Location,
 		sessions:    sessionLocks{held: map[string]*sessionLock{}},
@@ -314,8 +325,23 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if req.DeviceID != "" {
 		area = snap.DeviceArea[req.DeviceID]
 	}
-	key, place := belongsTo(req.Channel, req.ConversationID, person, area, snap.Private[area])
+	own, place := belongsTo(req.Channel, req.ConversationID, person, area, snap.Private[area])
+	// A turn that belongs to a thread by the code's rules runs in the
+	// thread's history, whoever speaks (docs/spec/thread-history.md).
+	var pre turnPre
+	pre.messageText, pre.followedUp, pre.announced = e.messageContext(ctx, req.DeviceID)
+	pre.thread = e.threadOf(ctx, req, pre.followedUp, pre.announced, area, snap)
+	key := own
+	pre.own = own
+	if pre.thread != "" {
+		key = threadHistoryKey(req.Channel, pre.thread)
+	}
+	// The summaries of the threads the turn ended are written after its
+	// answer, once its history is free again.
+	var held []tools.HeldSummary
+	defer func() { e.writeHeld(context.WithoutCancel(ctx), held) }()
 	defer e.sessions.lock(key)()
+	pre.seq = e.lastSeq(ctx, key)
 
 	ctx, span := e.tel.Tracer.Start(ctx, "invoke_agent mira", trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
@@ -329,13 +355,15 @@ func (e *Engine) Handle(ctx context.Context, req Request) (Response, error) {
 	if e.cfg.Server.Eval {
 		ctx, rec = mtrace.With(ctx)
 	}
-	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area,
+	ts := &tools.TurnState{SessionKey: key, Channel: req.Channel, UserText: req.Text, Person: person, Area: area, HoldsSummaries: true,
 		DeviceID: req.DeviceID, Place: place, PersonBy: personBy, PersonName: e.nameOf(person)}
 	ctx, done := e.agents.Enter(ctx, agent.Spec{Name: config.ChannelAgent(req.Channel),
 		Profile: agent.Conversation, Rights: agent.AllRights},
 		agent.CallContext{Origin: originOf(req), Person: person, Place: area, SessionKey: key, DeviceID: req.DeviceID,
 			Rights: agent.AllRights}, ts)
-	resp, err := e.turn(ctx, ts, req, snap)
+	resp, err := e.turn(ctx, ts, req, snap, pre)
+	e.afterTurn(context.WithoutCancel(ctx), key, own, pre, req)
+	held = ts.TurnOver()
 	e.noteFollowUp(req, person, err == nil && resp.ContinueConversation)
 	res := agent.Result{Model: resp.Model, FallbackFrom: resp.FallbackFrom, ModelCalls: resp.ModelCalls, ModelTime: resp.ModelTime,
 		PromptTokens: resp.PromptTokens + resp.MorePromptTokens, Completion: resp.CompletionTokens}
@@ -401,7 +429,7 @@ func originOf(req Request) agent.Origin {
 	return agent.FromAssist
 }
 
-func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, snap structure.Snapshot) (Response, error) {
+func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, snap structure.Snapshot, pre turnPre) (Response, error) {
 	turnBegan := time.Now()
 	now := e.clock()
 	key := ts.SessionKey
@@ -442,6 +470,9 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if err != nil {
 		return Response{}, err
 	}
+	if pre.thread != "" {
+		sess = e.joinHistory(ctx, sess, pre.thread, pre.own, req.Channel)
+	}
 	e.compactIfLong(ctx, key, sess)
 	history, err := e.history(ctx, key)
 	if err != nil {
@@ -452,7 +483,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if e.languages != nil {
 		ctx = i18n.WithLang(ctx, e.languages.Turn(ctx, req.Language, sess.AreaID, person))
 	}
-	messageText, followedUp, announced := e.messageContext(ctx, req.DeviceID)
+	messageText, followedUp, announced := pre.messageText, pre.followedUp, pre.announced
 	threadText, foreign := e.threadContext(ctx, sess, ts.Place, followedUp, announced)
 	ts.ForeignContext = foreign
 	turn := prompt.Turn{
@@ -942,10 +973,16 @@ func (e *Engine) openSession(ctx context.Context, key string, req Request, areaI
 	case err != nil && !errors.Is(err, store.ErrNotFound):
 		return store.Session{}, err
 	}
+	ttl := e.cfg.SessionTTL(req.Channel).Duration()
+	if isThreadHistory(key) {
+		// A thread's history lives as long as its thread
+		// (docs/spec/thread-history.md, decision 7).
+		ttl = 0
+	}
 	return e.store.UpsertSession(ctx, store.Session{
 		Key: key, Channel: string(req.Channel), ConversationID: req.ConversationID,
 		DeviceID: req.DeviceID, AreaID: areaID, Language: req.Language,
-	}, e.cfg.SessionTTL(req.Channel).Duration())
+	}, ttl)
 }
 
 // calledTool reports whether a tool was called in these messages.

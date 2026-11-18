@@ -616,12 +616,8 @@ Feature: AG Agents
     When Anna, recognised in the kitchen, continues it
     Then it is Anna's from then on and follows her
 
-  @step10
-  Scenario: AG-114 The direct answer does not reach another person's thread
-    Given an announcement of Anna's thread at the Show
-    When the answer there is recognised as Ben
-    Then the turn does not join Anna's thread
-    And an answer nobody is recognised in joins it
+  # AG-114 ("The direct answer does not reach another person's thread") was dropped 2026-11-16: superseded by
+  # TV-05 (docs/spec/thread-history.md, decision 2), the direct answer joins the thread whoever is recognised.
 
   @step10
   Scenario: AG-115 A private area keeps its threads

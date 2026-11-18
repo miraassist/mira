@@ -300,7 +300,8 @@ independent of each other:
 ### What a turn belongs to
 
 Which conversation (its history) a turn belongs to follows from its call context, without a setting. Which
-**thread** it belongs to has its own rules: [Threads](threads.md), Assignment.
+**thread** it belongs to has its own rules: [Threads](threads.md), Assignment. A turn that belongs to a thread runs in the
+thread's history instead ([The thread's history](thread-history.md)); the rules below give a turn's own history.
 - **Person known** (Telegram, the Home Assistant app, or "alone at home is me"): the conversation belongs to the
   person and follows them to every satellite. Alone at home, one can simply go on talking in another room.
 - **Person unknown** (several people at home, nobody recognized): the conversation stays in the room. Two

@@ -105,8 +105,8 @@ that runs at the place already is continued, never started twice.
 
 | # | Rule | How it is known | Applies to |
 |---|---|---|---|
-| a | **The direct answer to an announcement of the thread** (code) | a turn from the same device, within the follow-up window of an announcement of the thread: one of its messages, or an announcement naming the thread itself ("Nächste …") | every type; it never changes who speaks. For a thread of a person: not when the voice is recognised as **another** person |
-| b | **The same conversation** (code) | the turn's conversation is linked to the thread already | every type |
+| a | **The direct answer to an announcement of the thread** (code) | a turn from the same device, within the follow-up window of an announcement of the thread: one of its messages, or an announcement naming the thread itself ("Nächste …") | every type; it never changes who speaks. Also for a thread of a person when the voice is recognised as another person ([The thread's history](thread-history.md), decision 2, 2026-11-16; before: not then) |
+| b | **The same conversation** (code) | the turn's conversation of Home Assistant (or the chat) is linked to the thread already, whoever is recognised ([The thread's history](thread-history.md)) | every type |
 | c | **Waiting here** (model) | the turn sees the threads of **its person** (when recognised) **and** of **its room**: at most 3, newest first. The model decides whether the user continues one (`thread_fill`, `thread_confirm`, `thread_plan`, the skill's tools), cancels it (`thread_cancel`) or talks about something else; no fixed phrases | every type |
 | d | **Otherwise** the turn belongs to no thread | | |
 
@@ -114,6 +114,9 @@ that runs at the place already is continued, never started twice.
   see it (3c), and continuing it makes it theirs: from then on it follows them.
 - **Borders that always hold:** no continuation across channels; a private area sees only its own threads, and
   nothing from it goes out; a person's thread is never shown to anyone else.
+
+**Which history** a turn in a thread runs in: the thread's, whoever speaks; when the thread ends, its summary goes
+into every participant's own history ([The thread's history](thread-history.md), decided 2026-11-16).
 
 ### Tools and context of a turn in a thread
 

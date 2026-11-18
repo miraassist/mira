@@ -16,7 +16,8 @@ const maxLog = 12
 // layer 7. A turn that answers one of a thread's messages (followedUp, the
 // messages announced on this satellite moments ago), or an announcement that
 // named its thread (announced), joins that thread: the link is the code's,
-// not the model's. Joining changes nothing about who speaks. Otherwise a
+// not the model's, and holds whoever speaks. Joining changes nothing about
+// who speaks. Otherwise a
 // thread waiting at the turn's place (what the conversation said the turn
 // belongs to) is shown, and the model decides whether the user continues
 // it, cancels it or talks about something else.
@@ -48,13 +49,9 @@ func (m *Manager) threadsInContext(ctx context.Context, sess store.Session, plac
 		if id == "" {
 			continue
 		}
+		// Whoever answers continues it, also another person's thread
+		// (docs/spec/thread-history.md, decision 2).
 		if th, err := m.opts.Store.GetThread(ctx, id); err == nil && store.ThreadOpen(th.State) {
-			// Another person's thread is not theirs to answer (Assignment 3a).
-			if owner, ok := strings.CutPrefix(th.Place, "person:"); ok {
-				if speaker, ok := strings.CutPrefix(place, "person:"); ok && speaker != owner {
-					continue
-				}
-			}
 			if sess.ThreadID != th.ID {
 				m.link(ctx, sess.Key, th)
 				sess.ThreadID = th.ID

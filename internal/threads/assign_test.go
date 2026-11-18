@@ -136,22 +136,6 @@ func TestAG113_APersonsThreadStartedUnrecognisedBecomesTheirs(t *testing.T) {
 	}
 }
 
-func TestAG114_TheDirectAnswerDoesNotReachAnotherPersonsThread(t *testing.T) {
-	e := assignEnv(t)
-	ctx := context.Background()
-	anna, _ := e.at(t, "voice:anna", "wohnzimmer", "person:anna")
-	e.m.Start(ctx, anna, "vokabeln", "Englisch")
-	id := e.only(t, "vokabeln").ID
-	_, ben := e.at(t, "voice:ben", "wohnzimmer", "person:ben")
-	if text, _ := e.m.Context(ctx, ben, "person:ben", nil, id); text != "" {
-		t.Errorf("ben joined: %q", text)
-	}
-	_, nobody := e.at(t, "voice:x", "wohnzimmer", "area:wohnzimmer")
-	if text, _ := e.m.Context(ctx, nobody, "area:wohnzimmer", nil, id); !strings.Contains(text, "Laufender Vorgang") {
-		t.Errorf("unrecognised did not join: %q", text)
-	}
-}
-
 func TestAG115_APrivateAreaKeepsItsThreads(t *testing.T) {
 	e := assignEnv(t)
 	ctx := context.Background()

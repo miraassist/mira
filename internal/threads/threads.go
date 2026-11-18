@@ -118,6 +118,10 @@ type Options struct {
 	// runs on its behalf outside it: the answering machine's recordings stop
 	// with their thread.
 	Ended func(ctx context.Context, th store.Thread)
+	// Record writes a thread's summary into a participant's own history as
+	// one turn: the record and the answer that closes it
+	// (docs/spec/thread-history.md). Without it nothing is written.
+	Record func(ctx context.Context, key, record, ack string) error
 	// CodeStarted are the targets whose threads only Mira's code starts
 	// (a watch offer, docs/spec/device-watch.md, decision 57): thread_start
 	// refuses them.
@@ -342,6 +346,17 @@ func (m *Manager) link(ctx context.Context, sessionKey string, th store.Thread) 
 				"expires", th.Deadline, "error", err)
 		}
 	}
+}
+
+// Join makes a session belong to a thread (a thread's history,
+// docs/spec/thread-history.md): linked, with the thread's skill open.
+func (m *Manager) Join(ctx context.Context, sessionKey, threadID string) error {
+	th, err := m.opts.Store.GetThread(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	m.link(ctx, sessionKey, th)
+	return nil
 }
 
 // openSkill opens a thread's skill for a turn, so it has the skill's tools.
@@ -821,6 +836,12 @@ func (m *Manager) apply(ctx context.Context, th store.Thread, res Result, tell b
 	}
 	m.log.Info("thread advanced", "thread", th.ID, "state", th.State)
 	trace.Add(ctx, trace.Thread, th.Target, th.State)
+	// A result that ends the thread ends it through the one place
+	// (docs/spec/thread-history.md, step 1), before the result is told: the
+	// end withdraws the thread's open messages, not this one.
+	if !store.ThreadOpen(th.State) {
+		m.end(ctx, th, th.State)
+	}
 	if tell && say != "" {
 		m.tell(ctx, th, say)
 	}
@@ -933,6 +954,12 @@ func (m *Manager) Cancel(ctx context.Context, inv tools.Invocation) (string, err
 
 // end closes a thread and withdraws its open messages.
 func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
+	m.endHow(ctx, th, state, state)
+}
+
+// endHow is end with how the summary names the end ("undone" for a thread
+// taken back).
+func (m *Manager) endHow(ctx context.Context, th store.Thread, state, how string) {
 	// Its background work, if any, is no longer wanted, nor its agents.
 	if th.State == store.ThreadWorking && m.opts.Cancel != nil {
 		m.opts.Cancel(th.ID)
@@ -950,6 +977,10 @@ func (m *Manager) end(ctx context.Context, th store.Thread, state string) {
 	m.log.Info("thread ended", "thread", th.ID, "state", state)
 	if m.opts.Ended != nil {
 		m.opts.Ended(ctx, th)
+	}
+	// The summary waits for the answer of a turn that ended it.
+	if !tools.TurnOf(ctx).HoldSummary(th.ID, how) {
+		m.Summarize(ctx, th.ID, how)
 	}
 }
 

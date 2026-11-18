@@ -172,3 +172,71 @@ func (s *Store) DeleteSession(ctx context.Context, key string) error {
 		return err
 	})
 }
+
+// LastChatSeq is the sequence number of a session's last message, 0 for
+// none.
+func (s *Store) LastChatSeq(ctx context.Context, key string) (int, error) {
+	var seq int
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) FROM chat_messages WHERE session_key = ?`, key).Scan(&seq)
+	return seq, err
+}
+
+// MoveChatMessages moves a session's messages after seq to the end of
+// another session's transcript, in one transaction: all of them or none
+// (docs/spec/thread-history.md, a turn that comes into a thread late).
+// It returns how many moved.
+func (s *Store) MoveChatMessages(ctx context.Context, from, to string, afterSeq int) (int, error) {
+	moved := 0
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var next int
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE session_key = ?`, to).Scan(&next); err != nil {
+			return err
+		}
+		rows, err := tx.QueryContext(ctx, `SELECT id FROM chat_messages WHERE session_key = ? AND seq > ? ORDER BY seq`, from, afterSeq)
+		if err != nil {
+			return err
+		}
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for i, id := range ids {
+			if _, err := tx.ExecContext(ctx, `UPDATE chat_messages SET session_key = ?, seq = ? WHERE id = ?`, to, next+i, id); err != nil {
+				return fmt.Errorf("move message %d: %w", id, err)
+			}
+		}
+		moved = len(ids)
+		return nil
+	})
+	return moved, err
+}
+
+// TouchSession makes sure a session exists and extends its activity window,
+// without changing what it holds; one that ran out starts over first, as a
+// turn would start it (docs/spec/thread-history.md, the summary in an own
+// history).
+func (s *Store) TouchSession(ctx context.Context, key, channel string, ttl time.Duration) error {
+	now := s.now()
+	if ttl <= 0 {
+		ttl = 100 * 365 * 24 * time.Hour
+	}
+	if sess, err := s.GetSession(ctx, key); err == nil && sess.ExpiresAt.Before(now) {
+		if err := s.DeleteSession(ctx, key); err != nil {
+			return err
+		}
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO sessions(key, channel, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(key) DO UPDATE SET updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+		key, channel, formatTime(now), formatTime(now), formatTime(now.Add(ttl)))
+	return err
+}

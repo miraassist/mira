@@ -701,6 +701,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Answer:        a.remoteAnswer(),
 		// A watch offer is started by watch_wait only.
 		CodeStarted: []string{watch.OfferSkill},
+		// Bound late: the engine is built after the threads
+		// (docs/spec/thread-history.md, the summary).
+		Record: func(ctx context.Context, key, record, ack string) error {
+			if a.engine == nil {
+				return errors.New("no conversation engine yet")
+			}
+			return a.engine.Record(ctx, key, record, ack)
+		},
 		// The answering machine's recordings stop with their thread.
 		Ended: func(ctx context.Context, th store.Thread) {
 			if a.voicemail != nil && th.Target == voicemail.Skill {
@@ -757,7 +765,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,
-		Thread: a.threads.Context, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
+		Thread: a.threads.Context, JoinThread: a.threads.Join, SummarizeThread: a.threads.Summarize, Identify: a.identify, PersonName: func(p string) string { return a.persons()[p].Name },
 		Persona: func() string { return a.liveConfig().Prompt.Persona },
 		// No listening while a clip plays (docs/spec/music-quiz.md).
 		Playing:   a.clip.Playing,

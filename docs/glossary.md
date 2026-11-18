@@ -24,6 +24,10 @@ is used in a spec; a term that is not here is not a term yet.
 | turn | Gespräch | One conversation as Home Assistant conducts it: a wake word to the end of listening, or the answer after an announcement; its own history | **session** in the code and the database: `Session`, table `sessions` (`key` = channel:conversation); a synonym there, kept on purpose | dialog |
 | chat message | — | One line of a turn's history (user, assistant, tool) | table `chat_messages`, `llm.Message` | message |
 | thread | Vorgang | A concern across turns, with a target, a place, a state, fields, a log, optionally a plan | `internal/threads`, table `threads`, `store.Thread` | Anliegen, concern (as a term), session |
+| thread's history | Verlauf des Vorgangs | The history every turn of a thread runs in, whoever speaks ([The thread's history](spec/thread-history.md)) | a session with the key `<channel>:thread:<thread id>` (new) | the person's history (for it) |
+| own history | eigener Verlauf | The history a turn has outside a thread: the recognised person's, else the conversation's, always the private area's ([Agents](spec/agents.md), What a turn belongs to) | the key `belongsTo` gives (`voice:person:<id>`, `voice:<conversation>`, `telegram:<chat>`) | |
+| participant | Beteiligter | Whoever spoke in a thread, recorded by their own history's key | `threads.participants` (new) | member |
+| thread's summary | Ergebnis des Vorgangs | Mira's record of an ended thread in each participant's own history: target, request, end, fields or plan, her last sentence | written by the code at the thread's end (new) | recap, protocol |
 | target | — | The kind of thread a skill defines: its fields, checks and how it ends | `Thread.Target`, a skill's `metadata.mira.target` | type |
 | owner | Besitzer | Whom a thread belongs to: a person, a room or a chat; whom a fact of the memory belongs to: the house or a person | threads: still `place` in the code (`Thread.Place`, `threads.place`: `person:<id>`, `area:<id>`, …), kept on purpose; memory: `memory_facts.owner` | place (in prose) |
 | plan | Plan | A thread's list of steps worked through, with a current one | `thread_plan`, `threads.content` | recipe, checklist |
@@ -67,10 +71,6 @@ is used in a spec; a term that is not here is not a term yet.
 | deadline | Frist | A day by which something must be done, as a document names it ("Rückmeldung bis Fr 28.11."); Mira enters it as a to-do with that due date | a `todo` item of the inbox's reading | due date (for the item) |
 | proposal | Vorschlag | One possible time of an appointment; an appointment from a source has one or more, several when one of them is to be chosen | the field `proposals` of a `termin` thread | alternative, option |
 
-## Capabilities
-
-| English | German | Meaning | Code / database | Not |
-|---|---|---|---|---|
 ## Matter over Thread (new, [Adding a device by voice](spec/device-onboarding.md))
 
 | English | German | Meaning | Code / database | Not |
@@ -79,6 +79,10 @@ is used in a spec; a term that is not here is not a term yet.
 | border router | Border Router | The device or service that joins a Thread network to the home network, such as an OpenThread Border Router with a radio stick | HA's integration `otbr` (or another vendor's) | gateway, bridge (that is Zigbee2MQTT's) |
 | preferred Thread network | bevorzugtes Thread-Netz | The Thread network Home Assistant puts new devices into; Mira gives its credentials to the Matter server | the dataset with `preferred: true`; its credentials from `thread/get_dataset_tlv` | default network |
 
+## Capabilities
+
+| English | German | Meaning | Code / database | Not |
+|---|---|---|---|---|
 | skill | Skill | A folder with `SKILL.md`, from a skill folder or a skill source: instructions, settings, optionally a target, schedules, agents, an MCP server, skill files (skill blueprints, from which skill automations and skill scripts are made) | `internal/skills`, `skills/` | Fähigkeit (for one skill), plugin |
 | capabilities | Fähigkeiten | The tab of Mira's page with skills, rules, schedule and tools | `internal/ui` | — |
 | tool | Werkzeug | A function the model calls | `internal/tools`, MCP tools | action (for a tool), function |
