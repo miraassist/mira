@@ -60,8 +60,9 @@ They are files in the binary, each with a name that says what it means, not wher
   without speaking them (Mira says them herself), tag `mira`. A new card replaces the one up.
 - **What it is for:** something to see at a glance from across the room, never the only place a thing is said: what
   is on the card is also said, or does not matter.
-- The firmware has no action to take a card down; a card goes when tapped, when its time is up or when a new one
-  replaces it.
+- A card goes when tapped, when its time is up, when a new one replaces it, or (since 2026-11-18) by the action
+  `esphome.<node>_notify_clear` with its tag; Mira uses that for the hint of waiting messages
+  ([Answering machine](voicemail.md), decision 11).
 
 ## Listening again: the tool `keep_listening`
 

@@ -1,6 +1,6 @@
 # The answering machine at the satellite – Spec
 
-Status 2026-10-29: built (steps 1 to 4), released in 0.14.0. Scenarios: [voicemail.feature](voicemail.feature). Builds on
+Status 2026-10-29: built (steps 1 to 4), released in 0.14.0; 2026-11-18 decision 11 built (step 2). Scenarios: [voicemail.feature](voicemail.feature). Builds on
 the integration Mira FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraassist/mira-fritz), its spec
 `docs/spec/fritz.md`) and on the indicators of [Messages](messages.md).
 
@@ -27,6 +27,7 @@ the integration Mira FRITZ!Box ([miraassist/mira-fritz](https://github.com/miraa
 | 8 | Listening to the messages | A thread with a plan, as cooking and vocabulary: the messages are the steps (step 4) |
 | 9 | Who may go on with the listening | Anyone at that satellite, as anyone may hear and delete messages with the wake word; answering never makes them the person who started it |
 | 10 | The screen hint while playing | Held back on the satellite that plays, shown once with the new count when the playing ends; other screens at once |
+| 11 | A screen hint when everything was heard (2026-11-18) | Taken down by the device's clear action by its tag (`esphome.<node>_notify_clear`, TECHO5), at once, even during a turn; Mira's messages (tag `mira`) and the answering machine (tag `phone`) alike. No "all heard" card. Firmware without the action refuses the call: a warning in the log, the hint runs out after its minute, no second try |
 
 ## The skill `anrufbeantworter`
 
@@ -43,7 +44,8 @@ Its tools (Mira's own, calling the integration's actions):
   newest three and how many more there are; the tool gives all, so "die von Oma" can be played too. Telling the
   missed calls marks them as seen (`mira_fritz.mark_calls_seen`).
 - `voicemail_play(ids)`: plays messages at the satellite of the turn, one after the other (`media_player.play_media`
-  with each message's `media_content_id` on the satellite's speaker, as an announcement), and marks each as heard
+  with each message's `media_content_id` on the satellite's speaker, as music, not as an announcement: see below),
+  and marks each as heard
   (`mira_fritz.mark_heard`).
   It plays **after Mira's answer**: the tool returns at once, Mira says only from whom and when, and the recording
   starts once the satellite is out of the conversation (it waits for "responding", then for it to be idle). Waiting in
@@ -111,8 +113,8 @@ ids end in `_new_messages` and `_missed_calls`. A change of either updates the i
 - **The ring** (a satellite with an indicator light, [ha-integration.md](ha-integration.md)): lights while anything waits,
   in the colour of what ranks first (4, 5).
 - **The screen** (a satellite with an overlay, TECHO5): a hint of its own beside Mira's messages, with the two counts
-  ("2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"); when nothing waits any more it runs out by
-  itself (no card in its place, 2026-11-18). While a satellite
+  ("2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"); taken down by the device's clear action when
+  nothing waits any more, as Mira's own hint (decision 11). While a satellite
   plays messages it gets no new hint: each one heard lowers the count, and the hint would cover its player.
   It gets the new count once the playing ends (decision 10, step 4).
 - **In every room**: the answering machine belongs to the house, like a message to the house. Quiet hours hold back

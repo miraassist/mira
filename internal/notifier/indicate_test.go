@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -187,8 +188,8 @@ func TestRingGlowsWhileAnnouncing(t *testing.T) {
 }
 
 // Without an indicator light, a satellite whose device offers an overlay
-// shows that messages wait: at once and refreshed with the count. When
-// everything was heard nothing more is shown: the hint runs out by itself.
+// shows that messages wait: at once and refreshed with the count, and taken
+// down by its clear action when everything was heard.
 func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 	e := newEnv(t, func(c *config.Config) { c.Notifier.MorningTrigger.Areas = []string{"bad"} })
 	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
@@ -218,8 +219,8 @@ func TestScreenOverlayShowsWaitingMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = overlays()
-	if len(got) != 2 {
-		t.Errorf("an overlay after everything was heard: %+v", got)
+	if len(got) != 3 || got[2].Service != "show_notify_clear" || got[2].Data["tag"] != "mira" || len(got[2].Data) != 1 {
+		t.Errorf("not taken down: %+v", got)
 	}
 }
 
@@ -389,5 +390,80 @@ func TestAB37_AHintWaitsWhileTheSatelliteIsInAConversation(t *testing.T) {
 	}
 	if n := overlays(); n != 1 {
 		t.Errorf("hint once idle: %d", n)
+	}
+}
+
+// screenCalls are the calls to the screen's device (esphome).
+func (e *env) screenCalls() []call {
+	e.ha.mu.Lock()
+	defer e.ha.mu.Unlock()
+	var out []call
+	for _, c := range e.ha.calls {
+		if c.Domain == "esphome" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func TestAB41_AScreenHintIsTakenDownWhenEverythingWasHeard(t *testing.T) {
+	news := PhoneNews{Messages: 1}
+	e := phoneEnv(t, &news)
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
+	e.now = at("08:00")
+	ctx := context.Background()
+	e.message("n1", 1, nil)
+	e.n.SyncIndicators(ctx)
+	if _, err := e.n.ReadOut(ctx, "kueche", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	news = PhoneNews{}
+	e.n.SyncIndicators(ctx)
+	e.n.SyncIndicators(ctx) // nothing changed: not taken down again
+	cleared := map[string]int{}
+	for _, c := range e.screenCalls() {
+		switch c.Service {
+		case "show_notify_clear":
+			if len(c.Data) != 1 {
+				t.Errorf("clear with more than the tag: %+v", c.Data)
+			}
+			cleared[c.Data["tag"].(string)]++
+		case "show_notify":
+			if m, _ := c.Data["message"].(string); m == "Alles gehört" {
+				t.Errorf("an all-heard card: %+v", c)
+			}
+		}
+	}
+	if cleared["mira"] != 1 || cleared["phone"] != 1 || len(cleared) != 2 {
+		t.Errorf("taken down: %v", cleared)
+	}
+}
+
+func TestAB42_FirmwareWithoutTheClearAction(t *testing.T) {
+	news := PhoneNews{Messages: 1}
+	e := phoneEnv(t, &news)
+	e.n.screens = map[string]string{"assist_satellite.kueche": "esphome.show_notify"}
+	e.now = at("08:00")
+	ctx := context.Background()
+	e.n.SyncIndicators(ctx)
+	logs := e.logs()
+	e.ha.mu.Lock()
+	e.ha.callErr = errors.New("service esphome.show_notify_clear not found")
+	e.ha.mu.Unlock()
+	news = PhoneNews{}
+	e.n.SyncIndicators(ctx)
+	e.n.SyncIndicators(ctx)
+	clears := 0
+	for _, c := range e.screenCalls() {
+		if c.Service == "show_notify_clear" {
+			clears++
+		}
+	}
+	if clears != 1 {
+		t.Errorf("clear tried %d times", clears)
+	}
+	out := logs.String()
+	if !strings.Contains(out, "could not take the screen hint down") || !strings.Contains(out, "action=esphome.show_notify_clear") {
+		t.Errorf("no warning naming the action: %s", out)
 	}
 }

@@ -89,6 +89,20 @@ Feature: AB The answering machine at the satellite
     When the indicators update
     Then a screen shows "2 Nachrichten auf dem Anrufbeantworter · 1 verpasster Anruf"
 
+  @step2
+  Scenario: AB-41 A screen hint is taken down when everything was heard
+    Given a screen shows that messages wait
+    When the last one is heard
+    Then Mira calls the device's clear action with the hint's tag
+    And no "all heard" card is shown
+
+  @step2
+  Scenario: AB-42 Firmware without the clear action
+    Given a screen shows that messages wait and its device has no clear action
+    When the last one is heard
+    Then a warning names the action, the hint runs out after its minute
+    And the call is not tried again
+
   # --- On Mira's page -------------------------------------------------------------------------------------
 
   @step3

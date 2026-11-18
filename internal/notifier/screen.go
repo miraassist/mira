@@ -16,15 +16,16 @@ import (
 // with a tag and a duration (found by the app, e.g. esphome.show_notify of
 // an Echo Show with TECHO5). It is a hint at the moment something new
 // arrives, not a lasting light: an overlay with the same tag replaces the
-// last one. When everything was heard it stays until its time is up: the
-// firmware has no action to take it down (docs/spec/satellite.md), and a
-// short card in its place only flashed up after every turn.
+// last one. When everything was heard it is taken down by the device's
+// action of the same name with "_clear" (esphome.show_notify_clear, by the
+// tag). Firmware without it refuses the call: Mira logs that, and the hint
+// runs out after its minute.
 
 // screenFor is how long the overlay stays.
 const screenFor = 60 * time.Second
 
 // syncScreens shows or updates each screen's overlay when the number of
-// messages waiting in its room changes; when none wait it shows nothing.
+// messages waiting in its room changes, and takes it down when none wait.
 // Every screen of a room shows the room's (docs/spec/satellites-rooms.md).
 // The caller holds n.mu.
 func (n *Notifier) syncScreens(ctx context.Context) {
@@ -49,8 +50,9 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 			continue
 		}
 		if count == 0 {
-			// Nothing to show: the last hint runs out by itself.
+			// Taking it down covers nothing: no need to wait for the turn.
 			n.screenCount[sat] = 0
+			n.clearOverlay(ctx, action, "mira", area)
 			continue
 		}
 		if busy[sat] {
@@ -73,7 +75,7 @@ func (n *Notifier) syncScreens(ctx context.Context) {
 
 // syncPhoneScreens shows on each screen what is new on the answering
 // machine, as a hint of its own beside Mira's messages, when it changes;
-// when nothing is new it shows nothing (docs/spec/voicemail.md). The caller
+// it is taken down when nothing is new (docs/spec/voicemail.md). The caller
 // holds n.mu.
 func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 	busy := n.busyScreens(ctx)
@@ -83,8 +85,8 @@ func (n *Notifier) syncPhoneScreens(ctx context.Context, news PhoneNews) {
 			continue
 		}
 		if news.Messages == 0 && news.Missed == 0 {
-			// Nothing new: the last hint runs out by itself.
 			n.phoneShown[sat] = news
+			n.clearOverlay(ctx, action, "phone", area)
 			continue
 		}
 		if busy[sat] {
@@ -203,6 +205,23 @@ func (n *Notifier) overlay(ctx context.Context, action, tag, text, icon string, 
 		"title": "Mira", "message": text, "icon": icon, "chime": false, "speak": false,
 		"tag": tag, "seconds": int(d.Seconds()),
 	}, nil)
+}
+
+// clearOverlay takes down the overlay with the tag by the device's clear
+// action. A failure (older firmware without it, the device away) is logged;
+// the hint then runs out after its minute, and it is not tried again.
+func (n *Notifier) clearOverlay(ctx context.Context, action, tag, area string) {
+	clear := action + "_clear"
+	domain, service, ok := splitAction(clear)
+	if !ok {
+		n.log.Warn("could not take the screen hint down", "area", area, "action", clear, "error", "not an action")
+		return
+	}
+	if err := n.ha.CallService(ctx, domain, service, map[string]any{"tag": tag}, nil); err != nil {
+		n.log.Warn("could not take the screen hint down; it runs out after its minute", "area", area, "action", clear, "tag", tag, "error", err)
+		return
+	}
+	n.log.Info("screen hint taken down", "area", area, "action", clear, "tag", tag)
 }
 
 func splitAction(action string) (string, string, bool) {
