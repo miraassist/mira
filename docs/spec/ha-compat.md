@@ -40,9 +40,10 @@ one failed. The checks, step 1:
 | HC-05 | The actions Mira calls exist | `assist_satellite.announce`, `assist_satellite.start_conversation`, `tts.speak`, `media_player.play_media`, `media_player.media_stop`, `notify.send_message`, `light.turn_on`, `light.turn_off` in Home Assistant's actions |
 | HC-06 | The integration loads cleanly | Home Assistant's log since the container's start has no deprecation of the integration's use of Home Assistant ("deprecated", "breaks in", "will stop working") and no failed setup ("Error setting up", "Setup failed", "Error loading"); that the Mira service was not reachable for a while is no matter of compatibility |
 | HC-07 | The OAuth helper can send the secret as HTTP Basic | `LocalOAuth2Implementation` has `token_auth_method` |
+| HC-08 | The commands of Matter over Thread ([Adding a device by voice](device-onboarding.md), rows T1 to T3) | `thread/list_datasets` names a network, `thread/get_dataset_tlv` of the preferred one (or the first) gives its credentials, `matter/set_thread` takes them; the credentials are never shown. Needs the test HA's border router (added 2026-11-16); without a Thread network (the thread integration not set up, or no network known) it says "skip" and does not fail (decided 2026-11-18, HC-09) |
 
 **Costs:** HC-01 to HC-05 are calls to Home Assistant: one MCP connection with its tool list, the prompt once and once
-per satellite, eight websocket calls. HC-06 reads the container's log (`docker logs`), HC-07 runs one line of Python
+per satellite, eight websocket calls, and three for HC-08 (which gives the Matter server the Thread network it may have already). HC-06 reads the container's log (`docker logs`), HC-07 runs one line of Python
 in the container. No model, no device, no download; a few seconds.
 
 **Where a check's logic is tested:** against the fakes (`fakemcp`, `fakeha`), in Go: a check that passes with what
@@ -51,6 +52,7 @@ with recorded lines.
 
 ## Steps
 
-1. **The checks without a model** HC-01 to HC-07, with `testha compat`. Scenarios HC-01 to HC-04. Built.
+1. **The checks without a model** HC-01 to HC-08, with `testha compat`. Scenarios HC-01 to HC-05 and HC-09. Built (HC-08 and
+   HC-05 2026-11-16, HC-09 2026-11-18).
 2. **The turns** (follow-up with the same conversation id; `start_conversation` with Mira's token and an answer by voice
    at a fake satellite), with the model, switchable off. Not built.

@@ -1,6 +1,9 @@
-// Package matter adds a Matter device over Wi-Fi by voice
-// (docs/spec/device-onboarding.md, Matter over Wi-Fi): the setup code, the
-// commissioning, and the wait for the device between two turns. Everything
+// Package matter adds a Matter device over Wi-Fi or Thread by voice
+// (docs/spec/device-onboarding.md, Matter over Wi-Fi and Matter over
+// Thread): the setup code, the commissioning, and the wait for the device
+// between two turns. Mira gives the Matter server every network she has
+// (the home Wi-Fi, Home Assistant's Thread network); the server takes the
+// one the device speaks. Everything
 // goes through Home Assistant's own Matter integration, which talks to the
 // Matter server; Mira commissions nothing herself.
 //
@@ -61,7 +64,8 @@ type Options struct {
 	// Core takes the device in once it is there: room, name, exposed.
 	Core *devices.Core
 	// Wifi is the home Wi-Fi Mira keeps (the skill's settings wlan_ssid and
-	// wlan_password); without both the dialog does not start.
+	// wlan_password); without both and without a Thread network the dialog
+	// does not start.
 	Wifi func() (ssid, password string)
 	// Node is the satellite's ESPHome node of a device id ("" for none);
 	// HasAction says whether Home Assistant knows an action.
@@ -125,6 +129,9 @@ type run struct {
 	known map[string]bool
 	// created carries the device ids Home Assistant creates meanwhile.
 	created chan string
+	// missing names the network Mira lacked, for the sentence when the
+	// commissioning ends without a device (decision 27); "" for none.
+	missing string
 	// deviceID is the device the commissioning brought, once it is there:
 	// the run stays registered with it until the thread ends, so the found
 	// devices leave it alone (decision 21).
@@ -182,10 +189,14 @@ func (m *Onboarding) start(ctx context.Context, inv tools.Invocation) (string, e
 		m.log.Error("matter not available", "error", "no loaded config entry")
 		return t.noMatterEntry, nil
 	}
-	ssid, password := m.wifi()
-	if ssid == "" || password == "" {
-		m.log.Error("matter onboarding without wi-fi settings", "ssid", ssid != "", "password", password != "")
-		return t.noWifi, nil
+	nets, err := m.networks(ctx)
+	if err != nil {
+		m.log.Error("could not read home assistant's thread networks", "error", err)
+		return fmt.Sprintf(t.threadListFailed, err), nil
+	}
+	if !nets.wifi && nets.thread == nil {
+		m.log.Error("matter onboarding without a network", "thread_networks", nets.count)
+		return nets.with(t, t.noNetwork), nil
 	}
 	thread, err := m.o.Start(ctx, inv, t.plan)
 	if err != nil {
@@ -196,15 +207,15 @@ func (m *Onboarding) start(ctx context.Context, inv tools.Invocation) (string, e
 		// The user now reads the digits out: the satellite keeps listening
 		// (docs/spec/keep-listening.md).
 		tools.TurnOf(ctx).WaitForUser()
-		return t.readCode, nil
+		return nets.with(t, t.readCode), nil
 	}
 	code, err := m.scan(ctx, node)
 	if err != nil {
 		m.log.Warn("qr scan found no code", "satellite", node, "error", err)
 		tools.TurnOf(ctx).WaitForUser()
-		return t.scanAgain, nil
+		return nets.with(t, t.scanAgain), nil
 	}
-	return m.commission(ctx, thread, code)
+	return m.commission(ctx, thread, code, nets)
 }
 
 // code takes the code the user read out (or a QR code's content the model
@@ -227,7 +238,16 @@ func (m *Onboarding) code(ctx context.Context, inv tools.Invocation) (string, er
 		tools.TurnOf(ctx).WaitForUser() // the code comes again
 		return t.codeRefused, nil
 	}
-	return m.commission(ctx, thread, code)
+	nets, err := m.networks(ctx)
+	if err != nil {
+		m.log.Error("could not read home assistant's thread networks", "thread", thread, "error", err)
+		return fmt.Sprintf(t.threadListFailed, err), nil
+	}
+	if !nets.wifi && nets.thread == nil {
+		m.log.Error("matter onboarding without a network", "thread", thread, "thread_networks", nets.count)
+		return nets.with(t, t.noNetwork), nil
+	}
+	return m.commission(ctx, thread, code, nets)
 }
 
 // scan reads a QR code at the satellite: the action answers as soon as it
@@ -253,20 +273,28 @@ func (m *Onboarding) scan(ctx context.Context, node string) (string, error) {
 	return strings.TrimSpace(answer.Response.Code), nil
 }
 
-// commission hands the Wi-Fi to the Matter server and starts the
-// commissioning in the background: the turn only says that the device may be
-// plugged in now.
-func (m *Onboarding) commission(ctx context.Context, thread, code string) (string, error) {
+// commission hands the networks Mira has to the Matter server, once and
+// before the first attempt, and starts the commissioning in the background:
+// the turn only says that the device may be put into pairing mode now.
+func (m *Onboarding) commission(ctx context.Context, thread, code string, nets networks) (string, error) {
 	t := m.t
-	ssid, password := m.wifi()
-	if _, err := m.o.HA.Call(ctx, map[string]any{"type": "matter/set_wifi_credentials",
-		"network_name": ssid, "password": password}); err != nil {
-		m.log.Error("could not give the matter server the wi-fi", "error", err)
-		return fmt.Sprintf(t.wifiFailed, err), nil
+	if nets.wifi {
+		ssid, password := m.wifi()
+		if _, err := m.o.HA.Call(ctx, map[string]any{"type": "matter/set_wifi_credentials",
+			"network_name": ssid, "password": password}); err != nil {
+			m.log.Error("could not give the matter server the wi-fi", "error", err)
+			return fmt.Sprintf(t.wifiFailed, err), nil
+		}
+	}
+	if nets.thread != nil {
+		if err := m.giveThread(ctx, *nets.thread); err != nil {
+			return fmt.Sprintf(t.threadFailed, err), nil
+		}
 	}
 	m.endRun(context.WithoutCancel(ctx), thread)
 	runCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
-	r := &run{thread: thread, stop: stop, known: map[string]bool{}, created: make(chan string, 64)}
+	r := &run{thread: thread, stop: stop, known: map[string]bool{}, created: make(chan string, 64),
+		missing: nets.missing(t)}
 	for id := range m.o.Devices() {
 		r.known[id] = true
 	}
@@ -292,14 +320,15 @@ func (m *Onboarding) commission(ctx context.Context, thread, code string) (strin
 	m.mu.Lock()
 	m.runs[thread] = r
 	m.mu.Unlock()
-	m.log.Info("matter commissioning started", "thread", thread, "window", m.o.Window.String())
+	m.log.Info("matter commissioning started", "thread", thread, "window", m.o.Window.String(),
+		"wifi", nets.wifi, "thread_network", nets.threadName())
 	m.waitStart(ctx, thread)
 	go func() {
 		defer unsubscribe()
 		defer stop()
 		m.watch(runCtx, r, code)
 	}()
-	return t.plugItIn, nil
+	return nets.with(t, t.plugItIn), nil
 }
 
 // watch commissions until the device is there, the window is over or the
@@ -316,7 +345,7 @@ func (m *Onboarding) watch(ctx context.Context, r *run, code string) {
 		if time.Now().After(deadline) {
 			m.log.Warn("matter commissioning gave up", "thread", r.thread, "attempts", attempt)
 			m.endRun(tell, r.thread)
-			m.sayTo(tell, r.thread, m.t.nothingFound)
+			m.sayTo(tell, r.thread, m.t.nothingFound+r.missing)
 			return
 		}
 		attempt++
@@ -351,13 +380,13 @@ func (m *Onboarding) watch(ctx context.Context, r *run, code string) {
 					}
 					m.log.Warn("matter commissioned a device home assistant does not show", "thread", r.thread)
 					m.endRun(tell, r.thread)
-					m.sayTo(tell, r.thread, m.t.nothingFound)
+					m.sayTo(tell, r.thread, m.t.nothingFound+r.missing)
 					return
 				}
 				if !noDevice(err) {
 					m.log.Error("matter commissioning failed", "thread", r.thread, "attempt", attempt, "error", err)
 					m.endRun(tell, r.thread)
-					m.sayTo(tell, r.thread, fmt.Sprintf(m.t.commissionFailed, err))
+					m.sayTo(tell, r.thread, fmt.Sprintf(m.t.commissionFailed, err)+r.missing)
 					return
 				}
 				m.log.Debug("matter commissioning found no device, trying again", "thread", r.thread, "attempt", attempt)

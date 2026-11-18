@@ -1043,12 +1043,13 @@ Mira adds new devices by voice: she brings them into the network, asks for the r
 
 ![The Echo Show reads the QR code of a Matter device](img/geraet-matter.png)
 
-With a code that fits Mira says: "Plug the device in now." She looks for it over Bluetooth for three minutes, gives it your Wi-Fi and speaks up as soon as it is there — then it goes on with room and name as every device does.
+With a code that fits Mira says: "Put the device into pairing mode now, as its instructions say." Mostly that means plugging it in or putting the battery in. She looks for it over Bluetooth for three minutes, gives it your Wi-Fi or your Thread network – she works out herself which one the device speaks – and speaks up as soon as it is there — then it goes on with room and name as every device does.
 
-- **What works:** Matter devices over Wi-Fi. Thread devices need a border router; they come later.
+- **What works:** Matter devices over Wi-Fi and over Thread.
 - **The device must be ready to be added:** factory new or reset. If Mira finds nothing, she says so and what helps: hold its button until it blinks, then tell her.
 - **Close enough:** the machine Mira runs on talks to the device over Bluetooth. Too far away and she does not find it.
 - Home Assistant needs its **Matter integration** with its Matter server for this; your Wi-Fi goes to the skill's settings (below).
+- **For Thread devices** Home Assistant also needs a border router and with it a Thread network, for example through the [OpenThread Border Router](https://www.home-assistant.io/integrations/otbr/) integration; how is told under [Thread](https://www.home-assistant.io/integrations/thread/). With several Thread networks Mira takes the preferred one.
 
 ### Devices Home Assistant found
 

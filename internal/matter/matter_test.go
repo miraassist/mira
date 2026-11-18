@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -32,6 +33,12 @@ type fakeHA struct {
 	// registry is Home Assistant's device registry, which holds a new
 	// device at once (the structure Mira keeps lags 30 s behind).
 	registry []haws.Device
+	// datasets is the answer of thread/list_datasets ("" for none),
+	// listErr its refusal; setThread holds what matter/set_thread got.
+	datasets  string
+	listErr   error
+	setThread []any
+	threadErr error
 
 	calls    []string
 	attempts int
@@ -60,6 +67,24 @@ func (f *fakeHA) CallFor(_ context.Context, cmd map[string]any, _ time.Duration)
 		raw, _ := json.Marshal(f.registry)
 		return raw, nil
 	case kind == "matter/set_wifi_credentials":
+		return json.RawMessage(`null`), nil
+	case kind == "thread/list_datasets":
+		if f.listErr != nil {
+			return nil, f.listErr
+		}
+		if f.datasets == "" {
+			return json.RawMessage(`{"datasets":[]}`), nil
+		}
+		return json.RawMessage(f.datasets), nil
+	case kind == "thread/get_dataset_tlv":
+		return json.RawMessage(fmt.Sprintf(`{"tlv":"0e08SECRETKEY-%s"}`, cmd["dataset_id"])), nil
+	case kind == "matter/set_thread":
+		f.mu.Lock()
+		f.setThread = append(f.setThread, cmd["thread_operation_dataset"])
+		f.mu.Unlock()
+		if f.threadErr != nil {
+			return nil, f.threadErr
+		}
 		return json.RawMessage(`null`), nil
 	case strings.HasSuffix(kind, "_qr_scan"):
 		if f.scan == "" {
@@ -209,7 +234,7 @@ func TestDV20_TheCodeIsScannedAtASatelliteWithACamera(t *testing.T) {
 	ha := &fakeHA{loaded: true, scan: "MT:4CNT18O614FQYV5PD00", commissions: []error{noDeviceError}}
 	h := newHarness(t, ha, "show")
 	out := h.start(t)
-	if !strings.Contains(out, "Steck das Gerät jetzt ein") {
+	if !strings.Contains(out, "Pairing-Modus") {
 		t.Fatalf("answer: %q", out)
 	}
 	if ha.called("esphome.show_qr_scan") != 1 || ha.called("matter/set_wifi_credentials") != 1 {
@@ -408,11 +433,192 @@ func TestKL06_PlugItInDoesNotWaitForTheUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "Steck das Gerät jetzt ein") {
+	if !strings.Contains(out, "Pairing-Modus") {
 		t.Fatalf("answer: %q", out)
 	}
 	if ts.WaitsForUser() {
 		t.Error("the turn waits for the user although Mira only reports")
 	}
 	h.m.End(context.Background(), "th1")
+}
+
+// Matter over Thread: docs/spec/device-onboarding.md, step 8.
+
+const (
+	onePreferred = `{"datasets":[{"dataset_id":"A","network_name":"other","preferred":false},{"dataset_id":"B","network_name":"home-thread","preferred":true}]}`
+	oneOnly      = `{"datasets":[{"dataset_id":"A","network_name":"home-thread","preferred":false}]}`
+	twoNone      = `{"datasets":[{"dataset_id":"A","network_name":"one","preferred":false},{"dataset_id":"B","network_name":"two","preferred":false}]}`
+)
+
+func noWifi(h *harness) { h.m.o.Wifi = func() (string, string) { return "", "" } }
+
+func TestDV30_WithoutTheWifiSettingsAndWithoutAThreadNetworkNothingStarts(t *testing.T) {
+	for name, ha := range map[string]*fakeHA{
+		"no thread network":        {loaded: true, scan: "MT:X"},
+		"no thread integration":    {loaded: true, scan: "MT:X", listErr: &haws.Error{Command: "thread/list_datasets", Code: "unknown_command", Message: "Unknown command."}},
+		"several and no preferred": {loaded: true, scan: "MT:X", datasets: twoNone},
+	} {
+		h := newHarness(t, ha, "show")
+		noWifi(h)
+		out := h.start(t)
+		if !strings.Contains(out, "wlan_ssid") || !strings.Contains(out, "Thread-Netz") {
+			t.Errorf("%s: %q", name, out)
+		}
+		if ha.called("esphome.show_qr_scan") != 0 || ha.called("matter/commission") != 0 {
+			t.Errorf("%s: started: %v", name, ha.calls)
+		}
+	}
+	// Another error of Home Assistant is said, not taken as no network.
+	ha := &fakeHA{loaded: true, listErr: errors.New("connection lost")}
+	h := newHarness(t, ha, "show")
+	if out := h.start(t); !strings.Contains(out, "connection lost") {
+		t.Errorf("list error: %q", out)
+	}
+}
+
+func TestDV31_WithAThreadNetworkAndWithoutTheWifiSettingsTheDialogStarts(t *testing.T) {
+	ha := &fakeHA{loaded: true, datasets: onePreferred, commissions: []error{noDeviceError}}
+	h := newHarness(t, ha, "")
+	noWifi(h)
+	if out := h.start(t); !strings.Contains(out, "nur das Thread-Netz home-thread") {
+		t.Fatalf("start: %q", out)
+	}
+	out := h.code(t, goodCode)
+	if !strings.Contains(out, "Pairing-Modus") {
+		t.Fatalf("code: %q", out)
+	}
+	if ha.called("matter/set_wifi_credentials") != 0 || ha.called("matter/set_thread") != 1 {
+		t.Errorf("calls: %v", ha.calls)
+	}
+	if len(ha.setThread) != 1 || ha.setThread[0] != "0e08SECRETKEY-B" {
+		t.Errorf("set_thread got %v, want the preferred network's", ha.setThread)
+	}
+	h.m.End(context.Background(), "th1")
+}
+
+func TestDV32_MiraGivesEveryNetworkSheHasOnceBeforeTheFirstAttempt(t *testing.T) {
+	ha := &fakeHA{loaded: true, datasets: onePreferred, commissions: []error{noDeviceError}}
+	h := newHarness(t, ha, "")
+	out := h.code(t, goodCode)
+	if !strings.Contains(out, "das WLAN und das Thread-Netz home-thread") {
+		t.Errorf("answer: %q", out)
+	}
+	time.Sleep(300 * time.Millisecond)
+	h.m.End(context.Background(), "th1")
+	ha.mu.Lock()
+	defer ha.mu.Unlock()
+	first := -1
+	for i, c := range ha.calls {
+		if c == "matter/commission" {
+			first = i
+			break
+		}
+	}
+	wifi, thread, attempts := 0, 0, 0
+	for i, c := range ha.calls {
+		switch c {
+		case "matter/set_wifi_credentials", "matter/set_thread":
+			if i > first {
+				t.Errorf("%s after the first attempt: %v", c, ha.calls)
+			}
+			if c == "matter/set_thread" {
+				thread++
+			} else {
+				wifi++
+			}
+		case "matter/commission":
+			attempts++
+		}
+	}
+	if wifi != 1 || thread != 1 || attempts < 2 {
+		t.Errorf("wifi %d, thread %d, attempts %d: %v", wifi, thread, attempts, ha.calls)
+	}
+}
+
+func TestDV33_TheOnlyThreadNetworkIsTakenAlthoughItIsNotPreferred(t *testing.T) {
+	ha := &fakeHA{loaded: true, datasets: oneOnly}
+	h := newHarness(t, ha, "")
+	if out := h.start(t); !strings.Contains(out, "Thread-Netz home-thread") {
+		t.Errorf("answer: %q", out)
+	}
+}
+
+func TestDV34_SeveralThreadNetworksAndNonePreferredAreSaid(t *testing.T) {
+	ha := &fakeHA{loaded: true, datasets: twoNone, commissions: []error{noDeviceError}}
+	h := newHarness(t, ha, "")
+	out := h.start(t)
+	if !strings.Contains(out, "nur das WLAN") || !strings.Contains(out, "bevorzugtes Thread-Netz") {
+		t.Errorf("answer: %q", out)
+	}
+	h.code(t, goodCode)
+	if ha.called("matter/set_thread") != 0 || ha.called("matter/set_wifi_credentials") != 1 {
+		t.Errorf("calls: %v", ha.calls)
+	}
+	h.m.End(context.Background(), "th1")
+}
+
+func TestDV35_TheThreadNetworksCredentialsGoToTheMatterServerOnly(t *testing.T) {
+	var log strings.Builder
+	var mu sync.Mutex
+	ha := &fakeHA{loaded: true, datasets: onePreferred, commissions: []error{errors.New("device unreachable")}}
+	h := newHarness(t, ha, "")
+	h.m.log = slog.New(slog.NewTextHandler(writerFunc(func(p []byte) (int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return log.Write(p)
+	}), &slog.HandlerOptions{Level: slog.LevelDebug}))
+	answers := h.start(t) + h.code(t, goodCode)
+	said := h.waitSaid(t)
+	mu.Lock()
+	defer mu.Unlock()
+	for where, text := range map[string]string{"log": log.String(), "answers": answers, "said": said} {
+		if strings.Contains(text, "SECRETKEY") || strings.Contains(text, "geheim") {
+			t.Errorf("credentials in the %s: %s", where, text)
+		}
+	}
+	if !strings.Contains(log.String(), "home-thread") {
+		t.Errorf("the log does not name the network: %s", log.String())
+	}
+	// A failing set_thread names the network, not its credentials.
+	ha2 := &fakeHA{loaded: true, datasets: onePreferred, threadErr: errors.New("matter server refused")}
+	h2 := newHarness(t, ha2, "")
+	out := h2.code(t, goodCode)
+	if strings.Contains(out, "SECRETKEY") || !strings.Contains(out, "matter server refused") {
+		t.Errorf("answer: %q", out)
+	}
+	if ha2.called("matter/commission") != 0 {
+		t.Errorf("commissioned without the network: %v", ha2.calls)
+	}
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
+
+func TestDV36_ACommissioningWithoutOneOfTheNetworksNamesItWhenItEndsWithoutADevice(t *testing.T) {
+	// Only the Wi-Fi: the window ends without a device.
+	ha := &fakeHA{loaded: true, commissions: []error{noDeviceError}}
+	h := newHarness(t, ha, "")
+	h.code(t, goodCode)
+	if said := h.waitSaid(t); !strings.Contains(said, "nicht gefunden") || !strings.Contains(said, "Thread-Netz in Home Assistant") {
+		t.Errorf("window over: %q", said)
+	}
+	// Only the Thread network: another error ends it at once.
+	ha = &fakeHA{loaded: true, datasets: oneOnly, commissions: []error{errors.New("network not found")}}
+	h = newHarness(t, ha, "")
+	noWifi(h)
+	h.code(t, goodCode)
+	if said := h.waitSaid(t); !strings.Contains(said, "network not found") || !strings.Contains(said, "WLAN") {
+		t.Errorf("error: %q", said)
+	}
+	if n := ha.called("matter/commission"); n != 1 {
+		t.Errorf("%d attempts, want one", n)
+	}
+	// Both networks: nothing is added to the sentence.
+	ha = &fakeHA{loaded: true, datasets: oneOnly, commissions: []error{noDeviceError}}
+	h = newHarness(t, ha, "")
+	h.code(t, goodCode)
+	if said := h.waitSaid(t); strings.Contains(said, "Ich hatte kein") {
+		t.Errorf("both networks: %q", said)
+	}
 }

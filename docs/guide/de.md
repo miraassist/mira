@@ -1055,12 +1055,13 @@ Mira bindet neue Geräte per Sprache ein: Sie bringt sie ins Netz, fragt nach de
 
 ![Der Echo Show liest den QR-Code eines Matter-Geräts](img/geraet-matter.png)
 
-Passt der Code, sagt Mira: „Steck das Gerät jetzt ein.“ Sie sucht es drei Minuten lang über Bluetooth, gibt ihm dein WLAN und meldet sich, sobald es da ist – dann geht es mit Raum und Name weiter wie bei jedem Gerät.
+Passt der Code, sagt Mira: „Bring das Gerät jetzt in den Pairing-Modus, wie seine Anleitung sagt.“ Meist heißt das: einstecken oder die Batterie einlegen. Sie sucht es drei Minuten lang über Bluetooth, gibt ihm dein WLAN oder dein Thread-Netz – welches das Gerät kann, merkt sie selbst – und meldet sich, sobald es da ist – dann geht es mit Raum und Name weiter wie bei jedem Gerät.
 
-- **Damit geht es:** Matter-Geräte über WLAN. Thread-Geräte brauchen einen Border Router; die kommen später.
+- **Damit geht es:** Matter-Geräte über WLAN und über Thread.
 - **Das Gerät muss einrichtbar sein:** fabrikneu oder zurückgesetzt. Findet Mira nichts, sagt sie dir das und was hilft: den Knopf gedrückt halten, bis es blinkt, und ihr dann Bescheid sagen.
 - **Nah genug:** Der Rechner, auf dem Mira läuft, spricht das Gerät über Bluetooth an. Steht es zu weit weg, findet sie es nicht.
 - Dafür braucht Home Assistant die **Matter-Integration** mit seinem Matter-Server; dein WLAN trägt Mira beim Skill ein (unten).
+- **Für Thread-Geräte** braucht Home Assistant zusätzlich einen Border Router und damit ein Thread-Netz, zum Beispiel über die Integration [OpenThread Border Router](https://www.home-assistant.io/integrations/otbr/); wie das geht, steht bei [Thread](https://www.home-assistant.io/integrations/thread/). Hast du mehrere Thread-Netze, nimmt Mira das bevorzugte.
 
 ### Geräte, die Home Assistant gefunden hat
 

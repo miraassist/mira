@@ -5,7 +5,8 @@ tools and the wait in the service, the skill, run end to end at the fake Show, t
 a household's Zigbee2MQTT (a new sensor added, the same sensor paired again). Step 6, ZHA, built against Home
 Assistant's source; its real run is open. Step 7, Matter over Wi-Fi, is built (2026-11-11, DV-20 to DV-29): its
 state table checked at the test HA with a Tapo plug, and run through Mira end to end at the real Show (the QR code
-scanned) and at an Echo (the digits read out). Scenarios:
+scanned) and at an Echo (the digits read out). Step 8, Matter over Thread, is built (2026-11-16) on the hypothesis that
+two rows of its state table name; the end-to-end run is open. Scenarios:
 [device-onboarding.feature](device-onboarding.feature).
 
 ## Goal
@@ -97,7 +98,7 @@ At a satellite without a camera (an Echo) step 1 is: "Lies mir die elf Ziffern n
 
 | # | Question | Decision |
 |---|---|---|
-| 15 | Which Matter devices | **Matter over Wi-Fi** now. Thread needs a border router and comes later; the steps after commissioning are the same for both |
+| 15 | Which Matter devices | **Matter over Wi-Fi** now. Thread needs a border router and comes later; the steps after commissioning are the same for both. Thread: decisions 23 to 28 (2026-11-16) |
 | 16 | Where the code comes from | At a satellite whose node has the action `qr_scan` (TECHO5 firmware 0.94, the Show's camera) Mira scans it, for **20 seconds** (long enough to hold a sticker in front of the camera, short enough that nobody waits); every other satellite has the user read the eleven digits. Mira decides by the action, not by the device's kind |
 | 17 | The code is checked before it is used | The eleven digits carry a check digit (Verhoeff, as Matter's specification prescribes and the `chip` library computes). A code that does not check out is said and asked for again; nothing is sent to the device (decision 4A of 2026-11-11) |
 | 18 | When Mira commissions | Right after the code: she hands the Wi-Fi to the Matter server and starts the commissioning, which looks for the device over Bluetooth and over the network, so the user can plug it in while it runs. A device Home Assistant sees as commissionable meanwhile (its Zeroconf discovery `_matterc._udp`) only tells Mira it is there; it starts nothing of its own |
@@ -189,6 +190,103 @@ discovers `_matterc._udp` and `_matter._tcp` and brings a Bluetooth proxy of its
 `matter-ble-proxy`). The Matter server is set up by `testha` (`ensureMatter`) against
 `ws://host.docker.internal:5580/ws`.
 
+### Matter over Thread (decided 2026-11-16)
+
+Thread is the second way of Matter after Wi-Fi (decision 15 left it for later). Everything of Matter over Wi-Fi
+stays: the code (scanned or read, checked), `matter/commission` with `network_only: false` held in the thread, the
+attempts within three minutes, the device from Home Assistant's registry, room, name, exposing. What is new is one
+step before the commissioning: the Matter server must know the Thread network. Home Assistant does not give it to the
+server by itself (seen 2026-11-16: the Matter integration has `matter/set_thread` for it and calls it nowhere; Home
+Assistant's own way commissions Thread devices through the companion app, which brings the credentials from the
+phone). Mira commissions through the Matter server and its Bluetooth, so she gives it the network herself, as she
+gives it the Wi-Fi.
+
+The dialog is the same as for a Wi-Fi device; the user does not say which network the device speaks, and the code
+does not tell either:
+
+1. Stefan: "Ich hab einen neuen Bewegungsmelder, Matter." Mira (at an Echo): "Lies mir die elf Ziffern neben dem
+   QR-Code vor."
+2. Stefan reads them. Mira: "Hab ihn. Leg die Batterie ein." The wait is shown at the satellite.
+3. About a minute later, unasked: "Ich hab's: ein Bewegungsmelder von IKEA. In welchen Raum kommt er?"
+
+What has to be in Home Assistant, and what the guide names with links to Home Assistant's documentation, nothing
+more: a border router (Home Assistant's integration "OpenThread Border Router", or another vendor's) and with it a
+Thread network.
+
+| # | Question | Decision |
+|---|---|---|
+| 23 | Wi-Fi or Thread | Mira gives the Matter server **both, as far as she has them**: the Wi-Fi from the skill's settings, the Thread network from Home Assistant. The server takes the one the device speaks; nobody is asked. Decided on the condition that this works without asking: state table row T6 checks it, and if the server does not choose by itself, the decision is taken up again before anything is built |
+| 24 | What must be there to start | Matter, and **the Wi-Fi settings or a Thread network**. Without either Mira says what is missing and starts nothing. This replaces "without the Wi-Fi settings the dialog does not start" of decision 19 |
+| 25 | Which Thread network | Home Assistant's **preferred** Thread network. Without a preferred one: if Home Assistant has exactly one, Mira takes it; with several and none preferred she has none (decision 26) |
+| 26 | Several Thread networks, none preferred | Mira has no Thread network for this dialog. With the Wi-Fi settings she starts all the same, and her sentence says that Thread devices need a preferred Thread network in Home Assistant's Thread settings; without the Wi-Fi settings she starts nothing (decision 24) |
+| 27 | A device whose network Mira did not give | Mira cannot tell which network a device speaks (row T7 left out, row T8 open). When she lacked one of the two networks and the commissioning ends without a device — the window over, or another error — her sentence names what was missing: the Wi-Fi settings under the skill, or a Thread network in Home Assistant. She tries no more than for any other end of the commissioning |
+| 28 | The network's key | The credentials of the Thread network hold its key: they go only to the Matter server, never into a log, a tool's answer, the thread or the model's context, as the Wi-Fi password |
+
+How it works, what differs from Matter over Wi-Fi:
+
+1. **The start.** `matter_pairing_start` reads, besides Matter's entry, Home Assistant's Thread networks
+   (`thread/list_datasets`: each with `dataset_id`, `network_name`, `preferred`) and picks one by decisions 25 and 26.
+   With neither the Wi-Fi settings nor a Thread network it returns what is missing (decision 24). Its answer tells the
+   model which of the two Mira has, so the sentence fits ("Leg die Batterie ein" as much as "Steck das Gerät ein" is
+   the skill's affair: the skill says "bring das Gerät in den Pairing-Modus, wie seine Anleitung sagt" for both; decided 2026-11-16). The network's
+   name may be said; its credentials never come near the answer (decision 28).
+2. **The networks and the commissioning.** With a code that checks out Mira sets, once per dialog and before the
+   first attempt, what she has: the Wi-Fi as before (`matter/set_wifi_credentials`) and the Thread network
+   (`thread/get_dataset_tlv` of the chosen `dataset_id`, its `tlv` passed to `matter/set_thread` as
+   `thread_operation_dataset`). Then the attempts as for Wi-Fi.
+3. **The device.** As for Wi-Fi: Home Assistant creates it, Mira reads it from the registry. For the Thread device the
+   registry had it about 6 s before `commission` answered (row T5), so Mira's question may come while the server
+   still sets the node up; nothing waits for the answer.
+4. **Room, name, exposing.** Unchanged.
+
+What the code models, the model is told (same step): the tool's answer names which networks Mira gives (Wi-Fi,
+Thread, both) and, by decision 26, that Thread devices need a preferred network; the skill `geraet-einbinden` says
+that a Matter device may be a Wi-Fi or a Thread device, that the user is never asked which, and how to word "make it
+ready" for both.
+
+Fails (in addition to those of Matter over Wi-Fi):
+
+| Fails | Who learns of it |
+|---|---|
+| Neither the Wi-Fi settings nor a Thread network | The tool returns it; Mira says that she needs the home Wi-Fi under the skill's settings or a Thread network in Home Assistant. Log `matter onboarding without a network` |
+| `thread/list_datasets` fails (other than Home Assistant having no Thread integration, row T9) | The tool returns the error; Mira says it. Log `could not read home assistant's thread networks` with the error |
+| Several Thread networks, none preferred | Not an error: decision 26. Log `no preferred thread network` with the number of networks, at info |
+| `thread/get_dataset_tlv` fails | The tool returns the error; Mira says it; nothing is commissioned. Log `could not read the thread network's credentials` with the network's name (never the credentials) |
+| `matter/set_thread` fails | The tool returns the error; Mira says it; nothing is commissioned. Log `could not give the matter server the thread network` with the network's name |
+| The device speaks a network Mira did not give | Decision 27: the end of the commissioning (window over or an error) as for Wi-Fi, its sentence names the missing network. Logs as for Wi-Fi |
+| The border router is off while the commissioning runs | The commissioning fails with the server's error (an assumption: not tried); said as every other error of the commissioning |
+
+Cost, in addition to Matter over Wi-Fi: one `thread/list_datasets` per start and per code given (read again, not kept
+between the turns); one `thread/get_dataset_tlv` and one `matter/set_thread` per code that checks out, before its
+first attempt. Nothing grows with the number of devices; the list of Thread networks has one or a
+few entries.
+
+`thread/list_datasets`, `thread/get_dataset_tlv` and `matter/set_thread` are websocket commands of Home Assistant's
+Thread and Matter integrations, not documented as a public API; `testha compat` checks them once built, as it does
+ZHA's.
+
+#### State table (Thread)
+
+Checked at the test HA with the Matter server of `testenv/compose.yaml`, an OpenThread Border Router on the test
+machine's own radio stick, and an IKEA MYGGSPRAY motion sensor (Matter over Thread). Departure from the rule that a
+flow is built only when every row is checked (decided 2026-11-16 by the maintainer): T8 and T9 are not tried on their
+own, since the end-to-end run with Mira goes through them anyway. The hypothesis built on: with both networks set the
+commissioning works (T6), and T8 and T9 behave as their rows assume; the end-to-end run checks them.
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked |
+|---|---|---|---|---|---|
+| T1 | Home Assistant's Thread networks | `thread/list_datasets` | `datasets`, each with `dataset_id`, `network_name`, `channel`, `extended_pan_id`, `preferred`, `source` | the call's answer | 2026-11-16 (one network `ha-thread-1fc7` of `source: otbr`, `preferred: false` right after the border router's integration was added, although it was the only one; `true` after `thread/set_preferred_dataset`) |
+| T2 | The network's credentials | `thread/get_dataset_tlv` with `dataset_id` | `{"tlv": "<hex>"}` (105 bytes) | the call's answer | 2026-11-16 |
+| T3 | The Matter server has the network | `matter/set_thread` with `thread_operation_dataset` | `success: true`, no result | the call's answer | 2026-11-16 |
+| T4 | A Thread device is commissioned | `matter/commission` with the code, `network_only: false`, the battery put in | `success: true` when it is over: 47 s from the call to the answer with the device in reach; the server's log `Commissioning complete`, `Commissioned Node ID: 27`, `Interviewing node`, `Subscription succeeded`, `Commissioning of Node ID 27 completed`. The device is a child of the border router in the Thread network | the call, held in the thread | 2026-11-16 (sent 13:12:13, answered 13:13:00, the first attempt) |
+| T5 | Home Assistant has the device | the node added | `device_registry_updated` `create` | the subscription Mira's structure has | 2026-11-16, in part: the registry's `created_at` is 13:12:54.3, about 6 s before `commission` answered; the event itself is to be watched in the next run |
+| T6 | Both networks given, a Thread device | `set_wifi_credentials` and `set_thread`, then `commission` | the server commissions over Thread without being told which | as T4 | 2026-11-16 (the MYGGSPRAY reset, both set, then `commission`: `success: true` after 41 s, the first attempt, nothing asked; a new child of the border router, the device's entities in Home Assistant at the answer's second. Decision 23 holds) |
+| T7 | Only the Wi-Fi given, a Thread device | `set_wifi_credentials` only, then `commission` | the server's error, to be read | the call's error | left out, decided 2026-11-16: Mira gives both networks whenever she has them, so a Thread device meets only the Wi-Fi when Home Assistant has no Thread network, and that is row T9 |
+| T8 | Only the Thread network given, a Wi-Fi device | `set_thread` only, then `commission` with the Tapo plug | assumed: no device found until the window is over, or the server's error | the call's error | **hypothesis**, checked in the end-to-end run |
+| T9 | Home Assistant without the Thread integration | `thread/list_datasets` | assumed: Home Assistant refuses the command with `unknown_command`, which Mira takes as no Thread network | the call's error | **hypothesis**, checked in the end-to-end run |
+
+Testing it again: as with the plug, a commissioned MYGGSPRAY gives no code away; before a new run it is reset to the
+factory and its node removed in Home Assistant.
 
 ## Building blocks
 
@@ -361,3 +459,7 @@ during the announcement is an ordinary interruption of an announcement.
    the runs brought out are fixed and tested: Mira stayed silent when she gave up (a context cancelled too early),
    the device's facts were empty (read from the structure that lags 30 s instead of the registry), and the model
    changed the name the user had just confirmed (a rule in the skill). Scenarios DV-20 to DV-29.
+8. **Matter over Thread** (decisions 23 to 28, built 2026-11-16 on the hypothesis of rows T8 and T9): `matter_pairing_start` and the commissioning with the
+   Thread network, every error path, the skill's text and the tool's answer for the model, `testha compat` for the
+   three commands, the guide (what must be in Home Assistant, with links). Open: the run end to end at the Show
+   with the MYGGSPRAY, which checks rows T8 and T9. Scenarios DV-30 to DV-36.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,13 +27,18 @@ import (
 type check struct {
 	id, what string
 	ok       bool
-	detail   string
+	// skipped: the check had nothing to check here (ok, said apart).
+	skipped bool
+	detail  string
 }
 
 func (c check) String() string {
 	state := "ok  "
-	if !c.ok {
+	switch {
+	case !c.ok:
 		state = "FAIL"
+	case c.skipped:
+		state = "skip"
 	}
 	s := fmt.Sprintf("%s %s %s", state, c.id, c.what)
 	if c.detail != "" {
@@ -76,7 +82,7 @@ func compatCmd(ctx context.Context, dir string) error {
 	if results[0].ok {
 		results = append(results, checkTools(host.Tools()), checkPrompt(ctx, host, snap.SatelliteDevices))
 	}
-	results = append(results, ws)
+	results = append(results, ws, checkThread(ctx, c))
 	services, err := c.Services(ctx)
 	if err != nil {
 		results = append(results, check{id: "HC-05", what: "actions Mira calls", detail: err.Error()})
@@ -200,6 +206,90 @@ func checkWebsocket(ctx context.Context, c *haws.Client) (check, structure.Snaps
 	r.ok = true
 	r.detail = fmt.Sprintf("%d areas, %d devices, %d entities, %d sensors", len(areas), len(devices), len(entities), len(states))
 	return r, snap
+}
+
+// caller is a websocket command with its answer.
+type caller interface {
+	Call(ctx context.Context, command map[string]any) (json.RawMessage, error)
+}
+
+// checkThread: HC-08. The commands of Matter over Thread
+// (docs/spec/device-onboarding.md, rows T1 to T3) answer: the Thread
+// networks, the credentials of the preferred one (or the only one), and the
+// Matter server takes them. The credentials are never printed: they hold the
+// network's key. A Home Assistant without a Thread network (the thread
+// integration not set up, or no network known) skips it: the border router
+// is only in a private compose file.
+func checkThread(ctx context.Context, c caller) check {
+	r := check{id: "HC-08", what: "thread and matter commands of the onboarding"}
+	raw, err := c.Call(ctx, map[string]any{"type": "get_config"})
+	if err != nil {
+		r.detail = "get_config: " + err.Error()
+		return r
+	}
+	var config struct {
+		Components []string `json:"components"`
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		r.detail = fmt.Sprintf("get_config: %v in %q", err, cut(string(raw), 120))
+		return r
+	}
+	if !slices.Contains(config.Components, "thread") {
+		r.ok, r.skipped, r.detail = true, true, "no Thread network: the thread integration is not set up"
+		return r
+	}
+	raw, err = c.Call(ctx, map[string]any{"type": "thread/list_datasets"})
+	if err != nil {
+		r.detail = "thread/list_datasets: " + err.Error()
+		return r
+	}
+	var list struct {
+		Datasets []struct {
+			ID        string `json:"dataset_id"`
+			Name      string `json:"network_name"`
+			Preferred bool   `json:"preferred"`
+		} `json:"datasets"`
+	}
+	if err := json.Unmarshal(raw, &list); err != nil {
+		r.detail = fmt.Sprintf("thread/list_datasets: %v in %q", err, cut(string(raw), 120))
+		return r
+	}
+	if len(list.Datasets) == 0 {
+		r.ok, r.skipped, r.detail = true, true, "no Thread network: thread/list_datasets names none"
+		return r
+	}
+	net := list.Datasets[0]
+	for _, d := range list.Datasets {
+		if d.Preferred {
+			net = d
+		}
+	}
+	raw, err = c.Call(ctx, map[string]any{"type": "thread/get_dataset_tlv", "dataset_id": net.ID})
+	if err != nil {
+		r.detail = "thread/get_dataset_tlv of " + net.Name + ": " + err.Error()
+		return r
+	}
+	var tlv struct {
+		TLV string `json:"tlv"`
+	}
+	if json.Unmarshal(raw, &tlv) != nil || tlv.TLV == "" {
+		r.detail = fmt.Sprintf("thread/get_dataset_tlv of %s: an answer of %d bytes without credentials", net.Name, len(raw))
+		return r
+	}
+	if _, err := c.Call(ctx, map[string]any{"type": "matter/set_thread", "thread_operation_dataset": tlv.TLV}); err != nil {
+		r.detail = "matter/set_thread: " + err.Error()
+		return r
+	}
+	r.ok = true
+	r.detail = fmt.Sprintf("%d networks, %s given to the matter server", len(list.Datasets), net.Name)
+	return r
+}
+
+func cut(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // checkActions: HC-05. The actions Mira calls by name exist.

@@ -66,14 +66,20 @@ welches Netz; ruf es dann mit `network` auf.
 
 ## Matter-Gerät einbinden
 
+Ein Matter-Gerät spricht WLAN oder Thread; welches, steht nicht im Code, und du
+fragst den Nutzer nie danach. Mira gibt dem Gerät alle Netze, die sie hat; das
+Ergebnis von `matter_pairing_start` nennt sie. Fehlt eins (etwa „nur das WLAN“),
+erwähn das nur, wenn das Ergebnis es verlangt.
+
 1. **Code holen.** „Ich hab ein neues Matter-Gerät“: `matter_pairing_start`. Hat der
    Satellit eine Kamera, liest Mira den QR-Code selbst — sag vorher nur kurz, dass
    der Nutzer den Code (auf dem Gerät oder dem Aufkleber) vor die Kamera halten soll.
    Sonst sagt das Ergebnis, dass der Nutzer die elf Ziffern neben dem QR-Code
    vorlesen soll; gib sie dann mit `matter_code` weiter, immer als Ziffern
    („zwei drei vier“ → „234“), ohne Leerzeichen.
-2. **Einstecken.** Passt der Code, sag nur, was das Ergebnis sagt („Steck das Gerät
-   jetzt ein“), und frag nichts weiter. Die Runde endet; Mira sucht das Gerät drei
+2. **Pairing-Modus.** Passt der Code, sag nur, was das Ergebnis sagt („Bring das
+   Gerät jetzt in den Pairing-Modus, wie seine Anleitung sagt“), und frag nichts
+   weiter. Die Runde endet; Mira sucht das Gerät drei
    Minuten lang und zeigt das Warten am Satelliten.
 3. **Das Gerät ist da.** Mira meldet sich von selbst mit der Frage nach dem Raum.
    Findet sie nichts und fragt, ob sie es nochmal versuchen soll: beim Ja wieder

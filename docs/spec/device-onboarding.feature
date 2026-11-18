@@ -158,6 +158,7 @@ Feature: DV Adding a device by voice: Zigbee and Matter
     Given Home Assistant has no loaded Matter entry, or the skill has no Wi-Fi settings
     When the user starts adding a Matter device
     Then Mira says what is missing and starts no thread's commissioning
+    # Since step 8 (decision 24) the Wi-Fi half holds only without a Thread network: DV-30.
 
   @step7
   Scenario: DV-25 An attempt without a device is repeated while the window lasts
@@ -188,3 +189,51 @@ Feature: DV Adding a device by voice: Zigbee and Matter
     Given a commissioning is running
     When Home Assistant creates its device
     Then the noticing of found devices does not count it
+
+  @step8
+  Scenario: DV-30 Without the Wi-Fi settings and without a Thread network nothing starts
+    Given Home Assistant runs Matter
+    And the skill has no Wi-Fi settings and Home Assistant has no Thread network Mira can take
+    When the user starts adding a Matter device
+    Then Mira says she needs the home Wi-Fi or a Thread network and starts nothing
+
+  @step8
+  Scenario: DV-31 With a Thread network and without the Wi-Fi settings the dialog starts
+    Given Home Assistant has a preferred Thread network
+    And the skill has no Wi-Fi settings
+    When a code that checks out is given
+    Then Mira gives the Matter server the Thread network only and starts the commissioning
+
+  @step8
+  Scenario: DV-32 Mira gives the Matter server every network she has, once, before the first attempt
+    Given the skill has the Wi-Fi settings and Home Assistant a preferred Thread network
+    When a code that checks out is given and two attempts run
+    Then the Wi-Fi and the Thread network are set once each, before the first attempt
+    And nobody is asked which network the device speaks
+
+  @step8
+  Scenario: DV-33 The only Thread network is taken although it is not preferred
+    Given Home Assistant has exactly one Thread network and it is not preferred
+    When the user starts adding a Matter device
+    Then Mira takes that network
+
+  @step8
+  Scenario: DV-34 Several Thread networks and none preferred are said
+    Given Home Assistant has two Thread networks and neither is preferred
+    And the skill has the Wi-Fi settings
+    When the user starts adding a Matter device
+    Then Mira starts with the Wi-Fi only
+    And her sentence says that Thread devices need a preferred Thread network in Home Assistant
+
+  @step8
+  Scenario: DV-35 The Thread network's credentials go to the Matter server only
+    Given a commissioning with a Thread network
+    When it runs, succeeds or fails
+    Then the credentials appear in no log line, no tool's answer, no thread and no model context
+
+  @step8
+  Scenario: DV-36 A commissioning without one of the networks names it when it ends without a device
+    Given Mira gave the Matter server only the Wi-Fi
+    When the commissioning ends without a device, the window over or another error
+    Then her sentence says that a Thread network in Home Assistant is missing
+    And she tries no more than for any other end of the commissioning

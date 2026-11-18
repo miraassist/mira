@@ -71,6 +71,14 @@ is used in a spec; a term that is not here is not a term yet.
 
 | English | German | Meaning | Code / database | Not |
 |---|---|---|---|---|
+## Matter over Thread (new, [Adding a device by voice](spec/device-onboarding.md))
+
+| English | German | Meaning | Code / database | Not |
+|---|---|---|---|---|
+| Thread network | Thread-Netz | A mesh network of low-power radios that Matter devices may use instead of Wi-Fi; it reaches the home network through a border router | a dataset in HA's Thread integration (`thread/list_datasets`) | Thread (alone, where unclear) |
+| border router | Border Router | The device or service that joins a Thread network to the home network, such as an OpenThread Border Router with a radio stick | HA's integration `otbr` (or another vendor's) | gateway, bridge (that is Zigbee2MQTT's) |
+| preferred Thread network | bevorzugtes Thread-Netz | The Thread network Home Assistant puts new devices into; Mira gives its credentials to the Matter server | the dataset with `preferred: true`; its credentials from `thread/get_dataset_tlv` | default network |
+
 | skill | Skill | A folder with `SKILL.md`, from a skill folder or a skill source: instructions, settings, optionally a target, schedules, agents, an MCP server, skill files (skill blueprints, from which skill automations and skill scripts are made) | `internal/skills`, `skills/` | Fähigkeit (for one skill), plugin |
 | capabilities | Fähigkeiten | The tab of Mira's page with skills, rules, schedule and tools | `internal/ui` | — |
 | tool | Werkzeug | A function the model calls | `internal/tools`, MCP tools | action (for a tool), function |

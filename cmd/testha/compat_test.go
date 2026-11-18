@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -107,5 +109,64 @@ func TestHC04_AWarningOfTheIntegrationInTheLogFailsTheCheck(t *testing.T) {
 	// The Mira service being away for a while is no matter of compatibility.
 	if r := checkLog(unreachable); !r.ok {
 		t.Errorf("an unreachable service failed the check: %s", r)
+	}
+}
+
+// threadHA answers the Thread and Matter commands; refuse names the one that
+// fails. noThread is a Home Assistant without the thread integration,
+// noNetwork one that knows no Thread network.
+type threadHA struct {
+	refuse              string
+	noThread, noNetwork bool
+}
+
+func (f threadHA) Call(_ context.Context, cmd map[string]any) (json.RawMessage, error) {
+	kind := cmd["type"].(string)
+	if kind == f.refuse {
+		return nil, errors.New("Unknown command.")
+	}
+	switch kind {
+	case "get_config":
+		if f.noThread {
+			return json.RawMessage(`{"components":["matter","mcp_server"]}`), nil
+		}
+		return json.RawMessage(`{"components":["matter","mcp_server","thread"]}`), nil
+	case "thread/list_datasets":
+		if f.noNetwork {
+			return json.RawMessage(`{"datasets":[]}`), nil
+		}
+		return json.RawMessage(`{"datasets":[{"dataset_id":"A","network_name":"home-thread","preferred":true}]}`), nil
+	case "thread/get_dataset_tlv":
+		return json.RawMessage(`{"tlv":"0e08SECRETKEY"}`), nil
+	}
+	return json.RawMessage(`null`), nil
+}
+
+// HC-05 A missing command of Matter over Thread fails the check and names it
+func TestHC05_AMissingCommandOfMatterOverThreadFailsTheCheckAndNamesIt(t *testing.T) {
+	if r := checkThread(context.Background(), threadHA{}); !r.ok || !strings.Contains(r.detail, "home-thread") {
+		t.Fatalf("all there: %v", r)
+	}
+	for _, missing := range []string{"thread/list_datasets", "thread/get_dataset_tlv", "matter/set_thread"} {
+		r := checkThread(context.Background(), threadHA{refuse: missing})
+		if r.ok || !strings.Contains(r.detail, missing) || strings.Contains(r.String(), "SECRETKEY") {
+			t.Errorf("%s missing: %v", missing, r)
+		}
+	}
+}
+
+// HC-09 Without a Thread network the check of Matter over Thread is skipped
+func TestHC09_WithoutAThreadNetworkTheCheckOfMatterOverThreadIsSkipped(t *testing.T) {
+	for name, ha := range map[string]threadHA{
+		"thread not set up": {noThread: true, refuse: "thread/list_datasets"},
+		"no network":        {noNetwork: true},
+	} {
+		r := checkThread(context.Background(), ha)
+		if !r.ok || !r.skipped || !strings.HasPrefix(r.String(), "skip HC-08") || !strings.Contains(r.detail, "no Thread network") {
+			t.Errorf("%s: %v", name, r)
+		}
+	}
+	if r := checkThread(context.Background(), threadHA{}); r.skipped {
+		t.Errorf("skipped with a network: %v", r)
 	}
 }
