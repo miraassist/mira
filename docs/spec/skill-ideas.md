@@ -54,6 +54,14 @@ Open, built only if it bothers in daily use:
 Answer from the house knowledge in memory. Mira says honestly when something is not in there. Needs memory import
 (house knowledge as a file maintained by hand).
 
+### Wishes (2026-11-17)
+
+Noted by the maintainer, nothing checked or decided yet:
+
+- **Shopping with Picnic**: fill the basket by voice and order.
+- **Shopping and ordering with REWE**.
+- **Cooking with the Thermomix**.
+
 ### Smaller open points of built skills
 
 - **Learning a scene in the conversation** ("Lern die Szene Gute Nacht: …"): checked and created in Home Assistant
