@@ -13,7 +13,7 @@ is used in a spec; a term that is not here is not a term yet.
 | English | German | Meaning | Code / database | Not |
 |---|---|---|---|---|
 | Mira service | Mira-Service | The Go program: conversation, messages, threads, tasks, the page | `cmd/mira`, `internal/`. Kept where stored or part of an interface: the integration's config entry key `CONF_AGENT_TOKEN` and other stored names with "agent". In texts users see it is "Mira" | agent, Mira agent, the app (except for one of Mira's helpers: agent) |
-| HA app | HA-App | Home Assistant's app (add-on) that runs the Mira service | `app/` | the app (alone), add-on |
+| HA app | HA-App | Home Assistant's app (add-on) that runs the Mira service. In texts for users "Mira-App" / "Mira app", as Home Assistant lists it (the repair to update it, 2026-11-18) | `app/` | the app (alone), add-on |
 | integration | Integration | Mira's part inside Home Assistant: the conversation agent for Assist, the actions `mira.*`, the device "Mira" | `custom_components/mira` | component |
 | Mira's page | Miras Seite | Mira's web pages in Home Assistant's sidebar | `internal/ui`, `/v1/ui/*` | dashboard, UI |
 
