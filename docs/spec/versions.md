@@ -47,7 +47,12 @@ fine.
 - **Where the service's version comes from:** `/v1/status`, which the integration reads every minute, says it
   (`version`, new); an older service does not, then the version from `/v1/health` at setup applies.
 - **Apart:** a repair in Home Assistant (`version_mismatch`), in simple words, with the next step:
-  - the service older: "Update the Mira service to 0.9.0: for a container, set its image to 0.9.0 and start it again";
+  - the service older, on Home Assistant OS (the HA app): "Update the Mira app to 0.9.0 under Settings → Updates. If
+    the update is not offered yet, it appears within a few minutes" (the integration of a release is out minutes
+    before the app's image);
+  - the service older, elsewhere (a container of one's own): "Update the Mira service: set its container's image to
+    0.9.0 and start it again". Which of the two follows from whether the integration runs on Home Assistant OS
+    (decided 2026-11-18, VE-06);
   - the service newer: "Update the integration in HACS to 0.10.0 and restart Home Assistant".
 - **The same again** (after an update): the repair goes away by itself on the next poll.
 - No version at all (a service that does not say one): no repair.

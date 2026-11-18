@@ -470,7 +470,11 @@
     },
     "version_agent_older": {
       "title": "Update the Mira service",
-      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira service to {integration}: for the HA app, under Settings → Updates; for a container of your own, set its image to {integration} and start it again.\n\nThis message disappears once both have the same version."
+      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira service: set its container's image to {integration} and start it again.\n\nThis message disappears once both have the same version."
+    },
+    "version_agent_older_app": {
+      "title": "Update the Mira app",
+      "description": "The Mira integration is version {integration}, the Mira service only {agent}. Update the Mira app to {integration} under Settings → Updates. If the update is not offered yet, it appears within a few minutes.\n\nThis message disappears once both have the same version."
     },
     "version_agent_newer": {
       "title": "Update the Mira integration",

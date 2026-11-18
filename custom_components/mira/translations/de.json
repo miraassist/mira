@@ -470,7 +470,11 @@
     },
     "version_agent_older": {
       "title": "Mira-Service aktualisieren",
-      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere den Mira-Service auf {integration}: bei der HA-App unter Einstellungen → Updates; beim eigenen Container das Image auf {integration} stellen und neu starten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere den Mira-Service: Stell das Image seines Containers auf {integration} und starte ihn neu.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
+    },
+    "version_agent_older_app": {
+      "title": "Mira-App aktualisieren",
+      "description": "Die Mira-Integration hat die Version {integration}, der Mira-Service erst {agent}. Aktualisiere die Mira-App unter Einstellungen → Updates auf {integration}. Wird das Update noch nicht angeboten, erscheint es in wenigen Minuten.\n\nDie Meldung verschwindet, sobald beide dieselbe Version haben."
     },
     "version_agent_newer": {
       "title": "Mira-Integration aktualisieren",

@@ -42,6 +42,23 @@ async def test_older_agent_is_a_repair_until_updated(hass, aioclient_mock, entry
     assert registry.async_get_issue(DOMAIN, "version_mismatch") is None
 
 
+async def test_older_agent_on_ha_os_asks_to_update_the_app(hass, aioclient_mock, entry):
+    """VE-06: on Home Assistant OS the repair for an older service names only the
+    HA app's update; elsewhere only the container's image (VE-02)."""
+    aioclient_mock.get(f"{AGENT_URL}/v1/status", json={**STATUS, "version": _minor_apart(-2)})
+    client = MagicMock()
+    client.store.reload = AsyncMock()
+    with (
+        patch("custom_components.mira.coordinator.is_hassio", return_value=True),
+        patch("homeassistant.components.hassio.get_supervisor_client", return_value=client),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, "version_mismatch")
+    assert issue is not None and issue.translation_key == "version_agent_older_app"
+    assert issue.translation_placeholders == {"integration": VERSION, "agent": _minor_apart(-2)}
+
+
 async def test_newer_agent_asks_to_update_the_integration(hass, aioclient_mock, entry):
     aioclient_mock.get(f"{AGENT_URL}/v1/status", json={**STATUS, "version": _minor_apart(1)})
     assert await hass.config_entries.async_setup(entry.entry_id)

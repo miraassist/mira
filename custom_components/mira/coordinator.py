@@ -129,7 +129,9 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """A repair while the service and this integration are not the same
         version, saying which of the two to update; gone once they match. The
         app's update is asked for a patch apart too: the repair leaves that
-        alone, the Supervisor offers it all the same (docs/spec/versions.md)."""
+        alone, the Supervisor offers it all the same (docs/spec/versions.md).
+        An older service is updated as the HA app on Home Assistant OS, else
+        as a container of one's own: the repair names only that way."""
         full_ours, full_theirs = _full(VERSION), _full(agent)
         if full_ours is not None and full_theirs is not None and full_theirs < full_ours:
             self._ask_for_the_app_update()
@@ -143,9 +145,14 @@ class MiraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ISSUE_VERSION,
             is_fixable=False,
             severity=ir.IssueSeverity.WARNING,
-            translation_key="version_agent_older" if theirs < ours else "version_agent_newer",
+            translation_key=self._older_key() if theirs < ours else "version_agent_newer",
             translation_placeholders={"integration": VERSION, "agent": str(agent).lstrip("v")},
         )
+
+    def _older_key(self) -> str:
+        """The repair's text for an older service: the HA app on Home
+        Assistant OS, a container of one's own elsewhere."""
+        return "version_agent_older_app" if is_hassio(self.hass) else "version_agent_older"
 
     def _ask_for_the_app_update(self) -> None:
         """On Home Assistant OS, the Supervisor reloads its app store once, so
