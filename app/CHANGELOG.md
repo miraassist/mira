@@ -3,6 +3,21 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.27.0
+
+- **Mira notices when you cut her off.** Interrupt a long answer with the wake word, and "Wie ging es weiter?" goes on
+  from the last sentence you heard. "Stopp" after an interruption, or "Sei still": Mira says nothing at all.
+- **Calendar conflicts.** If the calendar already has something at that time, Mira says so before entering and asks.
+- **Skills `flug` and `strava`.** Follow a flight (Flightradar24 from HACS) with a message when it has landed; read
+  your Strava activities through a Strava app of your own.
+- **Matter over Thread.** Adding a Matter device by voice also works for Thread devices.
+- **Access for a partner**, with its own named token and a list of what it did; Home Assistant through Mira's
+  interface (`/v1/ha/…`) and the interface's description at `/v1/openapi.yaml`.
+- **Skills bring Home Assistant parts**: blueprints, automations and scripts; a skill's script is a tool of that skill
+  only. Skills can also come from a skill source.
+- The screen hint goes once everything is heard; one history per dialog, whoever speaks; the repair to update the
+  service names the Mira app on Home Assistant OS.
+
 ## 0.26.0
 
 - **To-dos with a due date.** "Setz die Steuererklärung auf meine Liste, bis Montag": Mira puts it on your own to-do
