@@ -60,10 +60,11 @@ var builtSteps = map[string][]int{
 	"TD": {2, 4},                       // docs/spec/todo-due.md, Steps; step 1 dropped, step 3 is built with the inbox's step 10
 	"RM": {1, 2, 3, 4, 8, 9},           // docs/spec/remote-agents.md, Steps; step 0 (the fake A2A agent) has no scenarios; step 5 in Go (RM-15, RM-16) and pytest (RM-15 to RM-17)
 	"SQ": {1},                          // docs/spec/skill-source.md, Steps
-	"SB": {1, 2, 3},                    // docs/spec/skill-files.md, Steps; step 4 is the guide
+	"SB": {1, 2, 3, 5},                 // docs/spec/skill-files.md, Steps; step 4 is the guide
 	"HE": {1, 2},                       // docs/spec/ha-api.md, Steps
 	"OA": {1, 2},                       // docs/spec/openapi.md, Steps
 	"SV": {1},                          // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
+	"FS": {1, 3},                       // docs/spec/flight-status.md, Steps; step 2 is the run on the test HA
 }
 
 var (

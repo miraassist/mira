@@ -57,7 +57,7 @@ Feature: Skill files (docs/spec/skill-files.md)
 
   @step2
   Scenario: SB-09 A blueprint that cannot be used
-    Given a skill blueprint without mira-version, or not an automation blueprint, or not YAML
+    Given a skill blueprint without mira-version, or neither an automation nor a script blueprint (since 2026-11-18), or not YAML
     When Mira starts
     Then it is not saved
     And a problem of the skill names the file and the reason
@@ -147,3 +147,81 @@ Feature: Skill files (docs/spec/skill-files.md)
     When Mira starts
     Then a problem of the skill names the automation and Home Assistant's answer
     And at the next start she tries again
+
+  @step5
+  Scenario: SB-22 A script blueprint is saved among the script blueprints
+    Given the skill "flug" has blueprints/flug.yaml with domain script and mira-version 1
+    And Home Assistant lists no such script blueprint
+    When Mira starts
+    Then she saves it with blueprint/save, domain script, path mira_skills/flug/flug
+
+  @step5
+  Scenario: SB-23 A declared script is made and loaded, not exposed
+    Given the skill declares the script "abfrage" from flug.yaml
+    And Home Assistant has no script mira_skill_flug_abfrage
+    When Mira starts
+    Then she posts its config with use_blueprint and the declaration's description, and reloads the scripts
+    And she does not expose it to Assist
+
+  @step5
+  Scenario: SB-24 A script as the skill wants it is left alone
+    Given Home Assistant has the script with the same use_blueprint
+    When Mira starts
+    Then she does not save it
+
+  @step5
+  Scenario: SB-25 A script with other inputs is made anew
+    Given Home Assistant has the script with another input and a renamed alias
+    When Mira starts
+    Then she saves it with the skill's use_blueprint and the user's alias
+
+  @step5
+  Scenario: SB-27 A declaration of the other kind
+    Given the skill declares an automation from a script blueprint, or a script from an automation blueprint
+    When Mira starts
+    Then it is not made
+    And a problem of the skill names it and the blueprint
+
+  @step5
+  Scenario: SB-29 A script declaration that cannot be right
+    Given the declaration under scripts names a blueprint file the skill does not have, or an id twice
+    When Mira loads the skill
+    Then the skill does not load
+    And its problem names the script
+
+  # SB-26 and SB-28 (exposing the script) were dropped 2026-11-18 with decision 19; their ids are not reused.
+
+  @step5
+  Scenario: SB-30 A script is a tool of its skill
+    Given the skill "flug" declares the script "abfrage" with a description
+    And Home Assistant's actions have script.mira_skill_flug_abfrage with the fields aktion (required, a select of verfolgen, stand, vergessen) and flugnummer (text)
+    When Mira starts
+    Then she has the tool flug__abfrage of the skill flug with the declaration's description
+    And its parameters are aktion (required, one of the three) and flugnummer
+
+  @step5
+  Scenario: SB-31 The script's tool comes with the skill
+    Given the tool flug__abfrage
+    Then a turn without the skill opened is not offered it
+    And a turn that opened flug is, and the skill's schedules and agents are
+
+  @step5
+  Scenario: SB-32 Calling the tool runs the script
+    When the model calls flug__abfrage with aktion stand
+    Then Mira calls script.mira_skill_flug_abfrage with return_response and these fields
+    And the tool's result is the script's response
+    And a refusal of Home Assistant comes back naming the action and the answer
+
+  @step5
+  Scenario: SB-33 A declared script Home Assistant does not offer has no tool
+    Given Home Assistant's actions have no script.mira_skill_flug_abfrage
+    When Mira starts
+    Then there is no tool flug__abfrage
+    And a problem of the skill names the script and the action
+
+  @step5
+  Scenario: SB-34 A script declaration needs a description
+    Given the declaration under scripts has no description
+    When Mira loads the skill
+    Then the skill does not load
+    And its problem names the script

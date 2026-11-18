@@ -991,6 +991,16 @@ Mira liest dir deine Aktivitäten aus Strava vor: „Wie war meine letzte Tour?�
 
 Eine neue Strava-App kann nur dein eigenes Konto lesen. Die Kilometer pro Rad zählen nur Aktivitäten, bei denen in Strava das Rad als Ausrüstung eingetragen ist.
 
+## Flüge im Auge behalten
+
+„Wann landet LH 123?“ – „Behalt Omas Flug LH 123 im Auge.“ – „Hat der Flug Verspätung?“ Mira verfolgt einen Flug, sagt dir die erwartete Ankunft und eine Verspätung, und wenn er gelandet ist, bekommt das Haus von selbst eine Nachricht („Der Flug LH 123 aus Rom ist gelandet in München.“). Danach verfolgt sie ihn nicht mehr. Eine Flugnummer hat dabei kein Datum: Gemeint ist der Flug, der gerade fliegt, oder der nächste nach Plan. Ein Gate kennt Mira nicht, nur das Terminal.
+
+Die Daten kommen von Flightradar24 über eine Integration aus HACS. Sie braucht kein Konto, nutzt aber keinen offiziellen Zugang: Flightradar24 kann sie bremsen oder ändern.
+
+**Einrichten:**
+1. In HACS die Integration **Flightradar24** installieren, Home Assistant neu starten und sie unter Einstellungen → Geräte & Dienste → Integration hinzufügen einrichten (Ort und Umkreis sind für Mira egal).
+2. Den Skill `flug` einschalten: Mira → Fähigkeiten → Skills → flug → **Einschalten**. Beim nächsten Start legt Mira das Skript „Mira Flug“ an und legt die Automation „Mira: verfolgter Flug gelandet“ an. Klappt etwas davon nicht, steht unter Einstellungen → Reparaturen, was fehlt. Das Skript ist nur für Mira gedacht: Sie nutzt es, sobald es um einen Flug geht. Gibst du es selbst für Assist frei, steht es Mira und Assist bei jeder Frage zur Verfügung, auch ohne den Skill und seine Anleitung.
+
 ## Neue Geräte einbinden
 
 ▶ [Erklärvideo: Neue Geräte einbinden (0:42)](https://mira-assist.com/videos/erklaer/geraete-einbinden.mp4)

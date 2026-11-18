@@ -594,6 +594,43 @@ func (c *Client) Services(ctx context.Context) (map[string]map[string][]string, 
 	return out, nil
 }
 
+// Service is one action as get_services describes it: its name, its
+// description and its fields.
+type Service struct {
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Fields      map[string]ServiceField `json:"fields"`
+}
+
+// ServiceField is one field of an action: what it is, whether it must be
+// given, and its selector (one key, the selector's type).
+type ServiceField struct {
+	Description string         `json:"description"`
+	Required    bool           `json:"required"`
+	Selector    map[string]any `json:"selector"`
+}
+
+// ServicesOf describes the actions of one domain. Home Assistant has no
+// command for one domain: it answers get_services with all of them
+// (docs/spec/skill-files.md, row 12), of which this keeps the domain's.
+func (c *Client) ServicesOf(ctx context.Context, domain string) (map[string]Service, error) {
+	raw, err := c.Call(ctx, map[string]any{"type": "get_services"})
+	if err != nil {
+		return nil, err
+	}
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &all); err != nil {
+		return nil, fmt.Errorf("decode get_services %q: %w", excerpt.Bytes(raw), err)
+	}
+	out := map[string]Service{}
+	if one, ok := all[domain]; ok {
+		if err := json.Unmarshal(one, &out); err != nil {
+			return nil, fmt.Errorf("decode get_services of %s %q: %w", domain, excerpt.Bytes(one), err)
+		}
+	}
+	return out, nil
+}
+
 func callList[T any](ctx context.Context, c *Client, cmdType string) ([]T, error) {
 	raw, err := c.Call(ctx, map[string]any{"type": cmdType})
 	if err != nil {

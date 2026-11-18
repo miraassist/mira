@@ -149,11 +149,54 @@ func TestSB18_ADeclarationThatCannotBeRight(t *testing.T) {
 	}
 }
 
+func TestSB29_AScriptDeclarationThatCannotBeRight(t *testing.T) {
+	for _, c := range []struct {
+		name, scripts, want string
+	}{
+		{"no such blueprint", "      - { id: abfrage, blueprint: fehlt.yaml, description: D }\n", "fehlt.yaml"},
+		{"an id twice", "      - { id: abfrage, blueprint: zu_ruhig.yaml, description: D }\n      - { id: abfrage, blueprint: zu_ruhig.yaml, description: D }\n", "Two scripts"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			files := maps.Clone(zuRuhigFiles)
+			files["SKILL.md"] = "---\nname: zu-ruhig\ndescription: Zu ruhig.\nmetadata:\n  mira:\n    scripts:\n" + c.scripts + "---\nText.\n"
+			writeFiles(t, filepath.Join(dir, "zu-ruhig"), files)
+			got, problems := Load([]string{dir}, map[string]map[string]any{"zu-ruhig": nil})
+			if len(got) != 0 || len(problems) != 1 {
+				t.Fatalf("loaded %d, problems %v", len(got), problems)
+			}
+			if text := problems[0].Error(); !strings.Contains(text, c.want) || !strings.Contains(text, "script") {
+				t.Errorf("problem %q does not name %s", text, c.want)
+			}
+		})
+	}
+	// A right one loads, with its description.
+	dir := t.TempDir()
+	files := maps.Clone(zuRuhigFiles)
+	files["SKILL.md"] = "---\nname: zu-ruhig\ndescription: Zu ruhig.\nmetadata:\n  mira:\n    scripts:\n      - { id: abfrage, blueprint: zu_ruhig.yaml, description: Für das Modell }\n---\nText.\n"
+	writeFiles(t, filepath.Join(dir, "zu-ruhig"), files)
+	got, problems := Load([]string{dir}, map[string]map[string]any{"zu-ruhig": nil})
+	if len(got) != 1 || len(problems) != 0 || len(got[0].Scripts) != 1 || got[0].Scripts[0].Description != "Für das Modell" {
+		t.Errorf("loaded %v, problems %v", got, problems)
+	}
+}
+
+func TestSB34_AScriptDeclarationNeedsADescription(t *testing.T) {
+	dir := t.TempDir()
+	files := maps.Clone(zuRuhigFiles)
+	files["SKILL.md"] = "---\nname: zu-ruhig\ndescription: Zu ruhig.\nmetadata:\n  mira:\n    scripts:\n      - { id: abfrage, blueprint: zu_ruhig.yaml }\n---\nText.\n"
+	writeFiles(t, filepath.Join(dir, "zu-ruhig"), files)
+	got, problems := Load([]string{dir}, map[string]map[string]any{"zu-ruhig": nil})
+	if len(got) != 0 || len(problems) != 1 || !strings.Contains(problems[0].Error(), "abfrage") || !strings.Contains(problems[0].Error(), "description") {
+		t.Errorf("loaded %d, problems %v", len(got), problems)
+	}
+}
+
 // A setting left empty leaves its input out (SB-15's skill side); a secret
 // setting is filled, it goes to Home Assistant and never to a prompt.
 func TestAutomationInputsFromSettings(t *testing.T) {
 	decl := map[string]Setting{"window_end": {}, "token": {Secret: true}}
-	got, p := automations(fstest.MapFS{"blueprints/b.yaml": {}}, []automationDecl{{ID: "a", Blueprint: "b.yaml",
+	got, p := automations("automation", fstest.MapFS{"blueprints/b.yaml": {}}, []automationDecl{{ID: "a", Blueprint: "b.yaml",
 		Inputs: map[string]any{"window_end": "{{ window_end }}", "token": "Bearer {{token}}", "tpl": "{{ states('x') }}", "other": "{{ unknown }}"}}},
 		map[string]any{"window_end": "", "token": "geheim"}, map[string]string{"window_end": "", "token": "geheim"}, decl)
 	if p != nil {

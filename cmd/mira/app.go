@@ -154,6 +154,10 @@ type app struct {
 	// skills it does it for, the switched-on ones that loaded.
 	skillHA  *skillha.Sync
 	skillsOn []skills.Skill
+	// tools is the registry of the conversation's tools; the skills'
+	// script tools join it once Home Assistant is connected
+	// (docs/spec/skill-files.md, decision 27).
+	tools *tools.Registry
 	// skillRoots are where skills are found: the skill directories, then
 	// a skill source's skills in memory (docs/spec/skill-source.md).
 	skillRoots []skills.Root
@@ -732,6 +736,7 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 	}
 	internal = append(internal, a.threads.Tools()...)
 	registry := tools.NewRegistry(a.mcp, internal...)
+	a.tools = registry
 	models := map[string]conversation.Chatter{}
 	for name, c := range a.models {
 		models[name] = c
@@ -918,6 +923,17 @@ func runAgent(parent context.Context, cfg config.Config, p prepared) error {
 			return nil
 		}
 		a.skillHA.Run(ctx, a.skillsOn)
+		// Each script a skill declares is a tool of that skill, made once
+		// Home Assistant has the script (docs/spec/skill-files.md,
+		// decision 27).
+		if scripts := a.skillHA.Tools(ctx, a.skillsOn); len(scripts) > 0 {
+			a.tools.Add(scripts...)
+			names := make([]string, len(scripts))
+			for i, t := range scripts {
+				names[i] = t.Name
+			}
+			a.log.Info("skill scripts are tools of their skills", "tools", names)
+		}
 		return nil
 	})
 	// The watch offers that wait for a device's next run are followed again

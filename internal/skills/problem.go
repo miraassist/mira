@@ -66,6 +66,14 @@ const (
 	KindAutomationNeeds   = "automationneeds"
 	KindAutomationRead    = "automationread"
 	KindAutomationSave    = "automationsave"
+	// Skill scripts (docs/spec/skill-files.md, step 5).
+	KindBlueprintKind = "blueprintkind"
+	KindScriptInput   = "scriptinput"
+	KindScriptNeeds   = "scriptneeds"
+	KindScriptRead    = "scriptread"
+	KindScriptSave    = "scriptsave"
+	KindScriptTool    = "scripttool"
+	KindScriptTools   = "scripttools"
 )
 
 // Text is the problem in a language, without the skill's name.
@@ -166,6 +174,17 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"automationneeds":     "Die Automation „%s“ braucht die Eingabe „%s“ des Blueprints %s, hat aber keinen Wert dafür; trag die Einstellung des Skills ein. Bis dahin wird sie nicht angelegt.",
 		"automationread":      "Die Automation „%s“ ließ sich in Home Assistant nicht lesen (%s); Mira versucht es beim nächsten Start wieder.",
 		"automationsave":      "Die Automation „%s“ konnte nicht in Home Assistant gespeichert werden (%s); Mira versucht es beim nächsten Start wieder.",
+		"scriptid":            "Skript %d unter scripts braucht eine id aus kleinen Wörtern mit - oder _; da steht „%s“.",
+		"scripttwice":         "Zwei Skripte unter scripts heißen „%s“; jedes braucht eine eigene id.",
+		"scriptblueprint":     "Das Skript „%s“ nennt den Blueprint „%s“, den der Skill nicht hat; er gehört als Datei mit der Endung .yaml in den Ordner %s des Skills.",
+		"blueprintkind":       "„%s“ unter %s nennt den Blueprint %s, der für %s ist. Eine Automation braucht einen Automations-Blueprint, ein Skript einen Skript-Blueprint. Es wird nicht angelegt.",
+		"scriptinput":         "Das Skript „%s“ füllt die Eingabe „%s“, die der Blueprint %s nicht hat. Es wird nicht angelegt.",
+		"scriptneeds":         "Das Skript „%s“ braucht die Eingabe „%s“ des Blueprints %s, hat aber keinen Wert dafür; trag die Einstellung des Skills ein. Bis dahin wird es nicht angelegt.",
+		"scriptread":          "Das Skript „%s“ ließ sich in Home Assistant nicht lesen (%s); Mira versucht es beim nächsten Start wieder.",
+		"scriptsave":          "Das Skript „%s“ konnte nicht in Home Assistant gespeichert oder geladen werden (%s); Mira versucht es beim nächsten Start wieder.",
+		"scriptdesc":          "Das Skript „%s“ unter scripts braucht eine description: ein, zwei Sätze, was es tut und welche Felder es hat. Sie ist die Beschreibung seines Werkzeugs.",
+		"scripttool":          "Das Skript „%s“ ist in Home Assistant nicht als Aktion %s da (nicht angelegt, umbenannt oder nicht geladen); der Skill hat dieses Werkzeug deshalb nicht.",
+		"scripttools":         "Home Assistant konnte nicht nach seinen Aktionen gefragt werden (%s); die Skripte des Skills sind bis zum nächsten Start keine Werkzeuge.",
 	},
 	i18n.EN: {
 		"nofolder":            "There is no folder \"%[1]s\" with a SKILL.md file in %[2]s. Create it there, or take \"%[1]s\" out from under skills in mira.yaml (or write enabled: false there).",
@@ -249,5 +268,16 @@ var problemTexts = map[i18n.Lang]problemTable{
 		"automationneeds":     "The automation \"%s\" needs the input \"%s\" of the blueprint %s but has no value for it; enter the skill's setting. Until then it is not made.",
 		"automationread":      "The automation \"%s\" could not be read in Home Assistant (%s); Mira tries again at the next start.",
 		"automationsave":      "The automation \"%s\" could not be saved in Home Assistant (%s); Mira tries again at the next start.",
+		"scriptid":            "Script %d under scripts needs an id of small words with - or _; it says \"%s\".",
+		"scripttwice":         "Two scripts under scripts are called \"%s\"; each needs an id of its own.",
+		"scriptblueprint":     "The script \"%s\" names the blueprint \"%s\", which the skill does not have; it belongs as a file ending in .yaml in the skill's folder %s.",
+		"blueprintkind":       "\"%s\" under %s names the blueprint %s, which is for %s. An automation needs an automation blueprint, a script a script blueprint. It is not made.",
+		"scriptinput":         "The script \"%s\" fills the input \"%s\", which the blueprint %s does not have. It is not made.",
+		"scriptneeds":         "The script \"%s\" needs the input \"%s\" of the blueprint %s but has no value for it; enter the skill's setting. Until then it is not made.",
+		"scriptread":          "The script \"%s\" could not be read in Home Assistant (%s); Mira tries again at the next start.",
+		"scriptsave":          "The script \"%s\" could not be saved or loaded in Home Assistant (%s); Mira tries again at the next start.",
+		"scriptdesc":          "The script \"%s\" under scripts needs a description: a sentence or two on what it does and its fields. It is its tool's description.",
+		"scripttool":          "The script \"%s\" is not in Home Assistant as the action %s (not made, renamed or not loaded); so the skill does not have this tool.",
+		"scripttools":         "Home Assistant could not be asked for its actions (%s); the skill's scripts are no tools until the next start.",
 	},
 }

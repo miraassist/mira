@@ -62,8 +62,12 @@ type Skill struct {
 	// (metadata.mira.automations), their inputs filled from the settings
 	// (docs/spec/skill-files.md, decision 12).
 	Automations []Automation
-	Settings    map[string]Setting
-	Schedules   []Schedule
+	// Scripts are the skill scripts it declares (metadata.mira.scripts),
+	// made from its script blueprints (docs/spec/skill-files.md, decision
+	// 18).
+	Scripts   []Automation
+	Settings  map[string]Setting
+	Schedules []Schedule
 	// Target, when set, makes the skill a goal a thread ("Vorgang") works
 	// towards: fields to fill, how they are checked, how it ends.
 	Target *Target
@@ -360,6 +364,7 @@ type frontmatter struct {
 			// Automations are kept as written: their inputs are filled
 			// with the settings' values as mira.yaml has them.
 			Automations []automationDecl `yaml:"automations"`
+			Scripts     []automationDecl `yaml:"scripts"`
 		} `yaml:"mira"`
 	} `yaml:"metadata"`
 }
@@ -674,7 +679,10 @@ func load(root Root, name string, values map[string]any) (Skill, *Problem) {
 		}
 		s.MCP = &srv
 	}
-	if s.Automations, p = automations(files, m.Automations, values, vals, m.Settings); p != nil {
+	if s.Automations, p = automations("automation", files, m.Automations, values, vals, m.Settings); p != nil {
+		return Skill{}, p
+	}
+	if s.Scripts, p = automations("script", files, m.Scripts, values, vals, m.Settings); p != nil {
 		return Skill{}, p
 	}
 	s.Body = fill(strings.TrimSpace(string(body)), vals, m.Settings)

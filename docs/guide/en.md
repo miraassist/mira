@@ -979,6 +979,16 @@ Mira reads your activities from Strava: "How was my last ride?", "How far did I 
 
 A new Strava app can read only your own account. The kilometres per bike count only activities that have the bike set as gear in Strava.
 
+## Keeping an eye on a flight
+
+"When does LH 123 land?" – "Keep an eye on Grandma's flight LH 123." – "Is the flight delayed?" Mira tracks a flight, tells you the expected arrival and a delay, and once it has landed the house gets a message by itself ("Der Flug LH 123 aus Rom ist gelandet in München."). After that she no longer tracks it. A flight number has no date: it means the flight in the air now, or the next one by plan. Mira knows no gate, only the terminal. The skill speaks German.
+
+The data comes from Flightradar24 through an integration from HACS. It needs no account, but it uses no official access: Flightradar24 may slow it down or change it.
+
+**Setting it up:**
+1. In HACS install the integration **Flightradar24**, restart Home Assistant and add it under Settings → Devices & services → Add integration (place and radius do not matter for Mira).
+2. Switch on the skill `flug`: Mira → Capabilities → Skills → flug → **Switch on**. At her next start Mira creates the script "Mira Flug" and creates the automation "Mira: verfolgter Flug gelandet". If any of it fails, Settings → Repairs says what is missing. The script is meant for Mira only: she uses it when a question is about a flight. If you expose it to Assist yourself, Mira and Assist have it at every question, also without the skill and its instructions.
+
 ## Adding new devices
 
 ▶ [Explainer video: Adding new devices (0:41)](https://mira-assist.com/videos/erklaer/geraete-einbinden-en.mp4)

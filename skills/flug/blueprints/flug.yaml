@@ -1,0 +1,79 @@
+blueprint:
+  name: Mira Flug
+  description: >-
+    Verfolgt einen Flug mit der Integration Flightradar24 (HACS), hört damit auf
+    oder sagt den Stand; Mira legt das Skript für den Skill flug an.
+    mira-version: 4
+  domain: script
+  source_url: https://github.com/miraassist/mira/blob/main/skills/flug/blueprints/flug.yaml
+
+mode: queued
+fields:
+  aktion:
+    description: "verfolgen, stand oder vergessen"
+    required: true
+    selector:
+      select:
+        options: [verfolgen, stand, vergessen]
+  flugnummer:
+    description: "Die Flugnummer ohne Leerzeichen, z. B. LH123; bei stand leer für alle"
+    selector:
+      text: {}
+sequence:
+  - variables:
+      nummer: "{{ (flugnummer | default('') | string | upper | replace(' ', '')) }}"
+  - if: "{{ aktion == 'verfolgen' and nummer != '' }}"
+    then:
+      - action: text.set_value
+        target: { entity_id: text.flightradar24_add_to_track }
+        data: { value: "{{ nummer }}" }
+  - if: "{{ aktion == 'vergessen' and nummer != '' }}"
+    then:
+      - action: text.set_value
+        target: { entity_id: text.flightradar24_remove_from_track }
+        data: { value: "{{ nummer }}" }
+  - variables:
+      info: >-
+        {%- macro t(ts) -%}
+        {%- if ts -%}{%- set d = ts | as_datetime | as_local -%}
+        {%- if d.date() == now().date() -%}heute {{ d.strftime('%H:%M') }}
+        {%- else -%}{{ ['Mo','Di','Mi','Do','Fr','Sa','So'][d.weekday()] }} {{ d.strftime('%d.%m. %H:%M') }}{%- endif -%}
+        {%- endif -%}
+        {%- endmacro -%}
+        {%- set ns = namespace(fluege=[], verfolgt=false) -%}
+        {%- for f in state_attr('sensor.flightradar24_additional_tracked', 'flights') or [] -%}
+        {%- set ids = [f.get('flight_number') or '', f.get('callsign') or ''] -%}
+        {%- if nummer in ids -%}{%- set ns.verfolgt = true -%}{%- endif -%}
+        {%- if nummer == '' or nummer in ids -%}
+        {%- set geplant = f.get('time_scheduled_arrival') -%}
+        {%- set erwartet = f.get('time_estimated_arrival') -%}
+        {%- set ist = f.get('time_real_arrival') or erwartet -%}
+        {%- set ns.fluege = ns.fluege + [{
+          'flugnummer': f.get('flight_number') or f.get('callsign'),
+          'von': f.get('airport_origin_city') or f.get('airport_origin_code_iata') or '',
+          'nach': f.get('airport_destination_city') or f.get('airport_destination_code_iata') or '',
+          'stand': 'gelandet' if f.get('time_real_arrival') or f.get('has_landed') else ('in der Luft' if f.get('time_real_departure') else ('noch keine Daten' if not f.get('time_scheduled_departure') else 'noch nicht gestartet')),
+          'abflug_geplant': t(f.get('time_scheduled_departure')), 'abflug': t(f.get('time_real_departure')),
+          'ankunft_geplant': t(geplant), 'ankunft_erwartet': t(erwartet),
+          'verspaetung_minuten': (((ist - geplant) / 60) | round(0) | int) if geplant and ist else '',
+          'ankunft': t(f.get('time_real_arrival')), 'terminal': f.get('airport_destination_terminal') or ''}] -%}
+        {%- endif -%}
+        {%- endfor -%}
+        {{ {'flugnummer': nummer, 'verfolgt': ns.verfolgt, 'fluege': ns.fluege} }}
+  # A flight that has landed already is not tracked: no landing event would
+  # end its tracking (docs/spec/flight-status.md, decision 7).
+  - variables:
+      schon_gelandet: >-
+        {{ aktion == 'verfolgen' and nummer != ''
+           and (info.fluege | selectattr('flugnummer', 'eq', nummer) | selectattr('stand', 'eq', 'gelandet') | list | count) > 0 }}
+  - if: "{{ schon_gelandet }}"
+    then:
+      - action: text.set_value
+        target: { entity_id: text.flightradar24_remove_from_track }
+        data: { value: "{{ nummer }}" }
+  - variables:
+      antwort: >-
+        {{ {'flugnummer': info.flugnummer, 'verfolgt': info.verfolgt and not schon_gelandet,
+            'schon_gelandet': schon_gelandet, 'fluege': info.fluege} }}
+  - stop: fertig
+    response_variable: antwort

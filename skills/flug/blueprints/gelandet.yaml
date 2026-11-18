@@ -1,0 +1,30 @@
+blueprint:
+  name: "Mira: verfolgter Flug gelandet"
+  description: >-
+    Sagt Mira Bescheid, wenn ein Flug gelandet ist, den Flightradar24 verfolgt
+    (Skill flug), und hört dann auf, ihn zu verfolgen. mira-version: 2
+  domain: automation
+  input: {}
+mode: queued
+max_exceeded: silent
+triggers:
+  - trigger: event
+    event_type: flightradar24_tracked_landed
+actions:
+  - variables:
+      nummer: "{{ trigger.event.data.flight_number or trigger.event.data.callsign or '' }}"
+      von: "{{ trigger.event.data.airport_origin_city or trigger.event.data.airport_origin_code_iata or '' }}"
+      nach: "{{ trigger.event.data.airport_destination_city or trigger.event.data.airport_destination_code_iata or '' }}"
+  - action: mira.send_message
+    data:
+      text: >-
+        Der Flug {{ nummer }}{{ ' aus ' ~ von if von else '' }} ist gelandet{{ ' in ' ~ nach if nach else '' }}.
+      importance: 2
+      dedupe_key: "flug:{{ trigger.event.data.id }}:gelandet"
+      expires_in: "6h"
+  # Done: tracked by its number, it would land again tomorrow.
+  - action: text.set_value
+    target:
+      entity_id: text.flightradar24_remove_from_track
+    data:
+      value: "{{ nummer }}"

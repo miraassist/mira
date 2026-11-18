@@ -51,6 +51,11 @@ skills:
   conversation**, until the session expires. Another conversation does not get them.
   The same holds for the tools Mira brings herself for a skill without a server (`anrufbeantworter`, `regel`); until
   2026-10-29 only a skill with a server was noted as opened, so those tools never reached the conversation (SM-14).
+- **A skill's scripts** (since 2026-11-18, by the maintainer; [Skill files](skill-files.md), decision 27): each script a
+  skill declares is a tool `<skill>__<id>` of Mira's, offered as above: not in the shared prefix, with `skill_open` for
+  the rest of the conversation, to the skill's schedules and agents. The script is not exposed to Assist, so Home
+  Assistant's MCP server does not list it; exposed, it would be in every turn and the model would call it without
+  the skill's prose.
 - **The skill's schedules** (`skill.task` running for that skill) get its tools.
 - **The skill's agents** (`metadata.mira.agents`) get the tools their `tools` list names, whether the conversation,
   a thread or Home Assistant calls them (agents.md, Factory). Such an agent with `conversation: true` is a tool of

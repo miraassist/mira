@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,8 +16,10 @@ import (
 
 	haws "github.com/miraassist/mira/internal/ha/ws"
 	"github.com/miraassist/mira/internal/i18n"
+	"github.com/miraassist/mira/internal/prompt"
 	"github.com/miraassist/mira/internal/retry"
 	"github.com/miraassist/mira/internal/skills"
+	"github.com/miraassist/mira/internal/tools"
 )
 
 // fakeHA is Home Assistant as the sync sees it: its blueprints by path with
@@ -33,10 +36,20 @@ type fakeHA struct {
 	configRefused bool
 	reloads       []string
 	labels        []string
+	// Scripts (step 5): by id; the actions get_services lists for them
+	// (nil: every saved script's, with the fields of the flug blueprint);
+	// servicesFail makes get_services fail; called the script calls.
+	scripts      map[string]map[string]any
+	actions      map[string]haws.Service
+	servicesFail error
+	callFails    error
+	scriptReload error
+	called       []map[string]any
 }
 
 func newFakeHA() *fakeHA {
-	return &fakeHA{blueprints: map[string]string{}, automations: map[string]map[string]any{}, saveRefused: map[string]bool{}}
+	return &fakeHA{blueprints: map[string]string{}, automations: map[string]map[string]any{}, saveRefused: map[string]bool{},
+		scripts: map[string]map[string]any{}}
 }
 
 func (h *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage, error) {
@@ -56,6 +69,10 @@ func (h *fakeHA) Call(ctx context.Context, cmd map[string]any) (json.RawMessage,
 			}
 			if err := yaml.Unmarshal([]byte(y), &doc); err != nil {
 				out[p] = map[string]any{"error": err.Error()}
+				continue
+			}
+			// Home Assistant lists the blueprints of one domain.
+			if d, _ := doc.Blueprint["domain"].(string); d != cmd["domain"] {
 				continue
 			}
 			out[p] = map[string]any{"metadata": doc.Blueprint}
@@ -83,8 +100,67 @@ func (h *fakeHA) CallService(ctx context.Context, domain, service string, data m
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.calls = append(h.calls, domain+"."+service)
+	if domain == "script" {
+		return h.scriptReload
+	}
 	h.reloads = append(h.reloads, data["id"].(string))
 	return nil
+}
+
+func (h *fakeHA) SaveScriptConfig(ctx context.Context, id string, config map[string]any) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls = append(h.calls, "POST script "+id)
+	if h.configRefused {
+		return &haws.ConfigError{Kind: "script", Method: "POST", ID: id, Status: "400 Bad Request", Answer: `{"message":"Message malformed: Failed to load blueprint"}`, Code: 400}
+	}
+	h.scripts[id] = config
+	return nil
+}
+
+func (h *fakeHA) ScriptConfig(ctx context.Context, id string) (map[string]any, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls = append(h.calls, "GET script "+id)
+	a, ok := h.scripts[id]
+	if !ok {
+		return nil, haws.ErrNoScript
+	}
+	raw, _ := json.Marshal(maps.Clone(a))
+	var out map[string]any
+	_ = json.Unmarshal(raw, &out)
+	return out, nil
+}
+
+func (h *fakeHA) ServicesOf(ctx context.Context, domain string) (map[string]haws.Service, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls = append(h.calls, "get_services")
+	if h.servicesFail != nil {
+		return nil, h.servicesFail
+	}
+	if h.actions != nil {
+		return h.actions, nil
+	}
+	out := map[string]haws.Service{}
+	for id := range h.scripts {
+		out[id] = haws.Service{Name: "Mira Flug", Fields: map[string]haws.ServiceField{
+			"aktion":     {Description: "verfolgen, stand oder vergessen", Required: true, Selector: map[string]any{"select": map[string]any{"options": []any{"verfolgen", "stand", "vergessen"}}}},
+			"flugnummer": {Description: "Die Flugnummer", Selector: map[string]any{"text": map[string]any{}}},
+		}}
+	}
+	return out, nil
+}
+
+func (h *fakeHA) CallServiceResponse(ctx context.Context, domain, service string, data map[string]any) (json.RawMessage, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls = append(h.calls, "CALL "+domain+"."+service)
+	h.called = append(h.called, data)
+	if h.callFails != nil {
+		return nil, h.callFails
+	}
+	return json.RawMessage(`{"verfolgt":false,"fluege":[]}`), nil
 }
 
 func (h *fakeHA) SaveAutomationConfig(ctx context.Context, id string, config map[string]any) error {
@@ -287,9 +363,9 @@ func TestSB08_AChangedSelectorOrALostDefaultIsRefused(t *testing.T) {
 
 func TestSB09_ABlueprintThatCannotBeUsed(t *testing.T) {
 	for name, c := range map[string]struct{ yaml, want string }{
-		"no version": {strings.Replace(blueprintV("1", inputsV1), "mira-version: 1", "", 1), "no mira-version"},
-		"a script":   {strings.Replace(blueprintV("1", inputsV1), "domain: automation", "domain: script", 1), `domain "script"`},
-		"not yaml":   {"blueprint: [\n", "not YAML"},
+		"no version":     {strings.Replace(blueprintV("1", inputsV1), "mira-version: 1", "", 1), "no mira-version"},
+		"another domain": {strings.Replace(blueprintV("1", inputsV1), "domain: automation", "domain: template", 1), `domain "template"`},
+		"not yaml":       {"blueprint: [\n", "not YAML"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ha := newFakeHA()
@@ -444,4 +520,203 @@ func TestSB21_SavingTheAutomationFails(t *testing.T) {
 	if ha.automations[AutomationID("zu-ruhig", "nachts")] == nil || len(problemTexts(s2)) > 0 {
 		t.Errorf("not made at the next start: %v", problemTexts(s2))
 	}
+}
+
+// flugScript is the skill "flug" with the script blueprint "flug.yaml" and
+// one declared script.
+const flugBlueprint = "blueprint:\n  name: Mira Flug\n  description: \"Verfolgt Flüge. mira-version: 1\"\n  domain: script\n  input:\n" +
+	"    sensor:\n      name: Sensor\n      default: sensor.flightradar24_additional_tracked\n      selector: { entity: { domain: sensor } }\n" +
+	"fields:\n  aktion: { description: verfolgen, stand oder vergessen }\nsequence:\n  - stop: fertig\n"
+
+func flugSkill(inputs map[string]any) skills.Skill {
+	return skills.Skill{Name: "flug", Files: fstest.MapFS{"SKILL.md": {Data: []byte("---\n")},
+		"blueprints/flug.yaml": {Data: []byte(flugBlueprint)}},
+		Scripts: []skills.Automation{{ID: "abfrage", Blueprint: "flug.yaml", Alias: "Mira Flug", Description: "Für das Modell.", Inputs: inputs}}}
+}
+
+func TestSB22_AScriptBlueprintIsSavedAmongTheScriptBlueprints(t *testing.T) {
+	ha := newFakeHA()
+	s, _ := run(t, ha, flugSkill(map[string]any{}))
+	if len(ha.saves) != 1 || ha.saves[0]["domain"] != "script" || ha.saves[0]["path"] != "mira_skills/flug/flug" {
+		t.Fatalf("saves %v", ha.saves)
+	}
+	if len(problemTexts(s)) > 0 {
+		t.Errorf("problems %v", problemTexts(s))
+	}
+	// Only the script blueprints are listed: the skill has no automation one.
+	if ha.count("blueprint/list") != 1 {
+		t.Errorf("lists %d", ha.count("blueprint/list"))
+	}
+}
+
+func TestSB23_ADeclaredScriptIsMadeLoadedAndExposed(t *testing.T) {
+	ha := newFakeHA()
+	s, own := run(t, ha, flugSkill(map[string]any{}))
+	got := ha.scripts["mira_skill_flug_abfrage"]
+	if got == nil || got["alias"] != "Mira Flug" || got["description"] != "Für das Modell." {
+		t.Fatalf("script %v", got)
+	}
+	if ub, _ := got["use_blueprint"].(map[string]any); ub["path"] != "mira_skills/flug/flug.yaml" {
+		t.Errorf("use_blueprint %v", got["use_blueprint"])
+	}
+	order := strings.Join(ha.calls, " | ")
+	want := "POST script mira_skill_flug_abfrage | script.reload"
+	if !strings.Contains(order, want) {
+		t.Errorf("calls %q, want in order %q", order, want)
+	}
+	// Not exposed (decision 19, changed 2026-11-18).
+	if ha.count("homeassistant/expose_entity") != 0 || len(problemTexts(s)) > 0 {
+		t.Errorf("calls %v, problems %v", ha.calls, problemTexts(s))
+	}
+	// No label and no note as Mira's (decision 22).
+	if len(ha.labels) != 0 || len(own.ids) != 0 {
+		t.Errorf("labels %v, own %v", ha.labels, own.ids)
+	}
+}
+
+func TestSB24_AScriptAsTheSkillWantsItIsLeftAlone(t *testing.T) {
+	ha := newFakeHA()
+	run(t, ha, flugSkill(map[string]any{}))
+	ha.calls = nil
+	run(t, ha, flugSkill(map[string]any{}))
+	if ha.count("POST script mira_skill_flug_abfrage") != 0 || ha.count("script.reload") != 0 {
+		t.Errorf("calls %v", ha.calls)
+	}
+}
+
+func TestSB25_AScriptWithOtherInputsIsMadeAnewAndExposed(t *testing.T) {
+	ha := newFakeHA()
+	ha.blueprints["mira_skills/flug/flug.yaml"] = flugBlueprint
+	ha.scripts["mira_skill_flug_abfrage"] = map[string]any{"alias": "Meine Flüge", "description": "eigene",
+		"use_blueprint": map[string]any{"path": "mira_skills/flug/flug.yaml", "input": map[string]any{"sensor": "sensor.alt"}}}
+	s, _ := run(t, ha, flugSkill(map[string]any{}))
+	got := ha.scripts["mira_skill_flug_abfrage"]
+	if got["alias"] != "Meine Flüge" || got["description"] != "eigene" {
+		t.Errorf("the user's alias and description lost: %v", got)
+	}
+	if ub, _ := got["use_blueprint"].(map[string]any); len(ub["input"].(map[string]any)) != 0 {
+		t.Errorf("use_blueprint %v", got["use_blueprint"])
+	}
+	if len(problemTexts(s)) > 0 {
+		t.Errorf("problems %v", problemTexts(s))
+	}
+}
+
+func TestSB27_ADeclarationOfTheOtherKind(t *testing.T) {
+	ha := newFakeHA()
+	sk := flugSkill(nil)
+	sk.Automations, sk.Scripts = sk.Scripts, nil
+	s, _ := run(t, ha, sk)
+	if len(ha.automations) != 0 || len(ha.scripts) != 0 {
+		t.Errorf("made %v %v", ha.automations, ha.scripts)
+	}
+	wantProblem(t, s, "flug", "abfrage", "automations", "mira_skills/flug/flug.yaml", "script")
+
+	ha = newFakeHA()
+	z := skill(blueprintV("1", inputsV1), map[string]any{"window_end": "07:00"})
+	z.Scripts, z.Automations = z.Automations, nil
+	s, _ = run(t, ha, z)
+	if len(ha.scripts) != 0 {
+		t.Errorf("script made from an automation blueprint: %v", ha.scripts)
+	}
+	wantProblem(t, s, "nachts", "scripts", bpPath, "automation")
+}
+
+// tools runs the sync and step 8 on the skill flug.
+func flugTools(t *testing.T, ha *fakeHA) (*Sync, []tools.InternalTool) {
+	t.Helper()
+	s := New(Options{HA: ha, Own: &fakeOwn{}, Lang: i18n.DE, Policy: noWait})
+	list := []skills.Skill{flugSkill(map[string]any{})}
+	s.Run(context.Background(), list)
+	return s, s.Tools(context.Background(), list)
+}
+
+func TestSB30_AScriptIsAToolOfItsSkill(t *testing.T) {
+	ha := newFakeHA()
+	s, got := flugTools(t, ha)
+	if len(got) != 1 || len(problemTexts(s)) > 0 {
+		t.Fatalf("tools %v, problems %v", got, problemTexts(s))
+	}
+	tool := got[0]
+	if tool.Name != "flug__abfrage" || tool.Description != "Für das Modell." || tool.Skill != "flug" || !tool.Background {
+		t.Errorf("tool %+v", tool)
+	}
+	var schema struct {
+		Properties map[string]struct {
+			Type string   `json:"type"`
+			Enum []string `json:"enum"`
+		} `json:"properties"`
+		Required []string `json:"required"`
+	}
+	if err := json.Unmarshal([]byte(tool.Schema), &schema); err != nil {
+		t.Fatalf("schema %s: %v", tool.Schema, err)
+	}
+	if a := schema.Properties["aktion"]; strings.Join(a.Enum, ",") != "verfolgen,stand,vergessen" || a.Type != "string" {
+		t.Errorf("aktion %+v", a)
+	}
+	if _, ok := schema.Properties["flugnummer"]; !ok || strings.Join(schema.Required, ",") != "aktion" {
+		t.Errorf("schema %s", tool.Schema)
+	}
+}
+
+func TestSB31_TheScriptsToolComesWithTheSkill(t *testing.T) {
+	_, got := flugTools(t, newFakeHA())
+	reg := tools.NewRegistry(nil)
+	reg.Add(got...)
+	for _, d := range reg.Defs("", false) {
+		if d.Name == "flug__abfrage" {
+			t.Fatal("offered without the skill")
+		}
+	}
+	names := func(defs []prompt.ToolDef) []string {
+		var out []string
+		for _, d := range defs {
+			out = append(out, d.Name)
+		}
+		return out
+	}
+	if n := names(reg.ConversationSkillDefs("flug")); !slices.Contains(n, "flug__abfrage") {
+		t.Errorf("the opened skill lacks it: %v", n)
+	}
+	if n := names(reg.SkillDefs("flug")); !slices.Contains(n, "flug__abfrage") {
+		t.Errorf("the skill's schedules and agents lack it: %v", n)
+	}
+	if n := names(reg.ConversationSkillDefs("kochen")); slices.Contains(n, "flug__abfrage") {
+		t.Errorf("another skill has it: %v", n)
+	}
+}
+
+func TestSB32_CallingTheToolRunsTheScript(t *testing.T) {
+	ha := newFakeHA()
+	_, got := flugTools(t, ha)
+	out, err := got[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"aktion":"stand","flugnummer":"LH123"}`)})
+	if err != nil || out != `{"verfolgt":false,"fluege":[]}` {
+		t.Fatalf("out %q, err %v", out, err)
+	}
+	if ha.count("CALL script.mira_skill_flug_abfrage") != 1 || ha.called[0]["aktion"] != "stand" || ha.called[0]["flugnummer"] != "LH123" {
+		t.Errorf("calls %v, data %v", ha.calls, ha.called)
+	}
+	ha.callFails = &haws.Error{Command: "call_service", Code: "service_validation_error", Message: "refused for the test"}
+	if _, err := got[0].Run(context.Background(), tools.Invocation{Args: json.RawMessage(`{"aktion":"stand"}`)}); err == nil ||
+		!strings.Contains(err.Error(), "script.mira_skill_flug_abfrage") || !strings.Contains(err.Error(), "refused for the test") {
+		t.Errorf("error %v", err)
+	}
+}
+
+func TestSB33_ADeclaredScriptHomeAssistantDoesNotOfferHasNoTool(t *testing.T) {
+	ha := newFakeHA()
+	ha.actions = map[string]haws.Service{}
+	s, got := flugTools(t, ha)
+	if len(got) != 0 {
+		t.Errorf("tools %v", got)
+	}
+	wantProblem(t, s, "flug", "abfrage", "script.mira_skill_flug_abfrage")
+
+	ha = newFakeHA()
+	ha.servicesFail = errors.New("connection lost")
+	s, got = flugTools(t, ha)
+	if len(got) != 0 {
+		t.Errorf("tools %v", got)
+	}
+	wantProblem(t, s, "flug", "connection lost")
 }

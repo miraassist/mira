@@ -1,9 +1,10 @@
 // Package skillha brings a skill's part into Home Assistant at Mira's start
 // (docs/spec/skill-files.md): its skill blueprints, saved under
 // mira_skills/<skill>/ when missing or of another version and only when
-// their interface stays compatible, and its skill automations, made from
-// them with inputs from the skill's settings. It deletes nothing (decision
-// 1). It reuses Mira's own way with blueprints (internal/watch: the
+// their interface stays compatible, its skill automations, made from them
+// with inputs from the skill's settings, and its skill scripts, made the
+// same way, each a tool of its skill (step 5). It deletes nothing
+// (decision 1). It reuses Mira's own way with blueprints (internal/watch: the
 // version, the retries) and with her automations (internal/ha/automation).
 package skillha
 
@@ -37,10 +38,15 @@ import (
 const Folder = "mira_skills/"
 
 // HA is what the sync needs of Home Assistant: its blueprint commands, the
-// automation config API and the steps of saving one of Mira's automations.
+// automation and script config APIs, the steps of saving one of Mira's
+// automations, and one entity's state.
 type HA interface {
 	automation.HA
 	AutomationConfig(ctx context.Context, id string) (map[string]any, error)
+	ScriptConfig(ctx context.Context, id string) (map[string]any, error)
+	SaveScriptConfig(ctx context.Context, id string, config map[string]any) error
+	ServicesOf(ctx context.Context, domain string) (map[string]haws.Service, error)
+	CallServiceResponse(ctx context.Context, domain, service string, data map[string]any) (json.RawMessage, error)
 }
 
 type Options struct {
@@ -81,8 +87,15 @@ func New(o Options) *Sync {
 	return &Sync{opts: o, log: o.Logger.With("component", "skillha"), policy: p}
 }
 
-// AutomationID is the id of a skill automation in Home Assistant.
+// AutomationID is the id of a skill automation in Home Assistant; a skill
+// script has the same form (decision 20).
 func AutomationID(skill, id string) string { return "mira_skill_" + skill + "_" + id }
+
+// The blueprint domains a skill blueprint may have (decision 6).
+const (
+	domainAutomation = "automation"
+	domainScript     = "script"
+)
 
 // Problems are the problems of the last Run, in l.
 func (s *Sync) Problems(l i18n.Lang) []skills.Problem {
@@ -101,6 +114,7 @@ func (s *Sync) Problems(l i18n.Lang) []skills.Problem {
 
 // blueprint is a skill blueprint as read from the skill's files.
 type blueprint struct {
+	domain  string // automation or script
 	file    string // "zu_ruhig.yaml"
 	path    string // "mira_skills/zu-ruhig/zu_ruhig.yaml", as Home Assistant lists it
 	name    string // its blueprint name
@@ -109,9 +123,9 @@ type blueprint struct {
 	yaml    string
 }
 
-// Run is steps 5 and 6 of the path: once, at the start, after Home
+// Run is steps 5 to 7 of the path: once, at the start, after Home
 // Assistant is connected. Every failure is logged here and kept as a
-// problem of its skill; the others go on.
+// problem of its skill; the others go on. Tools (step 8) follows it.
 func (s *Sync) Run(ctx context.Context, list []skills.Skill) {
 	var problems []found
 	add := func(f found) { problems = append(problems, f) }
@@ -150,18 +164,36 @@ func (s *Sync) Run(ctx context.Context, list []skills.Skill) {
 		return
 	}
 
-	have, err := s.list(ctx)
-	if err != nil {
-		s.log.Error("could not list home assistant's blueprints; no skill blueprint or skill automation is saved until the next start", "error", err)
-		for _, o := range all {
-			add(found{skill: o.sk.Name, kind: skills.KindBlueprintList, args: []any{err}})
+	// One blueprint/list per domain a skill blueprint has.
+	have := map[string]map[string]listed{}
+	failed := map[string]error{}
+	for _, o := range all {
+		for _, b := range o.bps {
+			if _, done := have[b.domain]; done || failed[b.domain] != nil {
+				continue
+			}
+			list, err := s.list(ctx, b.domain)
+			if err != nil {
+				s.log.Error("could not list home assistant's blueprints; no skill blueprint of this domain, and nothing made from one, is saved until the next start",
+					"domain", b.domain, "error", err)
+				failed[b.domain] = err
+				continue
+			}
+			have[b.domain] = list
 		}
-		return
 	}
 	for _, o := range all {
+		listFailed := false
 		ready := map[string]blueprint{}
 		for _, b := range o.bps {
-			if f, ok := s.blueprint(ctx, o.sk.Name, b, have); !ok {
+			if err := failed[b.domain]; err != nil {
+				if !listFailed {
+					add(found{skill: o.sk.Name, kind: skills.KindBlueprintList, args: []any{err}})
+					listFailed = true
+				}
+				continue
+			}
+			if f, ok := s.blueprint(ctx, o.sk.Name, b, have[b.domain]); !ok {
 				if f != nil {
 					add(*f)
 				}
@@ -170,11 +202,33 @@ func (s *Sync) Run(ctx context.Context, list []skills.Skill) {
 			ready[b.file] = b
 		}
 		for _, a := range o.sk.Automations {
-			if f := s.automation(ctx, o.sk.Name, a, ready); f != nil {
+			if f := s.automation(ctx, o.sk.Name, a, ready, o.bps); f != nil {
+				add(*f)
+			}
+		}
+		for _, a := range o.sk.Scripts {
+			if f := s.script(ctx, o.sk.Name, a, ready, o.bps); f != nil {
 				add(*f)
 			}
 		}
 	}
+}
+
+// otherKind is decision 24: the declaration names a blueprint of the skill
+// whose domain is not want; nil when it is not so.
+func (s *Sync) otherKind(skill, want, id, file string, bps []blueprint) *found {
+	for _, b := range bps {
+		if b.file == file && b.domain != want {
+			s.log.Warn("skill declaration names a blueprint of the other kind; not made", "skill", skill, "declared", want, "id", id,
+				"blueprint", b.path, "domain", b.domain)
+			list := "automations"
+			if want == domainScript {
+				list = "scripts"
+			}
+			return &found{skill: skill, kind: skills.KindBlueprintKind, args: []any{id, list, b.path, b.domain}}
+		}
+	}
+	return nil
 }
 
 // listed is an entry of blueprint/list.
@@ -186,10 +240,10 @@ type listed struct {
 	Error string `json:"error"`
 }
 
-func (s *Sync) list(ctx context.Context) (map[string]listed, error) {
+func (s *Sync) list(ctx context.Context, domain string) (map[string]listed, error) {
 	var have map[string]listed
 	err := retry.Do(ctx, s.policy, func(ctx context.Context) error {
-		raw, err := s.opts.HA.Call(ctx, map[string]any{"type": "blueprint/list", "domain": "automation"})
+		raw, err := s.opts.HA.Call(ctx, map[string]any{"type": "blueprint/list", "domain": domain})
 		if err != nil {
 			return err
 		}
@@ -216,7 +270,7 @@ func (s *Sync) blueprint(ctx context.Context, skill string, b blueprint, have ma
 			return &found{skill: skill, kind: skills.KindBlueprintRefused, args: []any{b.path}, reasons: reasons}, false
 		}
 	}
-	cmd := map[string]any{"type": "blueprint/save", "domain": "automation", "path": strings.TrimSuffix(b.path, ".yaml"), "yaml": b.yaml}
+	cmd := map[string]any{"type": "blueprint/save", "domain": b.domain, "path": strings.TrimSuffix(b.path, ".yaml"), "yaml": b.yaml}
 	if exists {
 		cmd["allow_override"] = true
 	}
@@ -240,7 +294,10 @@ func (s *Sync) blueprint(ctx context.Context, skill string, b blueprint, have ma
 
 // automation makes a skill automation, or makes it anew when its
 // use_blueprint differs (decision 13); nil when it is as the skill wants it.
-func (s *Sync) automation(ctx context.Context, skill string, a skills.Automation, ready map[string]blueprint) *found {
+func (s *Sync) automation(ctx context.Context, skill string, a skills.Automation, ready map[string]blueprint, bps []blueprint) *found {
+	if f := s.otherKind(skill, domainAutomation, a.ID, a.Blueprint, bps); f != nil {
+		return f
+	}
 	b, ok := ready[a.Blueprint]
 	if !ok {
 		// Its blueprint's problem is already kept.
@@ -288,7 +345,7 @@ func (s *Sync) automation(ctx context.Context, skill string, a skills.Automation
 		delete(config, "id")
 	} else {
 		config["alias"] = cmp(a.Alias, b.name, a.ID)
-		config["description"] = fmt.Sprintf(i18n.Pick(descriptions, s.opts.Lang), skill)
+		config["description"] = cmp(a.Description, fmt.Sprintf(i18n.Pick(descriptions, s.opts.Lang), skill))
 	}
 	config["use_blueprint"] = want
 	if err := automation.Save(ctx, s.opts.HA, s.opts.Own, s.log, id, config, automation.LabelTask); err != nil {
@@ -299,6 +356,81 @@ func (s *Sync) automation(ctx context.Context, skill string, a skills.Automation
 		s.log.Info("skill automation made", "skill", skill, "automation", id, "blueprint", b.path)
 	} else {
 		s.log.Info("skill automation made anew: its inputs differed", "skill", skill, "automation", id, "blueprint", b.path)
+	}
+	return nil
+}
+
+// script makes a skill script, or makes it anew when its use_blueprint
+// differs, as an automation (decision 18), and loads it (decision 23); it
+// is not exposed (decision 19). nil when it is as the skill wants it or
+// made without a problem.
+func (s *Sync) script(ctx context.Context, skill string, a skills.Automation, ready map[string]blueprint, bps []blueprint) *found {
+	if f := s.otherKind(skill, domainScript, a.ID, a.Blueprint, bps); f != nil {
+		return f
+	}
+	b, ok := ready[a.Blueprint]
+	if !ok {
+		s.log.Info("skill script left as it is: its blueprint is not in home assistant in the skill's version",
+			"skill", skill, "script", a.ID, "blueprint", a.Blueprint)
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(a.Inputs)) {
+		if _, ok := b.inputs[name]; !ok {
+			s.log.Warn("skill script not made: the blueprint has no such input", "skill", skill, "script", a.ID, "blueprint", b.path, "input", name)
+			return &found{skill: skill, kind: skills.KindScriptInput, args: []any{a.ID, name, b.path}}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(b.inputs)) {
+		if _, given := a.Inputs[name]; !given && !b.inputs[name].hasDefault {
+			s.log.Warn("skill script not made: a required input has no value", "skill", skill, "script", a.ID, "blueprint", b.path, "input", name)
+			return &found{skill: skill, kind: skills.KindScriptNeeds, args: []any{a.ID, name, b.path}}
+		}
+	}
+	id := AutomationID(skill, a.ID)
+	want := map[string]any{"path": b.path, "input": a.Inputs}
+	var current map[string]any
+	err := retry.Do(ctx, s.policy, func(ctx context.Context) error {
+		var err error
+		current, err = s.opts.HA.ScriptConfig(ctx, id)
+		if errors.Is(err, haws.ErrNoScript) || errors.Is(err, haws.ErrNotAdmin) {
+			return retry.Fatal(err)
+		}
+		return err
+	}, retry.Warn(s.log, "reading a skill script", s.policy, "script", id))
+	switch {
+	case errors.Is(err, haws.ErrNoScript):
+		current = nil
+	case err != nil:
+		s.log.Error("could not read a skill script; it is not made or changed until the next start", "skill", skill, "script", id, "error", err)
+		return &found{skill: skill, kind: skills.KindScriptRead, args: []any{a.ID, err}}
+	case same(current["use_blueprint"], want):
+		return nil
+	}
+	config := map[string]any{}
+	if current != nil {
+		// Only use_blueprint is replaced: the alias and the description
+		// the user may have changed stay (decision 13).
+		maps.Copy(config, current)
+		delete(config, "id")
+	} else {
+		config["alias"] = cmp(a.Alias, b.name, a.ID)
+		config["description"] = cmp(a.Description, fmt.Sprintf(i18n.Pick(descriptions, s.opts.Lang), skill))
+	}
+	config["use_blueprint"] = want
+	if err := s.opts.HA.SaveScriptConfig(ctx, id, config); err != nil {
+		s.log.Error("could not save a skill script; it is not made or changed until the next start", "skill", skill, "script", id, "error", err)
+		return &found{skill: skill, kind: skills.KindScriptSave, args: []any{a.ID, err}}
+	}
+	// Saving answers before the script is loaded; the reload returns once
+	// it is (decision 23, checked rows 5 and 6).
+	if err := s.opts.HA.CallService(ctx, "script", "reload", map[string]any{}, nil); err != nil {
+		s.log.Error("a skill script was saved but home assistant did not reload the scripts; it may be missing until its next reload", "skill", skill, "script", id, "error", err)
+		return &found{skill: skill, kind: skills.KindScriptSave, args: []any{a.ID, err}}
+	}
+	if current == nil {
+		s.log.Info("skill script made", "skill", skill, "script", id, "blueprint", b.path)
+	} else {
+		s.log.Info("skill script made anew: its inputs differed", "skill", skill, "script", id, "blueprint", b.path)
 	}
 	return nil
 }
@@ -343,10 +475,10 @@ func readBlueprint(sk skills.Skill, file string) (blueprint, error) {
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return blueprint{}, fmt.Errorf("not YAML: %w", err)
 	}
-	if doc.Blueprint.Domain != "automation" {
-		return blueprint{}, fmt.Errorf("domain %q, not automation", doc.Blueprint.Domain)
+	if doc.Blueprint.Domain != domainAutomation && doc.Blueprint.Domain != domainScript {
+		return blueprint{}, fmt.Errorf("domain %q, neither automation nor script", doc.Blueprint.Domain)
 	}
-	b := blueprint{file: path.Base(file), name: doc.Blueprint.Name, version: watch.VersionOf(doc.Blueprint.Description), yaml: string(raw)}
+	b := blueprint{domain: doc.Blueprint.Domain, file: path.Base(file), name: doc.Blueprint.Name, version: watch.VersionOf(doc.Blueprint.Description), yaml: string(raw)}
 	b.path = Folder + sk.Name + "/" + b.file
 	if b.version == 0 {
 		return blueprint{}, errors.New("no mira-version in its description")
