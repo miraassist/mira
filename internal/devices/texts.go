@@ -20,10 +20,10 @@ var coreCatalog = map[i18n.Lang]coreTexts{
 		noDevice:     "Ergebnis: nichts getan. Grund: Es ist noch kein neues Gerät da.",
 		unknownRoom:  "Ergebnis: nichts getan. Grund: Einen Raum „%s“ gibt es nicht. Räume: %s. Frag nach.",
 		assignFailed: "Ergebnis: nichts getan. Grund: Home Assistant hat abgelehnt: %s. Sag das dem Nutzer.",
-		assigned:     "Ergebnis: Das Gerät ist jetzt im Raum %s. Schlag jetzt einen Namen vor (was es ist und der Raum) und frag, ob er passt.",
+		assigned:     "Ergebnis: Das Gerät ist jetzt im Raum %s; der Schritt Raum ist abgehakt. Schlag jetzt einen Namen vor (was es ist und der Raum) und frag, ob er passt.",
 		finishFailed: "Ergebnis: nicht freigegeben, nicht umbenannt. Grund: Home Assistant hat abgelehnt: %s. Sag das dem Nutzer.",
 		renameFailed: "Ergebnis: %d Werte für Sprache freigegeben, aber nicht umbenannt. Grund: %s. Der Raum bleibt. Sag das dem Nutzer.",
-		finished:     "Ergebnis: fertig. Das Gerät heißt jetzt %s, ist im Raum %s, und %d Werte sind für Sprache freigegeben. Sag das kurz.",
+		finished:     "Ergebnis: fertig. Das Gerät heißt jetzt %s, ist im Raum %s, und %d Werte sind für Sprache freigegeben. Der Vorgang ist damit abgeschlossen und abgehakt: kein thread_plan mehr. Sag das kurz.",
 	},
 	i18n.EN: {
 		assignDesc:   "Puts the newly added device into a room.",
@@ -33,10 +33,10 @@ var coreCatalog = map[i18n.Lang]coreTexts{
 		noDevice:     "Result: nothing done. Reason: no new device is there yet.",
 		unknownRoom:  "Result: nothing done. Reason: there is no room \"%s\". Rooms: %s. Ask.",
 		assignFailed: "Result: nothing done. Reason: Home Assistant refused: %s. Tell the user.",
-		assigned:     "Result: the device is now in %s. Now propose a name (what it is and the room) and ask whether it fits.",
+		assigned:     "Result: the device is now in %s; the step Room is ticked. Now propose a name (what it is and the room) and ask whether it fits.",
 		finishFailed: "Result: not exposed, not renamed. Reason: Home Assistant refused: %s. Tell the user.",
 		renameFailed: "Result: %d values exposed to voice, but not renamed. Reason: %s. The room stays. Tell the user.",
-		finished:     "Result: done. The device is now called %s, is in %s, and %d values are exposed to voice. Say so briefly.",
+		finished:     "Result: done. The device is now called %s, is in %s, and %d values are exposed to voice. The thread is finished and ticked: no thread_plan any more. Say so briefly.",
 	},
 }
 

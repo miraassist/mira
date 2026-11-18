@@ -128,6 +128,9 @@ Den Setup-Code liest du nie vor und wiederholst ihn nicht.
    Sag dann kurz, was das Ergebnis sagt.
 5. **Abbrechen** („abbrechen“, „lass mal“): `thread_cancel`; das Einbinden endet.
 
+Die Schritte des Plans (Einbinden, Raum, Name) haken die Werkzeuge selbst ab, und
+`device_finish` beendet den Vorgang. Ruf hier nie `thread_plan` auf.
+
 Ein Gerät pro Vorgang. Für das nächste sagt der Nutzer wieder, dass er ein neues
 Gerät hat. Ein Gerät, das schon einen Namen bekommen hat, ist fertig: Sagt der
 Nutzer danach wieder, er hat ein neues Gerät, ist es ein weiteres, und es geht
