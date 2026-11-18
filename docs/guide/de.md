@@ -40,7 +40,7 @@ Und bei einer Frage, die das Haus gar nicht betrifft:
 
 ## So sprichst du mit Mira
 
-- **Per Sprache**: über einen Sprach-Satelliten (z. B. den Echo im Wohnzimmer). Sag das Aktivierungswort und dann, was du möchtest. Mira weiß, in welchem Raum der Satellit steht: „Mach das Licht an“ meint das Licht in diesem Raum. Ist ihre Antwort eine Frage, hört der Satellit gleich weiter zu.
+- **Per Sprache**: über einen Sprach-Satelliten (z. B. den Echo im Wohnzimmer). Sag das Aktivierungswort und dann, was du möchtest. Mira weiß, in welchem Raum der Satellit steht: „Mach das Licht an“ meint das Licht in diesem Raum. Ist ihre Antwort eine Frage, hört der Satellit gleich weiter zu. Unterbrichst du eine lange Antwort mit dem Aktivierungswort, weiß Mira, bis wohin du sie gehört hast: „Wie ging es weiter?“ macht dort weiter. „Stopp“ oder „Sei still“ heißt, dass sie gar nichts mehr sagt, nicht einmal „Okay“.
 - **Per Telegram**: schreib dem Bot, den du in Home Assistant eingerichtet hast (Integration „Telegram bot“). Damit Mira antwortet, muss dein Chat bei deiner Person als Kanal eingetragen sein (siehe unten). Antworten dürfen hier länger sein, mit Listen und Links. `/neu` beginnt ein neues Gespräch.
 - **In der Companion App**: Der Assist-Chat der Companion App (der App von Home Assistant auf dem Handy) spricht ebenfalls mit Mira, getippt oder gesprochen.
 
@@ -206,7 +206,7 @@ Mira meldet sich, wenn etwas passiert: ein Lecksensor schlägt an, die Waschmasc
 
 Pro Satellit stellst du ein:
 
-- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen eine Minute lang „1 Nachricht wartet – frag: ‚Hab ich neue Nachrichten?‘“ ein, sobald etwas Neues kommt. Dass ein Satellit einen Bildschirm hat, erkennt Mira von selbst. Frag dann: **„Hab ich neue Nachrichten?“** oder „Gibt es was Neues?“. Mira sagt dir alles, was wartet; wartet Verschiedenes (Post, der Anrufbeantworter, ein neues Gerät), fragt sie, womit sie anfangen soll, und geht es dann eins nach dem anderen mit dir durch.
+- **Anzeige**: Ein LED-Ring (z. B. des Echo) pulsiert in Türkis, solange etwas wartet – ganz ohne Bewegungsmelder. Ein Satellit mit Bildschirm wie die Echo Show blendet stattdessen eine Minute lang „1 Nachricht wartet – frag: ‚Hab ich neue Nachrichten?‘“ ein, sobald etwas Neues kommt; ist alles gehört, verschwindet der Hinweis sofort (mit TECHO5, das ihn wegnehmen kann), sonst nach seiner Minute. Dass ein Satellit einen Bildschirm hat, erkennt Mira von selbst. Frag dann: **„Hab ich neue Nachrichten?“** oder „Gibt es was Neues?“. Mira sagt dir alles, was wartet; wartet Verschiedenes (Post, der Anrufbeantworter, ein neues Gerät), fragt sie, womit sie anfangen soll, und geht es dann eins nach dem anderen mit dir durch.
 - **Beim Hereinkommen ansagen**: Merkt ein Bewegungsmelder, dass jemand den Raum betritt, sagt Mira von selbst an, was ansteht; die erste Bewegung nach der Ruhezeit beginnt mit „Guten Morgen“. Ohne Bewegungsmelder oder ausgeschaltet spricht sie dich nicht von sich aus an.
 
 Mehrere Nachrichten fasst Mira zu einer Ansage zusammen, das Wichtigste zuerst und mit Uhrzeit, wo sie hilft („heute Nacht um drei …“).
@@ -999,7 +999,7 @@ Die Daten kommen von Flightradar24 über eine Integration aus HACS. Sie braucht 
 
 **Einrichten:**
 1. In HACS die Integration **Flightradar24** installieren, Home Assistant neu starten und sie unter Einstellungen → Geräte & Dienste → Integration hinzufügen einrichten (Ort und Umkreis sind für Mira egal).
-2. Den Skill `flug` einschalten: Mira → Fähigkeiten → Skills → flug → **Einschalten**. Beim nächsten Start legt Mira das Skript „Mira Flug“ an und legt die Automation „Mira: verfolgter Flug gelandet“ an. Klappt etwas davon nicht, steht unter Einstellungen → Reparaturen, was fehlt. Das Skript ist nur für Mira gedacht: Sie nutzt es, sobald es um einen Flug geht. Gibst du es selbst für Assist frei, steht es Mira und Assist bei jeder Frage zur Verfügung, auch ohne den Skill und seine Anleitung.
+2. Den Skill `flug` einschalten: Mira → Fähigkeiten → Skills → flug → **Einschalten**. Beim nächsten Start legt Mira das Skript „Mira Flug“ und die Automation „Mira: verfolgter Flug gelandet“ an. Klappt etwas davon nicht, steht unter Einstellungen → Reparaturen „Der Skill flug läuft nicht“ mit dem Grund. Das Skript ist nur für Mira gedacht: Sie nutzt es, sobald es um einen Flug geht. Gibst du es selbst für Assist frei, steht es Mira und Assist bei jeder Frage zur Verfügung, auch ohne den Skill und seine Anleitung.
 
 ## Neue Geräte einbinden
 
@@ -1457,7 +1457,7 @@ Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstell
 
 Mira besteht aus zwei Teilen, die beide aus demselben Release kommen: der **Integration** in Home Assistant und dem **Mira-Service** (die HA-App oder dein Container). Beide haben dieselbe Version.
 
-- **Integration und HA-App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die HA-App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; sonst hilft ein Neustart von Home Assistant.
+- **Integration und HA-App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die HA-App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; die HA-App kommt nach einem Release oft erst ein paar Minuten nach der Integration. Sonst hilft ein Neustart von Home Assistant.
 - **Eigener Container:** `docker pull ghcr.io/miraassist/mira` und den Container mit demselben `docker run` neu anlegen (bei Compose: `docker compose pull && docker compose up -d`). Deine Daten liegen im Volume und bleiben.
 - **Bis beide gleich sind**, steht unter Einstellungen → Reparaturen, welcher Teil älter ist. Mira arbeitet in der Zeit weiter.
 
@@ -1497,20 +1497,20 @@ Miras Daten kommen mit in die Backups von Home Assistant (Einstellungen → Syst
 Mit einem eigenen Token kann ein anderes Programm Mira nutzen, so wie Miras Seite, etwa eines, mit dem eine Firma Mira für dich betreut.
 
 - **Anlegen:** Mira → Einrichtung → **Verbindungen** → **Zugangs-Tokens**: einen Namen eintragen und **Neues Token anlegen**. Mira zeigt das Token ein einziges Mal in einem Fenster; **Kopieren und schließen**. Anlegen und löschen können nur Admins.
-- **Was man damit kann:** alles, was Miras Seite kann, wie ein Admin, mit dem Gedächtnis des Hauses, nicht dem der einzelnen Personen. Mira neu einrichten, sie von Home Assistant trennen, ein Backup holen oder einspielen und Tokens verwalten kann man damit nicht.
-- **Was damit getan wurde:** Öffne das Token. Dort steht jeder Aufruf mit Zeit, Benutzer und was. Mira hebt das 90 Tage auf.
+- **Was man damit kann:** alles, was Miras Seite kann, wie ein Admin, mit dem Gedächtnis des Hauses, nicht dem der einzelnen Personen. Dazu kann es über Miras Schnittstelle in Home Assistant jeden Zustand lesen und jede Aktion auslösen, mit Miras Rechten als Administrator und ohne Nachfrage; „Für Assist freigeben“ und „Mira: nachfragen“ gelten dafür nicht. Mira neu einrichten, sie von Home Assistant trennen, ein Backup holen oder einspielen und Tokens verwalten kann man damit nicht.
+- **Was damit getan wurde:** Öffne das Token. Dort steht jeder Aufruf mit Zeit, Benutzer und was, außer der regelmäßigen Abfrage des Status. Mira hebt das 90 Tage auf.
 - **Zurücknehmen:** **Löschen** beim Token. Ab sofort kommt niemand mehr damit an Mira.
 
 ## Sicherheit: wie Mira und Home Assistant miteinander sprechen
 
 - **Zwei Schlüssel:**
-  - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Den holt sich die Integration beim Hinzufügen, du siehst ihn nie.
+  - Home Assistant spricht Mira mit einem **Zugangs-Token** an. Das holt sich die Integration beim Hinzufügen, du siehst es nie. Weitere Programme bekommen ein eigenes (siehe „Weitere Zugangs-Tokens“).
   - Mira spricht Home Assistant mit dem **Token an, das du ihr beim Einrichten gegeben hast**, also mit den Rechten des Administrators, dem es gehört. Die Integration legt selbst nie ein Token an. Du kannst es in dem Profil, in dem du es erstellt hast, unter Sicherheit jederzeit widerrufen; Mira fragt dann unter Reparaturen nach einem neuen. Entfernst du die Integration, bleibt das Token, bis du es dort löschst.
-  - Wer den Zugangs-Token kennt, kann alles, was Mira kann. Behandle ihn wie ein Passwort.
-- **Was Mira in HA tut:** nur, was ihre Werkzeuge anbieten: Geräte schalten und eure Aufgaben und Timer als Automationen speichern, so wie der Automationseditor; sie löscht nur ihre eigenen. Benutzer, Integrationen und Einstellungen verwaltet sie nicht. Läuft Mira mit einem Token aus ihrer `mira.yaml` (`ha.token`), muss es für Aufgaben und Timer ein Admin-Token sein. Was sie sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie nur nach deinem Ja.
+  - Wer ein Zugangs-Token kennt, kann alles, was Mira kann, auch über ihre Schnittstelle in Home Assistant jede Aktion auslösen. Behandle es wie ein Passwort.
+- **Was Mira in HA tut:** nur, was ihre Werkzeuge anbieten: Geräte schalten und eure Aufgaben und Timer als Automationen speichern, so wie der Automationseditor; sie löscht nur ihre eigenen. Benutzer, Integrationen und Einstellungen verwaltet sie nicht. Skills können Blueprints mitbringen; daraus legt Mira Automationen und Skripte in Home Assistant an. Läuft Mira mit einem Token aus ihrer `mira.yaml` (`ha.token`), muss es für Aufgaben und Timer ein Admin-Token sein. Was sie im Gespräch sieht, bestimmst du mit „Für Assist freigeben“. Schlösser, Alarmanlage und alles mit dem Label „Mira: nachfragen“ schaltet sie im Gespräch nur nach deinem Ja. Ein Programm mit einem Zugangs-Token geht daran vorbei (siehe oben).
 - **Läuft Mira auf demselben Rechner wie Home Assistant** (der Normalfall), bleibt alles auf diesem Rechner.
-- **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: der Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, wie bei vielen anderen Geräten in Home Assistant. Ein Gästenetz, ein geteiltes Netz oder der Weg übers Internet ohne HTTPS ist dafür nicht geeignet.
-- **Bekommt Mira eine neue Adresse**, folgt die Integration ihr von selbst, aber nur, wenn Mira dort nachweist, dass sie den Zugangs-Token kennt. Ein anderes Gerät, das sich als Mira ausgibt, bekommt ihn nicht. Halte Mira und die Integration deshalb auf derselben Version.
+- **Läuft Mira auf einem anderen Rechner** in deinem Netz, geht die Verbindung unverschlüsselt durchs Heimnetz: das Zugangs-Token, was du sagst und was Mira antwortet. Im eigenen Heimnetz ist das üblich, wie bei vielen anderen Geräten in Home Assistant. Ein Gästenetz, ein geteiltes Netz oder der Weg übers Internet ohne HTTPS ist dafür nicht geeignet.
+- **Bekommt Mira eine neue Adresse**, folgt die Integration ihr von selbst, aber nur, wenn Mira dort nachweist, dass sie das Zugangs-Token kennt. Ein anderes Gerät, das sich als Mira ausgibt, bekommt es nicht. Halte Mira und die Integration deshalb auf derselben Version.
 
 ## Gut zu wissen
 

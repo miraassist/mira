@@ -454,7 +454,7 @@
   "issues": {
     "skill_problem": {
       "title": "Der Skill {name} läuft nicht",
-      "description": "Mira ist ohne ihn gestartet. {text}\n\nÄndere den Ordner des Skills oder seinen Eintrag unter skills.enabled in der mira.yaml. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Skill läuft."
+      "description": "Mira ist ohne ihn gestartet. {text}\n\nPrüf die Einstellungen des Skills auf Miras Seite (Fähigkeiten → Skills) oder seinen Eintrag unter skills in der mira.yaml. Die Meldung verschwindet hier, sobald Mira neu gestartet wurde und der Skill läuft."
     },
     "agent_problem": {
       "title": "Der Agent {name} läuft nicht",

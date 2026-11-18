@@ -4,6 +4,7 @@ description: "Einen Flug im Auge behalten: wann er landet, ob er Verspätung hat
 license: MIT
 metadata:
   mira:
+    chapter: "## Flüge im Auge behalten"
     automations:
       - id: gelandet
         blueprint: gelandet.yaml

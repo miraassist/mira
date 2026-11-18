@@ -175,7 +175,11 @@ core's building blocks, such as `calendar_events`, which reads a skill's
 calendar by name so its URL never reaches a model. A skill's schedules run
 as background jobs and may queue one message. `mira skill NAME` runs a
 schedule now. The first skill, `abfall`, reads a waste collection calendar
-and reminds the evening before.
+and reminds the evening before. A skill may also bring Home Assistant
+blueprints: Mira makes automations and scripts from them in Home Assistant
+(a skill's script is a tool of that skill only, once it is opened). Skills
+come from the skill folders or, at start, from a skill source with a
+subscription key (docs/spec/skill-files.md, docs/spec/skill-source.md).
 
 Languages (`de`, `en`; docs/spec/language.md): in a conversation Mira takes
 the language Home Assistant sends with it, the Assist pipeline's. What she
@@ -200,7 +204,12 @@ More, each explained in the guide ([de](docs/guide/de.md), [en](docs/guide/en.md
   [Mira FRITZ!Box](https://github.com/miraassist/mira-fritz): "Ruf Oma an"
   from the satellite, new messages announced and played.
 - **Connections**: a skill signs in at a service over OAuth through Home
-  Assistant, such as X for reading posts.
+  Assistant, such as X for reading posts or Strava for your activities.
+- **Access tokens**: other programs (a partner who looks after Mira for you)
+  get a named token of their own; what each did is listed on Mira's page.
+- **Mira's interface**: described at `/v1/openapi.yaml`; with a token it also
+  reads Home Assistant's states and calls its actions (`/v1/ha/…`,
+  docs/spec/ha-api.md).
 - **Remote agents**: a skill hands work to an agent on another device over
   A2A, such as a long research.
 - **Rules of your own**: "Merk dir eine Regel: …" – a helper writes it as a

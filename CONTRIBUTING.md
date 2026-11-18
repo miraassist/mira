@@ -25,7 +25,8 @@ not only how; often Home Assistant or an existing skill already has a piece of i
 ## A skill
 
 Skills are the easiest way to add something: a folder under `skills/` with a `SKILL.md` that tells Mira what to do,
-with the tools she already has. No program code. The guide explains the format (section "Creating your own skill",
+with the tools she already has. No program code; it may bring Home Assistant blueprints, from which Mira makes
+automations and scripts. The guide explains the format (section "Creating your own skill",
 in German "Eigenen Skill erstellen"). Mira's bundled skills are written in German; a few (the quizzes, the
 vocabulary test) also have an English `SKILL.en.md` next to them.
 

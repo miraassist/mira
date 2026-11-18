@@ -1,7 +1,7 @@
 # Strava – spec
 
 Status 2026-11-18: steps 1 and 2 built and run (the skill file and its tests; connected on the test HA and run end to
-end on the empty account), not committed; step 3 (the morning line) later. Scenarios: [strava.feature](strava.feature).
+end on the empty account), not released; step 3 (the morning line) later. Scenarios: [strava.feature](strava.feature).
 
 ## Goal
 

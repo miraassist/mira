@@ -71,7 +71,7 @@ is used in a spec; a term that is not here is not a term yet.
 
 | English | German | Meaning | Code / database | Not |
 |---|---|---|---|---|
-| skill | Skill | A folder with `SKILL.md`: instructions, settings, optionally a target, schedules, agents, an MCP server | `internal/skills`, `skills/` | Fähigkeit (for one skill), plugin |
+| skill | Skill | A folder with `SKILL.md`, from a skill folder or a skill source: instructions, settings, optionally a target, schedules, agents, an MCP server, skill files (skill blueprints, from which skill automations and skill scripts are made) | `internal/skills`, `skills/` | Fähigkeit (for one skill), plugin |
 | capabilities | Fähigkeiten | The tab of Mira's page with skills, rules, schedule and tools | `internal/ui` | — |
 | tool | Werkzeug | A function the model calls | `internal/tools`, MCP tools | action (for a tool), function |
 | agent | Agent | One of Mira's helpers: a model with its own context, tools and form of answer, callable like a tool | `internal/agent`, tables `agent_runs`, `agent_run_steps` | the Mira service |

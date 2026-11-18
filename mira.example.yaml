@@ -13,7 +13,8 @@
 # Check a config and all dependencies with:  mira -config mira.yaml check
 
 server:
-  # Bind to the internal network only; the HA integration is the only client.
+  # Bind to the internal network only; the HA integration and programs with an
+  # access token (Setup → Connections) are its clients.
   listen: "0.0.0.0:8787"
   token: ${MIRA_API_TOKEN}
   # Announce by mDNS (_mira._tcp) so Home Assistant finds Mira. Only the

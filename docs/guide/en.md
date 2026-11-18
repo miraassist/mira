@@ -40,7 +40,7 @@ And with a question that has nothing to do with lights and switches:
 
 ## How to talk to Mira
 
-- **By voice**: through a voice satellite (e.g. the Echo in the living room). Say the wake word and then what you want. Mira knows which room the satellite is in: "Turn on the light" means the light in that room. If her answer is a question, the satellite keeps listening.
+- **By voice**: through a voice satellite (e.g. the Echo in the living room). Say the wake word and then what you want. Mira knows which room the satellite is in: "Turn on the light" means the light in that room. If her answer is a question, the satellite keeps listening. If you interrupt a long answer with the wake word, Mira knows how far you heard it: "How did it go on?" goes on from there. "Stop" or "Be quiet" means she says nothing more at all, not even "okay".
 - **On Telegram**: write to the bot you set up in Home Assistant (integration "Telegram bot"). For Mira to answer, your chat must be one of your person's channels (see below). Answers can be longer here, with lists and links. `/new` starts a new conversation.
 - **In the companion app**: the Assist chat of the companion app (Home Assistant's app on your phone) talks to Mira too, typed or spoken.
 
@@ -204,7 +204,7 @@ Mira speaks up when something happens: a leak sensor goes off, the washing machi
 
 Per satellite you set:
 
-- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "1 message waiting – ask: 'Do I have new messages?'" for a minute instead, as soon as something new arrives. Mira finds out by herself that a satellite has a screen. Then ask: **"Do I have new messages?"** or "Anything new?". Mira tells you everything that waits; when different things wait (mail, the answering machine, a new device), she asks what to start with and then goes through them with you one after the other.
+- **Indicator**: an LED ring (e.g. the Echo's) pulses teal while something is waiting – no motion sensor needed. A satellite with a screen like the Echo Show shows "1 message waiting – ask: 'Do I have new messages?'" for a minute instead, as soon as something new arrives; once everything is heard, the hint goes at once (with TECHO5 that can take it down), otherwise after its minute. Mira finds out by herself that a satellite has a screen. Then ask: **"Do I have new messages?"** or "Anything new?". Mira tells you everything that waits; when different things wait (mail, the answering machine, a new device), she asks what to start with and then goes through them with you one after the other.
 - **Announce on entry**: when a motion sensor notices someone entering the room, Mira says by herself what is pending; the first motion after quiet hours starts with "Good morning". Without a motion sensor, or switched off, she does not speak up on her own.
 
 Several messages become one announcement, the most important first and with times where they help ("tonight at three …").
@@ -987,7 +987,7 @@ The data comes from Flightradar24 through an integration from HACS. It needs no 
 
 **Setting it up:**
 1. In HACS install the integration **Flightradar24**, restart Home Assistant and add it under Settings → Devices & services → Add integration (place and radius do not matter for Mira).
-2. Switch on the skill `flug`: Mira → Capabilities → Skills → flug → **Switch on**. At her next start Mira creates the script "Mira Flug" and creates the automation "Mira: verfolgter Flug gelandet". If any of it fails, Settings → Repairs says what is missing. The script is meant for Mira only: she uses it when a question is about a flight. If you expose it to Assist yourself, Mira and Assist have it at every question, also without the skill and its instructions.
+2. Switch on the skill `flug`: Mira → Capabilities → Skills → flug → **Switch on**. At her next start Mira creates the script "Mira Flug" and the automation "Mira: verfolgter Flug gelandet". If any of it fails, Settings → Repairs shows "The skill flug is not running" with the reason. The script is meant for Mira only: she uses it when a question is about a flight. If you expose it to Assist yourself, Mira and Assist have it at every question, also without the skill and its instructions.
 
 ## Adding new devices
 
@@ -1433,7 +1433,7 @@ For advanced setups (several models, more MCP servers, skills with settings) the
 
 Mira has two parts, both from the same release: the **integration** in Home Assistant and the **Mira service** (the HA app or your container). Both carry the same version.
 
-- **Integration and HA app:** Settings → Updates shows both. Update the integration first, then the HA app (it restarts itself), then restart Home Assistant once. If one of the two is not offered yet, Mira makes Home Assistant look again at once; otherwise a restart of Home Assistant helps.
+- **Integration and HA app:** Settings → Updates shows both. Update the integration first, then the HA app (it restarts itself), then restart Home Assistant once. If one of the two is not offered yet, Mira makes Home Assistant look again at once; after a release the HA app often comes a few minutes after the integration. Otherwise a restart of Home Assistant helps.
 - **Your own container:** `docker pull ghcr.io/miraassist/mira` and create the container again with the same `docker run` (with Compose: `docker compose pull && docker compose up -d`). Your data is in the volume and stays.
 - **Until both match**, Settings → Repairs says which part is older. Mira keeps working meanwhile.
 
@@ -1473,17 +1473,17 @@ Mira's data goes into Home Assistant's backups (Settings → System → Backups)
 With a token of its own, another program can use Mira the way Mira's page does, one a company uses to look after Mira for you, say.
 
 - **Create:** Mira → Setup → **Connections** → **Access tokens**: enter a name and **Create a new token**. Mira shows the token only once, in a window; **Copy and close**. Only admins can create and delete one.
-- **What it can do:** everything Mira's page can, as an admin, with the house's memory, not each person's. Setting Mira up anew, separating her from Home Assistant, fetching or restoring a backup and managing tokens it cannot.
-- **What was done with it:** open the token. Every call is listed there with its time, user and what. Mira keeps this for 90 days.
+- **What it can do:** everything Mira's page can, as an admin, with the house's memory, not each person's. Through Mira's interface it can also read any state in Home Assistant and call any action, with Mira's administrator rights and without asking; "Expose to Assist" and "Mira: confirm first" do not apply there. Setting Mira up anew, separating her from Home Assistant, fetching or restoring a backup and managing tokens it cannot.
+- **What was done with it:** open the token. Every call is listed there with its time, user and what, except the regular status query. Mira keeps this for 90 days.
 - **Take it back:** **Delete** at the token. From then on nobody reaches Mira with it.
 
 ## Security: how Mira and Home Assistant talk
 
 - **Two keys:**
-  - Home Assistant reaches Mira with an **access token**. The integration fetches it when adding Mira; you never see it.
+  - Home Assistant reaches Mira with an **access token**. The integration fetches it when adding Mira; you never see it. Other programs get one of their own (see "More access tokens").
   - Mira reaches Home Assistant with **the token you gave her when setting up**, so with the rights of the administrator it belongs to. The integration never makes a token itself. You can revoke it at any time under Security in the profile you created it in; Mira then asks for a new one under Repairs. If you remove the integration, the token stays until you delete it there.
-  - Whoever knows the access token can do all that Mira can. Treat it like a password.
-- **What Mira does in HA:** only what her tools offer: switch devices and save your tasks and timers as automations, the way the automation editor does; she deletes only her own. She manages no users, integrations or settings. If Mira runs with a token from her `mira.yaml` (`ha.token`), it must be an admin's for tasks and timers. What she sees, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches only after your yes.
+  - Whoever knows an access token can do all that Mira can, including calling any action in Home Assistant through her interface. Treat it like a password.
+- **What Mira does in HA:** only what her tools offer: switch devices and save your tasks and timers as automations, the way the automation editor does; she deletes only her own. She manages no users, integrations or settings. Skills may bring blueprints; from them Mira makes automations and scripts in Home Assistant. If Mira runs with a token from her `mira.yaml` (`ha.token`), it must be an admin's for tasks and timers. What she sees in a conversation, you decide with "Expose to Assist". Locks, the alarm panel and everything labelled "Mira: confirm first" she switches in a conversation only after your yes. A program with an access token goes past this (see above).
 - **If Mira runs on the same machine as Home Assistant** (the usual case), everything stays on that machine.
 - **If Mira runs on another machine** in your network, the connection goes through your home network unencrypted: the access token, what you say and what Mira answers. That is common in your own home network, as with many other devices in Home Assistant. A guest network, a shared network or the way over the internet without HTTPS is not the place for it.
 - **If Mira gets a new address**, the integration follows her by itself, but only once Mira shows there that she knows the access token. Another device posing as Mira does not get it. So keep Mira and the integration at the same version.

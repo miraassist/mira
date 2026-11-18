@@ -4,6 +4,7 @@ description: "Sport aus Strava vorlesen: die letzte Tour, Kilometer und Höhenme
 license: MIT
 metadata:
   mira:
+    chapter: "## Sport aus Strava"
     oauth:
       name: Strava
       authorize_url: https://www.strava.com/oauth/authorize
