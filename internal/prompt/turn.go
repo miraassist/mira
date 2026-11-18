@@ -51,6 +51,12 @@ type Turn struct {
 	// Thread is the thread ("Vorgang") this turn belongs to or that waits at
 	// its place, rendered with its own heading by package threads.
 	Thread string
+	// Interrupted says the conversation's last answer was cut off while it
+	// was spoken; HeardUpTo is the last sentence the user heard, "" for
+	// none (docs/spec/streaming.md, step 10). The answer itself stays whole
+	// in the history.
+	Interrupted bool
+	HeardUpTo   string
 	// PendingConfirmation describes the critical action the agent asked about
 	// in the previous turn and is now waiting for an answer to.
 	PendingConfirmation string
@@ -123,6 +129,13 @@ func (t Turn) Render() string {
 	if s := strings.TrimSpace(t.MessageContext); s != "" {
 		b.WriteString("\n\n" + l.messageContext + "\n")
 		b.WriteString(s)
+	}
+	if t.Interrupted {
+		if s := strings.TrimSpace(t.HeardUpTo); s != "" {
+			b.WriteString("\n\n" + fmt.Sprintf(l.interruptedAt, s))
+		} else {
+			b.WriteString("\n\n" + l.interruptedStart)
+		}
 	}
 	if s := strings.TrimSpace(t.Thread); s != "" {
 		b.WriteString("\n\n" + s)

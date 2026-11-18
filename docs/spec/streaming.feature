@@ -103,3 +103,54 @@ Feature: ST Speaking while the answer is written
     Then the log has "answer ended by the caller" with spoken_chars 0
     And neither "model round failed", "turn failed" nor "conversation failed" is logged
     And the run of conversation.voice ends cancelled
+
+  @step10
+  Scenario: ST-19 An answer interrupted while spoken is noted where it was cut
+    Given the Show's rate is 13 characters per second
+    And a story of 956 characters, played 15.7 s, then the wake word starts a new run
+    Then the conversation keeps the whole story
+    And the next turn's context block says it was interrupted, heard up to the last complete sentence within the first 204 characters
+
+  @step10
+  Scenario: ST-20 An answer played to the end has no note and measures the rate
+    Given an answer of 300 characters played to the end
+    Then the next turn's context block has no note
+    And the Show's rate follows from it
+
+  @step10
+  Scenario: ST-21 Without a measured rate the start value applies
+    Given a satellite with no answer played to the end yet
+    When an answer is interrupted
+    Then the heard part is estimated with the start value
+
+  @step10
+  Scenario: ST-22 A satellite whose speaker is not known gets no note
+    Given a satellite without a known speaker
+    When its answer is interrupted
+    Then the next turn's context block has no note
+    And one log line names the satellite
+
+  @step10
+  Scenario: ST-23 The next turn reads the note
+    Given an interrupted story
+    When the next turn of that conversation starts at once ("Wie ging es weiter?")
+    Then its context block holds the note, and its history the whole story
+
+  @step11
+  Scenario: ST-24 Asked for silence, Mira says nothing
+    Given the model calls stay_silent in a voice turn at a satellite
+    Then the answer is empty, without a fixed sentence, without "Übrigens"
+    And the satellite does not listen on
+    And no further model round runs
+
+  @step11
+  Scenario: ST-25 Silence is for a satellite only
+    Given the model calls stay_silent in a Telegram turn
+    Then the tool says it works at a satellite only
+    And the turn goes on as usual
+
+  @step12
+  Scenario: ST-26 The pipeline speaks nothing for an empty answer
+    Given Mira's answer is empty
+    When the turn runs through Home Assistant's pipeline
+    Then there is no speech and the satellite goes back without responding

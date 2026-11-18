@@ -19,7 +19,11 @@ states a device reports.
   text to the preferred pipeline's agent, "responding" while the answer is
   spoken, then "listening" if the answer asks for it, else "idle".
 
-Speaking takes as long as the text, about 15 characters a second."""
+Speaking takes as long as the text, about 15 characters a second; while it
+speaks, the speaker reports "playing" (as the Show's does for its answers),
+and the wake word cuts it off: the speaker goes "idle", then the satellite
+"listening". An empty answer is not spoken: no "responding" (Home
+Assistant's pipeline skips the speech)."""
 
 from __future__ import annotations
 
@@ -66,6 +70,8 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
         # The conversation a follow-up continues: set by an answer that
         # listens on, until the listening is over.
         self._follow_up: str | None = None
+        # Set while an answer is spoken: the wake word cuts it off.
+        self._speaking: asyncio.Event | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -90,8 +96,14 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
 
     @callback
     def wake_word(self) -> None:
-        """The wake word was heard: listen, music lowered meanwhile."""
+        """The wake word was heard: listen, music lowered meanwhile. An answer
+        being spoken stops at once."""
         self.dev.record("wake_word")
+        if self._speaking is not None and not self._speaking.is_set():
+            self.dev.record("interrupted")
+            self._speaking.set()
+            if self.dev.speaker:
+                self.dev.speaker.speaking(False)
         self._listen()
 
     async def say(self, text: str) -> dict[str, Any]:
@@ -115,7 +127,14 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
             agent_id=pipeline.conversation_engine, device_id=self.dev.device_id, satellite_id=self.entity_id,
         )
         speech = result.response.speech.get("plain", {}).get("speech", "")
-        await self._responding(speech)
+        if speech.strip():
+            interrupted = await self._responding(speech)
+        else:
+            # Nothing to say: Home Assistant's pipeline skips the speech.
+            interrupted = False
+        if interrupted:
+            # The wake word cut it off and listens already.
+            return {"speech": speech, "continue_conversation": False, "interrupted": True}
         if result.continue_conversation:
             self._follow_up = result.conversation_id
             self._listen()
@@ -129,20 +148,31 @@ class FakeSatellite(FakeEntity, AssistSatelliteEntity):
         await self._responding(message or "")
         self._set_state(AssistSatelliteState.IDLE)
 
-    async def _responding(self, text: str) -> None:
-        """Responding for as long as text takes to say."""
+    async def _responding(self, text: str) -> bool:
+        """Responding for as long as text takes to say, the speaker playing
+        meanwhile; True when the wake word cut it off."""
         self._set_state(AssistSatelliteState.RESPONDING)
         done = asyncio.Event()
+        self._speaking = done
+        cut = False
+        if self.dev.speaker:
+            self.dev.speaker.speaking(True)
 
         @callback
         def spoken(_now: datetime) -> None:
             done.set()
 
         cancel = async_call_later(self.hass, speaking_time(text), spoken)
+        started = asyncio.get_running_loop().time()
         try:
             await done.wait()
+            cut = asyncio.get_running_loop().time() - started < speaking_time(text) - 0.05
         finally:
             cancel()
+            self._speaking = None
+            if self.dev.speaker:
+                self.dev.speaker.speaking(False)
+        return cut
 
     def _asking(self) -> bool:
         return self._ask_question_future is not None and not self._ask_question_future.done()

@@ -123,6 +123,24 @@ Feature: FG Fake satellites that behave like the real ones
     Then the satellite goes "idle" after the listening time
     And the action fails with "No answer received from the satellite"
 
+  @step10
+  Scenario: FG-20 The speaker plays while an answer is spoken
+    When a test calls techo5_fake.say for the Fake Show and the answer has text
+    Then the satellite goes "responding" and the speaker "playing"
+    And when the answer is spoken the speaker goes "idle", then the satellite
+
+  @step10
+  Scenario: FG-21 The wake word cuts an answer off
+    Given the Fake Show speaks an answer
+    When a test calls techo5_fake.wake_word
+    Then the speaker goes "idle", then the satellite "listening"
+    And techo5_fake.say answers with interrupted true
+
+  @step10
+  Scenario: FG-22 An empty answer is not spoken
+    When the answer of a voice turn is empty
+    Then the satellite does not go "responding" and the speaker does not play
+
  (testenv/fritz_fake as mira_fritz)
 
   @step7

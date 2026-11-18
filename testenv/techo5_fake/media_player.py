@@ -79,6 +79,7 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
         self._remaining: float | None = None
         self._ends_at: datetime | None = None
         self._end: CALLBACK_TYPE | None = None
+        self._speech = False  # "playing" for an answer being spoken, not for media
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -96,6 +97,7 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
         announce = bool(kwargs.get("announce"))
         self.dev.record("play_media", media_type=str(media_type), media_id=media_id, announce=announce)
         self._cancel_end()
+        self._speech = False
         self._playing += 1
         playing = self._playing
         title, self.dev.media_title = self.dev.media_title, None
@@ -137,6 +139,19 @@ class FakeSpeaker(FakeEntity, MediaPlayerEntity):
         self.dev.record("mute", mute=mute)
         self._attr_is_volume_muted = mute
         self.async_write_ha_state()
+
+    @callback
+    def speaking(self, on: bool) -> None:
+        """The satellite speaks an answer (on) or stopped: an idle speaker
+        reports "playing" meanwhile, as the Show's does; music stays as it is."""
+        if on and self._attr_state is MediaPlayerState.IDLE:
+            self._speech = True
+            self._attr_state = MediaPlayerState.PLAYING
+            self.async_write_ha_state()
+        elif not on and self._speech:
+            self._speech = False
+            self._attr_state = MediaPlayerState.IDLE
+            self.async_write_ha_state()
 
     @callback
     def duck(self, on: bool) -> None:

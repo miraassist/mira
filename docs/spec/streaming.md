@@ -1,6 +1,6 @@
 # Speaking while the answer is written – Spec
 
-Status 2026-11-05: built (steps 1 to 7, in 0.15.2; step 8 built, not released); all rows of the state table checked. Scenarios: [streaming.feature](streaming.feature).
+Status 2026-11-18: built (steps 1 to 7, in 0.15.2; step 8 built, not released; steps 10 to 12 built 2026-11-18, not released); all rows of the state table checked except row 15 at the real Show. Scenarios: [streaming.feature](streaming.feature).
 
 ## Goal
 
@@ -64,6 +64,119 @@ happens where a turn today relies on the finished answer.
 - **The model fails after the first piece:** see decision 5.
 - **The connection between the integration and the service breaks:** the integration ends the stream with the
   pieces so far and a short fixed sentence ("Da ist etwas schiefgegangen.").
+
+## Interrupted while it is spoken (decided 2026-11-18)
+
+**Goal.** For an answer interrupted while the satellite speaks it (wake word, "Stopp"), the model knows how far the user
+heard it. Today the whole text stays: the model writes a story in seconds, the satellite needs a minute to
+speak it, and Home Assistant's pipeline run ends long before the wake word (row 11). The next turn ("Wie ging es
+weiter?") then assumes the user heard all of it.
+
+**The concept it hangs on:** "what was spoken counts" (decisions 9 to 11, step 8) and the context block of a turn
+("Aktueller Stand"), which already tells the model facts of the moment. New is a line there about the interruption,
+estimated by the time the satellite's speaker played. The estimate is the one of Hugging Face's speech-to-speech (its
+Realtime API, "Interrupted replies": playback time with a speaking rate measured per session); unlike it, the answer is
+not cut: "Wie ging es weiter?" and "Lies weiter" need the rest, and a story, the news or a mail read out could not go
+on from a cut text.
+
+**Why a time, not a signal** (rules: signals, not timing): neither Home Assistant nor the satellite reports how far an
+answer was played. The pipeline run is over before the speech (row 11), and a position reported by a satellite would be
+a time too. The time only says how much; when it happened is a signal (the speaker's state, a new run).
+
+**Decided (2026-11-18):**
+
+| # | Question | Decision |
+|---|---|---|
+| 12 | What stays of an interrupted answer | The whole answer stays. The next turns of that conversation get a line in the context block: the answer was interrupted, heard up to "… <the last heard sentence>". Not in the answer itself: a marker there could be taken for one of the style tags the answers carry ("[ruhig]") and be imitated. Decided 2026-11-18 after first choosing Hugging Face's cut: the rest is needed to go on |
+| 13 | The speaking rate | Measured per satellite on answers played to the end, as a fixed part plus a rate: the playing time is a straight line over the answer's length (row 12: about 2.4 s + 1 s per 18.6 characters at the Show; a rate alone would be 7 characters per second for a short answer and 17 for a story). A start value until there are measurements (decided 2026-11-18 after the measurements of row 12) |
+| 14 | A satellite whose speaker Mira does not know | No note; one log line per satellite |
+
+## Silence when asked for it (decided 2026-11-18)
+
+**Goal.** "Stopp" right after an interruption, "sei still", "genug": the user wants Mira to be quiet. Today the model
+answers anyway (row 13: "[zügig] Stopp.", 5.68 s at the Show), and an empty answer would become a fixed sentence
+(decision 3). Any confirmation is already too much (the maintainer, 2026-11-18).
+
+**The concept it hangs on:** a tool of Mira's that changes how the turn ends, as `keep_listening` does
+([Satellite](satellite.md)): the model calls it, the engine sees the call. No phrase lists: the model decides from what
+was said and from the note of an interruption (above).
+
+**Decided (2026-11-18):**
+
+| # | Question | Decision |
+|---|---|---|
+| 15 | How the model asks for silence | The tool `stay_silent`, offered in every turn, for a satellite only. Its description says when: the user only wants quiet ("Stopp", "sei still", "genug", "lass gut sein"), above all right after an interrupted answer; never when they want something known or done. Called alone, without text |
+| 16 | What Mira sends | Nothing: the answer is empty. No fixed sentence (the exception to decision 3), no "Übrigens", no listening on. The turn ends right after the tool's round: no further model round |
+| 17 | The interface | Unchanged. The integration already passes an empty answer through as empty speech (`conversation.py`: what was streamed, nothing), an older integration too; Home Assistant's pipeline then skips the speech (`default_pipeline.py`: "Skip TTS" when the speech is empty) |
+| 18 | Text written before the call in the same round | Already spoken, so it stays spoken; the turn ends after the tool all the same |
+
+**Errors:** a call outside a satellite (a chat, Telegram, a turn without a device) is no silence: the tool answers that
+it works at a satellite only, and the turn goes on as usual; the log has the tool call as every call.
+
+**What it costs:** one tool in every turn's list (its description, about 400 characters in the shared prefix); a
+silent turn costs one model round less than one with an answer.
+
+**State table, the rows of this section:**
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
+|---|---|---|---|---|---|
+| 14 | an empty answer through the pipeline | the agent's answer has no text | `intent-end` with empty speech, no `tts-start`, `run-end` | — | 2026-11-18 (`assist_pipeline/run` from intent to speech with the fake Show's device, "Sei still": the model called `stay_silent`, `intent-end` with speech `''`, no `tts-start`, `run-end`. Without a device the same sentence was answered aloud, as decided: silence is for a satellite only) |
+| 15 | the satellite after an empty answer | as row 14 | satellite `processing` → `idle` (or `listening` if asked), no `responding`, speaker not `playing` | — | 2026-11-18 at the fake Show ("Sei still": `listening` and `processing` 19:52:15.348, `idle` 19:52:16.384, no `responding`, the speaker stayed `idle`); the real Show: still to be seen at the maintainer's run |
+
+**What it does, step by step:**
+
+1. **Playing:** when a voice turn at a satellite has spoken something, Mira subscribes to the satellite's speaker
+   (`subscribe_entities` filtered to that one entity, the speaker found as for sounds: the media player of the
+   satellite's device). The first state Home Assistant sends tells whether it plays already (the answer starts while
+   it is written, row 3) and since when (`last_changed`); otherwise she waits for `playing`. Then she waits for the
+   speaker to leave `playing`. The subscription ends there; a newer voice turn at the same satellite ends it too.
+2. **Played to the end** (row 12): the playing time is at least 85 % of what the satellite's line gives for the
+   answer's length. The pair (characters, seconds) goes into the satellite's line (fixed part and rate, decision 13).
+   Characters are counted without the style tags in brackets ("[ruhig]"), which are not spoken.
+3. **Interrupted** (rows 11 and 13): the playing time is shorter than the line's time by more than 1.5 s and more
+   than 15 %. Between the two bounds it is neither: no note, no measurement. The heard part is the playing time minus
+   the fixed part, times the rate, in characters, back to the end of the last complete sentence (`.`, `!`, `?`, `…`).
+   A new run of the satellite is not waited for: whatever ended the playing, the user did not hear the rest
+   (changed 2026-11-18 while building; the first version of this step asked for it).
+4. **The note:** Mira keeps, per conversation, where its last answer was interrupted (the last heard sentence), in
+   memory: a restart of the service loses it, as it loses the conversation's running turn. The context block of the
+   next turn of that conversation says so once: "Deine letzte Antwort wurde beim Vorlesen unterbrochen. Gehört hat
+   der Nutzer sie bis „…“; den Rest nicht." With no complete sentence heard: "… gleich am Anfang unterbrochen; der
+   Nutzer hat keinen ganzen Satz davon gehört. Geht es weiter, fang von vorn an." (the last sentence added
+   2026-11-18 after a run at the fake Show: without it the model went on from the end of the story) The answer itself stays whole. The speaker leaves `playing` at the
+   wake word, before the next turn's speech is even heard, so the note is there when the next turn begins.
+5. **The line** is kept per satellite in `kv` (`speech_line.<device id>`, described in [Database](../database.md)):
+   the sums of a straight-line fit over the measured pairs (count, Σx, Σy, Σx², Σxy), the older pairs weighing less
+   once there are more than 50. Until there are 3 pairs at least 100 characters apart, or when the fit gives no
+   plausible line (a negative fixed part, or a rate outside 5 to 40 characters per second), the start value applies:
+   2.4 s + 1 s per 18.6 characters (row 12).
+
+**What it costs:** per voice turn that spoke something, one subscription to one entity, ended when the speaker stops
+(at most as long as the answer plays, with a safety net below); no other call. One write of the satellite's line
+in `kv` per answer played to the end. One line in the context block of the next turn after an interruption. The turn
+itself waits for none of it.
+
+**What the model is told:** the line in the context block (step 4), which says it itself: "Deine letzte Antwort wurde
+beim Vorlesen unterbrochen. Gehört hat der Nutzer sie bis „…“; den Rest nicht. Geht es weiter, mach dort weiter." The
+tool `stay_silent` (decision 15) names the interruption as the moment for silence.
+
+**Errors:**
+
+| What fails | What happens | Who learns of it |
+|---|---|---|
+| The satellite's speaker is not known | no note (decision 14) | one log line per satellite, at its first turn |
+| The subscription fails | no note, no measurement | a log line with the speaker and the error |
+| No `playing` within 30 s after the turn, or still `playing` after twice the line's time plus 60 s (music on the speaker, a stuck state) | no note, no measurement; the subscription ends (the safety net: no signal comes) | a log line with the speaker, the conversation and how long it waited |
+| The line in `kv` cannot be read or written | the start value applies; the pair is lost | a log line with the key and the error |
+| The line in `kv` does not parse | the start value applies, the next pair starts it anew | a log line with the key and the start of the value |
+
+**State table, the rows of this section:**
+
+| # | Transition | Trigger | Signal | How Mira learns of it | Checked on the test HA |
+|---|---|---|---|---|---|
+| 11 | interrupted while spoken, after the turn ended | wake word while the speaker plays a streamed answer whose pipeline run has ended | speaker → `idle`, then a new run (satellite `listening`); nothing in the ended run | state subscription of the speaker and the satellite | 2026-11-18 at the Show (story of 956 characters: speaker `playing` 18:18:52.739, `run-end` 18:18:56.496, speaker `idle` 18:19:08.446, `listening` 18:19:09.201; 15.7 s played) |
+| 12 | played to the end | the last audio | speaker → `idle`, no new run before the playing time matches the length | as row 11 | 2026-11-18 at the Show, answers played to the end (characters / playing time): 28 / 3.89 s, 79 / 5.41 s, 19 / 2.49 s, 667 / 38.27 s (a story; satellite `idle` 1 s before the speaker). The playing time is a fixed part plus the length: about 2.4 s + 1 s per 18.6 characters (from the shortest and the longest); the short ones lie up to 1.2 s off. A rate alone (characters per second of playing) would be 7 for a short answer and 17 for a story |
+| 13 | "Stopp" while spoken | as row 8 | as row 11: the wake word ends the playing, "Stopp" is a turn of its own | as row 11 | 2026-11-18 at the Show (story of 663 characters: speaker `playing` 19:18:22.042, `idle` 19:18:28.886 at the wake word, `listening` 19:18:29.641; 6.84 s played, about 83 characters by row 12. "Stopp" then went to Mira as a request, answered "[zügig] Stopp." and played 5.68 s) |
 
 ## Decided (2026-11-03)
 
@@ -167,6 +280,15 @@ Nothing grows beyond the answer itself; no subscription, no polling.
    listening on it. Scenarios ST-14 to ST-16.
 9. **A turn ended by the caller is logged as such** (built 2026-11-08): the line with time and spoken characters,
    also before the first piece; the run `cancelled`. ST-17, ST-18.
+10. **Interrupted while it is spoken** (decisions 12 to 14, 2026-11-18): rows 12 and 13 checked first, then the
+    playing time per answer, the rate per satellite, the note in the context block. ST-19 to ST-23. Built
+    2026-11-18, not released (`internal/heard`); run at the fake Show: a story of 730 characters cut after 14.7 s,
+    the note named its first sentence, and "Wie ging es weiter?" went on with the second.
+11. **Silence when asked for it** (decisions 15 to 18, 2026-11-18): the tool `stay_silent`, the engine's empty end.
+    ST-24 and ST-25. Built 2026-11-18, not released; "Stopp" after an interrupted story and "Sei still" at the fake
+    Show ended without a word.
+12. **An empty answer through the integration and the pipeline** (decision 17): nothing to build, checked in pytest
+    (ST-26: the integration passes it on as empty speech) and on the test HA (rows 14 and 15).
 
 ## Later
 

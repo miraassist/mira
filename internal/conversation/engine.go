@@ -133,6 +133,12 @@ type Options struct {
 	// listening (docs/spec/music-quiz.md, decision 7). Without it, nothing
 	// plays.
 	Playing func(device string) bool
+	// Spoke hands over what a voice turn at a satellite has spoken, for the
+	// note of an interruption (docs/spec/streaming.md, step 10); Interrupted
+	// takes that note for a conversation's next turn, once. Without them, no
+	// note.
+	Spoke       func(key, device, text string, began time.Time)
+	Interrupted func(key string) (heardUpTo string, ok bool)
 	// Afterword returns the messages waiting for an area as a closing
 	// sentence spoken on the satellite's device, marking them heard, or ""
 	// when none wait.
@@ -187,6 +193,8 @@ type Engine struct {
 	followMu   sync.Mutex
 	follow     map[string]followUp
 	personName func(person string) string
+	spoke       func(key, device, text string, began time.Time)
+	interrupted func(key string) (string, bool)
 	persona    func() string
 	languages  Languages
 	tel        *telemetry.Provider
@@ -252,6 +260,8 @@ func New(opts Options) *Engine {
 		languages:   opts.Languages,
 		tel:         opts.Telemetry,
 		log:         opts.Logger.With("component", "conversation"),
+		spoke:       opts.Spoke,
+		interrupted: opts.Interrupted,
 		clock:       opts.Clock,
 		loc:         opts.Location,
 		sessions:    sessionLocks{held: map[string]*sessionLock{}},
@@ -461,6 +471,11 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		ReplyInLang:    sentLang(req.Language),
 		Text:           req.Text,
 	}
+	// The last answer of this conversation was cut off while it was spoken
+	// (docs/spec/streaming.md, step 10).
+	if e.interrupted != nil {
+		turn.HeardUpTo, turn.Interrupted = e.interrupted(key)
+	}
 	if c, err := e.store.TakeConfirmation(ctx, key); err == nil {
 		ts.Pending = &c
 		turn.PendingConfirmation = c.Summary
@@ -500,6 +515,8 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 		pass = newPasser(req.Stream)
 	}
 	var final llm.Message
+	// silent: the model asked to say nothing (stay_silent).
+	var silent bool
 	for round := 0; ; round++ {
 		if pass != nil {
 			pass.round()
@@ -620,6 +637,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 			msgs = append(msgs, tm)
 			added = append(added, tm)
 		}
+		// Asked for silence at a satellite: the turn ends here, without
+		// another round and without an answer (docs/spec/streaming.md,
+		// decision 16).
+		if req.Channel == config.ChannelVoice && req.DeviceID != "" && calledTool([]llm.Message{msg}, tools.ToolStaySilent) {
+			silent = true
+			final = llm.Message{Role: llm.RoleAssistant}
+			break
+		}
 		// The round's text was spoken while the model wrote it: the last
 		// tool result says so, or the model says it again (a try, not in a
 		// spec yet).
@@ -632,7 +657,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 
 	// A round with text and a tool is an answer too: the turn is empty only
 	// when nothing at all was said.
-	if strings.TrimSpace(final.Content) == "" && (pass == nil || strings.TrimSpace(pass.spoken()) == "") {
+	if !silent && strings.TrimSpace(final.Content) == "" && (pass == nil || strings.TrimSpace(pass.spoken()) == "") {
 		final.Content = e.texts(ctx).notFinished
 		if pass != nil {
 			pass.add(final.Content)
@@ -649,7 +674,7 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if ended {
 		storeCtx = context.WithoutCancel(ctx)
 	}
-	if !ended && req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
+	if !ended && !silent && req.Channel == config.ChannelVoice && sess.AreaID != "" && e.afterword != nil &&
 		!expectsReply(final.Content) && !ts.ConfirmationRequested() && !calledTool(added, tools.ToolMessagesRead) &&
 		!calledTool(added, tools.ToolKeepListening) {
 		if extra := e.afterword(ctx, sess.AreaID, req.DeviceID); extra != "" {
@@ -689,9 +714,14 @@ func (e *Engine) turn(ctx context.Context, ts *tools.TurnState, req Request, sna
 	if pass != nil && strings.TrimSpace(pass.spoken()) != "" {
 		heard = pass.spoken()
 	}
-	resp.ContinueConversation = req.Channel == config.ChannelVoice && !e.playsAfter(added) && !e.stillPlaying(req.DeviceID) &&
+	resp.ContinueConversation = req.Channel == config.ChannelVoice && !silent && !e.playsAfter(added) && !e.stillPlaying(req.DeviceID) &&
 		(expectsReply(heard) || ts.ConfirmationRequested() || ts.WaitsForUser() ||
 			calledTool(added, tools.ToolKeepListening))
+	// What was spoken at a satellite: how far it is heard is learnt from
+	// its speaker (docs/spec/streaming.md, step 10).
+	if e.spoke != nil && !ended && !silent && req.Channel == config.ChannelVoice && req.DeviceID != "" && strings.TrimSpace(heard) != "" {
+		e.spoke(key, req.DeviceID, heard, turnBegan)
+	}
 	e.log.Info("turn done",
 		"session", key, "model", resp.Model, "rounds", resp.ToolRounds, "prefix_hash", resp.PrefixHash,
 		"prompt_tokens", resp.PromptTokens, "cached_tokens", resp.CachedTokens,

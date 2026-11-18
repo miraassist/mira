@@ -33,6 +33,7 @@ import (
 	"github.com/miraassist/mira/internal/ha/structure"
 	"github.com/miraassist/mira/internal/ha/updates"
 	haws "github.com/miraassist/mira/internal/ha/ws"
+	"github.com/miraassist/mira/internal/heard"
 	"github.com/miraassist/mira/internal/history"
 	"github.com/miraassist/mira/internal/hooks"
 	"github.com/miraassist/mira/internal/i18n"
@@ -745,7 +746,14 @@ func build(ctx context.Context, cfg config.Config, opts buildOptions) (*app, err
 		tools.WithRightOf(func(s tools.Spec) string { return agent.RightFor(s).String() }))
 	a.guard = guard
 	a.agents = a.newAgents(registry, guard)
+	// How far a spoken answer was heard (docs/spec/streaming.md, step 10).
+	heardOf := heard.New(heard.Options{
+		Speaker: func(device string) string { return a.speakerOf(context.Background(), device) },
+		Watch:   a.watchOne,
+		KV:      a.store, NotFound: store.ErrNotFound, Logger: a.log.With("component", "heard"),
+	})
 	a.engine = conversation.New(conversation.Options{
+		Spoke: heardOf.Spoke, Interrupted: heardOf.Take,
 		Config: cfg, LLM: a.llm, Models: models, Store: a.store, Tools: registry,
 		Guard: guard, Agents: a.agents,
 		Structure: snapshot, StructurePrompt: a.assist.Text, DeviceHints: a.assist.TailFor, DeviceTools: a.mcp.DeviceTools, Telemetry: tel, Logger: a.log,

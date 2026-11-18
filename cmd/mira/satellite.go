@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"time"
+
 	haws "github.com/miraassist/mira/internal/ha/ws"
 )
 
@@ -45,4 +49,44 @@ func (a *app) mediaPlaying(ctx context.Context, deviceID, speaker string) (bool,
 		}
 	}
 	return false, speaker, nil
+}
+
+// watchOne subscribes to one entity's state (subscribe_entities filtered to
+// it) and hands each change on with since when it holds; for the speaker of
+// a spoken answer (docs/spec/streaming.md, step 10). The first state Home
+// Assistant sends may come before the subscription returns: it is handed on
+// then.
+func (a *app) watchOne(ctx context.Context, entity string, changed func(state string, since time.Time)) (func(), error) {
+	var mu sync.Mutex
+	var w *haws.StateWatch
+	last := ""
+	check := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if w == nil {
+			return
+		}
+		st, ok := w.State(entity)
+		if !ok || st.State+st.LastChanged == last {
+			return
+		}
+		last = st.State + st.LastChanged
+		since, err := time.Parse(time.RFC3339Nano, st.LastChanged)
+		if err != nil {
+			since = time.Now()
+		}
+		changed(st.State, since)
+	}
+	if a.ha == nil {
+		return nil, errors.New("no connection to Home Assistant")
+	}
+	ww, err := a.ha.WatchStates(ctx, haws.StateFilter{EntityIDs: []string{entity}}, check)
+	if err != nil {
+		return nil, err
+	}
+	mu.Lock()
+	w = ww
+	mu.Unlock()
+	check()
+	return ww.Stop, nil
 }

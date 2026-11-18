@@ -1,6 +1,6 @@
 # Fake satellites that behave like the real ones – Spec
 
-Status 2026-11-17: steps 1–9 built (step 9: a question, 2026-11-17) (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
+Status 2026-11-18: steps 1–10 built (step 10: speaking as the Show does, 2026-11-18; step 9: a question, 2026-11-17) (step 5: the watched devices, extended with the device watch's step 7; step 7: the answering machine, 2026-11-14; step 8: the fake A2A agent, 2026-11-14); the Show's contract recorded anew from TECHO5 v1.6.18 (with `media_title` and `media_station`); the Echo's stays as it is (no screen). A contract is never recorded from a development build (decided 2026-10-30). Scenarios: [fake-devices.feature](fake-devices.feature). Builds on the
 fake TECHO5 devices ([testenv/README.md](../../testenv/README.md), Fake TECHO5 devices) and on
 [How a TECHO5 satellite behaves](satellite.md#how-a-techo5-satellite-behaves).
 
@@ -242,3 +242,7 @@ turn at the conversation agent.
    (2026-11-14, step 0 of [Remote agents](remote-agents.md)); tested in Go (`testenv/a2a_fake`).
 9. **A question** (`assist_satellite.ask_question`, 2026-11-17): answered by `techo5_fake.say`, or no answer within
    the listening time (FG-18, FG-19), tested in pytest; for the skill `angehoerige`, whose automations ask.
+10. **Speaking as the Show does** (2026-11-18, for [Streaming](streaming.md), steps 10 to 12): while the satellite
+    speaks an answer its speaker reports `playing` (the Show's does, streaming row 12), the wake word cuts the answer
+    off (speaker `idle`, then satellite `listening`; `techo5_fake.say` answers with `interrupted`), and an empty
+    answer is not spoken (Home Assistant's pipeline skips it). Tested in pytest (FG-20 to FG-22).

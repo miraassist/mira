@@ -321,3 +321,62 @@ async def test_FG19_a_question_nobody_answers(hass, fakes):
     assert failed.value.translation_key == "no_answer"
     assert seen[-1] == (SAT, "idle")
     assert "processing" not in [s for _, s in seen]
+
+
+def answering(monkeypatch, speech: str) -> None:
+    """The agent of a voice turn answers speech (no model, no pipeline)."""
+    import importlib
+    from types import SimpleNamespace
+
+    sat = importlib.import_module("custom_components.techo5_fake.assist_satellite")
+
+    async def converse(*_args, **_kwargs):
+        response = SimpleNamespace(speech={"plain": {"speech": speech}})
+        return SimpleNamespace(response=response, continue_conversation=False, conversation_id="c1")
+
+    monkeypatch.setattr(sat.conversation, "async_converse", converse)
+    monkeypatch.setattr(
+        sat, "async_get_pipeline", lambda *_: SimpleNamespace(conversation_language="de", conversation_engine="x")
+    )
+    monkeypatch.setattr(sat.FakeSatellite, "_resolve_pipeline", lambda self: None)
+
+
+async def test_FG20_the_speaker_plays_while_an_answer_is_spoken(hass, fakes, monkeypatch):
+    answering(monkeypatch, "Es war einmal ein Igel, der fand einen Stein.")
+    seen = states(hass, SAT, SPK)
+    turn = call_in_background(hass, "techo5_fake", "say", {"device": "fake_show", "text": "Erzähl was"})
+    for _ in range(6):
+        await later(hass, 1)
+        if turn.done():
+            break
+    await turn
+    assert (SAT, "responding") in seen
+    i = seen.index((SPK, "playing"))
+    assert seen[i - 1] == (SAT, "responding")
+    assert seen[-2:] == [(SPK, "idle"), (SAT, "idle")]
+
+
+async def test_FG21_the_wake_word_cuts_an_answer_off(hass, fakes, monkeypatch):
+    answering(monkeypatch, "Es war einmal " * 30)
+    seen = states(hass, SAT, SPK)
+    turn = asyncio.ensure_future(
+        hass.services.async_call(
+            "techo5_fake", "say", {"device": "fake_show", "text": "Erzähl was"}, blocking=True, return_response=True
+        )
+    )
+    await later(hass, 0)
+    assert hass.states.get(SPK).state == "playing"
+    await hass.services.async_call("techo5_fake", "wake_word", {"device": "fake_show"}, blocking=True)
+    result = await turn
+    assert result["interrupted"] is True
+    i = seen.index((SPK, "idle"))
+    assert seen[i + 1] == (SAT, "listening")
+
+
+async def test_FG22_an_empty_answer_is_not_spoken(hass, fakes, monkeypatch):
+    answering(monkeypatch, "")
+    seen = states(hass, SAT, SPK)
+    await hass.services.async_call("techo5_fake", "say", {"device": "fake_show", "text": "Stopp"}, blocking=True)
+    assert (SAT, "responding") not in seen
+    assert (SPK, "playing") not in seen
+    assert seen[-1] == (SAT, "idle")

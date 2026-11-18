@@ -1009,3 +1009,80 @@ func TestKL04_AnAnswerThatStatesSomethingEndsTheTurn(t *testing.T) {
 		t.Errorf("nothing is awaited, the satellite must stop: %+v", resp)
 	}
 }
+
+// silentTool stands for the satellite's stay_silent (internal/satellite).
+var silentTool = tools.InternalTool{Name: tools.ToolStaySilent, Description: "Schweigen", Schema: `{"type":"object","properties":{}}`,
+	Run: func(context.Context, tools.Invocation) (string, error) { return "Du schweigst.", nil }}
+
+// ST-24 Asked for silence, Mira says nothing (docs/spec/streaming.md, step 11).
+func TestST24_AskedForSilenceMiraSaysNothing(t *testing.T) {
+	h := newHarnessTools(t, nil, []tools.InternalTool{silentTool},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", tools.ToolStaySilent, `{}`)}},
+		fakellm.Step{Content: "Okay."},
+	)
+	res, err := h.engine.Handle(context.Background(), conversation.Request{
+		Channel: config.ChannelVoice, ConversationID: "v1", DeviceID: "sat-kueche", Text: "Stopp", Language: "de"})
+	if err != nil || res.Text != "" || res.ContinueConversation {
+		t.Errorf("answer = %+v, %v", res, err)
+	}
+	if n := len(h.llm.Requests()); n != 1 {
+		t.Errorf("model called %d times, want 1", n)
+	}
+}
+
+// ST-25 Silence is for a satellite only: in a chat the turn goes on.
+func TestST25_SilenceIsForASatelliteOnly(t *testing.T) {
+	h := newHarnessTools(t, nil, []tools.InternalTool{silentTool},
+		fakellm.Step{ToolCalls: []llm.ToolCall{fakellm.ToolCall("c1", tools.ToolStaySilent, `{}`)}},
+		fakellm.Step{Content: "Alles klar."},
+	)
+	if res := h.say(t, config.ChannelTelegram, "42", "Sei still"); res.Text != "Alles klar." {
+		t.Errorf("answer = %+v", res)
+	}
+}
+
+// ST-23 The next turn reads the note of an interrupted answer; what a voice
+// turn at a satellite spoke is handed over for it (docs/spec/streaming.md,
+// step 10).
+func TestST23_TheNextTurnReadsTheNote(t *testing.T) {
+	h := newHarness(t, fakellm.Step{Content: "Es war einmal ein Igel. Er fand einen Stein."}, fakellm.Step{Content: "Dann fand er einen Stein."})
+	var spoke []string
+	note := map[string]string{}
+	e := conversation.New(conversation.Options{
+		Config: config.Default(), LLM: llm.New(llm.Options{BaseURL: h.llm.BaseURL(), Model: "test"}), Store: h.store,
+		Tools: tools.NewRegistry(nil), Structure: houseSnapshot, Logger: quietLogger(), Clock: h.clock.Now, Location: time.UTC,
+		StructurePrompt: func() string { return harnessHousePrompt },
+		Spoke: func(key, device, text string, _ time.Time) {
+			spoke = append(spoke, device+"|"+text)
+			note[key] = "Es war einmal ein Igel."
+		},
+		Interrupted: func(key string) (string, bool) { q, ok := note[key]; delete(note, key); return q, ok },
+	})
+	req := conversation.Request{Channel: config.ChannelVoice, ConversationID: "v1", DeviceID: "sat-kueche", Text: "Erzähl eine Geschichte", Language: "de"}
+	if _, err := e.Handle(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if len(spoke) != 1 || spoke[0] != "sat-kueche|Es war einmal ein Igel. Er fand einen Stein." {
+		t.Fatalf("spoke = %v", spoke)
+	}
+	req.Text = "Wie ging es weiter?"
+	if _, err := e.Handle(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	reqs := h.llm.Requests()
+	last := reqs[len(reqs)-1].Request.Messages
+	user := last[len(last)-1].Content
+	if !strings.Contains(user, "Gehört hat der Nutzer sie bis „Es war einmal ein Igel.“") {
+		t.Errorf("the turn's context has no note:\n%s", user)
+	}
+	// The whole story stays in the history.
+	found := false
+	for _, m := range last {
+		if m.Role == llm.RoleAssistant && m.Content == "Es war einmal ein Igel. Er fand einen Stein." {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the whole answer is not in the history")
+	}
+}

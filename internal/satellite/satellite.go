@@ -104,46 +104,54 @@ type texts struct {
 	noSatellite, noSpeaker, unknown, played         string
 	noScreen, noPicture, shown                      string
 	listenDesc, listening                           string
+	// stay_silent (docs/spec/streaming.md, Silence when asked for it).
+	silentDesc, silent, silentNoSatellite string
 }
 
 var catalog = map[i18n.Lang]texts{
 	i18n.DE: {
-		soundDesc:   "Spielt einen kurzen Klang von Mira auf dem Satelliten, an dem gerade gesprochen wird, und kommt erst zurück, wenn er zu Ende ist; sprich danach. Nur dort, wo ein Skill es sagt. Klänge: %s.",
-		nameDesc:    "Name des Klangs.",
-		sounds:      "fanfare_big (großer Erfolg, alles richtig), fanfare (Erfolg), too_bad (hat nicht geklappt)",
-		cardDesc:    "Zeigt eine Karte auf dem Bildschirm des Satelliten, an dem gerade gesprochen wird: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Zum Hinschauen, nie der einzige Ort einer Auskunft: Was darauf steht, sagst du auch. Eine neue Karte ersetzt die alte. Nur dort, wo ein Skill es sagt.",
-		titleDesc:   "Titel, kurz (höchstens 40 Zeichen).",
-		lineDesc:    "Eine Zeile, ein Stichwort statt eines Satzes (etwa 50 Zeichen; mehr wird abgeschnitten).",
-		picDesc:     "Adresse des Bilds, https://…, JPEG oder PNG.",
-		secDesc:     "Wie lange die Karte stehen bleibt, in Sekunden; 0 bis jemand sie antippt oder eine neue kommt.",
-		noSatellite: "Hier gibt es keinen Satelliten (kein Gespräch per Sprache). Mach ohne weiter und erwähne es nicht.",
-		noSpeaker:   "Der Satellit hat keinen Lautsprecher, auf dem Mira Klänge spielen kann. Mach ohne weiter und erwähne es nicht.",
-		unknown:     "Einen Klang „%s“ gibt es nicht. Klänge: %s.",
-		played:      "Gespielt und zu Ende. Sprich jetzt.",
-		noScreen:    "Dieser Satellit hat keinen Bildschirm für Karten. Mach ohne weiter und erwähne es nicht.",
-		noPicture:   "Das Bild braucht eine Adresse mit https:// oder http://.",
-		shown:       "Die Karte steht auf dem Bildschirm.",
-		listenDesc:  "Lässt den Satelliten nach deiner Antwort noch einmal zuhören, ohne Aufwachwort, wenn du gleich ein kurzes Wort erwartest, ohne zu fragen („weiter“ nach einem kurzen Handgriff). Nach einer Frage hört er ohnehin zu. Nur dort, wo ein Skill es sagt.",
-		listening:   "Der Satellit hört nach deiner Antwort noch einmal zu. Frag deshalb nicht extra.",
+		soundDesc:         "Spielt einen kurzen Klang von Mira auf dem Satelliten, an dem gerade gesprochen wird, und kommt erst zurück, wenn er zu Ende ist; sprich danach. Nur dort, wo ein Skill es sagt. Klänge: %s.",
+		nameDesc:          "Name des Klangs.",
+		sounds:            "fanfare_big (großer Erfolg, alles richtig), fanfare (Erfolg), too_bad (hat nicht geklappt)",
+		cardDesc:          "Zeigt eine Karte auf dem Bildschirm des Satelliten, an dem gerade gesprochen wird: ein Bild über den ganzen Bildschirm, darüber ein Titel und eine Zeile. Zum Hinschauen, nie der einzige Ort einer Auskunft: Was darauf steht, sagst du auch. Eine neue Karte ersetzt die alte. Nur dort, wo ein Skill es sagt.",
+		titleDesc:         "Titel, kurz (höchstens 40 Zeichen).",
+		lineDesc:          "Eine Zeile, ein Stichwort statt eines Satzes (etwa 50 Zeichen; mehr wird abgeschnitten).",
+		picDesc:           "Adresse des Bilds, https://…, JPEG oder PNG.",
+		secDesc:           "Wie lange die Karte stehen bleibt, in Sekunden; 0 bis jemand sie antippt oder eine neue kommt.",
+		noSatellite:       "Hier gibt es keinen Satelliten (kein Gespräch per Sprache). Mach ohne weiter und erwähne es nicht.",
+		noSpeaker:         "Der Satellit hat keinen Lautsprecher, auf dem Mira Klänge spielen kann. Mach ohne weiter und erwähne es nicht.",
+		unknown:           "Einen Klang „%s“ gibt es nicht. Klänge: %s.",
+		played:            "Gespielt und zu Ende. Sprich jetzt.",
+		noScreen:          "Dieser Satellit hat keinen Bildschirm für Karten. Mach ohne weiter und erwähne es nicht.",
+		noPicture:         "Das Bild braucht eine Adresse mit https:// oder http://.",
+		shown:             "Die Karte steht auf dem Bildschirm.",
+		listenDesc:        "Lässt den Satelliten nach deiner Antwort noch einmal zuhören, ohne Aufwachwort, wenn du gleich ein kurzes Wort erwartest, ohne zu fragen („weiter“ nach einem kurzen Handgriff). Nach einer Frage hört er ohnehin zu. Nur dort, wo ein Skill es sagt.",
+		listening:         "Der Satellit hört nach deiner Antwort noch einmal zu. Frag deshalb nicht extra.",
+		silentDesc:        "Beendet den Turn ohne ein einziges Wort, auch ohne „Okay“: wenn der Nutzer nur will, dass du still bist („Stopp“, „sei still“, „genug“, „lass gut sein“), vor allem gleich nachdem er eine Antwort von dir unterbrochen hat. Ruf es allein auf, ohne Text davor. Nie, wenn er etwas wissen oder getan haben will.",
+		silent:            "Du schweigst; der Turn ist zu Ende.",
+		silentNoSatellite: "Schweigen gibt es nur an einem Satelliten. Antworte wie sonst.",
 	},
 	i18n.EN: {
-		soundDesc:   "Plays a short sound of Mira's on the satellite being spoken at and returns only when it is over; speak after it. Only where a skill says so. Sounds: %s.",
-		nameDesc:    "The sound's name.",
-		sounds:      "fanfare_big (a big success, all right), fanfare (a success), too_bad (it did not work out)",
-		cardDesc:    "Shows a card on the screen of the satellite being spoken at: a picture over the whole screen, with a title and one line over it. Something to glance at, never the only place a thing is said: say what is on it as well. A new card replaces the one up. Only where a skill says so.",
-		titleDesc:   "Title, short (at most 40 characters).",
-		lineDesc:    "One line, a note rather than a sentence (about 50 characters; more is cut off).",
-		picDesc:     "The picture's address, https://…, JPEG or PNG.",
-		secDesc:     "How long the card stays, in seconds; 0 until somebody taps it or a new one comes.",
-		noSatellite: "There is no satellite here (no voice conversation). Go on without it and do not mention it.",
-		noSpeaker:   "The satellite has no speaker Mira can play sounds on. Go on without it and do not mention it.",
-		unknown:     "There is no sound \"%s\". Sounds: %s.",
-		played:      "Played and over. Speak now.",
-		noScreen:    "This satellite has no screen for cards. Go on without it and do not mention it.",
-		noPicture:   "The picture needs an address with https:// or http://.",
-		shown:       "The card is on the screen.",
-		listenDesc:  "Makes the satellite listen again after your answer, without the wake word, when you expect a quick word without asking (\"next\" after a short step). After a question it listens anyway. Only where a skill says so.",
-		listening:   "The satellite listens again after your answer, so you need not ask.",
+		soundDesc:         "Plays a short sound of Mira's on the satellite being spoken at and returns only when it is over; speak after it. Only where a skill says so. Sounds: %s.",
+		nameDesc:          "The sound's name.",
+		sounds:            "fanfare_big (a big success, all right), fanfare (a success), too_bad (it did not work out)",
+		cardDesc:          "Shows a card on the screen of the satellite being spoken at: a picture over the whole screen, with a title and one line over it. Something to glance at, never the only place a thing is said: say what is on it as well. A new card replaces the one up. Only where a skill says so.",
+		titleDesc:         "Title, short (at most 40 characters).",
+		lineDesc:          "One line, a note rather than a sentence (about 50 characters; more is cut off).",
+		picDesc:           "The picture's address, https://…, JPEG or PNG.",
+		secDesc:           "How long the card stays, in seconds; 0 until somebody taps it or a new one comes.",
+		noSatellite:       "There is no satellite here (no voice conversation). Go on without it and do not mention it.",
+		noSpeaker:         "The satellite has no speaker Mira can play sounds on. Go on without it and do not mention it.",
+		unknown:           "There is no sound \"%s\". Sounds: %s.",
+		played:            "Played and over. Speak now.",
+		noScreen:          "This satellite has no screen for cards. Go on without it and do not mention it.",
+		noPicture:         "The picture needs an address with https:// or http://.",
+		shown:             "The card is on the screen.",
+		listenDesc:        "Makes the satellite listen again after your answer, without the wake word, when you expect a quick word without asking (\"next\" after a short step). After a question it listens anyway. Only where a skill says so.",
+		listening:         "The satellite listens again after your answer, so you need not ask.",
+		silentDesc:        "Ends the turn without a single word, not even \"okay\": when the user only wants you to be quiet (\"stop\", \"be quiet\", \"enough\", \"leave it\"), above all right after they interrupted an answer of yours. Call it alone, without text before it. Never when they want something known or done.",
+		silent:            "You stay silent; the turn is over.",
+		silentNoSatellite: "Silence exists at a satellite only. Answer as usual.",
 	},
 }
 
@@ -153,7 +161,7 @@ func Tools(o Options) []tools.InternalTool {
 	if o.Wait == nil {
 		o.Wait = wait
 	}
-	return []tools.InternalTool{soundTool(o, t), cardTool(o, t), listenTool(t)}
+	return []tools.InternalTool{soundTool(o, t), cardTool(o, t), listenTool(t), silentTool(t)}
 }
 
 // listenTool is keep_listening; the conversation engine sees the call and
@@ -166,6 +174,21 @@ func listenTool(t texts) tools.InternalTool {
 				return t.noSatellite, nil
 			}
 			return t.listening, nil
+		},
+	}
+}
+
+// silentTool is stay_silent; the conversation engine sees the call at a
+// satellite and ends the turn without an answer (docs/spec/streaming.md,
+// Silence when asked for it).
+func silentTool(t texts) tools.InternalTool {
+	return tools.InternalTool{
+		Name: tools.ToolStaySilent, Description: t.silentDesc, Schema: `{"type":"object","properties":{}}`,
+		Run: func(ctx context.Context, inv tools.Invocation) (string, error) {
+			if inv.DeviceID == "" {
+				return t.silentNoSatellite, nil
+			}
+			return t.silent, nil
 		},
 	}
 }

@@ -150,3 +150,20 @@ async def test_tool_calls_go_into_the_chat_log_as_external_calls(hass, aioclient
     result = await _say(hass, "Ist das Küchenlicht an?")
 
     assert result.response.speech["plain"]["speech"] == "Ich schaue in der Küche nach. Das Küchenlicht ist aus."
+
+
+async def test_st26_an_empty_answer_is_no_speech(hass, aioclient_mock, entry):
+    """ST-26: Mira asked for silence answers nothing; the integration passes it
+    on as empty speech, so Home Assistant's pipeline speaks nothing
+    (docs/spec/streaming.md, decision 17)."""
+    aioclient_mock.post(
+        f"{AGENT_URL}/v1/conversation",
+        text='{"text":"","conversation_id":"x","continue_conversation":false}\n',
+        headers=NDJSON,
+    )
+    await _setup(hass, entry)
+
+    result = await _say(hass, "Stopp", device_id="sat-kueche")
+
+    assert result.response.speech["plain"]["speech"] == ""
+    assert result.continue_conversation is False

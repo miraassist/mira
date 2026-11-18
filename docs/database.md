@@ -219,6 +219,7 @@ writes is here.
 | `ha_logins` | **A copy of Home Assistant:** person → login name, as the integration last sent them, for the calendars | the integration | calendars | with the persons |
 | `setup.token` | Mira's API token when `mira.yaml` has none, made at the first start | `internal/setup` | the API | no |
 | `setup.paired`, `setup.code`, `setup.code_tries`, `setup.rejoin` | The state of the pairing with Home Assistant ([Setup](spec/setup.md)) | `internal/setup` | `internal/setup`; a backup's restore keeps the live ones | no |
+| `speech_line.<device id>` | Per satellite, how long its speaker plays an answer: the sums of a straight-line fit (count, Σx, Σy, Σx², Σxy) over characters and seconds of answers played to the end, for the note of an interrupted answer ([Streaming](spec/streaming.md), step 10) | `internal/heard` | `internal/heard` | with the satellites |
 | `setup.ha_url`, `setup.ha_token`, `setup.llm` | Home Assistant's address and token and the main model, as the integration sent them. **The one exception to "`mira.yaml` is the one truth":** they are laid over `mira.yaml` at start, because the integration sets them, not the user, they belong to the pairing, and a setup must not fail on a `mira.yaml` that cannot be written. Where they cover a different value of `mira.yaml`, the start's log says which setting (`setup covers mira.yaml`) | `internal/setup` (`/v1/setup`) | the start | no |
 
 A Telegram session keeps its session row; its history does not grow without end, since compaction folds old turns

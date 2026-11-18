@@ -25,6 +25,9 @@ type texts struct {
 	byVoice, byAlone       string
 	byConversation         string
 	deviceHints            string
+	// An answer cut off while it was spoken (Turn.Interrupted): heard up
+	// to a sentence (%s), or not one whole sentence.
+	interruptedAt, interruptedStart string
 
 	// The sample exchange, see Examples.
 	exampleChannel, exampleArea, exampleLight                      string
@@ -88,6 +91,8 @@ Antworte in der Sprache, in der du angesprochen wirst.`,
 		byConversation:      "im laufenden Gespräch",
 		personProfile:       "Persönliches Profil von %s:",
 		messageContext:      "Du hast gerade gemeldet (Details, falls nachgefragt wird):",
+		interruptedAt:       "Deine letzte Antwort wurde beim Vorlesen unterbrochen. Gehört hat der Nutzer sie bis „%s“; den Rest nicht. Geht es weiter, mach dort weiter.",
+		interruptedStart:    "Deine letzte Antwort wurde beim Vorlesen gleich am Anfang unterbrochen; der Nutzer hat keinen ganzen Satz davon gehört. Geht es weiter, fang von vorn an.",
 		pendingConfirmation: "Du wartest auf eine Bestätigung für: ",
 		pendingRule:         "Wenn der Nutzer jetzt zustimmt, führe genau diese Aktion aus. Wenn er ablehnt oder etwas anderes sagt, führe sie nicht aus.",
 		extraContext:        "Zusätzlicher Kontext:",
@@ -159,6 +164,8 @@ Answer in the language you are addressed in.`,
 		byConversation:      "in the running conversation",
 		personProfile:       "Personal profile of %s:",
 		messageContext:      "You have just announced (details, in case of follow-up questions):",
+		interruptedAt:       "Your last answer was cut off while it was spoken. The user heard it up to \"%s\", not the rest. If it goes on, go on from there.",
+		interruptedStart:    "Your last answer was cut off right at its start while it was spoken; the user did not hear one whole sentence of it. If it goes on, start from the beginning.",
 		pendingConfirmation: "You are waiting for a confirmation of: ",
 		pendingRule:         "If the user agrees now, perform exactly this action. If they decline or say something else, do not perform it.",
 		extraContext:        "Additional context:",
