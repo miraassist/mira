@@ -1,6 +1,6 @@
 # Calendars and to-do lists – spec
 
-Status 2026-11-13: built in 0.6.19; steps 1 and 2 (one building block and the tool `calendar_create`) built 2026-11-12, released in 0.23.0. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
+Status 2026-11-18: built in 0.6.19; steps 1 and 2 (one building block and the tool `calendar_create`) built 2026-11-12, released in 0.23.0; step 3 (conflicts when adding) built 2026-11-18, not released. Builds on [Skill actions](skill-actions.md). How data is presented (levels, timeline): [Context](context.md), section 2.
 
 ## Principle
 
@@ -120,6 +120,60 @@ This is the main use case: "Trag mir Freitag um 15 Uhr Zahnarzt ein." It is a sk
   - Exactly one match is deleted. With none or several it deletes nothing and says so; the model then tells the user.
   - As every `undo`, within 15 minutes of adding.
 
+## Conflicts when adding (decided 2026-11-18)
+
+**Goal.** "Trag mir Freitag um 15 Uhr Zahnarzt ein" when something is already there at that time: Mira says so
+before entering and asks whether to enter it all the same.
+
+**The concept it hangs on:** a skill action's proposal ([Skill actions](skill-actions.md)): a finish that needs a yes
+proposes, the user's yes is `thread_confirm`, a no `thread_cancel`, another time `thread_fill`. The conflict turns the
+direct entering of the skill `termin` into such a proposal. New is only the check before it: a building block of the
+core may name a **concern** about an action before it is called (below); the calendar's building block is the first.
+
+**Decided (2026-11-18):**
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | When Mira says it | Before entering: with a conflict she asks "Da steht schon …, trotzdem eintragen?"; without one she enters without a question, as before |
+| 2 | Which calendars count | Only the calendar the event goes into |
+| 3 | Whole days | An all-day event already there is no conflict (birthdays, holidays, waste collection); a new all-day event is not checked |
+| 4 | An appointment from the mail with several proposals | Checked only when entering, as every event; reading out the proposals does not check |
+| 5 | Parcels the mail calendar enters | Not checked: nobody is asked there |
+
+**What it does, step by step** (skill `termin`, its finish `calendar.create`, in the thread's `Work` after the hooks):
+
+1. **The concern:** the action's finish asks the core building block for a concern about the rendered data. Only
+   `calendar.create` has one; every other action has none, and nothing changes for it.
+2. **The calendar:** the same rule as for entering (Adding, step 2). A refusal there is no concern: entering then
+   refuses with its own answer, as before.
+3. **The events:** a timed new event only: the calendar's events from its start to its end, from Home Assistant's REST
+   API `/api/calendars/<entity>` (as `calendar_events` reads). A conflict is a timed event that overlaps: it starts
+   before the new end and ends after the new start; one that ends exactly at the new start, or starts exactly at the
+   new end, is none. All-day events do not count.
+4. **No conflict:** entering goes on as before, without a question.
+5. **A conflict:** nothing is entered; the thread proposes, and the proposal names the event and each conflict with
+   title and time ("Zur gleichen Zeit steht im Kalender Familie schon: Elternabend 15:30–16:30.") and tells the model
+   to ask whether to enter it all the same. Yes: `thread_confirm` enters it (no second check). Another time:
+   `thread_fill`, and the check runs again. No: `thread_cancel`.
+6. **A thread from the mail** (a proposal anyway, "Bereit … thread_confirm without asking again"): with a conflict
+   the proposal names it and the model asks again, the earlier yes did not know of it.
+
+**What it costs:** in a turn that enters an event with a time, 1 read of the list of calendars (the rule; done once
+more when entering) and 1 read of one calendar's events for the event's own time span; the turn waits for both. It
+does not grow with the number of calendars or events beyond the span. A whole day costs nothing.
+
+**What the model is told:** the proposal's text above; the skill `termin` says that a question about a conflict is
+answered by yes (`thread_confirm`), another time (`thread_fill`) or no (`thread_cancel`), and that "nicht
+nachfragen" does not apply then.
+
+**Errors:**
+
+| What fails | What happens | Who learns of it |
+|---|---|---|
+| The list of calendars or the calendar's events cannot be read (Home Assistant away, HTTP error, an answer that does not parse) | no concern; the event is entered as before, not retried | a log line `could not check the calendar for conflicts` with the calendar, the title, the span and the error; the answer says that conflicts could not be checked |
+| An event of the answer without a readable start | it is left out of the check | it is left out as `calendar_events` does today |
+| Entering after a yes fails | as Adding, Errors | as there |
+
 ## Personal calendars: convention instead of setting
 
 An exposed calendar that is named like the **login name** of a person's HA user or like the **person** themselves (case and leading/trailing spaces do not matter) is that person's calendar: "Stefan" belongs to the person "Stefan Rinke" with the login `stefan`, "Ben" belongs to Ben. A first name alone does not count (HA has no field for it). Only an admin may read the login name; the integration therefore sends it with the settings (`logins`, person → login), the service keeps it (`ha_logins`). There is no setting for this. It is used by skill schedules with `per_person: true` (they run per person who receives a personal message, and get that person's calendar, if there is one, and their personal profile; `cmd/mira/calendars.go`, `reachablePeople`) and by the briefing on request.
@@ -175,3 +229,5 @@ Before 2026-11-12 this spec had no steps; what it describes above was built in 0
 2. **The tool `calendar_create`**, and a tool of Mira's belonging to several skills ([Threads](threads.md)). CA-08 to
    CA-09. The tool is removed with the inbox's step 10 ([Mira's inbox](inbox.md), decision 33): the inbox's
    appointments go through the skill `termin`'s thread; CA-01 to CA-07 test the building block directly.
+3. **Conflicts when adding** (decided 2026-11-18): the concern of a core building block before its action, the check
+   of `calendar.create`, the proposal, the skill `termin`'s prose. CA-10 to CA-15. Built 2026-11-18, not released.

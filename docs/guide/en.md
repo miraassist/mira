@@ -898,7 +898,7 @@ Mira needs her web search for this; it is built in and on unless you switch it o
 Mira uses the calendars and to-do lists from Home Assistant that are exposed to Assist (Settings → Voice assistants → Expose entities). Several calendars are no problem.
 
 - "What's on this week?" – "When is the parents' evening?" Mira reads the events briefly, by day; long descriptions only when you ask.
-- "Put the dentist in for Friday at 3 pm." Mira enters it and says what she entered. With several calendars she asks once which one, and on request remembers it as your default.
+- "Put the dentist in for Friday at 3 pm." Mira enters it and says what she entered. With several calendars she asks once which one, and on request remembers it as your default. If that calendar already has something at the same time, Mira says so first and asks whether to enter it anyway: "Yes" enters it, "Then at 5 pm" takes the new time, "No" leaves it. All-day entries such as birthdays do not count.
 - "Cancel my doctor's appointment tomorrow." Mira looks the event up and asks before she deletes it. Of a recurring event she cancels only this one, unless you want all.
 - "Put milk on the shopping list." – "Add batteries, due Friday." – "What's on the list?"
 - **To-dos with a due date:** "Put the tax return on my list, due Monday." Without a list named, Mira takes your own, the one named like you (as with the calendar), else your remembered default or the only one; she does not take other persons' lists. A list that cannot keep a due date (such as Home Assistant's shopping list) she does not take for it and names those that can; a local to-do list can. What is due today or overdue, the morning briefing tells you.

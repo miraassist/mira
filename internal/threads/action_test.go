@@ -232,3 +232,45 @@ func TestHK83_TakingBackWhatTheHooksWouldAskForIsNotDone(t *testing.T) {
 		t.Errorf("asked %+v", asked)
 	}
 }
+
+// concernActions are fakeActions with a core building block's concern
+// (docs/spec/calendar.md, Conflicts when adding).
+type concernActions struct {
+	*fakeActions
+	concern, note string
+}
+
+func (c concernActions) Concern(context.Context, string, map[string]any) (string, string) {
+	return c.concern, c.note
+}
+
+// CA-11 A conflict asks before entering: the concern turns the direct call
+// into a proposal that names it, and the yes calls once.
+func TestCA11_TheConcernIsProposedAndAYesCallsOnce(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	m.opts.Actions = concernActions{fakeActions: ha, concern: "Zur gleichen Zeit steht schon: Elternabend 15:30–16:30."}
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:k", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	out, err := m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	if err != nil || !strings.Contains(out, "Elternabend 15:30–16:30") || len(ha.calls) != 0 {
+		t.Fatalf("out %q, err %v, calls %v", out, err, ha.calls)
+	}
+	if _, err := m.Confirm(ctx, inv); err != nil || len(ha.calls) != 1 {
+		t.Errorf("yes: %v, calls %v", err, ha.calls)
+	}
+}
+
+// CA-15 A check that could not run does not stop the call; its note goes
+// with the result.
+func TestCA15_TheNoteOfAnUncheckedConcernGoesWithTheResult(t *testing.T) {
+	m, st, ha := actionSetup(t)
+	m.opts.Actions = concernActions{fakeActions: ha, note: "Konnte nicht prüfen (HTTP 500)."}
+	ctx := context.Background()
+	inv := voiceIn(t, st, "voice:l", "schlafzimmer")
+	m.Start(ctx, inv, "wecker", "Weck mich um 6")
+	out, err := m.Fill(ctx, inv, map[string]string{"time": "06:00"})
+	if err != nil || !strings.HasPrefix(out, "Ergebnis: erledigt") || !strings.Contains(out, "HTTP 500") || len(ha.calls) != 1 {
+		t.Errorf("out %q, err %v, calls %v", out, err, ha.calls)
+	}
+}

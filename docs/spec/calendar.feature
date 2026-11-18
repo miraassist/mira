@@ -57,3 +57,43 @@ Feature: Calendars – one building block for entering an event
   Scenario: CA-09 A tool of several skills
     Given a tool of Mira's that belongs to the skills "a" and "b"
     Then it is offered in a turn with "a" open, and in one with "b" open, and not in one with only "c"
+
+  @step3
+  Scenario: CA-10 Without a conflict the event is entered without a question
+    Given the calendar "Familie" has nothing on Friday between 15:00 and 16:00
+    When the skill termin enters "Zahnarzt" on Friday at 15:00 in "Familie"
+    Then it is entered at once, as before
+
+  @step3
+  Scenario: CA-11 A conflict asks before entering
+    Given the calendar "Familie" has "Elternabend" on Friday from 15:30 to 16:30
+    When the skill termin enters "Zahnarzt" on Friday at 15:00 in "Familie"
+    Then nothing is entered
+    And the thread proposes, naming "Elternabend" and 15:30–16:30
+    And after a yes the event is entered once
+
+  @step3
+  Scenario: CA-12 Only the calendar it goes into counts
+    Given the calendar "Anna" has "Training" on Friday from 15:00 to 16:00
+    When the skill termin enters "Zahnarzt" on Friday at 15:00 in "Familie"
+    Then it is entered at once
+
+  @step3
+  Scenario: CA-13 Whole days are no conflict
+    Given the calendar "Familie" has "Geburtstag Oma" all day on Friday
+    When the skill termin enters "Zahnarzt" on Friday at 15:00 in "Familie"
+    Then it is entered at once
+    And a new all-day event on Friday is entered without reading the calendar's events
+
+  @step3
+  Scenario: CA-14 Touching is no conflict
+    Given the calendar "Familie" has "Friseur" on Friday from 14:00 to 15:00
+    When the skill termin enters "Zahnarzt" on Friday from 15:00 to 16:00 in "Familie"
+    Then it is entered at once
+
+  @step3
+  Scenario: CA-15 A calendar that cannot be read does not stop the entering
+    Given Home Assistant answers the calendar's events with HTTP 500
+    When the skill termin enters "Zahnarzt" on Friday at 15:00 in "Familie"
+    Then it is entered
+    And a log line names the calendar, the title and the error, and the answer says conflicts were not checked

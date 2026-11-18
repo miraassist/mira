@@ -37,6 +37,16 @@ func (h haActions) core(action string) func(context.Context, map[string]any) err
 	return nil
 }
 
+// Concern is a core building block's check before its action
+// (docs/spec/calendar.md, Conflicts when adding): calendar.create names the
+// events it would overlap.
+func (h haActions) Concern(ctx context.Context, action string, data map[string]any) (string, string) {
+	if action == calendar.ActionCreate && h.a.calendar != nil {
+		return h.a.calendar.ConcernCreate(ctx, data)
+	}
+	return "", ""
+}
+
 func (h haActions) Has(ctx context.Context, action string) (bool, error) {
 	if h.core(action) != nil {
 		return true, nil

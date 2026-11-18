@@ -454,6 +454,9 @@ type texts struct {
 
 	createNoTitle, createTooLong, createBoth, createNoDate, createEndBefore, createBadDate string
 	createNoCalendar, createNotThat                                                        string
+	// A conflict when adding (docs/spec/calendar.md): the calendar and the
+	// events; the check that could not run (the error).
+	conflict, conflictUnchecked string
 }
 
 var catalog = map[i18n.Lang]texts{
@@ -480,6 +483,9 @@ var catalog = map[i18n.Lang]texts{
 		createBadDate:    "%s %q ist kein Datum wie %s.",
 		createNoCalendar: "Es gibt keinen Kalender, in den ich für diese Person eintragen darf.",
 		createNotThat:    "In den Kalender %q kann ich nicht eintragen. Möglich: %s",
+
+		conflict:          "Noch nicht eingetragen: Zur gleichen Zeit steht im Kalender %s schon: %s. Sag das und frag, ob der Termin trotzdem eingetragen werden soll. Ja: thread_confirm. Eine andere Zeit: thread_fill. Nein: thread_cancel.",
+		conflictUnchecked: "Ob zur gleichen Zeit schon etwas im Kalender steht, konnte ich nicht prüfen (%v). Sag das dazu.",
 	},
 	i18n.EN: {
 		toolDesc:         "Reads events from the household's calendars, briefly, by day, each with a label like t3 (to cancel it). Only name events this tool returned.",
@@ -504,6 +510,9 @@ var catalog = map[i18n.Lang]texts{
 		createBadDate:    "%s %q is no date like %s.",
 		createNoCalendar: "There is no calendar I may write to for this person.",
 		createNotThat:    "I cannot write to the calendar %q. Possible: %s",
+
+		conflict:          "Not entered yet: at the same time the calendar %s already has: %s. Say so and ask whether to enter the event all the same. Yes: thread_confirm. Another time: thread_fill. No: thread_cancel.",
+		conflictUnchecked: "Whether something is already in the calendar at that time could not be checked (%v). Say so as well.",
 	},
 }
 

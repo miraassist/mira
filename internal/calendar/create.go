@@ -247,3 +247,55 @@ func cut(s string, n int) string {
 	}
 	return string([]rune(s)[:n]) + "…"
 }
+
+// ConcernCreate is the check of calendar.create before it is called
+// (docs/spec/calendar.md, Conflicts when adding): for a timed event, the
+// events of the calendar it goes into that overlap it. concern names them
+// and asks for a yes; note says the check could not run (the event is
+// entered all the same). Both are empty when there is nothing to say: no
+// conflict, a whole day, or data the building block refuses anyway.
+func (c *Calendar) ConcernCreate(ctx context.Context, data map[string]any) (concern, note string) {
+	str := func(k string) string { s, _ := data[k].(string); return strings.TrimSpace(s) }
+	t := c.texts(ctx)
+	e, err := c.parseNew(ctx, str("title"), str("start"), str("end"), str("day"), str("day_after"))
+	if err != nil {
+		return "", ""
+	}
+	e.Calendar, e.Person = str("entity_id"), str("person")
+	if c.checkEvent(t, &e) != nil || e.Start.IsZero() {
+		return "", ""
+	}
+	span := e.Start.Format("2006-01-02 15:04") + "–" + e.End.Format("15:04")
+	cal, err := c.calendarFor(ctx, e)
+	if err != nil {
+		var r *Refusal
+		if errors.As(err, &r) {
+			return "", "" // entering refuses with its own answer
+		}
+		c.log.Warn("could not check the calendar for conflicts; the event is entered all the same",
+			"calendar", e.Calendar, "title", e.Title, "span", span, "error", err)
+		return "", fmt.Sprintf(t.conflictUnchecked, err)
+	}
+	events, err := c.Events(ctx, cal.Entity, e.Start, e.End)
+	if err != nil {
+		c.log.Warn("could not check the calendar for conflicts; the event is entered all the same",
+			"calendar", cal.Entity, "title", e.Title, "span", span, "error", err)
+		return "", fmt.Sprintf(t.conflictUnchecked, err)
+	}
+	var clash []string
+	for _, ev := range events {
+		if ev.AllDay || !ev.Start.Before(e.End) || !ev.End.After(e.Start) {
+			continue
+		}
+		when := ev.Start.Format("15:04") + "–" + ev.End.Format("15:04")
+		if y, m, d := ev.Start.Date(); y != e.Start.Year() || m != e.Start.Month() || d != e.Start.Day() {
+			when = ev.Start.Format("02.01. 15:04") + "–" + ev.End.Format("02.01. 15:04")
+		}
+		clash = append(clash, fmt.Sprintf("%s %s", ev.Summary, when))
+	}
+	if len(clash) == 0 {
+		return "", ""
+	}
+	c.log.Info("calendar.create has a conflict", "calendar", cal.Entity, "title", e.Title, "span", span, "conflicts", len(clash))
+	return fmt.Sprintf(t.conflict, cal.Name, strings.Join(clash, "; ")), ""
+}

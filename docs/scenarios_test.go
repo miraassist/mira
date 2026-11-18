@@ -52,7 +52,7 @@ var builtSteps = map[string][]int{
 	"RY": {1, 2, 3, 4, 5},              // docs/spec/retry.md, Steps; step 6 in pytest (RY-50, 51) and Go (RY-52)
 	"MS": {1, 2, 3, 4, 5, 6},           // docs/spec/messages.md
 	"KL": {1, 2},                       // docs/spec/keep-listening.md, Steps
-	"CA": {1, 2},                       // docs/spec/calendar.md, Steps
+	"CA": {1, 2, 3},                    // docs/spec/calendar.md, Steps
 	"HD": {},                           // docs/spec/hacs-default.md; steps 1 and 2 in pytest, step 3 in pytest (HD-22) and Go (HD-23, 25, 26), step 5 in pytest (HD-30 to 38), step 6 in Go (HD-40 to 44)
 	"KV": {1, 2},                       // docs/spec/kv-cleanup.md, Steps
 	"CW": {1, 2, 4, 5, 6, 8},           // docs/spec/device-watch.md, Steps; steps 3 and 7 are tested in pytest (CW-11 to CW-15, CW-26 to CW-29)
