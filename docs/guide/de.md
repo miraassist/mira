@@ -675,6 +675,31 @@ Am Satelliten kann ein Skill mehr als sprechen. Vier Werkzeuge stehen Mira dafü
 
 An einem Satelliten ohne Lautsprecher oder Bildschirm und bei Telegram passiert dabei einfach nichts.
 
+### Ein Skill bringt Automationen und Skripte mit
+
+Ein Skill kann Teile für Home Assistant mitbringen: Blueprints im Ordner `blueprints/` neben der `SKILL.md`. Daraus legt Mira beim Start Automationen und Skripte in Home Assistant an, mit Werten aus den Einstellungen des Skills.
+
+```yaml
+metadata:
+  mira:
+    automations:
+      - id: gelandet
+        blueprint: gelandet.yaml           # ein Automations-Blueprint (domain: automation)
+        alias: "Mira: verfolgter Flug gelandet"
+        inputs:                            # nur, wenn der Blueprint Eingaben hat
+          empfaenger: "{{ empfaenger }}"   # aus den Einstellungen des Skills
+    scripts:
+      - id: abfrage
+        blueprint: flug.yaml               # ein Skript-Blueprint (domain: script)
+        alias: "Mira Flug"
+        description: Verfolgt einen Flug, sagt seinen Stand oder hört damit auf.
+```
+
+- **Blueprints** speichert Mira unter `mira_skills/<skill>/` in Home Assistant. In ihrer Beschreibung steht `mira-version: N`; hebst du die Zahl an, ersetzt Mira den alten Blueprint beim nächsten Start. Das geht nur, solange seine Eingaben gleich bleiben (keine weg, keine umbenannt, neue mit einem Standardwert); sonst bleibt der alte, und unter Reparaturen steht, welche Eingabe nicht passt. Eine echte Änderung der Eingaben ist eine neue Datei.
+- **Automationen** heißen `mira_skill_<skill>_<id>` und tragen das Label „Mira“. Ändern sich die Einstellungen, legt Mira sie mit den neuen Werten neu an.
+- **Skripte** legt Mira ebenso an, gibt sie aber nicht für Assist frei. Jedes wird ein Werkzeug des Skills, `<skill>__<id>` (hier `flug__abfrage`), mit der `description` und den Feldern des Blueprints; es steht erst im Gespräch, wenn der Skill geöffnet ist. Wann das Modell es nutzt, schreibst du in den Text der `SKILL.md`.
+- **Gelöscht** wird nichts: Schaltest du den Skill aus, bleiben Blueprints, Automationen und Skripte in Home Assistant, bis du sie selbst entfernst.
+
 ### Ein Skill mit eigenem MCP-Server
 
 Ein Skill kann einen MCP-Server mitbringen. Dessen Werkzeuge stehen in keinem Gespräch, bis Mira den Skill öffnet; dann bleiben sie für den Rest dieses Gesprächs da, und nur die, die der Skill nennt. Mit `conversation: false` kommen sie gar nicht ins Gespräch: Dann nutzen sie nur die Agenten und Zeitpläne des Skills. So füllen 44 Werkzeuge eines Servers nicht jeden Prompt. Adresse und Token kommen aus den Einstellungen des Skills; ein geheimer Token erreicht nie das Modell.

@@ -670,6 +670,31 @@ At a satellite a skill can do more than speak. Mira has four tools for it; the s
 
 At a satellite without a speaker or a screen, and on Telegram, nothing happens.
 
+### A skill that brings automations and scripts
+
+A skill can bring parts for Home Assistant: blueprints in the folder `blueprints/` next to `SKILL.md`. From them Mira makes automations and scripts in Home Assistant at her start, with values from the skill's settings.
+
+```yaml
+metadata:
+  mira:
+    automations:
+      - id: gelandet
+        blueprint: gelandet.yaml           # an automation blueprint (domain: automation)
+        alias: "Mira: verfolgter Flug gelandet"
+        inputs:                            # only if the blueprint has inputs
+          empfaenger: "{{ empfaenger }}"   # from the skill's settings
+    scripts:
+      - id: abfrage
+        blueprint: flug.yaml               # a script blueprint (domain: script)
+        alias: "Mira Flug"
+        description: Follows a flight, tells its state or stops following it.
+```
+
+- **Blueprints** are saved under `mira_skills/<skill>/` in Home Assistant. Their description holds `mira-version: N`; raise the number and Mira replaces the old blueprint at her next start. That works only while its inputs stay the same (none removed, none renamed, new ones with a default); otherwise the old one stays, and Repairs says which input does not fit. A real change of the inputs is a new file.
+- **Automations** are named `mira_skill_<skill>_<id>` and carry the label "Mira". When the settings change, Mira makes them anew with the new values.
+- **Scripts** Mira makes the same way, but does not expose them to Assist. Each becomes a tool of the skill, `<skill>__<id>` (here `flug__abfrage`), with the `description` and the blueprint's fields; it is in the conversation only once the skill is opened. When the model uses it, you write in the text of `SKILL.md`.
+- **Nothing is deleted**: switch the skill off, and its blueprints, automations and scripts stay in Home Assistant until you remove them yourself.
+
 ### A skill with its own MCP server
 
 A skill can bring an MCP server. Its tools are in no conversation until Mira opens the skill; then they stay for the rest of that conversation, and only those the skill names. With `conversation: false` they never enter the conversation: only the skill's agents and schedules use them. That way a server's 44 tools do not fill every prompt. Address and token come from the skill's settings; a secret token never reaches the model.
