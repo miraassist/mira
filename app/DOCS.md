@@ -14,7 +14,9 @@ HACS) connects Home Assistant to it. Both share one version: update them togethe
    `http://localhost:8787`. The setup then asks for the AI model and the assistants Mira answers in.
 
 No config file is needed. For what goes beyond the setup (more models, skills with settings), Mira's `mira.yaml`
-is in this app's config folder (`/addon_configs/…_mira/mira.yaml`). The guide explains everything else:
+is in this app's config folder (`/addon_configs/…_mira/mira.yaml`). What a skill brings along is kept there too: its
+program in `programs/` (such as korb for the skill `rewe`) and the skill's own folder in `skill-data/<skill>` (a login,
+say); both are in the app's backups. The guide explains everything else:
 <https://github.com/miraassist/mira/blob/main/docs/guide/en.md>.
 
 ## Data
