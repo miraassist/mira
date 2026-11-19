@@ -82,3 +82,31 @@ Feature: The chat's history (docs/spec/telegram-history.md)
     When Anna sends "/neu"
     Then the chat's history is empty and the chat is still known
     And the next delivery over the chat is recorded in it
+
+  @step5
+  Scenario: TC-13 A thread is kept from the turn it came into the chat
+    Given a thread created before the chat's oldest turn
+    And Anna's chat with 50 turns, linked to the thread in its 40th turn
+    When the history is compacted by its number of turns
+    Then the last 30 turns stay, the thread's turns among them
+
+  @step5
+  Scenario: TC-14 Linking the chat to the same thread again keeps the time
+    Given Anna's chat linked to a thread
+    When later turns of the chat belong to the same thread
+    Then the time of the chat's link to the thread does not change
+    And a link to another thread sets it anew
+
+  @step5
+  Scenario: TC-15 At the context limit the running thread is cut too
+    Given a history whose running thread began before its last 30 turns
+    When a turn uses 90 % of the model's context window
+    Then the history is cut to its last 30 turns
+    And the log names the thread that was cut
+
+  @step5
+  Scenario: TC-16 A cut the running thread prevents is logged
+    Given Anna's chat with 50 turns, linked to a running thread in its first turn
+    When the history is compacted by its number of turns
+    Then nothing is cut
+    And the log warns that the running thread began at the history's first turn, with the session and the thread

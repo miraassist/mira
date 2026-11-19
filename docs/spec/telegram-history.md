@@ -1,6 +1,6 @@
 # The chat's history – Spec
 
-Status 2026-11-19: decided (decisions 1 to 6); steps 1 to 4 built and run on the test HA (not released). Builds on
+Status 2026-11-19: decided (decisions 1 to 7); steps 1 to 4 built and run on the test HA (not released); step 5 (compaction) decided, not built. Builds on
 [The thread's history](thread-history.md), [Channels](channels.md) (Telegram via Home Assistant) and
 [Context](context.md) (History). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [telegram-history.feature](telegram-history.feature).
@@ -39,6 +39,8 @@ In Telegram there is no doubt about the chat, its person or its place, and the c
 | 4 | How the service finds a chat's history from a delivery | The chat's history is keyed by the chat's **notify entity** (`telegram:notify.telegram_anna`) instead of the chat's number. The service delivers to that entity and so knows the key without a new field. The existing Telegram histories start anew once (no data carry-over yet) |
 | 5 | Group chats (several people in one chat) | **Not in this spec.** One chat is one history, which fits a group too. Who writes in a group is still not told apart: the adapter assigns a chat to one person (unchanged, named under Limits) |
 | 6 | A delivery to a chat that has no history (it never wrote to Mira, or after `/neu`) | **`/neu` empties the chat's history but keeps the chat known** (its session stays, without messages), so the next delivery is recorded. A chat that never wrote to Mira has no history and gets no record (named under Limits); the service does not ask Home Assistant which notify entity is a Telegram chat |
+
+| 7 | Compaction of a chat's history (found 2026-11-19 reading `internal/conversation/compact.go`, not seen on the test HA) | **Three changes**, below under Compaction: the running thread is kept from the turn it came into this chat, not from its creation; at the context limit it is not kept; a cut the thread prevents is logged |
 
 **Unchanged:** who may write to Mira. Home Assistant's Telegram integration lets only its allowed chats through, and
 the adapter takes only chats that are a person's channel ([Channels](channels.md)); the adapter still recognises the
@@ -112,6 +114,32 @@ app or another notify target never has one, so nothing is written for it.
 
 **The model is told** by the record's own header (above); the cached instruction does not change.
 
+### Compaction (decision 7)
+
+The rules of [Context](context.md), section 5, hold for the chat's history: whole turns, in jumps from `max_turns` (50)
+to `keep_turns` (30), at the latest at 90 % of the model's context window; delivery records and thread summaries
+count as turns. The running thread stays whole. Since step 2 a chat's history holds the turns of its threads, and
+three things do not fit a history without a time limit:
+
+1. **From when the running thread is kept.** Today: from the first turn after the thread was created. A thread that
+   waits for days (an appointment waiting for a yes) while the chat goes on, or one created before the chat's oldest
+   turn (started at a satellite), keeps everything since then, and the history grows past `max_turns`. New: in a
+   chat's history the thread is kept from **the turn in which it came into this chat**, the last turn that began at
+   or before the chat's link to the thread (`thread_conversations.linked_at`). Linking the chat to the same thread
+   again (every turn of the thread does) keeps the time; only a link to another thread sets it anew. Other
+   histories as today.
+2. **At the context limit** (the cut for 90 % of the context window) the running thread is **not** kept: the history
+   is cut to `keep_turns` like any other. The thread's state stays in every turn's context (section 4 of
+   [Context](context.md): the thread carries the concern); what drops out are its older turns. Otherwise a long
+   thread can push the chat past the model's window, where nothing cuts any more. This holds for every history,
+   voice too. The log line `history compacted` says so (`kept_for_thread` empty, the thread named as `thread_cut`).
+3. **A cut the running thread prevents is logged.** Today, when the thread is kept from the history's first turn,
+   the cut ends without a trace. New: a warning `history cannot be cut: the running thread began at its first turn`
+   with the session, the thread, the turns and the reason.
+
+Nothing new is told to the model: what the code models (the thread, its state in the turn's context) does not
+change, only which old turns stay.
+
 ### When a step fails, who learns of it
 
 | Fails | Who learns of it |
@@ -121,11 +149,13 @@ app or another notify target never has one, so nothing is written for it.
 | Writing the summary into the chat fails | As today: log `could not write the thread's summary` with the thread and the chat's key; the dialog is in the chat's history all the same |
 | Reading whether the channel has a chat's history fails | The delivery stays delivered; log `could not read the chat's history; the delivery is not recorded` with the message id, the channel and the error |
 | Writing the delivery record fails | The delivery stays delivered (the record is not part of it and is not retried); log `could not write the delivery record` with the message id, the chat's key and the error. A later "was hast du mir geschickt?" finds nothing |
+| Reading the chat's link to its thread for compaction fails | The thread is kept from its creation, as before; log `could not read the chat's link to its thread; the thread is kept from its creation` with the session, the thread and the error |
 | An older integration sends the chat's number as `conversation_id` | No error: the turns run in `telegram:<number>` as today, delivery records go to `telegram:<notify entity>`, which nobody reads. The record is skipped, since no such history exists |
 
 ### Cost
 
-No model call. A Telegram turn: as today, minus moving a late turn. A thread's end: one write more (the chat as a
+No model call. A Telegram turn: as today, minus moving a late turn. A compaction of a chat's history: one indexed
+read of `thread_conversations` more (compactions are rare: every 20 turns or at the context limit). A thread's end: one write more (the chat as a
 participant). A delivery: one indexed read of `sessions`, and for a chat one transaction of two rows. Nothing grows
 with the number of items.
 
@@ -157,3 +187,7 @@ integration with an older service: the history is keyed by the notify entity, th
    Anna's channels in the test HA; if none fits, the fake is extended first. Run 2026-11-19 with the test HA's real
    bot (its chat is the Admin person's channel, so no fake was needed): the favourite number asked inside an open
    thread, the thread cancelled, a reminder recorded and asked about, `/neu` with a reminder recorded afterwards.
+5. **Compaction of a chat's history** (decision 7): the running thread kept from the turn it came into the chat, the
+   link's time kept for the same thread, no protection at the context limit (every history), the log line for a cut
+   the thread prevents, its error path. TC-13 to TC-16. On the test HA: a chat with a waiting thread and more than
+   `max_turns` turns, through Mira's conversation API with the channel `telegram`, the log's `history compacted`.
