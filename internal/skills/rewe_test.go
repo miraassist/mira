@@ -95,6 +95,7 @@ func TestRW09_TheModelIsToldHowToShop(t *testing.T) {
 		"„todo.einkauf“",     // the list of the setting
 		"frag kurz",          // asks only when it is unclear
 		"Erst nach einem Ja", // never without the yes
+		"eine Frage, ein Ja", // the hook's question is the only one
 		"Gesamtbetrag, Lieferfenster und Zahlungsart",
 		"HassListCompleteItem",     // checks off
 		"Was nicht bestellt wurde", // only what was ordered
