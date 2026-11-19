@@ -520,9 +520,9 @@ Manche Skills melden sich zu festen Zeiten von selbst: das Morgen-Briefing um 5:
 
 ## Eigenen Skill erstellen
 
-Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung für Mira, auf Wunsch mit Einstellungen und Zeitplänen. Ein Skill führt keinen Programmcode aus; er sagt Mira nur, was sie wann und womit tun soll, mit den Werkzeugen, die sie ohnehin hat (Kalender lesen, Nachrichten, Haussteuerung und so weiter).
+Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung für Mira, auf Wunsch mit Einstellungen und Zeitplänen.
 
-**1. Ordner anlegen.** Die Skills liegen im Skill-Verzeichnis, standardmäßig `skills/` neben Mira. Dort legst du einen Ordner an. Sein Name ist der Name des Skills: kleine Wörter mit Bindestrichen, zum Beispiel `blumen`. Läuft Mira im Container, bindest du einen eigenen Ordner als Volume ein und trägst ihn zusätzlich unter `skills.dirs` in der `mira.yaml` ein. Die mitgelieferten Skills bleiben dabei erhalten.
+**1. Ordner anlegen.** Die Skills liegen im Skill-Verzeichnis, standardmäßig `skills/` neben Mira. Dort legst du einen Ordner an. Sein Name ist der Name des Skills: kleine Wörter mit Bindestrichen, zum Beispiel `blumen`. Läuft Mira im Container, legst du einen eigenen Skill-Ordner in den Ordner `config` (im Container unter `/etc/mira`) und trägst ihn zusätzlich unter `skills.dirs` in der `mira.yaml` ein. Die mitgelieferten Skills bleiben dabei erhalten.
 
 **2. `SKILL.md` schreiben.** Die Datei beginnt mit einem Kopfbereich zwischen zwei Zeilen `---`, danach folgt die Anleitung als Text:
 
@@ -542,8 +542,8 @@ Ein Skill ist ein Ordner mit einer Datei `SKILL.md`. Darin steht eine Anleitung 
 
 **Einen mitgelieferten Skill anpassen.** Die mitgelieferten Skills stecken im Container unter `/app/skills` und werden bei jedem Update ersetzt. Willst du einen ändern, kopierst du ihn in deinen eigenen Skill-Ordner:
 
-1. Kopieren, zum Beispiel `kochen`: `docker cp mira:/app/skills/kochen ./meine-skills/` (statt `mira` der Name deines Containers).
-2. Den Ordner als Volume in den Container einbinden, etwa `-v ./meine-skills:/etc/mira/meine-skills` (in Compose unter `volumes`), und in der `mira.yaml` **vor** die mitgelieferten setzen. Mira nimmt von gleichnamigen Skills den aus dem ersten Ordner:
+1. Kopieren, zum Beispiel `kochen`: `docker cp mira:/app/skills/kochen ./config/meine-skills/` (statt `mira` der Name deines Containers).
+2. Den Ordner `meine-skills` (im Container `/etc/mira/meine-skills`) in der `mira.yaml` **vor** die mitgelieferten setzen. Mira nimmt von gleichnamigen Skills den aus dem ersten Ordner:
    ```yaml
    skills:
      dirs: [/etc/mira/meine-skills, skills]
@@ -1158,9 +1158,9 @@ Auf einem Echo Show schaltet Mira für den Ring die Video-Wiedergabe ein, wenn s
 
 **Als Container** braucht Mira für WLAN-Geräte das Netz des Rechners und Zugang zu seinem NetworkManager:
 
-- `network_mode: host` (beim `docker run` unter „Einrichtung“ ist das `--network host`, schon dabei),
+- `network_mode: host` (in der `compose.yaml` unter „Einrichtung“ schon dabei),
 - das Volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket`,
-- das Recht, Netzwerke zu verwalten. Das geht auf zwei Arten: Mira läuft als `root` (der Standard des Containers, ohne `--user`), dann hat sie es. Oder sie läuft als anderer Benutzer, etwa `--user nonroot` wie beim `docker run` unter „Einrichtung“; dann muss dieser Benutzer WLAN verwalten dürfen, über eine polkit-Regel, die ihm oder einer seiner Gruppen die Aktionen `org.freedesktop.NetworkManager.*` erlaubt. Die Gruppe `netdev` allein reicht unter Ubuntu nicht.
+- das Recht, Netzwerke zu verwalten. Das geht auf zwei Arten: Mira läuft als `root` (der Standard des Containers, wie in der `compose.yaml` unter „Einrichtung“), dann hat sie es. Oder sie läuft als anderer Benutzer, etwa mit `user: nonroot`; dann muss dieser Benutzer WLAN verwalten dürfen, über eine polkit-Regel, die ihm oder einer seiner Gruppen die Aktionen `org.freedesktop.NetworkManager.*` erlaubt. Die Gruppe `netdev` allein reicht unter Ubuntu nicht.
 
 Ohne WLAN-Zugang gehen die anderen drei Wege trotzdem.
 
@@ -1477,12 +1477,23 @@ Eine Config-Datei brauchst du nicht. Drei Schritte:
 
 **2. Mira starten.** Mit Home Assistant OS als App: Einstellungen → Apps → App-Store → Repositories → `https://github.com/miraassist/mira` hinzufügen, dann **Mira** installieren und starten. In Schritt 3 steht Mira dann nicht unter **Entdeckt**: **Integration hinzufügen** → **Mira**, als Adresse `http://localhost:8787`.
 
-Sonst auf dem Docker-Rechner, eine Zeile:
+Sonst auf dem Docker-Rechner: In einem leeren Ordner die Datei `compose.yaml` anlegen und `docker compose up -d` aufrufen:
 
-```sh
-docker run -d --name mira --restart unless-stopped --network host --user nonroot \
-  -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
+```yaml
+services:
+  mira:
+    image: ghcr.io/miraassist/mira
+    container_name: mira
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./config:/etc/mira     # mira.yaml, eigene Skills, was Skills mitbringen
+      - ./data:/var/lib/mira   # Gedächtnis, Nachrichten, Datenbank
 ```
+
+Docker legt die Ordner `config` und `data` neben der `compose.yaml` an. In `config` schreibt Miras Seite die `mira.yaml`; dort liegen auch deine eigenen Skills und was ein Skill mitbringt, etwa das Programm für REWE.
 
 **3. Mira hinzufügen.** Einstellungen → Geräte & Dienste. Mira steht unter **Entdeckt** → **Hinzufügen**. Der Dialog zeigt eine Übersicht: was schon gewählt ist und was noch fehlt. Von dort aus wählst du, und jeder Schritt führt zurück zur Übersicht:
 - **KI-Modell (LLM)**, mit dem Mira denkt:
@@ -1535,7 +1546,7 @@ Für Fortgeschrittenes (mehrere Modelle, weitere MCP-Server, Skills mit Einstell
 Mira besteht aus zwei Teilen, die beide aus demselben Release kommen: der **Integration** in Home Assistant und dem **Mira-Service** (die HA-App oder dein Container). Beide haben dieselbe Version.
 
 - **Integration und HA-App:** Einstellungen → Updates zeigt beide. Erst die Integration aktualisieren, dann die HA-App (sie startet sich dabei selbst neu), dann Home Assistant einmal neu starten. Wird eins der beiden noch nicht angeboten, sorgt Mira dafür, dass Home Assistant gleich nachsieht; die HA-App kommt nach einem Release oft erst ein paar Minuten nach der Integration. Sonst hilft ein Neustart von Home Assistant.
-- **Eigener Container:** `docker pull ghcr.io/miraassist/mira` und den Container mit demselben `docker run` neu anlegen (bei Compose: `docker compose pull && docker compose up -d`). Deine Daten liegen im Volume und bleiben.
+- **Eigener Container:** im Ordner der `compose.yaml` `docker compose pull && docker compose up -d`. Deine Daten liegen in den Ordnern `config` und `data` und bleiben.
 - **Bis beide gleich sind**, steht unter Einstellungen → Reparaturen, welcher Teil älter ist. Mira arbeitet in der Zeit weiter.
 
 **Updates für den Container in Home Assistant sehen:** [What's Up Docker (WUD)](https://getwud.github.io/wud/) beobachtet deine Container und meldet neue Versionen. Mit seinem MQTT-Auslöser erscheint ein Update für Mira unter Einstellungen → Updates wie bei der App. Neben Mira, auf demselben Rechner:
@@ -1557,7 +1568,7 @@ services:
       - WUD_TRIGGER_MQTT_HA_HASS_ENABLED=true
 ```
 
-Mira selbst bekommt das Label `wud.watch.digest=true` (beim `docker run`: `--label wud.watch.digest=true`), weil ihr Image ohne Versionsnummer läuft. WUD vergleicht dann das Image und meldet, wenn es ein neues gibt. Alles Weitere, auch das Aktualisieren aus WUD heraus, steht in der Anleitung von WUD.
+Mira selbst bekommt das Label `wud.watch.digest=true` (in der `compose.yaml` unter `labels`: `- wud.watch.digest=true`), weil ihr Image ohne Versionsnummer läuft. WUD vergleicht dann das Image und meldet, wenn es ein neues gibt. Alles Weitere, auch das Aktualisieren aus WUD heraus, steht in der Anleitung von WUD.
 
 ### Backup und Wiederherstellen
 

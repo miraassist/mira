@@ -516,9 +516,9 @@ Some skills speak up by themselves at fixed times: the morning briefing at 5:30,
 
 ## Creating your own skill
 
-A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules. A skill runs no program code; it only tells Mira what to do, when and with what, using the tools she already has (reading calendars, messages, controlling the house and so on).
+A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, optionally with settings and schedules.
 
-**1. Create the folder.** Skills live in the skills directory, `skills/` next to Mira by default. Create a folder there. Its name is the skill's name: lower-case words with hyphens, such as `plants`. If Mira runs in a container, mount a folder of your own as a volume and add it under `skills.dirs` in `mira.yaml`. The skills that come with Mira stay available.
+**1. Create the folder.** Skills live in the skills directory, `skills/` next to Mira by default. Create a folder there. Its name is the skill's name: lower-case words with hyphens, such as `plants`. If Mira runs in a container, put a skills folder of your own into the folder `config` (`/etc/mira` in the container) and add it under `skills.dirs` in `mira.yaml`. The skills that come with Mira stay available.
 
 **2. Write `SKILL.md`.** The file begins with a header between two lines of `---`, followed by the instructions as text:
 
@@ -538,8 +538,8 @@ A skill is a folder with a file `SKILL.md`. It holds instructions for Mira, opti
 
 **Adapting a skill that comes with Mira.** The bundled skills sit in the container under `/app/skills` and are replaced by every update. To change one, copy it into your own skills folder:
 
-1. Copy it, for example `kochen`: `docker cp mira:/app/skills/kochen ./my-skills/` (with your container's name instead of `mira`).
-2. Mount the folder into the container, say `-v ./my-skills:/etc/mira/my-skills` (under `volumes` in Compose), and put it **before** the bundled ones in `mira.yaml`. Of skills with the same name, Mira takes the one from the first folder:
+1. Copy it, for example `kochen`: `docker cp mira:/app/skills/kochen ./config/my-skills/` (with your container's name instead of `mira`).
+2. Put the folder `my-skills` (`/etc/mira/my-skills` in the container) **before** the bundled ones in `mira.yaml`. Of skills with the same name, Mira takes the one from the first folder:
    ```yaml
    skills:
      dirs: [/etc/mira/my-skills, skills]
@@ -1146,9 +1146,9 @@ On an Echo Show Mira switches video playback on for the ring when it is off ("Vi
 
 **As a container** Mira needs the machine's network and access to its NetworkManager for Wi-Fi devices:
 
-- `network_mode: host` (in the `docker run` under "Setup" that is `--network host`, already there),
+- `network_mode: host` (already in the `compose.yaml` under "Setup"),
 - the volume `/run/dbus/system_bus_socket:/run/dbus/system_bus_socket`,
-- the right to manage networks. There are two ways: Mira runs as `root` (the container's default, without `--user`), then she has it. Or she runs as another user, such as `--user nonroot` in the `docker run` under "Setup"; then that user must be allowed to manage Wi-Fi, through a polkit rule that allows the actions `org.freedesktop.NetworkManager.*` to it or to one of its groups. The group `netdev` alone is not enough on Ubuntu.
+- the right to manage networks. There are two ways: Mira runs as `root` (the container's default, as in the `compose.yaml` under "Setup"), then she has it. Or she runs as another user, such as with `user: nonroot`; then that user must be allowed to manage Wi-Fi, through a polkit rule that allows the actions `org.freedesktop.NetworkManager.*` to it or to one of its groups. The group `netdev` alone is not enough on Ubuntu.
 
 Without Wi-Fi access the other three ways still work.
 
@@ -1453,12 +1453,23 @@ You need no config file. Three steps:
 
 **2. Start Mira.** With Home Assistant OS as an app: Settings → Apps → App store → Repositories → add `https://github.com/miraassist/mira`, then install and start **Mira**. In step 3 Mira is then not under **Discovered**: **Add integration** → **Mira**, with the address `http://localhost:8787`.
 
-Otherwise on the Docker machine, one line:
+Otherwise on the Docker machine: in an empty folder create the file `compose.yaml` and run `docker compose up -d`:
 
-```sh
-docker run -d --name mira --restart unless-stopped --network host --user nonroot \
-  -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
+```yaml
+services:
+  mira:
+    image: ghcr.io/miraassist/mira
+    container_name: mira
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: Europe/Berlin
+    volumes:
+      - ./config:/etc/mira     # mira.yaml, your own skills, what skills bring along
+      - ./data:/var/lib/mira   # memory, messages, database
 ```
+
+Docker creates the folders `config` and `data` next to `compose.yaml`. In `config` Mira's page writes `mira.yaml`; your own skills are kept there too, and what a skill brings along, such as the program for REWE.
 
 **3. Add Mira.** Settings → Devices & services. Mira shows up under **Discovered** → **Add**. The dialog shows an overview: what is chosen and what is still missing. From there you choose, and every step leads back to the overview:
 - **AI model (LLM)** Mira thinks with:
@@ -1511,7 +1522,7 @@ For advanced setups (several models, more MCP servers, skills with settings) the
 Mira has two parts, both from the same release: the **integration** in Home Assistant and the **Mira service** (the HA app or your container). Both carry the same version.
 
 - **Integration and HA app:** Settings → Updates shows both. Update the integration first, then the HA app (it restarts itself), then restart Home Assistant once. If one of the two is not offered yet, Mira makes Home Assistant look again at once; after a release the HA app often comes a few minutes after the integration. Otherwise a restart of Home Assistant helps.
-- **Your own container:** `docker pull ghcr.io/miraassist/mira` and create the container again with the same `docker run` (with Compose: `docker compose pull && docker compose up -d`). Your data is in the volume and stays.
+- **Your own container:** in the folder of `compose.yaml`, `docker compose pull && docker compose up -d`. Your data is in the folders `config` and `data` and stays.
 - **Until both match**, Settings → Repairs says which part is older. Mira keeps working meanwhile.
 
 **Seeing the container's updates in Home Assistant:** [What's Up Docker (WUD)](https://getwud.github.io/wud/) watches your containers and reports new versions. With its MQTT trigger an update for Mira shows under Settings → Updates like the app's. Next to Mira, on the same machine:
@@ -1533,7 +1544,7 @@ services:
       - WUD_TRIGGER_MQTT_HA_HASS_ENABLED=true
 ```
 
-Mira herself gets the label `wud.watch.digest=true` (with `docker run`: `--label wud.watch.digest=true`), as her image runs without a version number. WUD then compares the image and reports when there is a new one. Everything else, updating from WUD too, is in WUD's documentation.
+Mira herself gets the label `wud.watch.digest=true` (in `compose.yaml` under `labels`: `- wud.watch.digest=true`), as her image runs without a version number. WUD then compares the image and reports when there is a new one. Everything else, updating from WUD too, is in WUD's documentation.
 
 ### Backup and restore
 

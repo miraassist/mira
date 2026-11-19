@@ -13,7 +13,35 @@
 
 Also: [Mira chatting in German](https://youtu.be/N-RfuKgBsEs).
 
-[![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=miraassist&repository=mira&category=integration)
+## Get started
+
+1. **The integration:** [![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=miraassist&repository=mira&category=integration)
+   or Settings → Marketplace → **Add from link** → `https://github.com/miraassist/mira`. Before Home Assistant
+   2026.11: HACS → Custom repositories, the same address, type Integration. Install **Mira**, restart Home Assistant.
+2. **The Mira service**, one of:
+   - **Home Assistant OS:** Settings → Apps → App store → Repositories → `https://github.com/miraassist/mira`, then
+     install and start **Mira**.
+   - **Docker** on a machine in your home network: a `compose.yaml` in an empty folder, then `docker compose up -d`.
+     ```yaml
+     services:
+       mira:
+         image: ghcr.io/miraassist/mira
+         container_name: mira
+         restart: unless-stopped
+         network_mode: host
+         environment:
+           TZ: Europe/Berlin
+         volumes:
+           - ./config:/etc/mira     # mira.yaml, your own skills, what skills bring along
+           - ./data:/var/lib/mira   # memory, messages, database
+     ```
+3. **Set it up:** Settings → Devices & services → **Mira** under **Discovered** → **Add** (with the app: Add
+   integration → Mira, address `http://localhost:8787`). Choose the AI model (OpenAI, Google Gemini, OpenRouter,
+   Mistral or Anthropic with your key, or a server of your own) and the assistants Mira answers in, then paste a
+   long-lived token of an administrator (your profile → Security → Long-lived access tokens). Done.
+
+More: [Installing Mira in detail](docs/install.md) · the guide's setup: [Deutsch](docs/guide/de.md#einrichtung) ·
+[English](docs/guide/en.md#setup).
 
 [![CI](https://github.com/miraassist/mira/actions/workflows/ci.yml/badge.svg)](https://github.com/miraassist/mira/actions/workflows/ci.yml)
 
@@ -39,91 +67,11 @@ This repository holds both parts, released together under one version:
 The integration does not use Home Assistant's LLM API and runs no tools. All
 logic lives in the Mira service.
 
-## Quick start
-
-No config file, three steps (details and troubleshooting in the guide:
-[Deutsch](docs/guide/de.md#einrichtung) · [English](docs/guide/en.md#setup)):
-
-1. **Install the integration** with the Marketplace button above, restart Home Assistant.
-2. **Start the Mira service** on a machine with Docker in your home network:
-   ```sh
-   docker run -d --name mira --restart unless-stopped --network host --user nonroot \
-     -e TZ=Europe/Berlin -v mira-data:/var/lib/mira ghcr.io/miraassist/mira
-   ```
-   With Home Assistant OS, install it as an app instead: Settings → Apps → App store → Repositories →
-   `https://github.com/miraassist/mira`, then **Mira**. In step 3 add the integration by hand with the address
-   `http://localhost:8787`.
-3. Settings → Devices & services: **Mira** is under **Discovered** → **Add**. An overview shows what
-   is chosen and what is missing: the AI model (LLM: OpenAI, Google Gemini, OpenRouter, Mistral or
-   Anthropic with your key, or a server of your own; tried at once) and the assistants Mira answers
-   in. **Start using Mira** asks for Mira's access to Home Assistant: a long-lived token of an
-   administrator, which you create yourself (your profile → Security → Long-lived access tokens →
-   Create token) and paste; Mira needs admin rights to save your tasks and timers as automations.
-   Then the integration switches on Home Assistant's MCP server if it is missing and makes Mira the
-   conversation agent of the assistants you ticked.
-
-## Mira service
-
-Running from source, or with your own `mira.yaml` for what goes beyond the
-setup form (more models, more MCP servers, skills with settings):
-
-```sh
-go build -o mira ./cmd/mira
-./mira run                            # no config: waits to be set up by Home Assistant
-cp mira.example.yaml mira.yaml        # optional; secrets come from ${ENV}
-./mira -config mira.yaml check        # probe the LLM, Home Assistant and MCP servers
-./mira -config mira.yaml chat "Wie warm ist es im Wohnzimmer?"
-./mira -config mira.yaml profile      # compact the remembered facts into the profile now
-./mira -config mira.yaml run
-```
-
-Or in Docker (the `Dockerfile` builds a static binary on distroless, about
-45 MB):
-
-```sh
-docker build -t mira .
-docker run -d --name mira --network host --user nonroot -e TZ=Europe/Berlin --env-file .env \
-  -v ./mira:/etc/mira -v mira-data:/var/lib/mira mira
-```
-
-The folder `./mira` holds `mira.yaml` and, if you like, skills of your own (say `./mira/skills`, listed first in
-`skills.dirs` as `/etc/mira/skills`, before the built-in `skills`). Mount the folder, not the single file: Mira's page
-saves `mira.yaml` through a temporary file in the same folder, which does not work on a file mounted on its own. The
-folder must be writable for the user the container runs as; `nonroot` is user 65532 (`sudo chown -R 65532 ./mira`).
-
-The image runs as root, as a Home Assistant app needs; as a container of your own run it as
-`nonroot` (`--user nonroot`, in Compose `user: nonroot`), who owns the data folder. With a folder
-of your own instead of a volume, give it the user you run as. The database goes to
-`/var/lib/mira/mira.db` in the image (`MIRA_DATA`),
-`mira.db` in the working directory otherwise; `store.path` changes it. The
-built-in skills are in the image. `--network host` lets the integration find
-the Mira service by mDNS; without it, publish the port (`-p 8787:8787`) and enter
-the URL in the integration. MCP servers started over stdio need their own
-runtime (e.g. node), which the image does not have; use MCP servers over HTTP.
-
-Requirements:
-- A language model with an OpenAI-compatible API: a cloud provider (OpenAI,
-  Google Gemini, OpenRouter, Mistral, Anthropic) or a server of your own. With
-  llama.cpp, `models.<name>.pin_slots` keeps one slot per channel warm
-  (`llama-server --parallel 3`), or `warm_slots: true` keeps the prompt warm
-  in one of two slots while a changed one is read into the other
-  (`--parallel 2`, docs/spec/warm-slot.md). LM Studio ignores slot ids; it
-  picks slots by common prefix, which works well because all channels share
-  the start of the prompt.
-- Home Assistant. At the setup an administrator pastes a long-lived token of
-  theirs; pairing switches on the "Model Context Protocol Server" integration
-  with the Assist API (`/api/mcp/assist`) if it is missing. With `ha.url` and
-  `ha.token` in `mira.yaml` instead, set both up by hand.
-- Optional: more MCP servers under `mcp_servers`, over HTTP or started by
-  Mira (stdio). A web search is built in (DuckDuckGo, no key; switched in the
-  integration's options, docs/spec/web-search.md). Radio is built in too: "play SWR3"
-  finds the station in Home Assistant's Radio Browser and starts it on the
-  room's speaker (`radio_play`, docs/spec/radio.md). See "More tools over MCP" in the guide
-  ([de](docs/guide/de.md), [en](docs/guide/en.md)).
+## What Mira does
 
 Web UI: `http://<mira>:8787/ui` edits the settings (models, skills, the
 notifier, and the satellites and persons unless the HA integration manages
-them, see below); it lists open messages and the memory. It asks for
+them, see [the integration](docs/install.md#the-integration)); it lists open messages and the memory. It asks for
 `MIRA_API_TOKEN` once. The page writes `mira.yaml` itself, the one truth for
 the settings: comments and order stay, a token or secret setting goes into
 Mira's secrets file in the data folder and the file gets a `${NAME}`
@@ -170,7 +118,7 @@ under `metadata.mira`). Enable them under `skills` with their
 settings (`enabled: false` switches one off). A skill that cannot start (a missing setting, a typo) is left out
 and Mira starts anyway: the log says in plain words what is wrong, and
 Home Assistant shows it under Repairs. The guide has a section on writing your own. The prompt lists them in one line each; Mira opens a skill with
-`skill_open` when a question needs it. Skills run no code: they use the
+`skill_open` when a question needs it. Skills use the
 core's building blocks, such as `calendar_events`, which reads a skill's
 calendar by name so its URL never reaches a model. A skill's schedules run
 as background jobs and may queue one message. `mira skill NAME` runs a
@@ -224,60 +172,6 @@ the user confirms in the next turn. After a turn has read web content,
 critical actions are blocked for the rest of that turn. Background jobs
 cannot run tools that change anything. Feed text is data and can never raise
 an urgent message. These rules are enforced in code, not only in the prompt.
-
-## Integration
-
-1. Click **Open in the Marketplace** above, or Settings → Marketplace → **Add from link** → `https://github.com/miraassist/mira`. The first time, the Marketplace asks to connect GitHub. Before Home Assistant 2026.11: HACS → Custom repositories, the same address, type Integration.
-2. Install **Mira**, restart Home Assistant.
-3. Settings → Devices & services: the Mira service announces itself by mDNS
-   (`_mira._tcp`, `server.announce`) and shows up under **Discovered**;
-   otherwise Add integration → Mira with its URL. A new Mira service is added
-   with one click (one with `server.token` in `mira.yaml` asks for
-   that token), then the form asks for the AI model, the assistants and
-   Mira's access to Home Assistant.
-
-Pairing (docs/spec/setup.md): the form chooses and tries the model
-first (the Mira service answers `/v1/setup/models` and `/v1/setup/probe` without a
-token only while it was never paired); nothing is changed before
-**Start using Mira**. There an administrator pastes a long-lived token of
-theirs (the integration checks that it is long-lived and an admin's; it
-creates none itself). Then the integration switches on HA's MCP server if it
-is missing and pairs and sets up the Mira service in one call (`POST /v1/pair`
-with HA's address, the token and the model), which keeps everything in its
-database, hands out its access token and starts anew. A Mira service that was
-never paired needs no code. The integration makes Mira the conversation agent
-of the assistants ticked in the form. If the token is revoked later, the
-repair "Mira has no access any more" asks for a new one.
-
-Removing the integration gives the assistants their previous conversation
-agent back, hands persons and satellites back to the web UI and lets the Mira
-service go (`POST /v1/unpair`: it makes a new token, forgets the HA access and
-keeps the model). The administrator's token stays: it is theirs, revoked in
-their profile. Home Assistant keeps Mira's old access token in its storage,
-so the same HA pairs again without a code (also when the Mira service was away
-and did not let go); another HA needs the pairing code the Mira service writes
-into its log. `mira reset` (or the app's option "Reset data") deletes the Mira
-service's data, keeps `mira.yaml`, and it pairs like a new one.
-
-Mira's web UI is in Home Assistant's sidebar: the integration passes the
-page through Home Assistant (open, it holds no data) and its API calls
-through an authenticated proxy that adds the Mira service's token and the signed-in
-HA user. So it works over HA's HTTPS, with HA's login, and takes on HA's
-theme. There everyone, admins too, sees the house's memory and their own
-(person linked to the HA user); messages, tasks and settings are for admins,
-enforced by the proxy and the Mira service. The integration's options switch it off.
-
-Mira keeps no lists of her own for what Home Assistant has
-(docs/spec/ha-integration.md): every HA person is a person for Mira, every
-Assist satellite with an area speaks for that area. What Mira needs on top
-is stored on the person or satellite itself, as entity registry options
-under `mira`, and set in the integration's options ("Configure": settings
-for a person, for a satellite). Entities labelled "Mira: nachfragen" are
-only switched after a yes. Each change is checked by the Mira service before it is
-saved; what it refuses shows in the form. While the integration
-manages them, Mira's web UI shows those sections read-only. Removing the
-integration hands them back. The device also has a quiet-mode switch, a
-pending-messages sensor and a button to compact the memory profile now.
 
 ## Development
 
