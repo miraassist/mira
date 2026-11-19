@@ -275,9 +275,26 @@ WHERE id = ? AND NOT EXISTS (SELECT 1 FROM json_each(threads.participants) WHERE
 func (s *Store) LinkConversation(ctx context.Context, channel, conversationID, threadID string) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO thread_conversations(channel, conversation_id, thread_id, linked_at) VALUES (?, ?, ?, ?)
-ON CONFLICT(channel, conversation_id) DO UPDATE SET thread_id = excluded.thread_id, linked_at = excluded.linked_at`,
+ON CONFLICT(channel, conversation_id) DO UPDATE SET
+  linked_at = CASE WHEN thread_conversations.thread_id = excluded.thread_id THEN thread_conversations.linked_at ELSE excluded.linked_at END,
+  thread_id = excluded.thread_id`,
 		channel, conversationID, threadID, formatTime(s.now()))
 	return err
+}
+
+// ConversationLink is the thread a conversation is linked to and since when
+// (docs/spec/telegram-history.md, decision 7); ErrNotFound when it has none.
+func (s *Store) ConversationLink(ctx context.Context, channel, conversationID string) (string, time.Time, error) {
+	var id, at string
+	err := s.db.QueryRowContext(ctx, `SELECT thread_id, linked_at FROM thread_conversations WHERE channel = ? AND conversation_id = ?`,
+		channel, conversationID).Scan(&id, &at)
+	if err == sql.ErrNoRows {
+		return "", time.Time{}, ErrNotFound
+	}
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return id, parseTime(at), nil
 }
 
 // ConversationThread is the thread a conversation is linked to, open or not;

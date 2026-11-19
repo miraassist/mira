@@ -66,7 +66,7 @@ var builtSteps = map[string][]int{
 	"OA": {1, 2},                       // docs/spec/openapi.md, Steps
 	"SV": {1},                          // docs/spec/strava.md, Steps; step 2 is the run end to end on the test HA
 	"FS": {1, 3},                       // docs/spec/flight-status.md, Steps; step 2 is the run on the test HA
-	"TC": {2, 3},                       // docs/spec/telegram-history.md, Steps; step 1 is tested in pytest (TC-01, TC-02)
+	"TC": {2, 3, 5},                    // docs/spec/telegram-history.md, Steps; step 1 is tested in pytest (TC-01, TC-02)
 }
 
 var (

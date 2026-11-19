@@ -1,6 +1,6 @@
 # The chat's history – Spec
 
-Status 2026-11-19: decided (decisions 1 to 7); steps 1 to 4 built and run on the test HA (not released); step 5 (compaction) decided, not built. Builds on
+Status 2026-11-19: decided (decisions 1 to 7); steps 1 to 5 built and run on the test HA (not released). Builds on
 [The thread's history](thread-history.md), [Channels](channels.md) (Telegram via Home Assistant) and
 [Context](context.md) (History). Terms: [Glossary](../glossary.md), Conversation. Scenarios:
 [telegram-history.feature](telegram-history.feature).
@@ -191,3 +191,7 @@ integration with an older service: the history is keyed by the notify entity, th
    link's time kept for the same thread, no protection at the context limit (every history), the log line for a cut
    the thread prevents, its error path. TC-13 to TC-16. On the test HA: a chat with a waiting thread and more than
    `max_turns` turns, through Mira's conversation API with the channel `telegram`, the log's `history compacted`.
+   Built 2026-11-19. Run on the test HA: 71 turns in one chat, an appointment thread started in turn 21 and left
+   waiting; at turn 51 the history was cut to 30 turns, kept from the thread's turn; at the next 50 the cut was
+   refused with the new warning, the thread beginning at the history's first turn. The context limit is not reached
+   with the test HA's model (a window of 1,048,576 tokens); TC-15 covers it.

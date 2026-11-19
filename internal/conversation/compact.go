@@ -13,8 +13,10 @@ import (
 // the last turns. When the history reaches MaxTurns, or a request used
 // CompactAtFraction of the model's context window, it is cut back to
 // KeepTurns: whole turns only, in one jump, so its start stays the same in
-// between and the cache holds. The running thread is kept whole. Every cut
-// is logged, since it breaks the cache on purpose and loses what was said.
+// between and the cache holds. The running thread is kept whole, in a
+// Telegram chat from the turn it came into the chat, and not at the context
+// limit (docs/spec/telegram-history.md, decision 7). Every cut is logged,
+// since it breaks the cache on purpose and loses what was said.
 
 // compactIfLong cuts the history before a turn when it has reached
 // MaxTurns.
@@ -65,11 +67,19 @@ func (e *Engine) compact(ctx context.Context, key string, sess store.Session, ms
 		return
 	}
 	cut := starts[len(starts)-keep]
-	protected := ""
+	protected, cutThread := "", ""
 	if from, thread := e.threadStart(ctx, sess, msgs, starts); from >= 0 && from < cut {
-		cut, protected = from, thread
+		if reason == "context" {
+			// At the context limit the thread is cut too: its state is in
+			// every turn's context, the history must fit the window.
+			cutThread = thread
+		} else {
+			cut, protected = from, thread
+		}
 	}
 	if cut <= 0 {
+		e.log.Warn("history cannot be cut: the running thread began at its first turn",
+			append([]any{"session", key, "thread", protected, "reason", reason, "turns", len(starts)}, detail...)...)
 		return
 	}
 	if err := e.store.TruncateChatMessagesBefore(ctx, key, msgs[cut].Seq); err != nil {
@@ -92,11 +102,16 @@ func (e *Engine) compact(ctx context.Context, key string, sess store.Session, ms
 	if protected != "" {
 		attrs = append(attrs, "kept_for_thread", protected)
 	}
+	if cutThread != "" {
+		attrs = append(attrs, "thread_cut", cutThread)
+	}
 	e.log.Info("history compacted", append(attrs, detail...)...)
 }
 
 // threadStart is the index of the first turn of the session's running
-// thread, which stays whole; -1 without one.
+// thread, which stays whole; -1 without one. In a Telegram chat's history
+// it is the turn in which the thread came into the chat: the last turn that
+// began at or before the chat's link to it.
 func (e *Engine) threadStart(ctx context.Context, sess store.Session, msgs []store.ChatMessage, starts []int) (int, string) {
 	if sess.ThreadID == "" {
 		return -1, ""
@@ -108,6 +123,23 @@ func (e *Engine) threadStart(ctx context.Context, sess store.Session, msgs []sto
 	switch th.State {
 	case store.ThreadDone, store.ThreadCancelled, store.ThreadExpired:
 		return -1, ""
+	}
+	if sess.Channel == string(config.ChannelTelegram) && !isThreadHistory(sess.Key) {
+		thread, at, err := e.store.ConversationLink(ctx, sess.Channel, sess.ConversationID)
+		switch {
+		case err == nil && thread == th.ID:
+			from := starts[0]
+			for _, i := range starts {
+				if msgs[i].CreatedAt.After(at) {
+					break
+				}
+				from = i
+			}
+			return from, th.ID
+		case err != nil && !errors.Is(err, store.ErrNotFound):
+			e.log.Warn("could not read the chat's link to its thread; the thread is kept from its creation",
+				"session", sess.Key, "thread", th.ID, "error", err)
+		}
 	}
 	for _, i := range starts {
 		if !msgs[i].CreatedAt.Before(th.CreatedAt) {

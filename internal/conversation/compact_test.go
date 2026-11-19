@@ -157,3 +157,118 @@ func TestLogDescribesTheContext(t *testing.T) {
 		}
 	}
 }
+
+// The chat's history (docs/spec/telegram-history.md, step 5).
+
+// runningThread puts an open thread created at "at" and links the chat's
+// history to it.
+func runningThread(t *testing.T, h *harness, at time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	if err := h.store.PutThread(ctx, &store.Thread{ID: "th1", Target: "aufgabe", Place: "telegram:7",
+		State: store.ThreadCollecting, CreatedAt: at, UpdatedAt: at, ExpiresAt: at.Add(48 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.store.SetSessionThread(ctx, "telegram:7", "th1"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func gut(n int) []fakellm.Step {
+	var steps []fakellm.Step
+	for i := 0; i < n; i++ {
+		steps = append(steps, fakellm.Step{Content: "Gut."})
+	}
+	return steps
+}
+
+// TC-13 A thread is kept from the turn it came into the chat
+func TestTC13_AThreadIsKeptFromTheTurnItCameIntoTheChat(t *testing.T) {
+	h := newHarnessWith(t, func(c *config.Config) { c.Sessions.MaxTurns, c.Sessions.KeepTurns = 6, 3 }, gut(8)...)
+	created := h.clock.now.Add(-24 * time.Hour) // before the chat's oldest turn
+	for i, text := range []string{"t1", "t2", "t3", "t4", "t5", "t6"} {
+		h.say(t, config.ChannelTelegram, "7", text)
+		if i == 4 { // the thread comes into the chat with t5
+			runningThread(t, h, created)
+			if err := h.store.LinkConversation(context.Background(), "telegram", "7", "th1"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		h.clock.now = h.clock.now.Add(time.Minute)
+	}
+	h.say(t, config.ChannelTelegram, "7", "t7")
+	if n, first := turns(t, h, "telegram:7"); n != 4 || !strings.Contains(first, "t4") {
+		t.Errorf("turns = %d, first = %q", n, first)
+	}
+}
+
+// TC-14 Linking the chat to the same thread again keeps the time
+func TestTC14_LinkingTheChatToTheSameThreadAgainKeepsTheTime(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.store.LinkConversation(ctx, "telegram", "7", "th1"); err != nil {
+		t.Fatal(err)
+	}
+	_, first, _ := h.store.ConversationLink(ctx, "telegram", "7")
+	h.clock.now = h.clock.now.Add(time.Hour)
+	if err := h.store.LinkConversation(ctx, "telegram", "7", "th1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, at, err := h.store.ConversationLink(ctx, "telegram", "7"); err != nil || !at.Equal(first) {
+		t.Errorf("linked at %v (%v), want %v", at, err, first)
+	}
+	if err := h.store.LinkConversation(ctx, "telegram", "7", "th2"); err != nil {
+		t.Fatal(err)
+	}
+	if id, at, err := h.store.ConversationLink(ctx, "telegram", "7"); err != nil || id != "th2" || !at.After(first) {
+		t.Errorf("another thread: %s at %v (%v)", id, at, err)
+	}
+}
+
+// TC-15 At the context limit the running thread is cut too
+func TestTC15_AtTheContextLimitTheRunningThreadIsCutToo(t *testing.T) {
+	h := newHarnessWith(t, func(c *config.Config) {
+		c.Sessions.MaxTurns, c.Sessions.KeepTurns = 50, 1
+		m := c.Main()
+		m.ContextTokens, m.CompactAtFraction = 1, 0.9
+		c.Models[config.MainModel] = m
+	}, gut(3)...)
+	created := h.clock.now.Add(-time.Hour)
+	for i, text := range []string{"eins", "zwei", "drei"} {
+		h.clock.now = h.clock.now.Add(time.Minute)
+		h.say(t, config.ChannelTelegram, "7", text)
+		if i == 0 { // the thread is running since before "eins"
+			runningThread(t, h, created)
+		}
+	}
+	if n, first := turns(t, h, "telegram:7"); n > 2 || strings.Contains(first, "eins") {
+		t.Errorf("the thread was kept at the context limit: %d turns, first %q", n, first)
+	}
+	if logs := h.logs.String(); !strings.Contains(logs, "reason=context") || !strings.Contains(logs, "thread_cut=th1") ||
+		strings.Contains(logs, "kept_for_thread") {
+		t.Errorf("log:\n%s", logs)
+	}
+}
+
+// TC-16 A cut the running thread prevents is logged
+func TestTC16_ACutTheRunningThreadPreventsIsLogged(t *testing.T) {
+	h := newHarnessWith(t, func(c *config.Config) { c.Sessions.MaxTurns, c.Sessions.KeepTurns = 4, 1 }, gut(6)...)
+	h.say(t, config.ChannelTelegram, "7", "eins")
+	runningThread(t, h, h.clock.now)
+	if err := h.store.LinkConversation(context.Background(), "telegram", "7", "th1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"zwei", "drei", "vier", "fünf"} {
+		h.clock.now = h.clock.now.Add(time.Minute)
+		h.say(t, config.ChannelTelegram, "7", text)
+	}
+	if n, first := turns(t, h, "telegram:7"); n != 5 || !strings.Contains(first, "eins") {
+		t.Errorf("turns = %d, first = %q", n, first)
+	}
+	logs := h.logs.String()
+	for _, want := range []string{`msg="history cannot be cut: the running thread began at its first turn"`, "session=telegram:7", "thread=th1"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("log lacks %s:\n%s", want, logs)
+		}
+	}
+}
