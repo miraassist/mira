@@ -46,13 +46,15 @@ Feature: RW REWE shopping (docs/spec/rewe.md)
 
   @step3
   Scenario: RW-07 The skill starts korb with its settings
-    When the skill rewe loads with programm, konto and limit
-    Then its MCP server is korb with the argument mcp over stdio
-    And korb's environment has KORB_CONFIG_DIR and KORB_MAX_TOTAL_EURO and none of Mira's secrets
+    When the skill rewe loads with limit
+    Then its MCP server is the korb Mira got from rewe-cli's release, with the argument mcp over stdio
+    And korb's environment has KORB_CONFIG_DIR (the skill's folder) and KORB_MAX_TOTAL_EURO and none of Mira's secrets
+    And login_start, login_complete, store_search and store_set are setup tools no model gets
+    And with programm set, that korb starts instead
 
   @step3
   Scenario: RW-08 Without its settings the skill does not start
-    When the skill rewe loads without programm
+    When the skill rewe loads without limit
     Then it is a problem of the skill naming the setting
 
   @step3

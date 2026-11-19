@@ -128,8 +128,8 @@ func TestPG06_NotForThisArchitecture(t *testing.T) {
 	}
 }
 
-// PG-09 A tool both under tools and setup would reach a model: a problem.
-func TestPG09_ASetupToolUnderToolsIsAProblem(t *testing.T) {
+// PG-09 A setup tool under confirm is a problem: nobody asks on the page.
+func TestPG09_ASetupToolUnderConfirmIsAProblem(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "laden"), 0o755)
 	os.WriteFile(filepath.Join(dir, "laden", "SKILL.md"), []byte(`---
@@ -140,6 +140,7 @@ metadata:
     mcp:
       url: https://example.org/mcp
       tools: [status, login_start]
+      confirm: [login_start]
       setup:
         - { tool: login_start, label: Anmelden }
 ---

@@ -42,24 +42,27 @@ lines; an MCP server offers fixed, typed tools, and Mira's hooks see each one by
 
 ## How the account is prepared (once, by an admin, not by voice)
 
-The skill orders only with an account that needs no interaction at ordering time. The guide describes the steps:
+The skill orders only with an account that needs no interaction at ordering time. Since
+[Programs for skills](skill-programs.md) (2026-11-19) no terminal is needed; the guide describes the steps:
 
-1. **Get korb** from rewe-cli's releases (or `go install`) and put it into the HA app's config folder, e.g.
-   `/config/rewe/korb`. The binaries hold no certificate: korb fetches the REWE app's client certificate on first
-   use from the korb repository at a fixed commit and checks it against fixed SHA-256 sums (rewe-cli 0.8.0). How
-   Mira gets the program by itself is open (below).
-2. **Log in** with `korb login` on a computer and copy korb's config folder to `/config/rewe/konto`, or run
-   `korb login` with `KORB_CONFIG_DIR=/config/rewe/konto` in a terminal that reaches the folder. Logging in is not a
-   tool of the skill: a redirect address cannot be spoken, and the login is the owner's decision (decision 2).
-3. **Choose the delivery service** (or a market for pickup): `korb store search <PLZ>`, `korb store set <ID> <PLZ>`.
+1. **Switch the skill on** in "Fähigkeiten" with its `limit`. At the restart Mira downloads korb from rewe-cli's
+   release named in the skill, checks its sum and starts it; korb fetches the REWE app's client certificate itself on
+   first use (from the korb repository at a fixed commit, checked against fixed sums).
+2. **Log in** on the skill's entry, section "Einrichten": "Bei REWE anmelden" gives the address to sign in with
+   Chrome; the redirect address `de.rewe.app://redirect?…` is copied from Chrome's console into "Anmeldung
+   abschließen". Logging in is no tool of the model: a redirect address cannot be spoken, and the login is the owner's
+   decision (decision 2).
+3. **Choose the delivery service** (or a market for pickup) there: "Lieferdienst suchen" with the postcode,
+   "Lieferdienst wählen" with its id.
 4. **In the REWE app**: a delivery address and a payment method that needs no confirmation at ordering time (today:
    PayPal direct debit, "PayPal-Einzugsverfahren").
-5. **Mira's settings** of the skill (below), then Mira restarts as for any changed setting.
 
-The tool `status` checks all of it at once; the skill tells the model to call it when a tool names something that
-sounds like setup, and to say in one sentence what is missing. The payment method and the delivery address come from REWE's checkout, which exists
-only for a basket that can be ordered: with an empty basket or one below the minimum order value `status` says
-`paymentChecked: false`, and `checkout_prepare` checks them (built so in step 1).
+"Stand prüfen" (`status`) checks all of it at once; the skill tells the model to call it when a tool names something
+that sounds like setup, and to say in one sentence what is missing. The payment method and the delivery address come
+from REWE's checkout, which exists only for a basket that can be ordered: with an empty basket or one below the
+minimum order value `status` says `paymentChecked: false`, and `checkout_prepare` checks them (built so in step 1).
+One's own korb (built oneself, or the CLI logged in on a computer) stays possible with the setting `programm`; its
+account is then still the skill's folder (`<config>/skill-data/rewe`).
 
 ## In the skill
 
@@ -69,29 +72,33 @@ metadata:
   mira:
     chapter: "## Einkaufen bei REWE"
     settings:
-      programm: { description: "Pfad zu korb, z. B. /config/rewe/korb", required: true }
-      konto:    { description: "Ordner mit korbs Anmeldung, z. B. /config/rewe/konto", required: true }
       limit:    { description: "Höchstbetrag einer Bestellung in Euro, z. B. 150", required: true }
       liste:    { description: "Die To-do-Liste mit dem Einkaufszettel; ohne: die Liste Einkaufsliste" }
-      zertifikate: { description: "Optional: Ordner mit dem Client-Zertifikat der REWE-App" }
+      programm: { description: "Optional: Pfad zu einem eigenen korb statt des geladenen" }
+    program:                                               # docs/spec/skill-programs.md
+      name: korb
+      version: 0.9.0
+      url: https://github.com/miraassist/rewe-cli/releases/download/v0.9.0/korb_linux_{{ arch }}
+      sha256: { amd64: "…", arm64: "…" }
     mcp:
       transport: stdio
-      command: "{{ programm }}"
+      command: "{{ programm }}"                            # empty: the program above
       args: [mcp]
-      env: ["KORB_CONFIG_DIR={{ konto }}", "KORB_MAX_TOTAL_EURO={{ limit }}", "KORB_CERT_DIR={{ zertifikate }}"]
+      env: ["KORB_CONFIG_DIR={{ data }}", "KORB_MAX_TOTAL_EURO={{ limit }}"]
+      tools: [status, basket_fill, …, order_cancel]
       confirm: [order, modification_submit, order_cancel]   # decision 5
+      setup: [status, login_start, login_complete, store_search, store_set]   # with labels, for the page
 ```
 
 ```yaml
 # mira.yaml
 skills:
-  rewe: { programm: /config/rewe/korb, konto: /config/rewe/konto, limit: 150 }
+  rewe: { limit: 150 }
 ```
 
 - A stdio server gets none of Mira's environment but the few variables a program needs to run (`StdioEnv`); korb
-  needs only its config folder and the limit, and the certificate's folder when it is not built into korb (empty:
-  the built-in one).
-- For tests, the skill's `env` may add `KORB_API_URL` and `KORB_AUTH_URL` pointing at `korb-fake` (Steps); korb
+  needs only its config folder (the skill's folder) and the limit.
+- For tests, `programm` names a wrapper that points korb at `korb-fake` (`KORB_API_URL`, `KORB_AUTH_URL`); korb
   refuses them without its own `KORB_CONFIG_DIR`, so a test can never touch the real account.
 
 ## korb's tools (`korb mcp`)

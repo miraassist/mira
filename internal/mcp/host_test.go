@@ -370,6 +370,17 @@ func TestPG09_SetupToolsNeverReachAModel(t *testing.T) {
 	if _, ok := h.Lookup("ha__HassTurnOn"); !ok {
 		t.Fatal("the other tools are gone")
 	}
+	// Named under tools as well (status), a model gets it too.
+	both := start(t, mcp.Options{Servers: []config.MCPServer{
+		{Name: "ha", Transport: config.TransportHTTP, URL: ha.Endpoint(), Tools: []string{"HassTurnOff"},
+			Setup: []config.SetupTool{{Tool: "HassTurnOff", Label: "Aus"}, {Tool: "HassTurnOn", Label: "An"}}},
+	}})
+	if _, ok := both.Lookup("ha__HassTurnOff"); !ok {
+		t.Error("a setup tool named under tools is not offered")
+	}
+	if _, ok := both.Lookup("ha__HassTurnOn"); ok {
+		t.Error("a setup tool not under tools is offered")
+	}
 	def, ok := h.SetupTool("ha", "HassTurnOff")
 	if !ok || len(def.Schema) == 0 {
 		t.Fatalf("setup tool for the page: %v %+v", ok, def)

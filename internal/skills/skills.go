@@ -963,13 +963,14 @@ func mcpServer(name string, srv config.MCPServer, vals map[string]string, progra
 	case srv.Transport != config.TransportHTTP && srv.Transport != config.TransportStdio:
 		return srv, problem("mcptransport", srv.Transport)
 	}
-	// A setup tool is for the page only: under tools as well it would
-	// reach a model (docs/spec/skill-programs.md).
+	// A setup tool is for the page; only tools can give it to a model as
+	// well (status), and a yes before it means nothing on the page
+	// (docs/spec/skill-programs.md).
 	for _, st := range srv.Setup {
 		if strings.TrimSpace(st.Tool) == "" || strings.TrimSpace(st.Label) == "" {
 			return srv, problem("mcpsetupentry")
 		}
-		if slices.Contains(srv.Tools, st.Tool) || slices.Contains(srv.Confirm, st.Tool) {
+		if slices.Contains(srv.Confirm, st.Tool) {
 			return srv, problem("mcpsetup", st.Tool)
 		}
 	}

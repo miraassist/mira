@@ -1,6 +1,7 @@
 package skills_test
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -26,14 +27,22 @@ func reweSkill(t *testing.T, settings map[string]any) (skills.Skill, []skills.Pr
 	return loaded[0], problems
 }
 
-// RW-07 The skill starts korb with its settings
+// RW-07 The skill starts korb with its settings: the program Mira got (or
+// one's own), korb's account in the skill's folder, none of Mira's secrets.
 func TestRW07_TheSkillStartsKorbWithItsSettings(t *testing.T) {
-	s, problems := reweSkill(t, map[string]any{"programm": "/config/rewe/korb", "konto": "/config/rewe/konto", "limit": 150})
-	if len(problems) > 0 || s.MCP == nil {
+	base := t.TempDir()
+	opts := skills.Options{DataRoot: filepath.Join(base, "skill-data"), ProgramRoot: filepath.Join(base, "programs")}
+	loaded, problems := skills.LoadWith(skills.Roots([]string{"../../skills"}), map[string]map[string]any{"rewe": {"limit": 150}}, opts)
+	if len(problems) > 0 || len(loaded) != 1 || loaded[0].MCP == nil || loaded[0].Program == nil {
 		t.Fatalf("rewe did not load: %v", problems)
 	}
-	m := s.MCP
-	if m.Name != "rewe" || m.Transport != config.TransportStdio || m.Command != "/config/rewe/korb" || !slices.Equal(m.Args, []string{"mcp"}) {
+	s, m := loaded[0], loaded[0].MCP
+	if !strings.HasPrefix(s.Program.URL, "https://github.com/miraassist/rewe-cli/releases/download/v"+s.Program.Version+"/korb_linux_") {
+		t.Errorf("program %+v", s.Program)
+	}
+	data := filepath.Join(base, "skill-data", "rewe")
+	if m.Name != "rewe" || m.Transport != config.TransportStdio || m.Command != filepath.Join(base, "programs", s.Program.FileName()) ||
+		!slices.Equal(m.Args, []string{"mcp"}) || m.Dir != data {
 		t.Fatalf("server = %+v", m)
 	}
 	if m.ReadOnly || m.WebContent {
@@ -42,9 +51,14 @@ func TestRW07_TheSkillStartsKorbWithItsSettings(t *testing.T) {
 	if !slices.Equal(m.Confirm, []string{"order", "modification_submit", "order_cancel"}) {
 		t.Errorf("confirm = %v", m.Confirm)
 	}
+	for _, st := range []string{"login_start", "login_complete", "store_search", "store_set"} {
+		if !m.IsSetup(st) || slices.Contains(m.Tools, st) {
+			t.Errorf("%s: setup %v, for the model %v", st, m.IsSetup(st), slices.Contains(m.Tools, st))
+		}
+	}
 	parent := []string{"PATH=/usr/bin", "HOME=/root", "MIRA_SECRET_KEY=geheim", "OPENAI_API_KEY=sk-x", "HA_TOKEN=t"}
 	env := mcp.StdioEnv(parent, m.Env)
-	for _, want := range []string{"KORB_CONFIG_DIR=/config/rewe/konto", "KORB_MAX_TOTAL_EURO=150"} {
+	for _, want := range []string{"KORB_CONFIG_DIR=" + data, "KORB_MAX_TOTAL_EURO=150"} {
 		if !slices.Contains(env, want) {
 			t.Errorf("env %v lacks %s", env, want)
 		}
@@ -54,27 +68,27 @@ func TestRW07_TheSkillStartsKorbWithItsSettings(t *testing.T) {
 			t.Errorf("a secret of Mira's reaches korb: %s", kv)
 		}
 	}
-	// Without the certificate setting korb gets an empty KORB_CERT_DIR and
-	// takes the certificate built into it.
-	if !slices.Contains(env, "KORB_CERT_DIR=") {
-		t.Errorf("env %v: KORB_CERT_DIR", env)
+	// One's own korb wins.
+	own, _ := reweSkill(t, map[string]any{"limit": 150, "programm": "/opt/korb"})
+	if own.MCP == nil || own.MCP.Command != "/opt/korb" {
+		t.Errorf("own korb: %+v", own.MCP)
 	}
 }
 
 // RW-08 Without its settings the skill does not start
 func TestRW08_WithoutItsSettingsTheSkillDoesNotStart(t *testing.T) {
-	s, problems := reweSkill(t, map[string]any{"konto": "/config/rewe/konto", "limit": 150})
+	s, problems := reweSkill(t, map[string]any{"liste": "Einkauf"})
 	if s.MCP != nil {
-		t.Fatal("rewe loaded without programm")
+		t.Fatal("rewe loaded without limit")
 	}
-	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "programm") {
+	if len(problems) != 1 || !strings.Contains(problems[0].Text(i18n.DE), "limit") {
 		t.Fatalf("problems = %v", problems)
 	}
 }
 
 // RW-09 The model is told how to shop
 func TestRW09_TheModelIsToldHowToShop(t *testing.T) {
-	s, problems := reweSkill(t, map[string]any{"programm": "/k", "konto": "/c", "limit": 150, "liste": "todo.einkauf"})
+	s, problems := reweSkill(t, map[string]any{"limit": 150, "liste": "todo.einkauf"})
 	if len(problems) > 0 {
 		t.Fatal(problems)
 	}

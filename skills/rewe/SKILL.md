@@ -1,32 +1,49 @@
 ---
 name: rewe
-description: Den Einkaufszettel bei REWE bestellen, eine offene Bestellung ergänzen und sagen, wann sie kommt („Bestell den Einkaufszettel bei REWE“, „Pack noch Butter zur REWE-Bestellung“, „Wann kommt die REWE-Lieferung?“). Braucht korb mit einem angemeldeten REWE-Konto. Wer korb anmeldet, vertraut Mira das Konto an – bestellen kann jeder, der mit Mira spricht, nach einem Ja.
+description: Den Einkaufszettel bei REWE bestellen, eine offene Bestellung ergänzen und sagen, wann sie kommt („Bestell den Einkaufszettel bei REWE“, „Pack noch Butter zur REWE-Bestellung“, „Wann kommt die REWE-Lieferung?“). Mira lädt dafür korb (rewe-cli); ein Admin meldet es unter „Einrichten“ bei REWE an. Wer es anmeldet, vertraut Mira das Konto an – bestellen kann jeder, der mit Mira spricht, nach einem Ja.
 license: MIT
 metadata:
   mira:
     chapter: "## Einkaufen bei REWE"
     settings:
-      programm:
-        description: Pfad zu korb (rewe-cli), z. B. /config/rewe/korb.
-        required: true
-      konto:
-        description: Ordner mit korbs Anmeldung und dem gewählten Lieferdienst oder Markt, z. B. /config/rewe/konto.
-        required: true
       limit:
         description: Höchstbetrag einer Bestellung in Euro, z. B. 150. korb bestellt nie darüber.
         required: true
       liste:
         description: "Die To-do-Liste mit dem Einkaufszettel. Ohne: die Liste Einkaufsliste."
-      zertifikate:
-        description: "Optional: Ordner mit dem Client-Zertifikat der REWE-App (private.pem, private.key), wenn es nicht in korb eingebaut ist."
+      programm:
+        description: "Optional: Pfad zu einem eigenen korb statt des geladenen."
+    program:
+      name: korb
+      version: 0.9.0
+      url: https://github.com/miraassist/rewe-cli/releases/download/v0.9.0/korb_linux_{{ arch }}
+      sha256:
+        amd64: "06508eeb570169cd9200a8fff115410cd4cd0aec8442b6cd0c0549b5ef7e0693"
+        arm64: "fe2072b22689732c9a254100ce5084c73c12a243b7142e40c63201f968158fd7"
     mcp:
       transport: stdio
       command: "{{ programm }}"
       args: [mcp]
-      env: ["KORB_CONFIG_DIR={{ konto }}", "KORB_MAX_TOTAL_EURO={{ limit }}", "KORB_CERT_DIR={{ zertifikate }}"]
+      env: ["KORB_CONFIG_DIR={{ data }}", "KORB_MAX_TOTAL_EURO={{ limit }}"]
       tools: [status, basket_fill, favorites_search, frequent, product_search, basket, basket_set, slots,
         checkout_prepare, order, orders, modification_start, modification_submit, modification_cancel, order_cancel]
       confirm: [order, modification_submit, order_cancel]
+      setup:
+        - tool: status
+          label: Stand prüfen
+          description: Zeigt, ob korb angemeldet ist, welcher Lieferdienst oder Markt gewählt ist und was noch fehlt.
+        - tool: login_start
+          label: Bei REWE anmelden
+          description: Öffne den Link in Chrome und melde dich mit dem REWE-Konto an. Am Ende kann Chrome die Adresse de.rewe.app://redirect?… nicht öffnen. Öffne die Entwicklertools (F12, Reiter Konsole) und kopiere sie aus der Zeile „Failed to launch …“. Wer korb anmeldet, vertraut Mira das Konto an.
+        - tool: login_complete
+          label: Anmeldung abschließen
+          description: Füge die kopierte Adresse de.rewe.app://redirect?… ein (innerhalb von 30 Minuten).
+        - tool: store_search
+          label: Lieferdienst suchen
+          description: Zeigt für eine Postleitzahl den Lieferdienst und die Märkte zum Abholen.
+        - tool: store_set
+          label: Lieferdienst wählen
+          description: Wählt den Lieferdienst oder einen Markt mit seiner id und derselben Postleitzahl.
 ---
 # Einkaufen bei REWE
 
@@ -77,8 +94,9 @@ neuen Betrag und frag noch einmal.
 
 ## Wenn etwas fehlt
 
-Sagt ein Werkzeug, dass die Anmeldung fehlt: „Die Anmeldung bei REWE fehlt, ein Admin
-muss korb neu anmelden.“ und hör auf. Bei anderen Fehlern, die nach Einrichtung
+Sagt ein Werkzeug, dass die Anmeldung fehlt (`not logged in`): „Die Anmeldung bei REWE
+fehlt, ein Admin muss korb neu anmelden.“ und hör auf. Das ist kein Netzproblem: sag
+dann nicht, dass du REWE nicht erreichst. Bei anderen Fehlern, die nach Einrichtung
 klingen (kein Lieferdienst oder Markt, keine Zahlungsart ohne Bestätigung, keine
 Lieferadresse), ruf `rewe__status` und sag in einem Satz, was unter `missing` steht;
 ein Admin richtet es im REWE-Konto oder in korb ein.

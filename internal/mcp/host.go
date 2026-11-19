@@ -583,11 +583,13 @@ func (h *Host) listOne(ctx context.Context, cfg config.MCPServer, session *sdk.C
 			schema = []byte(`{"type":"object","properties":{}}`)
 		}
 		def := prompt.ToolDef{Server: cfg.Name, Name: t.Name, Description: t.Description, Schema: schema}
-		// A setup tool is for the page, never for a model, whatever tools
-		// says (docs/spec/skill-programs.md).
+		// A setup tool is for the page; a model gets it only when tools
+		// names it as well (status) (docs/spec/skill-programs.md).
 		if cfg.IsSetup(t.Name) {
 			h.keepSetup(cfg.Name, def)
-			continue
+			if !slices.Contains(cfg.Tools, t.Name) {
+				continue
+			}
 		}
 		if len(cfg.Tools) > 0 && !slices.Contains(cfg.Tools, t.Name) {
 			continue // not among the tools Mira takes from this server

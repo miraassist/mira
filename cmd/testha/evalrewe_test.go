@@ -25,10 +25,10 @@ skills:
 		t.Fatal("the test config's rewe stays in a run without korb")
 	}
 
-	e := &reweEnv{korb: "/opt/korb's/korb", dir: "/tmp/run/rewe", konto: "/tmp/run/rewe/konto"}
+	e := &reweEnv{korb: "/opt/korb's/korb", dir: "/tmp/run/rewe", konto: "/tmp/run/skill-data/rewe"}
 	withRewe(cfg, e)
 	got := cfg["skills"].(map[string]any)["rewe"].(map[string]any)
-	if got["programm"] != "/tmp/run/rewe/korb" || got["konto"] != "/tmp/run/rewe/konto" || got["liste"] != reweListName {
+	if got["programm"] != "/tmp/run/rewe/korb" || got["konto"] != nil || got["liste"] != reweListName {
 		t.Errorf("settings %v", got)
 	}
 	script := e.wrapperScript()
@@ -59,9 +59,14 @@ func TestEvalReweKorbNeverSeesTheRealAccount(t *testing.T) {
 // Against korb-fake (when rewe-cli's binaries are in PATH): a fresh fake per
 // run, the login, an open order, and the checks see basket and orders.
 func TestEvalReweSetsUpTheFake(t *testing.T) {
+	for _, b := range []string{"korb", "korb-fake"} {
+		if _, err := exec.LookPath(b); err != nil {
+			t.Skip(b + " is not in PATH")
+		}
+	}
 	e := newReweEnv(t.TempDir())
 	if e.err != nil {
-		t.Skip(e.err)
+		t.Fatal(e.err)
 	}
 	t.Cleanup(e.stop)
 	ctx := context.Background()

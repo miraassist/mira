@@ -60,7 +60,8 @@ Feature: PG Programs for skills (docs/spec/skill-programs.md)
     When the model opens the skill
     Then login_start is in no tool list
     And a call of it by the model is refused as an unknown tool
-    And a skill that lists a tool both under tools and setup has a problem
+    And a setup tool that tools names as well (status) is offered to the model too
+    And a skill that lists a setup tool under confirm has a problem
 
   @step4
   Scenario: PG-10 The page builds the form from the tool's schema

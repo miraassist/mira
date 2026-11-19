@@ -46,8 +46,8 @@ skills:
   `confirm` that `tools` leaves out is a problem of the skill. A tool a server annotates as read-only needs no yes
   unless it is named here.
 - **`setup`** (since 2026-11-19, [Programs for skills](skill-programs.md)) lists tools of the server only an admin
-  calls on Mira's page (`tool`, `label`, `description`), never a model, whatever `tools` says. A setup tool also
-  under `tools` or `confirm` is a problem of the skill.
+  calls on Mira's page (`tool`, `label`, `description`); a model gets one only when `tools` names it as well. A setup
+  tool under `confirm` is a problem of the skill.
 - **A program of the skill** (`metadata.mira.program`, [Programs for skills](skill-programs.md)): a stdio server
   whose `command` is empty starts it; `{{ data }}` is the skill's own folder.
 - **`conversation: false`** keeps the tools out of the conversation: only the skill's agents and its schedules get

@@ -105,8 +105,10 @@ func newReweEnv(tmp string) *reweEnv {
 		e.err = fmt.Errorf("%s not in PATH (rewe-cli, github.com/miraassist/rewe-cli: its releases, or go install ./cmd/korb ./cmd/korb-fake)", strings.Join(missing, " and "))
 		return e
 	}
-	e.konto = filepath.Join(e.dir, "konto")
-	if err := os.MkdirAll(e.konto, 0o700); err != nil {
+	// korb's account is the skill's folder, which the eval service makes
+	// beside its mira.yaml (docs/spec/skill-programs.md).
+	e.konto = filepath.Join(tmp, "skill-data", "rewe")
+	if err := errors.Join(os.MkdirAll(e.dir, 0o700), os.MkdirAll(e.konto, 0o700)); err != nil {
 		e.err = err
 		return e
 	}
@@ -128,9 +130,10 @@ func (e *reweEnv) wrapperScript() string {
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
-// settings are the skill's settings in the eval service's config.
+// settings are the skill's settings in the eval service's config: one's
+// own korb (the wrapper), so the run downloads no program.
 func (e *reweEnv) settings() map[string]any {
-	return map[string]any{"programm": e.wrapper(), "konto": e.konto, "limit": reweLimit, "liste": reweListName}
+	return map[string]any{"programm": e.wrapper(), "limit": reweLimit, "liste": reweListName}
 }
 
 // withRewe switches the skill rewe on with the run's korb, when a scenario

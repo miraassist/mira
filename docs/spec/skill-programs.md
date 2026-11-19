@@ -1,6 +1,6 @@
 # Programs for skills – spec
 
-Status 2026-11-19: specified; steps 1 to 4 built. Scenarios: [skill-programs.feature](skill-programs.feature).
+Status 2026-11-19: specified; steps 1 to 5 built. Scenarios: [skill-programs.feature](skill-programs.feature).
 
 ## Goal
 
@@ -74,9 +74,10 @@ metadata:
   in it; it is a path.
 - **`setup`**: a list of `tool` (a tool of the skill's server) and `label` (the button, in the skill's language;
   a translation may translate it, [Skill languages](skill-languages.md)), optional `description` (the help above the
-  form; without it the tool's own description). A tool both under `tools` and `setup` is a problem of the skill: it
-  would reach a model. A `setup` tool the server does not offer is said on the page, not a problem (an older
-  program).
+  form; without it the tool's own description). A setup tool reaches no model unless `tools` names it as well, on
+  purpose (`status`: the page checks the setup with it, the model the readiness); a setup tool under `confirm` is a
+  problem of the skill (nobody asks for a yes on the page). A `setup` tool the server does not offer is said on the
+  page, not a problem (an older program).
 - The settings `programm` and `konto` of `rewe` go: `konto` is `{{ data }}`, `programm` stays optional for one's own
   korb. A `mira.yaml` that still has `konto` starts; the log says once that it is no longer read.
 
@@ -121,8 +122,9 @@ On the tab "Fähigkeiten", the entry of a switched-on skill with `setup` gets a 
   writing views of the page), which calls the tool on the skill's running server with a timeout of 60 s. The log
   says who called which setup tool of which skill, and the outcome; not the arguments (a redirect address carries a
   code).
-- The hooks do not run for it: no model asks, an admin clicks. The tools never reach a model: they are not in any
-  tool list, not after `skill_open` either, and a model's call of one is refused as an unknown tool.
+- The hooks do not run for it: no model asks, an admin clicks. A setup tool that `tools` does not name never
+  reaches a model: it is in no tool list, not after `skill_open` either, and a model's call of one is refused as an
+  unknown tool.
 
 ## korb's part (rewe-cli 0.9.0)
 
@@ -200,6 +202,13 @@ SHA-256 of each program (a few ms). Per setup click: one tool call. No model cal
    script check, not in a browser test.
 5. **`rewe` switches over**: `program`, `{{ data }}`, `setup`; `konto` goes, `programm` optional. RW-07 and RW-08
    adjusted; the REWE evals run again (the eval runner keeps its wrapper through `programm`).
+   Built 2026-11-19: `rewe` names korb 0.9.0 with the sums of its release; `konto` and `zertifikate` are gone (the
+   skill was not released with them, so no `mira.yaml` has them; korb fetches its certificate itself). `status` is
+   both a setup tool and the model's (decided while building: `tools` decides whether a setup tool reaches a model,
+   only one under `confirm` is a problem). The REWE evals with Gemini Flash Lite for voice: 27 of 27; one answer said
+   "Ich erreiche REWE gerade nicht." for a missing login, so the skill now names korb's `not logged in` (that
+   scenario measured again, 3 of 3). The evals start korb through the wrapper: the download of the real release is
+   tested in Go against a local server, and on Mira's image by hand (step 2), not in an eval.
 6. **The guide** (de and en): switching on, "Einrichten", the login with Chrome's console.
 
 ## Not part of it
