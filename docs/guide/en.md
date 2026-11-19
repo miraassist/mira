@@ -1581,4 +1581,4 @@ With a token of its own, another program can use Mira the way Mira's page does, 
 - Mira does not make up values: if something is missing, she says so or asks.
 - After a web search Mira performs no critical actions until you give the command again directly. Remembering something, sending a message or creating a task then only happens after your yes. So a web page cannot slip her anything she keeps or passes on.
 - If speech recognition gets you wrong, speak clearly and in one sentence.
-- A Telegram conversation goes on as long as you keep writing. Mira sees its last exchanges (about 30 to 50) and everything about the matter you are working on; older parts drop out, what she remembered stays. `/new` starts over.
+- A Telegram conversation goes on as long as you keep writing. Mira sees its last exchanges (about 30 to 50) and everything about the matter you are working on; older parts drop out, what she remembered stays. What Mira sends into the chat by herself (a reminder, a message) belongs to the conversation too: "What did you just send me?" works. `/new` starts over.

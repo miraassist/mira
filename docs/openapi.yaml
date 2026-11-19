@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Mira
-  version: 0.27.0
+  version: 0.28.0
   description: The Mira service's HTTP interface. Generated from the code (go run ./cmd/openapi, docs/spec/openapi.md); every error answers Mira's error body. A partner token names its partner user in X-Partner-User.
 tags:
   - name: integration

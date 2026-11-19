@@ -3,6 +3,17 @@
 The app has the version of Mira's release; what changed is in the release notes:
 <https://github.com/miraassist/mira/releases>
 
+## 0.28.0
+
+- **Shopping at REWE** (skill `rewe`, German). "Bestell den Einkaufszettel bei REWE": Mira fills a basket from the
+  shopping list, picks a delivery slot and orders after a yes, never above your limit. Set up on Mira's page under
+  **Set up**: sign in at REWE and choose the delivery service.
+- **Skills bring their program.** A skill can name a program for its tools; Mira downloads it, checks its sum and
+  keeps it with the skill's own folder in the app's config folder. Its setup steps are buttons on Mira's page, never
+  something a model can call.
+- **Telegram keeps one conversation.** A chat is one history, also while a matter runs in it, and what Mira sends into
+  the chat by herself belongs to it: "Was hast du mir eben geschickt?" works. `/neu` empties it.
+
 ## 0.27.0
 
 - **Mira notices when you cut her off.** Interrupt a long answer with the wake word, and "Wie ging es weiter?" goes on
